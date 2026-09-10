@@ -1,0 +1,26 @@
+{
+  "bbox": [19.342, 47.588, 19.369, 47.606],
+  "crs": "EPSG:32634",
+  "terrain": {
+    "spacing_m": 15.0,
+    "smoothing_sigma": 0.6,
+    "texture_size": 512
+  },
+  "sentinel": {
+    "datetime": "2025-05-01T00:00:00Z/2025-09-30T23:59:59Z",
+    "max_cloud_cover": 20
+  },
+  "buildings": {
+    "floor_height_m": 3.0,
+    "default_height_m": 8.0
+  },
+  "roads": {
+    "lane_width_m": 3.0,
+    "offset_m": 0.25,
+    "sample_spacing_m": 8.0
+  },
+  "network": {
+    "timeout_seconds": 120,
+    "retries": 3
+  }
+}
