@@ -1,0 +1,35 @@
+# Python environment and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+# Local configuration and credentials
+.env
+config.local.json
+
+# Downloaded data and generated scene output
+data/**
+!data/.gitkeep
+output/**
+!output/.gitkeep
+
+# Large binary assets, including copies outside data/ and output/
+*.glb
+*.bin
+*.blend
+*.blend1
+*.fbx
+*.tif
+*.tiff
+*.jp2
+*.npy
+*.npz
+*.pbf
+
+# Dataset archives and downloaded packages
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+*.whl
