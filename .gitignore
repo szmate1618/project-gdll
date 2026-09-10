@@ -33,3 +33,8 @@ output/**
 *.tar.gz
 *.tgz
 *.whl
+
+# Native viewer builds and diagnostic screenshots
+/build/
+/build-*/
+*.ppm

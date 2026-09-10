@@ -1,9 +1,22 @@
-# Gödöllő scene generator
+# Gödöllő scene generator and desktop viewer
 
 A functioning Python prototype that downloads public geospatial data and builds
 a geographically recognizable, meter-scale approximation of central Gödöllő,
 Hungary. It exports terrain, roads, buildings, materials, and an embedded ground
 texture as **`output/godollo.glb`**, ready for a separate glTF renderer or Blender.
+
+The repository also includes a **C++17 Linux desktop viewer** with GLFW,
+OpenGL 3.3 Core, textures, and a free-fly camera. See
+[desktop viewer setup and controls](docs/VIEWER.md) for Linux packages and details.
+
+```bash
+cmake -S . -B build
+cmake --build build -j
+./build/godollo_viewer assets/test.glb
+./build/godollo_viewer output/godollo.glb
+```
+
+The sections below document the Python scene generator.
 
 ## Setup and run on Linux
 
