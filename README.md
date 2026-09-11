@@ -87,12 +87,13 @@ Edit `config.json`. Its geographic bounding box uses **longitude, latitude** in
 the order `[west, south, east, north]`:
 
 ```json
-"bbox": [19.342, 47.588, 19.369, 47.606]
+"bbox": [19.31642, 47.570566, 19.39458, 47.623434]
 ```
 
-This covers the Royal Palace and central streets. The projected terrain envelope
-measures approximately **2,072 × 2,043 meters**. OSM geometry is clipped to the
-projected geographic rectangle; the terrain uses its slightly larger, axis-aligned
+This covers the Royal Palace, central streets, and surrounding neighborhoods.
+The projected terrain envelope measures approximately **6,000 × 6,000 meters**.
+OSM geometry is clipped to the projected geographic rectangle; the terrain uses
+its slightly larger, axis-aligned
 projected envelope. Raster downloads include a small padding for interpolation.
 
 All geometry is calculated in **WGS 84 / UTM zone 34N (`EPSG:32634`)**, subtracting
@@ -203,7 +204,9 @@ boundary elevation. Supported roof shapes are flat, gabled, and hipped; missing
 tags give residential buildings pitched roofs and other types flat roofs.
 Unsupported roof shapes use flat roofs. Pitched roof planes follow an oriented
 footprint rectangle and are clipped to the actual outline, preserving courtyards.
-Small geometry slivers are removed at glTF's float32 precision.
+Roof triangulation preserves sampled boundary and ridge edges, including nearly
+collinear points, so precision rounding does not leave disconnected roof pieces.
+Collapsed faces are removed at glTF's float32 precision.
 
 Road width precedence is `width`, then `lanes` times lane width, then highway
 class. Major, secondary, residential, service, track, and footway categories are
@@ -220,7 +223,8 @@ checks GLB 2.0 headers and buffer bounds, embedded images, finite coordinates,
 triangle indices and degenerate faces, and reloads the file through Trimesh.
 Each exported building's walls and roof are also checked together for closed
 topology, consistent face winding, and positive volume after float32 conversion.
-The regression tests cover roof closure and courtyards, height and width
+The regression tests cover roof closure (including GLB round trips of previously
+failing 6 km map buildings) and courtyards, height and width
 precedence, multipolygon assembly, slopes and road clearance, raster caching,
 offline behavior, terrain node alignment and texture UV round-tripping.
 See `output/report.json` for the measurements from the latest successful run.

@@ -1,9 +1,11 @@
 """Offline checks for height interpretation, closed roofs, and OSM courtyards."""
 
+import io
 import unittest
 
 import numpy as np
 from pyproj import Transformer
+from shapely import union_all
 from shapely.geometry import Polygon, box
 import trimesh
 
@@ -77,6 +79,62 @@ class BuildingTests(unittest.TestCase):
         self.assertEqual(stats["building_meshes"], 2)
         self.assertEqual(stats["roof_shapes"], {"gabled": 1})
         self.assertAlmostEqual(scene.bounds[1, 2], 54)
+
+    def test_gabled_ridge_remains_closed_after_glb_export(self):
+        # Three OSM houses in the 6 km map exposed nonmanifold edges after ridge
+        # splitting and boundary sampling. Keep projected coordinates to exercise
+        # glTF float32 precision, with no dependency on downloads or config.json.
+        outlines = {
+            296396893: [
+                (-220.17259201791603, 1014.9796889070421),
+                (-216.76477701897966, 1000.5422920798883),
+                (-240.74283371702768, 994.9254750516266),
+                (-244.15059406554792, 1009.3628867566586),
+            ],
+            308361451: [
+                (398.5230794965173, 1471.1644005291164),
+                (377.81921155919554, 1454.2129898397252),
+                (369.3892990175518, 1464.4533852003515),
+                (390.0931580614415, 1481.4047660063952),
+            ],
+            308361465: [
+                (592.0372809160617, 1847.258143791929),
+                (570.8339020365383, 1829.7051446093246),
+                (563.5749315007706, 1838.419569088146),
+                (584.7783031476429, 1855.9725419236347),
+            ],
+        }
+        for osm_id, outline in outlines.items():
+            with self.subTest(osm_id=osm_id):
+                self.check_building_roundtrip(Polygon(outline))
+
+    def check_building_roundtrip(self, footprint):
+        elevation = lambda x, y: 0.015 * x + 0.02 * y
+        wall, roof, shape = _mesh_for_polygon(footprint, {"building": "house"}, elevation, {})
+        self.assertEqual(shape, "gabled")
+        self.assertGreater(np.ptp(roof.vertices[:, 2]), 0.5)
+        scene = trimesh.Scene()
+        scene.add_geometry(wall, geom_name="building_test_walls")
+        scene.add_geometry(roof, geom_name="building_test_roof")
+        restored = trimesh.load_scene(io.BytesIO(scene.export(file_type="glb")), file_type="glb", process=False)
+        precision = float(np.spacing(np.float32(np.max(np.abs(footprint.bounds)))))
+        area_tolerance = footprint.length * precision
+        for phase, model in (("generated", scene), ("GLB round trip", restored)):
+            with self.subTest(phase=phase):
+                solid = trimesh.util.concatenate(list(model.geometry.values()))
+                solid.merge_vertices(merge_tex=True, merge_norm=True)
+                edge_counts = np.unique(solid.edges_sorted, axis=0, return_counts=True)[1]
+                self.assertTrue(np.all(edge_counts == 2), "Every solid edge must join exactly two faces")
+                self.assertTrue(solid.is_watertight)
+                self.assertTrue(solid.is_winding_consistent)
+                self.assertGreater(solid.volume, 0)
+                self.assertTrue(np.all(solid.area_faces > 1e-10))
+                model_roof = model.geometry["building_test_roof"]
+                self.assertTrue(np.all(model_roof.face_normals[:, 2] > 0))
+                projected = [Polygon(triangle[:, :2]) for triangle in model_roof.triangles]
+                coverage = union_all(projected)
+                self.assertLess(coverage.symmetric_difference(footprint).area, area_tolerance)
+                self.assertAlmostEqual(sum(face.area for face in projected), coverage.area, delta=area_tolerance)
 
     def test_relation_stitching_holes_deduplication_and_road_clipping(self):
         def points(coords):

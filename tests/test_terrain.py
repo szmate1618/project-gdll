@@ -7,7 +7,7 @@ from PIL import Image
 import trimesh
 
 from src.terrain import Terrain, fill_missing
-from src.config import coordinate_frame, load_config, ROOT
+from src.config import coordinate_frame, ROOT
 from src.verify import inspect_glb
 
 
@@ -43,12 +43,18 @@ class TerrainTests(unittest.TestCase):
             fill_missing(np.zeros((4, 4)), np.zeros((4, 4), dtype=bool), "test")
 
     def test_origin_and_metric_dimensions(self):
-        config = load_config(ROOT / "config.json")
-        frame = coordinate_frame(config)
-        np.testing.assert_allclose(frame["transformer"].transform(*frame["center"]), frame["origin"])
-        xmin, ymin, xmax, ymax = frame["bounds"]
-        self.assertTrue(1900 < xmax - xmin < 2200)
-        self.assertTrue(1900 < ymax - ymin < 2200)
+        # Geometry checks must not depend on the user's editable map bounds.
+        for bbox, expected in [
+            ([19.342, 47.588, 19.369, 47.606], [2072.048, 2043.439]),
+            ([19.31642, 47.570566, 19.39458, 47.623434], [5999.989, 5999.986]),
+        ]:
+            with self.subTest(bbox=bbox):
+                config = {"bbox": bbox, "crs": "EPSG:32634", "terrain": {"spacing_m": 15}}
+                frame = coordinate_frame(config)
+                np.testing.assert_allclose(frame["center"], [19.3555, 47.597])
+                np.testing.assert_allclose(frame["transformer"].transform(*frame["center"]), frame["origin"])
+                xmin, ymin, xmax, ymax = frame["bounds"]
+                np.testing.assert_allclose([xmax - xmin, ymax - ymin], expected, atol=0.001, rtol=0)
 
 
 if __name__ == "__main__":

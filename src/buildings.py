@@ -7,7 +7,7 @@ import logging
 import re
 
 import numpy as np
-from shapely import make_valid
+from shapely import constrained_delaunay_triangles, make_valid
 from shapely.errors import ShapelyError
 from shapely.geometry import LineString, MultiPolygon, Polygon
 from shapely.ops import split
@@ -107,7 +107,16 @@ def _roof_surface(polygon: Polygon, shape: str, base_z: float, roof_height: floa
     for piece in quantized_pieces:
         if piece.area < 1e-8:
             continue
-        xy, triangles = trimesh.creation.triangulate_polygon(piece, engine="earcut")
+        # Keep every boundary segment, including nearly collinear foundation
+        # samples and shared ridge edges. Ear clipping can leave zero-area
+        # bridges here; removing them disconnects small roof triangles and
+        # causes the extruded walls to meet along nonmanifold edges.
+        corners = np.asarray([
+            np.asarray(triangle.exterior.coords)[:3]
+            for triangle in constrained_delaunay_triangles(piece).geoms
+        ])
+        xy, inverse = np.unique(corners.reshape(-1, 2), axis=0, return_inverse=True)
+        triangles = inverse.reshape(-1, 3)
         uv = (xy - center) @ np.column_stack([axis, cross])
         if shape == "flat":
             rise = np.zeros(len(xy))
@@ -117,7 +126,7 @@ def _roof_surface(polygon: Polygon, shape: str, base_z: float, roof_height: floa
                 rise = np.minimum(rise, (half_length - np.abs(uv[:, 0])) / half_width)
             rise = np.clip(rise, 0, 1) * roof_height
         vertices = np.column_stack([xy, base_z + rise]).astype(np.float32).astype(np.float64)
-        # earcut's orientation can vary with the input ring. Normals must face up.
+        # Triangulation orientation can vary with the input ring. Normals face up.
         triangles = np.asarray(triangles).copy()
         cross_z = np.cross(vertices[triangles[:, 1]] - vertices[triangles[:, 0]], vertices[triangles[:, 2]] - vertices[triangles[:, 0]])[:, 2]
         triangles[cross_z < 0] = triangles[cross_z < 0, ::-1]
