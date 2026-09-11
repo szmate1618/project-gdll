@@ -81,6 +81,14 @@ target_include_directories(viewer_camera PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src
 target_link_libraries(viewer_camera PUBLIC glm::glm)
 viewer_warnings(viewer_camera)
 
+add_library(viewer_collision STATIC src/collision_world.cpp)
+target_link_libraries(viewer_collision PUBLIC viewer_model)
+viewer_warnings(viewer_collision)
+
+add_library(viewer_fps STATIC src/fps_controller.cpp src/camera_rig.cpp)
+target_link_libraries(viewer_fps PUBLIC viewer_collision viewer_camera)
+viewer_warnings(viewer_fps)
+
 set(VIEWER_TEST_ASSET "${CMAKE_CURRENT_SOURCE_DIR}/assets/test.glb")
 add_custom_command(
     OUTPUT "${VIEWER_TEST_ASSET}"
@@ -93,9 +101,9 @@ add_custom_command(
 )
 add_custom_target(viewer_test_asset DEPENDS "${VIEWER_TEST_ASSET}")
 
-add_executable(godollo_viewer src/main.cpp src/renderer.cpp)
+add_executable(godollo_viewer src/main.cpp src/renderer.cpp src/collision_debug.cpp)
 target_link_libraries(godollo_viewer PRIVATE
-    viewer_model viewer_camera glfw OpenGL::GL
+    viewer_model viewer_camera viewer_fps glfw OpenGL::GL
 )
 target_compile_definitions(godollo_viewer PRIVATE
     GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -117,6 +125,23 @@ if(BUILD_TESTING)
     target_link_libraries(test_camera PRIVATE viewer_camera)
     viewer_warnings(test_camera)
     add_test(NAME viewer_camera COMMAND test_camera)
+
+    foreach(suite collision fps camera_rig)
+        add_executable(test_${suite} tests/test_${suite}.cpp)
+        target_link_libraries(test_${suite} PRIVATE viewer_fps)
+        viewer_warnings(test_${suite})
+        add_test(NAME viewer_${suite} COMMAND test_${suite})
+    endforeach()
+
+    add_executable(test_fps_integration tests/test_fps_integration.cpp)
+    target_link_libraries(test_fps_integration PRIVATE viewer_fps)
+    viewer_warnings(test_fps_integration)
+    add_dependencies(test_fps_integration viewer_test_asset)
+    add_test(NAME viewer_fps_test_scene COMMAND test_fps_integration "${VIEWER_TEST_ASSET}")
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/output/godollo.glb")
+        add_test(NAME viewer_fps_godollo COMMAND test_fps_integration
+            "${CMAKE_CURRENT_SOURCE_DIR}/output/godollo.glb")
+    endif()
 
     # Keep test assertions active even when checking an optimized viewer build.
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")

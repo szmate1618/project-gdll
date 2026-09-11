@@ -19,6 +19,11 @@ bool finite(glm::vec3 value) {
 
 }  // namespace
 
+void Camera::setPosition(glm::vec3 position) {
+    if (!finite(position)) throw std::invalid_argument("Camera position must be finite");
+    position_ = position;
+}
+
 glm::vec3 Camera::forward() const {
     const float yaw = glm::radians(yaw_);
     const float pitch = glm::radians(pitch_);

@@ -19,6 +19,9 @@ public:
 
     [[nodiscard]] glm::vec3 position() const { return position_; }
     [[nodiscard]] float speed() const { return speed_; }
+    [[nodiscard]] float yawDegrees() const { return yaw_; }
+    [[nodiscard]] float pitchDegrees() const { return pitch_; }
+    void setPosition(glm::vec3 position);
 
 private:
     [[nodiscard]] glm::vec3 forward() const;

@@ -6,7 +6,7 @@ Hungary. It exports terrain, roads, buildings, materials, and an embedded ground
 texture as **`output/godollo.glb`**, ready for a separate glTF renderer or Blender.
 
 The repository also includes a **C++17 Linux desktop viewer** with GLFW,
-OpenGL 3.3 Core, textures, and a free-fly camera. See
+OpenGL 3.3 Core, textures, free-fly and first-person walking cameras. See
 [desktop viewer setup and controls](docs/VIEWER.md) for Linux packages and details.
 
 ```bash
@@ -14,7 +14,24 @@ cmake -S . -B build
 cmake --build build -j
 ./build/godollo_viewer assets/test.glb
 ./build/godollo_viewer output/godollo.glb
+./build/godollo_viewer output/godollo.glb --fps
 ```
+
+**F1** selects free-fly; **F2** places a walking player on nearby clear ground.
+In walking mode, use **WASD** to walk, the mouse to look, **Space** to jump, and
+**Shift** to run. **F3** toggles collision lines and the player capsule; green
+means grounded, red means airborne, and cyan marks the ground normal. The
+window title also shows the current mode and grounded state. **Tab** releases
+the mouse; **Escape** closes the viewer. Free-fly retains its original controls.
+
+The walking player is a 1.80 m capsule with radius 0.30 m and eye height 1.70 m.
+Gravity, ground contact, and wall sliding use collision triangles derived from
+the loaded scene, accelerated by a BVH. Ground slope is limited to 45°; looking
+up or down cannot change horizontal walking speed or cause flight. The clear
+configuration struct is in `src/fps_controller.hpp`. See the
+[walking-mode details and limitations](docs/VIEWER.md#first-person-walking) for slope,
+step, spawn, collision, and debugging behavior. No separate collision file is
+required.
 
 The sections below document the Python scene generator.
 

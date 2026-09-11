@@ -476,9 +476,9 @@ Model convert(const tinygltf::Model& source) {
             if (!std::isfinite(transform[c][r])) fail("World transform exceeds floating-point range");
         }
         if (node.mesh >= 0) {
-            at(source.meshes, node.mesh, "node mesh");
+            const auto& mesh = at(source.meshes, node.mesh, "node mesh");
             for (const auto primitive : meshPrimitives[static_cast<std::size_t>(node.mesh)]) {
-                output.draws.push_back({primitive, transform});
+                output.draws.push_back({primitive, transform, node.name.empty() ? mesh.name : node.name});
                 for (const auto& vertex : output.primitives[primitive].vertices) {
                     const glm::vec3 position(transform * glm::vec4(vertex.position, 1.0f));
                     if (!std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z)) {

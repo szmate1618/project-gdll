@@ -50,6 +50,8 @@ struct Primitive {
 struct DrawInstance {
     std::size_t primitive = 0;
     glm::mat4 transform{1.0f};
+    // Preserve scene semantics for collision classification and diagnostics.
+    std::string name;
 };
 
 struct Model {

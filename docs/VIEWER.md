@@ -2,7 +2,7 @@
 
 `godollo_viewer` is a small C++17 desktop viewer for glTF 2.0 scenes. It opens a
 resizable 1280 × 720 GLFW window, requests an OpenGL 3.3 Core context, and draws
-the scene with a perspective free-fly camera and directional lighting. Startup
+the scene with a perspective free-fly or first-person walking camera and directional lighting. Startup
 prints the OpenGL version, renderer, vendor, and GLSL version. The Python scene
 generator remains a separate program.
 
@@ -87,12 +87,16 @@ run from the checkout; it is not a standalone install bundle.
 | --- | --- |
 | W / S | Move forward / backward |
 | A / D | Strafe left / right |
-| Q / E | Move down / up along world Y |
+| Q / E | Move down / up along world Y in free-fly mode |
 | Mouse | Look around while captured |
-| Shift | Move four times faster |
-| Mouse wheel | Adjust movement speed |
+| Shift | Free-fly: move four times faster; walking: run at 6 m/s |
+| Mouse wheel | Adjust free-fly movement speed |
+| F1 | Switch to free-fly mode |
+| F2 | Switch to walking mode; find safe ground below/near the camera |
+| Space | Jump while grounded in walking mode |
+| F3 | Toggle collision visualization |
 | Tab | Release / capture the mouse |
-| F | Frame the whole scene again |
+| F | Frame the whole scene again in free-fly mode |
 | Escape | Close the viewer |
 
 The mouse is captured when the window opens. Movement uses elapsed frame time
@@ -108,6 +112,75 @@ interpreted as meters. The vertical field of view is 60°, near clipping is
 scenes. The generator's existing root transform maps its east/north/up geometry
 to glTF X=east, Y=up, Z=south; no scene-specific rotation is needed in the viewer.
 Framebuffer resize updates the viewport and projection aspect ratio.
+
+## First-person walking
+
+Launch the generated town, then press **F2**, or start directly in walking mode:
+
+```bash
+./build/godollo_viewer output/godollo.glb --fps
+./build/godollo_viewer output/godollo.glb --spawn 0 0
+./build/godollo_viewer output/godollo.glb --fps --collision-debug
+```
+
+`--spawn X Z` requests a location in the loaded scene's local meter coordinates;
+Y is found from the terrain. Entering walking mode searches for clear, walkable
+terrain under or near the requested position, including when the free-fly
+camera is above a building. The viewer logs mode changes. **F1** releases the
+camera from the controller at its current eye position; gravity applies only
+in walking mode.
+
+The player is a vertical capsule, 1.80 m tall and 0.30 m in radius. The camera
+sits 1.70 m above its feet. W/S/A/D movement uses yaw, independently of look
+pitch, so looking up or down cannot make the player fly. Diagonal input is
+normalized. Walking speed is 3 m/s; Shift increases it to 6 m/s. Gravity is
+9.81 m/s² and a grounded Space press launches at 3.8 m/s, producing an apex
+roughly 0.74 m above standing height on flat ground. Holding Space does not
+repeat jumps, and presses in the air do not add another jump.
+
+Collision data is built from the existing loaded GLB, with scene-node transforms
+applied in the same Y-up coordinates used for rendering. The loader preserves
+node/mesh names, identifying the generator's terrain, buildings, and roads.
+A static triangle BVH limits collision queries to nearby geometry. Exact
+capsule-to-triangle contacts follow building footprints, including concave
+outlines, rather than replacing buildings with broad rectangular obstacles.
+Named buildings also have an interior query for safe spawning. Roads and
+other triangle geometry can provide support; a separate collision file is not
+required. Generated buildings remain solid, with no inferred doors or interiors.
+
+The controller uses fixed 120 Hz simulation and further divides large capsule
+displacements. Iterative contact corrections stop motion into walls while
+preserving movement along them. Ground normals guide walking on slopes up to
+45°; steeper uphill contacts block climbing. A short ground snap keeps downhill
+walking in contact with terrain. Leaving a larger drop enables falling, and
+landing cancels downward velocity. Rounded contacts and a 0.30 m support snap
+help with small mesh height changes; there is no dedicated stair-climbing solver,
+so sharp vertical curbs can still block movement.
+
+Important dimensions, speeds, gravity, jump strength, slope limit, contact skin,
+ground snap, and simulation timestep live together in `FPSConfig` in
+`src/fps_controller.hpp`. Change these defaults and rebuild to tune the controller.
+The default contact skin is 0.002 m. On slopes the rounded capsule's bottom sits
+slightly above the terrain height at its center, so eye height measured vertically
+from that point can be slightly greater than 1.70 m.
+
+**F3** overlays the player shape (green when grounded, red while airborne), nearby
+collision geometry (amber), and ground contact normal (cyan). The window title
+also reports whether the player is grounded.
+Lines remain visible through rendered geometry. Switching back to free-fly with
+the overlay enabled is useful for viewing the player shape from outside.
+`shaders/debug.vert` and `shaders/debug.frag` provide the simple line shader.
+
+Collision is static: animated or moving geometry does not update the BVH.
+For arbitrary unnamed glTF geometry, closed surfaces within one draw can be
+recognized as solid interiors for spawning. A solid split across unrelated
+draws may only receive surface collision; named generated buildings are grouped
+across their wall and roof draws.
+The controller is a lightweight walking controller with no crouching, swimming,
+moving platforms, or navigation system. Terrain gaps in the source geometry
+remain gaps, and walking beyond the generated terrain causes falling. The
+interactive viewer clamps frame time to 0.1 seconds after stalls; the standalone
+controller also caps accumulated catch-up time at one second.
 
 ## Geometry, materials, and shaders
 
@@ -144,16 +217,50 @@ point precision limits.
 
 ## Verification and diagnostics
 
-Run the camera and loader checks without a graphical display:
+Run the camera, loader, collision, and walking-controller checks without a graphical display:
 
 ```bash
 ctest --test-dir build --output-on-failure
 ```
 
+When `output/godollo.glb` exists at configure time, CTest also runs the full-town
+FPS integration test. It validates spawning, a real building wall and diagonal
+slide, recovery from a requested spawn inside a building, and 4,800 controller
+updates across three routes. Every update checks terrain penetration and
+building exclusion. The test prints triangle/building/BVH counts, collision
+build time, and average controller time per update. Run it directly with:
+
+```bash
+./build/test_fps_integration output/godollo.glb
+```
+
+The optimized CPU integration run in this workspace built 194,899 collision
+triangles (104,331 terrain/road and 90,568 building triangles), representing
+2,125 buildings in 65,535 BVH nodes, in about 121 ms. The three town routes
+averaged 0.0052 ms per controller update at an average simulation rate of 120 Hz;
+this timing includes collision queries and excludes rendering and test assertions.
+Both the town and transformed sample-GLB integration checks passed. These are
+local measurements, not a guaranteed frame rate on other machines.
+
+The FPS extension was also built and tested through all seven CTest suites.
+A native GPU run on AMD Radeon 660M / OpenGL 4.6 Core verified F1/F2 switching,
+the 1.70 m eye offset, Space jump and landing, and the existing free-fly input
+callbacks. The walking capture is saved as `build/godollo-fps.png`. A separate
+three-frame GPU run at `--spawn 10 10 --collision-debug` verified rendering of
+the collider overlay; its capture is `build/godollo-fps-debug.png`.
+
 For a finite render run that also exercises the input callbacks:
 
 ```bash
 ./build/godollo_viewer --frames 3 --self-test-input --screenshot build/test.ppm
+```
+
+Exercise walking mode, mode switches, jump input, and the collision overlay with
+the actual GLFW callbacks:
+
+```bash
+./build/godollo_viewer output/godollo.glb --self-test-fps \
+  --collision-debug --screenshot build/godollo-fps.ppm
 ```
 
 Capture with a hidden window while keeping the normal graphics driver:
@@ -171,7 +278,8 @@ diagnostic use. It does not establish hardware acceleration. Normal desktop
 launches reject recognized software renderers; check the printed GPU name to
 confirm the active driver.
 
-Verified in this workspace: CMake configure and build; both CTest suites;
+The original viewer verification in this workspace covered CMake configure and
+build; the camera and loader CTest suites;
 native rendering on **AMD Radeon 660M**, Mesa OpenGL **4.6 Core**, GLSL **4.60**;
 the generated test asset (7 instances / 38 drawn triangles) and full Gödöllő
 scene (4,255 instances / 194,899 triangles / one embedded image). Both captures
@@ -186,12 +294,21 @@ CMakeLists.txt              Viewer and unit-test build configuration
 src/main.cpp               Window, input callbacks, render loop, CLI
 src/renderer.{hpp,cpp}      OpenGL resources, shaders, drawing
 src/camera.{hpp,cpp}        Perspective free-fly camera
+src/camera_rig.{hpp,cpp}    Runtime camera mode switching
+src/fps_controller.{hpp,cpp} Fixed-step walking, gravity, jump and contact response
+src/collision_world.{hpp,cpp} World-space triangle BVH and capsule/ground queries
+src/collision_debug.{hpp,cpp} Optional OpenGL collision line overlay
 src/model.{hpp,cpp}         glTF loading and scene data
 shaders/basic.{vert,frag}   GLSL 330 directional lighting
+shaders/debug.{vert,frag}   GLSL 330 collision lines
 tools/create_test_asset.py Reproducible test-model generator
 assets/test.glb            Generated test model, ignored by Git
 tests/test_camera.cpp      Camera checks
+tests/test_camera_rig.cpp  Free-fly/walking mode switching and look-pitch checks
 tests/test_model.cpp       Loader checks
+tests/test_collision.cpp   Synthetic collision checks
+tests/test_fps.cpp         Synthetic walking-controller checks
+tests/test_fps_integration.cpp Full generated town collision/walking checks
 build/                    Generated files, dependencies, and executable
 ```
 
