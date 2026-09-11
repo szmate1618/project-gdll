@@ -1,0 +1,20 @@
+Tree impostor horizontal slices
+
+Generated with the built-in imagegen tool using assets/tree.png as the appearance reference.
+The generator returned RGB images with a painted checkerboard. With user permission,
+local image processing removed bright neutral background pixels, cleaned edge colors,
+and resized with premultiplied-alpha filtering to 1024x1024 RGBA PNG.
+
+tree-top-mid.png: horizontal slice at 0.5 of full tree height, measured from the ground.
+tree-top-two-thirds.png: horizontal slice at 2/3 of full tree height.
+Both images share the same resize factor and canvas placement; use the same world-space
+quad dimensions. The upper slice occupies less of the canvas. Intended plane: XZ,
+camera looking down -Y; +X right, +Z toward image bottom; approximate trunk pivot (0.5,0.5).
+These are generated approximations from one side image, not geometrically exact slices
+of a shared 3D model. Branch alignment and inferred depth are approximate.
+
+Mid-height prompt:
+Generate a 1024x1024 PNG image on a TRANSPARENT BACKGROUND. Use actual background transparency. The reference image shows the same tree from the side; match its realistic small olive-green leaves and gray-brown branching. View straight down from above, orthographic, looking down the vertical trunk axis at the center of the image. This is a horizontal tree cross-section texture for a 3D impostor. Remove the canopy above the requested height, revealing radial boughs and natural leafy branch clusters within that horizontal layer. Show a roughly circular spread of branches and foliage with empty transparent gaps. Use soft diffuse natural daylight. No labels or ground. Keep a common square framing for stacking the slices, with the trunk axis at image center. Render the layer at 50% of the full tree height measured from the ground. Broad lower-canopy cross-section with thick interior radial branches, about 88% of the image width and centered, with a clear transparent margin.
+
+Two-thirds-height prompt:
+Generate a 1024x1024 PNG image on a TRANSPARENT BACKGROUND. Use actual background transparency. The reference image shows the same tree from the side; match its realistic small olive-green leaves and gray-brown branching. View straight down from above, orthographic, looking down the vertical trunk axis at the center of the image. This is a horizontal tree cross-section texture for a 3D impostor. Remove the canopy above the requested height, revealing radial boughs and natural leafy branch clusters within that horizontal layer. Show a roughly circular spread of branches and foliage with empty transparent gaps. Use soft diffuse natural daylight. No labels or ground. Keep a common square framing for stacking the slices, with the trunk axis at image center. Render the layer at 66.7% of the full tree height measured from the ground. Upper-middle-canopy cross-section with finer radial branches and smaller clusters of foliage, about 75% of the image width and centered, with a broad transparent margin.

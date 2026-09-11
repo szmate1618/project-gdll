@@ -1,0 +1,41 @@
+Pine tree impostor texture set
+
+All four images were generated with the built-in imagegen tool. The side and horizontal
+slices use the generated front view as their appearance reference. Outputs are
+1024x1024 RGBA PNG files. Existing source transparency was preserved apart from tiny
+alpha specks in empty space. Painted neutral backgrounds were removed locally using
+the user's previously approved background cleanup, with edge-color decontamination
+and premultiplied-alpha resizing.
+
+Files and placement:
+pine.png: front elevation, trunk base near bottom center.
+pine-side.png: approximate right-side elevation, 90 degrees around the vertical trunk.
+pine-top-mid.png: horizontal slice at 0.5 of full tree height from trunk base.
+pine-top-two-thirds.png: horizontal slice at 2/3 of full tree height from trunk base.
+
+Use equal world-space square extents for the two horizontal slices. Their foreground
+widths are about 480px and 385px, respectively, based on corresponding crown widths
+in the generated front view. Their approximate trunk pivot is image center (0.5,0.5).
+The project is Y-up: horizontal planes are XZ, top camera looks along -Y, +X is image
+right and +Z is image bottom. Heights are measured upward from the visible trunk base.
+The set is visually matched generated artwork, not exact projections or geometric
+cross-sections of a shared 3D model. Branch placement and depth are approximate.
+
+pine.png generation prompt:
+Use case: photorealistic-natural
+Asset type: full-tree frontal orthographic texture for a 3D pine-tree impostor, 1024x1024 pixels, transparent PNG.
+Primary request: one realistic upright pine tree on a truly transparent background. A healthy medium-height woodland pine with a single straight trunk, reddish gray-brown scaly bark, naturally irregular tapering conical crown, open tiers of spreading woody boughs, and dense small tufts of long forest-green pine needles. Recognizably a pine rather than a broadleaf tree or a perfectly manicured Christmas tree. Fine photographic needle and bark detail. Some gaps between the branching tiers and a visible lower trunk extending about one fifth of the tree's full height below the lowest living branches. A few asymmetrical branch tips make the tree natural. No snow or decorations.
+Composition: front elevation, camera level and orthographic, tree completely upright. Whole tree visible from root flare to highest needle, with generous transparent margins and no cropped branches. Exactly square 1024x1024 canvas, central trunk axis x=512, crown tip y=40, trunk base y=984, maximum crown width about 650px. This establishes the identity and framing for matching side and horizontal-slice textures.
+Lighting: soft diffuse neutral daylight, even natural color, realistic detail, no strong directional highlights or baked cast shadow.
+Background: genuine transparent alpha background around the tree and in gaps through the branches. No landscape, ground plane, grass, sky, checkerboard graphic, text, labels, watermark or other objects.
+Output one 1024x1024 RGBA PNG.
+
+pine-side.png generation prompt:
+Use case: photorealistic-natural. Create one 1024x1024 PNG on a truly transparent background. The reference is the exact pine tree whose appearance this image must match: single straight reddish-gray-brown scaly trunk, naturally irregular tapering crown, open tiers of woody boughs bearing tufts of fine long muted forest-green pine needles. Match its needle density, bark texture, natural colors and soft diffuse daylight. Realistic photographic detail, no stylization. This is a texture for a 3D impostor. Real alpha transparency around the tree and between branches and needles. No terrain, grass, sky, cast shadow, background surface, grid, text, labels, other objects or watermarks. View: full-height ORTHOGRAPHIC SIDE ELEVATION, horizontal camera, rotated 90 degrees about the upright trunk relative to the front reference. Show the same whole pine from trunk base to crown tip, with plausible correspondingly changed arrangement of branch tiers. Retain the original tree's height, width, tapered silhouette and exposed lower trunk. Exactly square 1024x1024 framing: trunk axis x=512, crown tip near y=35, trunk base near y=994, full crown approximately 650px wide. No branch or root cropping, transparent margin on every side. Do not show an overhead view.
+
+pine-top-mid.png generation prompt:
+Use case: photorealistic-natural. Create one 1024x1024 PNG on a truly transparent background. The reference is the exact pine tree whose appearance this image must match: single straight reddish-gray-brown scaly trunk, naturally irregular tapering crown, open tiers of woody boughs bearing tufts of fine long muted forest-green pine needles. Match its needle density, bark texture, natural colors and soft diffuse daylight. Realistic photographic detail, no stylization. This is a texture for a 3D impostor. Real alpha transparency around the tree and between branches and needles. No terrain, grass, sky, cast shadow, background surface, grid, text, labels, other objects or watermarks. View: strict ORTHOGRAPHIC TOP VIEW of a horizontal layer HALFWAY UP the pine, h=0.50 of its full height measured upward from trunk base. A horizontal cross-section texture for a horizontal impostor plane: remove all canopy above this plane and show only a shallow layer of natural branches and needle clusters at this height. Thin central trunk, reddish-brown branches radiating in an irregular whorl, fine branchlets carrying dense tufts of needles, and transparent gaps separating some clusters. No sawn wood disk or solid stump. Center the trunk axis exactly at pixel (512,512); look vertically down, never diagonally. The needle-and-branch footprint should be a natural uneven roughly circular spread about 540px in diameter within the 1024px canvas, with ample transparent space surrounding it. Same square world-space framing as the full tree images. The result must be an overhead horizontal slice, not the complete crown from above and not a vertical silhouette.
+
+pine-top-two-thirds.png generation prompt:
+Use case: photorealistic-natural. Create one 1024x1024 PNG on a truly transparent background. The reference is the exact pine tree whose appearance this image must match: single straight reddish-gray-brown scaly trunk, naturally irregular tapering crown, open tiers of woody boughs bearing tufts of fine long muted forest-green pine needles. Match its needle density, bark texture, natural colors and soft diffuse daylight. Realistic photographic detail, no stylization. This is a texture for a 3D impostor. Real alpha transparency around the tree and between branches and needles. No terrain, grass, sky, cast shadow, background surface, grid, text, labels, other objects or watermarks. View: strict ORTHOGRAPHIC TOP VIEW of a horizontal layer TWO THIRDS UP the pine, h=0.6667 of its full height measured upward from trunk base. A horizontal cross-section texture for a horizontal impostor plane: remove all canopy above this plane and show only a shallow layer of natural branches and needle clusters at this height. Slender central trunk, finer reddish-brown branches radiating in an irregular whorl, branchlets carrying dense tufts of needles, and transparent gaps separating some clusters. No sawn wood disk or solid stump. Center the trunk axis exactly at pixel (512,512); look vertically down, never diagonally. The needle-and-branch footprint should be a natural uneven roughly circular spread about 390px in diameter within the 1024px canvas, with ample transparent space surrounding it. It is smaller than the halfway layer because the same tree tapers toward the top. Same square world-space framing as the full tree images. The result must be an overhead horizontal slice, not the complete crown from above and not a vertical silhouette.
+

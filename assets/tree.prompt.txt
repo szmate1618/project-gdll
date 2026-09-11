@@ -1,0 +1,9 @@
+Generated with the built-in imagegen tool; resized to 1024x1024 with alpha preserved.
+
+Use case: photorealistic-natural
+Asset type: standalone tree cutout PNG, 1024x1024 pixels.
+Primary request: A single beautiful mature leafy tree with a natural green canopy, visible branching, and a textured brown trunk.
+Scene/backdrop: genuinely transparent background with alpha channel, including transparent gaps between the branches and leaves.
+Composition/framing: centered full tree viewed from the side at eye level, entire canopy and trunk base visible, comfortable transparent margin on all sides, nothing cropped.
+Lighting: soft natural daylight with detailed realistic foliage and bark.
+Constraints: exactly 1024x1024 pixels; transparent PNG; no landscape, ground plane, grass, sky, cast shadow, extra objects, text, watermark, or painted checkerboard.

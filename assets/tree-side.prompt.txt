@@ -1,0 +1,20 @@
+Tree side view
+
+Output: assets/tree-side.png, 1024x1024 RGBA PNG with transparent background.
+Generated with the built-in imagegen tool using assets/tree.png and
+assets/tree-top-mid.png as appearance references.
+Intended view: horizontal orthographic view from the tree's right side, approximately
+90 degrees around its vertical axis from the original image. This is a visually
+matched generated view; it is not an exact projection of a shared 3D model.
+The painted checkerboard was removed locally using the previously approved method:
+bright-neutral background key, edge-color cleanup, and premultiplied-alpha resizing.
+The original tree and the existing horizontal slices were preserved.
+
+Generation prompt:
+Use case: photorealistic-natural.
+Generate one 1024x1024 PNG tree image on a truly transparent background, with an alpha channel.
+Input image 1 is the original full tree viewed from the front. Input image 2 is a matching horizontal foliage slice seen from overhead, supplied only as a reference for the leaf and branch appearance.
+Primary request: a full-height ORTHOGRAPHIC SIDE VIEW of this same mature leafy tree for a vertical 3D impostor card. Rotate the viewpoint 90 degrees around the upright trunk relative to input image 1, looking horizontally from the tree's right-hand side toward the trunk. Show the entire upright tree from trunk base to tallest leaf; this must be a normal vertical tree profile, not a top view and not a cutaway. Preserve the tree's identity and proportions: sturdy textured gray-brown trunk, low spreading main boughs that fork upward into the canopy, dense irregular rounded broad crown of fine olive-green leaves, realistic natural foliage clusters with occasional openings showing branches, similar total crown width and height to image 1.
+Framing: square 1024x1024, vertical trunk centered on x=512. Entire crown and root flare visible with transparent padding on every edge; canopy within roughly x=45..979 and y=30..810, trunk base about y=995. Natural plausible branching from the new viewing angle. No perspective distortion.
+Lighting and rendering: realistic photographic detail, softly diffused daylight matching the references, natural color, clean edges and no color halos.
+Background must be actually transparent outside the silhouette and in canopy gaps. No terrain, ground plane, grass, sky, shadows on a surface, backdrop, diagram markings, letters, labels, grid, border or watermark. One tree only.
