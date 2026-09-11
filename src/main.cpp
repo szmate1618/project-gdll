@@ -1,17 +1,21 @@
 #include "renderer.hpp"
 #include "camera_rig.hpp"
 #include "collision_debug.hpp"
+#include "gpu_timer.hpp"
 
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <array>
 #include <cctype>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace {
 struct Options {
@@ -397,21 +401,38 @@ int run(const Options& options) {
         viewer::Renderer::checkErrors("resized render target");
     }
     renderer.resize(app.width, app.height);
+    viewer::GpuTimer gpuTimer;
     double previous = glfwGetTime(), titleTime = previous;
+    double intervalRenderSeconds = 0.0;
     int frameCount = 0, intervalFrames = 0;
     while (!glfwWindowShouldClose(window.get())) {
         glfwPollEvents();
         const double now = glfwGetTime();
         const float dt = static_cast<float>(std::clamp(now - previous, 0.0, 0.1));
         previous = now;
-        if (app.width <= 0 || app.height <= 0) { glfwWaitEventsTimeout(0.05); continue; }
+        if (app.width <= 0 || app.height <= 0) {
+            glfwWaitEventsTimeout(0.05);
+            titleTime = glfwGetTime();
+            intervalFrames = 0;
+            intervalRenderSeconds = 0.0;
+            gpuTimer.takeAverageMilliseconds();
+            continue;
+        }
         moveCamera(app, dt);
         renderer.resize(app.width, app.height);
-        renderer.render(app.rig.camera());
+        std::vector<viewer::DebugVertex> overlay;
         if (app.collisionDebug) {
             if (!debug) debug = std::make_unique<viewer::CollisionDebug>(options.shaders);
-            debug->draw(app.rig.camera(), collisionOverlay(app), app.width, app.height);
+            overlay = collisionOverlay(app);
         }
+        gpuTimer.begin();
+        const double renderStart = glfwGetTime();
+        renderer.render(app.rig.camera());
+        if (app.collisionDebug)
+            debug->draw(app.rig.camera(), overlay, app.width, app.height);
+        intervalRenderSeconds += glfwGetTime() - renderStart;
+        gpuTimer.end();
+        // Presentation can wait for VSync, so keep it outside both render timers.
         if (!options.hidden) {
             renderer.present(app.width, app.height);
             glfwSwapBuffers(window.get());
@@ -422,15 +443,27 @@ int run(const Options& options) {
 #endif
         ++frameCount;
         ++intervalFrames;
-        if (now - titleTime >= 1.0 && !options.hidden) {
-            const auto fps = static_cast<int>(static_cast<double>(intervalFrames) / (now - titleTime));
+        const double completed = glfwGetTime();
+        const double intervalSeconds = completed - titleTime;
+        if (intervalSeconds >= 1.0 && !options.hidden) {
+            const auto fps = static_cast<int>(static_cast<double>(intervalFrames) / intervalSeconds);
+            const auto milliseconds = [](double value) {
+                std::ostringstream text;
+                text << std::fixed << std::setprecision(2) << value << " ms";
+                return text.str();
+            };
+            const auto gpuMilliseconds = gpuTimer.takeAverageMilliseconds();
+            const auto gpuTime = gpuMilliseconds ? milliseconds(*gpuMilliseconds)
+                : gpuTimer.supported() ? std::string("pending") : std::string("unavailable");
+            const auto cpuTime = milliseconds(intervalRenderSeconds * 1000.0 / static_cast<double>(intervalFrames));
             const auto status = app.rig.walking() ? (app.rig.player().grounded() ? " | grounded" : " | airborne") : "";
             const auto caption = title + " | " + app.rig.modeName() + status + " | " + std::to_string(fps)
-                + " FPS | " + std::to_string(static_cast<int>(app.rig.speed(
+                + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + " | " + std::to_string(static_cast<int>(app.rig.speed(
                     app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]))) + " m/s";
             glfwSetWindowTitle(window.get(), caption.c_str());
-            titleTime = now;
+            titleTime = completed;
             intervalFrames = 0;
+            intervalRenderSeconds = 0.0;
         }
         if (options.frames > 0 && frameCount >= options.frames) break;
     }

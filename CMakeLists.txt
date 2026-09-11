@@ -101,7 +101,7 @@ add_custom_command(
 )
 add_custom_target(viewer_test_asset DEPENDS "${VIEWER_TEST_ASSET}")
 
-add_executable(godollo_viewer src/main.cpp src/renderer.cpp src/collision_debug.cpp)
+add_executable(godollo_viewer src/main.cpp src/renderer.cpp src/collision_debug.cpp src/gpu_timer.cpp)
 target_link_libraries(godollo_viewer PRIVATE
     viewer_model viewer_camera viewer_fps glfw OpenGL::GL
 )
@@ -114,6 +114,13 @@ add_dependencies(godollo_viewer viewer_test_asset)
 viewer_warnings(godollo_viewer)
 
 if(BUILD_TESTING)
+    # Fake GL entry points exercise delayed query results without a display.
+    add_executable(test_gpu_timer tests/test_gpu_timer.cpp src/gpu_timer.cpp)
+    target_include_directories(test_gpu_timer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${OPENGL_INCLUDE_DIR}")
+    target_compile_definitions(test_gpu_timer PRIVATE GL_GLEXT_PROTOTYPES)
+    viewer_warnings(test_gpu_timer)
+    add_test(NAME viewer_gpu_timer COMMAND test_gpu_timer)
+
     add_executable(test_model tests/test_model.cpp)
     target_link_libraries(test_model PRIVATE viewer_model)
     target_include_directories(test_model SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")

@@ -217,6 +217,18 @@ point precision limits.
 
 ## Verification and diagnostics
 
+The window title updates about once per second with
+`FPS | GPU <average> ms | CPU render <average> ms`. FPS uses the actual frame
+interval, including any VSync wait. GPU time uses asynchronous
+`GL_TIME_ELAPSED` queries for the scene and enabled collision overlay; CPU
+render time measures time spent submitting those draws, including driver
+overhead and stalls. Both render timings exclude events, physics updates,
+framebuffer resize, the presentation blit, and the buffer swap/VSync wait.
+GPU results can lag and show `pending` or `unavailable` as appropriate. Compare
+CPU and GPU timings separately: their work overlaps, so the times cannot be
+added. Timing appears automatically in the title without additional console
+output or command-line options.
+
 Run the camera, loader, collision, and walking-controller checks without a graphical display:
 
 ```bash
