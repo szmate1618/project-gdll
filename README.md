@@ -33,6 +33,12 @@ configuration struct is in `src/fps_controller.hpp`. See the
 step, spawn, collision, and debugging behavior. No separate collision file is
 required.
 
+Tree detector CSVs can also be converted into a separate placement layer using
+the shared tree and pine assets. See [tree data preparation](docs/TREES.md) for
+merging CSVs, matching source GeoTIFFs, coordinate conversion, and producing
+`output/trees.instances.json`. Loading that layer in the viewer is a separate
+integration step.
+
 The sections below document the Python scene generator.
 
 ## Setup and run on Linux
