@@ -57,8 +57,9 @@ Preview each standalone asset with the viewer's default free-fly camera:
 ./build/godollo_viewer assets/pine_impostor.glb
 ```
 
-These are render-only assets; town placement and runtime integration are not
-included. Future walking-mode integration needs a separate trunk collider and
-collision-loader support for excluding the foliage cards. Any collision
-metadata in the GLBs is descriptive: the current collision loader does not
-honor it and would treat the quads as collision geometry.
+The [tree placement workflow](../docs/TREES.md) references these shared assets.
+The [viewer tree layer](../docs/VIEWER.md#trees) renders them with GPU instancing
+and uses separate estimated trunk colliders for walking. The canopy cards do
+not enter that collision world. When a tree GLB is opened as the standalone
+main scene instead, the generic scene collision loader still treats its quads
+as surfaces; preview standalone assets in free-fly mode.

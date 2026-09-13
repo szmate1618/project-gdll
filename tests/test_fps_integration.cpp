@@ -53,8 +53,9 @@ struct WallCandidate {
     glm::vec3 start;
 };
 
-// Pick a real, long, vertical exterior wall with clear terrain on one side and
-// a solid building interior on the other. No scene-specific coordinates needed.
+// Pick a vertical exterior wall with room to slide along it. The generator can
+// split a long wall into many short triangles, so probe the building footprint
+// along the wall instead of requiring a single twelve-meter triangle.
 std::optional<WallCandidate> findWall(const viewer::Model& model,
                                      const viewer::CollisionWorld& world,
                                      const viewer::FPSConfig& config) {
@@ -74,7 +75,7 @@ std::optional<WallCandidate> findWall(const viewer::Model& model,
                                               horizontalDistance(vertices[1], vertices[2]),
                                               horizontalDistance(vertices[2], vertices[0])});
             const float top = std::max({vertices[0].y, vertices[1].y, vertices[2].y});
-            if (wallLength < 12.0f) continue;
+            if (wallLength < 0.5f) continue;
             const glm::vec3 center = (vertices[0] + vertices[1] + vertices[2]) / 3.0f;
             for (const float sign : {1.0f, -1.0f}) {
                 const glm::vec3 outward = glm::normalize(glm::vec3(normal.x, 0, normal.z)) * sign;
@@ -86,6 +87,16 @@ std::optional<WallCandidate> findWall(const viewer::Model& model,
                 if (world.insideBuilding(outside, config.radius, config.height)) continue;
                 const glm::vec3 inside = glm::vec3(center.x, outside.y, center.z) - outward * 0.9f;
                 if (!world.insideBuilding(inside, config.radius, config.height)) continue;
+                const glm::vec3 tangent(-outward.z, 0, outward.x);
+                bool longWall = true;
+                for (const float distance : {-4.0f, -2.0f, 2.0f, 4.0f}) {
+                    if (!world.insideBuilding(inside + tangent * distance, config.radius, config.height) ||
+                        world.insideBuilding(outside + tangent * distance, config.radius, config.height)) {
+                        longWall = false;
+                        break;
+                    }
+                }
+                if (!longWall) continue;
                 viewer::FPSController player;
                 if (!player.spawn(outside + glm::vec3(0, config.eyeHeight, 0), world) ||
                     horizontalDistance(outside, player.feet()) > 0.1f) continue;

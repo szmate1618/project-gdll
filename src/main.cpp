@@ -2,6 +2,7 @@
 #include "camera_rig.hpp"
 #include "collision_debug.hpp"
 #include "gpu_timer.hpp"
+#include "tree_layer.hpp"
 
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -22,9 +23,11 @@ struct Options {
     std::filesystem::path model = VIEWER_DEFAULT_ASSET;
     std::filesystem::path shaders = VIEWER_SHADER_DIR;
     std::filesystem::path screenshot;
+    std::filesystem::path trees;
     int frames = 0;
     bool hidden = false, allowSoftware = false, selfTest = false, help = false;
     bool fps = false, collisionDebug = false, selfTestFPS = false;
+    bool noTrees = false, treeCulling = true, treeCollisions = true;
     std::optional<glm::vec2> spawn;
 };
 
@@ -44,6 +47,10 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--fps") options.fps = true;
         else if (argument == "--collision-debug") options.collisionDebug = true;
         else if (argument == "--self-test-fps") options.selfTestFPS = true;
+        else if (argument == "--trees") options.trees = value();
+        else if (argument == "--no-trees") options.noTrees = true;
+        else if (argument == "--no-tree-culling") options.treeCulling = false;
+        else if (argument == "--no-tree-collisions") options.treeCollisions = false;
         else if (argument == "--spawn") {
             auto coordinate = [&]() {
                 const auto text = value();
@@ -73,6 +80,8 @@ Options parseOptions(int argc, char** argv) {
         else { options.model = argument; hasModel = true; }
     }
     if ((options.hidden || options.selfTest || options.selfTestFPS || !options.screenshot.empty()) && options.frames == 0) options.frames = 3;
+    if (options.noTrees && !options.trees.empty())
+        throw std::runtime_error("Use either --trees FILE or --no-trees");
     return options;
 }
 
@@ -85,6 +94,10 @@ void printHelp() {
               << "  --fps               Start in walking mode\n"
               << "  --spawn X Z         Start walking near world X/Z in meters\n"
               << "  --collision-debug   Show colliders and ground normal (F3)\n"
+              << "  --trees FILE        Load a tree instance JSON explicitly\n"
+              << "  --no-trees          Disable automatic adjacent trees.instances.json\n"
+              << "  --no-tree-culling   Render all tree instances for comparison\n"
+              << "  --no-tree-collisions Disable the estimated trunk colliders\n"
               << "  --self-test-fps     Exercise mode-switch and jump callbacks\n"
               << "  --frames N          Render N frames, then exit\n"
               << "  --screenshot FILE   Save a PPM image; defaults to 3 frames\n"
@@ -347,10 +360,43 @@ int run(const Options& options) {
     std::cout << "Loaded " << model.primitives.size() << " primitives, " << model.draws.size()
               << " draw instances, " << triangles << " triangles, " << model.images.size() << " images\n";
     for (const auto& warning : model.warnings) std::cerr << "Model warning: " << warning << '\n';
-    const viewer::CollisionWorld collision(model);
+    std::optional<viewer::TreeLayer> trees;
+    if (!options.noTrees) {
+        const bool explicitTrees = !options.trees.empty();
+        const auto path = explicitTrees ? options.trees : options.model.parent_path() / "trees.instances.json";
+        if (explicitTrees || std::filesystem::exists(path)) {
+            try {
+                std::cout << "Loading trees: " << path << '\n';
+                trees = viewer::loadTreeLayer(path, options.model);
+                std::cout << "Trees: " << trees->instances.size() << " instances, " << trees->assets.size()
+                          << " shared assets; frustum culling " << (options.treeCulling ? "on" : "off") << '\n';
+                for (const auto& asset : trees->assets)
+                    for (const auto& warning : asset.model.warnings)
+                        std::cerr << "Tree asset " << asset.id << ": " << warning << '\n';
+            } catch (const std::exception& error) {
+                if (explicitTrees) throw;
+                std::cerr << "Adjacent tree layer skipped: " << error.what()
+                          << "\nRegenerate placements for this map, or use --trees FILE to select a layer.\n";
+            }
+        }
+    }
+    std::vector<viewer::TrunkCollider> trunks;
+    if (trees && options.treeCollisions) {
+        trunks.reserve(trees->instances.size());
+        for (const auto& tree : trees->instances) {
+            const auto height = tree.dimensions.y;
+            const auto radius = std::min(height * .5f,
+                glm::clamp(.035f * std::min(tree.dimensions.x, tree.dimensions.z), .10f, .50f));
+            trunks.push_back({glm::vec3(tree.transform[3]), radius, height});
+        }
+    }
+    // Only the town geometry and simple trunks participate in collision.
+    // Shared impostor cards stay exclusively in the rendering layer.
+    const viewer::CollisionWorld collision(model, trunks);
     const auto& collisionStats = collision.stats();
     std::cout << "Collision world: " << collisionStats.triangles << " triangles, "
-              << collisionStats.buildings << " buildings, " << collisionStats.bvhNodes << " BVH nodes\n";
+              << collisionStats.buildings << " buildings, " << collisionStats.bvhNodes << " BVH nodes, "
+              << collisionStats.trunks << " tree trunks\n";
     GLFWLifetime lifetime;
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -391,7 +437,8 @@ int run(const Options& options) {
     if (!options.hidden && glfwRawMouseMotionSupported()) glfwSetInputMode(window.get(), GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
               << " m/s; F1 free-fly, F2 walk, F3 collisions, WASD move, Space jump, mouse look, Escape quit\n";
-    viewer::Renderer renderer(model, options.shaders);
+    viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr);
+    renderer.setTreeCulling(options.treeCulling);
     std::unique_ptr<viewer::CollisionDebug> debug;
     if (options.selfTest) inputSelfTest(window.get());
     if (options.selfTestFPS) fpsInputSelfTest(window.get());
@@ -457,8 +504,10 @@ int run(const Options& options) {
                 : gpuTimer.supported() ? std::string("pending") : std::string("unavailable");
             const auto cpuTime = milliseconds(intervalRenderSeconds * 1000.0 / static_cast<double>(intervalFrames));
             const auto status = app.rig.walking() ? (app.rig.player().grounded() ? " | grounded" : " | airborne") : "";
+            const auto& treeStats = renderer.treeStats();
+            const auto treeStatus = trees ? " | Trees " + std::to_string(treeStats.visible) + "/" + std::to_string(treeStats.total) : "";
             const auto caption = title + " | " + app.rig.modeName() + status + " | " + std::to_string(fps)
-                + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + " | " + std::to_string(static_cast<int>(app.rig.speed(
+                + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + treeStatus + " | " + std::to_string(static_cast<int>(app.rig.speed(
                     app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]))) + " m/s";
             glfwSetWindowTitle(window.get(), caption.c_str());
             titleTime = completed;
@@ -468,6 +517,11 @@ int run(const Options& options) {
         if (options.frames > 0 && frameCount >= options.frames) break;
     }
     if (!options.screenshot.empty()) renderer.writeScreenshot(options.screenshot);
+    if (trees) {
+        const auto& stats = renderer.treeStats();
+        std::cout << "Last tree frame: " << stats.visible << '/' << stats.total << " visible, "
+                  << stats.drawCalls << " instanced draw calls\n";
+    }
     viewer::Renderer::checkErrors("shutdown");
     std::cout << "Rendered " << frameCount << " frames successfully\n";
     return 0;

@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <numeric>
 #include <sstream>
 #include <stdexcept>
 
@@ -70,8 +71,8 @@ GLuint createProgram(const std::filesystem::path& directory) {
 }
 } // namespace
 
-Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirectory)
-    : materials_(model.materials) {
+Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirectory,
+                   const TreeLayer* trees) {
     try {
         program_ = createProgram(shaderDirectory);
         modelLocation_ = glGetUniformLocation(program_, "uModel");
@@ -84,62 +85,18 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         unlitLocation_ = glGetUniformLocation(program_, "uUnlit");
         alphaLocation_ = glGetUniformLocation(program_, "uAlphaMode");
         cutoffLocation_ = glGetUniformLocation(program_, "uAlphaCutoff");
+        instancedLocation_ = glGetUniformLocation(program_, "uInstanced");
         fallback_.baseColor = glm::vec4(0.65f, 0.68f, 0.72f, 1.0f);
-        GLint maximumTexture = 0;
-        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maximumTexture);
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        textures_.resize(model.textures.size());
-        for (std::size_t i = 0; i < model.textures.size(); ++i) {
-            const auto& texture = model.textures[i];
-            if (texture.image < 0 || static_cast<std::size_t>(texture.image) >= model.images.size()) continue;
-            const auto& image = model.images[static_cast<std::size_t>(texture.image)];
-            if (image.rgba.empty()) continue;
-            if (image.width > maximumTexture || image.height > maximumTexture)
-                throw std::runtime_error("Model texture exceeds this GPU's maximum texture size");
-            glGenTextures(1, &textures_[i]);
-            glBindTexture(GL_TEXTURE_2D, textures_[i]);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, image.width, image.height,
-                         0, GL_RGBA, GL_UNSIGNED_BYTE, image.rgba.data());
-            // glTF UVs have their origin at the image's first row. Do not flip.
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, texture.minFilter);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, texture.magFilter);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texture.wrapS);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texture.wrapT);
-            glGenerateMipmap(GL_TEXTURE_2D);
-        }
-        meshes_.resize(model.primitives.size());
-        for (std::size_t i = 0; i < model.primitives.size(); ++i) {
-            auto& mesh = meshes_[i];
-            const auto& input = model.primitives[i];
-            if (input.indices.size() > static_cast<std::size_t>(std::numeric_limits<GLsizei>::max()))
-                throw std::runtime_error("Primitive has too many triangle indices for an OpenGL draw call");
-            mesh.count = static_cast<GLsizei>(input.indices.size());
-            mesh.material = input.material;
-            glm::vec3 lo(std::numeric_limits<float>::max()), hi(std::numeric_limits<float>::lowest());
-            for (const auto& vertex : input.vertices) { lo = glm::min(lo, vertex.position); hi = glm::max(hi, vertex.position); }
-            mesh.center = (lo + hi) * 0.5f;
-            glGenVertexArrays(1, &mesh.vao);
-            glGenBuffers(1, &mesh.vbo);
-            glGenBuffers(1, &mesh.ebo);
-            glBindVertexArray(mesh.vao);
-            glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
-            glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(input.vertices.size() * sizeof(Vertex)), input.vertices.data(), GL_STATIC_DRAW);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLsizeiptr>(input.indices.size() * sizeof(std::uint32_t)), input.indices.data(), GL_STATIC_DRAW);
-            const std::size_t offsets[] = {offsetof(Vertex, position), offsetof(Vertex, normal), offsetof(Vertex, uv), offsetof(Vertex, color)};
-            const GLint sizes[] = {3, 3, 2, 4};
-            for (GLuint attribute = 0; attribute < 4; ++attribute) {
-                glEnableVertexAttribArray(attribute);
-                glVertexAttribPointer(attribute, sizes[attribute], GL_FLOAT, GL_FALSE,
-                                      sizeof(Vertex), reinterpret_cast<const void*>(offsets[attribute]));
-            }
-        }
+        uploadModel(model, model_);
         for (const auto& source : model.draws) {
-            const auto& mesh = meshes_.at(source.primitive);
+            const auto& mesh = model_.meshes.at(source.primitive);
             DrawGPU draw{source.primitive, source.transform, glm::inverseTranspose(glm::mat3(source.transform)),
                          glm::vec3(source.transform * glm::vec4(mesh.center, 1.0f)), glm::determinant(glm::mat3(source.transform)) < 0};
-            (material(mesh.material).alphaMode == "BLEND" ? transparent_ : opaque_).push_back(draw);
+            (material(model_, mesh.material).alphaMode == "BLEND" ? transparent_ : opaque_).push_back(draw);
         }
+        if (trees) uploadTrees(*trees);
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
         glGenFramebuffers(1, &framebuffer_);
         glGenTextures(1, &colorBuffer_);
         glGenRenderbuffers(1, &depthBuffer_);
@@ -155,24 +112,171 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
     }
 }
 
+void Renderer::uploadModel(const Model& model, ModelGPU& destination) {
+    destination.materials = model.materials;
+    GLint maximumTexture = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maximumTexture);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    destination.textures.resize(model.textures.size());
+    for (std::size_t i = 0; i < model.textures.size(); ++i) {
+        const auto& texture = model.textures[i];
+        if (texture.image < 0 || static_cast<std::size_t>(texture.image) >= model.images.size()) continue;
+        const auto& image = model.images[static_cast<std::size_t>(texture.image)];
+        if (image.rgba.empty()) continue;
+        if (image.width > maximumTexture || image.height > maximumTexture)
+            throw std::runtime_error("Model texture exceeds this GPU's maximum texture size");
+        glGenTextures(1, &destination.textures[i]);
+        glBindTexture(GL_TEXTURE_2D, destination.textures[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, image.width, image.height,
+                     0, GL_RGBA, GL_UNSIGNED_BYTE, image.rgba.data());
+        // glTF UVs have their origin at the image's first row. Do not flip.
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, texture.minFilter);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, texture.magFilter);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texture.wrapS);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texture.wrapT);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    destination.meshes.resize(model.primitives.size());
+    for (std::size_t i = 0; i < model.primitives.size(); ++i) {
+        auto& mesh = destination.meshes[i];
+        const auto& input = model.primitives[i];
+        if (input.indices.size() > static_cast<std::size_t>(std::numeric_limits<GLsizei>::max()))
+            throw std::runtime_error("Primitive has too many triangle indices for an OpenGL draw call");
+        mesh.count = static_cast<GLsizei>(input.indices.size());
+        mesh.material = input.material;
+        glm::vec3 lo(std::numeric_limits<float>::max()), hi(std::numeric_limits<float>::lowest());
+        for (const auto& vertex : input.vertices) { lo = glm::min(lo, vertex.position); hi = glm::max(hi, vertex.position); }
+        mesh.center = (lo + hi) * 0.5f;
+        glGenVertexArrays(1, &mesh.vao);
+        glGenBuffers(1, &mesh.vbo);
+        glGenBuffers(1, &mesh.ebo);
+        glBindVertexArray(mesh.vao);
+        glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
+        glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(input.vertices.size() * sizeof(Vertex)), input.vertices.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLsizeiptr>(input.indices.size() * sizeof(std::uint32_t)), input.indices.data(), GL_STATIC_DRAW);
+        const std::size_t offsets[] = {offsetof(Vertex, position), offsetof(Vertex, normal), offsetof(Vertex, uv), offsetof(Vertex, color)};
+        const GLint sizes[] = {3, 3, 2, 4};
+        for (GLuint attribute = 0; attribute < 4; ++attribute) {
+            glEnableVertexAttribArray(attribute);
+            glVertexAttribPointer(attribute, sizes[attribute], GL_FLOAT, GL_FALSE,
+                                  sizeof(Vertex), reinterpret_cast<const void*>(offsets[attribute]));
+        }
+    }
+}
+
+void Renderer::uploadTrees(const TreeLayer& trees) {
+    if (!trees.instances.empty() && instancedLocation_ < 0)
+        throw std::runtime_error("Tree rendering requires basic.vert with uInstanced and matrix attributes 4-7");
+    if (trees.instances.size() > static_cast<std::size_t>(std::numeric_limits<GLsizei>::max()))
+        throw std::runtime_error("Too many tree instances for an OpenGL instanced draw");
+    treeVisibility_ = TreeVisibility(trees.instances);
+    treeInstances_.reserve(trees.instances.size());
+    visibleTrees_.reserve(trees.instances.size());
+    std::vector<std::size_t> counts(trees.assets.size(), 0);
+    for (const auto& instance : trees.instances) {
+        if (instance.asset >= trees.assets.size()) throw std::runtime_error("Tree instance references an unknown asset");
+        treeInstances_.push_back({instance.asset, instance.transform});
+        ++counts[instance.asset];
+    }
+    // Allocate ownership slots before making any GL objects, so constructor
+    // cleanup covers partially uploaded models and instance buffers on failure.
+    treeBatches_.resize(trees.assets.size());
+    for (std::size_t index = 0; index < trees.assets.size(); ++index) {
+        const auto& source = trees.assets[index].model;
+        auto& batch = treeBatches_[index];
+        uploadModel(source, batch.model);
+        batch.visibleTransforms.reserve(counts[index]);
+        glGenBuffers(1, &batch.instanceBuffer);
+        glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);
+        for (const auto& mesh : batch.model.meshes) {
+            const auto& mat = material(batch.model, mesh.material);
+            if (!mat.doubleSided || !mat.unlit || mat.alphaMode != "MASK")
+                throw std::runtime_error("Instanced tree materials must be double-sided, unlit alpha masks");
+            glBindVertexArray(mesh.vao);
+            for (GLuint column = 0; column < 4; ++column) {
+                const GLuint location = 4 + column;
+                glEnableVertexAttribArray(location);
+                glVertexAttribPointer(location, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4),
+                                      reinterpret_cast<const void*>(column * sizeof(glm::vec4)));
+                glVertexAttribDivisor(location, 1);
+            }
+        }
+        for (const auto& draw : source.draws) {
+            const auto& mesh = batch.model.meshes.at(draw.primitive);
+            batch.draws.push_back({draw.primitive, draw.transform, glm::inverseTranspose(glm::mat3(draw.transform)),
+                                   glm::vec3(draw.transform * glm::vec4(mesh.center, 1)),
+                                   glm::determinant(glm::mat3(draw.transform)) < 0});
+        }
+    }
+    treeStats_.total = treeInstances_.size();
+}
+
+void Renderer::drawTrees(const glm::mat4& projectionView) {
+    treeStats_.visible = 0;
+    treeStats_.drawCalls = 0;
+    if (treeInstances_.empty()) return;
+    if (treeCulling_) treeVisibility_.query(projectionView, visibleTrees_);
+    else {
+        visibleTrees_.resize(treeInstances_.size());
+        std::iota(visibleTrees_.begin(), visibleTrees_.end(), std::size_t{0});
+    }
+    for (auto& batch : treeBatches_) batch.visibleTransforms.clear();
+    for (const auto index : visibleTrees_) {
+        const auto& instance = treeInstances_[index];
+        treeBatches_[instance.asset].visibleTransforms.push_back(instance.transform);
+    }
+    treeStats_.visible = visibleTrees_.size();
+    glUniform1i(instancedLocation_, GL_TRUE);
+    for (const auto& batch : treeBatches_) {
+        if (batch.visibleTransforms.empty()) continue;
+        const auto size = static_cast<GLsizeiptr>(batch.visibleTransforms.size() * sizeof(glm::mat4));
+        glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);
+        // Orphan the previous frame's storage instead of waiting for its draws.
+        // Each asset's matrices upload once and are shared by all four cards.
+        glBufferData(GL_ARRAY_BUFFER, size, nullptr, GL_STREAM_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, size, batch.visibleTransforms.data());
+        for (const auto& draw : batch.draws) {
+            const auto& mesh = batch.model.meshes[draw.primitive];
+            applyMaterial(batch.model, mesh.material, draw.mirrored);
+            glUniformMatrix4fv(modelLocation_, 1, GL_FALSE, glm::value_ptr(draw.transform));
+            glBindVertexArray(mesh.vao);
+            glDrawElementsInstanced(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, nullptr,
+                                   static_cast<GLsizei>(batch.visibleTransforms.size()));
+            ++treeStats_.drawCalls;
+        }
+    }
+    glUniform1i(instancedLocation_, GL_FALSE);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glFrontFace(GL_CCW);
+}
+
 Renderer::~Renderer() { release(); }
 
-void Renderer::release() noexcept {
-    for (const auto& mesh : meshes_) {
+void Renderer::releaseModel(ModelGPU& model) noexcept {
+    for (const auto& mesh : model.meshes) {
         glDeleteVertexArrays(1, &mesh.vao);
         glDeleteBuffers(1, &mesh.vbo);
         glDeleteBuffers(1, &mesh.ebo);
     }
-    for (const GLuint texture : textures_) glDeleteTextures(1, &texture);
+    for (const GLuint texture : model.textures) glDeleteTextures(1, &texture);
+}
+
+void Renderer::release() noexcept {
+    releaseModel(model_);
+    for (auto& batch : treeBatches_) {
+        releaseModel(batch.model);
+        glDeleteBuffers(1, &batch.instanceBuffer);
+    }
     glDeleteFramebuffers(1, &framebuffer_);
     glDeleteTextures(1, &colorBuffer_);
     glDeleteRenderbuffers(1, &depthBuffer_);
     if (program_) glDeleteProgram(program_);
 }
 
-const Material& Renderer::material(int index) const {
-    return index >= 0 && static_cast<std::size_t>(index) < materials_.size()
-        ? materials_[static_cast<std::size_t>(index)] : fallback_;
+const Material& Renderer::material(const ModelGPU& model, int index) const {
+    return index >= 0 && static_cast<std::size_t>(index) < model.materials.size()
+        ? model.materials[static_cast<std::size_t>(index)] : fallback_;
 }
 
 void Renderer::resize(int width, int height) {
@@ -193,21 +297,25 @@ void Renderer::resize(int width, int height) {
     checkErrors("framebuffer resize");
 }
 
-void Renderer::draw(const DrawGPU& draw) {
-    const auto& mesh = meshes_[draw.primitive];
-    const auto& mat = material(mesh.material);
+void Renderer::applyMaterial(const ModelGPU& model, int index, bool mirrored) {
+    const auto& mat = material(model, index);
     const int texture = mat.baseColorTexture;
-    const bool textured = texture >= 0 && static_cast<std::size_t>(texture) < textures_.size() && textures_[static_cast<std::size_t>(texture)] != 0;
+    const bool textured = texture >= 0 && static_cast<std::size_t>(texture) < model.textures.size() && model.textures[static_cast<std::size_t>(texture)] != 0;
     if (mat.doubleSided) glDisable(GL_CULL_FACE); else glEnable(GL_CULL_FACE);
-    glFrontFace(draw.mirrored ? GL_CW : GL_CCW);
-    glUniformMatrix4fv(modelLocation_, 1, GL_FALSE, glm::value_ptr(draw.transform));
-    glUniformMatrix3fv(normalLocation_, 1, GL_FALSE, glm::value_ptr(draw.normalMatrix));
+    glFrontFace(mirrored ? GL_CW : GL_CCW);
     glUniform4fv(colorLocation_, 1, glm::value_ptr(mat.baseColor));
     glUniform1i(hasTextureLocation_, textured);
     glUniform1i(unlitLocation_, mat.unlit);
     glUniform1i(alphaLocation_, mat.alphaMode == "MASK" ? 1 : mat.alphaMode == "BLEND" ? 2 : 0);
     glUniform1f(cutoffLocation_, mat.alphaCutoff);
-    glBindTexture(GL_TEXTURE_2D, textured ? textures_[static_cast<std::size_t>(texture)] : 0);
+    glBindTexture(GL_TEXTURE_2D, textured ? model.textures[static_cast<std::size_t>(texture)] : 0);
+}
+
+void Renderer::draw(const DrawGPU& draw) {
+    const auto& mesh = model_.meshes[draw.primitive];
+    applyMaterial(model_, mesh.material, draw.mirrored);
+    glUniformMatrix4fv(modelLocation_, 1, GL_FALSE, glm::value_ptr(draw.transform));
+    glUniformMatrix3fv(normalLocation_, 1, GL_FALSE, glm::value_ptr(draw.normalMatrix));
     glBindVertexArray(mesh.vao);
     glDrawElements(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, nullptr);
 }
@@ -227,7 +335,9 @@ void Renderer::render(const Camera& camera) {
     glActiveTexture(GL_TEXTURE0);
     glUniform1i(textureLocation_, 0);
     glDisable(GL_BLEND);
+    glUniform1i(instancedLocation_, GL_FALSE);
     for (const auto& item : opaque_) draw(item);
+    drawTrees(projection * view);
     if (!transparent_.empty()) {
         const auto eye = camera.position();
         std::sort(transparent_.begin(), transparent_.end(), [&eye](const auto& a, const auto& b) {

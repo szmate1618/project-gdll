@@ -6,9 +6,11 @@ convert their coordinates and pixel bounding boxes into instances of the shared
 The result is `output/trees.instances.json`; changing tree detections does not
 require rebuilding the town GLB.
 
-The JSON is intended for a later renderer integration. The current desktop
-viewer does not load this placement file. These commands do not modify
-`output/godollo.glb`, create a combined scene, or add tree collision geometry.
+The desktop viewer loads this JSON beside the map and renders the shared assets
+with GPU instancing and frustum culling. Run
+`./build/godollo_viewer output/godollo.glb --fps` after preparation; see
+[tree rendering and collision controls](VIEWER.md#trees). Preparation keeps the
+town GLB separate; the viewer creates simple trunk colliders at runtime.
 
 ## Run the local example
 
@@ -195,7 +197,7 @@ Horizontal scale accounts for the asset's visible alpha bounds, so transparent
 padding on the impostor cards does not shrink the intended visible crown.
 Raster orientation and any shear are retained in the instance matrix.
 
-## Placement JSON and later rendering
+## Placement JSON and rendering
 
 The JSON declares `"schema": "godollo.tree-instances"` and `"version": 1`.
 Its main fields are:
@@ -225,19 +227,19 @@ CSV path and row; repeated provenance is rejected instead of emitting duplicate
 IDs. Distinct detections at the same coordinates are retained.
 
 The matrix is **column-major and authoritative**:
-a future renderer should apply it directly to the shared asset. Rebuilding a
+the viewer applies it directly to the shared asset. Rebuilding a
 transform from position and scalar scale components can lose raster
 orientation, reflection, or shear. Do not apply those fields a second time after applying
 the matrix.
 
 Per-instance bounds contain the full transformed geometry's minimum and
 maximum corners. They include transparent card padding and are suitable for
-future conservative visibility culling. Visible alpha bounds describe canopy
+conservative visibility culling. The viewer also computes bounds from the loaded
+asset geometry to validate the layer. Visible alpha bounds describe canopy
 sizing; they are not a replacement for these complete geometry bounds.
 
-The files form a reusable placement layer, rather than baked town geometry.
-Future runtime loading can instance the shared assets; a separate GLB export
-can be added when a portable combined scene is needed.
+The files form a reusable placement layer. Runtime loading instances the shared
+assets; a separate GLB export can be added when a portable combined scene is needed.
 
 ## Limits
 
@@ -248,5 +250,6 @@ can be added when a portable combined scene is needed.
   may also already appear in the town's ground-color texture.
 - The Copernicus terrain is an approximate surface model. Tree bases match
   the exported terrain, which is not surveyed bare-earth ground.
-- Impostors use intersecting alpha-masked cards. Placement preparation adds
-  no renderer support, LOD switching, trunk colliders, or collision filtering.
+- Impostors use intersecting alpha-masked cards. The viewer currently has no
+  distance-based LOD or occlusion culling. Runtime trunk sizes are estimates
+  derived from crown size and configured tree height.

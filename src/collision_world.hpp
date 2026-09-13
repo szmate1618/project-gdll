@@ -20,6 +20,15 @@ struct GroundHit {
     glm::vec3 normal{0.0f, 1.0f, 0.0f};
 };
 
+// Y-up vertical capsule. Base and height include the rounded end caps; the
+// center segment runs from base.y + radius to base.y + height - radius.
+// These simple solid trunks are independent of rendered foliage/impostors.
+struct TrunkCollider {
+    glm::vec3 base{0.0f};
+    float radius = 0.15f;
+    float height = 5.0f;
+};
+
 struct CollisionStats {
     std::size_t triangles = 0;
     std::size_t terrainTriangles = 0;
@@ -27,13 +36,15 @@ struct CollisionStats {
     std::size_t buildings = 0;
     std::size_t bvhNodes = 0;
     std::size_t skippedDegenerateTriangles = 0;
+    std::size_t trunks = 0;
+    std::size_t trunkBvhNodes = 0;
 };
 
 // Static collision data uses the same transformed, Y-up meter coordinates as
 // rendering. All query shapes are capsules whose position denotes their feet.
 class CollisionWorld {
 public:
-    explicit CollisionWorld(const Model& model);
+    explicit CollisionWorld(const Model& model, const std::vector<TrunkCollider>& trunks = {});
     ~CollisionWorld();
     CollisionWorld(CollisionWorld&&) noexcept;
     CollisionWorld& operator=(CollisionWorld&&) noexcept;
@@ -42,6 +53,7 @@ public:
 
     std::vector<Contact> contacts(glm::vec3 feet, float radius, float height,
                                   float skin = 0.0f) const;
+    // Support comes only from the scene mesh, never foliage or trunk capsules.
     std::optional<GroundHit> groundAt(float x, float z, float minY, float maxY,
                                      bool terrainOnly = false) const;
     bool insideBuilding(glm::vec3 feet, float radius, float height) const;

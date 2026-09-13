@@ -36,8 +36,9 @@ required.
 Tree detector CSVs can also be converted into a separate placement layer using
 the shared tree and pine assets. See [tree data preparation](docs/TREES.md) for
 merging CSVs, matching source GeoTIFFs, coordinate conversion, and producing
-`output/trees.instances.json`. Loading that layer in the viewer is a separate
-integration step.
+`output/trees.instances.json`. The viewer automatically loads a matching layer
+beside the map, renders shared assets with GPU instancing and frustum culling,
+and uses simple trunk colliders for walking. See [tree rendering controls](docs/VIEWER.md#trees).
 
 The sections below document the Python scene generator.
 

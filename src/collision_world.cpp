@@ -6,6 +6,7 @@
 #include <limits>
 #include <map>
 #include <numeric>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -149,6 +150,32 @@ void appendBox(std::vector<glm::vec3>& lines, const Bounds& b) {
     }
 }
 
+void appendTrunk(std::vector<glm::vec3>& lines, const TrunkCollider& trunk) {
+    const glm::vec3 lower = trunk.base + glm::vec3(0, trunk.radius, 0);
+    const glm::vec3 upper = trunk.base + glm::vec3(0, trunk.height - trunk.radius, 0);
+    constexpr int segments = 16;
+    constexpr float pi = 3.14159265358979323846f;
+    const auto line = [&](glm::vec3 a, glm::vec3 b) { lines.push_back(a); lines.push_back(b); };
+    for (int i = 0; i < segments; ++i) {
+        const float a = 2 * pi * i / segments, b = 2 * pi * (i + 1) / segments;
+        const glm::vec3 radialA(std::cos(a) * trunk.radius, 0, std::sin(a) * trunk.radius);
+        const glm::vec3 radialB(std::cos(b) * trunk.radius, 0, std::sin(b) * trunk.radius);
+        line(lower + radialA, lower + radialB);
+        line(upper + radialA, upper + radialB);
+        if (i % 4 == 0) line(lower + radialA, upper + radialA);
+        // Two perpendicular meridians describe each hemispherical end cap.
+        const float c = pi * i / segments, d = pi * (i + 1) / segments;
+        for (int axis = 0; axis < 2; ++axis) {
+            const glm::vec3 horizontal = axis == 0 ? glm::vec3(1, 0, 0) : glm::vec3(0, 0, 1);
+            for (int end : {-1, 1}) {
+                const auto center = end < 0 ? lower : upper;
+                line(center + trunk.radius * (horizontal * std::cos(c) + glm::vec3(0, end * std::sin(c), 0)),
+                     center + trunk.radius * (horizontal * std::cos(d) + glm::vec3(0, end * std::sin(d), 0)));
+            }
+        }
+    }
+}
+
 }  // namespace
 
 struct CollisionWorld::Impl {
@@ -161,6 +188,10 @@ struct CollisionWorld::Impl {
     std::vector<std::uint32_t> order;
     std::vector<Node> nodes;
     std::vector<Group> groups;
+    struct Trunk { TrunkCollider collider; Bounds bounds; };
+    std::vector<Trunk> trunks;
+    std::vector<std::uint32_t> trunkOrder;
+    std::vector<Node> trunkNodes;
     Bounds bounds;
     CollisionStats stats;
     bool hasTerrain = false;
@@ -215,9 +246,60 @@ struct CollisionWorld::Impl {
             }
         }
     }
+
+    std::uint32_t buildTrunks(std::uint32_t begin, std::uint32_t end) {
+        const auto index = static_cast<std::uint32_t>(trunkNodes.size());
+        trunkNodes.emplace_back();
+        Bounds region, centers;
+        for (auto i = begin; i < end; ++i) {
+            const auto& trunk = trunks[trunkOrder[i]];
+            region.include(trunk.bounds);
+            centers.include((trunk.bounds.low + trunk.bounds.high) * 0.5f);
+        }
+        trunkNodes[index].bounds = region;
+        if (end - begin <= 8) {
+            trunkNodes[index].first = begin;
+            trunkNodes[index].count = end - begin;
+            return index;
+        }
+        const auto extent = centers.high - centers.low;
+        int axis = extent.y > extent.x ? 1 : 0;
+        if (extent.z > extent[axis]) axis = 2;
+        const auto middle = begin + (end - begin) / 2;
+        std::nth_element(trunkOrder.begin() + begin, trunkOrder.begin() + middle, trunkOrder.begin() + end,
+            [&](std::uint32_t a, std::uint32_t b) {
+                return trunks[a].bounds.low[axis] + trunks[a].bounds.high[axis] <
+                       trunks[b].bounds.low[axis] + trunks[b].bounds.high[axis];
+            });
+        const auto left = buildTrunks(begin, middle);
+        const auto right = buildTrunks(middle, end);
+        trunkNodes[index].left = left;
+        trunkNodes[index].right = right;
+        return index;
+    }
+
+    template <class Callback> void queryTrunks(const Bounds& region, Callback callback) const {
+        if (trunkNodes.empty()) return;
+        std::array<std::uint32_t, 64> stack{};
+        std::size_t count = 1;
+        while (count) {
+            const auto& node = trunkNodes[stack[--count]];
+            if (!node.bounds.intersects(region)) continue;
+            if (node.count) {
+                for (auto i = node.first; i < node.first + node.count; ++i) {
+                    const auto& trunk = trunks[trunkOrder[i]];
+                    if (trunk.bounds.intersects(region)) callback(trunk.collider);
+                }
+            } else {
+                stack[count++] = node.left;
+                stack[count++] = node.right;
+            }
+        }
+    }
 };
 
-CollisionWorld::CollisionWorld(const Model& model) : impl_(std::make_unique<Impl>()) {
+CollisionWorld::CollisionWorld(const Model& model, const std::vector<TrunkCollider>& trunks)
+    : impl_(std::make_unique<Impl>()) {
     auto& data = *impl_;
     std::unordered_map<std::string, int> buildingGroups;
     for (const auto& draw : model.draws) {
@@ -274,6 +356,26 @@ CollisionWorld::CollisionWorld(const Model& model) : impl_(std::make_unique<Impl
     data.nodes.reserve(data.triangles.size() / 3 + 1);
     if (!data.order.empty()) data.build(0, static_cast<std::uint32_t>(data.order.size()));
     data.stats.bvhNodes = data.nodes.size();
+    data.trunks.reserve(trunks.size());
+    for (const auto& trunk : trunks) {
+        if (!finite(trunk.base) || !std::isfinite(trunk.radius) || !std::isfinite(trunk.height) ||
+            trunk.radius <= 0 || trunk.height < 2 * trunk.radius) {
+            throw std::invalid_argument("Trunk collision capsule requires finite coordinates, positive radius, and height >= twice radius");
+        }
+        Bounds bounds;
+        bounds.include(trunk.base - glm::vec3(trunk.radius, 0, trunk.radius));
+        bounds.include(trunk.base + glm::vec3(trunk.radius, trunk.height, trunk.radius));
+        if (!finite(bounds.low) || !finite(bounds.high)) {
+            throw std::invalid_argument("Trunk collision capsule bounds exceed floating-point range");
+        }
+        data.trunks.push_back({trunk, bounds});
+    }
+    data.trunkOrder.resize(data.trunks.size());
+    std::iota(data.trunkOrder.begin(), data.trunkOrder.end(), 0u);
+    data.trunkNodes.reserve(data.trunks.size() / 3 + 1);
+    if (!data.trunkOrder.empty()) data.buildTrunks(0, static_cast<std::uint32_t>(data.trunkOrder.size()));
+    data.stats.trunks = data.trunks.size();
+    data.stats.trunkBvhNodes = data.trunkNodes.size();
 }
 
 CollisionWorld::~CollisionWorld() = default;
@@ -296,6 +398,26 @@ std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, floa
         if (distance > 1e-6f) normal = separation / distance;
         else if (glm::dot((p + q) * 0.5f - t.a, normal) < 0) normal = -normal;
         result.push_back({normal, pair.triangle, reach - distance});
+    });
+    impl_->queryTrunks(region, [&](const TrunkCollider& trunk) {
+        const float low = trunk.base.y + trunk.radius;
+        const float high = trunk.base.y + trunk.height - trunk.radius;
+        // Parallel vertical segments have a direct interval solution, avoiding
+        // cancellation in a general segment/segment test for very tall trees.
+        float playerY, trunkY;
+        if (q.y < low) { playerY = q.y; trunkY = low; }
+        else if (p.y > high) { playerY = p.y; trunkY = high; }
+        else { playerY = trunkY = std::max(p.y, low); }
+        const glm::vec3 separation(feet.x - trunk.base.x, playerY - trunkY, feet.z - trunk.base.z);
+        const float combinedRadius = reach + trunk.radius;
+        const float squared = squareLength(separation);
+        if (squared >= combinedRadius * combinedRadius) return;
+        const float distance = std::sqrt(std::max(0.0f, squared));
+        // An exactly coincident pair of axes has no unique radial normal.
+        // A deterministic horizontal direction depenetrates without lifting.
+        const auto normal = distance > 1e-6f ? separation / distance : glm::vec3(1, 0, 0);
+        const glm::vec3 point = glm::vec3(trunk.base.x, trunkY, trunk.base.z) + normal * trunk.radius;
+        result.push_back({normal, point, combinedRadius - distance});
     });
     std::sort(result.begin(), result.end(), [](const Contact& a, const Contact& b) { return a.depth > b.depth; });
     return result;
@@ -402,6 +524,10 @@ std::vector<glm::vec3> CollisionWorld::debugLines(glm::vec3 near, float distance
     std::sort(groups.begin(), groups.end());
     groups.erase(std::unique(groups.begin(), groups.end()), groups.end());
     for (const auto group : groups) appendBox(result, impl_->groups[static_cast<std::size_t>(group)].bounds);
+    const auto trunkLimit = result.size() + 30000;
+    impl_->queryTrunks(region, [&](const TrunkCollider& trunk) {
+        if (result.size() < trunkLimit) appendTrunk(result, trunk);
+    });
     return result;
 }
 

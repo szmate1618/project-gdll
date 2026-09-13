@@ -9,7 +9,7 @@ generator remains a separate program.
 ## Linux dependencies
 
 Install a C++17 compiler, CMake 3.20 or newer, Python 3, OpenGL development
-headers/libraries, and X11 development packages. A GPU driver supporting OpenGL
+headers/libraries, OpenSSL development headers, and X11 development packages. A GPU driver supporting OpenGL
 3.3 and a working desktop display are required for normal interactive use.
 Python is used only to generate the tiny test asset; no Python packages or
 generator dependencies are needed to build the viewer.
@@ -18,14 +18,14 @@ Ubuntu / Debian:
 
 ```bash
 sudo apt install build-essential cmake python3 pkg-config libgl1-mesa-dev \
-  libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+  libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libssl-dev
 ```
 
 Fedora:
 
 ```bash
 sudo dnf install gcc-c++ cmake python3 pkgconf-pkg-config mesa-libGL-devel \
-  libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel
+  libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel openssl-devel
 ```
 
 CMake downloads pinned versions of [GLFW 3.4](https://github.com/glfw/glfw/releases/tag/3.4),
@@ -36,6 +36,9 @@ under `build/_archives/`; extracted dependencies and their build products live
 under `build/_deps/`. Their examples, tests, and install targets are disabled.
 Subsequent builds reuse these files. No global C++ dependency installation is
 performed.
+
+OpenSSL's crypto library verifies the map and tree asset fingerprints in a
+placement layer. The viewer reads local files; this does not enable downloads.
 
 The default backend is X11, including XWayland in Wayland desktop sessions.
 For native Wayland, additionally install `libwayland-dev libxkbcommon-dev
@@ -80,6 +83,53 @@ directory. The default asset and shader directory are recorded as absolute
 source paths at configure time, so the executable can be launched from another
 directory. Reconfigure if you move the checkout. The executable is intended to
 run from the checkout; it is not a standalone install bundle.
+
+## Trees
+
+After [preparing tree placements](TREES.md), open the map normally:
+
+```bash
+./build/godollo_viewer output/godollo.glb --fps
+```
+
+The viewer automatically finds `trees.instances.json` beside the map. It checks
+the manifest version and the map/asset SHA-256 fingerprints before loading each
+shared tree or pine GLB once. Instance matrices preserve position, independent
+horizontal scales, image orientation, and shear. If the adjacent layer is
+incompatible, startup explains why it was skipped; an explicitly selected
+invalid layer is an error. Regenerate placements after changing the map or
+the shared GLBs.
+
+```bash
+./build/godollo_viewer output/godollo.glb --trees output/trees.instances.json --fps
+./build/godollo_viewer output/godollo.glb --no-trees --fps
+./build/godollo_viewer output/godollo.glb --no-tree-culling --fps
+./build/godollo_viewer output/godollo.glb --no-tree-collisions --fps
+```
+
+Trees use GPU instancing: visible instances share geometry, textures, and four
+draw calls per species for the current four-card assets. A static spatial index
+and per-instance bounds cull trees outside the camera frustum. Bounds include
+the complete transformed cards, so a tree can remain visible when its trunk is
+outside the view. Materials remain alpha-masked, unlit, and double-sided; opaque
+parts write depth while transparent texels do not block the background.
+
+The title shows visible/total tree counts alongside the existing FPS, GPU time,
+and CPU render time. These render timings include tree culling/submission and
+drawing, and exclude VSync presentation. `--no-tree-culling` is useful for an
+A/B comparison from the same camera position; it does not alter collision.
+
+Walking uses separate vertical capsule colliders for trunks, indexed
+independently of camera visibility. Their height is the placement's visible
+tree height. Radius is estimated as 3.5% of the smaller crown dimension,
+clamped to 0.10–0.50 m and at most half the tree height. These are approximations,
+since the detector does not measure trunks. The textured canopy cards never
+enter the town collision world, and trees add no walkable canopy surfaces.
+F3 displays nearby trunk colliders; `--no-tree-collisions` disables them.
+
+The tree layer supports static instances of the supplied double-sided,
+alpha-masked impostors. There is no tree animation, distance-based LOD, or
+occlusion culling. The town's existing draw path is unchanged.
 
 ## Camera and coordinates
 

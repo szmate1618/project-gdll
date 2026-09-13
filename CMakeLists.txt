@@ -22,6 +22,7 @@ if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW)
 endif()
 find_package(OpenGL REQUIRED)
+find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # X11 also works in Wayland sessions through XWayland. Native Wayland support
@@ -76,6 +77,11 @@ target_include_directories(viewer_model SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 target_link_libraries(viewer_model PUBLIC glm::glm)
 viewer_warnings(viewer_model)
 
+add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp)
+target_link_libraries(viewer_trees PUBLIC viewer_model PRIVATE OpenSSL::Crypto)
+target_include_directories(viewer_trees SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+viewer_warnings(viewer_trees)
+
 add_library(viewer_camera STATIC src/camera.cpp)
 target_include_directories(viewer_camera PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(viewer_camera PUBLIC glm::glm)
@@ -103,7 +109,7 @@ add_custom_target(viewer_test_asset DEPENDS "${VIEWER_TEST_ASSET}")
 
 add_executable(godollo_viewer src/main.cpp src/renderer.cpp src/collision_debug.cpp src/gpu_timer.cpp)
 target_link_libraries(godollo_viewer PRIVATE
-    viewer_model viewer_camera viewer_fps glfw OpenGL::GL
+    viewer_model viewer_camera viewer_fps viewer_trees glfw OpenGL::GL
 )
 target_compile_definitions(godollo_viewer PRIVATE
     GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -114,6 +120,22 @@ add_dependencies(godollo_viewer viewer_test_asset)
 viewer_warnings(godollo_viewer)
 
 if(BUILD_TESTING)
+    add_executable(test_tree_layer tests/test_tree_layer.cpp)
+    target_link_libraries(test_tree_layer PRIVATE viewer_trees OpenSSL::Crypto)
+    target_include_directories(test_tree_layer SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+    viewer_warnings(test_tree_layer)
+    add_test(NAME viewer_tree_layer COMMAND test_tree_layer)
+
+    add_executable(test_tree_visibility tests/test_tree_visibility.cpp)
+    target_link_libraries(test_tree_visibility PRIVATE viewer_trees viewer_camera)
+    viewer_warnings(test_tree_visibility)
+    add_test(NAME viewer_tree_visibility COMMAND test_tree_visibility)
+
+    add_executable(test_tree_collision tests/test_tree_collision.cpp)
+    target_link_libraries(test_tree_collision PRIVATE viewer_fps)
+    viewer_warnings(test_tree_collision)
+    add_test(NAME viewer_tree_collision COMMAND test_tree_collision)
+
     # Fake GL entry points exercise delayed query results without a display.
     add_executable(test_gpu_timer tests/test_gpu_timer.cpp src/gpu_timer.cpp)
     target_include_directories(test_gpu_timer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${OPENGL_INCLUDE_DIR}")
