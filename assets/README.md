@@ -63,3 +63,11 @@ and uses separate estimated trunk colliders for walking. The canopy cards do
 not enter that collision world. When a tree GLB is opened as the standalone
 main scene instead, the generic scene collision loader still treats its quads
 as surfaces; preview standalone assets in free-fly mode.
+
+## Animated zombies
+
+The Polyart Zombie pack belongs in `zombies/models/`. See its
+[asset documentation](zombies/README.md) for source, download, and attribution,
+and the [idle crowd controls](../docs/VIEWER.md#idle-zombie-crowd) to run 1,000
+instances on the generated town. Character assets remain separate from the
+town GLB and tree placement manifests.

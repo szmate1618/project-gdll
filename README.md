@@ -17,6 +17,11 @@ cmake --build build -j
 ./build/godollo_viewer output/godollo.glb --fps
 ```
 
+With the [zombie pack installed](assets/zombies/README.md), the town also loads
+1,000 GPU-instanced characters with looping idle animations. Use `--zombie-view`
+to frame the crowd or `--no-zombies` to disable it; see the
+[crowd controls](docs/VIEWER.md#idle-zombie-crowd) for placement options.
+
 **F1** selects free-fly; **F2** places a walking player on nearby clear ground.
 In walking mode, use **WASD** to walk, the mouse to look, **Space** to jump, and
 **Shift** to run. **F3** toggles collision lines and the player capsule; green

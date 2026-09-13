@@ -91,6 +91,11 @@ add_library(viewer_collision STATIC src/collision_world.cpp)
 target_link_libraries(viewer_collision PUBLIC viewer_model)
 viewer_warnings(viewer_collision)
 
+add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_layer.cpp)
+target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision)
+target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+viewer_warnings(viewer_zombies)
+
 add_library(viewer_fps STATIC src/fps_controller.cpp src/camera_rig.cpp)
 target_link_libraries(viewer_fps PUBLIC viewer_collision viewer_camera)
 viewer_warnings(viewer_fps)
@@ -107,19 +112,28 @@ add_custom_command(
 )
 add_custom_target(viewer_test_asset DEPENDS "${VIEWER_TEST_ASSET}")
 
-add_executable(godollo_viewer src/main.cpp src/renderer.cpp src/collision_debug.cpp src/gpu_timer.cpp)
+add_executable(godollo_viewer src/main.cpp src/renderer.cpp src/zombie_renderer.cpp src/collision_debug.cpp src/gpu_timer.cpp)
 target_link_libraries(godollo_viewer PRIVATE
-    viewer_model viewer_camera viewer_fps viewer_trees glfw OpenGL::GL
+    viewer_model viewer_camera viewer_fps viewer_trees viewer_zombies glfw OpenGL::GL
 )
 target_compile_definitions(godollo_viewer PRIVATE
     GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
     VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
     VIEWER_DEFAULT_ASSET="${VIEWER_TEST_ASSET}"
+    VIEWER_ZOMBIE_ASSETS="${CMAKE_CURRENT_SOURCE_DIR}/assets/zombies/models"
 )
 add_dependencies(godollo_viewer viewer_test_asset)
 viewer_warnings(godollo_viewer)
 
 if(BUILD_TESTING)
+    foreach(suite animated_model zombie_placement)
+        add_executable(test_${suite} tests/test_${suite}.cpp)
+        target_link_libraries(test_${suite} PRIVATE viewer_zombies)
+        target_include_directories(test_${suite} SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+        viewer_warnings(test_${suite})
+        add_test(NAME viewer_${suite} COMMAND test_${suite})
+    endforeach()
+
     add_executable(test_tree_layer tests/test_tree_layer.cpp)
     target_link_libraries(test_tree_layer PRIVATE viewer_trees OpenSSL::Crypto)
     target_include_directories(test_tree_layer SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")

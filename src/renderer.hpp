@@ -7,6 +7,7 @@
 #include "camera.hpp"
 #include "model.hpp"
 #include "tree_visibility.hpp"
+#include "zombie_layer.hpp"
 
 namespace viewer {
 
@@ -17,16 +18,18 @@ struct TreeRenderStats {
 class Renderer {
 public:
     Renderer(const Model& model, const std::filesystem::path& shaderDirectory,
-             const TreeLayer* trees = nullptr);
+             const TreeLayer* trees = nullptr, const ZombieLayer* zombies = nullptr);
     ~Renderer();
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
     void resize(int width, int height);
-    void render(const Camera& camera);
+    void render(const Camera& camera, double animationSeconds = 0.0);
     void present(int width, int height);
     void writeScreenshot(const std::filesystem::path& path) const;
     void setTreeCulling(bool enabled) { treeCulling_ = enabled; }
     const TreeRenderStats& treeStats() const { return treeStats_; }
+    std::size_t zombieCount() const { return zombieCount_; }
+    std::size_t zombieDrawCalls() const { return zombieDrawCalls_; }
     static void checkErrors(const char* stage);
 
 private:
@@ -55,11 +58,23 @@ private:
         std::vector<glm::mat4> visibleTransforms;
     };
     struct InstanceGPU { std::size_t asset; glm::mat4 transform; };
+    struct ZombieBatch {
+        ModelGPU model;
+        GLuint instanceBuffer = 0;
+        std::vector<GLuint> animationBuffers, animationTextures;
+        std::vector<GLint> vertexCounts;
+        GLsizei count = 0;
+        GLint frameCount = 0;
+        float duration = 0;
+    };
     void release() noexcept;
     static void releaseModel(ModelGPU& model) noexcept;
     void uploadModel(const Model& source, ModelGPU& destination);
     void uploadTrees(const TreeLayer& trees);
     void drawTrees(const glm::mat4& projectionView);
+    void uploadZombies(const ZombieLayer& zombies);
+    void drawZombies(double seconds);
+    void releaseZombies() noexcept;
     void applyMaterial(const ModelGPU& model, int index, bool mirrored);
     void draw(const DrawGPU& draw);
     const Material& material(const ModelGPU& model, int index) const;
@@ -68,6 +83,8 @@ private:
     GLint modelLocation_, viewLocation_, projectionLocation_, normalLocation_;
     GLint colorLocation_, textureLocation_, hasTextureLocation_, unlitLocation_;
     GLint alphaLocation_, cutoffLocation_, instancedLocation_;
+    GLint animatedLocation_, animationLocation_, animationFrameLocation_;
+    GLint animationCountLocation_, animationVerticesLocation_;
     ModelGPU model_;
     std::vector<DrawGPU> opaque_, transparent_;
     std::vector<TreeBatch> treeBatches_;
@@ -76,6 +93,8 @@ private:
     TreeVisibility treeVisibility_;
     TreeRenderStats treeStats_;
     bool treeCulling_ = true;
+    std::vector<ZombieBatch> zombieBatches_;
+    std::size_t zombieCount_ = 0, zombieDrawCalls_ = 0;
     Material fallback_;
 };
 

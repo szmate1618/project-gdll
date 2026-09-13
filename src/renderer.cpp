@@ -72,7 +72,7 @@ GLuint createProgram(const std::filesystem::path& directory) {
 } // namespace
 
 Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirectory,
-                   const TreeLayer* trees) {
+                   const TreeLayer* trees, const ZombieLayer* zombies) {
     try {
         program_ = createProgram(shaderDirectory);
         modelLocation_ = glGetUniformLocation(program_, "uModel");
@@ -86,6 +86,11 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         alphaLocation_ = glGetUniformLocation(program_, "uAlphaMode");
         cutoffLocation_ = glGetUniformLocation(program_, "uAlphaCutoff");
         instancedLocation_ = glGetUniformLocation(program_, "uInstanced");
+        animatedLocation_ = glGetUniformLocation(program_, "uAnimated");
+        animationLocation_ = glGetUniformLocation(program_, "uAnimation");
+        animationFrameLocation_ = glGetUniformLocation(program_, "uAnimationFrame");
+        animationCountLocation_ = glGetUniformLocation(program_, "uAnimationCount");
+        animationVerticesLocation_ = glGetUniformLocation(program_, "uAnimationVertices");
         fallback_.baseColor = glm::vec4(0.65f, 0.68f, 0.72f, 1.0f);
         uploadModel(model, model_);
         for (const auto& source : model.draws) {
@@ -95,6 +100,7 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
             (material(model_, mesh.material).alphaMode == "BLEND" ? transparent_ : opaque_).push_back(draw);
         }
         if (trees) uploadTrees(*trees);
+        if (zombies) uploadZombies(*zombies);
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glGenFramebuffers(1, &framebuffer_);
@@ -263,6 +269,7 @@ void Renderer::releaseModel(ModelGPU& model) noexcept {
 }
 
 void Renderer::release() noexcept {
+    releaseZombies();
     releaseModel(model_);
     for (auto& batch : treeBatches_) {
         releaseModel(batch.model);
@@ -320,7 +327,7 @@ void Renderer::draw(const DrawGPU& draw) {
     glDrawElements(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, nullptr);
 }
 
-void Renderer::render(const Camera& camera) {
+void Renderer::render(const Camera& camera, double animationSeconds) {
     if (width_ <= 0 || height_ <= 0) return;
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
     glViewport(0, 0, width_, height_);
@@ -336,8 +343,13 @@ void Renderer::render(const Camera& camera) {
     glUniform1i(textureLocation_, 0);
     glDisable(GL_BLEND);
     glUniform1i(instancedLocation_, GL_FALSE);
+    glUniform1i(animatedLocation_, GL_FALSE);
+    // Samplers of different types must use distinct texture units, even when
+    // this frame has no characters and the shader takes its static branch.
+    glUniform1i(animationLocation_, 1);
     for (const auto& item : opaque_) draw(item);
     drawTrees(projection * view);
+    drawZombies(animationSeconds);
     if (!transparent_.empty()) {
         const auto eye = camera.position();
         std::sort(transparent_.begin(), transparent_.end(), [&eye](const auto& a, const auto& b) {

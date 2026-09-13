@@ -3,6 +3,7 @@
 #include "collision_debug.hpp"
 #include "gpu_timer.hpp"
 #include "tree_layer.hpp"
+#include "zombie_layer.hpp"
 
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -24,10 +25,15 @@ struct Options {
     std::filesystem::path shaders = VIEWER_SHADER_DIR;
     std::filesystem::path screenshot;
     std::filesystem::path trees;
+    std::filesystem::path zombies;
     int frames = 0;
     bool hidden = false, allowSoftware = false, selfTest = false, help = false;
     bool fps = false, collisionDebug = false, selfTestFPS = false;
     bool noTrees = false, treeCulling = true, treeCollisions = true;
+    bool noZombies = false, zombieView = false, explicitZombies = false;
+    int zombieCount = 1000;
+    float zombieRadius = 100.0f;
+    std::optional<double> animationTime;
     std::optional<glm::vec2> spawn;
 };
 
@@ -51,6 +57,30 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--no-trees") options.noTrees = true;
         else if (argument == "--no-tree-culling") options.treeCulling = false;
         else if (argument == "--no-tree-collisions") options.treeCollisions = false;
+        else if (argument == "--zombies") { options.zombies = value(); options.explicitZombies = true; }
+        else if (argument == "--no-zombies") options.noZombies = true;
+        else if (argument == "--zombie-view") { options.zombieView = true; options.explicitZombies = true; }
+        else if (argument == "--zombie-count") {
+            const auto text = value();
+            std::size_t used = 0;
+            try { options.zombieCount = std::stoi(text, &used); }
+            catch (const std::exception&) { throw std::runtime_error("--zombie-count requires an integer from 1 to 100000"); }
+            if (used != text.size() || options.zombieCount < 1 || options.zombieCount > 100000)
+                throw std::runtime_error("--zombie-count requires an integer from 1 to 100000");
+            options.explicitZombies = true;
+        }
+        else if (argument == "--zombie-radius" || argument == "--animation-time") {
+            const auto text = value();
+            std::size_t used = 0;
+            double number;
+            try { number = std::stod(text, &used); }
+            catch (const std::exception&) { throw std::runtime_error(argument + " requires a finite number"); }
+            if (used != text.size() || !std::isfinite(number) || number < 0 ||
+                (argument == "--zombie-radius" && (number <= 0 || number > 1000)))
+                throw std::runtime_error(argument + " requires nonnegative seconds or a radius in (0, 1000] meters");
+            if (argument == "--animation-time") options.animationTime = number;
+            else { options.zombieRadius = static_cast<float>(number); options.explicitZombies = true; }
+        }
         else if (argument == "--spawn") {
             auto coordinate = [&]() {
                 const auto text = value();
@@ -82,6 +112,10 @@ Options parseOptions(int argc, char** argv) {
     if ((options.hidden || options.selfTest || options.selfTestFPS || !options.screenshot.empty()) && options.frames == 0) options.frames = 3;
     if (options.noTrees && !options.trees.empty())
         throw std::runtime_error("Use either --trees FILE or --no-trees");
+    if (options.noZombies && options.explicitZombies)
+        throw std::runtime_error("Use zombie options or --no-zombies, not both");
+    if (options.zombieView && options.fps)
+        throw std::runtime_error("--zombie-view uses a free-fly overview; omit --fps/--spawn");
     return options;
 }
 
@@ -98,6 +132,12 @@ void printHelp() {
               << "  --no-trees          Disable automatic adjacent trees.instances.json\n"
               << "  --no-tree-culling   Render all tree instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
+              << "  --zombies PATH      Load individual animated GLB/glTF files from PATH\n"
+              << "  --zombie-count N    Number of idle zombies (default 1000)\n"
+              << "  --zombie-radius M   Maximum placement radius in meters (default 100)\n"
+              << "  --zombie-view       Start with the camera framing the crowd\n"
+              << "  --no-zombies        Disable automatic zombies on town-sized terrain\n"
+              << "  --animation-time S  Freeze animation at seconds S for repeatable captures\n"
               << "  --self-test-fps     Exercise mode-switch and jump callbacks\n"
               << "  --frames N          Render N frames, then exit\n"
               << "  --screenshot FILE   Save a PPM image; defaults to 3 frames\n"
@@ -397,6 +437,20 @@ int run(const Options& options) {
     std::cout << "Collision world: " << collisionStats.triangles << " triangles, "
               << collisionStats.buildings << " buildings, " << collisionStats.bvhNodes << " BVH nodes, "
               << collisionStats.trunks << " tree trunks\n";
+    std::optional<viewer::ZombieLayer> zombies;
+    const auto extent = model.boundsMax - model.boundsMin;
+    const bool townSizedTerrain = collisionStats.terrainTriangles != 0 && extent.x >= 100 && extent.z >= 100;
+    if (!options.noZombies && (options.explicitZombies || townSizedTerrain)) {
+        const auto path = options.zombies.empty() ? std::filesystem::path(VIEWER_ZOMBIE_ASSETS) : options.zombies;
+        if (options.explicitZombies || viewer::hasZombieModels(path)) {
+            const auto middle = (model.boundsMin + model.boundsMax) * .5f;
+            const auto center = options.spawn.value_or(glm::vec2(middle.x, middle.z));
+            zombies = viewer::loadZombieLayer(path, collision, model, center,
+                                              static_cast<std::size_t>(options.zombieCount), options.zombieRadius);
+            std::cout << "Zombies: " << zombies->instances.size() << " instances, " << zombies->assets.size()
+                      << " shared animated assets; looping idle with individual phase offsets\n";
+        } else std::cerr << "Zombie assets are missing at " << path << "; see assets/zombies/README.md for download instructions.\n";
+    }
     GLFWLifetime lifetime;
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -427,6 +481,9 @@ int run(const Options& options) {
         if (options.spawn) { preferred.x = options.spawn->x; preferred.z = options.spawn->y; }
         if (!app.rig.enterWalking(preferred)) throw std::runtime_error("Unable to find a valid FPS starting position");
     }
+    if (options.zombieView && zombies)
+        app.rig.camera().frame(zombies->boundsMin, zombies->boundsMax,
+            static_cast<float>(std::max(app.width, 1)) / static_cast<float>(std::max(app.height, 1)));
     glfwSetWindowUserPointer(window.get(), &app);
     glfwSetFramebufferSizeCallback(window.get(), framebufferCallback);
     glfwSetKeyCallback(window.get(), keyCallback);
@@ -437,7 +494,7 @@ int run(const Options& options) {
     if (!options.hidden && glfwRawMouseMotionSupported()) glfwSetInputMode(window.get(), GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
               << " m/s; F1 free-fly, F2 walk, F3 collisions, WASD move, Space jump, mouse look, Escape quit\n";
-    viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr);
+    viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr, zombies ? &*zombies : nullptr);
     renderer.setTreeCulling(options.treeCulling);
     std::unique_ptr<viewer::CollisionDebug> debug;
     if (options.selfTest) inputSelfTest(window.get());
@@ -450,6 +507,7 @@ int run(const Options& options) {
     renderer.resize(app.width, app.height);
     viewer::GpuTimer gpuTimer;
     double previous = glfwGetTime(), titleTime = previous;
+    const double animationStart = previous;
     double intervalRenderSeconds = 0.0;
     int frameCount = 0, intervalFrames = 0;
     while (!glfwWindowShouldClose(window.get())) {
@@ -474,7 +532,7 @@ int run(const Options& options) {
         }
         gpuTimer.begin();
         const double renderStart = glfwGetTime();
-        renderer.render(app.rig.camera());
+        renderer.render(app.rig.camera(), options.animationTime.value_or(now - animationStart));
         if (app.collisionDebug)
             debug->draw(app.rig.camera(), overlay, app.width, app.height);
         intervalRenderSeconds += glfwGetTime() - renderStart;
@@ -506,8 +564,9 @@ int run(const Options& options) {
             const auto status = app.rig.walking() ? (app.rig.player().grounded() ? " | grounded" : " | airborne") : "";
             const auto& treeStats = renderer.treeStats();
             const auto treeStatus = trees ? " | Trees " + std::to_string(treeStats.visible) + "/" + std::to_string(treeStats.total) : "";
+            const auto zombieStatus = zombies ? " | Zombies " + std::to_string(renderer.zombieCount()) + " idle" : "";
             const auto caption = title + " | " + app.rig.modeName() + status + " | " + std::to_string(fps)
-                + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + treeStatus + " | " + std::to_string(static_cast<int>(app.rig.speed(
+                + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + treeStatus + zombieStatus + " | " + std::to_string(static_cast<int>(app.rig.speed(
                     app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]))) + " m/s";
             glfwSetWindowTitle(window.get(), caption.c_str());
             titleTime = completed;
@@ -522,6 +581,8 @@ int run(const Options& options) {
         std::cout << "Last tree frame: " << stats.visible << '/' << stats.total << " visible, "
                   << stats.drawCalls << " instanced draw calls\n";
     }
+    if (zombies) std::cout << "Last zombie frame: " << renderer.zombieCount() << " idle instances, "
+                          << renderer.zombieDrawCalls() << " instanced draw calls\n";
     viewer::Renderer::checkErrors("shutdown");
     std::cout << "Rendered " << frameCount << " frames successfully\n";
     return 0;

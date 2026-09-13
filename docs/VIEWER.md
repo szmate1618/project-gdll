@@ -131,6 +131,54 @@ The tree layer supports static instances of the supplied double-sided,
 alpha-masked impostors. There is no tree animation, distance-based LOD, or
 occlusion culling. The town's existing draw path is unchanged.
 
+## Idle zombie crowd
+
+The [zombie assets](../assets/zombies/README.md) live separately from the generated
+map in `assets/zombies/models/`. With these files installed, opening terrain at
+least 100 m wide and deep automatically places **1,000 zombies** near the map
+center, or near `--spawn X Z`. The small built-in test scene does not automatically
+load the crowd.
+
+```bash
+./build/godollo_viewer output/godollo.glb --fps
+./build/godollo_viewer output/godollo.glb --zombie-view
+./build/godollo_viewer output/godollo.glb --no-zombies
+./build/godollo_viewer output/godollo.glb --zombie-count 1000 --zombie-radius 150
+```
+
+`--zombies PATH` selects one animated GLB/glTF or a directory of individual
+characters. Directory files are sorted and assigned evenly to the crowd. Each
+character needs an animation named `idle` (preferred), an exporter-prefixed
+terminal `idle`, or a single clip whose name contains `idle`. Unsupported
+animation inputs fail with a diagnostic instead of displaying a static pose.
+Character height is normalized to 1.8 m and the animation's lowest point is
+placed on the rendered ground surface. Placement uses a deterministic grid
+with jitter and randomized facing, keeps at least 2 m between centers, and leaves
+a 2 m clearing at the crowd center. It rejects steep ground, buildings, and tree
+trunks. The radius defaults to 100 m; insufficient safe ground reports an error
+with the accepted count. Increase the radius or reduce the count for a smaller
+or densely built scene.
+
+Idle skin deformation is sampled once at startup at 30 samples per second.
+Shared vertex animation buffers hold the resulting positions and normals; the
+GPU interpolates adjacent samples and loops using elapsed time. Every zombie
+has its own phase offset. Meshes, textures, and animation samples are shared by
+all instances of a variant, with one instanced draw per character primitive.
+The title reports the zombie count, and shutdown logs the instanced draw count.
+The crowd currently draws all instances; it has no distance LOD, AI, movement,
+or player collision. Ground placement and existing town/tree collision remain
+independent from animated rendering.
+
+For matching-camera animation captures, use `--animation-time S` to freeze the
+idle cycles at a chosen elapsed time:
+
+```bash
+./build/godollo_viewer output/godollo.glb --fps --hidden --frames 3 \
+  --animation-time 0 --screenshot build/zombies-idle-0.ppm
+./build/godollo_viewer output/godollo.glb --fps --hidden --frames 3 \
+  --animation-time 0.5 --screenshot build/zombies-idle-1.ppm
+```
+
 ## Camera and coordinates
 
 | Input | Action |
@@ -253,9 +301,10 @@ Shader errors print the source filename and compiler output. Model errors
 include the input path. Debug builds print OpenGL debug messages when the
 driver exposes the debug extension.
 
-This is a basic geometry viewer, not a complete glTF rendering engine. It does
-not provide animation, skeletal skinning, morph targets, shadows, or full PBR
-lighting. Normal/metallic/roughness maps and texture coordinate sets beyond
+The main scene loader displays static geometry; idle skeletal animation is
+provided by the separate zombie layer described above. The viewer does not
+provide morph targets, shadows, or full PBR lighting.
+Normal/metallic/roughness maps and texture coordinate sets beyond
 `TEXCOORD_0` are not rendered. Transparent primitives are sorted as whole
 objects, so intersecting transparent surfaces can show sorting artifacts.
 Non-triangle primitives are skipped with a warning. Unsupported required glTF
@@ -355,6 +404,10 @@ resize, and Escape callbacks passed the input check. Screenshots are in
 CMakeLists.txt              Viewer and unit-test build configuration
 src/main.cpp               Window, input callbacks, render loop, CLI
 src/renderer.{hpp,cpp}      OpenGL resources, shaders, drawing
+src/animated_model.{hpp,cpp} Idle glTF animation sampling and skin deformation
+src/zombie_layer.{hpp,cpp}  Shared character loading and crowd assembly
+src/zombie_placement.{hpp,cpp} Ground queries and deterministic safe placement
+src/zombie_renderer.cpp    Shared animation buffers and GPU instanced drawing
 src/camera.{hpp,cpp}        Perspective free-fly camera
 src/camera_rig.{hpp,cpp}    Runtime camera mode switching
 src/fps_controller.{hpp,cpp} Fixed-step walking, gravity, jump and contact response

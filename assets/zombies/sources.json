@@ -1,0 +1,191 @@
+{
+  "creator": "Denys Almaral",
+  "demo_url": "https://denysalmaral.com/gamedev/free-zombies/",
+  "fab_url": "https://www.fab.com/listings/2a85aa17-6eae-4c9d-b805-aeb1d722962f",
+  "files": {
+    "animations-gltf/gltf_ZombieFemale/ZombieFemale@idle_220f.gltf": {
+      "bytes": 142241,
+      "sha256": "3ca613955f06e79b1e610a3f8890298322274f0b568029aaf8f556f19bd7e2e1",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/animations-gltf/gltf_ZombieFemale/ZombieFemale@idle_220f.gltf"
+    },
+    "animations-gltf/gltf_ZombieFemale/ZombieFemale@idle_220f0.bin": {
+      "bytes": 677300,
+      "sha256": "2bbaf0d45b2cb5518ce14714fd34843e812b586ca5027e4779a0244f9483b3fc",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/animations-gltf/gltf_ZombieFemale/ZombieFemale@idle_220f0.bin"
+    },
+    "animations-gltf/gltf_ZombieMale/ZombieMale@idle_220f.gltf": {
+      "bytes": 142584,
+      "sha256": "824bef7a5d4e731a20b2e7d887421ff0d003407f9c2793430152b2fa9276517d",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/animations-gltf/gltf_ZombieMale/ZombieMale@idle_220f.gltf"
+    },
+    "animations-gltf/gltf_ZombieMale/ZombieMale@idle_220f0.bin": {
+      "bytes": 637256,
+      "sha256": "f06ba8d5473aca01cb398aef7cee164eb4053bda3c92d834f5cf6304def8df4a",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/animations-gltf/gltf_ZombieMale/ZombieMale@idle_220f0.bin"
+    },
+    "rig-gltf_joined/ZombieFemale_A_joined.gltf": {
+      "bytes": 28969,
+      "sha256": "cfb0c1afcb849257feffabf39559fd402f5720d5cbbba835cf44b9b14368cde2",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieFemale_A_joined.gltf"
+    },
+    "rig-gltf_joined/ZombieFemale_A_joined0.bin": {
+      "bytes": 309572,
+      "sha256": "ca9b6ea7ec5faccef38f3898392bb2aa6775c5b04e5e63276792da78804ee5f8",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieFemale_A_joined0.bin"
+    },
+    "rig-gltf_joined/ZombieFemale_B_joined.gltf": {
+      "bytes": 28961,
+      "sha256": "71632e3b2392ccbd99eb5bdb63a288b563a337ba2eb4c39936799446ce1c58c4",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieFemale_B_joined.gltf"
+    },
+    "rig-gltf_joined/ZombieFemale_B_joined0.bin": {
+      "bytes": 320276,
+      "sha256": "97056f2c0e07a36634b30e1914cd88bb92b28cce8d761d749bd319e508d2b8f7",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieFemale_B_joined0.bin"
+    },
+    "rig-gltf_joined/ZombieFemale_C_joined.gltf": {
+      "bytes": 28931,
+      "sha256": "66f0da1b31891f95f8cf1305fae757e9cf8458edb8ac0ec3905198fc60e21ea5",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieFemale_C_joined.gltf"
+    },
+    "rig-gltf_joined/ZombieFemale_C_joined0.bin": {
+      "bytes": 328508,
+      "sha256": "fcc8e5ee163d85b09ea6d4776352743049f19e6128e90427539e707ccd4d570f",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieFemale_C_joined0.bin"
+    },
+    "rig-gltf_joined/ZombieFemale_D_joined.gltf": {
+      "bytes": 28869,
+      "sha256": "991d0f7e2dddf6532f992149ccbf30973fff8b02aa2ea3dc0dce1a8b46ec0ba6",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieFemale_D_joined.gltf"
+    },
+    "rig-gltf_joined/ZombieFemale_D_joined0.bin": {
+      "bytes": 247576,
+      "sha256": "46d773fb397ecf7aed8696cb5884a0c0d27cee84efcd0aefcc83fa43eb0c2f64",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieFemale_D_joined0.bin"
+    },
+    "rig-gltf_joined/ZombieFemale_E_joined.gltf": {
+      "bytes": 28964,
+      "sha256": "08dde8cf86e1b02aecf200920ff97dc513e057792f30097f405aaf6d2586ad6f",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieFemale_E_joined.gltf"
+    },
+    "rig-gltf_joined/ZombieFemale_E_joined0.bin": {
+      "bytes": 250172,
+      "sha256": "534a7e93cf35bb8a67125ff91569b3c290238fcd213080c80e54fe8f47128ff8",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieFemale_E_joined0.bin"
+    },
+    "rig-gltf_joined/ZombieMale_A_joined.gltf": {
+      "bytes": 29418,
+      "sha256": "e4986554f3c1aecfae4c475c0cb1858dba037a20e73395866d87969ee595b0c9",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieMale_A_joined.gltf"
+    },
+    "rig-gltf_joined/ZombieMale_A_joined0.bin": {
+      "bytes": 269528,
+      "sha256": "801a89a2f74381d2690e0286c1e1a6fe2bf5adf497c7436eafa4de624187a24f",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieMale_A_joined0.bin"
+    },
+    "rig-gltf_joined/ZombieMale_B_joined.gltf": {
+      "bytes": 29190,
+      "sha256": "4bf90d1419a02446991184f807d01b3745cc32cbd0f03007377721cb518f6bf9",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieMale_B_joined.gltf"
+    },
+    "rig-gltf_joined/ZombieMale_B_joined0.bin": {
+      "bytes": 316052,
+      "sha256": "c694d3bc970a7e774cd05c5740ea4d115383fc6d99f6b027c3436ec6713c2479",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieMale_B_joined0.bin"
+    },
+    "rig-gltf_joined/ZombieMale_C_joined.gltf": {
+      "bytes": 29236,
+      "sha256": "8360d8e988dbb3dbfdec5edf687e61a11c4f48939b3cb9c5dfbf0295268b16e1",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieMale_C_joined.gltf"
+    },
+    "rig-gltf_joined/ZombieMale_C_joined0.bin": {
+      "bytes": 256844,
+      "sha256": "7ea1f54bf3f9cfb887738bc7961dd930610d25d71479296bfce2031d40c70eca",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieMale_C_joined0.bin"
+    },
+    "rig-gltf_joined/ZombieMale_D_joined.gltf": {
+      "bytes": 29257,
+      "sha256": "db0f6d6c574aecf5e4cd2c5ea02f9223e074ebef3a39b71f4c5323ec53f8c62e",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieMale_D_joined.gltf"
+    },
+    "rig-gltf_joined/ZombieMale_D_joined0.bin": {
+      "bytes": 249920,
+      "sha256": "881aed05c5843c2b5f4e85e66ac71d32b7dcb4f43d32b8e392cacd407f5c084d",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieMale_D_joined0.bin"
+    },
+    "rig-gltf_joined/ZombieMale_E_joined.gltf": {
+      "bytes": 29345,
+      "sha256": "d24984c52b6458caef55f25148470769ef05cacd745272b0475bf17d0672f8ff",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieMale_E_joined.gltf"
+    },
+    "rig-gltf_joined/ZombieMale_E_joined0.bin": {
+      "bytes": 333224,
+      "sha256": "db722ca15320810ddb01ebd476a1b12ad9ac7bb5c41136f14e1448617788de44",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/rig-gltf_joined/ZombieMale_E_joined0.bin"
+    },
+    "zcolors.png": {
+      "bytes": 4712,
+      "sha256": "0f89a600111a894d2bddb60f1847b2ecc6f2786f4314837ae295e21af7afb871",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/zcolors.png"
+    }
+  },
+  "license": {
+    "name": "Free Standard",
+    "url": "https://sketchfab.com/licenses"
+  },
+  "outputs": {
+    "models/ZombieFemale_A.glb": {
+      "animation": "ZombieFemale@idle_220f",
+      "bytes": 736544,
+      "sha256": "444c916720fae20f96c4ffb3870568761f3a32cc2bb177a7df08ee84f2560dc7"
+    },
+    "models/ZombieFemale_B.glb": {
+      "animation": "ZombieFemale@idle_220f",
+      "bytes": 747236,
+      "sha256": "6f43932306c4c13c1be9750fcb09a56c3b3ddb5dae23041c3c33bd6af91f65f0"
+    },
+    "models/ZombieFemale_C.glb": {
+      "animation": "ZombieFemale@idle_220f",
+      "bytes": 755444,
+      "sha256": "6ae33aee385b22245f7ba26022e879ccefe6cc0b23826a7db2a2f09d91e40fbf"
+    },
+    "models/ZombieFemale_D.glb": {
+      "animation": "ZombieFemale@idle_220f",
+      "bytes": 674516,
+      "sha256": "11cf7ac139c046f20e7e10a83151c167fc290f44d8dec25d2083c1f5020137b0"
+    },
+    "models/ZombieFemale_E.glb": {
+      "animation": "ZombieFemale@idle_220f",
+      "bytes": 677136,
+      "sha256": "19ba16fd517bd6a78af4467add017b624f1c1a468f43789b3286c701e5554fb7"
+    },
+    "models/ZombieMale_A.glb": {
+      "animation": "ZombieMale@idle_220f",
+      "bytes": 696796,
+      "sha256": "aa8019a6fb35fe7531f406598e8413c602a44331321c9965f34b43bb5eff143a"
+    },
+    "models/ZombieMale_B.glb": {
+      "animation": "ZombieMale@idle_220f",
+      "bytes": 743172,
+      "sha256": "d18f6f0ef671d2b3ee33719dbfe5af71ad626a2e61416e3b31707265c457de34"
+    },
+    "models/ZombieMale_C.glb": {
+      "animation": "ZombieMale@idle_220f",
+      "bytes": 683996,
+      "sha256": "6e9343d5a43db7d9865173d35bd49e30c821e0fc924373ebb4fca8b1518db7cf"
+    },
+    "models/ZombieMale_D.glb": {
+      "animation": "ZombieMale@idle_220f",
+      "bytes": 677096,
+      "sha256": "84319b8f1fe16ddee120c99cdd1a145976d5f59976872bcf0a1aebf50d824a55"
+    },
+    "models/ZombieMale_E.glb": {
+      "animation": "ZombieMale@idle_220f",
+      "bytes": 760452,
+      "sha256": "a9cb5710fdfe4cbc4c09f1d1759291bd8ab119bab015fb84383a45bda8ceed14"
+    }
+  },
+  "schema_version": 1,
+  "sketchfab_url": "https://sketchfab.com/3d-models/polyart-zombies-with-animations-free-pack-d9bcfdd88f5348549bc947226af7c314",
+  "title": "Polyart Zombies with Animations Free Pack"
+}
