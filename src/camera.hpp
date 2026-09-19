@@ -18,6 +18,7 @@ public:
     void adjustSpeed(float multiplier);
 
     [[nodiscard]] glm::vec3 position() const { return position_; }
+    [[nodiscard]] glm::vec3 direction() const { return forward(); }
     [[nodiscard]] float speed() const { return speed_; }
     [[nodiscard]] float yawDegrees() const { return yaw_; }
     [[nodiscard]] float pitchDegrees() const { return pitch_; }

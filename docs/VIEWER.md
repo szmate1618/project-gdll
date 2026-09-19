@@ -31,7 +31,8 @@ sudo dnf install gcc-c++ cmake python3 pkgconf-pkg-config mesa-libGL-devel \
 CMake downloads pinned versions of [GLFW 3.4](https://github.com/glfw/glfw/releases/tag/3.4),
 [GLM 1.0.1](https://github.com/g-truc/glm/releases/tag/1.0.1), and
 [tinygltf 2.9.7](https://github.com/syoyo/tinygltf/releases/tag/v2.9.7), verifying
-each archive's SHA-256. The first configure needs network access. Downloads live
+each archive's SHA-256. It also fetches a pinned Box3D commit for ragdoll physics.
+The first configure needs network access. Downloads live
 under `build/_archives/`; extracted dependencies and their build products live
 under `build/_deps/`. Their examples, tests, and install targets are disabled.
 Subsequent builds reuse these files. No global C++ dependency installation is
@@ -179,8 +180,13 @@ has its own phase offset. Meshes, textures, and animation samples are shared by
 all instances of a variant, with one instanced draw per character primitive.
 The title reports the zombie count, and shutdown logs the instanced draw count.
 The crowd currently draws all instances; it has no distance LOD, AI, movement,
-or player collision. Ground placement and existing town/tree collision remain
-independent from animated rendering.
+or player collision. While the mouse is captured, left click casts a ray from
+the camera center and activates the nearest zombie under a conservative body
+sphere. Box3D then simulates an 11-body capsule/sphere ragdoll with constrained
+ball and hinge joints. The mesh freezes in its reference idle frame and follows
+the simulated pelvis/root pose; each ragdoll uses a small local ground box rather
+than the full terrain mesh. Ground placement and existing town/tree collision
+remain independent from animated rendering.
 
 For matching-camera animation captures, use `--animation-time S` to freeze the
 idle cycles at a chosen elapsed time:
@@ -200,6 +206,7 @@ idle cycles at a chosen elapsed time:
 | A / D | Strafe left / right |
 | Q / E | Move down / up along world Y in free-fly mode |
 | Mouse | Look around while captured |
+| Left mouse button | Shoot a camera-center ray and activate a zombie ragdoll |
 | Shift | Free-fly: move four times faster; walking: run at 6 m/s |
 | Mouse wheel | Adjust free-fly movement speed |
 | F1 | Switch to free-fly mode |
@@ -420,6 +427,7 @@ src/renderer.{hpp,cpp}      OpenGL resources, shaders, drawing
 src/animated_model.{hpp,cpp} Idle glTF animation sampling and skin deformation
 src/zombie_layer.{hpp,cpp}  Shared character loading and crowd assembly
 src/zombie_placement.{hpp,cpp} Ground queries and deterministic safe placement
+src/zombie_ragdoll.{hpp,cpp} Box3D ragdoll simulation and simplified ground planes
 src/zombie_renderer.cpp    Shared animation buffers and GPU instanced drawing
 src/camera.{hpp,cpp}        Perspective free-fly camera
 src/camera_rig.{hpp,cpp}    Runtime camera mode switching

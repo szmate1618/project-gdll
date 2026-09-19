@@ -8,10 +8,6 @@
 
 namespace viewer {
 namespace {
-struct ZombieGPUInstance {
-    glm::mat4 transform;
-    float phase;
-};
 static_assert(sizeof(AnimationVertex) == 2 * sizeof(glm::vec4),
               "Animation texture requires packed position/normal vec4 pairs");
 }
@@ -26,9 +22,12 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
     GLint maximumTexels = 0;
     glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &maximumTexels);
     std::vector<std::vector<ZombieGPUInstance>> instances(zombies.assets.size());
-    for (const auto& instance : zombies.instances) {
+    std::vector<std::vector<std::size_t>> sourceIndices(zombies.assets.size());
+    for (std::size_t sourceIndex = 0; sourceIndex < zombies.instances.size(); ++sourceIndex) {
+        const auto& instance = zombies.instances[sourceIndex];
         if (instance.asset >= instances.size()) throw std::runtime_error("Invalid zombie asset index");
-        instances[instance.asset].push_back({instance.transform, instance.phase});
+        instances[instance.asset].push_back({instance.transform, instance.phase, instance.ragdoll ? 0.0f : -1.0f});
+        sourceIndices[instance.asset].push_back(sourceIndex);
     }
     // Allocate ownership before creating any GPU resource, so partial failures
     // are covered by the renderer constructor's cleanup path.
@@ -36,6 +35,8 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
     for (std::size_t i = 0; i < zombies.assets.size(); ++i) {
         const auto& source = zombies.assets[i];
         auto& batch = zombieBatches_[i];
+        batch.sourceIndices = std::move(sourceIndices[i]);
+        batch.staging = instances[i];
         if (source.frameCount < 2 || source.frameCount > static_cast<std::size_t>(std::numeric_limits<GLint>::max()) ||
             !std::isfinite(source.duration) || source.duration <= 0 ||
             source.animation.size() != source.model.primitives.size())
@@ -47,7 +48,7 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
         glGenBuffers(1, &batch.instanceBuffer);
         glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);
         glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(instances[i].size() * sizeof(ZombieGPUInstance)),
-                     instances[i].data(), GL_STATIC_DRAW);
+                     batch.staging.data(), GL_STATIC_DRAW);
         batch.animationBuffers.resize(batch.model.meshes.size());
         batch.animationTextures.resize(batch.model.meshes.size());
         batch.vertexCounts.resize(batch.model.meshes.size());
@@ -74,6 +75,10 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
             glVertexAttribPointer(8, 1, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
                                   reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, phase)));
             glVertexAttribDivisor(8, 1);
+            glEnableVertexAttribArray(9);
+            glVertexAttribPointer(9, 1, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
+                                  reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, animationFrame)));
+            glVertexAttribDivisor(9, 1);
             glGenBuffers(1, &batch.animationBuffers[p]);
             glBindBuffer(GL_TEXTURE_BUFFER, batch.animationBuffers[p]);
             glBufferData(GL_TEXTURE_BUFFER, static_cast<GLsizeiptr>(frames.size() * sizeof(AnimationVertex)),
@@ -87,6 +92,30 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
     glBindBuffer(GL_TEXTURE_BUFFER, 0);
     zombieCount_ = zombies.instances.size();
     checkErrors("zombie upload");
+}
+
+void Renderer::updateZombies(const ZombieLayer& zombies) {
+    if (zombieBatches_.size() != zombies.assets.size())
+        throw std::runtime_error("Zombie layer changed after renderer upload");
+    for (std::size_t i = 0; i < zombieBatches_.size(); ++i) {
+        auto& batch = zombieBatches_[i];
+        if (batch.count != static_cast<GLsizei>(batch.sourceIndices.size()))
+            throw std::runtime_error("Zombie population changed after renderer upload");
+        for (std::size_t instanceIndex = 0; instanceIndex < batch.sourceIndices.size(); ++instanceIndex) {
+            const auto sourceIndex = batch.sourceIndices[instanceIndex];
+            if (sourceIndex >= zombies.instances.size()) throw std::runtime_error("Invalid zombie source index");
+            const auto& source = zombies.instances[sourceIndex];
+            batch.staging[instanceIndex] = {source.transform, source.phase, source.ragdoll ? 0.0f : -1.0f};
+        }
+        if (!batch.staging.empty()) {
+            glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);
+            glBufferSubData(GL_ARRAY_BUFFER, 0,
+                            static_cast<GLsizeiptr>(batch.staging.size() * sizeof(ZombieGPUInstance)),
+                            batch.staging.data());
+        }
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    checkErrors("zombie update");
 }
 
 void Renderer::drawZombies(double seconds) {

@@ -1,4 +1,5 @@
 #include "zombie_placement.hpp"
+#include "zombie_layer.hpp"
 #include "collision_world.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -140,6 +141,31 @@ void insufficientGroundAndGenericFallback() {
     require(viewer::placeZombies(smallWorld, small, {0, 0}, 0).empty(), "Zero requested zombies need no placement");
 }
 
+void cameraRayActivatesNearestZombieRagdoll() {
+    viewer::ZombieLayer layer;
+    layer.assets.emplace_back();
+    viewer::ZombieInstance far;
+    far.asset = 0;
+    far.restRoot = glm::translate(glm::mat4(1), {0, 0, -8});
+    far.restTransform = far.restRoot;
+    far.transform = far.restTransform;
+    layer.instances.push_back(far);
+    viewer::ZombieInstance near = far;
+    near.restRoot = glm::translate(glm::mat4(1), {0, 0, -3});
+    near.restTransform = near.restRoot;
+    near.transform = near.restTransform;
+    layer.instances.push_back(near);
+
+    require(layer.shoot({0, 0.9f, 3}, {0, 0, -1}), "Camera ray must activate a zombie");
+    require(layer.ragdollCount() == 1, "A camera ray must activate only one zombie");
+    require(!layer.instances[0].ragdoll && layer.instances[1].ragdoll,
+            "A camera ray must choose the nearest zombie");
+    const auto before = layer.instances[1].transform;
+    layer.update(1.0f / 30.0f);
+    require(glm::length(glm::vec3(layer.instances[1].transform[3]) - glm::vec3(before[3])) > 1e-4f,
+            "Box3D ragdoll simulation must update the zombie transform");
+}
+
 }  // namespace
 
 int main() {
@@ -147,6 +173,7 @@ int main() {
         thousandInstancesAreSpacedAndRepeatable();
         triangleGroundBuildingsAndTrunks();
         insufficientGroundAndGenericFallback();
+        cameraRayActivatesNearestZombieRagdoll();
         std::cout << "Zombie placement tests passed\n";
         return 0;
     } catch (const std::exception& error) {

@@ -3,18 +3,40 @@
 #include "animated_model.hpp"
 #include "collision_world.hpp"
 
+#include <memory>
+
 namespace viewer {
 
 struct ZombieInstance {
     std::size_t asset = 0;
     glm::mat4 transform{1};
+    glm::mat4 restTransform{1};
+    glm::mat4 restRoot{1};
     float phase = 0; // Fraction of the idle cycle, independent of frame rate.
+    bool ragdoll = false;
+    std::size_t ragdollHandle = 0;
 };
 
 struct ZombieLayer {
+    ZombieLayer();
+    ~ZombieLayer();
+    ZombieLayer(ZombieLayer&&) noexcept;
+    ZombieLayer& operator=(ZombieLayer&&) noexcept;
+    ZombieLayer(const ZombieLayer&) = delete;
+    ZombieLayer& operator=(const ZombieLayer&) = delete;
+
     std::vector<AnimatedModel> assets;
     std::vector<ZombieInstance> instances;
     glm::vec3 boundsMin{0}, boundsMax{0};
+
+    // Returns true when the nearest idle zombie under the ray was activated.
+    bool shoot(glm::vec3 origin, glm::vec3 direction);
+    void update(float seconds);
+    [[nodiscard]] std::size_t ragdollCount() const;
+
+private:
+    struct Physics;
+    std::unique_ptr<Physics> physics_;
 };
 
 bool hasZombieModels(const std::filesystem::path& source);

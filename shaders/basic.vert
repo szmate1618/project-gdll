@@ -5,6 +5,7 @@ layout(location = 2) in vec2 aUV;
 layout(location = 3) in vec4 aColor;
 layout(location = 4) in mat4 aInstanceModel;
 layout(location = 8) in float aAnimationPhase;
+layout(location = 9) in float aAnimationFrame;
 
 uniform mat4 uModel;
 uniform mat4 uView;
@@ -26,7 +27,8 @@ void main() {
     vec3 position = aPosition;
     vec3 normal = aNormal;
     if (uAnimated) {
-        float frame = mod(uAnimationFrame + aAnimationPhase * float(uAnimationCount), float(uAnimationCount));
+        float frame = aAnimationFrame >= 0.0 ? aAnimationFrame :
+            mod(uAnimationFrame + aAnimationPhase * float(uAnimationCount), float(uAnimationCount));
         int first = int(floor(frame));
         int second = (first + 1) % uAnimationCount;
         int a = 2 * (first * uAnimationVertices + gl_VertexID);

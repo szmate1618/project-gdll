@@ -29,6 +29,7 @@ public:
     Renderer& operator=(const Renderer&) = delete;
     void resize(int width, int height);
     void render(const Camera& camera, double animationSeconds = 0.0);
+    void updateZombies(const ZombieLayer& zombies);
     void present(int width, int height);
     void writeScreenshot(const std::filesystem::path& path) const;
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
@@ -65,9 +66,16 @@ private:
         std::vector<glm::mat4> visibleTransforms;
     };
     struct InstanceGPU { std::size_t asset; glm::mat4 transform; };
+    struct ZombieGPUInstance {
+        glm::mat4 transform;
+        float phase;
+        float animationFrame;
+    };
     struct ZombieBatch {
         ModelGPU model;
         GLuint instanceBuffer = 0;
+        std::vector<std::size_t> sourceIndices;
+        std::vector<ZombieGPUInstance> staging;
         std::vector<GLuint> animationBuffers, animationTextures;
         std::vector<GLint> vertexCounts;
         GLsizei count = 0;

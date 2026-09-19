@@ -124,6 +124,7 @@ void printHelp() {
     std::cout << "Usage: godollo_viewer [model.glb|model.gltf] [options]\n"
               << "Default model: " << VIEWER_DEFAULT_ASSET << "\n\n"
               << "W/S forward/back, A/D strafe, Q/E down/up, mouse look, Shift faster\n"
+              << "Left mouse button shoot a camera-center ray at zombies\n"
               << "Tab release/capture mouse, wheel change speed, F frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
               << "  --fps               Start in walking mode\n"
@@ -166,6 +167,7 @@ struct AppState {
         : rig(collision, model.boundsMin, model.boundsMax, 1280.0f / 720.0f), world(collision) {}
     viewer::CameraRig rig;
     const viewer::CollisionWorld& world;
+    viewer::ZombieLayer* zombies = nullptr;
     glm::vec3 boundsMin, boundsMax;
     std::array<bool, GLFW_KEY_LAST + 1> keys{};
     int width = 1280, height = 720;
@@ -215,6 +217,13 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
     app.lastX = x;
     app.lastY = y;
     app.firstMouse = false;
+}
+
+void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
+    auto& app = state(window);
+    if (button != GLFW_MOUSE_BUTTON_LEFT || action != GLFW_PRESS || !app.capture || !app.zombies) return;
+    if (app.zombies->shoot(app.rig.camera().position(), app.rig.camera().direction()))
+        std::cout << "Zombie hit: ragdoll activated (" << app.zombies->ragdollCount() << " active)\n";
 }
 
 void scrollCallback(GLFWwindow* window, double, double y) {
@@ -486,10 +495,12 @@ int run(const Options& options) {
     if (options.zombieView && zombies)
         app.rig.camera().frame(zombies->boundsMin, zombies->boundsMax,
             static_cast<float>(std::max(app.width, 1)) / static_cast<float>(std::max(app.height, 1)));
+    app.zombies = zombies ? &*zombies : nullptr;
     glfwSetWindowUserPointer(window.get(), &app);
     glfwSetFramebufferSizeCallback(window.get(), framebufferCallback);
     glfwSetKeyCallback(window.get(), keyCallback);
     glfwSetCursorPosCallback(window.get(), cursorCallback);
+    glfwSetMouseButtonCallback(window.get(), mouseButtonCallback);
     glfwSetScrollCallback(window.get(), scrollCallback);
     glfwSetWindowFocusCallback(window.get(), focusCallback);
     captureMouse(window.get(), true);
@@ -527,7 +538,11 @@ int run(const Options& options) {
             continue;
         }
         moveCamera(app, dt);
+        if (zombies) {
+            zombies->update(dt);
+        }
         renderer.resize(app.width, app.height);
+        if (zombies && zombies->ragdollCount() != 0) renderer.updateZombies(*zombies);
         std::vector<viewer::DebugVertex> overlay;
         if (app.collisionDebug) {
             if (!debug) debug = std::make_unique<viewer::CollisionDebug>(options.shaders);
@@ -569,7 +584,8 @@ int run(const Options& options) {
             const auto& sceneStats = renderer.sceneStats();
             const auto treeStatus = trees ? " | Trees " + std::to_string(treeStats.visible) + "/" + std::to_string(treeStats.total) : "";
             const auto townStatus = " | Town " + std::to_string(sceneStats.visible) + "/" + std::to_string(sceneStats.total);
-            const auto zombieStatus = zombies ? " | Zombies " + std::to_string(renderer.zombieCount()) + " idle" : "";
+            const auto zombieStatus = zombies ? " | Zombies " + std::to_string(renderer.zombieCount()) +
+                " (" + std::to_string(zombies->ragdollCount()) + " ragdolls)" : "";
             const auto caption = title + " | " + app.rig.modeName() + status + " | " + std::to_string(fps)
                 + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + townStatus + treeStatus + zombieStatus + " | " + std::to_string(static_cast<int>(app.rig.speed(
                     app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]))) + " m/s";
@@ -589,8 +605,9 @@ int run(const Options& options) {
     const auto& sceneStats = renderer.sceneStats();
     std::cout << "Last town frame: " << sceneStats.visible << '/' << sceneStats.total << " visible, "
               << sceneStats.drawCalls << " draw calls\n";
-    if (zombies) std::cout << "Last zombie frame: " << renderer.zombieCount() << " idle instances, "
-                          << renderer.zombieDrawCalls() << " instanced draw calls\n";
+    if (zombies) std::cout << "Last zombie frame: " << renderer.zombieCount() << " instances, "
+                          << zombies->ragdollCount() << " ragdolls, " << renderer.zombieDrawCalls()
+                          << " instanced draw calls\n";
     viewer::Renderer::checkErrors("shutdown");
     std::cout << "Rendered " << frameCount << " frames successfully\n";
     return 0;

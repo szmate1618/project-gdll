@@ -63,7 +63,16 @@ FetchContent_Declare(tinygltf
     DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/_archives"
     DOWNLOAD_NAME tinygltf-2.9.7.tar.gz
 )
-FetchContent_MakeAvailable(glfw glm tinygltf)
+FetchContent_Declare(box3d
+    GIT_REPOSITORY https://github.com/erincatto/box3d.git
+    GIT_TAG f555ee42084e0b43cbffa863f40bff8117c08896
+)
+set(BOX3D_SAMPLES OFF CACHE BOOL "" FORCE)
+set(BOX3D_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(BOX3D_DOCS OFF CACHE BOOL "" FORCE)
+set(BOX3D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(BOX3D_VALIDATE OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(glfw glm tinygltf box3d)
 
 function(viewer_warnings target)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -95,8 +104,8 @@ add_library(viewer_collision STATIC src/collision_world.cpp)
 target_link_libraries(viewer_collision PUBLIC viewer_model)
 viewer_warnings(viewer_collision)
 
-add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_layer.cpp)
-target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision)
+add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_layer.cpp src/zombie_ragdoll.cpp)
+target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision box3d::box3d)
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_zombies)
 
