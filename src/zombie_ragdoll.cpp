@@ -119,25 +119,29 @@ public:
         const auto addLimb = [&](Part part, glm::vec3 a, glm::vec3 b, float radius, float mass) {
             bodies_[part] = addCapsule(rotate(a), rotate(b), radius, glm::length(b - a), mass, forward, collisionGroup);
         };
-        addLimb(upperArmLeft, {-0.34f, 1.60f, 0.0f}, {-0.61f, 1.28f, 0.0f}, 0.105f, 2.2f);
-        addLimb(lowerArmLeft, {-0.61f, 1.28f, 0.0f}, {-0.78f, 1.02f, 0.0f}, 0.09f, 1.6f);
-        addLimb(upperArmRight, {0.34f, 1.60f, 0.0f}, {0.61f, 1.28f, 0.0f}, 0.105f, 2.2f);
-        addLimb(lowerArmRight, {0.61f, 1.28f, 0.0f}, {0.78f, 1.02f, 0.0f}, 0.09f, 1.6f);
+        // The supplied Biped assets use positive X for their "L" bones and keep
+        // the upper/lower arms nearly horizontal in the reference pose. Keeping
+        // the physical rest pose close to that pose avoids a large correction
+        // when the live-skinned arm bones take over.
+        addLimb(upperArmLeft, {0.34f, 1.58f, 0.0f}, {0.62f, 1.48f, 0.0f}, 0.105f, 2.2f);
+        addLimb(lowerArmLeft, {0.62f, 1.48f, 0.0f}, {0.86f, 1.43f, 0.0f}, 0.09f, 1.6f);
+        addLimb(upperArmRight, {-0.34f, 1.58f, 0.0f}, {-0.62f, 1.48f, 0.0f}, 0.105f, 2.2f);
+        addLimb(lowerArmRight, {-0.62f, 1.48f, 0.0f}, {-0.86f, 1.43f, 0.0f}, 0.09f, 1.6f);
         addLimb(upperLegLeft, {-0.16f, 0.78f, 0.0f}, {-0.18f, 0.38f, 0.0f}, 0.14f, 7.5f);
         addLimb(lowerLegLeft, {-0.18f, 0.38f, 0.0f}, {-0.18f, 0.08f, 0.0f}, 0.115f, 4.0f);
         addLimb(upperLegRight, {0.16f, 0.78f, 0.0f}, {0.18f, 0.38f, 0.0f}, 0.14f, 7.5f);
         addLimb(lowerLegRight, {0.18f, 0.38f, 0.0f}, {0.18f, 0.08f, 0.0f}, 0.115f, 4.0f);
 
-        addBallJoint(pelvis, torso, rotate({0, 1.08f, 0}), glm::vec3(0, 1, 0), forward, 25, -20, 20);
-        addBallJoint(torso, head, rotate({0, 1.70f, 0}), glm::vec3(0, 1, 0), forward, 35, -40, 40);
-        addBallJoint(torso, upperArmLeft, rotate({-0.34f, 1.60f, 0}), glm::vec3(-1, -1, 0), forward, 85, -70, 70);
-        addBallJoint(torso, upperArmRight, rotate({0.34f, 1.60f, 0}), glm::vec3(1, -1, 0), forward, 85, -70, 70);
-        addHingeJoint(upperArmLeft, lowerArmLeft, rotate({-0.61f, 1.28f, 0}), glm::vec3(-0.27f, -0.32f, 0), forward, -5, 145);
-        addHingeJoint(upperArmRight, lowerArmRight, rotate({0.61f, 1.28f, 0}), glm::vec3(0.27f, -0.32f, 0), forward, -5, 145);
-        addBallJoint(pelvis, upperLegLeft, rotate({-0.16f, 0.78f, 0}), glm::vec3(0, -1, 0), forward, 55, -30, 30);
-        addBallJoint(pelvis, upperLegRight, rotate({0.16f, 0.78f, 0}), glm::vec3(0, -1, 0), forward, 55, -30, 30);
-        addHingeJoint(upperLegLeft, lowerLegLeft, rotate({-0.18f, 0.38f, 0}), glm::vec3(0, -1, 0), -forward, -5, 150);
-        addHingeJoint(upperLegRight, lowerLegRight, rotate({0.18f, 0.38f, 0}), glm::vec3(0, -1, 0), -forward, -5, 150);
+        addBallJoint(pelvis, torso, rotate({0, 1.08f, 0}), glm::vec3(0, 1, 0), forward, 40, -35, 35);
+        addBallJoint(torso, head, rotate({0, 1.70f, 0}), glm::vec3(0, 1, 0), forward, 55, -70, 70);
+        addBallJoint(torso, upperArmLeft, rotate({0.34f, 1.58f, 0}), glm::vec3(1, -0.35f, 0), forward, 120, -95, 95);
+        addBallJoint(torso, upperArmRight, rotate({-0.34f, 1.58f, 0}), glm::vec3(-1, -0.35f, 0), forward, 120, -95, 95);
+        addHingeJoint(upperArmLeft, lowerArmLeft, rotate({0.62f, 1.48f, 0}), glm::vec3(0.24f, -0.05f, 0), forward, -20, 160);
+        addHingeJoint(upperArmRight, lowerArmRight, rotate({-0.62f, 1.48f, 0}), glm::vec3(-0.24f, -0.05f, 0), forward, -20, 160);
+        addBallJoint(pelvis, upperLegLeft, rotate({-0.16f, 0.78f, 0}), glm::vec3(0, -1, 0), forward, 70, -45, 45);
+        addBallJoint(pelvis, upperLegRight, rotate({0.16f, 0.78f, 0}), glm::vec3(0, -1, 0), forward, 70, -45, 45);
+        addHingeJoint(upperLegLeft, lowerLegLeft, rotate({-0.18f, 0.38f, 0}), glm::vec3(0, -1, 0), -forward, -15, 165);
+        addHingeJoint(upperLegRight, lowerLegRight, rotate({0.18f, 0.38f, 0}), glm::vec3(0, -1, 0), -forward, -15, 165);
 
         for (int part = 0; part < partCount; ++part)
             restBodies_[static_cast<std::size_t>(part)] = bodyTransform(static_cast<Part>(part));
@@ -181,8 +185,8 @@ private:
         bodyDef.type = b3_dynamicBody;
         bodyDef.position = toB3Pos((p0 + p1) * 0.5f);
         bodyDef.rotation = toB3(frameFromY(p1 - p0, forward));
-        bodyDef.linearDamping = 0.08f;
-        bodyDef.angularDamping = 0.12f;
+        bodyDef.linearDamping = 0.025f;
+        bodyDef.angularDamping = 0.045f;
         const auto body = b3CreateBody(world_, &bodyDef);
         auto shapeDef = b3DefaultShapeDef();
         shapeDef.density = mass / (pi * radius * radius * length + (4.0f / 3.0f) * pi * radius * radius * radius);
@@ -198,8 +202,8 @@ private:
         bodyDef.type = b3_dynamicBody;
         bodyDef.position = toB3Pos(center);
         bodyDef.rotation = toB3(frameFromY(glm::vec3(0, 1, 0), forward));
-        bodyDef.linearDamping = 0.08f;
-        bodyDef.angularDamping = 0.12f;
+        bodyDef.linearDamping = 0.025f;
+        bodyDef.angularDamping = 0.045f;
         const auto body = b3CreateBody(world_, &bodyDef);
         auto shapeDef = b3DefaultShapeDef();
         shapeDef.density = mass / ((4.0f / 3.0f) * pi * radius * radius * radius);
