@@ -77,8 +77,12 @@ target_include_directories(viewer_model SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 target_link_libraries(viewer_model PUBLIC glm::glm)
 viewer_warnings(viewer_model)
 
+add_library(viewer_visibility STATIC src/visibility.cpp src/model_visibility.cpp)
+target_link_libraries(viewer_visibility PUBLIC viewer_model)
+viewer_warnings(viewer_visibility)
+
 add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp)
-target_link_libraries(viewer_trees PUBLIC viewer_model PRIVATE OpenSSL::Crypto)
+target_link_libraries(viewer_trees PUBLIC viewer_model viewer_visibility PRIVATE OpenSSL::Crypto)
 target_include_directories(viewer_trees SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_trees)
 
@@ -114,7 +118,7 @@ add_custom_target(viewer_test_asset DEPENDS "${VIEWER_TEST_ASSET}")
 
 add_executable(godollo_viewer src/main.cpp src/renderer.cpp src/zombie_renderer.cpp src/collision_debug.cpp src/gpu_timer.cpp)
 target_link_libraries(godollo_viewer PRIVATE
-    viewer_model viewer_camera viewer_fps viewer_trees viewer_zombies glfw OpenGL::GL
+    viewer_model viewer_visibility viewer_camera viewer_fps viewer_trees viewer_zombies glfw OpenGL::GL
 )
 target_compile_definitions(godollo_viewer PRIVATE
     GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -144,6 +148,11 @@ if(BUILD_TESTING)
     target_link_libraries(test_tree_visibility PRIVATE viewer_trees viewer_camera)
     viewer_warnings(test_tree_visibility)
     add_test(NAME viewer_tree_visibility COMMAND test_tree_visibility)
+
+    add_executable(test_model_visibility tests/test_model_visibility.cpp)
+    target_link_libraries(test_model_visibility PRIVATE viewer_visibility viewer_camera)
+    viewer_warnings(test_model_visibility)
+    add_test(NAME viewer_model_visibility COMMAND test_model_visibility)
 
     add_executable(test_tree_collision tests/test_tree_collision.cpp)
     target_link_libraries(test_tree_collision PRIVATE viewer_fps)
@@ -189,6 +198,7 @@ if(BUILD_TESTING)
     # Keep test assertions active even when checking an optimized viewer build.
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(test_model PRIVATE -UNDEBUG)
+        target_compile_options(test_model_visibility PRIVATE -UNDEBUG)
         target_compile_options(test_camera PRIVATE -UNDEBUG)
     endif()
 endif()

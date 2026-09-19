@@ -72,7 +72,8 @@ GLuint createProgram(const std::filesystem::path& directory) {
 } // namespace
 
 Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirectory,
-                   const TreeLayer* trees, const ZombieLayer* zombies) {
+                   const TreeLayer* trees, const ZombieLayer* zombies)
+    : sceneVisibility_(model) {
     try {
         program_ = createProgram(shaderDirectory);
         modelLocation_ = glGetUniformLocation(program_, "uModel");
@@ -97,8 +98,12 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
             const auto& mesh = model_.meshes.at(source.primitive);
             DrawGPU draw{source.primitive, source.transform, glm::inverseTranspose(glm::mat3(source.transform)),
                          glm::vec3(source.transform * glm::vec4(mesh.center, 1.0f)), glm::determinant(glm::mat3(source.transform)) < 0};
-            (material(model_, mesh.material).alphaMode == "BLEND" ? transparent_ : opaque_).push_back(draw);
+            sceneDraws_.push_back(draw);
         }
+        visibleScene_.reserve(sceneDraws_.size());
+        opaqueScene_.reserve(sceneDraws_.size());
+        transparentScene_.reserve(sceneDraws_.size());
+        sceneStats_.total = sceneDraws_.size();
         if (trees) uploadTrees(*trees);
         if (zombies) uploadZombies(*zombies);
         glBindVertexArray(0);
@@ -327,7 +332,35 @@ void Renderer::draw(const DrawGPU& draw) {
     glDrawElements(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, nullptr);
 }
 
+void Renderer::gatherVisibleSceneDraws(const glm::mat4& projectionView, const glm::vec3& eye) {
+    if (sceneCulling_) sceneVisibility_.query(projectionView, visibleScene_);
+    else {
+        visibleScene_.resize(sceneDraws_.size());
+        std::iota(visibleScene_.begin(), visibleScene_.end(), std::size_t{0});
+    }
+
+    opaqueScene_.clear();
+    transparentScene_.clear();
+    for (const auto index : visibleScene_) {
+        const auto& draw = sceneDraws_[index];
+        const auto& mesh = model_.meshes[draw.primitive];
+        (material(model_, mesh.material).alphaMode == "BLEND" ? transparentScene_ : opaqueScene_).push_back(index);
+    }
+    // Preserve source order for opaque surfaces, including coplanar geometry.
+    std::sort(opaqueScene_.begin(), opaqueScene_.end());
+    std::sort(transparentScene_.begin(), transparentScene_.end(), [this, &eye](const auto a, const auto b) {
+        const auto da = sceneDraws_[a].center - eye;
+        const auto db = sceneDraws_[b].center - eye;
+        const auto distanceA = glm::dot(da, da);
+        const auto distanceB = glm::dot(db, db);
+        if (distanceA != distanceB) return distanceA > distanceB;
+        return a < b;
+    });
+    sceneStats_.visible = visibleScene_.size();
+}
+
 void Renderer::render(const Camera& camera, double animationSeconds) {
+    sceneStats_ = {sceneDraws_.size(), 0, 0};
     if (width_ <= 0 || height_ <= 0) return;
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
     glViewport(0, 0, width_, height_);
@@ -347,19 +380,21 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     // Samplers of different types must use distinct texture units, even when
     // this frame has no characters and the shader takes its static branch.
     glUniform1i(animationLocation_, 1);
-    for (const auto& item : opaque_) draw(item);
+    gatherVisibleSceneDraws(projection * view, camera.position());
+    for (const auto index : opaqueScene_) {
+        draw(sceneDraws_[index]);
+        ++sceneStats_.drawCalls;
+    }
     drawTrees(projection * view);
     drawZombies(animationSeconds);
-    if (!transparent_.empty()) {
-        const auto eye = camera.position();
-        std::sort(transparent_.begin(), transparent_.end(), [&eye](const auto& a, const auto& b) {
-            const auto da = a.center - eye, db = b.center - eye;
-            return glm::dot(da, da) > glm::dot(db, db);
-        });
+    if (!transparentScene_.empty()) {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(GL_FALSE);
-        for (const auto& item : transparent_) draw(item);
+        for (const auto index : transparentScene_) {
+            draw(sceneDraws_[index]);
+            ++sceneStats_.drawCalls;
+        }
         glDepthMask(GL_TRUE);
     }
     glBindVertexArray(0);

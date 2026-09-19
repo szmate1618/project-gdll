@@ -6,12 +6,17 @@
 
 #include "camera.hpp"
 #include "model.hpp"
+#include "model_visibility.hpp"
 #include "tree_visibility.hpp"
 #include "zombie_layer.hpp"
 
 namespace viewer {
 
 struct TreeRenderStats {
+    std::size_t total = 0, visible = 0, drawCalls = 0;
+};
+
+struct SceneRenderStats {
     std::size_t total = 0, visible = 0, drawCalls = 0;
 };
 
@@ -26,6 +31,8 @@ public:
     void render(const Camera& camera, double animationSeconds = 0.0);
     void present(int width, int height);
     void writeScreenshot(const std::filesystem::path& path) const;
+    void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
+    const SceneRenderStats& sceneStats() const { return sceneStats_; }
     void setTreeCulling(bool enabled) { treeCulling_ = enabled; }
     const TreeRenderStats& treeStats() const { return treeStats_; }
     std::size_t zombieCount() const { return zombieCount_; }
@@ -77,6 +84,7 @@ private:
     void releaseZombies() noexcept;
     void applyMaterial(const ModelGPU& model, int index, bool mirrored);
     void draw(const DrawGPU& draw);
+    void gatherVisibleSceneDraws(const glm::mat4& projectionView, const glm::vec3& eye);
     const Material& material(const ModelGPU& model, int index) const;
     GLuint program_ = 0, framebuffer_ = 0, colorBuffer_ = 0, depthBuffer_ = 0;
     int width_ = 0, height_ = 0;
@@ -86,7 +94,11 @@ private:
     GLint animatedLocation_, animationLocation_, animationFrameLocation_;
     GLint animationCountLocation_, animationVerticesLocation_;
     ModelGPU model_;
-    std::vector<DrawGPU> opaque_, transparent_;
+    std::vector<DrawGPU> sceneDraws_;
+    std::vector<std::size_t> visibleScene_, opaqueScene_, transparentScene_;
+    ModelVisibility sceneVisibility_;
+    SceneRenderStats sceneStats_;
+    bool sceneCulling_ = true;
     std::vector<TreeBatch> treeBatches_;
     std::vector<InstanceGPU> treeInstances_;
     std::vector<std::size_t> visibleTrees_;

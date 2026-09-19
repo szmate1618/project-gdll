@@ -129,7 +129,20 @@ F3 displays nearby trunk colliders; `--no-tree-collisions` disables them.
 
 The tree layer supports static instances of the supplied double-sided,
 alpha-masked impostors. There is no tree animation, distance-based LOD, or
-occlusion culling. The town's existing draw path is unchanged.
+occlusion culling.
+
+## Town visibility
+
+The viewer also culls town draw instances outside the camera frustum by default.
+It indexes conservative full transformed bounds for terrain, roads, walls, and
+roofs; the `Town V/T` title values are visible and total draw instances, not a
+count of physical buildings. Use `--no-town-culling` for a same-camera draw
+comparison. This does not affect collision, and there is no occlusion culling
+or distance LOD.
+
+```bash
+./build/godollo_viewer output/godollo.glb --fps --no-town-culling
+```
 
 ## Idle zombie crowd
 

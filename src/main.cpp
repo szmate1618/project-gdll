@@ -29,7 +29,7 @@ struct Options {
     int frames = 0;
     bool hidden = false, allowSoftware = false, selfTest = false, help = false;
     bool fps = false, collisionDebug = false, selfTestFPS = false;
-    bool noTrees = false, treeCulling = true, treeCollisions = true;
+    bool noTrees = false, treeCulling = true, treeCollisions = true, sceneCulling = true;
     bool noZombies = false, zombieView = false, explicitZombies = false;
     int zombieCount = 1000;
     float zombieRadius = 100.0f;
@@ -56,6 +56,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--trees") options.trees = value();
         else if (argument == "--no-trees") options.noTrees = true;
         else if (argument == "--no-tree-culling") options.treeCulling = false;
+        else if (argument == "--no-town-culling") options.sceneCulling = false;
         else if (argument == "--no-tree-collisions") options.treeCollisions = false;
         else if (argument == "--zombies") { options.zombies = value(); options.explicitZombies = true; }
         else if (argument == "--no-zombies") options.noZombies = true;
@@ -131,6 +132,7 @@ void printHelp() {
               << "  --trees FILE        Load a tree instance JSON explicitly\n"
               << "  --no-trees          Disable automatic adjacent trees.instances.json\n"
               << "  --no-tree-culling   Render all tree instances for comparison\n"
+              << "  --no-town-culling   Render all town draw instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
               << "  --zombies PATH      Load individual animated GLB/glTF files from PATH\n"
               << "  --zombie-count N    Number of idle zombies (default 1000)\n"
@@ -496,6 +498,7 @@ int run(const Options& options) {
               << " m/s; F1 free-fly, F2 walk, F3 collisions, WASD move, Space jump, mouse look, Escape quit\n";
     viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr, zombies ? &*zombies : nullptr);
     renderer.setTreeCulling(options.treeCulling);
+    renderer.setSceneCulling(options.sceneCulling);
     std::unique_ptr<viewer::CollisionDebug> debug;
     if (options.selfTest) inputSelfTest(window.get());
     if (options.selfTestFPS) fpsInputSelfTest(window.get());
@@ -563,10 +566,12 @@ int run(const Options& options) {
             const auto cpuTime = milliseconds(intervalRenderSeconds * 1000.0 / static_cast<double>(intervalFrames));
             const auto status = app.rig.walking() ? (app.rig.player().grounded() ? " | grounded" : " | airborne") : "";
             const auto& treeStats = renderer.treeStats();
+            const auto& sceneStats = renderer.sceneStats();
             const auto treeStatus = trees ? " | Trees " + std::to_string(treeStats.visible) + "/" + std::to_string(treeStats.total) : "";
+            const auto townStatus = " | Town " + std::to_string(sceneStats.visible) + "/" + std::to_string(sceneStats.total);
             const auto zombieStatus = zombies ? " | Zombies " + std::to_string(renderer.zombieCount()) + " idle" : "";
             const auto caption = title + " | " + app.rig.modeName() + status + " | " + std::to_string(fps)
-                + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + treeStatus + zombieStatus + " | " + std::to_string(static_cast<int>(app.rig.speed(
+                + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + townStatus + treeStatus + zombieStatus + " | " + std::to_string(static_cast<int>(app.rig.speed(
                     app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]))) + " m/s";
             glfwSetWindowTitle(window.get(), caption.c_str());
             titleTime = completed;
@@ -581,6 +586,9 @@ int run(const Options& options) {
         std::cout << "Last tree frame: " << stats.visible << '/' << stats.total << " visible, "
                   << stats.drawCalls << " instanced draw calls\n";
     }
+    const auto& sceneStats = renderer.sceneStats();
+    std::cout << "Last town frame: " << sceneStats.visible << '/' << sceneStats.total << " visible, "
+              << sceneStats.drawCalls << " draw calls\n";
     if (zombies) std::cout << "Last zombie frame: " << renderer.zombieCount() << " idle instances, "
                           << renderer.zombieDrawCalls() << " instanced draw calls\n";
     viewer::Renderer::checkErrors("shutdown");
