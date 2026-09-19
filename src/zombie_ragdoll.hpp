@@ -2,14 +2,16 @@
 
 #include <cstddef>
 #include <memory>
+#include <array>
 
 #include <glm/glm.hpp>
 
+#include "zombie_skeleton.hpp"
+
 namespace viewer {
 
-// Box3D-backed ragdoll simulation. The viewer's animated meshes are baked into
-// vertex textures, so this deliberately exposes the pelvis/root pose instead of
-// requiring a second live skinning path.
+// Box3D-backed ragdoll simulation. Ground collision is intentionally represented
+// by a small plane-sized box around each activated zombie.
 class ZombieRagdollWorld {
 public:
     ZombieRagdollWorld();
@@ -22,6 +24,8 @@ public:
     std::size_t create(glm::vec3 feet, float yaw, glm::vec3 impulse);
     void step(float seconds);
     [[nodiscard]] glm::mat4 rootTransform(std::size_t handle) const;
+    [[nodiscard]] std::array<glm::mat4, ragdollPartCount> bodyTransforms(std::size_t handle) const;
+    [[nodiscard]] std::array<glm::mat4, ragdollPartCount> restBodyTransforms(std::size_t handle) const;
     [[nodiscard]] std::size_t count() const;
 
 private:

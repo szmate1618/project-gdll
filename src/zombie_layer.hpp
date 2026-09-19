@@ -15,6 +15,8 @@ struct ZombieInstance {
     float phase = 0; // Fraction of the idle cycle, independent of frame rate.
     bool ragdoll = false;
     std::size_t ragdollHandle = 0;
+    // Asset-space bone matrices uploaded to the live skinning path.
+    std::vector<glm::mat4> ragdollBones;
 };
 
 struct ZombieLayer {

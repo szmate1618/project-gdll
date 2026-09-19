@@ -139,6 +139,9 @@ public:
         addHingeJoint(upperLegLeft, lowerLegLeft, rotate({-0.18f, 0.38f, 0}), glm::vec3(0, -1, 0), -forward, -5, 150);
         addHingeJoint(upperLegRight, lowerLegRight, rotate({0.18f, 0.38f, 0}), glm::vec3(0, -1, 0), -forward, -5, 150);
 
+        for (int part = 0; part < partCount; ++part)
+            restBodies_[static_cast<std::size_t>(part)] = bodyTransform(static_cast<Part>(part));
+
         b3Body_SetLinearVelocity(bodies_[pelvis], toB3Vec(impulse * 0.7f + glm::vec3(0, 1.8f, 0)));
         b3Body_SetAngularVelocity(bodies_[pelvis], toB3Vec(glm::vec3(impulse.z, 0.0f, -impulse.x) * 1.4f + glm::vec3(0, 0, 1.2f)));
     }
@@ -148,6 +151,20 @@ public:
         const auto rotation = fromB3(b3Body_GetRotation(bodies_[pelvis]));
         return glm::translate(glm::mat4(1.0f), position) * glm::mat4_cast(rotation) *
                glm::translate(glm::mat4(1.0f), glm::vec3(0, -0.88f, 0));
+    }
+
+    glm::mat4 bodyTransform(Part part) const {
+        const auto position = fromB3(b3Body_GetPosition(bodies_[part]));
+        const auto rotation = fromB3(b3Body_GetRotation(bodies_[part]));
+        return glm::translate(glm::mat4(1.0f), position) * glm::mat4_cast(rotation);
+    }
+
+    const std::array<glm::mat4, partCount>& restBodyTransforms() const { return restBodies_; }
+
+    std::array<glm::mat4, partCount> bodyTransforms() const {
+        std::array<glm::mat4, partCount> result{};
+        for (int part = 0; part < partCount; ++part) result[static_cast<std::size_t>(part)] = bodyTransform(static_cast<Part>(part));
+        return result;
     }
 
 private:
@@ -231,6 +248,7 @@ private:
 
     b3WorldId world_ = b3_nullWorldId;
     std::array<b3BodyId, partCount> bodies_{};
+    std::array<glm::mat4, partCount> restBodies_{};
 };
 
 } // namespace
@@ -291,6 +309,16 @@ void ZombieRagdollWorld::step(float seconds) {
 glm::mat4 ZombieRagdollWorld::rootTransform(std::size_t handle) const {
     if (!impl_ || handle >= impl_->entries.size()) return glm::mat4(1.0f);
     return impl_->entries[handle].ragdoll->rootTransform();
+}
+
+std::array<glm::mat4, ragdollPartCount> ZombieRagdollWorld::bodyTransforms(std::size_t handle) const {
+    if (!impl_ || handle >= impl_->entries.size()) return {};
+    return impl_->entries[handle].ragdoll->bodyTransforms();
+}
+
+std::array<glm::mat4, ragdollPartCount> ZombieRagdollWorld::restBodyTransforms(std::size_t handle) const {
+    if (!impl_ || handle >= impl_->entries.size()) return {};
+    return impl_->entries[handle].ragdoll->restBodyTransforms();
 }
 
 std::size_t ZombieRagdollWorld::count() const {

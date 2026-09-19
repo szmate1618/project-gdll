@@ -6,6 +6,12 @@ layout(location = 3) in vec4 aColor;
 layout(location = 4) in mat4 aInstanceModel;
 layout(location = 8) in float aAnimationPhase;
 layout(location = 9) in float aAnimationFrame;
+layout(location = 10) in float aRagdoll;
+layout(location = 11) in float aBoneBase;
+layout(location = 12) in uvec4 aJoints0;
+layout(location = 13) in vec4 aWeights0;
+layout(location = 14) in uvec4 aJoints1;
+layout(location = 15) in vec4 aWeights1;
 
 uniform mat4 uModel;
 uniform mat4 uView;
@@ -18,6 +24,9 @@ uniform samplerBuffer uAnimation;
 uniform float uAnimationFrame;
 uniform int uAnimationCount;
 uniform int uAnimationVertices;
+uniform bool uSkinningEnabled;
+uniform samplerBuffer uSkinningBones;
+uniform int uSkinningBoneCount;
 
 out vec3 vNormal;
 out vec2 vUV;
@@ -26,7 +35,25 @@ out vec4 vColor;
 void main() {
     vec3 position = aPosition;
     vec3 normal = aNormal;
-    if (uAnimated) {
+    if (uAnimated && aRagdoll > 0.5 && uSkinningEnabled && uSkinningBoneCount > 0) {
+        vec4 skinnedPosition = vec4(0.0);
+        vec3 skinnedNormal = vec3(0.0);
+        for (int influence = 0; influence < 8; ++influence) {
+            uint joint = influence < 4 ? aJoints0[influence] : aJoints1[influence - 4];
+            float weight = influence < 4 ? aWeights0[influence] : aWeights1[influence - 4];
+            if (weight > 0.0 && int(joint) < uSkinningBoneCount) {
+                int texel = (int(aBoneBase) + int(joint)) * 4;
+                mat4 bone = mat4(texelFetch(uSkinningBones, texel),
+                                 texelFetch(uSkinningBones, texel + 1),
+                                 texelFetch(uSkinningBones, texel + 2),
+                                 texelFetch(uSkinningBones, texel + 3));
+                skinnedPosition += bone * vec4(aPosition, 1.0) * weight;
+                skinnedNormal += transpose(inverse(mat3(bone))) * aNormal * weight;
+            }
+        }
+        position = skinnedPosition.xyz;
+        normal = normalize(skinnedNormal);
+    } else if (uAnimated) {
         float frame = aAnimationFrame >= 0.0 ? aAnimationFrame :
             mod(uAnimationFrame + aAnimationPhase * float(uAnimationCount), float(uAnimationCount));
         int first = int(floor(frame));

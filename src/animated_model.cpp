@@ -311,6 +311,68 @@ struct Binding {
     std::vector<Weights> vertices;
 };
 
+std::vector<std::string> nameTokens(const std::string& name) {
+    std::vector<std::string> result;
+    std::string token;
+    for (const unsigned char character : name) {
+        if (std::isalnum(character)) token.push_back(static_cast<char>(std::tolower(character)));
+        else if (!token.empty()) {
+            result.push_back(std::move(token));
+            token.clear();
+        }
+    }
+    if (!token.empty()) result.push_back(std::move(token));
+    return result;
+}
+
+bool hasToken(const std::vector<std::string>& tokens, const char* value) {
+    return std::find(tokens.begin(), tokens.end(), value) != tokens.end();
+}
+
+int ragdollPartForName(const std::string& name) {
+    const auto tokens = nameTokens(name);
+    const bool left = hasToken(tokens, "left") || hasToken(tokens, "l");
+    const bool right = hasToken(tokens, "right") || hasToken(tokens, "r");
+    const bool arm = hasToken(tokens, "arm") || hasToken(tokens, "upperarm") || hasToken(tokens, "forearm") ||
+                     hasToken(tokens, "lowerarm");
+    const bool leg = hasToken(tokens, "leg") || hasToken(tokens, "upperleg") || hasToken(tokens, "lowerleg");
+    const auto side = [left, right](int leftPart, int rightPart) { return left ? leftPart : right ? rightPart : -1; };
+    if (hasToken(tokens, "pelvis")) return static_cast<int>(RagdollPart::pelvis);
+    if (hasToken(tokens, "spine") || hasToken(tokens, "chest") || hasToken(tokens, "torso"))
+        return static_cast<int>(RagdollPart::torso);
+    if (hasToken(tokens, "head")) return static_cast<int>(RagdollPart::head);
+    if (arm && (hasToken(tokens, "upperarm") || (hasToken(tokens, "upper") && hasToken(tokens, "arm"))))
+        return side(static_cast<int>(RagdollPart::upperArmLeft), static_cast<int>(RagdollPart::upperArmRight));
+    if (arm && (hasToken(tokens, "forearm") || hasToken(tokens, "lowerarm") ||
+                (hasToken(tokens, "lower") && hasToken(tokens, "arm"))))
+        return side(static_cast<int>(RagdollPart::lowerArmLeft), static_cast<int>(RagdollPart::lowerArmRight));
+    if (leg && (hasToken(tokens, "thigh") || hasToken(tokens, "upperleg") ||
+                (hasToken(tokens, "upper") && hasToken(tokens, "leg"))))
+        return side(static_cast<int>(RagdollPart::upperLegLeft), static_cast<int>(RagdollPart::upperLegRight));
+    if (leg && (hasToken(tokens, "calf") || hasToken(tokens, "shin") || hasToken(tokens, "lowerleg") ||
+                (hasToken(tokens, "lower") && hasToken(tokens, "leg"))))
+        return side(static_cast<int>(RagdollPart::lowerLegLeft), static_cast<int>(RagdollPart::lowerLegRight));
+    return -1;
+}
+
+std::vector<glm::mat4> worldTransforms(const tinygltf::Model& source, const std::vector<Pose>& poses,
+                                       const std::vector<int>& parents) {
+    std::vector<glm::mat4> world(source.nodes.size(), glm::mat4(1.0f));
+    std::vector<int> state(source.nodes.size(), 0);
+    std::function<void(int, int)> compute = [&](int node, int depth) {
+        if (state[node] == 2) return;
+        if (state[node] == 1 || depth > 512) fail("Invalid animation hierarchy cycle or depth");
+        state[node] = 1;
+        const int parent = parents[node];
+        if (parent >= 0) compute(parent, depth + 1);
+        world[node] = (parent >= 0 ? world[parent] : glm::mat4(1.0f)) * poses[node].transform();
+        for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r) (void)checkedFloat(world[node][c][r]);
+        state[node] = 2;
+    };
+    for (std::size_t node = 0; node < source.nodes.size(); ++node) compute(static_cast<int>(node), 0);
+    return world;
+}
+
 std::vector<Weights> readWeights(const tinygltf::Model& source, const tinygltf::Primitive& primitive,
                                  std::size_t vertexCount, std::size_t jointCount) {
     std::vector<Weights> result(vertexCount);
@@ -423,6 +485,21 @@ AnimatedModel bake(const tinygltf::Model& source, Model base, const std::string&
     }
     std::vector<Skin> skins;
     for (std::size_t i = 0; i < source.skins.size(); ++i) skins.push_back(readSkin(source, static_cast<int>(i)));
+    output.ragdollBones.fill(-1);
+    output.skeleton.resize(source.nodes.size());
+    const auto referenceWorld = worldTransforms(source, initial, parents);
+    for (std::size_t node = 0; node < source.nodes.size(); ++node) {
+        output.skeleton[node].name = source.nodes[node].name;
+        output.skeleton[node].parent = parents[node];
+        output.skeleton[node].referenceWorld = referenceWorld[node];
+        const int part = ragdollPartForName(source.nodes[node].name);
+        if (part >= 0 && output.ragdollBones[static_cast<std::size_t>(part)] < 0)
+            output.ragdollBones[static_cast<std::size_t>(part)] = static_cast<int>(node);
+    }
+    for (const auto& skin : skins) {
+        for (std::size_t joint = 0; joint < skin.joints.size(); ++joint)
+            output.skeleton[static_cast<std::size_t>(skin.joints[joint])].inverseBind = skin.inverseBind[joint];
+    }
     std::vector<std::vector<std::pair<std::size_t, const tinygltf::Primitive*>>> primitiveMap(source.meshes.size());
     std::size_t primitiveIndex = 0;
     for (std::size_t mesh = 0; mesh < source.meshes.size(); ++mesh) {
@@ -457,8 +534,21 @@ AnimatedModel bake(const tinygltf::Model& source, Model base, const std::string&
                 if (bytes > maximumBytes - bakedBytes) fail("Baked animation exceeds the 512 MiB memory limit");
                 bakedBytes += bytes;
                 output.model.draws.push_back({output.model.primitives.size(), glm::mat4(1.0f), node.name});
+                AnimatedPrimitive animated;
+                animated.frames.resize(vertices);
+                if (binding.skin >= 0) {
+                    const auto& skin = at(skins, binding.skin, "skin");
+                    animated.skinning.resize(primitive.vertices.size());
+                    for (std::size_t vertex = 0; vertex < primitive.vertices.size(); ++vertex) {
+                        for (std::size_t influence = 0; influence < 8; ++influence) {
+                            animated.skinning[vertex].joints[influence] =
+                                static_cast<std::uint32_t>(skin.joints[binding.vertices[vertex].joints[influence]]);
+                            animated.skinning[vertex].weights[influence] = binding.vertices[vertex].weights[influence];
+                        }
+                    }
+                }
                 output.model.primitives.push_back(std::move(primitive));
-                output.animation.push_back({std::vector<AnimationVertex>(vertices)});
+                output.animation.push_back(std::move(animated));
                 bindings.push_back(std::move(binding));
             }
         }
@@ -479,19 +569,7 @@ AnimatedModel bake(const tinygltf::Model& source, Model base, const std::string&
             else if (track.path == "scale") poses[track.node].scale = value;
             else poses[track.node].rotation = quaternion(value);
         }
-        std::vector<glm::mat4> world(source.nodes.size(), glm::mat4(1.0f));
-        std::vector<int> state(source.nodes.size(), 0);
-        std::function<void(int, int)> compute = [&](int node, int depth) {
-            if (state[node] == 2) return;
-            if (state[node] == 1 || depth > 512) fail("Invalid animation hierarchy cycle or depth");
-            state[node] = 1;
-            const int parent = parents[node];
-            if (parent >= 0) compute(parent, depth + 1);
-            world[node] = (parent >= 0 ? world[parent] : glm::mat4(1.0f)) * poses[node].transform();
-            for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r) (void)checkedFloat(world[node][c][r]);
-            state[node] = 2;
-        };
-        for (std::size_t node = 0; node < source.nodes.size(); ++node) compute(static_cast<int>(node), 0);
+        const auto world = worldTransforms(source, poses, parents);
         std::vector<std::vector<glm::mat4>> skinMatrices;
         for (const auto& skin : skins) {
             std::vector<glm::mat4> matrices;
@@ -538,9 +616,16 @@ AnimatedModel bake(const tinygltf::Model& source, Model base, const std::string&
             for (std::size_t i = 0; i < indices.size(); i += 3) std::swap(indices[i + 1], indices[i + 2]);
         }
         auto& vertices = output.model.primitives[p].vertices;
-        for (std::size_t v = 0; v < vertices.size(); ++v) {
-            vertices[v].position = output.animation[p].frames[v].position;
-            vertices[v].normal = output.animation[p].frames[v].normal;
+        if (bindings[p].skin < 0) {
+            const glm::mat4 transform = output.skeleton[static_cast<std::size_t>(bindings[p].node)].referenceWorld;
+            const glm::mat3 basis(transform);
+            const float determinant = glm::determinant(basis);
+            if (!std::isfinite(determinant) || std::abs(determinant) < 1e-20f)
+                fail("Animated primitive has a singular reference transform");
+            for (auto& vertex : vertices) {
+                vertex.position = glm::vec3(transform * glm::vec4(vertex.position, 1.0f));
+                vertex.normal = glm::normalize(glm::transpose(glm::inverse(basis)) * vertex.normal);
+            }
         }
     }
     return output;

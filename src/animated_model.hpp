@@ -1,6 +1,10 @@
 #pragma once
 
 #include "model.hpp"
+#include "zombie_skeleton.hpp"
+
+#include <array>
+#include <cstdint>
 
 namespace viewer {
 
@@ -10,16 +14,37 @@ struct AnimationVertex {
     glm::vec4 normal{0.0f};
 };
 
+struct SkinningVertex {
+    std::array<std::uint32_t, 8> joints{};
+    std::array<float, 8> weights{};
+};
+
+struct SkeletonBone {
+    std::string name;
+    int parent = -1;
+    glm::mat4 referenceWorld{1.0f};
+    glm::mat4 inverseBind{1.0f};
+};
+
 struct AnimatedPrimitive {
     // Frame-major; every frame contains the corresponding primitive's vertices.
     std::vector<AnimationVertex> frames;
+    // Empty for a non-skinned primitive. Joint indices refer to AnimatedModel::skeleton.
+    std::vector<SkinningVertex> skinning;
 };
 
 struct AnimatedModel {
     // Flattened scene: one primitive and identity-transform draw per source draw.
-    // Vertex positions/normals contain frame zero; bounds cover all baked frames.
+    // Vertex positions/normals are bind-pose data for live skinning; baked animation
+    // frames contain scene-world positions for the normal rendering path.
     Model model;
     std::vector<AnimatedPrimitive> animation;
+    std::vector<SkeletonBone> skeleton;
+    std::array<int, ragdollPartCount> ragdollBones = [] {
+        std::array<int, ragdollPartCount> result{};
+        result.fill(-1);
+        return result;
+    }();
     std::string clipName;
     float duration = 0.0f;
     std::size_t frameCount = 0;

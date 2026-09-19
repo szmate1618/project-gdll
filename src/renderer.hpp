@@ -70,6 +70,8 @@ private:
         glm::mat4 transform;
         float phase;
         float animationFrame;
+        float ragdoll;
+        float boneBase;
     };
     struct ZombieBatch {
         ModelGPU model;
@@ -77,6 +79,12 @@ private:
         std::vector<std::size_t> sourceIndices;
         std::vector<ZombieGPUInstance> staging;
         std::vector<GLuint> animationBuffers, animationTextures;
+        std::vector<GLuint> skinningBuffers;
+        std::vector<GLint> skinningEnabled;
+        GLuint skinningTexture = 0;
+        GLuint skinningBuffer = 0;
+        std::vector<glm::mat4> skinningMatrices;
+        GLint skinningBoneCount = 0;
         std::vector<GLint> vertexCounts;
         GLsizei count = 0;
         GLint frameCount = 0;
@@ -101,6 +109,7 @@ private:
     GLint alphaLocation_, cutoffLocation_, instancedLocation_;
     GLint animatedLocation_, animationLocation_, animationFrameLocation_;
     GLint animationCountLocation_, animationVerticesLocation_;
+    GLint skinningLocation_, skinningBonesLocation_, skinningBoneCountLocation_;
     ModelGPU model_;
     std::vector<DrawGPU> sceneDraws_;
     std::vector<std::size_t> visibleScene_, opaqueScene_, transparentScene_;

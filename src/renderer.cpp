@@ -92,6 +92,9 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         animationFrameLocation_ = glGetUniformLocation(program_, "uAnimationFrame");
         animationCountLocation_ = glGetUniformLocation(program_, "uAnimationCount");
         animationVerticesLocation_ = glGetUniformLocation(program_, "uAnimationVertices");
+        skinningLocation_ = glGetUniformLocation(program_, "uSkinningEnabled");
+        skinningBonesLocation_ = glGetUniformLocation(program_, "uSkinningBones");
+        skinningBoneCountLocation_ = glGetUniformLocation(program_, "uSkinningBoneCount");
         fallback_.baseColor = glm::vec4(0.65f, 0.68f, 0.72f, 1.0f);
         uploadModel(model, model_);
         for (const auto& source : model.draws) {

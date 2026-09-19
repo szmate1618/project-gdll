@@ -20,6 +20,44 @@ bool finite(glm::vec3 value) {
     return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
 
+void updateRagdollBones(ZombieInstance& instance, const AnimatedModel& asset,
+                        const ZombieRagdollWorld& world) {
+    instance.ragdollBones.assign(asset.skeleton.size(), glm::mat4(1.0f));
+    if (asset.skeleton.empty()) return;
+    std::vector<glm::mat4> currentWorld(asset.skeleton.size(), glm::mat4(1.0f));
+    for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
+        currentWorld[bone] = asset.skeleton[bone].referenceWorld;
+    const auto currentBodies = world.bodyTransforms(instance.ragdollHandle);
+    const auto restBodies = world.restBodyTransforms(instance.ragdollHandle);
+    const auto inverseInstance = glm::inverse(instance.transform);
+    for (std::size_t part = 0; part < ragdollPartCount; ++part) {
+        const int bone = asset.ragdollBones[part];
+        if (bone < 0 || static_cast<std::size_t>(bone) >= asset.skeleton.size()) continue;
+        const auto& restBody = restBodies[part];
+        currentWorld[static_cast<std::size_t>(bone)] = inverseInstance *
+            currentBodies[part] * glm::inverse(restBody) * instance.restTransform *
+            asset.skeleton[static_cast<std::size_t>(bone)].referenceWorld;
+        instance.ragdollBones[static_cast<std::size_t>(bone)] = currentWorld[static_cast<std::size_t>(bone)] *
+            asset.skeleton[static_cast<std::size_t>(bone)].inverseBind;
+    }
+    // Most character rigs contain extra joints (hands, feet, clavicles, fingers).
+    // Keep those joints attached to their nearest mapped parent instead of adding
+    // more physics bodies.
+    for (std::size_t pass = 0; pass < asset.skeleton.size(); ++pass) {
+        for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone) {
+            const int parent = asset.skeleton[bone].parent;
+            if (parent < 0 || static_cast<std::size_t>(parent) >= asset.skeleton.size()) continue;
+            const bool isMapped = std::any_of(asset.ragdollBones.begin(), asset.ragdollBones.end(),
+                                              [bone](int value) { return value == static_cast<int>(bone); });
+            if (isMapped) continue;
+            const auto& referenceParent = asset.skeleton[static_cast<std::size_t>(parent)].referenceWorld;
+            currentWorld[bone] = currentWorld[static_cast<std::size_t>(parent)] * glm::inverse(referenceParent) *
+                asset.skeleton[bone].referenceWorld;
+            instance.ragdollBones[bone] = currentWorld[bone] * asset.skeleton[bone].inverseBind;
+        }
+    }
+}
+
 bool raySphere(glm::vec3 origin, glm::vec3 direction, glm::vec3 center, float radius, float& distance) {
     const auto offset = origin - center;
     const float projection = glm::dot(offset, direction);
@@ -70,6 +108,7 @@ bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction) {
     instance.ragdoll = true;
     instance.transform = physics_->world.rootTransform(instance.ragdollHandle) *
         glm::inverse(instance.restRoot) * instance.restTransform;
+    updateRagdollBones(instance, assets[instance.asset], physics_->world);
     return true;
 }
 
@@ -80,6 +119,7 @@ void ZombieLayer::update(float seconds) {
         if (!instance.ragdoll) continue;
         instance.transform = physics_->world.rootTransform(instance.ragdollHandle) *
             glm::inverse(instance.restRoot) * instance.restTransform;
+        if (instance.asset < assets.size()) updateRagdollBones(instance, assets[instance.asset], physics_->world);
     }
 }
 
@@ -140,7 +180,14 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
         const auto restRoot = placements[i];
         const auto transform = restRoot * normalization[asset];
         const float phase = static_cast<float>(std::fmod(static_cast<double>(i) * 0.61803398875, 1.0));
-        result.instances.push_back({asset, transform, transform, restRoot, phase});
+        ZombieInstance instance;
+        instance.asset = asset;
+        instance.transform = transform;
+        instance.restTransform = transform;
+        instance.restRoot = restRoot;
+        instance.phase = phase;
+        instance.ragdollBones.resize(result.assets[asset].skeleton.size(), glm::mat4(1.0f));
+        result.instances.push_back(std::move(instance));
         const auto& model = result.assets[asset].model;
         for (int corner = 0; corner < 8; ++corner) {
             const glm::vec3 p(corner & 1 ? model.boundsMax.x : model.boundsMin.x,

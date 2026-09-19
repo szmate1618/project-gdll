@@ -183,8 +183,9 @@ The crowd currently draws all instances; it has no distance LOD, AI, movement,
 or player collision. While the mouse is captured, left click casts a ray from
 the camera center and activates the nearest zombie under a conservative body
 sphere. Box3D then simulates an 11-body capsule/sphere ragdoll with constrained
-ball and hinge joints. The mesh freezes in its reference idle frame and follows
-the simulated pelvis/root pose; each ragdoll uses a small local ground box rather
+ball and hinge joints. Normal instances keep the baked vertex-texture animation
+path; ragdoll instances switch to GPU skinning using retained bind-pose weights
+and simulated rigid-body poses. Each ragdoll uses a small local ground box rather
 than the full terrain mesh. Ground placement and existing town/tree collision
 remain independent from animated rendering.
 
@@ -424,11 +425,11 @@ resize, and Escape callbacks passed the input check. Screenshots are in
 CMakeLists.txt              Viewer and unit-test build configuration
 src/main.cpp               Window, input callbacks, render loop, CLI
 src/renderer.{hpp,cpp}      OpenGL resources, shaders, drawing
-src/animated_model.{hpp,cpp} Idle glTF animation sampling and skin deformation
+src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin data
 src/zombie_layer.{hpp,cpp}  Shared character loading and crowd assembly
 src/zombie_placement.{hpp,cpp} Ground queries and deterministic safe placement
 src/zombie_ragdoll.{hpp,cpp} Box3D ragdoll simulation and simplified ground planes
-src/zombie_renderer.cpp    Shared animation buffers and GPU instanced drawing
+src/zombie_renderer.cpp    Shared animation buffers, skinning data, and GPU instancing
 src/camera.{hpp,cpp}        Perspective free-fly camera
 src/camera_rig.{hpp,cpp}    Runtime camera mode switching
 src/fps_controller.{hpp,cpp} Fixed-step walking, gravity, jump and contact response

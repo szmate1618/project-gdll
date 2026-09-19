@@ -135,7 +135,9 @@ void testSkinAndHierarchy(Files& files) {
     require(near(vertex(model, 59).position.x, 12) && near(vertex(model, 59).position.y, 59.0f / 30.0f), "Shorter channels clamp and duplicate endpoint is excluded");
     require(near(vertex(model, 30, 0, 1).position.x, 10) && near(vertex(model, 30, 0, 1).position.y, 1) &&
         near(vertex(model, 30, 0, 1).position.z, 5), "Unskinned geometry must still follow animated ancestors");
-    require(near(model.model.primitives[0].vertices[0].position.x, 10), "Static vertex data must hold frame zero");
+    require(near(model.model.primitives[0].vertices[0].position.x, 0), "Skinned geometry must retain bind-pose vertices for GPU skinning");
+    require(model.animation[0].skinning.size() == 3 && model.animation[0].skinning[0].joints[0] == 2 &&
+        near(model.animation[0].skinning[0].weights[0], 1), "Skin joints and weights must be retained for GPU skinning");
     for (const auto& draw : model.model.draws) require(draw.transform == glm::mat4(1), "Baked scene draws must be identity");
     for (const auto& primitive : model.animation) for (const auto& v : primitive.frames) {
         require(near(glm::length(glm::vec3(v.normal)), 1), "Baked normals must be unit length");
