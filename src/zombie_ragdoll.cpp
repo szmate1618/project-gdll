@@ -146,15 +146,22 @@ public:
         for (int part = 0; part < partCount; ++part)
             restBodies_[static_cast<std::size_t>(part)] = bodyTransform(static_cast<Part>(part));
 
-        b3Body_SetLinearVelocity(bodies_[pelvis], toB3Vec(impulse * 0.7f + glm::vec3(0, 1.8f, 0)));
+        // The hit impulse is horizontal/aim-directed. Adding an unconditional
+        // upward velocity here made every activation visibly jump.
+        b3Body_SetLinearVelocity(bodies_[pelvis], toB3Vec(impulse * 0.7f));
         b3Body_SetAngularVelocity(bodies_[pelvis], toB3Vec(glm::vec3(impulse.z, 0.0f, -impulse.x) * 1.4f + glm::vec3(0, 0, 1.2f)));
     }
 
     glm::mat4 rootTransform() const {
         const auto position = fromB3(b3Body_GetPosition(bodies_[pelvis]));
         const auto rotation = fromB3(b3Body_GetRotation(bodies_[pelvis]));
-        return glm::translate(glm::mat4(1.0f), position) * glm::mat4_cast(rotation) *
-               glm::translate(glm::mat4(1.0f), glm::vec3(0, -0.88f, 0));
+        const auto matrix = glm::mat4_cast(rotation);
+        // Keep the instance origin at the pelvis' vertical ground offset. The
+        // pelvis bone itself carries pitch/roll; rotating this offset as well
+        // makes the entire rendered zombie hop whenever the pelvis tips.
+        const float yaw = std::atan2(matrix[2][0], matrix[0][0]);
+        return glm::translate(glm::mat4(1.0f), position - glm::vec3(0, 0.88f, 0)) *
+               glm::rotate(glm::mat4(1.0f), yaw, glm::vec3(0, 1, 0));
     }
 
     glm::mat4 bodyTransform(Part part) const {

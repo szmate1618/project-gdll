@@ -335,7 +335,8 @@ int ragdollPartForName(const std::string& name) {
     const bool right = hasToken(tokens, "right") || hasToken(tokens, "r");
     const bool arm = hasToken(tokens, "arm") || hasToken(tokens, "upperarm") || hasToken(tokens, "forearm") ||
                      hasToken(tokens, "lowerarm");
-    const bool leg = hasToken(tokens, "leg") || hasToken(tokens, "upperleg") || hasToken(tokens, "lowerleg");
+    const bool leg = hasToken(tokens, "leg") || hasToken(tokens, "upperleg") || hasToken(tokens, "lowerleg") ||
+                     hasToken(tokens, "thigh") || hasToken(tokens, "calf") || hasToken(tokens, "shin");
     const auto side = [left, right](int leftPart, int rightPart) { return left ? leftPart : right ? rightPart : -1; };
     if (hasToken(tokens, "pelvis")) return static_cast<int>(RagdollPart::pelvis);
     if (hasToken(tokens, "spine") || hasToken(tokens, "chest") || hasToken(tokens, "torso"))
