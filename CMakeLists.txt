@@ -147,6 +147,19 @@ if(BUILD_TESTING)
         add_test(NAME viewer_${suite} COMMAND test_${suite})
     endforeach()
 
+    # Exercise real vertex attributes and skinning palette lookups. Machines
+    # without an accessible OpenGL display skip this graphics-only regression.
+    add_executable(test_zombie_renderer tests/test_zombie_renderer.cpp
+        src/renderer.cpp src/zombie_renderer.cpp)
+    target_link_libraries(test_zombie_renderer PRIVATE
+        viewer_zombies viewer_visibility viewer_camera viewer_trees glfw OpenGL::GL)
+    target_compile_definitions(test_zombie_renderer PRIVATE
+        GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_zombie_renderer)
+    add_test(NAME viewer_zombie_renderer COMMAND test_zombie_renderer)
+    set_tests_properties(viewer_zombie_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
     add_executable(test_tree_layer tests/test_tree_layer.cpp)
     target_link_libraries(test_tree_layer PRIVATE viewer_trees OpenSSL::Crypto)
     target_include_directories(test_tree_layer SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")

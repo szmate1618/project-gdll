@@ -71,7 +71,7 @@ private:
         float phase;
         float animationFrame;
         float ragdoll;
-        float boneBase;
+        float boneBase; // Matrix offset into the batch's skinning palette, or -1.
     };
     struct ZombieBatch {
         ModelGPU model;

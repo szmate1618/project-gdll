@@ -84,6 +84,9 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
             batch.vertexCounts[p] = static_cast<GLint>(count);
             batch.skinningEnabled[p] = skinning.empty() ? 0 : 1;
             glBindVertexArray(mesh.vao);
+            // Attribute pointers capture the current array buffer. The previous
+            // primitive leaves its per-vertex skinning buffer bound below.
+            glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);
             for (GLuint column = 0; column < 4; ++column) {
                 glEnableVertexAttribArray(4 + column);
                 glVertexAttribPointer(4 + column, 4, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
@@ -168,8 +171,9 @@ void Renderer::updateZombies(const ZombieLayer& zombies) {
             if (source.ragdoll && batch.skinningBoneCount > 0) {
                 if (source.ragdollBones.size() != static_cast<std::size_t>(batch.skinningBoneCount))
                     throw std::runtime_error("Ragdoll skeleton data does not match zombie asset");
-                boneBase = static_cast<float>(batch.skinningMatrices.size() /
-                                              static_cast<std::size_t>(batch.skinningBoneCount));
+                // The shader adds the joint index before converting to texels,
+                // so this is a matrix offset, not a skeleton/instance index.
+                boneBase = static_cast<float>(batch.skinningMatrices.size());
                 batch.skinningMatrices.insert(batch.skinningMatrices.end(), source.ragdollBones.begin(), source.ragdollBones.end());
             }
             batch.staging[instanceIndex] = {source.transform, source.phase, source.ragdoll ? 0.0f : -1.0f,

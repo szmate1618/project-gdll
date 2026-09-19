@@ -349,11 +349,16 @@ CPU and GPU timings separately: their work overlaps, so the times cannot be
 added. Timing appears automatically in the title without additional console
 output or command-line options.
 
-Run the camera, loader, collision, and walking-controller checks without a graphical display:
+Run the viewer checks:
 
 ```bash
 ctest --test-dir build --output-on-failure
 ```
+
+The `viewer_zombie_renderer` regression checks repeated ragdoll palette uploads
+and characters with multiple primitives through the actual shader. It requires
+an accessible OpenGL display and reports a skip when none is available. The
+remaining checks run without a display.
 
 When `output/godollo.glb` exists at configure time, CTest also runs the full-town
 FPS integration test. It validates spawning, a real building wall and diagonal
