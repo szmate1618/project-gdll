@@ -87,8 +87,9 @@ void Camera::look(float dx, float dy) {
     if (!std::isfinite(dx) || !std::isfinite(dy)) {
         return;
     }
-    yaw_ = std::remainder(yaw_ + dx * 0.1F, 360.0F);
-    pitch_ = std::clamp(pitch_ + dy * 0.1F, -89.0F, 89.0F);
+    const float degreesPerPixel = verticalFov_ < alternateVerticalFov_ ? 0.01F : 0.1F;
+    yaw_ = std::remainder(yaw_ + dx * degreesPerPixel, 360.0F);
+    pitch_ = std::clamp(pitch_ + dy * degreesPerPixel, -89.0F, 89.0F);
 }
 
 void Camera::adjustSpeed(float multiplier) {

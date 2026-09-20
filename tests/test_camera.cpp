@@ -131,6 +131,31 @@ void testZoomToggle() {
     }
 }
 
+void testZoomLookSensitivity() {
+    for (const float sign : {-1.0F, 1.0F}) {
+        viewer::Camera camera;
+        const auto angles = [&camera] {
+            return glm::vec2(camera.yawDegrees(), camera.pitchDegrees());
+        };
+        const auto lookDelta = [&] {
+            const glm::vec2 before = angles();
+            camera.look(sign * 100.0F, sign * 50.0F);
+            return angles() - before;
+        };
+
+        const glm::vec2 normalDelta = lookDelta();
+        require(std::abs(normalDelta.x) > 0.0F && std::abs(normalDelta.y) > 0.0F,
+                "Mouse look does not change both yaw and pitch");
+        camera.toggleZoom();
+        const glm::vec2 zoomDelta = lookDelta();
+        require(glm::length(zoomDelta * 10.0F - normalDelta) < 0.0001F,
+                "Zoom does not reduce yaw and pitch sensitivity by ten");
+        camera.toggleZoom();
+        require(glm::length(lookDelta() - normalDelta) < 0.0001F,
+                "Leaving zoom does not restore normal mouse sensitivity");
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -141,6 +166,7 @@ int main() {
         testMovement();
         testLookAndSpeed();
         testZoomToggle();
+        testZoomLookSensitivity();
         std::cout << "Camera framing, movement, mouse look, speed, and zoom checks passed\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {

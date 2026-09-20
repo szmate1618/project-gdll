@@ -13,7 +13,7 @@ public:
 
     // Inputs are signed axes; simultaneous movement is normalized. Up is world Y.
     void move(float forward, float right, float up, float dt, bool fast);
-    // Mouse offsets are in pixels. Positive dy looks up.
+    // Mouse offsets are in pixels. Positive dy looks up; zoom slows turning 10x.
     void look(float dx, float dy);
     void adjustSpeed(float multiplier);
     // Toggle between a 1-degree vertical field of view and the previous value.
