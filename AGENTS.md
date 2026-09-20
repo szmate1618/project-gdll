@@ -23,6 +23,7 @@ Use this guide as a navigation aid; read the relevant code for current behavior.
 | Tree assets and preprocessing | [docs/TREES.md](docs/TREES.md), [assets/README.md](assets/README.md), `tools/*tree*.py`, `src/tree_*.py` |
 | Scene and tree loading | `src/model.hpp/.cpp`, `src/tree_layer.hpp/.cpp` |
 | Animated zombie crowd | [assets/zombies/README.md](assets/zombies/README.md), `src/animated_model.hpp/.cpp`, `src/zombie_layer.hpp/.cpp`, `src/zombie_placement.hpp/.cpp`, `src/zombie_renderer.cpp` |
+| Zombie ragdoll handoff and physics | `src/zombie_ragdoll_pose.hpp/.cpp`, `src/zombie_ragdoll.hpp/.cpp`, [docs/VIEWER.md](docs/VIEWER.md) |
 | Rendering and visibility | `src/renderer.hpp/.cpp`, `src/visibility.hpp/.cpp`, `src/model_visibility.hpp/.cpp`, `src/tree_visibility.hpp/.cpp`, `src/gpu_timer.hpp/.cpp`, `shaders/` |
 | Cameras, walking, collision | [docs/VIEWER.md](docs/VIEWER.md), `src/camera*`, `src/fps_controller*`, `src/collision_world*`, `src/collision_debug*` |
 | App wiring and checks | `src/main.cpp`, `CMakeLists.txt`, corresponding `tests/test_*` files |

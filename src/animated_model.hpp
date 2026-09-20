@@ -40,6 +40,9 @@ struct AnimatedModel {
     Model model;
     std::vector<AnimatedPrimitive> animation;
     std::vector<SkeletonBone> skeleton;
+    // Frame-major asset-space bone world transforms, before inverse binds.
+    // Sampled at exactly the same times as animation's baked vertex frames.
+    std::vector<glm::mat4> boneFrames;
     std::array<int, ragdollPartCount> ragdollBones = [] {
         std::array<int, ragdollPartCount> result{};
         result.fill(-1);
@@ -57,5 +60,12 @@ struct AnimatedModel {
 // Throws a path-qualified error for unsupported/invalid data or an ambiguous clip.
 AnimatedModel loadIdleModel(const std::filesystem::path& path,
                             const std::string& clipName = "");
+
+// Match the displayed baked pose, including per-instance cycle phase. Linear
+// matrix interpolation preserves the shader's interpolated vertex positions;
+// interpolated rotations can consequently contain a small amount of shear/scale.
+// Models without boneFrames return their referenceWorld transforms instead.
+std::vector<glm::mat4> sampleAnimatedPose(const AnimatedModel& model,
+                                        double seconds, float phase = 0);
 
 }  // namespace viewer

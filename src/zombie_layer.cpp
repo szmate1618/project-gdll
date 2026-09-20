@@ -1,5 +1,6 @@
 #include "zombie_layer.hpp"
 #include "zombie_ragdoll.hpp"
+#include "zombie_ragdoll_pose.hpp"
 #include "zombie_placement.hpp"
 
 #include <algorithm>
@@ -18,44 +19,6 @@ bool modelFile(const std::filesystem::path& path) {
 
 bool finite(glm::vec3 value) {
     return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
-}
-
-void updateRagdollBones(ZombieInstance& instance, const AnimatedModel& asset,
-                        const ZombieRagdollWorld& world) {
-    instance.ragdollBones.assign(asset.skeleton.size(), glm::mat4(1.0f));
-    if (asset.skeleton.empty()) return;
-    std::vector<glm::mat4> currentWorld(asset.skeleton.size(), glm::mat4(1.0f));
-    for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
-        currentWorld[bone] = asset.skeleton[bone].referenceWorld;
-    const auto currentBodies = world.bodyTransforms(instance.ragdollHandle);
-    const auto restBodies = world.restBodyTransforms(instance.ragdollHandle);
-    const auto inverseInstance = glm::inverse(instance.transform);
-    for (std::size_t part = 0; part < ragdollPartCount; ++part) {
-        const int bone = asset.ragdollBones[part];
-        if (bone < 0 || static_cast<std::size_t>(bone) >= asset.skeleton.size()) continue;
-        const auto& restBody = restBodies[part];
-        currentWorld[static_cast<std::size_t>(bone)] = inverseInstance *
-            currentBodies[part] * glm::inverse(restBody) * instance.restTransform *
-            asset.skeleton[static_cast<std::size_t>(bone)].referenceWorld;
-        instance.ragdollBones[static_cast<std::size_t>(bone)] = currentWorld[static_cast<std::size_t>(bone)] *
-            asset.skeleton[static_cast<std::size_t>(bone)].inverseBind;
-    }
-    // Most character rigs contain extra joints (hands, feet, clavicles, fingers).
-    // Keep those joints attached to their nearest mapped parent instead of adding
-    // more physics bodies.
-    for (std::size_t pass = 0; pass < asset.skeleton.size(); ++pass) {
-        for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone) {
-            const int parent = asset.skeleton[bone].parent;
-            if (parent < 0 || static_cast<std::size_t>(parent) >= asset.skeleton.size()) continue;
-            const bool isMapped = std::any_of(asset.ragdollBones.begin(), asset.ragdollBones.end(),
-                                              [bone](int value) { return value == static_cast<int>(bone); });
-            if (isMapped) continue;
-            const auto& referenceParent = asset.skeleton[static_cast<std::size_t>(parent)].referenceWorld;
-            currentWorld[bone] = currentWorld[static_cast<std::size_t>(parent)] * glm::inverse(referenceParent) *
-                asset.skeleton[bone].referenceWorld;
-            instance.ragdollBones[bone] = currentWorld[bone] * asset.skeleton[bone].inverseBind;
-        }
-    }
 }
 
 bool raySphere(glm::vec3 origin, glm::vec3 direction, glm::vec3 center, float radius, float& distance) {
@@ -80,7 +43,7 @@ ZombieLayer::~ZombieLayer() = default;
 ZombieLayer::ZombieLayer(ZombieLayer&&) noexcept = default;
 ZombieLayer& ZombieLayer::operator=(ZombieLayer&&) noexcept = default;
 
-bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction) {
+bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationSeconds) {
     if (!finite(origin) || !finite(direction)) return false;
     const float length = glm::length(direction);
     if (length < 1e-6f) return false;
@@ -104,11 +67,17 @@ bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction) {
     auto& instance = instances[selected];
     const auto feet = glm::vec3(instance.restRoot[3]);
     const float yaw = std::atan2(instance.restRoot[2][0], instance.restRoot[0][0]);
-    instance.ragdollHandle = physics_->world.create(feet, yaw, direction * 4.0f);
+    const auto& asset = assets[instance.asset];
+    instance.activationPose = sampleAnimatedPose(asset, animationSeconds, instance.phase);
+    RagdollPose reference, current;
+    if (makeZombieRagdollPoses(instance, asset, reference, current))
+        instance.ragdollHandle = physics_->world.create(feet, yaw, direction * 4.0f, reference, current);
+    else
+        instance.ragdollHandle = physics_->world.create(feet, yaw, direction * 4.0f);
     instance.ragdoll = true;
     instance.transform = physics_->world.rootTransform(instance.ragdollHandle) *
         glm::inverse(instance.restRoot) * instance.restTransform;
-    updateRagdollBones(instance, assets[instance.asset], physics_->world);
+    updateZombieRagdollSkin(instance, assets[instance.asset], physics_->world);
     return true;
 }
 
@@ -119,7 +88,7 @@ void ZombieLayer::update(float seconds) {
         if (!instance.ragdoll) continue;
         instance.transform = physics_->world.rootTransform(instance.ragdollHandle) *
             glm::inverse(instance.restRoot) * instance.restTransform;
-        if (instance.asset < assets.size()) updateRagdollBones(instance, assets[instance.asset], physics_->world);
+        if (instance.asset < assets.size()) updateZombieRagdollSkin(instance, assets[instance.asset], physics_->world);
     }
 }
 

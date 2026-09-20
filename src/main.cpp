@@ -168,6 +168,7 @@ struct AppState {
     viewer::CameraRig rig;
     const viewer::CollisionWorld& world;
     viewer::ZombieLayer* zombies = nullptr;
+    double displayedAnimationSeconds = 0.0;
     glm::vec3 boundsMin, boundsMax;
     std::array<bool, GLFW_KEY_LAST + 1> keys{};
     int width = 1280, height = 720;
@@ -222,7 +223,8 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     auto& app = state(window);
     if (button != GLFW_MOUSE_BUTTON_LEFT || action != GLFW_PRESS || !app.capture || !app.zombies) return;
-    if (app.zombies->shoot(app.rig.camera().position(), app.rig.camera().direction()))
+    if (app.zombies->shoot(app.rig.camera().position(), app.rig.camera().direction(),
+                           app.displayedAnimationSeconds))
         std::cout << "Zombie hit: ragdoll activated (" << app.zombies->ragdollCount() << " active)\n";
 }
 
@@ -550,7 +552,8 @@ int run(const Options& options) {
         }
         gpuTimer.begin();
         const double renderStart = glfwGetTime();
-        renderer.render(app.rig.camera(), options.animationTime.value_or(now - animationStart));
+        app.displayedAnimationSeconds = options.animationTime.value_or(now - animationStart);
+        renderer.render(app.rig.camera(), app.displayedAnimationSeconds);
         if (app.collisionDebug)
             debug->draw(app.rig.camera(), overlay, app.width, app.height);
         intervalRenderSeconds += glfwGetTime() - renderStart;

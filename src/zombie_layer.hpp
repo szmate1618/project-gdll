@@ -15,6 +15,8 @@ struct ZombieInstance {
     float phase = 0; // Fraction of the idle cycle, independent of frame rate.
     bool ragdoll = false;
     std::size_t ragdollHandle = 0;
+    // Skeleton world pose captured from the displayed idle frame, in asset space.
+    std::vector<glm::mat4> activationPose;
     // Asset-space bone matrices uploaded to the live skinning path.
     std::vector<glm::mat4> ragdollBones;
 };
@@ -32,7 +34,8 @@ struct ZombieLayer {
     glm::vec3 boundsMin{0}, boundsMax{0};
 
     // Returns true when the nearest idle zombie under the ray was activated.
-    bool shoot(glm::vec3 origin, glm::vec3 direction);
+    // animationSeconds is the time of the last displayed frame (before phase).
+    bool shoot(glm::vec3 origin, glm::vec3 direction, double animationSeconds = 0.0);
     void update(float seconds);
     [[nodiscard]] std::size_t ragdollCount() const;
 

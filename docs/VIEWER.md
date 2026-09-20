@@ -185,9 +185,14 @@ the camera center and activates the nearest zombie under a conservative body
 sphere. Box3D then simulates an 11-body capsule/sphere ragdoll with constrained
 ball and hinge joints. Normal instances keep the baked vertex-texture animation
 path; ragdoll instances switch to GPU skinning using retained bind-pose weights
-and simulated rigid-body poses. Each ragdoll uses a small local ground box rather
-than the full terrain mesh. Ground placement and existing town/tree collision
-remain independent from animated rendering.
+and simulated rigid-body poses. Activation captures the last displayed idle pose,
+including each zombie's phase and interpolated animation frame. Bodies start in
+that pose, with their dimensions and joint axes derived from the reference rig;
+hands, fingers, and other unmapped joints retain their captured local poses.
+Capsule ends are inset to avoid starting below ground, and activation adds no
+automatic angular launch. Each ragdoll uses a small local ground box rather than
+the full terrain mesh. Ground placement and existing town/tree collision remain
+independent from animated rendering.
 
 For matching-camera animation captures, use `--animation-time S` to freeze the
 idle cycles at a chosen elapsed time:
@@ -434,6 +439,7 @@ src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin dat
 src/zombie_layer.{hpp,cpp}  Shared character loading and crowd assembly
 src/zombie_placement.{hpp,cpp} Ground queries and deterministic safe placement
 src/zombie_ragdoll.{hpp,cpp} Box3D ragdoll simulation and simplified ground planes
+src/zombie_ragdoll_pose.{hpp,cpp} Animated-pose handoff and physics-to-skin mapping
 src/zombie_renderer.cpp    Shared animation buffers, skinning data, and GPU instancing
 src/camera.{hpp,cpp}        Perspective free-fly camera
 src/camera_rig.{hpp,cpp}    Runtime camera mode switching

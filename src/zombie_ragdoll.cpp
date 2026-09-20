@@ -7,9 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <limits>
 #include <stdexcept>
-#include <utility>
 #include <vector>
 
 namespace viewer {
@@ -31,11 +29,6 @@ enum Part {
     upperLegRight,
     lowerLegRight,
     partCount
-};
-
-struct Transform {
-    glm::vec3 position{0.0f};
-    glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
 };
 
 b3Pos toB3Pos(glm::vec3 value) {
@@ -89,16 +82,14 @@ glm::quat frameFromZ(glm::vec3 axis, glm::vec3 xHint) {
 
 class Ragdoll {
 public:
-    Ragdoll(b3WorldId world, glm::vec3 feet, float yaw, glm::vec3 impulse, int collisionGroup)
-        : world_(world) {
-        const auto forward = glm::vec3(std::cos(yaw), 0.0f, std::sin(yaw));
-        const auto rotate = [yaw, feet](glm::vec3 local) {
-            return feet + glm::mat3(glm::rotate(glm::mat4(1.0f), yaw, glm::vec3(0, 1, 0))) * local;
+    Ragdoll(b3WorldId world, glm::vec3 feet, float yaw, glm::vec3 impulse, int collisionGroup,
+            const RagdollPose& reference, const RagdollPose& current)
+        : world_(world), feet_(feet), yaw_(yaw) {
+        const auto facing = glm::mat3(glm::rotate(glm::mat4(1.0f), yaw, glm::vec3(0, 1, 0)));
+        const auto forward = facing * glm::vec3(0, 0, 1);
+        const auto position = [](const RagdollPose& pose, Part part) {
+            return glm::vec3(pose.bones[part][3]);
         };
-
-        // A small local static box is deliberately used instead of importing the
-        // complete terrain mesh into Box3D. It is enough to keep each ragdoll on
-        // the ground it was standing on and keeps activation cheap.
         auto groundDef = b3DefaultBodyDef();
         groundDef.type = b3_staticBody;
         groundDef.position = toB3Pos({feet.x, feet.y - 0.05f, feet.z});
@@ -107,61 +98,85 @@ public:
         const auto groundBox = b3MakeBoxHull(3.0f, 0.05f, 3.0f);
         b3CreateHullShape(ground, &groundShape, &groundBox.base);
 
-        // The dimensions are deliberately stable and close to the normalized
-        // 1.8 m character frame used by zombie_layer.cpp.
-        bodies_[pelvis] = addCapsule(rotate({0.0f, 0.71f, 0.0f}), rotate({0.0f, 1.05f, 0.0f}),
-                                     0.22f, 0.34f, 12.0f, forward, collisionGroup);
-        const auto torsoBottom = rotate({0.0f, 1.08f, 0.0f});
-        const auto torsoTop = rotate({0.0f, 1.70f, 0.0f});
-        bodies_[torso] = addCapsule(torsoBottom, torsoTop, 0.30f, 0.62f, 25.0f, forward, collisionGroup);
-        bodies_[head] = addSphere(rotate({0.0f, 1.98f, 0.0f}), 0.22f, 5.0f, forward, collisionGroup);
+        const float hipWidth = glm::distance(position(reference, upperLegLeft), position(reference, upperLegRight));
+        const float shoulderWidth = glm::distance(position(reference, upperArmLeft), position(reference, upperArmRight));
+        const std::array<float, partCount> masses{12, 25, 5, 2.2f, 1.6f, 2.2f, 1.6f, 7.5f, 4, 7.5f, 4};
+        const std::array<float, partCount> radiusRatios{0.4f, 0.25f, 0.5f, 0.18f, 0.16f,
+                                                      0.18f, 0.16f, 0.19f, 0.16f, 0.19f, 0.16f};
+        for (int index = 0; index < partCount; ++index) {
+            const auto part = static_cast<Part>(index);
+            auto begin = position(reference, part);
+            auto end = reference.tips[part];
+            if (part == pelvis) {
+                begin = position(reference, upperLegLeft);
+                end = position(reference, upperLegRight);
+            }
+            const auto axis = end - begin;
+            const float length = glm::length(axis);
+            const auto rotation = length > 1e-5f ? frameFromY(axis, forward) : frameFromY({0, 1, 0}, forward);
+            referenceBodies_[part] = glm::translate(glm::mat4(1), (begin + end) * 0.5f) * glm::mat4_cast(rotation);
+            // Uniform source scale cancels in this delta. Normalize the resulting
+            // axes because interpolated animation matrices can contain small shear.
+            const auto live = current.bones[part] * glm::inverse(reference.bones[part]) * referenceBodies_[part];
+            const auto liveRotation = rigidRotation(live);
+            const auto center = glm::vec3(live[3]);
+            float radius = std::max(0.005f, length * radiusRatios[part]);
+            if (part == torso) radius = std::max(0.005f, shoulderWidth * 0.34f);
+            if (part == pelvis) radius = std::max(0.005f, hipWidth * 0.4f);
+            radius = std::min(radius, std::max(0.005f, length * 0.5f));
+            float halfLength = part == head ? 0.0f : std::max(0.0f, length * 0.5f - radius);
 
-        const auto addLimb = [&](Part part, glm::vec3 a, glm::vec3 b, float radius, float mass) {
-            bodies_[part] = addCapsule(rotate(a), rotate(b), radius, glm::length(b - a), mass, forward, collisionGroup);
+            // Capsule endpoints are inset from the anatomical joints. A radius
+            // added beyond the foot used to start the calf below ground and the
+            // solver lifted the entire skeleton to resolve that penetration.
+            // Also trim a collider if an unusually low animation pose needs it;
+            // never move the visible pose upward just to fit a collision shape.
+            const float clearance = std::max(0.001f, center.y - feet.y);
+            radius = std::min(radius, clearance);
+            const float verticalAxis = std::abs((liveRotation * glm::vec3(0, 1, 0)).y);
+            if (verticalAxis > 1e-5f)
+                halfLength = std::min(halfLength, std::max(0.0f, (clearance - radius) / verticalAxis));
+            bodies_[part] = addBody(center, liveRotation, radius, halfLength, masses[part], collisionGroup);
+        }
+
+        // Joint rotation frames come from the reference anatomy. Positional
+        // anchors use the live joint, since intermediate spine/clavicle bones
+        // need not keep their reference offsets when the animation bends them.
+        const auto ball = [&](Part parent, Part child, float cone, float twist) {
+            auto axis = reference.tips[child] - position(reference, child);
+            if (glm::dot(axis, axis) < 1e-8f) axis = glm::vec3(0, 1, 0);
+            addBallJoint(parent, child, position(current, child), frameFromZ(axis, forward), cone, -twist, twist);
         };
-        // The supplied Biped assets use positive X for their "L" bones and keep
-        // the upper/lower arms nearly horizontal in the reference pose. Keeping
-        // the physical rest pose close to that pose avoids a large correction
-        // when the live-skinned arm bones take over.
-        addLimb(upperArmLeft, {0.34f, 1.58f, 0.0f}, {0.62f, 1.48f, 0.0f}, 0.105f, 2.2f);
-        addLimb(lowerArmLeft, {0.62f, 1.48f, 0.0f}, {0.86f, 1.43f, 0.0f}, 0.09f, 1.6f);
-        addLimb(upperArmRight, {-0.34f, 1.58f, 0.0f}, {-0.62f, 1.48f, 0.0f}, 0.105f, 2.2f);
-        addLimb(lowerArmRight, {-0.62f, 1.48f, 0.0f}, {-0.86f, 1.43f, 0.0f}, 0.09f, 1.6f);
-        addLimb(upperLegLeft, {-0.16f, 0.78f, 0.0f}, {-0.18f, 0.38f, 0.0f}, 0.14f, 7.5f);
-        addLimb(lowerLegLeft, {-0.18f, 0.38f, 0.0f}, {-0.18f, 0.08f, 0.0f}, 0.115f, 4.0f);
-        addLimb(upperLegRight, {0.16f, 0.78f, 0.0f}, {0.18f, 0.38f, 0.0f}, 0.14f, 7.5f);
-        addLimb(lowerLegRight, {0.18f, 0.38f, 0.0f}, {0.18f, 0.08f, 0.0f}, 0.115f, 4.0f);
-
-        addBallJoint(pelvis, torso, rotate({0, 1.08f, 0}), glm::vec3(0, 1, 0), forward, 40, -35, 35);
-        addBallJoint(torso, head, rotate({0, 1.70f, 0}), glm::vec3(0, 1, 0), forward, 55, -70, 70);
-        addBallJoint(torso, upperArmLeft, rotate({0.34f, 1.58f, 0}), glm::vec3(1, -0.35f, 0), forward, 120, -95, 95);
-        addBallJoint(torso, upperArmRight, rotate({-0.34f, 1.58f, 0}), glm::vec3(-1, -0.35f, 0), forward, 120, -95, 95);
-        addHingeJoint(upperArmLeft, lowerArmLeft, rotate({0.62f, 1.48f, 0}), glm::vec3(0.24f, -0.05f, 0), forward, -20, 160);
-        addHingeJoint(upperArmRight, lowerArmRight, rotate({-0.62f, 1.48f, 0}), glm::vec3(-0.24f, -0.05f, 0), forward, -20, 160);
-        addBallJoint(pelvis, upperLegLeft, rotate({-0.16f, 0.78f, 0}), glm::vec3(0, -1, 0), forward, 70, -45, 45);
-        addBallJoint(pelvis, upperLegRight, rotate({0.16f, 0.78f, 0}), glm::vec3(0, -1, 0), forward, 70, -45, 45);
-        addHingeJoint(upperLegLeft, lowerLegLeft, rotate({-0.18f, 0.38f, 0}), glm::vec3(0, -1, 0), -forward, -15, 165);
-        addHingeJoint(upperLegRight, lowerLegRight, rotate({0.18f, 0.38f, 0}), glm::vec3(0, -1, 0), -forward, -15, 165);
+        const auto hinge = [&](Part parent, Part child, glm::vec3 bendDirection, float lower, float upper) {
+            auto direction = glm::normalize(reference.tips[parent] - position(reference, parent));
+            auto bend = bendDirection - direction * glm::dot(bendDirection, direction);
+            if (glm::dot(bend, bend) < 1e-6f) bend = safePerpendicular(direction);
+            const auto frame = frameFromZ(glm::normalize(glm::cross(direction, glm::normalize(bend))), direction);
+            addHingeJoint(parent, child, position(current, child), frame, lower, upper);
+        };
+        ball(pelvis, torso, 40, 35);
+        ball(torso, head, 55, 70);
+        ball(torso, upperArmLeft, 120, 95);
+        ball(torso, upperArmRight, 120, 95);
+        hinge(upperArmLeft, lowerArmLeft, forward, -20, 160);
+        hinge(upperArmRight, lowerArmRight, forward, -20, 160);
+        ball(pelvis, upperLegLeft, 70, 45);
+        ball(pelvis, upperLegRight, 70, 45);
+        hinge(upperLegLeft, lowerLegLeft, -forward, -15, 165);
+        hinge(upperLegRight, lowerLegRight, -forward, -15, 165);
 
         for (int part = 0; part < partCount; ++part)
             restBodies_[static_cast<std::size_t>(part)] = bodyTransform(static_cast<Part>(part));
-
-        // The hit impulse is horizontal/aim-directed. Adding an unconditional
-        // upward velocity here made every activation visibly jump.
+        initialPelvis_ = glm::vec3(restBodies_[pelvis][3]);
         b3Body_SetLinearVelocity(bodies_[pelvis], toB3Vec(impulse * 0.7f));
-        b3Body_SetAngularVelocity(bodies_[pelvis], toB3Vec(glm::vec3(impulse.z, 0.0f, -impulse.x) * 1.4f + glm::vec3(0, 0, 1.2f)));
     }
 
     glm::mat4 rootTransform() const {
         const auto position = fromB3(b3Body_GetPosition(bodies_[pelvis]));
-        const auto rotation = fromB3(b3Body_GetRotation(bodies_[pelvis]));
-        const auto matrix = glm::mat4_cast(rotation);
-        // Keep the instance origin at the pelvis' vertical ground offset. The
-        // pelvis bone itself carries pitch/roll; rotating this offset as well
-        // makes the entire rendered zombie hop whenever the pelvis tips.
-        const float yaw = std::atan2(matrix[2][0], matrix[0][0]);
-        return glm::translate(glm::mat4(1.0f), position - glm::vec3(0, 0.88f, 0)) *
-               glm::rotate(glm::mat4(1.0f), yaw, glm::vec3(0, 1, 0));
+        // Preserve the exact instance frame at handoff; the skinning matrices
+        // carry every body rotation. No assumed pelvis height or yaw is needed.
+        return glm::translate(glm::mat4(1), feet_ + position - initialPelvis_) *
+               glm::rotate(glm::mat4(1), yaw_, glm::vec3(0, 1, 0));
     }
 
     glm::mat4 bodyTransform(Part part) const {
@@ -179,56 +194,51 @@ public:
     }
 
 private:
-    b3Transform localJointFrame(b3BodyId body, glm::vec3 pivot, glm::quat rotation) const {
+    static glm::quat rigidRotation(const glm::mat4& matrix) {
+        auto x = glm::normalize(glm::vec3(matrix[0]));
+        auto y = glm::vec3(matrix[1]) - x * glm::dot(x, glm::vec3(matrix[1]));
+        if (glm::dot(y, y) < 1e-8f) y = safePerpendicular(x);
+        y = glm::normalize(y);
+        return glm::normalize(glm::quat_cast(glm::mat3(x, y, glm::cross(x, y))));
+    }
+
+    b3Transform localJointFrame(Part part, glm::vec3 pivot, glm::quat referenceRotation) const {
         b3Transform result = b3Transform_identity;
-        result.p = b3Body_GetLocalPoint(body, toB3Pos(pivot));
-        result.q = b3InvMulQuat(b3Body_GetRotation(body), toB3(rotation));
+        result.p = b3Body_GetLocalPoint(bodies_[part], toB3Pos(pivot));
+        result.q = b3InvMulQuat(toB3(rigidRotation(referenceBodies_[part])), toB3(referenceRotation));
         return result;
     }
 
-    b3BodyId addCapsule(glm::vec3 p0, glm::vec3 p1, float radius, float length, float mass,
-                        glm::vec3 forward, int collisionGroup) {
-        auto bodyDef = b3DefaultBodyDef();
-        bodyDef.type = b3_dynamicBody;
-        bodyDef.position = toB3Pos((p0 + p1) * 0.5f);
-        bodyDef.rotation = toB3(frameFromY(p1 - p0, forward));
-        bodyDef.linearDamping = 0.025f;
-        bodyDef.angularDamping = 0.045f;
-        const auto body = b3CreateBody(world_, &bodyDef);
-        auto shapeDef = b3DefaultShapeDef();
-        shapeDef.density = mass / (pi * radius * radius * length + (4.0f / 3.0f) * pi * radius * radius * radius);
-        shapeDef.baseMaterial.friction = 0.6f;
-        shapeDef.filter.groupIndex = collisionGroup;
-        const b3Capsule capsule{{0, -length * 0.5f, 0}, {0, length * 0.5f, 0}, radius};
-        b3CreateCapsuleShape(body, &shapeDef, &capsule);
-        return body;
-    }
-
-    b3BodyId addSphere(glm::vec3 center, float radius, float mass, glm::vec3 forward, int collisionGroup) {
+    b3BodyId addBody(glm::vec3 center, glm::quat rotation, float radius, float halfLength,
+                     float mass, int collisionGroup) {
         auto bodyDef = b3DefaultBodyDef();
         bodyDef.type = b3_dynamicBody;
         bodyDef.position = toB3Pos(center);
-        bodyDef.rotation = toB3(frameFromY(glm::vec3(0, 1, 0), forward));
+        bodyDef.rotation = toB3(rotation);
         bodyDef.linearDamping = 0.025f;
         bodyDef.angularDamping = 0.045f;
         const auto body = b3CreateBody(world_, &bodyDef);
         auto shapeDef = b3DefaultShapeDef();
-        shapeDef.density = mass / ((4.0f / 3.0f) * pi * radius * radius * radius);
+        shapeDef.density = mass / (pi * radius * radius * (2 * halfLength) + (4.0f / 3.0f) * pi * radius * radius * radius);
         shapeDef.baseMaterial.friction = 0.6f;
         shapeDef.filter.groupIndex = collisionGroup;
-        const b3Sphere sphere{{0, 0, 0}, radius};
-        b3CreateSphereShape(body, &shapeDef, &sphere);
+        if (halfLength > 1e-5f) {
+            const b3Capsule capsule{{0, -halfLength, 0}, {0, halfLength, 0}, radius};
+            b3CreateCapsuleShape(body, &shapeDef, &capsule);
+        } else {
+            const b3Sphere sphere{{0, 0, 0}, radius};
+            b3CreateSphereShape(body, &shapeDef, &sphere);
+        }
         return body;
     }
 
-    void addBallJoint(Part parent, Part child, glm::vec3 pivot, glm::vec3 childAxis,
-                      glm::vec3 forward, float cone, float lowerTwist, float upperTwist) {
-        const auto frame = frameFromZ(childAxis, forward);
+    void addBallJoint(Part parent, Part child, glm::vec3 pivot, glm::quat referenceFrame,
+                      float cone, float lowerTwist, float upperTwist) {
         auto joint = b3DefaultSphericalJointDef();
         joint.base.bodyIdA = bodies_[parent];
         joint.base.bodyIdB = bodies_[child];
-        joint.base.localFrameA = localJointFrame(bodies_[parent], pivot, frame);
-        joint.base.localFrameB = localJointFrame(bodies_[child], pivot, frame);
+        joint.base.localFrameA = localJointFrame(parent, pivot, referenceFrame);
+        joint.base.localFrameB = localJointFrame(child, pivot, referenceFrame);
         joint.base.collideConnected = false;
         joint.enableConeLimit = true;
         joint.coneAngle = cone * B3_DEG_TO_RAD;
@@ -238,18 +248,13 @@ private:
         b3CreateSphericalJoint(world_, &joint);
     }
 
-    void addHingeJoint(Part parent, Part child, glm::vec3 pivot, glm::vec3 limbDirection,
-                       glm::vec3 bendDirection, float lower, float upper) {
-        const auto direction = glm::normalize(limbDirection);
-        auto bend = bendDirection - direction * glm::dot(bendDirection, direction);
-        if (glm::dot(bend, bend) < 1e-6f) bend = safePerpendicular(direction);
-        bend = glm::normalize(bend);
-        const auto frame = frameFromZ(glm::normalize(glm::cross(direction, bend)), direction);
+    void addHingeJoint(Part parent, Part child, glm::vec3 pivot, glm::quat referenceFrame,
+                       float lower, float upper) {
         auto joint = b3DefaultRevoluteJointDef();
         joint.base.bodyIdA = bodies_[parent];
         joint.base.bodyIdB = bodies_[child];
-        joint.base.localFrameA = localJointFrame(bodies_[parent], pivot, frame);
-        joint.base.localFrameB = localJointFrame(bodies_[child], pivot, frame);
+        joint.base.localFrameA = localJointFrame(parent, pivot, referenceFrame);
+        joint.base.localFrameB = localJointFrame(child, pivot, referenceFrame);
         joint.base.collideConnected = false;
         joint.enableLimit = true;
         joint.lowerAngle = lower * B3_DEG_TO_RAD;
@@ -260,6 +265,10 @@ private:
     b3WorldId world_ = b3_nullWorldId;
     std::array<b3BodyId, partCount> bodies_{};
     std::array<glm::mat4, partCount> restBodies_{};
+    std::array<glm::mat4, partCount> referenceBodies_{};
+    glm::vec3 feet_{0};
+    glm::vec3 initialPelvis_{0};
+    float yaw_ = 0;
 };
 
 } // namespace
@@ -298,12 +307,58 @@ ZombieRagdollWorld& ZombieRagdollWorld::operator=(ZombieRagdollWorld&& other) no
 }
 
 std::size_t ZombieRagdollWorld::create(glm::vec3 feet, float yaw, glm::vec3 impulse) {
-    if (!impl_ || !std::isfinite(feet.x) || !std::isfinite(feet.y) || !std::isfinite(feet.z) ||
-        !std::isfinite(yaw) || !std::isfinite(impulse.x) || !std::isfinite(impulse.y) || !std::isfinite(impulse.z)) {
-        throw std::invalid_argument("Ragdoll creation requires finite transforms and impulse");
+    RagdollPose pose;
+    const auto root = glm::translate(glm::mat4(1), feet) * glm::rotate(glm::mat4(1), yaw, glm::vec3(0, 1, 0));
+    const std::array<glm::vec3, partCount> joints{{
+        {0, 0.95f, 0}, {0, 1.05f, 0}, {0, 1.62f, 0},
+        {0.2f, 1.5f, 0}, {0.48f, 1.5f, 0}, {-0.2f, 1.5f, 0}, {-0.48f, 1.5f, 0},
+        {0.1f, 0.95f, 0}, {0.12f, 0.55f, 0}, {-0.1f, 0.95f, 0}, {-0.12f, 0.55f, 0}
+    }};
+    const std::array<glm::vec3, partCount> tips{{
+        {0, 1.05f, 0}, {0, 1.58f, 0}, {0, 1.8f, 0},
+        {0.48f, 1.5f, 0}, {0.75f, 1.5f, 0}, {-0.48f, 1.5f, 0}, {-0.75f, 1.5f, 0},
+        {0.12f, 0.55f, 0}, {0.14f, 0.1f, 0}, {-0.12f, 0.55f, 0}, {-0.14f, 0.1f, 0}
+    }};
+    for (int part = 0; part < partCount; ++part) {
+        pose.bones[part] = root * glm::translate(glm::mat4(1), joints[part]);
+        pose.tips[part] = glm::vec3(root * glm::vec4(tips[part], 1));
     }
+    return create(feet, yaw, impulse, pose, pose);
+}
+
+std::size_t ZombieRagdollWorld::create(glm::vec3 feet, float yaw, glm::vec3 impulse,
+                                      const RagdollPose& referencePose, const RagdollPose& currentPose) {
+    const auto finite = [](glm::vec3 value) {
+        return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+    };
+    if (!impl_ || !finite(feet) || !std::isfinite(yaw) || !finite(impulse))
+        throw std::invalid_argument("Ragdoll creation requires finite transforms and impulse");
+    for (const auto* pose : {&referencePose, &currentPose}) {
+        for (std::size_t part = 0; part < ragdollPartCount; ++part) {
+            if (!finite(pose->tips[part])) throw std::invalid_argument("Ragdoll endpoints must be finite");
+            for (int column = 0; column < 4; ++column)
+                for (int row = 0; row < 4; ++row)
+                    if (!std::isfinite(pose->bones[part][column][row]))
+                        throw std::invalid_argument("Ragdoll bones must be finite");
+            const float determinant = glm::determinant(pose->bones[part]);
+            if (!std::isfinite(determinant) || determinant == 0)
+                throw std::invalid_argument("Ragdoll bones must have invertible transforms");
+        }
+    }
+    // Validate dimensions before creating any Box3D resources. In particular,
+    // hinge construction needs a nonzero anatomical segment direction.
+    for (std::size_t part = torso; part < ragdollPartCount; ++part) {
+        const float length = glm::distance(glm::vec3(referencePose.bones[part][3]), referencePose.tips[part]);
+        if (!std::isfinite(length) || length < 1e-5f)
+            throw std::invalid_argument("Ragdoll reference segments must have positive length");
+    }
+    const float hipWidth = glm::distance(glm::vec3(referencePose.bones[upperLegLeft][3]),
+                                        glm::vec3(referencePose.bones[upperLegRight][3]));
+    if (!std::isfinite(hipWidth) || hipWidth < 1e-5f)
+        throw std::invalid_argument("Ragdoll reference hips must be separated");
     const auto group = impl_->nextCollisionGroup--;
-    impl_->entries.push_back({std::make_unique<Ragdoll>(impl_->world, feet, yaw, impulse, group)});
+    impl_->entries.push_back({std::make_unique<Ragdoll>(impl_->world, feet, yaw, impulse, group,
+                                                      referencePose, currentPose)});
     return impl_->entries.size() - 1;
 }
 

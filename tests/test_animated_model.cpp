@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 
 namespace {
@@ -120,6 +121,31 @@ const viewer::AnimationVertex& vertex(const viewer::AnimatedModel& model, std::s
     return model.animation[primitive].frames[frame * model.model.primitives[primitive].vertices.size() + index];
 }
 
+void checkSampledSkin(const viewer::AnimatedModel& model, double seconds, float phase,
+                      std::size_t first, std::size_t second, float fraction) {
+    const auto pose = viewer::sampleAnimatedPose(model, seconds, phase);
+    require(pose.size() == model.skeleton.size(), "Sampled pose must retain every skeleton node");
+    for (std::size_t p = 0; p < model.model.primitives.size(); ++p) {
+        const auto& skinning = model.animation[p].skinning;
+        for (std::size_t v = 0; v < skinning.size(); ++v) {
+            glm::vec4 skinned(0);
+            for (std::size_t influence = 0; influence < 8; ++influence) {
+                const float weight = skinning[v].weights[influence];
+                if (weight == 0) continue;
+                const auto joint = skinning[v].joints[influence];
+                skinned += pose[joint] * model.skeleton[joint].inverseBind *
+                    glm::vec4(model.model.primitives[p].vertices[v].position, 1) * weight;
+            }
+            // Frame indices/weights are supplied by each test, independently of
+            // the sampler's clock/phase arithmetic and bone-frame packing.
+            const auto expected = vertex(model, first, v, p).position * (1 - fraction) +
+                                  vertex(model, second, v, p).position * fraction;
+            require(glm::length(skinned - expected) < 2e-4f,
+                    "Switching from baked animation to sampled skinning must preserve vertex positions");
+        }
+    }
+}
+
 void testSkinAndHierarchy(Files& files) {
     Fixture fixture;
     fixture.skin();
@@ -184,6 +210,57 @@ void testSkinAndHierarchy(Files& files) {
     const auto mixed = viewer::loadIdleModel(files.write("blended-skin", blended));
     require(near(vertex(mixed, 0).position.x, 10) && near(vertex(mixed, 15).position.x, 10.5f),
         "Skinning must blend multiple joints and renormalize quantized weights");
+    checkSampledSkin(mixed, 0.25, 0, 7, 8, 0.5f);
+}
+
+void testPoseSampling(Files& files) {
+    Fixture fixture;
+    fixture.skin();
+    fixture.track("idle", 2, "rotation", {2, 3}, {0, 0, 0, 1, 0, 0, 1, 0});
+    fixture.track("", 0, "translation", {2, 3}, {10, 0, 0, 10, 3, 0});
+    const auto model = viewer::loadIdleModel(files.write("sampled-pose", fixture));
+    require(model.boneFrames.size() == model.frameCount * model.skeleton.size(),
+            "Baked bone world transforms must use frame-major skeleton order");
+    checkSampledSkin(model, 0, 0, 0, 1, 0);
+    checkSampledSkin(model, 0.25, 0, 7, 8, 0.5f);
+    checkSampledSkin(model, 0, 0.25f, 7, 8, 0.5f);
+    checkSampledSkin(model, 0.75, 0.5f, 7, 8, 0.5f);
+    checkSampledSkin(model, 29.5 / 30, 0, 29, 0, 0.5f);
+    checkSampledSkin(model, 1, 0, 0, 1, 0);
+    checkSampledSkin(model, 1e12 + 0.25, 0, 7, 8, 0.5f);
+    checkSampledSkin(model, -1, 0.5f, 15, 16, 0);
+    checkSampledSkin(model, std::numeric_limits<double>::infinity(), 0.5f, 15, 16, 0);
+
+    // Interpolated vertex animation follows the chord between sampled rotations.
+    // Reconstructing a rigid quaternion rotation would visibly pop at activation.
+    const auto halfway = viewer::sampleAnimatedPose(model, 0.25);
+    require(glm::length(glm::vec3(halfway[2][0])) < 0.999f,
+            "Sampled rotations must preserve baked vertex interpolation, not use slerp");
+
+    viewer::AnimatedModel handmade;
+    handmade.skeleton = model.skeleton;
+    const auto reference = viewer::sampleAnimatedPose(handmade, 0.25, 0.75f);
+    for (std::size_t bone = 0; bone < reference.size(); ++bone)
+        require(reference[bone] == handmade.skeleton[bone].referenceWorld,
+                "Models without baked bones must keep their reference pose");
+    require(viewer::sampleAnimatedPose(viewer::AnimatedModel{}, 0).empty(),
+            "Empty fixture skeletons need an empty sampled pose");
+
+    const auto expectInvalid = [](const viewer::AnimatedModel& invalid, float phase = 0) {
+        try { (void)viewer::sampleAnimatedPose(invalid, 0, phase); }
+        catch (const std::runtime_error&) { return; }
+        throw std::runtime_error("Malformed bone samples must be rejected before indexing");
+    };
+    auto malformed = model;
+    malformed.boneFrames.pop_back();
+    expectInvalid(malformed);
+    malformed = model;
+    malformed.duration = 0;
+    expectInvalid(malformed);
+    malformed = model;
+    malformed.frameCount = std::numeric_limits<std::size_t>::max();
+    expectInvalid(malformed);
+    expectInvalid(model, std::numeric_limits<float>::quiet_NaN());
 }
 
 void testInterpolation(Files& files) {
@@ -276,6 +353,14 @@ void testValidation(Files& files) {
     Fixture times;
     times.track("idle", 0, "translation", {1, 1}, {0, 0, 0, 0, 1, 0});
     expectError(files.write("duplicate-time", times), "strictly increasing");
+
+    Fixture manyBones;
+    // 2400 nodes at 3600 frames would need over 512 MiB for bone matrices
+    // alone. Reject the small input fixture before allocating the baked output.
+    while (manyBones.document["nodes"].size() < 2400)
+        manyBones.document["nodes"].push_back(Json::object());
+    manyBones.track("idle", 0, "translation", {0, 120}, {0, 0, 0, 0, 1, 0});
+    expectError(files.write("too-many-bone-samples", manyBones), "512 MiB memory limit");
 }
 }  // namespace
 
@@ -283,6 +368,7 @@ int main(int argc, char** argv) {
     try {
         Files files;
         testSkinAndHierarchy(files);
+        testPoseSampling(files);
         testInterpolation(files);
         testValidation(files);
         if (argc > 1) {

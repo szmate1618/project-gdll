@@ -515,7 +515,10 @@ AnimatedModel bake(const tinygltf::Model& source, Model base, const std::string&
     } else roots = at(source.scenes, source.defaultScene < 0 ? 0 : source.defaultScene, "scene").nodes;
     std::vector<Binding> bindings;
     std::vector<bool> visited(source.nodes.size(), false);
-    std::size_t bakedBytes = 0;
+    constexpr std::size_t maximumBytes = 512 * 1024 * 1024;
+    const auto boneSamples = product(output.frameCount, output.skeleton.size());
+    std::size_t bakedBytes = product(boneSamples, sizeof(glm::mat4));
+    if (bakedBytes > maximumBytes) fail("Baked animation exceeds the 512 MiB memory limit");
     std::function<void(int)> visit = [&](int index) {
         const auto& node = at(source.nodes, index, "scene node");
         if (visited[index]) fail("Scene hierarchy contains a cycle or repeated node");
@@ -531,7 +534,6 @@ AnimatedModel bake(const tinygltf::Model& source, Model base, const std::string&
                 }
                 const auto vertices = product(output.frameCount, primitive.vertices.size());
                 const auto bytes = product(vertices, sizeof(AnimationVertex));
-                constexpr std::size_t maximumBytes = 512 * 1024 * 1024;
                 if (bytes > maximumBytes - bakedBytes) fail("Baked animation exceeds the 512 MiB memory limit");
                 bakedBytes += bytes;
                 output.model.draws.push_back({output.model.primitives.size(), glm::mat4(1.0f), node.name});
@@ -560,6 +562,7 @@ AnimatedModel bake(const tinygltf::Model& source, Model base, const std::string&
 
     output.model.boundsMin = glm::vec3(std::numeric_limits<float>::max());
     output.model.boundsMax = glm::vec3(std::numeric_limits<float>::lowest());
+    output.boneFrames.reserve(boneSamples);
     std::vector<int> orientation(bindings.size(), 0);
     for (std::size_t frame = 0; frame < output.frameCount; ++frame) {
         auto poses = initial;
@@ -571,6 +574,7 @@ AnimatedModel bake(const tinygltf::Model& source, Model base, const std::string&
             else poses[track.node].rotation = quaternion(value);
         }
         const auto world = worldTransforms(source, poses, parents);
+        output.boneFrames.insert(output.boneFrames.end(), world.begin(), world.end());
         std::vector<std::vector<glm::mat4>> skinMatrices;
         for (const auto& skin : skins) {
             std::vector<glm::mat4> matrices;
@@ -636,6 +640,37 @@ bool skipImage(tinygltf::Image*, int, std::string*, std::string*, int, int,
                 const unsigned char*, int, void*) { return true; }
 
 }  // namespace
+
+std::vector<glm::mat4> sampleAnimatedPose(const AnimatedModel& model, double seconds, float phase) {
+    std::vector<glm::mat4> pose;
+    pose.reserve(model.skeleton.size());
+    if (model.boneFrames.empty()) {
+        for (const auto& bone : model.skeleton) pose.push_back(bone.referenceWorld);
+        return pose;
+    }
+    if (model.frameCount < 2 || model.frameCount > static_cast<std::size_t>(std::numeric_limits<int>::max()) ||
+        !std::isfinite(model.duration) || model.duration <= 0 ||
+        model.boneFrames.size() != product(model.frameCount, model.skeleton.size()))
+        fail("Invalid baked bone animation");
+    if (!std::isfinite(phase)) fail("Animation phase must be finite");
+    if (!std::isfinite(seconds) || seconds < 0) seconds = 0;
+    // Keep the renderer's double-precision time reduction and the shader's
+    // float-precision phase/modulo operations, including the last-to-first blend.
+    const float count = static_cast<float>(model.frameCount);
+    const float base = static_cast<float>(std::fmod(seconds, model.duration) / model.duration * model.frameCount);
+    const float shifted = base + phase * count;
+    const float frame = shifted - count * std::floor(shifted / count);
+    if (!std::isfinite(frame) || frame < 0 || frame >= count) fail("Animation phase is out of range");
+    const auto first = static_cast<std::size_t>(std::floor(frame));
+    const auto second = (first + 1) % model.frameCount;
+    const float fraction = frame - static_cast<float>(first);
+    for (std::size_t bone = 0; bone < model.skeleton.size(); ++bone) {
+        const auto& a = model.boneFrames[first * model.skeleton.size() + bone];
+        const auto& b = model.boneFrames[second * model.skeleton.size() + bone];
+        pose.push_back(a * (1 - fraction) + b * fraction);
+    }
+    return pose;
+}
 
 AnimatedModel loadIdleModel(const std::filesystem::path& path, const std::string& clipName) {
     try {
