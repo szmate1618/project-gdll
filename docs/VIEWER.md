@@ -213,6 +213,7 @@ idle cycles at a chosen elapsed time:
 | Q / E | Move down / up along world Y in free-fly mode |
 | Mouse | Look around while captured |
 | Left mouse button | Shoot a camera-center ray and activate a zombie ragdoll |
+| Right mouse button | Toggle 1° vertical field of view / previous field of view while captured |
 | Shift | Free-fly: move four times faster; walking: run at 6 m/s |
 | Mouse wheel | Adjust free-fly movement speed |
 | F1 | Switch to free-fly mode |
@@ -231,7 +232,9 @@ a movement speed based on scene size.
 
 The viewer follows glTF's right-handed coordinate system: Y is up, and the
 camera looks toward negative Z before orientation is applied. Distances are
-interpreted as meters. The vertical field of view is 60°, near clipping is
+interpreted as meters. The vertical field of view starts at 60°; right-click
+toggles it to 1° and the next right-click restores the previous value in either
+camera mode. Near clipping is
 0.1 m, and far clipping is at least 10,000 m, expanded when framing larger
 scenes. The generator's existing root transform maps its east/north/up geometry
 to glTF X=east, Y=up, Z=south; no scene-specific rotation is needed in the viewer.

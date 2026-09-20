@@ -62,6 +62,10 @@ glm::mat4 Camera::projection(float aspect) const {
     return glm::perspective(glm::radians(verticalFov_), validAspect(aspect), near_, far_);
 }
 
+void Camera::toggleZoom() {
+    std::swap(verticalFov_, alternateVerticalFov_);
+}
+
 void Camera::move(float forwardInput, float rightInput, float upInput, float dt, bool fast) {
     if (!std::isfinite(dt) || dt <= 0.0F || !std::isfinite(forwardInput) ||
         !std::isfinite(rightInput) || !std::isfinite(upInput)) {

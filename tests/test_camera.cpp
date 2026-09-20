@@ -95,6 +95,42 @@ void testLookAndSpeed() {
     require(camera.speed() == speed * 2.0F, "Invalid speed changes were accepted");
 }
 
+void testZoomToggle() {
+    for (const float aspect : {0.5F, 1.0F, 16.0F / 9.0F}) {
+        viewer::Camera camera;
+        camera.frame({-20.0F, -5.0F, -10.0F}, {40.0F, 30.0F, 60.0F}, aspect);
+        camera.look(123.0F, -45.0F);
+        const glm::vec3 position = camera.position();
+        const glm::vec3 direction = camera.direction();
+        const glm::mat4 originalProjection = camera.projection(aspect);
+
+        for (int toggle = 0; toggle < 8; ++toggle) {
+            camera.toggleZoom();
+            require(glm::length(camera.position() - position) == 0.0F &&
+                        glm::length(camera.direction() - direction) == 0.0F,
+                    "Zoom changes the camera position or direction");
+            const glm::mat4 projection = camera.projection(aspect);
+            if (toggle % 2 == 0) {
+                // A ray half a degree above the optical axis reaches the top edge.
+                const float halfAngle = glm::radians(0.5F);
+                const glm::vec4 clip = projection * glm::vec4(
+                    std::sin(halfAngle) * aspect, std::sin(halfAngle),
+                    -std::cos(halfAngle), 1.0F);
+                require(std::abs(clip.x / clip.w - 1.0F) < 0.00001F &&
+                            std::abs(clip.y / clip.w - 1.0F) < 0.00001F,
+                        "Zoom does not produce a one-degree vertical field of view");
+            } else {
+                for (int column = 0; column < 4; ++column) {
+                    for (int row = 0; row < 4; ++row) {
+                        require(projection[column][row] == originalProjection[column][row],
+                                "Zoom does not restore the original projection exactly");
+                    }
+                }
+            }
+        }
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -104,7 +140,8 @@ int main() {
         checkFraming({20.0F, 3.0F, -10.0F}, {20.0F, 3.0F, -10.0F}, 1.0F);
         testMovement();
         testLookAndSpeed();
-        std::cout << "Camera framing, movement, mouse look, and speed checks passed\n";
+        testZoomToggle();
+        std::cout << "Camera framing, movement, mouse look, speed, and zoom checks passed\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {
         std::cerr << "Camera test failed: " << error.what() << '\n';

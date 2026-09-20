@@ -125,6 +125,7 @@ void printHelp() {
               << "Default model: " << VIEWER_DEFAULT_ASSET << "\n\n"
               << "W/S forward/back, A/D strafe, Q/E down/up, mouse look, Shift faster\n"
               << "Left mouse button shoot a camera-center ray at zombies\n"
+              << "Right mouse button toggle 1-degree zoom while the mouse is captured\n"
               << "Tab release/capture mouse, wheel change speed, F frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
               << "  --fps               Start in walking mode\n"
@@ -222,7 +223,12 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     auto& app = state(window);
-    if (button != GLFW_MOUSE_BUTTON_LEFT || action != GLFW_PRESS || !app.capture || !app.zombies) return;
+    if (action != GLFW_PRESS || !app.capture) return;
+    if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+        app.rig.camera().toggleZoom();
+        return;
+    }
+    if (button != GLFW_MOUSE_BUTTON_LEFT || !app.zombies) return;
     if (app.zombies->shoot(app.rig.camera().position(), app.rig.camera().direction(),
                            app.displayedAnimationSeconds))
         std::cout << "Zombie hit: ragdoll activated (" << app.zombies->ragdollCount() << " active)\n";
@@ -253,8 +259,9 @@ void inputSelfTest(GLFWwindow* window) {
     // GLFW events, rather than separate synthetic camera movement code.
     const auto key = glfwSetKeyCallback(window, keyCallback);
     const auto cursor = glfwSetCursorPosCallback(window, cursorCallback);
+    const auto mouse = glfwSetMouseButtonCallback(window, mouseButtonCallback);
     const auto resize = glfwSetFramebufferSizeCallback(window, framebufferCallback);
-    if (!key || !cursor || !resize) throw std::runtime_error("Input callbacks were not registered");
+    if (!key || !cursor || !mouse || !resize) throw std::runtime_error("Input callbacks were not registered");
     const auto original = app.rig.camera();
     const bool wasWalking = app.rig.walking();
     app.rig.enterFreeFly();
@@ -272,8 +279,24 @@ void inputSelfTest(GLFWwindow* window) {
     float change = 0;
     for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r) change += std::abs(app.rig.camera().view()[c][r] - before[c][r]);
     if (change < 1e-5f) throw std::runtime_error("Mouse input self-test failed");
+    const auto originalProjection = app.rig.camera().projection(1.0f);
+    mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+    const auto zoomProjection = app.rig.camera().projection(1.0f);
+    const float zoomDegrees = glm::degrees(2.0f * std::atan(1.0f / zoomProjection[1][1]));
+    if (std::abs(zoomDegrees - 1.0f) > 1e-5f) throw std::runtime_error("Right-click zoom self-test failed");
+    mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+    if (app.rig.camera().projection(1.0f) != zoomProjection)
+        throw std::runtime_error("Mouse release changed zoom");
+    mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+    mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+    if (app.rig.camera().projection(1.0f) != originalProjection)
+        throw std::runtime_error("Right-click did not restore the original field of view");
     key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
     if (app.capture) throw std::runtime_error("Mouse release self-test failed");
+    mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+    mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+    if (app.rig.camera().projection(1.0f) != originalProjection)
+        throw std::runtime_error("Released cursor changed zoom");
     key(window, GLFW_KEY_TAB, 0, GLFW_RELEASE, 0);
     key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
     key(window, GLFW_KEY_TAB, 0, GLFW_RELEASE, 0);
@@ -289,7 +312,7 @@ void inputSelfTest(GLFWwindow* window) {
     app.rig.camera() = original;
     if (wasWalking && !app.rig.enterWalking()) throw std::runtime_error("Failed to restore walking mode after input test");
     app.firstMouse = true;
-    std::cout << "Input self-test passed: WASDQE movement, mouse look/capture, resize, Escape\n";
+    std::cout << "Input self-test passed: WASDQE movement, mouse look/capture, right-click zoom, resize, Escape\n";
 }
 
 void fpsInputSelfTest(GLFWwindow* window) {

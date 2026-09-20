@@ -16,6 +16,8 @@ public:
     // Mouse offsets are in pixels. Positive dy looks up.
     void look(float dx, float dy);
     void adjustSpeed(float multiplier);
+    // Toggle between a 1-degree vertical field of view and the previous value.
+    void toggleZoom();
 
     [[nodiscard]] glm::vec3 position() const { return position_; }
     [[nodiscard]] glm::vec3 direction() const { return forward(); }
@@ -34,6 +36,7 @@ private:
     float near_ = 0.1F;
     float far_ = 10000.0F;
     float verticalFov_ = 60.0F;
+    float alternateVerticalFov_ = 1.0F;
 };
 
 }  // namespace viewer
