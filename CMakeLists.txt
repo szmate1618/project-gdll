@@ -126,7 +126,8 @@ add_custom_command(
 )
 add_custom_target(viewer_test_asset DEPENDS "${VIEWER_TEST_ASSET}")
 
-add_executable(godollo_viewer src/main.cpp src/renderer.cpp src/zombie_renderer.cpp src/collision_debug.cpp src/gpu_timer.cpp)
+add_executable(godollo_viewer src/main.cpp src/renderer.cpp src/zombie_renderer.cpp src/collision_debug.cpp
+    src/reticle_overlay.cpp src/gpu_timer.cpp)
 target_link_libraries(godollo_viewer PRIVATE
     viewer_model viewer_visibility viewer_camera viewer_fps viewer_trees viewer_zombies glfw OpenGL::GL
 )

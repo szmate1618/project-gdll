@@ -62,8 +62,21 @@ glm::mat4 Camera::projection(float aspect) const {
     return glm::perspective(glm::radians(verticalFov_), validAspect(aspect), near_, far_);
 }
 
-void Camera::toggleZoom() {
-    std::swap(verticalFov_, alternateVerticalFov_);
+void Camera::cycleViewMode() {
+    switch (viewMode_) {
+        case ViewMode::original:
+            viewMode_ = ViewMode::zoom10;
+            verticalFov_ = 10.0F;
+            break;
+        case ViewMode::zoom10:
+            viewMode_ = ViewMode::zoom1;
+            verticalFov_ = 1.0F;
+            break;
+        case ViewMode::zoom1:
+            viewMode_ = ViewMode::original;
+            verticalFov_ = 60.0F;
+            break;
+    }
 }
 
 void Camera::move(float forwardInput, float rightInput, float upInput, float dt, bool fast) {
@@ -87,7 +100,7 @@ void Camera::look(float dx, float dy) {
     if (!std::isfinite(dx) || !std::isfinite(dy)) {
         return;
     }
-    const float degreesPerPixel = verticalFov_ < alternateVerticalFov_ ? 0.01F : 0.1F;
+    const float degreesPerPixel = viewMode_ == ViewMode::zoom1 ? 0.01F : 0.1F;
     yaw_ = std::remainder(yaw_ + dx * degreesPerPixel, 360.0F);
     pitch_ = std::clamp(pitch_ + dy * degreesPerPixel, -89.0F, 89.0F);
 }

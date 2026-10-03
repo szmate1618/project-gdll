@@ -1,0 +1,150 @@
+# Repo map: /home/mateszabo/Documents/projects2026/personal/project-gdll
+# 81 files scanned, 51 emitted / 492 after --top / 492 extracted symbols (~1022 tokens, budget 1024)
+
+
+src/collision_world.cpp:
+  22: void include(glm::vec3 p) { low = glm::min(low, p); high = glm::max(high, p); }
+  23: void include(const Bounds& other) { include(other.low); include(other.high); }
+
+src/tree_placements.py:
+  73: def get(self, row):
+
+src/collision_world.cpp:
+  41: bool finite(glm::vec3 p) {
+
+tests/test_collision.cpp:
+  12: void require(bool condition, const std::string& message) {
+
+src/terrain.py:
+  60: def mesh(self, texture: Image.Image) -> trimesh.Trimesh:
+
+tests/test_tree_placements.py:
+  69: def row(self, path, *, transform=None, pixel=(120., 80.), dimensions=(40., 20.), score=None):
+
+tests/test_tree_csv.py:
+  35: def row(self, **values):
+
+src/model.hpp:
+  57: struct Model {
+
+tests/test_collision.cpp:
+  16: void triangle(viewer::Primitive& p, glm::vec3 a, glm::vec3 b, glm::vec3 c) {
+
+tests/test_animated_model.cpp:
+  17: void require(bool condition, const std::string& message) {
+
+src/collision_world.cpp:
+  19: struct Bounds {
+
+src/collision_world.hpp:
+  45: class CollisionWorld {
+
+tests/test_animated_model.cpp:
+  72: void skin() {
+
+tests/test_model.cpp:
+  18: void require(bool condition, const std::string& message) {
+
+src/collision_world.cpp:
+  31: struct Triangle {
+
+tests/test_tree_layer.cpp:
+  21: void require(bool value, const std::string& message) { if (!value) throw std::runtime_error(message); }
+
+src/fps_controller.hpp:
+  7: class CollisionWorld;
+
+src/zombie_placement.hpp:
+  10: class CollisionWorld;
+
+tests/test_camera.cpp:
+  11: void require(bool condition, const char* message) {
+
+src/collision_world.cpp:
+  182: struct Node {
+
+tests/test_collision.cpp:
+  22: void floor(viewer::Primitive& p, float x0, float z0, float x1, float z1, float y, bool upward = true) {
+
+tests/test_tree_impostors.py:
+  33: def accessor(document, binary, index):
+
+src/collision_world.cpp:
+  191: struct Trunk { TrunkCollider collider; Bounds bounds; };
+
+tests/test_fps.cpp:
+  13: void require(bool condition, const char* message) {
+
+tests/test_gpu_timer.cpp:
+  11: void require(bool condition, const char* message) {
+
+tools/download_zombies.py:
+  135: def append(data: bytes) -> int:
+
+tests/test_zombie_ragdoll.cpp:
+  14: void require(bool value, const char* message) {
+
+tests/test_animated_model.cpp:
+  21: bool near(float a, float b) { return std::abs(a - b) < 2e-4f; }
+
+tests/test_model_visibility.cpp:
+  13: void require(bool condition, const char* message) {
+
+tests/test_zombie_transition.cpp:
+  13: void require(bool condition, const std::string& message) {
+
+tests/test_zombie_placement.cpp:
+  16: void require(bool value, const char* message) {
+
+tests/test_fps_integration.cpp:
+  17: void require(bool condition, const std::string& message) {
+
+tests/test_tree_collision.cpp:
+  13: void require(bool condition, const char* message) {
+
+tests/test_camera_rig.cpp:
+  7: void require(bool condition, const char* message) {
+
+tests/test_tree_visibility.cpp:
+  14: void require(bool condition, const char* message) {
+
+src/model.hpp:
+  44: struct Primitive {
+
+tools/download_zombies.py:
+  57: def read(self, relative: str) -> bytes:
+
+tests/test_model.cpp:
+  68: void expectError(const std::filesystem::path& path, const std::string& fragment) {
+  22: bool near(float a, float b) { return std::abs(a - b) < 1e-5f; }
+
+src/fps_controller.hpp:
+  34: class FPSController {
+
+tests/test_tree_layer.cpp:
+  119: void expectError(const Fixtures& files, const Json& document, const std::string& fragment) {
+
+src/collision_world.cpp:
+  39: float squareLength(glm::vec3 p) { return glm::dot(p, p); }
+
+tests/test_tree_layer.cpp:
+  22: bool near(float a, float b) { return std::abs(a - b) < .01f; }
+
+tools/download_zombies.py:
+  31: def sha256(data: bytes) -> str:
+
+src/collision_world.cpp:
+  87: struct ClosestPair { glm::vec3 segment, triangle; };
+
+tests/test_camera.cpp:
+  17: bool near(glm::vec3 first, glm::vec3 second, float tolerance = 0.002F) {
+
+src/collision_world.cpp:
+  89: ClosestPair closestSegments(glm::vec3 p, glm::vec3 q, glm::vec3 a, glm::vec3 b) {
+  186: struct Group { Bounds bounds; bool namedBuilding = false; };
+
+tests/test_animated_model.cpp:
+  23: struct Fixture {
+
+tests/test_tree_placements.py:
+  61: def write_raster(self, name="image.tif", *, transform=None, crs="EPSG:32634"):

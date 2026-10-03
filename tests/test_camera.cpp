@@ -95,7 +95,11 @@ void testLookAndSpeed() {
     require(camera.speed() == speed * 2.0F, "Invalid speed changes were accepted");
 }
 
-void testZoomToggle() {
+float verticalFov(const glm::mat4& projection) {
+    return glm::degrees(2.0F * std::atan(1.0F / projection[1][1]));
+}
+
+void testViewCycle() {
     for (const float aspect : {0.5F, 1.0F, 16.0F / 9.0F}) {
         viewer::Camera camera;
         camera.frame({-20.0F, -5.0F, -10.0F}, {40.0F, 30.0F, 60.0F}, aspect);
@@ -104,26 +108,32 @@ void testZoomToggle() {
         const glm::vec3 direction = camera.direction();
         const glm::mat4 originalProjection = camera.projection(aspect);
 
-        for (int toggle = 0; toggle < 8; ++toggle) {
-            camera.toggleZoom();
+        for (int toggle = 0; toggle < 9; ++toggle) {
+            camera.cycleViewMode();
             require(glm::length(camera.position() - position) == 0.0F &&
                         glm::length(camera.direction() - direction) == 0.0F,
                     "Zoom changes the camera position or direction");
             const glm::mat4 projection = camera.projection(aspect);
-            if (toggle % 2 == 0) {
-                // A ray half a degree above the optical axis reaches the top edge.
-                const float halfAngle = glm::radians(0.5F);
+            if (toggle % 3 == 0 || toggle % 3 == 1) {
+                const float expectedFov = toggle % 3 == 0 ? 10.0F : 1.0F;
+                const auto expectedMode = toggle % 3 == 0 ? viewer::Camera::ViewMode::zoom10 : viewer::Camera::ViewMode::zoom1;
+                require(camera.viewMode() == expectedMode && std::abs(verticalFov(projection) - expectedFov) < 0.00001F,
+                        "View cycle does not select the requested field of view");
+                // A ray half the field of view above the optical axis reaches the top edge.
+                const float halfAngle = glm::radians(expectedFov * 0.5F);
                 const glm::vec4 clip = projection * glm::vec4(
                     std::sin(halfAngle) * aspect, std::sin(halfAngle),
                     -std::cos(halfAngle), 1.0F);
                 require(std::abs(clip.x / clip.w - 1.0F) < 0.00001F &&
                             std::abs(clip.y / clip.w - 1.0F) < 0.00001F,
-                        "Zoom does not produce a one-degree vertical field of view");
+                        "View cycle projection has the wrong vertical field of view");
             } else {
+                require(camera.viewMode() == viewer::Camera::ViewMode::original,
+                        "View cycle does not return to the original mode");
                 for (int column = 0; column < 4; ++column) {
                     for (int row = 0; row < 4; ++row) {
                         require(projection[column][row] == originalProjection[column][row],
-                                "Zoom does not restore the original projection exactly");
+                                "View cycle does not restore the original projection exactly");
                     }
                 }
             }
@@ -146,11 +156,12 @@ void testZoomLookSensitivity() {
         const glm::vec2 normalDelta = lookDelta();
         require(std::abs(normalDelta.x) > 0.0F && std::abs(normalDelta.y) > 0.0F,
                 "Mouse look does not change both yaw and pitch");
-        camera.toggleZoom();
+        camera.cycleViewMode();
+        camera.cycleViewMode();
         const glm::vec2 zoomDelta = lookDelta();
         require(glm::length(zoomDelta * 10.0F - normalDelta) < 0.0001F,
                 "Zoom does not reduce yaw and pitch sensitivity by ten");
-        camera.toggleZoom();
+        camera.cycleViewMode();
         require(glm::length(lookDelta() - normalDelta) < 0.0001F,
                 "Leaving zoom does not restore normal mouse sensitivity");
     }
@@ -165,9 +176,9 @@ int main() {
         checkFraming({20.0F, 3.0F, -10.0F}, {20.0F, 3.0F, -10.0F}, 1.0F);
         testMovement();
         testLookAndSpeed();
-        testZoomToggle();
+        testViewCycle();
         testZoomLookSensitivity();
-        std::cout << "Camera framing, movement, mouse look, speed, and zoom checks passed\n";
+        std::cout << "Camera framing, movement, mouse look, speed, and view-cycle checks passed\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {
         std::cerr << "Camera test failed: " << error.what() << '\n';

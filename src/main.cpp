@@ -1,4 +1,5 @@
 #include "renderer.hpp"
+#include "reticle_overlay.hpp"
 #include "camera_rig.hpp"
 #include "collision_debug.hpp"
 #include "gpu_timer.hpp"
@@ -125,7 +126,7 @@ void printHelp() {
               << "Default model: " << VIEWER_DEFAULT_ASSET << "\n\n"
               << "W/S forward/back, A/D strafe, Q/E down/up, mouse look, Shift faster\n"
               << "Left mouse button shoot a camera-center ray at zombies\n"
-              << "Right mouse button toggle 1-degree zoom while the mouse is captured\n"
+              << "Right mouse button cycle normal, 10-degree, and 1-degree views while the mouse is captured\n"
               << "Tab release/capture mouse, wheel change speed, F frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
               << "  --fps               Start in walking mode\n"
@@ -148,7 +149,7 @@ void printHelp() {
               << "  --hidden            Hide the window for capture (display still required)\n"
               << "  --allow-software    Permit a CPU OpenGL driver for diagnostics\n"
               << "  --self-test-input   Exercise registered input/resize callbacks\n"
-              << "  --shader-dir DIR    Load basic.vert/basic.frag from this directory\n";
+              << "  --shader-dir DIR    Load the viewer shaders from this directory\n";
 }
 
 void glfwError(int code, const char* description) {
@@ -225,7 +226,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     auto& app = state(window);
     if (action != GLFW_PRESS || !app.capture) return;
     if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-        app.rig.camera().toggleZoom();
+        app.rig.camera().cycleViewMode();
         return;
     }
     if (button != GLFW_MOUSE_BUTTON_LEFT || !app.zombies) return;
@@ -281,12 +282,19 @@ void inputSelfTest(GLFWwindow* window) {
     if (change < 1e-5f) throw std::runtime_error("Mouse input self-test failed");
     const auto originalProjection = app.rig.camera().projection(1.0f);
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
-    const auto zoomProjection = app.rig.camera().projection(1.0f);
-    const float zoomDegrees = glm::degrees(2.0f * std::atan(1.0f / zoomProjection[1][1]));
-    if (std::abs(zoomDegrees - 1.0f) > 1e-5f) throw std::runtime_error("Right-click zoom self-test failed");
+    const auto tenDegreeProjection = app.rig.camera().projection(1.0f);
+    const float tenDegrees = glm::degrees(2.0f * std::atan(1.0f / tenDegreeProjection[1][1]));
+    if (std::abs(tenDegrees - 10.0f) > 1e-5f || app.rig.camera().viewMode() != viewer::Camera::ViewMode::zoom10)
+        throw std::runtime_error("Right-click 10-degree view self-test failed");
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
-    if (app.rig.camera().projection(1.0f) != zoomProjection)
-        throw std::runtime_error("Mouse release changed zoom");
+    if (app.rig.camera().projection(1.0f) != tenDegreeProjection)
+        throw std::runtime_error("Mouse release changed the view mode");
+    mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+    mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+    const auto oneDegreeProjection = app.rig.camera().projection(1.0f);
+    const float oneDegree = glm::degrees(2.0f * std::atan(1.0f / oneDegreeProjection[1][1]));
+    if (std::abs(oneDegree - 1.0f) > 1e-5f || app.rig.camera().viewMode() != viewer::Camera::ViewMode::zoom1)
+        throw std::runtime_error("Right-click 1-degree view self-test failed");
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
     if (app.rig.camera().projection(1.0f) != originalProjection)
@@ -312,7 +320,7 @@ void inputSelfTest(GLFWwindow* window) {
     app.rig.camera() = original;
     if (wasWalking && !app.rig.enterWalking()) throw std::runtime_error("Failed to restore walking mode after input test");
     app.firstMouse = true;
-    std::cout << "Input self-test passed: WASDQE movement, mouse look/capture, right-click zoom, resize, Escape\n";
+    std::cout << "Input self-test passed: WASDQE movement, mouse look/capture, right-click view cycle, resize, Escape\n";
 }
 
 void fpsInputSelfTest(GLFWwindow* window) {
@@ -533,6 +541,7 @@ int run(const Options& options) {
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
               << " m/s; F1 free-fly, F2 walk, F3 collisions, WASD move, Space jump, mouse look, Escape quit\n";
     viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr, zombies ? &*zombies : nullptr);
+    viewer::ReticleOverlay reticle(options.shaders);
     renderer.setTreeCulling(options.treeCulling);
     renderer.setSceneCulling(options.sceneCulling);
     std::unique_ptr<viewer::CollisionDebug> debug;
@@ -541,7 +550,10 @@ int run(const Options& options) {
     if (options.selfTest) {
         renderer.resize(800, 600);
         renderer.render(app.rig.camera());
-        viewer::Renderer::checkErrors("resized render target");
+        for (const auto mode : {viewer::Camera::ViewMode::original, viewer::Camera::ViewMode::zoom10,
+                                viewer::Camera::ViewMode::zoom1})
+            reticle.draw(mode, 800, 600);
+        viewer::Renderer::checkErrors("resized render target and reticle modes");
     }
     renderer.resize(app.width, app.height);
     viewer::GpuTimer gpuTimer;
@@ -579,6 +591,7 @@ int run(const Options& options) {
         renderer.render(app.rig.camera(), app.displayedAnimationSeconds);
         if (app.collisionDebug)
             debug->draw(app.rig.camera(), overlay, app.width, app.height);
+        reticle.draw(app.rig.camera().viewMode(), app.width, app.height);
         intervalRenderSeconds += glfwGetTime() - renderStart;
         gpuTimer.end();
         // Presentation can wait for VSync, so keep it outside both render timers.

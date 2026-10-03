@@ -7,6 +7,8 @@ namespace viewer {
 // A Y-up free-fly camera. Imported scene coordinates are interpreted as meters.
 class Camera {
 public:
+    enum class ViewMode { original, zoom10, zoom1 };
+
     void frame(glm::vec3 minimum, glm::vec3 maximum, float aspect);
     [[nodiscard]] glm::mat4 view() const;
     [[nodiscard]] glm::mat4 projection(float aspect) const;
@@ -16,14 +18,15 @@ public:
     // Mouse offsets are in pixels. Positive dy looks up; zoom slows turning 10x.
     void look(float dx, float dy);
     void adjustSpeed(float multiplier);
-    // Toggle between a 1-degree vertical field of view and the previous value.
-    void toggleZoom();
+    // Cycle through the normal, 10-degree, and 1-degree vertical fields of view.
+    void cycleViewMode();
 
     [[nodiscard]] glm::vec3 position() const { return position_; }
     [[nodiscard]] glm::vec3 direction() const { return forward(); }
     [[nodiscard]] float speed() const { return speed_; }
     [[nodiscard]] float yawDegrees() const { return yaw_; }
     [[nodiscard]] float pitchDegrees() const { return pitch_; }
+    [[nodiscard]] ViewMode viewMode() const { return viewMode_; }
     void setPosition(glm::vec3 position);
 
 private:
@@ -35,8 +38,8 @@ private:
     float speed_ = 10.0F;
     float near_ = 0.1F;
     float far_ = 10000.0F;
+    ViewMode viewMode_ = ViewMode::original;
     float verticalFov_ = 60.0F;
-    float alternateVerticalFov_ = 1.0F;
 };
 
 }  // namespace viewer
