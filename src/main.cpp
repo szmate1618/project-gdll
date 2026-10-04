@@ -138,7 +138,7 @@ void printHelp() {
               << "  --no-town-culling   Render all town draw instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
               << "  --zombies PATH      Load individual animated GLB/glTF files from PATH\n"
-              << "  --zombie-count N    Number of idle zombies (default 1000)\n"
+              << "  --zombie-count N    Number of zombies (default 1000)\n"
               << "  --zombie-radius M   Maximum placement radius in meters (default 100)\n"
               << "  --zombie-view       Start with the camera framing the crowd\n"
               << "  --no-zombies        Disable automatic zombies on town-sized terrain\n"
@@ -575,11 +575,14 @@ int run(const Options& options) {
             continue;
         }
         moveCamera(app, dt);
+        app.displayedAnimationSeconds = options.animationTime.value_or(now - animationStart);
         if (zombies) {
+            const auto target = app.rig.walking() ? app.rig.player().feet() : app.rig.camera().position();
+            zombies->chase(dt, target, collision, app.displayedAnimationSeconds);
             zombies->update(dt);
         }
         renderer.resize(app.width, app.height);
-        if (zombies && zombies->ragdollCount() != 0) renderer.updateZombies(*zombies);
+        if (zombies) renderer.updateZombies(*zombies);
         std::vector<viewer::DebugVertex> overlay;
         if (app.collisionDebug) {
             if (!debug) debug = std::make_unique<viewer::CollisionDebug>(options.shaders);
@@ -587,7 +590,6 @@ int run(const Options& options) {
         }
         gpuTimer.begin();
         const double renderStart = glfwGetTime();
-        app.displayedAnimationSeconds = options.animationTime.value_or(now - animationStart);
         renderer.render(app.rig.camera(), app.displayedAnimationSeconds);
         if (app.collisionDebug)
             debug->draw(app.rig.camera(), overlay, app.width, app.height);

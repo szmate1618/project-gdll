@@ -70,7 +70,7 @@ private:
         glm::mat4 transform;
         float phase;
         float animationFrame;
-        float ragdoll;
+        float liveSkinning;
         float boneBase; // Matrix offset into the batch's skinning palette, or -1.
     };
     struct ZombieBatch {

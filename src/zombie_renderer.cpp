@@ -38,7 +38,7 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
         if (instance.asset >= instances.size()) throw std::runtime_error("Invalid zombie asset index");
         instances[instance.asset].push_back({instance.transform, instance.phase,
                                              instance.ragdoll ? 0.0f : -1.0f,
-                                             instance.ragdoll ? 1.0f : 0.0f, -1.0f});
+                                             instance.ragdoll || instance.walking ? 1.0f : 0.0f, -1.0f});
         sourceIndices[instance.asset].push_back(sourceIndex);
     }
     // Allocate ownership before creating any GPU resource, so partial failures
@@ -103,7 +103,7 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
             glVertexAttribDivisor(9, 1);
             glEnableVertexAttribArray(10);
             glVertexAttribPointer(10, 1, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
-                                  reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, ragdoll)));
+                                  reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, liveSkinning)));
             glVertexAttribDivisor(10, 1);
             glEnableVertexAttribArray(11);
             glVertexAttribPointer(11, 1, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
@@ -168,16 +168,17 @@ void Renderer::updateZombies(const ZombieLayer& zombies) {
             if (sourceIndex >= zombies.instances.size()) throw std::runtime_error("Invalid zombie source index");
             const auto& source = zombies.instances[sourceIndex];
             float boneBase = -1.0f;
-            if (source.ragdoll && batch.skinningBoneCount > 0) {
+            const bool liveSkinning = source.ragdoll || source.walking;
+            if (liveSkinning && batch.skinningBoneCount > 0) {
                 if (source.ragdollBones.size() != static_cast<std::size_t>(batch.skinningBoneCount))
-                    throw std::runtime_error("Ragdoll skeleton data does not match zombie asset");
+                    throw std::runtime_error("Live skeleton data does not match zombie asset");
                 // The shader adds the joint index before converting to texels,
                 // so this is a matrix offset, not a skeleton/instance index.
                 boneBase = static_cast<float>(batch.skinningMatrices.size());
                 batch.skinningMatrices.insert(batch.skinningMatrices.end(), source.ragdollBones.begin(), source.ragdollBones.end());
             }
             batch.staging[instanceIndex] = {source.transform, source.phase, source.ragdoll ? 0.0f : -1.0f,
-                                             source.ragdoll ? 1.0f : 0.0f, boneBase};
+                                             liveSkinning ? 1.0f : 0.0f, boneBase};
         }
         if (!batch.staging.empty()) {
             glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);

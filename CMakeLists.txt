@@ -105,7 +105,7 @@ target_link_libraries(viewer_collision PUBLIC viewer_model)
 viewer_warnings(viewer_collision)
 
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp
-    src/zombie_layer.cpp src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp)
+    src/zombie_layer.cpp src/zombie_chase.cpp src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp)
 target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision box3d::box3d)
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_zombies)
@@ -141,7 +141,7 @@ add_dependencies(godollo_viewer viewer_test_asset)
 viewer_warnings(godollo_viewer)
 
 if(BUILD_TESTING)
-    foreach(suite animated_model zombie_placement zombie_ragdoll zombie_transition)
+    foreach(suite animated_model zombie_placement zombie_chase zombie_ragdoll zombie_transition)
         add_executable(test_${suite} tests/test_${suite}.cpp)
         target_link_libraries(test_${suite} PRIVATE viewer_zombies)
         target_include_directories(test_${suite} SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")

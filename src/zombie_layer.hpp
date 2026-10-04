@@ -10,14 +10,20 @@ namespace viewer {
 struct ZombieInstance {
     std::size_t asset = 0;
     glm::mat4 transform{1};
+    // Live placement until shot; then frozen as the ragdoll handoff basis.
     glm::mat4 restTransform{1};
     glm::mat4 restRoot{1};
     float phase = 0; // Fraction of the idle cycle, independent of frame rate.
+    bool alerted = false;
+    bool walking = false;
+    glm::mat4 chaseNormalization{1}; // Captured once; preserve asset scale/offset.
+    double walkSeconds = 0;
+    std::vector<glm::mat4> walkPose;
     bool ragdoll = false;
     std::size_t ragdollHandle = 0;
-    // Skeleton world pose captured from the displayed idle frame, in asset space.
+    // Skeleton world pose captured from the displayed frame, in asset space.
     std::vector<glm::mat4> activationPose;
-    // Asset-space bone matrices uploaded to the live skinning path.
+    // Asset-space bone matrices uploaded for walking or ragdoll skinning.
     std::vector<glm::mat4> ragdollBones;
 };
 
@@ -33,9 +39,13 @@ struct ZombieLayer {
     std::vector<ZombieInstance> instances;
     glm::vec3 boundsMin{0}, boundsMax{0};
 
-    // Returns true when the nearest idle zombie under the ray was activated.
+    // Returns true when the nearest living zombie under the ray was activated.
     // animationSeconds is the time of the last displayed frame (before phase).
     bool shoot(glm::vec3 origin, glm::vec3 direction, double animationSeconds = 0.0);
+    // Alert within 20 m, then pursue target X/Z at 1.2 m/s, following terrain.
+    // Target is player feet (or the free-fly camera); obstacles are ignored.
+    void chase(float seconds, glm::vec3 target, const CollisionWorld& world,
+               double animationSeconds = 0.0);
     void update(float seconds);
     [[nodiscard]] std::size_t ragdollCount() const;
 

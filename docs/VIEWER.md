@@ -145,7 +145,7 @@ or distance LOD.
 ./build/godollo_viewer output/godollo.glb --fps --no-town-culling
 ```
 
-## Idle zombie crowd
+## Zombie crowd
 
 The [zombie assets](../assets/zombies/README.md) live separately from the generated
 map in `assets/zombies/models/`. With these files installed, opening terrain at
@@ -179,14 +179,26 @@ GPU interpolates adjacent samples and loops using elapsed time. Every zombie
 has its own phase offset. Meshes, textures, and animation samples are shared by
 all instances of a variant, with one instanced draw per character primitive.
 The title reports the zombie count, and shutdown logs the instanced draw count.
-The crowd currently draws all instances; it has no distance LOD, AI, movement,
-or player collision. While the mouse is captured, left click casts a ray from
+
+Living zombies become alerted when you come within **20 m**, including the
+boundary. Detection uses the distance to your feet in FPS mode, or to the camera
+in free-fly mode. Once alerted, they keep pursuing your current X/Z position at
+**1.2 m/s**, even if you move farther than 20 m away. They face their direction
+of travel, follow the rendered terrain height, and stop when they reach your
+position. There is no pathfinding, flocking, collision response, or avoidance:
+they pass through buildings, trees, the player, and each other. Outside the
+map they retain their last ground height. A simple one-second leg-swing cycle
+is added to the idle pose for mapped humanoid rigs, using the shared mesh and
+the existing live skinning path; custom unmapped rigs retain their idle pose
+while moving. The crowd currently draws all instances and has no distance LOD.
+
+While the mouse is captured, left click casts a ray from
 the camera center and activates the nearest zombie under a conservative body
 sphere. Box3D then simulates an 11-body capsule/sphere ragdoll with constrained
-ball and hinge joints. Normal instances keep the baked vertex-texture animation
-path; ragdoll instances switch to GPU skinning using retained bind-pose weights
-and simulated rigid-body poses. Activation captures the last displayed idle pose,
-including each zombie's phase and interpolated animation frame. Bodies start in
+ball and hinge joints. Idle instances keep the baked vertex-texture animation
+path; walking and ragdoll instances use GPU skinning with retained bind-pose
+weights. Activation stops pursuit and captures the last displayed idle or walk
+pose, including each zombie's phase and interpolated animation frame. Bodies start in
 that pose, with their dimensions and joint axes derived from the reference rig;
 hands, fingers, and other unmapped joints retain their captured local poses.
 Capsule ends are inset to avoid starting below ground, and activation adds no
@@ -365,8 +377,8 @@ Run the viewer checks:
 ctest --test-dir build --output-on-failure
 ```
 
-The `viewer_zombie_renderer` regression checks repeated ragdoll palette uploads
-and characters with multiple primitives through the actual shader. It requires
+The `viewer_zombie_renderer` regression checks repeated walking/ragdoll palette
+uploads and characters with multiple primitives through the actual shader. It requires
 an accessible OpenGL display and reports a skip when none is available. The
 remaining checks run without a display.
 
@@ -441,7 +453,8 @@ CMakeLists.txt              Viewer and unit-test build configuration
 src/main.cpp               Window, input callbacks, render loop, CLI
 src/renderer.{hpp,cpp}      OpenGL resources, shaders, drawing
 src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin data
-src/zombie_layer.{hpp,cpp}  Shared character loading and crowd assembly
+src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting
+src/zombie_chase.{hpp,cpp}  Straight-line pursuit, terrain following, and simple walk poses
 src/zombie_placement.{hpp,cpp} Ground queries and deterministic safe placement
 src/zombie_ragdoll.{hpp,cpp} Box3D ragdoll simulation and simplified ground planes
 src/zombie_ragdoll_pose.{hpp,cpp} Animated-pose handoff and physics-to-skin mapping

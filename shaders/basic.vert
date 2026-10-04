@@ -6,7 +6,7 @@ layout(location = 3) in vec4 aColor;
 layout(location = 4) in mat4 aInstanceModel;
 layout(location = 8) in float aAnimationPhase;
 layout(location = 9) in float aAnimationFrame;
-layout(location = 10) in float aRagdoll;
+layout(location = 10) in float aLiveSkinning;
 layout(location = 11) in float aBoneBase;
 layout(location = 12) in uvec4 aJoints0;
 layout(location = 13) in vec4 aWeights0;
@@ -35,7 +35,7 @@ out vec4 vColor;
 void main() {
     vec3 position = aPosition;
     vec3 normal = aNormal;
-    if (uAnimated && aRagdoll > 0.5 && uSkinningEnabled && uSkinningBoneCount > 0) {
+    if (uAnimated && aLiveSkinning > 0.5 && uSkinningEnabled && uSkinningBoneCount > 0) {
         vec4 skinnedPosition = vec4(0.0);
         vec3 skinnedNormal = vec3(0.0);
         for (int influence = 0; influence < 8; ++influence) {

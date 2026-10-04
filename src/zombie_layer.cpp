@@ -68,13 +68,15 @@ bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationS
     const auto feet = glm::vec3(instance.restRoot[3]);
     const float yaw = std::atan2(instance.restRoot[2][0], instance.restRoot[0][0]);
     const auto& asset = assets[instance.asset];
-    instance.activationPose = sampleAnimatedPose(asset, animationSeconds, instance.phase);
+    instance.activationPose = instance.walking ? instance.walkPose :
+        sampleAnimatedPose(asset, animationSeconds, instance.phase);
     RagdollPose reference, current;
     if (makeZombieRagdollPoses(instance, asset, reference, current))
         instance.ragdollHandle = physics_->world.create(feet, yaw, direction * 4.0f, reference, current);
     else
         instance.ragdollHandle = physics_->world.create(feet, yaw, direction * 4.0f);
     instance.ragdoll = true;
+    instance.walking = false;
     instance.transform = physics_->world.rootTransform(instance.ragdollHandle) *
         glm::inverse(instance.restRoot) * instance.restTransform;
     updateZombieRagdollSkin(instance, assets[instance.asset], physics_->world);

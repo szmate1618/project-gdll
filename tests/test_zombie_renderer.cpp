@@ -91,9 +91,10 @@ void checkMarkers(const viewer::Camera& camera, const viewer::ZombieLayer& layer
             for (std::size_t marker = 0; marker < 2; ++marker) {
                 // Compute the expected geometry directly, independently of GPU
                 // palette packing, asset batch order, and attribute layouts.
-                auto center = instancePosition(index) + markerCenter(p, marker);
+                auto center = markerCenter(p, marker);
                 center.y += index < activated ? boneHeight(index, marker, pose)
                     : (layer.instances[index].phase == 0 ? 0.75f : 1.1f);
+                center = glm::vec3(layer.instances[index].transform * glm::vec4(center, 1));
                 const glm::vec4 clip = projectionView * glm::vec4(center, 1);
                 const glm::vec2 screen = (glm::vec2(clip) / clip.w * 0.5f + 0.5f) *
                                          glm::vec2(width, height);
@@ -134,14 +135,17 @@ void renderCrowd(std::size_t primitiveCount, const std::filesystem::path& screen
     camera.look(0, 200); // Default pitch is -20 degrees; look straight at the markers.
     viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
     renderer.resize(width, height);
-    // Leave six instances idle, cross the first/second palette boundary for
-    // every asset, then exceed the reported dozen activations. Moving each pose
-    // twice also detects palettes accidentally retained from an earlier update.
+    // Mix walking and ragdoll palettes with idle instances; cross the palette
+    // boundary for every asset, then exceed the reported dozen activations.
+    // Moving each pose twice detects retained palettes and stale transforms.
     for (std::size_t activated = 0; activated <= 18; ++activated) {
         for (int pose = 0; pose < 2; ++pose) {
             for (std::size_t index = 0; index < activated; ++index) {
                 auto& instance = layer.instances[index];
-                instance.ragdoll = true;
+                instance.ragdoll = index % 2 == 0;
+                instance.walking = !instance.ragdoll;
+                instance.transform = glm::translate(glm::mat4(1), instancePosition(index) +
+                    glm::vec3(0.08f * static_cast<float>(pose), 0, 0));
                 instance.ragdollBones.assign(layer.assets[instance.asset].skeleton.size(), glm::mat4(1));
                 instance.ragdollBones.front() = glm::translate(glm::mat4(1), {0, boneHeight(index, 0, pose), 0});
                 instance.ragdollBones.back() = glm::translate(glm::mat4(1), {0, boneHeight(index, 1, pose), 0});
