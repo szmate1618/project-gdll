@@ -100,7 +100,10 @@ void Camera::look(float dx, float dy) {
     if (!std::isfinite(dx) || !std::isfinite(dy)) {
         return;
     }
-    const float degreesPerPixel = viewMode_ == ViewMode::zoom1 ? 0.01F : 0.1F;
+    // Match mouse motion on screen across zoom levels: perspective magnification
+    // is proportional to 1 / tan(FOV / 2). Normal view keeps its original speed.
+    const float degreesPerPixel = 0.1F * std::tan(glm::radians(verticalFov_ * 0.5F)) /
+        std::tan(glm::radians(60.0F * 0.5F));
     yaw_ = std::remainder(yaw_ + dx * degreesPerPixel, 360.0F);
     pitch_ = std::clamp(pitch_ + dy * degreesPerPixel, -89.0F, 89.0F);
 }

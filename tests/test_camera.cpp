@@ -157,13 +157,44 @@ void testZoomLookSensitivity() {
         require(std::abs(normalDelta.x) > 0.0F && std::abs(normalDelta.y) > 0.0F,
                 "Mouse look does not change both yaw and pitch");
         camera.cycleViewMode();
+        const glm::vec2 firstZoomDelta = lookDelta();
+        require(std::abs(firstZoomDelta.x) < std::abs(normalDelta.x) / 5 &&
+                    std::abs(firstZoomDelta.y) < std::abs(normalDelta.y) / 5,
+                "First scope zoom must reduce both yaw and pitch sensitivity");
         camera.cycleViewMode();
-        const glm::vec2 zoomDelta = lookDelta();
-        require(glm::length(zoomDelta * 10.0F - normalDelta) < 0.0001F,
-                "Zoom does not reduce yaw and pitch sensitivity by ten");
+        const glm::vec2 secondZoomDelta = lookDelta();
+        require(std::abs(secondZoomDelta.x) < std::abs(firstZoomDelta.x) / 9 &&
+                    std::abs(secondZoomDelta.y) < std::abs(firstZoomDelta.y) / 9,
+                "Deeper scope zoom must proportionally reduce both yaw and pitch sensitivity");
         camera.cycleViewMode();
         require(glm::length(lookDelta() - normalDelta) < 0.0001F,
                 "Leaving zoom does not restore normal mouse sensitivity");
+    }
+
+    // Observe a stationary target through the actual view/projection matrices.
+    // The same small mouse movement should move it equally on screen, even as
+    // the lens magnifies more; check both horizontal and vertical motion.
+    for (const float aspect : {0.5F, 1.0F, 16.0F / 9.0F}) {
+        for (const glm::vec2 input : {glm::vec2(1, 0), glm::vec2(-1, 0),
+                                      glm::vec2(0, 1), glm::vec2(0, -1)}) {
+            glm::vec2 normalScreenDelta(0);
+            for (int zoom = 0; zoom < 3; ++zoom) {
+                viewer::Camera camera;
+                camera.look(0, 200); // Level the camera to test horizontal and vertical axes equally.
+                for (int toggle = 0; toggle < zoom; ++toggle) camera.cycleViewMode();
+                const auto target = glm::vec4(camera.position() + camera.direction() * 100.0F, 1);
+                const auto screenPosition = [&] {
+                    const auto clip = camera.projection(aspect) * camera.view() * target;
+                    return glm::vec2(clip) / clip.w;
+                };
+                const auto before = screenPosition();
+                camera.look(input.x, input.y);
+                const auto delta = screenPosition() - before;
+                if (zoom == 0) normalScreenDelta = delta;
+                else require(glm::length(delta - normalScreenDelta) < 0.00002F,
+                    "Identical mouse motion must move a target equally on screen at both scope zooms");
+            }
+        }
     }
 }
 
