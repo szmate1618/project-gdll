@@ -7,6 +7,7 @@ external temporary directories are needed. Processing reads only these files.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -71,8 +72,9 @@ def _request_json(
     retries: int,
     params: dict | None = None,
     data: dict | None = None,
+    validate: Callable[[dict], bool] | None = None,
 ) -> dict:
-    """Persist HTTP responses beside their request, including diagnostic errors."""
+    """Validate before atomic publication; persist request/error diagnostics."""
     _write_json(path.with_suffix(".request.json"), {"url": url, "params": params, "data": data})
     last_error = None
     for attempt in range(retries + 1):
@@ -86,6 +88,8 @@ def _request_json(
                 payload = response.json()
                 if not isinstance(payload, dict):
                     raise ValueError("Expected a JSON object")
+                if validate is not None and not validate(payload):
+                    raise ValueError(f"Incomplete source result: {payload.get('remark', 'invalid elements')}")
             except (requests.RequestException, ValueError):
                 path.with_suffix(".http-error.txt").write_bytes(response.content)
                 raise
@@ -115,6 +119,7 @@ def _download_osm(config: dict, directory: Path, session: requests.Session) -> t
         f'  way["building"]({bounds});\n'
         f'  relation["building"]["type"="multipolygon"]({bounds});\n'
         f'  way["highway"]({bounds});\n'
+        f'  way["railway"~"^(rail|light_rail|narrow_gauge)$"]({bounds});\n'
         ');\nout body geom;\n'
     )
     key = _key({"query": query, "version": CACHE_VERSION})
@@ -133,15 +138,14 @@ def _download_osm(config: dict, directory: Path, session: requests.Session) -> t
     errors = []
     network = config.get("network", {})
     for endpoint in OVERPASS_ENDPOINTS:
-        LOG.info("Downloading OSM buildings and roads from %s", endpoint)
+        LOG.info("Downloading OSM buildings, roads, and railways from %s", endpoint)
         try:
             payload = _request_json(
                 session, endpoint, path, data={"data": query},
                 timeout=int(network.get("timeout_seconds", 120)),
                 retries=int(network.get("retries", 3)),
+                validate=_valid_osm,
             )
-            if not _valid_osm(payload):
-                raise SourceError(f"Incomplete Overpass result: {payload.get('remark', 'invalid elements')}")
             metadata = {
                 "source": "OpenStreetMap via Overpass API", "url": endpoint,
                 "downloaded_at": _now(), "bbox": config["bbox"],

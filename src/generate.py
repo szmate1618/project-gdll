@@ -25,7 +25,8 @@ import trimesh
 from .buildings import add_buildings
 from .config import coordinate_frame, load_config
 from .data import download_sources
-from .osm import parse_osm
+from .osm import parse_osm, parse_railways
+from .railways import add_railways
 from .roads import add_roads
 from .terrain import build_terrain
 from .verify import inspect_glb
@@ -43,13 +44,17 @@ def run(config: dict) -> dict:
     terrain, terrain_mesh, terrain_stats = build_terrain(config, frame, sources, ROOT)
     scene = trimesh.Scene(base_frame="local_meters")
     scene.add_geometry(terrain_mesh, geom_name="terrain", node_name="terrain")
-    LOG.info("Parsing and clipping OpenStreetMap footprints and roads")
+    LOG.info("Parsing and clipping OpenStreetMap footprints, roads and railways")
     with sources["osm"].open(encoding="utf-8") as stream:
-        buildings, roads = parse_osm(json.load(stream), frame["transformer"], frame["origin"], frame["clip"])
-    LOG.info("Generating %d building features and %d road features", len(buildings), len(roads))
+        osm = json.load(stream)
+    buildings, roads = parse_osm(osm, frame["transformer"], frame["origin"], frame["clip"])
+    railways = parse_railways(osm, frame["transformer"], frame["origin"], frame["clip"])
+    LOG.info("Generating %d building features, %d road features and %d railway features",
+             len(buildings), len(roads), len(railways))
     building_stats = add_buildings(scene, buildings, terrain, config)
     geometry_config = {**config, "_clip_polygon": frame["clip"]}
     road_stats = add_roads(scene, roads, terrain, geometry_config)
+    railway_stats = add_railways(scene, railways, terrain, geometry_config)
     if not building_stats.get("buildings") or not road_stats.get("road_segments"):
         raise ValueError("Selected bbox yielded no buildings or no roads; inspect OSM coverage or choose another bbox.")
     # Right-handed, glTF-standard Y up: X east, Y elevation, Z south.
@@ -68,6 +73,7 @@ def run(config: dict) -> dict:
         "origin_elevation_m": terrain.datum, "vertical_datum": "Copernicus EGM2008 orthometric height",
         "units": "meters", "gltf_axes": {"X": "projected east", "Y": "up", "Z": "projected south"},
         "terrain": terrain_stats, "buildings": building_stats, "roads": road_stats,
+        "railways": railway_stats,
         "sources": provenance, "attribution": attribution,
     }
     scene.metadata.update(metadata)
@@ -89,6 +95,7 @@ def run(config: dict) -> dict:
     LOG.info("Saved %s (%.2f MiB)", out, verification["glb_bytes"] / 1024 ** 2)
     print(json.dumps({"output": str(out), "buildings": building_stats["buildings"],
                       "road_segments": road_stats["road_segments"],
+                      "railway_segments": railway_stats["railway_segments"],
                       "terrain_dimensions_m": terrain_stats["dimensions_m"],
                       "glb_bytes": verification["glb_bytes"], "bbox_wgs84": config["bbox"]}, indent=2))
     return report

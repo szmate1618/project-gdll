@@ -2,8 +2,9 @@
 
 A functioning Python prototype that downloads public geospatial data and builds
 a geographically recognizable, meter-scale approximation of central Gödöllő,
-Hungary. It exports terrain, roads, buildings, materials, and an embedded ground
-texture as **`output/godollo.glb`**, ready for a separate glTF renderer or Blender.
+Hungary. It exports terrain, roads, railway paths, buildings, materials, and an
+embedded ground texture as **`output/godollo.glb`**, ready for a separate glTF
+renderer or Blender.
 
 The repository also includes a **C++17 Linux desktop viewer** with GLFW,
 OpenGL 3.3 Core, textures, free-fly and first-person walking cameras. See
@@ -76,6 +77,11 @@ the three public endpoints used by the prototype. The initial run needs HTTPS
 access to Overpass, Earth Search, and public AWS COGs. Overpass may be busy; the
 downloader retries and tries alternate endpoints.
 
+Railway support expands the OSM query, so older building/road-only extracts
+cannot be reused for it. Run `.venv/bin/python -m src.generate` once with network
+access to obtain the expanded extract; existing DEM and Sentinel caches are
+reused. Subsequent runs can use `--offline` again.
+
 ```bash
 # Rebuild strictly from local files, with no network requests:
 .venv/bin/python -m src.generate --offline
@@ -135,6 +141,9 @@ Other settings include:
 | `roads.lane_width_m` | 3 | Lane-based road-width estimate |
 | `roads.sample_spacing_m` | 8 | Road surface subdivision size |
 | `roads.offset_m` | 0.25 | Small road clearance above terrain |
+| `railways.width_m` | 4 | Track-bed width when an OSM `width` tag is absent |
+| `railways.sample_spacing_m` | 8 | Railway surface subdivision size |
+| `railways.offset_m` | 0.3 | Track-bed clearance above terrain |
 
 The prototype limits regions to 10km per side and terrain grids to two million
 cells. Start with the supplied area. For distant locations, choose an appropriate
@@ -159,6 +168,8 @@ src/
   osm.py                  Ways, multipolygon relations, holes, clipping
   buildings.py            Height inference, walls, flat/gabled/hipped roofs
   roads.py                Width inference, buffered terrain-following road meshes
+  railways.py             Terrain-following railway track-bed meshes
+  terrain_surfaces.py     Shared surface subdivision and terrain clearance
   verify.py               GLB structural and geometry inspection
 tests/
 data/
@@ -195,8 +206,9 @@ by `.gitignore`; source, configuration, tests, and documentation can be committe
   then cropped/reprojected/resampled to the terrain texture. The initial run
   selected **`S2A_34TCT_20250813_0_L2A`**, acquired August 13, 2025.
 * **OpenStreetMap:** a small Overpass query obtains building ways, building
-  multipolygon relations, roads, and separately mapped paths/footways with
-  tags and geometry. Query results and their source timestamp are cached.
+  multipolygon relations, roads, separately mapped paths/footways, and railway
+  track ways with tags and geometry. Query results and their source timestamp
+  are cached.
 
 ## Geometry behavior
 
@@ -204,8 +216,8 @@ Elevation is bilinearly resampled onto the projected grid, lightly smoothed, and
 triangulated with upward normals. Sparse missing elevations are filled from
 nearby valid pixels; extreme isolated spikes are corrected. An input with more
 than 25% missing target pixels fails clearly instead of creating a fictitious
-surface. Building and road heights sample the actual terrain triangle planes.
-Terrain UVs align the north-first RGB image to the same projected extent.
+surface. Building, road and railway heights sample the actual terrain triangle
+planes. Terrain UVs align the north-first RGB image to the same projected extent.
 
 Building height precedence is explicit `height`, then `building:levels` times
 floor height, then a building-type estimate, then the configured default. Explicit
@@ -228,6 +240,20 @@ intersections. Surface tags select reusable asphalt, gravel, dirt, or paving-sto
 materials. Segments share one mesh per material to keep the scene compact.
 Road counts refer to accepted clipped centerline parts, not triangles.
 
+Railway paths include OSM [`railway=rail`, `light_rail`, and `narrow_gauge`](https://wiki.openstreetmap.org/wiki/Key:railway)
+ways, covering HÉV and MÁV tracks without requiring an `operator` tag. Active
+sidings, spurs and crossovers are included; platforms and proposed, abandoned,
+or disused tracks are excluded. Route relations do not duplicate their track
+ways. Each mapped track becomes a gray ballast surface, with an explicit OSM
+`width` overriding `railways.width_m`. Parallel track ways remain separate;
+`tracks` and `passenger_lines` do not multiply the width. Buffered edges are
+clipped to the configured area and follow the same terrain sampler and clearance
+correction as roads. The surfaces share the `railways_ballast` mesh and
+`railway_ballast` material, with OSM IDs retained in mesh extras. GLB scene extras
+and `output/report.json` include a `railways` section with accepted segment,
+category, mesh, triangle and skipped-feature counts. Railway-free areas remain
+valid.
+
 ## Verification and limits
 
 The supplied area has been downloaded and exported end to end. The exporter
@@ -237,8 +263,9 @@ Each exported building's walls and roof are also checked together for closed
 topology, consistent face winding, and positive volume after float32 conversion.
 The regression tests cover roof closure (including GLB round trips of previously
 failing 6 km map buildings) and courtyards, height and width
-precedence, multipolygon assembly, slopes and road clearance, raster caching,
-offline behavior, terrain node alignment and texture UV round-tripping.
+precedence, multipolygon assembly, railway clipping and export, slopes and surface
+clearance, raster caching, offline behavior, terrain node alignment and texture
+UV round-tripping.
 See `output/report.json` for the measurements from the latest successful run.
 
 This is a rough game-level base, not a survey or photogrammetric reconstruction.
@@ -252,9 +279,11 @@ area; it does not mosaic scenes or perform local cloud classification.
 
 OSM completeness and optional tags vary. Inferred heights and roof shapes are
 approximate, irregular pitched roofs can look stylized, and features may be cut
-at the selected boundary. Roads have simple intersections, no lane markings or
-engineered grades, and no bridge/tunnel/layer modeling. Overlapping road surfaces
-can meet imperfectly. Railways, trees, fences, facades, interiors, collision
+at the selected boundary. Railway paths are track-bed surfaces; rails, sleepers,
+stations and overhead wires are not modeled. Roads have simple intersections,
+no lane markings or engineered grades, and no bridge/tunnel/layer modeling.
+Overlapping road surfaces can meet imperfectly. Railway paths also follow terrain
+rather than engineered bridge or tunnel elevations. Trees, fences, facades, interiors, collision
 meshes, automatic LODs and connected sidewalk generation are outside this
 prototype. Dataset acquisition dates differ.
 

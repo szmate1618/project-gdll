@@ -19,7 +19,7 @@ Use this guide as a navigation aid; read the relevant code for current behavior.
 | --- | --- |
 | Setup, generator usage, geography | [README.md](README.md), `config.json`, `src/config.py` |
 | Downloads and map publication | `src/data.py`, `src/generate.py`, `src/verify.py` |
-| Terrain and town geometry | `src/terrain.py`, `src/osm.py`, `src/buildings.py`, `src/roads.py` |
+| Terrain and town geometry | `src/terrain.py`, `src/osm.py`, `src/buildings.py`, `src/roads.py`, `src/railways.py`, `src/terrain_surfaces.py` |
 | Tree assets and preprocessing | [docs/TREES.md](docs/TREES.md), [assets/README.md](assets/README.md), `tools/*tree*.py`, `src/tree_*.py` |
 | Scene and tree loading | `src/model.hpp/.cpp`, `src/tree_layer.hpp/.cpp` |
 | Animated zombie crowd | [assets/zombies/README.md](assets/zombies/README.md), `src/animated_model.hpp/.cpp`, `src/zombie_layer.hpp/.cpp`, `src/zombie_placement.hpp/.cpp`, `src/zombie_renderer.cpp` |

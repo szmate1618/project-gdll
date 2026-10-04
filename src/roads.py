@@ -12,12 +12,12 @@ import math
 import re
 from typing import Callable
 
-import numpy as np
 from shapely.geometry import box
-from shapely.geometry.base import BaseGeometry
 import trimesh
 from trimesh.visual.material import PBRMaterial
 from trimesh.visual.texture import TextureVisuals
+
+from .terrain_surfaces import geometry_parts as _parts, surface_mesh as _surface_mesh
 
 
 LOGGER = logging.getLogger(__name__)
@@ -121,96 +121,6 @@ def road_surface(tags: dict) -> str:
     if tags.get("highway") in {"pedestrian", "steps"}:
         return "paving_stones"
     return "asphalt"
-
-
-def _parts(geometry: BaseGeometry, geom_type: str):
-    if geometry.is_empty:
-        return
-    if geometry.geom_type == geom_type:
-        yield geometry
-    elif hasattr(geometry, "geoms"):
-        for part in geometry.geoms:
-            yield from _parts(part, geom_type)
-
-
-def _cells(polygon: BaseGeometry, spacing: float):
-    """Clip a surface to a metric grid before triangulation.
-
-    Triangulating a kilometre-long road and then uniformly subdividing creates
-    many tiny, thin triangles. Vertical strips followed by occupied cells keep
-    work proportional to road length and also preserve concavities and holes.
-    Every output triangle is at most sqrt(2) * spacing metres along an edge.
-    """
-    xmin, ymin, xmax, ymax = polygon.bounds
-    for column in range(math.floor(xmin / spacing), math.ceil(xmax / spacing)):
-        left = column * spacing
-        strip = polygon.intersection(box(left, ymin - 1, left + spacing, ymax + 1))
-        for component in _parts(strip, "Polygon"):
-            cymin, cymax = component.bounds[1], component.bounds[3]
-            for row in range(math.floor(cymin / spacing), math.ceil(cymax / spacing)):
-                bottom = row * spacing
-                cell = component.intersection(box(left, bottom, left + spacing, bottom + spacing))
-                for part in _parts(cell, "Polygon"):
-                    if part.area > 1e-8:
-                        yield part
-
-
-def _surface_mesh(polygon: BaseGeometry, elevation: Callable, spacing: float, offset: float):
-    vertices_parts = []
-    faces_parts = []
-    vertex_count = 0
-    for component in _parts(polygon, "Polygon"):
-        for cell in _cells(component, spacing):
-            xy, faces = trimesh.creation.triangulate_polygon(cell, engine="earcut")
-            if not len(faces):
-                continue
-            vertices_parts.append(xy)
-            faces_parts.append(faces + vertex_count)
-            vertex_count += len(xy)
-    if not vertices_parts:
-        return None
-    xy = np.vstack(vertices_parts)
-    z = np.broadcast_to(np.asarray(elevation(xy[:, 0], xy[:, 1]), dtype=float), (len(xy),))
-    if not np.all(np.isfinite(z)):
-        raise ValueError("Terrain returned non-finite elevations for road vertices")
-    mesh = trimesh.Trimesh(
-        vertices=np.column_stack((xy, z + offset)),
-        faces=np.vstack(faces_parts),
-        process=False,
-    )
-    _raise_over_terrain(mesh, elevation, offset)
-    # Face winding should be consistent even if the clipping library returns
-    # clockwise rings. Roads are one-sided surfaces viewed from above.
-    downward = mesh.face_normals[:, 2] < 0
-    if np.any(downward):
-        mesh.faces[downward] = mesh.faces[downward, ::-1]
-    return mesh
-
-
-def _raise_over_terrain(mesh: trimesh.Trimesh, elevation: Callable, offset: float) -> None:
-    """Keep road interiors above terrain triangle bends, sharing seam corrections.
-
-    A road triangle may cross a terrain ridge despite all its vertices clearing
-    the ground. Probe edge midpoints and the centroid, then lift each incident
-    vertex enough to keep these points at the requested offset. Duplicate XY
-    vertices on cell boundaries receive the same correction to avoid cracks.
-    """
-    triangles = mesh.triangles
-    probes = np.stack((triangles.mean(axis=1), (triangles[:, 0] + triangles[:, 1]) / 2,
-                       (triangles[:, 1] + triangles[:, 2]) / 2,
-                       (triangles[:, 2] + triangles[:, 0]) / 2), axis=1)
-    ground = np.asarray(elevation(probes[:, :, 0], probes[:, :, 1]))
-    if not np.all(np.isfinite(ground)):
-        raise ValueError("Terrain returned non-finite elevations for road interiors")
-    needed = np.maximum(0, (ground + offset - probes[:, :, 2]).max(axis=1))
-    if np.max(needed) < 1e-8:
-        return
-    # Clip computations may differ below floating point export precision.
-    xy = mesh.vertices[:, :2].astype(np.float32)
-    _, inverse = np.unique(xy, axis=0, return_inverse=True)
-    correction = np.zeros(inverse.max() + 1)
-    np.maximum.at(correction, inverse[mesh.faces].ravel(), np.repeat(needed, 3))
-    mesh.vertices[:, 2] += correction[inverse]
 
 
 def add_roads(scene: trimesh.Scene, features: list, elevation: Callable, config: dict) -> dict:

@@ -10,6 +10,7 @@ from shapely.geometry import LineString, MultiPolygon, Polygon
 from shapely.ops import polygonize, unary_union
 
 LOG = logging.getLogger(__name__)
+RAILWAY_TYPES = frozenset({"rail", "light_rail", "narrow_gauge"})
 
 
 def _polygonal(geometry):
@@ -26,14 +27,8 @@ def _polygonal(geometry):
     return unary_union(polygons) if polygons else None
 
 
-def parse_osm(payload: dict, transformer, origin: tuple[float, float], clip: Polygon):
-    """Return ``(buildings, roads)`` with projected, origin-relative geometries.
-
-    Each feature has ``id`` (``way/123`` or ``relation/123``), ``geometry``, and
-    ``tags``. Relation member lines are stitched before constructing courtyard
-    holes. Successfully assembled relation members are omitted as standalone
-    buildings, but remain eligible as roads.
-    """
+def _geometry_reader(payload: dict, transformer, origin: tuple[float, float]):
+    """Index OSM sources and project inline geometry or referenced node points."""
     elements = payload.get("elements", [])
     ways = {element["id"]: element for element in elements if element.get("type") == "way"}
     nodes = {
@@ -48,6 +43,31 @@ def parse_osm(payload: dict, transformer, origin: tuple[float, float], clip: Pol
             return []
         xx, yy = transformer.transform([point["lon"] for point in points], [point["lat"] for point in points])
         return [(x - origin[0], y - origin[1]) for x, y in zip(xx, yy)]
+
+    return elements, ways, coordinates
+
+
+def _clipped_line_features(way: dict, coords: list, clip: Polygon) -> list:
+    geometry = LineString(coords).intersection(clip)
+    parts = [geometry] if isinstance(geometry, LineString) else getattr(geometry, "geoms", [])
+    lines = [part for part in parts if isinstance(part, LineString) and part.length > 0.05]
+    return [
+        {"id": f"way/{way['id']}" + (f":{index}" if len(lines) > 1 else ""),
+         "geometry": line, "tags": dict(way.get("tags", {}))}
+        for index, line in enumerate(lines)
+    ]
+
+
+def parse_osm(payload: dict, transformer, origin: tuple[float, float], clip: Polygon):
+    """Return ``(buildings, roads)`` with projected, origin-relative geometries.
+
+    Each feature has ``id`` (``way/123`` or ``relation/123``), ``geometry``, and
+    ``tags``. Relation member lines are stitched before constructing courtyard
+    holes. Successfully assembled relation members are omitted as standalone
+    buildings, but remain eligible as roads. Railways are read separately by
+    :func:`parse_railways` to preserve this return contract.
+    """
+    elements, ways, coordinates = _geometry_reader(payload, transformer, origin)
 
     def clipped_area(geometry):
         return _polygonal(make_valid(geometry).intersection(clip))
@@ -102,11 +122,26 @@ def parse_osm(payload: dict, transformer, origin: tuple[float, float], clip: Pol
                 if geometry is not None and not geometry.is_empty:
                     buildings.append({"id": f"way/{way['id']}", "geometry": geometry, "tags": dict(tags)})
         if tags.get("highway", "no") != "no":
-            geometry = LineString(coords).intersection(clip)
-            parts = [geometry] if isinstance(geometry, LineString) else getattr(geometry, "geoms", [])
-            lines = [part for part in parts if isinstance(part, LineString) and part.length > 0.05]
-            for index, line in enumerate(lines):
-                suffix = f":{index}" if len(lines) > 1 else ""
-                roads.append({"id": f"way/{way['id']}{suffix}", "geometry": line, "tags": dict(tags)})
+            roads.extend(_clipped_line_features(way, coords, clip))
     LOG.info("Parsed %d building footprints and %d road centerlines", len(buildings), len(roads))
     return buildings, roads
+
+
+def parse_railways(payload: dict, transformer, origin: tuple[float, float], clip: Polygon) -> list:
+    """Read active railway track centerlines in local east/north metres.
+
+    Include conventional, light and narrow-gauge tracks regardless of operator
+    tags, so HÉV and MÁV paths are retained even when operator metadata is absent.
+    Route relations do not add geometry: their track ways are already included,
+    once per OSM way. Lifecycle and non-track values are excluded.
+    """
+    _, ways, coordinates = _geometry_reader(payload, transformer, origin)
+    railways = []
+    for way in ways.values():
+        if way.get("tags", {}).get("railway") not in RAILWAY_TYPES:
+            continue
+        coords = coordinates(way)
+        if len(coords) >= 2:
+            railways.extend(_clipped_line_features(way, coords, clip))
+    LOG.info("Parsed %d railway centerlines", len(railways))
+    return railways
