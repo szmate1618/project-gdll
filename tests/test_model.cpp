@@ -105,7 +105,15 @@ void testIndexWidthsAndHierarchy(Fixtures& files) {
             {{"mesh", 0}, {"scale", {2, 3, 4}}},
             {{"mesh", 0}, {"matrix", {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -5, 0, 0, 1}}}
         });
+        document["scenes"][0]["extras"] = {
+            {"crs", "EPSG:32634"}, {"origin_projected_m", {376376.8814786446, 5272820.240192172}},
+            {"units", "meters"}, {"gltf_axes", {{"X", "projected east"}, {"Y", "up"}, {"Z", "projected south"}}}
+        };
         const auto model = viewer::loadModel(files.write("indexed" + std::to_string(width), document, bytes));
+        require(model.geographicFrame && model.geographicFrame->crs == "EPSG:32634" &&
+                    std::abs(model.geographicFrame->origin.x - 376376.8814786446) < 1e-8 &&
+                    std::abs(model.geographicFrame->origin.y - 5272820.240192172) < 1e-8,
+                    "Published georeference must retain projected coordinates at double precision");
         require(model.primitives.size() == 1 && model.draws.size() == 2, "Mesh instances should share one primitive");
         require(model.primitives[0].indices == std::vector<std::uint32_t>({0, 1, 2}), "Index width decoded incorrectly");
         require(near(model.boundsMin.x, -5) && near(model.boundsMin.y, 0) && near(model.boundsMin.z, 0), "Incorrect transformed minimum bounds");

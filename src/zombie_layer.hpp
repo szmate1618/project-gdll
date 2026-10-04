@@ -61,6 +61,7 @@ bool hasZombieModels(const std::filesystem::path& source);
 ZombieLayer loadZombieLayer(const std::filesystem::path& source,
                            const CollisionWorld& world, const Model& scene,
                            glm::vec2 center, std::size_t count = 1000,
-                           float radius = 100.0f);
+                           float radius = 100.0f,
+                           const std::vector<glm::vec2>& boundary = {});
 
 } // namespace viewer

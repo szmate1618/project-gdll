@@ -149,9 +149,12 @@ or distance LOD.
 
 The [zombie assets](../assets/zombies/README.md) live separately from the generated
 map in `assets/zombies/models/`. With these files installed, opening terrain at
-least 100 m wide and deep automatically places **1,000 zombies** near the map
-center, or near `--spawn X Z`. The small built-in test scene does not automatically
-load the crowd.
+least 100 m wide and deep automatically places **300 zombies evenly across the
+Grassalkovich Royal Palace gardens** (Felső park / Kastélypark) when the published
+map covers them. The sourced park outline is converted using the map's recorded
+projected origin in EPSG:32634, so changing `--spawn X Z` does not move the crowd.
+Other scenes retain the 1,000-zombie crowd near the map center or spawn. The small
+built-in test scene does not automatically load the crowd.
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --fps
@@ -166,12 +169,14 @@ character needs an animation named `idle` (preferred), an exporter-prefixed
 terminal `idle`, or a single clip whose name contains `idle`. Unsupported
 animation inputs fail with a diagnostic instead of displaying a static pose.
 Character height is normalized to 1.8 m and the animation's lowest point is
-placed on the rendered ground surface. Placement uses a deterministic grid
-with jitter and randomized facing, keeps at least 2 m between centers, and leaves
-a 2 m clearing at the crowd center. It rejects steep ground, buildings, and tree
-trunks. The radius defaults to 100 m; insufficient safe ground reports an error
-with the accepted count. Increase the radius or reduce the count for a smaller
-or densely built scene.
+placed on the rendered ground surface. Park placement selects well-separated
+positions across the whole outline from a deterministic safe-ground grid, with
+randomized facing. It keeps at least 2 m between centers and rejects steep ground,
+buildings, and tree trunks. `--zombie-count N` overrides the population.
+`--zombie-radius M` selects the original radial crowd near the map center or spawn,
+using a jittered grid with a 2 m center clearing; its default radius is 100 m.
+Insufficient safe ground reports an error with the accepted count. Increase the
+radial radius or reduce the count for a smaller or densely built scene.
 
 Idle skin deformation is sampled once at startup at 30 samples per second.
 Shared vertex animation buffers hold the resulting positions and normals; the
@@ -456,6 +461,7 @@ src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin dat
 src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting
 src/zombie_chase.{hpp,cpp}  Straight-line pursuit, terrain following, and simple walk poses
 src/zombie_placement.{hpp,cpp} Ground queries and deterministic safe placement
+src/zombie_park.{hpp,cpp}  Palace garden outline in the published map's frame
 src/zombie_ragdoll.{hpp,cpp} Box3D ragdoll simulation and simplified ground planes
 src/zombie_ragdoll_pose.{hpp,cpp} Animated-pose handoff and physics-to-skin mapping
 src/zombie_renderer.cpp    Shared animation buffers, skinning data, and GPU instancing

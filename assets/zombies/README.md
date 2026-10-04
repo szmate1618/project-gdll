@@ -42,3 +42,12 @@ remapped into each character without replacing its mesh or bind matrices.
 Downloads and output GLBs are written to temporary files before publication.
 Subsequent runs verify cached or downloaded originals against `sources.json`.
 A source hash mismatch stops preparation so upstream changes can be reviewed.
+
+`grassalkovich_park.json` records the Royal Palace gardens (Felső park /
+Kastélypark) outline from [OpenStreetMap relation 18595054](https://www.openstreetmap.org/relation/18595054),
+© OpenStreetMap contributors, [ODbL 1.0](https://www.openstreetmap.org/copyright).
+The outer ring is projected into EPSG:32634 meters using `src/config.py`'s
+transformer. Coordinates remain absolute; the viewer subtracts the published
+map's origin and reverses north into world Z south. The default town crowd
+contains 300 zombies spread across safe ground inside this outline. See
+[viewer controls](../../docs/VIEWER.md#zombie-crowd) for overrides.

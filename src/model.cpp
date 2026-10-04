@@ -451,7 +451,28 @@ Model convert(const tinygltf::Model& source) {
     std::vector<int> roots;
     if (!source.scenes.empty()) {
         const int scene = source.defaultScene < 0 ? 0 : source.defaultScene;
-        roots = at(source.scenes, scene, "scene").nodes;
+        const auto& active = at(source.scenes, scene, "scene");
+        roots = active.nodes;
+        const auto& extras = active.extras;
+        if (extras.IsObject() && extras.Has("crs") && extras.Has("origin_projected_m") &&
+            extras.Has("units") && extras.Get("units").IsString() &&
+            extras.Get("units").Get<std::string>() == "meters" && extras.Has("gltf_axes")) {
+            const auto& origin = extras.Get("origin_projected_m");
+            const auto& crs = extras.Get("crs");
+            const auto& axes = extras.Get("gltf_axes");
+            const auto axisMatches = [&](const char* key, const char* value) {
+                return axes.IsObject() && axes.Has(key) && axes.Get(key).IsString() &&
+                    axes.Get(key).Get<std::string>() == value;
+            };
+            if (crs.IsString() && origin.IsArray() && origin.ArrayLen() == 2 &&
+                origin.Get(0).IsNumber() && origin.Get(1).IsNumber() &&
+                axisMatches("X", "projected east") && axisMatches("Y", "up") &&
+                axisMatches("Z", "projected south")) {
+                const glm::dvec2 projected(origin.Get(0).GetNumberAsDouble(), origin.Get(1).GetNumberAsDouble());
+                if (std::isfinite(projected.x) && std::isfinite(projected.y))
+                    output.geographicFrame = Model::GeographicFrame{crs.Get<std::string>(), projected};
+            }
+        }
     } else {
         std::vector<bool> child(source.nodes.size(), false);
         for (const auto& node : source.nodes) {

@@ -1,5 +1,6 @@
 #include "zombie_placement.hpp"
 #include "zombie_layer.hpp"
+#include "zombie_park.hpp"
 #include "collision_world.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -109,6 +110,64 @@ void triangleGroundBuildingsAndTrunks() {
     }
 }
 
+void parkPopulationCoversConcaveRegion() {
+    auto model = flatTerrain(120, {200, 7, -300});
+    addQuad(model, {165, 15, -360}, {165, 15, -340}, {185, 15, -340}, {185, 15, -360},
+            "building_roof");
+    addQuad(model, {165, 0, -360}, {185, 0, -360}, {185, 0, -340}, {165, 0, -340},
+            "building_floor");
+    const viewer::CollisionWorld world(model, {{{240, 7, -350}, 3, 15}});
+    const std::vector<glm::vec2> boundary = {
+        {120, -380}, {280, -380}, {280, -300}, {200, -300}, {200, -220}, {120, -220}};
+    const auto placements = viewer::placeZombiesInRegion(world, model, boundary, 300);
+    const auto repeat = viewer::placeZombiesInRegion(world, model, boundary, 300);
+    require(placements.size() == 300, "Park must contain the full 300 zombies");
+    int regions[3]{};
+    for (std::size_t i = 0; i < placements.size(); ++i) {
+        const glm::vec3 p(placements[i][3]);
+        require(p.x > 120 && p.x < 280 && p.z > -380 && p.z < -220 &&
+                    (p.x < 200 || p.z < -300), "Respect concave park outline, not just its bounds");
+        require(std::abs(p.y - 7) < 1e-5f, "Park feet must rest on terrain, not building roofs");
+        require(!world.insideBuilding(p, .45f, 2), "Park placement must avoid buildings");
+        require(glm::length(glm::vec2(p.x - 240, p.z + 350)) > 3.44f, "Park placement must avoid trunks");
+        ++regions[p.z >= -300 ? 2 : p.x >= 200 ? 1 : 0];
+        for (int c = 0; c < 4; ++c) require(placements[i][c] == repeat[i][c], "Park placement must repeat");
+        for (std::size_t j = 0; j < i; ++j)
+            require(glm::length(glm::vec2(p.x - placements[j][3].x, p.z - placements[j][3].z)) >= 2,
+                    "Park zombies must be separated");
+    }
+    for (const auto population : regions) require(population >= 75 && population <= 125,
+        "Population must be spread approximately equally across three equal-area park sections");
+    // Check coverage independently: no large empty gaps in accessible areas.
+    for (float z = -375; z < -225; z += 10) for (float x = 125; x < 275; x += 10) {
+        if (x >= 200 && z >= -300) continue;
+        if (x > 160 && x < 190 && z > -365 && z < -335) continue;
+        float nearest = std::numeric_limits<float>::max();
+        for (const auto& m : placements) nearest = std::min(nearest, glm::length(glm::vec2(m[3].x - x, m[3].z - z)));
+        require(nearest < 13, "Evenly spread crowd must cover the whole accessible park");
+    }
+}
+
+void parkBoundaryUsesPublishedFrame() {
+    auto model = flatTerrain(3000);
+    require(viewer::zombieParkBoundary(model, VIEWER_ZOMBIE_PARK).empty(),
+            "Generic scenes must not receive geographic park placement");
+    model.geographicFrame = viewer::Model::GeographicFrame{"EPSG:32634", {376000, 5272000}};
+    const auto first = viewer::zombieParkBoundary(model, VIEWER_ZOMBIE_PARK);
+    require(first.size() >= 3, "Sourced palace park must load in its projected CRS");
+    model.geographicFrame->origin += glm::dvec2(100, 200);
+    const auto moved = viewer::zombieParkBoundary(model, VIEWER_ZOMBIE_PARK);
+    require(moved.size() == first.size(), "Changing the map origin must retain the outline");
+    for (std::size_t i = 0; i < first.size(); ++i)
+        require(glm::length(moved[i] - first[i] - glm::vec2(-100, 200)) < .001f,
+                "Map origin must shift east and reverse north into world south exactly once");
+    model.geographicFrame->crs = "EPSG:23700";
+    require(viewer::zombieParkBoundary(model, VIEWER_ZOMBIE_PARK).empty(), "Mismatched CRS must not be misprojected");
+    model.geographicFrame->crs = "EPSG:32634";
+    model.geographicFrame->origin += glm::dvec2(100000, 100000);
+    require(viewer::zombieParkBoundary(model, VIEWER_ZOMBIE_PARK).empty(), "Maps outside the park must use other placement");
+}
+
 template<typename F> void requiresFailure(F operation, const std::string& detail) {
     bool failed = false;
     try { operation(); }
@@ -139,6 +198,10 @@ void insufficientGroundAndGenericFallback() {
     requiresFailure([&] { viewer::placeZombies(smallWorld, small,
         {std::numeric_limits<float>::quiet_NaN(), 0}, 1); }, "finite center");
     require(viewer::placeZombies(smallWorld, small, {0, 0}, 0).empty(), "Zero requested zombies need no placement");
+    requiresFailure([&] { viewer::placeZombiesInRegion(smallWorld, small,
+        {{-4, -4}, {4, -4}, {4, 4}, {-4, 4}}, 300); }, "only");
+    requiresFailure([&] { viewer::placeZombiesInRegion(smallWorld, small, {}, 1); }, "three vertices");
+    require(viewer::placeZombiesInRegion(smallWorld, small, {}, 0).empty(), "Zero park population needs no search");
 }
 
 void cameraRayActivatesNearestZombieRagdoll() {
@@ -172,6 +235,8 @@ int main() {
     try {
         thousandInstancesAreSpacedAndRepeatable();
         triangleGroundBuildingsAndTrunks();
+        parkPopulationCoversConcaveRegion();
+        parkBoundaryUsesPublishedFrame();
         insufficientGroundAndGenericFallback();
         cameraRayActivatesNearestZombieRagdoll();
         std::cout << "Zombie placement tests passed\n";

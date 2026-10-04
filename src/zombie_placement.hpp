@@ -19,4 +19,11 @@ std::vector<glm::mat4> placeZombies(const CollisionWorld& world, const Model& sc
                                    glm::vec2 center, std::size_t count,
                                    float radius = 65.0f);
 
+// Spread the full population across a simple polygon in world X/Z meters.
+// Uses deterministic farthest-point sampling of safe ground, preserving the
+// same slope, building, trunk and minimum-spacing checks as radial placement.
+std::vector<glm::mat4> placeZombiesInRegion(const CollisionWorld& world, const Model& scene,
+                                          const std::vector<glm::vec2>& boundary,
+                                          std::size_t count);
+
 }  // namespace viewer

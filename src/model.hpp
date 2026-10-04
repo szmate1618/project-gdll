@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -63,6 +64,12 @@ struct Model {
     glm::vec3 boundsMin{0.0f};
     glm::vec3 boundsMax{0.0f};
     std::vector<std::string> warnings;
+    // Generator georeference: projected east/north meters before the Y-up export.
+    struct GeographicFrame {
+        std::string crs;
+        glm::dvec2 origin;
+    };
+    std::optional<GeographicFrame> geographicFrame;
 };
 
 // Throws std::runtime_error including the input path on invalid/unsupported data.

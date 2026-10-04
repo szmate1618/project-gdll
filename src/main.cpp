@@ -5,6 +5,7 @@
 #include "gpu_timer.hpp"
 #include "tree_layer.hpp"
 #include "zombie_layer.hpp"
+#include "zombie_park.hpp"
 
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -33,6 +34,7 @@ struct Options {
     bool noTrees = false, treeCulling = true, treeCollisions = true, sceneCulling = true;
     bool noZombies = false, zombieView = false, explicitZombies = false;
     int zombieCount = 1000;
+    bool explicitZombieCount = false, explicitZombieRadius = false;
     float zombieRadius = 100.0f;
     std::optional<double> animationTime;
     std::optional<glm::vec2> spawn;
@@ -70,6 +72,7 @@ Options parseOptions(int argc, char** argv) {
             if (used != text.size() || options.zombieCount < 1 || options.zombieCount > 100000)
                 throw std::runtime_error("--zombie-count requires an integer from 1 to 100000");
             options.explicitZombies = true;
+            options.explicitZombieCount = true;
         }
         else if (argument == "--zombie-radius" || argument == "--animation-time") {
             const auto text = value();
@@ -81,7 +84,11 @@ Options parseOptions(int argc, char** argv) {
                 (argument == "--zombie-radius" && (number <= 0 || number > 1000)))
                 throw std::runtime_error(argument + " requires nonnegative seconds or a radius in (0, 1000] meters");
             if (argument == "--animation-time") options.animationTime = number;
-            else { options.zombieRadius = static_cast<float>(number); options.explicitZombies = true; }
+            else {
+                options.zombieRadius = static_cast<float>(number);
+                options.explicitZombies = true;
+                options.explicitZombieRadius = true;
+            }
         }
         else if (argument == "--spawn") {
             auto coordinate = [&]() {
@@ -138,8 +145,8 @@ void printHelp() {
               << "  --no-town-culling   Render all town draw instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
               << "  --zombies PATH      Load individual animated GLB/glTF files from PATH\n"
-              << "  --zombie-count N    Number of zombies (default 1000)\n"
-              << "  --zombie-radius M   Maximum placement radius in meters (default 100)\n"
+              << "  --zombie-count N    Number of zombies (default 300 in palace gardens, otherwise 1000)\n"
+              << "  --zombie-radius M   Use radial placement near spawn/map center (default 100 m)\n"
               << "  --zombie-view       Start with the camera framing the crowd\n"
               << "  --no-zombies        Disable automatic zombies on town-sized terrain\n"
               << "  --animation-time S  Freeze animation at seconds S for repeatable captures\n"
@@ -489,8 +496,12 @@ int run(const Options& options) {
         if (options.explicitZombies || viewer::hasZombieModels(path)) {
             const auto middle = (model.boundsMin + model.boundsMax) * .5f;
             const auto center = options.spawn.value_or(glm::vec2(middle.x, middle.z));
+            const auto boundary = options.explicitZombieRadius ? std::vector<glm::vec2>{} :
+                viewer::zombieParkBoundary(model, VIEWER_ZOMBIE_PARK);
+            const auto count = !boundary.empty() && !options.explicitZombieCount ? 300 : options.zombieCount;
             zombies = viewer::loadZombieLayer(path, collision, model, center,
-                                              static_cast<std::size_t>(options.zombieCount), options.zombieRadius);
+                                              static_cast<std::size_t>(count), options.zombieRadius, boundary);
+            if (!boundary.empty()) std::cout << "Zombie placement: evenly spread across Grassalkovich Royal Palace gardens\n";
             std::cout << "Zombies: " << zombies->instances.size() << " instances, " << zombies->assets.size()
                       << " shared animated assets; looping idle with individual phase offsets\n";
         } else std::cerr << "Zombie assets are missing at " << path << "; see assets/zombies/README.md for download instructions.\n";

@@ -111,7 +111,8 @@ bool hasZombieModels(const std::filesystem::path& source) {
 
 ZombieLayer loadZombieLayer(const std::filesystem::path& source,
                            const CollisionWorld& world, const Model& scene,
-                           glm::vec2 center, std::size_t count, float radius) {
+                           glm::vec2 center, std::size_t count, float radius,
+                           const std::vector<glm::vec2>& boundary) {
     ZombieLayer result;
     if (count == 0) return result;
     std::vector<std::filesystem::path> paths;
@@ -123,7 +124,8 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
     } else if (std::filesystem::is_regular_file(source)) paths.push_back(source);
     if (paths.empty()) throw std::runtime_error("No zombie GLB/glTF files found in " + source.string());
 
-    const auto placements = placeZombies(world, scene, center, count, radius);
+    const auto placements = boundary.empty() ? placeZombies(world, scene, center, count, radius) :
+        placeZombiesInRegion(world, scene, boundary, count);
     std::vector<glm::mat4> normalization;
     // There is no reason to upload character variants that receive no instances.
     paths.resize(std::min(paths.size(), count));
