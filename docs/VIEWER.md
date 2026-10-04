@@ -252,7 +252,8 @@ camera looks toward negative Z before orientation is applied. Distances are
 interpreted as meters. The vertical field of view starts at 60°. Each
 right-click selects 10°, then 1°, then returns to 60° in either camera mode.
 Normal view has a small center crosshair; both zoom modes show scope markings
-and a circular tunnel-vision vignette. Mouse sensitivity scales with perspective
+and a circular tunnel-vision vignette whose opening spans nearly the full screen
+height. Mouse sensitivity scales with perspective
 magnification at both zoom levels: turning is approximately 6.6 times slower at
 10° and 66 times slower at 1°, keeping mouse movement consistent on screen.
 Normal sensitivity returns when zooming out. Near clipping is 0.1 m, and far

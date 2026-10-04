@@ -33,8 +33,10 @@ void main() {
     }
 
     float radius = length(point);
-    float tunnel = smoothstep(0.83, 0.88, radius);
-    float ring = band(radius - 0.85, 0.004);
+    // NDC vertical edges are at +/-1; leave only a narrow rim at top and bottom.
+    const float scopeRadius = 0.97;
+    float tunnel = smoothstep(scopeRadius - 0.02, scopeRadius + 0.02, radius);
+    float ring = band(radius - scopeRadius, 0.004);
     float marks = crosshair(point, uMode == 1 ? 0.13 : 0.19, 0.0015, 0.018);
     // Longer zoom uses the familiar finer center point without filling it in.
     float center = uMode == 2 ? band(radius - 0.008, 0.0012) : 0.0;
