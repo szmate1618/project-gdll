@@ -2,6 +2,7 @@
 #include "zombie_ragdoll.hpp"
 #include "zombie_ragdoll_pose.hpp"
 #include "zombie_placement.hpp"
+#include "zombie_hit.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -50,16 +51,25 @@ bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationS
     direction /= length;
     std::size_t selected = instances.size();
     float nearest = std::numeric_limits<float>::max();
+    std::vector<glm::mat4> selectedPose;
     for (std::size_t i = 0; i < instances.size(); ++i) {
         const auto& instance = instances[i];
         if (instance.ragdoll || instance.asset >= assets.size()) continue;
         const auto center = glm::vec3(instance.restRoot * glm::vec4(0, 0.9f, 0, 1));
-        float distance = 0.0f;
+        float distance = std::numeric_limits<float>::max();
         // A conservative sphere is cheap to test and makes the hit forgiving at
         // the crowd distances for which this viewer is intended.
-        if (raySphere(origin, direction, center, 0.62f, distance) && distance < nearest) {
+        const bool bodyHit = raySphere(origin, direction, center, 0.62f, distance);
+        auto pose = instance.walking ? instance.walkPose :
+            sampleAnimatedPose(assets[instance.asset], animationSeconds, instance.phase);
+        const auto head = zombieHeadHitSphere(assets[instance.asset], instance, pose);
+        float headDistance = 0;
+        const bool headHit = raySphere(origin, direction, head.center, head.radius, headDistance);
+        if (headHit) distance = bodyHit ? std::min(distance, headDistance) : headDistance;
+        if ((bodyHit || headHit) && distance < nearest) {
             nearest = distance;
             selected = i;
+            selectedPose = std::move(pose);
         }
     }
     if (selected == instances.size()) return false;
@@ -68,8 +78,7 @@ bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationS
     const auto feet = glm::vec3(instance.restRoot[3]);
     const float yaw = std::atan2(instance.restRoot[2][0], instance.restRoot[0][0]);
     const auto& asset = assets[instance.asset];
-    instance.activationPose = instance.walking ? instance.walkPose :
-        sampleAnimatedPose(asset, animationSeconds, instance.phase);
+    instance.activationPose = std::move(selectedPose);
     RagdollPose reference, current;
     if (makeZombieRagdollPoses(instance, asset, reference, current))
         instance.ragdollHandle = physics_->world.create(feet, yaw, direction * 4.0f, reference, current);

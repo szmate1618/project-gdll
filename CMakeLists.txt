@@ -105,7 +105,7 @@ target_link_libraries(viewer_collision PUBLIC viewer_model)
 viewer_warnings(viewer_collision)
 
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp
-    src/zombie_layer.cpp src/zombie_chase.cpp src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp)
+    src/zombie_layer.cpp src/zombie_hit.cpp src/zombie_chase.cpp src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp)
 target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision box3d::box3d)
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_zombies)

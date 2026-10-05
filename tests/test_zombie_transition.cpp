@@ -260,6 +260,43 @@ void shotWhileWalking() {
     layer.update(1.0f / 60);
 }
 
+void headshotFollowsDisplayedPose(bool walking) {
+    viewer::ZombieLayer layer;
+    auto asset = humanoid();
+    // Move the skull outside the old torso sphere and its reference position.
+    // Interpolation and phase put it at x=1.53 rather than either keyframe.
+    for (std::size_t frame = 0; frame < 2; ++frame) {
+        asset.boneFrames[frame * asset.skeleton.size() + 4] =
+            translation({static_cast<float>(frame) * 3, 0.45f, 0}) *
+            asset.skeleton[4].referenceWorld;
+        auto& headVertex = asset.animation[0].frames[frame * asset.model.primitives[0].vertices.size() + 4];
+        headVertex.position = asset.boneFrames[frame * asset.skeleton.size() + 4] *
+            asset.skeleton[4].inverseBind * glm::vec4(asset.model.primitives[0].vertices[4].position, 1);
+    }
+    viewer::ZombieInstance instance;
+    instance.phase = 0.125f;
+    instance.transform = instance.restTransform = instance.restRoot = translation({0, 3, -4});
+    instance.walking = walking;
+    if (walking) {
+        instance.walkPose = viewer::sampleAnimatedPose(asset, 0.125, instance.phase);
+        instance.walkPose[4] = translation({0.7f, 0, 0}) * instance.walkPose[4];
+    }
+    layer.assets.push_back(std::move(asset));
+    layer.instances.push_back(instance);
+    require(!layer.shoot({0, 5.12f, 0}, {0, 0, -1}, 0.125),
+            "A shot at the old head position must miss the displayed head");
+    const float skullX = walking ? 2.23f : 1.53f;
+    // A second, farther target verifies selection using the actual head ray.
+    auto farther = instance;
+    farther.transform = farther.restTransform = farther.restRoot = translation({0, 3, -9});
+    layer.instances.insert(layer.instances.begin(), farther);
+    require(layer.shoot({skullX, 5.12f, 0}, {0, 0, -2}, 0.125),
+            "A headshot must follow the displayed pose, phase, and instance transform");
+    require(layer.instances[1].ragdoll && !layer.instances[0].ragdoll,
+            "A headshot must activate only the nearest living zombie");
+    require(!layer.instances[1].walking, "A headshot must stop pursuit");
+}
+
 } // namespace
 
 int main() {
@@ -270,6 +307,8 @@ int main() {
         unmatchedRigFollowsFallbackBody();
         unknownRigFollowsFallbackMotion();
         shotWhileWalking();
+        headshotFollowsDisplayedPose(false);
+        headshotFollowsDisplayedPose(true);
         std::cout << "Zombie activation transition tests passed\n";
         return 0;
     } catch (const std::exception& error) {

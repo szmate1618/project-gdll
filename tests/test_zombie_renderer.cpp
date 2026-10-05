@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <iostream>
@@ -161,6 +162,48 @@ void renderCrowd(std::size_t primitiveCount, const std::filesystem::path& screen
     if (!screenshot.empty()) renderer.writeScreenshot(screenshot);
 }
 
+void renderDistantHeadSurfaces() {
+    viewer::ZombieLayer layer;
+    auto asset = makeAsset(1, 2);
+    auto& primitive = asset.model.primitives[0];
+    // Emulate a face overlay 3 mm in front of a skull at sniper distance.
+    // Equal quantized depths must not merge the two surfaces.
+    for (std::size_t v = 0; v < primitive.vertices.size(); ++v) {
+        auto& vertex = primitive.vertices[v];
+        vertex.position -= markerCenter(0, v / 4);
+        vertex.position.y += 1.7f;
+        vertex.position.z = v < 4 ? 0.003f : 0;
+    }
+    auto& animation = asset.animation[0];
+    animation.skinning.clear();
+    animation.frames.clear();
+    for (int frame = 0; frame < 2; ++frame)
+        for (const auto& vertex : primitive.vertices)
+            animation.frames.push_back({glm::vec4(vertex.position, 1), glm::vec4(vertex.normal, 0)});
+    // Draw the skull first, then the face. The face must pass the depth test.
+    std::rotate(primitive.indices.begin(), primitive.indices.begin() + 6, primitive.indices.end());
+    layer.assets.push_back(std::move(asset));
+    layer.instances.emplace_back();
+    viewer::Camera camera;
+    camera.look(0, 200);
+    camera.cycleViewMode();
+    camera.cycleViewMode();
+    viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.resize(width, height);
+    for (const float x : {-0.05f, 0.0f, 0.05f}) {
+        camera.setPosition({x, 1.7f, 300});
+        renderer.render(camera, 0);
+        std::array<unsigned char, 3 * 3 * 3> pixels{};
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+        glPixelStorei(GL_PACK_ALIGNMENT, 1);
+        glReadPixels(width / 2 - 1, height / 2 - 1, 3, 3, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+        viewer::Renderer::checkErrors("distant head surface readback");
+        for (std::size_t pixel = 0; pixel < 9; ++pixel)
+            if (pixels[pixel * 3] != 255 || pixels[pixel * 3 + 1] != 0 || pixels[pixel * 3 + 2] != 0)
+                throw std::runtime_error("Zoomed sight must resolve the face ahead of the skull at 300 m");
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -183,6 +226,7 @@ int main(int argc, char** argv) {
     try {
         const std::string mode = argc > 1 ? argv[1] : "";
         const std::filesystem::path screenshot = argc > 2 ? argv[2] : "";
+        renderDistantHeadSurfaces();
         if (mode != "--multiple-primitives") renderCrowd(1, mode == "--single-primitive" ? screenshot : "");
         if (mode != "--single-primitive") renderCrowd(2, screenshot);
         std::cout << "Zombie rendering tests passed (" << glGetString(GL_RENDERER) << ")\n";

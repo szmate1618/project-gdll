@@ -227,6 +227,11 @@ void cameraRayActivatesNearestZombieRagdoll() {
     layer.update(1.0f / 30.0f);
     require(glm::length(glm::vec3(layer.instances[1].transform[3]) - glm::vec3(before[3])) > 1e-4f,
             "Box3D ragdoll simulation must update the zombie transform");
+    require(layer.shoot({0, 1.78f, 3}, {0, 0, -1}),
+            "The upper head must be hittable even on an unmapped rig");
+    require(layer.ragdollCount() == 2, "Headshots must activate a ragdoll");
+    require(!layer.shoot({0, 1.78f, 3}, {0, 0, -1}),
+            "Already activated zombies must not consume another shot");
 }
 
 }  // namespace

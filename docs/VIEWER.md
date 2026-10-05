@@ -198,9 +198,12 @@ the existing live skinning path; custom unmapped rigs retain their idle pose
 while moving. The crowd currently draws all instances and has no distance LOD.
 
 While the mouse is captured, left click casts a ray from
-the camera center and activates the nearest zombie under a conservative body
-sphere. Box3D then simulates an 11-body capsule/sphere ragdoll with constrained
-ball and hinge joints. Idle instances keep the baked vertex-texture animation
+the camera center and activates the nearest living zombie under a conservative
+body or head sphere. The head sphere encloses the displayed skinned head geometry,
+including hair and child joints, and follows the idle phase or walking pose.
+Unmapped rigs use a standard head region. Headshots trigger the same ragdoll
+handoff as body hits. Box3D then simulates an 11-body capsule/sphere ragdoll with
+constrained ball and hinge joints. Idle instances keep the baked vertex-texture animation
 path; walking and ragdoll instances use GPU skinning with retained bind-pose
 weights. Activation stops pursuit and captures the last displayed idle or walk
 pose, including each zombie's phase and interpolated animation frame. Bodies start in
@@ -256,8 +259,11 @@ and a circular tunnel-vision vignette whose opening spans nearly the full screen
 height. Mouse sensitivity scales with perspective
 magnification at both zoom levels: turning is approximately 6.6 times slower at
 10° and 66 times slower at 1°, keeping mouse movement consistent on screen.
-Normal sensitivity returns when zooming out. Near clipping is 0.1 m, and far
-clipping is at least 10,000 m, expanded when framing larger scenes. The
+Normal sensitivity returns when zooming out. Near clipping is 0.1 m in normal
+view, 1 m at 10°, and 10 m at 1°. The distance-view near planes preserve depth
+precision for closely spaced head surfaces through the scope; geometry closer
+than these distances is clipped until zooming out. Far clipping is at least
+10,000 m, expanded when framing larger scenes. The
 generator's existing root transform maps its east/north/up geometry
 to glTF X=east, Y=up, Z=south; no scene-specific rotation is needed in the viewer.
 Framebuffer resize updates the viewport and projection aspect ratio.
@@ -462,6 +468,7 @@ src/main.cpp               Window, input callbacks, render loop, CLI
 src/renderer.{hpp,cpp}      OpenGL resources, shaders, drawing
 src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin data
 src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting
+src/zombie_hit.{hpp,cpp}    Head hit regions from the displayed skinning pose
 src/zombie_chase.{hpp,cpp}  Straight-line pursuit, terrain following, and simple walk poses
 src/zombie_placement.{hpp,cpp} Ground queries and deterministic safe placement
 src/zombie_park.{hpp,cpp}  Palace garden outline in the published map's frame

@@ -141,6 +141,29 @@ void testViewCycle() {
     }
 }
 
+void testScopeDepthPrecision() {
+    viewer::Camera camera;
+    const auto projectedDepth = [&](float distance) {
+        const auto clip = camera.projection(1) * glm::vec4(0, 0, -distance, 1);
+        return clip.z / clip.w;
+    };
+    require(projectedDepth(0.2f) > -1 && projectedDepth(0.2f) < 1,
+            "Normal view must retain visibility of nearby geometry");
+    camera.cycleViewMode();
+    const float firstNear = projectedDepth(1);
+    require(std::abs(firstNear + 1) < 1e-5f, "10-degree sight must use its distance-view near plane");
+    require(projectedDepth(50) > projectedDepth(49.997f),
+            "The 10-degree sight must distinguish millimeter-scale surfaces at 50 m");
+    camera.cycleViewMode();
+    require(std::abs(projectedDepth(10) + 1) < 1e-5f,
+            "1-degree sight must use its distance-view near plane");
+    require(projectedDepth(300) - projectedDepth(299.997f) > 4e-7f,
+            "The sniper sight must separate facial surfaces by several depth-buffer steps at 300 m");
+    camera.cycleViewMode();
+    require(projectedDepth(0.2f) > -1 && projectedDepth(0.2f) < 1,
+            "Leaving the scope must restore close visibility");
+}
+
 void testZoomLookSensitivity() {
     for (const float sign : {-1.0F, 1.0F}) {
         viewer::Camera camera;
@@ -208,6 +231,7 @@ int main() {
         testMovement();
         testLookAndSpeed();
         testViewCycle();
+        testScopeDepthPrecision();
         testZoomLookSensitivity();
         std::cout << "Camera framing, movement, mouse look, speed, and view-cycle checks passed\n";
         return EXIT_SUCCESS;

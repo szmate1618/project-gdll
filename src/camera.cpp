@@ -59,7 +59,13 @@ glm::mat4 Camera::view() const {
 }
 
 glm::mat4 Camera::projection(float aspect) const {
-    return glm::perspective(glm::radians(verticalFov_), validAspect(aspect), near_, far_);
+    // Scope views need depth precision for millimeter-scale facial surfaces at
+    // tens/hundreds of meters. A 10 cm near plane spends that precision on
+    // nearby geometry even through the 1-degree sight. Keep walking's close
+    // visibility, but use 1 m and 10 m near planes for the two distance views.
+    const float near = viewMode_ == ViewMode::zoom1 ? 10.0F :
+        viewMode_ == ViewMode::zoom10 ? 1.0F : near_;
+    return glm::perspective(glm::radians(verticalFov_), validAspect(aspect), near, far_);
 }
 
 void Camera::cycleViewMode() {
