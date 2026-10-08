@@ -2,6 +2,7 @@
 
 #include <GL/glcorearb.h>
 #include <filesystem>
+#include <memory>
 #include <vector>
 
 #include "camera.hpp"
@@ -15,6 +16,8 @@
 #include "night_lighting.hpp"
 
 namespace viewer {
+
+class RainRenderer;
 
 struct TreeRenderStats {
     std::size_t total = 0, visible = 0, drawCalls = 0;
@@ -40,6 +43,7 @@ public:
     void setShadows(bool enabled) { shadows_ = enabled; }
     void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
     void setNight(bool enabled) { night_ = enabled; }
+    void setRain(bool enabled);
     void setHaze(bool enabled) { haze_ = enabled; }
     void setGroundFog(bool enabled) { groundFog_ = enabled; }
     void setAtmosphere(const Atmosphere& atmosphere) { atmosphere_ = atmosphere; }
@@ -118,6 +122,7 @@ private:
     void draw(const DrawGPU& draw);
     void gatherVisibleSceneDraws(const glm::mat4& projectionView, const glm::vec3& eye);
     const Material& material(const ModelGPU& model, int index) const;
+    std::filesystem::path shaderDirectory_;
     GLuint program_ = 0, framebuffer_ = 0, colorBuffer_ = 0, depthBuffer_ = 0;
     int width_ = 0, height_ = 0;
     GLint modelLocation_, viewLocation_, projectionLocation_, normalLocation_;
@@ -157,6 +162,8 @@ private:
     std::vector<ZombieBatch> zombieBatches_;
     std::size_t zombieCount_ = 0, zombieDrawCalls_ = 0;
     Material fallback_;
+    std::unique_ptr<RainRenderer> rain_;
+    bool rainEnabled_ = false;
 };
 
 } // namespace viewer

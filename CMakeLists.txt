@@ -132,7 +132,7 @@ target_link_libraries(viewer_sun_lighting PUBLIC glm::glm)
 viewer_warnings(viewer_sun_lighting)
 
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
-    src/zombie_renderer.cpp src/sun_shadow_map.cpp)
+    src/zombie_renderer.cpp src/sun_shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
     viewer_model viewer_visibility viewer_camera viewer_trees viewer_zombies viewer_sun_lighting OpenGL::GL)
 target_compile_definitions(viewer_renderer PRIVATE GL_GLEXT_PROTOTYPES)
@@ -198,6 +198,15 @@ if(BUILD_TESTING)
     viewer_warnings(test_atmosphere_renderer)
     add_test(NAME viewer_atmosphere_renderer COMMAND test_atmosphere_renderer)
     set_tests_properties(viewer_atmosphere_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
+    add_executable(test_rain_renderer tests/test_rain_renderer.cpp)
+    target_link_libraries(test_rain_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_rain_renderer PRIVATE
+        GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_rain_renderer)
+    add_test(NAME viewer_rain_renderer COMMAND test_rain_renderer)
+    set_tests_properties(viewer_rain_renderer PROPERTIES SKIP_RETURN_CODE 77)
 
     add_executable(test_tree_layer tests/test_tree_layer.cpp)
     target_link_libraries(test_tree_layer PRIVATE viewer_trees OpenSSL::Crypto)

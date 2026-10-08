@@ -436,6 +436,33 @@ blocked from the light along camera rays. There is no separate shadow effect
 from an offset lamp, and no visible beam or light scattering through fog.
 Night colors, cone angles, and range are configured in `src/night_lighting.hpp`.
 
+## Rain
+
+Rain is disabled by default. Enable it with `--rain`, optionally together with
+night mode:
+
+```bash
+./build/godollo_viewer output/godollo.glb --fps --rain
+./build/godollo_viewer output/godollo.glb --fps --night --rain
+```
+
+One instanced draw renders 3,000 soft translucent streaks, each made of two
+triangles. A static seed buffer is uploaded once; the vertex shader makes them
+fall at roughly 10 m/s with light wind. They recycle through a 36 × 16 × 36 meter
+volume around the camera, staying fixed in world space between recycling events.
+The volume edges and closest drops fade out. Streaks face the camera and shorten
+when looking along their falling direction.
+
+Rain draws after the scene with depth testing, additive blending, and no depth
+writes. Buildings and opaque tree texels hide rain behind them; alpha-mask holes
+remain open. Rain does not cast shadows or collide with surfaces. In night mode,
+streaks inside the flashlight cone brighten. `--animation-time` freezes rain as
+well as character animation for repeatable captures.
+
+There is no shelter detection: drops can appear under roofs and inside buildings.
+There are no splashes, wet materials, or puddles in this version. Count is set in
+`src/rain_renderer.hpp`; volume, width, length, and velocity are in `shaders/rain.vert`.
+
 ## Atmospheric haze
 
 Subtle exponential distance haze is enabled by default. The nearest 30 meters
@@ -532,6 +559,11 @@ It also skips without an accessible OpenGL display/context.
 Geometry/palette and shadow regressions disable atmospheric effects to isolate
 their expected colors.
 
+`viewer_rain_renderer` checks visible animated streaks, repeatable frozen time,
+the enable/disable toggle, night flashlight illumination, opaque depth occlusion,
+and restoration of GL program/VAO, depth, culling, and blend state. It requires
+an accessible OpenGL display/context and skips when one is unavailable.
+
 The `viewer_zombie_renderer` regression checks repeated walking/ragdoll palette
 uploads and characters with multiple primitives through the actual shader. It requires
 an accessible OpenGL display and reports a skip when none is available. The
@@ -611,6 +643,8 @@ src/renderer_shadows.cpp   Sun caster pass and lighting uniforms
 src/sun_lighting.{hpp,cpp} Lighting settings and stable local shadow coverage
 src/atmosphere.hpp         Distance haze, ground fog, and matching sky color
 src/night_lighting.hpp     Night ambient, sky/fog color, and camera flashlight settings
+src/rain_renderer.{hpp,cpp} Instanced rain seeds, draw, and GL state ownership
+src/shader_program.{hpp,cpp} Shared scene/rain shader compilation and linking
 src/sun_shadow_map.{hpp,cpp} Depth-only shadow framebuffer and texture ownership
 src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin data
 src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting

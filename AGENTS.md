@@ -24,7 +24,7 @@ Use this guide as a navigation aid; read the relevant code for current behavior.
 | Scene and tree loading | `src/model.hpp/.cpp`, `src/tree_layer.hpp/.cpp` |
 | Animated zombie crowd, shooting, and pursuit | [assets/zombies/README.md](assets/zombies/README.md), `src/animated_model.hpp/.cpp`, `src/zombie_layer.hpp/.cpp`, `src/zombie_hit.hpp/.cpp`, `src/zombie_chase.hpp/.cpp`, `src/zombie_placement.hpp/.cpp`, `src/zombie_park.hpp/.cpp`, `src/zombie_renderer.cpp` |
 | Zombie ragdoll handoff and physics | `src/zombie_ragdoll_pose.hpp/.cpp`, `src/zombie_ragdoll.hpp/.cpp`, [docs/VIEWER.md](docs/VIEWER.md) |
-| Rendering, lighting, and visibility | `src/renderer.hpp/.cpp`, `src/renderer_shadows.cpp`, `src/sun_lighting.hpp/.cpp`, `src/sun_shadow_map.hpp/.cpp`, `src/atmosphere.hpp`, `src/night_lighting.hpp`, `src/visibility.hpp/.cpp`, `src/model_visibility.hpp/.cpp`, `src/tree_visibility.hpp/.cpp`, `src/gpu_timer.hpp/.cpp`, `shaders/` |
+| Rendering, lighting, and visibility | `src/renderer.hpp/.cpp`, `src/renderer_shadows.cpp`, `src/sun_lighting.hpp/.cpp`, `src/sun_shadow_map.hpp/.cpp`, `src/atmosphere.hpp`, `src/night_lighting.hpp`, `src/rain_renderer.hpp/.cpp`, `src/shader_program.hpp/.cpp`, `src/visibility.hpp/.cpp`, `src/model_visibility.hpp/.cpp`, `src/tree_visibility.hpp/.cpp`, `src/gpu_timer.hpp/.cpp`, `shaders/` |
 | Cameras, walking, collision | [docs/VIEWER.md](docs/VIEWER.md), `src/camera*`, `src/fps_controller*`, `src/collision_world*`, `src/collision_debug*` |
 | App wiring and checks | `src/main.cpp`, `CMakeLists.txt`, corresponding `tests/test_*` files |
 

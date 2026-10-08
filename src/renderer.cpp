@@ -1,4 +1,6 @@
 #include "renderer.hpp"
+#include "rain_renderer.hpp"
+#include "shader_program.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -14,69 +16,12 @@
 #include <glm/gtc/type_ptr.hpp>
 
 namespace viewer {
-namespace {
-GLuint compileShader(GLenum type, const std::filesystem::path& path) {
-    std::ifstream stream(path);
-    if (!stream) throw std::runtime_error("Cannot open shader: " + path.string());
-    std::ostringstream contents;
-    contents << stream.rdbuf();
-    const std::string text = contents.str();
-    const char* source = text.c_str();
-    const GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &source, nullptr);
-    glCompileShader(shader);
-    GLint success = 0, size = 0;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &size);
-    std::string log(static_cast<std::size_t>(std::max(size, 1)), '\0');
-    if (size > 1) {
-        glGetShaderInfoLog(shader, size, nullptr, log.data());
-        std::cerr << "Shader " << path << ":\n" << log << '\n';
-    }
-    if (!success) {
-        glDeleteShader(shader);
-        throw std::runtime_error("Shader compilation failed: " + path.string() + "\n" + log);
-    }
-    return shader;
-}
-
-GLuint createProgram(const std::filesystem::path& directory) {
-    const GLuint vertex = compileShader(GL_VERTEX_SHADER, directory / "basic.vert");
-    GLuint fragment = 0, program = 0;
-    try {
-        fragment = compileShader(GL_FRAGMENT_SHADER, directory / "basic.frag");
-        program = glCreateProgram();
-        glAttachShader(program, vertex);
-        glAttachShader(program, fragment);
-        glLinkProgram(program);
-        GLint linked = 0;
-        glGetProgramiv(program, GL_LINK_STATUS, &linked);
-        if (!linked) {
-            GLint length = 0;
-            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
-            std::string log(static_cast<std::size_t>(std::max(length, 1)), '\0');
-            glGetProgramInfoLog(program, length, nullptr, log.data());
-            throw std::runtime_error("Shader linking failed (" + directory.string() + "): " + log);
-        }
-    } catch (...) {
-        if (program) glDeleteProgram(program);
-        if (fragment) glDeleteShader(fragment);
-        glDeleteShader(vertex);
-        throw;
-    }
-    glDetachShader(program, vertex);
-    glDetachShader(program, fragment);
-    glDeleteShader(vertex);
-    glDeleteShader(fragment);
-    return program;
-}
-} // namespace
 
 Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirectory,
                    const TreeLayer* trees, const ZombieLayer* zombies)
-    : sceneVisibility_(model) {
+    : shaderDirectory_(shaderDirectory), sceneVisibility_(model) {
     try {
-        program_ = createProgram(shaderDirectory);
+        program_ = createShaderProgram(shaderDirectory / "basic.vert", shaderDirectory / "basic.frag");
         modelLocation_ = glGetUniformLocation(program_, "uModel");
         viewLocation_ = glGetUniformLocation(program_, "uView");
         projectionLocation_ = glGetUniformLocation(program_, "uProjection");
@@ -297,6 +242,7 @@ void Renderer::releaseModel(ModelGPU& model) noexcept {
 }
 
 void Renderer::release() noexcept {
+    rain_.reset();
     releaseZombies();
     releaseModel(model_);
     for (auto& batch : treeBatches_) {
@@ -382,6 +328,11 @@ void Renderer::gatherVisibleSceneDraws(const glm::mat4& projectionView, const gl
     sceneStats_.visible = visibleScene_.size();
 }
 
+void Renderer::setRain(bool enabled) {
+    if (enabled && !rain_) rain_ = std::make_unique<RainRenderer>(shaderDirectory_);
+    rainEnabled_ = enabled;
+}
+
 void Renderer::render(const Camera& camera, double animationSeconds) {
     sceneStats_ = {sceneDraws_.size(), 0, 0};
     if (width_ <= 0 || height_ <= 0) return;
@@ -434,6 +385,9 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
         }
         glDepthMask(GL_TRUE);
     }
+    if (rainEnabled_)
+        rain_->draw(camera, static_cast<float>(width_) / static_cast<float>(height_),
+                    animationSeconds, night_, nightLighting_);
     glBindVertexArray(0);
 }
 
