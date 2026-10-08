@@ -19,6 +19,7 @@ uniform mat4 uProjection;
 uniform mat3 uNormalMatrix;
 uniform bool uInstanced;
 uniform bool uUnlit;
+uniform bool uShadowPass;
 uniform bool uAnimated;
 uniform samplerBuffer uAnimation;
 uniform float uAnimationFrame;
@@ -31,6 +32,7 @@ uniform int uSkinningBoneCount;
 out vec3 vNormal;
 out vec2 vUV;
 out vec4 vColor;
+out vec3 vWorldPosition;
 
 void main() {
     vec3 position = aPosition;
@@ -48,11 +50,11 @@ void main() {
                                  texelFetch(uSkinningBones, texel + 2),
                                  texelFetch(uSkinningBones, texel + 3));
                 skinnedPosition += bone * vec4(aPosition, 1.0) * weight;
-                skinnedNormal += transpose(inverse(mat3(bone))) * aNormal * weight;
+                if (!uShadowPass) skinnedNormal += transpose(inverse(mat3(bone))) * aNormal * weight;
             }
         }
         position = skinnedPosition.xyz;
-        normal = normalize(skinnedNormal);
+        if (!uShadowPass) normal = normalize(skinnedNormal);
     } else if (uAnimated) {
         float frame = aAnimationFrame >= 0.0 ? aAnimationFrame :
             mod(uAnimationFrame + aAnimationPhase * float(uAnimationCount), float(uAnimationCount));
@@ -61,14 +63,16 @@ void main() {
         int a = 2 * (first * uAnimationVertices + gl_VertexID);
         int b = 2 * (second * uAnimationVertices + gl_VertexID);
         position = mix(texelFetch(uAnimation, a).xyz, texelFetch(uAnimation, b).xyz, fract(frame));
-        normal = normalize(mix(texelFetch(uAnimation, a + 1).xyz,
+        if (!uShadowPass) normal = normalize(mix(texelFetch(uAnimation, a + 1).xyz,
                                texelFetch(uAnimation, b + 1).xyz, fract(frame)));
     }
     mat4 model = uInstanced ? aInstanceModel * uModel : uModel;
-    gl_Position = uProjection * uView * model * vec4(position, 1.0);
+    vec4 worldPosition = model * vec4(position, 1.0);
+    gl_Position = uProjection * uView * worldPosition;
+    vWorldPosition = worldPosition.xyz;
     // Impostors are unlit. Keep the general instanced path correct for shear
     // and nonuniform scale without paying for inverses on these tree vertices.
-    vNormal = uInstanced ? (uUnlit ? normal : transpose(inverse(mat3(model))) * normal)
+    vNormal = uShadowPass ? vec3(0.0) : uInstanced ? (uUnlit ? normal : transpose(inverse(mat3(model))) * normal)
                         : uNormalMatrix * normal;
     vUV = aUV;
     vColor = aColor;

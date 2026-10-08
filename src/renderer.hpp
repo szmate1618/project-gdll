@@ -9,6 +9,8 @@
 #include "model_visibility.hpp"
 #include "tree_visibility.hpp"
 #include "zombie_layer.hpp"
+#include "sun_lighting.hpp"
+#include "sun_shadow_map.hpp"
 
 namespace viewer {
 
@@ -33,6 +35,8 @@ public:
     void present(int width, int height);
     void writeScreenshot(const std::filesystem::path& path) const;
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
+    void setShadows(bool enabled) { shadows_ = enabled; }
+    void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
     const SceneRenderStats& sceneStats() const { return sceneStats_; }
     void setTreeCulling(bool enabled) { treeCulling_ = enabled; }
     const TreeRenderStats& treeStats() const { return treeStats_; }
@@ -89,6 +93,10 @@ private:
         GLsizei count = 0;
         GLint frameCount = 0;
         float duration = 0;
+        VisibilityBounds animationBounds, bindBounds;
+        std::vector<VisibilityBounds> instanceBounds;
+        std::vector<ZombieGPUInstance> shadowInstances;
+        bool shadowInstancesUploaded = false;
     };
     void release() noexcept;
     static void releaseModel(ModelGPU& model) noexcept;
@@ -96,7 +104,9 @@ private:
     void uploadTrees(const TreeLayer& trees);
     void drawTrees(const glm::mat4& projectionView);
     void uploadZombies(const ZombieLayer& zombies);
-    void drawZombies(double seconds);
+    void drawZombies(double seconds, const Frustum* shadowFrustum = nullptr);
+    void drawSunShadows(const SunShadowView& shadowView, double seconds);
+    void applyLighting(const Camera& camera, const SunShadowView& shadowView);
     void releaseZombies() noexcept;
     void applyMaterial(const ModelGPU& model, int index, bool mirrored);
     void draw(const DrawGPU& draw);
@@ -110,6 +120,13 @@ private:
     GLint animatedLocation_, animationLocation_, animationFrameLocation_;
     GLint animationCountLocation_, animationVerticesLocation_;
     GLint skinningLocation_, skinningBonesLocation_, skinningBoneCountLocation_;
+    GLint shadowPassLocation_, shadowsLocation_, shadowMapLocation_, sunMatrixLocation_;
+    GLint eyeLocation_, sunDirectionLocation_, sunColorLocation_, skyAmbientLocation_, groundAmbientLocation_;
+    GLint shadowDistanceLocation_, shadowFadeLocation_;
+    SunLighting lighting_;
+    SunShadowMap shadowMap_;
+    bool shadows_ = true;
+    std::vector<std::size_t> shadowScene_;
     ModelGPU model_;
     std::vector<DrawGPU> sceneDraws_;
     std::vector<std::size_t> visibleScene_, opaqueScene_, transparentScene_;

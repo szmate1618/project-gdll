@@ -95,6 +95,17 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         skinningLocation_ = glGetUniformLocation(program_, "uSkinningEnabled");
         skinningBonesLocation_ = glGetUniformLocation(program_, "uSkinningBones");
         skinningBoneCountLocation_ = glGetUniformLocation(program_, "uSkinningBoneCount");
+        shadowPassLocation_ = glGetUniformLocation(program_, "uShadowPass");
+        shadowsLocation_ = glGetUniformLocation(program_, "uShadows");
+        shadowMapLocation_ = glGetUniformLocation(program_, "uShadowMap");
+        sunMatrixLocation_ = glGetUniformLocation(program_, "uSunMatrix");
+        eyeLocation_ = glGetUniformLocation(program_, "uEye");
+        sunDirectionLocation_ = glGetUniformLocation(program_, "uSunDirection");
+        sunColorLocation_ = glGetUniformLocation(program_, "uSunColor");
+        skyAmbientLocation_ = glGetUniformLocation(program_, "uSkyAmbient");
+        groundAmbientLocation_ = glGetUniformLocation(program_, "uGroundAmbient");
+        shadowDistanceLocation_ = glGetUniformLocation(program_, "uShadowDistance");
+        shadowFadeLocation_ = glGetUniformLocation(program_, "uShadowFadeStart");
         fallback_.baseColor = glm::vec4(0.65f, 0.68f, 0.72f, 1.0f);
         uploadModel(model, model_);
         for (const auto& source : model.draws) {
@@ -365,6 +376,17 @@ void Renderer::gatherVisibleSceneDraws(const glm::mat4& projectionView, const gl
 void Renderer::render(const Camera& camera, double animationSeconds) {
     sceneStats_ = {sceneDraws_.size(), 0, 0};
     if (width_ <= 0 || height_ <= 0) return;
+    glUseProgram(program_);
+    glActiveTexture(GL_TEXTURE0);
+    glUniform1i(textureLocation_, 0);
+    // Assign all active sampler types distinct units in both passes, including
+    // empty scenes. Unit 3 belongs exclusively to the sun depth comparison.
+    glUniform1i(animationLocation_, 1);
+    glUniform1i(skinningBonesLocation_, 2);
+    glUniform1i(shadowMapLocation_, 3);
+    const auto shadowView = sunShadowView(camera.position(), lighting_.direction);
+    if (shadows_ && shadowPassLocation_ >= 0) drawSunShadows(shadowView, animationSeconds);
+    applyLighting(camera, shadowView);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
     glViewport(0, 0, width_, height_);
     glClearColor(0.10f, 0.14f, 0.20f, 1.0f);
@@ -380,9 +402,6 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     glDisable(GL_BLEND);
     glUniform1i(instancedLocation_, GL_FALSE);
     glUniform1i(animatedLocation_, GL_FALSE);
-    // Samplers of different types must use distinct texture units, even when
-    // this frame has no characters and the shader takes its static branch.
-    glUniform1i(animationLocation_, 1);
     gatherVisibleSceneDraws(projection * view, camera.position());
     for (const auto index : opaqueScene_) {
         draw(sceneDraws_[index]);

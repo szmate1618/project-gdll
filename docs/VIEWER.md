@@ -351,8 +351,9 @@ double-sided materials, alpha masks/blending, `KHR_materials_unlit`, and
 warning and a color fallback.
 
 `shaders/basic.vert` applies the model, view, and projection matrices.
-`shaders/basic.frag` provides simple directional Lambert lighting. These GLSL
-330 files are read at startup, so edit them and restart the viewer to experiment.
+`shaders/basic.frag` provides directional Lambert lighting, sky/ground ambient
+illumination, and nearby sun shadows. These GLSL 330 files are read at startup,
+so edit them and restart the viewer to experiment.
 Use `--shader-dir /path/to/shaders` to load an alternate shader pair.
 Shader errors print the source filename and compiler output. Model errors
 include the input path. Debug builds print OpenGL debug messages when the
@@ -360,7 +361,7 @@ driver exposes the debug extension.
 
 The main scene loader displays static geometry; idle skeletal animation is
 provided by the separate zombie layer described above. The viewer does not
-provide morph targets, shadows, or full PBR lighting.
+provide morph targets or full PBR lighting.
 Normal/metallic/roughness maps and texture coordinate sets beyond
 `TEXCOORD_0` are not rendered. Transparent primitives are sorted as whole
 objects, so intersecting transparent surfaces can show sorting artifacts.
@@ -370,6 +371,41 @@ as errors. Large
 scenes are loaded into memory as a whole; there is no streaming or level of
 detail system. Very large absolute coordinates remain subject to floating
 point precision limits.
+
+## Lighting and shadows
+
+Lighting is tuned for FPS walking: one warm directional sun plus cool sky and
+muted ground ambient light. Ambient illumination remains in shadow. Linear RGB
+lighting is applied before the existing sRGB output encoding. The sun direction,
+color/intensity, and ambient colors are set by `SunLighting` in
+`src/sun_lighting.hpp` and can be changed through `Renderer::setLighting`.
+
+One 2048 × 2048 depth map follows the camera. Shadows fade smoothly between
+90 and 120 meters from the eyes; ordinary shading continues beyond that range.
+Coverage is independent of view direction and zoom. The light-space origin is
+snapped to texels to reduce swimming during movement; four filtered depth
+comparisons soften edges, with slope-aware bias to reduce self-shadow artifacts.
+This is a local shadow map, with no cascades for distant overview cameras.
+
+Opaque and alpha-masked town geometry and zombies cast shadows. The town BVH
+queries the light volume separately from camera visibility, including upstream
+casters outside the view. Zombie casters are filtered by conservative animated
+or live-skin bounds and remain instanced by asset/primitive. Both passes share
+the same baked animation and live walking/ragdoll skinning. Transparent blended
+surfaces do not cast shadows. Tree impostors retain their unlit appearance and
+neither cast nor receive shadows in this initial implementation; other unlit
+materials also retain their appearance.
+
+Compare the same FPS view with shadows disabled:
+
+```bash
+./build/godollo_viewer output/godollo.glb --fps --no-shadows
+```
+
+The existing asynchronous GPU timing includes the shadow pass and color pass;
+presentation and VSync remain outside it. `--no-town-culling` changes color-pass
+culling only; shadow casters still use the local light volume. Large individual
+terrain/road meshes remain whole draw calls even when only part overlaps it.
 
 ## Verification and diagnostics
 
@@ -390,6 +426,12 @@ Run the viewer checks:
 ```bash
 ctest --test-dir build --output-on-failure
 ```
+
+`viewer_sun_lighting` checks local receiver coverage, upstream caster coverage,
+and texel stability without a GPU. `viewer_shadow_renderer` checks offscreen
+casters, alpha-mask holes, ambient illumination, unlit materials, distance
+fading, animation/live-skin shadow poses, target resizing, and GL state on an
+accessible OpenGL display; it skips when no display/context is available.
 
 The `viewer_zombie_renderer` regression checks repeated walking/ragdoll palette
 uploads and characters with multiple primitives through the actual shader. It requires
@@ -466,6 +508,9 @@ resize, and Escape callbacks passed the input check. Screenshots are in
 CMakeLists.txt              Viewer and unit-test build configuration
 src/main.cpp               Window, input callbacks, render loop, CLI
 src/renderer.{hpp,cpp}      OpenGL resources, shaders, drawing
+src/renderer_shadows.cpp   Sun caster pass and lighting uniforms
+src/sun_lighting.{hpp,cpp} Lighting settings and stable local shadow coverage
+src/sun_shadow_map.{hpp,cpp} Depth-only shadow framebuffer and texture ownership
 src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin data
 src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting
 src/zombie_hit.{hpp,cpp}    Head hit regions from the displayed skinning pose
@@ -481,7 +526,7 @@ src/fps_controller.{hpp,cpp} Fixed-step walking, gravity, jump and contact respo
 src/collision_world.{hpp,cpp} World-space triangle BVH and capsule/ground queries
 src/collision_debug.{hpp,cpp} Optional OpenGL collision line overlay
 src/model.{hpp,cpp}         glTF loading and scene data
-shaders/basic.{vert,frag}   GLSL 330 directional lighting
+shaders/basic.{vert,frag}   GLSL 330 sun/ambient lighting and shadow passes
 shaders/debug.{vert,frag}   GLSL 330 collision lines
 tools/create_test_asset.py Reproducible test-model generator
 assets/test.glb            Generated test model, ignored by Git

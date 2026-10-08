@@ -126,10 +126,22 @@ add_custom_command(
 )
 add_custom_target(viewer_test_asset DEPENDS "${VIEWER_TEST_ASSET}")
 
-add_executable(godollo_viewer src/main.cpp src/renderer.cpp src/zombie_renderer.cpp src/collision_debug.cpp
+add_library(viewer_sun_lighting STATIC src/sun_lighting.cpp)
+target_include_directories(viewer_sun_lighting PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(viewer_sun_lighting PUBLIC glm::glm)
+viewer_warnings(viewer_sun_lighting)
+
+add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
+    src/zombie_renderer.cpp src/sun_shadow_map.cpp)
+target_link_libraries(viewer_renderer PUBLIC
+    viewer_model viewer_visibility viewer_camera viewer_trees viewer_zombies viewer_sun_lighting OpenGL::GL)
+target_compile_definitions(viewer_renderer PRIVATE GL_GLEXT_PROTOTYPES)
+viewer_warnings(viewer_renderer)
+
+add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp
     src/reticle_overlay.cpp src/gpu_timer.cpp)
 target_link_libraries(godollo_viewer PRIVATE
-    viewer_model viewer_visibility viewer_camera viewer_fps viewer_trees viewer_zombies glfw OpenGL::GL
+    viewer_renderer viewer_fps glfw
 )
 target_compile_definitions(godollo_viewer PRIVATE
     GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -154,16 +166,29 @@ if(BUILD_TESTING)
 
     # Exercise real vertex attributes and skinning palette lookups. Machines
     # without an accessible OpenGL display skip this graphics-only regression.
-    add_executable(test_zombie_renderer tests/test_zombie_renderer.cpp
-        src/renderer.cpp src/zombie_renderer.cpp)
+    add_executable(test_zombie_renderer tests/test_zombie_renderer.cpp)
     target_link_libraries(test_zombie_renderer PRIVATE
-        viewer_zombies viewer_visibility viewer_camera viewer_trees glfw OpenGL::GL)
+        viewer_renderer glfw)
     target_compile_definitions(test_zombie_renderer PRIVATE
         GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
         VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
     viewer_warnings(test_zombie_renderer)
     add_test(NAME viewer_zombie_renderer COMMAND test_zombie_renderer)
     set_tests_properties(viewer_zombie_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
+    add_executable(test_sun_lighting tests/test_sun_lighting.cpp)
+    target_link_libraries(test_sun_lighting PRIVATE viewer_sun_lighting viewer_visibility)
+    viewer_warnings(test_sun_lighting)
+    add_test(NAME viewer_sun_lighting COMMAND test_sun_lighting)
+
+    add_executable(test_shadow_renderer tests/test_shadow_renderer.cpp)
+    target_link_libraries(test_shadow_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_shadow_renderer PRIVATE
+        GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_shadow_renderer)
+    add_test(NAME viewer_shadow_renderer COMMAND test_shadow_renderer)
+    set_tests_properties(viewer_shadow_renderer PROPERTIES SKIP_RETURN_CODE 77)
 
     add_executable(test_tree_layer tests/test_tree_layer.cpp)
     target_link_libraries(test_tree_layer PRIVATE viewer_trees OpenSSL::Crypto)

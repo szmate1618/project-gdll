@@ -19,6 +19,25 @@ struct SkinVertexGPU {
     std::array<std::uint32_t, 4> joints1{};
     std::array<float, 4> weights1{};
 };
+
+VisibilityBounds emptyBounds() {
+    return {glm::vec3(std::numeric_limits<float>::max()),
+            glm::vec3(std::numeric_limits<float>::lowest())};
+}
+
+void includeBounds(VisibilityBounds& bounds, const VisibilityBounds& other) {
+    bounds.minimum = glm::min(bounds.minimum, other.minimum);
+    bounds.maximum = glm::max(bounds.maximum, other.maximum);
+}
+
+VisibilityBounds transformedBounds(const VisibilityBounds& bounds, const glm::mat4& transform) {
+    const auto center = glm::vec3(transform * glm::vec4((bounds.minimum + bounds.maximum) * 0.5f, 1));
+    const auto half = (bounds.maximum - bounds.minimum) * 0.5f;
+    const auto extent = glm::abs(glm::vec3(transform[0])) * half.x +
+                        glm::abs(glm::vec3(transform[1])) * half.y +
+                        glm::abs(glm::vec3(transform[2])) * half.z;
+    return {center - extent, center + extent};
+}
 }
 
 void Renderer::uploadZombies(const ZombieLayer& zombies) {
@@ -59,6 +78,23 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
         if (source.skeleton.size() > static_cast<std::size_t>(std::numeric_limits<GLint>::max()))
             throw std::runtime_error("Zombie skeleton has too many bones");
         batch.skinningBoneCount = static_cast<GLint>(source.skeleton.size());
+        batch.animationBounds = emptyBounds();
+        batch.bindBounds = emptyBounds();
+        for (const auto& primitive : source.model.primitives)
+            for (const auto& vertex : primitive.vertices) {
+                batch.bindBounds.minimum = glm::min(batch.bindBounds.minimum, vertex.position);
+                batch.bindBounds.maximum = glm::max(batch.bindBounds.maximum, vertex.position);
+            }
+        for (const auto& primitive : source.animation)
+            for (const auto& vertex : primitive.frames) {
+                batch.animationBounds.minimum = glm::min(batch.animationBounds.minimum, glm::vec3(vertex.position));
+                batch.animationBounds.maximum = glm::max(batch.animationBounds.maximum, glm::vec3(vertex.position));
+            }
+        // Include the bind pose for live instances awaiting their first update.
+        includeBounds(batch.animationBounds, batch.bindBounds);
+        for (const auto& instance : batch.staging)
+            batch.instanceBounds.push_back(transformedBounds(batch.animationBounds, instance.transform));
+        batch.shadowInstances.reserve(batch.staging.size());
         uploadModel(source.model, batch.model);
         glGenBuffers(1, &batch.instanceBuffer);
         glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);
@@ -179,6 +215,14 @@ void Renderer::updateZombies(const ZombieLayer& zombies) {
             }
             batch.staging[instanceIndex] = {source.transform, source.phase, source.ragdoll ? 0.0f : -1.0f,
                                              liveSkinning ? 1.0f : 0.0f, boneBase};
+            auto bounds = batch.animationBounds;
+            // A union of bone-transformed bind boxes contains every weighted
+            // skin vertex, including fallen ragdolls and walking limb swings.
+            // Include animation bounds for primitives with no skin attributes.
+            if (liveSkinning)
+                for (const auto& bone : source.ragdollBones)
+                    includeBounds(bounds, transformedBounds(batch.bindBounds, bone));
+            batch.instanceBounds[instanceIndex] = transformedBounds(bounds, source.transform);
         }
         if (!batch.staging.empty()) {
             glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);
@@ -203,8 +247,8 @@ void Renderer::updateZombies(const ZombieLayer& zombies) {
     checkErrors("zombie update");
 }
 
-void Renderer::drawZombies(double seconds) {
-    zombieDrawCalls_ = 0;
+void Renderer::drawZombies(double seconds, const Frustum* shadowFrustum) {
+    if (!shadowFrustum) zombieDrawCalls_ = 0;
     if (zombieBatches_.empty()) return;
     if (!std::isfinite(seconds) || seconds < 0) seconds = 0;
     glUniform1i(instancedLocation_, GL_TRUE);
@@ -213,8 +257,32 @@ void Renderer::drawZombies(double seconds) {
     glUniform1i(skinningBonesLocation_, 2);
     const glm::mat4 identity(1);
     glUniformMatrix4fv(modelLocation_, 1, GL_FALSE, glm::value_ptr(identity));
-    for (const auto& batch : zombieBatches_) {
+    for (auto& batch : zombieBatches_) {
         if (batch.count == 0) continue;
+        auto count = batch.count;
+        if (shadowFrustum) {
+            batch.shadowInstances.clear();
+            for (std::size_t i = 0; i < batch.staging.size(); ++i) {
+                const auto& bounds = batch.instanceBounds[i];
+                if (shadowFrustum->intersects(bounds.minimum, bounds.maximum))
+                    batch.shadowInstances.push_back(batch.staging[i]);
+            }
+            count = static_cast<GLsizei>(batch.shadowInstances.size());
+            if (count == 0) continue;
+            glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);
+            // Retain full-population capacity so updates between frames remain
+            // valid, while only nearby shadow casters reach the depth pass.
+            glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(batch.staging.size() * sizeof(ZombieGPUInstance)),
+                         nullptr, GL_STREAM_DRAW);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, static_cast<GLsizeiptr>(count * sizeof(ZombieGPUInstance)),
+                            batch.shadowInstances.data());
+            batch.shadowInstancesUploaded = true;
+        } else if (batch.shadowInstancesUploaded) {
+            glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);
+            glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(batch.staging.size() * sizeof(ZombieGPUInstance)),
+                         batch.staging.data(), GL_STREAM_DRAW);
+            batch.shadowInstancesUploaded = false;
+        }
         // Reduce in double precision before converting to float to preserve
         // smooth playback even after the application has run for many hours.
         const float frame = static_cast<float>(std::fmod(seconds, batch.duration) / batch.duration * batch.frameCount);
@@ -232,8 +300,8 @@ void Renderer::drawZombies(double seconds) {
             glUniform1i(skinningLocation_, batch.skinningEnabled[p]);
             glUniform1i(skinningBoneCountLocation_, batch.skinningBoneCount);
             glBindVertexArray(mesh.vao);
-            glDrawElementsInstanced(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, nullptr, batch.count);
-            ++zombieDrawCalls_;
+            glDrawElementsInstanced(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, nullptr, count);
+            if (!shadowFrustum) ++zombieDrawCalls_;
         }
     }
     glActiveTexture(GL_TEXTURE1);
@@ -241,6 +309,7 @@ void Renderer::drawZombies(double seconds) {
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_BUFFER, 0);
     glActiveTexture(GL_TEXTURE0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
     glUniform1i(animatedLocation_, GL_FALSE);
     glUniform1i(instancedLocation_, GL_FALSE);
     glFrontFace(GL_CCW);

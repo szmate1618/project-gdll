@@ -31,6 +31,7 @@ struct Options {
     int frames = 0;
     bool hidden = false, allowSoftware = false, selfTest = false, help = false;
     bool fps = false, collisionDebug = false, selfTestFPS = false;
+    bool shadows = true;
     bool noTrees = false, treeCulling = true, treeCollisions = true, sceneCulling = true;
     bool noZombies = false, zombieView = false, explicitZombies = false;
     int zombieCount = 1000;
@@ -54,6 +55,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--allow-software") options.allowSoftware = true;
         else if (argument == "--self-test-input") options.selfTest = true;
         else if (argument == "--fps") options.fps = true;
+        else if (argument == "--no-shadows") options.shadows = false;
         else if (argument == "--collision-debug") options.collisionDebug = true;
         else if (argument == "--self-test-fps") options.selfTestFPS = true;
         else if (argument == "--trees") options.trees = value();
@@ -137,6 +139,7 @@ void printHelp() {
               << "Tab release/capture mouse, wheel change speed, F frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
               << "  --fps               Start in walking mode\n"
+              << "  --no-shadows        Disable nearby sun shadows for comparison\n"
               << "  --spawn X Z         Start walking near world X/Z in meters\n"
               << "  --collision-debug   Show colliders and ground normal (F3)\n"
               << "  --trees FILE        Load a tree instance JSON explicitly\n"
@@ -555,6 +558,7 @@ int run(const Options& options) {
     viewer::ReticleOverlay reticle(options.shaders);
     renderer.setTreeCulling(options.treeCulling);
     renderer.setSceneCulling(options.sceneCulling);
+    renderer.setShadows(options.shadows);
     std::unique_ptr<viewer::CollisionDebug> debug;
     if (options.selfTest) inputSelfTest(window.get());
     if (options.selfTestFPS) fpsInputSelfTest(window.get());
