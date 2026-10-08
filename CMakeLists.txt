@@ -190,6 +190,15 @@ if(BUILD_TESTING)
     add_test(NAME viewer_shadow_renderer COMMAND test_shadow_renderer)
     set_tests_properties(viewer_shadow_renderer PROPERTIES SKIP_RETURN_CODE 77)
 
+    add_executable(test_atmosphere_renderer tests/test_atmosphere_renderer.cpp)
+    target_link_libraries(test_atmosphere_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_atmosphere_renderer PRIVATE
+        GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_atmosphere_renderer)
+    add_test(NAME viewer_atmosphere_renderer COMMAND test_atmosphere_renderer)
+    set_tests_properties(viewer_atmosphere_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
     add_executable(test_tree_layer tests/test_tree_layer.cpp)
     target_link_libraries(test_tree_layer PRIVATE viewer_trees OpenSSL::Crypto)
     target_include_directories(test_tree_layer SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")

@@ -11,6 +11,7 @@
 #include "zombie_layer.hpp"
 #include "sun_lighting.hpp"
 #include "sun_shadow_map.hpp"
+#include "atmosphere.hpp"
 
 namespace viewer {
 
@@ -37,6 +38,8 @@ public:
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
     void setShadows(bool enabled) { shadows_ = enabled; }
     void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
+    void setHaze(bool enabled) { haze_ = enabled; }
+    void setAtmosphere(const Atmosphere& atmosphere) { atmosphere_ = atmosphere; }
     const SceneRenderStats& sceneStats() const { return sceneStats_; }
     void setTreeCulling(bool enabled) { treeCulling_ = enabled; }
     const TreeRenderStats& treeStats() const { return treeStats_; }
@@ -123,6 +126,10 @@ private:
     GLint shadowPassLocation_, shadowsLocation_, shadowMapLocation_, sunMatrixLocation_;
     GLint eyeLocation_, sunDirectionLocation_, sunColorLocation_, skyAmbientLocation_, groundAmbientLocation_;
     GLint shadowDistanceLocation_, shadowFadeLocation_;
+    GLint hazeColorLocation_, hazeDensityLocation_, hazeStartLocation_;
+    Atmosphere atmosphere_;
+    bool haze_ = true;
+    glm::vec3 backgroundSrgb_{0.10f, 0.14f, 0.20f};
     SunLighting lighting_;
     SunShadowMap shadowMap_;
     bool shadows_ = true;

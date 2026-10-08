@@ -95,6 +95,7 @@ void checkScene(bool masked, bool unlit, bool blended = false) {
     require(!cameraFrustum.intersects({-2, 2, 3}, {2, 4, 3}), "Fixture caster must be outside the camera view");
     viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
     renderer.setLighting(lighting());
+    renderer.setHaze(false); // Isolate shadow brightness from distance haze.
     renderer.resize(width, height);
     renderer.setShadows(false);
     renderer.render(camera);
@@ -163,6 +164,7 @@ void checkAnimatedCaster() {
     layer.instances.back().transform = glm::translate(glm::mat4(1), {1000, 0, 0});
     viewer::Renderer renderer(model, VIEWER_SHADER_DIR, nullptr, &layer);
     renderer.setLighting(lighting());
+    renderer.setHaze(false);
     renderer.resize(width, height);
     const auto camera = cameraAt({0, 4, 2});
     renderer.render(camera, 0);

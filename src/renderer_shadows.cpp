@@ -51,6 +51,9 @@ void Renderer::applyLighting(const Camera& camera, const SunShadowView& shadowVi
     glUniform3fv(groundAmbientLocation_, 1, glm::value_ptr(lighting_.groundAmbient));
     glUniform1f(shadowDistanceLocation_, SunLighting::shadowDistance);
     glUniform1f(shadowFadeLocation_, SunLighting::shadowFadeStart);
+    glUniform3fv(hazeColorLocation_, 1, glm::value_ptr(atmosphere_.color));
+    glUniform1f(hazeDensityLocation_, haze_ ? atmosphere_.density : 0.0f);
+    glUniform1f(hazeStartLocation_, atmosphere_.startDistance);
     shadowMap_.bind(GL_TEXTURE3);
     glActiveTexture(GL_TEXTURE0);
 }

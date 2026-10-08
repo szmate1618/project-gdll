@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -106,6 +107,9 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         groundAmbientLocation_ = glGetUniformLocation(program_, "uGroundAmbient");
         shadowDistanceLocation_ = glGetUniformLocation(program_, "uShadowDistance");
         shadowFadeLocation_ = glGetUniformLocation(program_, "uShadowFadeStart");
+        hazeColorLocation_ = glGetUniformLocation(program_, "uHazeColor");
+        hazeDensityLocation_ = glGetUniformLocation(program_, "uHazeDensity");
+        hazeStartLocation_ = glGetUniformLocation(program_, "uHazeStart");
         fallback_.baseColor = glm::vec4(0.65f, 0.68f, 0.72f, 1.0f);
         uploadModel(model, model_);
         for (const auto& source : model.draws) {
@@ -389,7 +393,8 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     applyLighting(camera, shadowView);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
     glViewport(0, 0, width_, height_);
-    glClearColor(0.10f, 0.14f, 0.20f, 1.0f);
+    backgroundSrgb_ = atmosphere_.backgroundSrgb();
+    glClearColor(backgroundSrgb_.r, backgroundSrgb_.g, backgroundSrgb_.b, 1.0f);
     glDepthMask(GL_TRUE);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUseProgram(program_);
@@ -445,10 +450,11 @@ void Renderer::writeScreenshot(const std::filesystem::path& path) const {
     if (!output) throw std::runtime_error("Error writing screenshot: " + path.string());
     // A deterministic readback confirms a draw produced pixels beyond the sky.
     std::size_t foreground = 0;
+    const auto background = glm::clamp(backgroundSrgb_, glm::vec3(0), glm::vec3(1));
     for (std::size_t p = 0; p < pixels.size(); p += 3)
-        if (std::abs(static_cast<int>(pixels[p]) - 26) > 2 ||
-            std::abs(static_cast<int>(pixels[p + 1]) - 36) > 2 ||
-            std::abs(static_cast<int>(pixels[p + 2]) - 51) > 2) ++foreground;
+        if (std::abs(static_cast<int>(pixels[p]) - static_cast<int>(std::lround(background.r * 255))) > 2 ||
+            std::abs(static_cast<int>(pixels[p + 1]) - static_cast<int>(std::lround(background.g * 255))) > 2 ||
+            std::abs(static_cast<int>(pixels[p + 2]) - static_cast<int>(std::lround(background.b * 255))) > 2) ++foreground;
     std::cout << "Screenshot: " << path << " (" << width_ << 'x' << height_
               << ", " << foreground << " foreground pixels)\n";
     if (!foreground) throw std::runtime_error("Render readback contains only background; model may be out of view");

@@ -114,6 +114,8 @@ and per-instance bounds cull trees outside the camera frustum. Bounds include
 the complete transformed cards, so a tree can remain visible when its trunk is
 outside the view. Materials remain alpha-masked, unlit, and double-sided; opaque
 parts write depth while transparent texels do not block the background.
+Distance haze also applies to their visible texels, so distant cards blend with
+the rest of the scene.
 
 The title shows visible/total tree counts alongside the existing FPS, GPU time,
 and CPU render time. These render timings include tree culling/submission and
@@ -392,9 +394,9 @@ queries the light volume separately from camera visibility, including upstream
 casters outside the view. Zombie casters are filtered by conservative animated
 or live-skin bounds and remain instanced by asset/primitive. Both passes share
 the same baked animation and live walking/ragdoll skinning. Transparent blended
-surfaces do not cast shadows. Tree impostors retain their unlit appearance and
+surfaces do not cast shadows. Tree impostors retain unlit material shading and
 neither cast nor receive shadows in this initial implementation; other unlit
-materials also retain their appearance.
+materials also bypass sun/ambient shading. All visible materials receive haze.
 
 Compare the same FPS view with shadows disabled:
 
@@ -406,6 +408,29 @@ The existing asynchronous GPU timing includes the shadow pass and color pass;
 presentation and VSync remain outside it. `--no-town-culling` changes color-pass
 culling only; shadow casters still use the local light volume. Large individual
 terrain/road meshes remain whole draw calls even when only part overlaps it.
+
+## Atmospheric haze
+
+Subtle exponential distance haze is enabled by default. The nearest 30 meters
+remain clear; beyond that, distant terrain, buildings, trees, and zombies blend
+gradually toward a pale blue-gray sky. Default density is 0.0008 per meter,
+giving roughly 31% haze at 500 meters and 54% at 1 kilometer. The background
+matches the distant haze color to keep the horizon continuous.
+
+Haze runs in the existing color shader after material lighting and before sRGB
+encoding. It preserves alpha masks, blended-material alpha, and depth writes;
+the shadow pass bypasses it. There are no extra textures or render passes, and
+the reticle and collision overlay remain clear. Haze does not change draw
+distance or visibility culling. This is uniform atmospheric haze without
+volumetric lighting, light shafts, or localized fog volumes.
+
+`src/atmosphere.hpp` defines the linear RGB color, clear foreground distance,
+and density; `Renderer::setAtmosphere` can customize them. Compare the same view
+with haze disabled (the daylight sky color remains):
+
+```bash
+./build/godollo_viewer output/godollo.glb --fps --no-haze
+```
 
 ## Verification and diagnostics
 
@@ -432,6 +457,12 @@ and texel stability without a GPU. `viewer_shadow_renderer` checks offscreen
 casters, alpha-mask holes, ambient illumination, unlit materials, distance
 fading, animation/live-skin shadow poses, target resizing, and GL state on an
 accessible OpenGL display; it skips when no display/context is available.
+
+`viewer_atmosphere_renderer` checks clear foregrounds, increasing haze and sky
+convergence across scene/tree/zombie draws, alpha-mask holes, blended alpha,
+linear color blending, the disable option, and empty-sky screenshot detection.
+It also skips without an accessible OpenGL display/context. Geometry/palette
+and shadow regressions disable haze to isolate their expected colors.
 
 The `viewer_zombie_renderer` regression checks repeated walking/ragdoll palette
 uploads and characters with multiple primitives through the actual shader. It requires
@@ -510,6 +541,7 @@ src/main.cpp               Window, input callbacks, render loop, CLI
 src/renderer.{hpp,cpp}      OpenGL resources, shaders, drawing
 src/renderer_shadows.cpp   Sun caster pass and lighting uniforms
 src/sun_lighting.{hpp,cpp} Lighting settings and stable local shadow coverage
+src/atmosphere.hpp         Distance haze settings and matching sky color
 src/sun_shadow_map.{hpp,cpp} Depth-only shadow framebuffer and texture ownership
 src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin data
 src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting

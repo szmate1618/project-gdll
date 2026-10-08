@@ -21,12 +21,14 @@ uniform vec3 uSkyAmbient;
 uniform vec3 uGroundAmbient;
 uniform float uShadowDistance;
 uniform float uShadowFadeStart;
+uniform vec3 uHazeColor;
+uniform float uHazeDensity;
+uniform float uHazeStart;
 
 out vec4 fragColor;
 
-float sunlightVisibility(float sunFacing) {
+float sunlightVisibility(float sunFacing, float distanceFromEye) {
     if (!uShadows || sunFacing <= 0.0) return 1.0;
-    float distanceFromEye = length(vWorldPosition - uEye);
     if (distanceFromEye >= uShadowDistance) return 1.0;
     vec4 lightClip = uSunMatrix * vec4(vWorldPosition, 1.0);
     vec3 coord = lightClip.xyz / lightClip.w * 0.5 + 0.5;
@@ -56,8 +58,15 @@ void main() {
     if (!gl_FrontFacing) normal = -normal;
     float sunFacing = max(dot(normal, uSunDirection), 0.0);
     vec3 ambient = mix(uGroundAmbient, uSkyAmbient, normal.y * 0.5 + 0.5);
-    vec3 light = uUnlit ? vec3(1.0) : ambient + uSunColor * sunFacing * sunlightVisibility(sunFacing);
+    float distanceFromEye = length(vWorldPosition - uEye);
+    vec3 light = uUnlit ? vec3(1.0) : ambient + uSunColor * sunFacing * sunlightVisibility(sunFacing, distanceFromEye);
     vec3 linearColor = max(color.rgb * light, vec3(0.0));
+    // Haze affects unlit tree cards too, after alpha discard and lighting but
+    // before output encoding. Keep material alpha intact for blended surfaces.
+    if (uHazeDensity > 0.0) {
+        float transmission = exp(-uHazeDensity * max(distanceFromEye - uHazeStart, 0.0));
+        linearColor = mix(uHazeColor, linearColor, transmission);
+    }
     // Base-color textures are uploaded as sRGB and decoded by the sampler.
     // Encode explicitly so offscreen and native framebuffers look the same.
     vec3 srgb = mix(12.92 * linearColor,
