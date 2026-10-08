@@ -76,7 +76,8 @@ viewer::Camera camera(float eyeHeight = 1.7f) {
 
 enum class Layer { Scene, Trees, Zombies };
 
-glm::vec3 renderCard(Layer kind, float distance, bool haze, bool groundFog = false, float eyeHeight = 1.7f) {
+glm::vec3 renderCard(Layer kind, float distance, bool haze, bool groundFog = false,
+                     float eyeHeight = 1.7f, bool night = false) {
     const bool masked = kind == Layer::Trees;
     auto model = card({1, 0, 0}, masked);
     viewer::TreeLayer trees;
@@ -113,6 +114,11 @@ glm::vec3 renderCard(Layer kind, float distance, bool haze, bool groundFog = fal
     renderer.setShadows(false);
     renderer.setHaze(haze);
     renderer.setGroundFog(groundFog);
+    renderer.setNight(night);
+    // This fixture specifically checks the configurable clear-foreground gap.
+    viewer::Atmosphere atmosphere;
+    atmosphere.groundFog.startDistance = 12.0f;
+    renderer.setAtmosphere(atmosphere);
     renderer.resize(width, height);
     renderer.render(camera(eyeHeight));
     // Sample the opaque right half. The left half of a tree card is a hole.
@@ -257,6 +263,60 @@ void checkGroundIntegral() {
     viewer::Renderer::checkErrors("ground fog integral regression");
 }
 
+void checkNightLayers() {
+    for (const auto kind : {Layer::Scene, Layer::Trees, Layer::Zombies}) {
+        const auto day = renderCard(kind, 80, false);
+        const auto dark = renderCard(kind, 80, false, false, 1.7f, true);
+        const auto lit = renderCard(kind, 20, false, false, 1.7f, true);
+        require(dark.r < day.r - 150, "Night must dim scene, tree, and zombie materials");
+        require(lit.r > dark.r + 100, "The flashlight must illuminate every visible layer");
+        const auto foggy = renderCard(kind, 500, true, true, 1.7f, true);
+        viewer::Atmosphere atmosphere;
+        atmosphere.color = viewer::NightLighting{}.fogColor;
+        require(glm::length(foggy - atmosphere.backgroundSrgb() * 255.0f) < 4,
+                "Night fog must converge toward the dark sky, not daylight haze");
+    }
+}
+
+void checkNightCone() {
+    for (const bool unlit : {false, true}) {
+        auto model = card({1, 1, 1});
+        model.materials[0].unlit = unlit;
+        model.draws[0].transform = glm::scale(glm::translate(glm::mat4(1), {0, 1.7f, -20}),
+                                            {120, 120, 1});
+        viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
+        renderer.setHaze(false);
+        renderer.setGroundFog(false);
+        renderer.resize(width, height);
+        auto view = camera();
+        renderer.render(view);
+        const auto day = pixel(width / 2, height / 2);
+        renderer.setNight(true);
+        renderer.render(view);
+        const auto center = pixel(width / 2, height / 2);
+        const auto shoulder = pixel(440, height / 2);
+        const auto outside = pixel(610, height / 2);
+        require(center.r > shoulder.r + 10 && shoulder.r > outside.r + 20,
+                "The flashlight must have a bright center and soft cone edges");
+        require(center.r > outside.r + 100, "Surfaces outside the cone must remain dark");
+        view.setPosition({15, 1.7f, 0});
+        view.look(300, 0);
+        renderer.render(view);
+        require(pixel(width / 2, height / 2).r > 160,
+                "The flashlight origin and direction must follow camera movement and rotation");
+        view = camera();
+        view.setPosition({0, 1.7f, 25}); // The plane is now 45 m away.
+        renderer.render(view);
+        require(pixel(width / 2, height / 2).r < 60,
+                "Surfaces beyond flashlight range must retain only night ambient light");
+        renderer.setNight(false);
+        renderer.render(camera());
+        require(glm::length(pixel(width / 2, height / 2) - day) < 2,
+                "Leaving night mode must restore daylight without stale lighting state");
+    }
+    viewer::Renderer::checkErrors("night flashlight regression");
+}
+
 void checkEmptyCapture() {
     viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR);
     renderer.resize(width, height);
@@ -288,6 +348,8 @@ int main() {
         checkLinearBlend();
         checkGroundLayers();
         checkGroundIntegral();
+        checkNightLayers();
+        checkNightCone();
         checkEmptyCapture();
         std::cout << "Atmosphere rendering tests passed (" << glGetString(GL_RENDERER) << ")\n";
     } catch (const std::exception& error) {

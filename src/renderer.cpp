@@ -111,6 +111,10 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         hazeDensityLocation_ = glGetUniformLocation(program_, "uHazeDensity");
         hazeStartLocation_ = glGetUniformLocation(program_, "uHazeStart");
         groundFogLocation_ = glGetUniformLocation(program_, "uGroundFog");
+        nightLocation_ = glGetUniformLocation(program_, "uNight");
+        flashlightDirectionLocation_ = glGetUniformLocation(program_, "uFlashlightDirection");
+        flashlightColorLocation_ = glGetUniformLocation(program_, "uFlashlightColor");
+        flashlightConeLocation_ = glGetUniformLocation(program_, "uFlashlightCone");
         fallback_.baseColor = glm::vec4(0.65f, 0.68f, 0.72f, 1.0f);
         uploadModel(model, model_);
         for (const auto& source : model.draws) {
@@ -389,12 +393,17 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     glUniform1i(animationLocation_, 1);
     glUniform1i(skinningBonesLocation_, 2);
     glUniform1i(shadowMapLocation_, 3);
-    const auto shadowView = sunShadowView(camera.position(), lighting_.direction);
-    if (shadows_ && shadowPassLocation_ >= 0) drawSunShadows(shadowView, animationSeconds);
+    SunShadowView shadowView;
+    if (!night_) {
+        shadowView = sunShadowView(camera.position(), lighting_.direction);
+        if (shadows_ && shadowPassLocation_ >= 0) drawSunShadows(shadowView, animationSeconds);
+    }
     applyLighting(camera, shadowView);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
     glViewport(0, 0, width_, height_);
-    backgroundSrgb_ = atmosphere_.backgroundSrgb();
+    auto atmosphere = atmosphere_;
+    if (night_) atmosphere.color = nightLighting_.fogColor;
+    backgroundSrgb_ = atmosphere.backgroundSrgb();
     glClearColor(backgroundSrgb_.r, backgroundSrgb_.g, backgroundSrgb_.b, 1.0f);
     glDepthMask(GL_TRUE);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

@@ -32,6 +32,7 @@ struct Options {
     bool hidden = false, allowSoftware = false, selfTest = false, help = false;
     bool fps = false, collisionDebug = false, selfTestFPS = false;
     bool shadows = true;
+    bool night = false;
     bool haze = true;
     bool groundFog = true;
     bool noTrees = false, treeCulling = true, treeCollisions = true, sceneCulling = true;
@@ -57,6 +58,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--allow-software") options.allowSoftware = true;
         else if (argument == "--self-test-input") options.selfTest = true;
         else if (argument == "--fps") options.fps = true;
+        else if (argument == "--night") options.night = true;
         else if (argument == "--no-shadows") options.shadows = false;
         else if (argument == "--no-haze") options.haze = false;
         else if (argument == "--no-ground-fog") options.groundFog = false;
@@ -143,6 +145,7 @@ void printHelp() {
               << "Tab release/capture mouse, wheel change speed, F frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
               << "  --fps               Start in walking mode\n"
+              << "  --night             Dark sky and ambient light with a camera flashlight\n"
               << "  --no-shadows        Disable nearby sun shadows for comparison\n"
               << "  --no-haze           Disable atmospheric distance haze for comparison\n"
               << "  --no-ground-fog     Disable the analytical ground mist layer\n"
@@ -565,6 +568,7 @@ int run(const Options& options) {
     renderer.setTreeCulling(options.treeCulling);
     renderer.setSceneCulling(options.sceneCulling);
     renderer.setShadows(options.shadows);
+    renderer.setNight(options.night);
     renderer.setHaze(options.haze);
     renderer.setGroundFog(options.groundFog);
     viewer::Atmosphere atmosphere;

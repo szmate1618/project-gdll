@@ -12,6 +12,7 @@
 #include "sun_lighting.hpp"
 #include "sun_shadow_map.hpp"
 #include "atmosphere.hpp"
+#include "night_lighting.hpp"
 
 namespace viewer {
 
@@ -38,6 +39,7 @@ public:
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
     void setShadows(bool enabled) { shadows_ = enabled; }
     void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
+    void setNight(bool enabled) { night_ = enabled; }
     void setHaze(bool enabled) { haze_ = enabled; }
     void setGroundFog(bool enabled) { groundFog_ = enabled; }
     void setAtmosphere(const Atmosphere& atmosphere) { atmosphere_ = atmosphere; }
@@ -129,11 +131,14 @@ private:
     GLint shadowDistanceLocation_, shadowFadeLocation_;
     GLint hazeColorLocation_, hazeDensityLocation_, hazeStartLocation_;
     GLint groundFogLocation_;
+    GLint nightLocation_, flashlightDirectionLocation_, flashlightColorLocation_, flashlightConeLocation_;
     Atmosphere atmosphere_;
     bool haze_ = true;
     bool groundFog_ = true;
     glm::vec3 backgroundSrgb_{0.10f, 0.14f, 0.20f};
     SunLighting lighting_;
+    NightLighting nightLighting_;
+    bool night_ = false;
     SunShadowMap shadowMap_;
     bool shadows_ = true;
     std::vector<std::size_t> shadowScene_;

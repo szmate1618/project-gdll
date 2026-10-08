@@ -410,6 +410,32 @@ presentation and VSync remain outside it. `--no-town-culling` changes color-pass
 culling only; shadow casters still use the local light volume. Large individual
 terrain/road meshes remain whole draw calls even when only part overlaps it.
 
+## Night mode and flashlight
+
+Enable night mode explicitly at launch:
+
+```bash
+./build/godollo_viewer output/godollo.glb --fps --night
+```
+
+Without `--night`, the viewer uses daylight. Night mode disables sunlight and
+its shadow pass, uses weak blue ambient light, and changes the sky and fog to a
+dark matching color. Fog density, height, and start distances keep their current
+settings; `--no-haze` and `--no-ground-fog` still work.
+
+A warm flashlight starts at the camera eyes and follows mouse look and walking.
+Its bright core extends 12 degrees from the viewing axis, fading to zero at
+22 degrees. Brightness decreases with distance and fades out completely at
+40 meters. It illuminates terrain, buildings, zombies, and visible tree texels.
+Tree cards retain their alpha masks and bypass normal-based shading, but receive
+night dimming and the flashlight's cone/distance attenuation.
+
+The flashlight runs in the existing color pass without an extra shadow map.
+Because it shares the camera origin, ordinary depth testing hides surfaces
+blocked from the light along camera rays. There is no separate shadow effect
+from an offset lamp, and no visible beam or light scattering through fog.
+Night colors, cone angles, and range are configured in `src/night_lighting.hpp`.
+
 ## Atmospheric haze
 
 Subtle exponential distance haze is enabled by default. The nearest 30 meters
@@ -442,7 +468,8 @@ the runtime Y-up meter frame and does not follow later movement, hills, or jumps
 Before entering walking mode, the base is world Y=0, the map's recorded datum.
 
 Density is 0.048 per meter at and below the base, then decreases linearly to zero
-over 18 meters of height. The closest 12 meters from the eyes remain clear.
+over 18 meters of height. Mist starts at the eyes by default; `startDistance`
+in `src/atmosphere.hpp` can reserve a clear foreground in meters.
 The color shader integrates this profile along the eye-to-surface ray beyond
 that clear foreground. It handles horizontal rays without division by a tiny
 height difference and includes mist crossed while looking into or out of the
@@ -499,7 +526,9 @@ convergence across scene/tree/zombie draws, alpha-mask holes, blended alpha,
 linear color blending, the disable options, and empty-sky screenshot detection.
 Ground fog checks cover layer crossings, horizontal rays, translated world
 heights, clear air above the layer, and comparison with independent numerical
-ray integration. It also skips without an accessible OpenGL display/context.
+ray integration. Night checks cover scene/tree/zombie dimming, dark fog,
+flashlight cone edges, camera tracking, range cutoff, and daylight restoration.
+It also skips without an accessible OpenGL display/context.
 Geometry/palette and shadow regressions disable atmospheric effects to isolate
 their expected colors.
 
@@ -581,6 +610,7 @@ src/renderer.{hpp,cpp}      OpenGL resources, shaders, drawing
 src/renderer_shadows.cpp   Sun caster pass and lighting uniforms
 src/sun_lighting.{hpp,cpp} Lighting settings and stable local shadow coverage
 src/atmosphere.hpp         Distance haze, ground fog, and matching sky color
+src/night_lighting.hpp     Night ambient, sky/fog color, and camera flashlight settings
 src/sun_shadow_map.{hpp,cpp} Depth-only shadow framebuffer and texture ownership
 src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin data
 src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting
