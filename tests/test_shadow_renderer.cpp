@@ -96,6 +96,7 @@ void checkScene(bool masked, bool unlit, bool blended = false) {
     viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
     renderer.setLighting(lighting());
     renderer.setHaze(false); // Isolate shadow brightness from distance haze.
+    renderer.setGroundFog(false);
     renderer.resize(width, height);
     renderer.setShadows(false);
     renderer.render(camera);
@@ -165,6 +166,7 @@ void checkAnimatedCaster() {
     viewer::Renderer renderer(model, VIEWER_SHADER_DIR, nullptr, &layer);
     renderer.setLighting(lighting());
     renderer.setHaze(false);
+    renderer.setGroundFog(false);
     renderer.resize(width, height);
     const auto camera = cameraAt({0, 4, 2});
     renderer.render(camera, 0);

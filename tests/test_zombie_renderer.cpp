@@ -136,6 +136,7 @@ void renderCrowd(std::size_t primitiveCount, const std::filesystem::path& screen
     camera.look(0, 200); // Default pitch is -20 degrees; look straight at the markers.
     viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
     renderer.setHaze(false); // Marker colors test geometry and palette lookups.
+    renderer.setGroundFog(false);
     renderer.resize(width, height);
     // Mix walking and ragdoll palettes with idle instances; cross the palette
     // boundary for every asset, then exceed the reported dozen activations.
@@ -191,6 +192,7 @@ void renderDistantHeadSurfaces() {
     camera.cycleViewMode();
     viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
     renderer.setHaze(false);
+    renderer.setGroundFog(false);
     renderer.resize(width, height);
     for (const float x : {-0.05f, 0.0f, 0.05f}) {
         camera.setPosition({x, 1.7f, 300});

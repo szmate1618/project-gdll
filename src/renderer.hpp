@@ -39,6 +39,7 @@ public:
     void setShadows(bool enabled) { shadows_ = enabled; }
     void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
     void setHaze(bool enabled) { haze_ = enabled; }
+    void setGroundFog(bool enabled) { groundFog_ = enabled; }
     void setAtmosphere(const Atmosphere& atmosphere) { atmosphere_ = atmosphere; }
     const SceneRenderStats& sceneStats() const { return sceneStats_; }
     void setTreeCulling(bool enabled) { treeCulling_ = enabled; }
@@ -127,8 +128,10 @@ private:
     GLint eyeLocation_, sunDirectionLocation_, sunColorLocation_, skyAmbientLocation_, groundAmbientLocation_;
     GLint shadowDistanceLocation_, shadowFadeLocation_;
     GLint hazeColorLocation_, hazeDensityLocation_, hazeStartLocation_;
+    GLint groundFogLocation_;
     Atmosphere atmosphere_;
     bool haze_ = true;
+    bool groundFog_ = true;
     glm::vec3 backgroundSrgb_{0.10f, 0.14f, 0.20f};
     SunLighting lighting_;
     SunShadowMap shadowMap_;

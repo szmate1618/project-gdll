@@ -110,6 +110,7 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         hazeColorLocation_ = glGetUniformLocation(program_, "uHazeColor");
         hazeDensityLocation_ = glGetUniformLocation(program_, "uHazeDensity");
         hazeStartLocation_ = glGetUniformLocation(program_, "uHazeStart");
+        groundFogLocation_ = glGetUniformLocation(program_, "uGroundFog");
         fallback_.baseColor = glm::vec4(0.65f, 0.68f, 0.72f, 1.0f);
         uploadModel(model, model_);
         for (const auto& source : model.draws) {

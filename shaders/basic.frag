@@ -24,8 +24,35 @@ uniform float uShadowFadeStart;
 uniform vec3 uHazeColor;
 uniform float uHazeDensity;
 uniform float uHazeStart;
+uniform vec4 uGroundFog; // Base Y, inverse layer height, base density, clear distance.
 
 out vec4 fragColor;
+
+float groundFogDepth(float distanceFromEye) {
+    float fogLength = max(distanceFromEye - uGroundFog.w, 0.0);
+    if (uGroundFog.z <= 0.0 || fogLength <= 0.0) return 0.0;
+    // Integrate only the ray segment beyond the clear foreground. Work in
+    // normalized layer heights: density is clamp(1 - height, 0, 1).
+    float startY = mix(uEye.y, vWorldPosition.y, uGroundFog.w / distanceFromEye);
+    float a = (startY - uGroundFog.x) * uGroundFog.y;
+    float b = (vWorldPosition.y - uGroundFog.x) * uGroundFog.y;
+    float low = min(a, b), high = max(a, b);
+    float span = high - low;
+    float average;
+    if (span < 0.0001) {
+        // Horizontal and nearly horizontal rays have a finite limit; avoid
+        // dividing two tiny differences and creating a band at the horizon.
+        average = clamp(1.0 - (a + b) * 0.5, 0.0, 1.0);
+    } else {
+        float belowFraction = clamp(-low / span, 0.0, 1.0);
+        float rampLow = clamp(low, 0.0, 1.0);
+        float rampHigh = clamp(high, 0.0, 1.0);
+        float rampFraction = (rampHigh - rampLow) / span;
+        // The ramp is linear, so its endpoint average is the exact integral.
+        average = belowFraction + rampFraction * (1.0 - (rampLow + rampHigh) * 0.5);
+    }
+    return uGroundFog.z * fogLength * average;
+}
 
 float sunlightVisibility(float sunFacing, float distanceFromEye) {
     if (!uShadows || sunFacing <= 0.0) return 1.0;
@@ -63,8 +90,10 @@ void main() {
     vec3 linearColor = max(color.rgb * light, vec3(0.0));
     // Haze affects unlit tree cards too, after alpha discard and lighting but
     // before output encoding. Keep material alpha intact for blended surfaces.
-    if (uHazeDensity > 0.0) {
-        float transmission = exp(-uHazeDensity * max(distanceFromEye - uHazeStart, 0.0));
+    if (uHazeDensity > 0.0 || uGroundFog.z > 0.0) {
+        float opticalDepth = max(uHazeDensity, 0.0) * max(distanceFromEye - uHazeStart, 0.0)
+                           + groundFogDepth(distanceFromEye);
+        float transmission = exp(-opticalDepth);
         linearColor = mix(uHazeColor, linearColor, transmission);
     }
     // Base-color textures are uploaded as sRGB and decoded by the sampler.

@@ -114,7 +114,7 @@ and per-instance bounds cull trees outside the camera frustum. Bounds include
 the complete transformed cards, so a tree can remain visible when its trunk is
 outside the view. Materials remain alpha-masked, unlit, and double-sided; opaque
 parts write depth while transparent texels do not block the background.
-Distance haze also applies to their visible texels, so distant cards blend with
+Distance haze and ground fog apply to their visible texels, so cards blend with
 the rest of the scene.
 
 The title shows visible/total tree counts alongside the existing FPS, GPU time,
@@ -396,7 +396,8 @@ or live-skin bounds and remain instanced by asset/primitive. Both passes share
 the same baked animation and live walking/ragdoll skinning. Transparent blended
 surfaces do not cast shadows. Tree impostors retain unlit material shading and
 neither cast nor receive shadows in this initial implementation; other unlit
-materials also bypass sun/ambient shading. All visible materials receive haze.
+materials also bypass sun/ambient shading. All visible materials receive haze
+and ground fog.
 
 Compare the same FPS view with shadows disabled:
 
@@ -421,8 +422,9 @@ Haze runs in the existing color shader after material lighting and before sRGB
 encoding. It preserves alpha masks, blended-material alpha, and depth writes;
 the shadow pass bypasses it. There are no extra textures or render passes, and
 the reticle and collision overlay remain clear. Haze does not change draw
-distance or visibility culling. This is uniform atmospheric haze without
-volumetric lighting, light shafts, or localized fog volumes.
+distance or visibility culling. Distance haze is uniform and independent of
+the height-dependent ground fog below; neither uses volumetric lighting or
+light shafts.
 
 `src/atmosphere.hpp` defines the linear RGB color, clear foreground distance,
 and density; `Renderer::setAtmosphere` can customize them. Compare the same view
@@ -430,6 +432,40 @@ with haze disabled (the daylight sky color remains):
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --fps --no-haze
+```
+
+## Analytical ground fog
+
+A ground mist layer is also enabled by default. Its base is anchored
+once to the player's feet at the first entry into walking mode. The anchor uses
+the runtime Y-up meter frame and does not follow later movement, hills, or jumps.
+Before entering walking mode, the base is world Y=0, the map's recorded datum.
+
+Density is 0.048 per meter at and below the base, then decreases linearly to zero
+over 18 meters of height. The closest 12 meters from the eyes remain clear.
+The color shader integrates this profile along the eye-to-surface ray beyond
+that clear foreground. It handles horizontal rays without division by a tiny
+height difference and includes mist crossed while looking into or out of the
+layer, even if the visible surface itself is above it.
+
+The integrated optical depth adds to distance haze, sharing its color and one
+final transmission calculation in linear RGB. There is no ray marching, extra
+texture, render pass, or lighting/shadow interaction. Terrain, buildings, tree
+cards, and animated zombies receive mist while retaining their material alpha
+and depth behavior. Opaque geometry naturally limits the ray to its visible
+surface. The reticle, debug overlay, and shadow map remain unaffected.
+
+This is one horizontal layer, so it pools in lower terrain and clears over
+higher terrain rather than following every hill. It has no wisps, local fog
+banks, indoor exclusion, or weather simulation. `GroundFog` in
+`src/atmosphere.hpp` defines its base height, layer height, density, and clear
+distance; `Renderer::setAtmosphere` can customize them.
+
+Disable just the mist, or both atmospheric effects, for comparisons:
+
+```bash
+./build/godollo_viewer output/godollo.glb --fps --no-ground-fog
+./build/godollo_viewer output/godollo.glb --fps --no-ground-fog --no-haze
 ```
 
 ## Verification and diagnostics
@@ -460,9 +496,12 @@ accessible OpenGL display; it skips when no display/context is available.
 
 `viewer_atmosphere_renderer` checks clear foregrounds, increasing haze and sky
 convergence across scene/tree/zombie draws, alpha-mask holes, blended alpha,
-linear color blending, the disable option, and empty-sky screenshot detection.
-It also skips without an accessible OpenGL display/context. Geometry/palette
-and shadow regressions disable haze to isolate their expected colors.
+linear color blending, the disable options, and empty-sky screenshot detection.
+Ground fog checks cover layer crossings, horizontal rays, translated world
+heights, clear air above the layer, and comparison with independent numerical
+ray integration. It also skips without an accessible OpenGL display/context.
+Geometry/palette and shadow regressions disable atmospheric effects to isolate
+their expected colors.
 
 The `viewer_zombie_renderer` regression checks repeated walking/ragdoll palette
 uploads and characters with multiple primitives through the actual shader. It requires
@@ -541,7 +580,7 @@ src/main.cpp               Window, input callbacks, render loop, CLI
 src/renderer.{hpp,cpp}      OpenGL resources, shaders, drawing
 src/renderer_shadows.cpp   Sun caster pass and lighting uniforms
 src/sun_lighting.{hpp,cpp} Lighting settings and stable local shadow coverage
-src/atmosphere.hpp         Distance haze settings and matching sky color
+src/atmosphere.hpp         Distance haze, ground fog, and matching sky color
 src/sun_shadow_map.{hpp,cpp} Depth-only shadow framebuffer and texture ownership
 src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin data
 src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting

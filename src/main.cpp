@@ -33,6 +33,7 @@ struct Options {
     bool fps = false, collisionDebug = false, selfTestFPS = false;
     bool shadows = true;
     bool haze = true;
+    bool groundFog = true;
     bool noTrees = false, treeCulling = true, treeCollisions = true, sceneCulling = true;
     bool noZombies = false, zombieView = false, explicitZombies = false;
     int zombieCount = 1000;
@@ -58,6 +59,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--fps") options.fps = true;
         else if (argument == "--no-shadows") options.shadows = false;
         else if (argument == "--no-haze") options.haze = false;
+        else if (argument == "--no-ground-fog") options.groundFog = false;
         else if (argument == "--collision-debug") options.collisionDebug = true;
         else if (argument == "--self-test-fps") options.selfTestFPS = true;
         else if (argument == "--trees") options.trees = value();
@@ -143,6 +145,7 @@ void printHelp() {
               << "  --fps               Start in walking mode\n"
               << "  --no-shadows        Disable nearby sun shadows for comparison\n"
               << "  --no-haze           Disable atmospheric distance haze for comparison\n"
+              << "  --no-ground-fog     Disable the analytical ground mist layer\n"
               << "  --spawn X Z         Start walking near world X/Z in meters\n"
               << "  --collision-debug   Show colliders and ground normal (F3)\n"
               << "  --trees FILE        Load a tree instance JSON explicitly\n"
@@ -563,6 +566,17 @@ int run(const Options& options) {
     renderer.setSceneCulling(options.sceneCulling);
     renderer.setShadows(options.shadows);
     renderer.setHaze(options.haze);
+    renderer.setGroundFog(options.groundFog);
+    viewer::Atmosphere atmosphere;
+    bool fogAnchored = false;
+    const auto anchorGroundFog = [&] {
+        if (!fogAnchored && app.rig.walking()) {
+            atmosphere.groundFog.baseHeight = app.rig.player().feet().y;
+            renderer.setAtmosphere(atmosphere);
+            fogAnchored = true;
+        }
+    };
+    anchorGroundFog();
     std::unique_ptr<viewer::CollisionDebug> debug;
     if (options.selfTest) inputSelfTest(window.get());
     if (options.selfTestFPS) fpsInputSelfTest(window.get());
@@ -594,6 +608,7 @@ int run(const Options& options) {
             continue;
         }
         moveCamera(app, dt);
+        anchorGroundFog();
         app.displayedAnimationSeconds = options.animationTime.value_or(now - animationStart);
         if (zombies) {
             const auto target = app.rig.walking() ? app.rig.player().feet() : app.rig.camera().position();

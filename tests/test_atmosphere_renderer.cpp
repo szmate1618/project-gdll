@@ -3,8 +3,10 @@
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <iostream>
 #include <stdexcept>
 
@@ -52,8 +54,8 @@ viewer::Model card(glm::vec3 color, bool masked = false) {
     return model;
 }
 
-glm::mat4 transform(float distance) {
-    return glm::scale(glm::translate(glm::mat4(1), {0, 1.7f, -distance}),
+glm::mat4 transform(float distance, float eyeHeight = 1.7f) {
+    return glm::scale(glm::translate(glm::mat4(1), {0, eyeHeight, -distance}),
                       {distance * 0.2f, distance * 0.2f, 1});
 }
 
@@ -65,29 +67,29 @@ glm::vec3 pixel(int x, int y) {
     return {rgb[0], rgb[1], rgb[2]};
 }
 
-viewer::Camera camera() {
+viewer::Camera camera(float eyeHeight = 1.7f) {
     viewer::Camera result;
-    result.setPosition({0, 1.7f, 0});
+    result.setPosition({0, eyeHeight, 0});
     result.look(0, 200);
     return result;
 }
 
 enum class Layer { Scene, Trees, Zombies };
 
-glm::vec3 renderCard(Layer kind, float distance, bool haze) {
+glm::vec3 renderCard(Layer kind, float distance, bool haze, bool groundFog = false, float eyeHeight = 1.7f) {
     const bool masked = kind == Layer::Trees;
     auto model = card({1, 0, 0}, masked);
     viewer::TreeLayer trees;
     viewer::ZombieLayer zombies;
-    if (kind == Layer::Scene) model.draws[0].transform = transform(distance);
+    if (kind == Layer::Scene) model.draws[0].transform = transform(distance, eyeHeight);
     if (kind == Layer::Trees) {
         viewer::TreeAsset asset;
         asset.model = model;
         trees.assets.push_back(asset);
         viewer::TreeInstance instance;
-        instance.transform = transform(distance);
-        instance.boundsMin = {-distance * 0.1f, 1.7f - distance * 0.1f, -distance};
-        instance.boundsMax = {distance * 0.1f, 1.7f + distance * 0.1f, -distance};
+        instance.transform = transform(distance, eyeHeight);
+        instance.boundsMin = {-distance * 0.1f, eyeHeight - distance * 0.1f, -distance};
+        instance.boundsMax = {distance * 0.1f, eyeHeight + distance * 0.1f, -distance};
         trees.instances.push_back(instance);
     }
     if (kind == Layer::Zombies) {
@@ -102,7 +104,7 @@ glm::vec3 renderCard(Layer kind, float distance, bool haze) {
         asset.animation.push_back(animation);
         zombies.assets.push_back(asset);
         viewer::ZombieInstance instance;
-        instance.transform = transform(distance);
+        instance.transform = transform(distance, eyeHeight);
         zombies.instances.push_back(instance);
     }
     viewer::Renderer renderer(kind == Layer::Scene ? model : viewer::Model{}, VIEWER_SHADER_DIR,
@@ -110,8 +112,9 @@ glm::vec3 renderCard(Layer kind, float distance, bool haze) {
                                kind == Layer::Zombies ? &zombies : nullptr);
     renderer.setShadows(false);
     renderer.setHaze(haze);
+    renderer.setGroundFog(groundFog);
     renderer.resize(width, height);
-    renderer.render(camera());
+    renderer.render(camera(eyeHeight));
     // Sample the opaque right half. The left half of a tree card is a hole.
     const auto result = pixel(width / 2 + 20, height / 2);
     if (masked) {
@@ -145,6 +148,7 @@ void checkLinearBlend() {
     model.draws[0].transform = transform(100);
     viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
     renderer.setShadows(false);
+    renderer.setGroundFog(false);
     viewer::Atmosphere atmosphere;
     atmosphere.color = {0, 0, 0};
     atmosphere.startDistance = 0;
@@ -161,6 +165,7 @@ void checkLinearBlend() {
     model.materials[0].baseColor.a = 0.5f;
     viewer::Renderer blended(model, VIEWER_SHADER_DIR);
     blended.setShadows(false);
+    blended.setGroundFog(false);
     blended.setAtmosphere(atmosphere);
     blended.resize(width, height);
     blended.render(camera());
@@ -169,6 +174,87 @@ void checkLinearBlend() {
             glm::all(glm::lessThanEqual(halfAlpha, glm::vec3(95))),
             "Haze must preserve blended material alpha");
     viewer::Renderer::checkErrors("linear haze regression");
+}
+
+void checkGroundLayers() {
+    for (const auto kind : {Layer::Scene, Layer::Trees, Layer::Zombies}) {
+        const auto near = renderCard(kind, 10, false, true);
+        const auto middle = renderCard(kind, 25, false, true);
+        const auto far = renderCard(kind, 500, false, true);
+        const auto above = renderCard(kind, 500, false, true, 20);
+        const auto disabled = renderCard(kind, 500, false, false);
+        require(near.r > 253 && near.b < 2, "Ground mist must preserve a clear FPS foreground");
+        require(middle.r < near.r - 10 && middle.b > 70, "Near-ground rays must accumulate mist");
+        require(far.r < middle.r && far.b > middle.b + 20, "Longer rays inside the layer must accumulate more mist");
+        require(glm::length(above - disabled) < 2, "Rays wholly above the mist must remain clear");
+        require(glm::length(disabled - near) < 2, "Ground fog toggle must leave distance haze independent");
+    }
+}
+
+void checkGroundIntegral() {
+    auto model = card({1, 1, 1});
+    // Disabling camera culling lets one renderer exercise many independent
+    // viewpoints of a white plane, avoiding resource churn between samples.
+    model.draws[0].transform = glm::scale(glm::mat4(1), {10000, 10000, 1});
+    viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
+    renderer.setShadows(false);
+    renderer.setHaze(false);
+    renderer.setSceneCulling(false);
+    renderer.resize(width, height);
+    viewer::Atmosphere atmosphere;
+    atmosphere.color = {0, 0, 0};
+    // Keep integration boundary fixtures independent of visual defaults.
+    atmosphere.groundFog.height = 6.0f;
+    atmosphere.groundFog.density = 0.012f;
+    // Eye/surface world heights and horizontal distance to the plane at Z=0.
+    // Cross the layer in both directions, and test horizontal rays just above
+    // and below each boundary. Translation must preserve the same result.
+    const std::array<glm::vec3, 12> cases{{
+        {1.7f, 1.7f, 100}, {1.7f, 1.70001f, 100},
+        {1.7f, 1.69999f, 100}, {20, 20, 100},
+        {-10, -10, 100}, {20, -10, 100}, {-10, 20, 100},
+        {0, 6, 100}, {6, 0, 100}, {1.7f, 0, 100},
+        {6.001f, 6.001f, 100}, {-0.001f, -0.001f, 100}
+    }};
+    for (const float base : {0.0f, 75.0f}) {
+        atmosphere.groundFog.baseHeight = base;
+        renderer.setAtmosphere(atmosphere);
+        for (const auto sample : cases) {
+            const glm::vec3 eye{0, sample.x + base, sample.z};
+            const glm::vec3 target{0, sample.y + base, 0};
+            auto view = camera();
+            view.setPosition(eye);
+            const auto direction = glm::normalize(target - eye);
+            const float pitch = glm::degrees(std::asin(direction.y));
+            view.look(0, pitch * 10.0f);
+            renderer.render(view);
+            // Reconstruct the center pixel's actual plane intersection, then
+            // numerically integrate density independently of the GLSL formula.
+            const auto inverse = glm::inverse(view.projection(static_cast<float>(width) / height) * view.view());
+            auto farClip = inverse * glm::vec4(1.0f / width, 1.0f / height, 1, 1);
+            const auto ray = glm::normalize(glm::vec3(farClip) / farClip.w - eye);
+            const auto endpoint = eye + ray * (-eye.z / ray.z);
+            const double length = glm::length(endpoint - eye);
+            const double start = atmosphere.groundFog.startDistance;
+            const double fogLength = std::max(length - start, 0.0);
+            constexpr int steps = 20000;
+            double depth = 0;
+            for (int i = 0; i < steps; ++i) {
+                const double distance = start + fogLength * (static_cast<double>(i) + 0.5) / steps;
+                const double y = eye.y + (endpoint.y - eye.y) * distance / length;
+                const double density = atmosphere.groundFog.density *
+                    std::clamp(1.0 - (y - base) / atmosphere.groundFog.height, 0.0, 1.0);
+                depth += density * fogLength / steps;
+            }
+            const double linear = std::exp(-depth);
+            const double expected = (linear < 0.0031308 ? 12.92 * linear :
+                1.055 * std::pow(linear, 1.0 / 2.4) - 0.055) * 255;
+            const auto actual = pixel(width / 2, height / 2);
+            require(glm::all(glm::lessThanEqual(glm::abs(actual - glm::vec3(expected)), glm::vec3(2))),
+                    "Analytical ground fog must agree with numerical ray integration");
+        }
+    }
+    viewer::Renderer::checkErrors("ground fog integral regression");
 }
 
 void checkEmptyCapture() {
@@ -200,6 +286,8 @@ int main() {
     try {
         checkLayers();
         checkLinearBlend();
+        checkGroundLayers();
+        checkGroundIntegral();
         checkEmptyCapture();
         std::cout << "Atmosphere rendering tests passed (" << glGetString(GL_RENDERER) << ")\n";
     } catch (const std::exception& error) {
