@@ -136,6 +136,84 @@ void checkScene(bool masked, bool unlit, bool blended = false) {
     viewer::Renderer::checkErrors("shadow scene regression");
 }
 
+void checkTreeCaster() {
+    auto model = scene(true);
+    viewer::TreeLayer trees;
+    viewer::TreeAsset asset;
+    asset.model.materials.push_back(model.materials[1]);
+    asset.model.materials[0].unlit = true;
+    asset.model.images = std::move(model.images);
+    asset.model.textures = std::move(model.textures);
+    asset.model.primitives.push_back(model.primitives[1]);
+    asset.model.primitives[0].material = 0;
+    const auto node = glm::translate(glm::mat4(1), {2, 0, 0});
+    asset.model.draws.push_back({0, node, "masked-tree-card"});
+    trees.assets.push_back(std::move(asset));
+    // Compose an asset node with an authoritative mirrored/sheared instance.
+    // The combined card occupies X=[-2,2], Y=[2,4], Z=3; its opaque half is X<0.
+    viewer::TreeInstance tree;
+    tree.transform[0].x = -1;
+    tree.transform[2].x = 0.3f;
+    tree.transform[3].x = 1.1f;
+    tree.boundsMin = {-2, 2, 3};
+    tree.boundsMax = {2, 4, 3};
+    trees.instances.push_back(tree);
+    tree.transform[3].x += 1000;
+    tree.boundsMin.x += 1000;
+    tree.boundsMax.x += 1000;
+    trees.instances.push_back(tree);
+    model.draws.pop_back();
+    model.primitives.pop_back();
+
+    viewer::Renderer renderer(model, VIEWER_SHADER_DIR, &trees);
+    renderer.setLighting(lighting());
+    renderer.setHaze(false);
+    renderer.setGroundFog(false);
+    renderer.resize(width, height);
+    const auto view = cameraAt({0, 4, 2});
+    renderer.setTreeShadows(false);
+    renderer.render(view);
+    const float clear = brightness(view, {-1, 0, 0});
+    renderer.setTreeShadows(true);
+    renderer.render(view);
+    const float shadow = brightness(view, {-1, 0, 0});
+    require(clear - shadow > 50, "An offscreen instanced tree must cast onto visible ground");
+    require(brightness(view, {1, 0, 0}) - shadow > 50,
+            "Tree alpha-mask holes must stay open in the shadow map after node/instance transforms");
+    require(renderer.treeStats().visible == 0 && renderer.treeStats().drawCalls == 0,
+            "Tree shadow casters must not contaminate color visibility statistics");
+
+    // A different color population must overwrite the shadow instance buffer.
+    // Tree texels stay unlit, rather than receiving their own cast shadows.
+    const auto treeView = cameraAt({0, 5, 6});
+    renderer.render(treeView);
+    const float treeColor = brightness(treeView, {-1, 2.5f, 3});
+    require(treeColor > 250 && renderer.treeStats().visible == 1 && renderer.treeStats().drawCalls == 1,
+            "Visible trees must retain unlit colors and asset batching after the shadow pass");
+    renderer.setShadows(false);
+    renderer.render(treeView);
+    require(std::abs(brightness(treeView, {-1, 2.5f, 3}) - treeColor) < 2,
+            "Trees must cast shadows without receiving them");
+    renderer.setShadows(true);
+    renderer.render(view);
+    require(std::abs(brightness(view, {-1, 0, 0}) - shadow) < 3,
+            "Camera movement must not publish color instances into the tree shadow pass");
+    renderer.setTreeCulling(false);
+    renderer.render(view);
+    require(std::abs(brightness(view, {-1, 0, 0}) - shadow) < 3 &&
+            renderer.treeStats().visible == 2 && renderer.treeStats().drawCalls == 1,
+            "Disabling color tree culling must preserve independently culled shadows and batching");
+    renderer.setTreeShadows(false);
+    renderer.render(view);
+    require(std::abs(brightness(view, {-1, 0, 0}) - clear) < 3,
+            "The tree shadow comparison toggle must restore clear ground");
+    GLboolean depthWrite = GL_FALSE;
+    glGetBooleanv(GL_DEPTH_WRITEMASK, &depthWrite);
+    require(depthWrite && !glIsEnabled(GL_POLYGON_OFFSET_FILL),
+            "Tree shadow rendering must retain color depth writes and restore polygon offset");
+    viewer::Renderer::checkErrors("tree shadow regression");
+}
+
 void checkAnimatedCaster() {
     auto model = scene(false);
     model.draws.pop_back();
@@ -205,6 +283,7 @@ int main() {
         checkScene(true, false);
         checkScene(false, true);
         checkScene(false, false, true);
+        checkTreeCaster();
         checkAnimatedCaster();
         std::cout << "Shadow rendering tests passed (" << glGetString(GL_RENDERER) << ")\n";
     } catch (const std::exception& error) {

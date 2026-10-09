@@ -115,12 +115,15 @@ the complete transformed cards, so a tree can remain visible when its trunk is
 outside the view. Materials remain alpha-masked, unlit, and double-sided; opaque
 parts write depth while transparent texels do not block the background.
 Distance haze and ground fog apply to their visible texels, so cards blend with
-the rest of the scene.
+the rest of the scene. Trees also cast alpha-masked sun shadows into the local
+shadow map, using a separate query of the light volume. They retain their unlit
+color shading and do not receive shadows.
 
 The title shows visible/total tree counts alongside the existing FPS, GPU time,
 and CPU render time. These render timings include tree culling/submission and
 drawing, and exclude VSync presentation. `--no-tree-culling` is useful for an
-A/B comparison from the same camera position; it does not alter collision.
+A/B comparison from the same camera position; it does not alter collision or
+shadow caster culling. Use `--no-tree-shadows` to compare tree casting costs.
 
 Walking uses separate vertical capsule colliders for trunks, indexed
 independently of camera visibility. Their height is the placement's visible
@@ -389,20 +392,27 @@ snapped to texels to reduce swimming during movement; four filtered depth
 comparisons soften edges, with slope-aware bias to reduce self-shadow artifacts.
 This is a local shadow map, with no cascades for distant overview cameras.
 
-Opaque and alpha-masked town geometry and zombies cast shadows. The town BVH
-queries the light volume separately from camera visibility, including upstream
+Opaque and alpha-masked town geometry, zombies, and tree cards cast shadows.
+The town BVH queries the light volume separately from camera visibility, including upstream
 casters outside the view. Zombie casters are filtered by conservative animated
 or live-skin bounds and remain instanced by asset/primitive. Both passes share
 the same baked animation and live walking/ragdoll skinning. Transparent blended
-surfaces do not cast shadows. Tree impostors retain unlit material shading and
-neither cast nor receive shadows in this initial implementation; other unlit
-materials also bypass sun/ambient shading. All visible materials receive haze
-and ground fog.
+surfaces do not cast shadows. Tree casters use the existing tree spatial index
+to query the light volume independently of camera visibility, then batch
+instances by asset and card. Their opaque texels write shadow depth and their
+transparent texels are discarded. Instance matrices and asset-node transforms
+compose identically in both passes, including reflection and shear. The color
+pass uploads its own instance population and retains its visibility statistics.
+Tree impostors stay unlit and do not receive shadows; other unlit materials also
+bypass sun/ambient shading. All visible materials receive haze and ground fog.
+The crossed photo cards produce approximate canopy shadows, rather than the
+silhouette of a full 3D tree. No extra shadow map or separate pass is added.
 
 Compare the same FPS view with shadows disabled:
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --fps --no-shadows
+./build/godollo_viewer output/godollo.glb --fps --no-tree-shadows
 ```
 
 The existing asynchronous GPU timing includes the shadow pass and color pass;
@@ -544,8 +554,9 @@ ctest --test-dir build --output-on-failure
 
 `viewer_sun_lighting` checks local receiver coverage, upstream caster coverage,
 and texel stability without a GPU. `viewer_shadow_renderer` checks offscreen
-casters, alpha-mask holes, ambient illumination, unlit materials, distance
-fading, animation/live-skin shadow poses, target resizing, and GL state on an
+casters, tree alpha-mask holes and mirrored/sheared node composition, separate
+tree shadow/color populations and statistics, ambient illumination, unlit
+materials, distance fading, animation/live-skin shadow poses, target resizing, and GL state on an
 accessible OpenGL display; it skips when no display/context is available.
 
 `viewer_atmosphere_renderer` checks clear foregrounds, increasing haze and sky

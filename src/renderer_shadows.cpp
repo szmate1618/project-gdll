@@ -29,6 +29,7 @@ void Renderer::drawSunShadows(const SunShadowView& shadowView, double seconds) {
         const auto& mesh = model_.meshes[caster.primitive];
         if (material(model_, mesh.material).alphaMode != "BLEND") draw(caster);
     }
+    if (treeShadows_) drawTrees(projectionView, true);
     const Frustum lightFrustum(projectionView);
     drawZombies(seconds, &lightFrustum);
     glUniform1i(shadowPassLocation_, GL_FALSE);

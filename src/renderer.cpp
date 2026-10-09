@@ -152,6 +152,7 @@ void Renderer::uploadTrees(const TreeLayer& trees) {
     treeVisibility_ = TreeVisibility(trees.instances);
     treeInstances_.reserve(trees.instances.size());
     visibleTrees_.reserve(trees.instances.size());
+    shadowTrees_.reserve(trees.instances.size());
     std::vector<std::size_t> counts(trees.assets.size(), 0);
     for (const auto& instance : trees.instances) {
         if (instance.asset >= trees.assets.size()) throw std::runtime_error("Tree instance references an unknown asset");
@@ -191,28 +192,33 @@ void Renderer::uploadTrees(const TreeLayer& trees) {
     treeStats_.total = treeInstances_.size();
 }
 
-void Renderer::drawTrees(const glm::mat4& projectionView) {
-    treeStats_.visible = 0;
-    treeStats_.drawCalls = 0;
+void Renderer::drawTrees(const glm::mat4& projectionView, bool shadowPass) {
+    if (!shadowPass) {
+        treeStats_.visible = 0;
+        treeStats_.drawCalls = 0;
+    }
     if (treeInstances_.empty()) return;
-    if (treeCulling_) treeVisibility_.query(projectionView, visibleTrees_);
+    auto& selected = shadowPass ? shadowTrees_ : visibleTrees_;
+    // Casters use the light volume independently of color visibility and the
+    // --no-tree-culling flag. Always keep caster selection spatially bounded.
+    if (shadowPass || treeCulling_) treeVisibility_.query(projectionView, selected);
     else {
-        visibleTrees_.resize(treeInstances_.size());
-        std::iota(visibleTrees_.begin(), visibleTrees_.end(), std::size_t{0});
+        selected.resize(treeInstances_.size());
+        std::iota(selected.begin(), selected.end(), std::size_t{0});
     }
     for (auto& batch : treeBatches_) batch.visibleTransforms.clear();
-    for (const auto index : visibleTrees_) {
+    for (const auto index : selected) {
         const auto& instance = treeInstances_[index];
         treeBatches_[instance.asset].visibleTransforms.push_back(instance.transform);
     }
-    treeStats_.visible = visibleTrees_.size();
+    if (!shadowPass) treeStats_.visible = selected.size();
     glUniform1i(instancedLocation_, GL_TRUE);
     for (const auto& batch : treeBatches_) {
         if (batch.visibleTransforms.empty()) continue;
         const auto size = static_cast<GLsizeiptr>(batch.visibleTransforms.size() * sizeof(glm::mat4));
         glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);
         // Orphan the previous frame's storage instead of waiting for its draws.
-        // Each asset's matrices upload once and are shared by all four cards.
+        // Each asset's matrices upload once per pass, shared by all four cards.
         glBufferData(GL_ARRAY_BUFFER, size, nullptr, GL_STREAM_DRAW);
         glBufferSubData(GL_ARRAY_BUFFER, 0, size, batch.visibleTransforms.data());
         for (const auto& draw : batch.draws) {
@@ -222,7 +228,7 @@ void Renderer::drawTrees(const glm::mat4& projectionView) {
             glBindVertexArray(mesh.vao);
             glDrawElementsInstanced(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, nullptr,
                                    static_cast<GLsizei>(batch.visibleTransforms.size()));
-            ++treeStats_.drawCalls;
+            if (!shadowPass) ++treeStats_.drawCalls;
         }
     }
     glUniform1i(instancedLocation_, GL_FALSE);

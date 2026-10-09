@@ -32,6 +32,7 @@ struct Options {
     bool hidden = false, allowSoftware = false, selfTest = false, help = false;
     bool fps = false, collisionDebug = false, selfTestFPS = false;
     bool shadows = true;
+    bool treeShadows = true;
     bool night = false;
     bool rain = false;
     bool haze = true;
@@ -62,6 +63,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--night") options.night = true;
         else if (argument == "--rain") options.rain = true;
         else if (argument == "--no-shadows") options.shadows = false;
+        else if (argument == "--no-tree-shadows") options.treeShadows = false;
         else if (argument == "--no-haze") options.haze = false;
         else if (argument == "--no-ground-fog") options.groundFog = false;
         else if (argument == "--collision-debug") options.collisionDebug = true;
@@ -150,6 +152,7 @@ void printHelp() {
               << "  --night             Dark sky and ambient light with a camera flashlight\n"
               << "  --rain              Enable nearby animated rain streaks\n"
               << "  --no-shadows        Disable nearby sun shadows for comparison\n"
+              << "  --no-tree-shadows   Disable tree casting while retaining other sun shadows\n"
               << "  --no-haze           Disable atmospheric distance haze for comparison\n"
               << "  --no-ground-fog     Disable the analytical ground mist layer\n"
               << "  --spawn X Z         Start walking near world X/Z in meters\n"
@@ -571,6 +574,7 @@ int run(const Options& options) {
     renderer.setTreeCulling(options.treeCulling);
     renderer.setSceneCulling(options.sceneCulling);
     renderer.setShadows(options.shadows);
+    renderer.setTreeShadows(options.treeShadows);
     renderer.setNight(options.night);
     renderer.setRain(options.rain);
     renderer.setHaze(options.haze);

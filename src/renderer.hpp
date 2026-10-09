@@ -41,6 +41,7 @@ public:
     void writeScreenshot(const std::filesystem::path& path) const;
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
     void setShadows(bool enabled) { shadows_ = enabled; }
+    void setTreeShadows(bool enabled) { treeShadows_ = enabled; }
     void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
     void setNight(bool enabled) { night_ = enabled; }
     void setRain(bool enabled);
@@ -112,7 +113,7 @@ private:
     static void releaseModel(ModelGPU& model) noexcept;
     void uploadModel(const Model& source, ModelGPU& destination);
     void uploadTrees(const TreeLayer& trees);
-    void drawTrees(const glm::mat4& projectionView);
+    void drawTrees(const glm::mat4& projectionView, bool shadowPass = false);
     void uploadZombies(const ZombieLayer& zombies);
     void drawZombies(double seconds, const Frustum* shadowFrustum = nullptr);
     void drawSunShadows(const SunShadowView& shadowView, double seconds);
@@ -155,10 +156,11 @@ private:
     bool sceneCulling_ = true;
     std::vector<TreeBatch> treeBatches_;
     std::vector<InstanceGPU> treeInstances_;
-    std::vector<std::size_t> visibleTrees_;
+    std::vector<std::size_t> visibleTrees_, shadowTrees_;
     TreeVisibility treeVisibility_;
     TreeRenderStats treeStats_;
     bool treeCulling_ = true;
+    bool treeShadows_ = true;
     std::vector<ZombieBatch> zombieBatches_;
     std::size_t zombieCount_ = 0, zombieDrawCalls_ = 0;
     Material fallback_;
