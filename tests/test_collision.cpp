@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 
@@ -142,12 +143,41 @@ void degenerateAndEmptyGeometry() {
     require(world.contacts({0, 0, 0}, 0.3f, 1.8f).empty(), "Empty collision query");
 }
 
+void visibilitySegments() {
+    viewer::Model model;
+    addGround(model);
+    viewer::Primitive wall;
+    triangle(wall, {-2, 0, 0}, {2, 0, 0}, {2, 3, 0});
+    triangle(wall, {-2, 0, 0}, {2, 3, 0}, {-2, 3, 0});
+    // Exercise the same scene-node transforms used by rendering/collision.
+    draw(model, std::move(wall), "wall", glm::translate(glm::mat4(1), {7, 0, 5}));
+    const viewer::CollisionWorld world(model, {{{12, 0, 5}, 0.5f, 4}});
+    require(!world.lineOfSight({7, 1, 0}, {7, 1, 10}) &&
+            !world.lineOfSight({7, 1, 10}, {7, 1, 0}), "Transformed wall blocks sight from both sides");
+    require(world.lineOfSight({7, 1, 0}, {7, 1, 4}), "A wall beyond the target is not a blocker");
+    require(world.lineOfSight({7, 4, 0}, {7, 4, 10}), "Sight passes above a low wall");
+    require(world.lineOfSight({4, 1, 0}, {4, 1, 10}), "Sight passes beside a wall");
+    require(world.lineOfSight({0, 1.65f, 0}, {0, 0, 10}), "Target ground contact does not hide the feet");
+    require(!world.lineOfSight({0, 1, 0}, {0, -1, 10}), "Terrain between endpoints blocks sight");
+    require(!world.lineOfSight({12, 1, 0}, {12, 1, 10}), "Trunk capsules block sight through their body");
+    require(!world.lineOfSight({12, 3.8f, 0}, {12, 3.8f, 10}), "Rounded trunk cap blocks sight");
+    require(world.lineOfSight({12, 4.1f, 0}, {12, 4.1f, 10}), "Sight clears the trunk cap");
+    require(!world.lineOfSight({12, 1, 5}, {12, 1, 10}), "Origin inside a trunk is occluded");
+    require(world.lineOfSight({12.6f, 1, 0}, {12.6f, 1, 10}), "Trunk bounds do not cause false occlusion");
+    require(!world.lineOfSight({6, 1, 5}, {8, 1, 5}), "Coplanar sight through a wall is blocked");
+    require(world.lineOfSight({0, 1, 0}, {0, 1, 0}), "Coincident points have clear sight");
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    require(!world.lineOfSight({nan, 0, 0}, {0, 0, 0}), "Invalid sight endpoints fail closed");
+    const viewer::CollisionWorld empty(viewer::Model{});
+    require(empty.lineOfSight({0, 0, 0}, {0, 0, 100}), "Empty world has unobstructed sight");
+}
+
 }  // namespace
 
 int main() {
     try {
         flatGroundAndContacts(); wallsCornersAndSolidSpawn(); courtyardRemainsOpen();
-        transformedSlopeAndCeiling(); degenerateAndEmptyGeometry();
+        transformedSlopeAndCeiling(); degenerateAndEmptyGeometry(); visibilitySegments();
         std::cout << "Collision world tests passed\n";
         return 0;
     } catch (const std::exception& error) {

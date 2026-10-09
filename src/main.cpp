@@ -6,6 +6,7 @@
 #include "tree_layer.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_park.hpp"
+#include "simulation_clock.hpp"
 
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -603,7 +604,8 @@ int run(const Options& options) {
     renderer.resize(app.width, app.height);
     viewer::GpuTimer gpuTimer;
     double previous = glfwGetTime(), titleTime = previous;
-    const double animationStart = previous;
+    auto& simulationClock = viewer::SimulationClock::instance();
+    simulationClock.reset();
     double intervalRenderSeconds = 0.0;
     int frameCount = 0, intervalFrames = 0;
     while (!glfwWindowShouldClose(window.get())) {
@@ -619,12 +621,16 @@ int run(const Options& options) {
             gpuTimer.takeAverageMilliseconds();
             continue;
         }
+        simulationClock.advance(dt);
         moveCamera(app, dt);
         anchorGroundFog();
-        app.displayedAnimationSeconds = options.animationTime.value_or(now - animationStart);
+        app.displayedAnimationSeconds = options.animationTime.value_or(simulationClock.seconds());
         if (zombies) {
-            const auto target = app.rig.walking() ? app.rig.player().feet() : app.rig.camera().position();
-            zombies->chase(dt, target, collision, app.displayedAnimationSeconds);
+            const auto& config = app.rig.player().config();
+            const auto feet = app.rig.walking() ? app.rig.player().feet() :
+                app.rig.camera().position() - glm::vec3(0, config.eyeHeight, 0);
+            zombies->updateBehavior(dt, {feet, config.eyeHeight, config.height}, collision,
+                                    app.displayedAnimationSeconds);
             zombies->update(dt);
         }
         renderer.resize(app.width, app.height);

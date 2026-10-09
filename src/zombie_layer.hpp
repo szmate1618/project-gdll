@@ -2,6 +2,7 @@
 
 #include "animated_model.hpp"
 #include "collision_world.hpp"
+#include "zombie_behavior.hpp"
 
 #include <memory>
 
@@ -14,9 +15,8 @@ struct ZombieInstance {
     glm::mat4 restTransform{1};
     glm::mat4 restRoot{1};
     float phase = 0; // Fraction of the idle cycle, independent of frame rate.
-    bool alerted = false;
-    bool walking = false;
-    glm::mat4 chaseNormalization{1}; // Captured once; preserve asset scale/offset.
+    bool walking = false; // Live locomotion skinning, for walking and running.
+    glm::mat4 chaseNormalization{1}; // Captured on activation; preserve asset scale/offset.
     double walkSeconds = 0;
     std::vector<glm::mat4> walkPose;
     bool ragdoll = false;
@@ -37,13 +37,17 @@ struct ZombieLayer {
 
     std::vector<AnimatedModel> assets;
     std::vector<ZombieInstance> instances;
+    ZombieBehaviorPool behaviors;
     glm::vec3 boundsMin{0}, boundsMax{0};
 
     // Returns true when the nearest living zombie under the ray was activated.
     // animationSeconds is the time of the last displayed frame (before phase).
     bool shoot(glm::vec3 origin, glm::vec3 direction, double animationSeconds = 0.0);
-    // Alert within 20 m, then pursue target X/Z at 1.2 m/s, following terrain.
-    // Target is player feet (or the free-fly camera); obstacles are ignored.
+    // Perception/state update, followed by terrain-following locomotion.
+    // The app advances SimulationClock before calling this once per step.
+    void updateBehavior(float seconds, const ZombiePlayer& player, const CollisionWorld& world,
+                        double animationSeconds = 0.0);
+    // Convenience entry point for a standard 1.8 m player; target is feet.
     void chase(float seconds, glm::vec3 target, const CollisionWorld& world,
                double animationSeconds = 0.0);
     void update(float seconds);

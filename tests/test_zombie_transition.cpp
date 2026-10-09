@@ -232,13 +232,13 @@ void shotWhileWalking() {
     viewer::ZombieLayer layer;
     layer.assets.push_back(humanoid());
     viewer::ZombieInstance instance;
-    instance.restRoot = translation({0, 4, 0});
+    instance.restRoot = translation({0, 4, 0}) * glm::rotate(glm::mat4(1), glm::radians(90.0f), {0, 1, 0});
     instance.transform = instance.restTransform = instance.restRoot *
         glm::scale(glm::mat4(1), glm::vec3(1.25f));
     instance.phase = 0.125f;
     layer.instances.push_back(instance);
     const viewer::CollisionWorld world(viewer::Model{});
-    layer.chase(5, {10, 4, 0}, world, 0.125);
+    layer.chase(2, {10, 4, 0}, world, 0.125);
     require(layer.instances[0].walking, "The fixture must be walking when shot");
     require(!layer.shoot({0, 4.9f, 3}, {0, 0, -1}, 0.125),
             "The old spawn position must no longer be hittable");
@@ -248,6 +248,7 @@ void shotWhileWalking() {
             "The moving zombie must be hittable at its current position");
     const auto& ragdoll = layer.instances[0];
     require(ragdoll.ragdoll && !ragdoll.walking, "A shot must stop walking and start physics");
+    require(!layer.behaviors.contains(0), "A shot must immediately remove the behavior object");
     for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone) {
         requireMatrixNear(ragdoll.activationPose[bone], displayed.walkPose[bone],
                           "Capture the displayed gait instead of reverting to idle");

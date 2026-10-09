@@ -57,6 +57,10 @@ public:
     std::optional<GroundHit> groundAt(float x, float z, float minY, float maxY,
                                      bool terrainOnly = false) const;
     bool insideBuilding(glm::vec3 feet, float radius, float height) const;
+    // Finite segment visibility through scene triangles and solid trunk
+    // capsules. Double-sided geometry blocks sight; foliage does not. Ignore
+    // the first/last millimeter so a target's supporting ground is not a wall.
+    bool lineOfSight(glm::vec3 origin, glm::vec3 target) const;
     // Returns valid feet, preferring terrain below/near the requested eye.
     std::optional<glm::vec3> findSpawn(glm::vec3 preferredEye, float eyeHeight,
                                       float radius, float height,

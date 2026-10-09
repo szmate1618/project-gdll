@@ -190,17 +190,44 @@ has its own phase offset. Meshes, textures, and animation samples are shared by
 all instances of a variant, with one instanced draw per character primitive.
 The title reports the zombie count, and shutdown logs the instanced draw count.
 
-Living zombies become alerted when you come within **20 m**, including the
-boundary. Detection uses the distance to your feet in FPS mode, or to the camera
-in free-fly mode. Once alerted, they keep pursuing your current X/Z position at
-**1.2 m/s**, even if you move farther than 20 m away. They face their direction
-of travel, follow the rendered terrain height, and stop when they reach your
-position. There is no pathfinding, flocking, collision response, or avoidance:
-they pass through buildings, trees, the player, and each other. Outside the
-map they retain their last ground height. A simple one-second leg-swing cycle
-is added to the idle pose for mapped humanoid rigs, using the shared mesh and
-the existing live skinning path; custom unmapped rigs retain their idle pose
-while moving. The crowd currently draws all instances and has no distance LOD.
+Living zombies normally play idle. Within **100 m**, including the boundary,
+each receives an initially idle behavior object. Distance uses player feet in
+3D; free-fly supplies a virtual body with its eyes at the camera. The dense
+behavior vector has a hash map from instance IDs to slots for fast membership
+and lookup. Removal moves the last member into the vacated slot. Instance IDs
+are stable indices in the crowd; the instance vector must not be reordered.
+
+Only members of this pool perform perception. A **100-degree horizontal FOV**
+uses the character's forward direction (+Z), ignoring height for the cone test.
+Inside the cone, three finite rays run from zombie eye height (1.65 m) to player
+head, torso, and feet. The scene and trunk collision BVHs test occlusion by
+double-sided triangle surfaces and trunk capsules; canopy cards and other
+zombies do not block sight. One or two clear rays store the current player feet
+and change idle to **investigating**. Three clear rays store the same target and
+change idle or investigating to **chasing**. Partial sight refreshes a chasing
+zombie's target without downgrading its state.
+
+Investigating zombies walk at **1.2 m/s**; chasing zombies run at **3 m/s** with
+faster strides. When sight is lost, they continue to the last seen position and
+return to idle on arrival. Every return to idle starts a fresh **10-second**
+countdown, including initial creation. Remaining idle for that interval removes
+the behavior object. Leaving idle cancels the countdown. A nearby zombie can
+receive a new idle object on the step after expiration. Active zombies within
+**1.5 m** of the player enter **attacking**, stop moving, and currently play idle
+without dealing damage. They resume pursuit if the player leaves attack range.
+
+`SimulationClock::instance()` provides elapsed in-game seconds throughout the
+viewer. The app advances it once per simulation step using the same capped
+delta as movement/physics. Minimized frames do not advance it. Animation uses
+this clock too; `--animation-time` overrides visual animation time while AI and
+physics continue simulating.
+
+Locomotion faces the direction of travel and follows rendered terrain triangles.
+There is no pathfinding, flocking, collision response, or obstacle avoidance:
+moving zombies can pass through buildings, trees, and each other. Outside the
+map they retain their last ground height. Leg swings are added to the idle pose
+for mapped humanoid rigs using shared meshes and live skinning; custom unmapped
+rigs retain idle poses while moving. The crowd draws all instances without LOD.
 
 While the mouse is captured, left click casts a ray from
 the camera center and activates the nearest living zombie under a conservative
@@ -660,7 +687,9 @@ src/sun_shadow_map.{hpp,cpp} Depth-only shadow framebuffer and texture ownership
 src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin data
 src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting
 src/zombie_hit.{hpp,cpp}    Head hit regions from the displayed skinning pose
-src/zombie_chase.{hpp,cpp}  Straight-line pursuit, terrain following, and simple walk poses
+src/zombie_behavior.{hpp,cpp} Dense behavior pool, perception and state transitions
+src/simulation_clock.hpp   Global simulation-thread in-game clock
+src/zombie_chase.{hpp,cpp}  Terrain-following locomotion and walking/running strides
 src/zombie_placement.{hpp,cpp} Ground queries and deterministic safe placement
 src/zombie_park.{hpp,cpp}  Palace garden outline in the published map's frame
 src/zombie_ragdoll.{hpp,cpp} Box3D ragdoll simulation and simplified ground planes

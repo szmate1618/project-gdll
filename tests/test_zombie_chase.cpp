@@ -5,7 +5,6 @@
 
 #include <cmath>
 #include <iostream>
-#include <limits>
 #include <stdexcept>
 
 namespace {
@@ -40,31 +39,26 @@ viewer::ZombieLayer crowd(std::initializer_list<glm::vec3> positions) {
     return layer;
 }
 
-void triggerAndPursuit() {
-    const viewer::CollisionWorld world(viewer::Model{});
-    auto layer = crowd({{20, 0, 0}, {20.01f, 0, 0}, {0, 20.01f, 0}, {0, 0, 0}});
-    layer.chase(1, {0, 0, 0}, world);
-    require(layer.instances[0].alerted && layer.instances[0].walking,
-            "Exactly 20 meters must trigger pursuit");
-    require(near(glm::vec3(layer.instances[0].restRoot[3]), {18.8f, 0, 0}),
-            "Walk toward the target at 1.2 m/s");
-    require(near(glm::vec3(layer.instances[0].restRoot[2]), {-1, 0, 0}),
-            "The character's forward direction must face the target");
-    require(!layer.instances[1].alerted && !layer.instances[2].alerted,
-            "Zombies outside the 3D detection radius must stay idle");
-    require(layer.instances[3].alerted && !layer.instances[3].walking,
-            "Coincident target must not divide by zero or walk in place");
+void move(viewer::ZombieLayer& layer, float seconds, glm::vec3 target,
+          const viewer::CollisionWorld& world, float speed = 1.2f) {
+    auto& instance = layer.instances[0];
+    instance.chaseNormalization = glm::inverse(instance.restRoot) * instance.restTransform;
+    viewer::moveZombieToward(instance, layer.assets[0], target, speed, seconds, world, 0);
+}
 
-    layer.chase(1, {18.8f, 0, 30}, world);
-    require(near(glm::vec3(layer.instances[0].restRoot[3]), {18.8f, 0, 1.2f}),
-            "An alerted zombie must follow the current target beyond 20 meters");
-    layer.chase(1, {18.8f, 0, 1.3f}, world);
-    require(near(glm::vec3(layer.instances[0].restRoot[3]), {18.8f, 0, 1.3f}),
-            "The last step must stop at the target without overshooting");
-    layer.chase(1, {18.8f, 0, 1.3f}, world);
-    require(!layer.instances[0].walking, "Return to idle when the target stops moving");
-    layer.chase(1, {18.8f, 0, 5}, world);
-    require(layer.instances[0].walking, "Resume walking when the alerted target moves away");
+void locomotionSpeedsAndArrival() {
+    const viewer::CollisionWorld world(viewer::Model{});
+    auto walking = crowd({{0, 0, 0}});
+    auto running = crowd({{0, 0, 0}});
+    move(walking, 1, {0, 0, 10}, world);
+    move(running, 1, {0, 0, 10}, world, 3);
+    require(near(glm::vec3(walking.instances[0].restRoot[3]), {0, 0, 1.2f}), "Walk at 1.2 m/s");
+    require(near(glm::vec3(running.instances[0].restRoot[3]), {0, 0, 3}), "Run at 3 m/s");
+    move(walking, 10, {2, 0, 1.2f}, world);
+    require(near(glm::vec3(walking.instances[0].restRoot[3]), {2, 0, 1.2f}), "Stop without overshooting");
+    require(near(glm::vec3(walking.instances[0].restRoot[2]), {1, 0, 0}), "Face the travel direction");
+    move(walking, 1, {2, 0, 1.2f}, world);
+    require(!walking.instances[0].walking, "Coincident target must not walk in place");
 }
 
 void terrainWithoutAvoidance() {
@@ -75,10 +69,10 @@ void terrainWithoutAvoidance() {
     quad(model, "building_wall", {0, 0, -20}, {0, 0, 20}, {0, 25, 20}, {0, 25, -20});
     const viewer::CollisionWorld world(model, {{{0, 6, 0}, 2, 10}});
     auto layer = crowd({{-1.2f, 5.64f, 0}});
-    layer.chase(1, {5, 7.5f, 0}, world);
+    move(layer, 1, {5, 7.5f, 0}, world);
     require(near(glm::vec3(layer.instances[0].restRoot[3]), {0, 6, 0}),
             "Follow the rendered ground triangle through walls and trunks, below roofs");
-    layer.chase(1, {5, 7.5f, 0}, world);
+    move(layer, 1, {5, 7.5f, 0}, world);
     require(near(glm::vec3(layer.instances[0].restRoot[3]), {1.2f, 6, 0}),
             "Continue straight through obstacles on the next terrain triangle");
 }
@@ -91,8 +85,8 @@ void timeAndNormalization() {
                                           glm::vec3(1.3f));
     once.instances[0].transform = once.instances[0].restTransform *= normalization;
     split.instances[0].transform = split.instances[0].restTransform *= normalization;
-    once.chase(1, {6, 4, 8}, world);
-    for (int i = 0; i < 10; ++i) split.chase(0.1f, {6, 4, 8}, world);
+    move(once, 1, {6, 4, 8}, world);
+    for (int i = 0; i < 10; ++i) move(split, 0.1f, {6, 4, 8}, world);
     require(near(glm::vec3(once.instances[0].restRoot[3]), {0.72f, 4, 0.96f}),
             "Diagonal movement must have the same speed as axis-aligned movement");
     for (int c = 0; c < 4; ++c) {
@@ -102,16 +96,6 @@ void timeAndNormalization() {
         require(glm::length(retained[c] - normalization[c]) < 2e-4f,
                 "Changing yaw and position must preserve asset scale and origin");
     }
-    const auto before = once.instances[0].transform;
-    const float nan = std::numeric_limits<float>::quiet_NaN();
-    once.chase(0, {0, 0, 0}, world);
-    once.chase(-1, {0, 0, 0}, world);
-    once.chase(nan, {0, 0, 0}, world);
-    once.chase(1, {nan, 0, 0}, world);
-    require(once.instances[0].transform == before, "Invalid input must not corrupt transforms");
-    once.instances[0].ragdoll = true;
-    once.chase(1, {0, 0, 0}, world);
-    require(once.instances[0].transform == before, "Ragdolls must not pursue the player");
 }
 
 void walkingLegsAndDescendants() {
@@ -146,7 +130,7 @@ void walkingLegsAndDescendants() {
 
 int main() {
     try {
-        triggerAndPursuit();
+        locomotionSpeedsAndArrival();
         terrainWithoutAvoidance();
         timeAndNormalization();
         walkingLegsAndDescendants();

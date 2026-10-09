@@ -42,6 +42,42 @@ bool finite(glm::vec3 p) {
     return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z);
 }
 
+bool segmentBounds(glm::vec3 origin, glm::vec3 target, const Bounds& bounds) {
+    const auto delta = glm::dvec3(target) - glm::dvec3(origin);
+    double low = 0, high = 1;
+    for (int axis = 0; axis < 3; ++axis) {
+        if (std::abs(delta[axis]) < 1e-12) {
+            if (origin[axis] < bounds.low[axis] - epsilon ||
+                origin[axis] > bounds.high[axis] + epsilon) return false;
+            continue;
+        }
+        double a = (static_cast<double>(bounds.low[axis]) - epsilon - origin[axis]) / delta[axis];
+        double b = (static_cast<double>(bounds.high[axis]) + epsilon - origin[axis]) / delta[axis];
+        if (a > b) std::swap(a, b);
+        low = std::max(low, a);
+        high = std::min(high, b);
+        if (low > high) return false;
+    }
+    return true;
+}
+
+bool segmentTriangle(glm::vec3 origin, glm::vec3 target, const Triangle& triangle) {
+    const auto a = glm::dvec3(triangle.a);
+    const auto edge1 = glm::dvec3(triangle.b) - a;
+    const auto edge2 = glm::dvec3(triangle.c) - a;
+    const auto delta = glm::dvec3(target) - glm::dvec3(origin);
+    const auto h = glm::cross(delta, edge2);
+    const double determinant = glm::dot(edge1, h);
+    if (std::abs(determinant) < 1e-12) return false;
+    const auto offset = glm::dvec3(origin) - a;
+    const double u = glm::dot(offset, h) / determinant;
+    const auto q = glm::cross(offset, edge1);
+    const double v = glm::dot(delta, q) / determinant;
+    const double fraction = glm::dot(edge2, q) / determinant;
+    return u >= -1e-8 && v >= -1e-8 && u + v <= 1.00000001 &&
+           fraction >= 0 && fraction <= 1;
+}
+
 // The barycentric test is evaluated in double precision to keep projection
 // tests reliable for the small roof triangles in a kilometer-scale scene.
 bool verticalIntersection(const Triangle& t, float x, float z, float& y) {
@@ -195,6 +231,29 @@ struct CollisionWorld::Impl {
     Bounds bounds;
     CollisionStats stats;
     bool hasTerrain = false;
+
+    // Traverse only nodes crossed by the segment, stopping on the first
+    // blocker. Both static geometry and trunks retain their spatial indexes.
+    template <class Blocker>
+    bool segmentBlocked(const std::vector<Node>& hierarchy,
+                        const std::vector<std::uint32_t>& indices,
+                        glm::vec3 origin, glm::vec3 target, Blocker blocks) const {
+        if (hierarchy.empty()) return false;
+        std::array<std::uint32_t, 64> stack{};
+        std::size_t count = 1;
+        while (count) {
+            const auto& node = hierarchy[stack[--count]];
+            if (!segmentBounds(origin, target, node.bounds)) continue;
+            if (node.count) {
+                for (auto i = node.first; i < node.first + node.count; ++i)
+                    if (blocks(indices[i])) return true;
+            } else {
+                stack[count++] = node.left;
+                stack[count++] = node.right;
+            }
+        }
+        return false;
+    }
 
     std::uint32_t build(std::uint32_t begin, std::uint32_t end) {
         const auto index = static_cast<std::uint32_t>(nodes.size());
@@ -381,6 +440,36 @@ CollisionWorld::CollisionWorld(const Model& model, const std::vector<TrunkCollid
 CollisionWorld::~CollisionWorld() = default;
 CollisionWorld::CollisionWorld(CollisionWorld&&) noexcept = default;
 CollisionWorld& CollisionWorld::operator=(CollisionWorld&&) noexcept = default;
+
+bool CollisionWorld::lineOfSight(glm::vec3 origin, glm::vec3 target) const {
+    if (!finite(origin) || !finite(target)) return false;
+    const auto delta = target - origin;
+    const float length = glm::length(delta);
+    if (!std::isfinite(length)) return false;
+    if (length <= 0.002f) return true;
+    const auto inset = delta * (0.001f / length);
+    origin += inset;
+    target -= inset;
+    if (impl_->segmentBlocked(impl_->nodes, impl_->order, origin, target, [&](std::uint32_t i) {
+        const auto& t = impl_->triangles[i];
+        if (!segmentBounds(origin, target, t.bounds)) return false;
+        if (segmentTriangle(origin, target, t)) return true;
+        // Coplanar segments can still cross or lie inside an opaque surface.
+        // Avoid the more expensive distance test for ordinary ray misses.
+        if (std::abs(glm::dot(origin - t.a, t.normal)) > epsilon ||
+            std::abs(glm::dot(target - t.a, t.normal)) > epsilon) return false;
+        const auto pair = closestSegmentTriangle(origin, target, t);
+        return squareLength(pair.segment - pair.triangle) < 1e-10f;
+    })) return false;
+    return !impl_->segmentBlocked(impl_->trunkNodes, impl_->trunkOrder, origin, target, [&](std::uint32_t i) {
+        const auto& trunk = impl_->trunks[i];
+        if (!segmentBounds(origin, target, trunk.bounds)) return false;
+        const auto& c = trunk.collider;
+        const auto pair = closestSegments(origin, target, c.base + glm::vec3(0, c.radius, 0),
+                                          c.base + glm::vec3(0, c.height - c.radius, 0));
+        return squareLength(pair.segment - pair.triangle) <= c.radius * c.radius;
+    });
+}
 
 std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, float height, float skin) const {
     std::vector<Contact> result;

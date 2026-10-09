@@ -9,13 +9,7 @@
 
 namespace viewer {
 namespace {
-constexpr float alertDistance = 20.0f;
-constexpr float walkSpeed = 1.2f; // Meters per second in the runtime frame.
 constexpr double tau = 6.283185307179586;
-
-bool finite(glm::vec3 value) {
-    return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
-}
 }
 
 std::vector<glm::mat4> sampleZombieWalkPose(const AnimatedModel& asset,
@@ -59,44 +53,34 @@ std::vector<glm::mat4> sampleZombieWalkPose(const AnimatedModel& asset,
     return pose;
 }
 
-void ZombieLayer::chase(float seconds, glm::vec3 target, const CollisionWorld& world,
-                       double animationSeconds) {
-    if (!std::isfinite(seconds) || seconds <= 0.0f || !finite(target)) return;
-    for (auto& instance : instances) {
-        if (instance.ragdoll || instance.asset >= assets.size()) continue;
-        auto feet = glm::vec3(instance.restRoot[3]);
-        const auto offset = target - feet;
-        if (!instance.alerted && glm::dot(offset, offset) <= alertDistance * alertDistance) {
-            instance.chaseNormalization = glm::inverse(instance.restRoot) * instance.restTransform;
-            instance.alerted = true;
-        }
-        if (!instance.alerted) continue;
+bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& asset,
+                      glm::vec3 target, float speed, float seconds,
+                      const CollisionWorld& world, double animationSeconds) {
+    auto feet = glm::vec3(instance.restRoot[3]);
+    const glm::vec2 horizontal(target.x - feet.x, target.z - feet.z);
+    const float distance = glm::length(horizontal);
+    instance.walking = distance > 1e-4f;
+    if (!instance.walking) return true;
+    const auto direction = horizontal / distance;
+    const float step = std::min(speed * seconds, distance);
+    feet.x += direction.x * step;
+    feet.z += direction.y * step;
+    // Terrain-only support follows the rendered triangle surface, below roofs.
+    const auto ground = world.groundAt(feet.x, feet.z,
+        std::numeric_limits<float>::lowest(), std::numeric_limits<float>::max(),
+        world.stats().terrainTriangles != 0);
+    if (ground) feet.y = ground->height;
 
-        const glm::vec2 horizontal(offset.x, offset.z);
-        const float distance = glm::length(horizontal);
-        instance.walking = distance > 1e-4f;
-        if (!instance.walking) continue;
-        const auto direction = horizontal / distance;
-        const float step = std::min(walkSpeed * seconds, distance);
-        feet.x += direction.x * step;
-        feet.z += direction.y * step;
-        // A vertical BVH query follows the rendered terrain, ignoring roofs,
-        // trees, walls, and other zombies. Beyond the map keep the last height.
-        const auto ground = world.groundAt(feet.x, feet.z,
-            std::numeric_limits<float>::lowest(), std::numeric_limits<float>::max(),
-            world.stats().terrainTriangles != 0);
-        if (ground) feet.y = ground->height;
-
-        const float yaw = std::atan2(direction.x, direction.y);
-        instance.restRoot = glm::rotate(glm::translate(glm::mat4(1), feet), yaw, {0, 1, 0});
-        instance.transform = instance.restTransform = instance.restRoot * instance.chaseNormalization;
-        instance.walkSeconds += step / walkSpeed;
-        const auto& asset = assets[instance.asset];
-        instance.walkPose = sampleZombieWalkPose(asset, animationSeconds, instance.walkSeconds, instance.phase);
-        instance.ragdollBones.resize(asset.skeleton.size());
-        for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
-            instance.ragdollBones[bone] = instance.walkPose[bone] * asset.skeleton[bone].inverseBind;
-    }
+    const float yaw = std::atan2(direction.x, direction.y);
+    instance.restRoot = glm::rotate(glm::translate(glm::mat4(1), feet), yaw, {0, 1, 0});
+    instance.transform = instance.restTransform = instance.restRoot * instance.chaseNormalization;
+    // Faster travel speeds produce faster strides as well as faster translation.
+    instance.walkSeconds += step / 1.2f;
+    instance.walkPose = sampleZombieWalkPose(asset, animationSeconds, instance.walkSeconds, instance.phase);
+    instance.ragdollBones.resize(asset.skeleton.size());
+    for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
+        instance.ragdollBones[bone] = instance.walkPose[bone] * asset.skeleton[bone].inverseBind;
+    return step >= distance;
 }
 
 } // namespace viewer
