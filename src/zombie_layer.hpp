@@ -43,6 +43,9 @@ struct ZombieLayer {
     // Returns true when the nearest living zombie under the ray was activated.
     // animationSeconds is the time of the last displayed frame (before phase).
     bool shoot(glm::vec3 origin, glm::vec3 direction, double animationSeconds = 0.0);
+    // Silent noise at a world position, with a source level in dB at one meter.
+    // Only idle, living zombies already in the behavior pool can hear it.
+    void makeNoise(glm::vec3 position, float decibels);
     // Perception/state update, followed by terrain-following locomotion.
     // The app advances SimulationClock before calling this once per step.
     void updateBehavior(float seconds, const ZombiePlayer& player, const CollisionWorld& world,

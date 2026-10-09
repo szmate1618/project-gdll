@@ -12,6 +12,20 @@ namespace {
 constexpr double tau = 6.283185307179586;
 }
 
+bool turnZombieToward(ZombieInstance& instance, glm::vec2 direction, float seconds) {
+    const float yaw = std::atan2(instance.restRoot[2].x, instance.restRoot[2].z);
+    const float targetYaw = std::atan2(direction.x, direction.y);
+    const float delta = std::remainder(targetYaw - yaw, static_cast<float>(tau));
+    const float maxTurn = static_cast<float>(tau / 4) * seconds;
+    const bool aligned = std::abs(delta) <= maxTurn + 1e-5f;
+    const float nextYaw = aligned ? targetYaw : yaw + std::clamp(delta, -maxTurn, maxTurn);
+    const auto feet = glm::vec3(instance.restRoot[3]);
+    instance.restRoot = glm::rotate(glm::translate(glm::mat4(1), feet), nextYaw, {0, 1, 0});
+    instance.transform = instance.restTransform = instance.restRoot * instance.chaseNormalization;
+    instance.walking = false;
+    return aligned;
+}
+
 std::vector<glm::mat4> sampleZombieWalkPose(const AnimatedModel& asset,
                                          double animationSeconds, double walkSeconds,
                                          float phase) {

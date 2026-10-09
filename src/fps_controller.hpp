@@ -1,5 +1,7 @@
 #pragma once
 
+#include "player_noise.hpp"
+
 #include <glm/glm.hpp>
 
 namespace viewer {
@@ -44,6 +46,8 @@ public:
     [[nodiscard]] float verticalVelocity() const { return verticalVelocity_; }
     [[nodiscard]] glm::vec3 groundNormal() const { return groundNormal_; }
     [[nodiscard]] const FPSConfig& config() const { return config_; }
+    // Noise events produced during the latest update; never plays audio.
+    [[nodiscard]] const std::vector<NoiseEvent>& noises() const { return noises_; }
 
 private:
     void step(float dt, const FPSInput& input, const CollisionWorld& world, bool jump);
@@ -59,6 +63,8 @@ private:
     bool grounded_ = false;
     bool jumpHeld_ = false;
     bool jumpQueued_ = false;
+    PlayerNoiseEmitter noiseEmitter_;
+    std::vector<NoiseEvent> noises_;
 };
 
 }  // namespace viewer

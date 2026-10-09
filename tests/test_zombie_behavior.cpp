@@ -1,4 +1,5 @@
 #include "simulation_clock.hpp"
+#include "noise.hpp"
 #include "zombie_layer.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -179,6 +180,118 @@ void removalAndInvalidInputs() {
     require(!layer.behaviors.contains(1) && layer.behaviors.entries().size() == 2,
             "Ragdolls are removed without skipping the swapped member");
 }
+
+void hearingThresholdAndEligibility() {
+    viewer::SimulationClock::instance().reset();
+    const viewer::CollisionWorld clear(viewer::Model{});
+    auto layer = crowd({{0, 0, 10}, {0, 0, 10.01f}, {0, 10, 6},
+                        {0, 0, 3}, {0, 0, 4}, {0, 0, 5}, {0, 0, 6}, {0, 0, 7}});
+    layer.chase(0.1f, {0, 0, -20}, clear); // Create idle behaviors; player behind all zombies.
+    layer.behaviors.find(3)->state = ZombieState::investigating;
+    layer.behaviors.find(4)->state = ZombieState::chasing;
+    layer.behaviors.find(5)->state = ZombieState::attacking;
+    layer.instances[6].ragdoll = true;
+    layer.behaviors.remove(7);
+    layer.makeNoise({0, 0, 0}, viewer::walkingFootstepDecibels);
+    require(state(layer, 0) == ZombieState::looking, "Walking noise is audible at exactly 10 m");
+    require(state(layer, 1) == ZombieState::idle && state(layer, 2) == ZombieState::idle,
+            "Walking noise beyond 10 m is inaudible; propagation includes height");
+    require(state(layer, 3) == ZombieState::investigating && state(layer, 4) == ZombieState::chasing &&
+            state(layer, 5) == ZombieState::attacking && state(layer, 6) == ZombieState::idle,
+            "Only idle, living zombies react to noise");
+    require(!layer.behaviors.contains(7), "Noise cannot create a behavior object");
+    require(layer.behaviors.find(0)->lookDirection == glm::vec2(0, -1) &&
+            layer.behaviors.find(0)->target == glm::vec3(0), "Noise stores direction, not a seen-player target");
+    layer.makeNoise({10, 0, 10}, 80);
+    require(layer.behaviors.find(0)->lookDirection == glm::vec2(0, -1), "A looking zombie ignores new noises");
+
+    auto invalid = crowd();
+    invalid.chase(0.1f, {0, 0, -20}, clear);
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    invalid.makeNoise({nan, 0, 0}, 100);
+    invalid.makeNoise({10, 0, 0}, nan);
+    invalid.makeNoise({0, 0, 0}, 100);
+    require(state(invalid) == ZombieState::idle, "Invalid or horizontally coincident noises cannot set a direction");
+
+    auto farther = crowd({{0, 0, 30}, {0, 0, 50}});
+    farther.chase(0.1f, {0, 0, -20}, clear);
+    farther.makeNoise({0, 0, 0}, viewer::runningFootstepDecibels);
+    require(state(farther, 0) == ZombieState::looking && state(farther, 1) == ZombieState::idle,
+            "Running wakes a zombie at 30 m but not 50 m");
+    farther.makeNoise({0, 0, 0}, viewer::landingDecibels);
+    require(state(farther, 1) == ZombieState::looking, "Landing wakes a zombie at 50 m");
+}
+
+void lookingTurnAndIdleTimer() {
+    auto& clock = viewer::SimulationClock::instance();
+    clock.reset();
+    const viewer::CollisionWorld blocked(wall(2));
+    auto layer = crowd();
+    const auto normalization = glm::scale(glm::translate(glm::mat4(1), {0.2f, -0.1f, 0.3f}), glm::vec3(1.3f));
+    layer.instances[0].transform = layer.instances[0].restTransform = normalization;
+    layer.chase(0.1f, {0, 0, 10}, blocked);
+    clock.advance(9);
+    layer.makeNoise({0, 0, -10}, viewer::walkingFootstepDecibels);
+    clock.advance(1);
+    layer.chase(1, {0, 0, 10}, blocked);
+    require(state(layer) == ZombieState::looking && !layer.instances[0].walking,
+            "Turning stays in looking, plays idle and cancels the previous idle deadline");
+    require(glm::length(glm::vec3(layer.instances[0].restRoot[2]) - glm::vec3(1, 0, 0)) < 2e-4f,
+            "One second turns 90 degrees toward a source directly behind");
+    clock.advance(1);
+    layer.chase(1, {0, 0, 10}, blocked);
+    const auto& instance = layer.instances[0];
+    require(glm::length(glm::vec3(instance.restRoot[2]) - glm::vec3(0, 0, -1)) < 2e-4f,
+            "Two seconds complete the 180-degree turn without overshooting");
+    require(glm::vec3(instance.restRoot[3]) == glm::vec3(0), "Looking turns in place");
+    const auto retained = glm::inverse(instance.restRoot) * instance.restTransform;
+    for (int column = 0; column < 4; ++column)
+        require(glm::length(retained[column] - normalization[column]) < 2e-4f,
+                "Looking preserves asset scale and origin");
+    require(state(layer) == ZombieState::idle && layer.behaviors.find(0)->idleSinceSeconds == 11,
+            "Finished looking without sight returns to idle with a fresh timer");
+    clock.advance(9.9);
+    layer.chase(0.1f, {0, 0, 10}, blocked);
+    require(layer.behaviors.contains(0), "Looking-to-idle timer survives before ten seconds");
+    clock.advance(0.1);
+    layer.chase(0.1f, {0, 0, 10}, blocked);
+    require(!layer.behaviors.contains(0), "Looking-to-idle expires after ten seconds");
+}
+
+void lookingPerceptionAndShortestTurn() {
+    viewer::SimulationClock::instance().reset();
+    const viewer::CollisionWorld clear(viewer::Model{});
+    const viewer::CollisionWorld partial(wall(1));
+    for (const auto* world : {&clear, &partial}) {
+        auto layer = crowd();
+        layer.chase(0.1f, {0, 0, -20}, clear);
+        layer.makeNoise({10, 0, 0}, viewer::walkingFootstepDecibels);
+        layer.chase(0.1f, {0, 0, 10}, *world);
+        require(state(layer) == (world == &clear ? ZombieState::chasing : ZombieState::investigating),
+                "Visibility interrupts an unfinished look: three rays chase; partial sight investigates");
+        require(layer.instances[0].walking && layer.behaviors.find(0)->target == glm::vec3(0, 0, 10),
+                "A seen player becomes the movement target during looking");
+    }
+
+    auto once = crowd(), split = crowd();
+    for (auto* layer : {&once, &split}) {
+        auto& instance = layer->instances[0];
+        instance.transform = instance.restTransform = instance.restRoot =
+            glm::rotate(glm::mat4(1), glm::radians(170.0f), {0, 1, 0});
+        layer->chase(0.1f, {0, 0, 200}, clear); // Not nearby; add the idle object explicitly.
+        layer->behaviors.create(0, 0);
+        const float angle = glm::radians(-170.0f);
+        layer->makeNoise({std::sin(angle) * 10, 0, std::cos(angle) * 10}, 50);
+    }
+    once.chase(0.1f, {0, 0, 200}, clear);
+    for (int i = 0; i < 10; ++i) split.chase(0.01f, {0, 0, 200}, clear);
+    const auto forward = glm::vec3(once.instances[0].restRoot[2]);
+    require(std::abs(glm::degrees(std::atan2(forward.x, forward.z)) - 179.0f) < 1e-3f,
+            "Yaw wrapping chooses the short arc across 180 degrees");
+    for (int column = 0; column < 4; ++column)
+        require(glm::length(once.instances[0].transform[column] - split.instances[0].transform[column]) < 2e-4f,
+                "Looking rotation is independent of frame rate");
+}
 }
 
 int main() {
@@ -188,6 +301,9 @@ int main() {
         perceptionAndStates();
         targetMemoryAndEveryIdleTimeout();
         removalAndInvalidInputs();
+        hearingThresholdAndEligibility();
+        lookingTurnAndIdleTimer();
+        lookingPerceptionAndShortestTurn();
         std::cout << "Zombie behavior tests passed\n";
         return 0;
     } catch (const std::exception& error) {

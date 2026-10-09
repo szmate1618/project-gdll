@@ -631,6 +631,9 @@ int run(const Options& options) {
                 app.rig.camera().position() - glm::vec3(0, config.eyeHeight, 0);
             zombies->updateBehavior(dt, {feet, config.eyeHeight, config.height}, collision,
                                     app.displayedAnimationSeconds);
+            if (app.rig.walking())
+                for (const auto& noise : app.rig.player().noises())
+                    zombies->makeNoise(noise.position, noise.decibels);
             zombies->update(dt);
         }
         renderer.resize(app.width, app.height);

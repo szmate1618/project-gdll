@@ -104,15 +104,20 @@ add_library(viewer_collision STATIC src/collision_world.cpp)
 target_link_libraries(viewer_collision PUBLIC viewer_model)
 viewer_warnings(viewer_collision)
 
+add_library(viewer_noise STATIC src/noise.cpp src/player_noise.cpp)
+target_include_directories(viewer_noise PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(viewer_noise PUBLIC glm::glm)
+viewer_warnings(viewer_noise)
+
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp
     src/zombie_layer.cpp src/zombie_hit.cpp src/zombie_chase.cpp src/zombie_behavior.cpp
     src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp)
-target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision box3d::box3d)
+target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise box3d::box3d)
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_zombies)
 
 add_library(viewer_fps STATIC src/fps_controller.cpp src/camera_rig.cpp)
-target_link_libraries(viewer_fps PUBLIC viewer_collision viewer_camera)
+target_link_libraries(viewer_fps PUBLIC viewer_collision viewer_camera viewer_noise)
 viewer_warnings(viewer_fps)
 
 set(VIEWER_TEST_ASSET "${CMAKE_CURRENT_SOURCE_DIR}/assets/test.glb")
@@ -249,7 +254,7 @@ if(BUILD_TESTING)
     viewer_warnings(test_camera)
     add_test(NAME viewer_camera COMMAND test_camera)
 
-    foreach(suite collision fps camera_rig)
+    foreach(suite collision fps camera_rig player_noise)
         add_executable(test_${suite} tests/test_${suite}.cpp)
         target_link_libraries(test_${suite} PRIVATE viewer_fps)
         viewer_warnings(test_${suite})

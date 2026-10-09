@@ -1,5 +1,6 @@
 #include "zombie_behavior.hpp"
 #include "simulation_clock.hpp"
+#include "noise.hpp"
 #include "zombie_chase.hpp"
 #include "zombie_layer.hpp"
 
@@ -55,15 +56,18 @@ glm::vec3 approachDestination(glm::vec3 target, glm::vec3 feet,
 void stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const AnimatedModel& asset,
                   const ZombiePlayer& player, const CollisionWorld& world,
                   float seconds, double now, double animationSeconds) {
+    if (behavior.state == ZombieState::looking && turnZombieToward(instance, behavior.lookDirection, seconds))
+        changeState(behavior, ZombieState::idle, now);
     const int visible = visiblePlayerPoints(instance, player, world);
     if (visible > 0) {
         behavior.target = player.feet;
-        if (visible == 3 && (behavior.state == ZombieState::idle || behavior.state == ZombieState::investigating))
+        if (visible == 3 && (behavior.state == ZombieState::idle || behavior.state == ZombieState::looking ||
+                             behavior.state == ZombieState::investigating))
             changeState(behavior, ZombieState::chasing, now);
-        else if (behavior.state == ZombieState::idle)
+        else if (behavior.state == ZombieState::idle || behavior.state == ZombieState::looking)
             changeState(behavior, ZombieState::investigating, now);
     }
-    if (behavior.state == ZombieState::idle) return;
+    if (behavior.state == ZombieState::idle || behavior.state == ZombieState::looking) return;
 
     auto feet = glm::vec3(instance.restRoot[3]);
     if (glm::length(player.feet - feet) <= attackDistance + 1e-4f) {
@@ -141,6 +145,25 @@ bool zombiePlayerInFov(glm::vec3 feet, glm::vec3 forward, glm::vec3 playerFeet) 
 void ZombieLayer::chase(float seconds, glm::vec3 target, const CollisionWorld& world,
                        double animationSeconds) {
     updateBehavior(seconds, ZombiePlayer{target}, world, animationSeconds);
+}
+
+void ZombieLayer::makeNoise(glm::vec3 position, float decibels) {
+    if (!finite(position) || !std::isfinite(decibels)) return;
+    const double now = SimulationClock::instance().seconds();
+    for (const auto& entry : behaviors.entries()) {
+        if (entry.state != ZombieState::idle || entry.zombie >= instances.size()) continue;
+        auto& instance = instances[entry.zombie];
+        if (instance.ragdoll || instance.asset >= assets.size()) continue;
+        const auto feet = glm::vec3(instance.restRoot[3]);
+        if (noiseLevelAt({position, decibels}, feet) < zombieHearingThresholdDecibels) continue;
+        const glm::vec2 offset(position.x - feet.x, position.z - feet.z);
+        const float distance = glm::length(offset);
+        if (!std::isfinite(distance) || distance < 1e-4f) continue; // No usable horizontal direction.
+        auto& behavior = *behaviors.find(entry.zombie);
+        behavior.lookDirection = offset / distance;
+        changeState(behavior, ZombieState::looking, now);
+        instance.walking = false;
+    }
 }
 
 void ZombieLayer::updateBehavior(float seconds, const ZombiePlayer& player,

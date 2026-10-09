@@ -203,9 +203,34 @@ Inside the cone, three finite rays run from zombie eye height (1.65 m) to player
 head, torso, and feet. The scene and trunk collision BVHs test occlusion by
 double-sided triangle surfaces and trunk capsules; canopy cards and other
 zombies do not block sight. One or two clear rays store the current player feet
-and change idle to **investigating**. Three clear rays store the same target and
-change idle or investigating to **chasing**. Partial sight refreshes a chasing
+and change idle or looking to **investigating**. Three clear rays store the same target and
+change idle, looking, or investigating to **chasing**. Partial sight refreshes a chasing
 zombie's target without downgrading its state.
+
+`ZombieLayer::makeNoise(position, decibels)` creates a silent simulation noise
+at an X/Y/Z position. Source levels are dB at **one meter**. Perceived level is
+`source dB - 20 * log10(max(distance in meters, 1))`, using 3D distance. This is
+a simple game model: walls, vegetation, and materials do not attenuate noise.
+The tunable levels in `src/noise.hpp` are **40 dB walking**, **50 dB running**,
+and **55 dB landing**, with a **20 dB hearing threshold**. These make walking
+audible at 10 m, running at roughly 32 m, and landing at roughly 56 m.
+
+Only idle, living members of the behavior pool respond to audible noise. They
+store its horizontal direction and enter **looking**, turning in place along
+the shortest yaw arc at **90 degrees/s** (180 degrees in two seconds) while
+playing idle. Further noises do not redirect a looking zombie. Visibility can
+interrupt the turn and start investigation or chasing. Finishing the turn
+without seeing the player returns to idle with a fresh ten-second timer; noise
+alone does not give a zombie a movement target. A source at the same horizontal
+position has no direction to turn toward and is ignored.
+
+Grounded player movement emits **1.5 walking footsteps/s** or **3 running
+footsteps/s**. These events come from actual displacement in fixed physics
+steps, keeping cadence independent of rendering frame rate. Standing still,
+being blocked by a wall, jumping/falling, and free-fly movement do not produce
+footsteps. A transition from airborne to grounded emits one landing noise,
+including after a jump or fall. Spawning or switching into walking mode does
+not emit landing noise. These events only drive perception; no audio plays.
 
 Investigating zombies walk at **1.2 m/s**; chasing zombies run at **3 m/s** with
 faster strides. When sight is lost, they continue to the last seen position and
@@ -688,6 +713,8 @@ src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin dat
 src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting
 src/zombie_hit.{hpp,cpp}    Head hit regions from the displayed skinning pose
 src/zombie_behavior.{hpp,cpp} Dense behavior pool, perception and state transitions
+src/noise.{hpp,cpp}        Noise events, source levels, and distance attenuation
+src/player_noise.{hpp,cpp} Fixed-step footsteps and landing noise emission
 src/simulation_clock.hpp   Global simulation-thread in-game clock
 src/zombie_chase.{hpp,cpp}  Terrain-following locomotion and walking/running strides
 src/zombie_placement.{hpp,cpp} Ground queries and deterministic safe placement

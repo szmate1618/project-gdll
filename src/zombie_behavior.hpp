@@ -7,7 +7,7 @@
 
 namespace viewer {
 
-enum class ZombieState { idle, investigating, chasing, attacking };
+enum class ZombieState { idle, looking, investigating, chasing, attacking };
 
 struct ZombieBehavior {
     // ID is the stable index in ZombieLayer::instances (never compact that list).
@@ -16,6 +16,7 @@ struct ZombieBehavior {
     double createdSeconds = 0;
     double idleSinceSeconds = 0;
     glm::vec3 target{0}; // Last seen player feet in X east / Y up / Z south meters.
+    glm::vec2 lookDirection{0, 1}; // Unit horizontal direction toward a heard noise.
 };
 
 // Dense, unordered pool with expected O(1) membership, lookup and swap removal.

@@ -51,6 +51,8 @@ void FPSController::teleport(glm::vec3 feet) {
     grounded_ = false;
     jumpHeld_ = false;
     jumpQueued_ = false;
+    noiseEmitter_.reset();
+    noises_.clear();
 }
 
 bool FPSController::spawn(glm::vec3 preferredEye, const CollisionWorld& world) {
@@ -206,6 +208,7 @@ void FPSController::step(float dt, const FPSInput& input, const CollisionWorld& 
 }
 
 void FPSController::update(float dt, const FPSInput& input, const CollisionWorld& world) {
+    noises_.clear();
     if (!std::isfinite(dt) || dt <= 0.0F || !std::isfinite(input.forward) ||
         !std::isfinite(input.right) || !std::isfinite(input.yawDegrees)) {
         return;
@@ -219,7 +222,10 @@ void FPSController::update(float dt, const FPSInput& input, const CollisionWorld
     // excess time after a debugger pause avoids an unbounded catch-up loop.
     accumulator_ += std::min(dt, 1.0F);
     while (accumulator_ + 1.0e-9 >= static_cast<double>(config_.fixedDt)) {
+        const PlayerNoiseMotion before{feet_, grounded_};
         step(config_.fixedDt, input, world, jumpQueued_);
+        const auto emitted = noiseEmitter_.update(config_.fixedDt, before, {feet_, grounded_}, input.run);
+        noises_.insert(noises_.end(), emitted.begin(), emitted.end());
         jumpQueued_ = false;
         accumulator_ -= config_.fixedDt;
     }
