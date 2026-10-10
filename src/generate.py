@@ -52,7 +52,7 @@ def run(config: dict) -> dict:
     railways = parse_railways(osm, frame["transformer"], frame["origin"], frame["clip"])
     LOG.info("Generating %d building features, %d road features and %d railway features",
              len(buildings), len(roads), len(railways))
-    building_stats = add_buildings(scene, buildings, terrain, config)
+    building_stats = add_buildings(scene, buildings, terrain, config, roads=roads)
     geometry_config = {**config, "_clip_polygon": frame["clip"]}
     road_stats = add_roads(scene, roads, terrain, geometry_config)
     railway_stats = add_railways(scene, railways, terrain, geometry_config)

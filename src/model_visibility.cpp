@@ -1,7 +1,10 @@
 #include "model_visibility.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <stdexcept>
 
 namespace viewer {
@@ -41,16 +44,63 @@ ModelVisibility::ModelVisibility(const Model& model) {
     std::vector<VisibilityBounds> localBounds;
     localBounds.reserve(model.primitives.size());
     for (const auto& primitive : model.primitives) localBounds.push_back(primitiveBounds(primitive));
-    std::vector<VisibilityBounds> drawBounds;
-    drawBounds.reserve(model.draws.size());
+    drawBounds_.reserve(model.draws.size());
+    detailDistances_.reserve(model.draws.size());
+    lowDetails_.reserve(model.draws.size());
     for (const auto& draw : model.draws) {
         if (draw.primitive >= localBounds.size()) throw std::runtime_error("Model visibility draw references an invalid primitive");
-        drawBounds.push_back(transformBounds(localBounds[draw.primitive], draw.transform));
+        drawBounds_.push_back(transformBounds(localBounds[draw.primitive], draw.transform));
+        if (!std::isfinite(draw.detailDistance) || draw.detailDistance < 0.0f)
+            throw std::runtime_error("Model visibility requires a nonnegative finite detail distance");
+        detailDistances_.push_back(draw.detailDistance);
+        lowDetails_.push_back(draw.lowDetail);
     }
-    index_ = VisibilityIndex(drawBounds);
+    index_ = VisibilityIndex(drawBounds_);
+    detailBounds_ = drawBounds_;
+    struct Group { VisibilityBounds bounds; float distance; };
+    // A mesh group can be instanced under several scene transforms. Alternatives
+    // under the same transform share one decision; distinct instances stay apart.
+    using GroupKey = std::pair<std::string, std::array<float, 16>>;
+    std::map<GroupKey, Group> groups;
+    const auto key = [](const DrawInstance& draw) {
+        std::array<float, 16> transform{};
+        for (int column = 0; column < 4; ++column) for (int row = 0; row < 4; ++row)
+            transform[static_cast<std::size_t>(column * 4 + row)] = draw.transform[column][row];
+        return GroupKey{draw.detailGroup, transform};
+    };
+    for (std::size_t i = 0; i < model.draws.size(); ++i) {
+        const auto& draw = model.draws[i];
+        if (draw.detailGroup.empty()) continue;
+        auto inserted = groups.emplace(key(draw), Group{drawBounds_[i], draw.detailDistance});
+        auto& group = inserted.first->second;
+        if (group.distance != draw.detailDistance)
+            throw std::runtime_error("Building detail group requires matching distances");
+        group.bounds.minimum = glm::min(group.bounds.minimum, drawBounds_[i].minimum);
+        group.bounds.maximum = glm::max(group.bounds.maximum, drawBounds_[i].maximum);
+    }
+    for (std::size_t i = 0; i < model.draws.size(); ++i) {
+        if (!model.draws[i].detailGroup.empty()) detailBounds_[i] = groups.at(key(model.draws[i])).bounds;
+    }
 }
 
 VisibilityStats ModelVisibility::query(const glm::mat4& projectionView, std::vector<std::size_t>& visible) const {
     return index_.query(projectionView, visible);
+}
+
+void ModelVisibility::filterDetails(const glm::vec3& eye, const glm::mat4& projection,
+                                    std::vector<std::size_t>& visible) const {
+    // Perspective vertical scale is cot(FOV/2). Normal view uses 60 degrees;
+    // 10° and 1° scopes therefore extend the range by about 6.6x and 66x.
+    const float magnification = std::max(1.0f, projection[1][1] / std::sqrt(3.0f));
+    visible.erase(std::remove_if(visible.begin(), visible.end(), [&](std::size_t index) {
+        const float range = detailDistances_.at(index);
+        if (range == 0.0f) return false;
+        const auto& bounds = detailBounds_[index];
+        const auto nearest = glm::clamp(eye, bounds.minimum, bounds.maximum);
+        const auto delta = nearest - eye;
+        const float effectiveRange = range * magnification;
+        const bool near = glm::dot(delta, delta) <= effectiveRange * effectiveRange;
+        return lowDetails_[index] ? near : !near;
+    }), visible.end());
 }
 } // namespace viewer

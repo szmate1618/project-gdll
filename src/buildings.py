@@ -14,6 +14,8 @@ from shapely.ops import split
 import trimesh
 from trimesh.visual.material import PBRMaterial
 
+from .building_details import DOOR_MATERIAL, WINDOW_MATERIAL, RoadIndex, facade_details
+
 LOG = logging.getLogger(__name__)
 
 WALL_MATERIAL = PBRMaterial(name="generic_building_wall", baseColorFactor=[204, 193, 167, 255], metallicFactor=0.0, roughnessFactor=0.92)
@@ -185,10 +187,12 @@ def _mesh_for_polygon(polygon, tags, elevation, config):
     return wall, roof, shape
 
 
-def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict) -> dict:
+def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict, roads=()) -> dict:
     """Append buildings to a scene in local east/north/up meters and return counts."""
     options = config.get("buildings", config)
     stats = {"buildings": 0, "building_meshes": 0, "skipped_buildings": 0}
+    stats.update(building_detail_meshes=0, doors=0, windows=0)
+    road_index = RoadIndex(roads)
     roof_shapes = Counter()
     for feature in features:
         geometry = feature["geometry"]
@@ -202,9 +206,30 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict)
             except (ValueError, IndexError, TypeError, ShapelyError) as error:
                 LOG.warning("Skipping building %s component %d: %s", feature["id"], index, error)
                 continue
+            detailed_wall, doors, windows, detail_counts = facade_details(
+                polygon, wall, roof, elevation, options, road_index.nearest(polygon))
             name = f"building_{feature['id'].replace('/', '_')}_{index}"
+            if detailed_wall is not None:
+                distance = float(options.get("detail_distance_m", 120.0))
+                wall.metadata["building_detail"] = {"version": 2, "distance_m": distance,
+                                                     "group": name, "level": "far"}
+                detailed_material = WALL_MATERIAL.copy()
+                detailed_material.doubleSided = True
+                for mesh, material in ((detailed_wall, detailed_material), (doors, DOOR_MATERIAL),
+                                       (windows, WINDOW_MATERIAL)):
+                    if mesh is not None:
+                        mesh.visual = trimesh.visual.TextureVisuals(material=material)
+                        mesh.metadata["building_detail"] = {"version": 2, "distance_m": distance,
+                                                             "group": name, "level": "near"}
             scene.add_geometry(wall, node_name=f"{name}_walls", geom_name=f"{name}_walls")
             scene.add_geometry(roof, node_name=f"{name}_roof", geom_name=f"{name}_roof")
+            for suffix, mesh in (("detailed_walls", detailed_wall), ("doors", doors), ("windows", windows)):
+                if mesh is not None:
+                    detail_name = f"{name}_{suffix}"
+                    scene.add_geometry(mesh, node_name=detail_name, geom_name=detail_name)
+                    stats["building_detail_meshes"] += 1
+            for key, count in detail_counts.items():
+                stats[key] += count
             stats["building_meshes"] += 2
             roof_shapes[shape] += 1
             added = True

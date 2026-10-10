@@ -53,6 +53,11 @@ struct DrawInstance {
     glm::mat4 transform{1.0f};
     // Preserve scene semantics for collision classification and diagnostics.
     std::string name;
+    // Building detail range in world meters at the normal 60° FOV. Zero keeps
+    // legacy draws always eligible. Physics uses the original low-detail shell.
+    float detailDistance = 0.0f;
+    bool lowDetail = false;
+    std::string detailGroup{}; // All wall/panel alternatives switch together.
 };
 
 struct Model {

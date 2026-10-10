@@ -66,6 +66,7 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
             const auto& mesh = model_.meshes.at(source.primitive);
             DrawGPU draw{source.primitive, source.transform, glm::inverseTranspose(glm::mat3(source.transform)),
                          glm::vec3(source.transform * glm::vec4(mesh.center, 1.0f)), glm::determinant(glm::mat3(source.transform)) < 0};
+            draw.buildingDetail = source.detailDistance > 0.0f && !source.lowDetail;
             sceneDraws_.push_back(draw);
         }
         visibleScene_.reserve(sceneDraws_.size());
@@ -307,12 +308,14 @@ void Renderer::draw(const DrawGPU& draw) {
     glDrawElements(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, nullptr);
 }
 
-void Renderer::gatherVisibleSceneDraws(const glm::mat4& projectionView, const glm::vec3& eye) {
+void Renderer::gatherVisibleSceneDraws(const glm::mat4& projectionView, const glm::vec3& eye,
+                                      const glm::mat4& projection) {
     if (sceneCulling_) sceneVisibility_.query(projectionView, visibleScene_);
     else {
         visibleScene_.resize(sceneDraws_.size());
         std::iota(visibleScene_.begin(), visibleScene_.end(), std::size_t{0});
     }
+    sceneVisibility_.filterDetails(eye, projection, visibleScene_);
 
     opaqueScene_.clear();
     transparentScene_.clear();
@@ -374,7 +377,7 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     glDisable(GL_BLEND);
     glUniform1i(instancedLocation_, GL_FALSE);
     glUniform1i(animatedLocation_, GL_FALSE);
-    gatherVisibleSceneDraws(projection * view, camera.position());
+    gatherVisibleSceneDraws(projection * view, camera.position(), projection);
     for (const auto index : opaqueScene_) {
         draw(sceneDraws_[index]);
         ++sceneStats_.drawCalls;

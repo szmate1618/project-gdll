@@ -205,6 +205,15 @@ if(BUILD_TESTING)
     add_test(NAME viewer_atmosphere_renderer COMMAND test_atmosphere_renderer)
     set_tests_properties(viewer_atmosphere_renderer PROPERTIES SKIP_RETURN_CODE 77)
 
+    add_executable(test_building_renderer tests/test_building_renderer.cpp)
+    target_link_libraries(test_building_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_building_renderer PRIVATE
+        GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_building_renderer)
+    add_test(NAME viewer_building_renderer COMMAND test_building_renderer)
+    set_tests_properties(viewer_building_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
     add_executable(test_rain_renderer tests/test_rain_renderer.cpp)
     target_link_libraries(test_rain_renderer PRIVATE viewer_renderer glfw)
     target_compile_definitions(test_rain_renderer PRIVATE

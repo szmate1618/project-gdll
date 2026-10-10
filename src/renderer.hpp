@@ -68,6 +68,7 @@ private:
         glm::mat3 normalMatrix;
         glm::vec3 center;
         bool mirrored;
+        bool buildingDetail = false;
     };
     struct ModelGPU {
         std::vector<MeshGPU> meshes;
@@ -121,7 +122,8 @@ private:
     void releaseZombies() noexcept;
     void applyMaterial(const ModelGPU& model, int index, bool mirrored);
     void draw(const DrawGPU& draw);
-    void gatherVisibleSceneDraws(const glm::mat4& projectionView, const glm::vec3& eye);
+    void gatherVisibleSceneDraws(const glm::mat4& projectionView, const glm::vec3& eye,
+                                const glm::mat4& projection);
     const Material& material(const ModelGPU& model, int index) const;
     std::filesystem::path shaderDirectory_;
     GLuint program_ = 0, framebuffer_ = 0, colorBuffer_ = 0, depthBuffer_ = 0;

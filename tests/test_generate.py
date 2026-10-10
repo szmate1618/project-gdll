@@ -86,6 +86,7 @@ class GenerateTests(unittest.TestCase):
         output = self.root / "output" / "godollo.glb"
         self.assertTrue(report["verification"]["valid"])
         self.assertEqual(report["verification"]["building_solids_checked"], 1)
+        self.assertEqual(report["verification"]["detailed_building_solids_checked"], 1)
         self.assertEqual(report["railways"]["railway_segments"], 2)
         self.assertEqual(summary["railway_segments"], 2)
         self.assertIn("railway_ballast", report["verification"]["materials"])
@@ -116,6 +117,9 @@ class GenerateTests(unittest.TestCase):
         report, summary = self.run_generator()
         self.assertTrue(report["verification"]["valid"])
         self.assertEqual(report["buildings"]["buildings"], 1)
+        self.assertEqual(report["buildings"]["doors"], 2)
+        self.assertGreater(report["buildings"]["windows"], 0)
+        self.assertIn("building_window_blue", report["verification"]["materials"])
         self.assertEqual(report["roads"]["road_segments"], 1)
         self.assertEqual(report["railways"]["railway_segments"], 0)
         self.assertEqual(summary["railway_segments"], 0)
@@ -136,6 +140,15 @@ class GenerateTests(unittest.TestCase):
         self.assertEqual(published.read_bytes(), b"previous map contents")
         self.assertEqual(report_path.read_text(encoding="utf-8"), '{"previous": true}\n')
         self.assertFalse(published.with_suffix(".pending.glb").exists())
+
+    def test_missing_glass_fails_detailed_solid_validation(self):
+        self.run_generator()
+        scene = trimesh.load_scene(self.root / "output" / "godollo.glb", process=False)
+        scene.delete_geometry("building_way_1_0_windows")
+        candidate = self.root / "missing-glass.glb"
+        candidate.write_bytes(scene.export(file_type="glb"))
+        with self.assertRaisesRegex(ValueError, "detailed walls and infills"):
+            generate.inspect_glb(candidate)
 
 
 if __name__ == "__main__":

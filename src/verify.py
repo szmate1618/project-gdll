@@ -53,7 +53,7 @@ def inspect_glb(path: Path) -> dict:
     materials = [material.get("name", "unnamed") for material in doc.get("materials", [])]
     if "terrain_sentinel_rgb" not in materials:
         raise ValueError("Terrain material is absent.")
-    buildings_checked = 0
+    buildings_checked = detailed_buildings_checked = 0
     for name, roof in scene.geometry.items():
         if not name.startswith("building_") or not name.endswith("_roof"):
             continue
@@ -65,10 +65,26 @@ def inspect_glb(path: Path) -> dict:
         if not solid.is_watertight or not solid.is_winding_consistent or solid.volume <= 0:
             raise ValueError(f"{name}: building is not a closed solid with consistent outward winding.")
         buildings_checked += 1
+        prefix = name[:-5]
+        detailed_wall = scene.geometry.get(prefix + "_detailed_walls")
+        if detailed_wall is not None:
+            infills = [scene.geometry[prefix + suffix] for suffix in ("_doors", "_windows")
+                       if prefix + suffix in scene.geometry]
+            detailed_solid = trimesh.util.concatenate([detailed_wall, roof, *infills])
+            detailed_solid.merge_vertices(merge_tex=True, merge_norm=True)
+            if not detailed_solid.is_watertight or not detailed_solid.is_winding_consistent or detailed_solid.volume <= 0:
+                raise ValueError(f"{name}: detailed walls and infills are not a closed solid with consistent outward winding.")
+            # Both material partitions must describe the same shell. Tolerance
+            # follows the precision of exported coordinates, rather than scale.
+            precision = float(np.spacing(np.float32(np.max(np.abs(solid.vertices)))))
+            if abs(detailed_solid.volume - solid.volume) > max(1e-6, solid.area * precision * 4):
+                raise ValueError(f"{name}: detailed building volume differs from the original solid.")
+            detailed_buildings_checked += 1
     return {"valid": True, "glb_bytes": len(data), "meshes": len(scene.geometry),
             "vertices": vertices, "triangles": triangles, "materials": materials,
             "embedded_images": len(doc["images"]), "bounds_gltf_m": scene.bounds.tolist(),
-            "extents_gltf_m": scene.extents.tolist(), "building_solids_checked": buildings_checked}
+            "extents_gltf_m": scene.extents.tolist(), "building_solids_checked": buildings_checked,
+            "detailed_building_solids_checked": detailed_buildings_checked}
 
 
 def main() -> None:

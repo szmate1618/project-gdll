@@ -14,9 +14,17 @@ public:
     explicit ModelVisibility(const Model& model);
     VisibilityStats query(const glm::mat4& projectionView,
                           std::vector<std::size_t>& visible) const;
+    // Filter existing BVH results by nearest transformed bounds, accounting for
+    // perspective magnification. Also used when frustum culling is disabled.
+    void filterDetails(const glm::vec3& eye, const glm::mat4& projection,
+                       std::vector<std::size_t>& visible) const;
 
 private:
     VisibilityIndex index_;
+    std::vector<VisibilityBounds> drawBounds_;
+    std::vector<VisibilityBounds> detailBounds_;
+    std::vector<float> detailDistances_;
+    std::vector<bool> lowDetails_;
 };
 
 } // namespace viewer

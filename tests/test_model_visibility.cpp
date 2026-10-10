@@ -106,6 +106,66 @@ void testSpatialIndexAndEmptyModel() {
             "Empty model visibility retained stale results");
 }
 
+void testDetailRangeAndScopeFrustum() {
+    viewer::Model model;
+    model.primitives.push_back(cube());
+    // Detail bounds near the eye must pass even when the draw center is far.
+    model.draws.push_back({0, glm::translate(glm::mat4(1), {0, 0, -100}), "legacy"});
+    model.draws.push_back({0, glm::translate(glm::mat4(1), {0, 0, -100}), "detail", 120});
+    model.draws.push_back({0, glm::translate(glm::mat4(1), {0, 0, -500}), "detail", 120});
+    model.draws.push_back({0, glm::translate(glm::mat4(1), {100, 0, -500}), "off-scope", 120});
+    model.draws.push_back({0, glm::translate(glm::mat4(1), {0, 0, -4000}), "detail", 120});
+    viewer::ModelVisibility visibility(model);
+    const auto query = [&](float degrees) {
+        const auto projection = glm::perspective(glm::radians(degrees), 1.0f, .1f, 10000.0f);
+        std::vector<std::size_t> visible;
+        visibility.query(projection, visible);
+        visibility.filterDetails({0, 0, 0}, projection, visible);
+        std::sort(visible.begin(), visible.end());
+        return visible;
+    };
+    require(query(60) == std::vector<std::size_t>({0, 1}), "Distant facade detail must be hidden at normal FOV");
+    require(query(10) == std::vector<std::size_t>({0, 1, 2}), "10-degree scope must extend detail range and cull off-scope detail");
+    require(query(1) == std::vector<std::size_t>({0, 1, 2, 4}), "1-degree scope must show distant detail within its narrow frustum");
+
+    model.draws[1].transform = glm::translate(glm::mat4(1), {0, 0, -180}) * glm::scale(glm::mat4(1), {10, 5, 70});
+    viewer::ModelVisibility stretched(model);
+    std::vector<std::size_t> visible{0, 1, 2, 3, 4}; // Culling disabled.
+    stretched.filterDetails({0, 0, 0}, glm::perspective(glm::radians(60.0f), 1.0f, .1f, 10000.0f), visible);
+    require(visible == std::vector<std::size_t>({0, 1}), "Detail range must use nearest transformed bounds even without culling");
+}
+
+void testGroupedWallAlternatives() {
+    viewer::Model model;
+    model.primitives.push_back(cube());
+    // All meshes belong to one building, even if an individual window is much
+    // further from the camera. A second instance reuses the same group label.
+    model.draws.push_back({0, glm::mat4(1), "walls", 120, true, "building"});
+    model.draws.push_back({0, glm::mat4(1), "detailed_walls", 120, false, "building"});
+    auto distantWindow = cube();
+    for (auto& vertex : distantWindow.vertices) vertex.position.z -= 200;
+    model.primitives.push_back(distantWindow);
+    model.draws.push_back({1, glm::mat4(1), "window", 120, false, "building"});
+    const auto transform = glm::translate(glm::mat4(1), {0, 0, -2000});
+    model.draws.push_back({0, transform, "walls", 120, true, "building"});
+    model.draws.push_back({0, transform, "detailed_walls", 120, false, "building"});
+    viewer::ModelVisibility visibility(model);
+    const auto projection = glm::perspective(glm::radians(60.0f), 1.0f, .1f, 10000.0f);
+    auto filter = [&](glm::vec3 eye, const glm::mat4& matrix) {
+        std::vector<std::size_t> visible{0, 1, 2, 3, 4};
+        visibility.filterDetails(eye, matrix, visible);
+        return visible;
+    };
+    require(filter({0, 0, 50}, projection) == std::vector<std::size_t>({1, 2, 3}),
+            "Near wall and glass must switch together; reused distant instance must stay low-detail");
+    require(filter({0, 0, 500}, projection) == std::vector<std::size_t>({0, 3}),
+            "Only low-detail walls may remain beyond the detail range");
+    require(filter({0, 0, 500}, glm::perspective(glm::radians(1.0f), 1.0f, 10.0f, 10000.0f)) ==
+            std::vector<std::size_t>({1, 2, 4}), "Scope must replace original walls with the cutout alternative");
+    require(filter({0, 0, 121}, projection) == std::vector<std::size_t>({1, 2, 3}),
+            "At the inclusive distance boundary only the detailed alternative may render");
+}
+
 } // namespace
 
 int main() {
@@ -113,6 +173,8 @@ int main() {
         testTransformedDrawBounds();
         testClipEdgeAndReusedMesh();
         testSpatialIndexAndEmptyModel();
+        testDetailRangeAndScopeFrustum();
+        testGroupedWallAlternatives();
         std::cout << "Model visibility tests passed\n";
         return 0;
     } catch (const std::exception& error) {

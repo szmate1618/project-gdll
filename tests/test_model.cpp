@@ -123,6 +123,27 @@ void testIndexWidthsAndHierarchy(Fixtures& files) {
         require(near(vertex.normal.z, 1), "Missing normals should be generated with triangle winding");
 
         if (width == 1) {
+            require(model.draws[0].detailDistance == 0, "Legacy meshes must keep their normal visibility");
+            auto detailed = document;
+            detailed["meshes"][0]["extras"]["building_detail"] = {{"version", 1}, {"distance_m", 120}};
+            const auto overlays = viewer::loadModel(files.write("detail", detailed, bytes));
+            require(overlays.draws[0].detailDistance == 120 && overlays.draws[1].detailDistance == 120,
+                    "Detail metadata must survive loading and mesh instancing");
+            detailed["meshes"][0]["extras"]["building_detail"] = {
+                {"version", 2}, {"distance_m", 120}, {"group", "building_test"}, {"level", "far"}};
+            const auto alternatives = viewer::loadModel(files.write("detail-v2", detailed, bytes));
+            require(alternatives.draws[0].lowDetail && alternatives.draws[0].detailGroup == "building_test",
+                    "Version 2 must load grouped low-detail alternatives");
+            detailed["meshes"][0]["extras"]["building_detail"]["level"] = "near";
+            const auto nearAlternatives = viewer::loadModel(files.write("detail-v2-near", detailed, bytes));
+            require(!nearAlternatives.draws[0].lowDetail && nearAlternatives.draws[0].detailDistance == 120,
+                    "Version 2 must load grouped detailed walls and infills");
+            detailed["meshes"][0]["extras"]["building_detail"]["level"] = "unknown";
+            expectError(files.write("invalid-detail-level", detailed, bytes), "level");
+            detailed["meshes"][0]["extras"]["building_detail"]["version"] = 3;
+            expectError(files.write("unknown-detail-version", detailed, bytes), "building_detail");
+            detailed["meshes"][0]["extras"]["building_detail"] = {{"version", 1}, {"distance_m", -1}};
+            expectError(files.write("negative-detail-range", detailed, bytes), "positive");
             auto truncated = document;
             truncated["bufferViews"][0]["byteLength"] = 8;
             expectError(files.write("truncated", truncated, bytes), "beyond its bufferView");

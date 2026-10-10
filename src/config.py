@@ -31,6 +31,7 @@ def load_config(path: Path) -> dict:
         ("terrain", "texture_size", 512, 32, 4096),
         ("buildings", "floor_height_m", 3, 1, 10),
         ("buildings", "default_height_m", 8, 1, 200),
+        ("buildings", "detail_distance_m", 120, 1, 10000),
         ("roads", "lane_width_m", 3, 1, 10),
         ("roads", "offset_m", .25, .01, 5),
         ("roads", "sample_spacing_m", 8, 1, 100),

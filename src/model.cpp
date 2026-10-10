@@ -498,8 +498,31 @@ Model convert(const tinygltf::Model& source) {
         }
         if (node.mesh >= 0) {
             const auto& mesh = at(source.meshes, node.mesh, "node mesh");
+            float detailDistance = 0.0f;
+            bool lowDetail = false;
+            std::string detailGroup;
+            if (mesh.extras.IsObject() && mesh.extras.Has("building_detail")) {
+                const auto& detail = mesh.extras.Get("building_detail");
+                if (!detail.IsObject() || !detail.Has("version") || !detail.Get("version").IsNumber() ||
+                    (detail.Get("version").GetNumberAsDouble() != 1.0 && detail.Get("version").GetNumberAsDouble() != 2.0) ||
+                    !detail.Has("distance_m") || !detail.Get("distance_m").IsNumber())
+                    fail("Invalid building_detail mesh metadata");
+                detailDistance = asFloat(detail.Get("distance_m").GetNumberAsDouble(), "building detail distance");
+                if (detailDistance <= 0.0f) fail("Building detail distance must be positive");
+                if (detail.Get("version").GetNumberAsDouble() == 2.0) {
+                    if (!detail.Has("group") || !detail.Get("group").IsString() ||
+                        detail.Get("group").Get<std::string>().empty() ||
+                        !detail.Has("level") || !detail.Get("level").IsString())
+                        fail("Invalid building_detail group or level");
+                    detailGroup = detail.Get("group").Get<std::string>();
+                    const auto level = detail.Get("level").Get<std::string>();
+                    if (level != "near" && level != "far") fail("Invalid building_detail level");
+                    lowDetail = level == "far";
+                }
+            }
             for (const auto primitive : meshPrimitives[static_cast<std::size_t>(node.mesh)]) {
-                output.draws.push_back({primitive, transform, node.name.empty() ? mesh.name : node.name});
+                output.draws.push_back({primitive, transform, node.name.empty() ? mesh.name : node.name,
+                                        detailDistance, lowDetail, detailGroup});
                 for (const auto& vertex : output.primitives[primitive].vertices) {
                     const glm::vec3 position(transform * glm::vec4(vertex.position, 1.0f));
                     if (!std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z)) {

@@ -358,7 +358,14 @@ capsule-to-triangle contacts follow building footprints, including concave
 outlines, rather than replacing buildings with broad rectangular obstacles.
 Named buildings also have an interior query for safe spawning. Roads and
 other triangle geometry can provide support; a separate collision file is not
-required. Generated buildings remain solid, with no inferred doors or interiors.
+required. New maps render an alternative wall mesh with real door/window
+openings and flush brown doors and blue glass with 60% transparency. Within
+120 m by default, the original opaque walls are replaced by the detailed walls
+and panels together. Both scope views extend this range and retain frustum
+culling. Collision and shadows use the original solid shell, so closed doors
+and glass still block walking. There are no modeled rooms or opening-door
+animations. See [building generation](../README.md) for configuration and
+regeneration.
 
 The controller uses fixed 120 Hz simulation and further divides large capsule
 displacements. Iterative contact corrections stop motion into walls while

@@ -362,6 +362,7 @@ CollisionWorld::CollisionWorld(const Model& model, const std::vector<TrunkCollid
     auto& data = *impl_;
     std::unordered_map<std::string, int> buildingGroups;
     for (const auto& draw : model.draws) {
+        if (draw.detailDistance > 0.0f && !draw.lowDetail) continue;
         if (draw.primitive >= model.primitives.size()) continue;
         const auto& primitive = model.primitives[draw.primitive];
         // Mirrored nodes reverse the index winding, while the renderer flips

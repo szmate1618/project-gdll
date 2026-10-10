@@ -27,7 +27,8 @@ void Renderer::drawSunShadows(const SunShadowView& shadowView, double seconds) {
     for (const auto index : shadowScene_) {
         const auto& caster = sceneDraws_[index];
         const auto& mesh = model_.meshes[caster.primitive];
-        if (material(model_, mesh.material).alphaMode != "BLEND") draw(caster);
+        // Use the original shell for stable building shadows at every LoD.
+        if (!caster.buildingDetail && material(model_, mesh.material).alphaMode != "BLEND") draw(caster);
     }
     if (treeShadows_) drawTrees(projectionView, true);
     const Frustum lightFrustum(projectionView);

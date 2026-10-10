@@ -138,6 +138,7 @@ Other settings include:
 | `sentinel.max_cloud_cover` | 20 | Maximum scene-wide cloud percentage |
 | `buildings.floor_height_m` | 3 | Floor height used when OSM has levels but no height |
 | `buildings.default_height_m` | 8 | Final building-height fallback |
+| `buildings.detail_distance_m` | 120 | Range for walls with door/window openings; scope magnification extends it |
 | `roads.lane_width_m` | 3 | Lane-based road-width estimate |
 | `roads.sample_spacing_m` | 8 | Road surface subdivision size |
 | `roads.offset_m` | 0.25 | Small road clearance above terrain |
@@ -167,6 +168,8 @@ src/
   terrain.py              Elevation resampling, heightfield, texture and UVs
   osm.py                  Ways, multipolygon relations, holes, clipping
   buildings.py            Height inference, walls, flat/gabled/hipped roofs
+  building_details.py     Road-facing entrance and window layout
+  wall_openings.py        Partition wall triangles around flush door/glass infills
   roads.py                Width inference, buffered terrain-following road meshes
   railways.py             Terrain-following railway track-bed meshes
   terrain_surfaces.py     Shared surface subdivision and terrain clearance
@@ -231,6 +234,38 @@ footprint rectangle and are clipped to the actual outline, preserving courtyards
 Roof triangulation preserves sampled boundary and ridge edges, including nearly
 collinear points, so precision rounding does not leave disconnected roof pieces.
 Collapsed faces are removed at glTF's float32 precision.
+
+The original closed walls remain the lower LoD. At higher detail, an alternative
+wall mesh has real rectangular door and window openings, filled flush with
+brown door panels and blue glass at 60% transparency (40% opacity). Masonry is
+removed behind each panel. The roof is shared between both LoDs. Detailed walls
+and glass are double-sided so the empty building shell is visible through glass.
+There are no modeled rooms or opening-door animations.
+
+The front door uses the exterior wall closest to the nearest road. Among walls
+within 0.5 m of the closest wall, prefer the outward normal facing most directly
+toward the road from the wall center. A second door uses the opposite wall.
+Windows cover exterior and courtyard walls, fit below the eaves, and leave room
+around doors. Very short or low walls omit rectangles that cannot fit. With no
+road, the longest exterior wall supplies the front. Doors follow ground height.
+Wall triangles are partitioned without changing roof or foundation boundaries;
+both complete shells are checked for closure and consistent winding after GLB
+export. Each building batches detailed masonry, doors and glass into at most
+three extra meshes.
+
+Version 2 `building_detail` mesh extras store `distance_m`, a unique building
+`group`, and `level` (`near` or `far`). All alternatives use shared transformed
+building bounds to switch together. The viewer also supports version 1 overlay
+maps and original maps. Other glTF viewers need to choose one wall alternative.
+
+The desktop viewer selects higher detail within `buildings.detail_distance_m`
+(default 120 m). Both scope views extend this distance according to magnification
+and retain frustum culling. Physics and shadows retain the original solid shell;
+closed doors and glass block walking. Regenerate with
+`.venv/bin/python -m src.generate --offline` to add them to an existing map;
+previous maps continue to load with their original appearance. Regenerating a
+map changes its fingerprint, so rebuild any tree placements as described in
+[the tree preparation guide](docs/TREES.md).
 
 Road width precedence is `width`, then `lanes` times lane width, then highway
 class. Major, secondary, residential, service, track, and footway categories are

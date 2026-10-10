@@ -66,6 +66,20 @@ void flatGroundAndContacts() {
     require(spawn && spawn->y >= 0 && spawn->y < 0.02f, "Spawn lands on ground below camera");
     require(world.stats().triangles == 2 && world.stats().terrainTriangles == 2 && world.stats().bvhNodes == 1, "Collision counts");
     require(world.debugLines({0, 0, 0}).size() == 12, "Triangle debug lines");
+    viewer::Primitive overlay;
+    floor(overlay, -1, -1, 1, 1, .1f);
+    draw(model, std::move(overlay), "building_test_windows");
+    model.draws.back().detailDistance = 120;
+    const viewer::CollisionWorld decorated(model);
+    require(decorated.stats().triangles == 2 && decorated.stats().buildings == 0,
+            "Facade overlays must not add collision triangles or building groups");
+    const auto decoratedGround = decorated.groundAt(0, 0, -1, 1);
+    require(decoratedGround && std::abs(decoratedGround->height) < 1e-6f,
+            "Facade overlays must not affect ground queries");
+    model.draws.back().lowDetail = true;
+    const viewer::CollisionWorld withLowDetail(model);
+    require(withLowDetail.stats().triangles == 4,
+            "Original low-detail walls must stay in physics even when hidden by rendering");
 }
 
 void wallsCornersAndSolidSpawn() {
