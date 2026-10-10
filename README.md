@@ -244,7 +244,7 @@ Railway paths include OSM [`railway=rail`, `light_rail`, and `narrow_gauge`](htt
 ways, covering HÉV and MÁV tracks without requiring an `operator` tag. Active
 sidings, spurs and crossovers are included; platforms and proposed, abandoned,
 or disused tracks are excluded. Route relations do not duplicate their track
-ways. Each mapped track becomes a gray ballast surface, with an explicit OSM
+ways. Each mapped track becomes a textured ballast surface, with an explicit OSM
 `width` overriding `railways.width_m`. Parallel track ways remain separate;
 `tracks` and `passenger_lines` do not multiply the width. Buffered edges are
 clipped to the configured area and follow the same terrain sampler and clearance
@@ -252,7 +252,26 @@ correction as roads. The surfaces share the `railways_ballast` mesh and
 `railway_ballast` material, with OSM IDs retained in mesh extras. GLB scene extras
 and `output/report.json` include a `railways` section with accepted segment,
 category, mesh, triangle and skipped-feature counts. Railway-free areas remain
-valid.
+valid. The shared [railway tile](assets/railways/README.md) contains steel rails
+with a 1.435 m clear gauge and timber ties every 0.60 m, with gravel between them.
+UVs follow each centerline and continue tie spacing across joined ways; bed width
+changes the gravel shoulders, not the gauge. All included railway categories
+currently use this standard-gauge artwork, including `narrow_gauge` ways.
+
+Apply the texture to an existing published map without downloading data or
+regenerating the town:
+
+```bash
+.venv/bin/python tools/apply_railway_texture.py
+```
+
+This uses the cached OSM extract recorded in the map and verifies matching
+railway positions, indices, and source IDs. It preserves the original geometry
+and backs up the map and adjacent companions under
+`output/railway-texture-backups/<original-map-sha256>/`. After validating the
+new GLB, it refreshes the tree manifest's map fingerprint while preserving all
+tree transforms and asset fingerprints. Restart the viewer to load the texture;
+no C++ rebuild is needed. Future generator runs embed the texture automatically.
 
 ## Verification and limits
 
@@ -279,9 +298,10 @@ area; it does not mosaic scenes or perform local cloud classification.
 
 OSM completeness and optional tags vary. Inferred heights and roof shapes are
 approximate, irregular pitched roofs can look stylized, and features may be cut
-at the selected boundary. Railway paths are track-bed surfaces; rails, sleepers,
-stations and overhead wires are not modeled. Roads have simple intersections,
-no lane markings or engineered grades, and no bridge/tunnel/layer modeling.
+at the selected boundary. Railway paths are track-bed surfaces; rails and sleepers
+are texture detail, while stations and overhead wires are not modeled. Roads have
+simple intersections, no lane markings or engineered grades, and no
+bridge/tunnel/layer modeling.
 Overlapping road surfaces can meet imperfectly. Railway paths also follow terrain
 rather than engineered bridge or tunnel elevations. Trees, fences, facades, interiors, collision
 meshes, automatic LODs and connected sidewalk generation are outside this

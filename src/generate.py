@@ -27,6 +27,7 @@ from .config import coordinate_frame, load_config
 from .data import download_sources
 from .osm import parse_osm, parse_railways
 from .railways import add_railways
+from .railway_texture import configure_track_sampler
 from .roads import add_roads
 from .terrain import build_terrain
 from .verify import inspect_glb
@@ -80,7 +81,7 @@ def run(config: dict) -> dict:
     out = ROOT / "output" / "godollo.glb"
     pending = out.with_suffix(".pending.glb")
     LOG.info("Exporting self-contained GLB with embedded Sentinel texture")
-    pending.write_bytes(scene.export(file_type="glb"))
+    pending.write_bytes(scene.export(file_type="glb", tree_postprocessor=configure_track_sampler))
     try:
         verification = inspect_glb(pending)
     except Exception:

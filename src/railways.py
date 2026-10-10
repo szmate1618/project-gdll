@@ -7,13 +7,14 @@ import logging
 import math
 from typing import Callable
 
+import numpy as np
 from shapely.geometry import box
 import trimesh
-from trimesh.visual.material import PBRMaterial
 from trimesh.visual.texture import TextureVisuals
 
 from .osm import RAILWAY_TYPES
 from .roads import parse_width
+from .railway_texture import track_material, track_phases, track_uv
 from .terrain_surfaces import geometry_parts, surface_mesh
 
 
@@ -21,7 +22,7 @@ LOG = logging.getLogger(__name__)
 
 
 def add_railways(scene: trimesh.Scene, features: list, elevation: Callable, config: dict) -> dict:
-    """Add buffered railway centerlines with one shared gray ballast material.
+    """Add buffered railway centerlines with a shared metric track texture.
 
     Each OSM way represents a mapped track; ``tracks`` and ``passenger_lines``
     tags do not multiply its width. A usable OSM ``width`` overrides the default
@@ -49,6 +50,10 @@ def add_railways(scene: trimesh.Scene, features: list, elevation: Callable, conf
     categories = Counter()
     segment_count = 0
     skipped_count = 0
+    lines = [line for feature in features if feature.get("geometry") is not None
+             and feature.get("tags", {}).get("railway") in RAILWAY_TYPES
+             for line in geometry_parts(feature["geometry"], "LineString") if line.length >= 0.01]
+    phases = iter(track_phases(lines))
     for index, feature in enumerate(features):
         tags = feature.get("tags", {})
         category = tags.get("railway")
@@ -61,6 +66,7 @@ def add_railways(scene: trimesh.Scene, features: list, elevation: Callable, conf
         for line in geometry_parts(geometry, "LineString"):
             if line.length < 0.01:
                 continue
+            phase = next(phases)
             # Flat ends let adjoining mapped ways meet without end-cap bumps.
             buffered = line.buffer(track_width / 2, cap_style=2, join_style=1, quad_segs=3)
             if clipping is not None:
@@ -70,6 +76,7 @@ def add_railways(scene: trimesh.Scene, features: list, elevation: Callable, conf
             mesh = surface_mesh(buffered, elevation, spacing, offset)
             if mesh is None:
                 continue
+            mesh.visual = TextureVisuals(uv=track_uv(mesh.vertices, line, phase))
             meshes.append(mesh)
             source_ids.append(str(feature.get("id", index)))
             categories[category] += 1
@@ -81,13 +88,8 @@ def add_railways(scene: trimesh.Scene, features: list, elevation: Callable, conf
     triangle_count = 0
     if meshes:
         mesh = trimesh.util.concatenate(meshes)
-        mesh.visual = TextureVisuals(material=PBRMaterial(
-            name="railway_ballast",
-            baseColorFactor=[107, 111, 116, 255],
-            metallicFactor=0.0,
-            roughnessFactor=0.95,
-            doubleSided=True,
-        ))
+        uv = np.vstack([part.visual.uv for part in meshes])
+        mesh.visual = TextureVisuals(uv=uv, material=track_material())
         mesh.metadata.update({
             "kind": "railway",
             "source": "OpenStreetMap",

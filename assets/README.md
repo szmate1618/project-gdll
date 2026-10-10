@@ -64,6 +64,12 @@ not enter that collision world. When a tree GLB is opened as the standalone
 main scene instead, the generic scene collision loader still treats its quads
 as surfaces; preview standalone assets in free-fly mode.
 
+## Railway texture
+
+[railways/track.png](railways/track.png) is a repeating metric tile containing
+steel rails, timber ties, and gravel. See [its documentation](railways/README.md)
+for dimensions and the offline asset builder.
+
 ## Animated zombies
 
 The Polyart Zombie pack belongs in `zombies/models/`. See its
