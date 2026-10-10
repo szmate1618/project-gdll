@@ -56,7 +56,7 @@ def _facades(polygon):
         points = np.asarray(ring.coords)
         for start, end in zip(points[:-1], points[1:]):
             length = float(np.linalg.norm(end - start))
-            if length < 0.01:
+            if length == 0:
                 continue
             direction = (end - start) / length
             result.append(Facade(start, end, direction, np.array([direction[1], -direction[0]]),

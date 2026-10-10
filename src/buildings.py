@@ -206,8 +206,11 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
             except (ValueError, IndexError, TypeError, ShapelyError) as error:
                 LOG.warning("Skipping building %s component %d: %s", feature["id"], index, error)
                 continue
-            detailed_wall, doors, windows, detail_counts = facade_details(
-                polygon, wall, roof, elevation, options, road_index.nearest(polygon))
+            try:
+                detailed_wall, doors, windows, detail_counts = facade_details(
+                    polygon, wall, roof, elevation, options, road_index.nearest(polygon))
+            except (ValueError, IndexError, TypeError, ShapelyError) as error:
+                raise ValueError(f"Building {feature['id']} component {index}: {error}") from error
             name = f"building_{feature['id'].replace('/', '_')}_{index}"
             if detailed_wall is not None:
                 distance = float(options.get("detail_distance_m", 120.0))

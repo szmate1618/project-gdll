@@ -12,6 +12,7 @@ import trimesh
 
 from src.building_details import RoadIndex, _door_facades, _facades
 from src.buildings import _mesh_for_polygon, add_buildings
+from src.wall_openings import _FacadeMatcher
 
 
 def panels(mesh):
@@ -141,6 +142,57 @@ class BuildingDetailTests(unittest.TestCase):
         self.assertGreater(len(low_caps), 0)
         self.assertTrue(np.all(low.face_normals[low.face_normals[:, 2] < -1e-6, 2] > -.5))
         np.testing.assert_array_equal(near_caps, low_caps)
+        self.assert_closed_lods(scene)
+
+    def test_quantized_roof_split_edge_can_have_a_different_normal(self):
+        # way/184191061 fails a normal-only facade match: two roof boundary
+        # points are 15 micrometers apart after GLB float32 quantization.
+        polygon = Polygon([
+            (-1184.8570124516264, 82.2104016225785),
+            (-1189.205463159189, 76.86654109787196),
+            (-1186.3960587715264, 74.60495015326887),
+            (-1182.0320992218913, 79.97071772906929),
+            (-1176.3989654409816, 75.41388225741684),
+            (-1185.0185559689417, 64.82456346787512),
+            (-1199.419267963036, 76.47365352790803),
+            (-1195.3257705303258, 81.50052837654948),
+            (-1194.8525259784656, 81.12348867673427),
+            (-1190.3496869633673, 86.65305458568037),
+        ])
+        scene, _ = self.generate(polygon, tags={'building': 'house', 'height': '12'})
+        wall = scene.geometry['building_way_1_0_walls']
+        facades = _facades(polygon)
+        unusual = [(triangle, normal) for triangle, normal in zip(wall.triangles, wall.face_normals)
+                   if abs(normal[2]) <= 1e-6 and not any(np.dot(normal[:2], facade.normal) > .99 for facade in facades)]
+        self.assertGreater(len(unusual), 0, 'Fixture must exercise the rotated tiny boundary edge')
+        self.assert_closed_lods(scene)
+        restored = trimesh.load_scene(io.BytesIO(scene.export(file_type='glb')), file_type='glb', process=False)
+        self.assert_closed_lods(restored)
+
+    def test_matching_facade_rejects_distant_parallel_wall(self):
+        matcher = _FacadeMatcher(_facades(box(0, 0, 10, 10)))
+        with self.assertRaisesRegex(ValueError, 'Cannot associate building wall'):
+            matcher.match(np.array([[30., 0.], [35., 0.]]), np.array([0., -1., 0.]))
+
+    def test_window_edge_rounds_onto_foundation_split_without_cracking(self):
+        # way/308352807: a window edge and a foundation sample coincide only
+        # after float32 rounding. Clipping first leaves a collapsed sliver.
+        polygon = Polygon([
+            (1460.9602589193382, 906.0711084213108),
+            (1446.574751331471, 895.254283465445),
+            (1439.3897018110147, 904.7442410849035),
+            (1453.7754339554813, 915.5721617089584),
+        ])
+        scene, _ = self.generate(polygon, tags={'building': 'house'})
+        self.assert_closed_lods(scene)
+        restored = trimesh.load_scene(io.BytesIO(scene.export(file_type='glb')), file_type='glb', process=False)
+        self.assert_closed_lods(restored)
+
+    def test_tiny_original_facade_segments_are_retained(self):
+        polygon = Polygon([(0, 0), (10, 0), (10, 10), (9.995, 10.005), (0, 10)])
+        facades = _facades(polygon)
+        self.assertTrue(any(0 < facade.length < .01 for facade in facades))
+        scene, _ = self.generate(polygon)
         self.assert_closed_lods(scene)
 
     def test_doors_cannot_cut_foundation_cap_above_a_terrain_dip(self):
