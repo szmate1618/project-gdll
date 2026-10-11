@@ -29,11 +29,11 @@ class FenceTests(unittest.TestCase):
                     feature([(0, 15), (10, 15)], {"fence_type": "railing"})]
         stats = add_fences(scene, features, lambda x, y: 4, {})
         self.assertEqual(stats["fence_ways"], 4)
-        self.assertEqual(stats["fence_meshes"], 6)
+        self.assertEqual(stats["fence_meshes"], 3)
         self.assertEqual(stats["fence_materials"], {"chain_link": 2, "wood": 1, "metal": 1})
         self.assertAlmostEqual(scene.geometry["fences_chain_link"].bounds[1, 2], 4 + 1.8288)
         loaded = trimesh.load_scene(io.BytesIO(scene.export(file_type="glb")), file_type="glb", process=False)
-        self.assertEqual(len(loaded.geometry), 6)
+        self.assertEqual(len(loaded.geometry), 3)
         self.assertEqual(loaded.geometry["fences_chain_link"].visual.material.alphaMode, "MASK")
         texture = np.array(loaded.geometry["fences_chain_link"].visual.material.baseColorTexture)
         self.assertTrue(np.any(texture[:, :, 3] == 0))
@@ -43,6 +43,29 @@ class FenceTests(unittest.TestCase):
             self.assertTrue(np.isfinite(mesh.vertices).all())
             self.assertTrue(np.all(mesh.area_faces > 1e-10))
         self.assertEqual(fence_style({"material": "concrete"}), "concrete")
+
+    def test_posts_are_textured_without_extra_geometry(self):
+        for style, tags in [("chain_link", {}), ("metal", {"fence_type": "railing"}),
+                            ("wood", {"material": "wood"}),
+                            ("concrete", {"material": "concrete"})]:
+            with self.subTest(style=style):
+                scene = trimesh.Scene()
+                stats = add_fences(scene, [feature([(0, 0), (10, 0)], tags)],
+                                   lambda x, y: 0, {"fences": {"post_spacing_m": 2}})
+                self.assertEqual(list(scene.geometry), [f"fences_{style}"])
+                self.assertEqual(stats["fence_triangles"], 10)
+                mesh = scene.geometry[f"fences_{style}"]
+                np.testing.assert_array_equal(mesh.vertices[:, 1], 0)
+                np.testing.assert_allclose(mesh.visual.uv[::2, 0], [0, 1, 2, 3, 4, 5])
+                texture = np.array(mesh.visual.material.baseColorTexture)
+                # The post spans the entire texture height and wraps at U=0.
+                self.assertTrue(np.all(texture[:, [0, -1], 3] == 255))
+                self.assertTrue(np.all(texture[:, 0, 0] < 255))
+                if style in {"chain_link", "metal"}:
+                    # The space between posts retains open wire/bar texels.
+                    self.assertTrue(np.any(texture[:, texture.shape[1] // 8, 3] == 0))
+                else:
+                    self.assertTrue(np.all(texture[:, :, 3] == 255))
 
     def test_panels_follow_actual_terrain_triangles_across_ridges_and_corners(self):
         terrain = Terrain(np.array([[0., 4., 0.], [1., -2., 3.], [0., 5., 0.]]),
@@ -61,7 +84,7 @@ class FenceTests(unittest.TestCase):
             np.testing.assert_allclose(probes[:, 2], terrain(*probes[:, :2].T) - .05, atol=1e-9)
         self.assertTrue(np.any(np.all(np.isclose(lower[:, :2], [18, 17]), axis=1)))
 
-    def test_gate_gap_is_clear_in_panels_and_posts(self):
+    def test_gate_gap_is_clear_in_panels(self):
         scene = trimesh.Scene()
         stats = add_fences(scene, [feature([(-10, 0), (10, 0)], openings=[opening(0, 0, "4")])],
                            lambda x, y: 0, {})
@@ -80,12 +103,12 @@ class FenceTests(unittest.TestCase):
         mesh = scene.geometry["fences_chain_link"]
         self.assertFalse(np.any(np.all(np.isclose(mesh.vertices[:, :2], [0, 0]), axis=1)))
 
-    def test_diagonal_gate_posts_do_not_narrow_the_clear_gap(self):
+    def test_diagonal_gate_preserves_the_clear_gap(self):
         scene = trimesh.Scene()
         add_fences(scene, [feature([(-10, -10), (10, 10)], openings=[opening(0, 0, "4")])],
                    lambda x, y: 0, {})
-        posts = scene.geometry["fences_chain_link_posts"]
-        along = posts.vertices[:, :2].sum(axis=1) / np.sqrt(2)
+        panel = scene.geometry["fences_chain_link"]
+        along = panel.vertices[:, :2].sum(axis=1) / np.sqrt(2)
         self.assertTrue(np.all(np.abs(along) >= 2 - 1e-9))
 
     def test_clip_boundary_gate_and_overlapping_openings(self):

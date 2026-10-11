@@ -175,7 +175,7 @@ class GenerateTests(unittest.TestCase):
         updated = trimesh.load_scene(output, process=False)
         _, updated_binary = read_glb(output.read_bytes())
         self.assertEqual(updated_binary[:len(original_binary)], original_binary)
-        self.assertEqual(len(updated.geometry), len(original.geometry) + 2)
+        self.assertEqual(len(updated.geometry), len(original.geometry) + 1)
         for name, mesh in original.geometry.items():
             np.testing.assert_array_equal(updated.geometry[name].vertices, mesh.vertices)
             np.testing.assert_array_equal(updated.geometry[name].faces, mesh.faces)
@@ -192,6 +192,23 @@ class GenerateTests(unittest.TestCase):
         self.assertEqual(empty["fences"]["fence_ways"], 0)
         cleared = trimesh.load_scene(output, process=False)
         self.assertEqual(set(cleared.geometry), set(original.geometry))
+
+    def test_fence_patch_removes_legacy_solid_post_draws(self):
+        original = trimesh.Scene(metadata={"sources": {}})
+        original.add_geometry(trimesh.creation.box(), geom_name="town", node_name="town")
+        original.add_geometry(trimesh.creation.box(), geom_name="fences_chain_link_posts",
+                              node_name="fences_chain_link_posts")
+        replacement = trimesh.Scene()
+        panel = trimesh.creation.box()
+        panel.visual = trimesh.visual.TextureVisuals(
+            material=trimesh.visual.material.PBRMaterial(name="fence_chain_link"))
+        replacement.add_geometry(panel, geom_name="fences_chain_link",
+                                 node_name="fences_chain_link")
+        patched = fence_scene_update.prepare_fence_patch(
+            original.export(file_type="glb"), replacement, {}, {})
+        loaded = trimesh.load_scene(io.BytesIO(patched), file_type="glb", process=False)
+        self.assertEqual(set(loaded.geometry), {"town", "fences_chain_link"})
+        self.assertFalse(any("_posts" in node for node in loaded.graph.nodes_geometry))
 
     def test_failed_fences_only_validation_preserves_existing_map_and_report(self):
         self.run_generator()

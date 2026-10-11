@@ -1,8 +1,8 @@
 """Terrain-following OSM fences in local east/north/up metres.
 
-Panels and posts are batched by material. Wire and railing panels use embedded
-alpha masks; their continuous triangle surfaces also block walking through the
-fence. Mapped entrances are physical gaps, without interactive gate leaves.
+Panels are batched by material, with posts painted into their textures. Wire
+and railing panels use embedded alpha masks; their continuous triangle surfaces
+also block walking. Mapped entrances are gaps, without interactive gate leaves.
 """
 from __future__ import annotations
 
@@ -41,27 +41,37 @@ def fence_style(tags: dict) -> str:
     return "chain_link"
 
 
-def _material(style: str, posts: bool = False) -> PBRMaterial:
-    texture = None
-    if not posts and style in {"chain_link", "metal"}:
-        # One repeat spans .25 horizontal metres. Railing V spans the entire
-        # height; chain-link V repeats every .25 vertical metres.
-        texture = Image.new("RGBA", (128, 128), (255, 255, 255, 0))
-        draw = ImageDraw.Draw(texture)
-        if style == "chain_link":
-            for offset in (-128, 0, 128):
-                draw.line([(offset, 0), (offset + 128, 128)], fill="white", width=5)
-                draw.line([(offset, 128), (offset + 128, 0)], fill="white", width=5)
-        else:
-            draw.rectangle((59, 0, 69, 127), fill="white")
-            draw.rectangle((0, 12, 127, 18), fill="white")
-            draw.rectangle((0, 104, 127, 110), fill="white")
+def _material(style: str, spacing: float) -> PBRMaterial:
+    # U spans one post interval. Keep the wire/bar pattern at .25 m within
+    # that interval, rather than placing a post at every wire repeat.
+    width = min(4096, 2 ** math.ceil(math.log2(max(128, spacing * 512))))
+    masked = style in {"chain_link", "metal"}
+    texture = Image.new("RGBA", (width, 128), (255, 255, 255, 0 if masked else 255))
+    draw = ImageDraw.Draw(texture)
+    cell_width = width * .25 / spacing
+    if style == "chain_link":
+        for cell in range(-1, math.ceil(width / cell_width) + 1):
+            offset = cell * cell_width
+            draw.line([(offset, 0), (offset + cell_width, 128)], fill="white", width=5)
+            draw.line([(offset, 128), (offset + cell_width, 0)], fill="white", width=5)
+    elif style == "metal":
+        bar_width = width * .02 / spacing
+        for cell in range(math.ceil(width / cell_width)):
+            center = (cell + .5) * cell_width
+            draw.rectangle((center - bar_width / 2, 0, center + bar_width / 2, 127), fill="white")
+        draw.rectangle((0, 12, width - 1, 18), fill="white")
+        draw.rectangle((0, 104, width - 1, 110), fill="white")
+    # An 8 cm post straddles the repeat seam. Shading suggests its thickness
+    # while every fence vertex remains on the continuous panel surface.
+    half_post = max(1, round(width * .04 / spacing))
+    draw.rectangle((0, 0, half_post - 1, 127), fill=(235, 235, 235, 255))
+    draw.rectangle((width - half_post, 0, width - 1, 127), fill=(175, 175, 175, 255))
     return PBRMaterial(
-        name=f"fence_{style}" + ("_posts" if posts else ""),
+        name=f"fence_{style}",
         baseColorFactor=COLORS[style], baseColorTexture=texture,
         metallicFactor=.35 if style in {"chain_link", "metal"} else 0,
         roughnessFactor=.85, doubleSided=True,
-        alphaMode="MASK" if texture is not None else "OPAQUE", alphaCutoff=.5,
+        alphaMode="MASK" if masked else "OPAQUE", alphaCutoff=.5,
     )
 
 
@@ -111,42 +121,17 @@ def _panels(line, elevation, spacing, height, style, material):
     lower = np.arange(len(xy) - 1) * 2
     faces = np.vstack((np.column_stack((lower, lower + 2, lower + 3)),
                        np.column_stack((lower, lower + 3, lower + 1))))
-    uv = np.column_stack((np.repeat(distances / .25, 2),
+    uv = np.column_stack((np.repeat(distances / spacing, 2),
                           np.tile([-.05 / .25, height / .25] if style == "chain_link"
                                   else [-.05 / height, 1], len(xy))))
     return trimesh.Trimesh(vertices=vertices, faces=faces, process=False,
                            visual=TextureVisuals(uv=uv, material=material))
 
 
-def _posts(line, elevation, spacing, height, material):
-    # Posts use regular spacing and original corners, independently of extra
-    # terrain panel subdivisions. At openings, inset the end posts so their
-    # thickness does not reduce the requested clear width.
-    corners = np.r_[0, np.cumsum(np.linalg.norm(np.diff(line.coords, axis=0), axis=1))]
-    # Axis-aligned square posts extend up to half their diagonal along a fence.
-    inset = min(.06, line.length / 4)
-    distances = np.unique(np.clip(np.r_[corners, np.linspace(0, line.length,
-                                   math.ceil(line.length / spacing) + 1)], inset, line.length - inset))
-    if line.is_ring:
-        distances = distances[:-1]
-    meshes = []
-    for distance in distances:
-        x, y = line.interpolate(distance).coords[0]
-        ground = float(elevation(x, y))
-        if not math.isfinite(ground):
-            raise ValueError("Terrain returned non-finite fence post elevation")
-        mesh = trimesh.creation.box(extents=(.08, .08, height + .1))
-        mesh.apply_translation((x, y, ground + height / 2))
-        meshes.append(mesh)
-    result = trimesh.util.concatenate(meshes)
-    result.visual = TextureVisuals(material=material)
-    return result
-
-
 def add_fences(scene: trimesh.Scene, features: list, elevation, config: dict) -> dict:
     """Build fences from local metric ways, cutting entrances before clipping.
 
-    Heights default to 1.5 m; posts to 2.5 m spacing; unknown gate widths to 3 m.
+    Heights default to 1.5 m; textured posts to 2.5 m spacing; gate widths to 3 m.
     Narrow pedestrian entrances default to 1.2 m. No fences are inferred from
     land-use or property boundaries that lack an explicit barrier=fence tag.
     """
@@ -188,16 +173,11 @@ def add_fences(scene: trimesh.Scene, features: list, elevation, config: dict) ->
         for line in geometry_parts(geometry, "LineString"):
             if line.length < .05:
                 continue
-            for posts in (False, True):
-                key = style + ("_posts" if posts else "")
-                if key not in material_cache:
-                    material_cache[key] = _material(style, posts)
-                if posts:
-                    mesh = _posts(line, elevation, spacing, height, material_cache[key])
-                else:
-                    mesh = _panels(line, elevation, spacing, height, style, material_cache[key])
-                groups[key].append(mesh)
-                sources[key].add(str(feature.get("id", "unknown")))
+            if style not in material_cache:
+                material_cache[style] = _material(style, spacing)
+            mesh = _panels(line, elevation, spacing, height, style, material_cache[style])
+            groups[style].append(mesh)
+            sources[style].add(str(feature.get("id", "unknown")))
             segments += 1
             materials[style] += 1
             length += line.length
