@@ -1,4 +1,6 @@
 #include "renderer.hpp"
+#include "door_layer.hpp"
+#include "physics_world.hpp"
 #include "reticle_overlay.hpp"
 #include "camera_rig.hpp"
 #include "collision_debug.hpp"
@@ -464,7 +466,10 @@ void initializeGraphics(bool allowSoftware) {
 
 int run(const Options& options) {
     std::cout << "Loading: " << options.model << '\n';
-    const auto model = viewer::loadModel(options.model);
+    auto model = viewer::loadModel(options.model);
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics);
+    std::cout << "Doors: " << doors.count() << " hinged panels; nearby physics activation\n";
     std::size_t triangles = 0;
     for (const auto& draw : model.draws) triangles += model.primitives.at(draw.primitive).indices.size() / 3;
     std::cout << "Loaded " << model.primitives.size() << " primitives, " << model.draws.size()
@@ -525,6 +530,7 @@ int run(const Options& options) {
                       << " shared animated assets; looping idle with individual phase offsets\n";
         } else std::cerr << "Zombie assets are missing at " << path << "; see assets/zombies/README.md for download instructions.\n";
     }
+    if (zombies) zombies->attachPhysics(physics);
     GLFWLifetime lifetime;
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -634,8 +640,13 @@ int run(const Options& options) {
             if (app.rig.walking())
                 for (const auto& noise : app.rig.player().noises())
                     zombies->makeNoise(noise.position, noise.decibels);
-            zombies->update(dt);
+            for (const auto& instance : zombies->instances)
+                if (instance.ragdoll) doors.activateNear(glm::vec3(instance.transform[3]));
         }
+        doors.activateNear(app.rig.camera().position());
+        physics->step(dt);
+        if (zombies) zombies->synchronizePhysics();
+        renderer.updateDoors(doors);
         renderer.resize(app.width, app.height);
         if (zombies) renderer.updateZombies(*zombies);
         std::vector<viewer::DebugVertex> overlay;

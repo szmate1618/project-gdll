@@ -243,7 +243,9 @@ brown door panels and blue glass at 60% transparency (40% opacity). Masonry is
 removed behind each panel. The roof is shared between both LoDs. Detailed walls,
 doors, glass and roofs are double-sided so the empty building shell is visible
 through glass.
-There are no modeled rooms or opening-door animations.
+Doors have runtime physics hinges that can swing outward under forces or rigid-body
+contacts; player interaction and modeled rooms are not implemented. See
+[the viewer guide](docs/VIEWER.md) for the physics API.
 
 The front door uses the exterior wall closest to the nearest road. Among walls
 within 0.5 m of the closest wall, prefer the outward normal facing most directly
@@ -271,8 +273,8 @@ maps and original maps. Other glTF viewers need to choose one wall alternative.
 
 The desktop viewer selects higher detail within `buildings.detail_distance_m`
 (default 120 m). Both scope views extend this distance according to magnification
-and retain frustum culling. Physics and shadows retain the original solid shell;
-closed doors and glass block walking. Regenerate with
+and retain frustum culling. Walking collision and shadows retain the original solid
+shell, so walking through an open door is not yet supported. Regenerate with
 `.venv/bin/python -m src.generate --offline` to add them to an existing map;
 previous maps continue to load with their original appearance. Regenerating a
 map changes its fingerprint, so rebuild any tree placements as described in

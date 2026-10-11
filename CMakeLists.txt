@@ -109,10 +109,14 @@ target_include_directories(viewer_noise PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src"
 target_link_libraries(viewer_noise PUBLIC glm::glm)
 viewer_warnings(viewer_noise)
 
+add_library(viewer_physics STATIC src/physics_world.cpp src/door_geometry.cpp src/door_layer.cpp)
+target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d)
+viewer_warnings(viewer_physics)
+
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp
     src/zombie_layer.cpp src/zombie_hit.cpp src/zombie_chase.cpp src/zombie_behavior.cpp
     src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp)
-target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise box3d::box3d)
+target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise viewer_physics)
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_zombies)
 
@@ -160,6 +164,11 @@ add_dependencies(godollo_viewer viewer_test_asset)
 viewer_warnings(godollo_viewer)
 
 if(BUILD_TESTING)
+    add_executable(test_doors tests/test_doors.cpp)
+    target_link_libraries(test_doors PRIVATE viewer_physics viewer_visibility viewer_zombies)
+    viewer_warnings(test_doors)
+    add_test(NAME viewer_doors COMMAND test_doors)
+
     foreach(suite animated_model zombie_placement zombie_chase zombie_behavior zombie_ragdoll zombie_transition)
         add_executable(test_${suite} tests/test_${suite}.cpp)
         target_link_libraries(test_${suite} PRIVATE viewer_zombies)

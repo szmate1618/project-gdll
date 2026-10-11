@@ -8,6 +8,8 @@
 
 namespace viewer {
 
+class PhysicsWorld;
+
 struct ZombieInstance {
     std::size_t asset = 0;
     glm::mat4 transform{1};
@@ -53,6 +55,10 @@ struct ZombieLayer {
     // Convenience entry point for a standard 1.8 m player; target is feet.
     void chase(float seconds, glm::vec3 target, const CollisionWorld& world,
                double animationSeconds = 0.0);
+    // Attach before the first ragdoll. The app then steps the shared world and
+    // calls synchronizePhysics(); standalone update() retains its own stepping.
+    void attachPhysics(std::shared_ptr<PhysicsWorld> world);
+    void synchronizePhysics();
     void update(float seconds);
     [[nodiscard]] std::size_t ragdollCount() const;
 

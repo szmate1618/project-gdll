@@ -50,6 +50,13 @@ ModelVisibility::ModelVisibility(const Model& model) {
     for (const auto& draw : model.draws) {
         if (draw.primitive >= localBounds.size()) throw std::runtime_error("Model visibility draw references an invalid primitive");
         drawBounds_.push_back(transformBounds(localBounds[draw.primitive], draw.transform));
+        if (!std::isfinite(draw.horizontalMotionRadius) || draw.horizontalMotionRadius < 0)
+            throw std::runtime_error("Model visibility requires finite nonnegative motion padding");
+        // A small vertical allowance covers hinge solver slop under contact.
+        const glm::vec3 padding(draw.horizontalMotionRadius, draw.horizontalMotionRadius > 0 ? .02f : 0,
+                                draw.horizontalMotionRadius);
+        drawBounds_.back().minimum -= padding;
+        drawBounds_.back().maximum += padding;
         if (!std::isfinite(draw.detailDistance) || draw.detailDistance < 0.0f)
             throw std::runtime_error("Model visibility requires a nonnegative finite detail distance");
         detailDistances_.push_back(draw.detailDistance);

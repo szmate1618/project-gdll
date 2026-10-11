@@ -31,7 +31,7 @@ sudo dnf install gcc-c++ cmake python3 pkgconf-pkg-config mesa-libGL-devel \
 CMake downloads pinned versions of [GLFW 3.4](https://github.com/glfw/glfw/releases/tag/3.4),
 [GLM 1.0.1](https://github.com/g-truc/glm/releases/tag/1.0.1), and
 [tinygltf 2.9.7](https://github.com/syoyo/tinygltf/releases/tag/v2.9.7), verifying
-each archive's SHA-256. It also fetches a pinned Box3D commit for ragdoll physics.
+each archive's SHA-256. It also fetches a pinned Box3D commit for door and ragdoll physics.
 The first configure needs network access. Downloads live
 under `build/_archives/`; extracted dependencies and their build products live
 under `build/_deps/`. Their examples, tests, and install targets are disabled.
@@ -362,10 +362,46 @@ required. New maps render an alternative wall mesh with real door/window
 openings and flush brown doors and blue glass with 60% transparency. Within
 120 m by default, the original opaque walls are replaced by the detailed walls
 and panels together. Both scope views extend this range and retain frustum
-culling. Collision and shadows use the original solid shell, so closed doors
-and glass still block walking. There are no modeled rooms or opening-door
-animations. See [building generation](../README.md) for configuration and
-regeneration.
+culling. Walking collision and building shadows still use the original solid
+shell: an open door does not yet allow the walking capsule through the wall.
+There are no modeled rooms. See [building generation](../README.md) for
+configuration and regeneration.
+
+Generated brown door panels have runtime Box3D bodies and vertical revolute
+joints, sharing the simulation with zombie ragdolls. Their limits allow a
+**0–110° outward swing**, selected from each facade's outward normal. A thin
+4 cm box supplies contact geometry for the flat rendered panel; the collider
+starts 10 cm above the highest lower boundary to clear the 8 cm foundation
+and leave 2 cm above ground.
+A static anchor holds the hinge. Panels weigh 25 kg and have angular damping;
+there is no latch, automatic closer, or player interaction binding.
+
+`prepareDoorPanels(model)` separates batched door meshes at load time without
+changing the GLB or requiring regeneration. It preserves the original node
+transforms, materials and building LoD groups. An immutable visibility BVH
+includes the panel's full horizontal sweep, so normal and scoped frustum
+culling remain conservative when the panel moves. Far LoD walls still
+approximate the building as closed.
+
+`DoorLayer` owns the bodies in a shared `PhysicsWorld`. `activateNear(position,
+radius)` uses a grid to instantiate local hinges (32 m by default); the app
+calls it around the camera and ragdolls. Other future physics actors must call
+it around their positions before stepping, with a radius covering their next
+movement. Activated doors retain their pose and can sleep as the camera leaves;
+they are not recreated or reset. `applyForce(door, force, worldPoint)` and
+`applyImpulse(door, impulse, worldPoint)` activate a chosen door directly.
+Vectors use world coordinates, meters, newtons and newton-seconds. Reapply a
+sustained force each physics step. Physics objects created in `PhysicsWorld::id()`
+can push doors through ordinary contacts, with no door-specific hit handler.
+
+Advance `PhysicsWorld::step(dt)` once per app frame, then call
+`ZombieLayer::synchronizePhysics()` and `Renderer::updateDoors(doors)` before
+drawing. `ZombieLayer::attachPhysics(world)` must run before the first ragdoll;
+its standalone `update(dt)` continues to advance its own simulation for tests
+and independent callers. Ragdoll and door owners destroy their bodies before
+releasing the shared world. The rigid-body world currently contains doors and
+the existing ragdoll ground boxes; town walls, terrain and walking collision
+remain in `CollisionWorld` rather than being imported into Box3D.
 
 The controller uses fixed 120 Hz simulation and further divides large capsule
 displacements. Iterative contact corrections stop motion into walls while
@@ -726,6 +762,9 @@ src/simulation_clock.hpp   Global simulation-thread in-game clock
 src/zombie_chase.{hpp,cpp}  Terrain-following locomotion and walking/running strides
 src/zombie_placement.{hpp,cpp} Ground queries and deterministic safe placement
 src/zombie_park.{hpp,cpp}  Palace garden outline in the published map's frame
+src/physics_world.{hpp,cpp} Shared Box3D world and fixed simulation stepping
+src/door_geometry.{hpp,cpp} Runtime extraction of independent door panels
+src/door_layer.{hpp,cpp} Local hinge activation, force API and door poses
 src/zombie_ragdoll.{hpp,cpp} Box3D ragdoll simulation and simplified ground planes
 src/zombie_ragdoll_pose.{hpp,cpp} Animated-pose handoff and physics-to-skin mapping
 src/zombie_renderer.cpp    Shared animation buffers, skinning data, and GPU instancing

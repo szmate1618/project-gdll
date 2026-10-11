@@ -54,10 +54,12 @@ struct DrawInstance {
     // Preserve scene semantics for collision classification and diagnostics.
     std::string name;
     // Building detail range in world meters at the normal 60° FOV. Zero keeps
-    // legacy draws always eligible. Physics uses the original low-detail shell.
+    // legacy draws always eligible. Walking uses the original low-detail shell.
     float detailDistance = 0.0f;
     bool lowDetail = false;
     std::string detailGroup{}; // All wall/panel alternatives switch together.
+    // Runtime-only conservative horizontal padding for a movable panel's sweep.
+    float horizontalMotionRadius = 0.0f;
 };
 
 struct Model {

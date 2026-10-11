@@ -10,6 +10,8 @@
 
 namespace viewer {
 
+class PhysicsWorld;
+
 // World-space skeleton transforms and distal joint positions, in meters.
 // Bone matrices may include asset scale; physics uses their rigid motion only.
 // Torso's tip is the neck, head's tip is above the skull, and limb tips are
@@ -24,6 +26,7 @@ struct RagdollPose {
 class ZombieRagdollWorld {
 public:
     ZombieRagdollWorld();
+    explicit ZombieRagdollWorld(std::shared_ptr<PhysicsWorld> world);
     ~ZombieRagdollWorld();
     ZombieRagdollWorld(ZombieRagdollWorld&&) noexcept;
     ZombieRagdollWorld& operator=(ZombieRagdollWorld&&) noexcept;

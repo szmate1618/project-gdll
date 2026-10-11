@@ -36,6 +36,8 @@ bool raySphere(glm::vec3 origin, glm::vec3 direction, glm::vec3 center, float ra
 }
 
 struct ZombieLayer::Physics {
+    Physics() = default;
+    explicit Physics(std::shared_ptr<PhysicsWorld> shared) : world(std::move(shared)) {}
     ZombieRagdollWorld world;
 };
 
@@ -93,9 +95,19 @@ bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationS
     return true;
 }
 
+void ZombieLayer::attachPhysics(std::shared_ptr<PhysicsWorld> world) {
+    if (ragdollCount() != 0) throw std::logic_error("Attach physics before creating ragdolls");
+    physics_ = std::make_unique<Physics>(std::move(world));
+}
+
 void ZombieLayer::update(float seconds) {
     if (!physics_ || !std::isfinite(seconds) || seconds <= 0.0f) return;
     physics_->world.step(seconds);
+    synchronizePhysics();
+}
+
+void ZombieLayer::synchronizePhysics() {
+    if (!physics_) return;
     for (auto& instance : instances) {
         if (!instance.ragdoll) continue;
         instance.transform = physics_->world.rootTransform(instance.ragdollHandle) *

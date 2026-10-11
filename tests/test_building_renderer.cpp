@@ -1,4 +1,6 @@
 #include "renderer.hpp"
+#include "door_layer.hpp"
+#include "physics_world.hpp"
 
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -166,6 +168,49 @@ void checkDoubleSidedSurfaces() {
             "Roof back face must remain visible");
     viewer::Renderer::checkErrors("double-sided building surfaces");
 }
+
+void checkHingedDoor(const std::filesystem::path& capture = {}) {
+    viewer::Model model;
+    viewer::Material door, background;
+    door.unlit = background.unlit = true;
+    door.doubleSided = true;
+    door.baseColor = {112.0f / 255, 65.0f / 255, 32.0f / 255, 1};
+    background.baseColor = {0, 1, 0, 1};
+    model.materials = {door, background};
+    card(model, {2, 3, -20}, {1, 2.1f}, 0, 120);
+    model.draws.back().name = "building_42_doors";
+    model.draws.back().detailGroup = "building_42";
+    card(model, {0, 3, -22}, {10, 6}, 1);
+    auto panels = viewer::prepareDoorPanels(model);
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::DoorLayer doors(panels, physics);
+    viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
+    renderer.setShadows(false);
+    renderer.setHaze(false);
+    renderer.setGroundFog(false);
+    renderer.resize(width, height);
+    viewer::Camera camera;
+    camera.setPosition({0, 3, 0});
+    camera.look(0, 200);
+    renderer.render(camera);
+    require(glm::length(pixel(camera, {2, 3, -20}) - glm::vec3(177, 138, 99)) < 3,
+            "An inactive hinge must preserve the closed brown door");
+    const glm::vec3 freeEdge(2.45f, 3, -20);
+    for (int i = 0; i < 180; ++i) {
+        const auto point = glm::vec3(doors.transform(0) * glm::vec4(freeEdge, 1));
+        doors.applyForce(0, glm::cross(glm::vec3(0, -1, 0), point - panels[0].hinge) * 100.0f, point);
+        physics->step(1.0f / 60);
+    }
+    renderer.updateDoors(doors);
+    renderer.render(camera);
+    require(glm::length(pixel(camera, {2, 3, -20}) - glm::vec3(0, 255, 0)) < 3,
+            "Opening a physical door must visibly uncover its original opening");
+    const auto moved = glm::vec3(doors.transform(0) * glm::vec4(2, 3, -20, 1));
+    require(glm::length(pixel(camera, moved) - glm::vec3(177, 138, 99)) < 3,
+            "The moved panel's back face must remain rendered and brown");
+    if (!capture.empty()) renderer.writeScreenshot(capture);
+    viewer::Renderer::checkErrors("hinged door rendering");
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -182,6 +227,7 @@ int main(int argc, char** argv) {
     try {
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << '\n';
         checkDoubleSidedSurfaces();
+        checkHingedDoor(argc == 3 ? std::filesystem::path(std::string(argv[2]) + ".hinge.ppm") : std::filesystem::path{});
         for (const bool culling : {true, false}) {
             check(20, 0, true, culling);
             check(1000, 0, false, culling);
@@ -197,7 +243,10 @@ int main(int argc, char** argv) {
         // Optional generated fixture and capture path for visual QA, using a
         // deliberate front-facing view instead of the viewer's overview camera.
         if (argc == 3) {
-            const auto model = viewer::loadModel(argv[1]);
+            auto model = viewer::loadModel(argv[1]);
+            auto physics = std::make_shared<viewer::PhysicsWorld>();
+            const auto panels = viewer::prepareDoorPanels(model);
+            viewer::DoorLayer doors(panels, physics);
             viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
             renderer.setShadows(false);
             renderer.setHaze(false);
@@ -208,6 +257,20 @@ int main(int argc, char** argv) {
             camera.look(0, 200);
             renderer.render(camera);
             renderer.writeScreenshot(argv[2]);
+            for (int frame = 0; frame < 180; ++frame) {
+                for (std::size_t i = 0; i < panels.size(); ++i) {
+                    const auto& p = panels[i];
+                    if (glm::distance(p.center, camera.position()) > 100) continue;
+                    const auto right = glm::cross(glm::vec3(0, 1, 0), p.outward);
+                    const auto point = glm::vec3(doors.transform(i) * glm::inverse(p.closedTransform) *
+                        glm::vec4(p.center + right * (p.halfExtents.x * .9f), 1));
+                    doors.applyForce(i, glm::cross(glm::vec3(0, -1, 0), point - p.hinge) * 100.0f, point);
+                }
+                physics->step(1.0f / 60);
+            }
+            renderer.updateDoors(doors);
+            renderer.render(camera);
+            renderer.writeScreenshot(std::string(argv[2]) + ".open.ppm");
             camera.setPosition({6, 3, 500});
             camera.cycleViewMode();
             camera.cycleViewMode();

@@ -1,4 +1,5 @@
 #include "renderer.hpp"
+#include "door_layer.hpp"
 #include "rain_renderer.hpp"
 #include "shader_program.hpp"
 
@@ -265,6 +266,16 @@ void Renderer::release() noexcept {
 const Material& Renderer::material(const ModelGPU& model, int index) const {
     return index >= 0 && static_cast<std::size_t>(index) < model.materials.size()
         ? model.materials[static_cast<std::size_t>(index)] : fallback_;
+}
+
+void Renderer::updateDoors(const DoorLayer& doors) {
+    for (const auto& pose : doors.poses()) {
+        auto& draw = sceneDraws_.at(pose.draw);
+        draw.transform = pose.transform;
+        draw.normalMatrix = glm::inverseTranspose(glm::mat3(pose.transform));
+        draw.center = glm::vec3(pose.transform * glm::vec4(model_.meshes.at(draw.primitive).center, 1));
+        draw.mirrored = glm::determinant(glm::mat3(pose.transform)) < 0;
+    }
 }
 
 void Renderer::resize(int width, int height) {

@@ -1,4 +1,5 @@
 #include "zombie_ragdoll.hpp"
+#include "physics_world.hpp"
 
 #include <box3d/box3d.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -14,7 +15,6 @@ namespace viewer {
 namespace {
 
 constexpr float pi = 3.14159265358979323846f;
-constexpr float fixedStep = 1.0f / 60.0f;
 
 enum Part {
     pelvis,
@@ -93,10 +93,10 @@ public:
         auto groundDef = b3DefaultBodyDef();
         groundDef.type = b3_staticBody;
         groundDef.position = toB3Pos({feet.x, feet.y - 0.05f, feet.z});
-        const auto ground = b3CreateBody(world_, &groundDef);
+        ground_ = b3CreateBody(world_, &groundDef);
         auto groundShape = b3DefaultShapeDef();
         const auto groundBox = b3MakeBoxHull(3.0f, 0.05f, 3.0f);
-        b3CreateHullShape(ground, &groundShape, &groundBox.base);
+        b3CreateHullShape(ground_, &groundShape, &groundBox.base);
 
         const float hipWidth = glm::distance(position(reference, upperLegLeft), position(reference, upperLegRight));
         const float shoulderWidth = glm::distance(position(reference, upperArmLeft), position(reference, upperArmRight));
@@ -169,6 +169,11 @@ public:
             restBodies_[static_cast<std::size_t>(part)] = bodyTransform(static_cast<Part>(part));
         initialPelvis_ = glm::vec3(restBodies_[pelvis][3]);
         b3Body_SetLinearVelocity(bodies_[pelvis], toB3Vec(impulse * 0.7f));
+    }
+
+    ~Ragdoll() {
+        for (const auto body : bodies_) if (b3Body_IsValid(body)) b3DestroyBody(body);
+        if (b3Body_IsValid(ground_)) b3DestroyBody(ground_);
     }
 
     glm::mat4 rootTransform() const {
@@ -263,6 +268,7 @@ private:
     }
 
     b3WorldId world_ = b3_nullWorldId;
+    b3BodyId ground_{};
     std::array<b3BodyId, partCount> bodies_{};
     std::array<glm::mat4, partCount> restBodies_{};
     std::array<glm::mat4, partCount> referenceBodies_{};
@@ -278,33 +284,19 @@ struct ZombieRagdollWorld::Impl {
         std::unique_ptr<Ragdoll> ragdoll;
     };
 
-    b3WorldId world = b3_nullWorldId;
+    // Declared first so entries destroy their bodies before releasing the world.
+    std::shared_ptr<PhysicsWorld> simulation;
     std::vector<Entry> entries;
-    float accumulator = 0.0f;
-    int nextCollisionGroup = -1;
 };
 
-ZombieRagdollWorld::ZombieRagdollWorld() : impl_(std::make_unique<Impl>()) {
-    auto definition = b3DefaultWorldDef();
-    definition.gravity = {0.0f, -9.8f, 0.0f};
-    definition.enableSleep = true;
-    definition.enableContinuous = true;
-    impl_->world = b3CreateWorld(&definition);
-    if (!b3World_IsValid(impl_->world)) throw std::runtime_error("Unable to create Box3D ragdoll world");
+ZombieRagdollWorld::ZombieRagdollWorld() : ZombieRagdollWorld(std::make_shared<PhysicsWorld>()) {}
+ZombieRagdollWorld::ZombieRagdollWorld(std::shared_ptr<PhysicsWorld> world) : impl_(std::make_unique<Impl>()) {
+    if (!world) throw std::invalid_argument("Ragdolls require a physics world");
+    impl_->simulation = std::move(world);
 }
-
-ZombieRagdollWorld::~ZombieRagdollWorld() {
-    if (impl_ && b3World_IsValid(impl_->world)) b3DestroyWorld(impl_->world);
-}
-
+ZombieRagdollWorld::~ZombieRagdollWorld() = default;
 ZombieRagdollWorld::ZombieRagdollWorld(ZombieRagdollWorld&&) noexcept = default;
-
-ZombieRagdollWorld& ZombieRagdollWorld::operator=(ZombieRagdollWorld&& other) noexcept {
-    if (this == &other) return *this;
-    if (impl_ && b3World_IsValid(impl_->world)) b3DestroyWorld(impl_->world);
-    impl_ = std::move(other.impl_);
-    return *this;
-}
+ZombieRagdollWorld& ZombieRagdollWorld::operator=(ZombieRagdollWorld&&) noexcept = default;
 
 std::size_t ZombieRagdollWorld::create(glm::vec3 feet, float yaw, glm::vec3 impulse) {
     RagdollPose pose;
@@ -356,20 +348,14 @@ std::size_t ZombieRagdollWorld::create(glm::vec3 feet, float yaw, glm::vec3 impu
                                         glm::vec3(referencePose.bones[upperLegRight][3]));
     if (!std::isfinite(hipWidth) || hipWidth < 1e-5f)
         throw std::invalid_argument("Ragdoll reference hips must be separated");
-    const auto group = impl_->nextCollisionGroup--;
-    impl_->entries.push_back({std::make_unique<Ragdoll>(impl_->world, feet, yaw, impulse, group,
+    const auto group = impl_->simulation->allocateCollisionGroup();
+    impl_->entries.push_back({std::make_unique<Ragdoll>(impl_->simulation->id(), feet, yaw, impulse, group,
                                                       referencePose, currentPose)});
     return impl_->entries.size() - 1;
 }
 
 void ZombieRagdollWorld::step(float seconds) {
-    if (!impl_ || !std::isfinite(seconds) || seconds <= 0.0f) return;
-    impl_->accumulator = std::min(impl_->accumulator + seconds, 0.2f);
-    int steps = 0;
-    while (impl_->accumulator >= fixedStep && steps++ < 8) {
-        b3World_Step(impl_->world, fixedStep, 4);
-        impl_->accumulator -= fixedStep;
-    }
+    if (impl_) impl_->simulation->step(seconds);
 }
 
 glm::mat4 ZombieRagdollWorld::rootTransform(std::size_t handle) const {

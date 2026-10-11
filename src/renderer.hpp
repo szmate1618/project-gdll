@@ -18,6 +18,7 @@
 namespace viewer {
 
 class RainRenderer;
+class DoorLayer;
 
 struct TreeRenderStats {
     std::size_t total = 0, visible = 0, drawCalls = 0;
@@ -37,6 +38,7 @@ public:
     void resize(int width, int height);
     void render(const Camera& camera, double animationSeconds = 0.0);
     void updateZombies(const ZombieLayer& zombies);
+    void updateDoors(const DoorLayer& doors);
     void present(int width, int height);
     void writeScreenshot(const std::filesystem::path& path) const;
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
