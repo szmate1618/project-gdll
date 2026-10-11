@@ -15,6 +15,8 @@ enum class CameraMode { FreeFly, Walking };
 class CameraRig {
 public:
     CameraRig(const CollisionWorld& world, glm::vec3 minimum, glm::vec3 maximum, float aspect);
+    // F2 preserves a clear camera position and falls; an explicit eye requests
+    // safe ground placement (used by --fps/--spawn). Failed transitions are atomic.
     bool enterWalking(std::optional<glm::vec3> preferredEye = std::nullopt);
     void enterFreeFly();
     void frame(float aspect);

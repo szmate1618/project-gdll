@@ -261,10 +261,26 @@ void testInvalidInputsAndMissingGround() {
     viewer::CollisionWorld world(empty);
     viewer::FPSController player;
     require(!player.spawn({0,1.7F,0}, world), "Spawn succeeds in an empty collision world");
+    require(!player.startFalling({0,10,0}, world), "Falling placement succeeds without ground below");
     const glm::vec3 before = player.feet();
     player.update(-1.0F, {}, world);
     player.update(std::numeric_limits<float>::quiet_NaN(), {}, world);
     require(player.feet() == before, "Invalid delta time changes player position");
+
+    viewer::Model model;
+    floor(model);
+    const viewer::CollisionWorld terrain(model);
+    require(player.startFalling({0,10,0}, terrain), "Cannot start falling above terrain");
+    run(player, terrain, .1f);
+    const auto feet = player.feet();
+    const auto velocity = player.verticalVelocity();
+    for (const auto eye : {glm::vec3(0, std::numeric_limits<float>::quiet_NaN(), 0),
+                           glm::vec3(std::numeric_limits<float>::infinity(), 10, 0),
+                           glm::vec3(0,1,0), glm::vec3(200,10,0)}) {
+        require(!player.startFalling(eye, terrain) && player.feet() == feet &&
+                    player.verticalVelocity() == velocity && !player.grounded(),
+                "Rejected falling placement changed an active player");
+    }
 }
 
 }  // namespace

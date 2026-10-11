@@ -302,7 +302,7 @@ idle cycles at a chosen elapsed time:
 | Shift | Free-fly: move four times faster; walking: run at 6 m/s |
 | Mouse wheel | Adjust free-fly movement speed |
 | F1 | Switch to free-fly mode |
-| F2 | Switch to walking mode; find safe ground below/near the camera |
+| F2 | Switch to walking mode at the camera position and fall onto the surface below; recover to safe ground if needed |
 | Space | Jump while grounded in walking mode |
 | F3 | Toggle collision visualization |
 | Tab | Switch between Combat (default) and Interaction controls |
@@ -356,9 +356,13 @@ Launch the generated town, then press **F2**, or start directly in walking mode:
 ```
 
 `--spawn X Z` requests a location in the loaded scene's local meter coordinates;
-Y is found from the terrain. Entering walking mode searches for clear, walkable
-terrain under or near the requested position, including when the free-fly
-camera is above a building. The viewer logs mode changes. **F1** releases the
+Y is found from the terrain. `--fps` and `--spawn` search for clear, walkable
+terrain under or near the requested position. **F2** preserves the free-fly eye
+position when the player capsule fits and a scene surface exists beneath it,
+then gravity drops the player onto that surface, including building roofs.
+Clear interiors can also retain the camera position. If the capsule overlaps a
+wall, roof, trunk, or live door, or there is no surface below it, F2 uses the
+safe ground search instead. The viewer logs mode changes. **F1** releases the
 camera from the controller at its current eye position; gravity applies only
 in walking mode.
 

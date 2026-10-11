@@ -37,6 +37,9 @@ class FPSController {
 public:
     explicit FPSController(FPSConfig config = {});
     bool spawn(glm::vec3 preferredEye, const CollisionWorld& world);
+    // Preserve the requested eye position and start airborne if the capsule
+    // fits and a scene surface exists below. Failure leaves this player intact.
+    bool startFalling(glm::vec3 eye, const CollisionWorld& world);
     void teleport(glm::vec3 feet);
     void update(float dt, const FPSInput& input, const CollisionWorld& world);
 

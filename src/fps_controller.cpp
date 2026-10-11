@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 
 namespace viewer {
@@ -63,6 +64,20 @@ bool FPSController::spawn(glm::vec3 preferredEye, const CollisionWorld& world) {
     }
     teleport(*position);
     snapToGround(world, config_.groundSnap);
+    return true;
+}
+
+bool FPSController::startFalling(glm::vec3 eye, const CollisionWorld& world) {
+    const glm::vec3 feet = eye - glm::vec3(0, config_.eyeHeight, 0);
+    if (!finite(feet)) return false;
+    for (const auto& contact : world.contacts(feet, config_.radius, config_.height)) {
+        if (contact.depth > kContactTolerance) return false;
+    }
+    // Keep recovery for cameras outside the map or below its surface. Roofs
+    // and indoor terrain count as support; vegetation never supplies ground.
+    if (!world.groundAt(feet.x, feet.z, std::numeric_limits<float>::lowest(),
+                        feet.y + config_.skin)) return false;
+    teleport(feet);
     return true;
 }
 

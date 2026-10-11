@@ -15,7 +15,9 @@ bool CameraRig::enterWalking(std::optional<glm::vec3> preferredEye) {
     // Construct a candidate first: failed placement cannot disturb a running
     // controller or change the current camera mode.
     FPSController candidate(player_.config());
-    if (!candidate.spawn(preferredEye.value_or(camera_.position()), world_)) {
+    const auto eye = preferredEye.value_or(camera_.position());
+    const bool falling = !preferredEye && candidate.startFalling(eye, world_);
+    if (!falling && !candidate.spawn(eye, world_)) {
         std::cerr << "Cannot enter FPS mode: no clear, walkable spawn found. "
                   << "Fly near open ground or use --spawn X Z.\n";
         return false;

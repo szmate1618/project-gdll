@@ -64,11 +64,17 @@ void closedAndOpenPassage(const glm::mat4& node, bool run) {
     require(!world.lineOfSight({0, 1, 1}, {0, 1, -1}), "A closed physical door must block sight");
     viewer::FPSController player;
     require(player.spawn({0, 1.7f, 1.5f}, world), "Player must spawn in front of the door");
+    const auto spawn = player.feet();
+    require(!player.startFalling({0, 1.702f, .15f}, world) && player.feet() == spawn && player.grounded(),
+            "Falling placement must reject a closed live door without changing the player");
     walk(player, world, -90, run);
     require(player.feet().z >= .319f, "Walking/running must stop against the 4 cm closed door collider");
     open(doors, *physics);
     require(world.lineOfSight({0, 1, 1}, {0, 1, -1}), "An uncovered doorway must allow sight in both directions");
     require(world.lineOfSight({0, 1, -1}, {0, 1, 1}), "Doorway sight must also work from inside");
+    viewer::FPSController inOpening;
+    require(inOpening.startFalling({0, 1.702f, 0}, world),
+            "Falling placement must accept a clear open doorway");
     walk(player, world, -90, run);
     require(player.feet().z < -1, "Walking/running must cross the opening once the panel is physically clear");
     require(std::abs(player.feet().y) < .01f && player.grounded(), "Door traversal must keep terrain support");
@@ -79,6 +85,8 @@ void closedAndOpenPassage(const glm::mat4& node, bool run) {
     require(!world.contacts({0, .002f, 0}, .3f, 2.3f).empty(), "The doorway lintel must block an over-height capsule");
     require(!world.contacts({2, .002f, .15f}, .3f, 1.8f).empty(), "Window locations must retain solid walking collision");
     const auto collider = doors.colliders({-2, 0, -2}, {2, 3, 2}).at(0);
+    require(!inOpening.startFalling({collider.center.x, 1.702f, collider.center.z}, world),
+            "Falling placement must reject the swung live panel");
     require(!world.contacts({collider.center.x, .002f, collider.center.z}, .3f, 1.8f).empty(),
             "An open panel must still block a capsule that tries to occupy its physical location");
     require(!world.lineOfSight(collider.center + glm::vec3(0, 0, .4f), collider.center - glm::vec3(0, 0, .4f)),
