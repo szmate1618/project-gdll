@@ -120,6 +120,8 @@ def _download_osm(config: dict, directory: Path, session: requests.Session) -> t
         f'  relation["building"]["type"="multipolygon"]({bounds});\n'
         f'  way["highway"]({bounds});\n'
         f'  way["railway"~"^(rail|light_rail|narrow_gauge)$"]({bounds});\n'
+        f'  way["barrier"="fence"]({bounds});\n'
+        f'  node["barrier"~"^(gate|entrance|lift_gate|swing_gate|kissing_gate|stile)$"]({bounds});\n'
         ');\nout body geom;\n'
     )
     key = _key({"query": query, "version": CACHE_VERSION})
@@ -138,7 +140,7 @@ def _download_osm(config: dict, directory: Path, session: requests.Session) -> t
     errors = []
     network = config.get("network", {})
     for endpoint in OVERPASS_ENDPOINTS:
-        LOG.info("Downloading OSM buildings, roads, and railways from %s", endpoint)
+        LOG.info("Downloading OSM buildings, roads, railways, fences and entrances from %s", endpoint)
         try:
             payload = _request_json(
                 session, endpoint, path, data={"data": query},
@@ -357,6 +359,18 @@ def _download_sentinel(
         "widen sentinel.datetime, or choose a smaller bbox (single-tile Sentinel coverage is required). "
         + " | ".join(errors[-3:])
     )
+
+
+def download_osm(config: dict, root: Path) -> tuple[Path, dict]:
+    """Fetch/cache OSM for a validated scene config without needing raster inputs."""
+    if config.get("offline") and config.get("refresh"):
+        raise SourceError("offline and refresh cannot both be enabled")
+    config = {**config, "bbox": [float(value) for value in config["bbox"]]}
+    directory = Path(root).resolve() / "data/raw/osm"
+    directory.mkdir(parents=True, exist_ok=True)
+    with requests.Session() as session:
+        session.headers["User-Agent"] = "godollo-scene-prototype/1.0 (public geospatial research)"
+        return _download_osm(config, directory, session)
 
 
 def download_sources(config: dict, root: Path) -> dict:

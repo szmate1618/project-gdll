@@ -1,10 +1,38 @@
 # Approximate woodland polygon configuration
 
 [forest_patches.json](../forest_patches.json) is a UTF-8 JSON configuration of
-woodland visually traced from the satellite texture embedded in the published
-level. It includes forests, smaller wooded patches, and the wooded portion of
-the palace park. The viewer loads it as a separate runtime layer on a matching
+conservative dense-canopy forest interiors reviewed against the downloaded
+2016 orthophotos, with the original 2025 satellite footprints retained as an
+additional intersection constraint. Ambiguous patches, sparse stands, park
+lawns and mixed industrial/residential strips are deliberately omitted.
+The viewer loads it as a separate runtime layer on a matching
 georeferenced map. Neither the town GLB nor the generator output is modified.
+
+The current set contains 9 regions and 48 patches, covering approximately
+2.454 km². It deliberately covers much less than the initial 9.197 km² satellite
+approximation. The [review traces](../assets/forests/conservative_canopy_traces.json)
+record local east/north polygon cores, clearing exclusions, track centrelines,
+and the refinement parameters. Reviewed cores are inset 20 m and intersected
+with the previous region footprints inset 10 m. Mapped clearings receive an
+additional 10 m exclusion margin; selected tracks receive an 8 m half-width
+exclusion. Components below 2,500 m² and resulting grid fragments below 2,000 m²
+are omitted. These choices favor forest interiors over complete coverage.
+
+The six covering orthophotos have 0.4 m source pixel spacing and were reviewed
+in a north-up 1 m mosaic in the published map frame. Their incomplete
+`LOCAL_CS` metadata requires the explicit `EPSG:23700` interpretation already
+used by the [local tree-placement workflow](TREES.md). The config records this
+override, source tile names, transforms, sizes and SHA-256 checksums. These
+images are older than the satellite reference, so boundaries are conservative
+approximations rather than a guarantee about current ground conditions.
+
+Review images are generated local artifacts:
+
+- [Orthophoto comparison: previous and conservative polygons](../output/forest_polygons_orthophoto_conservative_composite.png).
+- [Larger orthophoto overlay](../output/forest_polygons_orthophoto_conservative_overlay.png).
+
+The prior configuration is preserved locally at
+`data/tmp/forest_review/forest_patches_satellite_previous.json`.
 
 ## Runtime rendering
 
@@ -74,11 +102,11 @@ explicit `--forests FILE` reports it as an error. The map checksum and frame
 must match the recorded provenance. Forests are generated from approximate
 canopy polygons and can still cross narrow roads or small unmapped clearings.
 
-The boundaries are approximate, with uncertainty of tens of metres. They are
-not surveyed forest boundaries or a complete tree inventory. Major fields,
-built areas, and the northeastern motorway were excluded during tracing, but
-small roads, clearings, and individual buildings may remain. Region confidence
-is a qualitative visual judgement. Edge regions stop at the terrain boundary.
+The boundaries are approximate and are not surveyed forest boundaries or a
+complete tree inventory. Obvious fields, yards, buildings and clearings were
+removed during orthophoto review; very small gaps or paths covered by canopy
+can remain. Region confidence is a qualitative visual judgement. Edge regions
+stop inside the terrain boundary.
 
 ## Reading the file
 
@@ -131,7 +159,8 @@ The polygons contain no elevation; sample the published terrain at
 `(east, north)` to obtain viewer Y. Do not subtract the terrain datum again.
 
 `source` records the map and texture SHA-256 fingerprints, relative paths,
-imagery date, scene ID, resolution, and pixel-edge affine transform. The cached
+satellite imagery date, scene ID, resolution, and pixel-edge affine transform,
+along with the orthophoto inputs and conservative review provenance. The cached
 texture was checked against the decoded terrain image inside the GLB before
 tracing. A consuming program should check this provenance and the coordinate
 frame before applying the polygons to another or regenerated map.
@@ -140,6 +169,6 @@ frame before applying the polygons to another or regenerated map.
 Coordinates are rounded to 0.001 m for consistent shared vertices; this
 numerical precision does not imply matching geographic accuracy.
 
-A visual review overlay is available in `build/forest_patches_preview.png`
-for this preparation run. Its numbered regions follow the order of `regions`
-in the JSON; coloured internal lines show the subdivision boundaries.
+The orthophoto comparison uses the original region numbers so retained regions
+can be compared with the earlier satellite composite. Region IDs in the JSON
+remain the authoritative identifiers; cyan lines show the 500 m subdivisions.

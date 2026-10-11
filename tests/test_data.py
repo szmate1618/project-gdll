@@ -12,7 +12,7 @@ from rasterio.transform import from_origin
 
 from src.data import (
     CACHE_VERSION, OVERPASS_ENDPOINTS, SourceError, _crop_cog, _dem_tile_name,
-    _download_osm, _key, _valid_osm, _valid_raster, download_sources,
+    _download_osm, _key, _valid_osm, _valid_raster, download_osm, download_sources,
 )
 
 
@@ -91,6 +91,40 @@ class DataTests(unittest.TestCase):
         self.assertNotIn("operator", query)
         self.assertNotIn("abandoned", query)
         self.assertEqual(path.with_suffix(".overpassql").read_text(encoding="utf-8"), query)
+
+    def test_osm_query_fetches_fences_and_entrance_node_tags(self):
+        session = self.osm_session({"elements": []})
+        _download_osm({"bbox": [19, 47, 20, 48]}, self.directory, session)
+        query = session.request.call_args.kwargs["data"]["data"]
+        self.assertIn('way["barrier"="fence"](47,19,48,20);', query)
+        self.assertIn('node["barrier"~"^(gate|entrance|lift_gate|swing_gate|kissing_gate|stile)$"](47,19,48,20);', query)
+
+    def test_osm_only_download_needs_no_rasters_and_uses_normalized_bbox(self):
+        with patch("src.data._download_osm", return_value=(self.directory / "osm.json", {})) as download:
+            download_osm({"bbox": [19, 47, 20, 48], "offline": True}, self.directory)
+        config, directory, session = download.call_args.args
+        self.assertEqual(config["bbox"], [19., 47., 20., 48.])
+        self.assertTrue(config["offline"])
+        self.assertEqual(directory, self.directory / "data/raw/osm")
+        self.assertIn("godollo", session.headers["User-Agent"])
+        self.assertFalse((self.directory / "data/raw/sentinel").exists())
+
+    def test_railway_only_cache_cannot_satisfy_fence_query_offline(self):
+        legacy_query = (
+            '[out:json][timeout:90];\n(\n'
+            '  way["building"](47,19,48,20);\n'
+            '  relation["building"]["type"="multipolygon"](47,19,48,20);\n'
+            '  way["highway"](47,19,48,20);\n'
+            '  way["railway"~"^(rail|light_rail|narrow_gauge)$"](47,19,48,20);\n'
+            ');\nout body geom;\n'
+        )
+        path = self.directory / f"osm_{_key({'query': legacy_query, 'version': CACHE_VERSION})}.json"
+        path.write_text('{"elements": []}', encoding="utf-8")
+        session = Mock()
+        with self.assertRaisesRegex(SourceError, "Offline mode.*OSM cache"):
+            _download_osm({"bbox": [19, 47, 20, 48], "offline": True}, self.directory, session)
+        session.request.assert_not_called()
+        self.assertTrue(path.exists())
 
     def test_old_building_and_road_cache_cannot_satisfy_railway_query_offline(self):
         # Reproduce the pre-railway extract's cache identity to exercise migration.

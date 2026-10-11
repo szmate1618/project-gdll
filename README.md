@@ -2,8 +2,8 @@
 
 A functioning Python prototype that downloads public geospatial data and builds
 a geographically recognizable, meter-scale approximation of central Gödöllő,
-Hungary. It exports terrain, roads, railway paths, buildings, materials, and an
-embedded ground texture as **`output/godollo.glb`**, ready for a separate glTF
+Hungary. It exports terrain, roads, railway paths, fences, buildings, materials,
+and an embedded ground texture as **`output/godollo.glb`**, ready for a separate glTF
 renderer or Blender.
 
 The repository also includes a **C++17 Linux desktop viewer** with GLFW,
@@ -80,14 +80,20 @@ the three public endpoints used by the prototype. The initial run needs HTTPS
 access to Overpass, Earth Search, and public AWS COGs. Overpass may be busy; the
 downloader retries and tries alternate endpoints.
 
-Railway support expands the OSM query, so older building/road-only extracts
-cannot be reused for it. Run `.venv/bin/python -m src.generate` once with network
-access to obtain the expanded extract; existing DEM and Sentinel caches are
-reused. Subsequent runs can use `--offline` again.
+Fence support expands the OSM query, so older building/road/railway extracts
+cannot be reused for it. Run `.venv/bin/python -m src.generate --fences-only`
+once with network access to update an existing map. Full generation also fetches
+the expanded extract and reuses existing DEM and Sentinel caches. Subsequent
+runs can use `--offline` again.
 
 ```bash
 # Rebuild strictly from local files, with no network requests:
 .venv/bin/python -m src.generate --offline
+
+# Add or update only fences, reusing the published town and terrain:
+.venv/bin/python -m src.generate --fences-only
+# After the expanded OSM extract has been downloaded:
+.venv/bin/python -m src.generate --fences-only --offline
 
 # Explicitly fetch fresh OSM, catalog results, and raster crops:
 .venv/bin/python -m src.generate --refresh
@@ -148,6 +154,9 @@ Other settings include:
 | `railways.width_m` | 4 | Track-bed width when an OSM `width` tag is absent |
 | `railways.sample_spacing_m` | 8 | Railway surface subdivision size |
 | `railways.offset_m` | 0.3 | Track-bed clearance above terrain |
+| `fences.default_height_m` | 1.5 | Fence height when OSM has no usable `height` |
+| `fences.post_spacing_m` | 2.5 | Maximum fence panel/post spacing |
+| `fences.default_gate_width_m` | 3 | Clear gap at mapped gates/entrances without a `width` |
 
 The prototype limits regions to 10km per side and terrain grids to two million
 cells. Start with the supplied area. For distant locations, choose an appropriate
@@ -214,9 +223,9 @@ by `.gitignore`; source, configuration, tests, and documentation can be committe
   then cropped/reprojected/resampled to the terrain texture. The initial run
   selected **`S2A_34TCT_20250813_0_L2A`**, acquired August 13, 2025.
 * **OpenStreetMap:** a small Overpass query obtains building ways, building
-  multipolygon relations, roads, separately mapped paths/footways, and railway
-  track ways with tags and geometry. Query results and their source timestamp
-  are cached.
+  multipolygon relations, roads, separately mapped paths/footways, railway
+  track ways, fences and entrance nodes with tags and geometry. Query results
+  and their source timestamp are cached.
 
 ## Geometry behavior
 
@@ -224,8 +233,8 @@ Elevation is bilinearly resampled onto the projected grid, lightly smoothed, and
 triangulated with upward normals. Sparse missing elevations are filled from
 nearby valid pixels; extreme isolated spikes are corrected. An input with more
 than 25% missing target pixels fails clearly instead of creating a fictitious
-surface. Building, road and railway heights sample the actual terrain triangle
-planes. Terrain UVs align the north-first RGB image to the same projected extent.
+surface. Building, road, railway and fence heights sample the actual terrain
+triangle planes. Terrain UVs align the north-first RGB image to the same projected extent.
 
 Building height precedence is explicit `height`, then `building:levels` times
 floor height, then a building-type estimate, then the configured default. Explicit
@@ -292,6 +301,35 @@ onto terrain with a slight clearance. Interior samples correct small ridge
 intersections. Surface tags select reusable asphalt, gravel, dirt, or paving-stone
 materials. Segments share one mesh per material to keep the scene compact.
 Road counts refer to accepted clipped centerline parts, not triangles.
+
+Fences use explicit OSM `barrier=fence` ways, including closed loops; property
+and land-use outlines do not imply fences. OSM `height` accepts metres and common
+feet/inches units, falling back to `fences.default_height_m`. `fence_type` and
+`material` choose chain-link, metal railing, wood or masonry approximations;
+unknown types use chain-link. Wire/railing panels have embedded, double-sided
+alpha masks, while wood and masonry panels are solid. Posts and panels share
+meshes by material. Panels retain mapped corners and split at terrain triangle
+edges to follow slopes and ridges without gaps.
+
+Mapped gate, entrance, lift/swing gate, kissing gate and stile nodes belonging
+to a fence way create physical gaps before the fence is clipped to the map.
+Explicit `width` wins; otherwise gates/entrances use the configured width and
+kissing gates/stiles use 1.2 m. Gate leaves and access restrictions are not
+modeled; these passages remain open. Continuous panel triangles block walking,
+including across transparent wire texels. The report and glTF scene extras
+include accepted fence-way counts, clipped segments, length and entrance gaps.
+Coverage depends on OSM mapping; unmapped fences are absent.
+
+`--fences-only` updates an existing `output/godollo.glb` without reconstructing
+buildings, roads or railways. It samples the published terrain, validates the
+candidate and unchanged terrain, and keeps map/report backups under
+`output/fence-backups/`. No DEM or satellite source caches are required.
+Repeated updates replace existing fence meshes while retaining the town's
+binary payload. Old fence buffers remain unused; a full rebuild compacts them.
+Original town OSM provenance is retained; the fence extract is recorded separately under
+`sources.fences`. Either generation mode changes the map fingerprint: rebuild
+tree placements and revalidate forest polygons against the updated map before
+refreshing their fingerprints.
 
 Railway paths include OSM [`railway=rail`, `light_rail`, and `narrow_gauge`](https://wiki.openstreetmap.org/wiki/Key:railway)
 ways, covering HÉV and MÁV tracks without requiring an `operator` tag. Active

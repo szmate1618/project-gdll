@@ -6,11 +6,12 @@ import logging
 
 from shapely import make_valid
 from shapely.errors import ShapelyError
-from shapely.geometry import LineString, MultiPolygon, Polygon
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from shapely.ops import polygonize, unary_union
 
 LOG = logging.getLogger(__name__)
 RAILWAY_TYPES = frozenset({"rail", "light_rail", "narrow_gauge"})
+FENCE_ENTRANCES = frozenset({"gate", "entrance", "lift_gate", "swing_gate", "kissing_gate", "stile"})
 
 
 def _polygonal(geometry):
@@ -145,3 +146,41 @@ def parse_railways(payload: dict, transformer, origin: tuple[float, float], clip
             railways.extend(_clipped_line_features(way, coords, clip))
     LOG.info("Parsed %d railway centerlines", len(railways))
     return railways
+
+
+def parse_fences(payload: dict, transformer, origin: tuple[float, float], clip: Polygon) -> list:
+    """Read mapped fence ways and their entrance nodes in local east/north metres.
+
+    Keep entrance positions only when their node belongs to the fence way;
+    nearby gates on unrelated ways must not cut a hole in this fence. Retain
+    the unclipped line until geometry generation so openings at clip boundaries
+    and at the seam of a closed fence can be cut before clipping.
+    """
+    elements, ways, coordinates = _geometry_reader(payload, transformer, origin)
+    entrances = {element["id"]: element for element in elements
+                 if element.get("type") == "node"
+                 and element.get("tags", {}).get("barrier") in FENCE_ENTRANCES}
+    fences = []
+    for way in ways.values():
+        if way.get("tags", {}).get("barrier") != "fence":
+            continue
+        coords = coordinates(way)
+        if len(coords) < 2:
+            continue
+        line = LineString(coords)
+        if line.length <= .05 or not line.intersects(clip):
+            continue
+        openings = []
+        for node_id in dict.fromkeys(way.get("nodes", [])):
+            node = entrances.get(node_id)
+            if node is None or "lon" not in node or "lat" not in node:
+                continue
+            x, y = transformer.transform(node["lon"], node["lat"])
+            point = Point(x - origin[0], y - origin[1])
+            if line.distance(point) < 1e-5:
+                openings.append({"id": f"node/{node_id}", "geometry": point,
+                                 "tags": dict(node["tags"])})
+        fences.append({"id": f"way/{way['id']}", "geometry": line,
+                       "tags": dict(way["tags"]), "openings": openings})
+    LOG.info("Parsed %d fence ways", len(fences))
+    return fences

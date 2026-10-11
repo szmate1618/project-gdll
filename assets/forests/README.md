@@ -1,5 +1,10 @@
 # Distant forest textures
 
+`conservative_canopy_traces.json` contains the manually reviewed forest cores,
+clearings and selected tracks in local east/north metres, plus the inset and
+minimum-area parameters used for the active polygon configuration. See
+[forest configuration and imagery provenance](../../docs/FORESTS.md).
+
 `side.png` and `top.png` are generated opaque summer woodland textures for the
 viewer runtime forest layer. They remain separate from the town GLB. The
 side image repeats horizontally over 32 metres and covers the whole wall

@@ -1,7 +1,7 @@
 {
   "schema": "godollo.forest_patches",
   "version": 1,
-  "description": "Approximate forest, wooded patch and wooded park outlines manually traced from the level's satellite texture, split into at most 500 x 500 metre pieces.",
+  "description": "Conservative dense-canopy forest cores manually reviewed on 0.4 m orthophotos and intersected with the prior 2025 satellite outlines; split into at most 500 x 500 metre pieces.",
   "coordinate_frame": {
     "units": "meters",
     "coordinate_order": [
@@ -35,9 +35,9 @@
     }
   },
   "source": {
-    "method": "manual_visual_interpretation",
+    "method": "manual_conservative_orthophoto_review_with_satellite_intersection",
     "map_path": "output/godollo.glb",
-    "map_sha256": "8fb5ada1034ca56f1cc875ae0ad95ebc8136172aaad73a1b53a9080cf34de507",
+    "map_sha256": "eb773518724f2f84bf40b291ab7b05a9f01c00fd1615558549e9806a3956be7c",
     "texture_path": "data/processed/terrain_texture.png",
     "texture_sha256": "265aa4a8369d1fecab128df43164c0d2ca42db310f47ba104f64b3e9934fb9cb",
     "texture_dimensions_pixels": [
@@ -64,12 +64,195 @@
     ],
     "attribution": "Contains modified Copernicus Sentinel data (2025)",
     "limitations": [
-      "Approximate canopy boundaries, not surveyed land-use polygons or a complete tree inventory.",
-      "Boundary uncertainty is several satellite pixels (tens of metres). Confidence is a qualitative visual judgement, not a probability.",
-      "Wooded parks may contain lawns and paths; mixed or ambiguous patches are marked medium confidence.",
-      "Obvious open fields, major built areas and the northeastern motorway are excluded; narrow roads, clearings and individual buildings can remain inside a patch.",
-      "Regions touching the terrain edges are clipped; forest beyond the level is not represented."
-    ]
+      "Deliberately incomplete dense-canopy approximation; omitted wooded edges, sparse stands, parks and ambiguous patches are intentional.",
+      "Manual cores are inset 20 m and intersected with prior satellite footprints inset 10 m; this is a conservative review policy, not a ground survey.",
+      "Orthophotos are from 2016; satellite context is from 2025. Changes after either acquisition cannot be ruled out.",
+      "Clearly visible clearings and selected tracks are excluded with safety margins; very small canopy gaps or covered paths may remain.",
+      "The EOV CRS override is explicit and inherited from the reviewed local tree-data workflow.",
+      "Coordinates are in the published map frame. Subdivision borders are artificial and do not represent forest edges."
+    ],
+    "primary_imagery": "2016 downloaded orthophotos; 2025 Sentinel-2 outlines used as an additional intersection constraint",
+    "orthophotos": {
+      "imagery_year": 2016,
+      "source_crs_override": "EPSG:23700",
+      "crs_override_reason": "Existing tree-placement workflow explicitly interprets these LOCAL_CS SOCET-SET LSR Curved tile coordinates as Hungarian EOV; the stored CRS alone is insufficient.",
+      "review_mosaic_resolution_m": 1.0,
+      "native_pixel_size_m": [
+        0.4,
+        0.4
+      ],
+      "sources": [
+        {
+          "filename": "65-222_o_2016.tif",
+          "stored_crs": "LOCAL_CS[\"SOCET-SET LSR Curved\",UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+          "source_crs_override": "EPSG:23700",
+          "pixel_edge_affine": [
+            0.4,
+            0.0,
+            666000.0,
+            0.0,
+            -0.4,
+            256000.0
+          ],
+          "dimensions_pixels": [
+            15000,
+            10000
+          ],
+          "pixel_size_m": [
+            0.4,
+            0.4
+          ],
+          "size_bytes": 450080516,
+          "mtime_ns": 1486120926000000000,
+          "sha256": "62fa978a7589565e7ac4c55b1fa33393e7f8806988a1d2628c4fe8659824ec28"
+        },
+        {
+          "filename": "65-224_o_2016.tif",
+          "stored_crs": "LOCAL_CS[\"SOCET-SET LSR Curved\",UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+          "source_crs_override": "EPSG:23700",
+          "pixel_edge_affine": [
+            0.4,
+            0.0,
+            666000.0,
+            0.0,
+            -0.4,
+            252000.0
+          ],
+          "dimensions_pixels": [
+            15000,
+            10000
+          ],
+          "pixel_size_m": [
+            0.4,
+            0.4
+          ],
+          "size_bytes": 450080516,
+          "mtime_ns": 1486120966000000000,
+          "sha256": "f470b63a28074f93454ca6591179991b9d6cc0e9a42b6b51bee5308c7723084f"
+        },
+        {
+          "filename": "65-242_o_2016.tif",
+          "stored_crs": "LOCAL_CS[\"SOCET-SET LSR Curved\",UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+          "source_crs_override": "EPSG:23700",
+          "pixel_edge_affine": [
+            0.4,
+            0.0,
+            666000.0,
+            0.0,
+            -0.4,
+            248000.0
+          ],
+          "dimensions_pixels": [
+            15000,
+            10000
+          ],
+          "pixel_size_m": [
+            0.4,
+            0.4
+          ],
+          "size_bytes": 450080516,
+          "mtime_ns": 1486121082000000000,
+          "sha256": "25fff0386ef69f72abff1558d4242c8e30ab7bceaf8375bea61421ac7648c1ef"
+        },
+        {
+          "filename": "66-111_o_2016.tif",
+          "stored_crs": "LOCAL_CS[\"SOCET-SET LSR Curved\",UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+          "source_crs_override": "EPSG:23700",
+          "pixel_edge_affine": [
+            0.4,
+            0.0,
+            672000.0,
+            0.0,
+            -0.4,
+            256000.0
+          ],
+          "dimensions_pixels": [
+            15000,
+            10000
+          ],
+          "pixel_size_m": [
+            0.4,
+            0.4
+          ],
+          "size_bytes": 450080516,
+          "mtime_ns": 1486121760000000000,
+          "sha256": "1f98942c161c85e7c93c76344f7fde9f92e12e0273a0d72e401099150a469ee7"
+        },
+        {
+          "filename": "66-113_o_2016.tif",
+          "stored_crs": "LOCAL_CS[\"SOCET-SET LSR Curved\",UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+          "source_crs_override": "EPSG:23700",
+          "pixel_edge_affine": [
+            0.4,
+            0.0,
+            672000.0,
+            0.0,
+            -0.4,
+            252000.0
+          ],
+          "dimensions_pixels": [
+            15000,
+            10000
+          ],
+          "pixel_size_m": [
+            0.4,
+            0.4
+          ],
+          "size_bytes": 450080516,
+          "mtime_ns": 1486121800000000000,
+          "sha256": "c16caacdc4de5fe024258af16da9dcb2d717ccf0b17cfa744f170899f167393f"
+        },
+        {
+          "filename": "66-131_o_2016.tif",
+          "stored_crs": "LOCAL_CS[\"SOCET-SET LSR Curved\",UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH]]",
+          "source_crs_override": "EPSG:23700",
+          "pixel_edge_affine": [
+            0.4,
+            0.0,
+            672000.0,
+            0.0,
+            -0.4,
+            248000.0
+          ],
+          "dimensions_pixels": [
+            15000,
+            10000
+          ],
+          "pixel_size_m": [
+            0.4,
+            0.4
+          ],
+          "size_bytes": 450080516,
+          "mtime_ns": 1486121918000000000,
+          "sha256": "8dba5fe64cae610a1e35a9353df719361629a3ef99acfa4e505382e9203c76e1"
+        }
+      ]
+    },
+    "conservative_review": {
+      "baseline_config_sha256": "27f5a0fbe6149beb15139d22123adbd60b00e02f2d43fdd110752270e3335c53",
+      "trace_path": "assets/forests/conservative_canopy_traces.json",
+      "trace_sha256": "779df7f0a9f83f4f313e5a7683fb886a8138343f83435110a05d7c1e136e0387",
+      "canopy_core_inset_m": 20,
+      "previous_polygon_inset_m": 10,
+      "clearing_margin_m": 10,
+      "track_half_width_m": 8,
+      "minimum_component_area_m2": 2500,
+      "minimum_patch_area_m2": 2000,
+      "omitted_region_ids": [
+        "northeast_corner",
+        "northwest_patch",
+        "west_small",
+        "palace_park",
+        "southwest_upper",
+        "southwest_roadside",
+        "southwest_inner",
+        "south_central_belt",
+        "south_railway_belt",
+        "southeast_corner",
+        "east_lower_strip",
+        "east_lower_patch"
+      ]
+    }
   },
   "subdivision": {
     "method": "intersection_with_axis_aligned_grid",
@@ -84,12 +267,12 @@
       500
     ],
     "coordinate_precision_m": 0.001,
-    "boundary_policy": "Adjacent patches share edges without overlapping area. Retain small edge fragments."
+    "boundary_policy": "Adjacent pieces share edges without overlap. Components below 2500 m² and resulting grid fragments below 2000 m² are deliberately omitted."
   },
   "counts": {
-    "regions": 21,
-    "patches": 126,
-    "total_area_m2": 9196548.684
+    "regions": 9,
+    "patches": 48,
+    "total_area_m2": 2453943.188
   },
   "regions": [
     {
@@ -97,168 +280,81 @@
       "label": "Northeastern forest north of motorway",
       "kind": "forest",
       "confidence": "high",
-      "patch_count": 22,
-      "area_m2": 2070571.49
-    },
-    {
-      "id": "northeast_corner",
-      "label": "Northeastern wooded corner between fields",
-      "kind": "forest",
-      "confidence": "medium",
-      "patch_count": 7,
-      "area_m2": 438146.808
+      "patch_count": 9,
+      "area_m2": 950524.05,
+      "review_policy": "Retained dense-canopy cores only; excludes ambiguous margins and mapped clearings/tracks."
     },
     {
       "id": "northeast_south",
       "label": "Northeastern forest south of motorway",
       "kind": "forest",
       "confidence": "high",
-      "patch_count": 14,
-      "area_m2": 1481293.979
-    },
-    {
-      "id": "northwest_patch",
-      "label": "Northwestern woodland patch",
-      "kind": "wooded_patch",
-      "confidence": "medium",
-      "patch_count": 6,
-      "area_m2": 332472.563
+      "patch_count": 12,
+      "area_m2": 777267.986,
+      "review_policy": "Retained dense-canopy cores only; excludes ambiguous margins and mapped clearings/tracks."
     },
     {
       "id": "west_upper",
       "label": "Western woodland beside industrial district",
       "kind": "forest",
       "confidence": "high",
-      "patch_count": 4,
-      "area_m2": 238814.255
+      "patch_count": 5,
+      "area_m2": 53023.641,
+      "review_policy": "Retained dense-canopy cores only; excludes ambiguous margins and mapped clearings/tracks."
     },
     {
       "id": "west_edge",
       "label": "Western forest west of motorway",
       "kind": "forest",
       "confidence": "high",
-      "patch_count": 10,
-      "area_m2": 605755.917
+      "patch_count": 5,
+      "area_m2": 121967.65,
+      "review_policy": "Retained dense-canopy cores only; excludes ambiguous margins and mapped clearings/tracks."
     },
     {
       "id": "west_middle",
       "label": "Western forest south of industrial district",
       "kind": "forest",
       "confidence": "high",
-      "patch_count": 9,
-      "area_m2": 829601.599
-    },
-    {
-      "id": "west_small",
-      "label": "Small wooded strip beside western industry",
-      "kind": "wooded_patch",
-      "confidence": "medium",
-      "patch_count": 2,
-      "area_m2": 85899.118
-    },
-    {
-      "id": "palace_park",
-      "label": "Wooded portion of central palace park",
-      "kind": "wooded_park",
-      "confidence": "medium",
-      "patch_count": 2,
-      "area_m2": 69282.299
+      "patch_count": 4,
+      "area_m2": 70390.362,
+      "review_policy": "Retained dense-canopy cores only; excludes ambiguous margins and mapped clearings/tracks."
     },
     {
       "id": "east_central",
       "label": "Woodland southeast of central fields",
       "kind": "forest",
       "confidence": "high",
-      "patch_count": 6,
-      "area_m2": 411710.89
-    },
-    {
-      "id": "southwest_upper",
-      "label": "Southwestern wooded patch between fields",
-      "kind": "wooded_patch",
-      "confidence": "medium",
-      "patch_count": 5,
-      "area_m2": 147696.759
+      "patch_count": 4,
+      "area_m2": 234464.129,
+      "review_policy": "Retained dense-canopy cores only; excludes ambiguous margins and mapped clearings/tracks."
     },
     {
       "id": "southwest_edge",
       "label": "Southwestern forest west of motorway",
       "kind": "forest",
       "confidence": "high",
-      "patch_count": 8,
-      "area_m2": 687329.279
-    },
-    {
-      "id": "southwest_roadside",
-      "label": "Southwestern woodland east of motorway",
-      "kind": "wooded_patch",
-      "confidence": "medium",
-      "patch_count": 3,
-      "area_m2": 110000.267
-    },
-    {
-      "id": "southwest_inner",
-      "label": "Wooded strip south of western neighbourhood",
-      "kind": "wooded_patch",
-      "confidence": "medium",
-      "patch_count": 4,
-      "area_m2": 58502.029
-    },
-    {
-      "id": "south_central_belt",
-      "label": "Wooded belt south of centre",
-      "kind": "wooded_patch",
-      "confidence": "medium",
-      "patch_count": 2,
-      "area_m2": 76217.306
-    },
-    {
-      "id": "south_railway_belt",
-      "label": "Southern woodland beside railway corridor",
-      "kind": "wooded_patch",
-      "confidence": "medium",
-      "patch_count": 4,
-      "area_m2": 140555.582
+      "patch_count": 5,
+      "area_m2": 108283.435,
+      "review_policy": "Retained dense-canopy cores only; excludes ambiguous margins and mapped clearings/tracks."
     },
     {
       "id": "southeast_main",
       "label": "Southeastern woodland between fields",
       "kind": "forest",
-      "confidence": "medium",
-      "patch_count": 7,
-      "area_m2": 877598.171
+      "confidence": "high",
+      "patch_count": 1,
+      "area_m2": 89791.45,
+      "review_policy": "Retained dense-canopy cores only; excludes ambiguous margins and mapped clearings/tracks."
     },
     {
       "id": "southeast_edge",
       "label": "Southeastern forest along eastern edge",
       "kind": "forest",
-      "confidence": "medium",
-      "patch_count": 5,
-      "area_m2": 343527.065
-    },
-    {
-      "id": "southeast_corner",
-      "label": "Woodland in southeastern corner",
-      "kind": "forest",
-      "confidence": "medium",
-      "patch_count": 1,
-      "area_m2": 67016.227
-    },
-    {
-      "id": "east_lower_strip",
-      "label": "Eastern wooded strip separating fields",
-      "kind": "wooded_patch",
-      "confidence": "medium",
-      "patch_count": 4,
-      "area_m2": 53420.921
-    },
-    {
-      "id": "east_lower_patch",
-      "label": "Small eastern woodland south of housing",
-      "kind": "wooded_patch",
-      "confidence": "medium",
-      "patch_count": 1,
-      "area_m2": 71136.164
+      "confidence": "high",
+      "patch_count": 3,
+      "area_m2": 48230.485,
+      "review_policy": "Retained dense-canopy cores only; excludes ambiguous margins and mapped clearings/tracks."
     }
   ],
   "patches": [
@@ -270,74 +366,40 @@
         5
       ],
       "bounds_m": [
-        -247.109,
-        2634.687,
+        -162.961,
+        2751.057,
         0.0,
-        3000.0
+        2932.735
       ],
-      "area_m2": 47593.426,
+      "area_m2": 17286.584,
       "polygon": [
         [
-          -1.465,
-          2637.454
+          -29.103,
+          2766.478
         ],
         [
           0.0,
-          2634.687
+          2767.125
         ],
         [
           0.0,
-          3000.0
+          2932.735
         ],
         [
-          -247.109,
-          3000.0
+          -162.961,
+          2932.735
         ],
         [
-          -118.652,
-          2789.798
+          -81.568,
+          2816.906
         ],
         [
-          -1.465,
-          2637.454
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_north_e-01_n+06_01",
-      "region_id": "northeast_north",
-      "grid_cell": [
-        -1,
-        6
-      ],
-      "bounds_m": [
-        -247.558,
-        3000.0,
-        0.0,
-        3000.735
-      ],
-      "area_m2": 181.79,
-      "polygon": [
-        [
-          -247.558,
-          3000.735
+          -26.693,
+          2751.057
         ],
         [
-          -247.109,
-          3000.0
-        ],
-        [
-          0.0,
-          3000.0
-        ],
-        [
-          0.0,
-          3000.735
-        ],
-        [
-          -247.558,
-          3000.735
+          -29.103,
+          2766.478
         ]
       ],
       "holes": []
@@ -350,36 +412,36 @@
         4
       ],
       "bounds_m": [
-        71.305,
-        2250.736,
+        269.468,
+        2364.735,
         500.0,
         2500.0
       ],
-      "area_m2": 83113.905,
+      "area_m2": 22177.652,
       "polygon": [
         [
-          268.066,
-          2250.736
+          392.216,
+          2364.735
         ],
         [
           500.0,
-          2261.279
+          2364.735
         ],
         [
           500.0,
           2500.0
         ],
         [
-          71.305,
+          269.468,
           2500.0
         ],
         [
-          104.004,
-          2438.236
+          321.105,
+          2454.56
         ],
         [
-          268.066,
-          2250.736
+          392.216,
+          2364.735
         ]
       ],
       "holes": []
@@ -395,16 +457,16 @@
         0.0,
         2500.0,
         500.0,
-        3000.0
+        2932.735
       ],
-      "area_m2": 245198.072,
+      "area_m2": 162490.33,
       "polygon": [
         [
-          0.0,
-          2634.687
+          219.684,
+          2543.81
         ],
         [
-          71.305,
+          269.468,
           2500.0
         ],
         [
@@ -413,53 +475,31 @@
         ],
         [
           500.0,
-          3000.0
+          2932.735
         ],
         [
           0.0,
-          3000.0
+          2932.735
         ],
         [
           0.0,
-          2634.687
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_north_e+00_n+06_01",
-      "region_id": "northeast_north",
-      "grid_cell": [
-        0,
-        6
-      ],
-      "bounds_m": [
-        0.0,
-        3000.0,
-        500.0,
-        3000.735
-      ],
-      "area_m2": 367.5,
-      "polygon": [
-        [
-          500.0,
-          3000.735
+          2767.125
         ],
         [
-          0.0,
-          3000.735
+          170.305,
+          2770.91
         ],
         [
-          0.0,
-          3000.0
+          209.756,
+          2613.105
         ],
         [
-          500.0,
-          3000.0
+          174.158,
+          2583.128
         ],
         [
-          500.0,
-          3000.735
+          219.684,
+          2543.81
         ]
       ],
       "holes": []
@@ -473,19 +513,19 @@
       ],
       "bounds_m": [
         500.0,
-        2182.011,
+        2307.744,
         1000.0,
         2500.0
       ],
-      "area_m2": 133515.497,
+      "area_m2": 75956.967,
       "polygon": [
         [
-          771.971,
-          2239.018
+          934.576,
+          2324.344
         ],
         [
           1000.0,
-          2182.011
+          2307.744
         ],
         [
           1000.0,
@@ -497,15 +537,15 @@
         ],
         [
           500.0,
-          2261.279
+          2364.735
         ],
         [
-          525.878,
-          2262.455
+          680.118,
+          2364.735
         ],
         [
-          771.971,
-          2239.018
+          934.576,
+          2324.344
         ]
       ],
       "holes": []
@@ -521,10 +561,18 @@
         500.0,
         2500.0,
         1000.0,
-        3000.0
+        2932.735
       ],
-      "area_m2": 250000.0,
+      "area_m2": 216367.5,
       "polygon": [
+        [
+          1000.0,
+          2932.735
+        ],
+        [
+          500.0,
+          2932.735
+        ],
         [
           500.0,
           2500.0
@@ -535,87 +583,7 @@
         ],
         [
           1000.0,
-          3000.0
-        ],
-        [
-          500.0,
-          3000.0
-        ],
-        [
-          500.0,
-          2500.0
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_north_e+01_n+06_01",
-      "region_id": "northeast_north",
-      "grid_cell": [
-        1,
-        6
-      ],
-      "bounds_m": [
-        500.0,
-        3000.0,
-        1000.0,
-        3000.735
-      ],
-      "area_m2": 367.5,
-      "polygon": [
-        [
-          1000.0,
-          3000.735
-        ],
-        [
-          500.0,
-          3000.735
-        ],
-        [
-          500.0,
-          3000.0
-        ],
-        [
-          1000.0,
-          3000.0
-        ],
-        [
-          1000.0,
-          3000.735
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_north_e+02_n+03_01",
-      "region_id": "northeast_north",
-      "grid_cell": [
-        2,
-        3
-      ],
-      "bounds_m": [
-        1488.472,
-        1994.876,
-        1500.0,
-        2000.0
-      ],
-      "area_m2": 29.535,
-      "polygon": [
-        [
-          1488.472,
-          2000.0
-        ],
-        [
-          1500.0,
-          1994.876
-        ],
-        [
-          1500.0,
-          2000.0
-        ],
-        [
-          1488.472,
-          2000.0
+          2932.735
         ]
       ],
       "holes": []
@@ -629,23 +597,19 @@
       ],
       "bounds_m": [
         1000.0,
-        2000.0,
+        2162.099,
         1500.0,
         2500.0
       ],
-      "area_m2": 201162.717,
+      "area_m2": 132861.55,
       "polygon": [
         [
-          1240.72,
-          2110.112
-        ],
-        [
-          1488.472,
-          2000.0
+          1407.764,
+          2176.169
         ],
         [
           1500.0,
-          2000.0
+          2162.099
         ],
         [
           1500.0,
@@ -657,15 +621,15 @@
         ],
         [
           1000.0,
-          2182.011
+          2307.744
         ],
         [
-          1006.346,
-          2180.424
+          1204.675,
+          2255.812
         ],
         [
-          1240.72,
-          2110.112
+          1407.764,
+          2176.169
         ]
       ],
       "holes": []
@@ -681,10 +645,18 @@
         1000.0,
         2500.0,
         1500.0,
-        3000.0
+        2932.735
       ],
-      "area_m2": 250000.0,
+      "area_m2": 203823.5,
       "polygon": [
+        [
+          1500.0,
+          2932.735
+        ],
+        [
+          1000.0,
+          2932.735
+        ],
         [
           1000.0,
           2500.0
@@ -695,102 +667,33 @@
         ],
         [
           1500.0,
-          3000.0
-        ],
-        [
-          1000.0,
-          3000.0
-        ],
-        [
-          1000.0,
-          2500.0
+          2932.735
         ]
       ],
-      "holes": []
-    },
-    {
-      "id": "northeast_north_e+02_n+06_01",
-      "region_id": "northeast_north",
-      "grid_cell": [
-        2,
-        6
-      ],
-      "bounds_m": [
-        1000.0,
-        3000.0,
-        1500.0,
-        3000.735
-      ],
-      "area_m2": 367.5,
-      "polygon": [
+      "holes": [
         [
-          1500.0,
-          3000.735
-        ],
-        [
-          1000.0,
-          3000.735
-        ],
-        [
-          1000.0,
-          3000.0
-        ],
-        [
-          1500.0,
-          3000.0
-        ],
-        [
-          1500.0,
-          3000.735
+          [
+            1320.541,
+            2614.735
+          ],
+          [
+            1320.541,
+            2502.735
+          ],
+          [
+            1208.541,
+            2502.735
+          ],
+          [
+            1208.541,
+            2614.735
+          ],
+          [
+            1320.541,
+            2614.735
+          ]
         ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_north_e+03_n+03_01",
-      "region_id": "northeast_north",
-      "grid_cell": [
-        3,
-        3
-      ],
-      "bounds_m": [
-        1500.0,
-        1854.222,
-        2000.0,
-        2000.0
-      ],
-      "area_m2": 41904.362,
-      "polygon": [
-        [
-          1885.25,
-          1875.737
-        ],
-        [
-          2000.0,
-          1854.222
-        ],
-        [
-          2000.0,
-          2000.0
-        ],
-        [
-          1500.0,
-          2000.0
-        ],
-        [
-          1500.0,
-          1994.876
-        ],
-        [
-          1557.126,
-          1969.487
-        ],
-        [
-          1885.25,
-          1875.737
-        ]
-      ],
-      "holes": []
+      ]
     },
     {
       "id": "northeast_north_e+03_n+04_01",
@@ -801,22 +704,18 @@
       ],
       "bounds_m": [
         1500.0,
-        2000.0,
-        2000.0,
+        2142.35,
+        1738.284,
         2500.0
       ],
-      "area_m2": 249364.75,
+      "area_m2": 66349.695,
       "polygon": [
         [
-          1979.0,
-          2414.798
+          1689.353,
+          2469.175
         ],
         [
-          2000.0,
-          2439.298
-        ],
-        [
-          2000.0,
+          1670.858,
           2500.0
         ],
         [
@@ -825,19 +724,23 @@
         ],
         [
           1500.0,
-          2000.0
+          2162.099
         ],
         [
-          2000.0,
-          2000.0
+          1629.468,
+          2142.35
         ],
         [
-          2000.0,
-          2378.798
+          1738.284,
+          2293.287
         ],
         [
-          1979.0,
-          2414.798
+          1673.26,
+          2392.735
+        ],
+        [
+          1689.353,
+          2469.175
         ]
       ],
       "holes": []
@@ -852,722 +755,42 @@
       "bounds_m": [
         1500.0,
         2500.0,
-        2000.0,
-        3000.0
+        1692.677,
+        2932.735
       ],
-      "area_m2": 215207.27,
+      "area_m2": 53210.272,
       "polygon": [
         [
-          2000.0,
-          2739.704
+          1670.858,
+          2500.0
         ],
         [
-          1932.125,
-          2813.235
+          1615.448,
+          2592.35
         ],
         [
-          1722.015,
-          3000.0
+          1692.677,
+          2731.362
+        ],
+        [
+          1581.916,
+          2816.279
+        ],
+        [
+          1536.837,
+          2932.735
         ],
         [
           1500.0,
-          3000.0
+          2932.735
         ],
         [
           1500.0,
           2500.0
         ],
         [
-          2000.0,
+          1670.858,
           2500.0
-        ],
-        [
-          2000.0,
-          2739.704
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_north_e+03_n+06_01",
-      "region_id": "northeast_north",
-      "grid_cell": [
-        3,
-        6
-      ],
-      "bounds_m": [
-        1500.0,
-        3000.0,
-        1722.015,
-        3000.735
-      ],
-      "area_m2": 162.877,
-      "polygon": [
-        [
-          1721.188,
-          3000.735
-        ],
-        [
-          1500.0,
-          3000.735
-        ],
-        [
-          1500.0,
-          3000.0
-        ],
-        [
-          1722.015,
-          3000.0
-        ],
-        [
-          1721.188,
-          3000.735
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_north_e+04_n+03_01",
-      "region_id": "northeast_north",
-      "grid_cell": [
-        4,
-        3
-      ],
-      "bounds_m": [
-        2000.0,
-        1774.489,
-        2500.0,
-        2000.0
-      ],
-      "area_m2": 94646.243,
-      "polygon": [
-        [
-          2260.25,
-          1805.425
-        ],
-        [
-          2500.0,
-          1774.489
-        ],
-        [
-          2500.0,
-          2000.0
-        ],
-        [
-          2000.0,
-          2000.0
-        ],
-        [
-          2000.0,
-          1854.222
-        ],
-        [
-          2260.25,
-          1805.425
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_north_e+04_n+04_01",
-      "region_id": "northeast_north",
-      "grid_cell": [
-        4,
-        4
-      ],
-      "bounds_m": [
-        2000.0,
-        2000.0,
-        2500.0,
-        2378.798
-      ],
-      "area_m2": 153971.491,
-      "polygon": [
-        [
-          2061.031,
-          2274.174
-        ],
-        [
-          2000.0,
-          2378.798
-        ],
-        [
-          2000.0,
-          2000.0
-        ],
-        [
-          2500.0,
-          2000.0
-        ],
-        [
-          2500.0,
-          2225.38
-        ],
-        [
-          2412.593,
-          2285.893
-        ],
-        [
-          2260.25,
-          2356.205
-        ],
-        [
-          2061.031,
-          2274.174
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_north_e+04_n+04_02",
-      "region_id": "northeast_north",
-      "grid_cell": [
-        4,
-        4
-      ],
-      "bounds_m": [
-        2000.0,
-        2439.298,
-        2052.879,
-        2500.0
-      ],
-      "area_m2": 1580.512,
-      "polygon": [
-        [
-          2049.313,
-          2496.83
-        ],
-        [
-          2052.879,
-          2500.0
-        ],
-        [
-          2000.0,
-          2500.0
-        ],
-        [
-          2000.0,
-          2439.298
-        ],
-        [
-          2049.313,
-          2496.83
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_north_e+04_n+05_01",
-      "region_id": "northeast_north",
-      "grid_cell": [
-        4,
-        5
-      ],
-      "bounds_m": [
-        2000.0,
-        2500.0,
-        2154.781,
-        2739.704
-      ],
-      "area_m2": 20270.798,
-      "polygon": [
-        [
-          2072.75,
-          2660.892
-        ],
-        [
-          2000.0,
-          2739.704
-        ],
-        [
-          2000.0,
-          2500.0
-        ],
-        [
-          2052.879,
-          2500.0
-        ],
-        [
-          2154.781,
-          2590.579
-        ],
-        [
-          2072.75,
-          2660.892
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_north_e+05_n+03_01",
-      "region_id": "northeast_north",
-      "grid_cell": [
-        5,
-        3
-      ],
-      "bounds_m": [
-        2500.0,
-        1723.394,
-        2998.529,
-        2000.0
-      ],
-      "area_m2": 61414.344,
-      "polygon": [
-        [
-          2670.405,
-          1934.331
-        ],
-        [
-          2642.261,
-          2000.0
-        ],
-        [
-          2500.0,
-          2000.0
-        ],
-        [
-          2500.0,
-          1774.489
-        ],
-        [
-          2623.53,
-          1758.55
-        ],
-        [
-          2998.529,
-          1723.394
-        ],
-        [
-          2998.529,
-          1735.113
-        ],
-        [
-          2846.186,
-          1770.269
-        ],
-        [
-          2670.405,
-          1934.331
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_north_e+05_n+04_01",
-      "region_id": "northeast_north",
-      "grid_cell": [
-        5,
-        4
-      ],
-      "bounds_m": [
-        2500.0,
-        2000.0,
-        2642.261,
-        2225.38
-      ],
-      "area_m2": 20151.4,
-      "polygon": [
-        [
-          2564.937,
-          2180.424
-        ],
-        [
-          2500.0,
-          2225.38
-        ],
-        [
-          2500.0,
-          2000.0
-        ],
-        [
-          2642.261,
-          2000.0
-        ],
-        [
-          2564.937,
-          2180.424
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_corner_e+04_n+04_01",
-      "region_id": "northeast_corner",
-      "grid_cell": [
-        4,
-        4
-      ],
-      "bounds_m": [
-        2412.593,
-        2359.569,
-        2500.0,
-        2481.939
-      ],
-      "area_m2": 5347.997,
-      "polygon": [
-        [
-          2412.593,
-          2438.236
-        ],
-        [
-          2500.0,
-          2359.569
-        ],
-        [
-          2500.0,
-          2481.939
-        ],
-        [
-          2412.593,
-          2438.236
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_corner_e+04_n+05_01",
-      "region_id": "northeast_corner",
-      "grid_cell": [
-        4,
-        5
-      ],
-      "bounds_m": [
-        2400.874,
-        2759.029,
-        2500.0,
-        2982.673
-      ],
-      "area_m2": 11055.826,
-      "polygon": [
-        [
-          2494.624,
-          2766.36
-        ],
-        [
-          2500.0,
-          2759.029
-        ],
-        [
-          2500.0,
-          2982.673
-        ],
-        [
-          2400.874,
-          2883.547
-        ],
-        [
-          2494.624,
-          2766.36
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_corner_e+05_n+03_01",
-      "region_id": "northeast_corner",
-      "grid_cell": [
-        5,
-        3
-      ],
-      "bounds_m": [
-        2730.546,
-        1805.425,
-        2998.529,
-        2000.0
-      ],
-      "area_m2": 36723.486,
-      "polygon": [
-        [
-          2998.529,
-          1805.425
-        ],
-        [
-          2998.529,
-          2000.0
-        ],
-        [
-          2730.546,
-          2000.0
-        ],
-        [
-          2740.717,
-          1969.487
-        ],
-        [
-          2869.623,
-          1828.862
-        ],
-        [
-          2998.529,
-          1805.425
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_corner_e+05_n+04_01",
-      "region_id": "northeast_corner",
-      "grid_cell": [
-        5,
-        4
-      ],
-      "bounds_m": [
-        2500.0,
-        2000.0,
-        2998.529,
-        2500.0
-      ],
-      "area_m2": 191724.891,
-      "polygon": [
-        [
-          2998.529,
-          2000.0
-        ],
-        [
-          2998.529,
-          2500.0
-        ],
-        [
-          2640.514,
-          2500.0
-        ],
-        [
-          2658.686,
-          2403.08
-        ],
-        [
-          2561.766,
-          2500.0
-        ],
-        [
-          2536.122,
-          2500.0
-        ],
-        [
-          2500.0,
-          2481.939
-        ],
-        [
-          2500.0,
-          2359.569
-        ],
-        [
-          2529.78,
-          2332.767
-        ],
-        [
-          2658.686,
-          2215.58
-        ],
-        [
-          2730.546,
-          2000.0
-        ],
-        [
-          2998.529,
-          2000.0
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_corner_e+05_n+05_01",
-      "region_id": "northeast_corner",
-      "grid_cell": [
-        5,
-        5
-      ],
-      "bounds_m": [
-        2500.0,
-        2500.0,
-        2998.529,
-        3000.0
-      ],
-      "area_m2": 192995.047,
-      "polygon": [
-        [
-          2998.529,
-          2500.0
-        ],
-        [
-          2998.529,
-          2696.048
-        ],
-        [
-          2776.411,
-          3000.0
-        ],
-        [
-          2517.327,
-          3000.0
-        ],
-        [
-          2500.0,
-          2982.673
-        ],
-        [
-          2500.0,
-          2759.029
-        ],
-        [
-          2623.53,
-          2590.579
-        ],
-        [
-          2640.514,
-          2500.0
-        ],
-        [
-          2998.529,
-          2500.0
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_corner_e+05_n+05_02",
-      "region_id": "northeast_corner",
-      "grid_cell": [
-        5,
-        5
-      ],
-      "bounds_m": [
-        2536.122,
-        2500.0,
-        2561.766,
-        2508.548
-      ],
-      "area_m2": 109.602,
-      "polygon": [
-        [
-          2553.218,
-          2508.548
-        ],
-        [
-          2536.122,
-          2500.0
-        ],
-        [
-          2561.766,
-          2500.0
-        ],
-        [
-          2553.218,
-          2508.548
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_corner_e+05_n+06_01",
-      "region_id": "northeast_corner",
-      "grid_cell": [
-        5,
-        6
-      ],
-      "bounds_m": [
-        2517.327,
-        3000.0,
-        2776.411,
-        3000.735
-      ],
-      "area_m2": 189.959,
-      "polygon": [
-        [
-          2518.062,
-          3000.735
-        ],
-        [
-          2517.327,
-          3000.0
-        ],
-        [
-          2776.411,
-          3000.0
-        ],
-        [
-          2775.874,
-          3000.735
-        ],
-        [
-          2518.062,
-          3000.735
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_south_e+00_n+03_01",
-      "region_id": "northeast_south",
-      "grid_cell": [
-        0,
-        3
-      ],
-      "bounds_m": [
-        360.563,
-        1889.083,
-        500.0,
-        2000.0
-      ],
-      "area_m2": 8973.767,
-      "polygon": [
-        [
-          361.816,
-          1981.206
-        ],
-        [
-          500.0,
-          1889.083
-        ],
-        [
-          500.0,
-          2000.0
-        ],
-        [
-          360.563,
-          2000.0
-        ],
-        [
-          361.816,
-          1981.206
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_south_e+00_n+04_01",
-      "region_id": "northeast_south",
-      "grid_cell": [
-        0,
-        4
-      ],
-      "bounds_m": [
-        350.097,
-        2000.0,
-        500.0,
-        2173.643
-      ],
-      "area_m2": 23959.701,
-      "polygon": [
-        [
-          350.097,
-          2156.987
-        ],
-        [
-          360.563,
-          2000.0
-        ],
-        [
-          500.0,
-          2000.0
-        ],
-        [
-          500.0,
-          2173.643
-        ],
-        [
-          350.097,
-          2156.987
         ]
       ],
       "holes": []
@@ -1580,52 +803,98 @@
         3
       ],
       "bounds_m": [
-        500.0,
-        1641.363,
-        1000.0,
+        558.183,
+        1823.225,
+        830.314,
         2000.0
       ],
-      "area_m2": 151861.584,
+      "area_m2": 16768.793,
       "polygon": [
         [
-          971.19,
-          1641.363
+          723.88,
+          1912.63
         ],
         [
-          1000.0,
-          1646.601
-        ],
-        [
-          1000.0,
+          735.931,
           2000.0
         ],
         [
-          500.0,
+          558.183,
           2000.0
         ],
         [
-          500.0,
-          1889.083
+          566.151,
+          1989.26
         ],
         [
-          502.44,
-          1887.456
+          617.97,
+          1929.47
         ],
         [
-          537.597,
-          1758.55
+          656.704,
+          1880.171
         ],
         [
-          678.221,
-          1664.8
+          720.01,
+          1876.447
         ],
         [
-          842.284,
-          1699.956
+          806.394,
+          1831.199
         ],
         [
-          971.19,
-          1641.363
+          830.314,
+          1823.225
+        ],
+        [
+          723.88,
+          1912.63
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "northeast_south_e+01_n+03_02",
+      "region_id": "northeast_south",
+      "grid_cell": [
+        1,
+        3
+      ],
+      "bounds_m": [
+        833.494,
+        1770.117,
+        1000.0,
+        1930.397
+      ],
+      "area_m2": 9853.687,
+      "polygon": [
+        [
+          950.871,
+          1770.117
+        ],
+        [
+          1000.0,
+          1780.644
+        ],
+        [
+          1000.0,
+          1930.397
+        ],
+        [
+          952.985,
+          1852.038
+        ],
+        [
+          833.494,
+          1822.165
+        ],
+        [
+          915.626,
+          1794.788
+        ],
+        [
+          950.871,
+          1770.117
         ]
       ],
       "holes": []
@@ -1641,28 +910,16 @@
         500.0,
         2000.0,
         1000.0,
-        2180.424
+        2100.58
       ],
-      "area_m2": 77231.331,
+      "area_m2": 28404.864,
       "polygon": [
         [
-          1000.0,
-          2105.839
+          893.394,
+          2046.82
         ],
         [
-          795.409,
-          2156.987
-        ],
-        [
-          561.034,
-          2180.424
-        ],
-        [
-          500.0,
-          2173.643
-        ],
-        [
-          500.0,
+          964.857,
           2000.0
         ],
         [
@@ -1671,7 +928,39 @@
         ],
         [
           1000.0,
-          2105.839
+          2037.893
+        ],
+        [
+          862.904,
+          2069.051
+        ],
+        [
+          642.202,
+          2100.58
+        ],
+        [
+          500.0,
+          2085.123
+        ],
+        [
+          500.0,
+          2078.42
+        ],
+        [
+          558.183,
+          2000.0
+        ],
+        [
+          735.931,
+          2000.0
+        ],
+        [
+          741.791,
+          2042.489
+        ],
+        [
+          893.394,
+          2046.82
         ]
       ],
       "holes": []
@@ -1685,18 +974,18 @@
       ],
       "bounds_m": [
         1000.0,
-        1512.457,
+        1638.439,
         1500.0,
         2000.0
       ],
-      "area_m2": 188386.761,
+      "area_m2": 88970.369,
       "polygon": [
         [
-          1500.0,
-          1914.488
+          1024.479,
+          1943.477
         ],
         [
-          1311.872,
+          1110.751,
           2000.0
         ],
         [
@@ -1705,31 +994,71 @@
         ],
         [
           1000.0,
-          1646.601
+          1976.975
         ],
         [
-          1100.096,
-          1664.8
+          1020.061,
+          1963.832
         ],
         [
-          1252.439,
-          1629.644
+          1000.0,
+          1930.397
         ],
         [
-          1357.908,
-          1512.457
+          1000.0,
+          1780.644
         ],
         [
-          1486.814,
-          1594.488
+          1059.911,
+          1793.482
+        ],
+        [
+          1178.544,
+          1751.114
+        ],
+        [
+          1283.418,
+          1696.735
+        ],
+        [
+          1421.13,
+          1696.735
         ],
         [
           1500.0,
-          1582.95
+          1638.439
         ],
         [
           1500.0,
-          1914.488
+          1868.65
+        ],
+        [
+          1411.071,
+          1910.15
+        ],
+        [
+          1212.486,
+          1977.669
+        ],
+        [
+          1212.328,
+          1977.716
+        ],
+        [
+          1256.247,
+          1937.789
+        ],
+        [
+          1162.991,
+          1822.329
+        ],
+        [
+          1105.006,
+          1827.161
+        ],
+        [
+          1024.479,
+          1943.477
         ]
       ],
       "holes": []
@@ -1744,34 +1073,34 @@
       "bounds_m": [
         1000.0,
         2000.0,
-        1311.872,
-        2105.839
+        1118.879,
+        2037.893
       ],
-      "area_m2": 17456.005,
+      "area_m2": 2651.213,
       "polygon": [
         [
-          1029.783,
-          2098.393
+          1110.751,
+          2000.0
+        ],
+        [
+          1118.879,
+          2005.325
+        ],
+        [
+          1037.486,
+          2029.373
         ],
         [
           1000.0,
-          2105.839
+          2037.893
         ],
         [
           1000.0,
           2000.0
         ],
         [
-          1311.872,
+          1110.751,
           2000.0
-        ],
-        [
-          1275.876,
-          2016.362
-        ],
-        [
-          1029.783,
-          2098.393
         ]
       ],
       "holes": []
@@ -1784,40 +1113,32 @@
         2
       ],
       "bounds_m": [
-        1601.325,
-        1301.238,
+        1887.077,
+        1346.91,
         2000.0,
         1500.0
       ],
-      "area_m2": 49545.076,
+      "area_m2": 9703.39,
       "polygon": [
         [
-          1979.0,
-          1313.238
+          1976.656,
+          1359.789
         ],
         [
           2000.0,
-          1301.238
+          1346.91
         ],
         [
           2000.0,
           1500.0
         ],
         [
-          1601.325,
+          1887.077,
           1500.0
         ],
         [
-          1697.751,
-          1442.144
-        ],
-        [
-          1850.094,
-          1313.238
-        ],
-        [
-          1979.0,
-          1313.238
+          1976.656,
+          1359.789
         ]
       ],
       "holes": []
@@ -1833,28 +1154,40 @@
         1500.0,
         1500.0,
         2000.0,
-        1914.488
+        1868.65
       ],
-      "area_m2": 160993.675,
+      "area_m2": 100632.915,
       "polygon": [
         [
-          1533.688,
-          1899.175
+          1711.235,
+          1770.073
         ],
         [
           1500.0,
-          1914.488
+          1868.65
         ],
         [
           1500.0,
-          1582.95
+          1638.439
         ],
         [
-          1580.563,
-          1512.457
+          1511.832,
+          1629.694
         ],
         [
-          1601.325,
+          1594.91,
+          1641.562
+        ],
+        [
+          1715.342,
+          1566.811
+        ],
+        [
+          1883.757,
+          1505.196
+        ],
+        [
+          1887.077,
           1500.0
         ],
         [
@@ -1863,53 +1196,11 @@
         ],
         [
           2000.0,
-          1761.908
+          1677.669
         ],
         [
-          1850.094,
-          1793.706
-        ],
-        [
-          1533.688,
-          1899.175
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northeast_south_e+04_n+01_01",
-      "region_id": "northeast_south",
-      "grid_cell": [
-        4,
-        1
-      ],
-      "bounds_m": [
-        2245.364,
-        834.885,
-        2500.0,
-        1000.0
-      ],
-      "area_m2": 26409.217,
-      "polygon": [
-        [
-          2365.718,
-          879.646
-        ],
-        [
-          2500.0,
-          834.885
-        ],
-        [
-          2500.0,
-          1000.0
-        ],
-        [
-          2245.364,
-          1000.0
-        ],
-        [
-          2365.718,
-          879.646
+          1711.235,
+          1770.073
         ]
       ],
       "holes": []
@@ -1923,23 +1214,19 @@
       ],
       "bounds_m": [
         2000.0,
-        1000.0,
+        1005.301,
         2500.0,
         1500.0
       ],
-      "area_m2": 202025.887,
+      "area_m2": 150225.362,
       "polygon": [
         [
-          2236.812,
-          1008.552
-        ],
-        [
-          2245.364,
-          1000.0
+          2441.906,
+          1074.288
         ],
         [
           2500.0,
-          1000.0
+          1005.301
         ],
         [
           2500.0,
@@ -1951,15 +1238,23 @@
         ],
         [
           2000.0,
-          1301.238
+          1346.91
         ],
         [
-          2143.062,
-          1219.489
+          2086.333,
+          1299.278
         ],
         [
-          2236.812,
-          1008.552
+          2252.075,
+          1249.555
+        ],
+        [
+          2332.001,
+          1105.689
+        ],
+        [
+          2441.906,
+          1074.288
         ]
       ],
       "holes": []
@@ -1975,17 +1270,17 @@
         2000.0,
         1500.0,
         2500.0,
-        1761.908
+        1677.669
       ],
-      "area_m2": 107316.456,
+      "area_m2": 66502.62,
       "polygon": [
         [
-          2236.812,
-          1711.675
+          2013.78,
+          1673.259
         ],
         [
           2000.0,
-          1761.908
+          1677.669
         ],
         [
           2000.0,
@@ -1997,11 +1292,15 @@
         ],
         [
           2500.0,
-          1677.715
+          1593.216
         ],
         [
-          2236.812,
-          1711.675
+          2435.658,
+          1600.937
+        ],
+        [
+          2013.78,
+          1673.259
         ]
       ],
       "holes": []
@@ -2014,40 +1313,44 @@
         1
       ],
       "bounds_m": [
-        2500.0,
-        645.271,
-        2998.529,
+        2504.464,
+        750.577,
+        2918.541,
         1000.0
       ],
-      "area_m2": 142069.796,
+      "area_m2": 65791.998,
       "polygon": [
         [
-          2998.529,
-          645.271
+          2918.541,
+          750.577
         ],
         [
-          2998.529,
+          2918.541,
           1000.0
         ],
         [
-          2500.0,
+          2504.464,
           1000.0
         ],
         [
-          2500.0,
-          834.885
+          2510.034,
+          993.386
         ],
         [
-          2611.811,
-          797.615
+          2583.077,
+          901.121
         ],
         [
-          2787.592,
-          656.99
+          2721.528,
+          841.785
         ],
         [
-          2998.529,
-          645.271
+          2811.033,
+          760.063
+        ],
+        [
+          2918.541,
+          750.577
         ]
       ],
       "holes": []
@@ -2062,17 +1365,17 @@
       "bounds_m": [
         2500.0,
         1000.0,
-        2998.529,
+        2918.541,
         1500.0
       ],
-      "area_m2": 249264.5,
+      "area_m2": 209258.668,
       "polygon": [
         [
-          2998.529,
+          2918.541,
           1000.0
         ],
         [
-          2998.529,
+          2918.541,
           1500.0
         ],
         [
@@ -2081,10 +1384,14 @@
         ],
         [
           2500.0,
+          1005.301
+        ],
+        [
+          2504.464,
           1000.0
         ],
         [
-          2998.529,
+          2918.541,
           1000.0
         ]
       ],
@@ -2100,378 +1407,30 @@
       "bounds_m": [
         2500.0,
         1500.0,
-        2998.529,
-        1677.715
+        2918.541,
+        1593.216
       ],
-      "area_m2": 75800.222,
+      "area_m2": 28504.107,
       "polygon": [
         [
-          2600.093,
-          1664.8
+          2918.541,
+          1542.991
         ],
         [
           2500.0,
-          1677.715
+          1593.216
         ],
         [
           2500.0,
           1500.0
         ],
         [
-          2998.529,
+          2918.541,
           1500.0
         ],
         [
-          2998.529,
-          1629.644
-        ],
-        [
-          2600.093,
-          1664.8
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northwest_patch_e-05_n+04_01",
-      "region_id": "northwest_patch",
-      "grid_cell": [
-        -5,
-        4
-      ],
-      "bounds_m": [
-        -2086.102,
-        2362.131,
-        -2000.0,
-        2500.0
-      ],
-      "area_m2": 5857.949,
-      "polygon": [
-        [
-          -2075.68,
-          2485.111
-        ],
-        [
-          -2000.0,
-          2362.131
-        ],
-        [
-          -2000.0,
-          2500.0
-        ],
-        [
-          -2086.102,
-          2500.0
-        ],
-        [
-          -2075.68,
-          2485.111
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northwest_patch_e-05_n+05_01",
-      "region_id": "northwest_patch",
-      "grid_cell": [
-        -5,
-        5
-      ],
-      "bounds_m": [
-        -2181.148,
-        2500.0,
-        -2000.0,
-        3000.0
-      ],
-      "area_m2": 72008.431,
-      "polygon": [
-        [
-          -2157.711,
-          2602.298
-        ],
-        [
-          -2086.102,
-          2500.0
-        ],
-        [
-          -2000.0,
-          2500.0
-        ],
-        [
-          -2000.0,
-          3000.0
-        ],
-        [
-          -2099.341,
-          3000.0
-        ],
-        [
-          -2181.148,
-          2731.204
-        ],
-        [
-          -2157.711,
-          2602.298
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northwest_patch_e-05_n+06_01",
-      "region_id": "northwest_patch",
-      "grid_cell": [
-        -5,
-        6
-      ],
-      "bounds_m": [
-        -2099.341,
-        3000.0,
-        -2000.0,
-        3000.735
-      ],
-      "area_m2": 72.933,
-      "polygon": [
-        [
-          -2099.117,
-          3000.735
-        ],
-        [
-          -2099.341,
-          3000.0
-        ],
-        [
-          -2000.0,
-          3000.0
-        ],
-        [
-          -2000.0,
-          3000.735
-        ],
-        [
-          -2099.117,
-          3000.735
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northwest_patch_e-04_n+04_01",
-      "region_id": "northwest_patch",
-      "grid_cell": [
-        -4,
-        4
-      ],
-      "bounds_m": [
-        -2000.0,
-        2239.018,
-        -1592.042,
-        2500.0
-      ],
-      "area_m2": 73338.598,
-      "polygon": [
-        [
-          -1677.243,
-          2414.798
-        ],
-        [
-          -1592.042,
-          2500.0
-        ],
-        [
-          -2000.0,
-          2500.0
-        ],
-        [
-          -2000.0,
-          2362.131
-        ],
-        [
-          -1981.93,
-          2332.767
-        ],
-        [
-          -1841.305,
-          2239.018
-        ],
-        [
-          -1712.399,
-          2274.174
-        ],
-        [
-          -1677.243,
-          2414.798
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northwest_patch_e-04_n+05_01",
-      "region_id": "northwest_patch",
-      "grid_cell": [
-        -4,
-        5
-      ],
-      "bounds_m": [
-        -2000.0,
-        2500.0,
-        -1536.618,
-        3000.0
-      ],
-      "area_m2": 181069.05,
-      "polygon": [
-        [
-          -1735.837,
-          2824.954
-        ],
-        [
-          -1724.118,
-          2918.704
-        ],
-        [
-          -1828.641,
-          3000.0
-        ],
-        [
-          -2000.0,
-          3000.0
-        ],
-        [
-          -2000.0,
-          2500.0
-        ],
-        [
-          -1592.042,
-          2500.0
-        ],
-        [
-          -1560.056,
-          2531.986
-        ],
-        [
-          -1536.618,
-          2660.892
-        ],
-        [
-          -1618.649,
-          2789.798
-        ],
-        [
-          -1735.837,
-          2824.954
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "northwest_patch_e-04_n+06_01",
-      "region_id": "northwest_patch",
-      "grid_cell": [
-        -4,
-        6
-      ],
-      "bounds_m": [
-        -2000.0,
-        3000.0,
-        -1828.641,
-        3000.735
-      ],
-      "area_m2": 125.602,
-      "polygon": [
-        [
-          -1829.586,
-          3000.735
-        ],
-        [
-          -2000.0,
-          3000.735
-        ],
-        [
-          -2000.0,
-          3000.0
-        ],
-        [
-          -1828.641,
-          3000.0
-        ],
-        [
-          -1829.586,
-          3000.735
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "west_upper_e-06_n+02_01",
-      "region_id": "west_upper",
-      "grid_cell": [
-        -6,
-        2
-      ],
-      "bounds_m": [
-        -2560.748,
-        1393.692,
-        -2500.0,
-        1500.0
-      ],
-      "area_m2": 3228.999,
-      "polygon": [
-        [
-          -2560.748,
-          1500.0
-        ],
-        [
-          -2500.0,
-          1393.692
-        ],
-        [
-          -2500.0,
-          1500.0
-        ],
-        [
-          -2560.748,
-          1500.0
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "west_upper_e-06_n+03_01",
-      "region_id": "west_upper",
-      "grid_cell": [
-        -6,
-        3
-      ],
-      "bounds_m": [
-        -2567.866,
-        1500.0,
-        -2500.0,
-        1743.097
-      ],
-      "area_m2": 16182.765,
-      "polygon": [
-        [
-          -2567.866,
-          1512.457
-        ],
-        [
-          -2560.748,
-          1500.0
-        ],
-        [
-          -2500.0,
-          1500.0
-        ],
-        [
-          -2500.0,
-          1743.097
-        ],
-        [
-          -2567.866,
-          1735.113
-        ],
-        [
-          -2567.866,
-          1512.457
+          2918.541,
+          1542.991
         ]
       ],
       "holes": []
@@ -2484,56 +1443,78 @@
         2
       ],
       "bounds_m": [
-        -2500.0,
-        1160.895,
-        -2005.367,
+        -2384.88,
+        1434.335,
+        -2194.98,
         1500.0
       ],
-      "area_m2": 115709.943,
+      "area_m2": 6084.422,
       "polygon": [
         [
-          -2017.086,
-          1465.582
+          -2194.98,
+          1434.335
         ],
         [
-          -2059.153,
+          -2253.66,
           1500.0
         ],
         [
-          -2500.0,
+          -2384.88,
           1500.0
         ],
         [
-          -2500.0,
-          1393.692
+          -2333.282,
+          1463.452
         ],
         [
-          -2474.116,
-          1348.395
+          -2194.98,
+          1434.335
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "west_upper_e-05_n+02_02",
+      "region_id": "west_upper",
+      "grid_cell": [
+        -5,
+        2
+      ],
+      "bounds_m": [
+        -2232.202,
+        1342.915,
+        -2025.639,
+        1500.0
+      ],
+      "area_m2": 17220.884,
+      "polygon": [
+        [
+          -2069.746,
+          1492.904
         ],
         [
-          -2286.617,
-          1301.52
+          -2076.25,
+          1500.0
         ],
         [
-          -2239.742,
-          1172.614
+          -2232.202,
+          1500.0
         ],
         [
-          -2145.992,
-          1160.895
+          -2093.501,
+          1344.787
         ],
         [
-          -2063.961,
-          1219.489
+          -2085.078,
+          1342.915
         ],
         [
-          -2005.367,
-          1360.113
+          -2025.639,
+          1414.868
         ],
         [
-          -2017.086,
-          1465.582
+          -2069.746,
+          1492.904
         ]
       ],
       "holes": []
@@ -2546,276 +1527,148 @@
         3
       ],
       "bounds_m": [
-        -2500.0,
+        -2431.432,
         1500.0,
-        -2059.153,
-        1770.269
+        -2253.66,
+        1643.475
       ],
-      "area_m2": 103692.548,
+      "area_m2": 11885.133,
       "polygon": [
         [
-          -2063.961,
-          1653.081
+          -2266.979,
+          1514.905
         ],
         [
-          -2134.273,
-          1770.269
+          -2426.457,
+          1642.488
         ],
         [
-          -2368.648,
-          1758.55
+          -2427.691,
+          1643.475
         ],
         [
-          -2500.0,
-          1743.097
+          -2431.432,
+          1643.059
         ],
         [
-          -2500.0,
+          -2418.544,
+          1523.845
+        ],
+        [
+          -2384.88,
           1500.0
         ],
         [
-          -2059.153,
+          -2253.66,
           1500.0
         ],
         [
-          -2145.992,
-          1571.05
-        ],
-        [
-          -2063.961,
-          1653.081
+          -2266.979,
+          1514.905
         ]
       ],
       "holes": []
     },
     {
-      "id": "west_edge_e-07_n-01_01",
-      "region_id": "west_edge",
+      "id": "west_upper_e-05_n+03_02",
+      "region_id": "west_upper",
       "grid_cell": [
-        -7,
-        -1
-      ],
-      "bounds_m": [
-        -3001.459,
-        -350.82,
-        -3000.0,
-        0.0
-      ],
-      "area_m2": 510.516,
-      "polygon": [
-        [
-          -3001.459,
-          -350.82
-        ],
-        [
-          -3000.0,
-          -348.996
-        ],
-        [
-          -3000.0,
-          0.0
-        ],
-        [
-          -3001.459,
-          0.0
-        ],
-        [
-          -3001.459,
-          -350.82
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "west_edge_e-07_n+00_01",
-      "region_id": "west_edge",
-      "grid_cell": [
-        -7,
-        0
-      ],
-      "bounds_m": [
-        -3001.459,
-        0.0,
-        -3000.0,
-        500.0
-      ],
-      "area_m2": 729.5,
-      "polygon": [
-        [
-          -3001.459,
-          500.0
-        ],
-        [
-          -3001.459,
-          0.0
-        ],
-        [
-          -3000.0,
-          0.0
-        ],
-        [
-          -3000.0,
-          500.0
-        ],
-        [
-          -3001.459,
-          500.0
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "west_edge_e-07_n+01_01",
-      "region_id": "west_edge",
-      "grid_cell": [
-        -7,
-        1
-      ],
-      "bounds_m": [
-        -3001.459,
-        500.0,
-        -3000.0,
-        1000.0
-      ],
-      "area_m2": 729.5,
-      "polygon": [
-        [
-          -3001.459,
-          1000.0
-        ],
-        [
-          -3001.459,
-          500.0
-        ],
-        [
-          -3000.0,
-          500.0
-        ],
-        [
-          -3000.0,
-          1000.0
-        ],
-        [
-          -3001.459,
-          1000.0
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "west_edge_e-07_n+02_01",
-      "region_id": "west_edge",
-      "grid_cell": [
-        -7,
-        2
-      ],
-      "bounds_m": [
-        -3001.459,
-        1000.0,
-        -3000.0,
-        1500.0
-      ],
-      "area_m2": 729.5,
-      "polygon": [
-        [
-          -3001.459,
-          1500.0
-        ],
-        [
-          -3001.459,
-          1000.0
-        ],
-        [
-          -3000.0,
-          1000.0
-        ],
-        [
-          -3000.0,
-          1500.0
-        ],
-        [
-          -3001.459,
-          1500.0
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "west_edge_e-07_n+03_01",
-      "region_id": "west_edge",
-      "grid_cell": [
-        -7,
+        -5,
         3
       ],
       "bounds_m": [
-        -3001.459,
-        1500.0,
-        -3000.0,
-        1805.425
+        -2405.202,
+        1574.18,
+        -2228.974,
+        1663.885
       ],
-      "area_m2": 445.083,
+      "area_m2": 4423.733,
       "polygon": [
         [
-          -3001.459,
-          1805.425
+          -2228.974,
+          1650.735
         ],
         [
-          -3001.459,
-          1500.0
+          -2244.002,
+          1663.885
         ],
         [
-          -3000.0,
-          1500.0
+          -2405.202,
+          1645.974
         ],
         [
-          -3000.0,
-          1804.696
+          -2315.459,
+          1574.18
         ],
         [
-          -3001.459,
-          1805.425
+          -2315.459,
+          1650.735
+        ],
+        [
+          -2228.974,
+          1650.735
         ]
       ],
       "holes": []
     },
     {
-      "id": "west_edge_e-06_n-01_01",
-      "region_id": "west_edge",
+      "id": "west_upper_e-05_n+03_03",
+      "region_id": "west_upper",
       "grid_cell": [
-        -6,
-        -1
+        -5,
+        3
       ],
       "bounds_m": [
-        -3000.0,
-        -348.996,
-        -2798.748,
-        0.0
+        -2306.153,
+        1500.0,
+        -2076.25,
+        1645.909
       ],
-      "area_m2": 39804.142,
+      "area_m2": 13409.469,
       "polygon": [
         [
-          -2802.241,
-          -10.977
+          -2076.25,
+          1500.0
         ],
         [
-          -2798.748,
-          0.0
+          -2080.167,
+          1504.273
         ],
         [
-          -3000.0,
-          0.0
+          -2160.877,
+          1570.308
         ],
         [
-          -3000.0,
-          -348.996
+          -2150.349,
+          1580.835
         ],
         [
-          -2907.709,
-          -233.633
+          -2155.458,
+          1586.408
         ],
         [
-          -2802.241,
-          -10.977
+          -2223.459,
+          1645.909
+        ],
+        [
+          -2223.459,
+          1566.735
+        ],
+        [
+          -2306.153,
+          1566.735
+        ],
+        [
+          -2255.94,
+          1526.564
+        ],
+        [
+          -2232.202,
+          1500.0
+        ],
+        [
+          -2076.25,
+          1500.0
         ]
       ],
       "holes": []
@@ -2828,86 +1681,82 @@
         0
       ],
       "bounds_m": [
-        -3000.0,
+        -2933.459,
         0.0,
-        -2658.404,
-        500.0
+        -2798.15,
+        396.924
       ],
-      "area_m2": 138561.862,
+      "area_m2": 29658.827,
       "polygon": [
         [
-          -2661.616,
-          469.49
+          -2798.15,
+          302.043
         ],
         [
-          -2658.404,
-          500.0
+          -2894.023,
+          370.163
         ],
         [
-          -3000.0,
-          500.0
+          -2933.459,
+          396.924
         ],
         [
-          -3000.0,
+          -2933.459,
           0.0
         ],
         [
-          -2798.748,
+          -2928.111,
           0.0
         ],
         [
-          -2720.21,
-          246.835
+          -2847.916,
+          156.571
         ],
         [
-          -2661.616,
-          469.49
+          -2798.15,
+          302.043
         ]
       ],
       "holes": []
     },
     {
-      "id": "west_edge_e-06_n+01_01",
+      "id": "west_edge_e-06_n+00_02",
       "region_id": "west_edge",
       "grid_cell": [
         -6,
-        1
+        0
       ],
       "bounds_m": [
-        -3000.0,
-        500.0,
-        -2614.741,
-        1000.0
+        -2933.459,
+        319.427,
+        -2772.273,
+        491.105
       ],
-      "area_m2": 183436.265,
+      "area_m2": 18072.777,
       "polygon": [
         [
-          -2614.741,
-          926.521
+          -2933.459,
+          491.105
         ],
         [
-          -2614.741,
-          1000.0
+          -2933.459,
+          416.26
         ],
         [
-          -3000.0,
-          1000.0
+          -2884.896,
+          383.306
         ],
         [
-          -3000.0,
-          500.0
+          -2794.992,
+          319.427
         ],
         [
-          -2658.404,
-          500.0
+          -2772.273,
+          478.462
         ],
         [
-          -2638.179,
-          692.146
-        ],
-        [
-          -2614.741,
-          926.521
+          -2933.459,
+          491.105
         ]
       ],
       "holes": []
@@ -2920,40 +1769,98 @@
         2
       ],
       "bounds_m": [
-        -3000.0,
+        -2933.459,
         1000.0,
-        -2614.741,
-        1500.0
+        -2750.359,
+        1315.401
       ],
-      "area_m2": 180092.961,
+      "area_m2": 42680.863,
       "polygon": [
         [
-          -2649.897,
-          1336.676
+          -2933.459,
+          1315.401
         ],
         [
-          -2695.265,
-          1500.0
+          -2933.459,
+          1013.331
         ],
         [
-          -3000.0,
-          1500.0
+          -2850.959,
+          1030.518
         ],
         [
-          -3000.0,
+          -2820.44,
           1000.0
         ],
         [
-          -2614.741,
+          -2766.106,
           1000.0
         ],
         [
-          -2614.741,
-          1160.895
+          -2750.359,
+          1018.896
         ],
         [
-          -2649.897,
-          1336.676
+          -2769.202,
+          1173.409
+        ],
+        [
+          -2777.927,
+          1213.861
+        ],
+        [
+          -2885.665,
+          1289.911
+        ],
+        [
+          -2933.459,
+          1315.401
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "west_edge_e-06_n+02_02",
+      "region_id": "west_edge",
+      "grid_cell": [
+        -6,
+        2
+      ],
+      "bounds_m": [
+        -2933.459,
+        1236.962,
+        -2782.909,
+        1500.0
+      ],
+      "area_m2": 24148.85,
+      "polygon": [
+        [
+          -2812.941,
+          1376.2
+        ],
+        [
+          -2843.891,
+          1500.0
+        ],
+        [
+          -2933.459,
+          1500.0
+        ],
+        [
+          -2933.459,
+          1333.535
+        ],
+        [
+          -2877.254,
+          1303.558
+        ],
+        [
+          -2782.909,
+          1236.962
+        ],
+        [
+          -2812.941,
+          1376.2
         ]
       ],
       "holes": []
@@ -2966,124 +1873,32 @@
         3
       ],
       "bounds_m": [
-        -3000.0,
+        -2933.459,
         1500.0,
-        -2695.265,
-        1804.696
+        -2843.891,
+        1625.25
       ],
-      "area_m2": 60716.588,
+      "area_m2": 7406.333,
       "polygon": [
         [
-          -2695.265,
+          -2843.891,
           1500.0
         ],
         [
-          -2708.491,
-          1547.613
+          -2859.316,
+          1561.699
         ],
         [
-          -2837.397,
-          1723.394
+          -2933.459,
+          1625.25
         ],
         [
-          -3000.0,
-          1804.696
-        ],
-        [
-          -3000.0,
+          -2933.459,
           1500.0
         ],
         [
-          -2695.265,
+          -2843.891,
           1500.0
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "west_middle_e-06_n-01_01",
-      "region_id": "west_middle",
-      "grid_cell": [
-        -6,
-        -1
-      ],
-      "bounds_m": [
-        -2649.897,
-        -385.976,
-        -2500.0,
-        0.0
-      ],
-      "area_m2": 37463.02,
-      "polygon": [
-        [
-          -2649.897,
-          -385.976
-        ],
-        [
-          -2500.0,
-          -385.976
-        ],
-        [
-          -2500.0,
-          0.0
-        ],
-        [
-          -2542.6,
-          0.0
-        ],
-        [
-          -2544.429,
-          -10.977
-        ],
-        [
-          -2626.46,
-          -292.227
-        ],
-        [
-          -2649.897,
-          -385.976
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "west_middle_e-06_n+00_01",
-      "region_id": "west_middle",
-      "grid_cell": [
-        -6,
-        0
-      ],
-      "bounds_m": [
-        -2542.6,
-        0.0,
-        -2500.0,
-        387.459
-      ],
-      "area_m2": 9068.651,
-      "polygon": [
-        [
-          -2509.273,
-          199.96
-        ],
-        [
-          -2542.6,
-          0.0
-        ],
-        [
-          -2500.0,
-          0.0
-        ],
-        [
-          -2500.0,
-          384.188
-        ],
-        [
-          -2532.71,
-          387.459
-        ],
-        [
-          -2509.273,
-          199.96
         ]
       ],
       "holes": []
@@ -3096,56 +1911,44 @@
         -1
       ],
       "bounds_m": [
-        -2500.0,
-        -385.976,
-        -2000.0,
+        -2409.239,
+        -181.312,
+        -2233.459,
         0.0
       ],
-      "area_m2": 186452.297,
+      "area_m2": 25208.039,
       "polygon": [
         [
-          -2005.367,
-          -362.539
+          -2409.239,
+          -38.985
         ],
         [
-          -2000.0,
-          -362.241
+          -2380.128,
+          -97.207
         ],
         [
-          -2000.0,
-          -191.469
+          -2330.014,
+          -172.377
         ],
         [
-          -2052.242,
-          -69.571
+          -2246.621,
+          -181.312
         ],
         [
-          -2000.0,
-          -56.51
+          -2233.459,
+          -85.893
         ],
         [
-          -2000.0,
+          -2233.459,
           0.0
         ],
         [
-          -2500.0,
+          -2407.426,
           0.0
         ],
         [
-          -2500.0,
-          -385.976
-        ],
-        [
-          -2485.835,
-          -385.976
-        ],
-        [
-          -2251.461,
-          -385.976
-        ],
-        [
-          -2005.367,
-          -362.539
+          -2409.239,
+          -38.985
         ]
       ],
       "holes": []
@@ -3158,44 +1961,36 @@
         0
       ],
       "bounds_m": [
-        -2500.0,
+        -2407.426,
         0.0,
-        -2000.0,
-        422.615
+        -2233.459,
+        139.218
       ],
-      "area_m2": 187849.654,
+      "area_m2": 21568.92,
       "polygon": [
         [
-          -2017.086,
-          305.428
+          -2402.223,
+          111.841
         ],
         [
-          -2134.273,
-          422.615
-        ],
-        [
-          -2298.336,
-          364.022
-        ],
-        [
-          -2500.0,
-          384.188
-        ],
-        [
-          -2500.0,
+          -2407.426,
           0.0
         ],
         [
-          -2000.0,
+          -2233.459,
           0.0
         ],
         [
-          -2000.0,
-          305.428
+          -2233.459,
+          124.45
         ],
         [
-          -2017.086,
-          305.428
+          -2248.227,
+          139.218
+        ],
+        [
+          -2402.223,
+          111.841
         ]
       ],
       "holes": []
@@ -3208,72 +2003,40 @@
         -1
       ],
       "bounds_m": [
-        -2000.0,
-        -362.241,
-        -1500.0,
+        -1748.974,
+        -33.935,
+        -1629.459,
         0.0
       ],
-      "area_m2": 106277.991,
+      "area_m2": 2343.874,
       "polygon": [
         [
-          -1595.212,
-          -339.102
-        ],
-        [
-          -1500.0,
-          -317.463
-        ],
-        [
-          -1500.0,
+          -1748.974,
           0.0
         ],
         [
-          -2000.0,
+          -1737.041,
+          -5.114
+        ],
+        [
+          -1679.398,
+          -33.935
+        ],
+        [
+          -1629.459,
+          -20.064
+        ],
+        [
+          -1629.459,
+          -16.514
+        ],
+        [
+          -1648.887,
           0.0
         ],
         [
-          -2000.0,
-          -56.51
-        ],
-        [
-          -1911.618,
-          -34.415
-        ],
-        [
-          -1724.118,
-          -57.852
-        ],
-        [
-          -1642.087,
-          -104.727
-        ],
-        [
-          -1665.524,
-          -221.914
-        ],
-        [
-          -1806.149,
-          -268.789
-        ],
-        [
-          -1981.93,
-          -233.633
-        ],
-        [
-          -2000.0,
-          -191.469
-        ],
-        [
-          -2000.0,
-          -362.241
-        ],
-        [
-          -1794.43,
-          -350.82
-        ],
-        [
-          -1595.212,
-          -339.102
+          -1748.974,
+          0.0
         ]
       ],
       "holes": []
@@ -3288,448 +2051,50 @@
       "bounds_m": [
         -2000.0,
         0.0,
-        -1500.0,
-        305.428
+        -1648.887,
+        161.423
       ],
-      "area_m2": 136668.386,
+      "area_m2": 21269.529,
       "polygon": [
         [
-          -1853.024,
-          305.428
+          -1848.712,
+          42.745
+        ],
+        [
+          -1748.974,
+          0.0
+        ],
+        [
+          -1648.887,
+          0.0
+        ],
+        [
+          -1700.729,
+          44.065
+        ],
+        [
+          -1848.736,
+          121.964
         ],
         [
           -2000.0,
-          305.428
+          161.423
         ],
         [
           -2000.0,
-          0.0
+          127.744
         ],
         [
-          -1500.0,
-          0.0
+          -1995.682,
+          78.81
         ],
         [
-          -1500.0,
-          185.627
+          -1943.155,
+          94.259
         ],
         [
-          -1595.212,
-          246.835
-        ],
-        [
-          -1853.024,
-          305.428
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "west_middle_e-03_n-01_01",
-      "region_id": "west_middle",
-      "grid_cell": [
-        -3,
-        -1
-      ],
-      "bounds_m": [
-        -1500.0,
-        -317.463,
-        -1000.0,
-        0.0
-      ],
-      "area_m2": 125511.312,
-      "polygon": [
-        [
-          -1044.432,
-          -22.696
-        ],
-        [
-          -1108.738,
-          0.0
-        ],
-        [
-          -1500.0,
-          0.0
-        ],
-        [
-          -1500.0,
-          -317.463
-        ],
-        [
-          -1337.4,
-          -280.508
-        ],
-        [
-          -1149.9,
-          -233.633
-        ],
-        [
-          -1000.0,
-          -178.407
-        ],
-        [
-          -1000.0,
-          -42.892
-        ],
-        [
-          -1044.432,
-          -22.696
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "west_middle_e-03_n+00_01",
-      "region_id": "west_middle",
-      "grid_cell": [
-        -3,
-        0
-      ],
-      "bounds_m": [
-        -1500.0,
-        0.0,
-        -1108.738,
-        185.627
-      ],
-      "area_m2": 32185.781,
-      "polygon": [
-        [
-          -1431.15,
-          141.366
-        ],
-        [
-          -1500.0,
-          185.627
-        ],
-        [
-          -1500.0,
-          0.0
-        ],
-        [
-          -1108.738,
-          0.0
-        ],
-        [
-          -1243.65,
-          47.616
-        ],
-        [
-          -1431.15,
-          141.366
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "west_middle_e-02_n-01_01",
-      "region_id": "west_middle",
-      "grid_cell": [
-        -2,
-        -1
-      ],
-      "bounds_m": [
-        -1000.0,
-        -178.407,
-        -915.526,
-        -42.892
-      ],
-      "area_m2": 8124.506,
-      "polygon": [
-        [
-          -915.526,
-          -81.29
-        ],
-        [
-          -1000.0,
-          -42.892
-        ],
-        [
-          -1000.0,
-          -178.407
-        ],
-        [
-          -927.244,
-          -151.602
-        ],
-        [
-          -915.526,
-          -81.29
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "west_small_e-05_n+01_01",
-      "region_id": "west_small",
-      "grid_cell": [
-        -5,
-        1
-      ],
-      "bounds_m": [
-        -2321.773,
-        615.08,
-        -2000.0,
-        867.927
-      ],
-      "area_m2": 58515.932,
-      "polygon": [
-        [
-          -2000.0,
-          793.343
-        ],
-        [
-          -2017.086,
-          797.615
-        ],
-        [
-          -2134.273,
-          844.49
-        ],
-        [
-          -2298.336,
-          867.927
-        ],
-        [
-          -2321.773,
-          703.865
-        ],
-        [
-          -2192.867,
-          656.99
-        ],
-        [
-          -2040.524,
-          621.834
-        ],
-        [
-          -2000.0,
-          615.08
-        ],
-        [
-          -2000.0,
-          793.343
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "west_small_e-04_n+01_01",
-      "region_id": "west_small",
-      "grid_cell": [
-        -4,
-        1
-      ],
-      "bounds_m": [
-        -2000.0,
-        598.396,
-        -1794.43,
-        793.343
-      ],
-      "area_m2": 27383.186,
-      "polygon": [
-        [
-          -1876.461,
-          762.458
-        ],
-        [
-          -2000.0,
-          793.343
-        ],
-        [
-          -2000.0,
-          615.08
-        ],
-        [
-          -1899.899,
-          598.396
-        ],
-        [
-          -1794.43,
-          656.99
-        ],
-        [
-          -1876.461,
-          762.458
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "palace_park_e-01_n-01_01",
-      "region_id": "palace_park",
-      "grid_cell": [
-        -1,
-        -1
-      ],
-      "bounds_m": [
-        -481.933,
-        -339.102,
-        -83.496,
-        0.0
-      ],
-      "area_m2": 67462.073,
-      "polygon": [
-        [
-          -247.558,
-          -128.165
-        ],
-        [
-          -270.996,
-          -57.852
-        ],
-        [
-          -307.153,
-          0.0
-        ],
-        [
-          -408.564,
-          0.0
-        ],
-        [
-          -458.495,
-          -22.696
-        ],
-        [
-          -481.933,
-          -104.727
-        ],
-        [
-          -399.902,
-          -233.633
-        ],
-        [
-          -306.152,
-          -268.789
-        ],
-        [
-          -165.527,
-          -339.102
-        ],
-        [
-          -83.496,
-          -303.945
-        ],
-        [
-          -130.371,
-          -233.633
-        ],
-        [
-          -247.558,
-          -128.165
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "palace_park_e-01_n+00_01",
-      "region_id": "palace_park",
-      "grid_cell": [
-        -1,
-        0
-      ],
-      "bounds_m": [
-        -408.564,
-        0.0,
-        -307.153,
-        35.898
-      ],
-      "area_m2": 1820.226,
-      "polygon": [
-        [
-          -329.589,
-          35.898
-        ],
-        [
-          -408.564,
-          0.0
-        ],
-        [
-          -307.153,
-          0.0
-        ],
-        [
-          -329.589,
-          35.898
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "east_central_e+01_n-02_01",
-      "region_id": "east_central",
-      "grid_cell": [
-        1,
-        -2
-      ],
-      "bounds_m": [
-        936.033,
-        -954.172,
-        1000.0,
-        -574.694
-      ],
-      "area_m2": 19431.006,
-      "polygon": [
-        [
-          947.752,
-          -936.756
-        ],
-        [
-          1000.0,
-          -954.172
-        ],
-        [
-          1000.0,
-          -574.694
-        ],
-        [
-          982.908,
-          -596.913
-        ],
-        [
-          936.033,
-          -702.382
-        ],
-        [
-          936.033,
-          -854.725
-        ],
-        [
-          947.752,
-          -936.756
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "east_central_e+02_n-03_01",
-      "region_id": "east_central",
-      "grid_cell": [
-        2,
-        -3
-      ],
-      "bounds_m": [
-        1153.853,
-        -1030.506,
-        1313.161,
-        -1000.0
-      ],
-      "area_m2": 2429.925,
-      "polygon": [
-        [
-          1275.876,
-          -1030.506
-        ],
-        [
-          1313.161,
-          -1000.0
-        ],
-        [
-          1153.853,
-          -1000.0
-        ],
-        [
-          1275.876,
-          -1030.506
+          -1848.712,
+          42.745
         ]
       ],
       "holes": []
@@ -3742,52 +2107,60 @@
         -2
       ],
       "bounds_m": [
-        1000.0,
-        -1000.0,
+        1139.736,
+        -922.823,
         1500.0,
         -500.0
       ],
-      "area_m2": 228709.354,
+      "area_m2": 134679.313,
       "polygon": [
         [
-          1404.782,
-          -925.038
+          1492.407,
+          -807.443
         ],
         [
           1500.0,
-          -813.951
+          -798.585
         ],
         [
           1500.0,
           -500.0
         ],
         [
-          1057.457,
+          1169.26,
           -500.0
         ],
         [
-          1000.0,
-          -574.694
+          1166.518,
+          -612.444
         ],
         [
-          1000.0,
-          -954.172
+          1154.428,
+          -741.402
         ],
         [
-          1088.377,
-          -983.631
+          1139.736,
+          -862.609
         ],
         [
-          1153.853,
-          -1000.0
+          1186.831,
+          -900.285
         ],
         [
-          1313.161,
-          -1000.0
+          1337.081,
+          -922.823
         ],
         [
-          1404.782,
-          -925.038
+          1408.558,
+          -901.379
+        ],
+        [
+          1422.551,
+          -888.941
+        ],
+        [
+          1492.407,
+          -807.443
         ]
       ],
       "holes": []
@@ -3800,19 +2173,19 @@
         -1
       ],
       "bounds_m": [
-        1057.457,
+        1169.26,
         -500.0,
         1500.0,
-        -233.633
+        -327.568
       ],
-      "area_m2": 86881.007,
+      "area_m2": 45436.505,
       "polygon": [
         [
-          1100.096,
-          -444.57
+          1170.328,
+          -456.231
         ],
         [
-          1057.457,
+          1169.26,
           -500.0
         ],
         [
@@ -3821,23 +2194,19 @@
         ],
         [
           1500.0,
-          -295.066
+          -370.735
         ],
         [
-          1439.939,
-          -268.789
+          1402.272,
+          -331.116
         ],
         [
-          1229.002,
-          -233.633
+          1310.019,
+          -327.568
         ],
         [
-          1170.408,
-          -339.102
-        ],
-        [
-          1100.096,
-          -444.57
+          1170.328,
+          -456.231
         ]
       ],
       "holes": []
@@ -3851,18 +2220,18 @@
       ],
       "bounds_m": [
         1500.0,
-        -813.951,
-        1712.709,
+        -798.585,
+        1701.108,
         -500.0
       ],
-      "area_m2": 35470.999,
+      "area_m2": 31768.789,
       "polygon": [
         [
-          1662.594,
-          -585.195
+          1654.117,
+          -579.882
         ],
         [
-          1712.709,
+          1701.108,
           -500.0
         ],
         [
@@ -3871,15 +2240,15 @@
         ],
         [
           1500.0,
-          -813.951
+          -798.585
         ],
         [
-          1545.407,
-          -760.976
+          1537.421,
+          -754.927
         ],
         [
-          1662.594,
-          -585.195
+          1654.117,
+          -579.882
         ]
       ],
       "holes": []
@@ -3894,392 +2263,46 @@
       "bounds_m": [
         1500.0,
         -500.0,
-        1779.782,
-        -295.066
+        1734.163,
+        -370.735
       ],
-      "area_m2": 38788.599,
+      "area_m2": 22579.522,
       "polygon": [
         [
-          1779.782,
-          -385.976
+          1690.572,
+          -406.503
         ],
         [
-          1627.438,
-          -350.82
+          1549.587,
+          -390.838
         ],
         [
           1500.0,
-          -295.066
+          -370.735
         ],
         [
           1500.0,
           -500.0
         ],
         [
-          1712.709,
+          1701.108,
           -500.0
         ],
         [
-          1779.782,
-          -385.976
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_upper_e-07_n-04_01",
-      "region_id": "southwest_upper",
-      "grid_cell": [
-        -7,
-        -4
-      ],
-      "bounds_m": [
-        -3001.459,
-        -1652.28,
-        -3000.0,
-        -1500.0
-      ],
-      "area_m2": 221.68,
-      "polygon": [
-        [
-          -3001.459,
-          -1651.599
+          1704.09,
+          -494.93
         ],
         [
-          -3000.0,
-          -1652.28
+          1730.326,
+          -450.328
         ],
         [
-          -3000.0,
-          -1500.0
+          1734.163,
+          -441.375
         ],
         [
-          -3001.459,
-          -1500.0
-        ],
-        [
-          -3001.459,
-          -1651.599
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_upper_e-07_n-03_01",
-      "region_id": "southwest_upper",
-      "grid_cell": [
-        -7,
-        -3
-      ],
-      "bounds_m": [
-        -3001.459,
-        -1500.0,
-        -3000.0,
-        -1428.943
-      ],
-      "area_m2": 103.672,
-      "polygon": [
-        [
-          -3001.459,
-          -1428.943
-        ],
-        [
-          -3001.459,
-          -1500.0
-        ],
-        [
-          -3000.0,
-          -1500.0
-        ],
-        [
-          -3000.0,
-          -1428.943
-        ],
-        [
-          -3001.459,
-          -1428.943
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_upper_e-06_n-04_01",
-      "region_id": "southwest_upper",
-      "grid_cell": [
-        -6,
-        -4
-      ],
-      "bounds_m": [
-        -3000.0,
-        -1757.067,
-        -2500.0,
-        -1500.0
-      ],
-      "area_m2": 111184.383,
-      "polygon": [
-        [
-          -2500.0,
-          -1562.798
-        ],
-        [
-          -2556.148,
-          -1522.693
-        ],
-        [
-          -2601.534,
-          -1500.0
-        ],
-        [
-          -3000.0,
-          -1500.0
-        ],
-        [
-          -3000.0,
-          -1652.28
-        ],
-        [
-          -2825.678,
-          -1733.63
-        ],
-        [
-          -2638.179,
-          -1757.067
-        ],
-        [
-          -2500.0,
-          -1741.714
-        ],
-        [
-          -2500.0,
-          -1562.798
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_upper_e-06_n-03_01",
-      "region_id": "southwest_upper",
-      "grid_cell": [
-        -6,
-        -3
-      ],
-      "bounds_m": [
-        -3000.0,
-        -1500.0,
-        -2601.534,
-        -1428.943
-      ],
-      "area_m2": 23264.737,
-      "polygon": [
-        [
-          -2743.647,
-          -1428.943
-        ],
-        [
-          -3000.0,
-          -1428.943
-        ],
-        [
-          -3000.0,
-          -1500.0
-        ],
-        [
-          -2601.534,
-          -1500.0
-        ],
-        [
-          -2743.647,
-          -1428.943
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_upper_e-05_n-04_01",
-      "region_id": "southwest_upper",
-      "grid_cell": [
-        -5,
-        -4
-      ],
-      "bounds_m": [
-        -2500.0,
-        -1741.714,
-        -2392.085,
-        -1562.798
-      ],
-      "area_m2": 12922.287,
-      "polygon": [
-        [
-          -2392.085,
-          -1639.88
-        ],
-        [
-          -2500.0,
-          -1562.798
-        ],
-        [
-          -2500.0,
-          -1741.714
-        ],
-        [
-          -2427.242,
-          -1733.63
-        ],
-        [
-          -2392.085,
-          -1639.88
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_edge_e-07_n-06_01",
-      "region_id": "southwest_edge",
-      "grid_cell": [
-        -7,
-        -6
-      ],
-      "bounds_m": [
-        -3001.459,
-        -2999.252,
-        -3000.0,
-        -2500.0
-      ],
-      "area_m2": 728.409,
-      "polygon": [
-        [
-          -3001.459,
-          -2999.252
-        ],
-        [
-          -3000.0,
-          -2999.252
-        ],
-        [
-          -3000.0,
-          -2500.0
-        ],
-        [
-          -3001.459,
-          -2500.0
-        ],
-        [
-          -3001.459,
-          -2999.252
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_edge_e-07_n-05_01",
-      "region_id": "southwest_edge",
-      "grid_cell": [
-        -7,
-        -5
-      ],
-      "bounds_m": [
-        -3001.459,
-        -2500.0,
-        -3000.0,
-        -2000.0
-      ],
-      "area_m2": 729.5,
-      "polygon": [
-        [
-          -3001.459,
-          -2000.0
-        ],
-        [
-          -3001.459,
-          -2500.0
-        ],
-        [
-          -3000.0,
-          -2500.0
-        ],
-        [
-          -3000.0,
-          -2000.0
-        ],
-        [
-          -3001.459,
-          -2000.0
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_edge_e-07_n-04_01",
-      "region_id": "southwest_edge",
-      "grid_cell": [
-        -7,
-        -4
-      ],
-      "bounds_m": [
-        -3001.459,
-        -2000.0,
-        -3000.0,
-        -1768.786
-      ],
-      "area_m2": 336.572,
-      "polygon": [
-        [
-          -3001.459,
-          -1768.786
-        ],
-        [
-          -3001.459,
-          -2000.0
-        ],
-        [
-          -3000.0,
-          -2000.0
-        ],
-        [
-          -3000.0,
-          -1769.84
-        ],
-        [
-          -3001.459,
-          -1768.786
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_edge_e-06_n-06_01",
-      "region_id": "southwest_edge",
-      "grid_cell": [
-        -6,
-        -6
-      ],
-      "bounds_m": [
-        -3000.0,
-        -2999.252,
-        -2500.0,
-        -2500.0
-      ],
-      "area_m2": 249626.0,
-      "polygon": [
-        [
-          -3000.0,
-          -2999.252
-        ],
-        [
-          -2500.0,
-          -2999.252
-        ],
-        [
-          -2500.0,
-          -2500.0
-        ],
-        [
-          -3000.0,
-          -2500.0
-        ],
-        [
-          -3000.0,
-          -2999.252
+          1690.572,
+          -406.503
         ]
       ],
       "holes": []
@@ -4292,31 +2315,139 @@
         -5
       ],
       "bounds_m": [
-        -3000.0,
-        -2500.0,
-        -2500.0,
-        -2000.0
+        -2933.459,
+        -2460.906,
+        -2557.988,
+        -2067.732
       ],
-      "area_m2": 239979.43,
+      "area_m2": 52460.209,
       "polygon": [
         [
-          -2500.0,
-          -2133.414
+          -2699.018,
+          -2257.042
         ],
         [
-          -2603.023,
-          -2038.316
+          -2902.073,
+          -2085.84
         ],
         [
-          -2664.329,
+          -2933.459,
+          -2067.732
+        ],
+        [
+          -2933.459,
+          -2244.489
+        ],
+        [
+          -2778.123,
+          -2346.784
+        ],
+        [
+          -2622.985,
+          -2458.165
+        ],
+        [
+          -2617.673,
+          -2460.906
+        ],
+        [
+          -2557.988,
+          -2411.832
+        ],
+        [
+          -2699.018,
+          -2257.042
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "southwest_edge_e-06_n-05_02",
+      "region_id": "southwest_edge",
+      "grid_cell": [
+        -6,
+        -5
+      ],
+      "bounds_m": [
+        -2933.459,
+        -2401.657,
+        -2505.62,
+        -2000.0
+      ],
+      "area_m2": 42789.47,
+      "polygon": [
+        [
+          -2892.846,
+          -2072.691
+        ],
+        [
+          -2687.9,
+          -2245.488
+        ],
+        [
+          -2545.613,
+          -2401.657
+        ],
+        [
+          -2505.62,
+          -2368.774
+        ],
+        [
+          -2589.276,
+          -2235.683
+        ],
+        [
+          -2714.966,
+          -2106.066
+        ],
+        [
+          -2837.741,
+          -2007.054
+        ],
+        [
+          -2847.146,
           -2000.0
         ],
         [
-          -3000.0,
+          -2933.459,
           -2000.0
         ],
         [
-          -3000.0,
+          -2933.459,
+          -2049.26
+        ],
+        [
+          -2892.846,
+          -2072.691
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "southwest_edge_e-06_n-05_03",
+      "region_id": "southwest_edge",
+      "grid_cell": [
+        -6,
+        -5
+      ],
+      "bounds_m": [
+        -2602.196,
+        -2500.0,
+        -2500.0,
+        -2384.867
+      ],
+      "area_m2": 6132.741,
+      "polygon": [
+        [
+          -2547.198,
+          -2423.674
+        ],
+        [
+          -2602.196,
+          -2468.895
+        ],
+        [
+          -2541.929,
           -2500.0
         ],
         [
@@ -4325,7 +2456,27 @@
         ],
         [
           -2500.0,
-          -2133.414
+          -2384.867
+        ],
+        [
+          -2534.823,
+          -2413.5
+        ],
+        [
+          -2523.546,
+          -2425.877
+        ],
+        [
+          -2518.158,
+          -2431.791
+        ],
+        [
+          -2529.985,
+          -2442.567
+        ],
+        [
+          -2547.198,
+          -2423.674
         ]
       ],
       "holes": []
@@ -4338,78 +2489,28 @@
         -4
       ],
       "bounds_m": [
-        -3000.0,
+        -2933.459,
         -2000.0,
-        -2664.329,
-        -1769.84
+        -2847.146,
+        -1935.265
       ],
-      "area_m2": 37344.082,
+      "area_m2": 2793.736,
       "polygon": [
         [
-          -2790.522,
-          -1921.129
+          -2933.459,
+          -1935.265
         ],
         [
-          -3000.0,
-          -1769.84
-        ],
-        [
-          -3000.0,
+          -2933.459,
           -2000.0
         ],
         [
-          -2664.329,
+          -2847.146,
           -2000.0
         ],
         [
-          -2790.522,
-          -1921.129
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_edge_e-05_n-06_01",
-      "region_id": "southwest_edge",
-      "grid_cell": [
-        -5,
-        -6
-      ],
-      "bounds_m": [
-        -2500.0,
-        -2999.252,
-        -2228.023,
-        -2500.0
-      ],
-      "area_m2": 115671.615,
-      "polygon": [
-        [
-          -2298.336,
-          -2577.378
-        ],
-        [
-          -2315.531,
-          -2500.0
-        ],
-        [
-          -2500.0,
-          -2500.0
-        ],
-        [
-          -2500.0,
-          -2999.252
-        ],
-        [
-          -2228.023,
-          -2999.252
-        ],
-        [
-          -2263.179,
-          -2764.877
-        ],
-        [
-          -2298.336,
-          -2577.378
+          -2933.459,
+          -1935.265
         ]
       ],
       "holes": []
@@ -4424,794 +2525,34 @@
       "bounds_m": [
         -2500.0,
         -2500.0,
-        -2315.531,
-        -2133.414
+        -2432.655,
+        -2382.8
       ],
-      "area_m2": 42913.671,
+      "area_m2": 4107.279,
       "polygon": [
         [
-          -2450.679,
-          -2178.941
+          -2497.486,
+          -2382.8
         ],
         [
           -2500.0,
-          -2133.414
+          -2384.867
         ],
         [
           -2500.0,
           -2500.0
         ],
         [
-          -2315.531,
+          -2433.564,
           -2500.0
         ],
         [
-          -2345.21,
-          -2366.441
+          -2432.655,
+          -2499.495
         ],
         [
-          -2450.679,
-          -2178.941
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_roadside_e-05_n-06_01",
-      "region_id": "southwest_roadside",
-      "grid_cell": [
-        -5,
-        -6
-      ],
-      "bounds_m": [
-        -2145.992,
-        -2999.252,
-        -2000.0,
-        -2500.0
-      ],
-      "area_m2": 63077.546,
-      "polygon": [
-        [
-          -2110.836,
-          -2999.252
-        ],
-        [
-          -2000.0,
-          -2999.252
-        ],
-        [
-          -2000.0,
-          -2523.103
-        ],
-        [
-          -2016.172,
-          -2500.0
-        ],
-        [
-          -2139.426,
-          -2500.0
-        ],
-        [
-          -2145.992,
-          -2565.659
-        ],
-        [
-          -2122.555,
-          -2753.159
-        ],
-        [
-          -2110.836,
-          -2999.252
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_roadside_e-05_n-05_01",
-      "region_id": "southwest_roadside",
-      "grid_cell": [
-        -5,
-        -5
-      ],
-      "bounds_m": [
-        -2139.426,
-        -2500.0,
-        -2016.172,
-        -2331.285
-      ],
-      "area_m2": 10095.476,
-      "polygon": [
-        [
-          -2122.555,
-          -2331.285
-        ],
-        [
-          -2139.426,
-          -2500.0
-        ],
-        [
-          -2016.172,
-          -2500.0
-        ],
-        [
-          -2052.242,
-          -2448.472
-        ],
-        [
-          -2122.555,
-          -2331.285
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_roadside_e-04_n-06_01",
-      "region_id": "southwest_roadside",
-      "grid_cell": [
-        -4,
-        -6
-      ],
-      "bounds_m": [
-        -2000.0,
-        -2999.252,
-        -1899.899,
-        -2523.103
-      ],
-      "area_m2": 36827.245,
-      "polygon": [
-        [
-          -1899.899,
-          -2682.846
-        ],
-        [
-          -1970.211,
-          -2565.659
-        ],
-        [
-          -2000.0,
-          -2523.103
-        ],
-        [
-          -2000.0,
-          -2999.252
-        ],
-        [
-          -1958.492,
-          -2999.252
-        ],
-        [
-          -1899.899,
-          -2893.783
-        ],
-        [
-          -1899.899,
-          -2682.846
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_inner_e-02_n-04_01",
-      "region_id": "southwest_inner",
-      "grid_cell": [
-        -2,
-        -4
-      ],
-      "bounds_m": [
-        -546.377,
-        -1563.768,
-        -500.0,
-        -1500.0
-      ],
-      "area_m2": 1478.684,
-      "polygon": [
-        [
-          -546.377,
-          -1500.0
-        ],
-        [
-          -500.0,
-          -1563.768
-        ],
-        [
-          -500.0,
-          -1500.0
-        ],
-        [
-          -546.377,
-          -1500.0
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_inner_e-02_n-03_01",
-      "region_id": "southwest_inner",
-      "grid_cell": [
-        -2,
-        -3
-      ],
-      "bounds_m": [
-        -704.589,
-        -1500.0,
-        -500.0,
-        -1288.318
-      ],
-      "area_m2": 21277.817,
-      "polygon": [
-        [
-          -563.964,
-          -1475.818
-        ],
-        [
-          -546.377,
-          -1500.0
-        ],
-        [
-          -500.0,
-          -1500.0
-        ],
-        [
-          -500.0,
-          -1382.935
-        ],
-        [
-          -540.526,
-          -1346.912
-        ],
-        [
-          -669.432,
-          -1288.318
-        ],
-        [
-          -704.589,
-          -1335.193
-        ],
-        [
-          -645.995,
-          -1382.068
-        ],
-        [
-          -563.964,
-          -1475.818
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_inner_e-01_n-04_01",
-      "region_id": "southwest_inner",
-      "grid_cell": [
-        -1,
-        -4
-      ],
-      "bounds_m": [
-        -500.0,
-        -1721.911,
-        -282.714,
-        -1500.0
-      ],
-      "area_m2": 28452.655,
-      "polygon": [
-        [
-          -341.308,
-          -1546.13
-        ],
-        [
-          -382.313,
-          -1500.0
-        ],
-        [
-          -500.0,
-          -1500.0
-        ],
-        [
-          -500.0,
-          -1563.768
-        ],
-        [
-          -470.214,
-          -1604.724
-        ],
-        [
-          -364.745,
-          -1721.911
-        ],
-        [
-          -282.714,
-          -1663.317
-        ],
-        [
-          -341.308,
-          -1546.13
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southwest_inner_e-01_n-03_01",
-      "region_id": "southwest_inner",
-      "grid_cell": [
-        -1,
-        -3
-      ],
-      "bounds_m": [
-        -500.0,
-        -1500.0,
-        -382.313,
-        -1382.935
-      ],
-      "area_m2": 7292.873,
-      "polygon": [
-        [
-          -382.313,
-          -1500.0
-        ],
-        [
-          -435.058,
-          -1440.662
-        ],
-        [
-          -500.0,
-          -1382.935
-        ],
-        [
-          -500.0,
-          -1500.0
-        ],
-        [
-          -382.313,
-          -1500.0
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "south_central_belt_e-01_n-04_01",
-      "region_id": "south_central_belt",
-      "grid_cell": [
-        -1,
-        -4
-      ],
-      "bounds_m": [
-        -95.215,
-        -1767.504,
-        0.0,
-        -1589.526
-      ],
-      "area_m2": 9734.79,
-      "polygon": [
-        [
-          -71.777,
-          -1686.755
-        ],
-        [
-          0.0,
-          -1767.504
-        ],
-        [
-          0.0,
-          -1589.526
-        ],
-        [
-          -71.777,
-          -1616.442
-        ],
-        [
-          -95.215,
-          -1639.88
-        ],
-        [
-          -71.777,
-          -1686.755
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "south_central_belt_e+00_n-04_01",
-      "region_id": "south_central_belt",
-      "grid_cell": [
-        0,
-        -4
-      ],
-      "bounds_m": [
-        0.0,
-        -1968.004,
-        385.253,
-        -1581.286
-      ],
-      "area_m2": 66482.517,
-      "polygon": [
-        [
-          197.753,
-          -1710.192
-        ],
-        [
-          92.285,
-          -1628.161
-        ],
-        [
-          21.973,
-          -1581.286
-        ],
-        [
-          0.0,
-          -1589.526
-        ],
-        [
-          0.0,
-          -1767.504
-        ],
-        [
-          21.973,
-          -1792.223
-        ],
-        [
-          150.879,
-          -1885.973
-        ],
-        [
-          279.785,
-          -1968.004
-        ],
-        [
-          385.253,
-          -1897.692
-        ],
-        [
-          314.941,
-          -1827.379
-        ],
-        [
-          197.753,
-          -1710.192
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "south_railway_belt_e+00_n-06_01",
-      "region_id": "south_railway_belt",
-      "grid_cell": [
-        0,
-        -6
-      ],
-      "bounds_m": [
-        281.902,
-        -2999.252,
-        500.0,
-        -2500.0
-      ],
-      "area_m2": 61954.846,
-      "polygon": [
-        [
-          420.409,
-          -2565.659
-        ],
-        [
-          406.586,
-          -2500.0
-        ],
-        [
-          281.902,
-          -2500.0
-        ],
-        [
-          291.503,
-          -2600.815
-        ],
-        [
-          361.816,
-          -2788.315
-        ],
-        [
-          455.566,
-          -2999.252
-        ],
-        [
-          500.0,
-          -2999.252
-        ],
-        [
-          500.0,
-          -2707.154
-        ],
-        [
-          420.409,
-          -2565.659
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "south_railway_belt_e+00_n-05_01",
-      "region_id": "south_railway_belt",
-      "grid_cell": [
-        0,
-        -5
-      ],
-      "bounds_m": [
-        191.828,
-        -2500.0,
-        406.586,
-        -2000.0
-      ],
-      "area_m2": 56735.245,
-      "polygon": [
-        [
-          373.534,
-          -2343.003
-        ],
-        [
-          350.097,
-          -2132.066
-        ],
-        [
-          293.498,
-          -2000.0
-        ],
-        [
-          191.828,
-          -2000.0
-        ],
-        [
-          232.91,
-          -2143.785
-        ],
-        [
-          268.066,
-          -2354.722
-        ],
-        [
-          281.902,
-          -2500.0
-        ],
-        [
-          406.586,
-          -2500.0
-        ],
-        [
-          373.534,
-          -2343.003
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "south_railway_belt_e+00_n-04_01",
-      "region_id": "south_railway_belt",
-      "grid_cell": [
-        0,
-        -4
-      ],
-      "bounds_m": [
-        186.035,
-        -2000.0,
-        293.498,
-        -1968.004
-      ],
-      "area_m2": 2610.945,
-      "polygon": [
-        [
-          186.035,
-          -1979.723
-        ],
-        [
-          191.828,
-          -2000.0
-        ],
-        [
-          293.498,
-          -2000.0
-        ],
-        [
-          279.785,
-          -1968.004
-        ],
-        [
-          186.035,
-          -1979.723
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "south_railway_belt_e+01_n-06_01",
-      "region_id": "south_railway_belt",
-      "grid_cell": [
-        1,
-        -6
-      ],
-      "bounds_m": [
-        500.0,
-        -2999.252,
-        619.628,
-        -2707.154
-      ],
-      "area_m2": 19254.546,
-      "polygon": [
-        [
-          525.878,
-          -2753.159
-        ],
-        [
-          500.0,
-          -2707.154
-        ],
-        [
-          500.0,
-          -2999.252
-        ],
-        [
-          619.628,
-          -2999.252
-        ],
-        [
-          607.909,
-          -2952.377
-        ],
-        [
-          525.878,
-          -2753.159
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southeast_main_e+01_n-06_01",
-      "region_id": "southeast_main",
-      "grid_cell": [
-        1,
-        -6
-      ],
-      "bounds_m": [
-        748.534,
-        -2999.252,
-        1000.0,
-        -2500.0
-      ],
-      "area_m2": 89395.871,
-      "polygon": [
-        [
-          748.534,
-          -2999.252
-        ],
-        [
-          1000.0,
-          -2999.252
-        ],
-        [
-          1000.0,
-          -2500.0
-        ],
-        [
-          990.491,
-          -2500.0
-        ],
-        [
-          900.877,
-          -2600.815
-        ],
-        [
-          771.971,
-          -2753.159
-        ],
-        [
-          748.534,
-          -2999.252
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southeast_main_e+01_n-05_01",
-      "region_id": "southeast_main",
-      "grid_cell": [
-        1,
-        -5
-      ],
-      "bounds_m": [
-        924.315,
-        -2500.0,
-        1000.0,
-        -2214.136
-      ],
-      "area_m2": 10181.604,
-      "polygon": [
-        [
-          994.627,
-          -2495.347
-        ],
-        [
-          990.491,
-          -2500.0
-        ],
-        [
-          1000.0,
-          -2500.0
-        ],
-        [
-          1000.0,
-          -2214.136
-        ],
-        [
-          924.315,
-          -2296.128
-        ],
-        [
-          959.471,
-          -2366.441
-        ],
-        [
-          994.627,
-          -2495.347
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southeast_main_e+02_n-06_01",
-      "region_id": "southeast_main",
-      "grid_cell": [
-        2,
-        -6
-      ],
-      "bounds_m": [
-        1000.0,
-        -2999.252,
-        1500.0,
-        -2500.0
-      ],
-      "area_m2": 197681.247,
-      "polygon": [
-        [
-          1000.0,
-          -2999.252
-        ],
-        [
-          1500.0,
-          -2999.252
-        ],
-        [
-          1500.0,
-          -2892.316
-        ],
-        [
-          1475.095,
-          -2917.221
-        ],
-        [
-          1299.314,
-          -2858.627
-        ],
-        [
-          1170.408,
-          -2694.565
-        ],
-        [
-          1311.033,
-          -2647.69
-        ],
-        [
-          1463.376,
-          -2729.721
-        ],
-        [
-          1500.0,
-          -2770.923
-        ],
-        [
-          1500.0,
-          -2500.0
-        ],
-        [
-          1000.0,
-          -2500.0
-        ],
-        [
-          1000.0,
-          -2999.252
+          -2497.486,
+          -2382.8
         ]
       ],
       "holes": []
@@ -5224,338 +2565,80 @@
         -5
       ],
       "bounds_m": [
-        1000.0,
-        -2500.0,
-        1500.0,
-        -2026.598
+        1023.249,
+        -2466.755,
+        1422.634,
+        -2127.674
       ],
-      "area_m2": 193825.913,
+      "area_m2": 89791.45,
       "polygon": [
         [
-          1500.0,
-          -2061.53
+          1422.634,
+          -2265.335
         ],
         [
-          1475.095,
-          -2050.035
+          1399.845,
+          -2248.243
         ],
         [
-          1275.876,
-          -2026.598
+          1308.95,
+          -2200.82
         ],
         [
-          1064.939,
-          -2143.785
+          1226.766,
+          -2153.858
         ],
         [
-          1000.0,
-          -2214.136
+          1133.254,
+          -2127.674
         ],
         [
-          1000.0,
-          -2500.0
+          1107.721,
+          -2131.457
         ],
         [
-          1500.0,
-          -2500.0
+          1071.198,
+          -2151.747
         ],
         [
-          1500.0,
-          -2460.925
+          1039.565,
+          -2186.017
         ],
         [
-          1404.782,
-          -2413.316
+          1023.249,
+          -2330.135
         ],
         [
-          1381.345,
-          -2284.41
+          1078.386,
+          -2411.003
         ],
         [
-          1500.0,
-          -2258.983
+          1127.17,
+          -2466.755
         ],
         [
-          1500.0,
-          -2061.53
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southeast_main_e+03_n-06_01",
-      "region_id": "southeast_main",
-      "grid_cell": [
-        3,
-        -6
-      ],
-      "bounds_m": [
-        1500.0,
-        -2999.252,
-        2000.0,
-        -2500.0
-      ],
-      "area_m2": 234697.329,
-      "polygon": [
-        [
-          1814.938,
-          -2530.503
+          1188.816,
+          -2463.33
         ],
         [
-          1784.435,
-          -2500.0
+          1249.86,
+          -2456.149
         ],
         [
-          1500.0,
-          -2500.0
+          1330.293,
+          -2383.376
         ],
         [
-          1500.0,
-          -2770.923
+          1382.933,
+          -2349.045
         ],
         [
-          1557.126,
-          -2835.19
+          1369.773,
+          -2276.663
         ],
         [
-          1500.0,
-          -2892.316
-        ],
-        [
-          1500.0,
-          -2999.252
-        ],
-        [
-          2000.0,
-          -2999.252
-        ],
-        [
-          2000.0,
-          -2588.334
-        ],
-        [
-          1814.938,
-          -2530.503
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southeast_main_e+03_n-05_01",
-      "region_id": "southeast_main",
-      "grid_cell": [
-        3,
-        -5
-      ],
-      "bounds_m": [
-        1500.0,
-        -2500.0,
-        1784.435,
-        -2061.53
-      ],
-      "area_m2": 61277.211,
-      "polygon": [
-        [
-          1627.438,
-          -2120.347
-        ],
-        [
-          1500.0,
-          -2061.53
-        ],
-        [
-          1500.0,
-          -2258.983
-        ],
-        [
-          1545.407,
-          -2249.253
-        ],
-        [
-          1639.157,
-          -2343.003
-        ],
-        [
-          1650.876,
-          -2413.316
-        ],
-        [
-          1568.845,
-          -2495.347
-        ],
-        [
-          1500.0,
-          -2460.925
-        ],
-        [
-          1500.0,
-          -2500.0
-        ],
-        [
-          1784.435,
-          -2500.0
-        ],
-        [
-          1686.032,
-          -2401.597
-        ],
-        [
-          1779.782,
-          -2296.128
-        ],
-        [
-          1744.626,
-          -2249.253
-        ],
-        [
-          1627.438,
-          -2120.347
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southeast_main_e+04_n-06_01",
-      "region_id": "southeast_main",
-      "grid_cell": [
-        4,
-        -6
-      ],
-      "bounds_m": [
-        2000.0,
-        -2999.252,
-        2400.874,
-        -2588.334
-      ],
-      "area_m2": 90538.995,
-      "polygon": [
-        [
-          2002.438,
-          -2589.096
-        ],
-        [
-          2000.0,
-          -2588.334
-        ],
-        [
-          2000.0,
-          -2999.252
-        ],
-        [
-          2400.874,
-          -2999.252
-        ],
-        [
-          2283.687,
-          -2835.19
-        ],
-        [
-          2143.062,
-          -2718.002
-        ],
-        [
-          2002.438,
-          -2589.096
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southeast_edge_e+04_n-05_01",
-      "region_id": "southeast_edge",
-      "grid_cell": [
-        4,
-        -5
-      ],
-      "bounds_m": [
-        2248.531,
-        -2479.973,
-        2500.0,
-        -2000.0
-      ],
-      "area_m2": 69477.489,
-      "polygon": [
-        [
-          2471.187,
-          -2436.753
-        ],
-        [
-          2500.0,
-          -2479.973
-        ],
-        [
-          2500.0,
-          -2167.468
-        ],
-        [
-          2400.874,
-          -2132.066
-        ],
-        [
-          2433.891,
-          -2000.0
-        ],
-        [
-          2277.104,
-          -2000.0
-        ],
-        [
-          2248.531,
-          -2073.473
-        ],
-        [
-          2283.687,
-          -2249.253
-        ],
-        [
-          2471.187,
-          -2436.753
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southeast_edge_e+04_n-04_01",
-      "region_id": "southeast_edge",
-      "grid_cell": [
-        4,
-        -4
-      ],
-      "bounds_m": [
-        2277.104,
-        -2000.0,
-        2500.0,
-        -1862.536
-      ],
-      "area_m2": 22267.873,
-      "polygon": [
-        [
-          2330.562,
-          -1862.536
-        ],
-        [
-          2277.104,
-          -2000.0
-        ],
-        [
-          2433.891,
-          -2000.0
-        ],
-        [
-          2447.749,
-          -1944.567
-        ],
-        [
-          2500.0,
-          -1963.567
-        ],
-        [
-          2500.0,
-          -1885.127
-        ],
-        [
-          2330.562,
-          -1862.536
+          1422.634,
+          -2265.335
         ]
       ],
       "holes": []
@@ -5568,40 +2651,48 @@
         -6
       ],
       "bounds_m": [
-        2513.352,
-        -2800.033,
-        2998.529,
+        2671.019,
+        -2608.946,
+        2910.541,
         -2500.0
       ],
-      "area_m2": 87524.883,
+      "area_m2": 17729.018,
       "polygon": [
         [
-          2998.529,
-          -2624.253
+          2772.656,
+          -2608.946
         ],
         [
-          2998.529,
+          2871.767,
+          -2570.01
+        ],
+        [
+          2910.541,
+          -2534.467
+        ],
+        [
+          2910.541,
           -2500.0
         ],
         [
-          2513.352,
+          2699.402,
           -2500.0
         ],
         [
-          2588.374,
-          -2612.534
+          2702.071,
+          -2514.947
         ],
         [
-          2728.999,
-          -2694.565
+          2671.019,
+          -2521.847
         ],
         [
-          2857.905,
-          -2800.033
+          2708.06,
+          -2568.149
         ],
         [
-          2998.529,
-          -2624.253
+          2772.656,
+          -2608.946
         ]
       ],
       "holes": []
@@ -5614,382 +2705,106 @@
         -5
       ],
       "bounds_m": [
-        2500.0,
-        -2500.0,
-        2998.529,
-        -2000.0
+        2616.591,
+        -2267.265,
+        2762.754,
+        -2063.655
       ],
-      "area_m2": 157470.572,
+      "area_m2": 9906.43,
       "polygon": [
         [
-          2693.843,
-          -2167.222
+          2620.464,
+          -2063.655
         ],
         [
-          2646.968,
-          -2003.16
+          2647.22,
+          -2122.518
         ],
         [
-          2643.176,
-          -2000.0
+          2616.591,
+          -2153.148
         ],
         [
-          2580.545,
-          -2000.0
+          2653.531,
+          -2209.645
         ],
         [
-          2635.249,
-          -2120.347
+          2725.556,
+          -2267.265
         ],
         [
-          2564.937,
-          -2190.66
+          2762.754,
+          -2267.265
         ],
         [
-          2500.0,
-          -2167.468
+          2723.646,
+          -2191.351
         ],
         [
-          2500.0,
-          -2479.973
+          2719.623,
+          -2185.397
         ],
         [
-          2513.352,
-          -2500.0
+          2685.73,
+          -2175.228
         ],
         [
-          2998.529,
-          -2500.0
+          2665.932,
+          -2105.933
         ],
         [
-          2998.529,
-          -2296.128
+          2642.278,
+          -2070.926
         ],
         [
-          2811.03,
-          -2202.379
-        ],
-        [
-          2693.843,
-          -2167.222
+          2620.464,
+          -2063.655
         ]
       ],
       "holes": []
     },
     {
-      "id": "southeast_edge_e+05_n-04_01",
+      "id": "southeast_edge_e+05_n-05_02",
       "region_id": "southeast_edge",
       "grid_cell": [
         5,
-        -4
+        -5
       ],
       "bounds_m": [
-        2500.0,
-        -2000.0,
-        2643.176,
-        -1885.127
+        2682.7,
+        -2500.0,
+        2910.541,
+        -2353.365
       ],
-      "area_m2": 6786.247,
+      "area_m2": 20595.037,
       "polygon": [
         [
-          2506.343,
-          -1885.973
+          2682.7,
+          -2406.471
         ],
         [
-          2500.0,
-          -1885.127
+          2699.402,
+          -2500.0
         ],
         [
-          2500.0,
-          -1963.567
+          2910.541,
+          -2500.0
         ],
         [
-          2576.655,
-          -1991.442
+          2910.541,
+          -2353.365
         ],
         [
-          2580.545,
-          -2000.0
+          2897.344,
+          -2354.685
         ],
         [
-          2643.176,
-          -2000.0
+          2755.358,
+          -2446.558
         ],
         [
-          2506.343,
-          -1885.973
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "southeast_corner_e+05_n-06_01",
-      "region_id": "southeast_corner",
-      "grid_cell": [
-        5,
-        -6
-      ],
-      "bounds_m": [
-        2506.343,
-        -2999.252,
-        2998.529,
-        -2706.284
-      ],
-      "area_m2": 67016.227,
-      "polygon": [
-        [
-          2998.529,
-          -2999.252
-        ],
-        [
-          2998.529,
-          -2706.284
-        ],
-        [
-          2916.498,
-          -2788.315
-        ],
-        [
-          2764.155,
-          -2870.346
-        ],
-        [
-          2670.405,
-          -2917.221
-        ],
-        [
-          2576.655,
-          -2917.221
-        ],
-        [
-          2506.343,
-          -2999.252
-        ],
-        [
-          2998.529,
-          -2999.252
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "east_lower_strip_e+04_n-04_01",
-      "region_id": "east_lower_strip",
-      "grid_cell": [
-        4,
-        -4
-      ],
-      "bounds_m": [
-        2298.801,
-        -1606.644,
-        2500.0,
-        -1500.0
-      ],
-      "area_m2": 15356.551,
-      "polygon": [
-        [
-          2494.624,
-          -1604.724
-        ],
-        [
-          2500.0,
-          -1606.644
-        ],
-        [
-          2500.0,
-          -1500.0
-        ],
-        [
-          2298.801,
-          -1500.0
-        ],
-        [
-          2342.281,
-          -1569.567
-        ],
-        [
-          2494.624,
-          -1604.724
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "east_lower_strip_e+04_n-03_01",
-      "region_id": "east_lower_strip",
-      "grid_cell": [
-        4,
-        -3
-      ],
-      "bounds_m": [
-        2283.687,
-        -1500.0,
-        2500.0,
-        -1452.38
-      ],
-      "area_m2": 7725.889,
-      "polygon": [
-        [
-          2283.687,
-          -1475.818
-        ],
-        [
-          2298.801,
-          -1500.0
-        ],
-        [
-          2500.0,
-          -1500.0
-        ],
-        [
-          2500.0,
-          -1472.551
-        ],
-        [
-          2412.593,
-          -1452.38
-        ],
-        [
-          2283.687,
-          -1475.818
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "east_lower_strip_e+05_n-04_01",
-      "region_id": "east_lower_strip",
-      "grid_cell": [
-        5,
-        -4
-      ],
-      "bounds_m": [
-        2500.0,
-        -1663.317,
-        2775.874,
-        -1500.0
-      ],
-      "area_m2": 28898.314,
-      "polygon": [
-        [
-          2717.28,
-          -1569.567
-        ],
-        [
-          2588.084,
-          -1500.0
-        ],
-        [
-          2500.0,
-          -1500.0
-        ],
-        [
-          2500.0,
-          -1606.644
-        ],
-        [
-          2658.686,
-          -1663.317
-        ],
-        [
-          2775.874,
-          -1651.599
-        ],
-        [
-          2717.28,
-          -1569.567
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "east_lower_strip_e+05_n-03_01",
-      "region_id": "east_lower_strip",
-      "grid_cell": [
-        5,
-        -3
-      ],
-      "bounds_m": [
-        2500.0,
-        -1500.0,
-        2588.084,
-        -1472.551
-      ],
-      "area_m2": 1440.167,
-      "polygon": [
-        [
-          2588.084,
-          -1500.0
-        ],
-        [
-          2564.937,
-          -1487.536
-        ],
-        [
-          2500.0,
-          -1472.551
-        ],
-        [
-          2500.0,
-          -1500.0
-        ],
-        [
-          2588.084,
-          -1500.0
-        ]
-      ],
-      "holes": []
-    },
-    {
-      "id": "east_lower_patch_e+05_n-03_01",
-      "region_id": "east_lower_patch",
-      "grid_cell": [
-        5,
-        -3
-      ],
-      "bounds_m": [
-        2623.53,
-        -1475.818,
-        2998.529,
-        -1159.412
-      ],
-      "area_m2": 71136.164,
-      "polygon": [
-        [
-          2998.529,
-          -1300.037
-        ],
-        [
-          2998.529,
-          -1159.412
-        ],
-        [
-          2904.78,
-          -1159.412
-        ],
-        [
-          2752.436,
-          -1253.162
-        ],
-        [
-          2623.53,
-          -1346.912
-        ],
-        [
-          2670.405,
-          -1417.224
-        ],
-        [
-          2822.749,
-          -1475.818
-        ],
-        [
-          2881.342,
-          -1440.662
-        ],
-        [
-          2998.529,
-          -1300.037
+          2682.7,
+          -2406.471
         ]
       ],
       "holes": []

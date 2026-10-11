@@ -4,9 +4,9 @@ import unittest
 
 import numpy as np
 from pyproj import Transformer
-from shapely.geometry import Polygon, box
+from shapely.geometry import Point, Polygon, box
 
-from src.osm import parse_osm, parse_railways
+from src.osm import parse_fences, parse_osm, parse_railways
 
 
 def way(osm_id, coords, tags):
@@ -80,6 +80,39 @@ class RailwayParsingTests(unittest.TestCase):
         ])
         self.assertEqual([feature["id"] for feature in features], ["way/5"])
         np.testing.assert_allclose(features[0]["geometry"].coords, [(-10, 0), (10, 0)])
+
+
+class FenceParsingTests(unittest.TestCase):
+    def setUp(self):
+        self.transformer = Transformer.from_crs("EPSG:4326", "EPSG:4326", always_xy=True)
+
+    def test_fences_keep_member_gates_without_inventing_property_boundaries(self):
+        fence = way(7, [(10, 10), (15, 10), (20, 10)], {"barrier": "fence", "height": "2"})
+        fence["nodes"] = [1, 2, 3]
+        payload = {"elements": [fence, dict(fence),
+                   {"type": "node", "id": 2, "lon": 15, "lat": 10,
+                    "tags": {"barrier": "gate", "width": "4"}},
+                   {"type": "node", "id": 4, "lon": 17, "lat": 10,
+                    "tags": {"barrier": "gate"}},
+                   way(8, [(10, 10), (20, 10)], {"barrier": "wall"}),
+                   way(9, [(10, 10), (20, 10)], {"landuse": "residential"}),
+                   way(10, [(50, 10), (60, 10)], {"barrier": "fence"})]}
+        features = parse_fences(payload, self.transformer, (10, 10), box(0, -1, 8, 1))
+        self.assertEqual([f["id"] for f in features], ["way/7"])
+        self.assertEqual([o["id"] for o in features[0]["openings"]], ["node/2"])
+        np.testing.assert_allclose(features[0]["geometry"].coords, [(0, 0), (5, 0), (10, 0)])
+        self.assertEqual(features[0]["openings"][0]["geometry"], Point(5, 0))
+        self.assertEqual(features[0]["tags"]["height"], "2")
+
+    def test_missing_nodes_and_lifecycle_fences_are_excluded(self):
+        payload = {"elements": [
+            {"type": "node", "id": 1, "lon": 0, "lat": 0},
+            {"type": "node", "id": 2, "lon": 5, "lat": 0},
+            {"type": "way", "id": 1, "nodes": [1, 2], "tags": {"barrier": "fence"}},
+            {"type": "way", "id": 2, "nodes": [1, 99], "tags": {"barrier": "fence"}},
+            way(3, [(0, 0), (5, 0)], {"disused:barrier": "fence"})]}
+        features = parse_fences(payload, self.transformer, (0, 0), box(-1, -1, 10, 1))
+        self.assertEqual([f["id"] for f in features], ["way/1"])
 
 
 if __name__ == "__main__":
