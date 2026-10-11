@@ -131,6 +131,41 @@ void checkOpenings(float distance, int zooms, bool near, bool culling) {
             "Exactly one wall alternative must render, with or without frustum culling");
     viewer::Renderer::checkErrors("cutout building regression");
 }
+
+void checkDoubleSidedSurfaces() {
+    viewer::Model model;
+    viewer::Material door, glass, roof, background;
+    for (auto* surface : {&door, &glass, &roof, &background}) {
+        surface->unlit = true;
+        surface->doubleSided = true;
+    }
+    door.baseColor = {112.0f / 255, 65.0f / 255, 32.0f / 255, 1};
+    glass.baseColor = {86.0f / 255, 156.0f / 255, 210.0f / 255, .4f};
+    glass.alphaMode = "BLEND";
+    roof.baseColor = {132.0f / 255, 78.0f / 255, 62.0f / 255, 1};
+    background.baseColor = {0, 1, 0, 1};
+    model.materials = {door, glass, roof, background};
+    card(model, {-3, 3, -20}, {2, 2}, 0);
+    card(model, {0, 3, -20}, {2, 2}, 1);
+    card(model, {3, 3, -20}, {2, 2}, 2);
+    card(model, {0, 3, -18}, {12, 6}, 3);
+    viewer::Camera camera;
+    camera.setPosition({0, 3, -40});
+    camera.look(1800, 200); // View the back of the outward-facing cards.
+    viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
+    renderer.setShadows(false);
+    renderer.setHaze(false);
+    renderer.setGroundFog(false);
+    renderer.resize(width, height);
+    renderer.render(camera);
+    require(glm::length(pixel(camera, {-3, 3, -20}) - glm::vec3(177, 138, 99)) < 3,
+            "Door back face must remain opaque and visible");
+    require(glm::length(pixel(camera, {0, 3, -20}) - glm::vec3(63, 235, 94)) < 3,
+            "Glass back face must remain visible at 40% opacity");
+    require(glm::length(pixel(camera, {3, 3, -20}) - glm::vec3(190, 150, 135)) < 3,
+            "Roof back face must remain visible");
+    viewer::Renderer::checkErrors("double-sided building surfaces");
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -146,6 +181,7 @@ int main(int argc, char** argv) {
     int result = 0;
     try {
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << '\n';
+        checkDoubleSidedSurfaces();
         for (const bool culling : {true, false}) {
             check(20, 0, true, culling);
             check(1000, 0, false, culling);

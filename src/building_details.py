@@ -14,7 +14,7 @@ from trimesh.visual.material import PBRMaterial
 from .wall_openings import cut_wall_openings
 
 DOOR_MATERIAL = PBRMaterial(name="building_door_brown", baseColorFactor=[112, 65, 32, 255],
-                            metallicFactor=0.0, roughnessFactor=0.9)
+                            doubleSided=True, metallicFactor=0.0, roughnessFactor=0.9)
 # glTF alpha is opacity: 40% opaque means 60% transparent.
 WINDOW_MATERIAL = PBRMaterial(name="building_window_blue", baseColorFactor=[86, 156, 210, 102],
                               alphaMode="BLEND", doubleSided=True, metallicFactor=0.0, roughnessFactor=0.25)
@@ -111,12 +111,8 @@ def _rectangle(facade, center, width, bottom, height):
                      [*right, bottom + height], [*left, bottom + height]])
 
 
-def _foundation_height(wall, facade, left, right):
-    """Highest piecewise-linear wall base across an opening's width.
-
-    Terrain between foundation samples can dip below the actual wall base.
-    Keep door cuts above both surfaces so they never cut into the bottom cap.
-    """
+def _foundation_profile(wall, facade, left, right):
+    """Sample the existing piecewise-linear wall base across an opening."""
     xy, inverse = np.unique(wall.vertices[:, :2], axis=0, return_inverse=True)
     heights = np.full(len(xy), np.inf)
     np.minimum.at(heights, inverse, wall.vertices[:, 2])
@@ -129,7 +125,7 @@ def _foundation_height(wall, facade, left, right):
     if len(coordinates) < 2:
         raise ValueError("Cannot sample building foundation across a door")
     samples = np.r_[left, coordinates[(coordinates > left) & (coordinates < right)], right]
-    return float(np.max(np.interp(samples, coordinates, heights)))
+    return np.interp(samples, coordinates, heights)
 
 
 def facade_details(polygon: Polygon, wall, roof, elevation, options, road=None):
@@ -143,28 +139,30 @@ def facade_details(polygon: Polygon, wall, roof, elevation, options, road=None):
     boundary = polygon.segmentize(float(options.get("foundation_sample_spacing_m", 8.0)))
     samples = np.vstack([np.asarray(ring.coords) for ring in [boundary.exterior, *boundary.interiors]])
     foundation = float(np.max(elevation(samples[:, 0], samples[:, 1])))
+    # One exported-precision head height aligns both doors and the lowest
+    # window row. Door panels extend down to each facade's sampled wall base.
+    first_head = float(np.float32(foundation + 2.1))
     doors, windows = [], []
     openings = {}
     door_spans = {}
     for index in _door_facades(facades, road):
         facade = facades[index]
         center = facade.length * 0.5
-        endpoints = facade.start + np.array([center - 0.5, center, center + 0.5])[:, None] * facade.direction
-        ground = float(np.max(elevation(endpoints[:, 0], endpoints[:, 1])))
-        base = _foundation_height(wall, facade, center - .5, center + .5)
-        bottom = max(ground, base + .08) + .03
-        if bottom + 2.1 > eaves - 0.15:
+        if first_head > eaves - 0.15:
             continue
-        doors.append(_rectangle(facade, center, 1.0, bottom, 2.1))
+        # The cutter reaches below the entire base profile. Intersection with
+        # the wall outline gives the infill its exact sloping bottom boundary.
+        bottom = float(np.min(_foundation_profile(wall, facade, center - .5, center + .5))) - .01
+        doors.append(_rectangle(facade, center, 1.0, bottom, first_head - bottom))
         openings.setdefault(index, []).append(("doors", doors[-1]))
-        door_spans[index] = (center - 0.65, center + 0.65, bottom, bottom + 2.25)
+        door_spans[index] = (center - 0.65, center + 0.65, bottom, first_head + .15)
 
     floor_height = float(options.get("floor_height_m", 3.0))
     for index, facade in enumerate(facades):
         if facade.length < 1.8:
             continue
         columns = max(1, int(facade.length / 3.0))
-        for bottom in np.arange(foundation + 0.9, eaves - 1.5, floor_height):
+        for bottom in np.arange(first_head - 1.2, eaves - 1.5, floor_height):
             for column in range(columns):
                 center = facade.length * (column + 0.5) / columns
                 span = door_spans.get(index)

@@ -169,7 +169,9 @@ src/
   osm.py                  Ways, multipolygon relations, holes, clipping
   buildings.py            Height inference, walls, flat/gabled/hipped roofs
   building_details.py     Road-facing entrance and window layout
-  wall_openings.py        Partition wall triangles around flush door/glass infills
+  wall_openings.py        Cut facade outlines and index wall/door/glass vertices
+  facade_surface.py       Preserve sampled facade and foundation boundaries
+  building_caps.py        Refine bottom caps at door-base corners
   roads.py                Width inference, buffered terrain-following road meshes
   railways.py             Terrain-following railway track-bed meshes
   terrain_surfaces.py     Shared surface subdivision and terrain clearance
@@ -238,8 +240,9 @@ Collapsed faces are removed at glTF's float32 precision.
 The original closed walls remain the lower LoD. At higher detail, an alternative
 wall mesh has real rectangular door and window openings, filled flush with
 brown door panels and blue glass at 60% transparency (40% opacity). Masonry is
-removed behind each panel. The roof is shared between both LoDs. Detailed walls
-and glass are double-sided so the empty building shell is visible through glass.
+removed behind each panel. The roof is shared between both LoDs. Detailed walls,
+doors, glass and roofs are double-sided so the empty building shell is visible
+through glass.
 There are no modeled rooms or opening-door animations.
 
 The front door uses the exterior wall closest to the nearest road. Among walls
@@ -247,9 +250,17 @@ within 0.5 m of the closest wall, prefer the outward normal facing most directly
 toward the road from the wall center. A second door uses the opposite wall.
 Windows cover exterior and courtyard walls, fit below the eaves, and leave room
 around doors. Very short or low walls omit rectangles that cannot fit. With no
-road, the longest exterior wall supplies the front. Doors follow ground height.
-Wall triangles are partitioned without changing roof or foundation boundaries;
-both complete shells are checked for closure and consistent winding after GLB
+road, the longest exterior wall supplies the front. The lowest window row and
+both doors share a head height 2.1 m above the highest sampled foundation ground.
+Door bottoms follow the actual wall base, including slopes; the original bottom
+cap is 8 cm below terrain. On slopes, door heights vary with that base.
+Each whole facade outline is cut before triangulation, preserving roof and
+foundation samples without carrying the original wall diagonals through glass.
+Below the lowest sill, vertical strips retain the sampled foundation profile.
+Only the detailed bottom cap is refined at new door-base corners. Within each
+material mesh, vertices with matching exported positions and normals are
+shared, keeping corners sharp.
+Both complete shells are checked for closure and consistent winding after GLB
 export. Each building batches detailed masonry, doors and glass into at most
 three extra meshes.
 

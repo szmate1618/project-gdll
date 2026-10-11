@@ -19,7 +19,8 @@ from .building_details import DOOR_MATERIAL, WINDOW_MATERIAL, RoadIndex, facade_
 LOG = logging.getLogger(__name__)
 
 WALL_MATERIAL = PBRMaterial(name="generic_building_wall", baseColorFactor=[204, 193, 167, 255], metallicFactor=0.0, roughnessFactor=0.92)
-ROOF_MATERIAL = PBRMaterial(name="generic_roof", baseColorFactor=[132, 78, 62, 255], metallicFactor=0.0, roughnessFactor=0.88)
+ROOF_MATERIAL = PBRMaterial(name="generic_roof", baseColorFactor=[132, 78, 62, 255], doubleSided=True,
+                            metallicFactor=0.0, roughnessFactor=0.88)
 TYPE_HEIGHTS = {
     "house": 7.0, "detached": 7.0, "semidetached_house": 7.0, "terrace": 8.0,
     "residential": 9.0, "apartments": 15.0, "commercial": 10.0, "retail": 6.0,
