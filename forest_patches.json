@@ -5994,5 +5994,17 @@
       ],
       "holes": []
     }
-  ]
+  ],
+  "runtime": {
+    "tree_asset": "assets/tree_impostor.glb",
+    "side_texture": "assets/forests/side.png",
+    "top_texture": "assets/forests/top.png",
+    "seed": 20261011,
+    "tree_spacing_m": 9.0,
+    "min_tree_height_m": 12.0,
+    "max_tree_height_m": 20.0,
+    "volume_height_m": 16.0,
+    "texture_tile_m": 32.0,
+    "detail_distance_m": 350.0
+  }
 }

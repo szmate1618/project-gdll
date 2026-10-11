@@ -1,11 +1,13 @@
 #include "renderer.hpp"
 #include "door_layer.hpp"
+#include "door_interaction.hpp"
 #include "physics_world.hpp"
 #include "reticle_overlay.hpp"
 #include "camera_rig.hpp"
 #include "collision_debug.hpp"
 #include "gpu_timer.hpp"
 #include "tree_layer.hpp"
+#include "forest_layer.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_park.hpp"
 #include "simulation_clock.hpp"
@@ -30,6 +32,7 @@ struct Options {
     std::filesystem::path shaders = VIEWER_SHADER_DIR;
     std::filesystem::path screenshot;
     std::filesystem::path trees;
+    std::filesystem::path forests;
     std::filesystem::path zombies;
     int frames = 0;
     bool hidden = false, allowSoftware = false, selfTest = false, help = false;
@@ -38,6 +41,7 @@ struct Options {
     bool treeShadows = true;
     bool night = false;
     bool rain = false;
+    bool noForests = false;
     bool haze = true;
     bool groundFog = true;
     bool noTrees = false, treeCulling = true, treeCollisions = true, sceneCulling = true;
@@ -72,6 +76,8 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--collision-debug") options.collisionDebug = true;
         else if (argument == "--self-test-fps") options.selfTestFPS = true;
         else if (argument == "--trees") options.trees = value();
+        else if (argument == "--forests") options.forests = value();
+        else if (argument == "--no-forests") options.noForests = true;
         else if (argument == "--no-trees") options.noTrees = true;
         else if (argument == "--no-tree-culling") options.treeCulling = false;
         else if (argument == "--no-town-culling") options.sceneCulling = false;
@@ -136,6 +142,8 @@ Options parseOptions(int argc, char** argv) {
     if ((options.hidden || options.selfTest || options.selfTestFPS || !options.screenshot.empty()) && options.frames == 0) options.frames = 3;
     if (options.noTrees && !options.trees.empty())
         throw std::runtime_error("Use either --trees FILE or --no-trees");
+    if (!options.forests.empty() && (options.noForests || options.noTrees))
+        throw std::runtime_error("Use --forests FILE without --no-forests/--no-trees");
     if (options.noZombies && options.explicitZombies)
         throw std::runtime_error("Use zombie options or --no-zombies, not both");
     if (options.zombieView && options.fps)
@@ -147,9 +155,10 @@ void printHelp() {
     std::cout << "Usage: godollo_viewer [model.glb|model.gltf] [options]\n"
               << "Default model: " << VIEWER_DEFAULT_ASSET << "\n\n"
               << "W/S forward/back, A/D strafe, Q/E down/up, mouse look, Shift faster\n"
-              << "Left mouse button shoot a camera-center ray at zombies\n"
+              << "Tab switch Combat/Interaction; left mouse shoot in Combat, hold to grab a door within 1.5 m in Interaction\n"
+              << "While grabbing: mouse right/left moves sideways, up/down pushes/pulls; WASD also tugs the door\n"
               << "Right mouse button cycle normal, 10-degree, and 1-degree views while the mouse is captured\n"
-              << "Tab release/capture mouse, wheel change speed, F frame model, Escape quit\n\n"
+              << "Left Alt release/capture mouse, wheel change speed, F frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
               << "  --fps               Start in walking mode\n"
               << "  --night             Dark sky and ambient light with a camera flashlight\n"
@@ -161,7 +170,9 @@ void printHelp() {
               << "  --spawn X Z         Start walking near world X/Z in meters\n"
               << "  --collision-debug   Show colliders and ground normal (F3)\n"
               << "  --trees FILE        Load a tree instance JSON explicitly\n"
-              << "  --no-trees          Disable automatic adjacent trees.instances.json\n"
+              << "  --no-trees          Disable detected trees and runtime forests\n"
+              << "  --forests FILE      Load runtime woodland polygons explicitly\n"
+              << "  --no-forests        Disable runtime forests, keep detected trees\n"
               << "  --no-tree-culling   Render all tree instances for comparison\n"
               << "  --no-town-culling   Render all town draw instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
@@ -196,6 +207,8 @@ struct AppState {
     AppState(const viewer::CollisionWorld& collision, const viewer::Model& model)
         : rig(collision, model.boundsMin, model.boundsMax, 1280.0f / 720.0f), world(collision) {}
     viewer::CameraRig rig;
+    viewer::DoorInteraction interaction;
+    viewer::DoorLayer* doors = nullptr;
     const viewer::CollisionWorld& world;
     viewer::ZombieLayer* zombies = nullptr;
     double displayedAnimationSeconds = 0.0;
@@ -212,6 +225,7 @@ AppState& state(GLFWwindow* window) { return *static_cast<AppState*>(glfwGetWind
 void captureMouse(GLFWwindow* window, bool captured) {
     auto& app = state(window);
     app.capture = captured;
+    if (!captured) app.interaction.release();
     app.firstMouse = true;
     if (!app.hidden) glfwSetInputMode(window, GLFW_CURSOR, captured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
 }
@@ -227,11 +241,18 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     if (key >= 0 && key <= GLFW_KEY_LAST) app.keys[static_cast<std::size_t>(key)] = action != GLFW_RELEASE;
     if (action != GLFW_PRESS) return;
     if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(window, GLFW_TRUE);
-    else if (key == GLFW_KEY_TAB) captureMouse(window, !app.capture);
-    else if (key == GLFW_KEY_F)
+    else if (key == GLFW_KEY_TAB) {
+        app.interaction.toggleMode();
+        std::cout << "Control mode: " << app.interaction.modeName() << '\n';
+    } else if (key == GLFW_KEY_LEFT_ALT) captureMouse(window, !app.capture);
+    else if (key == GLFW_KEY_F) {
+        app.interaction.release();
         app.rig.frame(static_cast<float>(std::max(app.width, 1)) / static_cast<float>(std::max(app.height, 1)));
-    else if (key == GLFW_KEY_F1) app.rig.enterFreeFly();
-    else if (key == GLFW_KEY_F2) {
+    } else if (key == GLFW_KEY_F1) {
+        app.interaction.release();
+        app.rig.enterFreeFly();
+    } else if (key == GLFW_KEY_F2) {
+        app.interaction.release();
         try { app.rig.enterWalking(); }
         catch (const std::exception& error) { std::cerr << "FPS placement failed: " << error.what() << '\n'; }
     } else if (key == GLFW_KEY_F3) {
@@ -244,7 +265,7 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
     auto& app = state(window);
     if (!app.capture) return;
     if (!app.firstMouse && std::isfinite(x) && std::isfinite(y))
-        app.rig.camera().look(static_cast<float>(x - app.lastX), static_cast<float>(app.lastY - y));
+        app.interaction.look(app.rig.camera(), static_cast<float>(x - app.lastX), static_cast<float>(app.lastY - y));
     app.lastX = x;
     app.lastY = y;
     app.firstMouse = false;
@@ -252,12 +273,21 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     auto& app = state(window);
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+        app.interaction.release();
+        return;
+    }
     if (action != GLFW_PRESS || !app.capture) return;
     if (button == GLFW_MOUSE_BUTTON_RIGHT) {
         app.rig.camera().cycleViewMode();
         return;
     }
-    if (button != GLFW_MOUSE_BUTTON_LEFT || !app.zombies) return;
+    if (button != GLFW_MOUSE_BUTTON_LEFT) return;
+    if (app.interaction.mode() == viewer::ControlMode::Interaction) {
+        if (app.doors) app.interaction.press(app.rig.camera(), *app.doors, app.world);
+        return;
+    }
+    if (!app.zombies) return;
     if (app.zombies->shoot(app.rig.camera().position(), app.rig.camera().direction(),
                            app.displayedAnimationSeconds))
         std::cout << "Zombie hit: ragdoll activated (" << app.zombies->ragdollCount() << " active)\n";
@@ -272,6 +302,7 @@ void focusCallback(GLFWwindow* window, int focused) {
     if (!focused) {
         state(window).keys.fill(false);
         state(window).firstMouse = true;
+        state(window).interaction.release();
     }
 }
 
@@ -280,6 +311,7 @@ void moveCamera(AppState& app, float dt) {
     app.rig.update(dt, held(GLFW_KEY_W) - held(GLFW_KEY_S), held(GLFW_KEY_D) - held(GLFW_KEY_A),
                    held(GLFW_KEY_E) - held(GLFW_KEY_Q),
                    app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT], app.keys[GLFW_KEY_SPACE]);
+    app.interaction.update(app.rig.camera(), dt);
 }
 
 void inputSelfTest(GLFWwindow* window) {
@@ -328,14 +360,25 @@ void inputSelfTest(GLFWwindow* window) {
     if (app.rig.camera().projection(1.0f) != originalProjection)
         throw std::runtime_error("Right-click did not restore the original field of view");
     key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
+    if (!app.capture || app.interaction.mode() != viewer::ControlMode::Interaction)
+        throw std::runtime_error("Tab failed to select interaction mode with mouse captured");
+    key(window, GLFW_KEY_TAB, 0, GLFW_REPEAT, 0);
+    if (app.interaction.mode() != viewer::ControlMode::Interaction)
+        throw std::runtime_error("Tab repeat changed the control mode");
+    key(window, GLFW_KEY_TAB, 0, GLFW_RELEASE, 0);
+    key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_TAB, 0, GLFW_RELEASE, 0);
+    if (app.interaction.mode() != viewer::ControlMode::Combat)
+        throw std::runtime_error("Tab failed to restore combat mode");
+    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_PRESS, 0);
     if (app.capture) throw std::runtime_error("Mouse release self-test failed");
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
     if (app.rig.camera().projection(1.0f) != originalProjection)
         throw std::runtime_error("Released cursor changed zoom");
-    key(window, GLFW_KEY_TAB, 0, GLFW_RELEASE, 0);
-    key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
-    key(window, GLFW_KEY_TAB, 0, GLFW_RELEASE, 0);
+    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_RELEASE, 0);
+    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_RELEASE, 0);
     resize(window, 800, 600);
     if (app.width != 800 || app.height != 600) throw std::runtime_error("Resize callback self-test failed");
     glfwSetWindowSize(window, 1280, 720);
@@ -348,7 +391,7 @@ void inputSelfTest(GLFWwindow* window) {
     app.rig.camera() = original;
     if (wasWalking && !app.rig.enterWalking()) throw std::runtime_error("Failed to restore walking mode after input test");
     app.firstMouse = true;
-    std::cout << "Input self-test passed: WASDQE movement, mouse look/capture, right-click view cycle, resize, Escape\n";
+    std::cout << "Input self-test passed: WASDQE movement, mouse look/capture, Tab control modes, right-click view cycle, resize, Escape\n";
 }
 
 void fpsInputSelfTest(GLFWwindow* window) {
@@ -495,6 +538,26 @@ int run(const Options& options) {
             }
         }
     }
+    std::optional<viewer::ForestLayer> forests;
+    if (!options.noTrees && !options.noForests) {
+        const bool explicitForests = !options.forests.empty();
+        const auto path = explicitForests ? options.forests : std::filesystem::path(VIEWER_FOREST_CONFIG);
+        if (explicitForests || (model.geographicFrame && std::filesystem::exists(path))) {
+            try {
+                if (!trees) trees.emplace();
+                const auto before = trees->instances.size();
+                const viewer::CollisionWorld placementWorld(model, {}, &doors);
+                std::cout << "Loading runtime forests: " << path << '\n';
+                forests = viewer::loadForestLayer(path, options.model, model, placementWorld, *trees);
+                std::cout << "Forests: " << forests->patches.size() << " patches, "
+                          << trees->instances.size()-before << " deterministic trees; individual trees within "
+                          << forests->detailDistance << " m or through either scope\n";
+            } catch (const std::exception& error) {
+                if (explicitForests) throw;
+                std::cerr << "Runtime forest layer skipped: " << error.what() << '\n';
+            }
+        }
+    }
     std::vector<viewer::TrunkCollider> trunks;
     if (trees && options.treeCollisions) {
         trunks.reserve(trees->instances.size());
@@ -565,6 +628,7 @@ int run(const Options& options) {
         app.rig.camera().frame(zombies->boundsMin, zombies->boundsMax,
             static_cast<float>(std::max(app.width, 1)) / static_cast<float>(std::max(app.height, 1)));
     app.zombies = zombies ? &*zombies : nullptr;
+    app.doors = &doors;
     glfwSetWindowUserPointer(window.get(), &app);
     glfwSetFramebufferSizeCallback(window.get(), framebufferCallback);
     glfwSetKeyCallback(window.get(), keyCallback);
@@ -575,8 +639,9 @@ int run(const Options& options) {
     captureMouse(window.get(), true);
     if (!options.hidden && glfwRawMouseMotionSupported()) glfwSetInputMode(window.get(), GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
-              << " m/s; F1 free-fly, F2 walk, F3 collisions, WASD move, Space jump, mouse look, Escape quit\n";
-    viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr, zombies ? &*zombies : nullptr);
+              << " m/s; F1 free-fly, F2 walk, F3 collisions, WASD move, Space jump, mouse look, Tab Combat/Interaction, Left Alt cursor, Escape quit\n";
+    viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr,
+                              zombies ? &*zombies : nullptr, forests ? &*forests : nullptr);
     viewer::ReticleOverlay reticle(options.shaders);
     renderer.setTreeCulling(options.treeCulling);
     renderer.setSceneCulling(options.sceneCulling);
@@ -694,7 +759,8 @@ int run(const Options& options) {
             const auto townStatus = " | Town " + std::to_string(sceneStats.visible) + "/" + std::to_string(sceneStats.total);
             const auto zombieStatus = zombies ? " | Zombies " + std::to_string(renderer.zombieCount()) +
                 " (" + std::to_string(zombies->ragdollCount()) + " ragdolls)" : "";
-            const auto caption = title + " | " + app.rig.modeName() + status + " | " + std::to_string(fps)
+            const auto caption = title + " | " + app.rig.modeName() + " | " + app.interaction.modeName()
+                + (app.interaction.grabbing() ? " (door grabbed)" : "") + status + " | " + std::to_string(fps)
                 + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + townStatus + treeStatus + zombieStatus + " | " + std::to_string(static_cast<int>(app.rig.speed(
                     app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]))) + " m/s";
             glfwSetWindowTitle(window.get(), caption.c_str());
@@ -709,6 +775,11 @@ int run(const Options& options) {
         const auto& stats = renderer.treeStats();
         std::cout << "Last tree frame: " << stats.visible << '/' << stats.total << " visible, "
                   << stats.drawCalls << " instanced draw calls\n";
+    }
+    if (forests) {
+        const auto& stats = renderer.forestStats();
+        std::cout << "Last forest frame: " << stats.volumes << " visible volumes, "
+                  << stats.detailedPatches << '/' << stats.patches << " patches using individual trees\n";
     }
     const auto& sceneStats = renderer.sceneStats();
     std::cout << "Last town frame: " << sceneStats.visible << '/' << sceneStats.total << " visible, "

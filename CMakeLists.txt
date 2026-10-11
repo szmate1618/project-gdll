@@ -90,7 +90,7 @@ add_library(viewer_visibility STATIC src/visibility.cpp src/model_visibility.cpp
 target_link_libraries(viewer_visibility PUBLIC viewer_model)
 viewer_warnings(viewer_visibility)
 
-add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp)
+add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp src/file_fingerprint.cpp)
 target_link_libraries(viewer_trees PUBLIC viewer_model viewer_visibility PRIVATE OpenSSL::Crypto)
 target_include_directories(viewer_trees SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_trees)
@@ -114,6 +114,11 @@ target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
 
+add_library(viewer_forests STATIC src/forest_layer.cpp src/forest_geometry.cpp src/forest_placement.cpp)
+target_link_libraries(viewer_forests PUBLIC viewer_trees viewer_collision)
+target_include_directories(viewer_forests SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+viewer_warnings(viewer_forests)
+
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp
     src/zombie_layer.cpp src/zombie_hit.cpp src/zombie_chase.cpp src/zombie_behavior.cpp
     src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp)
@@ -124,6 +129,10 @@ viewer_warnings(viewer_zombies)
 add_library(viewer_fps STATIC src/fps_controller.cpp src/camera_rig.cpp)
 target_link_libraries(viewer_fps PUBLIC viewer_collision viewer_camera viewer_noise)
 viewer_warnings(viewer_fps)
+
+add_library(viewer_interaction STATIC src/door_interaction.cpp)
+target_link_libraries(viewer_interaction PUBLIC viewer_camera viewer_collision viewer_physics)
+viewer_warnings(viewer_interaction)
 
 set(VIEWER_TEST_ASSET "${CMAKE_CURRENT_SOURCE_DIR}/assets/test.glb")
 add_custom_command(
@@ -143,16 +152,17 @@ target_link_libraries(viewer_sun_lighting PUBLIC glm::glm)
 viewer_warnings(viewer_sun_lighting)
 
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
+    src/tree_renderer.cpp src/forest_renderer.cpp
     src/zombie_renderer.cpp src/sun_shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
-    viewer_model viewer_visibility viewer_camera viewer_trees viewer_zombies viewer_sun_lighting OpenGL::GL)
+    viewer_model viewer_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting OpenGL::GL)
 target_compile_definitions(viewer_renderer PRIVATE GL_GLEXT_PROTOTYPES)
 viewer_warnings(viewer_renderer)
 
 add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp
     src/reticle_overlay.cpp src/gpu_timer.cpp)
 target_link_libraries(godollo_viewer PRIVATE
-    viewer_renderer viewer_fps glfw
+    viewer_renderer viewer_fps viewer_interaction glfw
 )
 target_compile_definitions(godollo_viewer PRIVATE
     GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -160,11 +170,30 @@ target_compile_definitions(godollo_viewer PRIVATE
     VIEWER_DEFAULT_ASSET="${VIEWER_TEST_ASSET}"
     VIEWER_ZOMBIE_ASSETS="${CMAKE_CURRENT_SOURCE_DIR}/assets/zombies/models"
     VIEWER_ZOMBIE_PARK="${CMAKE_CURRENT_SOURCE_DIR}/assets/zombies/grassalkovich_park.json"
+    VIEWER_FOREST_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/forest_patches.json"
 )
 add_dependencies(godollo_viewer viewer_test_asset)
 viewer_warnings(godollo_viewer)
 
 if(BUILD_TESTING)
+    add_executable(test_door_interaction tests/test_door_interaction.cpp)
+    target_link_libraries(test_door_interaction PRIVATE viewer_interaction)
+    viewer_warnings(test_door_interaction)
+    add_test(NAME viewer_door_interaction COMMAND test_door_interaction)
+    add_executable(test_forests tests/test_forests.cpp)
+    target_link_libraries(test_forests PRIVATE viewer_forests)
+    target_include_directories(test_forests SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+    viewer_warnings(test_forests)
+    add_test(NAME viewer_forests COMMAND test_forests)
+
+    add_executable(test_forest_renderer tests/test_forest_renderer.cpp)
+    target_link_libraries(test_forest_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_forest_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_forest_renderer)
+    add_test(NAME viewer_forest_renderer COMMAND test_forest_renderer)
+    set_tests_properties(viewer_forest_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
     add_executable(test_doors tests/test_doors.cpp)
     target_link_libraries(test_doors PRIVATE viewer_physics viewer_visibility viewer_zombies)
     viewer_warnings(test_doors)

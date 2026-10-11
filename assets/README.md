@@ -64,6 +64,12 @@ not enter that collision world. When a tree GLB is opened as the standalone
 main scene instead, the generic scene collision loader still treats its quads
 as surfaces; preview standalone assets in free-fly mode.
 
+## Runtime forests
+
+The runtime woodland layer also uses [generated repeating forest textures](forests/README.md)
+for distant polygon side walls and canopy tops. Close and scoped views reuse
+the tree impostor above; see [forest configuration](../docs/FORESTS.md).
+
 ## Railway texture
 
 [railways/track.png](railways/track.png) is a repeating metric tile containing

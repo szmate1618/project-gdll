@@ -1,7 +1,7 @@
 #include "tree_layer.hpp"
 
 #include <json.hpp>
-#include <openssl/evp.h>
+#include "file_fingerprint.hpp"
 
 #include <algorithm>
 #include <array>
@@ -56,33 +56,6 @@ std::string expectedHash(const Json& value, const std::string& field) {
     return hash;
 }
 
-std::string fileHash(const std::filesystem::path& path) {
-    std::ifstream stream(path, std::ios::binary);
-    if (!stream) fail("Cannot open fingerprinted file '" + path.string() + "'");
-    using Context = std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)>;
-    Context context(EVP_MD_CTX_new(), EVP_MD_CTX_free);
-    if (!context || EVP_DigestInit_ex(context.get(), EVP_sha256(), nullptr) != 1)
-        fail("Cannot initialize SHA-256 for '" + path.string() + "'");
-    std::array<char, 65536> buffer{};
-    while (stream) {
-        stream.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-        if (stream.gcount() > 0 && EVP_DigestUpdate(context.get(), buffer.data(), static_cast<std::size_t>(stream.gcount())) != 1)
-            fail("Cannot hash file '" + path.string() + "'");
-    }
-    if (!stream.eof()) fail("Cannot finish reading fingerprinted file '" + path.string() + "'");
-    std::array<unsigned char, EVP_MAX_MD_SIZE> digest{};
-    unsigned int size = 0;
-    if (EVP_DigestFinal_ex(context.get(), digest.data(), &size) != 1 || size != 32)
-        fail("Cannot finalize SHA-256 for '" + path.string() + "'");
-    constexpr char hex[] = "0123456789abcdef";
-    std::string result;
-    result.reserve(64);
-    for (unsigned int i = 0; i < size; ++i) {
-        result.push_back(hex[digest[i] >> 4]);
-        result.push_back(hex[digest[i] & 15]);
-    }
-    return result;
-}
 
 bool near(double first, double second, double absolute = 1e-5) {
     return std::abs(first - second) <= absolute +
@@ -195,7 +168,7 @@ TreeLayer loadTreeLayer(const std::filesystem::path& manifest, const std::filesy
         if (!instances.is_array()) fail("instances must be an array");
         validateCounts(document);
         const auto expectedMap = expectedHash(document.at("map").at("map_sha256"), "map.map_sha256");
-        if (fileHash(map) != expectedMap)
+        if (fileSha256(map) != expectedMap)
             fail("Selected map SHA-256 mismatch for '" + map.string() + "'; regenerate tree instances for this map");
         // The manifest's recorded map path is informational: matching bytes
         // are sufficient when a map and its placement file have been relocated.
@@ -214,7 +187,7 @@ TreeLayer loadTreeLayer(const std::filesystem::path& manifest, const std::filesy
                 const auto expected = expectedHash(record.at("sha256"), "asset sha256");
                 auto loaded = loadedPaths.find(path.string());
                 if (loaded == loadedPaths.end()) {
-                    const auto actual = fileHash(path);
+                    const auto actual = fileSha256(path);
                     if (actual != expected) fail("Asset SHA-256 mismatch for '" + path.string() + "'; regenerate instances or restore the matching asset");
                     auto model = loadModel(path);
                     validateModel(model);

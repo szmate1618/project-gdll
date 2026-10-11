@@ -30,7 +30,10 @@ void Renderer::drawSunShadows(const SunShadowView& shadowView, double seconds) {
         // Use the original shell for stable building shadows at every LoD.
         if (!caster.buildingDetail && material(model_, mesh.material).alphaMode != "BLEND") draw(caster);
     }
-    if (treeShadows_) drawTrees(projectionView, true);
+    if (treeShadows_) {
+        drawTrees(projectionView, true);
+        drawForests(projectionView, true);
+    }
     const Frustum lightFrustum(projectionView);
     drawZombies(seconds, &lightFrustum);
     glUniform1i(shadowPassLocation_, GL_FALSE);

@@ -134,8 +134,16 @@ enter the town collision world, and trees add no walkable canopy surfaces.
 F3 displays nearby trunk colliders; `--no-tree-collisions` disables them.
 
 The tree layer supports static instances of the supplied double-sided,
-alpha-masked impostors. There is no tree animation, distance-based LOD, or
-occlusion culling.
+alpha-masked impostors. There is no tree animation or occlusion culling.
+
+Matching georeferenced maps also load [runtime forest polygons](FORESTS.md).
+Beyond 350 m, woodland patches use terrain-following boxes with repeating side
+and canopy textures. Nearby patches and both scope views show deterministic
+individual trees calculated during scene load. Detector trees inside those
+patches share their detail choice. `--forests FILE` selects the polygon config;
+`--no-forests` disables this layer while keeping detector trees. `--no-trees`
+disables both. Placement spacing, height, textures, seed, and switch distance
+are configurable in the JSON's `runtime` object.
 
 ## Town visibility
 
@@ -254,7 +262,7 @@ map they retain their last ground height. Leg swings are added to the idle pose
 for mapped humanoid rigs using shared meshes and live skinning; custom unmapped
 rigs retain idle poses while moving. The crowd draws all instances without LOD.
 
-While the mouse is captured, left click casts a ray from
+In Combat mode while the mouse is captured, left click casts a ray from
 the camera center and activates the nearest living zombie under a conservative
 body or head sphere. The head sphere encloses the displayed skinned head geometry,
 including hair and child joints, and follows the idle phase or walking pose.
@@ -288,8 +296,8 @@ idle cycles at a chosen elapsed time:
 | W / S | Move forward / backward |
 | A / D | Strafe left / right |
 | Q / E | Move down / up along world Y in free-fly mode |
-| Mouse | Look around while captured |
-| Left mouse button | Shoot a camera-center ray and activate a zombie ragdoll |
+| Mouse | Look around while captured; during a door grab, drag sideways or push/pull |
+| Left mouse button | Combat: shoot a camera-center ray; Interaction: hold to grab a door within 1.5 m |
 | Right mouse button | Cycle normal, 10°, and 1° vertical fields of view while captured |
 | Shift | Free-fly: move four times faster; walking: run at 6 m/s |
 | Mouse wheel | Adjust free-fly movement speed |
@@ -297,7 +305,8 @@ idle cycles at a chosen elapsed time:
 | F2 | Switch to walking mode; find safe ground below/near the camera |
 | Space | Jump while grounded in walking mode |
 | F3 | Toggle collision visualization |
-| Tab | Release / capture the mouse |
+| Tab | Switch between Combat (default) and Interaction controls |
+| Left Alt | Release / capture the mouse |
 | F | Frame the whole scene again in free-fly mode |
 | Escape | Close the viewer |
 
@@ -306,6 +315,17 @@ and normalizes diagonal input. Mouse pitch is
 limited to avoid flipping the camera. The camera initially frames the imported
 scene's transformed bounds, including scenes away from the origin, and chooses
 a movement speed based on scene size.
+
+In Interaction mode, aim the center crosshair at a door within 1.5 m and hold
+the left mouse button. Walls and solid trunks block the grab. The selected
+point stays attached to the door as it swings. Dragging right/left moves a
+horizontal grip target sideways; dragging up pushes it forward along the
+camera's horizontal heading, and dragging down pulls it back. Moving with WASD
+also moves the grip target and tugs the door. Mouse motion keeps the camera's
+orientation fixed during a successful grab; release restores normal look.
+A click that misses a reachable door keeps normal mouse look. Interaction
+clicks never shoot. Changing control/camera mode, releasing the cursor, or
+losing window focus ends the grab.
 
 The viewer follows glTF's right-handed coordinate system: Y is up, and the
 camera looks toward negative Z before orientation is applied. Distances are
@@ -375,7 +395,8 @@ joints, sharing the simulation with zombie ragdolls. Their limits allow a
 starts 10 cm above the highest lower boundary to clear the 8 cm foundation
 and leave 2 cm above ground.
 A static anchor holds the hinge. Panels weigh 25 kg and have angular damping;
-there is no latch, automatic closer, or player interaction binding.
+there is no latch or automatic closer. Interaction controls apply forces to
+the point selected when a grab begins.
 
 `prepareDoorPanels(model)` separates batched door meshes at load time without
 changing the GLB or requiring regeneration. It preserves the original node
@@ -394,6 +415,17 @@ they are not recreated or reset. `applyForce(door, force, worldPoint)` and
 Vectors use world coordinates, meters, newtons and newton-seconds. Reapply a
 sustained force each physics step. Physics objects created in `PhysicsWorld::id()`
 can push doors through ordinary contacts, with no door-specific hit handler.
+
+`DoorLayer::raycast` uses the spatial grid and current oriented panel boxes;
+picking is read-only. It returns a stable door index and a body-local hit point.
+`pointState` follows that point's world position and velocity as the hinge
+rotates. `DoorInteraction` owns the control mode and grab state independently
+of GLFW. Its horizontal spring has stiffness 220 N/m, damping 35 N*s/m, and a
+180 N force limit. Mouse travel moves the target by 4 mm/pixel, clamped to
+1.5 m on each axis. The target also follows player displacement. Each update
+integrates the force as a dt-scaled impulse, so input survives render frames
+with zero or multiple fixed physics steps. The app updates this after walking;
+the next shared physics step advances the panel.
 
 `CollisionWorld(model, trunks, &doors)` borrows the door layer, which must outlive
 the collision world. At construction it clips just the door rectangles from
@@ -766,6 +798,12 @@ CMakeLists.txt              Viewer and unit-test build configuration
 src/main.cpp               Window, input callbacks, render loop, CLI
 src/renderer.{hpp,cpp}      OpenGL resources, shaders, drawing
 src/renderer_shadows.cpp   Sun caster pass and lighting uniforms
+src/tree_renderer.cpp      Shared impostor upload and instanced rendering
+src/forest_layer.{hpp,cpp}  Runtime forest config loading and layer assembly
+src/forest_geometry.{hpp,cpp} Polygon walls/canopies with concavities and holes
+src/forest_placement.{hpp,cpp} Repeatable per-patch tree candidates
+src/forest_renderer.cpp    Forest visibility and distance/scope detail choice
+src/file_fingerprint.{hpp,cpp} Shared SHA-256 provenance checks
 src/sun_lighting.{hpp,cpp} Lighting settings and stable local shadow coverage
 src/atmosphere.hpp         Distance haze, ground fog, and matching sky color
 src/night_lighting.hpp     Night ambient, sky/fog color, and camera flashlight settings
@@ -785,6 +823,7 @@ src/zombie_park.{hpp,cpp}  Palace garden outline in the published map's frame
 src/physics_world.{hpp,cpp} Shared Box3D world and fixed simulation stepping
 src/door_geometry.{hpp,cpp} Runtime extraction of independent door panels
 src/door_layer.{hpp,cpp} Local hinge activation, force API and door poses
+src/door_interaction.{hpp,cpp} Combat/interaction mode and mouse/player door grabs
 src/door_collision.{hpp,cpp} Doorway clipping and live Box3D capsule contacts
 src/zombie_ragdoll.{hpp,cpp} Box3D ragdoll simulation and simplified ground planes
 src/zombie_ragdoll_pose.{hpp,cpp} Animated-pose handoff and physics-to-skin mapping

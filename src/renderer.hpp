@@ -9,6 +9,7 @@
 #include "model.hpp"
 #include "model_visibility.hpp"
 #include "tree_visibility.hpp"
+#include "forest_layer.hpp"
 #include "zombie_layer.hpp"
 #include "sun_lighting.hpp"
 #include "sun_shadow_map.hpp"
@@ -28,10 +29,13 @@ struct SceneRenderStats {
     std::size_t total = 0, visible = 0, drawCalls = 0;
 };
 
+struct ForestRenderStats { std::size_t patches = 0, volumes = 0, detailedPatches = 0; };
+
 class Renderer {
 public:
     Renderer(const Model& model, const std::filesystem::path& shaderDirectory,
-             const TreeLayer* trees = nullptr, const ZombieLayer* zombies = nullptr);
+             const TreeLayer* trees = nullptr, const ZombieLayer* zombies = nullptr,
+             const ForestLayer* forests = nullptr);
     ~Renderer();
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
@@ -53,6 +57,7 @@ public:
     const SceneRenderStats& sceneStats() const { return sceneStats_; }
     void setTreeCulling(bool enabled) { treeCulling_ = enabled; }
     const TreeRenderStats& treeStats() const { return treeStats_; }
+    const ForestRenderStats& forestStats() const { return forestStats_; }
     std::size_t zombieCount() const { return zombieCount_; }
     std::size_t zombieDrawCalls() const { return zombieDrawCalls_; }
     static void checkErrors(const char* stage);
@@ -117,6 +122,9 @@ private:
     void uploadModel(const Model& source, ModelGPU& destination);
     void uploadTrees(const TreeLayer& trees);
     void drawTrees(const glm::mat4& projectionView, bool shadowPass = false);
+    void uploadForests(const ForestLayer& forests);
+    void prepareForestView(const Camera& camera);
+    void drawForests(const glm::mat4& projectionView, bool shadowPass = false);
     void uploadZombies(const ZombieLayer& zombies);
     void drawZombies(double seconds, const Frustum* shadowFrustum = nullptr);
     void drawSunShadows(const SunShadowView& shadowView, double seconds);
@@ -165,6 +173,14 @@ private:
     TreeRenderStats treeStats_;
     bool treeCulling_ = true;
     bool treeShadows_ = true;
+    ModelGPU forestModel_;
+    std::vector<DrawGPU> forestDraws_;
+    std::vector<ForestPatch> forestPatches_;
+    std::vector<std::size_t> treeForestPatches_, visibleForests_;
+    std::vector<bool> forestDetail_;
+    VisibilityIndex forestVisibility_;
+    ForestRenderStats forestStats_;
+    float forestDetailDistance_ = 350;
     std::vector<ZombieBatch> zombieBatches_;
     std::size_t zombieCount_ = 0, zombieDrawCalls_ = 0;
     Material fallback_;

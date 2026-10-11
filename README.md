@@ -27,8 +27,11 @@ to frame the crowd or `--no-zombies` to disable it; see the
 In walking mode, use **WASD** to walk, the mouse to look, **Space** to jump, and
 **Shift** to run. **F3** toggles collision lines and the player capsule; green
 means grounded, red means airborne, and cyan marks the ground normal. The
-window title also shows the current mode and grounded state. **Tab** releases
-the mouse; **Escape** closes the viewer. Free-fly retains its original controls.
+window title also shows the camera/control modes and grounded state. **Tab**
+switches Combat/Interaction controls. Combat retains shooting and mouse look;
+Interaction lets you hold **left mouse** on a door within 1.5 m and drag or move
+with WASD to push/pull it, keeping camera orientation fixed until release.
+**Left Alt** releases/captures the mouse; **Escape** closes the viewer.
 
 The walking player is a 1.80 m capsule with radius 0.30 m and eye height 1.70 m.
 Gravity, ground contact, and wall sliding use collision triangles derived from

@@ -3,8 +3,66 @@
 [forest_patches.json](../forest_patches.json) is a UTF-8 JSON configuration of
 woodland visually traced from the satellite texture embedded in the published
 level. It includes forests, smaller wooded patches, and the wooded portion of
-the palace park. It is an input for future processing; the generator and viewer
-do not automatically load it.
+the palace park. The viewer loads it as a separate runtime layer on a matching
+georeferenced map. Neither the town GLB nor the generator output is modified.
+
+## Runtime rendering
+
+```bash
+./build/godollo_viewer output/godollo.glb
+# Select another configuration, or disable only the runtime forests:
+./build/godollo_viewer output/godollo.glb --forests forest_patches.json
+./build/godollo_viewer output/godollo.glb --no-forests
+```
+
+At scene load, the viewer creates polygon-shaped forest boxes with canopy tops
+and side walls, following the published terrain. Concave boundaries and holes
+are preserved. Two shared [generated forest textures](../assets/forests/README.md)
+repeat in metric UV coordinates with mipmaps. These volumes are rendering
+geometry; they never become walls or ground in the collision world.
+
+Normal view uses individual trees when the eye is within `detail_distance_m`
+of a patch's conservative bounds (350 m by default), and boxes beyond that.
+Both right-click scope modes force individual trees for visible patches at any
+distance. Frustum culling still uses spatial indexes. Each patch draws either
+its volume or its generated trees in a frame; shadows use the same detail
+choice but select casters independently through the light frustum.
+Detected trees whose centres lie inside a forest patch follow that patch's
+detail choice too; detector trees outside these polygons retain their usual
+rendering behaviour.
+
+Tree positions are calculated once during loading from a jittered lattice,
+with stable integer hashing of the patch ID, configured seed, and lattice cell.
+The same patch/settings/map/assets/detector placements produce the same
+positions regardless of patch order, camera movement, or scope switching.
+Tree height and rotation also vary deterministically. Positions exclude holes,
+buildings, and centres within 3 m of detector trees. Bases sample the rendered
+terrain triangles, without a second datum subtraction. Shared tree assets and
+textures are reused and individual trees are GPU instanced. Estimated trunk
+capsules participate in walking and sight queries at every detail level.
+
+The optional `runtime` object contains:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `tree_asset` | `assets/tree_impostor.glb` | Calibrated, unlit, masked tree GLB |
+| `side_texture` | `assets/forests/side.png` | Repeating wall image |
+| `top_texture` | `assets/forests/top.png` | Repeating canopy image |
+| `seed` | `20261011` | Unsigned 32-bit placement seed |
+| `tree_spacing_m` | `9` | Lattice spacing before jitter and exclusions |
+| `min_tree_height_m` | `12` | Minimum visible tree height |
+| `max_tree_height_m` | `20` | Maximum visible tree height |
+| `volume_height_m` | `16` | Canopy box height above sampled terrain |
+| `texture_tile_m` | `32` | Horizontal wall/top texture repetition length |
+| `detail_distance_m` | `350` | Normal-view switch distance from patch bounds |
+
+Asset paths are relative to the configuration file. `--no-trees` disables both
+detected trees and runtime forests; `--no-forests` retains detected trees.
+`--no-tree-culling`, `--no-tree-collisions`, and `--no-tree-shadows` apply to both
+tree sources. Automatic loading logs and skips incompatible configuration;
+explicit `--forests FILE` reports it as an error. The map checksum and frame
+must match the recorded provenance. Forests are generated from approximate
+canopy polygons and can still cross narrow roads or small unmapped clearings.
 
 The boundaries are approximate, with uncertainty of tens of metres. They are
 not surveyed forest boundaries or a complete tree inventory. Major fields,
