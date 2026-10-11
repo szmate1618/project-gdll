@@ -177,7 +177,7 @@ std::vector<DoorCollider> DoorLayer::colliders(glm::vec3 minimum, glm::vec3 maxi
                 p.hinge.z + swept < minimum.z || p.hinge.z - swept > maximum.z ||
                 p.center.y + p.halfExtents.y + .02f < minimum.y ||
                 p.center.y - p.halfExtents.y - .02f > maximum.y) continue;
-            DoorCollider collider{p.center, p.halfExtents, p.rotation};
+            DoorCollider collider{p.center, p.halfExtents, p.rotation, index};
             if (b3Body_IsValid(e.body)) {
                 const auto bodyPosition = b3Body_GetPosition(e.body);
                 const auto bodyRotation = b3Body_GetRotation(e.body);
@@ -188,5 +188,36 @@ std::vector<DoorCollider> DoorLayer::colliders(glm::vec3 minimum, glm::vec3 maxi
         }
     }
     return result;
+}
+std::optional<DoorRayHit> DoorLayer::raycast(glm::vec3 origin, glm::vec3 direction, float reach) const {
+    const float length = glm::length(direction);
+    if (!finite(origin) || !finite(direction) || !std::isfinite(length) || length < 1e-6f ||
+        !std::isfinite(reach) || reach <= 0 || reach > 1024) return std::nullopt;
+    direction /= length;
+    const auto end = origin + direction * reach;
+    std::optional<DoorRayHit> closest;
+    for (const auto& box : colliders(glm::min(origin, end), glm::max(origin, end))) {
+        const auto inverse = glm::conjugate(box.rotation);
+        b3RayCastInput ray{};
+        ray.origin = vector(inverse * (origin - box.center));
+        ray.translation = vector(inverse * (end - origin));
+        ray.maxFraction = 1;
+        const auto hull = b3MakeBoxHull(box.halfExtents.x, box.halfExtents.y, box.halfExtents.z);
+        const auto hit = b3RayCastHull(&hull.base, &ray);
+        if (!hit.hit) continue;
+        const float distance = hit.fraction * reach;
+        if (closest && closest->distance <= distance) continue;
+        const auto point = origin + direction * distance;
+        closest = DoorRayHit{box.door, point, inverse * (point - box.center), distance};
+    }
+    return closest;
+}
+DoorPointState DoorLayer::pointState(std::size_t door, glm::vec3 localPoint) const {
+    if (!finite(localPoint)) throw std::invalid_argument("Door point must be finite");
+    const auto& entry = impl_->entries.at(door);
+    if (!b3Body_IsValid(entry.body)) return {entry.panel.center + entry.panel.rotation * localPoint, glm::vec3(0)};
+    const auto point = b3Body_GetWorldPoint(entry.body, vector(localPoint));
+    const auto velocity = b3Body_GetWorldPointVelocity(entry.body, point);
+    return {{point.x, point.y, point.z}, {velocity.x, velocity.y, velocity.z}};
 }
 } // namespace viewer

@@ -2,6 +2,7 @@
 
 #include "door_geometry.hpp"
 #include <memory>
+#include <optional>
 
 namespace viewer {
 class PhysicsWorld;
@@ -9,7 +10,14 @@ struct DoorDrawPose { std::size_t draw; glm::mat4 transform; };
 struct DoorCollider {
     glm::vec3 center, halfExtents;
     glm::quat rotation;
+    std::size_t door = 0;
 };
+struct DoorRayHit {
+    std::size_t door;
+    glm::vec3 point, localPoint; // World meters and body-local meters, respectively.
+    float distance;
+};
+struct DoorPointState { glm::vec3 point, velocity; }; // World meters and m/s.
 
 // Owns door bodies and static hinge anchors in a shared simulation. Panels stay
 // closed until activated by proximity or force; activated bodies can sleep.
@@ -34,6 +42,9 @@ public:
     // Conservative spatial query over hinge sweeps. Returns current Box3D body
     // poses, or the identical closed box for panels not yet activated.
     std::vector<DoorCollider> colliders(glm::vec3 minimum, glm::vec3 maximum) const;
+    // Nearest current panel box on a finite ray. Does not activate bodies.
+    std::optional<DoorRayHit> raycast(glm::vec3 origin, glm::vec3 direction, float reach) const;
+    DoorPointState pointState(std::size_t door, glm::vec3 localPoint) const;
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
