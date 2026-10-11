@@ -114,7 +114,8 @@ target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
 
-add_library(viewer_forests STATIC src/forest_layer.cpp src/forest_geometry.cpp src/forest_placement.cpp)
+add_library(viewer_forests STATIC src/forest_layer.cpp src/forest_geometry.cpp src/forest_placement.cpp
+    src/forest_tree_visibility.cpp src/forest_volume_batch.cpp)
 target_link_libraries(viewer_forests PUBLIC viewer_trees viewer_collision)
 target_include_directories(viewer_forests SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_forests)
@@ -185,6 +186,11 @@ if(BUILD_TESTING)
     target_include_directories(test_forests SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
     viewer_warnings(test_forests)
     add_test(NAME viewer_forests COMMAND test_forests)
+
+    add_executable(test_forest_render_data tests/test_forest_render_data.cpp)
+    target_link_libraries(test_forest_render_data PRIVATE viewer_forests)
+    viewer_warnings(test_forest_render_data)
+    add_test(NAME viewer_forest_render_data COMMAND test_forest_render_data)
 
     add_executable(test_forest_renderer tests/test_forest_renderer.cpp)
     target_link_libraries(test_forest_renderer PRIVATE viewer_renderer glfw)

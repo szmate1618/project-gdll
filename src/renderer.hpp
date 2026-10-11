@@ -8,7 +8,8 @@
 #include "camera.hpp"
 #include "model.hpp"
 #include "model_visibility.hpp"
-#include "tree_visibility.hpp"
+#include "forest_tree_visibility.hpp"
+#include "forest_volume_batch.hpp"
 #include "forest_layer.hpp"
 #include "zombie_layer.hpp"
 #include "sun_lighting.hpp"
@@ -23,13 +24,14 @@ class DoorLayer;
 
 struct TreeRenderStats {
     std::size_t total = 0, visible = 0, drawCalls = 0;
+    std::size_t queriedForestPatches = 0;
 };
 
 struct SceneRenderStats {
     std::size_t total = 0, visible = 0, drawCalls = 0;
 };
 
-struct ForestRenderStats { std::size_t patches = 0, volumes = 0, detailedPatches = 0; };
+struct ForestRenderStats { std::size_t patches = 0, volumes = 0, detailedPatches = 0, drawCalls = 0; };
 
 class Renderer {
 public:
@@ -89,6 +91,11 @@ private:
         std::vector<glm::mat4> visibleTransforms;
     };
     struct InstanceGPU { std::size_t asset; glm::mat4 transform; };
+    struct ForestVolumeBatchGPU {
+        std::vector<ForestVolumeRange> ranges;
+        std::vector<GLsizei> counts;
+        std::vector<const void*> offsets;
+    };
     struct ZombieGPUInstance {
         glm::mat4 transform;
         float phase;
@@ -169,15 +176,15 @@ private:
     std::vector<TreeBatch> treeBatches_;
     std::vector<InstanceGPU> treeInstances_;
     std::vector<std::size_t> visibleTrees_, shadowTrees_;
-    TreeVisibility treeVisibility_;
+    ForestTreeVisibility treeVisibility_;
     TreeRenderStats treeStats_;
     bool treeCulling_ = true;
     bool treeShadows_ = true;
     ModelGPU forestModel_;
-    std::vector<DrawGPU> forestDraws_;
+    std::vector<ForestVolumeBatchGPU> forestBatches_;
     std::vector<ForestPatch> forestPatches_;
-    std::vector<std::size_t> treeForestPatches_, visibleForests_;
-    std::vector<bool> forestDetail_;
+    std::vector<std::size_t> visibleForests_;
+    std::vector<bool> forestDetail_, forestVolumeVisible_;
     VisibilityIndex forestVisibility_;
     ForestRenderStats forestStats_;
     float forestDetailDistance_ = 350;

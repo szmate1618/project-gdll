@@ -41,6 +41,10 @@ public:
     explicit VisibilityIndex(const std::vector<VisibilityBounds>& bounds);
     VisibilityStats query(const glm::mat4& projectionView,
                           std::vector<std::size_t>& visible) const;
+    // Append without allocating a temporary result, for queries over disjoint
+    // indexes. Appended indices still refer to this index's source bounds.
+    VisibilityStats appendQuery(const glm::mat4& projectionView,
+                                std::vector<std::size_t>& visible) const;
 
 private:
     struct Node {

@@ -2,7 +2,6 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <limits>
-#include <numeric>
 #include <stdexcept>
 
 namespace viewer {
@@ -11,7 +10,6 @@ void Renderer::uploadTrees(const TreeLayer& trees) {
         throw std::runtime_error("Tree rendering requires basic.vert with uInstanced and matrix attributes 4-7");
     if (trees.instances.size() > static_cast<std::size_t>(std::numeric_limits<GLsizei>::max()))
         throw std::runtime_error("Too many tree instances for an OpenGL instanced draw");
-    treeVisibility_ = TreeVisibility(trees.instances);
     treeInstances_.reserve(trees.instances.size());
     visibleTrees_.reserve(trees.instances.size());
     shadowTrees_.reserve(trees.instances.size());
@@ -58,23 +56,18 @@ void Renderer::drawTrees(const glm::mat4& projectionView, bool shadowPass) {
     if (!shadowPass) {
         treeStats_.visible = 0;
         treeStats_.drawCalls = 0;
+        treeStats_.queriedForestPatches = 0;
     }
     if (treeInstances_.empty()) return;
     auto& selected = shadowPass ? shadowTrees_ : visibleTrees_;
     // Casters use the light volume independently of color visibility and the
     // --no-tree-culling flag. Always keep caster selection spatially bounded.
-    if (shadowPass || treeCulling_) treeVisibility_.query(projectionView, selected);
-    else {
-        selected.resize(treeInstances_.size());
-        std::iota(selected.begin(), selected.end(), std::size_t{0});
-    }
+    const auto visibility = treeVisibility_.query(projectionView, forestDetail_,
+                                                 shadowPass || treeCulling_, selected);
+    if (!shadowPass) treeStats_.queriedForestPatches = visibility.queriedPatches;
     for (auto& batch : treeBatches_) batch.visibleTransforms.clear();
     std::size_t drawn = 0;
     for (const auto index : selected) {
-        if (!treeForestPatches_.empty()) {
-            const auto patch = treeForestPatches_[index];
-            if (patch != std::numeric_limits<std::size_t>::max() && !forestDetail_[patch]) continue;
-        }
         ++drawn;
         const auto& instance = treeInstances_[index];
         treeBatches_[instance.asset].visibleTransforms.push_back(instance.transform);

@@ -803,6 +803,8 @@ src/forest_layer.{hpp,cpp}  Runtime forest config loading and layer assembly
 src/forest_geometry.{hpp,cpp} Polygon walls/canopies with concavities and holes
 src/forest_placement.{hpp,cpp} Repeatable per-patch tree candidates
 src/forest_renderer.cpp    Forest visibility and distance/scope detail choice
+src/forest_tree_visibility.{hpp,cpp} Patch-first individual-tree visibility
+src/forest_volume_batch.{hpp,cpp} Static volume geometry grouped by material
 src/file_fingerprint.{hpp,cpp} Shared SHA-256 provenance checks
 src/sun_lighting.{hpp,cpp} Lighting settings and stable local shadow coverage
 src/atmosphere.hpp         Distance haze, ground fog, and matching sky color

@@ -31,6 +31,16 @@ Detected trees whose centres lie inside a forest patch follow that patch's
 detail choice too; detector trees outside these polygons retain their usual
 rendering behaviour.
 
+Visibility indexes are built separately for trees outside forests and for each
+patch's generated and detected trees. Each pass rejects volume-only patches and
+patches outside its frustum before querying their individual-tree indexes.
+The shadow pass queries the light frustum independently of the camera view.
+Distant volume geometry is baked into static world-space buffers grouped by
+material. Visible patch ranges use one OpenGL multi-draw submission per material
+(two for the default wall/canopy materials), retaining patch culling and holes
+without uploading geometry every frame. Final frame diagnostics report these
+material batches; the driver may process multiple ranges within each submission.
+
 Tree positions are calculated once during loading from a jittered lattice,
 with stable integer hashing of the patch ID, configured seed, and lattice cell.
 The same patch/settings/map/assets/detector placements produce the same

@@ -76,6 +76,10 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         sceneStats_.total = sceneDraws_.size();
         if (trees) uploadTrees(*trees);
         if (forests) uploadForests(*forests);
+        if (trees || forests) {
+            const std::vector<TreeInstance> empty;
+            treeVisibility_ = ForestTreeVisibility(trees ? trees->instances : empty, forestPatches_);
+        }
         if (zombies) uploadZombies(*zombies);
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);

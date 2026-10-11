@@ -50,6 +50,9 @@ void checkSwitching() {
                 "LoD rendered the wrong geometry at the camera centre");
         require(renderer.treeStats().visible==(detailed?2u:0u), "Volume and generated/detected trees drawn together or trees missing");
         require(renderer.forestStats().volumes==(detailed?0u:1u), "Wrong forest volume count");
+        require(renderer.forestStats().drawCalls==(detailed?0u:2u), "Wrong material batch count");
+        require(renderer.treeStats().queriedForestPatches==(detailed?1u:0u),
+                "Volume patch queried individual trees");
         GLboolean depth=GL_FALSE; glGetBooleanv(GL_DEPTH_WRITEMASK,&depth);
         GLint front=0; glGetIntegerv(GL_FRONT_FACE,&front);
         require(depth==GL_TRUE && front==GL_CCW, "Forest draw leaked depth/winding state");
@@ -63,6 +66,67 @@ void checkSwitching() {
     camera.setPosition({0,5,-90}); render(true);
     renderer.setShadows(true); render(true); // Shadow pass does not alter color selection.
 }
+
+void checkMultipleVolumes() {
+    viewer::TreeLayer trees; trees.assets.push_back({"tree",{},treeAsset()});
+    viewer::ForestLayer forest; forest.detailDistance=20;
+    const viewer::ForestPolygon polygon{{{-5,100},{5,100},{5,120},{-5,120},{-5,100}}, {}};
+    const auto meshes=viewer::forestVolume(polygon,[](glm::dvec2){return std::optional<float>(0);},10,8);
+    forest.volumes.primitives={meshes.first,meshes.second};
+    forest.volumes.images={{1,1,{255,0,0,255}}, {1,1,{0,0,255,255}}};
+    forest.volumes.textures={{0},{1}};
+    viewer::Material walls; walls.unlit=true; walls.baseColorTexture=0;
+    viewer::Material top=walls; top.baseColorTexture=1;
+    forest.volumes.materials={walls,top};
+    for (std::size_t i=0;i<4;++i) {
+        const glm::vec3 offset=i==3 ? glm::vec3(0,0,220) : glm::vec3((static_cast<float>(i)-1)*24,0,0);
+        auto transform=glm::translate(glm::mat4(1),offset);
+        if (i==1) transform=glm::scale(transform,{-1,1,1});
+        forest.volumes.draws.push_back({0,transform,"walls"});
+        forest.volumes.draws.push_back({1,transform,"top"});
+        viewer::TreeInstance instance;
+        instance.transform=glm::translate(glm::mat4(1),offset+glm::vec3(0,0,-110));
+        instance.boundsMin=offset+glm::vec3(-5,0,-110.01f);
+        instance.boundsMax=offset+glm::vec3(5,10,-109.99f);
+        trees.instances.push_back(instance);
+        forest.patches.push_back({std::to_string(i),
+            {offset+glm::vec3(-5,0,-120),offset+glm::vec3(5,10,-100)},i,1,i*2,2,{}});
+    }
+    viewer::Renderer renderer({},VIEWER_SHADER_DIR,&trees,nullptr,&forest);
+    renderer.setShadows(false); renderer.setHaze(false); renderer.setGroundFog(false); renderer.resize(640,480);
+    viewer::Camera camera; camera.setPosition({0,5,0}); camera.look(0,200);
+    renderer.render(camera);
+    require(renderer.forestStats().volumes==3 && renderer.forestStats().drawCalls==2,
+            "Visible volumes were not submitted as two shared material batches");
+    for (float x : {-24.0f,0.0f,24.0f}) {
+        const auto clip=camera.projection(640.0f/480)*camera.view()*glm::vec4(x,5,-100,1);
+        const int pixelX=static_cast<int>((clip.x/clip.w*.5f+.5f)*640);
+        std::array<unsigned char,3> pixel{};
+        glReadPixels(pixelX,240,1,1,GL_RGB,GL_UNSIGNED_BYTE,pixel.data());
+        require(pixel[0]>250 && pixel[1]<2 && pixel[2]<2,
+                "Multi-draw omitted a patch, changed its texture, or lost reflected winding");
+    }
+    renderer.setTreeCulling(false); renderer.render(camera);
+    require(renderer.forestStats().volumes==4 && renderer.forestStats().drawCalls==2,
+            "Culling bypass did not retain batching");
+    renderer.setTreeCulling(true);
+    camera.setPosition({0,5,-90}); renderer.render(camera);
+    require(renderer.forestStats().volumes==2 && renderer.forestStats().drawCalls==2 &&
+            renderer.treeStats().visible==1 && center()[1]>250,
+            "Mixed detail rendered stale multi-draw ranges");
+    camera.cycleViewMode(); renderer.render(camera);
+    require(renderer.forestStats().volumes==0 && renderer.forestStats().drawCalls==0 && center()[1]>250,
+            "Scope left distant volume batches active");
+    camera.cycleViewMode(); camera.cycleViewMode();
+    camera.setPosition({0,40,-110}); camera.look(0,-890); renderer.render(camera);
+    const auto canopy=center();
+    require(canopy[2]>250 && canopy[0]<2 && canopy[1]<2,
+            "Batched top texture or reflected top winding changed");
+    renderer.setShadows(true); renderer.render(camera);
+    require(center()==canopy && renderer.forestStats().drawCalls==2,
+            "Shadow multi-draw corrupted color batches or their counters");
+    viewer::Renderer::checkErrors("batched forest volumes");
+}
 }
 int main() {
     if (!glfwInit()) return 77;
@@ -72,7 +136,7 @@ int main() {
     if (!window) {glfwTerminate(); return 77;}
     glfwMakeContextCurrent(window);
     int code=0;
-    try {checkSwitching(); std::cout<<"Forest GPU LoD regression passed\n";}
+    try {checkSwitching(); checkMultipleVolumes(); std::cout<<"Forest GPU LoD and batching regressions passed\n";}
     catch (const std::exception& e) {std::cerr<<e.what()<<'\n'; code=1;}
     glfwDestroyWindow(window); glfwTerminate(); return code;
 }

@@ -779,6 +779,7 @@ int run(const Options& options) {
     if (forests) {
         const auto& stats = renderer.forestStats();
         std::cout << "Last forest frame: " << stats.volumes << " visible volumes, "
+                  << stats.drawCalls << " material batches, "
                   << stats.detailedPatches << '/' << stats.patches << " patches using individual trees\n";
     }
     const auto& sceneStats = renderer.sceneStats();

@@ -95,6 +95,11 @@ void VisibilityIndex::visit(std::size_t index, const Frustum& frustum,
 VisibilityStats VisibilityIndex::query(const glm::mat4& projectionView,
                                         std::vector<std::size_t>& visible) const {
     visible.clear();
+    return appendQuery(projectionView, visible);
+}
+
+VisibilityStats VisibilityIndex::appendQuery(const glm::mat4& projectionView,
+                                            std::vector<std::size_t>& visible) const {
     VisibilityStats stats;
     if (!nodes_.empty()) visit(0, Frustum(projectionView), visible, stats);
     return stats;
