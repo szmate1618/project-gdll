@@ -100,7 +100,7 @@ target_include_directories(viewer_camera PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src
 target_link_libraries(viewer_camera PUBLIC glm::glm)
 viewer_warnings(viewer_camera)
 
-add_library(viewer_collision STATIC src/collision_world.cpp)
+add_library(viewer_collision STATIC src/collision_world.cpp src/door_collision.cpp)
 target_link_libraries(viewer_collision PUBLIC viewer_model)
 viewer_warnings(viewer_collision)
 
@@ -112,6 +112,7 @@ viewer_warnings(viewer_noise)
 add_library(viewer_physics STATIC src/physics_world.cpp src/door_geometry.cpp src/door_layer.cpp)
 target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d)
 viewer_warnings(viewer_physics)
+target_link_libraries(viewer_collision PUBLIC viewer_physics)
 
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp
     src/zombie_layer.cpp src/zombie_hit.cpp src/zombie_chase.cpp src/zombie_behavior.cpp
@@ -168,6 +169,10 @@ if(BUILD_TESTING)
     target_link_libraries(test_doors PRIVATE viewer_physics viewer_visibility viewer_zombies)
     viewer_warnings(test_doors)
     add_test(NAME viewer_doors COMMAND test_doors)
+    add_executable(test_door_walking tests/test_door_walking.cpp)
+    target_link_libraries(test_door_walking PRIVATE viewer_fps viewer_physics)
+    viewer_warnings(test_door_walking)
+    add_test(NAME viewer_door_walking COMMAND test_door_walking)
 
     foreach(suite animated_model zombie_placement zombie_chase zombie_behavior zombie_ragdoll zombie_transition)
         add_executable(test_${suite} tests/test_${suite}.cpp)
@@ -286,6 +291,8 @@ if(BUILD_TESTING)
     add_test(NAME viewer_fps_test_scene COMMAND test_fps_integration "${VIEWER_TEST_ASSET}")
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/output/godollo.glb")
         add_test(NAME viewer_fps_godollo COMMAND test_fps_integration
+            "${CMAKE_CURRENT_SOURCE_DIR}/output/godollo.glb")
+        add_test(NAME viewer_door_walking_godollo COMMAND test_door_walking
             "${CMAKE_CURRENT_SOURCE_DIR}/output/godollo.glb")
     endif()
 

@@ -6,6 +6,10 @@
 namespace viewer {
 class PhysicsWorld;
 struct DoorDrawPose { std::size_t draw; glm::mat4 transform; };
+struct DoorCollider {
+    glm::vec3 center, halfExtents;
+    glm::quat rotation;
+};
 
 // Owns door bodies and static hinge anchors in a shared simulation. Panels stay
 // closed until activated by proximity or force; activated bodies can sleep.
@@ -27,6 +31,9 @@ public:
     glm::mat4 transform(std::size_t door) const;
     // Read after PhysicsWorld::step(). Only active panels need renderer updates.
     std::vector<DoorDrawPose> poses() const;
+    // Conservative spatial query over hinge sweeps. Returns current Box3D body
+    // poses, or the identical closed box for panels not yet activated.
+    std::vector<DoorCollider> colliders(glm::vec3 minimum, glm::vec3 maximum) const;
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

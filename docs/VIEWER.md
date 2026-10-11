@@ -362,8 +362,9 @@ required. New maps render an alternative wall mesh with real door/window
 openings and flush brown doors and blue glass with 60% transparency. Within
 120 m by default, the original opaque walls are replaced by the detailed walls
 and panels together. Both scope views extend this range and retain frustum
-culling. Walking collision and building shadows still use the original solid
-shell: an open door does not yet allow the walking capsule through the wall.
+culling. Walking collision cuts the doorways out of the original wall triangles
+and queries the door panels at their current Box3D poses. Windows remain solid.
+Building shadows continue to use the original closed shell.
 There are no modeled rooms. See [building generation](../README.md) for
 configuration and regeneration.
 
@@ -394,9 +395,28 @@ Vectors use world coordinates, meters, newtons and newton-seconds. Reapply a
 sustained force each physics step. Physics objects created in `PhysicsWorld::id()`
 can push doors through ordinary contacts, with no door-specific hit handler.
 
+`CollisionWorld(model, trunks, &doors)` borrows the door layer, which must outlive
+the collision world. At construction it clips just the door rectangles from
+matching v2 low-detail walls; the generated map stays unchanged. This avoids
+importing the much larger window-cut facade meshes. Jambs and lintels remain
+physical surfaces. The existing terrain continues underneath the empty building
+shell and supplies indoor ground support; spawning still avoids interiors.
+Legacy overlay maps keep their visible solid walls and need regeneration to
+obtain actual doorways.
+
+Walking clearance uses Box3D's capsule-versus-box contact manifold and the
+panel's live body position, rotation and thickness. A partly open panel blocks
+only the space it occupies; a gap is usable when the capsule actually fits.
+There is no open/closed flag or opening-angle threshold. Collision queries are
+read-only and do not push or activate doors. Inactive panels use the same closed
+box until physics activation. Spatial queries use conservative hinge-sweep
+bounds, independently of camera visibility or scope LoD. Sight queries and the
+collision overlay follow moving door geometry too.
+
 Advance `PhysicsWorld::step(dt)` once per app frame, then call
-`ZombieLayer::synchronizePhysics()` and `Renderer::updateDoors(doors)` before
-drawing. `ZombieLayer::attachPhysics(world)` must run before the first ragdoll;
+`ZombieLayer::synchronizePhysics()` before updating walking, and
+`Renderer::updateDoors(doors)` before drawing. Walking and rendering thus use
+the same physics poses. `ZombieLayer::attachPhysics(world)` must run before the first ragdoll;
 its standalone `update(dt)` continues to advance its own simulation for tests
 and independent callers. Ragdoll and door owners destroy their bodies before
 releasing the shared world. The rigid-body world currently contains doors and
@@ -765,6 +785,7 @@ src/zombie_park.{hpp,cpp}  Palace garden outline in the published map's frame
 src/physics_world.{hpp,cpp} Shared Box3D world and fixed simulation stepping
 src/door_geometry.{hpp,cpp} Runtime extraction of independent door panels
 src/door_layer.{hpp,cpp} Local hinge activation, force API and door poses
+src/door_collision.{hpp,cpp} Doorway clipping and live Box3D capsule contacts
 src/zombie_ragdoll.{hpp,cpp} Box3D ragdoll simulation and simplified ground planes
 src/zombie_ragdoll_pose.{hpp,cpp} Animated-pose handoff and physics-to-skin mapping
 src/zombie_renderer.cpp    Shared animation buffers, skinning data, and GPU instancing

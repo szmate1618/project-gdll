@@ -3,7 +3,9 @@
 
 #include <box3d/box3d.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <map>
 #include <stdexcept>
 
@@ -31,6 +33,8 @@ struct DoorLayer::Impl {
     std::vector<Entry> entries;
     std::vector<std::size_t> active;
     std::map<std::pair<int, int>, std::vector<std::size_t>> cells;
+    float maximumReach = 0;
+    glm::vec3 minimum{std::numeric_limits<float>::max()}, maximum{-minimum};
 
     ~Impl() {
         for (const auto index : active) {
@@ -99,6 +103,10 @@ DoorLayer::DoorLayer(std::vector<DoorPanel> panels, std::shared_ptr<PhysicsWorld
         const auto key = std::make_pair(cell(p.hinge.x), cell(p.hinge.z));
         impl_->cells[key].push_back(impl_->entries.size());
         impl_->entries.push_back({p, {}, {}, {}, glm::mat4(1)});
+        impl_->maximumReach = std::max(impl_->maximumReach, 2 * h.x + h.z + .02f);
+        const glm::vec3 swept(2 * h.x + h.z + .02f, h.y + .02f, 2 * h.x + h.z + .02f);
+        impl_->minimum = glm::min(impl_->minimum, p.hinge - swept);
+        impl_->maximum = glm::max(impl_->maximum, p.hinge + swept);
     }
 }
 DoorLayer::~DoorLayer() = default;
@@ -145,6 +153,40 @@ std::vector<DoorDrawPose> DoorLayer::poses() const {
     std::vector<DoorDrawPose> result;
     result.reserve(impl_->active.size());
     for (const auto i : impl_->active) result.push_back({impl_->entries[i].panel.draw, transform(i)});
+    return result;
+}
+std::vector<DoorCollider> DoorLayer::colliders(glm::vec3 minimum, glm::vec3 maximum) const {
+    std::vector<DoorCollider> result;
+    if (impl_->entries.empty() || !finite(minimum) || !finite(maximum) || glm::any(glm::greaterThan(minimum, maximum))) return result;
+    minimum = glm::max(minimum, impl_->minimum);
+    maximum = glm::min(maximum, impl_->maximum);
+    if (glm::any(glm::greaterThan(minimum, maximum))) return result;
+    const float reach = impl_->maximumReach;
+    const int left = cell(minimum.x - reach), right = cell(maximum.x + reach);
+    const int first = cell(minimum.z - reach), last = cell(maximum.z + reach);
+    // For long sight queries, traverse occupied cells in the X interval rather
+    // than visiting every empty cell in a potentially huge query rectangle.
+    for (auto found = impl_->cells.lower_bound({left, std::numeric_limits<int>::min()});
+         found != impl_->cells.end() && found->first.first <= right; ++found) {
+        if (found->first.second < first || found->first.second > last) continue;
+        for (const auto index : found->second) {
+            const auto& e = impl_->entries[index];
+            const auto& p = e.panel;
+            const float swept = 2 * p.halfExtents.x + p.halfExtents.z + .02f;
+            if (p.hinge.x + swept < minimum.x || p.hinge.x - swept > maximum.x ||
+                p.hinge.z + swept < minimum.z || p.hinge.z - swept > maximum.z ||
+                p.center.y + p.halfExtents.y + .02f < minimum.y ||
+                p.center.y - p.halfExtents.y - .02f > maximum.y) continue;
+            DoorCollider collider{p.center, p.halfExtents, p.rotation};
+            if (b3Body_IsValid(e.body)) {
+                const auto bodyPosition = b3Body_GetPosition(e.body);
+                const auto bodyRotation = b3Body_GetRotation(e.body);
+                collider.center = {bodyPosition.x, bodyPosition.y, bodyPosition.z};
+                collider.rotation = {bodyRotation.s, bodyRotation.v.x, bodyRotation.v.y, bodyRotation.v.z};
+            }
+            result.push_back(collider);
+        }
+    }
     return result;
 }
 } // namespace viewer

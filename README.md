@@ -273,8 +273,10 @@ maps and original maps. Other glTF viewers need to choose one wall alternative.
 
 The desktop viewer selects higher detail within `buildings.detail_distance_m`
 (default 120 m). Both scope views extend this distance according to magnification
-and retain frustum culling. Walking collision and shadows retain the original solid
-shell, so walking through an open door is not yet supported. Regenerate with
+and retain frustum culling. Walking collision has door openings and tests the
+capsule against each panel's current physics geometry: you can pass when the
+panel leaves sufficient clearance. Windows still block walking, and building
+shadows retain the original closed shell. Regenerate with
 `.venv/bin/python -m src.generate --offline` to add them to an existing map;
 previous maps continue to load with their original appearance. Regenerating a
 map changes its fingerprint, so rebuild any tree placements as described in

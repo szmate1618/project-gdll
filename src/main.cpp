@@ -507,7 +507,7 @@ int run(const Options& options) {
     }
     // Only the town geometry and simple trunks participate in collision.
     // Shared impostor cards stay exclusively in the rendering layer.
-    const viewer::CollisionWorld collision(model, trunks);
+    const viewer::CollisionWorld collision(model, trunks, &doors);
     const auto& collisionStats = collision.stats();
     std::cout << "Collision world: " << collisionStats.triangles << " triangles, "
               << collisionStats.buildings << " buildings, " << collisionStats.bvhNodes << " BVH nodes, "
@@ -628,6 +628,12 @@ int run(const Options& options) {
             continue;
         }
         simulationClock.advance(dt);
+        doors.activateNear(app.rig.camera().position());
+        if (zombies)
+            for (const auto& instance : zombies->instances)
+                if (instance.ragdoll) doors.activateNear(glm::vec3(instance.transform[3]));
+        physics->step(dt);
+        if (zombies) zombies->synchronizePhysics();
         moveCamera(app, dt);
         anchorGroundFog();
         app.displayedAnimationSeconds = options.animationTime.value_or(simulationClock.seconds());
@@ -640,12 +646,7 @@ int run(const Options& options) {
             if (app.rig.walking())
                 for (const auto& noise : app.rig.player().noises())
                     zombies->makeNoise(noise.position, noise.decibels);
-            for (const auto& instance : zombies->instances)
-                if (instance.ragdoll) doors.activateNear(glm::vec3(instance.transform[3]));
         }
-        doors.activateNear(app.rig.camera().position());
-        physics->step(dt);
-        if (zombies) zombies->synchronizePhysics();
         renderer.updateDoors(doors);
         renderer.resize(app.width, app.height);
         if (zombies) renderer.updateZombies(*zombies);

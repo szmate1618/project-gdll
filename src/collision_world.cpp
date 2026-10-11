@@ -1,4 +1,5 @@
 #include "collision_world.hpp"
+#include "door_collision.hpp"
 
 #include <algorithm>
 #include <array>
@@ -231,6 +232,29 @@ struct CollisionWorld::Impl {
     Bounds bounds;
     CollisionStats stats;
     bool hasTerrain = false;
+    const DoorLayer* doors = nullptr;
+
+    void addTriangle(const CollisionFace& face, float winding, int group, bool terrain, bool roof) {
+        Triangle triangle;
+        triangle.a = face[0]; triangle.b = face[1]; triangle.c = face[2];
+        const auto cross = glm::cross(glm::dvec3(triangle.b) - glm::dvec3(triangle.a),
+                                       glm::dvec3(triangle.c) - glm::dvec3(triangle.a));
+        const double length = glm::length(cross);
+        if (!finite(triangle.a) || !finite(triangle.b) || !finite(triangle.c) || !std::isfinite(length) || length < 1e-10) {
+            ++stats.skippedDegenerateTriangles;
+            return;
+        }
+        triangle.normal = glm::vec3(cross / length) * winding;
+        triangle.bounds.include(triangle.a); triangle.bounds.include(triangle.b); triangle.bounds.include(triangle.c);
+        triangle.group = group;
+        triangle.terrain = terrain;
+        triangle.roof = roof;
+        bounds.include(triangle.bounds);
+        if (group >= 0) groups[static_cast<std::size_t>(group)].bounds.include(triangle.bounds);
+        triangles.push_back(triangle);
+        stats.terrainTriangles += terrain;
+        stats.buildingTriangles += group >= 0 && groups[static_cast<std::size_t>(group)].namedBuilding;
+    }
 
     // Traverse only nodes crossed by the segment, stopping on the first
     // blocker. Both static geometry and trunks retain their spatial indexes.
@@ -357,11 +381,14 @@ struct CollisionWorld::Impl {
     }
 };
 
-CollisionWorld::CollisionWorld(const Model& model, const std::vector<TrunkCollider>& trunks)
+CollisionWorld::CollisionWorld(const Model& model, const std::vector<TrunkCollider>& trunks, const DoorLayer* doors)
     : impl_(std::make_unique<Impl>()) {
     auto& data = *impl_;
+    data.doors = doors;
+    const auto openings = doors ? collisionDoorOpenings(model, *doors) : std::vector<std::vector<DoorOpening>>(model.draws.size());
     std::unordered_map<std::string, int> buildingGroups;
-    for (const auto& draw : model.draws) {
+    for (std::size_t drawIndex = 0; drawIndex < model.draws.size(); ++drawIndex) {
+        const auto& draw = model.draws[drawIndex];
         if (draw.detailDistance > 0.0f && !draw.lowDetail) continue;
         if (draw.primitive >= model.primitives.size()) continue;
         const auto& primitive = model.primitives[draw.primitive];
@@ -385,27 +412,12 @@ CollisionWorld::CollisionWorld(const Model& model, const std::vector<TrunkCollid
         for (std::size_t i = 0; i + 2 < primitive.indices.size(); i += 3) {
             const auto ia = primitive.indices[i], ib = primitive.indices[i + 1], ic = primitive.indices[i + 2];
             if (ia >= primitive.vertices.size() || ib >= primitive.vertices.size() || ic >= primitive.vertices.size()) continue;
-            Triangle triangle;
-            triangle.a = glm::vec3(draw.transform * glm::vec4(primitive.vertices[ia].position, 1));
-            triangle.b = glm::vec3(draw.transform * glm::vec4(primitive.vertices[ib].position, 1));
-            triangle.c = glm::vec3(draw.transform * glm::vec4(primitive.vertices[ic].position, 1));
-            const auto cross = glm::cross(glm::dvec3(triangle.b) - glm::dvec3(triangle.a),
-                                           glm::dvec3(triangle.c) - glm::dvec3(triangle.a));
-            const double length = glm::length(cross);
-            if (!finite(triangle.a) || !finite(triangle.b) || !finite(triangle.c) || !std::isfinite(length) || length < 1e-10) {
-                ++data.stats.skippedDegenerateTriangles;
-                continue;
-            }
-            triangle.normal = glm::vec3(cross / length) * winding;
-            triangle.bounds.include(triangle.a); triangle.bounds.include(triangle.b); triangle.bounds.include(triangle.c);
-            triangle.group = group;
-            triangle.terrain = terrain;
-            triangle.roof = roof;
-            data.bounds.include(triangle.bounds);
-            if (group >= 0) data.groups[static_cast<std::size_t>(group)].bounds.include(triangle.bounds);
-            data.triangles.push_back(triangle);
-            data.stats.terrainTriangles += terrain;
-            data.stats.buildingTriangles += !namedBuilding.empty();
+            const CollisionFace original{{glm::vec3(draw.transform * glm::vec4(primitive.vertices[ia].position, 1)),
+                                          glm::vec3(draw.transform * glm::vec4(primitive.vertices[ib].position, 1)),
+                                          glm::vec3(draw.transform * glm::vec4(primitive.vertices[ic].position, 1))}};
+            if (openings[drawIndex].empty()) data.addTriangle(original, winding, group, terrain, roof);
+            else for (const auto& face : cutCollisionDoorways(original, openings[drawIndex]))
+                data.addTriangle(face, winding, group, terrain, roof);
         }
     }
     data.stats.triangles = data.triangles.size();
@@ -451,6 +463,7 @@ bool CollisionWorld::lineOfSight(glm::vec3 origin, glm::vec3 target) const {
     const auto inset = delta * (0.001f / length);
     origin += inset;
     target -= inset;
+    if (impl_->doors && doorsBlockSight(*impl_->doors, origin, target)) return false;
     if (impl_->segmentBlocked(impl_->nodes, impl_->order, origin, target, [&](std::uint32_t i) {
         const auto& t = impl_->triangles[i];
         if (!segmentBounds(origin, target, t.bounds)) return false;
@@ -509,6 +522,7 @@ std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, floa
         const glm::vec3 point = glm::vec3(trunk.base.x, trunkY, trunk.base.z) + normal * trunk.radius;
         result.push_back({normal, point, combinedRadius - distance});
     });
+    if (impl_->doors) appendDoorContacts(*impl_->doors, feet, radius, height, skin, result);
     std::sort(result.begin(), result.end(), [](const Contact& a, const Contact& b) { return a.depth > b.depth; });
     return result;
 }
@@ -618,6 +632,10 @@ std::vector<glm::vec3> CollisionWorld::debugLines(glm::vec3 near, float distance
     impl_->queryTrunks(region, [&](const TrunkCollider& trunk) {
         if (result.size() < trunkLimit) appendTrunk(result, trunk);
     });
+    if (impl_->doors) {
+        const auto doors = doorCollisionDebugLines(*impl_->doors, region.low, region.high);
+        result.insert(result.end(), doors.begin(), doors.end());
+    }
     return result;
 }
 

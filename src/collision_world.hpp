@@ -8,6 +8,7 @@
 #include <vector>
 
 namespace viewer {
+class DoorLayer;
 
 struct Contact {
     glm::vec3 normal{0.0f, 1.0f, 0.0f};
@@ -40,11 +41,13 @@ struct CollisionStats {
     std::size_t trunkBvhNodes = 0;
 };
 
-// Static collision data uses the same transformed, Y-up meter coordinates as
-// rendering. All query shapes are capsules whose position denotes their feet.
+// Static scene BVHs and live door contacts use rendering's transformed, Y-up
+// meters. All query capsules denote feet. A supplied door layer must outlive
+// this world; queries read its current physics pose without changing it.
 class CollisionWorld {
 public:
-    explicit CollisionWorld(const Model& model, const std::vector<TrunkCollider>& trunks = {});
+    explicit CollisionWorld(const Model& model, const std::vector<TrunkCollider>& trunks = {},
+                            const DoorLayer* doors = nullptr);
     ~CollisionWorld();
     CollisionWorld(CollisionWorld&&) noexcept;
     CollisionWorld& operator=(CollisionWorld&&) noexcept;
