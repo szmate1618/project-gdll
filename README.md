@@ -155,7 +155,7 @@ Other settings include:
 | `railways.sample_spacing_m` | 8 | Railway surface subdivision size |
 | `railways.offset_m` | 0.3 | Track-bed clearance above terrain |
 | `fences.default_height_m` | 1.5 | Fence height when OSM has no usable `height` |
-| `fences.post_spacing_m` | 2.5 | Textured post interval and maximum panel spacing |
+| `fences.post_spacing_m` | 2.5 | Textured post interval; independent of panel geometry |
 | `fences.default_gate_width_m` | 3 | Clear gap at mapped gates/entrances without a `width` |
 
 The prototype limits regions to 10km per side and terrain grids to two million
@@ -309,8 +309,10 @@ feet/inches units, falling back to `fences.default_height_m`. `fence_type` and
 unknown types use chain-link. Wire/railing panels have embedded, double-sided
 alpha masks, while wood and masonry panels are solid. Posts are painted into
 the panel textures with no separate post geometry. Panels share meshes by
-material, retain mapped corners and split at terrain triangle
-edges to follow slopes and ridges without gaps.
+material and split at bends and terrain slope changes to follow the ground
+without gaps. Straight stretches over a constant slope use one quad (two
+triangles), merging redundant mapped vertices and terrain edges. Post spacing
+controls the texture repeats without adding panel subdivisions.
 
 Mapped gate, entrance, lift/swing gate, kissing gate and stile nodes belonging
 to a fence way create physical gaps before the fence is clipped to the map.

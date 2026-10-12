@@ -13,6 +13,8 @@ struct ForestPatch {
     std::vector<std::size_t> detectedTrees; // Existing trees within this footprint.
 };
 struct ForestLayer {
+    // Volume material order: side walls, then the horizontal canopy.
+    static constexpr std::size_t canopyMaterialIndex = 1;
     Model volumes;
     std::vector<ForestPatch> patches;
     float detailDistance = 350;

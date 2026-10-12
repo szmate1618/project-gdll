@@ -1,11 +1,16 @@
 #include "renderer.hpp"
+#include "tree_color.hpp"
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <limits>
 #include <stdexcept>
 
 namespace viewer {
-void Renderer::uploadTrees(const TreeLayer& trees) {
+void Renderer::uploadTrees(const TreeLayer& trees, const ForestLayer* forests) {
+    std::optional<glm::vec3> canopyColor;
+    if (forests && forests->volumes.materials.size() > ForestLayer::canopyMaterialIndex)
+        canopyColor = visibleTextureColor(forests->volumes,
+            forests->volumes.materials[ForestLayer::canopyMaterialIndex]);
     if (!trees.instances.empty() && instancedLocation_ < 0)
         throw std::runtime_error("Tree rendering requires basic.vert with uInstanced and matrix attributes 4-7");
     if (trees.instances.size() > static_cast<std::size_t>(std::numeric_limits<GLsizei>::max()))
@@ -26,6 +31,7 @@ void Renderer::uploadTrees(const TreeLayer& trees) {
         const auto& source = trees.assets[index].model;
         auto& batch = treeBatches_[index];
         uploadModel(source, batch.model);
+        if (canopyColor) batch.model.materials = matchTreeTextureColors(source, *canopyColor);
         batch.visibleTransforms.reserve(counts[index]);
         glGenBuffers(1, &batch.instanceBuffer);
         glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);

@@ -23,7 +23,7 @@ std::array<unsigned char,3> center() {
     std::array<unsigned char,3> pixels{}; glReadBuffer(GL_COLOR_ATTACHMENT0);
     glReadPixels(320,240,1,1,GL_RGB,GL_UNSIGNED_BYTE,pixels.data()); return pixels;
 }
-void checkSwitching() {
+void checkSwitching(bool textured = false) {
     viewer::TreeLayer trees; trees.assets.push_back({"tree",{},treeAsset()});
     viewer::TreeInstance instance; instance.transform=glm::translate(glm::mat4(1),{0,0,-110});
     instance.boundsMin={-5,0,-110.01f}; instance.boundsMax={5,10,-109.99f}; trees.instances.push_back(instance);
@@ -40,14 +40,36 @@ void checkSwitching() {
     forest.volumes.materials={red,red};
     forest.volumes.draws={{0,glm::mat4(1),"walls"},{1,glm::mat4(1),"top"}};
     forest.patches.push_back({"A",{{-10,0,-120},{10,10,-100}},0,1,0,2,{1}});
+    const std::array<unsigned char,3> matchedColor{40,60,28};
+    if (textured) {
+        auto& asset = trees.assets[0].model;
+        asset.images = {{1,1,{180,220,110,255}}};
+        asset.textures = {{0}};
+        asset.materials[0].baseColor = {1,1,1,1};
+        asset.materials[0].baseColorTexture = 0;
+        forest.volumes.images = {{1,1,{40,60,28,255}}};
+        forest.volumes.textures = {{0}};
+        for (auto& material : forest.volumes.materials) {
+            material.baseColor = {1,1,1,1};
+            material.baseColorTexture = 0;
+        }
+    }
     viewer::Renderer renderer({},VIEWER_SHADER_DIR,&trees,nullptr,&forest);
+    require(!textured || trees.assets[0].model.materials[0].baseColor == glm::vec4(1),
+            "Renderer tint mutated the source tree asset");
     renderer.setShadows(false); renderer.setHaze(false); renderer.setGroundFog(false); renderer.resize(640,480);
     viewer::Camera camera; camera.setPosition({0,5,0}); camera.look(0,200);
     const auto render=[&](bool detailed) {
         renderer.render(camera);
         const auto pixel=center();
-        require(detailed ? pixel[1]>250 && pixel[0]<2 : pixel[0]>250 && pixel[1]<2,
-                "LoD rendered the wrong geometry at the camera centre");
+        if (textured) {
+            for (std::size_t channel=0;channel<3;++channel)
+                require(std::abs(static_cast<int>(pixel[channel])-matchedColor[channel])<=1,
+                        "Textured billboards and canopy did not match across LoD/scope switches");
+        } else {
+            require(detailed ? pixel[1]>250 && pixel[0]<2 : pixel[0]>250 && pixel[1]<2,
+                    "LoD rendered the wrong geometry at the camera centre");
+        }
         require(renderer.treeStats().visible==(detailed?2u:0u), "Volume and generated/detected trees drawn together or trees missing");
         require(renderer.forestStats().volumes==(detailed?0u:1u), "Wrong forest volume count");
         require(renderer.forestStats().drawCalls==(detailed?0u:2u), "Wrong material batch count");
@@ -136,7 +158,7 @@ int main() {
     if (!window) {glfwTerminate(); return 77;}
     glfwMakeContextCurrent(window);
     int code=0;
-    try {checkSwitching(); checkMultipleVolumes(); std::cout<<"Forest GPU LoD and batching regressions passed\n";}
+    try {checkSwitching(); checkSwitching(true); checkMultipleVolumes(); std::cout<<"Forest GPU LoD, color matching and batching regressions passed\n";}
     catch (const std::exception& e) {std::cerr<<e.what()<<'\n'; code=1;}
     glfwDestroyWindow(window); glfwTerminate(); return code;
 }

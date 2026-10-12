@@ -90,7 +90,7 @@ add_library(viewer_visibility STATIC src/visibility.cpp src/model_visibility.cpp
 target_link_libraries(viewer_visibility PUBLIC viewer_model)
 viewer_warnings(viewer_visibility)
 
-add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp src/file_fingerprint.cpp)
+add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp src/tree_color.cpp src/file_fingerprint.cpp)
 target_link_libraries(viewer_trees PUBLIC viewer_model viewer_visibility PRIVATE OpenSSL::Crypto)
 target_include_directories(viewer_trees SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_trees)
@@ -177,6 +177,11 @@ add_dependencies(godollo_viewer viewer_test_asset)
 viewer_warnings(godollo_viewer)
 
 if(BUILD_TESTING)
+    add_executable(test_tree_color tests/test_tree_color.cpp)
+    target_link_libraries(test_tree_color PRIVATE viewer_trees)
+    viewer_warnings(test_tree_color)
+    add_test(NAME viewer_tree_color COMMAND test_tree_color)
+
     add_executable(test_door_interaction tests/test_door_interaction.cpp)
     target_link_libraries(test_door_interaction PRIVATE viewer_interaction)
     viewer_warnings(test_door_interaction)

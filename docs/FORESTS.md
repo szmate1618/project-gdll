@@ -49,6 +49,15 @@ are preserved. Two shared [generated forest textures](../assets/forests/README.m
 repeat in metric UV coordinates with mipmaps. These volumes are rendering
 geometry; they never become walls or ground in the collision world.
 
+When forests are enabled, each shared tree billboard material is tinted once
+during renderer loading to match the canopy-top texture's mean linear RGB.
+The calculation excludes texels discarded by the tree's alpha mask and includes
+existing material color factors. It applies to detected and generated trees,
+including trees outside patches, and keeps the original texture variation and
+alpha silhouettes. GLBs, placement fingerprints and source images are unchanged;
+`--no-forests` retains the original tree colors. Matching the average reduces
+the color jump at LoD switches; the geometry and silhouettes still switch.
+
 Normal view uses individual trees when the eye is within `detail_distance_m`
 of a patch's conservative bounds (350 m by default), and boxes beyond that.
 Both right-click scope modes force individual trees for visible patches at any

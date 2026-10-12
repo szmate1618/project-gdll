@@ -74,7 +74,7 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         opaqueScene_.reserve(sceneDraws_.size());
         transparentScene_.reserve(sceneDraws_.size());
         sceneStats_.total = sceneDraws_.size();
-        if (trees) uploadTrees(*trees);
+        if (trees) uploadTrees(*trees, forests);
         if (forests) uploadForests(*forests);
         if (trees || forests) {
             const std::vector<TreeInstance> empty;

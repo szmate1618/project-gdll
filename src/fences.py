@@ -75,32 +75,58 @@ def _material(style: str, spacing: float) -> PBRMaterial:
     )
 
 
-def _sample_line(line, elevation, spacing):
-    """Retain OSM corners and split panels at rendered terrain triangle edges."""
+def _terrain_fractions(a, b, axes):
+    """Locate grid and diagonal crossings, including float32 exported axes."""
+    # Work in east/south so both terrain axes are increasing.
+    start, end = a * [1, -1], b * [1, -1]
+    fractions = [0., 1.]
+    for coordinate, axis in enumerate(axes):
+        delta = end[coordinate] - start[coordinate]
+        if abs(delta) < 1e-12:
+            continue
+        lo, hi = sorted((start[coordinate], end[coordinate]))
+        first, last = np.searchsorted(axis, lo, side="right"), np.searchsorted(axis, hi)
+        fractions.extend((axis[first:last] - start[coordinate]) / delta)
+    edges = np.unique(fractions)
+    for left, right in zip(edges[:-1], edges[1:]):
+        midpoint = start + (end - start) * ((left + right) / 2)
+        cell = [int(np.clip(np.searchsorted(axis, value, side="right") - 1,
+                            0, len(axis) - 2)) for axis, value in zip(axes, midpoint)]
+        origin = np.array([axis[index] for axis, index in zip(axes, cell)])
+        size = np.array([axis[index + 1] - axis[index] for axis, index in zip(axes, cell)])
+        # Within this cell, v-u is linear and zero on its NW-to-SE diagonal.
+        points = start + np.array([left, right])[:, None] * (end - start)
+        points = np.clip(points, [axis[0] for axis in axes], [axis[-1] for axis in axes])
+        local = (points - origin) / size
+        diagonal = local[:, 1] - local[:, 0]
+        delta = diagonal[1] - diagonal[0]
+        if abs(delta) > 1e-12:
+            fraction = left - diagonal[0] * (right - left) / delta
+            if left < fraction < right:
+                fractions.append(fraction)
+    return sorted(fractions)
+
+
+def _sample_line(line, elevation):
+    """Sample mapped vertices and every rendered terrain slope boundary."""
     coords = np.asarray(line.coords, dtype=float)
+    axes = None
+    if isinstance(elevation, Terrain):
+        x_axis = (elevation.x_axis if hasattr(elevation, "x_axis") else
+                  np.linspace(elevation.bounds[0], elevation.bounds[2], elevation.cols))
+        y_axis = (elevation.y_axis if hasattr(elevation, "y_axis") else
+                  np.linspace(elevation.bounds[3], elevation.bounds[1], elevation.rows))
+        axes = (x_axis, -y_axis)
     xy, distances = [coords[0]], [0.0]
     distance = 0.0
     for a, b in zip(coords[:-1], coords[1:]):
         length = float(np.linalg.norm(b - a))
         if length < 1e-7:
             continue
-        fractions = list(np.linspace(0, 1, math.ceil(length / spacing) + 1))
-        if isinstance(elevation, Terrain):
-            # Terrain faces share integer grid edges and NW-to-SE diagonals,
-            # which lie on integer values of (row - column).
-            grid_a = np.array([(a[0] - elevation.bounds[0]) / elevation.dx,
-                               (elevation.bounds[3] - a[1]) / elevation.dy])
-            grid_b = np.array([(b[0] - elevation.bounds[0]) / elevation.dx,
-                               (elevation.bounds[3] - b[1]) / elevation.dy])
-            for start, end in zip([*grid_a, grid_a[1] - grid_a[0]],
-                                  [*grid_b, grid_b[1] - grid_b[0]]):
-                if abs(end - start) < 1e-12:
-                    continue
-                for edge in range(math.floor(min(start, end)) + 1, math.ceil(max(start, end))):
-                    fractions.append((edge - start) / (end - start))
+        fractions = _terrain_fractions(a, b, axes) if axes is not None else [0., 1.]
         previous = 0.0
         for fraction in sorted(fractions):
-            if (fraction - previous) * length < 1e-5:
+            if fraction <= previous or ((fraction - previous) * length < 1e-9 and fraction < 1):
                 continue
             xy.append(a + fraction * (b - a))
             distances.append(distance + fraction * length)
@@ -109,21 +135,41 @@ def _sample_line(line, elevation, spacing):
     return np.asarray(xy), np.asarray(distances)
 
 
+def _profile_corners(points):
+    """Merge straight 3D runs; retain bends, reversals and changes of slope."""
+    steps = np.diff(points, axis=0)
+    directions = steps / np.linalg.norm(steps, axis=1)[:, None]
+    keep = [0]
+    direction = directions[0]
+    for index in range(1, len(directions)):
+        # Compare to the start of the run so small changes cannot accumulate.
+        # This angular tolerance only absorbs numerical interpolation noise
+        # (at most 1 micrometre of drift over a 10 km straight run).
+        if np.linalg.norm(directions[index] - direction) > 1e-10:
+            keep.append(index)
+            direction = directions[index]
+    keep.append(len(points) - 1)
+    return keep
+
+
 def _panels(line, elevation, spacing, height, style, material):
-    xy, distances = _sample_line(line, elevation, spacing)
+    xy, distances = _sample_line(line, elevation)
     ground = np.broadcast_to(elevation(*xy.T), (len(xy),))
     if not np.isfinite(ground).all():
         raise ValueError("Terrain returned non-finite fence elevations")
-    vertices = np.repeat(np.column_stack((xy, ground)), 2, axis=0)
+    profile = np.column_stack((xy, ground))
+    keep = _profile_corners(profile)
+    profile, distances = profile[keep], distances[keep]
+    vertices = np.repeat(profile, 2, axis=0)
     vertices[1::2, 2] += height
     # A small buried skirt prevents float32 seams exposing a gap at ground.
     vertices[::2, 2] -= .05
-    lower = np.arange(len(xy) - 1) * 2
+    lower = np.arange(len(profile) - 1) * 2
     faces = np.vstack((np.column_stack((lower, lower + 2, lower + 3)),
                        np.column_stack((lower, lower + 3, lower + 1))))
     uv = np.column_stack((np.repeat(distances / spacing, 2),
                           np.tile([-.05 / .25, height / .25] if style == "chain_link"
-                                  else [-.05 / height, 1], len(xy))))
+                                  else [-.05 / height, 1], len(profile))))
     return trimesh.Trimesh(vertices=vertices, faces=faces, process=False,
                            visual=TextureVisuals(uv=uv, material=material))
 

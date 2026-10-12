@@ -127,7 +127,7 @@ private:
     void release() noexcept;
     static void releaseModel(ModelGPU& model) noexcept;
     void uploadModel(const Model& source, ModelGPU& destination);
-    void uploadTrees(const TreeLayer& trees);
+    void uploadTrees(const TreeLayer& trees, const ForestLayer* forests);
     void drawTrees(const glm::mat4& projectionView, bool shadowPass = false);
     void uploadForests(const ForestLayer& forests);
     void prepareForestView(const Camera& camera);

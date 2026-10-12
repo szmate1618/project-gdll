@@ -8,6 +8,7 @@ import trimesh
 
 from src.fences import add_fences, fence_style
 from src.terrain import Terrain
+from src.tree_map import _RenderedTerrain
 
 
 def feature(coords, tags=None, openings=()):
@@ -53,10 +54,10 @@ class FenceTests(unittest.TestCase):
                 stats = add_fences(scene, [feature([(0, 0), (10, 0)], tags)],
                                    lambda x, y: 0, {"fences": {"post_spacing_m": 2}})
                 self.assertEqual(list(scene.geometry), [f"fences_{style}"])
-                self.assertEqual(stats["fence_triangles"], 10)
+                self.assertEqual(stats["fence_triangles"], 2)
                 mesh = scene.geometry[f"fences_{style}"]
                 np.testing.assert_array_equal(mesh.vertices[:, 1], 0)
-                np.testing.assert_allclose(mesh.visual.uv[::2, 0], [0, 1, 2, 3, 4, 5])
+                np.testing.assert_allclose(mesh.visual.uv[::2, 0], [0, 5])
                 texture = np.array(mesh.visual.material.baseColorTexture)
                 # The post spans the entire texture height and wraps at U=0.
                 self.assertTrue(np.all(texture[:, [0, -1], 3] == 255))
@@ -66,6 +67,60 @@ class FenceTests(unittest.TestCase):
                     self.assertTrue(np.any(texture[:, texture.shape[1] // 8, 3] == 0))
                 else:
                     self.assertTrue(np.all(texture[:, :, 3] == 255))
+
+    def test_flat_or_constant_slope_run_is_one_quad_across_grid_and_osm_nodes(self):
+        x, y = np.meshgrid([0., 500., 1000.], [20., 10., 0.])
+        for slope in (0., .2):
+            with self.subTest(slope=slope):
+                terrain = Terrain(x * slope + y * .3, (0, 0, 1000, 20))
+                scene = trimesh.Scene()
+                stats = add_fences(scene, [feature([(0, 2), (250, 2), (500, 2), (1000, 2)])],
+                                   terrain, {})
+                self.assertEqual(stats["fence_triangles"], 2)
+                mesh = scene.geometry["fences_chain_link"]
+                self.assertEqual(len(mesh.vertices), 4)
+                np.testing.assert_allclose(mesh.vertices[::2],
+                                           [[0, 2, .55], [1000, 2, 1000 * slope + .55]])
+                np.testing.assert_allclose(mesh.visual.uv[::2, 0], [0, 400])
+
+    def test_bends_and_direction_reversals_keep_separate_quads(self):
+        for end in ((10, 10), (0, 0)):
+            with self.subTest(end=end):
+                scene = trimesh.Scene()
+                stats = add_fences(scene, [feature([(0, 0), (5, 0), (10, 0), end])],
+                                   lambda x, y: 0, {})
+                self.assertEqual(stats["fence_triangles"], 4)
+                mesh = scene.geometry["fences_chain_link"]
+                np.testing.assert_array_equal(mesh.vertices[::2, :2], [(0, 0), (10, 0), end])
+                np.testing.assert_allclose(mesh.visual.uv[::2, 0], [0, 4, 8])
+
+    def test_slope_changes_keep_quads_at_ridge_but_remove_redundant_edges(self):
+        terrain = Terrain(np.tile([0., 5., 10., 5., 0.], (3, 1)), (0, 0, 20, 10))
+        scene = trimesh.Scene()
+        stats = add_fences(scene, [feature([(1, 4), (19, 4)])], terrain, {})
+        self.assertEqual(stats["fence_triangles"], 4)
+        mesh = scene.geometry["fences_chain_link"]
+        np.testing.assert_allclose(mesh.vertices[::2], [[1, 4, .95], [10, 4, 9.95], [19, 4, .95]])
+        for fraction in (.1, .5, .9):
+            lower = mesh.vertices[::2]
+            probes = lower[:-1] * (1 - fraction) + lower[1:] * fraction
+            np.testing.assert_allclose(probes[:, 2], terrain(*probes[:, :2].T) - .05, atol=1e-9)
+
+    def test_exported_nonuniform_axes_preserve_diagonal_slope_changes(self):
+        # Float32 export rounds individual nodes, so a uniform-grid estimate
+        # can miss the exact cell edges and diagonals of the published map.
+        x_axis = np.array([-6000, -2222.2222, 1555.5556, 5333.3333], dtype=np.float32).astype(float)
+        y_axis = np.array([4111.1111, 333.3333, -3444.4444], dtype=np.float32).astype(float)
+        terrain = _RenderedTerrain(np.array([[0, 9, -6, 1], [4, -5, 8, -4], [-2, 6, -3, 2]]),
+                                   x_axis, y_axis, 240)
+        scene = trimesh.Scene()
+        add_fences(scene, [feature([(-5500, 3500), (5000, -3000)])], terrain, {})
+        mesh = scene.geometry["fences_chain_link"]
+        self.assertGreater(len(mesh.faces), 2)
+        lower = mesh.vertices[::2]
+        for fraction in np.linspace(0, 1, 21):
+            probes = lower[:-1] * (1 - fraction) + lower[1:] * fraction
+            np.testing.assert_allclose(probes[:, 2], terrain(*probes[:, :2].T) - .05, atol=1e-9)
 
     def test_panels_follow_actual_terrain_triangles_across_ridges_and_corners(self):
         terrain = Terrain(np.array([[0., 4., 0.], [1., -2., 3.], [0., 5., 0.]]),
