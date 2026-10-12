@@ -541,7 +541,7 @@ int run(const Options& options) {
         if (explicitPoles || std::filesystem::exists(path)) {
             try {
                 auto poles = viewer::loadPoleLayer(path, options.model);
-                std::cout << "Poles: " << poles.columns.size() << " grey columns in "
+                std::cout << "Poles: " << poles.columns.size() << " columns in "
                           << poles.batches.draws.size() << " spatial batches\n";
                 viewer::appendPoleLayer(model, std::move(poles));
             } catch (const std::exception& error) {

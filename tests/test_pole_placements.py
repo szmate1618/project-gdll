@@ -84,7 +84,7 @@ class PolePlacementTests(unittest.TestCase):
         with self.assertRaises(SourceError):
             _download_osm_query(config, self.root, session, query + "\n", "poles", prefix="poles")
 
-    def write_map(self):
+    def write_map(self, osm_source=None):
         terrain = Terrain(np.array([[10., 20.], [30., 50.]]), self.frame["bounds"], datum=200)
         scene = trimesh.Scene(base_frame="local_meters")
         scene.add_geometry(terrain.mesh(Image.new("RGB", (2, 2))), geom_name="terrain", node_name="terrain")
@@ -96,6 +96,8 @@ class PolePlacementTests(unittest.TestCase):
                               origin_elevation_m=200, units="meters",
                               gltf_axes={"X": "projected east", "Y": "up", "Z": "projected south"},
                               terrain={"grid_vertices": [2, 2]})
+        if osm_source:
+            scene.metadata["sources"] = {"osm": osm_source}
         path = self.root / "map.glb"
         path.write_bytes(scene.export(file_type="glb"))
         return path
@@ -119,6 +121,40 @@ class PolePlacementTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 prepare_poles(config_path=self.config_path, map_path=map_path, root=self.root)
         self.assertEqual(output.read_bytes(), last_layer)
+
+    def test_preparation_reuses_recorded_railways_and_replaces_derived_columns(self):
+        directory = self.root / "data/raw/osm"
+        directory.mkdir(parents=True)
+        inverse = self.frame["transformer"]
+        from pyproj.enums import TransformDirection
+        tracks = []
+        for id, north in enumerate((-2, 2), 1):
+            coords = [inverse.transform(x + self.frame["origin"][0], north + self.frame["origin"][1],
+                                        direction=TransformDirection.INVERSE) for x in (-100, 100)]
+            tracks.append({"type": "way", "id": id,
+                           "tags": {"railway": "light_rail", "operator": "MÁV-HÉV", "usage": "main"},
+                           "geometry": [{"lon": lon, "lat": lat} for lon, lat in coords]})
+        source = directory / "town.json"
+        source.write_text(json.dumps({"elements": tracks, "osm3s": {"timestamp_osm_base": "snapshot"}}))
+        # Relocated checkouts must find the recorded basename in their own cache.
+        map_path = self.write_map({"path": "/old-checkout/data/raw/osm/town.json",
+                                   "timestamp_osm_base": "snapshot"})
+        payload = self.root / "nodes.json"
+        payload.write_text(json.dumps({"elements": [self.node(highway="street_lamp")]}))
+        with patch("src.pole_placements._download_osm_query", return_value=(payload, {})):
+            for _ in range(2):
+                result = prepare_poles(config_path=self.config_path, map_path=map_path, root=self.root)
+                self.assertEqual(result["hev_catenary"], 4)
+                self.assertEqual(result["columns"], 5)
+        document = json.loads((self.root / "poles.instances.json").read_text())
+        self.assertEqual(document["version"], 2)
+        self.assertEqual(document["hev"]["spacing_m"], 50)
+        last_layer = (self.root / "poles.instances.json").read_bytes()
+        source.write_text(json.dumps({"elements": tracks, "osm3s": {"timestamp_osm_base": "newer"}}))
+        with patch("src.pole_placements._download_osm_query", return_value=(payload, {})):
+            with self.assertRaisesRegex(ValueError, "snapshot"):
+                prepare_poles(config_path=self.config_path, map_path=map_path, root=self.root)
+        self.assertEqual((self.root / "poles.instances.json").read_bytes(), last_layer)
 
 
 if __name__ == "__main__":

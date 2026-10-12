@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Add mapped streetlights and utility poles without regenerating the town."""
+"""Add mapped utility columns and approximate HÉV masts without rebuilding the town."""
 from __future__ import annotations
 
 import argparse
@@ -31,7 +31,7 @@ def main(argv=None):
         print(f"Pole preparation failed: {error}", file=sys.stderr)
         return 1
     print(f"Saved {result['columns']} poles to {result['output']}")
-    for kind in ("street_lamp", "power_pole", "utility_pole", "power_tower"):
+    for kind in ("street_lamp", "power_pole", "utility_pole", "power_tower", "hev_catenary"):
         print(f"  {kind}: {result.get(kind, 0)}")
     return 0
 

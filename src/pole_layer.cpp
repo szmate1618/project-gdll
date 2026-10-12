@@ -11,6 +11,7 @@
 #include <limits>
 #include <map>
 #include <stdexcept>
+#include <tuple>
 #include <unordered_set>
 
 namespace viewer {
@@ -76,18 +77,28 @@ Model buildPoleBatches(const std::vector<PoleColumn>& columns) {
     Material grey;
     grey.baseColor = glm::vec4(.55f, .55f, .55f, 1);
     model.materials.push_back(grey);
-    std::map<std::pair<int, int>, std::size_t> cells;
+    if (std::any_of(columns.begin(), columns.end(), [](const auto& column) {
+            return column.kind == PoleKind::hevCatenary;
+        })) {
+        Material green;
+        green.baseColor = glm::vec4(.24f, .38f, .27f, 1);
+        model.materials.push_back(green);
+    }
+    std::map<std::tuple<int, int, int>, std::size_t> cells;
     for (const auto& column : columns) {
         validateColumn(column);
-        const auto key = std::make_pair(static_cast<int>(std::floor(column.position.x / 128)),
-                                        static_cast<int>(std::floor(column.position.z / 128)));
+        const int x = static_cast<int>(std::floor(column.position.x / 128));
+        const int z = static_cast<int>(std::floor(column.position.z / 128));
+        const int material = column.kind == PoleKind::hevCatenary ? 1 : 0;
+        const auto key = std::make_tuple(x, z, material);
         const auto inserted = cells.emplace(key, model.primitives.size());
         if (inserted.second) {
             model.primitives.emplace_back();
-            model.primitives.back().material = 0;
+            model.primitives.back().material = material;
             DrawInstance draw;
             draw.primitive = inserted.first->second;
-            draw.name = "poles_" + std::to_string(key.first) + "_" + std::to_string(key.second);
+            draw.name = std::string(material ? "poles_hev_" : "poles_") +
+                        std::to_string(x) + "_" + std::to_string(z);
             model.draws.push_back(std::move(draw));
         }
         addColumn(model.primitives[inserted.first->second], column, model);
@@ -101,7 +112,8 @@ PoleLayer loadPoleLayer(const std::filesystem::path& manifest, const std::filesy
         if (!stream) throw std::runtime_error("Cannot open pole manifest");
         const auto document = Json::parse(stream);
         if (document.at("schema") != "godollo.pole-instances" ||
-            !document.at("version").is_number_integer() || document.at("version") != 1)
+            !document.at("version").is_number_integer() ||
+            (document.at("version") != 1 && document.at("version") != 2))
             throw std::runtime_error("Unsupported pole schema/version");
         if (document.at("map").at("map_sha256") != fileSha256(map))
             throw std::runtime_error("Pole layer map fingerprint mismatch; regenerate pole placements");
@@ -115,7 +127,9 @@ PoleLayer loadPoleLayer(const std::filesystem::path& manifest, const std::filesy
             if (column.id.empty() || !ids.insert(column.id).second)
                 throw std::runtime_error("Empty or duplicate pole ID");
             const auto kind = item.at("kind").get<std::string>();
-            if (kind != "street_lamp" && kind != "power_pole" && kind != "utility_pole" && kind != "power_tower")
+            if (kind == "hev_catenary" && document.at("version") == 2)
+                column.kind = PoleKind::hevCatenary;
+            else if (kind != "street_lamp" && kind != "power_pole" && kind != "utility_pole" && kind != "power_tower")
                 throw std::runtime_error("Unknown pole kind");
             const auto& position = item.at("position");
             if (!position.is_array() || position.size() != 3)

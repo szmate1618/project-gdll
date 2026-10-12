@@ -58,7 +58,9 @@ existing map as grey rectangular columns, batched by spatial cell:
 ```
 
 The first preparation downloads a small independent OSM extract; subsequent
-runs can use `--offline`. The viewer automatically loads the fingerprinted
+runs can use `--offline`. Preparation also places muted green HÉV mast columns
+approximately every 50 m between paired main tracks, using the map's cached
+railway extract. The viewer automatically loads the fingerprinted
 `output/poles.instances.json` layer. See [pole preparation and controls](docs/VIEWER.md#mapped-pole-columns).
 
 Roadside guardrails can be prepared independently with

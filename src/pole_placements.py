@@ -14,6 +14,7 @@ import requests
 from .buildings import parse_length
 from .config import ROOT, load_config
 from .data import _download_osm_query
+from .hev_pole_placements import make_hev_columns, map_railways, HEV_POLE_SPACING_M
 from .tree_map import load_tree_map
 
 # Approximation defaults in meters: height and square cross-section width.
@@ -103,9 +104,13 @@ def prepare_poles(*, config_path=ROOT / "config.json", map_path=ROOT / "output/g
                                               "streetlights and utility poles", prefix="poles")
     payload = json.loads(path.read_text(encoding="utf-8"))
     columns = make_columns(payload, config, terrain, frame)
+    railways, railway_source = map_railways(map_path, frame, root)
+    columns.extend(make_hev_columns(railways, terrain))
     counts = dict(Counter(column["kind"] for column in columns))
-    document = {"schema": "godollo.pole-instances", "version": 1,
+    document = {"schema": "godollo.pole-instances", "version": 2,
                 "map": metadata, "source": provenance, "columns": columns,
+                "hev": {"source": railway_source, "spacing_m": HEV_POLE_SPACING_M,
+                        "placement": "approximate paired main-track midpoint"},
                 "counts": {"columns": len(columns), **counts}}
     # Validate serialization before publishing; preserve the last good layer on failure.
     encoded = json.dumps(document, indent=2, ensure_ascii=False, allow_nan=False) + "\n"

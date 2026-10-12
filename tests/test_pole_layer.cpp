@@ -80,9 +80,25 @@ void manifest(const std::filesystem::path& root) {
     for (const auto& value : {Json(-1), Json(0), Json("7"), Json(101), Json(nullptr)}) {
         bad = document; bad["columns"][0]["height_m"] = value; rejects(bad);
     }
-    bad = document; bad["version"] = 2; rejects(bad);
+    bad = document; bad["version"] = 3; rejects(bad);
     bad = document; bad["columns"][0]["position"] = {1, 2}; rejects(bad);
     bad = document; bad["columns"][0]["kind"] = "unknown"; rejects(bad);
+    bad = document; bad["columns"][0]["kind"] = "hev_catenary"; rejects(bad);
+    auto green = document;
+    green["version"] = 2;
+    auto hev = green["columns"][0];
+    hev["id"] = "hev/0";
+    hev["kind"] = "hev_catenary";
+    green["columns"].push_back(hev);
+    write(green);
+    const auto mixed = viewer::loadPoleLayer(path, map);
+    require(mixed.columns[1].kind == viewer::PoleKind::hevCatenary, "HÉV kind lost in loader");
+    require(mixed.batches.draws.size() == 2, "Grey and green columns in one cell need separate batches");
+    require(mixed.batches.primitives[0].material == 0 && mixed.batches.primitives[1].material == 1,
+            "Grey and HÉV material assignments must remain distinct");
+    const auto color = mixed.batches.materials[1].baseColor;
+    require(color.g > color.r && color.g > color.b && color.g < .5f,
+            "HÉV columns must be muted green darker than medium green");
 }
 } // namespace
 

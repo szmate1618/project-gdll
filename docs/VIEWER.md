@@ -163,7 +163,7 @@ Only mapped locations are included. A node carrying both a streetlight and
 power-pole tag produces one column. Source tags, OSM IDs, attribution, query
 timestamp, and map georeference are retained in the placement manifest.
 
-Every object is an opaque, lit grey rectangular column with a square footprint.
+Mapped objects are opaque, lit grey rectangular columns with square footprints.
 Usable OSM `height` values between 0.5 and 100 meters take precedence; otherwise
 these approximation defaults apply:
 
@@ -173,6 +173,17 @@ these approximation defaults apply:
 | Power pole | 9 m | 0.30 m |
 | General utility pole | 8 m | 0.25 m |
 | Electricity pylon | 25 m | 1.00 m |
+| Approximate HÉV catenary mast (muted green) | 8 m | 0.30 m |
+
+Preparation also reuses the town's recorded OSM extract to place a single row
+of desaturated dark green HÉV masts approximately every 50 m, centered between
+the two mapped main tracks. `src/hev_pole_placements.py` joins way seams and
+pairs nearby parallel HÉV tracks; crossovers, yards, unelectrified tracks, and
+the MÁV railway do not attract the row. Unpaired stretches receive no masts.
+Their positions and dimensions are visual approximations, not surveyed poles.
+The recorded railway extract must remain available in `data/raw/osm/` or at
+its provenance path. These additions use manifest version 2; the viewer also
+accepts older version 1 grey-only manifests.
 
 Bases sample the published GLB's rendered terrain triangles through
 `src/tree_map.py`, using runtime X east / Y up / Z south meters. The column foot
@@ -187,8 +198,8 @@ with a diagnostic. Regenerate placements after replacing the map. Use
 accepts `--config`, `--map`, `--output`, and `--refresh`; publication is atomic
 and never rewrites the town GLB.
 
-Runtime geometry is baked into 128 m X/Z cells with one shared grey material
-and one mesh/draw per occupied cell, rather than one draw per pole. Existing
+Runtime geometry is baked into 128 m X/Z cells with shared grey and green
+materials and one mesh/draw per occupied cell and material. Existing
 town BVH culling, sun shadows, walking collision and sight obstruction use these
 batches. Pole tops are excluded from terrain-only ground queries.
 

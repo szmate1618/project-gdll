@@ -22,7 +22,8 @@ std::vector<unsigned char> pixels() {
 
 void compare(const std::filesystem::path& captures) {
     std::vector<viewer::PoleColumn> columns;
-    for (int i = 0; i < 10; ++i) columns.push_back({std::to_string(i), {3.f + i, 0, 10}, 7, .2f});
+    for (int i = 0; i < 10; ++i) columns.push_back({std::to_string(i), {3.f + i, 0, 10}, 7, .2f,
+        i % 2 ? viewer::PoleKind::hevCatenary : viewer::PoleKind::mapped});
     const auto batches = viewer::buildPoleBatches(columns);
     viewer::Model individual;
     for (const auto& column : columns)
@@ -45,13 +46,13 @@ void compare(const std::filesystem::path& captures) {
             for (std::size_t i = 0; i < before.size(); ++i)
                 if (std::abs(int(before[i]) - int(after[i])) > 2) ++differences;
             require(differences < before.size() / 1000, "Pole batching changed rendered pixels");
-            require(batched.sceneStats().drawCalls == 1 && baseline.sceneStats().drawCalls == 10,
-                    "Ten columns must render in one batched draw");
+            require(batched.sceneStats().drawCalls == 2 && baseline.sceneStats().drawCalls == 10,
+                    "Ten columns with two colors must render in two batched draws");
             viewer::Renderer::checkErrors("pole batching comparison");
         }
     }
     if (!captures.empty()) batched.writeScreenshot(captures / "pole-columns.ppm");
-    std::cout << "Pole batching preserves pixels with culling/shadows and reduces ten draws to one\n";
+    std::cout << "Pole batching preserves both colors with culling/shadows and reduces ten draws to two\n";
 }
 
 void actualMap(const std::filesystem::path& captures, const std::filesystem::path& map,
@@ -60,6 +61,7 @@ void actualMap(const std::filesystem::path& captures, const std::filesystem::pat
     auto poles = viewer::loadPoleLayer(manifest, map);
     require(!poles.columns.empty(), "Actual map requires mapped poles");
     const auto selected = std::min_element(poles.columns.begin(), poles.columns.end(), [](const auto& a, const auto& b) {
+        if (a.kind != b.kind) return a.kind == viewer::PoleKind::hevCatenary;
         return glm::length(glm::vec2(a.position.x, a.position.z)) < glm::length(glm::vec2(b.position.x, b.position.z));
     });
     const auto p = selected->position;
@@ -69,12 +71,16 @@ void actualMap(const std::filesystem::path& captures, const std::filesystem::pat
     camera.frame(p - glm::vec3(3, 0, 3), p + glm::vec3(3, selected->height, 3), float(width) / height);
     {
         viewer::Renderer before(town, VIEWER_SHADER_DIR);
-        before.resize(width, height); before.render(camera);
+        before.resize(width, height);
+        before.setHaze(false); before.setGroundFog(false);
+        before.render(camera);
         before.writeScreenshot(captures / "town-without-poles.ppm");
     }
     viewer::appendPoleLayer(town, std::move(poles));
     viewer::Renderer after(town, VIEWER_SHADER_DIR);
-    after.resize(width, height); after.render(camera);
+    after.resize(width, height);
+    after.setHaze(false); after.setGroundFog(false);
+    after.render(camera);
     after.writeScreenshot(captures / "town-with-poles.ppm");
     viewer::Renderer::checkErrors("actual map poles");
 }
