@@ -90,6 +90,10 @@ add_library(viewer_visibility STATIC src/visibility.cpp src/model_visibility.cpp
 target_link_libraries(viewer_visibility PUBLIC viewer_model)
 viewer_warnings(viewer_visibility)
 
+add_library(viewer_roof_batches STATIC src/roof_batch.cpp)
+target_link_libraries(viewer_roof_batches PUBLIC viewer_model)
+viewer_warnings(viewer_roof_batches)
+
 add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp src/tree_color.cpp src/file_fingerprint.cpp)
 target_link_libraries(viewer_trees PUBLIC viewer_model viewer_visibility PRIVATE OpenSSL::Crypto)
 target_include_directories(viewer_trees SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
@@ -153,10 +157,11 @@ target_link_libraries(viewer_sun_lighting PUBLIC glm::glm)
 viewer_warnings(viewer_sun_lighting)
 
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
+    src/roof_renderer.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
     src/zombie_renderer.cpp src/sun_shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
-    viewer_model viewer_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting OpenGL::GL)
+    viewer_model viewer_roof_batches viewer_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting OpenGL::GL)
 target_compile_definitions(viewer_renderer PRIVATE GL_GLEXT_PROTOTYPES)
 viewer_warnings(viewer_renderer)
 
@@ -177,6 +182,20 @@ add_dependencies(godollo_viewer viewer_test_asset)
 viewer_warnings(godollo_viewer)
 
 if(BUILD_TESTING)
+    add_executable(test_roof_batch tests/test_roof_batch.cpp)
+    target_link_libraries(test_roof_batch PRIVATE viewer_roof_batches)
+    viewer_warnings(test_roof_batch)
+    add_test(NAME viewer_roof_batch COMMAND test_roof_batch)
+
+    add_executable(test_roof_renderer tests/test_roof_renderer.cpp)
+    target_link_libraries(test_roof_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_roof_renderer PRIVATE
+        GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_roof_renderer)
+    add_test(NAME viewer_roof_renderer COMMAND test_roof_renderer)
+    set_tests_properties(viewer_roof_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
     add_executable(test_tree_color tests/test_tree_color.cpp)
     target_link_libraries(test_tree_color PRIVATE viewer_trees)
     viewer_warnings(test_tree_color)

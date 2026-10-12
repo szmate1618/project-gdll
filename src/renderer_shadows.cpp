@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <glm/gtc/type_ptr.hpp>
 
@@ -24,11 +25,12 @@ void Renderer::drawSunShadows(const SunShadowView& shadowView, double seconds) {
     // BVH conservatively includes full transformed geometry bounds.
     const auto projectionView = shadowView.projectionView();
     sceneVisibility_.query(projectionView, shadowScene_);
+    std::fill(roofBatchDrawn_.begin(), roofBatchDrawn_.end(), false);
     for (const auto index : shadowScene_) {
         const auto& caster = sceneDraws_[index];
         const auto& mesh = model_.meshes[caster.primitive];
         // Use the original shell for stable building shadows at every LoD.
-        if (!caster.buildingDetail && material(model_, mesh.material).alphaMode != "BLEND") draw(caster);
+        if (!caster.buildingDetail && material(model_, mesh.material).alphaMode != "BLEND") drawTownSource(index);
     }
     if (treeShadows_) {
         drawTrees(projectionView, true);

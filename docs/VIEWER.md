@@ -158,6 +158,23 @@ or distance LOD.
 ./build/godollo_viewer output/godollo.glb --fps --no-town-culling
 ```
 
+Static opaque roofs are merged at load time by material and 128 m world X/Z
+cell. The existing source-object BVH selects cells independently for the camera
+and sun shadow passes. A selected cell draws all its roofs, trading a small amount
+of conservative overdraw for fewer draw calls, without rebuilding GPU buffers
+each frame. `Town V/T` still counts source objects passing visibility checks;
+the title also shows actual color-pass draws, which are printed on exit. Roof
+transforms, normals, texture coordinates, vertex colors, and reflected winding
+are baked once.
+Doors, facade detail alternatives, transparent surfaces, and collision keep
+their original geometry and behavior. No map regeneration is needed.
+
+Use `--no-roof-batching` to compare the same view with individual roof draws:
+
+```bash
+./build/godollo_viewer output/godollo.glb --no-roof-batching
+```
+
 ## Zombie crowd
 
 The [zombie assets](../assets/zombies/README.md) live separately from the generated

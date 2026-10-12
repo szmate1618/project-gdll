@@ -80,6 +80,7 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         flashlightConeLocation_ = glGetUniformLocation(program_, "uFlashlightCone");
         fallback_.baseColor = glm::vec4(0.65f, 0.68f, 0.72f, 1.0f);
         uploadModel(model, model_);
+        uploadRoofBatches(model);
         for (const auto& source : model.draws) {
             const auto& mesh = model_.meshes.at(source.primitive);
             DrawGPU draw{source.primitive, source.transform, glm::inverseTranspose(glm::mat3(source.transform)),
@@ -161,10 +162,14 @@ void Renderer::uploadModel(const Model& model, ModelGPU& destination) {
             glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, anisotropy);
         glGenerateMipmap(GL_TEXTURE_2D);
     }
-    destination.meshes.resize(model.primitives.size());
-    for (std::size_t i = 0; i < model.primitives.size(); ++i) {
+    uploadMeshes(model.primitives, destination);
+}
+
+void Renderer::uploadMeshes(const std::vector<Primitive>& source, ModelGPU& destination) {
+    destination.meshes.resize(source.size());
+    for (std::size_t i = 0; i < source.size(); ++i) {
         auto& mesh = destination.meshes[i];
-        const auto& input = model.primitives[i];
+        const auto& input = source[i];
         if (input.indices.size() > static_cast<std::size_t>(std::numeric_limits<GLsizei>::max()))
             throw std::runtime_error("Primitive has too many triangle indices for an OpenGL draw call");
         mesh.count = static_cast<GLsizei>(input.indices.size());
@@ -205,6 +210,7 @@ void Renderer::release() noexcept {
     rain_.reset();
     releaseZombies();
     releaseModel(model_);
+    releaseModel(roofModel_);
     releaseModel(forestModel_);
     for (auto& batch : treeBatches_) {
         releaseModel(batch.model);
@@ -344,9 +350,9 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     glUniform1i(instancedLocation_, GL_FALSE);
     glUniform1i(animatedLocation_, GL_FALSE);
     gatherVisibleSceneDraws(projection * view, camera.position(), projection);
+    std::fill(roofBatchDrawn_.begin(), roofBatchDrawn_.end(), false);
     for (const auto index : opaqueScene_) {
-        draw(sceneDraws_[index]);
-        ++sceneStats_.drawCalls;
+        if (drawTownSource(index)) ++sceneStats_.drawCalls;
     }
     drawTrees(projection * view);
     drawForests(projection * view);

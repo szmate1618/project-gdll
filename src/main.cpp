@@ -43,6 +43,7 @@ struct Options {
     bool rain = false;
     bool noForests = false;
     bool noFences = false;
+    bool roofBatching = true;
     bool haze = true;
     bool groundFog = true;
     bool noTrees = false, treeCulling = true, treeCollisions = true, sceneCulling = true;
@@ -80,6 +81,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--forests") options.forests = value();
         else if (argument == "--no-forests") options.noForests = true;
         else if (argument == "--no-fences") options.noFences = true;
+        else if (argument == "--no-roof-batching") options.roofBatching = false;
         else if (argument == "--no-trees") options.noTrees = true;
         else if (argument == "--no-tree-culling") options.treeCulling = false;
         else if (argument == "--no-town-culling") options.sceneCulling = false;
@@ -176,6 +178,7 @@ void printHelp() {
               << "  --forests FILE      Load runtime woodland polygons explicitly\n"
               << "  --no-forests        Disable runtime forests, keep detected trees\n"
               << "  --no-fences         Disable fence panels, shadows and collisions\n"
+              << "  --no-roof-batching  Draw static roofs individually for comparison\n"
               << "  --no-tree-culling   Render all tree instances for comparison\n"
               << "  --no-town-culling   Render all town draw instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
@@ -650,6 +653,7 @@ int run(const Options& options) {
     viewer::ReticleOverlay reticle(options.shaders);
     renderer.setTreeCulling(options.treeCulling);
     renderer.setSceneCulling(options.sceneCulling);
+    renderer.setRoofBatching(options.roofBatching);
     renderer.setShadows(options.shadows);
     renderer.setTreeShadows(options.treeShadows);
     renderer.setNight(options.night);
@@ -761,7 +765,8 @@ int run(const Options& options) {
             const auto& treeStats = renderer.treeStats();
             const auto& sceneStats = renderer.sceneStats();
             const auto treeStatus = trees ? " | Trees " + std::to_string(treeStats.visible) + "/" + std::to_string(treeStats.total) : "";
-            const auto townStatus = " | Town " + std::to_string(sceneStats.visible) + "/" + std::to_string(sceneStats.total);
+            const auto townStatus = " | Town " + std::to_string(sceneStats.visible) + "/" + std::to_string(sceneStats.total)
+                + " (" + std::to_string(sceneStats.drawCalls) + " draws)";
             const auto zombieStatus = zombies ? " | Zombies " + std::to_string(renderer.zombieCount()) +
                 " (" + std::to_string(zombies->ragdollCount()) + " ragdolls)" : "";
             const auto caption = title + " | " + app.rig.modeName() + " | " + app.interaction.modeName()

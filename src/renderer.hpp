@@ -48,6 +48,7 @@ public:
     void present(int width, int height);
     void writeScreenshot(const std::filesystem::path& path) const;
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
+    void setRoofBatching(bool enabled) { roofBatching_ = enabled; }
     void setShadows(bool enabled) { shadows_ = enabled; }
     void setTreeShadows(bool enabled) { treeShadows_ = enabled; }
     void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
@@ -127,6 +128,10 @@ private:
     void release() noexcept;
     static void releaseModel(ModelGPU& model) noexcept;
     void uploadModel(const Model& source, ModelGPU& destination);
+    void uploadMeshes(const std::vector<Primitive>& source, ModelGPU& destination);
+    void uploadRoofBatches(const Model& source);
+    // Returns false when a roof's spatial batch was already drawn in this pass.
+    bool drawTownSource(std::size_t index);
     void uploadTrees(const TreeLayer& trees, const ForestLayer* forests);
     void drawTrees(const glm::mat4& projectionView, bool shadowPass = false);
     void uploadForests(const ForestLayer& forests);
@@ -169,6 +174,10 @@ private:
     bool shadows_ = true;
     std::vector<std::size_t> shadowScene_;
     ModelGPU model_;
+    ModelGPU roofModel_;
+    std::vector<std::size_t> roofBatchForDraw_;
+    std::vector<bool> roofBatchDrawn_;
+    bool roofBatching_ = true;
     std::vector<DrawGPU> sceneDraws_;
     std::vector<std::size_t> visibleScene_, opaqueScene_, transparentScene_;
     ModelVisibility sceneVisibility_;
