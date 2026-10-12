@@ -1,4 +1,5 @@
 #include "pole_layer.hpp"
+#include "model_merge.hpp"
 #include "file_fingerprint.hpp"
 
 #include <json.hpp>
@@ -7,7 +8,6 @@
 #include <array>
 #include <cmath>
 #include <fstream>
-#include <iterator>
 #include <limits>
 #include <map>
 #include <stdexcept>
@@ -134,18 +134,6 @@ PoleLayer loadPoleLayer(const std::filesystem::path& manifest, const std::filesy
 }
 
 void appendPoleLayer(Model& town, PoleLayer&& layer) {
-    auto& source = layer.batches;
-    if (source.draws.empty()) return;
-    const auto primitiveOffset = town.primitives.size();
-    const auto materialOffset = static_cast<int>(town.materials.size());
-    for (auto& mesh : source.primitives) mesh.material += materialOffset;
-    for (auto& draw : source.draws) draw.primitive += primitiveOffset;
-    town.materials.insert(town.materials.end(), source.materials.begin(), source.materials.end());
-    town.primitives.insert(town.primitives.end(), std::make_move_iterator(source.primitives.begin()),
-                            std::make_move_iterator(source.primitives.end()));
-    town.draws.insert(town.draws.end(), std::make_move_iterator(source.draws.begin()),
-                     std::make_move_iterator(source.draws.end()));
-    town.boundsMin = glm::min(town.boundsMin, source.boundsMin);
-    town.boundsMax = glm::max(town.boundsMax, source.boundsMax);
+    appendStaticModel(town, std::move(layer.batches));
 }
 } // namespace viewer

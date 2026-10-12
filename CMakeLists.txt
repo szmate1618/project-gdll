@@ -80,7 +80,7 @@ function(viewer_warnings target)
     endif()
 endfunction()
 
-add_library(viewer_model STATIC src/model.cpp)
+add_library(viewer_model STATIC src/model.cpp src/model_merge.cpp)
 target_include_directories(viewer_model PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_include_directories(viewer_model SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 target_link_libraries(viewer_model PUBLIC glm::glm)
@@ -108,6 +108,11 @@ add_library(viewer_poles STATIC src/pole_layer.cpp)
 target_link_libraries(viewer_poles PUBLIC viewer_model PRIVATE viewer_fingerprints)
 target_include_directories(viewer_poles SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_poles)
+
+add_library(viewer_guardrails STATIC src/guardrail_layer.cpp)
+target_link_libraries(viewer_guardrails PUBLIC viewer_model PRIVATE viewer_fingerprints)
+target_include_directories(viewer_guardrails SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+viewer_warnings(viewer_guardrails)
 
 add_library(viewer_camera STATIC src/camera.cpp)
 target_include_directories(viewer_camera PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -178,7 +183,7 @@ viewer_warnings(viewer_renderer)
 add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp
     src/reticle_overlay.cpp src/gpu_timer.cpp)
 target_link_libraries(godollo_viewer PRIVATE
-    viewer_renderer viewer_fps viewer_interaction viewer_poles glfw
+    viewer_renderer viewer_fps viewer_interaction viewer_poles viewer_guardrails glfw
 )
 target_compile_definitions(godollo_viewer PRIVATE
     GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -192,6 +197,23 @@ add_dependencies(godollo_viewer viewer_test_asset)
 viewer_warnings(godollo_viewer)
 
 if(BUILD_TESTING)
+    add_executable(test_guardrail_layer tests/test_guardrail_layer.cpp)
+    target_link_libraries(test_guardrail_layer PRIVATE viewer_guardrails viewer_collision viewer_fingerprints)
+    target_include_directories(test_guardrail_layer SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+    target_compile_definitions(test_guardrail_layer PRIVATE VIEWER_TEST_ASSET="${VIEWER_TEST_ASSET}")
+    add_dependencies(test_guardrail_layer viewer_test_asset)
+    viewer_warnings(test_guardrail_layer)
+    add_test(NAME viewer_guardrail_layer COMMAND test_guardrail_layer)
+
+    add_executable(test_guardrail_renderer tests/test_guardrail_renderer.cpp)
+    target_link_libraries(test_guardrail_renderer PRIVATE viewer_guardrails viewer_renderer viewer_collision glfw)
+    target_compile_definitions(test_guardrail_renderer PRIVATE
+        GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_guardrail_renderer)
+    add_test(NAME viewer_guardrail_renderer COMMAND test_guardrail_renderer)
+    set_tests_properties(viewer_guardrail_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
     add_executable(test_pole_layer tests/test_pole_layer.cpp)
     target_link_libraries(test_pole_layer PRIVATE viewer_poles viewer_collision viewer_visibility)
     target_include_directories(test_pole_layer SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")

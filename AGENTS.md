@@ -19,12 +19,13 @@ Use this guide as a navigation aid; read the relevant code for current behavior.
 | --- | --- |
 | Setup, generator usage, geography | [README.md](README.md), `config.json`, `src/config.py` |
 | Downloads and map publication | `src/data.py`, `src/generate.py`, `src/fence_scene_update.py`, `src/glb.py`, `src/verify.py` |
-| Terrain and town geometry | `src/terrain.py`, `src/osm.py`, `src/buildings.py`, `src/building_details.py`, `src/wall_openings.py`, `src/facade_surface.py`, `src/building_caps.py`, `src/roads.py`, `src/railways.py`, `src/fences.py`, `src/terrain_surfaces.py` |
+| Terrain and town geometry | `src/terrain.py`, `src/osm.py`, `src/buildings.py`, `src/building_details.py`, `src/wall_openings.py`, `src/facade_surface.py`, `src/building_caps.py`, `src/roads.py`, `src/railways.py`, `src/fences.py`, `src/terrain_surfaces.py`, `src/terrain_profile.py` |
 | Railway texture and existing-map update | [assets/railways/README.md](assets/railways/README.md), `src/railway_texture.py`, `src/railway_texture_apply.py`, `tools/apply_railway_texture.py` |
 | Tree assets and preprocessing | [docs/TREES.md](docs/TREES.md), [assets/README.md](assets/README.md), `tools/*tree*.py`, `src/tree_*.py` |
 | Runtime forest polygons, placement and LoD | [docs/FORESTS.md](docs/FORESTS.md), `forest_patches.json`, `src/forest_layer.hpp/.cpp`, `src/forest_geometry.hpp/.cpp`, `src/forest_placement.hpp/.cpp`, `src/forest_tree_visibility.hpp/.cpp`, `src/forest_volume_batch.hpp/.cpp`, `src/forest_renderer.cpp` |
-| Scene and tree loading | `src/model.hpp/.cpp`, `src/tree_layer.hpp/.cpp`, `src/tree_renderer.cpp`, `src/file_fingerprint.hpp/.cpp` |
+| Scene and tree loading | `src/model.hpp/.cpp`, `src/model_merge.hpp/.cpp`, `src/tree_layer.hpp/.cpp`, `src/tree_renderer.cpp`, `src/file_fingerprint.hpp/.cpp` |
 | Mapped streetlights and utility pole columns | `tools/prepare_pole_instances.py`, `src/pole_placements.py`, `src/pole_layer.hpp/.cpp`, [docs/VIEWER.md](docs/VIEWER.md#mapped-pole-columns) |
+| Mapped roadside guardrails | `tools/prepare_guardrails.py`, `src/guardrails.py`, `src/guardrail_scene.py`, `src/guardrail_layer.hpp/.cpp`, [assets/guardrails/README.md](assets/guardrails/README.md), [docs/VIEWER.md](docs/VIEWER.md#mapped-guardrails) |
 | Animated zombie crowd, perception, and shooting | [assets/zombies/README.md](assets/zombies/README.md), `src/animated_model.hpp/.cpp`, `src/zombie_layer.hpp/.cpp`, `src/zombie_behavior.hpp/.cpp`, `src/noise.hpp/.cpp`, `src/simulation_clock.hpp`, `src/zombie_hit.hpp/.cpp`, `src/zombie_chase.hpp/.cpp`, `src/zombie_placement.hpp/.cpp`, `src/zombie_park.hpp/.cpp`, `src/zombie_renderer.cpp` |
 | Door interaction, hinges and shared rigid-body physics | `src/door_interaction.hpp/.cpp`, `src/physics_world.hpp/.cpp`, `src/door_geometry.hpp/.cpp`, `src/door_layer.hpp/.cpp`, `src/door_collision.hpp/.cpp`, [docs/VIEWER.md](docs/VIEWER.md) |
 | Zombie ragdoll handoff and physics | `src/zombie_ragdoll_pose.hpp/.cpp`, `src/zombie_ragdoll.hpp/.cpp`, [docs/VIEWER.md](docs/VIEWER.md) |

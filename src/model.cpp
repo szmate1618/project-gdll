@@ -423,6 +423,7 @@ void readMaterialsAndImages(const tinygltf::Model& source, Model& output) {
             // averaged opacity so differently spaced posts stay transparent.
             if (material.name == "fence_chain_link") result.minifiedAlphaCutoff = 0.2f;
             if (material.name == "fence_metal") result.minifiedAlphaCutoff = 0.3f;
+            if (material.name == "guardrail_metal") result.minifiedAlphaCutoff = 0.3f;
         }
         output.materials.push_back(result);
     }

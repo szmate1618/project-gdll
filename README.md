@@ -61,6 +61,12 @@ The first preparation downloads a small independent OSM extract; subsequent
 runs can use `--offline`. The viewer automatically loads the fingerprinted
 `output/poles.instances.json` layer. See [pole preparation and controls](docs/VIEWER.md#mapped-pole-columns).
 
+Roadside guardrails can be prepared independently with
+`.venv/bin/python tools/prepare_guardrails.py`. The viewer automatically loads
+the matching `output/guardrails.glb`: spatially batched, double-sided strips
+with the rail and posts painted into one alpha texture. See
+[guardrail preparation and controls](docs/VIEWER.md#mapped-guardrails).
+
 The sections below document the Python scene generator.
 
 ## Setup and run on Linux

@@ -192,6 +192,41 @@ and one mesh/draw per occupied cell, rather than one draw per pole. Existing
 town BVH culling, sun shadows, walking collision and sight obstruction use these
 batches. Pole tops are excluded from terrain-only ground queries.
 
+## Mapped guardrails
+
+Add only explicitly mapped OSM `barrier=guard_rail` ways without rebuilding the
+town or changing the fingerprints of its tree and pole layers:
+
+```bash
+.venv/bin/python tools/prepare_guardrails.py
+# Subsequent preparation can reuse the separate guardrail extract:
+.venv/bin/python tools/prepare_guardrails.py --offline
+./build/godollo_viewer output/godollo.glb
+```
+
+The viewer automatically loads `guardrails.glb` beside the town. The sidecar
+embeds its texture, source attribution, OSM IDs, map SHA-256, and versioned
+metadata. Stale adjacent layers are skipped with a diagnostic. `--guardrails
+FILE` selects a layer explicitly and treats validation failures as errors;
+`--no-guardrails` disables its rendering, shadows and collision. Preparation
+supports `--config`, `--map`, `--output`, and `--refresh`, and validates the
+exported float32 geometry before atomic publication.
+
+Geometry is a vertical double-sided strip, using two triangles per straight
+section. Additional sections retain bends, terrain slope changes and 128 m
+batch boundaries. Both fences and guardrails use `src/terrain_profile.py` to
+follow the published terrain triangles. All geometry is exported once from
+local east/north/up to runtime X east / Y up / Z south meters.
+
+The rail and posts are painted into the shared
+[source alpha texture](../assets/guardrails/README.md); posts have no additional
+geometry. The default height is 0.75 m with an 8 cm textured post every 2 m.
+Usable OSM heights from 0.3 to 2 m override the default. Opaque texels write depth
+and cast shadows; transparent texels are discarded. Spatial batches use the
+existing town BVH culling and collision. Walking and sight use the continuous
+strip, including transparent space beneath the beam, as with existing masked
+fences. Mapped breaks remain actual gaps in both rendering and collision.
+
 ## Town visibility
 
 The viewer also culls town draw instances outside the camera frustum by default.

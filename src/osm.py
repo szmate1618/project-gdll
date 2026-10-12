@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 
 from shapely import make_valid
 from shapely.errors import ShapelyError
@@ -146,6 +147,21 @@ def parse_railways(payload: dict, transformer, origin: tuple[float, float], clip
             railways.extend(_clipped_line_features(way, coords, clip))
     LOG.info("Parsed %d railway centerlines", len(railways))
     return railways
+
+
+def parse_guardrails(payload: dict, transformer, origin: tuple[float, float], clip: Polygon) -> list:
+    """Read only explicitly mapped roadside guardrail lines, retaining gaps."""
+    _, ways, coordinates = _geometry_reader(payload, transformer, origin)
+    features = []
+    for way in ways.values():
+        if way.get("tags", {}).get("barrier") != "guard_rail":
+            continue
+        coords = coordinates(way)
+        if len(coords) >= 2:
+            if not all(math.isfinite(value) for point in coords for value in point):
+                raise ValueError(f"Guardrail way/{way['id']} has nonfinite coordinates")
+            features.extend(_clipped_line_features(way, coords, clip))
+    return features
 
 
 def parse_fences(payload: dict, transformer, origin: tuple[float, float], clip: Polygon) -> list:

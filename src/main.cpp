@@ -8,6 +8,8 @@
 #include "gpu_timer.hpp"
 #include "tree_layer.hpp"
 #include "pole_layer.hpp"
+#include "guardrail_layer.hpp"
+#include "model_merge.hpp"
 #include "forest_layer.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_park.hpp"
@@ -34,6 +36,7 @@ struct Options {
     std::filesystem::path screenshot;
     std::filesystem::path trees;
     std::filesystem::path poles;
+    std::filesystem::path guardrails;
     std::filesystem::path forests;
     std::filesystem::path zombies;
     int frames = 0;
@@ -46,6 +49,7 @@ struct Options {
     bool noForests = false;
     bool noFences = false;
     bool noPoles = false;
+    bool noGuardrails = false;
     bool roofBatching = true;
     bool haze = true;
     bool groundFog = true;
@@ -82,6 +86,8 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--self-test-fps") options.selfTestFPS = true;
         else if (argument == "--trees") options.trees = value();
         else if (argument == "--poles") options.poles = value();
+        else if (argument == "--guardrails") options.guardrails = value();
+        else if (argument == "--no-guardrails") options.noGuardrails = true;
         else if (argument == "--no-poles") options.noPoles = true;
         else if (argument == "--forests") options.forests = value();
         else if (argument == "--no-forests") options.noForests = true;
@@ -153,6 +159,8 @@ Options parseOptions(int argc, char** argv) {
         throw std::runtime_error("Use either --trees FILE or --no-trees");
     if (options.noPoles && !options.poles.empty())
         throw std::runtime_error("Use either --poles FILE or --no-poles");
+    if (options.noGuardrails && !options.guardrails.empty())
+        throw std::runtime_error("Use either --guardrails FILE or --no-guardrails");
     if (!options.forests.empty() && (options.noForests || options.noTrees))
         throw std::runtime_error("Use --forests FILE without --no-forests/--no-trees");
     if (options.noZombies && options.explicitZombies)
@@ -187,6 +195,8 @@ void printHelp() {
               << "  --no-fences         Disable fence panels, shadows and collisions\n"
               << "  --poles FILE        Load a mapped pole column JSON explicitly\n"
               << "  --no-poles          Disable pole columns, shadows and collisions\n"
+              << "  --guardrails FILE   Load a mapped guardrail GLB layer explicitly\n"
+              << "  --no-guardrails     Disable guardrail strips, shadows and collisions\n"
               << "  --no-roof-batching  Draw static roofs individually for comparison\n"
               << "  --no-tree-culling   Render all tree instances for comparison\n"
               << "  --no-town-culling   Render all town draw instances for comparison\n"
@@ -538,6 +548,22 @@ int run(const Options& options) {
                 if (explicitPoles) throw;
                 std::cerr << "Adjacent pole layer skipped: " << error.what()
                           << "\nRun tools/prepare_pole_instances.py for this map.\n";
+            }
+        }
+    }
+    if (!options.noGuardrails) {
+        const bool explicitGuardrails = !options.guardrails.empty();
+        const auto path = explicitGuardrails ? options.guardrails : options.model.parent_path() / "guardrails.glb";
+        if (explicitGuardrails || std::filesystem::exists(path)) {
+            try {
+                auto layer = viewer::loadGuardrailLayer(path, options.model);
+                std::cout << "Guardrails: " << layer.ways << " mapped ways, " << layer.lengthMeters
+                          << " m in " << layer.model.draws.size() << " spatial batches\n";
+                viewer::appendStaticModel(model, std::move(layer.model));
+            } catch (const std::exception& error) {
+                if (explicitGuardrails) throw;
+                std::cerr << "Adjacent guardrail layer skipped: " << error.what()
+                          << "\nRun tools/prepare_guardrails.py for this map.\n";
             }
         }
     }
