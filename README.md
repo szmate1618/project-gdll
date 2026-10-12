@@ -49,6 +49,18 @@ merging CSVs, matching source GeoTIFFs, coordinate conversion, and producing
 beside the map, renders shared assets with GPU instancing and frustum culling,
 and uses simple trunk colliders for walking. See [tree rendering controls](docs/VIEWER.md#trees).
 
+Mapped streetlights, utility poles and electricity pylons can be added to an
+existing map as grey rectangular columns, batched by spatial cell:
+
+```bash
+.venv/bin/python tools/prepare_pole_instances.py
+./build/godollo_viewer output/godollo.glb
+```
+
+The first preparation downloads a small independent OSM extract; subsequent
+runs can use `--offline`. The viewer automatically loads the fingerprinted
+`output/poles.instances.json` layer. See [pole preparation and controls](docs/VIEWER.md#mapped-pole-columns).
+
 The sections below document the Python scene generator.
 
 ## Setup and run on Linux

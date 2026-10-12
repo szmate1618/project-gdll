@@ -7,6 +7,7 @@
 #include "collision_debug.hpp"
 #include "gpu_timer.hpp"
 #include "tree_layer.hpp"
+#include "pole_layer.hpp"
 #include "forest_layer.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_park.hpp"
@@ -32,6 +33,7 @@ struct Options {
     std::filesystem::path shaders = VIEWER_SHADER_DIR;
     std::filesystem::path screenshot;
     std::filesystem::path trees;
+    std::filesystem::path poles;
     std::filesystem::path forests;
     std::filesystem::path zombies;
     int frames = 0;
@@ -43,6 +45,7 @@ struct Options {
     bool rain = false;
     bool noForests = false;
     bool noFences = false;
+    bool noPoles = false;
     bool roofBatching = true;
     bool haze = true;
     bool groundFog = true;
@@ -78,6 +81,8 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--collision-debug") options.collisionDebug = true;
         else if (argument == "--self-test-fps") options.selfTestFPS = true;
         else if (argument == "--trees") options.trees = value();
+        else if (argument == "--poles") options.poles = value();
+        else if (argument == "--no-poles") options.noPoles = true;
         else if (argument == "--forests") options.forests = value();
         else if (argument == "--no-forests") options.noForests = true;
         else if (argument == "--no-fences") options.noFences = true;
@@ -146,6 +151,8 @@ Options parseOptions(int argc, char** argv) {
     if ((options.hidden || options.selfTest || options.selfTestFPS || !options.screenshot.empty()) && options.frames == 0) options.frames = 3;
     if (options.noTrees && !options.trees.empty())
         throw std::runtime_error("Use either --trees FILE or --no-trees");
+    if (options.noPoles && !options.poles.empty())
+        throw std::runtime_error("Use either --poles FILE or --no-poles");
     if (!options.forests.empty() && (options.noForests || options.noTrees))
         throw std::runtime_error("Use --forests FILE without --no-forests/--no-trees");
     if (options.noZombies && options.explicitZombies)
@@ -178,6 +185,8 @@ void printHelp() {
               << "  --forests FILE      Load runtime woodland polygons explicitly\n"
               << "  --no-forests        Disable runtime forests, keep detected trees\n"
               << "  --no-fences         Disable fence panels, shadows and collisions\n"
+              << "  --poles FILE        Load a mapped pole column JSON explicitly\n"
+              << "  --no-poles          Disable pole columns, shadows and collisions\n"
               << "  --no-roof-batching  Draw static roofs individually for comparison\n"
               << "  --no-tree-culling   Render all tree instances for comparison\n"
               << "  --no-town-culling   Render all town draw instances for comparison\n"
@@ -516,6 +525,22 @@ void initializeGraphics(bool allowSoftware) {
 int run(const Options& options) {
     std::cout << "Loading: " << options.model << '\n';
     auto model = viewer::loadModel(options.model);
+    if (!options.noPoles) {
+        const bool explicitPoles = !options.poles.empty();
+        const auto path = explicitPoles ? options.poles : options.model.parent_path() / "poles.instances.json";
+        if (explicitPoles || std::filesystem::exists(path)) {
+            try {
+                auto poles = viewer::loadPoleLayer(path, options.model);
+                std::cout << "Poles: " << poles.columns.size() << " grey columns in "
+                          << poles.batches.draws.size() << " spatial batches\n";
+                viewer::appendPoleLayer(model, std::move(poles));
+            } catch (const std::exception& error) {
+                if (explicitPoles) throw;
+                std::cerr << "Adjacent pole layer skipped: " << error.what()
+                          << "\nRun tools/prepare_pole_instances.py for this map.\n";
+            }
+        }
+    }
     if (options.noFences)
         std::cout << "Fences disabled: " << viewer::removeFenceDraws(model) << " draw instances removed\n";
     auto physics = std::make_shared<viewer::PhysicsWorld>();

@@ -94,10 +94,20 @@ add_library(viewer_roof_batches STATIC src/roof_batch.cpp)
 target_link_libraries(viewer_roof_batches PUBLIC viewer_model)
 viewer_warnings(viewer_roof_batches)
 
-add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp src/tree_color.cpp src/file_fingerprint.cpp)
-target_link_libraries(viewer_trees PUBLIC viewer_model viewer_visibility PRIVATE OpenSSL::Crypto)
+add_library(viewer_fingerprints STATIC src/file_fingerprint.cpp)
+target_include_directories(viewer_fingerprints PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(viewer_fingerprints PRIVATE OpenSSL::Crypto)
+viewer_warnings(viewer_fingerprints)
+
+add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp src/tree_color.cpp)
+target_link_libraries(viewer_trees PUBLIC viewer_model viewer_visibility viewer_fingerprints)
 target_include_directories(viewer_trees SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_trees)
+
+add_library(viewer_poles STATIC src/pole_layer.cpp)
+target_link_libraries(viewer_poles PUBLIC viewer_model PRIVATE viewer_fingerprints)
+target_include_directories(viewer_poles SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+viewer_warnings(viewer_poles)
 
 add_library(viewer_camera STATIC src/camera.cpp)
 target_include_directories(viewer_camera PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -168,7 +178,7 @@ viewer_warnings(viewer_renderer)
 add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp
     src/reticle_overlay.cpp src/gpu_timer.cpp)
 target_link_libraries(godollo_viewer PRIVATE
-    viewer_renderer viewer_fps viewer_interaction glfw
+    viewer_renderer viewer_fps viewer_interaction viewer_poles glfw
 )
 target_compile_definitions(godollo_viewer PRIVATE
     GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -182,6 +192,21 @@ add_dependencies(godollo_viewer viewer_test_asset)
 viewer_warnings(godollo_viewer)
 
 if(BUILD_TESTING)
+    add_executable(test_pole_layer tests/test_pole_layer.cpp)
+    target_link_libraries(test_pole_layer PRIVATE viewer_poles viewer_collision viewer_visibility)
+    target_include_directories(test_pole_layer SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+    viewer_warnings(test_pole_layer)
+    add_test(NAME viewer_pole_layer COMMAND test_pole_layer)
+
+    add_executable(test_pole_renderer tests/test_pole_renderer.cpp)
+    target_link_libraries(test_pole_renderer PRIVATE viewer_poles viewer_renderer glfw)
+    target_compile_definitions(test_pole_renderer PRIVATE
+        GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_pole_renderer)
+    add_test(NAME viewer_pole_renderer COMMAND test_pole_renderer)
+    set_tests_properties(viewer_pole_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
     add_executable(test_roof_batch tests/test_roof_batch.cpp)
     target_link_libraries(test_roof_batch PRIVATE viewer_roof_batches)
     viewer_warnings(test_roof_batch)

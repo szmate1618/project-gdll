@@ -145,6 +145,53 @@ patches share their detail choice. `--forests FILE` selects the polygon config;
 disables both. Placement spacing, height, textures, seed, and switch distance
 are configurable in the JSON's `runtime` object.
 
+## Mapped pole columns
+
+Add mapped streetlights and utility poles to the published town without
+regenerating terrain, buildings, or trees:
+
+```bash
+.venv/bin/python tools/prepare_pole_instances.py
+# Reuse the independent pole query cache without downloading:
+.venv/bin/python tools/prepare_pole_instances.py --offline
+./build/godollo_viewer output/godollo.glb
+```
+
+Preparation queries the configured geographic bounding box for OSM nodes with
+`highway=street_lamp`, `power=pole`, `man_made=utility_pole`, or `power=tower`.
+Only mapped locations are included. A node carrying both a streetlight and
+power-pole tag produces one column. Source tags, OSM IDs, attribution, query
+timestamp, and map georeference are retained in the placement manifest.
+
+Every object is an opaque, lit grey rectangular column with a square footprint.
+Usable OSM `height` values between 0.5 and 100 meters take precedence; otherwise
+these approximation defaults apply:
+
+| Kind | Height | Width/depth |
+| --- | --- | --- |
+| Streetlight | 7 m | 0.20 m |
+| Power pole | 9 m | 0.30 m |
+| General utility pole | 8 m | 0.25 m |
+| Electricity pylon | 25 m | 1.00 m |
+
+Bases sample the published GLB's rendered terrain triangles through
+`src/tree_map.py`, using runtime X east / Y up / Z south meters. The column foot
+extends slightly below ground to cover slope gaps. Pylons use the same solid
+column approximation; lamps do not emit light and no overhead wires are drawn.
+
+The viewer automatically loads `poles.instances.json` beside the map. Its
+version and map SHA-256 must match; an incompatible adjacent layer is skipped
+with a diagnostic. Regenerate placements after replacing the map. Use
+`--poles FILE` for an explicit layer (validation errors are fatal), or
+`--no-poles` to disable columns, shadows, and collision together. Preparation
+accepts `--config`, `--map`, `--output`, and `--refresh`; publication is atomic
+and never rewrites the town GLB.
+
+Runtime geometry is baked into 128 m X/Z cells with one shared grey material
+and one mesh/draw per occupied cell, rather than one draw per pole. Existing
+town BVH culling, sun shadows, walking collision and sight obstruction use these
+batches. Pole tops are excluded from terrain-only ground queries.
+
 ## Town visibility
 
 The viewer also culls town draw instances outside the camera frustum by default.

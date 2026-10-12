@@ -124,8 +124,15 @@ def _download_osm(config: dict, directory: Path, session: requests.Session) -> t
         f'  node["barrier"~"^(gate|entrance|lift_gate|swing_gate|kissing_gate|stile)$"]({bounds});\n'
         ');\nout body geom;\n'
     )
+    return _download_osm_query(config, directory, session, query,
+                               "buildings, roads, railways, fences and entrances")
+
+
+def _download_osm_query(config: dict, directory: Path, session: requests.Session,
+                       query: str, description: str, prefix: str = "osm") -> tuple[Path, dict]:
+    """Share validated, atomic Overpass caching across independent scene layers."""
     key = _key({"query": query, "version": CACHE_VERSION})
-    path = directory / f"osm_{key}.json"
+    path = directory / f"{prefix}_{key}.json"
     metadata_path = path.with_suffix(".meta.json")
     cached = _read_json(path)
     if not config.get("refresh") and _valid_osm(cached):
@@ -136,11 +143,11 @@ def _download_osm(config: dict, directory: Path, session: requests.Session) -> t
         }
     if config.get("offline"):
         raise SourceError(f"Offline mode: no valid OSM cache at {path}. Run once with network access.")
-    (directory / f"osm_{key}.overpassql").write_text(query, encoding="utf-8")
+    path.with_suffix(".overpassql").write_text(query, encoding="utf-8")
     errors = []
     network = config.get("network", {})
     for endpoint in OVERPASS_ENDPOINTS:
-        LOG.info("Downloading OSM buildings, roads, railways, fences and entrances from %s", endpoint)
+        LOG.info("Downloading OSM %s from %s", description, endpoint)
         try:
             payload = _request_json(
                 session, endpoint, path, data={"data": query},
