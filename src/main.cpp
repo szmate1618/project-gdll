@@ -42,6 +42,7 @@ struct Options {
     bool night = false;
     bool rain = false;
     bool noForests = false;
+    bool noFences = false;
     bool haze = true;
     bool groundFog = true;
     bool noTrees = false, treeCulling = true, treeCollisions = true, sceneCulling = true;
@@ -78,6 +79,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--trees") options.trees = value();
         else if (argument == "--forests") options.forests = value();
         else if (argument == "--no-forests") options.noForests = true;
+        else if (argument == "--no-fences") options.noFences = true;
         else if (argument == "--no-trees") options.noTrees = true;
         else if (argument == "--no-tree-culling") options.treeCulling = false;
         else if (argument == "--no-town-culling") options.sceneCulling = false;
@@ -173,6 +175,7 @@ void printHelp() {
               << "  --no-trees          Disable detected trees and runtime forests\n"
               << "  --forests FILE      Load runtime woodland polygons explicitly\n"
               << "  --no-forests        Disable runtime forests, keep detected trees\n"
+              << "  --no-fences         Disable fence panels, shadows and collisions\n"
               << "  --no-tree-culling   Render all tree instances for comparison\n"
               << "  --no-town-culling   Render all town draw instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
@@ -510,6 +513,8 @@ void initializeGraphics(bool allowSoftware) {
 int run(const Options& options) {
     std::cout << "Loading: " << options.model << '\n';
     auto model = viewer::loadModel(options.model);
+    if (options.noFences)
+        std::cout << "Fences disabled: " << viewer::removeFenceDraws(model) << " draw instances removed\n";
     auto physics = std::make_shared<viewer::PhysicsWorld>();
     viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics);
     std::cout << "Doors: " << doors.count() << " hinged panels; nearby physics activation\n";

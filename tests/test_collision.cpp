@@ -186,12 +186,31 @@ void visibilitySegments() {
     require(empty.lineOfSight({0, 0, 0}, {0, 0, 100}), "Empty world has unobstructed sight");
 }
 
+void disabledFencesRemoveBarriers() {
+    viewer::Model model;
+    addGround(model);
+    viewer::Primitive panel;
+    triangle(panel, {-2, 0, 0}, {2, 0, 0}, {2, 2, 0});
+    triangle(panel, {-2, 0, 0}, {2, 2, 0}, {-2, 2, 0});
+    draw(model, std::move(panel), "fences_chain_link");
+    model.draws.back().fence = true;
+    const viewer::CollisionWorld enabled(model);
+    require(!enabled.contacts({0, .05f, .1f}, .3f, 1.8f).empty(), "Enabled fence must block walking");
+    require(!enabled.lineOfSight({0, 1, -1}, {0, 1, 1}), "Enabled fence must block perception");
+    require(viewer::removeFenceDraws(model) == 1, "Fence draw removal failed");
+    const viewer::CollisionWorld disabled(model);
+    require(disabled.contacts({0, .05f, .1f}, .3f, 1.8f).empty(), "Disabled fence left an invisible barrier");
+    require(disabled.lineOfSight({0, 1, -1}, {0, 1, 1}), "Disabled fence still blocks perception");
+    require(disabled.stats().terrainTriangles == 2, "Disabling fences removed the terrain");
+}
+
 }  // namespace
 
 int main() {
     try {
         flatGroundAndContacts(); wallsCornersAndSolidSpawn(); courtyardRemainsOpen();
         transformedSlopeAndCeiling(); degenerateAndEmptyGeometry(); visibilitySegments();
+        disabledFencesRemoveBarriers();
         std::cout << "Collision world tests passed\n";
         return 0;
     } catch (const std::exception& error) {

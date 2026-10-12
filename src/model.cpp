@@ -417,6 +417,13 @@ void readMaterialsAndImages(const tinygltf::Model& source, Model& output) {
         }
         result.alphaCutoff = asFloat(material.alphaCutoff, "material alpha cutoff");
         result.unlit = material.extensions.count("KHR_materials_unlit") != 0;
+        if (result.alphaMode == "MASK" && result.baseColorTexture >= 0) {
+            // The generator names these sparse, repeating patterns explicitly.
+            // Preferred floors for wire/railing. Upload also checks the actual
+            // averaged opacity so differently spaced posts stay transparent.
+            if (material.name == "fence_chain_link") result.minifiedAlphaCutoff = 0.2f;
+            if (material.name == "fence_metal") result.minifiedAlphaCutoff = 0.3f;
+        }
         output.materials.push_back(result);
     }
 }
@@ -498,6 +505,10 @@ Model convert(const tinygltf::Model& source) {
         }
         if (node.mesh >= 0) {
             const auto& mesh = at(source.meshes, node.mesh, "node mesh");
+            const bool fence = (mesh.extras.IsObject() && mesh.extras.Has("kind") &&
+                                mesh.extras.Get("kind").IsString() &&
+                                mesh.extras.Get("kind").Get<std::string>() == "fence") ||
+                               mesh.name.rfind("fences_", 0) == 0 || node.name.rfind("fences_", 0) == 0;
             float detailDistance = 0.0f;
             bool lowDetail = false;
             std::string detailGroup;
@@ -523,6 +534,7 @@ Model convert(const tinygltf::Model& source) {
             for (const auto primitive : meshPrimitives[static_cast<std::size_t>(node.mesh)]) {
                 output.draws.push_back({primitive, transform, node.name.empty() ? mesh.name : node.name,
                                         detailDistance, lowDetail, detailGroup});
+                output.draws.back().fence = fence;
                 for (const auto& vertex : output.primitives[primitive].vertices) {
                     const glm::vec3 position(transform * glm::vec4(vertex.position, 1.0f));
                     if (!std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z)) {
@@ -563,6 +575,13 @@ Model loadModel(const std::filesystem::path& path) {
     } catch (const std::exception& error) {
         throw std::runtime_error("Failed to load model '" + path.string() + "': " + error.what());
     }
+}
+
+std::size_t removeFenceDraws(Model& model) {
+    const auto before = model.draws.size();
+    model.draws.erase(std::remove_if(model.draws.begin(), model.draws.end(),
+                                    [](const DrawInstance& draw) { return draw.fence; }), model.draws.end());
+    return before - model.draws.size();
 }
 
 }  // namespace viewer

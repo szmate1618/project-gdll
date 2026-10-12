@@ -17,6 +17,22 @@
 #include <glm/gtc/type_ptr.hpp>
 
 namespace viewer {
+namespace {
+float fenceAnisotropy() {
+    GLint count = 0;
+    glGetIntegerv(GL_NUM_EXTENSIONS, &count);
+    for (GLint index = 0; index < count; ++index) {
+        const auto* name = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, index));
+        if (std::string(name) == "GL_EXT_texture_filter_anisotropic" ||
+            std::string(name) == "GL_ARB_texture_filter_anisotropic") {
+            GLfloat maximum = 1;
+            glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY, &maximum);
+            return std::min(4.0f, maximum);
+        }
+    }
+    return 1;
+}
+} // namespace
 
 Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirectory,
                    const TreeLayer* trees, const ZombieLayer* zombies, const ForestLayer* forests)
@@ -33,6 +49,7 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         unlitLocation_ = glGetUniformLocation(program_, "uUnlit");
         alphaLocation_ = glGetUniformLocation(program_, "uAlphaMode");
         cutoffLocation_ = glGetUniformLocation(program_, "uAlphaCutoff");
+        minifiedCutoffLocation_ = glGetUniformLocation(program_, "uMinifiedAlphaCutoff");
         instancedLocation_ = glGetUniformLocation(program_, "uInstanced");
         animatedLocation_ = glGetUniformLocation(program_, "uAnimated");
         animationLocation_ = glGetUniformLocation(program_, "uAnimation");
@@ -104,6 +121,26 @@ void Renderer::uploadModel(const Model& model, ModelGPU& destination) {
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maximumTexture);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     destination.textures.resize(model.textures.size());
+    std::vector<bool> fenceTextures(model.textures.size(), false);
+    for (auto& material : destination.materials) {
+        if (material.minifiedAlphaCutoff <= 0 || material.baseColorTexture < 0 ||
+            static_cast<std::size_t>(material.baseColorTexture) >= fenceTextures.size()) continue;
+        const auto textureIndex = static_cast<std::size_t>(material.baseColorTexture);
+        fenceTextures[textureIndex] = true;
+        const int imageIndex = model.textures[textureIndex].image;
+        if (imageIndex < 0 || static_cast<std::size_t>(imageIndex) >= model.images.size()) continue;
+        const auto& rgba = model.images[static_cast<std::size_t>(imageIndex)].rgba;
+        if (rgba.empty()) continue;
+        double alphaSum = 0;
+        for (std::size_t pixel = 3; pixel < rgba.size(); pixel += 4) alphaSum += rgba[pixel];
+        const float averageOpacity = static_cast<float>(alphaSum / (255.0 * (rgba.size() / 4))) * material.baseColor.a;
+        // Tightly spaced posts make denser masks. Keep their distant floor
+        // above the averaged opacity as well, without raising the source cutoff.
+        material.minifiedAlphaCutoff = std::min(material.alphaCutoff,
+            std::max(material.minifiedAlphaCutoff, averageOpacity + .05f));
+    }
+    const float anisotropy = std::any_of(fenceTextures.begin(), fenceTextures.end(),
+                                       [](bool fence) { return fence; }) ? fenceAnisotropy() : 1;
     for (std::size_t i = 0; i < model.textures.size(); ++i) {
         const auto& texture = model.textures[i];
         if (texture.image < 0 || static_cast<std::size_t>(texture.image) >= model.images.size()) continue;
@@ -120,6 +157,8 @@ void Renderer::uploadModel(const Model& model, ModelGPU& destination) {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, texture.magFilter);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texture.wrapS);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texture.wrapT);
+        if (fenceTextures[i] && anisotropy > 1)
+            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, anisotropy);
         glGenerateMipmap(GL_TEXTURE_2D);
     }
     destination.meshes.resize(model.primitives.size());
@@ -221,6 +260,7 @@ void Renderer::applyMaterial(const ModelGPU& model, int index, bool mirrored) {
     glUniform1i(unlitLocation_, mat.unlit);
     glUniform1i(alphaLocation_, mat.alphaMode == "MASK" ? 1 : mat.alphaMode == "BLEND" ? 2 : 0);
     glUniform1f(cutoffLocation_, mat.alphaCutoff);
+    glUniform1f(minifiedCutoffLocation_, mat.minifiedAlphaCutoff);
     glBindTexture(GL_TEXTURE_2D, textured ? model.textures[static_cast<std::size_t>(texture)] : 0);
 }
 

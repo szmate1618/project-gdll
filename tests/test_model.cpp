@@ -123,6 +123,42 @@ void testIndexWidthsAndHierarchy(Fixtures& files) {
         require(near(vertex.normal.z, 1), "Missing normals should be generated with triangle winding");
 
         if (width == 1) {
+            auto fenced = document;
+            fenced["meshes"].push_back(document["meshes"][0]);
+            fenced["meshes"][1]["extras"]["kind"] = "fence";
+            fenced["nodes"][1]["mesh"] = 1;
+            fenced["nodes"][1]["name"] = "renamed-barrier";
+            auto fenceModel = viewer::loadModel(files.write("fence-draws", fenced, bytes));
+            require(fenceModel.draws[0].fence && !fenceModel.draws[1].fence,
+                    "Fence classification must use mesh semantics independently of node names");
+            const auto town = fenceModel.draws[1];
+            require(viewer::removeFenceDraws(fenceModel) == 1 && fenceModel.draws.size() == 1,
+                    "Disabling fences must preserve unrelated instances");
+            require(fenceModel.draws[0].primitive == town.primitive && fenceModel.draws[0].transform == town.transform,
+                    "Disabling fences changed town geometry or transforms");
+            require(viewer::removeFenceDraws(fenceModel) == 0, "Removing fences twice must be harmless");
+            fenced["meshes"][1].erase("extras");
+            fenced["meshes"][1]["name"] = "fences_chain_link_posts";
+            auto legacyFences = viewer::loadModel(files.write("legacy-fences", fenced, bytes));
+            require(viewer::removeFenceDraws(legacyFences) == 1,
+                    "Legacy fence meshes must be disabled even under renamed scene nodes");
+            auto masks = document;
+            masks["textures"] = Json::array({Json::object()});
+            masks["materials"] = Json::array();
+            for (const auto* name : {"fence_chain_link", "fence_metal", "tree", "fence_wood"})
+                masks["materials"].push_back({{"name", name}, {"alphaMode", "MASK"},
+                    {"alphaCutoff", .5}, {"pbrMetallicRoughness", {{"baseColorTexture", {{"index", 0}}}}}});
+            masks["materials"].push_back({{"name", "fence_chain_link"}, {"alphaMode", "OPAQUE"}});
+            masks["materials"].push_back({{"name", "fence_chain_link"}, {"alphaMode", "MASK"}});
+            const auto fences = viewer::loadModel(files.write("fence-masks", masks, bytes));
+            require(near(fences.materials[0].minifiedAlphaCutoff, .2f) &&
+                    near(fences.materials[1].minifiedAlphaCutoff, .3f),
+                    "Generated thin fence masks must opt into filtering");
+            for (std::size_t index = 0; index < fences.materials.size(); ++index) {
+                require(near(fences.materials[index].alphaCutoff, .5f), "Filtering changed the source cutoff");
+                if (index >= 2) require(fences.materials[index].minifiedAlphaCutoff == 0,
+                                      "Other material masks must retain standard filtering");
+            }
             require(model.draws[0].detailDistance == 0, "Legacy meshes must keep their normal visibility");
             auto detailed = document;
             detailed["meshes"][0]["extras"]["building_detail"] = {{"version", 1}, {"distance_m", 120}};

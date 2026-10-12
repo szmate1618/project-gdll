@@ -148,6 +148,7 @@ private:
     GLint modelLocation_, viewLocation_, projectionLocation_, normalLocation_;
     GLint colorLocation_, textureLocation_, hasTextureLocation_, unlitLocation_;
     GLint alphaLocation_, cutoffLocation_, instancedLocation_;
+    GLint minifiedCutoffLocation_;
     GLint animatedLocation_, animationLocation_, animationFrameLocation_;
     GLint animationCountLocation_, animationVerticesLocation_;
     GLint skinningLocation_, skinningBonesLocation_, skinningBoneCountLocation_;

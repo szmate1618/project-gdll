@@ -10,6 +10,7 @@ uniform bool uHasTexture;
 uniform bool uUnlit;
 uniform int uAlphaMode; // 0 = opaque, 1 = mask, 2 = blend
 uniform float uAlphaCutoff;
+uniform float uMinifiedAlphaCutoff; // Zero keeps the material's fixed cutoff.
 uniform bool uShadowPass;
 uniform bool uShadows;
 uniform sampler2DShadow uShadowMap;
@@ -89,10 +90,22 @@ vec3 flashlight(vec3 normal, float distanceFromEye) {
     return uFlashlightColor * (cone * rangeFade * falloff * facing);
 }
 
+float alphaMaskCutoff() {
+    if (!uHasTexture || uMinifiedAlphaCutoff <= 0.0) return uAlphaCutoff;
+    // Screen-space footprint also accounts for zoom and oblique views. Preserve
+    // the close-up mask, then recover diluted wires as filtering averages gaps.
+    vec2 texels = vec2(textureSize(uBaseTexture, 0));
+    vec2 dx = dFdx(vUV) * texels;
+    vec2 dy = dFdy(vUV) * texels;
+    float footprintSquared = max(dot(dx, dx), dot(dy, dy));
+    float lod = 0.5 * log2(max(footprintSquared, 1.0));
+    return mix(uAlphaCutoff, min(uAlphaCutoff, uMinifiedAlphaCutoff), smoothstep(1.0, 4.0, lod));
+}
+
 void main() {
     vec4 color = uBaseColor * vColor;
     if (uHasTexture && (!uShadowPass || uAlphaMode == 1)) color *= texture(uBaseTexture, vUV);
-    if (uAlphaMode == 1 && color.a < uAlphaCutoff) discard;
+    if (uAlphaMode == 1 && color.a < alphaMaskCutoff()) discard;
     if (uShadowPass) {
         fragColor = vec4(0.0);
         return;

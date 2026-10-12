@@ -530,6 +530,20 @@ point precision limits.
 
 ## Lighting and shadows
 
+Generated chain-link and railing fence masks retain their glTF alpha cutoff
+up close. As the texture footprint grows, the viewer smoothly lowers the cutoff
+to 0.2 for wire or 0.3 for railing, keeping thin features visible through mip
+filtering. Denser patterns raise the floor above their averaged opacity so
+relaxed filtering does not turn distant fences into solid sheets. Fence textures
+also use up to 4× anisotropic filtering when available for views along the fence. The tuning
+applies in both color and shadow passes, to existing maps without regeneration;
+other material masks keep their original cutoff.
+
+Run `./build/godollo_viewer output/godollo.glb --no-fences` to disable generated
+fence panels and posts, their shadows, and their walking/perception collisions.
+This runtime option works with existing maps and can be combined with other
+comparison flags. Fences are enabled by default.
+
 Lighting is tuned for FPS walking: one warm directional sun plus cool sky and
 muted ground ambient light. Ambient illumination remains in shadow. Linear RGB
 lighting is applied before the existing sRGB output encoding. The sun direction,
@@ -720,6 +734,10 @@ flashlight cone edges, camera tracking, range cutoff, and daylight restoration.
 It also skips without an accessible OpenGL display/context.
 Geometry/palette and shadow regressions disable atmospheric effects to isolate
 their expected colors.
+
+`viewer_fence_renderer` compares wire and railing visibility at 20 and 30 metres,
+including oblique views, with fog disabled. It checks the magnified mask, gate
+gaps, depth writes, and sparse distant coverage, and skips without a display.
 
 `viewer_rain_renderer` checks visible animated streaks, repeatable frozen time,
 the enable/disable toggle, night flashlight illumination, opaque depth occlusion,

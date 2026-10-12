@@ -40,6 +40,10 @@ struct Material {
     std::string alphaMode = "OPAQUE";
     float alphaCutoff = 0.5f;
     bool unlit = false;
+    // Runtime tuning for generated thin fence masks. Zero uses the glTF cutoff
+    // at every texture footprint; a positive value requests a distant floor.
+    // Upload raises that floor if needed to stay above the image's mean opacity.
+    float minifiedAlphaCutoff = 0.0f;
 };
 
 struct Primitive {
@@ -60,6 +64,7 @@ struct DrawInstance {
     std::string detailGroup{}; // All wall/panel alternatives switch together.
     // Runtime-only conservative horizontal padding for a movable panel's sweep.
     float horizontalMotionRadius = 0.0f;
+    bool fence = false; // Generated fence panels/posts, independent of material.
 };
 
 struct Model {
@@ -81,5 +86,9 @@ struct Model {
 
 // Throws std::runtime_error including the input path on invalid/unsupported data.
 Model loadModel(const std::filesystem::path& path);
+
+// Remove active fence instances before constructing collision, doors or the
+// renderer. Primitive indices and shared asset buffers remain valid.
+std::size_t removeFenceDraws(Model& model);
 
 }  // namespace viewer
