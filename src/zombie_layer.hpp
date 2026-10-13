@@ -3,6 +3,7 @@
 #include "animated_model.hpp"
 #include "collision_world.hpp"
 #include "zombie_behavior.hpp"
+#include "zombie_spatial_index.hpp"
 
 #include <memory>
 
@@ -29,6 +30,10 @@ struct ZombieInstance {
     std::vector<glm::mat4> ragdollBones;
 };
 
+struct ZombieBehaviorStats {
+    std::size_t activationCandidates = 0, perceptionChecks = 0, sightRays = 0, hearingCandidates = 0;
+};
+
 struct ZombieLayer {
     ZombieLayer();
     ~ZombieLayer();
@@ -48,6 +53,12 @@ struct ZombieLayer {
     // Silent noise at a world position, with a source level in dB at one meter.
     // Only idle, living zombies already in the behavior pool can hear it.
     void makeNoise(glm::vec3 position, float decibels);
+    // Disable only for comparison/tests of the original every-step perception.
+    void setPerceptionStaggering(bool enabled);
+    const ZombieBehaviorStats& behaviorStats() const { return behaviorStats_; }
+    // Rebuild after external edits to instance feet or replacing a population
+    // with the same size. Ordinary locomotion maintains membership itself.
+    void rebuildSpatialIndex();
     // Perception/state update, followed by terrain-following locomotion.
     // The app advances SimulationClock before calling this once per step.
     void updateBehavior(float seconds, const ZombiePlayer& player, const CollisionWorld& world,
@@ -65,6 +76,11 @@ struct ZombieLayer {
 private:
     struct Physics;
     std::unique_ptr<Physics> physics_;
+    void ensureSpatialIndex();
+    ZombieSpatialIndex spatialIndex_;
+    std::vector<std::size_t> spatialCandidates_;
+    bool staggerPerception_ = true;
+    ZombieBehaviorStats behaviorStats_;
 };
 
 bool hasZombieModels(const std::filesystem::path& source);

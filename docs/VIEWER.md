@@ -322,6 +322,12 @@ behavior vector has a hash map from instance IDs to slots for fast membership
 and lookup. Removal moves the last member into the vacated slot. Instance IDs
 are stable indices in the crowd; the instance vector must not be reordered.
 
+Activation and hearing query a 20 m X/Z spatial grid, then apply the original
+3D distance and eligibility checks. Locomotion updates cell membership before
+noise handling; shot zombies leave the grid. External code that edits instance
+feet directly must call `ZombieLayer::rebuildSpatialIndex()`. Changing the
+population size triggers a rebuild automatically.
+
 Only members of this pool perform perception. A **100-degree horizontal FOV**
 uses the character's forward direction (+Z), ignoring height for the cone test.
 Inside the cone, three finite rays run from zombie eye height (1.65 m) to player
@@ -331,6 +337,24 @@ zombies do not block sight. One or two clear rays store the current player feet
 and change idle or looking to **investigating**. Three clear rays store the same target and
 change idle, looking, or investigating to **chasing**. Partial sight refreshes a chasing
 zombie's target without downgrading its state.
+
+Sight observations run at **10 Hz within 10 m**, **5 Hz over 10 m through 30 m**,
+and **1 Hz beyond 30 m**, using 3D distance between feet. Activation gets an
+immediate first observation; later checks use deterministic offsets from stable
+zombie IDs to spread work across frames. Moving into a faster band shortens the
+next deadline. A late frame performs one check rather than replaying missed
+observations. Everything is polled synchronously on the existing simulation
+thread using `SimulationClock`; there are no worker threads, background tasks,
+or timer callbacks.
+
+Between observations, zombies retain the last observed visibility and target;
+cached sight never copies the player's current position into that target.
+Movement, looking turns, attack-range checks, and idle expiration still run
+every simulation step. Hearing remains immediate and event-driven. Sight can
+take up to roughly 100/200/1000 ms plus frame scheduling to react, and brief
+glimpses between checks may be missed. `--no-zombie-staggering` restores
+every-step sight checks for comparison. Rays stop once partial visibility is
+known; every-step chasing can stop at the first clear ray.
 
 `ZombieLayer::makeNoise(position, decibels)` creates a silent simulation noise
 at an X/Y/Z position. Source levels are dB at **one meter**. Perceived level is
@@ -1008,6 +1032,8 @@ src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin dat
 src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting
 src/zombie_hit.{hpp,cpp}    Head hit regions from the displayed skinning pose
 src/zombie_behavior.{hpp,cpp} Dense behavior pool, perception and state transitions
+src/zombie_perception.{hpp,cpp} Simulation-thread sight scheduling and ray classification
+src/zombie_spatial_index.{hpp,cpp} Stable-ID spatial grid for activation and hearing
 src/noise.{hpp,cpp}        Noise events, source levels, and distance attenuation
 src/player_noise.{hpp,cpp} Fixed-step footsteps and landing noise emission
 src/simulation_clock.hpp   Global simulation-thread in-game clock

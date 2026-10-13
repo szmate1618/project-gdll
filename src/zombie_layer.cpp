@@ -87,6 +87,7 @@ bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationS
     else
         instance.ragdollHandle = physics_->world.create(feet, yaw, direction * 4.0f);
     instance.ragdoll = true;
+    spatialIndex_.erase(selected);
     behaviors.remove(selected);
     instance.walking = false;
     instance.transform = physics_->world.rootTransform(instance.ragdollHandle) *

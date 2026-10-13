@@ -57,6 +57,7 @@ struct Options {
     bool groundFog = true;
     bool noTrees = false, treeCulling = true, treeCollisions = true, sceneCulling = true;
     bool noZombies = false, zombieView = false, explicitZombies = false, zombieCulling = true;
+    bool zombiePerceptionStaggering = true;
     int zombieCount = 1000;
     bool explicitZombieCount = false, explicitZombieRadius = false;
     float zombieRadius = 100.0f;
@@ -114,6 +115,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--no-trees") options.noTrees = true;
         else if (argument == "--no-tree-culling") options.treeCulling = false;
         else if (argument == "--no-zombie-culling") options.zombieCulling = false;
+        else if (argument == "--no-zombie-staggering") options.zombiePerceptionStaggering = false;
         else if (argument == "--no-town-culling") options.sceneCulling = false;
         else if (argument == "--no-tree-collisions") options.treeCollisions = false;
         else if (argument == "--zombies") { options.zombies = value(); options.explicitZombies = true; }
@@ -223,6 +225,7 @@ void printHelp() {
               << "  --no-roof-batching  Draw static roofs individually for comparison\n"
               << "  --no-tree-culling   Render all tree instances for comparison\n"
               << "  --no-zombie-culling Render all zombies in the camera pass for comparison\n"
+              << "  --no-zombie-staggering Check zombie sight every simulation step\n"
               << "  --no-town-culling   Render all town draw instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
               << "  --zombies PATH      Load individual animated GLB/glTF files from PATH\n"
@@ -676,7 +679,10 @@ int run(const Options& options) {
                       << " shared animated assets; looping idle with individual phase offsets\n";
         } else std::cerr << "Zombie assets are missing at " << path << "; see assets/zombies/README.md for download instructions.\n";
     }
-    if (zombies) zombies->attachPhysics(physics);
+    if (zombies) {
+        zombies->attachPhysics(physics);
+        zombies->setPerceptionStaggering(options.zombiePerceptionStaggering);
+    }
     GLFWLifetime lifetime;
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);

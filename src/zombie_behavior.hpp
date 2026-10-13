@@ -1,5 +1,7 @@
 #pragma once
 
+#include "zombie_perception.hpp"
+
 #include <glm/glm.hpp>
 #include <cstddef>
 #include <unordered_map>
@@ -17,6 +19,8 @@ struct ZombieBehavior {
     double idleSinceSeconds = 0;
     glm::vec3 target{0}; // Last seen player feet in X east / Y up / Z south meters.
     glm::vec2 lookDirection{0, 1}; // Unit horizontal direction toward a heard noise.
+    ZombieSight sight = ZombieSight::none; // Last observation, never a live player tracker.
+    ZombiePerceptionClock perception{};
 };
 
 // Dense, unordered pool with expected O(1) membership, lookup and swap removal.

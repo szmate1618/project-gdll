@@ -17,6 +17,9 @@ void require(bool condition, const char* message) {
 
 viewer::ZombieLayer crowd(std::initializer_list<glm::vec3> positions = {{0, 0, 0}}) {
     viewer::ZombieLayer layer;
+    // Exercise original state-machine rules at every step. Separate tests below
+    // exercise the production staggered clock with actual simulation advances.
+    layer.setPerceptionStaggering(false);
     layer.assets.emplace_back();
     for (const auto feet : positions) {
         viewer::ZombieInstance instance;
@@ -258,6 +261,100 @@ void lookingTurnAndIdleTimer() {
     require(!layer.behaviors.contains(0), "Looking-to-idle expires after ten seconds");
 }
 
+void staggeredObservationsAndContinuousMovement() {
+    auto& clock = viewer::SimulationClock::instance();
+    clock.reset();
+    const viewer::CollisionWorld clear(viewer::Model{}), blocked(wall(2));
+    auto layer = crowd();
+    layer.setPerceptionStaggering(true);
+    layer.chase(0.01f, {0, 0, 50}, clear);
+    require(state(layer) == ZombieState::chasing && layer.behaviorStats().perceptionChecks == 1,
+            "Production staggering gives activation an immediate observation");
+    const auto oldFeet = glm::vec3(layer.instances[0].restRoot[3]);
+    clock.advance(0.05);
+    layer.chase(0.05f, {5, 0, 50}, clear);
+    require(layer.behaviorStats().perceptionChecks == 0 && layer.behaviors.find(0)->target == glm::vec3(0, 0, 50),
+            "Cached sight must not update the target from the current player position");
+    require(layer.instances[0].restRoot[3].z > oldFeet.z && layer.instances[0].restRoot[3].x == 0,
+            "Movement continues between observations toward the last seen target");
+    clock.advance(0.95);
+    layer.chase(0.01f, {5, 0, 50}, clear);
+    require(layer.behaviorStats().perceptionChecks == 1 && layer.behaviors.find(0)->target == glm::vec3(5, 0, 50),
+            "A scheduled observation refreshes the last seen feet");
+    clock.advance(0.1);
+    layer.chase(0.01f, {20, 0, 60}, blocked);
+    require(layer.behaviorStats().perceptionChecks == 0 && layer.behaviors.find(0)->target == glm::vec3(5, 0, 50),
+            "An unsampled player behind cover cannot leak into the remembered target");
+    clock.advance(0.9);
+    layer.chase(0.01f, {20, 0, 60}, blocked);
+    require(layer.behaviorStats().perceptionChecks == 1 && layer.behaviors.find(0)->sight == viewer::ZombieSight::none &&
+            layer.behaviors.find(0)->target == glm::vec3(5, 0, 50), "Losing sight preserves target memory");
+    clock.advance(0.01);
+    const auto feet = glm::vec3(layer.instances[0].restRoot[3]);
+    layer.chase(0.01f, feet + glm::vec3(0, 0, 0.5f), clear);
+    require(layer.behaviorStats().perceptionChecks == 0 && state(layer) == ZombieState::attacking &&
+            !layer.instances[0].walking, "Attack range is checked immediately between perception ticks");
+}
+
+void indexedMovementAndImmediateHearing() {
+    auto& clock = viewer::SimulationClock::instance();
+    clock.reset();
+    const viewer::CollisionWorld clear(viewer::Model{});
+    auto layer = crowd({{19.9f, 0, 0}});
+    layer.setPerceptionStaggering(true);
+    layer.chase(1, {40, 0, 40}, clear);
+    const auto feet = glm::vec3(layer.instances[0].restRoot[3]);
+    require(feet.x > 20, "The moving fixture crosses a spatial cell boundary");
+    layer.behaviors.find(0)->state = ZombieState::idle;
+    layer.makeNoise(feet + glm::vec3(9.9f, 0, 0), viewer::walkingFootstepDecibels);
+    require(state(layer) == ZombieState::looking, "Hearing immediately uses the updated post-movement grid cell");
+    // Repositioning a public instance explicitly rebuilds the index.
+    layer.instances[0].restRoot[3] = glm::vec4(-100, 0, -100, 1);
+    layer.behaviors.find(0)->state = ZombieState::idle;
+    layer.rebuildSpatialIndex();
+    layer.makeNoise({-100, 0, -90}, viewer::walkingFootstepDecibels);
+    require(state(layer) == ZombieState::looking, "External placement edits can rebuild spatial membership");
+
+    auto listener = crowd();
+    listener.setPerceptionStaggering(true);
+    listener.chase(0.01f, {0, 0, -20}, clear);
+    listener.makeNoise({10, 0, 0}, viewer::walkingFootstepDecibels);
+    require(state(listener) == ZombieState::looking, "Hearing is event-driven rather than perception-rate limited");
+    clock.advance(0.01);
+    listener.chase(0.01f, {0, 0, -20}, clear);
+    require(listener.behaviorStats().perceptionChecks == 0 && listener.instances[0].restRoot[2].x > 0,
+            "Looking turns on every simulation step between sight observations");
+}
+
+void largePopulationUsesLocalCandidates() {
+    auto& clock = viewer::SimulationClock::instance();
+    clock.reset();
+    const viewer::CollisionWorld clear(viewer::Model{});
+    viewer::ZombieLayer layer; // Production default: staggered sight.
+    layer.assets.emplace_back();
+    for (int z = -50; z < 50; ++z)
+        for (int x = -50; x < 50; ++x) {
+            viewer::ZombieInstance instance;
+            instance.restRoot = glm::translate(glm::mat4(1), {x * 20.0f + 0.25f, 0, z * 20.0f - 0.25f});
+            instance.transform = instance.restTransform = instance.restRoot;
+            layer.instances.push_back(instance);
+        }
+    layer.chase(0.01f, {}, clear);
+    const auto active = layer.behaviors.entries().size();
+    require(active > 50 && active < 100 && layer.behaviorStats().activationCandidates < 200,
+            "A 10,000-zombie population activates only local exact-radius candidates");
+    std::size_t checks = 0;
+    for (int step = 0; step < 60; ++step) {
+        clock.advance(1.0 / 60.0);
+        layer.chase(1.0f / 60.0f, {}, clear);
+        checks += layer.behaviorStats().perceptionChecks;
+        require(layer.behaviorStats().activationCandidates < 200, "Movement keeps subsequent activation queries local");
+    }
+    require(checks < active * 4, "Scheduled perception avoids every-frame checks across the nearby active pool");
+    layer.makeNoise({}, viewer::walkingFootstepDecibels);
+    require(layer.behaviorStats().hearingCandidates < 20, "Walking noise queries local cells rather than the entire behavior pool");
+}
+
 void lookingPerceptionAndShortestTurn() {
     viewer::SimulationClock::instance().reset();
     const viewer::CollisionWorld clear(viewer::Model{});
@@ -304,6 +401,9 @@ int main() {
         hearingThresholdAndEligibility();
         lookingTurnAndIdleTimer();
         lookingPerceptionAndShortestTurn();
+        staggeredObservationsAndContinuousMovement();
+        indexedMovementAndImmediateHearing();
+        largePopulationUsesLocalCandidates();
         std::cout << "Zombie behavior tests passed\n";
         return 0;
     } catch (const std::exception& error) {
