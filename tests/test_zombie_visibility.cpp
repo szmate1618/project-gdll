@@ -1,0 +1,197 @@
+#include "zombie_visibility.hpp"
+
+#include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
+#include <iostream>
+#include <limits>
+#include <random>
+#include <stdexcept>
+
+namespace {
+using viewer::VisibilityBounds;
+void require(bool condition, const char* message) { if (!condition) throw std::runtime_error(message); }
+VisibilityBounds box(glm::vec3 center, glm::vec3 half = glm::vec3(0.5f)) { return {center - half, center + half}; }
+
+viewer::ZombieVisibilityStats compare(viewer::ZombieVisibility& groups, const std::vector<VisibilityBounds>& bounds,
+                                     const std::vector<bool>& active, const viewer::Frustum& camera, const viewer::Frustum* light = nullptr,
+                                     bool cameraCulling = true) {
+    std::vector<viewer::ZombieVisibilityResult> actual, expected;
+    const auto stats = groups.query(camera, light, cameraCulling, actual);
+    // Independent full population query is the original rendering predicate.
+    for (std::size_t id = 0; id < bounds.size(); ++id) {
+        require(groups.contains(id) == active[id], "Membership must match independently recorded updates/removals");
+        if (!active[id]) continue;
+        const auto& b = bounds[id];
+        const bool inCamera = !cameraCulling || camera.intersects(b.minimum, b.maximum);
+        const bool inShadow = light && light->intersects(b.minimum, b.maximum);
+        if (inCamera || inShadow) expected.push_back({id, inCamera, inShadow});
+    }
+    require(actual.size() == expected.size(), "Grouped culling must match the full-scan visible union");
+    for (std::size_t i = 0; i < actual.size(); ++i)
+        require(actual[i].instance == expected[i].instance && actual[i].camera == expected[i].camera &&
+                actual[i].shadow == expected[i].shadow,
+                "Grouped camera/shadow masks and source ordering must match individual tests");
+    return stats;
+}
+
+void insideOutsideAndBoundaryGroups() {
+    const viewer::Frustum camera(glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, -10.0f, 10.0f));
+    const viewer::Frustum light(glm::ortho(80.0f, 110.0f, -10.0f, 10.0f, -10.0f, 10.0f));
+    std::vector<VisibilityBounds> bounds{
+        box({1, 1, 1}), box({2, 1, 2}), box({100, 1, 1}), box({101, 1, 2}), box({200, 1, 1})};
+    std::vector<bool> active(bounds.size(), true);
+    viewer::ZombieVisibility groups;
+    groups.reset(bounds.size());
+    for (std::size_t i = 0; i < bounds.size(); ++i) groups.update(i, bounds[i]);
+    auto stats = compare(groups, bounds, active, camera, &light);
+    require(stats.groups == 3 && stats.refittedGroups == 3, "Shared cells must refit once after initialization");
+    require(stats.cameraInstanceTests == 0 && stats.shadowInstanceTests == 0,
+            "Wholly inside/outside groups must bypass individual frustum tests");
+    require(compare(groups, bounds, active, camera, &light).refittedGroups == 0,
+            "Stationary and settled groups must retain their bounds");
+    bounds[0] = box({9.8f, 1, 1}, {1, 0.5f, 0.5f});
+    bounds[1] = box({15, 1, 2});
+    groups.update(0, bounds[0]);
+    groups.update(1, bounds[1]);
+    stats = compare(groups, bounds, active, camera, &light);
+    require(stats.refittedGroups == 1 && stats.cameraInstanceTests == 2,
+            "Boundary groups must test members and refit only once for several movers");
+    stats = compare(groups, bounds, active, camera, &light, false);
+    require(stats.cameraGroupTests == 0 && stats.cameraInstanceTests == 0 && stats.shadowGroupTests == 3,
+            "Disabling camera culling must retain independent shadow culling");
+    compare(groups, bounds, active, camera); // No active sunlight: camera list only.
+}
+
+void movementRemovalAndReuse() {
+    const viewer::Frustum camera(glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, -10.0f, 10.0f));
+    std::vector<VisibilityBounds> bounds{box({101, 0, 0}), box({102, 0, 0}), box({103, 0, 0}), box({-20.01f, 0, 0})};
+    std::vector<bool> active(bounds.size(), true);
+    viewer::ZombieVisibility groups;
+    groups.reset(bounds.size());
+    for (std::size_t i = 0; i < bounds.size(); ++i) groups.update(i, bounds[i]);
+    compare(groups, bounds, active, camera);
+    // Remove a middle bucket entry, then move its swapped member.
+    groups.erase(1);
+    active[1] = false;
+    bounds[2] = box({-0.01f, 0, 0});
+    groups.update(2, bounds[2]);
+    compare(groups, bounds, active, camera);
+    // Free an entire group and reuse its storage before querying. Pending dirty
+    // entries must describe the new group and must not contain duplicate IDs.
+    groups.erase(0);
+    bounds[0] = box({4, 0, 0});
+    groups.update(0, bounds[0]);
+    bounds[3] = box({20.01f, 0, 0});
+    groups.update(3, bounds[3]);
+    compare(groups, bounds, active, camera);
+    // A fallen body's geometry reaches into view although its center is outside.
+    bounds[3] = box({30, 0, 0}, {25, 1, 1});
+    groups.update(3, bounds[3]);
+    auto stats = compare(groups, bounds, active, camera);
+    require(stats.refittedGroups == 1, "Pose expansion within a cell must invalidate its group");
+    // Shrinking/removing the extremal member must shrink the group too.
+    bounds[3] = box({30, 0, 0});
+    groups.update(3, bounds[3]);
+    compare(groups, bounds, active, camera);
+    groups.erase(3);
+    active[3] = false;
+    compare(groups, bounds, active, camera);
+    require(!groups.contains(1) && !groups.contains(3), "Removed corpses must leave group membership");
+    for (std::size_t i = 0; i < bounds.size(); ++i) groups.erase(i);
+    active.assign(bounds.size(), false);
+    require(compare(groups, bounds, active, camera).groups == 0, "Empty groups must stop contributing to queries");
+    groups.reset(1);
+    bounds.resize(1);
+    active.assign(1, true);
+    bounds[0] = box({0, 0, 0});
+    groups.update(0, bounds[0]);
+    compare(groups, bounds, active, camera);
+}
+
+void randomViewsMatchFullScan() {
+    std::mt19937 random(731);
+    std::uniform_real_distribution<float> coordinate(-250, 250), extent(0.02f, 15);
+    std::vector<VisibilityBounds> bounds(1000);
+    std::vector<bool> active(bounds.size(), true);
+    viewer::ZombieVisibility groups;
+    groups.reset(bounds.size());
+    for (std::size_t i = 0; i < bounds.size(); ++i) {
+        bounds[i] = box({coordinate(random), coordinate(random) * 0.2f, coordinate(random)},
+                        {extent(random), extent(random), extent(random)});
+        groups.update(i, bounds[i]);
+    }
+    for (int view = 0; view < 100; ++view) {
+        for (int move = 0; move < 15; ++move) {
+            const auto id = std::size_t(random()) % bounds.size();
+            if (random() % 5 == 0) {
+                groups.erase(id);
+                active[id] = false;
+            } else {
+                active[id] = true;
+                bounds[id] = box({coordinate(random), coordinate(random) * 0.2f, coordinate(random)},
+                                 {extent(random), extent(random), extent(random)});
+                groups.update(id, bounds[id]);
+            }
+        }
+        const glm::vec3 eye(coordinate(random), 80, coordinate(random));
+        const viewer::Frustum camera(glm::perspective(glm::radians(60.0f), 1.3f, 0.05f, 400.0f) *
+                                     glm::lookAt(eye, glm::vec3(0), glm::vec3(0, 1, 0)));
+        const viewer::Frustum light(glm::ortho(-120.0f, 120.0f, -120.0f, 120.0f, 0.1f, 600.0f) *
+                                    glm::lookAt(eye + glm::vec3(-100, 250, 100), eye, glm::vec3(0, 1, 0)));
+        compare(groups, bounds, active, camera, view % 3 == 0 ? nullptr : &light, view % 4 != 0);
+    }
+}
+
+void largeCrowdRejectsGroups() {
+    std::vector<VisibilityBounds> bounds(10000);
+    std::vector<bool> active(bounds.size(), true);
+    viewer::ZombieVisibility groups;
+    groups.reset(bounds.size());
+    for (std::size_t i = 0; i < bounds.size(); ++i) {
+        bounds[i] = box({float(i % 100) * 3 - 150, 1, float(i / 100) * 3 - 150});
+        groups.update(i, bounds[i]);
+    }
+    const viewer::Frustum camera(glm::ortho(-15.0f, 15.0f, -10.0f, 10.0f, -15.0f, 15.0f));
+    const auto stats = compare(groups, bounds, active, camera);
+    require(stats.groups < 300 && stats.cameraInstanceTests < 500,
+            "Small views of large crowds must avoid population-wide individual culling");
+    require(compare(groups, bounds, active, camera).refittedGroups == 0, "Repeated views must not rebuild stationary groups");
+    std::cout << "10,000 zombies: " << stats.cameraGroupTests << " group tests, " << stats.cameraInstanceTests
+              << " individual tests\n";
+    const auto maximum = std::numeric_limits<float>::max();
+    bounds[0] = box({maximum, 0, maximum}, glm::vec3(0));
+    groups.update(0, bounds[0]); // Double cell keys must not overflow integer coordinates.
+    compare(groups, bounds, active, camera);
+    // A large crowd gathers, then disperses. Refitting shrinks oversized member
+    // storage; removal slot repairs must survive that buffer replacement.
+    for (std::size_t i = 0; i < bounds.size(); ++i) {
+        bounds[i] = box({1, 1, 1});
+        groups.update(i, bounds[i]);
+    }
+    require(compare(groups, bounds, active, camera).groups == 1, "Gathering must release historical occupied cells");
+    for (std::size_t i = 1; i < bounds.size(); ++i) {
+        groups.erase(i);
+        active[i] = false;
+    }
+    compare(groups, bounds, active, camera);
+    groups.update(1, bounds[1]);
+    active[1] = true;
+    bounds[0] = box({100, 1, 1});
+    groups.update(0, bounds[0]);
+    compare(groups, bounds, active, camera);
+}
+}
+
+int main() {
+    try {
+        insideOutsideAndBoundaryGroups();
+        movementRemovalAndReuse();
+        randomViewsMatchFullScan();
+        largeCrowdRejectsGroups();
+        std::cout << "Zombie visibility tests passed\n";
+        return 0;
+    } catch (const std::exception& error) {
+        std::cerr << "Zombie visibility test failed: " << error.what() << '\n';
+        return 1;
+    }
+}

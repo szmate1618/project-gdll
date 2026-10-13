@@ -73,10 +73,15 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
     // Allocate ownership before creating any GPU resource, so partial failures
     // are covered by the renderer constructor's cleanup path.
     zombieBatches_.resize(zombies.assets.size());
+    zombieVisibility_.reset(zombies.instances.size());
+    zombieBatchLocals_.resize(zombies.instances.size());
+    visibleZombies_.reserve(zombies.instances.size());
     for (std::size_t i = 0; i < zombies.assets.size(); ++i) {
         const auto& source = zombies.assets[i];
         auto& batch = zombieBatches_[i];
         batch.sourceIndices = std::move(sourceIndices[i]);
+        for (std::size_t local = 0; local < batch.sourceIndices.size(); ++local)
+            zombieBatchLocals_[batch.sourceIndices[local]] = local;
         batch.staging = instances[i];
         if (source.frameCount < 2 || source.frameCount > static_cast<std::size_t>(std::numeric_limits<GLint>::max()) ||
             !std::isfinite(source.duration) || source.duration <= 0 ||
@@ -227,7 +232,12 @@ void Renderer::updateZombies(const ZombieLayer& zombies) {
             const auto& source = zombies.instances[sourceIndex];
             if (source.asset != i) throw std::runtime_error("Zombie asset changed after renderer upload");
             zombieCount_ += !source.removed;
-            const bool live = source.ragdoll && !source.removed;
+            if (source.removed) {
+                zombieVisibility_.erase(sourceIndex);
+                batch.palettes->release(local);
+                continue;
+            }
+            const bool live = source.ragdoll;
             if (!live) batch.palettes->release(local);
             if (live && source.ragdollBones.size() != static_cast<std::size_t>(batch.skinningBoneCount))
                 throw std::runtime_error("Live skeleton data does not match zombie asset");
@@ -245,31 +255,37 @@ void Renderer::updateZombies(const ZombieLayer& zombies) {
                 batch.poseVersions[local] = source.ragdollPoseVersion;
                 batch.livePoses[local] = live;
             }
-            batch.instanceBounds[local] = transformedBounds(batch.poseBounds[local], source.transform);
+            const auto bounds = transformedBounds(batch.poseBounds[local], source.transform);
+            auto& previous = batch.instanceBounds[local];
+            const bool changed = bounds.minimum != previous.minimum || bounds.maximum != previous.maximum;
+            previous = bounds;
+            if (changed || !zombieVisibility_.contains(sourceIndex))
+                zombieVisibility_.update(sourceIndex, previous);
         }
     }
 }
 
 void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* lightFrustum) {
     zombiePaletteStats_ = {};
+    zombieVisibilityStats_ = {};
     if (!zombieSource_) return;
     for (auto& batch : zombieBatches_) {
         batch.cameraInstances.clear();
         batch.shadowInstances.clear();
         batch.palettes->beginFrame();
-        for (std::size_t local = 0; local < batch.sourceIndices.size(); ++local) {
-            const auto& source = zombieSource_->instances[batch.sourceIndices[local]];
-            if (source.removed) continue;
-            const auto& bounds = batch.instanceBounds[local];
-            const bool camera = !zombieCulling_ || cameraFrustum.intersects(bounds.minimum, bounds.maximum);
-            const bool shadow = lightFrustum && lightFrustum->intersects(bounds.minimum, bounds.maximum);
-            if (!camera && !shadow) continue;
-            auto instance = batch.staging[local];
-            if (source.ragdoll && batch.skinningBoneCount > 0)
-                instance.boneBase = batch.palettes->request(local, source.ragdollPoseVersion, source.ragdollBones);
-            if (camera) batch.cameraInstances.push_back(instance);
-            if (shadow) batch.shadowInstances.push_back(instance);
-        }
+    }
+    zombieVisibilityStats_ = zombieVisibility_.query(cameraFrustum, lightFrustum, zombieCulling_, visibleZombies_);
+    for (const auto& visible : visibleZombies_) {
+        const auto& source = zombieSource_->instances[visible.instance];
+        auto& batch = zombieBatches_[source.asset];
+        const auto local = zombieBatchLocals_[visible.instance];
+        auto instance = batch.staging[local];
+        if (source.ragdoll && batch.skinningBoneCount > 0)
+            instance.boneBase = batch.palettes->request(local, source.ragdollPoseVersion, source.ragdollBones);
+        if (visible.camera) batch.cameraInstances.push_back(instance);
+        if (visible.shadow) batch.shadowInstances.push_back(instance);
+    }
+    for (auto& batch : zombieBatches_) {
         batch.palettes->flush();
         const auto& stats = batch.palettes->stats();
         zombiePaletteStats_.needed += stats.needed;

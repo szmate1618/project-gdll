@@ -310,6 +310,74 @@ void paletteVisibilityAndDeferredChanges() {
         throw std::runtime_error("Removal must release its palette slot and exclude its stable source ID");
 }
 
+void renderGroupMovementAndPoseChanges() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(makeAsset(1, 3));
+    layer.assets.push_back(makeAsset(1, 2));
+    for (std::size_t i = 0; i < 40; ++i) {
+        viewer::ZombieInstance instance;
+        instance.asset = i % 2;
+        instance.transform = glm::translate(glm::mat4(1), {100 + float(i % 5) * 0.2f, 0, 0});
+        layer.instances.push_back(instance);
+    }
+    viewer::Camera camera;
+    camera.setPosition({0, 0.5f, 14});
+    camera.look(0, 200);
+    viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.setHaze(false);
+    renderer.setGroundFog(false);
+    renderer.setShadows(false);
+    renderer.resize(width, height);
+    renderer.render(camera, 0.25);
+    auto stats = renderer.zombieVisibilityStats();
+    if (stats.groups != 1 || stats.cameraGroupTests != 1 || stats.cameraInstanceTests != 0 ||
+        renderer.zombieVisibleCount() != 0)
+        throw std::runtime_error("Offscreen groups must reject all asset variants with one group test");
+    layer.instances[1].transform = glm::translate(glm::mat4(1), {1, 0, 0});
+    layer.instances[2].transform = glm::translate(glm::mat4(1), {2, 0, 0});
+    renderer.updateZombies(layer);
+    renderer.render(camera, 0.25);
+    stats = renderer.zombieVisibilityStats();
+    if (stats.groups != 2 || stats.refittedGroups != 2 || stats.cameraInstanceTests != 0 ||
+        renderer.zombieVisibleCount() != 2)
+        throw std::runtime_error("Cell crossings must refit both groups and accept fully visible groups without member tests");
+    layer.instances[3].transform = glm::translate(glm::mat4(1), {12, 0, 0});
+    renderer.updateZombies(layer);
+    renderer.render(camera, 0.25);
+    if (renderer.zombieVisibleCount() != 2 || renderer.zombieVisibilityStats().cameraInstanceTests != 3)
+        throw std::runtime_error("Boundary groups must retain original per-instance culling");
+    layer.setRagdollPalette(3, std::vector<glm::mat4>(2, glm::translate(glm::mat4(1), {-3, 0, 0})));
+    renderer.updateZombies(layer);
+    renderer.render(camera, 0.25);
+    if (renderer.zombieVisibleCount() != 3 || renderer.zombieVisibilityStats().refittedGroups != 1)
+        throw std::runtime_error("Ragdoll geometry entering view without changing cells must refit the group");
+    const auto grouped = colorPixels();
+    renderer.setZombieCulling(false);
+    renderer.render(camera, 0.25);
+    if (colorPixels() != grouped)
+        throw std::runtime_error("Group culling changed rendered animation, palettes, or stable asset ordering");
+    renderer.setZombieCulling(true);
+    renderer.updateZombies(layer);
+    renderer.render(camera, 0.25);
+    if (renderer.zombieVisibilityStats().refittedGroups != 0 || renderer.zombiePaletteStats().uploaded != 0)
+        throw std::runtime_error("Unchanged settled poses must retain group bounds and GPU palettes");
+    // An externally driven pose change exercises the same revision publication
+    // used by physics wake-up, expanding the bounds and moving their center.
+    layer.setRagdollPalette(3, std::vector<glm::mat4>(2, glm::translate(glm::mat4(1), {50, 0, 0})));
+    renderer.updateZombies(layer);
+    renderer.render(camera, 0.25);
+    if (renderer.zombieVisibleCount() != 2)
+        throw std::runtime_error("Changed corpse pose must update membership and stop drawing its old geometry");
+    layer.removeRagdoll(3);
+    for (const std::size_t id : {1u, 2u}) layer.instances[id].transform = glm::translate(glm::mat4(1), {102, 0, 0});
+    renderer.updateZombies(layer);
+    renderer.render(camera, 0.25);
+    if (renderer.zombieVisibleCount() != 0 || renderer.zombieCount() != 39 ||
+        renderer.zombieVisibilityStats().groups != 1 || renderer.zombieVisibilityStats().cameraInstanceTests != 0)
+        throw std::runtime_error("Removal and movement must release empty groups and repair swapped membership");
+    viewer::Renderer::checkErrors("grouped zombie rendering regression");
+}
+
 void paletteGrowthAndReuse() {
     viewer::ZombiePaletteCache cache(20, 2, 160);
     std::vector<glm::mat4> original(2, glm::translate(glm::mat4(1), {1, 2, 3}));
@@ -534,6 +602,7 @@ int main(int argc, char** argv) {
         renderDistantHeadSurfaces();
         renderFrustumCulling();
         paletteVisibilityAndDeferredChanges();
+        renderGroupMovementAndPoseChanges();
         paletteGrowthAndReuse();
         if (mode == "--assets") {
             if (argc < 3) throw std::runtime_error("--assets requires a model directory");

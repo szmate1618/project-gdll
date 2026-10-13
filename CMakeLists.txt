@@ -90,6 +90,10 @@ add_library(viewer_visibility STATIC src/visibility.cpp src/model_visibility.cpp
 target_link_libraries(viewer_visibility PUBLIC viewer_model)
 viewer_warnings(viewer_visibility)
 
+add_library(viewer_zombie_visibility STATIC src/zombie_visibility.cpp)
+target_link_libraries(viewer_zombie_visibility PUBLIC viewer_visibility)
+viewer_warnings(viewer_zombie_visibility)
+
 add_library(viewer_roof_batches STATIC src/roof_batch.cpp)
 target_link_libraries(viewer_roof_batches PUBLIC viewer_model)
 viewer_warnings(viewer_roof_batches)
@@ -176,7 +180,7 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
     src/zombie_renderer.cpp src/zombie_palette_cache.cpp src/sun_shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
-    viewer_model viewer_roof_batches viewer_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting OpenGL::GL)
+    viewer_model viewer_roof_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting OpenGL::GL)
 target_compile_definitions(viewer_renderer PRIVATE GL_GLEXT_PROTOTYPES)
 viewer_warnings(viewer_renderer)
 
@@ -289,6 +293,11 @@ if(BUILD_TESTING)
         viewer_warnings(test_${suite})
         add_test(NAME viewer_${suite} COMMAND test_${suite})
     endforeach()
+
+    add_executable(test_zombie_visibility tests/test_zombie_visibility.cpp)
+    target_link_libraries(test_zombie_visibility PRIVATE viewer_zombie_visibility)
+    viewer_warnings(test_zombie_visibility)
+    add_test(NAME viewer_zombie_visibility COMMAND test_zombie_visibility)
 
     # Exercise real vertex attributes and skinning palette lookups. Machines
     # without an accessible OpenGL display skip this graphics-only regression.

@@ -315,6 +315,39 @@ zombie can still cast a visible shadow. `--no-zombie-culling` disables only
 camera culling for a same-camera comparison. AI, shooting, and physics continue
 for the full crowd regardless of render visibility.
 
+Zombie rendering first culls groups in a renderer-owned 20 m X/Z grid, shared
+across character variants. An instance belongs to one cell according to the
+center of its full world-space rendering bounds. Each group's bounding box
+encloses all members' complete boxes, including animation, fallen ragdolls,
+and geometry extending beyond the cell. A group outside the frustum skips all
+members; a group wholly inside accepts all members; only boundary groups need
+individual tests. Camera and sun-light classification are independent, retaining
+offscreen shadow casters. Results retain original instance-ID order before asset
+batching, so draw ordering and palette assignment remain stable.
+
+`Renderer::updateZombies()` marks groups dirty when an instance's bounds change,
+moves membership across cell boundaries, and removes corpse tombstones. Before
+the next camera/shadow query, dirty groups rebuild their aggregate boxes once,
+including shrinking after removal or a pose change. Empty group slots are reused
+without retaining historical cells in the query. Animation time alone does not
+dirty living bounds, which already cover every baked clip sample; unchanged
+settled corpses also retain their groups. The existing population update still
+visits every instance; this optimization reduces frustum tests, not that scan or
+the geometry drawn for visible zombies.
+
+The group index borrows the existing per-instance bound boxes; their vectors
+and asset/population topology must remain fixed after upload. Changed boxes must
+be reported to the index through `update()`, and removed IDs through `erase()`;
+the renderer centralizes both in `updateZombies()`. It refits before publishing
+visibility on the existing render thread, adding no concurrency. Additional
+storage is CPU-only membership, group boxes/member IDs, batch lookup, and query
+results. Group slots and query capacities can remain allocated for reuse;
+empty member buffers are released, and oversized member buffers shrink during
+refit after a crowd disperses. This adds no GPU resources. `Renderer::zombieVisibilityStats()` reports
+occupied/refitted groups and camera/light group and individual test counts for
+the last rendered frame. `--no-zombie-culling` bypasses camera group/individual
+tests while retaining shadow culling.
+
 Ragdoll bone palettes are uploaded for the union of the camera-visible and
 sun-shadow-casting instances, before either draw pass. A corpse needed by both
 passes uploads once. The light frustum remains conservative, so it can include
@@ -1003,11 +1036,19 @@ an accessible OpenGL display/context and skips when one is unavailable.
 
 The `viewer_zombie_renderer` regression checks mixed idle/walk/run clips, clip
 wrap interpolation, camera culling and reentry, frustum-crossing animated bounds,
+shared group culling, cell crossings, unchanged-group reuse, and pose/removal updates,
 retained and deferred ragdoll palettes, offscreen shadow casters, GPU storage
 growth, dirty-range coalescing, slot reuse, and characters with multiple
 primitives through the actual shader. It requires
 an accessible OpenGL display and reports a skip when none is available. The
 remaining checks run without a display.
+
+`viewer_zombie_visibility` compares grouped camera/shadow masks and stable IDs
+against a full individual-frustum scan. It covers inside/outside/boundary groups,
+negative cell coordinates, geometry crossing cell borders, movement, removal,
+group-slot reuse before a query, pose expansion/shrinkage, randomized views, and
+a 10,000-instance fixture. It runs without a GPU and checks that small views
+avoid population-wide individual tests and unchanged groups do not refit.
 
 `viewer_zombie_shooting` compares prepared head regions and indexed target
 selection against the original full-mesh/full-population path. It covers
@@ -1132,6 +1173,7 @@ src/door_collision.{hpp,cpp} Doorway clipping and live Box3D capsule contacts
 src/zombie_ragdoll.{hpp,cpp} Box3D ragdoll simulation and simplified ground planes
 src/zombie_ragdoll_pose.{hpp,cpp} Animated-pose handoff and physics-to-skin mapping
 src/zombie_palette_cache.{hpp,cpp} Persistent GPU palettes and coalesced dirty uploads
+src/zombie_visibility.{hpp,cpp} Dynamic group bounds and camera/shadow culling
 src/zombie_renderer.cpp    Shared animation buffers, skinning data, and GPU instancing
 src/camera.{hpp,cpp}        Perspective free-fly camera
 src/camera_rig.{hpp,cpp}    Runtime camera mode switching

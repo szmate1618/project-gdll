@@ -14,6 +14,7 @@
 #include "forest_layer.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_palette_cache.hpp"
+#include "zombie_visibility.hpp"
 #include "sun_lighting.hpp"
 #include "sun_shadow_map.hpp"
 #include "atmosphere.hpp"
@@ -73,6 +74,7 @@ public:
     std::size_t zombieVisibleCount() const { return zombieVisibleCount_; }
     std::size_t zombieDrawCalls() const { return zombieDrawCalls_; }
     const ZombiePaletteStats& zombiePaletteStats() const { return zombiePaletteStats_; }
+    const ZombieVisibilityStats& zombieVisibilityStats() const { return zombieVisibilityStats_; }
     static void checkErrors(const char* stage);
 
 private:
@@ -218,6 +220,11 @@ private:
     ForestRenderStats forestStats_;
     float forestDetailDistance_ = 350;
     std::vector<ZombieBatch> zombieBatches_;
+    // Shared groups across assets; bounds storage in batches stays fixed-size.
+    ZombieVisibility zombieVisibility_;
+    std::vector<std::size_t> zombieBatchLocals_;
+    std::vector<ZombieVisibilityResult> visibleZombies_;
+    ZombieVisibilityStats zombieVisibilityStats_;
     // Borrowed until the next update; the fixed population must outlive render().
     const ZombieLayer* zombieSource_ = nullptr;
     ZombiePaletteStats zombiePaletteStats_;
