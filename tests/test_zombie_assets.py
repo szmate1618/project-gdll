@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import quote
 
-from tools.download_zombies import Sources, merge_idle, prepare_pack
+from tools.download_zombies import Sources, merge_idle, merge_animations, prepare_pack
 
 
 def read_glb(data):
@@ -87,6 +87,31 @@ def fixture():
 
 
 class ZombieAssetTests(unittest.TestCase):
+    def test_three_clips_keep_independent_accessors_and_targets(self):
+        rig, idle = fixture()
+        walk, run = copy.deepcopy(idle), copy.deepcopy(idle)
+        walk[0]["animations"][0]["name"] = "Zombie@walk_64f"
+        run[0]["animations"][0]["name"] = "Zombie@running_58f"
+        for clip, height in ((walk, 120), (run, 140)):
+            data = bytearray(clip[1][0])
+            struct.pack_into("<f", data, 8 + 12 + 4, height)
+            clip[1][0] = bytes(data)
+        original = copy.deepcopy((rig, idle, walk, run))
+        doc, binary = read_glb(merge_animations(rig, [idle, walk, run]))
+        self.assertEqual((rig, idle, walk, run), original)
+        self.assertEqual([a["name"] for a in doc["animations"]],
+                         ["Zombie@idle_220f", "Zombie@walk_64f", "Zombie@running_58f"])
+        for animation, height in zip(doc["animations"], (100, 120, 140)):
+            self.assertEqual([c["target"]["node"] for c in animation["channels"]], [1, 2])
+            ac = doc["accessors"][animation["samplers"][0]["output"]]
+            self.assertEqual(struct.unpack_from("<f", view_bytes(doc, binary, ac["bufferView"]),
+                                               ac["byteOffset"] + 4)[0], height)
+        with self.assertRaisesRegex(ValueError, "unique"):
+            merge_animations(rig, [idle, idle])
+        run[0]["nodes"][1]["children"] = []
+        with self.assertRaisesRegex(ValueError, "incompatible"):
+            merge_animations(rig, [idle, walk, run])
+
     def test_targets_bind_matrices_and_binary_offsets_survive_merge(self):
         rig, idle = fixture()
         original = copy.deepcopy((rig, idle))
@@ -200,7 +225,11 @@ class ZombieAssetTests(unittest.TestCase):
                     # later source fails. None may become a published subset.
                     if "ZombieMale_D" in relative:
                         raise OSError("synthetic late download failure")
-                    return idle if "animations-gltf" in relative else rig
+                    if "animations-gltf" in relative:
+                        clip = copy.deepcopy(idle)
+                        clip[0]["animations"][0]["name"] = Path(relative).stem
+                        return clip
+                    return rig
 
                 with patch("tools.download_zombies.Sources") as source_type:
                     source_type.return_value.gltf.side_effect = read_source

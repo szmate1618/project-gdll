@@ -13,6 +13,26 @@
       "sha256": "2bbaf0d45b2cb5518ce14714fd34843e812b586ca5027e4779a0244f9483b3fc",
       "url": "https://denysalmaral.com/gamedev/free-zombies/animations-gltf/gltf_ZombieFemale/ZombieFemale@idle_220f0.bin"
     },
+    "animations-gltf/gltf_ZombieFemale/ZombieFemale@running_58f.gltf": {
+      "bytes": 141746,
+      "sha256": "8c39d265fd773e86fa2cab638d0dbb01fbf461ddc4c40eeacc6dcfa0e6f300fb",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/animations-gltf/gltf_ZombieFemale/ZombieFemale@running_58f.gltf"
+    },
+    "animations-gltf/gltf_ZombieFemale/ZombieFemale@running_58f0.bin": {
+      "bytes": 407732,
+      "sha256": "b544d90f7df229fc850373264b8de942a024490fa546598193fe5ecc111f3dd5",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/animations-gltf/gltf_ZombieFemale/ZombieFemale@running_58f0.bin"
+    },
+    "animations-gltf/gltf_ZombieFemale/ZombieFemale@walk_64f.gltf": {
+      "bytes": 141815,
+      "sha256": "7a59011560a849b0f475d2d1e3c01a34e0b06cb48ebbb8c0b93db5d50091bdc3",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/animations-gltf/gltf_ZombieFemale/ZombieFemale@walk_64f.gltf"
+    },
+    "animations-gltf/gltf_ZombieFemale/ZombieFemale@walk_64f0.bin": {
+      "bytes": 417716,
+      "sha256": "21b83b495bb541bbca5e63f1dd4a848efc02174b294db428102f6146ce2818da",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/animations-gltf/gltf_ZombieFemale/ZombieFemale@walk_64f0.bin"
+    },
     "animations-gltf/gltf_ZombieMale/ZombieMale@idle_220f.gltf": {
       "bytes": 142584,
       "sha256": "824bef7a5d4e731a20b2e7d887421ff0d003407f9c2793430152b2fa9276517d",
@@ -22,6 +42,26 @@
       "bytes": 637256,
       "sha256": "f06ba8d5473aca01cb398aef7cee164eb4053bda3c92d834f5cf6304def8df4a",
       "url": "https://denysalmaral.com/gamedev/free-zombies/animations-gltf/gltf_ZombieMale/ZombieMale@idle_220f0.bin"
+    },
+    "animations-gltf/gltf_ZombieMale/ZombieMale@running_58f.gltf": {
+      "bytes": 142024,
+      "sha256": "d9c9c914463cf565d88b39c683c2f02df49dcb7cc61ce3beb1a7e4f4a8fb2005",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/animations-gltf/gltf_ZombieMale/ZombieMale@running_58f.gltf"
+    },
+    "animations-gltf/gltf_ZombieMale/ZombieMale@running_58f0.bin": {
+      "bytes": 367688,
+      "sha256": "2e4b9c859beb83714dded63e04ebda163319773c337d0a3082d0bb7fe351b165",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/animations-gltf/gltf_ZombieMale/ZombieMale@running_58f0.bin"
+    },
+    "animations-gltf/gltf_ZombieMale/ZombieMale@walk_64f.gltf": {
+      "bytes": 142106,
+      "sha256": "4b5765d908abd8c7edc861beb19b470e75f00daa46adb86593b3c4e5bca65958",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/animations-gltf/gltf_ZombieMale/ZombieMale@walk_64f.gltf"
+    },
+    "animations-gltf/gltf_ZombieMale/ZombieMale@walk_64f0.bin": {
+      "bytes": 377672,
+      "sha256": "ce23848130b49df9142f82c1954f5d7850144f1c3d3a972205b9000e9af9495a",
+      "url": "https://denysalmaral.com/gamedev/free-zombies/animations-gltf/gltf_ZombieMale/ZombieMale@walk_64f0.bin"
     },
     "rig-gltf_joined/ZombieFemale_A_joined.gltf": {
       "bytes": 28969,
@@ -136,53 +176,103 @@
   "outputs": {
     "models/ZombieFemale_A.glb": {
       "animation": "ZombieFemale@idle_220f",
-      "bytes": 736544,
-      "sha256": "444c916720fae20f96c4ffb3870568761f3a32cc2bb177a7df08ee84f2560dc7"
+      "animations": [
+        "ZombieFemale@idle_220f",
+        "ZombieFemale@walk_64f",
+        "ZombieFemale@running_58f"
+      ],
+      "bytes": 1029820,
+      "sha256": "11c27208a81f7488b2dd7ef333d24b99a4231602593f12e60cec1af0ab177f54"
     },
     "models/ZombieFemale_B.glb": {
       "animation": "ZombieFemale@idle_220f",
-      "bytes": 747236,
-      "sha256": "6f43932306c4c13c1be9750fcb09a56c3b3ddb5dae23041c3c33bd6af91f65f0"
+      "animations": [
+        "ZombieFemale@idle_220f",
+        "ZombieFemale@walk_64f",
+        "ZombieFemale@running_58f"
+      ],
+      "bytes": 1040516,
+      "sha256": "bbc9d90f4e2d526de6b90a94bd786872e70a9f68ee0908d21fc77c351ebf2fe1"
     },
     "models/ZombieFemale_C.glb": {
       "animation": "ZombieFemale@idle_220f",
-      "bytes": 755444,
-      "sha256": "6ae33aee385b22245f7ba26022e879ccefe6cc0b23826a7db2a2f09d91e40fbf"
+      "animations": [
+        "ZombieFemale@idle_220f",
+        "ZombieFemale@walk_64f",
+        "ZombieFemale@running_58f"
+      ],
+      "bytes": 1048724,
+      "sha256": "7b064bfd83805d36d86478c224776d0366b2e1a5d6779d6cea34f0f52f2db202"
     },
     "models/ZombieFemale_D.glb": {
       "animation": "ZombieFemale@idle_220f",
-      "bytes": 674516,
-      "sha256": "11cf7ac139c046f20e7e10a83151c167fc290f44d8dec25d2083c1f5020137b0"
+      "animations": [
+        "ZombieFemale@idle_220f",
+        "ZombieFemale@walk_64f",
+        "ZombieFemale@running_58f"
+      ],
+      "bytes": 967792,
+      "sha256": "9f4c49c9b211fa27d6985c04595e3d6864e6981cbeee91f34c0ed32e6663425e"
     },
     "models/ZombieFemale_E.glb": {
       "animation": "ZombieFemale@idle_220f",
-      "bytes": 677136,
-      "sha256": "19ba16fd517bd6a78af4467add017b624f1c1a468f43789b3286c701e5554fb7"
+      "animations": [
+        "ZombieFemale@idle_220f",
+        "ZombieFemale@walk_64f",
+        "ZombieFemale@running_58f"
+      ],
+      "bytes": 970416,
+      "sha256": "9bbfc581d4e42a9bde55ec61bfc2b4f6841e084d10583487a27fe2a8ec20d111"
     },
     "models/ZombieMale_A.glb": {
       "animation": "ZombieMale@idle_220f",
-      "bytes": 696796,
-      "sha256": "aa8019a6fb35fe7531f406598e8413c602a44331321c9965f34b43bb5eff143a"
+      "animations": [
+        "ZombieMale@idle_220f",
+        "ZombieMale@walk_64f",
+        "ZombieMale@running_58f"
+      ],
+      "bytes": 990168,
+      "sha256": "105af7f7e7322ee909f787d218a628146ff018b9efe23c32a17e417bf4ba12fe"
     },
     "models/ZombieMale_B.glb": {
       "animation": "ZombieMale@idle_220f",
-      "bytes": 743172,
-      "sha256": "d18f6f0ef671d2b3ee33719dbfe5af71ad626a2e61416e3b31707265c457de34"
+      "animations": [
+        "ZombieMale@idle_220f",
+        "ZombieMale@walk_64f",
+        "ZombieMale@running_58f"
+      ],
+      "bytes": 1036544,
+      "sha256": "214213b42a32f08775e6ed048a005205b6c7ff7acb8cf2a6dbd5b6639db62722"
     },
     "models/ZombieMale_C.glb": {
       "animation": "ZombieMale@idle_220f",
-      "bytes": 683996,
-      "sha256": "6e9343d5a43db7d9865173d35bd49e30c821e0fc924373ebb4fca8b1518db7cf"
+      "animations": [
+        "ZombieMale@idle_220f",
+        "ZombieMale@walk_64f",
+        "ZombieMale@running_58f"
+      ],
+      "bytes": 977368,
+      "sha256": "7e0d1a569ae23f32935cbf3545ef6ed9e55a7def284a6e3307c78b851eae0ef1"
     },
     "models/ZombieMale_D.glb": {
       "animation": "ZombieMale@idle_220f",
-      "bytes": 677096,
-      "sha256": "84319b8f1fe16ddee120c99cdd1a145976d5f59976872bcf0a1aebf50d824a55"
+      "animations": [
+        "ZombieMale@idle_220f",
+        "ZombieMale@walk_64f",
+        "ZombieMale@running_58f"
+      ],
+      "bytes": 970468,
+      "sha256": "04e972a26594f049b1e439cc29ac5cbfb5f139a74a038c541028d72bf7f69b3f"
     },
     "models/ZombieMale_E.glb": {
       "animation": "ZombieMale@idle_220f",
-      "bytes": 760452,
-      "sha256": "a9cb5710fdfe4cbc4c09f1d1759291bd8ab119bab015fb84383a45bda8ceed14"
+      "animations": [
+        "ZombieMale@idle_220f",
+        "ZombieMale@walk_64f",
+        "ZombieMale@running_58f"
+      ],
+      "bytes": 1053824,
+      "sha256": "1e1502d40a1d38fe9df98592b187ac36a791310476d99dc8d32ed7fd7a931b8c"
     }
   },
   "schema_version": 1,

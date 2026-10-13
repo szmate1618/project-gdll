@@ -45,23 +45,38 @@ void Renderer::drawSunShadows(const SunShadowView& shadowView, double seconds) {
     glBindVertexArray(0);
 }
 
-void Renderer::applyLighting(const Camera& camera, const SunShadowView& shadowView) {
+DayNightLighting Renderer::lightingForFrame() const {
+    if (dayNight_) return *dayNight_;
+    DayNightLighting result;
+    result.sun = lighting_;
+    result.fogColor = atmosphere_.color;
+    if (night_) {
+        result.sun.color = glm::vec3(0);
+        result.sun.skyAmbient = nightLighting_.skyAmbient;
+        result.sun.groundAmbient = nightLighting_.groundAmbient;
+        result.fogColor = nightLighting_.fogColor;
+        result.unlitColor = nightLighting_.skyAmbient;
+        result.nightBlend = 1.0f;
+    }
+    return result;
+}
+
+void Renderer::applyLighting(const Camera& camera, const SunShadowView& shadowView,
+                             const DayNightLighting& lighting) {
     glUniform1i(shadowPassLocation_, GL_FALSE);
-    glUniform1i(shadowsLocation_, shadows_ && !night_ && shadowPassLocation_ >= 0);
+    const bool sunlight = glm::any(glm::greaterThan(lighting.sun.color, glm::vec3(0)));
+    glUniform1i(shadowsLocation_, shadows_ && sunlight && shadowPassLocation_ >= 0);
     const auto matrix = shadowView.projectionView();
     const auto eye = camera.position();
-    const auto sun = glm::normalize(lighting_.direction);
-    const auto sunColor = night_ ? glm::vec3(0) : lighting_.color;
-    const auto& skyAmbient = night_ ? nightLighting_.skyAmbient : lighting_.skyAmbient;
-    const auto& groundAmbient = night_ ? nightLighting_.groundAmbient : lighting_.groundAmbient;
-    const auto& fogColor = night_ ? nightLighting_.fogColor : atmosphere_.color;
+    const auto sun = glm::normalize(lighting.sun.direction);
     glUniformMatrix4fv(sunMatrixLocation_, 1, GL_FALSE, glm::value_ptr(matrix));
     glUniform3fv(eyeLocation_, 1, glm::value_ptr(eye));
     glUniform3fv(sunDirectionLocation_, 1, glm::value_ptr(sun));
-    glUniform3fv(sunColorLocation_, 1, glm::value_ptr(sunColor));
-    glUniform3fv(skyAmbientLocation_, 1, glm::value_ptr(skyAmbient));
-    glUniform3fv(groundAmbientLocation_, 1, glm::value_ptr(groundAmbient));
-    glUniform1i(nightLocation_, night_);
+    glUniform3fv(sunColorLocation_, 1, glm::value_ptr(lighting.sun.color));
+    glUniform3fv(skyAmbientLocation_, 1, glm::value_ptr(lighting.sun.skyAmbient));
+    glUniform3fv(groundAmbientLocation_, 1, glm::value_ptr(lighting.sun.groundAmbient));
+    glUniform1f(nightBlendLocation_, lighting.nightBlend);
+    glUniform3fv(unlitLightLocation_, 1, glm::value_ptr(lighting.unlitColor));
     const auto direction = camera.direction();
     glUniform3fv(flashlightDirectionLocation_, 1, glm::value_ptr(direction));
     glUniform3fv(flashlightColorLocation_, 1, glm::value_ptr(nightLighting_.flashlightColor));
@@ -70,7 +85,7 @@ void Renderer::applyLighting(const Camera& camera, const SunShadowView& shadowVi
                 std::cos(glm::radians(nightLighting_.outerAngle)));
     glUniform1f(shadowDistanceLocation_, SunLighting::shadowDistance);
     glUniform1f(shadowFadeLocation_, SunLighting::shadowFadeStart);
-    glUniform3fv(hazeColorLocation_, 1, glm::value_ptr(fogColor));
+    glUniform3fv(hazeColorLocation_, 1, glm::value_ptr(lighting.fogColor));
     glUniform1f(hazeDensityLocation_, haze_ ? atmosphere_.density : 0.0f);
     glUniform1f(hazeStartLocation_, atmosphere_.startDistance);
     const auto& fog = atmosphere_.groundFog;

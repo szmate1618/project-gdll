@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <functional>
 #include <limits>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -26,50 +25,9 @@ bool turnZombieToward(ZombieInstance& instance, glm::vec2 direction, float secon
     return aligned;
 }
 
-std::vector<glm::mat4> sampleZombieWalkPose(const AnimatedModel& asset,
-                                         double animationSeconds, double walkSeconds,
-                                         float phase) {
-    auto pose = sampleAnimatedPose(asset, animationSeconds, phase);
-    const auto base = pose;
-    std::vector<float> angles(pose.size(), 0.0f);
-    const float swing = std::sin(static_cast<float>(tau * (std::fmod(walkSeconds, 1.0) + phase)));
-    const auto angle = [&](RagdollPart part, float value) {
-        const int bone = asset.ragdollBones[static_cast<std::size_t>(part)];
-        if (bone >= 0 && static_cast<std::size_t>(bone) < angles.size())
-            angles[static_cast<std::size_t>(bone)] = value;
-    };
-    angle(RagdollPart::upperLegLeft, -0.35f * swing);
-    angle(RagdollPart::upperLegRight, 0.35f * swing);
-    angle(RagdollPart::lowerLegLeft, 0.5f * std::max(swing, 0.0f));
-    angle(RagdollPart::lowerLegRight, 0.5f * std::max(-swing, 0.0f));
-
-    std::vector<glm::mat4> motion(pose.size(), glm::mat4(1));
-    std::vector<bool> ready(pose.size(), false);
-    // glTF node order does not guarantee parents precede children.
-    std::function<void(std::size_t)> resolve = [&](std::size_t bone) {
-        if (ready[bone]) return;
-        const int parent = asset.skeleton[bone].parent;
-        if (parent >= 0) {
-            const auto p = static_cast<std::size_t>(parent);
-            resolve(p);
-            motion[bone] = motion[p];
-        }
-        if (angles[bone] != 0.0f) {
-            const auto pivot = glm::vec3(base[bone][3]);
-            motion[bone] *= glm::translate(glm::mat4(1), pivot) *
-                glm::rotate(glm::mat4(1), angles[bone], {1, 0, 0}) *
-                glm::translate(glm::mat4(1), -pivot);
-        }
-        pose[bone] = motion[bone] * base[bone];
-        ready[bone] = true;
-    };
-    for (std::size_t bone = 0; bone < pose.size(); ++bone) resolve(bone);
-    return pose;
-}
-
-bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& asset,
+bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& /*asset*/,
                       glm::vec3 target, float speed, float seconds,
-                      const CollisionWorld& world, double animationSeconds) {
+                      const CollisionWorld& world, double /*animationSeconds*/) {
     auto feet = glm::vec3(instance.restRoot[3]);
     const glm::vec2 horizontal(target.x - feet.x, target.z - feet.z);
     const float distance = glm::length(horizontal);
@@ -88,12 +46,10 @@ bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& asset,
     const float yaw = std::atan2(direction.x, direction.y);
     instance.restRoot = glm::rotate(glm::translate(glm::mat4(1), feet), yaw, {0, 1, 0});
     instance.transform = instance.restTransform = instance.restRoot * instance.chaseNormalization;
-    // Faster travel speeds produce faster strides as well as faster translation.
-    instance.walkSeconds += step / 1.2f;
-    instance.walkPose = sampleZombieWalkPose(asset, animationSeconds, instance.walkSeconds, instance.phase);
-    instance.ragdollBones.resize(asset.skeleton.size());
-    for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
-        instance.ragdollBones[bone] = instance.walkPose[bone] * asset.skeleton[bone].inverseBind;
+    instance.running = speed > 1.2f;
+    // Advance the selected authored clip by actual travel time, excluding any
+    // leftover step after arrival. No per-character skeleton is evaluated here.
+    if (speed > 0) instance.walkSeconds += step / speed;
     return step >= distance;
 }
 

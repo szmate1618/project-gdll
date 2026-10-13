@@ -20,7 +20,8 @@ public:
 
     // Draw into the caller's framebuffer using its existing depth buffer.
     // Restores program, VAO, blend, depth, and culling state after the draw.
-    void draw(const Camera& camera, float aspect, double seconds, bool night,
+    // nightBlend is in [0, 1], from full daylight to the fixed night palette.
+    void draw(const Camera& camera, float aspect, double seconds, float nightBlend,
               const NightLighting& lighting);
 
 private:
@@ -28,7 +29,7 @@ private:
     static constexpr GLsizei streakCount = 3000;
     GLuint program_ = 0, vao_ = 0, seeds_ = 0;
     GLint viewLocation_, projectionLocation_, eyeLocation_, timeLocation_;
-    GLint nightLocation_, directionLocation_, colorLocation_, coneLocation_;
+    GLint nightBlendLocation_, directionLocation_, colorLocation_, coneLocation_;
 };
 
 } // namespace viewer

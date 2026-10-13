@@ -3,6 +3,7 @@
 #include <GL/glcorearb.h>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "camera.hpp"
@@ -16,6 +17,7 @@
 #include "sun_shadow_map.hpp"
 #include "atmosphere.hpp"
 #include "night_lighting.hpp"
+#include "day_night.hpp"
 
 namespace viewer {
 
@@ -52,7 +54,9 @@ public:
     void setShadows(bool enabled) { shadows_ = enabled; }
     void setTreeShadows(bool enabled) { treeShadows_ = enabled; }
     void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
-    void setNight(bool enabled) { night_ = enabled; }
+    void setNight(bool enabled) { night_ = enabled; dayNight_.reset(); }
+    // Overrides the fixed lighting palette until the next setNight call.
+    void setDayNightLighting(const DayNightLighting& lighting) { dayNight_ = lighting; }
     void setRain(bool enabled);
     void setHaze(bool enabled) { haze_ = enabled; }
     void setGroundFog(bool enabled) { groundFog_ = enabled; }
@@ -100,10 +104,14 @@ private:
     struct ZombieGPUInstance {
         glm::mat4 transform;
         float phase;
+        float clipFirstFrame;
+        float clipFrameCount; // Zero selects the uniform idle frame count.
         float animationFrame;
         float liveSkinning;
         float boneBase; // Matrix offset into the batch's skinning palette, or -1.
     };
+    static ZombieGPUInstance zombieGPUInstance(const AnimatedModel& asset, const ZombieInstance& instance,
+                                               float boneBase = -1.0f);
     struct ZombieBatch {
         ModelGPU model;
         GLuint instanceBuffer = 0;
@@ -140,7 +148,9 @@ private:
     void uploadZombies(const ZombieLayer& zombies);
     void drawZombies(double seconds, const Frustum* shadowFrustum = nullptr);
     void drawSunShadows(const SunShadowView& shadowView, double seconds);
-    void applyLighting(const Camera& camera, const SunShadowView& shadowView);
+    DayNightLighting lightingForFrame() const;
+    void applyLighting(const Camera& camera, const SunShadowView& shadowView,
+                       const DayNightLighting& lighting);
     void releaseZombies() noexcept;
     void applyMaterial(const ModelGPU& model, int index, bool mirrored);
     void draw(const DrawGPU& draw);
@@ -162,7 +172,8 @@ private:
     GLint shadowDistanceLocation_, shadowFadeLocation_;
     GLint hazeColorLocation_, hazeDensityLocation_, hazeStartLocation_;
     GLint groundFogLocation_;
-    GLint nightLocation_, flashlightDirectionLocation_, flashlightColorLocation_, flashlightConeLocation_;
+    GLint nightBlendLocation_, unlitLightLocation_;
+    GLint flashlightDirectionLocation_, flashlightColorLocation_, flashlightConeLocation_;
     Atmosphere atmosphere_;
     bool haze_ = true;
     bool groundFog_ = true;
@@ -170,6 +181,7 @@ private:
     SunLighting lighting_;
     NightLighting nightLighting_;
     bool night_ = false;
+    std::optional<DayNightLighting> dayNight_;
     SunShadowMap shadowMap_;
     bool shadows_ = true;
     std::vector<std::size_t> shadowScene_;

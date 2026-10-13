@@ -1,4 +1,5 @@
 #include "renderer.hpp"
+#include "zombie_animation.hpp"
 
 #include <cmath>
 #include <cstddef>
@@ -40,6 +41,17 @@ VisibilityBounds transformedBounds(const VisibilityBounds& bounds, const glm::ma
 }
 }
 
+Renderer::ZombieGPUInstance Renderer::zombieGPUInstance(const AnimatedModel& asset, const ZombieInstance& instance,
+                                                       float boneBase) {
+    const auto* clip = zombieAnimationClip(asset, instance);
+    return {instance.transform, instance.phase,
+            clip ? static_cast<float>(clip->firstFrame) : 0.0f,
+            clip ? static_cast<float>(clip->frameCount) : 0.0f,
+            clip ? animatedFrame(clip->duration, clip->frameCount, instance.walkSeconds, instance.phase) :
+                   (instance.ragdoll ? 0.0f : -1.0f),
+            instance.ragdoll ? 1.0f : 0.0f, boneBase};
+}
+
 void Renderer::uploadZombies(const ZombieLayer& zombies) {
     if (zombies.instances.empty()) return;
     if (animatedLocation_ < 0 || animationLocation_ < 0 || instancedLocation_ < 0 ||
@@ -55,9 +67,7 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
     for (std::size_t sourceIndex = 0; sourceIndex < zombies.instances.size(); ++sourceIndex) {
         const auto& instance = zombies.instances[sourceIndex];
         if (instance.asset >= instances.size()) throw std::runtime_error("Invalid zombie asset index");
-        instances[instance.asset].push_back({instance.transform, instance.phase,
-                                             instance.ragdoll ? 0.0f : -1.0f,
-                                             instance.ragdoll || instance.walking ? 1.0f : 0.0f, -1.0f});
+        instances[instance.asset].push_back(zombieGPUInstance(zombies.assets[instance.asset], instance));
         sourceIndices[instance.asset].push_back(sourceIndex);
     }
     // Allocate ownership before creating any GPU resource, so partial failures
@@ -114,7 +124,7 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
             const auto& frames = source.animation[p].frames;
             const auto& skinning = source.animation[p].skinning;
             if (count == 0 || count > static_cast<std::size_t>(std::numeric_limits<GLint>::max()) ||
-                frames.size() / source.frameCount != count || frames.size() % source.frameCount != 0 ||
+                frames.size() / source.totalFrameCount() != count || frames.size() % source.totalFrameCount() != 0 ||
                 frames.size() > static_cast<std::size_t>(maximumTexels) / 2)
                 throw std::runtime_error("Zombie animation exceeds this GPU's texture buffer capacity or has invalid samples");
             batch.vertexCounts[p] = static_cast<GLint>(count);
@@ -130,7 +140,7 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
                 glVertexAttribDivisor(4 + column, 1);
             }
             glEnableVertexAttribArray(8);
-            glVertexAttribPointer(8, 1, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
+            glVertexAttribPointer(8, 3, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
                                   reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, phase)));
             glVertexAttribDivisor(8, 1);
             glEnableVertexAttribArray(9);
@@ -204,7 +214,7 @@ void Renderer::updateZombies(const ZombieLayer& zombies) {
             if (sourceIndex >= zombies.instances.size()) throw std::runtime_error("Invalid zombie source index");
             const auto& source = zombies.instances[sourceIndex];
             float boneBase = -1.0f;
-            const bool liveSkinning = source.ragdoll || source.walking;
+            const bool liveSkinning = source.ragdoll;
             if (liveSkinning && batch.skinningBoneCount > 0) {
                 if (source.ragdollBones.size() != static_cast<std::size_t>(batch.skinningBoneCount))
                     throw std::runtime_error("Live skeleton data does not match zombie asset");
@@ -213,8 +223,7 @@ void Renderer::updateZombies(const ZombieLayer& zombies) {
                 boneBase = static_cast<float>(batch.skinningMatrices.size());
                 batch.skinningMatrices.insert(batch.skinningMatrices.end(), source.ragdollBones.begin(), source.ragdollBones.end());
             }
-            batch.staging[instanceIndex] = {source.transform, source.phase, source.ragdoll ? 0.0f : -1.0f,
-                                             liveSkinning ? 1.0f : 0.0f, boneBase};
+            batch.staging[instanceIndex] = zombieGPUInstance(zombies.assets[i], source, boneBase);
             auto bounds = batch.animationBounds;
             // A union of bone-transformed bind boxes contains every weighted
             // skin vertex, including fallen ragdolls and walking limb swings.

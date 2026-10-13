@@ -639,40 +639,88 @@ AnimatedModel bake(const tinygltf::Model& source, Model base, const std::string&
 bool skipImage(tinygltf::Image*, int, std::string*, std::string*, int, int,
                 const unsigned char*, int, void*) { return true; }
 
+std::string locomotionName(const tinygltf::Model& source, bool running) {
+    std::string selected;
+    for (const auto& animation : source.animations) {
+        const auto name = lower(animation.name);
+        const bool match = running ? (name == "run" || name == "running" || name.find("@running_") != std::string::npos) :
+                                    (name == "walk" || name.find("@walk_") != std::string::npos);
+        // The pack also has aggressive/limping walks; choose its plain walk.
+        if (!match || (!running && (name.find("agressive") != std::string::npos ||
+                                   name.find("limp") != std::string::npos))) continue;
+        if (!selected.empty()) fail("Multiple locomotion animations match " + std::string(running ? "run" : "walk"));
+        selected = animation.name;
+    }
+    return selected;
+}
+
+void appendClip(AnimatedModel& output, AnimatedModel clip, std::optional<BakedAnimationClip>& destination) {
+    if (clip.animation.size() != output.animation.size() || clip.skeleton.size() != output.skeleton.size())
+        fail("Locomotion clip does not match idle topology");
+    const auto firstFrame = output.totalFrameCount();
+    constexpr std::size_t maximumBytes = 512 * 1024 * 1024;
+    std::size_t bytes = product(product(firstFrame + clip.frameCount, output.skeleton.size()), sizeof(glm::mat4));
+    for (std::size_t p = 0; p < output.animation.size(); ++p) {
+        if (clip.model.primitives[p].indices != output.model.primitives[p].indices ||
+            clip.model.primitives[p].vertices.size() != output.model.primitives[p].vertices.size())
+            fail("Locomotion clip changes primitive topology or winding");
+        const auto size = product(output.animation[p].frames.size() + clip.animation[p].frames.size(), sizeof(AnimationVertex));
+        if (bytes > maximumBytes || size > maximumBytes - bytes) fail("Baked animation exceeds the 512 MiB memory limit");
+        bytes += size;
+    }
+    for (std::size_t p = 0; p < output.animation.size(); ++p) {
+        auto& frames = output.animation[p].frames;
+        frames.insert(frames.end(), clip.animation[p].frames.begin(), clip.animation[p].frames.end());
+    }
+    destination = BakedAnimationClip{clip.clipName, clip.duration, clip.frameCount, firstFrame, std::move(clip.boneFrames)};
+}
+
 }  // namespace
 
-std::vector<glm::mat4> sampleAnimatedPose(const AnimatedModel& model, double seconds, float phase) {
-    std::vector<glm::mat4> pose;
-    pose.reserve(model.skeleton.size());
-    if (model.boneFrames.empty()) {
-        for (const auto& bone : model.skeleton) pose.push_back(bone.referenceWorld);
-        return pose;
-    }
-    if (model.frameCount < 2 || model.frameCount > static_cast<std::size_t>(std::numeric_limits<int>::max()) ||
-        !std::isfinite(model.duration) || model.duration <= 0 ||
-        model.boneFrames.size() != product(model.frameCount, model.skeleton.size()))
-        fail("Invalid baked bone animation");
+std::size_t AnimatedModel::totalFrameCount() const {
+    return frameCount + (walkClip ? walkClip->frameCount : 0) + (runClip ? runClip->frameCount : 0);
+}
+
+float animatedFrame(float duration, std::size_t frameCount, double seconds, float phase) {
+    if (frameCount < 2 || frameCount > static_cast<std::size_t>(std::numeric_limits<int>::max()) ||
+        !std::isfinite(duration) || duration <= 0) fail("Invalid baked animation timing");
     if (!std::isfinite(phase)) fail("Animation phase must be finite");
     if (!std::isfinite(seconds) || seconds < 0) seconds = 0;
     // Keep the renderer's double-precision time reduction and the shader's
     // float-precision phase/modulo operations, including the last-to-first blend.
-    const float count = static_cast<float>(model.frameCount);
-    const float base = static_cast<float>(std::fmod(seconds, model.duration) / model.duration * model.frameCount);
+    const float count = static_cast<float>(frameCount);
+    const float base = static_cast<float>(std::fmod(seconds, duration) / duration * frameCount);
     const float shifted = base + phase * count;
     const float frame = shifted - count * std::floor(shifted / count);
     if (!std::isfinite(frame) || frame < 0 || frame >= count) fail("Animation phase is out of range");
+    return frame;
+}
+
+std::vector<glm::mat4> sampleAnimatedPose(const AnimatedModel& model, double seconds, float phase,
+                                        const BakedAnimationClip* clip) {
+    const auto& frames = clip ? clip->boneFrames : model.boneFrames;
+    const auto count = clip ? clip->frameCount : model.frameCount;
+    std::vector<glm::mat4> pose;
+    pose.reserve(model.skeleton.size());
+    if (frames.empty()) {
+        for (const auto& bone : model.skeleton) pose.push_back(bone.referenceWorld);
+        return pose;
+    }
+    if (frames.size() != product(count, model.skeleton.size())) fail("Invalid baked bone animation");
+    const float frame = animatedFrame(clip ? clip->duration : model.duration, count, seconds, phase);
     const auto first = static_cast<std::size_t>(std::floor(frame));
-    const auto second = (first + 1) % model.frameCount;
+    const auto second = (first + 1) % count;
     const float fraction = frame - static_cast<float>(first);
     for (std::size_t bone = 0; bone < model.skeleton.size(); ++bone) {
-        const auto& a = model.boneFrames[first * model.skeleton.size() + bone];
-        const auto& b = model.boneFrames[second * model.skeleton.size() + bone];
+        const auto& a = frames[first * model.skeleton.size() + bone];
+        const auto& b = frames[second * model.skeleton.size() + bone];
         pose.push_back(a * (1 - fraction) + b * fraction);
     }
     return pose;
 }
 
-AnimatedModel loadIdleModel(const std::filesystem::path& path, const std::string& clipName) {
+namespace {
+AnimatedModel loadAnimated(const std::filesystem::path& path, const std::string& clipName, bool locomotion) {
     try {
         auto model = loadModel(path);
         tinygltf::TinyGLTF loader;
@@ -683,10 +731,25 @@ AnimatedModel loadIdleModel(const std::filesystem::path& path, const std::string
         const bool loaded = binary ? loader.LoadBinaryFromFile(&source, &error, &warning, path.string()) :
             loader.LoadASCIIFromFile(&source, &error, &warning, path.string());
         if (!loaded) fail(error.empty() ? "Unable to parse animation data" : error);
-        return bake(source, std::move(model), clipName);
+        auto output = bake(source, locomotion ? model : std::move(model), clipName);
+        if (locomotion) {
+            const auto walk = locomotionName(source, false), run = locomotionName(source, true);
+            if (!walk.empty()) appendClip(output, bake(source, model, walk), output.walkClip);
+            if (!run.empty()) appendClip(output, bake(source, std::move(model), run), output.runClip);
+        }
+        return output;
     } catch (const std::exception& error) {
         throw std::runtime_error("Failed to load idle model '" + path.string() + "': " + error.what());
     }
+}
+}
+
+AnimatedModel loadIdleModel(const std::filesystem::path& path, const std::string& clipName) {
+    return loadAnimated(path, clipName, false);
+}
+
+AnimatedModel loadZombieModel(const std::filesystem::path& path) {
+    return loadAnimated(path, "", true);
 }
 
 }  // namespace viewer

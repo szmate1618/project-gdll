@@ -315,6 +315,36 @@ void testInterpolation(Files& files) {
         "Baked reflected geometry must retain front-face winding consistent with normals");
 }
 
+void testLocomotionClips(Files& files) {
+    Fixture fixture;
+    fixture.track("idle", 0, "translation", {0, 1}, {0, 0, 0, 0, 0, 0});
+    const auto idle = fixture.document["animations"][0];
+    fixture.document["animations"] = Json::array();
+    fixture.track("Zombie@walk_64f", 0, "translation", {0, 1}, {0, 1, 0, 0, 3, 0});
+    const auto walk = fixture.document["animations"][0];
+    fixture.document["animations"] = Json::array();
+    fixture.track("Zombie@running_58f", 0, "translation", {0, 2}, {0, 5, 0, 0, 9, 0});
+    const auto run = fixture.document["animations"][0];
+    fixture.document["animations"] = Json::array({idle, walk, run});
+    const auto model = viewer::loadZombieModel(files.write("locomotion", fixture));
+    require(model.walkClip && model.runClip, "Both authored locomotion clips must load");
+    require(model.walkClip->firstFrame == 30 && model.runClip->firstFrame == 60 && model.totalFrameCount() == 120,
+            "Different-duration clips must occupy disjoint contiguous frame ranges");
+    require(model.animation[0].frames.size() == 360, "All three clips must share one vertex animation buffer");
+    const auto pose = viewer::sampleAnimatedPose(model, 0.25, 0, &*model.walkClip);
+    require(near(pose[0][3].y, 1.5f), "Locomotion skeleton sampling must match the authored translation");
+    require(near(model.animation[0].frames[30 * 3].position.y, 1), "Walk must follow idle in the vertex buffer");
+    require(near(model.animation[0].frames[60 * 3].position.y, 5), "Run must follow walk in the vertex buffer");
+    fixture.document["animations"] = Json::array({idle});
+    const auto idleOnly = viewer::loadZombieModel(files.write("idle-only", fixture));
+    require(!idleOnly.walkClip && !idleOnly.runClip, "Idle-only custom assets must still load");
+    fixture.document["animations"] = Json::array({idle, walk, walk});
+    bool rejected = false;
+    try { (void)viewer::loadZombieModel(files.write("ambiguous-walk", fixture)); }
+    catch (const std::runtime_error& error) { rejected = std::string(error.what()).find("Multiple locomotion") != std::string::npos; }
+    require(rejected, "Ambiguous authored locomotion must fail explicitly");
+}
+
 void testValidation(Files& files) {
     Fixture missing;
     expectError(files.write("missing", missing), "No animation containing 'idle'");
@@ -371,6 +401,7 @@ int main(int argc, char** argv) {
         testPoseSampling(files);
         testInterpolation(files);
         testValidation(files);
+        testLocomotionClips(files);
         if (argc > 1) {
             const auto model = viewer::loadIdleModel(argv[1], argc > 2 ? argv[2] : "");
             std::size_t vertices = 0;

@@ -74,7 +74,8 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         hazeDensityLocation_ = glGetUniformLocation(program_, "uHazeDensity");
         hazeStartLocation_ = glGetUniformLocation(program_, "uHazeStart");
         groundFogLocation_ = glGetUniformLocation(program_, "uGroundFog");
-        nightLocation_ = glGetUniformLocation(program_, "uNight");
+        nightBlendLocation_ = glGetUniformLocation(program_, "uNightBlend");
+        unlitLightLocation_ = glGetUniformLocation(program_, "uUnlitLight");
         flashlightDirectionLocation_ = glGetUniformLocation(program_, "uFlashlightDirection");
         flashlightColorLocation_ = glGetUniformLocation(program_, "uFlashlightColor");
         flashlightConeLocation_ = glGetUniformLocation(program_, "uFlashlightCone");
@@ -325,16 +326,17 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     glUniform1i(skinningBonesLocation_, 2);
     glUniform1i(shadowMapLocation_, 3);
     SunShadowView shadowView;
+    const auto lighting = lightingForFrame();
     prepareForestView(camera);
-    if (!night_) {
-        shadowView = sunShadowView(camera.position(), lighting_.direction);
+    if (glm::any(glm::greaterThan(lighting.sun.color, glm::vec3(0)))) {
+        shadowView = sunShadowView(camera.position(), lighting.sun.direction);
         if (shadows_ && shadowPassLocation_ >= 0) drawSunShadows(shadowView, animationSeconds);
     }
-    applyLighting(camera, shadowView);
+    applyLighting(camera, shadowView, lighting);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
     glViewport(0, 0, width_, height_);
     auto atmosphere = atmosphere_;
-    if (night_) atmosphere.color = nightLighting_.fogColor;
+    atmosphere.color = lighting.fogColor;
     backgroundSrgb_ = atmosphere.backgroundSrgb();
     glClearColor(backgroundSrgb_.r, backgroundSrgb_.g, backgroundSrgb_.b, 1.0f);
     glDepthMask(GL_TRUE);
@@ -369,7 +371,7 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     }
     if (rainEnabled_)
         rain_->draw(camera, static_cast<float>(width_) / static_cast<float>(height_),
-                    animationSeconds, night_, nightLighting_);
+                    animationSeconds, lighting.nightBlend, nightLighting_);
     glBindVertexArray(0);
 }
 

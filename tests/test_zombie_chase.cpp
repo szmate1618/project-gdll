@@ -1,4 +1,5 @@
 #include "zombie_chase.hpp"
+#include "zombie_animation.hpp"
 #include "zombie_layer.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -98,34 +99,38 @@ void timeAndNormalization() {
     }
 }
 
-void walkingLegsAndDescendants() {
-    viewer::AnimatedModel asset;
-    // Feet appear before knees/hips to exercise unordered skeleton traversal.
-    const glm::vec3 positions[] = {{-0.1f, 0, 0}, {-0.1f, 0.5f, 0}, {-0.1f, 1, 0},
-                                  {0.1f, 0, 0}, {0.1f, 0.5f, 0}, {0.1f, 1, 0}};
-    const int parents[] = {1, 2, -1, 4, 5, -1};
-    for (int i = 0; i < 6; ++i) {
-        viewer::SkeletonBone bone;
-        bone.parent = parents[i];
-        bone.referenceWorld = glm::translate(glm::mat4(1), positions[i]);
-        bone.inverseBind = glm::inverse(bone.referenceWorld);
-        asset.skeleton.push_back(bone);
-    }
-    asset.ragdollBones[static_cast<std::size_t>(viewer::RagdollPart::upperLegLeft)] = 2;
-    asset.ragdollBones[static_cast<std::size_t>(viewer::RagdollPart::lowerLegLeft)] = 1;
-    asset.ragdollBones[static_cast<std::size_t>(viewer::RagdollPart::upperLegRight)] = 5;
-    asset.ragdollBones[static_cast<std::size_t>(viewer::RagdollPart::lowerLegRight)] = 4;
-    const auto first = viewer::sampleZombieWalkPose(asset, 0, 0.25, 0);
-    const auto second = viewer::sampleZombieWalkPose(asset, 0, 0.75, 0);
-    require(first[1][3].z > 0.1f && first[4][3].z < -0.1f &&
-            second[1][3].z < -0.1f && second[4][3].z > 0.1f,
-            "The legs must step in opposite directions and alternate each half cycle");
-    require(near(glm::vec3(first[2][3]), positions[2]), "Swing must pivot around the hip");
-    require(std::abs(glm::length(glm::vec3(first[0][3] - first[1][3])) - 0.5f) < 2e-4f,
-            "The foot must follow the knee without stretching the leg");
-    require(near(glm::vec3((glm::inverse(first[1]) * first[0])[3]), {0, -0.5f, 0}),
-            "Unmapped descendants must preserve their local pose");
+void sharedLocomotionAndPoseSampling() {
+    const viewer::CollisionWorld world(viewer::Model{});
+    auto layer = crowd({{0, 0, 0}});
+    auto& asset = layer.assets[0];
+    asset.skeleton.resize(1);
+    asset.walkClip = viewer::BakedAnimationClip{"walk", 1, 2, 2,
+        {glm::translate(glm::mat4(1), {0, 1, 0}), glm::translate(glm::mat4(1), {0, 3, 0})}};
+    asset.runClip = viewer::BakedAnimationClip{"running", 2, 2, 4,
+        {glm::translate(glm::mat4(1), {0, 5, 0}), glm::translate(glm::mat4(1), {0, 9, 0})}};
+    move(layer, 0.25f, {0, 0, 10}, world);
+    const auto& instance = layer.instances[0];
+    require(viewer::zombieAnimationClip(asset, instance) == &*asset.walkClip,
+            "Walking must select the authored walk clip");
+    require(instance.ragdollBones.empty(), "Movement must not evaluate or retain per-instance bone palettes");
+    require(near(glm::vec3(viewer::sampleZombiePose(asset, instance, 500)[0][3]), {0, 2, 0}),
+            "Hit sampling must use local locomotion time rather than idle time");
+    move(layer, 0.5f, {0, 0, 10}, world, 3);
+    require(instance.running && viewer::zombieAnimationClip(asset, instance) == &*asset.runClip,
+            "Pursuit must select the authored run clip");
+    require(near(glm::vec3(viewer::sampleZombiePose(asset, instance, 500)[0][3]), {0, 8, 0}),
+            "Run sampling must respect its different duration");
+    layer.instances[0].phase = 0.5f;
+    require(near(glm::vec3(viewer::sampleZombiePose(asset, instance, 500)[0][3]), {0, 6, 0}),
+            "The last run frame must interpolate back to the first run frame");
+    asset.runClip.reset();
+    require(viewer::zombieAnimationClip(asset, instance) == &*asset.walkClip,
+            "A missing run clip must fall back to the available walk");
+    asset.walkClip.reset();
+    require(viewer::zombieAnimationClip(asset, instance) == nullptr,
+            "Idle-only custom models must remain supported");
 }
+
 }
 
 int main() {
@@ -133,7 +138,7 @@ int main() {
         locomotionSpeedsAndArrival();
         terrainWithoutAvoidance();
         timeAndNormalization();
-        walkingLegsAndDescendants();
+        sharedLocomotionAndPoseSampling();
         std::cout << "Zombie chase tests passed\n";
         return 0;
     } catch (const std::exception& error) {

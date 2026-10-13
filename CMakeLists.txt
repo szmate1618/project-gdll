@@ -140,7 +140,7 @@ target_include_directories(viewer_forests SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}
 viewer_warnings(viewer_forests)
 
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp
-    src/zombie_layer.cpp src/zombie_hit.cpp src/zombie_chase.cpp src/zombie_behavior.cpp
+    src/zombie_layer.cpp src/zombie_hit.cpp src/zombie_chase.cpp src/zombie_behavior.cpp src/zombie_animation.cpp
     src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp)
 target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise viewer_physics)
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
@@ -166,7 +166,7 @@ add_custom_command(
 )
 add_custom_target(viewer_test_asset DEPENDS "${VIEWER_TEST_ASSET}")
 
-add_library(viewer_sun_lighting STATIC src/sun_lighting.cpp)
+add_library(viewer_sun_lighting STATIC src/sun_lighting.cpp src/day_night.cpp)
 target_include_directories(viewer_sun_lighting PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(viewer_sun_lighting PUBLIC glm::glm)
 viewer_warnings(viewer_sun_lighting)
@@ -306,6 +306,11 @@ if(BUILD_TESTING)
     target_link_libraries(test_sun_lighting PRIVATE viewer_sun_lighting viewer_visibility)
     viewer_warnings(test_sun_lighting)
     add_test(NAME viewer_sun_lighting COMMAND test_sun_lighting)
+
+    add_executable(test_day_night tests/test_day_night.cpp)
+    target_link_libraries(test_day_night PRIVATE viewer_sun_lighting)
+    viewer_warnings(test_day_night)
+    add_test(NAME viewer_day_night COMMAND test_day_night)
 
     add_executable(test_shadow_renderer tests/test_shadow_renderer.cpp)
     target_link_libraries(test_shadow_renderer PRIVATE viewer_renderer glfw)

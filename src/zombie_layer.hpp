@@ -17,15 +17,15 @@ struct ZombieInstance {
     glm::mat4 restTransform{1};
     glm::mat4 restRoot{1};
     float phase = 0; // Fraction of the idle cycle, independent of frame rate.
-    bool walking = false; // Live locomotion skinning, for walking and running.
+    bool walking = false;
+    bool running = false; // Select the authored run clip during pursuit.
     glm::mat4 chaseNormalization{1}; // Captured on activation; preserve asset scale/offset.
-    double walkSeconds = 0;
-    std::vector<glm::mat4> walkPose;
+    double walkSeconds = 0; // Locomotion clip time; advances only while travelling.
     bool ragdoll = false;
     std::size_t ragdollHandle = 0;
     // Skeleton world pose captured from the displayed frame, in asset space.
     std::vector<glm::mat4> activationPose;
-    // Asset-space bone matrices uploaded for walking or ragdoll skinning.
+    // Asset-space bone matrices uploaded only for ragdoll skinning.
     std::vector<glm::mat4> ragdollBones;
 };
 

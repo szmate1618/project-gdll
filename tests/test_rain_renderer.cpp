@@ -77,7 +77,16 @@ void checkRain() {
     const auto outside = addedBrightness(nightRain, nightSky, 0, 100, 0, height);
     require(core > outside * 1.5 && core > 0.2,
             "Night rain must brighten inside the camera flashlight cone");
-    viewer::Renderer::checkErrors("rain visibility, animation, and night lighting");
+    renderer.setDayNightLighting(viewer::dayNightLighting(17.7));
+    renderer.render(view, 0.25);
+    const auto dusk = pixels();
+    renderer.setDayNightLighting(viewer::dayNightLighting(17.7001));
+    renderer.render(view, 0.25);
+    const auto nextDusk = pixels();
+    for (std::size_t i = 0; i < dusk.size(); ++i)
+        require(std::abs(static_cast<int>(dusk[i]) - nextDusk[i]) <= 2,
+                "Rain and its flashlight response must fade continuously through twilight");
+    viewer::Renderer::checkErrors("rain visibility, animation, and cycle lighting");
 }
 
 void checkOcclusion() {

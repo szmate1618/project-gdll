@@ -45,6 +45,8 @@ struct Options {
     bool shadows = true;
     bool treeShadows = true;
     bool night = false;
+    viewer::DayNightCycle dayNight;
+    bool explicitDayNight = false;
     bool rain = false;
     bool noForests = false;
     bool noFences = false;
@@ -77,6 +79,22 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--self-test-input") options.selfTest = true;
         else if (argument == "--fps") options.fps = true;
         else if (argument == "--night") options.night = true;
+        else if (argument == "--time-of-day" || argument == "--day-length") {
+            const auto text = value();
+            std::size_t used = 0;
+            double number;
+            const auto message = argument == "--time-of-day"
+                ? "--time-of-day requires an hour in [0, 24)"
+                : "--day-length requires zero (frozen) or at least one second";
+            try { number = std::stod(text, &used); }
+            catch (const std::exception&) { throw std::runtime_error(message); }
+            if (used != text.size() || !std::isfinite(number) || number < 0.0 ||
+                (argument == "--time-of-day" ? number >= 24.0 : number > 0.0 && number < 1.0))
+                throw std::runtime_error(message);
+            if (argument == "--time-of-day") options.dayNight.startHour = number;
+            else options.dayNight.dayLengthSeconds = number;
+            options.explicitDayNight = true;
+        }
         else if (argument == "--rain") options.rain = true;
         else if (argument == "--no-shadows") options.shadows = false;
         else if (argument == "--no-tree-shadows") options.treeShadows = false;
@@ -167,6 +185,8 @@ Options parseOptions(int argc, char** argv) {
         throw std::runtime_error("Use zombie options or --no-zombies, not both");
     if (options.zombieView && options.fps)
         throw std::runtime_error("--zombie-view uses a free-fly overview; omit --fps/--spawn");
+    if (options.night && options.explicitDayNight)
+        throw std::runtime_error("Use --night for fixed night or --time-of-day/--day-length for the cycle");
     return options;
 }
 
@@ -180,7 +200,9 @@ void printHelp() {
               << "Left Alt release/capture mouse, wheel change speed, F frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
               << "  --fps               Start in walking mode\n"
-              << "  --night             Dark sky and ambient light with a camera flashlight\n"
+              << "  --time-of-day H     Starting hour in [0, 24), default 12 (noon)\n"
+              << "  --day-length S      Seconds per full day, default 1200; 0 freezes the hour\n"
+              << "  --night             Fixed night with a camera flashlight\n"
               << "  --rain              Enable nearby animated rain streaks\n"
               << "  --no-shadows        Disable nearby sun shadows for comparison\n"
               << "  --no-tree-shadows   Disable tree casting while retaining other sun shadows\n"
@@ -721,6 +743,12 @@ int run(const Options& options) {
         }
     };
     anchorGroundFog();
+    double displayedHour = options.dayNight.startHour;
+    if (!options.night) {
+        renderer.setDayNightLighting(viewer::dayNightLighting(displayedHour, {}, {}, atmosphere));
+        std::cout << "Day/night: starting hour " << displayedHour << ", full day "
+                  << options.dayNight.dayLengthSeconds << " simulation seconds (0 freezes time)\n";
+    }
     std::unique_ptr<viewer::CollisionDebug> debug;
     if (options.selfTest) inputSelfTest(window.get());
     if (options.selfTestFPS) fpsInputSelfTest(window.get());
@@ -753,6 +781,10 @@ int run(const Options& options) {
             continue;
         }
         simulationClock.advance(dt);
+        if (!options.night) {
+            displayedHour = options.dayNight.hourAt(simulationClock.seconds());
+            renderer.setDayNightLighting(viewer::dayNightLighting(displayedHour, {}, {}, atmosphere));
+        }
         doors.activateNear(app.rig.camera().position());
         if (zombies)
             for (const auto& instance : zombies->instances)
@@ -820,9 +852,15 @@ int run(const Options& options) {
                 + " (" + std::to_string(sceneStats.drawCalls) + " draws)";
             const auto zombieStatus = zombies ? " | Zombies " + std::to_string(renderer.zombieCount()) +
                 " (" + std::to_string(zombies->ragdollCount()) + " ragdolls)" : "";
+            std::ostringstream clockStatus;
+            if (!options.night) {
+                const int minutes = static_cast<int>(displayedHour * 60.0);
+                clockStatus << " | " << std::setfill('0') << std::setw(2) << minutes / 60
+                            << ':' << std::setw(2) << minutes % 60;
+            }
             const auto caption = title + " | " + app.rig.modeName() + " | " + app.interaction.modeName()
                 + (app.interaction.grabbing() ? " (door grabbed)" : "") + status + " | " + std::to_string(fps)
-                + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + townStatus + treeStatus + zombieStatus + " | " + std::to_string(static_cast<int>(app.rig.speed(
+                + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + townStatus + treeStatus + zombieStatus + clockStatus.str() + " | " + std::to_string(static_cast<int>(app.rig.speed(
                     app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]))) + " m/s";
             glfwSetWindowTitle(window.get(), caption.c_str());
             titleTime = completed;

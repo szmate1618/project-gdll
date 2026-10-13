@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 
 namespace viewer {
 
@@ -33,6 +34,15 @@ struct AnimatedPrimitive {
     std::vector<SkinningVertex> skinning;
 };
 
+struct BakedAnimationClip {
+    std::string name;
+    float duration = 0;
+    std::size_t frameCount = 0;
+    // Offset into each AnimatedPrimitive::frames, measured in frames (not vertices).
+    std::size_t firstFrame = 0;
+    std::vector<glm::mat4> boneFrames;
+};
+
 struct AnimatedModel {
     // Flattened scene: one primitive and identity-transform draw per source draw.
     // Vertex positions/normals are bind-pose data for live skinning; baked animation
@@ -51,6 +61,10 @@ struct AnimatedModel {
     std::string clipName;
     float duration = 0.0f;
     std::size_t frameCount = 0;
+    // Idle stays at offset zero. Optional locomotion frames follow in each
+    // primitive's shared vertex buffer; bind geometry and materials remain shared.
+    std::optional<BakedAnimationClip> walkClip, runClip;
+    std::size_t totalFrameCount() const;
 };
 
 // Bakes at 30 Hz in the original scene scale. Frame i samples i*duration/frameCount;
@@ -61,11 +75,18 @@ struct AnimatedModel {
 AnimatedModel loadIdleModel(const std::filesystem::path& path,
                             const std::string& clipName = "");
 
+// Also bake optional walk/run clips. Missing clips retain idle playback; malformed
+// or ambiguous matching clips fail loading rather than silently being ignored.
+AnimatedModel loadZombieModel(const std::filesystem::path& path);
+
+float animatedFrame(float duration, std::size_t frameCount, double seconds, float phase = 0);
+
 // Match the displayed baked pose, including per-instance cycle phase. Linear
 // matrix interpolation preserves the shader's interpolated vertex positions;
 // interpolated rotations can consequently contain a small amount of shear/scale.
 // Models without boneFrames return their referenceWorld transforms instead.
 std::vector<glm::mat4> sampleAnimatedPose(const AnimatedModel& model,
-                                        double seconds, float phase = 0);
+                                        double seconds, float phase = 0,
+                                        const BakedAnimationClip* clip = nullptr);
 
 }  // namespace viewer

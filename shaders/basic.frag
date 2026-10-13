@@ -26,7 +26,8 @@ uniform vec3 uHazeColor;
 uniform float uHazeDensity;
 uniform float uHazeStart;
 uniform vec4 uGroundFog; // Base Y, inverse layer height, base density, clear distance.
-uniform bool uNight;
+uniform float uNightBlend;
+uniform vec3 uUnlitLight;
 uniform vec3 uFlashlightDirection;
 uniform vec3 uFlashlightColor;
 uniform vec3 uFlashlightCone; // Range in meters, cosine of inner/outer half angles.
@@ -79,7 +80,7 @@ float sunlightVisibility(float sunFacing, float distanceFromEye) {
 }
 
 vec3 flashlight(vec3 normal, float distanceFromEye) {
-    if (!uNight || distanceFromEye >= uFlashlightCone.x) return vec3(0.0);
+    if (uNightBlend <= 0.0 || distanceFromEye >= uFlashlightCone.x) return vec3(0.0);
     vec3 fromEye = (vWorldPosition - uEye) / max(distanceFromEye, 0.001);
     float cone = smoothstep(uFlashlightCone.z, uFlashlightCone.y,
                            dot(fromEye, uFlashlightDirection));
@@ -87,7 +88,7 @@ vec3 flashlight(vec3 normal, float distanceFromEye) {
     float falloff = 1.0 / (1.0 + 0.025 * distanceFromEye * distanceFromEye);
     // Impostor normals describe a card rather than the photographed canopy.
     float facing = uUnlit ? 1.0 : max(dot(normal, -fromEye), 0.0);
-    return uFlashlightColor * (cone * rangeFade * falloff * facing);
+    return uFlashlightColor * (uNightBlend * cone * rangeFade * falloff * facing);
 }
 
 float alphaMaskCutoff() {
@@ -115,7 +116,7 @@ void main() {
     float sunFacing = max(dot(normal, uSunDirection), 0.0);
     vec3 ambient = mix(uGroundAmbient, uSkyAmbient, normal.y * 0.5 + 0.5);
     float distanceFromEye = length(vWorldPosition - uEye);
-    vec3 light = uUnlit ? (uNight ? uSkyAmbient : vec3(1.0))
+    vec3 light = uUnlit ? uUnlitLight
                         : ambient + uSunColor * sunFacing * sunlightVisibility(sunFacing, distanceFromEye);
     light += flashlight(normal, distanceFromEye);
     vec3 linearColor = max(color.rgb * light, vec3(0.0));

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download Denys Almaral's free demo assets and attach their matching idle clips.
+"""Download Denys Almaral's free demo rigs and matching idle/walk/run clips.
 
 Original files stay unchanged under assets/zombies/source. The generated GLBs
 embed the palette, remap animation targets by node name, and convert cm to m by
@@ -116,19 +116,17 @@ def parents_by_name(nodes: list[dict]) -> dict[str, str | None]:
 
 
 def merge_idle(rig_data: tuple, idle_data: tuple) -> bytes:
+    """Backward-compatible preparation of a single idle clip."""
+    if len(idle_data[0].get("animations", [])) != 1 or "idle" not in idle_data[0]["animations"][0].get("name", "").lower():
+        raise ValueError("Expected one named idle animation")
+    return merge_animations(rig_data, [idle_data])
+
+
+def merge_animations(rig_data: tuple, clips: list[tuple]) -> bytes:
     rig, rig_buffers, rig_images = rig_data
-    idle, idle_buffers, _ = idle_data
     result = copy.deepcopy(rig)
     nodes_by_name = {node["name"]: i for i, node in enumerate(rig["nodes"])}
     rig_parents = parents_by_name(rig["nodes"])
-    idle_parents = parents_by_name(idle["nodes"])
-    if rig_parents != idle_parents:
-        raise ValueError("Idle animation and character have incompatible skeleton hierarchies")
-    if len(idle.get("animations", [])) != 1:
-        raise ValueError("Expected one named idle animation")
-    animation = copy.deepcopy(idle["animations"][0])
-    if "idle" not in animation.get("name", "").lower():
-        raise ValueError("Animation is not named idle")
 
     binary = bytearray()
 
@@ -143,20 +141,17 @@ def merge_idle(rig_data: tuple, idle_data: tuple) -> bytes:
         view["byteOffset"] = offsets[view["buffer"]] + view.get("byteOffset", 0)
         view["buffer"] = 0
 
-    copied_views: dict[int, int] = {}
-    copied_accessors: dict[int, int] = {}
-
     def copy_accessor(index: int) -> int:
         if index in copied_accessors:
             return copied_accessors[index]
-        accessor = copy.deepcopy(idle["accessors"][index])
+        accessor = copy.deepcopy(clip_document["accessors"][index])
         if "sparse" in accessor:
             raise ValueError("Sparse animation accessors are not supported by this pack importer")
         view_index = accessor["bufferView"]
         if view_index not in copied_views:
-            view = copy.deepcopy(idle["bufferViews"][view_index])
+            view = copy.deepcopy(clip_document["bufferViews"][view_index])
             start = view.get("byteOffset", 0)
-            source = idle_buffers[view["buffer"]]
+            source = clip_buffers[view["buffer"]]
             end = start + view["byteLength"]
             if end > len(source):
                 raise ValueError("Animation buffer view exceeds its source")
@@ -169,13 +164,28 @@ def merge_idle(rig_data: tuple, idle_data: tuple) -> bytes:
         result["accessors"].append(accessor)
         return copied_accessors[index]
 
-    for sampler in animation["samplers"]:
-        sampler["input"] = copy_accessor(sampler["input"])
-        sampler["output"] = copy_accessor(sampler["output"])
-    for channel in animation["channels"]:
-        name = idle["nodes"][channel["target"]["node"]]["name"]
-        channel["target"]["node"] = nodes_by_name[name]
-    result["animations"] = [animation]
+    result["animations"] = []
+    names: set[str] = set()
+    for clip_document, clip_buffers, _ in clips:
+        if rig_parents != parents_by_name(clip_document["nodes"]):
+            raise ValueError("Animation and character have incompatible skeleton hierarchies")
+        if len(clip_document.get("animations", [])) != 1:
+            raise ValueError("Expected one named animation per source")
+        animation = copy.deepcopy(clip_document["animations"][0])
+        name = animation.get("name", "")
+        if not name or name.lower() in names:
+            raise ValueError("Animation names must be nonempty and unique")
+        names.add(name.lower())
+        # Accessor/view indices belong to each separate source document.
+        copied_views: dict[int, int] = {}
+        copied_accessors: dict[int, int] = {}
+        for sampler in animation["samplers"]:
+            sampler["input"] = copy_accessor(sampler["input"])
+            sampler["output"] = copy_accessor(sampler["output"])
+        for channel in animation["channels"]:
+            name = clip_document["nodes"][channel["target"]["node"]]["name"]
+            channel["target"]["node"] = nodes_by_name[name]
+        result["animations"].append(animation)
 
     for image, data in zip(result.get("images", []), rig_images):
         if not data.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -211,15 +221,17 @@ def prepare_pack(output_dir: Path, offline: bool) -> None:
     prepared: dict[Path, bytes] = {}
     for gender in ("Female", "Male"):
         prefix = f"Zombie{gender}"
-        idle = sources.gltf(f"animations-gltf/gltf_{prefix}/{prefix}@idle_220f.gltf")
+        clips = [sources.gltf(f"animations-gltf/gltf_{prefix}/{prefix}@{clip}.gltf")
+                 for clip in ("idle_220f", "walk_64f", "running_58f")]
         for letter in "ABCDE":
             name = f"{prefix}_{letter}"
             rig = sources.gltf(f"rig-gltf_joined/{name}_joined.gltf")
-            data = merge_idle(rig, idle)
+            data = merge_animations(rig, clips)
             output = output_dir / "models" / f"{name}.glb"
             prepared[output] = data
             outputs[f"models/{name}.glb"] = {"bytes": len(data), "sha256": sha256(data),
-                                             "animation": idle[0]["animations"][0]["name"]}
+                                             "animation": clips[0][0]["animations"][0]["name"],
+                                             "animations": [clip[0]["animations"][0]["name"] for clip in clips]}
     manifest = {"schema_version": 1, "creator": "Denys Almaral", "title": "Polyart Zombies with Animations Free Pack",
                 "sketchfab_url": SKETCHFAB_URL, "demo_url": BASE_URL,
                 "fab_url": "https://www.fab.com/listings/2a85aa17-6eae-4c9d-b805-aeb1d722962f",

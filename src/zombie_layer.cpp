@@ -3,6 +3,7 @@
 #include "zombie_ragdoll_pose.hpp"
 #include "zombie_placement.hpp"
 #include "zombie_hit.hpp"
+#include "zombie_animation.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -62,8 +63,7 @@ bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationS
         // A conservative sphere is cheap to test and makes the hit forgiving at
         // the crowd distances for which this viewer is intended.
         const bool bodyHit = raySphere(origin, direction, center, 0.62f, distance);
-        auto pose = instance.walking ? instance.walkPose :
-            sampleAnimatedPose(assets[instance.asset], animationSeconds, instance.phase);
+        auto pose = sampleZombiePose(assets[instance.asset], instance, animationSeconds);
         const auto head = zombieHeadHitSphere(assets[instance.asset], instance, pose);
         float headDistance = 0;
         const bool headHit = raySphere(origin, direction, head.center, head.radius, headDistance);
@@ -152,7 +152,7 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
     // There is no reason to upload character variants that receive no instances.
     paths.resize(std::min(paths.size(), count));
     for (const auto& path : paths) {
-        auto asset = loadIdleModel(path);
+        auto asset = loadZombieModel(path);
         const auto low = asset.model.boundsMin, high = asset.model.boundsMax;
         const float height = high.y - low.y;
         if (!std::isfinite(height) || height <= 0)
@@ -163,6 +163,9 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
                                 glm::translate(glm::mat4(1), -origin));
         std::cout << "Zombie asset: " << path.filename() << "; idle clip " << asset.clipName
                   << ", " << asset.duration << " s, " << asset.frameCount << " samples\n";
+        for (const auto* clip : {asset.walkClip ? &*asset.walkClip : nullptr, asset.runClip ? &*asset.runClip : nullptr})
+            if (clip) std::cout << "  Locomotion: " << clip->name << ", " << clip->duration
+                               << " s, " << clip->frameCount << " samples\n";
         for (const auto& warning : asset.model.warnings)
             std::cerr << "Zombie asset warning: " << warning << '\n';
         result.assets.push_back(std::move(asset));
@@ -181,7 +184,6 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
         instance.restTransform = transform;
         instance.restRoot = restRoot;
         instance.phase = phase;
-        instance.ragdollBones.resize(result.assets[asset].skeleton.size(), glm::mat4(1.0f));
         result.instances.push_back(std::move(instance));
         const auto& model = result.assets[asset].model;
         for (int corner = 0; corner < 8; ++corner) {

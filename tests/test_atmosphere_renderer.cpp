@@ -77,7 +77,7 @@ viewer::Camera camera(float eyeHeight = 1.7f) {
 enum class Layer { Scene, Trees, Zombies };
 
 glm::vec3 renderCard(Layer kind, float distance, bool haze, bool groundFog = false,
-                     float eyeHeight = 1.7f, bool night = false) {
+                     float eyeHeight = 1.7f, bool night = false, std::optional<double> hour = {}) {
     const bool masked = kind == Layer::Trees;
     auto model = card({1, 0, 0}, masked);
     viewer::TreeLayer trees;
@@ -119,6 +119,7 @@ glm::vec3 renderCard(Layer kind, float distance, bool haze, bool groundFog = fal
     viewer::Atmosphere atmosphere;
     atmosphere.groundFog.startDistance = 12.0f;
     renderer.setAtmosphere(atmosphere);
+    if (hour) renderer.setDayNightLighting(viewer::dayNightLighting(*hour, {}, {}, atmosphere));
     renderer.resize(width, height);
     renderer.render(camera(eyeHeight));
     // Sample the opaque right half. The left half of a tree card is a hole.
@@ -278,6 +279,45 @@ void checkNightLayers() {
     }
 }
 
+void checkCycleLayers() {
+    for (const auto kind : {Layer::Scene, Layer::Trees, Layer::Zombies}) {
+        const auto sample = [&](double hour, float distance = 80, bool fog = false) {
+            return renderCard(kind, distance, fog, fog, 1.7f, false, hour);
+        };
+        const auto noon = sample(12);
+        const auto dusk = sample(17.7);
+        const auto midnight = sample(0);
+        require(noon.r > dusk.r + 20 && dusk.r > midnight.r + 20,
+                "The cycle must progressively dim scene, masked trees, and zombies");
+        require(glm::length(sample(0) - renderCard(kind, 80, false, false, 1.7f, true)) < 2,
+                "Cycle midnight must match the existing fixed-night appearance");
+        require(sample(0, 20).r > midnight.r + 100,
+                "Cycle night must retain the camera flashlight on every layer");
+        require(glm::length(sample(17.7) - sample(17.7001)) < 2,
+                "Twilight must not pop between nearby times");
+        viewer::Atmosphere sky;
+        sky.color = viewer::dayNightLighting(17.7).fogColor;
+        require(glm::length(sample(17.7, 5000, true) - sky.backgroundSrgb() * 255.0f) < 4,
+                "Cycle haze and ground fog must converge toward the same twilight sky");
+    }
+    viewer::Renderer sky(viewer::Model{}, VIEWER_SHADER_DIR);
+    sky.resize(width, height);
+    for (const auto hour : {12.0, 17.7, 0.0, 6.0}) {
+        const auto lighting = viewer::dayNightLighting(hour);
+        sky.setDayNightLighting(lighting);
+        sky.render(camera());
+        viewer::Atmosphere atmosphere;
+        atmosphere.color = lighting.fogColor;
+        require(glm::length(pixel(0, 0) - atmosphere.backgroundSrgb() * 255.0f) < 2,
+                "Cycle sky clear color must match the fog shader color");
+    }
+    sky.setNight(false);
+    sky.render(camera());
+    require(glm::length(pixel(0, 0) - viewer::Atmosphere{}.backgroundSrgb() * 255.0f) < 2,
+            "The fixed-day switch must clear cycle lighting");
+    viewer::Renderer::checkErrors("cycle layer and sky regression");
+}
+
 void checkNightCone() {
     for (const bool unlit : {false, true}) {
         auto model = card({1, 1, 1});
@@ -349,6 +389,7 @@ int main() {
         checkGroundLayers();
         checkGroundIntegral();
         checkNightLayers();
+        checkCycleLayers();
         checkNightCone();
         checkEmptyCapture();
         std::cout << "Atmosphere rendering tests passed (" << glGetString(GL_RENDERER) << ")\n";

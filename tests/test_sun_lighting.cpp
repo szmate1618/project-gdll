@@ -39,6 +39,8 @@ int main() {
         checkCoverage({0, 1.7f, 0}, {-0.4f, 0.85f, 0.3f});
         checkCoverage({1234, 75, -2345}, {-0.4f, 0.85f, 0.3f});
         checkCoverage({0, 1.7f, 0}, {0, 1, 0});
+        checkCoverage({1234, 75, -2345}, {1, 0.07f, 0.02f});
+        checkCoverage({1234, 75, -2345}, {-1, 0.07f, 0.02f});
         const auto initial = viewer::sunShadowView({0, 0, 0}, {-0.4f, 0.85f, 0.3f}).projectionView();
         const auto moved = viewer::sunShadowView({0.001f, 0, 0}, {-0.4f, 0.85f, 0.3f}).projectionView();
         const auto point = glm::vec4(17, 0, -23, 1);

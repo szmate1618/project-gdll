@@ -301,7 +301,7 @@ using a jittered grid with a 2 m center clearing; its default radius is 100 m.
 Insufficient safe ground reports an error with the accepted count. Increase the
 radial radius or reduce the count for a smaller or densely built scene.
 
-Idle skin deformation is sampled once at startup at 30 samples per second.
+Idle, walk, and run deformation is sampled once at startup at 30 samples per second.
 Shared vertex animation buffers hold the resulting positions and normals; the
 GPU interpolates adjacent samples and loops using elapsed time. Every zombie
 has its own phase offset. Meshes, textures, and animation samples are shared by
@@ -368,21 +368,25 @@ physics continue simulating.
 Locomotion faces the direction of travel and follows rendered terrain triangles.
 There is no pathfinding, flocking, collision response, or obstacle avoidance:
 moving zombies can pass through buildings, trees, and each other. Outside the
-map they retain their last ground height. Leg swings are added to the idle pose
-for mapped humanoid rigs using shared meshes and live skinning; custom unmapped
-rigs retain idle poses while moving. The crowd draws all instances without LOD.
+map they retain their last ground height. Walking and running play
+the creator's walk/run clips using shared baked vertex animation. Investigating
+uses walk; chasing uses run, falling back to walk when only that clip is available.
+Custom idle-only models retain idle playback while moving. Locomotion clip time
+advances by actual travel time; the CPU does not evaluate or upload a skeleton for
+each moving zombie. The crowd draws all instances without LOD.
 
 In Combat mode while the mouse is captured, left click casts a ray from
 the camera center and activates the nearest living zombie under a conservative
 body or head sphere. The head sphere encloses the displayed skinned head geometry,
-including hair and child joints, and follows the idle phase or walking pose.
+including hair and child joints, and follows the displayed idle, walk, or run pose.
 Unmapped rigs use a standard head region. Headshots trigger the same ragdoll
 handoff as body hits. Box3D then simulates an 11-body capsule/sphere ragdoll with
-constrained ball and hinge joints. Idle instances keep the baked vertex-texture animation
-path; walking and ragdoll instances use GPU skinning with retained bind-pose
-weights. Activation stops pursuit and captures the last displayed idle or walk
-pose, including each zombie's phase and interpolated animation frame. Bodies start in
-that pose, with their dimensions and joint axes derived from the reference rig;
+constrained ball and hinge joints. Idle, walking, and running instances use shared
+baked vertex-texture animation; only ragdolls use live GPU skinning with retained
+bind-pose weights. Activation stops pursuit and samples the displayed idle, walk,
+or run skeleton on demand, capturing its pose, including each zombie's phase and
+interpolated animation frame. Bodies start in that pose, with their dimensions
+and joint axes derived from the reference rig;
 hands, fingers, and other unmapped joints retain their captured local poses.
 Capsule ends are inset to avoid starting below ground, and activation adds no
 automatic angular launch. Each ragdoll uses a small local ground box rather than
@@ -658,7 +662,40 @@ Lighting is tuned for FPS walking: one warm directional sun plus cool sky and
 muted ground ambient light. Ambient illumination remains in shadow. Linear RGB
 lighting is applied before the existing sRGB output encoding. The sun direction,
 color/intensity, and ambient colors are set by `SunLighting` in
-`src/sun_lighting.hpp` and can be changed through `Renderer::setLighting`.
+`src/sun_lighting.hpp` and can be changed through `Renderer::setLighting` for
+fixed lighting. The application's day/night cycle supplies these settings through
+`Renderer::setDayNightLighting`.
+
+### Day/night cycle
+
+The viewer starts at noon and advances through a full day in 1200 simulation
+seconds (20 minutes). The window title shows the game clock. Choose the starting
+hour with `--time-of-day H` in `[0, 24)` and the duration of a full day with
+`--day-length S` (at least one second). Use zero to freeze the selected hour:
+
+```bash
+./build/godollo_viewer output/godollo.glb --fps --time-of-day 17 --day-length 600
+./build/godollo_viewer output/godollo.glb --fps --time-of-day 17.7 --day-length 0
+./build/godollo_viewer output/godollo.glb --fps --time-of-day 0 --day-length 0
+```
+
+The stylized sun rises in the east at 06:00, passes to the south at noon, and
+sets in the west at 18:00. It is an artistic cycle, not a date/location-based
+solar calculation. Sun color, sky and ground ambient light, unlit tree colors,
+sky/fog color, camera flashlight strength, and rain lighting blend smoothly.
+The cycle uses the same clamped simulation time as physics and remains independent
+of `--animation-time`; freeze the day separately for repeatable captures.
+
+Shadows follow the moving sun using the existing local depth map and caster
+pass each frame. Direct sunlight fades smoothly from full strength at 12 degrees
+to zero at 4 degrees above the horizon; twilight ambient light remains. This
+reduces visible artifacts from long shadows without expanding the fixed caster
+volume. Very tall or distant casters can still exceed that volume. At zero
+sunlight the pass is skipped and shadow sampling is disabled, then both resume
+at dawn. There are no additional render passes or shadow maps for the cycle.
+Clock and lighting calculations are in `src/day_night.hpp/.cpp`.
+
+### Local sun shadows
 
 One 2048 × 2048 depth map follows the camera. Shadows fade smoothly between
 90 and 120 meters from the eyes; ordinary shading continues beyond that range.
@@ -697,14 +734,18 @@ terrain/road meshes remain whole draw calls even when only part overlaps it.
 
 ## Night mode and flashlight
 
-Enable night mode explicitly at launch:
+### Fixed night mode
+
+Enable fixed night mode explicitly at launch:
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --fps --night
 ```
 
-Without `--night`, the viewer uses daylight. Night mode disables sunlight and
-its shadow pass, uses weak blue ambient light, and changes the sky and fog to a
+Without `--night`, the viewer follows the day/night cycle. `--night` freezes
+the existing night lighting and cannot be combined with `--time-of-day` or
+`--day-length`. Fixed night mode disables sunlight and its shadow pass, uses
+weak blue ambient light, and changes the sky and fog to a
 dark matching color. Fog density, height, and start distances keep their current
 settings; `--no-haze` and `--no-ground-fog` still work.
 
@@ -827,6 +868,8 @@ Run the viewer checks:
 ctest --test-dir build --output-on-failure
 ```
 
+`viewer_day_night` checks clock wrapping/freezing, east-to-west sun movement,
+day/night endpoints, horizon light fading, and continuity across the full day.
 `viewer_sun_lighting` checks local receiver coverage, upstream caster coverage,
 and texel stability without a GPU. `viewer_shadow_renderer` checks offscreen
 casters, tree alpha-mask holes and mirrored/sheared node composition, separate
@@ -854,10 +897,18 @@ the enable/disable toggle, night flashlight illumination, opaque depth occlusion
 and restoration of GL program/VAO, depth, culling, and blend state. It requires
 an accessible OpenGL display/context and skips when one is unavailable.
 
-The `viewer_zombie_renderer` regression checks repeated walking/ragdoll palette
-uploads and characters with multiple primitives through the actual shader. It requires
+The `viewer_zombie_renderer` regression checks mixed idle/walk/run clips, clip
+wrap interpolation, repeated ragdoll palette uploads, and characters with multiple
+primitives through the actual shader. It requires
 an accessible OpenGL display and reports a skip when none is available. The
 remaining checks run without a display.
+
+To inspect all installed character rigs in idle (front row), walk (middle), and
+run (back), and verify their sampled skeletons match the displayed baked vertices:
+
+```bash
+./build/test_zombie_renderer --assets assets/zombies/models build/zombie-clips.ppm
+```
 
 When `output/godollo.glb` exists at configure time, CTest also runs the full-town
 FPS integration test. It validates spawning, a real building wall and diagonal
@@ -939,6 +990,7 @@ src/forest_tree_visibility.{hpp,cpp} Patch-first individual-tree visibility
 src/forest_volume_batch.{hpp,cpp} Static volume geometry grouped by material
 src/file_fingerprint.{hpp,cpp} Shared SHA-256 provenance checks
 src/sun_lighting.{hpp,cpp} Lighting settings and stable local shadow coverage
+src/day_night.{hpp,cpp}    Game clock and smooth day/night lighting evaluation
 src/atmosphere.hpp         Distance haze, ground fog, and matching sky color
 src/night_lighting.hpp     Night ambient, sky/fog color, and camera flashlight settings
 src/rain_renderer.{hpp,cpp} Instanced rain seeds, draw, and GL state ownership
@@ -951,7 +1003,8 @@ src/zombie_behavior.{hpp,cpp} Dense behavior pool, perception and state transiti
 src/noise.{hpp,cpp}        Noise events, source levels, and distance attenuation
 src/player_noise.{hpp,cpp} Fixed-step footsteps and landing noise emission
 src/simulation_clock.hpp   Global simulation-thread in-game clock
-src/zombie_chase.{hpp,cpp}  Terrain-following locomotion and walking/running strides
+src/zombie_chase.{hpp,cpp}  Terrain-following locomotion and clip clocks
+src/zombie_animation.{hpp,cpp} Authored clip selection and on-demand displayed poses
 src/zombie_placement.{hpp,cpp} Ground queries and deterministic safe placement
 src/zombie_park.{hpp,cpp}  Palace garden outline in the published map's frame
 src/physics_world.{hpp,cpp} Shared Box3D world and fixed simulation stepping

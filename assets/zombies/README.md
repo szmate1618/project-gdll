@@ -27,17 +27,21 @@ python3 tools/download_zombies.py --offline
 
 `source/` preserves the original glTF files, buffers, and shared palette PNGs.
 The importer downloads the ten `ZombieFemale_A` through `ZombieFemale_E` and
-`ZombieMale_A` through `ZombieMale_E` rigs and their two matching `idle_220f`
-clips. Other animations remain available in the creator's complete pack.
-`models/` contains one self-contained GLB per character with its matching idle
-clip and embedded palette. Both directories are ignored by Git.
+`ZombieMale_A` through `ZombieMale_E` rigs and their matching `idle_220f`,
+`walk_64f`, and `running_58f` clips for each skeleton. Other animations remain
+available in the creator's complete pack. `models/` contains one self-contained
+GLB per character with all three clips and an embedded palette. Both directories
+are ignored by Git. Run the downloader once online to add missing locomotion
+sources to an older cache; subsequent rebuilds can use `--offline`.
 
 The source models use centimeters and Y-up. Preparation adds a parent scale of
 0.01 to the whole original scene, preserving mesh transforms, bone hierarchy,
 inverse bind matrices, and animation values. The resulting GLBs use meters.
 Animation channels are matched by exact node names and require identical
 skeleton parent relationships; animation data, buffer views, and accessors are
-remapped into each character without replacing its mesh or bind matrices.
+remapped into each character without replacing its mesh or bind matrices. Clips
+keep their original names and separate sampler/accessor ranges. `sources.json`
+records hashes for all source clips and the clip names in each runtime model.
 
 Downloads and output GLBs are written to temporary files before publication.
 Subsequent runs verify cached or downloaded originals against `sources.json`.

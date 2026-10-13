@@ -87,6 +87,43 @@ viewer::SunLighting lighting() {
     return light;
 }
 
+void checkMovingSun() {
+    viewer::Renderer renderer(scene(false), VIEWER_SHADER_DIR);
+    renderer.setHaze(false);
+    renderer.setGroundFog(false);
+    renderer.resize(width, height);
+    const auto camera = cameraAt({0, 6, 6});
+    const auto sample = [&](double hour, bool shadows, glm::vec3 point) {
+        renderer.setDayNightLighting(viewer::dayNightLighting(hour));
+        renderer.setShadows(shadows);
+        renderer.render(camera);
+        return brightness(camera, point);
+    };
+    // This wall's shadow crosses the floor from west to east as the sun moves.
+    const glm::vec3 west{-3, 0, 2}, east{3, 0, 2}, middle{0, 0, 2};
+    require(sample(9, false, west) - sample(9, true, west) > 35,
+            "Morning sunlight must cast the wall's shadow to the west");
+    require(std::abs(sample(9, false, east) - sample(9, true, east)) < 3,
+            "Morning shadow must leave the eastern receiver lit");
+    require(sample(15, false, east) - sample(15, true, east) > 35,
+            "Afternoon sunlight must move the wall's shadow to the east");
+    require(std::abs(sample(15, false, west) - sample(15, true, west)) < 3,
+            "Afternoon shadow must leave the western receiver lit");
+    require(sample(12, false, middle) - sample(12, true, middle) > 35,
+            "Noon must retain the nearby sun shadow pass");
+    for (const auto hour : {0.0, 6.0, 18.0}) {
+        require(std::abs(sample(hour, false, middle) - sample(hour, true, middle)) < 2,
+                "Night and the horizon must not sample stale daylight shadows");
+        GLint viewport[4]{};
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        require(viewport[2] == width && viewport[3] == height && !glIsEnabled(GL_POLYGON_OFFSET_FILL),
+                "Skipping sunlight must preserve the color pass GL state");
+    }
+    require(sample(9, false, west) - sample(9, true, west) > 35,
+            "Sun shadows must resume after night");
+    viewer::Renderer::checkErrors("moving sun regression");
+}
+
 void checkScene(bool masked, bool unlit, bool blended = false) {
     auto model = scene(masked, unlit);
     if (blended) model.materials[1].alphaMode = "BLEND";
@@ -232,6 +269,12 @@ void checkAnimatedCaster() {
         for (const auto& vertex : asset.model.primitives.front().vertices)
             animation.frames.push_back({glm::vec4(vertex.position + glm::vec3(frame * 6, 0, 0), 1),
                                         glm::vec4(vertex.normal, 0)});
+    asset.walkClip = viewer::BakedAnimationClip{"walk", 1, 2, 2, {}};
+    asset.runClip = viewer::BakedAnimationClip{"running", 1, 2, 4, {}};
+    for (int frame : {0, 1, 1, 0})
+        for (const auto& vertex : asset.model.primitives.front().vertices)
+            animation.frames.push_back({glm::vec4(vertex.position + glm::vec3(frame * 6, 0, 0), 1),
+                                        glm::vec4(vertex.normal, 0)});
     animation.skinning.resize(4);
     for (auto& skin : animation.skinning) skin.weights[0] = 1;
     asset.animation.push_back(animation);
@@ -253,12 +296,23 @@ void checkAnimatedCaster() {
     const float idleLit = brightness(camera, {0, 0, 0});
     require(idleLit - idleShadow > 50, "Baked animation must move its cast shadow with the visible pose");
     layer.instances[0].walking = true;
+    renderer.updateZombies(layer);
+    renderer.render(camera, 0.5);
+    require(std::abs(brightness(camera, {0, 0, 0}) - idleShadow) < 3, "Walk shadow must use the selected clip and local clock");
+    layer.instances[0].walkSeconds = 0.5;
+    renderer.updateZombies(layer);
+    renderer.render(camera, 0);
+    require(std::abs(brightness(camera, {0, 0, 0}) - idleLit) < 3, "Authored walking must move its shadow independently of idle time");
+    layer.instances[0].running = true;
+    renderer.updateZombies(layer);
+    renderer.render(camera, 0.5);
+    require(std::abs(brightness(camera, {0, 0, 0}) - idleShadow) < 3, "Run shadow must use its own frame range");
+    layer.instances[0].walking = false;
+    layer.instances[0].ragdoll = true;
     layer.instances[0].ragdollBones = {glm::mat4(1)};
     renderer.updateZombies(layer);
     renderer.render(camera, 0.5);
-    require(std::abs(brightness(camera, {0, 0, 0}) - idleShadow) < 3, "Live skinning must cast the live pose, not the baked frame");
-    layer.instances[0].walking = false;
-    layer.instances[0].ragdoll = true;
+    require(std::abs(brightness(camera, {0, 0, 0}) - idleShadow) < 3, "Live ragdoll skinning must cast the live pose");
     layer.instances[0].ragdollBones = {glm::translate(glm::mat4(1), {6, 0, 0})};
     renderer.updateZombies(layer);
     renderer.render(camera, 0);
@@ -285,6 +339,7 @@ int main() {
         checkScene(false, false, true);
         checkTreeCaster();
         checkAnimatedCaster();
+        checkMovingSun();
         std::cout << "Shadow rendering tests passed (" << glGetString(GL_RENDERER) << ")\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

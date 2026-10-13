@@ -4,7 +4,7 @@ layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUV;
 layout(location = 3) in vec4 aColor;
 layout(location = 4) in mat4 aInstanceModel;
-layout(location = 8) in float aAnimationPhase;
+layout(location = 8) in vec3 aAnimationInfo; // Phase, clip first frame, clip frame count.
 layout(location = 9) in float aAnimationFrame;
 layout(location = 10) in float aLiveSkinning;
 layout(location = 11) in float aBoneBase;
@@ -56,10 +56,13 @@ void main() {
         position = skinnedPosition.xyz;
         if (!uShadowPass) normal = normalize(skinnedNormal);
     } else if (uAnimated) {
+        int count = aAnimationInfo.z > 0.0 ? int(aAnimationInfo.z) : uAnimationCount;
+        int offset = int(aAnimationInfo.y);
         float frame = aAnimationFrame >= 0.0 ? aAnimationFrame :
-            mod(uAnimationFrame + aAnimationPhase * float(uAnimationCount), float(uAnimationCount));
-        int first = int(floor(frame));
-        int second = (first + 1) % uAnimationCount;
+            mod(uAnimationFrame + aAnimationInfo.x * float(count), float(count));
+        int localFirst = int(floor(frame));
+        int first = offset + localFirst;
+        int second = offset + (localFirst + 1) % count;
         int a = 2 * (first * uAnimationVertices + gl_VertexID);
         int b = 2 * (second * uAnimationVertices + gl_VertexID);
         position = mix(texelFetch(uAnimation, a).xyz, texelFetch(uAnimation, b).xyz, fract(frame));

@@ -1,4 +1,5 @@
 #include "zombie_layer.hpp"
+#include "zombie_animation.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -231,6 +232,9 @@ void unmatchedRigFollowsFallbackBody() {
 void shotWhileWalking() {
     viewer::ZombieLayer layer;
     layer.assets.push_back(humanoid());
+    auto& animated = layer.assets[0];
+    animated.runClip = viewer::BakedAnimationClip{"running", 1, 2, 2, animated.boneFrames};
+    for (auto& bone : animated.runClip->boneFrames) bone = translation({0, 0.1f, 0}) * bone;
     viewer::ZombieInstance instance;
     instance.restRoot = translation({0, 4, 0}) * glm::rotate(glm::mat4(1), glm::radians(90.0f), {0, 1, 0});
     instance.transform = instance.restTransform = instance.restRoot *
@@ -244,15 +248,16 @@ void shotWhileWalking() {
             "The old spawn position must no longer be hittable");
     const auto displayed = layer.instances[0];
     const auto& asset = layer.assets[0];
+    const auto displayedPose = viewer::sampleZombiePose(asset, displayed, 0.125);
     require(layer.shoot({6, 4.9f, 3}, {0, 0, -1}, 0.125),
             "The moving zombie must be hittable at its current position");
     const auto& ragdoll = layer.instances[0];
     require(ragdoll.ragdoll && !ragdoll.walking, "A shot must stop walking and start physics");
     require(!layer.behaviors.contains(0), "A shot must immediately remove the behavior object");
     for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone) {
-        requireMatrixNear(ragdoll.activationPose[bone], displayed.walkPose[bone],
+        requireMatrixNear(ragdoll.activationPose[bone], displayedPose[bone],
                           "Capture the displayed gait instead of reverting to idle");
-        requireMatrixNear(worldBone(ragdoll, asset, bone), displayed.transform * displayed.walkPose[bone],
+        requireMatrixNear(worldBone(ragdoll, asset, bone), displayed.transform * displayedPose[bone],
                           "Walking-to-ragdoll activation must preserve the world pose");
     }
     layer.chase(1, {0, 4, 0}, world);
@@ -279,8 +284,11 @@ void headshotFollowsDisplayedPose(bool walking) {
     instance.transform = instance.restTransform = instance.restRoot = translation({0, 3, -4});
     instance.walking = walking;
     if (walking) {
-        instance.walkPose = viewer::sampleAnimatedPose(asset, 0.125, instance.phase);
-        instance.walkPose[4] = translation({0.7f, 0, 0}) * instance.walkPose[4];
+        instance.walkSeconds = 0.125;
+        asset.walkClip = viewer::BakedAnimationClip{"walk", 1, 2, 2, asset.boneFrames};
+        for (std::size_t frame = 0; frame < 2; ++frame)
+            asset.walkClip->boneFrames[frame * asset.skeleton.size() + 4] =
+                translation({0.7f, 0, 0}) * asset.walkClip->boneFrames[frame * asset.skeleton.size() + 4];
     }
     layer.assets.push_back(std::move(asset));
     layer.instances.push_back(instance);
