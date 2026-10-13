@@ -48,9 +48,31 @@ void candidatesAndMovement() {
     index.query({std::numeric_limits<float>::max(), 0, std::numeric_limits<float>::max()}, 100, candidates);
     require(candidates == std::vector<std::size_t>{0}, "Extreme finite float coordinates must not overflow cell indexing");
 }
+void rayCandidates() {
+    viewer::ZombieSpatialIndex index;
+    index.reset(8);
+    for (std::size_t i = 0; i < 8; ++i)
+        index.update(i, {i == 6 ? -20.01f : 0.1f, 10.0f * i, 20.0f * static_cast<float>(i) - 40.1f});
+    index.update(7, {10000, 0, -10000});
+    std::vector<std::size_t> candidates;
+    index.queryRay({0, 0, -1}, {0, 0, -1}, 0.2, candidates);
+    require(candidates == std::vector<std::size_t>({0, 1, 2}), "Forward ray must include the origin cell and exclude cells behind it");
+    index.queryRay({-20, 0, 80}, {0, -1, 0}, 0.02, candidates);
+    require(candidates == std::vector<std::size_t>({6}), "Vertical rays must include expanded cells across negative boundaries");
+    index.queryRay({0, 0, 0}, {1, 0, -1}, 0, candidates);
+    require(std::find(candidates.begin(), candidates.end(), 7) != candidates.end(), "Ray queries must not impose a shooting distance cap");
+    index.erase(0);
+    index.update(1, {400, 0, 400});
+    index.queryRay({0, 0, -1}, {0, 0, -1}, 0.2, candidates);
+    require(candidates == std::vector<std::size_t>({2}), "Ray queries must track movement and swap removal");
+    index.queryRay({}, {}, 1, candidates);
+    require(candidates.empty(), "Zero ray direction must produce no candidates");
+    index.queryRay({}, {1, 0, 0}, -1, candidates);
+    require(candidates.empty(), "Invalid padding must produce no candidates");
+}
 }
 
 int main() {
-    try { candidatesAndMovement(); std::cout << "Zombie spatial index tests passed\n"; return 0; }
+    try { candidatesAndMovement(); rayCandidates(); std::cout << "Zombie spatial index tests passed\n"; return 0; }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

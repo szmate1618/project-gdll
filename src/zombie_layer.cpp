@@ -2,7 +2,6 @@
 #include "zombie_ragdoll.hpp"
 #include "zombie_ragdoll_pose.hpp"
 #include "zombie_placement.hpp"
-#include "zombie_hit.hpp"
 #include "zombie_animation.hpp"
 
 #include <algorithm>
@@ -22,18 +21,6 @@ bool modelFile(const std::filesystem::path& path) {
 bool finite(glm::vec3 value) {
     return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
-
-bool raySphere(glm::vec3 origin, glm::vec3 direction, glm::vec3 center, float radius, float& distance) {
-    const auto offset = origin - center;
-    const float projection = glm::dot(offset, direction);
-    const float discriminant = projection * projection - (glm::dot(offset, offset) - radius * radius);
-    if (discriminant < 0.0f) return false;
-    const float root = std::sqrt(discriminant);
-    const float near = -projection - root;
-    const float far = -projection + root;
-    distance = near >= 0.0f ? near : far;
-    return distance >= 0.0f && std::isfinite(distance);
-}
 }
 
 struct ZombieLayer::Physics {
@@ -48,32 +35,13 @@ ZombieLayer::ZombieLayer(ZombieLayer&&) noexcept = default;
 ZombieLayer& ZombieLayer::operator=(ZombieLayer&&) noexcept = default;
 
 bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationSeconds) {
+    shootingStats_ = {};
     if (!finite(origin) || !finite(direction)) return false;
     const float length = glm::length(direction);
     if (length < 1e-6f) return false;
     direction /= length;
-    std::size_t selected = instances.size();
-    float nearest = std::numeric_limits<float>::max();
     std::vector<glm::mat4> selectedPose;
-    for (std::size_t i = 0; i < instances.size(); ++i) {
-        const auto& instance = instances[i];
-        if (instance.removed || instance.ragdoll || instance.asset >= assets.size()) continue;
-        const auto center = glm::vec3(instance.restRoot * glm::vec4(0, 0.9f, 0, 1));
-        float distance = std::numeric_limits<float>::max();
-        // A conservative sphere is cheap to test and makes the hit forgiving at
-        // the crowd distances for which this viewer is intended.
-        const bool bodyHit = raySphere(origin, direction, center, 0.62f, distance);
-        auto pose = sampleZombiePose(assets[instance.asset], instance, animationSeconds);
-        const auto head = zombieHeadHitSphere(assets[instance.asset], instance, pose);
-        float headDistance = 0;
-        const bool headHit = raySphere(origin, direction, head.center, head.radius, headDistance);
-        if (headHit) distance = bodyHit ? std::min(distance, headDistance) : headDistance;
-        if ((bodyHit || headHit) && distance < nearest) {
-            nearest = distance;
-            selected = i;
-            selectedPose = std::move(pose);
-        }
-    }
+    const auto selected = findShotTarget(origin, direction, animationSeconds, selectedPose);
     if (selected == instances.size()) return false;
     if (!physics_) physics_ = std::make_unique<Physics>();
     auto& instance = instances[selected];
@@ -245,6 +213,7 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
             result.boundsMax = glm::max(result.boundsMax, worldPoint);
         }
     }
+    result.rebuildSpatialIndex();
     return result;
 }
 

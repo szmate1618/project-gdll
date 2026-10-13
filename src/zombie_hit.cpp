@@ -2,56 +2,164 @@
 #include "zombie_layer.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
+#include <stdexcept>
 
 namespace viewer {
+namespace {
+ZombieHitBounds emptyBounds() {
+    return {glm::vec3(std::numeric_limits<float>::max()), glm::vec3(std::numeric_limits<float>::lowest())};
+}
+void include(ZombieHitBounds& bounds, glm::vec3 point) {
+    bounds.minimum = glm::min(bounds.minimum, point);
+    bounds.maximum = glm::max(bounds.maximum, point);
+}
+glm::vec4 headVertexPosition(const AnimatedModel& asset, ZombieHeadVertex vertex, const glm::mat4* pose) {
+    const auto& skin = asset.animation[vertex.primitive].skinning[vertex.vertex];
+    const auto& point = asset.model.primitives[vertex.primitive].vertices[vertex.vertex].position;
+    glm::vec4 position(0);
+    for (std::size_t i = 0; i < skin.weights.size(); ++i) {
+        if (skin.weights[i] == 0) continue;
+        const auto joint = skin.joints[i];
+        position += pose[joint] * asset.skeleton[joint].inverseBind * glm::vec4(point, 1) * skin.weights[i];
+    }
+    return position;
+}
+ZombieHitBounds transformed(const ZombieHitBounds& bounds, const glm::mat4& matrix) {
+    const auto center = glm::vec3(matrix * glm::vec4((bounds.minimum + bounds.maximum) * 0.5f, 1));
+    const auto half = (bounds.maximum - bounds.minimum) * 0.5f;
+    const auto extent = glm::abs(glm::vec3(matrix[0])) * half.x +
+                        glm::abs(glm::vec3(matrix[1])) * half.y + glm::abs(glm::vec3(matrix[2])) * half.z;
+    return {center - extent, center + extent};
+}
+}
 
-ZombieHitSphere zombieHeadHitSphere(const AnimatedModel& asset, const ZombieInstance& instance,
-                                   const std::vector<glm::mat4>& pose) {
-    const int head = asset.ragdollBones[static_cast<std::size_t>(RagdollPart::head)];
-    const auto fallback = ZombieHitSphere{
-        glm::vec3(instance.restRoot * glm::vec4(0, 1.65f, 0, 1)), 0.23f};
-    if (head < 0 || static_cast<std::size_t>(head) >= pose.size()) return fallback;
+ZombieHitGeometry prepareZombieHitGeometry(const AnimatedModel& asset) {
+    ZombieHitGeometry geometry;
+    geometry.head = asset.ragdollBones[static_cast<std::size_t>(RagdollPart::head)];
+    if (geometry.head < 0 || static_cast<std::size_t>(geometry.head) >= asset.skeleton.size()) {
+        geometry.head = -1;
+        return geometry;
+    }
     std::vector<bool> headJoint(asset.skeleton.size(), false);
     for (std::size_t joint = 0; joint < asset.skeleton.size(); ++joint) {
         int ancestor = static_cast<int>(joint);
         for (std::size_t depth = 0; ancestor >= 0 && depth < asset.skeleton.size(); ++depth) {
-            if (ancestor == head) { headJoint[joint] = true; break; }
+            if (static_cast<std::size_t>(ancestor) >= asset.skeleton.size())
+                throw std::invalid_argument("Invalid zombie skeleton ancestry");
+            if (ancestor == geometry.head) { headJoint[joint] = true; break; }
             ancestor = asset.skeleton[static_cast<std::size_t>(ancestor)].parent;
         }
     }
-    auto low = glm::vec3(std::numeric_limits<float>::max());
-    auto high = glm::vec3(std::numeric_limits<float>::lowest());
-    bool found = false;
     for (std::size_t p = 0; p < asset.animation.size(); ++p) {
         const auto& skinning = asset.animation[p].skinning;
-        const auto& vertices = asset.model.primitives[p].vertices;
+        if (p >= asset.model.primitives.size() || skinning.size() > asset.model.primitives[p].vertices.size())
+            throw std::invalid_argument("Invalid zombie hit geometry topology");
         for (std::size_t v = 0; v < skinning.size(); ++v) {
             const auto& skin = skinning[v];
             float headWeight = 0;
-            for (std::size_t i = 0; i < skin.weights.size(); ++i)
-                if (headJoint[skin.joints[i]]) headWeight += skin.weights[i];
-            if (headWeight < 0.5f) continue;
-            glm::vec4 position(0);
             for (std::size_t i = 0; i < skin.weights.size(); ++i) {
-                if (skin.weights[i] == 0) continue;
-                const auto joint = skin.joints[i];
-                position += pose[joint] * asset.skeleton[joint].inverseBind *
-                    glm::vec4(vertices[v].position, 1) * skin.weights[i];
+                if (skin.joints[i] >= headJoint.size()) throw std::invalid_argument("Invalid zombie skin joint");
+                if (headJoint[skin.joints[i]]) headWeight += skin.weights[i];
             }
-            const auto worldPosition = glm::vec3(instance.transform * position);
-            low = glm::min(low, worldPosition);
-            high = glm::max(high, worldPosition);
-            found = true;
+            if (headWeight >= 0.5f) geometry.headVertices.push_back({p, v});
         }
     }
-    if (!found) {
-        // A recognized bone without weighted geometry still follows its pose.
-        return {glm::vec3(instance.transform * pose[static_cast<std::size_t>(head)][3]) +
-                    glm::vec3(0, 0.1f, 0), fallback.radius};
-    }
-    // Enclose the posed geometry, with a small aiming allowance in world meters.
-    return {(low + high) * 0.5f, glm::length(high - low) * 0.5f + 0.02f};
+    geometry.headPoints = emptyBounds();
+    const auto sample = [&](const glm::mat4* pose) {
+        if (geometry.headVertices.empty()) include(geometry.headPoints, glm::vec3(pose[geometry.head][3]));
+        else for (const auto vertex : geometry.headVertices)
+            include(geometry.headPoints, glm::vec3(headVertexPosition(asset, vertex, pose)));
+    };
+    const auto frames = [&](const std::vector<glm::mat4>& poses, std::size_t count) {
+        if (poses.empty()) {
+            std::vector<glm::mat4> reference;
+            for (const auto& bone : asset.skeleton) reference.push_back(bone.referenceWorld);
+            sample(reference.data());
+        } else {
+            if (!count || poses.size() / asset.skeleton.size() != count || poses.size() % asset.skeleton.size())
+                throw std::invalid_argument("Invalid zombie bone samples");
+            for (std::size_t frame = 0; frame < count; ++frame) sample(poses.data() + frame * asset.skeleton.size());
+        }
+    };
+    frames(asset.boneFrames, asset.frameCount);
+    if (asset.walkClip) frames(asset.walkClip->boneFrames, asset.walkClip->frameCount);
+    if (asset.runClip) frames(asset.runClip->boneFrames, asset.runClip->frameCount);
+    return geometry;
 }
 
+ZombieHitBounds zombieShotBounds(const ZombieInstance& instance, const ZombieHitGeometry& geometry) {
+    const auto body = glm::vec3(instance.restRoot * glm::vec4(0, 0.9f, 0, 1));
+    ZombieHitBounds result{body - glm::vec3(0.62f), body + glm::vec3(0.62f)};
+    ZombieHitBounds head;
+    if (geometry.head < 0) {
+        const auto center = glm::vec3(instance.restRoot * glm::vec4(0, 1.65f, 0, 1));
+        head = {center - glm::vec3(0.23f), center + glm::vec3(0.23f)};
+    } else {
+        head = transformed(geometry.headPoints, instance.transform);
+        // The hit region is a sphere around the posed AABB, not the mesh AABB
+        // itself: include its corners' radius and the existing aiming allowance.
+        if (geometry.headVertices.empty()) {
+            head.minimum.y += 0.1f;
+            head.maximum.y += 0.1f;
+        }
+        const float radius = geometry.headVertices.empty() ? 0.23f :
+            glm::length(head.maximum - head.minimum) * 0.5f + 0.02f;
+        head.minimum -= glm::vec3(radius);
+        head.maximum += glm::vec3(radius);
+    }
+    include(result, head.minimum);
+    include(result, head.maximum);
+    // Outward tolerance covers affine/frame interpolation rounding. Broad-phase
+    // bounds may overinclude; the original sphere tests make the final decision.
+    const auto padding = glm::vec3(0.001f) +
+        glm::max(glm::abs(result.minimum), glm::abs(result.maximum)) * (8 * std::numeric_limits<float>::epsilon());
+    return {result.minimum - padding, result.maximum + padding};
+}
+
+bool zombieRayIntersectsBounds(glm::vec3 origin, glm::vec3 direction, const ZombieHitBounds& bounds) {
+    const auto reach = glm::max(glm::abs(glm::dvec3(bounds.minimum) - glm::dvec3(origin)),
+                                glm::abs(glm::dvec3(bounds.maximum) - glm::dvec3(origin)));
+    const double padding = zombieShotRoundoffPadding(glm::length(reach));
+    double near = 0, far = std::numeric_limits<double>::infinity();
+    for (int axis = 0; axis < 3; ++axis) {
+        if (!std::isfinite(origin[axis]) || !std::isfinite(direction[axis])) return false;
+        if (direction[axis] == 0) {
+            if (origin[axis] < double(bounds.minimum[axis]) - padding ||
+                origin[axis] > double(bounds.maximum[axis]) + padding) return false;
+        } else {
+            const double a = (double(bounds.minimum[axis]) - padding - origin[axis]) / direction[axis];
+            const double b = (double(bounds.maximum[axis]) + padding - origin[axis]) / direction[axis];
+            near = std::max(near, std::min(a, b));
+            far = std::min(far, std::max(a, b));
+            if (near > far) return false;
+        }
+    }
+    return true;
+}
+
+double zombieShotRoundoffPadding(double distance) {
+    // Guard dot products, subtraction, and the float-normalized ray's small
+    // length error. Preserve the existing final sphere predicate unchanged.
+    return std::sqrt(32.0 * std::numeric_limits<float>::epsilon()) * distance;
+}
+
+ZombieHitSphere zombieHeadHitSphere(const AnimatedModel& asset, const ZombieInstance& instance,
+                                   const std::vector<glm::mat4>& pose, const ZombieHitGeometry& geometry) {
+    const auto fallback = ZombieHitSphere{glm::vec3(instance.restRoot * glm::vec4(0, 1.65f, 0, 1)), 0.23f};
+    if (geometry.head < 0 || static_cast<std::size_t>(geometry.head) >= pose.size()) return fallback;
+    auto bounds = emptyBounds();
+    for (const auto vertex : geometry.headVertices)
+        include(bounds, glm::vec3(instance.transform * headVertexPosition(asset, vertex, pose.data())));
+    if (geometry.headVertices.empty())
+        return {glm::vec3(instance.transform * pose[static_cast<std::size_t>(geometry.head)][3]) +
+                    glm::vec3(0, 0.1f, 0), fallback.radius};
+    return {(bounds.minimum + bounds.maximum) * 0.5f, glm::length(bounds.maximum - bounds.minimum) * 0.5f + 0.02f};
+}
+
+ZombieHitSphere zombieHeadHitSphere(const AnimatedModel& asset, const ZombieInstance& instance,
+                                   const std::vector<glm::mat4>& pose) {
+    return zombieHeadHitSphere(asset, instance, pose, prepareZombieHitGeometry(asset));
+}
 } // namespace viewer

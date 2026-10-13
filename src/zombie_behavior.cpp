@@ -151,17 +151,6 @@ void ZombieLayer::setPerceptionStaggering(bool enabled) {
     for (const auto& entry : behaviors.entries()) behaviors.find(entry.zombie)->perception = {};
 }
 
-void ZombieLayer::rebuildSpatialIndex() {
-    spatialIndex_.reset(instances.size());
-    for (std::size_t id = 0; id < instances.size(); ++id)
-        if (!instances[id].removed && !instances[id].ragdoll && instances[id].asset < assets.size())
-            spatialIndex_.update(id, glm::vec3(instances[id].restRoot[3]));
-}
-
-void ZombieLayer::ensureSpatialIndex() {
-    if (spatialIndex_.population() != instances.size()) rebuildSpatialIndex();
-}
-
 void ZombieLayer::makeNoise(glm::vec3 position, float decibels) {
     if (!finite(position) || !std::isfinite(decibels)) return;
     const double now = SimulationClock::instance().seconds();
@@ -226,7 +215,7 @@ void ZombieLayer::updateBehavior(float seconds, const ZombiePlayer& player,
         auto& instance = instances[id];
         stepBehavior(behavior, instance, assets[instance.asset], player, world,
                      seconds, now, animationSeconds, staggerPerception_, behaviorStats_);
-        spatialIndex_.update(id, glm::vec3(instance.restRoot[3]));
+        updateSpatialMembership(id);
         ++index;
     }
 }

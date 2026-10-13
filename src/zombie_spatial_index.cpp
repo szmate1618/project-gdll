@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <limits>
 #include <stdexcept>
 
 namespace viewer {
@@ -74,5 +75,32 @@ void ZombieSpatialIndex::query(glm::vec3 center, double radius, std::vector<std:
                 entry.first.z >= low.z && entry.first.z <= high.z) append(entry.second);
     }
     std::sort(candidates.begin(), candidates.end());
+}
+void ZombieSpatialIndex::queryRay(glm::vec3 origin, glm::vec3 direction, double padding,
+                                 std::vector<std::size_t>& candidates) const {
+    candidates.clear();
+    if (!std::isfinite(origin.x) || !std::isfinite(origin.y) || !std::isfinite(origin.z) ||
+        !std::isfinite(direction.x) || !std::isfinite(direction.y) || !std::isfinite(direction.z) ||
+        std::isnan(padding) || padding < 0 || glm::dot(direction, direction) == 0) return;
+    // Test occupied cells instead of marching arbitrarily far through empty
+    // space. This handles vertical rays and sparse/extreme coordinates too.
+    for (const auto& entry : cells_) {
+        double near = 0, far = std::numeric_limits<double>::infinity();
+        for (const int axis : {0, 2}) {
+            const double coordinate = axis == 0 ? entry.first.x : entry.first.z;
+            const double low = coordinate * cellSize - padding;
+            const double high = (coordinate + 1) * cellSize + padding;
+            if (direction[axis] == 0) {
+                if (origin[axis] < low || origin[axis] > high) { far = -1; break; }
+            } else {
+                const double a = (low - origin[axis]) / direction[axis];
+                const double b = (high - origin[axis]) / direction[axis];
+                near = std::max(near, std::min(a, b));
+                far = std::min(far, std::max(a, b));
+            }
+        }
+        if (near <= far) candidates.insert(candidates.end(), entry.second.begin(), entry.second.end());
+    }
+    std::sort(candidates.begin(), candidates.end()); // Preserve original equal-hit tie order.
 }
 } // namespace viewer

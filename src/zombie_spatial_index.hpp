@@ -17,6 +17,10 @@ public:
     void erase(std::size_t id);
     std::size_t population() const { return locations_.size(); }
     void query(glm::vec3 center, double radius, std::vector<std::size_t>& candidates) const;
+    // Unbounded forward ray through X/Z occupied cells, expanded by the maximum
+    // horizontal hit-region reach from indexed feet. No camera/range restriction.
+    void queryRay(glm::vec3 origin, glm::vec3 direction, double padding,
+                  std::vector<std::size_t>& candidates) const;
 
 private:
     // Double integer-valued keys cover all finite float world coordinates.

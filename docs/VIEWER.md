@@ -376,8 +376,10 @@ are stable indices in the crowd; the instance vector must not be reordered.
 Activation and hearing query a 20 m X/Z spatial grid, then apply the original
 3D distance and eligibility checks. Locomotion updates cell membership before
 noise handling; shot zombies leave the grid. External code that edits instance
-feet directly must call `ZombieLayer::rebuildSpatialIndex()`. Changing the
-population size triggers a rebuild automatically.
+feet/transforms, instance normalization, or asset skeleton/clip data directly
+must call `ZombieLayer::rebuildSpatialIndex()`. It refreshes both grid membership
+and prepared shooting geometry. Changing the population or asset count triggers
+a rebuild automatically.
 
 Only members of this pool perform perception. A **100-degree horizontal FOV**
 uses the character's forward direction (+Z), ignoring height for the cone test.
@@ -461,6 +463,26 @@ In Combat mode while the mouse is captured, left click casts a ray from
 the camera center and activates the nearest living zombie under a conservative
 body or head sphere. The head sphere encloses the displayed skinned head geometry,
 including hair and child joints, and follows the displayed idle, walk, or run pose.
+Shooting first queries the same spatial grid along the forward ray. The query
+tests occupied X/Z cells expanded by the maximum hit-region reach, avoiding
+arbitrarily long walks through empty space. It then rejects candidates with
+cheap 3D bounds covering both body and head spheres through every animation
+sample and interpolated frame, including wrap. Only remaining candidates sample
+their skeleton and evaluate the posed head region. Queries have no shooting
+distance limit or camera-visibility dependency; equal-distance hits retain
+original instance-ID order. Conservative roundoff padding preserves the existing
+float sphere decisions on long rays.
+
+Head vertex membership is prepared once per asset at grid initialization:
+vertices with at least 50% combined weight on the head or descendant bones are
+retained, including hair and all eight skin influences. Detailed head queries
+pose only those vertices using their complete weights. The original body/head
+spheres and aiming allowances remain unchanged, so a body miss can still be a
+headshot. Locomotion updates shooting bounds along with cell membership, without
+sampling a skeleton. `ZombieLayer::shootingStats()` reports candidate count,
+sampled poses, and posed head vertices for the last shot. Everything runs on the
+existing simulation thread.
+
 Unmapped rigs use a standard head region. Headshots trigger the same ragdoll
 handoff as body hits. Box3D then simulates an 11-body capsule/sphere ragdoll with
 constrained ball and hinge joints. Idle, walking, and running instances use shared
@@ -987,6 +1009,14 @@ primitives through the actual shader. It requires
 an accessible OpenGL display and reports a skip when none is available. The
 remaining checks run without a display.
 
+`viewer_zombie_shooting` compares prepared head regions and indexed target
+selection against the original full-mesh/full-population path. It covers
+head-only hits, descendant/blended weights, clip interpolation and wrap,
+transformed rigs, fallback head regions, equal-hit ordering, removal/rebuild,
+long rays, and a synthetic 10,000-zombie crowd. It runs without a GPU and reports
+candidate/pose/vertex counts; its elapsed-time output is diagnostic rather than
+a timing assertion.
+
 To inspect all installed character rigs in idle (front row), walk (middle), and
 run (back), and verify their sampled skeletons match the displayed baked vertices:
 
@@ -1083,9 +1113,10 @@ src/sun_shadow_map.{hpp,cpp} Depth-only shadow framebuffer and texture ownership
 src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin data
 src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting
 src/zombie_hit.{hpp,cpp}    Head hit regions from the displayed skinning pose
+src/zombie_shooting.cpp    Prepared hit geometry, spatial bounds, and shot selection
 src/zombie_behavior.{hpp,cpp} Dense behavior pool, perception and state transitions
 src/zombie_perception.{hpp,cpp} Simulation-thread sight scheduling and ray classification
-src/zombie_spatial_index.{hpp,cpp} Stable-ID spatial grid for activation and hearing
+src/zombie_spatial_index.{hpp,cpp} Stable-ID spatial grid for activation, hearing, and shooting
 src/noise.{hpp,cpp}        Noise events, source levels, and distance attenuation
 src/player_noise.{hpp,cpp} Fixed-step footsteps and landing noise emission
 src/simulation_clock.hpp   Global simulation-thread in-game clock

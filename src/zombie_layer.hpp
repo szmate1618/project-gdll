@@ -5,6 +5,7 @@
 #include "zombie_behavior.hpp"
 #include "zombie_spatial_index.hpp"
 #include "zombie_ragdoll.hpp"
+#include "zombie_hit.hpp"
 
 #include <memory>
 
@@ -39,6 +40,9 @@ struct ZombieInstance {
 struct ZombieBehaviorStats {
     std::size_t activationCandidates = 0, perceptionChecks = 0, sightRays = 0, hearingCandidates = 0;
 };
+struct ZombieShootingStats {
+    std::size_t spatialCandidates = 0, poseSamples = 0, headVertices = 0;
+};
 
 struct ZombieLayer {
     ZombieLayer();
@@ -56,6 +60,7 @@ struct ZombieLayer {
     // Returns true when the nearest living zombie under the ray was activated.
     // animationSeconds is the time of the last displayed frame (before phase).
     bool shoot(glm::vec3 origin, glm::vec3 direction, double animationSeconds = 0.0);
+    const ZombieShootingStats& shootingStats() const { return shootingStats_; }
     // Silent noise at a world position, with a source level in dB at one meter.
     // Only idle, living zombies already in the behavior pool can hear it.
     void makeNoise(glm::vec3 position, float decibels);
@@ -63,7 +68,8 @@ struct ZombieLayer {
     void setPerceptionStaggering(bool enabled);
     const ZombieBehaviorStats& behaviorStats() const { return behaviorStats_; }
     // Rebuild after external edits to instance feet or replacing a population
-    // with the same size. Ordinary locomotion maintains membership itself.
+    // with the same size, or edits to asset rigs/clips or instance normalization.
+    // Rebuilds prepared hit geometry too. Ordinary locomotion maintains both.
     void rebuildSpatialIndex();
     // Perception/state update, followed by terrain-following locomotion.
     // The app advances SimulationClock before calling this once per step.
@@ -88,7 +94,15 @@ private:
     struct Physics;
     std::unique_ptr<Physics> physics_;
     void ensureSpatialIndex();
+    void updateSpatialMembership(std::size_t id);
+    std::size_t findShotTarget(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
+                               std::vector<glm::mat4>& selectedPose);
     ZombieSpatialIndex spatialIndex_;
+    std::vector<ZombieHitGeometry> hitGeometry_;
+    std::vector<ZombieHitBounds> shotBounds_;
+    double shotPadding_ = 0;
+    double shotCoordinateScale_ = 0;
+    ZombieShootingStats shootingStats_;
     std::vector<std::size_t> spatialCandidates_;
     bool staggerPerception_ = true;
     ZombieBehaviorStats behaviorStats_;
