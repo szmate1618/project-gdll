@@ -13,6 +13,7 @@
 #include "forest_volume_batch.hpp"
 #include "forest_layer.hpp"
 #include "zombie_layer.hpp"
+#include "zombie_palette_cache.hpp"
 #include "sun_lighting.hpp"
 #include "sun_shadow_map.hpp"
 #include "atmosphere.hpp"
@@ -45,6 +46,8 @@ public:
     Renderer& operator=(const Renderer&) = delete;
     void resize(int width, int height);
     void render(const Camera& camera, double animationSeconds = 0.0);
+    // Fixed asset/population topology. Borrows this layer through render(); call
+    // after owning API/physics changes and keep the layer alive during rendering.
     void updateZombies(const ZombieLayer& zombies);
     void updateDoors(const DoorLayer& doors);
     void present(int width, int height);
@@ -69,6 +72,7 @@ public:
     std::size_t zombieCount() const { return zombieCount_; }
     std::size_t zombieVisibleCount() const { return zombieVisibleCount_; }
     std::size_t zombieDrawCalls() const { return zombieDrawCalls_; }
+    const ZombiePaletteStats& zombiePaletteStats() const { return zombiePaletteStats_; }
     static void checkErrors(const char* stage);
 
 private:
@@ -122,9 +126,7 @@ private:
         std::vector<GLuint> animationBuffers, animationTextures;
         std::vector<GLuint> skinningBuffers;
         std::vector<GLint> skinningEnabled;
-        GLuint skinningTexture = 0;
-        GLuint skinningBuffer = 0;
-        std::vector<glm::mat4> skinningMatrices;
+        std::unique_ptr<ZombiePaletteCache> palettes;
         GLint skinningBoneCount = 0;
         std::vector<GLint> vertexCounts;
         GLsizei count = 0;
@@ -132,9 +134,10 @@ private:
         float duration = 0;
         VisibilityBounds animationBounds, bindBounds;
         std::vector<VisibilityBounds> instanceBounds;
-        // Reused independently for each camera/light pass. Palette offsets and
-        // stable source indices survive compaction; the simulation is untouched.
-        std::vector<ZombieGPUInstance> visibleInstances;
+        std::vector<VisibilityBounds> poseBounds;
+        std::vector<std::uint64_t> poseVersions;
+        std::vector<bool> livePoses;
+        std::vector<ZombieGPUInstance> cameraInstances, shadowInstances;
     };
     void release() noexcept;
     static void releaseModel(ModelGPU& model) noexcept;
@@ -149,7 +152,8 @@ private:
     void prepareForestView(const Camera& camera);
     void drawForests(const glm::mat4& projectionView, bool shadowPass = false);
     void uploadZombies(const ZombieLayer& zombies);
-    void drawZombies(double seconds, const Frustum& frustum, bool shadowPass = false);
+    void prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* lightFrustum);
+    void drawZombies(double seconds, bool shadowPass = false);
     void drawSunShadows(const SunShadowView& shadowView, double seconds);
     DayNightLighting lightingForFrame() const;
     void applyLighting(const Camera& camera, const SunShadowView& shadowView,
@@ -214,6 +218,9 @@ private:
     ForestRenderStats forestStats_;
     float forestDetailDistance_ = 350;
     std::vector<ZombieBatch> zombieBatches_;
+    // Borrowed until the next update; the fixed population must outlive render().
+    const ZombieLayer* zombieSource_ = nullptr;
+    ZombiePaletteStats zombiePaletteStats_;
     bool zombieCulling_ = true;
     std::size_t zombieCount_ = 0, zombieVisibleCount_ = 0, zombieDrawCalls_ = 0;
     Material fallback_;

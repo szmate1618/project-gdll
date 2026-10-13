@@ -104,7 +104,13 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
         includeBounds(batch.animationBounds, batch.bindBounds);
         for (const auto& instance : batch.staging)
             batch.instanceBounds.push_back(transformedBounds(batch.animationBounds, instance.transform));
-        batch.visibleInstances.reserve(batch.staging.size());
+        batch.cameraInstances.reserve(batch.staging.size());
+        batch.shadowInstances.reserve(batch.staging.size());
+        batch.poseBounds.assign(batch.staging.size(), batch.animationBounds);
+        batch.poseVersions.resize(batch.staging.size());
+        batch.livePoses.resize(batch.staging.size());
+        batch.palettes = std::make_unique<ZombiePaletteCache>(batch.staging.size(), source.skeleton.size(),
+                                                              static_cast<std::size_t>(maximumTexels));
         uploadModel(source.model, batch.model);
         glGenBuffers(1, &batch.instanceBuffer);
         glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);
@@ -198,59 +204,85 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
     }
     glBindTexture(GL_TEXTURE_BUFFER, 0);
     glBindBuffer(GL_TEXTURE_BUFFER, 0);
-    zombieCount_ = zombies.instances.size();
+    updateZombies(zombies);
     checkErrors("zombie upload");
 }
 
 void Renderer::updateZombies(const ZombieLayer& zombies) {
     if (zombieBatches_.size() != zombies.assets.size())
         throw std::runtime_error("Zombie layer changed after renderer upload");
+    std::size_t population = 0;
+    for (const auto& batch : zombieBatches_) population += batch.sourceIndices.size();
+    if (population != zombies.instances.size())
+        throw std::runtime_error("Zombie population changed after renderer upload");
+    zombieSource_ = &zombies;
+    zombieCount_ = 0;
     for (std::size_t i = 0; i < zombieBatches_.size(); ++i) {
         auto& batch = zombieBatches_[i];
-        if (batch.count != static_cast<GLsizei>(batch.sourceIndices.size()))
-            throw std::runtime_error("Zombie population changed after renderer upload");
-        for (std::size_t instanceIndex = 0; instanceIndex < batch.sourceIndices.size(); ++instanceIndex) {
-            const auto sourceIndex = batch.sourceIndices[instanceIndex];
+        if (zombies.assets[i].skeleton.size() != static_cast<std::size_t>(batch.skinningBoneCount))
+            throw std::runtime_error("Zombie skeleton changed after renderer upload");
+        for (std::size_t local = 0; local < batch.sourceIndices.size(); ++local) {
+            const auto sourceIndex = batch.sourceIndices[local];
             if (sourceIndex >= zombies.instances.size()) throw std::runtime_error("Invalid zombie source index");
             const auto& source = zombies.instances[sourceIndex];
-            float boneBase = -1.0f;
-            const bool liveSkinning = source.ragdoll;
-            if (liveSkinning && batch.skinningBoneCount > 0) {
-                if (source.ragdollBones.size() != static_cast<std::size_t>(batch.skinningBoneCount))
-                    throw std::runtime_error("Live skeleton data does not match zombie asset");
-                // The shader adds the joint index before converting to texels,
-                // so this is a matrix offset, not a skeleton/instance index.
-                boneBase = static_cast<float>(batch.skinningMatrices.size());
-                batch.skinningMatrices.insert(batch.skinningMatrices.end(), source.ragdollBones.begin(), source.ragdollBones.end());
+            if (source.asset != i) throw std::runtime_error("Zombie asset changed after renderer upload");
+            zombieCount_ += !source.removed;
+            const bool live = source.ragdoll && !source.removed;
+            if (!live) batch.palettes->release(local);
+            if (live && source.ragdollBones.size() != static_cast<std::size_t>(batch.skinningBoneCount))
+                throw std::runtime_error("Live skeleton data does not match zombie asset");
+            batch.staging[local] = zombieGPUInstance(zombies.assets[i], source);
+            // Bone-transformed bind boxes contain every weighted skin vertex;
+            // animation bounds also cover primitives without skin attributes.
+            // Cache the expensive union by pose revision. World placement
+            // is still applied each update, including ordinary living movement.
+            if (live != batch.livePoses[local] || (live && source.ragdollPoseVersion != batch.poseVersions[local])) {
+                auto bounds = batch.animationBounds;
+                if (live)
+                    for (const auto& bone : source.ragdollBones)
+                        includeBounds(bounds, transformedBounds(batch.bindBounds, bone));
+                batch.poseBounds[local] = bounds;
+                batch.poseVersions[local] = source.ragdollPoseVersion;
+                batch.livePoses[local] = live;
             }
-            batch.staging[instanceIndex] = zombieGPUInstance(zombies.assets[i], source, boneBase);
-            auto bounds = batch.animationBounds;
-            // A union of bone-transformed bind boxes contains every weighted
-            // skin vertex, including fallen ragdolls and walking limb swings.
-            // Include animation bounds for primitives with no skin attributes.
-            if (liveSkinning)
-                for (const auto& bone : source.ragdollBones)
-                    includeBounds(bounds, transformedBounds(batch.bindBounds, bone));
-            batch.instanceBounds[instanceIndex] = transformedBounds(bounds, source.transform);
+            batch.instanceBounds[local] = transformedBounds(batch.poseBounds[local], source.transform);
         }
-        if (!batch.skinningMatrices.empty()) {
-            if (!batch.skinningBuffer) {
-                glGenBuffers(1, &batch.skinningBuffer);
-                glGenTextures(1, &batch.skinningTexture);
-            }
-            glBindBuffer(GL_TEXTURE_BUFFER, batch.skinningBuffer);
-            glBufferData(GL_TEXTURE_BUFFER, static_cast<GLsizeiptr>(batch.skinningMatrices.size() * sizeof(glm::mat4)),
-                         batch.skinningMatrices.data(), GL_STREAM_DRAW);
-            glBindTexture(GL_TEXTURE_BUFFER, batch.skinningTexture);
-            glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, batch.skinningBuffer);
-        }
-        batch.skinningMatrices.clear();
     }
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    checkErrors("zombie update");
 }
 
-void Renderer::drawZombies(double seconds, const Frustum& frustum, bool shadowPass) {
+void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* lightFrustum) {
+    zombiePaletteStats_ = {};
+    if (!zombieSource_) return;
+    for (auto& batch : zombieBatches_) {
+        batch.cameraInstances.clear();
+        batch.shadowInstances.clear();
+        batch.palettes->beginFrame();
+        for (std::size_t local = 0; local < batch.sourceIndices.size(); ++local) {
+            const auto& source = zombieSource_->instances[batch.sourceIndices[local]];
+            if (source.removed) continue;
+            const auto& bounds = batch.instanceBounds[local];
+            const bool camera = !zombieCulling_ || cameraFrustum.intersects(bounds.minimum, bounds.maximum);
+            const bool shadow = lightFrustum && lightFrustum->intersects(bounds.minimum, bounds.maximum);
+            if (!camera && !shadow) continue;
+            auto instance = batch.staging[local];
+            if (source.ragdoll && batch.skinningBoneCount > 0)
+                instance.boneBase = batch.palettes->request(local, source.ragdollPoseVersion, source.ragdollBones);
+            if (camera) batch.cameraInstances.push_back(instance);
+            if (shadow) batch.shadowInstances.push_back(instance);
+        }
+        batch.palettes->flush();
+        const auto& stats = batch.palettes->stats();
+        zombiePaletteStats_.needed += stats.needed;
+        zombiePaletteStats_.uploaded += stats.uploaded;
+        zombiePaletteStats_.uploadCalls += stats.uploadCalls;
+        zombiePaletteStats_.uploadBytes += stats.uploadBytes;
+        zombiePaletteStats_.resident += stats.resident;
+        zombiePaletteStats_.storageBytes += stats.storageBytes;
+    }
+    checkErrors("zombie palette update");
+}
+
+void Renderer::drawZombies(double seconds, bool shadowPass) {
     if (!shadowPass) {
         zombieDrawCalls_ = 0;
         zombieVisibleCount_ = 0;
@@ -265,15 +297,7 @@ void Renderer::drawZombies(double seconds, const Frustum& frustum, bool shadowPa
     glUniformMatrix4fv(modelLocation_, 1, GL_FALSE, glm::value_ptr(identity));
     for (auto& batch : zombieBatches_) {
         if (batch.count == 0) continue;
-        batch.visibleInstances.clear();
-        if (shadowPass || zombieCulling_) {
-            for (std::size_t i = 0; i < batch.staging.size(); ++i) {
-                const auto& bounds = batch.instanceBounds[i];
-                if (frustum.intersects(bounds.minimum, bounds.maximum))
-                    batch.visibleInstances.push_back(batch.staging[i]);
-            }
-        }
-        const auto& visible = shadowPass || zombieCulling_ ? batch.visibleInstances : batch.staging;
+        const auto& visible = shadowPass ? batch.shadowInstances : batch.cameraInstances;
         const auto count = static_cast<GLsizei>(visible.size());
         if (!shadowPass) zombieVisibleCount_ += visible.size();
         if (count == 0) continue;
@@ -295,7 +319,7 @@ void Renderer::drawZombies(double seconds, const Frustum& frustum, bool shadowPa
             glActiveTexture(GL_TEXTURE1);
             glBindTexture(GL_TEXTURE_BUFFER, batch.animationTextures[p]);
             glActiveTexture(GL_TEXTURE2);
-            glBindTexture(GL_TEXTURE_BUFFER, batch.skinningTexture);
+            glBindTexture(GL_TEXTURE_BUFFER, batch.palettes->texture());
             glActiveTexture(GL_TEXTURE0);
             glUniform1i(animationVerticesLocation_, batch.vertexCounts[p]);
             glUniform1i(skinningLocation_, batch.skinningEnabled[p]);
@@ -323,8 +347,7 @@ void Renderer::releaseZombies() noexcept {
         for (const auto buffer : batch.animationBuffers) glDeleteBuffers(1, &buffer);
         for (const auto texture : batch.animationTextures) glDeleteTextures(1, &texture);
         for (const auto buffer : batch.skinningBuffers) glDeleteBuffers(1, &buffer);
-        glDeleteBuffers(1, &batch.skinningBuffer);
-        glDeleteTextures(1, &batch.skinningTexture);
+        batch.palettes.reset();
     }
 }
 

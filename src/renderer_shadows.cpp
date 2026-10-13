@@ -36,8 +36,7 @@ void Renderer::drawSunShadows(const SunShadowView& shadowView, double seconds) {
         drawTrees(projectionView, true);
         drawForests(projectionView, true);
     }
-    const Frustum lightFrustum(projectionView);
-    drawZombies(seconds, lightFrustum, true);
+    drawZombies(seconds, true);
     glUniform1i(shadowPassLocation_, GL_FALSE);
     glDisable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(0, 0);

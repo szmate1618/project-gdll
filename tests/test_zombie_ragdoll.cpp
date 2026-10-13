@@ -1,4 +1,6 @@
 #include "zombie_ragdoll.hpp"
+#include "physics_world.hpp"
+#include <box3d/box3d.h>
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -124,6 +126,59 @@ void degenerateReferenceCannotCreateAnInvalidHinge() {
     world.step(1.0f / 60.0f);
     require(world.count() == 1, "The world must remain usable after rejecting invalid anatomy");
 }
+void motionRevisionsSleepWakeAndRemoval() {
+    auto simulation = std::make_shared<viewer::PhysicsWorld>();
+    viewer::ZombieRagdollWorld world(simulation);
+    const auto handle = world.create({}, 0, {});
+    const auto initialRevision = world.poseRevision(handle);
+    world.step(1.0f / 120);
+    require(world.poseRevision(handle) == initialRevision, "A substep must not dirty the pose");
+    world.step(1.0f / 120);
+    require(world.poseRevision(handle) > initialRevision, "Physics movement must dirty the owner");
+    for (int frame = 0; frame < 3600 && !world.sleeping(handle); ++frame) world.step(1.0f / 60);
+    require(world.sleeping(handle), "The fixture ragdoll must settle naturally");
+    const auto settled = world.poseRevision(handle);
+    for (int frame = 0; frame < 120; ++frame) world.step(1.0f / 60);
+    require(world.poseRevision(handle) == settled, "Sleeping physics must retain its final palette revision");
+
+    // Wake through a collision with an unrelated physics actor. No ragdoll API
+    // or explicit invalidation is involved in this normal simulation change.
+    const auto pelvis = world.bodyTransforms(handle)[index(RagdollPart::pelvis)][3];
+    auto definition = b3DefaultBodyDef();
+    definition.type = b3_dynamicBody;
+    definition.position = {pelvis.x, pelvis.y + 1, pelvis.z};
+    const auto falling = b3CreateBody(simulation->id(), &definition);
+    auto shape = b3DefaultShapeDef();
+    shape.density = 200;
+    const b3Sphere sphere{{0, 0, 0}, 0.25f};
+    b3CreateSphereShape(falling, &shape, &sphere);
+    for (int frame = 0; frame < 90 && world.poseRevision(handle) == settled; ++frame) world.step(1.0f / 60);
+    require(world.poseRevision(handle) > settled, "Collision wake-up must invalidate without manual notifications");
+    b3DestroyBody(falling);
+
+    const auto beforeTranslation = world.bodyTransforms(handle);
+    const auto beforeRoot = world.rootTransform(handle);
+    const auto beforeRevision = world.poseRevision(handle);
+    world.translate(handle, {5, 2, -3});
+    require(world.poseRevision(handle) > beforeRevision, "External translation must invalidate immediately");
+    require(glm::distance(glm::vec3(world.rootTransform(handle)[3] - beforeRoot[3]), {5, 2, -3}) < 1e-4f,
+            "Translation must move the root exactly once");
+    const auto translated = world.bodyTransforms(handle);
+    for (std::size_t part = 0; part < viewer::ragdollPartCount; ++part)
+        require(glm::distance(glm::vec3(translated[part][3] - beforeTranslation[part][3]), {5, 2, -3}) < 1e-4f,
+                "Owner translation must move every body");
+    const auto revision = world.poseRevision(handle);
+    world.applyImpulse(handle, RagdollPart::pelvis, {10, 0, 0});
+    world.step(1.0f / 60);
+    require(world.poseRevision(handle) > revision && !world.sleeping(handle), "Impulse must wake and invalidate");
+    world.destroy(handle);
+    require(!world.valid(handle) && world.count() == 0, "Removal must destroy and unregister the owner");
+    require(b3World_GetCounters(simulation->id()).bodyCount == 0, "Removal must release ground and body resources");
+    const auto replacement = world.create({}, 0, {});
+    require(replacement != handle, "Destroyed handles must not alias new corpses");
+    world.step(1.0f / 60);
+    require(world.poseRevision(replacement) > 1, "Reused physics body storage must notify the new owner");
+}
 }
 
 int main() {
@@ -132,6 +187,7 @@ int main() {
         lowFeetDoNotLaunchThePelvis();
         repeatedActivationsRemainFiniteAndMoving();
         degenerateReferenceCannotCreateAnInvalidHinge();
+        motionRevisionsSleepWakeAndRemoval();
         std::cout << "Zombie ragdoll tests passed\n";
         return 0;
     } catch (const std::exception& error) {

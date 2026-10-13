@@ -57,7 +57,7 @@ bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationS
     std::vector<glm::mat4> selectedPose;
     for (std::size_t i = 0; i < instances.size(); ++i) {
         const auto& instance = instances[i];
-        if (instance.ragdoll || instance.asset >= assets.size()) continue;
+        if (instance.removed || instance.ragdoll || instance.asset >= assets.size()) continue;
         const auto center = glm::vec3(instance.restRoot * glm::vec4(0, 0.9f, 0, 1));
         float distance = std::numeric_limits<float>::max();
         // A conservative sphere is cheap to test and makes the hit forgiving at
@@ -87,12 +87,15 @@ bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationS
     else
         instance.ragdollHandle = physics_->world.create(feet, yaw, direction * 4.0f);
     instance.ragdoll = true;
+    instance.physicsRagdoll = true;
     spatialIndex_.erase(selected);
     behaviors.remove(selected);
     instance.walking = false;
     instance.transform = physics_->world.rootTransform(instance.ragdollHandle) *
         glm::inverse(instance.restRoot) * instance.restTransform;
     updateZombieRagdollSkin(instance, assets[instance.asset], physics_->world);
+    instance.physicsPoseRevision = physics_->world.poseRevision(instance.ragdollHandle);
+    ++instance.ragdollPoseVersion;
     return true;
 }
 
@@ -110,16 +113,62 @@ void ZombieLayer::update(float seconds) {
 void ZombieLayer::synchronizePhysics() {
     if (!physics_) return;
     for (auto& instance : instances) {
-        if (!instance.ragdoll) continue;
+        if (instance.removed || !instance.ragdoll || !instance.physicsRagdoll) continue;
+        const auto revision = physics_->world.poseRevision(instance.ragdollHandle);
+        if (revision == instance.physicsPoseRevision) continue;
         instance.transform = physics_->world.rootTransform(instance.ragdollHandle) *
             glm::inverse(instance.restRoot) * instance.restTransform;
         if (instance.asset < assets.size()) updateZombieRagdollSkin(instance, assets[instance.asset], physics_->world);
+        instance.physicsPoseRevision = revision;
+        ++instance.ragdollPoseVersion;
     }
+}
+
+void ZombieLayer::translateRagdoll(std::size_t zombie, glm::vec3 displacement) {
+    const auto& instance = instances.at(zombie);
+    if (instance.removed || !instance.ragdoll || !instance.physicsRagdoll || !physics_)
+        throw std::logic_error("Translation requires a physics-owned ragdoll");
+    physics_->world.translate(instance.ragdollHandle, displacement);
+    synchronizePhysics();
+}
+void ZombieLayer::applyRagdollImpulse(std::size_t zombie, RagdollPart part, glm::vec3 impulse) {
+    const auto& instance = instances.at(zombie);
+    if (instance.removed || !instance.ragdoll || !instance.physicsRagdoll || !physics_)
+        throw std::logic_error("Impulse requires a physics-owned ragdoll");
+    physics_->world.applyImpulse(instance.ragdollHandle, part, impulse);
+}
+void ZombieLayer::removeRagdoll(std::size_t zombie) {
+    auto& instance = instances.at(zombie);
+    if (!instance.ragdoll || instance.removed) return;
+    if (instance.physicsRagdoll && physics_) physics_->world.destroy(instance.ragdollHandle);
+    instance.removed = true;
+    instance.ragdoll = instance.physicsRagdoll = instance.walking = false;
+    instance.ragdollBones.clear();
+    instance.activationPose.clear();
+    ++instance.ragdollPoseVersion;
+    spatialIndex_.erase(zombie);
+    behaviors.remove(zombie);
+}
+void ZombieLayer::setRagdollPalette(std::size_t zombie, std::vector<glm::mat4> palette) {
+    auto& instance = instances.at(zombie);
+    if (instance.removed || instance.physicsRagdoll) throw std::logic_error("Palette is owned by physics or removed");
+    if (instance.asset >= assets.size() || palette.size() != assets[instance.asset].skeleton.size())
+        throw std::invalid_argument("Palette does not match the zombie skeleton");
+    for (const auto& matrix : palette)
+        for (int column = 0; column < 4; ++column)
+            for (int row = 0; row < 4; ++row)
+                if (!std::isfinite(matrix[column][row])) throw std::invalid_argument("Palette must be finite");
+    instance.ragdollBones = std::move(palette);
+    instance.ragdoll = true;
+    instance.walking = false;
+    ++instance.ragdollPoseVersion;
+    spatialIndex_.erase(zombie);
+    behaviors.remove(zombie);
 }
 
 std::size_t ZombieLayer::ragdollCount() const {
     std::size_t result = 0;
-    for (const auto& instance : instances) result += instance.ragdoll;
+    for (const auto& instance : instances) result += instance.ragdoll && !instance.removed;
     return result;
 }
 

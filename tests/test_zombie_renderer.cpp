@@ -165,14 +165,20 @@ void renderCrowd(std::size_t primitiveCount, const std::filesystem::path& screen
                 instance.transform = glm::translate(glm::mat4(1), instancePosition(index) +
                     glm::vec3(0.08f * static_cast<float>(pose), 0, 0));
                 if (instance.ragdoll) {
-                    instance.ragdollBones.assign(layer.assets[instance.asset].skeleton.size(), glm::mat4(1));
-                    instance.ragdollBones.front() = glm::translate(glm::mat4(1), {0, boneHeight(index, 0, pose), 0});
-                    instance.ragdollBones.back() = glm::translate(glm::mat4(1), {0, boneHeight(index, 1, pose), 0});
+                    std::vector<glm::mat4> palette(layer.assets[instance.asset].skeleton.size(), glm::mat4(1));
+                    palette.front() = glm::translate(glm::mat4(1), {0, boneHeight(index, 0, pose), 0});
+                    palette.back() = glm::translate(glm::mat4(1), {0, boneHeight(index, 1, pose), 0});
+                    layer.setRagdollPalette(index, std::move(palette));
                 }
             }
             renderer.updateZombies(layer);
             renderer.render(camera, 0);
             viewer::Renderer::checkErrors("zombie regression render");
+            checkMarkers(camera, layer, primitiveCount, activated, pose);
+            renderer.updateZombies(layer);
+            renderer.render(camera, 0);
+            if (renderer.zombiePaletteStats().uploaded != 0)
+                throw std::runtime_error("Unchanged palettes must remain on the GPU across both passes");
             checkMarkers(camera, layer, primitiveCount, activated, pose);
             if (renderer.zombieCount() != population || renderer.zombieDrawCalls() != 3 * primitiveCount)
                 throw std::runtime_error("Zombie rendering must remain batched by asset and primitive");
@@ -253,6 +259,113 @@ void renderFrustumCulling() {
     renderer.render(camera, 0.25);
     if (renderer.zombieVisibleCount() != positions.size() || renderer.zombieDrawCalls() != 2)
         throw std::runtime_error("Culling toggle must restore full batches after an empty view");
+}
+
+void paletteVisibilityAndDeferredChanges() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(makeAsset(1, 2));
+    for (const auto position : {glm::vec3(0), glm::vec3(0, 0, 30), glm::vec3(10000, 0, 0)}) {
+        viewer::ZombieInstance instance;
+        instance.transform = glm::translate(glm::mat4(1), position);
+        layer.instances.push_back(instance);
+        layer.setRagdollPalette(layer.instances.size() - 1, std::vector<glm::mat4>(2, glm::mat4(1)));
+    }
+    viewer::Camera camera;
+    camera.setPosition({0, 0.5f, 14});
+    camera.look(0, 200);
+    viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.resize(width, height);
+    renderer.render(camera);
+    auto stats = renderer.zombiePaletteStats();
+    if (renderer.zombieVisibleCount() != 1 || stats.needed != 2 || stats.uploaded != 2 || stats.resident != 2 ||
+        stats.uploadCalls != 1 || stats.uploadBytes != 4 * sizeof(glm::mat4))
+        throw std::runtime_error("Camera/shadow union must upload offscreen casters once, and exclude distant corpses");
+    renderer.render(camera);
+    if (renderer.zombiePaletteStats().uploaded != 0)
+        throw std::runtime_error("Settled camera and shadow palettes must remain resident");
+    renderer.setShadows(false);
+    layer.setRagdollPalette(1, std::vector<glm::mat4>(2, glm::translate(glm::mat4(1), {0, 0.25f, 0})));
+    renderer.updateZombies(layer);
+    renderer.render(camera);
+    if (renderer.zombiePaletteStats().needed != 1 || renderer.zombiePaletteStats().uploaded != 0)
+        throw std::runtime_error("A changed offscreen non-caster must defer its palette upload");
+    renderer.setNight(true);
+    renderer.setShadows(true);
+    renderer.render(camera);
+    if (renderer.zombiePaletteStats().uploaded != 0 || renderer.zombiePaletteStats().needed != 1)
+        throw std::runtime_error("Night must not request unused sunlight caster palettes");
+    renderer.setNight(false);
+    renderer.render(camera);
+    if (renderer.zombiePaletteStats().uploaded != 1 || renderer.zombiePaletteStats().needed != 2)
+        throw std::runtime_error("Reenabled shadows must upload only the deferred caster change");
+    renderer.setZombieCulling(false);
+    renderer.render(camera);
+    if (renderer.zombiePaletteStats().uploaded != 1 || renderer.zombiePaletteStats().resident != 3)
+        throw std::runtime_error("Disabling camera culling must request the previously unneeded corpse");
+    layer.removeRagdoll(0);
+    renderer.updateZombies(layer);
+    renderer.render(camera);
+    if (renderer.zombieCount() != 2 || renderer.zombieVisibleCount() != 2 ||
+        renderer.zombiePaletteStats().resident != 2 || renderer.zombiePaletteStats().uploaded != 0)
+        throw std::runtime_error("Removal must release its palette slot and exclude its stable source ID");
+}
+
+void paletteGrowthAndReuse() {
+    viewer::ZombiePaletteCache cache(20, 2, 160);
+    std::vector<glm::mat4> original(2, glm::translate(glm::mat4(1), {1, 2, 3}));
+    cache.beginFrame();
+    const auto first = cache.request(0, 1, original);
+    cache.flush();
+    const auto initialBytes = cache.stats().storageBytes;
+    cache.beginFrame();
+    std::vector<glm::mat4> changed(2, glm::translate(glm::mat4(1), {7, 8, 9}));
+    // The first palette is hidden while enough others arrive to grow storage.
+    for (std::size_t i = 1; i <= 9; ++i) cache.request(i, 1, changed);
+    cache.flush();
+    if (cache.stats().storageBytes <= initialBytes || cache.stats().uploaded != 9 || cache.stats().uploadCalls != 1)
+        throw std::runtime_error("Adjacent dirty slots must share one upload during GPU storage growth");
+    cache.beginFrame();
+    cache.request(0, 1, original);
+    cache.flush();
+    if (cache.stats().uploaded != 0) throw std::runtime_error("Growing must preserve a hidden settled palette");
+    const auto read = [&](float offset) {
+        glBindTexture(GL_TEXTURE_BUFFER, cache.texture());
+        GLint buffer = 0;
+        glGetTexLevelParameteriv(GL_TEXTURE_BUFFER, 0, GL_TEXTURE_BUFFER_DATA_STORE_BINDING, &buffer);
+        glBindBuffer(GL_TEXTURE_BUFFER, static_cast<GLuint>(buffer));
+        std::vector<glm::mat4> palette(2);
+        glGetBufferSubData(GL_TEXTURE_BUFFER, static_cast<GLintptr>(offset * sizeof(glm::mat4)),
+                          static_cast<GLsizeiptr>(palette.size() * sizeof(glm::mat4)), palette.data());
+        glBindBuffer(GL_TEXTURE_BUFFER, 0);
+        glBindTexture(GL_TEXTURE_BUFFER, 0);
+        viewer::Renderer::checkErrors("resident palette readback");
+        return palette;
+    };
+    if (read(first) != original) throw std::runtime_error("GPU copy must preserve actual hidden palette contents");
+    cache.release(0);
+    cache.beginFrame();
+    const auto reused = cache.request(10, 1, changed); // Same revision, different owner.
+    cache.flush();
+    if (reused != first || cache.stats().uploaded != 1 || read(reused) != changed)
+        throw std::runtime_error("Reused slots must overwrite the previous corpse regardless of revision equality");
+    cache.beginFrame();
+    cache.request(1, 2, original);
+    cache.request(2, 2, original);
+    cache.request(4, 2, original);
+    cache.flush();
+    if (cache.stats().uploaded != 3 || cache.stats().uploadCalls != 2)
+        throw std::runtime_error("Merge only adjacent changed slots, retaining gaps in GPU storage");
+    viewer::ZombiePaletteCache limited(2, 2, 8); // Only one palette fits.
+    limited.beginFrame();
+    limited.request(0, 1, original);
+    limited.flush();
+    limited.beginFrame();
+    bool rejected = false;
+    try { limited.request(1, 1, changed); } catch (const std::runtime_error&) { rejected = true; }
+    if (!rejected) throw std::runtime_error("Slots must respect the hardware texture-buffer capacity");
+    limited.release(0);
+    limited.request(1, 1, changed);
+    limited.flush();
 }
 
 void renderDistantHeadSurfaces() {
@@ -376,6 +489,25 @@ void renderAuthoredAssets(const std::filesystem::path& directory, const std::fil
     viewer::Renderer::checkErrors("authored locomotion asset render");
     if (!screenshot.empty()) renderer.writeScreenshot(screenshot);
     std::cout << "Verified " << layer.assets.size() << " authored rigs in idle/walk/run\n";
+    for (std::size_t asset = 0; asset < layer.assets.size(); ++asset) {
+        const auto feet = glm::vec3(layer.instances[asset * 3].restRoot[3]);
+        if (!layer.shoot(feet + glm::vec3(0, 0.9f, 5), {0, 0, -1}, 0.5))
+            throw std::runtime_error("Authored rig must activate its physics-owned palette");
+    }
+    for (int frame = 0; frame < 180; ++frame) layer.update(1.0f / 60);
+    renderer.updateZombies(layer);
+    renderer.render(camera, 0.5);
+    if (renderer.zombiePaletteStats().uploaded != layer.assets.size())
+        throw std::runtime_error("Every authored ragdoll must upload its initial visible palette");
+    layer.synchronizePhysics();
+    renderer.updateZombies(layer);
+    renderer.render(camera, 0.5);
+    if (renderer.zombiePaletteStats().uploaded != 0)
+        throw std::runtime_error("Authored ragdoll palettes must persist across render frames");
+    if (!screenshot.empty()) {
+        const auto corpses = screenshot.parent_path() / (screenshot.stem().string() + "-ragdolls.ppm");
+        renderer.writeScreenshot(corpses);
+    }
 }
 
 } // namespace
@@ -401,6 +533,8 @@ int main(int argc, char** argv) {
         const std::string mode = argc > 1 ? argv[1] : "";
         renderDistantHeadSurfaces();
         renderFrustumCulling();
+        paletteVisibilityAndDeferredChanges();
+        paletteGrowthAndReuse();
         if (mode == "--assets") {
             if (argc < 3) throw std::runtime_error("--assets requires a model directory");
             renderAuthoredAssets(argv[2], argc > 3 ? argv[3] : "");

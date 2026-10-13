@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <memory>
 #include <array>
+#include <cstdint>
 
 #include <glm/glm.hpp>
 
@@ -37,6 +38,14 @@ public:
     std::size_t create(glm::vec3 feet, float yaw, glm::vec3 impulse,
                        const RagdollPose& referencePose, const RagdollPose& currentPose);
     void step(float seconds);
+    bool valid(std::size_t handle) const;
+    std::uint64_t poseRevision(std::size_t handle) const;
+    bool sleeping(std::size_t handle) const;
+    // External mutations go through this owner so cached skinning cannot become
+    // stale. Translation preserves the handoff reference; removal keeps IDs stable.
+    void translate(std::size_t handle, glm::vec3 displacement);
+    void applyImpulse(std::size_t handle, RagdollPart part, glm::vec3 impulse);
+    void destroy(std::size_t handle);
     [[nodiscard]] glm::mat4 rootTransform(std::size_t handle) const;
     [[nodiscard]] std::array<glm::mat4, ragdollPartCount> bodyTransforms(std::size_t handle) const;
     // Body transforms at activation, for applying subsequent physics deltas

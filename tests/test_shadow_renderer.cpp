@@ -308,12 +308,17 @@ void checkAnimatedCaster() {
     renderer.render(camera, 0.5);
     require(std::abs(brightness(camera, {0, 0, 0}) - idleShadow) < 3, "Run shadow must use its own frame range");
     layer.instances[0].walking = false;
-    layer.instances[0].ragdoll = true;
-    layer.instances[0].ragdollBones = {glm::mat4(1)};
+    layer.setRagdollPalette(0, {glm::mat4(1)});
     renderer.updateZombies(layer);
     renderer.render(camera, 0.5);
     require(std::abs(brightness(camera, {0, 0, 0}) - idleShadow) < 3, "Live ragdoll skinning must cast the live pose");
-    layer.instances[0].ragdollBones = {glm::translate(glm::mat4(1), {6, 0, 0})};
+    require(renderer.zombiePaletteStats().needed == 1 && renderer.zombiePaletteStats().uploaded == 1,
+            "A shadow-only ragdoll must upload its palette before the caster draw");
+    renderer.render(camera, 0.5);
+    require(renderer.zombiePaletteStats().uploaded == 0 &&
+            std::abs(brightness(camera, {0, 0, 0}) - idleShadow) < 3,
+            "A retained shadow-only palette must keep casting without another upload");
+    layer.setRagdollPalette(0, {glm::translate(glm::mat4(1), {6, 0, 0})});
     renderer.updateZombies(layer);
     renderer.render(camera, 0);
     require(std::abs(brightness(camera, {0, 0, 0}) - idleLit) < 3, "Ragdoll shadow must follow the bone transforms");

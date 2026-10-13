@@ -4,6 +4,7 @@
 #include "collision_world.hpp"
 #include "zombie_behavior.hpp"
 #include "zombie_spatial_index.hpp"
+#include "zombie_ragdoll.hpp"
 
 #include <memory>
 
@@ -23,10 +24,15 @@ struct ZombieInstance {
     glm::mat4 chaseNormalization{1}; // Captured on activation; preserve asset scale/offset.
     double walkSeconds = 0; // Locomotion clip time; advances only while travelling.
     bool ragdoll = false;
+    bool removed = false; // Tombstone: source IDs remain stable after corpse removal.
     std::size_t ragdollHandle = 0;
+    bool physicsRagdoll = false;
+    std::uint64_t physicsPoseRevision = 0;
+    std::uint64_t ragdollPoseVersion = 0;
     // Skeleton world pose captured from the displayed frame, in asset space.
     std::vector<glm::mat4> activationPose;
-    // Asset-space bone matrices uploaded only for ragdoll skinning.
+    // Asset-space skinning palette. After initialization, mutate through the
+    // layer's owning API so bounds and persistent GPU palettes are invalidated.
     std::vector<glm::mat4> ragdollBones;
 };
 
@@ -70,6 +76,11 @@ struct ZombieLayer {
     // calls synchronizePhysics(); standalone update() retains its own stepping.
     void attachPhysics(std::shared_ptr<PhysicsWorld> world);
     void synchronizePhysics();
+    void translateRagdoll(std::size_t zombie, glm::vec3 displacement);
+    void applyRagdollImpulse(std::size_t zombie, RagdollPart part, glm::vec3 impulse);
+    void removeRagdoll(std::size_t zombie);
+    // Externally driven rigs/tests only; physics-owned palettes use the APIs above.
+    void setRagdollPalette(std::size_t zombie, std::vector<glm::mat4> palette);
     void update(float seconds);
     [[nodiscard]] std::size_t ragdollCount() const;
 

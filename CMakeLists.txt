@@ -174,7 +174,7 @@ viewer_warnings(viewer_sun_lighting)
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/roof_renderer.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
-    src/zombie_renderer.cpp src/sun_shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
+    src/zombie_renderer.cpp src/zombie_palette_cache.cpp src/sun_shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
     viewer_model viewer_roof_batches viewer_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting OpenGL::GL)
 target_compile_definitions(viewer_renderer PRIVATE GL_GLEXT_PROTOTYPES)

@@ -327,11 +327,15 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     glUniform1i(shadowMapLocation_, 3);
     SunShadowView shadowView;
     const auto lighting = lightingForFrame();
+    const auto view = camera.view();
+    const auto projection = camera.projection(static_cast<float>(width_) / static_cast<float>(height_));
     prepareForestView(camera);
-    if (glm::any(glm::greaterThan(lighting.sun.color, glm::vec3(0)))) {
-        shadowView = sunShadowView(camera.position(), lighting.sun.direction);
-        if (shadows_ && shadowPassLocation_ >= 0) drawSunShadows(shadowView, animationSeconds);
-    }
+    const bool sunlight = glm::any(glm::greaterThan(lighting.sun.color, glm::vec3(0)));
+    if (sunlight) shadowView = sunShadowView(camera.position(), lighting.sun.direction);
+    const bool castShadows = sunlight && shadows_ && shadowPassLocation_ >= 0;
+    const Frustum lightFrustum(shadowView.projectionView());
+    prepareZombieDraws(Frustum(projection * view), castShadows ? &lightFrustum : nullptr);
+    if (castShadows) drawSunShadows(shadowView, animationSeconds);
     applyLighting(camera, shadowView, lighting);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
     glViewport(0, 0, width_, height_);
@@ -342,8 +346,6 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     glDepthMask(GL_TRUE);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUseProgram(program_);
-    const auto view = camera.view();
-    const auto projection = camera.projection(static_cast<float>(width_) / static_cast<float>(height_));
     glUniformMatrix4fv(viewLocation_, 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, glm::value_ptr(projection));
     glActiveTexture(GL_TEXTURE0);
@@ -358,7 +360,7 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     }
     drawTrees(projection * view);
     drawForests(projection * view);
-    drawZombies(animationSeconds, Frustum(projection * view));
+    drawZombies(animationSeconds);
     if (!transparentScene_.empty()) {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

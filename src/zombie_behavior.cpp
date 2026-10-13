@@ -154,7 +154,7 @@ void ZombieLayer::setPerceptionStaggering(bool enabled) {
 void ZombieLayer::rebuildSpatialIndex() {
     spatialIndex_.reset(instances.size());
     for (std::size_t id = 0; id < instances.size(); ++id)
-        if (!instances[id].ragdoll && instances[id].asset < assets.size())
+        if (!instances[id].removed && !instances[id].ragdoll && instances[id].asset < assets.size())
             spatialIndex_.update(id, glm::vec3(instances[id].restRoot[3]));
 }
 
@@ -177,7 +177,7 @@ void ZombieLayer::makeNoise(glm::vec3 position, float decibels) {
         auto* behavior = behaviors.find(id);
         if (!behavior || behavior->state != ZombieState::idle) continue;
         auto& instance = instances[id];
-        if (instance.ragdoll || instance.asset >= assets.size()) continue;
+        if (instance.removed || instance.ragdoll || instance.asset >= assets.size()) continue;
         const auto feet = glm::vec3(instance.restRoot[3]);
         if (noiseLevelAt({position, decibels}, feet) < zombieHearingThresholdDecibels) continue;
         const glm::vec2 offset(position.x - feet.x, position.z - feet.z);
@@ -203,7 +203,7 @@ void ZombieLayer::updateBehavior(float seconds, const ZombiePlayer& player,
     behaviorStats_.activationCandidates = spatialCandidates_.size();
     for (const auto id : spatialCandidates_) {
         auto& instance = instances[id];
-        if (instance.ragdoll || instance.asset >= assets.size() || behaviors.contains(id)) continue;
+        if (instance.removed || instance.ragdoll || instance.asset >= assets.size() || behaviors.contains(id)) continue;
         const auto offset = player.feet - glm::vec3(instance.restRoot[3]);
         if (glm::dot(offset, offset) <= activationDistance * activationDistance) {
             behaviors.create(id, now);
@@ -218,7 +218,7 @@ void ZombieLayer::updateBehavior(float seconds, const ZombiePlayer& player,
         const auto id = behaviors.entries()[index].zombie;
         auto& behavior = *behaviors.find(id);
         if (id < instances.size()) instances[id].walking = false;
-        if (id >= instances.size() || instances[id].ragdoll || instances[id].asset >= assets.size() ||
+        if (id >= instances.size() || instances[id].removed || instances[id].ragdoll || instances[id].asset >= assets.size() ||
             (behavior.state == ZombieState::idle && now - behavior.idleSinceSeconds >= idleLifetime)) {
             behaviors.remove(id);
             continue; // Process the member moved into this slot.

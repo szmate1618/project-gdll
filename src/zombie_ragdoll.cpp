@@ -82,9 +82,9 @@ glm::quat frameFromZ(glm::vec3 axis, glm::vec3 xHint) {
 
 class Ragdoll {
 public:
-    Ragdoll(b3WorldId world, glm::vec3 feet, float yaw, glm::vec3 impulse, int collisionGroup,
+    Ragdoll(PhysicsWorld& simulation, glm::vec3 feet, float yaw, glm::vec3 impulse, int collisionGroup,
             const RagdollPose& reference, const RagdollPose& current)
-        : world_(world), feet_(feet), yaw_(yaw) {
+        : simulation_(simulation), world_(simulation.id()), feet_(feet), yaw_(yaw) {
         const auto facing = glm::mat3(glm::rotate(glm::mat4(1.0f), yaw, glm::vec3(0, 1, 0)));
         const auto forward = facing * glm::vec3(0, 0, 1);
         const auto position = [](const RagdollPose& pose, Part part) {
@@ -172,8 +172,33 @@ public:
     }
 
     ~Ragdoll() {
-        for (const auto body : bodies_) if (b3Body_IsValid(body)) b3DestroyBody(body);
+        for (const auto body : bodies_) {
+            simulation_.untrackBodyMotion(body);
+            if (b3Body_IsValid(body)) b3DestroyBody(body);
+        }
         if (b3Body_IsValid(ground_)) b3DestroyBody(ground_);
+    }
+
+    // Register only after construction, when this owner's address is stable.
+    void trackMotion() {
+        for (const auto body : bodies_) simulation_.trackBodyMotion(body, revision_);
+    }
+    std::uint64_t revision() const { return revision_; }
+    bool sleeping() const {
+        for (const auto body : bodies_) if (b3Body_IsAwake(body)) return false;
+        return true;
+    }
+    void translate(glm::vec3 displacement) {
+        for (const auto body : bodies_) {
+            b3Body_SetTransform(body, toB3Pos(fromB3(b3Body_GetPosition(body)) + displacement), b3Body_GetRotation(body));
+            b3Body_SetAwake(body, true);
+        }
+        b3Body_SetTransform(ground_, toB3Pos(fromB3(b3Body_GetPosition(ground_)) + displacement), b3Body_GetRotation(ground_));
+        ++revision_;
+    }
+    void applyImpulse(Part part, glm::vec3 impulse) {
+        b3Body_ApplyLinearImpulseToCenter(bodies_[part], toB3Vec(impulse), true);
+        ++revision_;
     }
 
     glm::mat4 rootTransform() const {
@@ -267,6 +292,8 @@ private:
         b3CreateRevoluteJoint(world_, &joint);
     }
 
+    PhysicsWorld& simulation_;
+    std::uint64_t revision_ = 1;
     b3WorldId world_ = b3_nullWorldId;
     b3BodyId ground_{};
     std::array<b3BodyId, partCount> bodies_{};
@@ -349,8 +376,9 @@ std::size_t ZombieRagdollWorld::create(glm::vec3 feet, float yaw, glm::vec3 impu
     if (!std::isfinite(hipWidth) || hipWidth < 1e-5f)
         throw std::invalid_argument("Ragdoll reference hips must be separated");
     const auto group = impl_->simulation->allocateCollisionGroup();
-    impl_->entries.push_back({std::make_unique<Ragdoll>(impl_->simulation->id(), feet, yaw, impulse, group,
-                                                      referencePose, currentPose)});
+    auto ragdoll = std::make_unique<Ragdoll>(*impl_->simulation, feet, yaw, impulse, group, referencePose, currentPose);
+    ragdoll->trackMotion();
+    impl_->entries.push_back({std::move(ragdoll)});
     return impl_->entries.size() - 1;
 }
 
@@ -358,23 +386,51 @@ void ZombieRagdollWorld::step(float seconds) {
     if (impl_) impl_->simulation->step(seconds);
 }
 
+bool ZombieRagdollWorld::valid(std::size_t handle) const {
+    return impl_ && handle < impl_->entries.size() && impl_->entries[handle].ragdoll;
+}
+std::uint64_t ZombieRagdollWorld::poseRevision(std::size_t handle) const {
+    return valid(handle) ? impl_->entries[handle].ragdoll->revision() : 0;
+}
+bool ZombieRagdollWorld::sleeping(std::size_t handle) const {
+    return valid(handle) && impl_->entries[handle].ragdoll->sleeping();
+}
+void ZombieRagdollWorld::translate(std::size_t handle, glm::vec3 displacement) {
+    if (!valid(handle)) throw std::out_of_range("Invalid ragdoll handle");
+    if (!std::isfinite(displacement.x) || !std::isfinite(displacement.y) || !std::isfinite(displacement.z))
+        throw std::invalid_argument("Ragdoll translation must be finite");
+    impl_->entries[handle].ragdoll->translate(displacement);
+}
+void ZombieRagdollWorld::applyImpulse(std::size_t handle, RagdollPart part, glm::vec3 impulse) {
+    if (!valid(handle)) throw std::out_of_range("Invalid ragdoll handle");
+    if (static_cast<std::size_t>(part) >= ragdollPartCount || !std::isfinite(impulse.x) ||
+        !std::isfinite(impulse.y) || !std::isfinite(impulse.z))
+        throw std::invalid_argument("Ragdoll impulse requires a valid part and finite vector");
+    impl_->entries[handle].ragdoll->applyImpulse(static_cast<Part>(part), impulse);
+}
+void ZombieRagdollWorld::destroy(std::size_t handle) {
+    if (valid(handle)) impl_->entries[handle].ragdoll.reset();
+}
+
 glm::mat4 ZombieRagdollWorld::rootTransform(std::size_t handle) const {
-    if (!impl_ || handle >= impl_->entries.size()) return glm::mat4(1.0f);
+    if (!valid(handle)) return glm::mat4(1.0f);
     return impl_->entries[handle].ragdoll->rootTransform();
 }
 
 std::array<glm::mat4, ragdollPartCount> ZombieRagdollWorld::bodyTransforms(std::size_t handle) const {
-    if (!impl_ || handle >= impl_->entries.size()) return {};
+    if (!valid(handle)) return {};
     return impl_->entries[handle].ragdoll->bodyTransforms();
 }
 
 std::array<glm::mat4, ragdollPartCount> ZombieRagdollWorld::restBodyTransforms(std::size_t handle) const {
-    if (!impl_ || handle >= impl_->entries.size()) return {};
+    if (!valid(handle)) return {};
     return impl_->entries[handle].ragdoll->restBodyTransforms();
 }
 
 std::size_t ZombieRagdollWorld::count() const {
-    return impl_ ? impl_->entries.size() : 0;
+    if (!impl_) return 0;
+    return static_cast<std::size_t>(std::count_if(impl_->entries.begin(), impl_->entries.end(),
+        [](const auto& entry) { return bool(entry.ragdoll); }));
 }
 
 } // namespace viewer

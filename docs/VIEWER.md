@@ -315,6 +315,57 @@ zombie can still cast a visible shadow. `--no-zombie-culling` disables only
 camera culling for a same-camera comparison. AI, shooting, and physics continue
 for the full crowd regardless of render visibility.
 
+Ragdoll bone palettes are uploaded for the union of the camera-visible and
+sun-shadow-casting instances, before either draw pass. A corpse needed by both
+passes uploads once. The light frustum remains conservative, so it can include
+casters whose shadows ultimately do not affect visible pixels. Disabled shadows
+and nighttime do not request sunlight caster palettes.
+
+Each asset batch lazily assigns persistent GPU palette slots. Unchanged poses
+remain in their slots, including hidden corpses; changes while outside both
+frusta wait until the corpse is needed again. Adjacent dirty slots are combined
+into one buffer update. Storage grows geometrically and copies existing slots
+on the GPU, preserving hidden settled palettes. Removal releases a slot for
+reuse, which always requires an initial upload. Allocated storage remains until
+renderer destruction; it uses 64 bytes per bone per allocated slot, with spare
+capacity from growth, subject to the GPU's texture-buffer limit.
+
+`PhysicsWorld` consumes body movement events after **every** fixed step,
+including the final pose when a body sleeps. `ZombieLayer::synchronizePhysics()`
+rebuilds a corpse's skinning palette only when its physics revision changes.
+Ordinary collisions and impulses that wake a corpse therefore invalidate it
+automatically. These operations and GPU updates run synchronously on the
+existing simulation/render thread; they add no concurrency. Rendering still
+streams compact instance transforms for each pass. `Renderer::zombiePaletteStats()`
+reports the last frame's needed/resident palettes, uploaded palettes, update
+calls/bytes, and retained GPU storage bytes.
+
+There is a small maintenance contract: **changes made outside normal physics
+simulation must go through the ragdoll's owning API**. This includes:
+
+- Teleporting or resetting a corpse: use `ZombieLayer::translateRagdoll()` for
+  translation. Any future reset API must update physics and invalidate the pose
+  revision together; direct body-transform or palette edits bypass the cache.
+- Replacing its skeleton: perform replacement through an owning API that
+  invalidates the palette and bounds. Asset skeletons, weights, and population
+  topology are currently fixed after renderer creation; replacing a rig requires
+  rebuilding the renderer's asset buffers and palette slots, even if bone counts
+  match. This change does not add live skeleton replacement.
+- Destroying a corpse and reusing its GPU slot: use
+  `ZombieLayer::removeRagdoll()`. It destroys/unregisters physics bodies and leaves
+  a tombstone at the stable instance ID. The next `Renderer::updateZombies()`
+  releases its slot; reuse never inherits the previous owner's palette revision.
+
+`ZombieLayer::applyRagdollImpulse()` is the owning entry point for external
+forces. `setRagdollPalette()` supports externally driven rigs and fixtures,
+validates the palette and advances its revision, and rejects physics-owned or
+removed corpses. Initial placement/fixture construction may populate instance
+fields directly, but subsequent ragdoll changes must respect these APIs. After
+simulation or owning API changes, call `Renderer::updateZombies()` before
+`render()`, as the application already does. The renderer borrows the most recent
+layer for palette data, so that layer must remain alive and unchanged throughout
+rendering. Corpse removal is an API facility; no automatic removal policy is added.
+
 Living zombies normally play idle. Within **100 m**, including the boundary,
 each receives an initially idle behavior object. Distance uses player feet in
 3D; free-fly supplies a virtual body with its eyes at the camera. The dense
@@ -930,7 +981,8 @@ an accessible OpenGL display/context and skips when one is unavailable.
 
 The `viewer_zombie_renderer` regression checks mixed idle/walk/run clips, clip
 wrap interpolation, camera culling and reentry, frustum-crossing animated bounds,
-repeated ragdoll palette uploads, and characters with multiple
+retained and deferred ragdoll palettes, offscreen shadow casters, GPU storage
+growth, dirty-range coalescing, slot reuse, and characters with multiple
 primitives through the actual shader. It requires
 an accessible OpenGL display and reports a skip when none is available. The
 remaining checks run without a display.
@@ -1048,6 +1100,7 @@ src/door_interaction.{hpp,cpp} Combat/interaction mode and mouse/player door gra
 src/door_collision.{hpp,cpp} Doorway clipping and live Box3D capsule contacts
 src/zombie_ragdoll.{hpp,cpp} Box3D ragdoll simulation and simplified ground planes
 src/zombie_ragdoll_pose.{hpp,cpp} Animated-pose handoff and physics-to-skin mapping
+src/zombie_palette_cache.{hpp,cpp} Persistent GPU palettes and coalesced dirty uploads
 src/zombie_renderer.cpp    Shared animation buffers, skinning data, and GPU instancing
 src/camera.{hpp,cpp}        Perspective free-fly camera
 src/camera_rig.{hpp,cpp}    Runtime camera mode switching

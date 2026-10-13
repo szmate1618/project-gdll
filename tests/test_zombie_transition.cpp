@@ -306,6 +306,33 @@ void headshotFollowsDisplayedPose(bool walking) {
     require(!layer.instances[1].walking, "A headshot must stop pursuit");
 }
 
+void layerOwnsPoseInvalidation() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(humanoid());
+    layer.instances.emplace_back();
+    require(layer.shoot({0, 0.9f, 3}, {0, 0, -1}), "Fixture must activate physics");
+    const auto initial = layer.instances[0].ragdollPoseVersion;
+    layer.synchronizePhysics();
+    require(layer.instances[0].ragdollPoseVersion == initial, "Unchanged physics must skip palette reconstruction");
+    layer.update(1.0f / 60);
+    require(layer.instances[0].ragdollPoseVersion > initial, "Moving physics must publish a new palette version");
+    const auto before = layer.instances[0].transform;
+    const auto revision = layer.instances[0].ragdollPoseVersion;
+    layer.translateRagdoll(0, {7, 3, -2});
+    require(glm::distance(glm::vec3(layer.instances[0].transform[3] - before[3]), {7, 3, -2}) < 1e-4f,
+            "Owner translation must publish matching rendering placement");
+    require(layer.instances[0].ragdollPoseVersion > revision, "Owner translation must invalidate the GPU pose");
+    bool rejected = false;
+    try { layer.setRagdollPalette(0, layer.instances[0].ragdollBones); }
+    catch (const std::logic_error&) { rejected = true; }
+    require(rejected, "External palette replacement must not bypass a physics owner");
+    layer.removeRagdoll(0);
+    layer.update(1.0f / 60);
+    layer.rebuildSpatialIndex();
+    require(layer.instances[0].removed && layer.ragdollCount() == 0, "Owner removal must leave a stable tombstone");
+    require(!layer.shoot({7, 3.9f, 1}, {0, 0, -1}), "Removed corpses must not become living targets again");
+}
+
 } // namespace
 
 int main() {
@@ -316,6 +343,7 @@ int main() {
         unmatchedRigFollowsFallbackBody();
         unknownRigFollowsFallbackMotion();
         shotWhileWalking();
+        layerOwnsPoseInvalidation();
         headshotFollowsDisplayedPose(false);
         headshotFollowsDisplayedPose(true);
         std::cout << "Zombie activation transition tests passed\n";
