@@ -358,7 +358,7 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     }
     drawTrees(projection * view);
     drawForests(projection * view);
-    drawZombies(animationSeconds);
+    drawZombies(animationSeconds, Frustum(projection * view));
     if (!transparentScene_.empty()) {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

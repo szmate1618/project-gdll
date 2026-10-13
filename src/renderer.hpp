@@ -63,9 +63,11 @@ public:
     void setAtmosphere(const Atmosphere& atmosphere) { atmosphere_ = atmosphere; }
     const SceneRenderStats& sceneStats() const { return sceneStats_; }
     void setTreeCulling(bool enabled) { treeCulling_ = enabled; }
+    void setZombieCulling(bool enabled) { zombieCulling_ = enabled; }
     const TreeRenderStats& treeStats() const { return treeStats_; }
     const ForestRenderStats& forestStats() const { return forestStats_; }
     std::size_t zombieCount() const { return zombieCount_; }
+    std::size_t zombieVisibleCount() const { return zombieVisibleCount_; }
     std::size_t zombieDrawCalls() const { return zombieDrawCalls_; }
     static void checkErrors(const char* stage);
 
@@ -130,8 +132,9 @@ private:
         float duration = 0;
         VisibilityBounds animationBounds, bindBounds;
         std::vector<VisibilityBounds> instanceBounds;
-        std::vector<ZombieGPUInstance> shadowInstances;
-        bool shadowInstancesUploaded = false;
+        // Reused independently for each camera/light pass. Palette offsets and
+        // stable source indices survive compaction; the simulation is untouched.
+        std::vector<ZombieGPUInstance> visibleInstances;
     };
     void release() noexcept;
     static void releaseModel(ModelGPU& model) noexcept;
@@ -146,7 +149,7 @@ private:
     void prepareForestView(const Camera& camera);
     void drawForests(const glm::mat4& projectionView, bool shadowPass = false);
     void uploadZombies(const ZombieLayer& zombies);
-    void drawZombies(double seconds, const Frustum* shadowFrustum = nullptr);
+    void drawZombies(double seconds, const Frustum& frustum, bool shadowPass = false);
     void drawSunShadows(const SunShadowView& shadowView, double seconds);
     DayNightLighting lightingForFrame() const;
     void applyLighting(const Camera& camera, const SunShadowView& shadowView,
@@ -211,7 +214,8 @@ private:
     ForestRenderStats forestStats_;
     float forestDetailDistance_ = 350;
     std::vector<ZombieBatch> zombieBatches_;
-    std::size_t zombieCount_ = 0, zombieDrawCalls_ = 0;
+    bool zombieCulling_ = true;
+    std::size_t zombieCount_ = 0, zombieVisibleCount_ = 0, zombieDrawCalls_ = 0;
     Material fallback_;
     std::unique_ptr<RainRenderer> rain_;
     bool rainEnabled_ = false;

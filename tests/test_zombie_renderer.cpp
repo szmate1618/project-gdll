@@ -181,6 +181,80 @@ void renderCrowd(std::size_t primitiveCount, const std::filesystem::path& screen
     if (!screenshot.empty()) renderer.writeScreenshot(screenshot);
 }
 
+std::vector<unsigned char> colorPixels() {
+    std::vector<unsigned char> pixels(static_cast<std::size_t>(width * height * 3));
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+    viewer::Renderer::checkErrors("frustum culling comparison readback");
+    return pixels;
+}
+
+void renderFrustumCulling() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(makeAsset(2, 3));
+    const std::array<glm::vec3, 11> positions{{
+        {100, 0, 0}, {0, 0, 0}, {100, 0, 0}, {-2, 0, 0}, {0, 0, 30},
+        {2, 0, 0}, {11.3f, 0, 0}, {12, 0, 0}, {0, 0, -20000}, {0, 100, 0}, {0, -9.2f, 0}
+    }};
+    for (std::size_t i = 0; i < positions.size(); ++i) {
+        viewer::ZombieInstance instance;
+        instance.transform = glm::translate(glm::mat4(1), positions[i]);
+        instance.ragdoll = i == 0 || i == 1 || i == 7;
+        instance.walking = i == 2 || i == 3 || i == 4 || i == 5;
+        instance.running = i == 4 || i == 5;
+        instance.walkSeconds = 0.625;
+        if (i == 10) instance.phase = 0.25f; // Idle frame one extends above the bind bounds.
+        if (instance.ragdoll)
+            instance.ragdollBones.assign(3, glm::translate(glm::mat4(1), {i == 7 ? -3.0f : 0.0f, 0.2f, 0}));
+        if (i == 6) instance.transform = glm::scale(instance.transform, {2, 1, 1});
+        layer.instances.push_back(instance);
+    }
+    viewer::Camera camera;
+    camera.setPosition({0, 0.5f, 14});
+    camera.look(0, 200);
+    const viewer::Frustum frustum(camera.projection(static_cast<float>(width) / height) * camera.view());
+    if (frustum.intersects(positions[6], positions[6]) || frustum.intersects(positions[7], positions[7]))
+        throw std::runtime_error("Edge and ragdoll fixture origins must be outside the frustum");
+    viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.setHaze(false);
+    renderer.setGroundFog(false);
+    renderer.resize(width, height);
+    renderer.updateZombies(layer);
+    // A culled ragdoll precedes a visible one in the palette. Compaction must
+    // retain palette offsets, clip metadata, and every primitive's attributes.
+    for (const bool shadows : {true, false}) {
+        renderer.setShadows(shadows);
+        renderer.setZombieCulling(false);
+        renderer.render(camera, 0.25);
+        const auto reference = colorPixels();
+        if (renderer.zombieVisibleCount() != positions.size())
+            throw std::runtime_error("Disabling culling must submit the entire crowd");
+        renderer.setZombieCulling(true);
+        renderer.render(camera, 0.25);
+        if (renderer.zombieCount() != positions.size() || renderer.zombieVisibleCount() != 6 ||
+            renderer.zombieDrawCalls() != 2)
+            throw std::runtime_error("Cull offscreen zombies while retaining crossing bounds and live ragdoll bones");
+        if (colorPixels() != reference)
+            throw std::runtime_error("Frustum culling changed visible animation or skinning");
+    }
+    layer.instances[2].transform = glm::translate(glm::mat4(1), {4, 0, 0});
+    renderer.updateZombies(layer);
+    renderer.render(camera, 0.25);
+    if (renderer.zombieVisibleCount() != 7)
+        throw std::runtime_error("A moving zombie must reenter the camera batch");
+    // Move the camera so every batch is empty, without changing the population.
+    camera.setPosition({0, 0, 50});
+    camera.look(1800, 0);
+    renderer.render(camera, 0.25);
+    if (renderer.zombieVisibleCount() != 0 || renderer.zombieDrawCalls() != 0)
+        throw std::runtime_error("Empty camera batches must submit no draws and reset visible statistics");
+    renderer.setZombieCulling(false);
+    renderer.render(camera, 0.25);
+    if (renderer.zombieVisibleCount() != positions.size() || renderer.zombieDrawCalls() != 2)
+        throw std::runtime_error("Culling toggle must restore full batches after an empty view");
+}
+
 void renderDistantHeadSurfaces() {
     viewer::ZombieLayer layer;
     auto asset = makeAsset(1, 2);
@@ -326,6 +400,7 @@ int main(int argc, char** argv) {
     try {
         const std::string mode = argc > 1 ? argv[1] : "";
         renderDistantHeadSurfaces();
+        renderFrustumCulling();
         if (mode == "--assets") {
             if (argc < 3) throw std::runtime_error("--assets requires a model directory");
             renderAuthoredAssets(argv[2], argc > 3 ? argv[3] : "");

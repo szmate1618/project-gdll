@@ -306,7 +306,14 @@ Shared vertex animation buffers hold the resulting positions and normals; the
 GPU interpolates adjacent samples and loops using elapsed time. Every zombie
 has its own phase offset. Meshes, textures, and animation samples are shared by
 all instances of a variant, with one instanced draw per character primitive.
-The title reports the zombie count, and shutdown logs the instanced draw count.
+The title reports visible/total zombie counts, and shutdown logs the visible
+count and instanced draw count. Camera-frustum culling compacts each character
+batch before upload and drawing. Bounds include every idle/walk/run sample and
+live ragdoll bone transforms, so animated limbs crossing the view edge remain
+visible. Sun shadow casters use the light frustum independently: an offscreen
+zombie can still cast a visible shadow. `--no-zombie-culling` disables only
+camera culling for a same-camera comparison. AI, shooting, and physics continue
+for the full crowd regardless of render visibility.
 
 Living zombies normally play idle. Within **100 m**, including the boundary,
 each receives an initially idle behavior object. Distance uses player feet in
@@ -373,7 +380,7 @@ the creator's walk/run clips using shared baked vertex animation. Investigating
 uses walk; chasing uses run, falling back to walk when only that clip is available.
 Custom idle-only models retain idle playback while moving. Locomotion clip time
 advances by actual travel time; the CPU does not evaluate or upload a skeleton for
-each moving zombie. The crowd draws all instances without LOD.
+each moving zombie. Zombies have no distance LOD or occlusion culling.
 
 In Combat mode while the mouse is captured, left click casts a ray from
 the camera center and activates the nearest living zombie under a conservative
@@ -898,7 +905,8 @@ and restoration of GL program/VAO, depth, culling, and blend state. It requires
 an accessible OpenGL display/context and skips when one is unavailable.
 
 The `viewer_zombie_renderer` regression checks mixed idle/walk/run clips, clip
-wrap interpolation, repeated ragdoll palette uploads, and characters with multiple
+wrap interpolation, camera culling and reentry, frustum-crossing animated bounds,
+repeated ragdoll palette uploads, and characters with multiple
 primitives through the actual shader. It requires
 an accessible OpenGL display and reports a skip when none is available. The
 remaining checks run without a display.

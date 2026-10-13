@@ -317,7 +317,8 @@ void checkAnimatedCaster() {
     renderer.updateZombies(layer);
     renderer.render(camera, 0);
     require(std::abs(brightness(camera, {0, 0, 0}) - idleLit) < 3, "Ragdoll shadow must follow the bone transforms");
-    require(renderer.zombieCount() == 2 && renderer.zombieDrawCalls() == 1, "Shadow drawing must preserve crowd batching and statistics");
+    require(renderer.zombieCount() == 2 && renderer.zombieVisibleCount() == 0 && renderer.zombieDrawCalls() == 0,
+            "Offscreen zombie casters must shadow the ground independently of camera culling");
     viewer::Renderer::checkErrors("animated shadow regression");
 }
 }

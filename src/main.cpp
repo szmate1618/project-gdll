@@ -56,7 +56,7 @@ struct Options {
     bool haze = true;
     bool groundFog = true;
     bool noTrees = false, treeCulling = true, treeCollisions = true, sceneCulling = true;
-    bool noZombies = false, zombieView = false, explicitZombies = false;
+    bool noZombies = false, zombieView = false, explicitZombies = false, zombieCulling = true;
     int zombieCount = 1000;
     bool explicitZombieCount = false, explicitZombieRadius = false;
     float zombieRadius = 100.0f;
@@ -113,6 +113,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--no-roof-batching") options.roofBatching = false;
         else if (argument == "--no-trees") options.noTrees = true;
         else if (argument == "--no-tree-culling") options.treeCulling = false;
+        else if (argument == "--no-zombie-culling") options.zombieCulling = false;
         else if (argument == "--no-town-culling") options.sceneCulling = false;
         else if (argument == "--no-tree-collisions") options.treeCollisions = false;
         else if (argument == "--zombies") { options.zombies = value(); options.explicitZombies = true; }
@@ -221,6 +222,7 @@ void printHelp() {
               << "  --no-guardrails     Disable guardrail strips, shadows and collisions\n"
               << "  --no-roof-batching  Draw static roofs individually for comparison\n"
               << "  --no-tree-culling   Render all tree instances for comparison\n"
+              << "  --no-zombie-culling Render all zombies in the camera pass for comparison\n"
               << "  --no-town-culling   Render all town draw instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
               << "  --zombies PATH      Load individual animated GLB/glTF files from PATH\n"
@@ -725,6 +727,7 @@ int run(const Options& options) {
                               zombies ? &*zombies : nullptr, forests ? &*forests : nullptr);
     viewer::ReticleOverlay reticle(options.shaders);
     renderer.setTreeCulling(options.treeCulling);
+    renderer.setZombieCulling(options.zombieCulling);
     renderer.setSceneCulling(options.sceneCulling);
     renderer.setRoofBatching(options.roofBatching);
     renderer.setShadows(options.shadows);
@@ -850,7 +853,8 @@ int run(const Options& options) {
             const auto treeStatus = trees ? " | Trees " + std::to_string(treeStats.visible) + "/" + std::to_string(treeStats.total) : "";
             const auto townStatus = " | Town " + std::to_string(sceneStats.visible) + "/" + std::to_string(sceneStats.total)
                 + " (" + std::to_string(sceneStats.drawCalls) + " draws)";
-            const auto zombieStatus = zombies ? " | Zombies " + std::to_string(renderer.zombieCount()) +
+            const auto zombieStatus = zombies ? " | Zombies " + std::to_string(renderer.zombieVisibleCount()) + "/" +
+                std::to_string(renderer.zombieCount()) +
                 " (" + std::to_string(zombies->ragdollCount()) + " ragdolls)" : "";
             std::ostringstream clockStatus;
             if (!options.night) {
@@ -884,7 +888,8 @@ int run(const Options& options) {
     const auto& sceneStats = renderer.sceneStats();
     std::cout << "Last town frame: " << sceneStats.visible << '/' << sceneStats.total << " visible, "
               << sceneStats.drawCalls << " draw calls\n";
-    if (zombies) std::cout << "Last zombie frame: " << renderer.zombieCount() << " instances, "
+    if (zombies) std::cout << "Last zombie frame: " << renderer.zombieVisibleCount() << '/' << renderer.zombieCount()
+                          << " visible instances, "
                           << zombies->ragdollCount() << " ragdolls, " << renderer.zombieDrawCalls()
                           << " instanced draw calls\n";
     viewer::Renderer::checkErrors("shutdown");
