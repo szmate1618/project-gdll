@@ -58,6 +58,8 @@ struct Options {
     bool noTrees = false, treeCulling = true, treeCollisions = true, sceneCulling = true;
     bool noZombies = false, zombieView = false, explicitZombies = false, zombieCulling = true;
     bool zombiePerceptionStaggering = true;
+    bool zombieDistanceDetail = true, zombieShadows = true, profile = false;
+    std::optional<float> zombieDrawDistance;
     int zombieCount = 1000;
     bool explicitZombieCount = false, explicitZombieRadius = false;
     float zombieRadius = 100.0f;
@@ -75,6 +77,19 @@ Options parseOptions(int argc, char** argv) {
             return argv[i];
         };
         if (argument == "--help" || argument == "-h") options.help = true;
+        else if (argument == "--profile") options.profile = true;
+        else if (argument == "--no-zombie-lod") options.zombieDistanceDetail = false;
+        else if (argument == "--no-zombie-shadows") options.zombieShadows = false;
+        else if (argument == "--zombie-draw-distance") {
+            const auto text = value();
+            std::size_t used = 0;
+            float meters;
+            try { meters = std::stof(text, &used); }
+            catch (const std::exception&) { throw std::runtime_error("--zombie-draw-distance requires a nonnegative distance in meters"); }
+            if (used != text.size() || !std::isfinite(meters) || meters < 0)
+                throw std::runtime_error("--zombie-draw-distance requires a nonnegative distance in meters");
+            options.zombieDrawDistance = meters;
+        }
         else if (argument == "--hidden") options.hidden = true;
         else if (argument == "--allow-software") options.allowSoftware = true;
         else if (argument == "--self-test-input") options.selfTest = true;
@@ -224,7 +239,11 @@ void printHelp() {
               << "  --no-guardrails     Disable guardrail strips, shadows and collisions\n"
               << "  --no-roof-batching  Draw static roofs individually for comparison\n"
               << "  --no-tree-culling   Render all tree instances for comparison\n"
-              << "  --no-zombie-culling Render all zombies in the camera pass for comparison\n"
+              << "  --no-zombie-lod     Disable zombie mesh LOD, distance cutoff and stepped animation\n"
+              << "  --zombie-draw-distance M Camera cutoff at normal FOV (180 m; overview unlimited; 0 disables)\n"
+              << "  --no-zombie-shadows Disable zombie casting for GPU cost comparisons\n"
+              << "  --profile           Print frame/GPU/CPU render timings once per second\n"
+              << "  --no-zombie-culling Disable zombie camera-frustum culling for comparison\n"
               << "  --no-zombie-staggering Check zombie sight every simulation step\n"
               << "  --no-town-culling   Render all town draw instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
@@ -734,6 +753,9 @@ int run(const Options& options) {
     viewer::ReticleOverlay reticle(options.shaders);
     renderer.setTreeCulling(options.treeCulling);
     renderer.setZombieCulling(options.zombieCulling);
+    renderer.setZombieDistanceDetail(options.zombieDistanceDetail);
+    renderer.setZombieDrawDistance(options.zombieDrawDistance.value_or(options.zombieView ? 0.0f : 180.0f));
+    renderer.setZombieShadows(options.zombieShadows);
     renderer.setSceneCulling(options.sceneCulling);
     renderer.setRoofBatching(options.roofBatching);
     renderer.setShadows(options.shadows);
@@ -842,7 +864,7 @@ int run(const Options& options) {
         ++intervalFrames;
         const double completed = glfwGetTime();
         const double intervalSeconds = completed - titleTime;
-        if (intervalSeconds >= 1.0 && !options.hidden) {
+        if (intervalSeconds >= 1.0 && (!options.hidden || options.profile)) {
             const auto fps = static_cast<int>(static_cast<double>(intervalFrames) / intervalSeconds);
             const auto milliseconds = [](double value) {
                 std::ostringstream text;
@@ -873,6 +895,7 @@ int run(const Options& options) {
                 + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + townStatus + treeStatus + zombieStatus + clockStatus.str() + " | " + std::to_string(static_cast<int>(app.rig.speed(
                     app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]))) + " m/s";
             glfwSetWindowTitle(window.get(), caption.c_str());
+            if (options.profile) std::cout << caption << '\n';
             titleTime = completed;
             intervalFrames = 0;
             intervalRenderSeconds = 0.0;
@@ -898,6 +921,13 @@ int run(const Options& options) {
                           << " visible instances, "
                           << zombies->ragdollCount() << " ragdolls, " << renderer.zombieDrawCalls()
                           << " instanced draw calls\n";
+    if (zombies) {
+        const auto& stats = renderer.zombieRenderStats();
+        std::cout << "Zombie detail: camera LOD0/1/2/3 " << stats.cameraLevels[0] << '/' << stats.cameraLevels[1]
+                  << '/' << stats.cameraLevels[2] << '/' << stats.cameraLevels[3]
+                  << "; " << stats.cameraTriangles << " camera triangles, " << stats.shadowTriangles
+                  << " shadow triangles; " << stats.distanceCulled << " distance culled\n";
+    }
     viewer::Renderer::checkErrors("shutdown");
     std::cout << "Rendered " << frameCount << " frames successfully\n";
     return 0;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GL/glcorearb.h>
+#include <array>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -29,6 +30,11 @@ class DoorLayer;
 struct TreeRenderStats {
     std::size_t total = 0, visible = 0, drawCalls = 0;
     std::size_t queriedForestPatches = 0;
+};
+
+struct ZombieRenderStats {
+    std::array<std::size_t, 4> cameraLevels{}, shadowLevels{};
+    std::size_t cameraTriangles = 0, shadowTriangles = 0, distanceCulled = 0;
 };
 
 struct SceneRenderStats {
@@ -67,12 +73,16 @@ public:
     void setAtmosphere(const Atmosphere& atmosphere) { atmosphere_ = atmosphere; }
     const SceneRenderStats& sceneStats() const { return sceneStats_; }
     void setTreeCulling(bool enabled) { treeCulling_ = enabled; }
+    void setZombieDistanceDetail(bool enabled) { zombieDistanceDetail_ = enabled; }
+    void setZombieDrawDistance(float meters) { zombieDrawDistance_ = meters; }
+    void setZombieShadows(bool enabled) { zombieShadows_ = enabled; }
     void setZombieCulling(bool enabled) { zombieCulling_ = enabled; }
     const TreeRenderStats& treeStats() const { return treeStats_; }
     const ForestRenderStats& forestStats() const { return forestStats_; }
     std::size_t zombieCount() const { return zombieCount_; }
     std::size_t zombieVisibleCount() const { return zombieVisibleCount_; }
     std::size_t zombieDrawCalls() const { return zombieDrawCalls_; }
+    const ZombieRenderStats& zombieRenderStats() const { return zombieRenderStats_; }
     const ZombiePaletteStats& zombiePaletteStats() const { return zombiePaletteStats_; }
     const ZombieVisibilityStats& zombieVisibilityStats() const { return zombieVisibilityStats_; }
     static void checkErrors(const char* stage);
@@ -116,30 +126,34 @@ private:
         float clipFrameCount; // Zero selects the uniform idle frame count.
         float animationFrame;
         float liveSkinning;
+        float animationStep; // Nonzero bypasses interpolation and second-pose fetches.
         float boneBase; // Matrix offset into the batch's skinning palette, or -1.
     };
     static ZombieGPUInstance zombieGPUInstance(const AnimatedModel& asset, const ZombieInstance& instance,
                                                float boneBase = -1.0f);
-    struct ZombieBatch {
+    struct ZombieGeometry {
         ModelGPU model;
         GLuint instanceBuffer = 0;
-        std::vector<std::size_t> sourceIndices;
-        std::vector<ZombieGPUInstance> staging;
         std::vector<GLuint> animationBuffers, animationTextures;
         std::vector<GLuint> skinningBuffers;
         std::vector<GLint> skinningEnabled;
-        std::unique_ptr<ZombiePaletteCache> palettes;
         GLint skinningBoneCount = 0;
         std::vector<GLint> vertexCounts;
         GLsizei count = 0;
         GLint frameCount = 0;
         float duration = 0;
+        std::vector<ZombieGPUInstance> cameraInstances, shadowInstances;
+    };
+    struct ZombieBatch : ZombieGeometry {
+        std::vector<ZombieGeometry> lods;
+        std::vector<std::size_t> sourceIndices;
+        std::vector<ZombieGPUInstance> staging;
+        std::unique_ptr<ZombiePaletteCache> palettes;
         VisibilityBounds animationBounds, bindBounds;
         std::vector<VisibilityBounds> instanceBounds;
         std::vector<VisibilityBounds> poseBounds;
         std::vector<std::uint64_t> poseVersions;
         std::vector<bool> livePoses;
-        std::vector<ZombieGPUInstance> cameraInstances, shadowInstances;
     };
     void release() noexcept;
     static void releaseModel(ModelGPU& model) noexcept;
@@ -154,7 +168,9 @@ private:
     void prepareForestView(const Camera& camera);
     void drawForests(const glm::mat4& projectionView, bool shadowPass = false);
     void uploadZombies(const ZombieLayer& zombies);
-    void prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* lightFrustum);
+    void uploadZombieGeometry(const AnimatedModel& source, ZombieGeometry& geometry, std::size_t capacity, GLint maximumTexels);
+    void prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* lightFrustum,
+                            const Camera& camera, const glm::mat4& projection, double seconds);
     void drawZombies(double seconds, bool shadowPass = false);
     void drawSunShadows(const SunShadowView& shadowView, double seconds);
     DayNightLighting lightingForFrame() const;
@@ -228,7 +244,11 @@ private:
     // Borrowed until the next update; the fixed population must outlive render().
     const ZombieLayer* zombieSource_ = nullptr;
     ZombiePaletteStats zombiePaletteStats_;
+    std::vector<std::size_t> displayedZombieSources_;
+    ZombieRenderStats zombieRenderStats_;
     bool zombieCulling_ = true;
+    bool zombieDistanceDetail_ = true, zombieShadows_ = true;
+    float zombieDrawDistance_ = 180;
     std::size_t zombieCount_ = 0, zombieVisibleCount_ = 0, zombieDrawCalls_ = 0;
     Material fallback_;
     std::unique_ptr<RainRenderer> rain_;

@@ -72,13 +72,25 @@ set(BOX3D_BENCHMARKS OFF CACHE BOOL "" FORCE)
 set(BOX3D_DOCS OFF CACHE BOOL "" FORCE)
 set(BOX3D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
 set(BOX3D_VALIDATE OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(glfw glm tinygltf box3d)
+set(MESHOPT_INSTALL OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(meshoptimizer
+    URL https://codeload.github.com/zeux/meshoptimizer/tar.gz/refs/tags/v1.3
+    URL_HASH SHA256=ca4f47d451201593904b9e3067fa54b65db94bc34ab5173864950862b748a145
+    DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/_archives"
+    DOWNLOAD_NAME meshoptimizer-v1.3.tar.gz
+)
+FetchContent_MakeAvailable(glfw glm tinygltf box3d meshoptimizer)
+
+# Offline asset preparation; never runs during viewer startup.
+add_executable(zombie_mesh_simplify tools/zombie_mesh_simplify.cpp)
+target_link_libraries(zombie_mesh_simplify PRIVATE meshoptimizer)
 
 function(viewer_warnings target)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
     endif()
 endfunction()
+viewer_warnings(zombie_mesh_simplify)
 
 add_library(viewer_model STATIC src/model.cpp src/model_merge.cpp)
 target_include_directories(viewer_model PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -144,9 +156,9 @@ target_include_directories(viewer_forests SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}
 viewer_warnings(viewer_forests)
 
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp
-    src/zombie_layer.cpp src/zombie_hit.cpp src/zombie_shooting.cpp src/zombie_chase.cpp src/zombie_behavior.cpp src/zombie_animation.cpp
+    src/zombie_layer.cpp src/zombie_lod.cpp src/zombie_lod_assets.cpp src/zombie_hit.cpp src/zombie_shooting.cpp src/zombie_chase.cpp src/zombie_behavior.cpp src/zombie_animation.cpp
     src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp src/zombie_spatial_index.cpp src/zombie_perception.cpp)
-target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise viewer_physics)
+target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise viewer_physics viewer_fingerprints)
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_zombies)
 
@@ -284,7 +296,7 @@ if(BUILD_TESTING)
     viewer_warnings(test_door_walking)
     add_test(NAME viewer_door_walking COMMAND test_door_walking)
 
-    foreach(suite animated_model zombie_placement zombie_chase zombie_behavior zombie_shooting zombie_spatial_index zombie_perception zombie_ragdoll zombie_transition)
+    foreach(suite animated_model zombie_lod zombie_placement zombie_chase zombie_behavior zombie_shooting zombie_spatial_index zombie_perception zombie_ragdoll zombie_transition)
         add_executable(test_${suite} tests/test_${suite}.cpp)
         target_link_libraries(test_${suite} PRIVATE viewer_zombies)
         target_include_directories(test_${suite} SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")

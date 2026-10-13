@@ -334,7 +334,7 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     if (sunlight) shadowView = sunShadowView(camera.position(), lighting.sun.direction);
     const bool castShadows = sunlight && shadows_ && shadowPassLocation_ >= 0;
     const Frustum lightFrustum(shadowView.projectionView());
-    prepareZombieDraws(Frustum(projection * view), castShadows ? &lightFrustum : nullptr);
+    prepareZombieDraws(Frustum(projection * view), castShadows ? &lightFrustum : nullptr, camera, projection, animationSeconds);
     if (castShadows) drawSunShadows(shadowView, animationSeconds);
     applyLighting(camera, shadowView, lighting);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);

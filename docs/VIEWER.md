@@ -310,10 +310,63 @@ The title reports visible/total zombie counts, and shutdown logs the visible
 count and instanced draw count. Camera-frustum culling compacts each character
 batch before upload and drawing. Bounds include every idle/walk/run sample and
 live ragdoll bone transforms, so animated limbs crossing the view edge remain
-visible. Sun shadow casters use the light frustum independently: an offscreen
+visible. Mesh-local bind bounds (possibly centimeters) are transformed through
+the ragdoll palette before use; living bounds use scene-space baked frames.
+Sun shadow casters use the light frustum independently: an offscreen
 zombie can still cast a visible shadow. `--no-zombie-culling` disables only
-camera culling for a same-camera comparison. AI, shooting, and physics continue
-for the full crowd regardless of render visibility.
+camera-frustum culling for a same-camera comparison; distance settings remain
+active. AI, shooting, and physics continue for the full crowd regardless of
+render visibility.
+
+Generate lower-detail assets once using the commands in
+[the zombie asset guide](../assets/zombies/README.md#reduced-detail-meshes).
+The viewer discovers the hash-checked `lods.json` alongside the original models.
+At the normal 60-degree vertical field of view, the automatic defaults are:
+
+| Camera distance | Mesh | Animation |
+| --- | --- | --- |
+| Below 12 m | Original | Continuous interpolation of 30 Hz baked poses |
+| 12–35 m | LOD1, about 50% triangles | About 15 Hz, single pose |
+| 35–80 m | LOD2, about 20% triangles | About 10 Hz, single pose |
+| 80–180 m | LOD3, about 7% triangles | About 5 Hz, single pose |
+| Beyond 180 m | Camera draw omitted | Simulation continues |
+
+Distances use the conservative animated world-bounds center. Zoom scales these
+thresholds with projected size, keeping original detail for distant scoped
+targets and extending the camera cutoff. Animation steps snap to the existing
+baked frames on a lower-rate cycle grid; they avoid interpolation and the second
+pose's texture fetches. Near playback remains smooth. Stored animation clips
+are preserved at every LOD; this is a rendering rate reduction, not removal of
+animation data. The renderer publishes the exact camera frame/clip for head hit
+tests and ragdoll handoff, so a shot uses the displayed stepped pose.
+
+Sun shadows use LOD3 independently of camera detail and camera distance cutoff.
+An offscreen or distance-culled zombie can still cast into the existing light
+volume. Camera-visible casters use the camera pose; other casters use a single
+baked pose. Shadow silhouettes are deliberately coarser. A ragdoll's camera and
+shadow meshes share one persistent bone-palette cache, including settled bodies.
+Bounds and simulation continue to use the authoritative original asset.
+
+`--zombie-draw-distance M` changes the normal-FOV cutoff; `0` disables distance
+removal while retaining LOD and animation stepping. `--zombie-view` defaults to
+no distance cutoff, so its overview can show the entire crowd; an explicit
+`--zombie-draw-distance` still takes precedence. `--no-zombie-lod` disables mesh
+selection, animation stepping and the distance cutoff for comparison.
+`--no-zombie-shadows` disables only zombie casting for GPU cost comparisons.
+`--profile` prints the existing asynchronous GPU and CPU render timings once per
+second, including during hidden runs. CPU render time covers submission, not the
+entire AI/physics loop; hidden-run FPS omits presentation/VSync waits. Shutdown
+also reports camera LOD counts, submitted camera/shadow triangles and the number
+of frustum-visible zombies rejected by distance.
+
+For a repeatable 10,000-zombie overview comparison:
+
+```bash
+./build/godollo_viewer output/godollo.glb --zombie-count 10000 --zombie-radius 300 \
+  --zombie-view --zombie-draw-distance 0 --hidden --frames 300 --profile --day-length 0 \
+  --animation-time 0.5
+# Repeat with --no-zombie-lod for original geometry and continuous playback.
+```
 
 Zombie rendering first culls groups in a renderer-owned 20 m X/Z grid, shared
 across character variants. An instance belongs to one cell according to the
@@ -490,7 +543,8 @@ the creator's walk/run clips using shared baked vertex animation. Investigating
 uses walk; chasing uses run, falling back to walk when only that clip is available.
 Custom idle-only models retain idle playback while moving. Locomotion clip time
 advances by actual travel time; the CPU does not evaluate or upload a skeleton for
-each moving zombie. Zombies have no distance LOD or occlusion culling.
+each moving zombie. Distance LOD affects rendering and displayed poses; zombies
+still have no occlusion culling.
 
 In Combat mode while the mouse is captured, left click casts a ray from
 the camera center and activates the nearest living zombie under a conservative
@@ -1163,6 +1217,9 @@ src/player_noise.{hpp,cpp} Fixed-step footsteps and landing noise emission
 src/simulation_clock.hpp   Global simulation-thread in-game clock
 src/zombie_chase.{hpp,cpp}  Terrain-following locomotion and clip clocks
 src/zombie_animation.{hpp,cpp} Authored clip selection and on-demand displayed poses
+src/zombie_lod.{hpp,cpp}    Camera detail, distance cutoff and shadow detail policy
+src/zombie_lod_assets.cpp   Local LOD manifest, fingerprint and rig validation
+src/zombie_lod.py          Rig-preserving offline mesh preparation
 src/zombie_placement.{hpp,cpp} Ground queries and deterministic safe placement
 src/zombie_park.{hpp,cpp}  Palace garden outline in the published map's frame
 src/physics_world.{hpp,cpp} Shared Box3D world and fixed simulation stepping

@@ -111,6 +111,8 @@ glm::vec3 renderCard(Layer kind, float distance, bool haze, bool groundFog = fal
     viewer::Renderer renderer(kind == Layer::Scene ? model : viewer::Model{}, VIEWER_SHADER_DIR,
                                kind == Layer::Trees ? &trees : nullptr,
                                kind == Layer::Zombies ? &zombies : nullptr);
+    // This fixture measures atmosphere at 500/5000 m, beyond the crowd cutoff.
+    renderer.setZombieDistanceDetail(false);
     renderer.setShadows(false);
     renderer.setHaze(haze);
     renderer.setGroundFog(groundFog);

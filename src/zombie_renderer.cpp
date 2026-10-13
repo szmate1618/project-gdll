@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 #include "zombie_animation.hpp"
+#include "zombie_lod.hpp"
 
 #include <cmath>
 #include <cstddef>
@@ -49,7 +50,7 @@ Renderer::ZombieGPUInstance Renderer::zombieGPUInstance(const AnimatedModel& ass
             clip ? static_cast<float>(clip->frameCount) : 0.0f,
             clip ? animatedFrame(clip->duration, clip->frameCount, instance.walkSeconds, instance.phase) :
                    (instance.ragdoll ? 0.0f : -1.0f),
-            instance.ragdoll ? 1.0f : 0.0f, boneBase};
+            instance.ragdoll ? 1.0f : 0.0f, 0.0f, boneBase};
 }
 
 void Renderer::uploadZombies(const ZombieLayer& zombies) {
@@ -105,8 +106,9 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
                 batch.animationBounds.minimum = glm::min(batch.animationBounds.minimum, glm::vec3(vertex.position));
                 batch.animationBounds.maximum = glm::max(batch.animationBounds.maximum, glm::vec3(vertex.position));
             }
-        // Include the bind pose for live instances awaiting their first update.
-        includeBounds(batch.animationBounds, batch.bindBounds);
+        // Baked frames are scene-space meters; skinned bind vertices can still
+        // be mesh-local centimeters. Keep these boxes separate. Live skinning
+        // transforms the bind box through the palette before using it below.
         for (const auto& instance : batch.staging)
             batch.instanceBounds.push_back(transformedBounds(batch.animationBounds, instance.transform));
         batch.cameraInstances.reserve(batch.staging.size());
@@ -116,101 +118,118 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
         batch.livePoses.resize(batch.staging.size());
         batch.palettes = std::make_unique<ZombiePaletteCache>(batch.staging.size(), source.skeleton.size(),
                                                               static_cast<std::size_t>(maximumTexels));
-        uploadModel(source.model, batch.model);
-        glGenBuffers(1, &batch.instanceBuffer);
-        glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);
-        glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(instances[i].size() * sizeof(ZombieGPUInstance)),
-                     nullptr, GL_STREAM_DRAW);
-        batch.animationBuffers.resize(batch.model.meshes.size());
-        batch.animationTextures.resize(batch.model.meshes.size());
-        batch.skinningBuffers.resize(batch.model.meshes.size());
-        batch.skinningEnabled.resize(batch.model.meshes.size());
-        batch.vertexCounts.resize(batch.model.meshes.size());
-        for (std::size_t p = 0; p < batch.model.meshes.size(); ++p) {
-            const auto& mesh = batch.model.meshes[p];
-            const auto& mat = material(batch.model, mesh.material);
-            if (mat.alphaMode == "BLEND")
-                throw std::runtime_error("Instanced zombies require opaque or alpha-mask materials");
-            const auto count = source.model.primitives[p].vertices.size();
-            const auto& frames = source.animation[p].frames;
-            const auto& skinning = source.animation[p].skinning;
-            if (count == 0 || count > static_cast<std::size_t>(std::numeric_limits<GLint>::max()) ||
-                frames.size() / source.totalFrameCount() != count || frames.size() % source.totalFrameCount() != 0 ||
-                frames.size() > static_cast<std::size_t>(maximumTexels) / 2)
-                throw std::runtime_error("Zombie animation exceeds this GPU's texture buffer capacity or has invalid samples");
-            batch.vertexCounts[p] = static_cast<GLint>(count);
-            batch.skinningEnabled[p] = skinning.empty() ? 0 : 1;
-            glBindVertexArray(mesh.vao);
-            // Attribute pointers capture the current array buffer. The previous
-            // primitive leaves its per-vertex skinning buffer bound below.
-            glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);
-            for (GLuint column = 0; column < 4; ++column) {
-                glEnableVertexAttribArray(4 + column);
-                glVertexAttribPointer(4 + column, 4, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
-                                      reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, transform) + column * sizeof(glm::vec4)));
-                glVertexAttribDivisor(4 + column, 1);
-            }
-            glEnableVertexAttribArray(8);
-            glVertexAttribPointer(8, 3, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
-                                  reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, phase)));
-            glVertexAttribDivisor(8, 1);
-            glEnableVertexAttribArray(9);
-            glVertexAttribPointer(9, 1, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
-                                  reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, animationFrame)));
-            glVertexAttribDivisor(9, 1);
-            glEnableVertexAttribArray(10);
-            glVertexAttribPointer(10, 1, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
-                                  reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, liveSkinning)));
-            glVertexAttribDivisor(10, 1);
-            glEnableVertexAttribArray(11);
-            glVertexAttribPointer(11, 1, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
-                                  reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, boneBase)));
-            glVertexAttribDivisor(11, 1);
-            std::vector<SkinVertexGPU> skinVertices(count);
-            if (!skinning.empty()) {
-                if (skinning.size() != count) throw std::runtime_error("Zombie skinning data does not match vertices");
-                for (std::size_t vertex = 0; vertex < count; ++vertex) {
-                    skinVertices[vertex].joints0 = {skinning[vertex].joints[0], skinning[vertex].joints[1],
-                                                    skinning[vertex].joints[2], skinning[vertex].joints[3]};
-                    skinVertices[vertex].weights0 = {skinning[vertex].weights[0], skinning[vertex].weights[1],
-                                                     skinning[vertex].weights[2], skinning[vertex].weights[3]};
-                    skinVertices[vertex].joints1 = {skinning[vertex].joints[4], skinning[vertex].joints[5],
-                                                    skinning[vertex].joints[6], skinning[vertex].joints[7]};
-                    skinVertices[vertex].weights1 = {skinning[vertex].weights[4], skinning[vertex].weights[5],
-                                                     skinning[vertex].weights[6], skinning[vertex].weights[7]};
-                }
-            }
-            glGenBuffers(1, &batch.skinningBuffers[p]);
-            glBindBuffer(GL_ARRAY_BUFFER, batch.skinningBuffers[p]);
-            glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(skinVertices.size() * sizeof(SkinVertexGPU)),
-                         skinVertices.data(), GL_STATIC_DRAW);
-            glBindVertexArray(mesh.vao);
-            glBindBuffer(GL_ARRAY_BUFFER, batch.skinningBuffers[p]);
-            glEnableVertexAttribArray(12);
-            glVertexAttribIPointer(12, 4, GL_UNSIGNED_INT, sizeof(SkinVertexGPU),
-                                   reinterpret_cast<const void*>(offsetof(SkinVertexGPU, joints0)));
-            glEnableVertexAttribArray(13);
-            glVertexAttribPointer(13, 4, GL_FLOAT, GL_FALSE, sizeof(SkinVertexGPU),
-                                  reinterpret_cast<const void*>(offsetof(SkinVertexGPU, weights0)));
-            glEnableVertexAttribArray(14);
-            glVertexAttribIPointer(14, 4, GL_UNSIGNED_INT, sizeof(SkinVertexGPU),
-                                   reinterpret_cast<const void*>(offsetof(SkinVertexGPU, joints1)));
-            glEnableVertexAttribArray(15);
-            glVertexAttribPointer(15, 4, GL_FLOAT, GL_FALSE, sizeof(SkinVertexGPU),
-                                  reinterpret_cast<const void*>(offsetof(SkinVertexGPU, weights1)));
-            glGenBuffers(1, &batch.animationBuffers[p]);
-            glBindBuffer(GL_TEXTURE_BUFFER, batch.animationBuffers[p]);
-            glBufferData(GL_TEXTURE_BUFFER, static_cast<GLsizeiptr>(frames.size() * sizeof(AnimationVertex)),
-                         frames.data(), GL_STATIC_DRAW);
-            glGenTextures(1, &batch.animationTextures[p]);
-            glBindTexture(GL_TEXTURE_BUFFER, batch.animationTextures[p]);
-            glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, batch.animationBuffers[p]);
+        uploadZombieGeometry(source, batch, batch.staging.size(), maximumTexels);
+        if (i < zombies.lodAssets.size()) {
+            if (zombies.lodAssets[i].size() > 3) throw std::runtime_error("At most three zombie LOD levels are supported");
+            batch.lods.resize(zombies.lodAssets[i].size());
+            for (std::size_t level = 0; level < batch.lods.size(); ++level)
+                uploadZombieGeometry(zombies.lodAssets[i][level], batch.lods[level], batch.staging.size(), maximumTexels);
         }
     }
     glBindTexture(GL_TEXTURE_BUFFER, 0);
     glBindBuffer(GL_TEXTURE_BUFFER, 0);
     updateZombies(zombies);
     checkErrors("zombie upload");
+}
+
+void Renderer::uploadZombieGeometry(const AnimatedModel& source, ZombieGeometry& geometry,
+                                    std::size_t capacity, GLint maximumTexels) {
+    geometry.skinningBoneCount = static_cast<GLint>(source.skeleton.size());
+    geometry.frameCount = static_cast<GLint>(source.frameCount);
+    geometry.duration = source.duration;
+    geometry.count = static_cast<GLsizei>(capacity);
+    geometry.cameraInstances.reserve(capacity);
+    geometry.shadowInstances.reserve(capacity);
+    uploadModel(source.model, geometry.model);
+    glGenBuffers(1, &geometry.instanceBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, geometry.instanceBuffer);
+    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(capacity * sizeof(ZombieGPUInstance)),
+                 nullptr, GL_STREAM_DRAW);
+    geometry.animationBuffers.resize(geometry.model.meshes.size());
+    geometry.animationTextures.resize(geometry.model.meshes.size());
+    geometry.skinningBuffers.resize(geometry.model.meshes.size());
+    geometry.skinningEnabled.resize(geometry.model.meshes.size());
+    geometry.vertexCounts.resize(geometry.model.meshes.size());
+    for (std::size_t p = 0; p < geometry.model.meshes.size(); ++p) {
+        const auto& mesh = geometry.model.meshes[p];
+        const auto& mat = material(geometry.model, mesh.material);
+        if (mat.alphaMode == "BLEND")
+            throw std::runtime_error("Instanced zombies require opaque or alpha-mask materials");
+        const auto count = source.model.primitives[p].vertices.size();
+        const auto& frames = source.animation[p].frames;
+        const auto& skinning = source.animation[p].skinning;
+        if (count == 0 || count > static_cast<std::size_t>(std::numeric_limits<GLint>::max()) ||
+            frames.size() / source.totalFrameCount() != count || frames.size() % source.totalFrameCount() != 0 ||
+            frames.size() > static_cast<std::size_t>(maximumTexels) / 2)
+            throw std::runtime_error("Zombie animation exceeds this GPU's texture buffer capacity or has invalid samples");
+        geometry.vertexCounts[p] = static_cast<GLint>(count);
+        geometry.skinningEnabled[p] = skinning.empty() ? 0 : 1;
+        glBindVertexArray(mesh.vao);
+        // Attribute pointers capture the current array buffer. The previous
+        // primitive leaves its per-vertex skinning buffer bound below.
+        glBindBuffer(GL_ARRAY_BUFFER, geometry.instanceBuffer);
+        for (GLuint column = 0; column < 4; ++column) {
+            glEnableVertexAttribArray(4 + column);
+            glVertexAttribPointer(4 + column, 4, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
+                                  reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, transform) + column * sizeof(glm::vec4)));
+            glVertexAttribDivisor(4 + column, 1);
+        }
+        glEnableVertexAttribArray(8);
+        glVertexAttribPointer(8, 3, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
+                              reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, phase)));
+        glVertexAttribDivisor(8, 1);
+        glEnableVertexAttribArray(9);
+        glVertexAttribPointer(9, 1, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
+                              reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, animationFrame)));
+        glVertexAttribDivisor(9, 1);
+        glEnableVertexAttribArray(10);
+        glVertexAttribPointer(10, 2, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
+                              reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, liveSkinning)));
+        glVertexAttribDivisor(10, 1);
+        glEnableVertexAttribArray(11);
+        glVertexAttribPointer(11, 1, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
+                              reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, boneBase)));
+        glVertexAttribDivisor(11, 1);
+        std::vector<SkinVertexGPU> skinVertices(count);
+        if (!skinning.empty()) {
+            if (skinning.size() != count) throw std::runtime_error("Zombie skinning data does not match vertices");
+            for (std::size_t vertex = 0; vertex < count; ++vertex) {
+                skinVertices[vertex].joints0 = {skinning[vertex].joints[0], skinning[vertex].joints[1],
+                                                skinning[vertex].joints[2], skinning[vertex].joints[3]};
+                skinVertices[vertex].weights0 = {skinning[vertex].weights[0], skinning[vertex].weights[1],
+                                                 skinning[vertex].weights[2], skinning[vertex].weights[3]};
+                skinVertices[vertex].joints1 = {skinning[vertex].joints[4], skinning[vertex].joints[5],
+                                                skinning[vertex].joints[6], skinning[vertex].joints[7]};
+                skinVertices[vertex].weights1 = {skinning[vertex].weights[4], skinning[vertex].weights[5],
+                                                 skinning[vertex].weights[6], skinning[vertex].weights[7]};
+            }
+        }
+        glGenBuffers(1, &geometry.skinningBuffers[p]);
+        glBindBuffer(GL_ARRAY_BUFFER, geometry.skinningBuffers[p]);
+        glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(skinVertices.size() * sizeof(SkinVertexGPU)),
+                     skinVertices.data(), GL_STATIC_DRAW);
+        glBindVertexArray(mesh.vao);
+        glBindBuffer(GL_ARRAY_BUFFER, geometry.skinningBuffers[p]);
+        glEnableVertexAttribArray(12);
+        glVertexAttribIPointer(12, 4, GL_UNSIGNED_INT, sizeof(SkinVertexGPU),
+                               reinterpret_cast<const void*>(offsetof(SkinVertexGPU, joints0)));
+        glEnableVertexAttribArray(13);
+        glVertexAttribPointer(13, 4, GL_FLOAT, GL_FALSE, sizeof(SkinVertexGPU),
+                              reinterpret_cast<const void*>(offsetof(SkinVertexGPU, weights0)));
+        glEnableVertexAttribArray(14);
+        glVertexAttribIPointer(14, 4, GL_UNSIGNED_INT, sizeof(SkinVertexGPU),
+                               reinterpret_cast<const void*>(offsetof(SkinVertexGPU, joints1)));
+        glEnableVertexAttribArray(15);
+        glVertexAttribPointer(15, 4, GL_FLOAT, GL_FALSE, sizeof(SkinVertexGPU),
+                              reinterpret_cast<const void*>(offsetof(SkinVertexGPU, weights1)));
+        glGenBuffers(1, &geometry.animationBuffers[p]);
+        glBindBuffer(GL_TEXTURE_BUFFER, geometry.animationBuffers[p]);
+        glBufferData(GL_TEXTURE_BUFFER, static_cast<GLsizeiptr>(frames.size() * sizeof(AnimationVertex)),
+                     frames.data(), GL_STATIC_DRAW);
+        glGenTextures(1, &geometry.animationTextures[p]);
+        glBindTexture(GL_TEXTURE_BUFFER, geometry.animationTextures[p]);
+        glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, geometry.animationBuffers[p]);
+    }
 }
 
 void Renderer::updateZombies(const ZombieLayer& zombies) {
@@ -265,13 +284,21 @@ void Renderer::updateZombies(const ZombieLayer& zombies) {
     }
 }
 
-void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* lightFrustum) {
+void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* lightFrustum,
+                                  const Camera& camera, const glm::mat4& projection, double seconds) {
     zombiePaletteStats_ = {};
+    zombieRenderStats_ = {};
     zombieVisibilityStats_ = {};
     if (!zombieSource_) return;
+    if (!std::isfinite(seconds) || seconds < 0) seconds = 0;
+    // Keep the last published camera pose until a new frame replaces it, even
+    // when owning simulation updates occur between input and rendering.
+    for (const auto id : displayedZombieSources_) zombieSource_->instances[id].displayedAnimationFrame = -1;
+    displayedZombieSources_.clear();
     for (auto& batch : zombieBatches_) {
         batch.cameraInstances.clear();
         batch.shadowInstances.clear();
+        for (auto& lod : batch.lods) { lod.cameraInstances.clear(); lod.shadowInstances.clear(); }
         batch.palettes->beginFrame();
     }
     zombieVisibilityStats_ = zombieVisibility_.query(cameraFrustum, lightFrustum, zombieCulling_, visibleZombies_);
@@ -280,10 +307,50 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
         auto& batch = zombieBatches_[source.asset];
         const auto local = zombieBatchLocals_[visible.instance];
         auto instance = batch.staging[local];
+        const auto& bounds = batch.instanceBounds[local];
+        const float distance = glm::length((bounds.minimum + bounds.maximum) * .5f - camera.position());
+        const auto detail = zombieCameraDetail(distance, projection[1][1], zombieDistanceDetail_, zombieDrawDistance_);
+        const bool cameraVisible = visible.camera && detail.visible;
+        if (visible.camera && !detail.visible) ++zombieRenderStats_.distanceCulled;
+        const bool shadowVisible = visible.shadow && zombieShadows_;
+        if (!cameraVisible && !shadowVisible) continue;
         if (source.ragdoll && batch.skinningBoneCount > 0)
             instance.boneBase = batch.palettes->request(local, source.ragdollPoseVersion, source.ragdollBones);
-        if (visible.camera) batch.cameraInstances.push_back(instance);
-        if (visible.shadow) batch.shadowInstances.push_back(instance);
+        const auto& asset = zombieSource_->assets[source.asset];
+        const auto* clip = zombieAnimationClip(asset, source);
+        const float duration = clip ? clip->duration : asset.duration;
+        const auto frames = clip ? clip->frameCount : asset.frameCount;
+        const double time = clip ? source.walkSeconds : seconds;
+        const float frame = source.ragdoll ? 0 : animatedFrame(duration, frames, time, source.phase);
+        auto cameraInstance = instance;
+        if (cameraVisible) {
+            cameraInstance.animationFrame = frame;
+            if (detail.animationHz > 0 && !source.ragdoll) {
+                // Snap to authored baked frames on a lower-rate cycle grid. Both
+                // GPU and hit tests use this same published pose.
+                const auto samples = std::max(1.0f, std::floor(duration * detail.animationHz));
+                const auto bucket = std::floor(frame / static_cast<float>(frames) * samples);
+                cameraInstance.animationFrame = std::floor(bucket / samples * static_cast<float>(frames));
+                cameraInstance.animationStep = 1;
+            }
+            displayedZombieSources_.push_back(visible.instance);
+            source.displayedAnimationFrame = cameraInstance.animationFrame;
+            source.displayedAnimationClip = clip == (asset.runClip ? &*asset.runClip : nullptr) && clip ? 2 : clip ? 1 : 0;
+            const auto level = std::min(detail.level, batch.lods.size());
+            auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
+            geometry.cameraInstances.push_back(cameraInstance);
+            ++zombieRenderStats_.cameraLevels[level];
+        }
+        if (shadowVisible) {
+            // Lowest mesh is adequate for the limited-resolution sun map.
+            // Keep the camera pose when available so near silhouettes align.
+            auto shadowInstance = cameraVisible ? cameraInstance : instance;
+            if (!cameraVisible) { shadowInstance.animationFrame = std::floor(frame); shadowInstance.animationStep = 1; }
+            const auto level = zombieDistanceDetail_ ? batch.lods.size() : 0;
+            auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
+            geometry.shadowInstances.push_back(shadowInstance);
+            ++zombieRenderStats_.shadowLevels[level];
+        }
     }
     for (auto& batch : zombieBatches_) {
         batch.palettes->flush();
@@ -312,37 +379,43 @@ void Renderer::drawZombies(double seconds, bool shadowPass) {
     const glm::mat4 identity(1);
     glUniformMatrix4fv(modelLocation_, 1, GL_FALSE, glm::value_ptr(identity));
     for (auto& batch : zombieBatches_) {
-        if (batch.count == 0) continue;
-        const auto& visible = shadowPass ? batch.shadowInstances : batch.cameraInstances;
-        const auto count = static_cast<GLsizei>(visible.size());
-        if (!shadowPass) zombieVisibleCount_ += visible.size();
-        if (count == 0) continue;
-        glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);
-        // Orphan storage before streaming the compact list to avoid overwriting
-        // an in-flight camera or shadow draw. Keep full-population capacity.
-        glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(batch.staging.size() * sizeof(ZombieGPUInstance)),
-                     nullptr, GL_STREAM_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, static_cast<GLsizeiptr>(visible.size() * sizeof(ZombieGPUInstance)),
-                        visible.data());
-        // Reduce in double precision before converting to float to preserve
-        // smooth playback even after the application has run for many hours.
-        const float frame = static_cast<float>(std::fmod(seconds, batch.duration) / batch.duration * batch.frameCount);
-        glUniform1f(animationFrameLocation_, frame);
-        glUniform1i(animationCountLocation_, batch.frameCount);
-        for (std::size_t p = 0; p < batch.model.meshes.size(); ++p) {
-            const auto& mesh = batch.model.meshes[p];
-            applyMaterial(batch.model, mesh.material, false);
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_BUFFER, batch.animationTextures[p]);
-            glActiveTexture(GL_TEXTURE2);
-            glBindTexture(GL_TEXTURE_BUFFER, batch.palettes->texture());
-            glActiveTexture(GL_TEXTURE0);
-            glUniform1i(animationVerticesLocation_, batch.vertexCounts[p]);
-            glUniform1i(skinningLocation_, batch.skinningEnabled[p]);
-            glUniform1i(skinningBoneCountLocation_, batch.skinningBoneCount);
-            glBindVertexArray(mesh.vao);
-            glDrawElementsInstanced(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, nullptr, count);
-            if (!shadowPass) ++zombieDrawCalls_;
+        for (std::size_t level = 0; level <= batch.lods.size(); ++level) {
+            auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
+            if (geometry.count == 0) continue;
+            const auto& visible = shadowPass ? geometry.shadowInstances : geometry.cameraInstances;
+            const auto count = static_cast<GLsizei>(visible.size());
+            if (!shadowPass) zombieVisibleCount_ += visible.size();
+            if (count == 0) continue;
+            glBindBuffer(GL_ARRAY_BUFFER, geometry.instanceBuffer);
+            // Orphan storage before streaming the compact list to avoid overwriting
+            // an in-flight camera or shadow draw. Keep full-population capacity.
+            glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(batch.staging.size() * sizeof(ZombieGPUInstance)),
+                         nullptr, GL_STREAM_DRAW);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, static_cast<GLsizeiptr>(visible.size() * sizeof(ZombieGPUInstance)),
+                            visible.data());
+            // Reduce in double precision before converting to float to preserve
+            // smooth playback even after the application has run for many hours.
+            const float frame = static_cast<float>(std::fmod(seconds, geometry.duration) / geometry.duration * geometry.frameCount);
+            glUniform1f(animationFrameLocation_, frame);
+            glUniform1i(animationCountLocation_, geometry.frameCount);
+            for (std::size_t p = 0; p < geometry.model.meshes.size(); ++p) {
+                const auto& mesh = geometry.model.meshes[p];
+                applyMaterial(geometry.model, mesh.material, false);
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_BUFFER, geometry.animationTextures[p]);
+                glActiveTexture(GL_TEXTURE2);
+                glBindTexture(GL_TEXTURE_BUFFER, batch.palettes->texture());
+                glActiveTexture(GL_TEXTURE0);
+                glUniform1i(animationVerticesLocation_, geometry.vertexCounts[p]);
+                glUniform1i(skinningLocation_, geometry.skinningEnabled[p]);
+                glUniform1i(skinningBoneCountLocation_, geometry.skinningBoneCount);
+                glBindVertexArray(mesh.vao);
+                glDrawElementsInstanced(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, nullptr, count);
+                if (!shadowPass) {
+                    ++zombieDrawCalls_;
+                    zombieRenderStats_.cameraTriangles += visible.size() * static_cast<std::size_t>(mesh.count / 3);
+                } else zombieRenderStats_.shadowTriangles += visible.size() * static_cast<std::size_t>(mesh.count / 3);
+            }
         }
     }
     glActiveTexture(GL_TEXTURE1);
@@ -358,11 +431,14 @@ void Renderer::drawZombies(double seconds, bool shadowPass) {
 
 void Renderer::releaseZombies() noexcept {
     for (auto& batch : zombieBatches_) {
-        releaseModel(batch.model);
-        glDeleteBuffers(1, &batch.instanceBuffer);
-        for (const auto buffer : batch.animationBuffers) glDeleteBuffers(1, &buffer);
-        for (const auto texture : batch.animationTextures) glDeleteTextures(1, &texture);
-        for (const auto buffer : batch.skinningBuffers) glDeleteBuffers(1, &buffer);
+        for (std::size_t level = 0; level <= batch.lods.size(); ++level) {
+            auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
+            releaseModel(geometry.model);
+            glDeleteBuffers(1, &geometry.instanceBuffer);
+            for (const auto buffer : geometry.animationBuffers) glDeleteBuffers(1, &buffer);
+            for (const auto texture : geometry.animationTextures) glDeleteTextures(1, &texture);
+            for (const auto buffer : geometry.skinningBuffers) glDeleteBuffers(1, &buffer);
+        }
         batch.palettes.reset();
     }
 }

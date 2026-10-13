@@ -3,6 +3,7 @@
 #include "zombie_ragdoll_pose.hpp"
 #include "zombie_placement.hpp"
 #include "zombie_animation.hpp"
+#include "zombie_lod.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -186,6 +187,8 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
                                << " s, " << clip->frameCount << " samples\n";
         for (const auto& warning : asset.model.warnings)
             std::cerr << "Zombie asset warning: " << warning << '\n';
+        result.lodAssets.push_back(loadZombieLods(path, asset));
+        std::cout << "  Reduced mesh levels: " << result.lodAssets.back().size() << '\n';
         result.assets.push_back(std::move(asset));
     }
     result.boundsMin = glm::vec3(std::numeric_limits<float>::max());

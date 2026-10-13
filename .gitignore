@@ -38,3 +38,6 @@ output/**
 /build/
 /build-*/
 *.ppm
+
+# Local zombie LOD publication manifest; its GLBs are generated assets.
+/assets/zombies/models/lods.json

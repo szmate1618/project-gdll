@@ -6,7 +6,7 @@ layout(location = 3) in vec4 aColor;
 layout(location = 4) in mat4 aInstanceModel;
 layout(location = 8) in vec3 aAnimationInfo; // Phase, clip first frame, clip frame count.
 layout(location = 9) in float aAnimationFrame;
-layout(location = 10) in float aLiveSkinning;
+layout(location = 10) in vec2 aSkinningAndStep; // Live skinning, stepped animation.
 layout(location = 11) in float aBoneBase;
 layout(location = 12) in uvec4 aJoints0;
 layout(location = 13) in vec4 aWeights0;
@@ -37,7 +37,7 @@ out vec3 vWorldPosition;
 void main() {
     vec3 position = aPosition;
     vec3 normal = aNormal;
-    if (uAnimated && aLiveSkinning > 0.5 && uSkinningEnabled && uSkinningBoneCount > 0) {
+    if (uAnimated && aSkinningAndStep.x > 0.5 && uSkinningEnabled && uSkinningBoneCount > 0) {
         vec4 skinnedPosition = vec4(0.0);
         vec3 skinnedNormal = vec3(0.0);
         for (int influence = 0; influence < 8; ++influence) {
@@ -65,9 +65,13 @@ void main() {
         int second = offset + (localFirst + 1) % count;
         int a = 2 * (first * uAnimationVertices + gl_VertexID);
         int b = 2 * (second * uAnimationVertices + gl_VertexID);
-        position = mix(texelFetch(uAnimation, a).xyz, texelFetch(uAnimation, b).xyz, fract(frame));
-        if (!uShadowPass) normal = normalize(mix(texelFetch(uAnimation, a + 1).xyz,
-                               texelFetch(uAnimation, b + 1).xyz, fract(frame)));
+        position = texelFetch(uAnimation, a).xyz;
+        if (!uShadowPass) normal = texelFetch(uAnimation, a + 1).xyz;
+        if (aSkinningAndStep.y < 0.5) {
+            position = mix(position, texelFetch(uAnimation, b).xyz, fract(frame));
+            if (!uShadowPass) normal = mix(normal, texelFetch(uAnimation, b + 1).xyz, fract(frame));
+        }
+        if (!uShadowPass) normal = normalize(normal);
     }
     mat4 model = uInstanced ? aInstanceModel * uModel : uModel;
     vec4 worldPosition = model * vec4(position, 1.0);

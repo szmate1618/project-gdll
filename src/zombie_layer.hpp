@@ -19,6 +19,10 @@ struct ZombieInstance {
     // Live placement until shot; then frozen as the ragdoll handoff basis.
     glm::mat4 restTransform{1};
     glm::mat4 restRoot{1};
+    // Last camera pose, published by rendering for exact hit/ragdoll handoff.
+    // Derived display state only; the simulation remains single-threaded.
+    mutable float displayedAnimationFrame = -1;
+    mutable int displayedAnimationClip = 0; // 0 idle, 1 walk, 2 run.
     float phase = 0; // Fraction of the idle cycle, independent of frame rate.
     bool walking = false;
     bool running = false; // Select the authored run clip during pursuit.
@@ -53,6 +57,8 @@ struct ZombieLayer {
     ZombieLayer& operator=(const ZombieLayer&) = delete;
 
     std::vector<AnimatedModel> assets;
+    // Per original asset, ordered LOD1..3; originals own gameplay/rig identity.
+    std::vector<std::vector<AnimatedModel>> lodAssets;
     std::vector<ZombieInstance> instances;
     ZombieBehaviorPool behaviors;
     glm::vec3 boundsMin{0}, boundsMax{0};

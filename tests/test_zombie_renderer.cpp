@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 #include "zombie_animation.hpp"
+#include "zombie_lod.hpp"
 
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -147,6 +148,7 @@ void renderCrowd(std::size_t primitiveCount, const std::filesystem::path& screen
     camera.setPosition({0, 0.5f, 14});
     camera.look(0, 200); // Default pitch is -20 degrees; look straight at the markers.
     viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.setZombieDistanceDetail(false);
     renderer.setHaze(false); // Marker colors test geometry and palette lookups.
     renderer.setGroundFog(false);
     renderer.resize(width, height);
@@ -223,6 +225,7 @@ void renderFrustumCulling() {
     if (frustum.intersects(positions[6], positions[6]) || frustum.intersects(positions[7], positions[7]))
         throw std::runtime_error("Edge and ragdoll fixture origins must be outside the frustum");
     viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.setZombieDistanceDetail(false);
     renderer.setHaze(false);
     renderer.setGroundFog(false);
     renderer.resize(width, height);
@@ -274,6 +277,7 @@ void paletteVisibilityAndDeferredChanges() {
     camera.setPosition({0, 0.5f, 14});
     camera.look(0, 200);
     viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.setZombieDistanceDetail(false);
     renderer.resize(width, height);
     renderer.render(camera);
     auto stats = renderer.zombiePaletteStats();
@@ -324,6 +328,7 @@ void renderGroupMovementAndPoseChanges() {
     camera.setPosition({0, 0.5f, 14});
     camera.look(0, 200);
     viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.setZombieDistanceDetail(false);
     renderer.setHaze(false);
     renderer.setGroundFog(false);
     renderer.setShadows(false);
@@ -465,6 +470,7 @@ void renderDistantHeadSurfaces() {
     camera.cycleViewMode();
     camera.cycleViewMode();
     viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.setZombieDistanceDetail(false);
     renderer.setHaze(false);
     renderer.setGroundFog(false);
     renderer.resize(width, height);
@@ -480,6 +486,82 @@ void renderDistantHeadSurfaces() {
             if (pixels[pixel * 3] != 255 || pixels[pixel * 3 + 1] != 0 || pixels[pixel * 3 + 2] != 0)
                 throw std::runtime_error("Zoomed sight must resolve the face ahead of the skull at 300 m");
     }
+}
+
+void renderDistanceLods() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(makeAsset(1, 2));
+    auto& base = layer.assets[0];
+    // Match the shipped rigs: bind vertices in centimeters, baked frames in
+    // meters. A raw bind box must never contaminate living visibility/LOD.
+    for (auto& vertex : base.model.primitives[0].vertices) vertex.position *= 100;
+    base.boneFrames.assign(4, glm::scale(glm::mat4(1), glm::vec3(.01f)));
+    for (std::size_t bone = 0; bone < 2; ++bone) {
+        base.boneFrames[bone][3].y = .75f;
+        base.boneFrames[2 + bone][3].y = 1.1f;
+    }
+    layer.lodAssets.resize(1);
+    for (int level = 1; level <= 3; ++level) {
+        auto lod = base;
+        auto& indices = lod.model.primitives[0].indices;
+        if (level == 2) indices.erase(indices.begin(), indices.begin() + 6); // Blue marker only.
+        else indices.resize(level == 3 ? 3 : 6); // Red marker only.
+        layer.lodAssets[0].push_back(std::move(lod));
+    }
+    layer.instances.resize(1);
+    viewer::Camera camera;
+    viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.resize(width, height);
+    renderer.setHaze(false); renderer.setGroundFog(false); renderer.setShadows(false);
+    const auto renderAt = [&](float distance) {
+        camera.setPosition(glm::vec3(0, 1, 0) - camera.direction() * distance);
+        renderer.updateZombies(layer);
+        renderer.render(camera, .25);
+    };
+    const auto markerPixels = [&](std::size_t channel) {
+        std::vector<unsigned char> pixels(width * height * 3);
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+        glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+        std::size_t count = 0;
+        for (std::size_t i = 0; i < pixels.size(); i += 3)
+            if (pixels[i + channel] == 255 && pixels[i + (channel + 1) % 3] == 0 &&
+                pixels[i + (channel + 2) % 3] == 0) ++count;
+        return count;
+    };
+    renderAt(20);
+    if (renderer.zombieRenderStats().cameraLevels[1] != 1 || markerPixels(0) == 0 || markerPixels(2) != 0)
+        throw std::runtime_error("LOD1 must draw its red marker mesh");
+    if (layer.instances[0].displayedAnimationFrame != 0 ||
+        viewer::sampleZombiePose(base, layer.instances[0], .25)[0][3].y != .75f)
+        throw std::runtime_error("Stepped GPU pose and hit/ragdoll pose must agree");
+    renderAt(60);
+    if (renderer.zombieRenderStats().cameraLevels[2] != 1 || markerPixels(2) == 0 || markerPixels(0) != 0)
+        throw std::runtime_error("LOD2 must draw its blue marker mesh");
+    renderAt(120);
+    if (renderer.zombieRenderStats().cameraLevels[3] != 1 || renderer.zombieRenderStats().cameraTriangles != 1)
+        throw std::runtime_error("Far camera must draw the lowest mesh");
+    renderAt(200);
+    if (renderer.zombieVisibleCount() != 0 || renderer.zombieRenderStats().distanceCulled != 1)
+        throw std::runtime_error("Far camera must cull beyond the cutoff");
+    // A cut-off ragdoll remains a caster, sharing one palette across mesh LODs.
+    auto& corpse = layer.instances[0];
+    corpse.ragdoll = true;
+    corpse.ragdollBones.assign(2, glm::scale(glm::mat4(1), glm::vec3(.01f)));
+    corpse.ragdollPoseVersion = 1;
+    renderer.setShadows(true); renderer.setZombieDrawDistance(1);
+    renderAt(20);
+    if (renderer.zombieVisibleCount() != 0 || renderer.zombieRenderStats().shadowLevels[3] != 1 ||
+        renderer.zombiePaletteStats().uploaded != 1)
+        throw std::runtime_error("Distance-culled corpse must retain its LOD3 shadow and initial palette");
+    renderer.render(camera, .25);
+    if (renderer.zombiePaletteStats().uploaded != 0)
+        throw std::runtime_error("LOD shadow must reuse a settled palette");
+    renderer.setZombieDrawDistance(0);
+    renderAt(20);
+    if (renderer.zombieRenderStats().cameraLevels[1] != 1 || renderer.zombiePaletteStats().needed != 1 ||
+        renderer.zombiePaletteStats().uploaded != 0)
+        throw std::runtime_error("Camera/shadow LODs must share one persistent palette");
+    viewer::Renderer::checkErrors("distance LOD rendering");
 }
 
 void renderAuthoredAssets(const std::filesystem::path& directory, const std::filesystem::path& screenshot) {
@@ -530,6 +612,7 @@ void renderAuthoredAssets(const std::filesystem::path& directory, const std::fil
                 }
             }
         }
+        layer.lodAssets.push_back(viewer::loadZombieLods(path, asset));
         layer.assets.push_back(std::move(asset));
     }
     viewer::Camera camera;
@@ -599,6 +682,7 @@ int main(int argc, char** argv) {
     int result = 0;
     try {
         const std::string mode = argc > 1 ? argv[1] : "";
+        renderDistanceLods();
         renderDistantHeadSurfaces();
         renderFrustumCulling();
         paletteVisibilityAndDeferredChanges();
