@@ -117,7 +117,11 @@ parts write depth while transparent texels do not block the background.
 Distance haze and ground fog apply to their visible texels, so cards blend with
 the rest of the scene. Trees also cast alpha-masked sun shadows into the local
 shadow map, using a separate query of the light volume. They retain their unlit
-color shading and do not receive shadows.
+color shading and do not receive sun shadow maps. Approximate neighboring canopy
+cover darkens lower foliage in dense stands while leaving exposed tops brighter;
+this is calculated once at load and preserves instancing. See
+[forest canopy shading](FORESTS.md) for the approximation and costs.
+`--no-tree-canopy-shading` disables this daytime effect for comparison.
 
 The title shows visible/total tree counts alongside the existing FPS, GPU time,
 and CPU render time. These render timings include tree culling/submission and
@@ -936,8 +940,10 @@ instances by asset and card. Their opaque texels write shadow depth and their
 transparent texels are discarded. Instance matrices and asset-node transforms
 compose identically in both passes, including reflection and shear. The color
 pass uploads its own instance population and retains its visibility statistics.
-Tree impostors stay unlit and do not receive shadows; other unlit materials also
-bypass sun/ambient shading. All visible materials receive haze and ground fog.
+Tree impostors stay unlit and do not receive sun shadow maps. Their separate
+static canopy-cover shading uses no shadow map and leaves flashlight illumination
+unchanged. Other unlit materials bypass sun/ambient shading. All visible
+materials receive haze and ground fog.
 The crossed photo cards produce approximate canopy shadows, rather than the
 silhouette of a full 3D tree. No extra shadow map or separate pass is added.
 
@@ -1266,6 +1272,7 @@ CMakeLists.txt              Viewer and unit-test build configuration
 src/main.cpp               Window, input callbacks, render loop, CLI
 src/renderer.{hpp,cpp}      OpenGL resources, shaders, drawing
 src/renderer_shadows.cpp   Sun caster pass and lighting uniforms
+src/tree_canopy.{hpp,cpp}  Static neighbor canopy cover and tree brightness
 src/tree_renderer.cpp      Shared impostor upload and instanced rendering
 src/forest_layer.{hpp,cpp}  Runtime forest config loading and layer assembly
 src/forest_geometry.{hpp,cpp} Polygon walls/canopies with concavities and holes

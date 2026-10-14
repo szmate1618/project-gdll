@@ -4,7 +4,9 @@ layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUV;
 layout(location = 3) in vec4 aColor;
 layout(location = 4) in mat4 aInstanceModel;
-layout(location = 8) in vec3 aAnimationInfo; // Phase, clip first frame, clip frame count.
+// Zombie VAOs: phase, clip first frame, clip frame count (xyz).
+// Tree VAOs: foot Y, inverse visible height, lower light, upper light.
+layout(location = 8) in vec4 aInstanceInfo;
 layout(location = 9) in float aAnimationFrame;
 layout(location = 10) in vec2 aSkinningAndStep; // Live skinning, stepped animation.
 layout(location = 11) in float aBoneBase;
@@ -21,6 +23,7 @@ uniform bool uInstanced;
 uniform bool uUnlit;
 uniform bool uShadowPass;
 uniform bool uAnimated;
+uniform bool uTreeCanopyShading;
 uniform samplerBuffer uAnimation;
 uniform float uAnimationFrame;
 uniform int uAnimationCount;
@@ -33,6 +36,8 @@ out vec3 vNormal;
 out vec2 vUV;
 out vec4 vColor;
 out vec3 vWorldPosition;
+out float vCanopyHeight;
+flat out vec2 vCanopyLight;
 
 void main() {
     vec3 position = aPosition;
@@ -56,10 +61,10 @@ void main() {
         position = skinnedPosition.xyz;
         if (!uShadowPass) normal = normalize(skinnedNormal);
     } else if (uAnimated) {
-        int count = aAnimationInfo.z > 0.0 ? int(aAnimationInfo.z) : uAnimationCount;
-        int offset = int(aAnimationInfo.y);
+        int count = aInstanceInfo.z > 0.0 ? int(aInstanceInfo.z) : uAnimationCount;
+        int offset = int(aInstanceInfo.y);
         float frame = aAnimationFrame >= 0.0 ? aAnimationFrame :
-            mod(uAnimationFrame + aAnimationInfo.x * float(count), float(count));
+            mod(uAnimationFrame + aInstanceInfo.x * float(count), float(count));
         int localFirst = int(floor(frame));
         int first = offset + localFirst;
         int second = offset + (localFirst + 1) % count;
@@ -77,6 +82,8 @@ void main() {
     vec4 worldPosition = model * vec4(position, 1.0);
     gl_Position = uProjection * uView * worldPosition;
     vWorldPosition = worldPosition.xyz;
+    vCanopyHeight = uTreeCanopyShading ? (worldPosition.y - aInstanceInfo.x) * aInstanceInfo.y : 0.0;
+    vCanopyLight = uTreeCanopyShading ? aInstanceInfo.zw : vec2(1.0);
     // Impostors are unlit. Keep the general instanced path correct for shear
     // and nonuniform scale without paying for inverses on these tree vertices.
     vNormal = uShadowPass ? vec3(0.0) : uInstanced ? (uUnlit ? normal : transpose(inverse(mat3(model))) * normal)

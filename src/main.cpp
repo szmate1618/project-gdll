@@ -44,6 +44,7 @@ struct Options {
     bool fps = false, collisionDebug = false, selfTestFPS = false;
     bool shadows = true;
     bool treeShadows = true;
+    bool treeCanopyShading = true;
     bool night = false;
     viewer::DayNightCycle dayNight;
     bool explicitDayNight = false;
@@ -117,6 +118,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--rain") options.rain = true;
         else if (argument == "--no-shadows") options.shadows = false;
         else if (argument == "--no-tree-shadows") options.treeShadows = false;
+        else if (argument == "--no-tree-canopy-shading") options.treeCanopyShading = false;
         else if (argument == "--no-haze") options.haze = false;
         else if (argument == "--no-ground-fog") options.groundFog = false;
         else if (argument == "--collision-debug") options.collisionDebug = true;
@@ -227,6 +229,7 @@ void printHelp() {
               << "  --rain              Enable nearby animated rain streaks\n"
               << "  --no-shadows        Disable sun and flashlight shadows for comparison\n"
               << "  --no-tree-shadows   Disable tree casting for both lights\n"
+              << "  --no-tree-canopy-shading Disable approximate daytime canopy shade\n"
               << "  --no-haze           Disable atmospheric distance haze for comparison\n"
               << "  --no-ground-fog     Disable the analytical ground mist layer\n"
               << "  --spawn X Z         Start walking near world X/Z in meters\n"
@@ -766,6 +769,7 @@ int run(const Options& options) {
     renderer.setShadows(options.shadows);
     renderer.setFlashlightShadows(options.flashlightShadows);
     renderer.setTreeShadows(options.treeShadows);
+    renderer.setTreeCanopyShading(options.treeCanopyShading);
     renderer.setNight(options.night);
     renderer.setRain(options.rain);
     renderer.setHaze(options.haze);
@@ -829,8 +833,8 @@ int run(const Options& options) {
         }
         doors.activateNear(app.rig.camera().position());
         if (zombies)
-            for (const auto& instance : zombies->instances)
-                if (instance.ragdoll) doors.activateNear(glm::vec3(instance.transform[3]));
+            for (const auto id : zombies->ragdollIds())
+                doors.activateNear(glm::vec3(zombies->instances[id].transform[3]));
         physics->step(dt);
         if (zombies) zombies->synchronizePhysics();
         moveCamera(app, dt);

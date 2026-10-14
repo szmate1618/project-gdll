@@ -58,6 +58,27 @@ alpha silhouettes. GLBs, placement fingerprints and source images are unchanged;
 `--no-forests` retains the original tree colors. Matching the average reduces
 the color jump at LoD switches; the geometry and silhouettes still switch.
 
+Individual trees also receive approximate daytime canopy shade. At renderer
+load, a temporary BVH finds neighboring crowns using visible width/depth rather
+than padded card bounds. Soft circular canopy proxies estimate obstructed sky
+at 20% and 95% of each tree's visible height, accounting for terrain elevation
+and taller neighbors. Each tree excludes itself. Nearby crowns darken lower
+foliage; isolated trees and exposed tops stay brighter, with a 30% minimum
+daytime brightness to retain texture detail. Proxy radii are capped at 20 m,
+with influence fading to zero at three radii. This is a static approximation,
+not directional sunlight visibility or a leaf-level shadow calculation.
+
+Four floats per instance record foot height, inverse visible height and the two
+brightness values. The shader blends smoothly by world height, fades this
+daytime effect out with the night blend, then adds the flashlight normally.
+Materials, matrices, masks and asset batching remain shared. There are no
+per-frame neighbor queries, extra textures, shadow maps or render passes;
+instance records grow from 64 to 80 bytes. Terrain keeps its existing tree
+shadows. Distant forest volumes retain their existing shading, so the LoD
+transition can still show a brightness difference. Use
+`--no-tree-canopy-shading` to compare individual trees with the effect disabled;
+`--no-shadows` and `--no-tree-shadows` control shadow maps independently.
+
 Normal view uses individual trees when the eye is within `detail_distance_m`
 of a patch's conservative bounds (350 m by default), and boxes beyond that.
 Both right-click scope modes force individual trees for visible patches at any

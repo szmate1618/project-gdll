@@ -8,6 +8,7 @@
 #include "zombie_hit.hpp"
 
 #include <memory>
+#include <unordered_map>
 
 namespace viewer {
 
@@ -75,7 +76,9 @@ struct ZombieLayer {
     const ZombieBehaviorStats& behaviorStats() const { return behaviorStats_; }
     // Rebuild after external edits to instance feet or replacing a population
     // with the same size, or edits to asset rigs/clips or instance normalization.
-    // Rebuilds prepared hit geometry too. Ordinary locomotion maintains both.
+    // Rebuilds prepared hit geometry and corpse membership too. Call after
+    // initial fixture/bulk edits to ragdoll/removed flags. Ordinary locomotion
+    // and the corpse owning APIs maintain these indices incrementally.
     void rebuildSpatialIndex();
     // Perception/state update, followed by terrain-following locomotion.
     // The app advances SimulationClock before calling this once per step.
@@ -95,10 +98,18 @@ struct ZombieLayer {
     void setRagdollPalette(std::size_t zombie, std::vector<glm::mat4> palette);
     void update(float seconds);
     [[nodiscard]] std::size_t ragdollCount() const;
+    // Dense, unordered list of stable instance IDs, including externally driven
+    // corpses. Borrowed view invalidated by corpse creation/removal or rebuild.
+    const std::vector<std::size_t>& ragdollIds() const { return ragdollIds_; }
 
 private:
     struct Physics;
     std::unique_ptr<Physics> physics_;
+    void registerRagdoll(std::size_t zombie);
+    void unregisterRagdoll(std::size_t zombie);
+    void rebuildRagdollIndex();
+    std::vector<std::size_t> ragdollIds_;
+    std::unordered_map<std::size_t, std::size_t> ragdollSlots_;
     void ensureSpatialIndex();
     void updateSpatialMembership(std::size_t id);
     std::size_t findShotTarget(glm::vec3 origin, glm::vec3 direction, double animationSeconds,

@@ -98,6 +98,33 @@ VisibilityStats VisibilityIndex::query(const glm::mat4& projectionView,
     return appendQuery(projectionView, visible);
 }
 
+void VisibilityIndex::visit(std::size_t index, const VisibilityBounds& region,
+                            std::vector<std::size_t>& visible, VisibilityStats& stats) const {
+    const auto overlaps = [&region](const VisibilityBounds& bounds) {
+        return glm::all(glm::lessThanEqual(bounds.minimum, region.maximum)) &&
+               glm::all(glm::greaterThanEqual(bounds.maximum, region.minimum));
+    };
+    const auto& node = nodes_[index];
+    ++stats.testedNodes;
+    if (!overlaps(node.bounds)) return;
+    if (node.left != 0) {
+        visit(node.left, region, visible, stats);
+        visit(node.right, region, visible, stats);
+    } else for (std::size_t offset = node.first; offset < node.first + node.count; ++offset) {
+        const auto instance = order_[offset];
+        ++stats.testedInstances;
+        if (overlaps(bounds_[instance])) visible.push_back(instance);
+    }
+}
+
+VisibilityStats VisibilityIndex::query(const VisibilityBounds& region,
+                                      std::vector<std::size_t>& visible) const {
+    visible.clear();
+    VisibilityStats stats;
+    if (!nodes_.empty()) visit(0, region, visible, stats);
+    return stats;
+}
+
 VisibilityStats VisibilityIndex::appendQuery(const glm::mat4& projectionView,
                                             std::vector<std::size_t>& visible) const {
     VisibilityStats stats;

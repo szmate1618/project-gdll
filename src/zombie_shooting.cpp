@@ -21,6 +21,7 @@ bool raySphere(glm::vec3 origin, glm::vec3 direction, glm::vec3 center, float ra
 }
 
 void ZombieLayer::rebuildSpatialIndex() {
+    rebuildRagdollIndex();
     spatialIndex_.reset(instances.size());
     hitGeometry_.clear();
     hitGeometry_.reserve(assets.size());

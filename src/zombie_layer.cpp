@@ -35,6 +35,42 @@ ZombieLayer::~ZombieLayer() = default;
 ZombieLayer::ZombieLayer(ZombieLayer&&) noexcept = default;
 ZombieLayer& ZombieLayer::operator=(ZombieLayer&&) noexcept = default;
 
+void ZombieLayer::registerRagdoll(std::size_t zombie) {
+    const auto inserted = ragdollSlots_.emplace(zombie, ragdollIds_.size());
+    if (!inserted.second) return;
+    try {
+        ragdollIds_.push_back(zombie);
+    } catch (...) {
+        ragdollSlots_.erase(inserted.first);
+        throw;
+    }
+}
+
+void ZombieLayer::unregisterRagdoll(std::size_t zombie) {
+    const auto found = ragdollSlots_.find(zombie);
+    if (found == ragdollSlots_.end()) return;
+    const auto slot = found->second;
+    const auto moved = ragdollIds_.back();
+    ragdollIds_[slot] = moved;
+    ragdollSlots_.at(moved) = slot;
+    ragdollIds_.pop_back();
+    ragdollSlots_.erase(found);
+}
+
+void ZombieLayer::rebuildRagdollIndex() {
+    // Bulk construction/replacement may edit public instance fields directly.
+    // Publish a complete replacement only after all allocations succeed.
+    std::vector<std::size_t> ids;
+    std::unordered_map<std::size_t, std::size_t> slots;
+    for (std::size_t id = 0; id < instances.size(); ++id) {
+        if (!instances[id].ragdoll || instances[id].removed) continue;
+        slots.emplace(id, ids.size());
+        ids.push_back(id);
+    }
+    ragdollIds_.swap(ids);
+    ragdollSlots_.swap(slots);
+}
+
 bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationSeconds) {
     shootingStats_ = {};
     if (!finite(origin) || !finite(direction)) return false;
@@ -55,6 +91,12 @@ bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationS
         instance.ragdollHandle = physics_->world.create(feet, yaw, direction * 4.0f, reference, current);
     else
         instance.ragdollHandle = physics_->world.create(feet, yaw, direction * 4.0f);
+    try {
+        registerRagdoll(selected);
+    } catch (...) {
+        physics_->world.destroy(instance.ragdollHandle);
+        throw;
+    }
     instance.ragdoll = true;
     instance.physicsRagdoll = true;
     spatialIndex_.erase(selected);
@@ -81,7 +123,8 @@ void ZombieLayer::update(float seconds) {
 
 void ZombieLayer::synchronizePhysics() {
     if (!physics_) return;
-    for (auto& instance : instances) {
+    for (const auto id : ragdollIds_) {
+        auto& instance = instances[id];
         if (instance.removed || !instance.ragdoll || !instance.physicsRagdoll) continue;
         const auto revision = physics_->world.poseRevision(instance.ragdollHandle);
         if (revision == instance.physicsPoseRevision) continue;
@@ -110,6 +153,7 @@ void ZombieLayer::removeRagdoll(std::size_t zombie) {
     auto& instance = instances.at(zombie);
     if (!instance.ragdoll || instance.removed) return;
     if (instance.physicsRagdoll && physics_) physics_->world.destroy(instance.ragdollHandle);
+    unregisterRagdoll(zombie);
     instance.removed = true;
     instance.ragdoll = instance.physicsRagdoll = instance.walking = false;
     instance.ragdollBones.clear();
@@ -127,6 +171,7 @@ void ZombieLayer::setRagdollPalette(std::size_t zombie, std::vector<glm::mat4> p
         for (int column = 0; column < 4; ++column)
             for (int row = 0; row < 4; ++row)
                 if (!std::isfinite(matrix[column][row])) throw std::invalid_argument("Palette must be finite");
+    registerRagdoll(zombie);
     instance.ragdollBones = std::move(palette);
     instance.ragdoll = true;
     instance.walking = false;
@@ -136,9 +181,7 @@ void ZombieLayer::setRagdollPalette(std::size_t zombie, std::vector<glm::mat4> p
 }
 
 std::size_t ZombieLayer::ragdollCount() const {
-    std::size_t result = 0;
-    for (const auto& instance : instances) result += instance.ragdoll && !instance.removed;
-    return result;
+    return ragdollIds_.size();
 }
 
 bool hasZombieModels(const std::filesystem::path& source) {

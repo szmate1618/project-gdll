@@ -22,6 +22,7 @@
 #include "atmosphere.hpp"
 #include "night_lighting.hpp"
 #include "day_night.hpp"
+#include "tree_canopy.hpp"
 
 namespace viewer {
 
@@ -65,6 +66,7 @@ public:
     void setShadows(bool enabled) { shadows_ = enabled; }
     void setFlashlightShadows(bool enabled) { flashlightShadows_ = enabled; }
     void setTreeShadows(bool enabled) { treeShadows_ = enabled; }
+    void setTreeCanopyShading(bool enabled) { treeCanopyShading_ = enabled; }
     void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
     void setNight(bool enabled) { night_ = enabled; dayNight_.reset(); }
     // Overrides the fixed lighting palette until the next setNight call.
@@ -109,13 +111,17 @@ private:
         std::vector<GLuint> textures;
         std::vector<Material> materials;
     };
+    struct TreeGPUInstance {
+        glm::mat4 transform;
+        TreeCanopyShade canopy;
+    };
     struct TreeBatch {
         ModelGPU model;
         std::vector<DrawGPU> draws;
         GLuint instanceBuffer = 0;
-        std::vector<glm::mat4> visibleTransforms;
+        std::vector<TreeGPUInstance> visibleInstances;
     };
-    struct InstanceGPU { std::size_t asset; glm::mat4 transform; };
+    struct InstanceGPU { std::size_t asset; TreeGPUInstance data; };
     struct ForestVolumeBatchGPU {
         std::vector<ForestVolumeRange> ranges;
         std::vector<GLsizei> counts;
@@ -195,6 +201,7 @@ private:
     GLint colorLocation_, textureLocation_, hasTextureLocation_, unlitLocation_;
     GLint alphaLocation_, cutoffLocation_, instancedLocation_;
     GLint minifiedCutoffLocation_;
+    GLint treeCanopyLocation_;
     GLint animatedLocation_, animationLocation_, animationFrameLocation_;
     GLint animationCountLocation_, animationVerticesLocation_;
     GLint skinningLocation_, skinningBonesLocation_, skinningBoneCountLocation_;
@@ -237,6 +244,7 @@ private:
     TreeRenderStats treeStats_;
     bool treeCulling_ = true;
     bool treeShadows_ = true;
+    bool treeCanopyShading_ = true;
     ModelGPU forestModel_;
     std::vector<ForestVolumeBatchGPU> forestBatches_;
     std::vector<ForestPatch> forestPatches_;

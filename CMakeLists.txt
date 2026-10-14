@@ -115,7 +115,7 @@ target_include_directories(viewer_fingerprints PUBLIC "${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(viewer_fingerprints PRIVATE OpenSSL::Crypto)
 viewer_warnings(viewer_fingerprints)
 
-add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp src/tree_color.cpp)
+add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp src/tree_color.cpp src/tree_canopy.cpp)
 target_link_libraries(viewer_trees PUBLIC viewer_model viewer_visibility viewer_fingerprints)
 target_include_directories(viewer_trees SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_trees)
@@ -263,6 +263,20 @@ if(BUILD_TESTING)
     target_link_libraries(test_tree_color PRIVATE viewer_trees)
     viewer_warnings(test_tree_color)
     add_test(NAME viewer_tree_color COMMAND test_tree_color)
+
+    add_executable(test_tree_canopy tests/test_tree_canopy.cpp)
+    target_link_libraries(test_tree_canopy PRIVATE viewer_trees)
+    viewer_warnings(test_tree_canopy)
+    add_test(NAME viewer_tree_canopy COMMAND test_tree_canopy)
+
+    add_executable(test_tree_canopy_renderer tests/test_tree_canopy_renderer.cpp)
+    target_link_libraries(test_tree_canopy_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_tree_canopy_renderer PRIVATE
+        GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_tree_canopy_renderer)
+    add_test(NAME viewer_tree_canopy_renderer COMMAND test_tree_canopy_renderer)
+    set_tests_properties(viewer_tree_canopy_renderer PROPERTIES SKIP_RETURN_CODE 77)
 
     add_executable(test_door_interaction tests/test_door_interaction.cpp)
     target_link_libraries(test_door_interaction PRIVATE viewer_interaction)

@@ -51,6 +51,7 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         cutoffLocation_ = glGetUniformLocation(program_, "uAlphaCutoff");
         minifiedCutoffLocation_ = glGetUniformLocation(program_, "uMinifiedAlphaCutoff");
         instancedLocation_ = glGetUniformLocation(program_, "uInstanced");
+        treeCanopyLocation_ = glGetUniformLocation(program_, "uTreeCanopyShading");
         animatedLocation_ = glGetUniformLocation(program_, "uAnimated");
         animationLocation_ = glGetUniformLocation(program_, "uAnimation");
         animationFrameLocation_ = glGetUniformLocation(program_, "uAnimationFrame");

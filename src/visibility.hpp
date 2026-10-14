@@ -41,6 +41,9 @@ public:
     explicit VisibilityIndex(const std::vector<VisibilityBounds>& bounds);
     VisibilityStats query(const glm::mat4& projectionView,
                           std::vector<std::size_t>& visible) const;
+    // Exact AABB overlap, including touching boundaries and point queries.
+    VisibilityStats query(const VisibilityBounds& region,
+                          std::vector<std::size_t>& visible) const;
     // Append without allocating a temporary result, for queries over disjoint
     // indexes. Appended indices still refer to this index's source bounds.
     VisibilityStats appendQuery(const glm::mat4& projectionView,
@@ -53,6 +56,8 @@ private:
     };
     std::size_t build(std::size_t first, std::size_t count);
     void visit(std::size_t index, const Frustum& frustum,
+               std::vector<std::size_t>& visible, VisibilityStats& stats) const;
+    void visit(std::size_t index, const VisibilityBounds& region,
                std::vector<std::size_t>& visible, VisibilityStats& stats) const;
     std::vector<VisibilityBounds> bounds_;
     std::vector<std::size_t> order_;

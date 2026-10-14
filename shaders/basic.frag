@@ -3,6 +3,8 @@ in vec3 vNormal;
 in vec2 vUV;
 in vec4 vColor;
 in vec3 vWorldPosition;
+in float vCanopyHeight;
+flat in vec2 vCanopyLight;
 
 uniform vec4 uBaseColor;
 uniform sampler2D uBaseTexture;
@@ -147,7 +149,10 @@ void main() {
     float sunFacing = max(dot(normal, uSunDirection), 0.0);
     vec3 ambient = mix(uGroundAmbient, uSkyAmbient, normal.y * 0.5 + 0.5);
     float distanceFromEye = length(vWorldPosition - uEye);
-    vec3 light = uUnlit ? uUnlitLight
+    float canopyLight = mix(vCanopyLight.x, vCanopyLight.y, smoothstep(0.20, 0.95, vCanopyHeight));
+    // Static canopy cover affects daylight only. Keep the night palette and
+    // add the flashlight afterwards so the beam can illuminate forest interiors.
+    vec3 light = uUnlit ? uUnlitLight * mix(canopyLight, 1.0, uNightBlend)
                         : ambient + uSunColor * sunFacing * sunlightVisibility(sunFacing, distanceFromEye);
     light += flashlight(normal);
     vec3 linearColor = max(color.rgb * light, vec3(0.0));
