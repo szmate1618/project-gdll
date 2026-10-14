@@ -22,10 +22,9 @@ bool PlayerInteraction::press(Hand hand, const Camera& camera, DoorLayer& doors,
     return objects_.press(hand, camera, boxes, world, seconds);
 }
 void PlayerInteraction::look(Camera& camera, float dx, float dy, double seconds) {
-    const bool holding = grabbing();
     objects_.moveMouse(dx, dy, seconds);
     if (doors_.grabbing()) doors_.look(camera, dx, dy);
-    else if (!holding) camera.look(dx, dy);
+    else camera.look(dx, dy);
 }
 void PlayerInteraction::update(const Camera& camera, float dt) {
     doors_.update(camera, dt);

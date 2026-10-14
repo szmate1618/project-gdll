@@ -23,10 +23,8 @@ bool DoorInteraction::press(const Camera& camera, DoorLayer& doors, const Collis
 }
 void DoorInteraction::look(Camera& camera, float dx, float dy) {
     if (!std::isfinite(dx) || !std::isfinite(dy)) return;
-    if (!grab_) {
-        camera.look(dx, dy);
-        return;
-    }
+    camera.look(dx, dy);
+    if (!grab_) return;
     constexpr float metersPerPixel = .004f;
     grab_->drag += glm::vec2(dx, dy) * metersPerPixel;
     // Keep sustained dragging into a hinge stop bounded and easy to reverse.

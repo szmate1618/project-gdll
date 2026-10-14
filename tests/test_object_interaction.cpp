@@ -116,19 +116,24 @@ void independentHandsAndLook() {
     require(interaction.press(Hand::Left, f.camera, doors, f.boxes, f.world, 1), "Left hand must grab a prop");
     f.camera.setPosition({1, 1, 1.2f});
     require(interaction.press(Hand::Right, f.camera, doors, f.boxes, f.world, 1), "Right hand must grab a second prop without dropping the first");
-    const auto yaw = f.camera.yawDegrees(), pitch = f.camera.pitchDegrees();
+    auto expectedCamera = f.camera;
+    expectedCamera.look(100, 100);
     interaction.look(f.camera, 100, 100, 1.01);
-    require(f.camera.yawDegrees() == yaw && f.camera.pitchDegrees() == pitch, "Either held hand must freeze camera look");
+    require(f.camera.yawDegrees() == expectedCamera.yawDegrees() && f.camera.pitchDegrees() == expectedCamera.pitchDegrees(),
+            "Holding both hands must preserve ordinary mouse look exactly once");
     require(interaction.heldBox(Hand::Left) == 0 && interaction.heldBox(Hand::Right) == 1, "Hands must retain separate box identities");
     interaction.release(Hand::Left, 1.02);
     require(!interaction.heldBox(Hand::Left) && interaction.heldBox(Hand::Right) == 1 && f.boxes.velocity(0).x > 0 && glm::length(f.boxes.velocity(1)) < .001f,
             "Releasing one hand must throw only its object and leave the other grip unchanged");
+    expectedCamera.look(50, 50);
     interaction.look(f.camera, 50, 50, 1.03);
-    require(f.camera.yawDegrees() == yaw && f.camera.pitchDegrees() == pitch, "Right hand alone must keep the camera fixed");
+    require(f.camera.yawDegrees() == expectedCamera.yawDegrees() && f.camera.pitchDegrees() == expectedCamera.pitchDegrees(),
+            "Right hand alone must preserve ordinary camera look");
     interaction.cancel();
     require(!interaction.grabbing(), "Cancellation must drop both hands");
+    expectedCamera.look(50, 0);
     interaction.look(f.camera, 50, 0, 1.05);
-    require(f.camera.yawDegrees() != yaw, "Normal camera look must resume after the last grip ends");
+    require(f.camera.yawDegrees() == expectedCamera.yawDegrees(), "Mouse look must continue after the last grip ends");
 
     Fixture shared;
     shared.boxes.add({0, 1, 0}, glm::vec3(.4f)); shared.camera = cameraAt({0, 1, 0});
@@ -225,7 +230,11 @@ void routingAndCancellation() {
         viewer::PlayerInteraction input; input.toggleMode(); f.camera = cameraAt({0, 1, 0}, 1.3f);
         require(input.press(Hand::Left, f.camera, doors, f.boxes, world, 0), "Nearest reachable target must be grabbed");
         require(boxInFront ? input.heldBox(Hand::Left).has_value() : input.grabbedDoor().has_value(), "Left hand must select the nearer door or prop");
+        auto expectedCamera = f.camera;
+        expectedCamera.look(100, 100);
         input.look(f.camera, 100, 100, .01);
+        require(f.camera.yawDegrees() == expectedCamera.yawDegrees() && f.camera.pitchDegrees() == expectedCamera.pitchDegrees(),
+                "Left-hand door or box grabs must preserve mouse look without applying it twice");
         const auto before = f.boxes.velocity(0);
         input.toggleMode();
         require(input.mode() == viewer::ControlMode::Combat && !input.grabbing() && glm::distance(before, f.boxes.velocity(0)) < .001f,

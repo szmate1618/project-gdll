@@ -19,7 +19,7 @@ public:
     bool press(const Camera& camera, DoorLayer& doors, const CollisionWorld& world);
     void release() { grab_.reset(); }
     // Pixels, positive dy upwards: drag right/left or push forward/pull back.
-    // Outside a successful grab this routes to ordinary camera look.
+    // Camera look remains active during grabs; motion also moves the grip.
     void look(Camera& camera, float dx, float dy);
     // Call after player movement. Integrates a bounded horizontal spring force
     // as a dt-scaled impulse, including displacement from walking/strafe.

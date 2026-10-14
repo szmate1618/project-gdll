@@ -101,7 +101,7 @@ void modesAndLook() {
     yaw = f.camera.yawDegrees();
     const auto pitch = f.camera.pitchDegrees();
     f.input.look(f.camera, 50, -80);
-    require(f.camera.yawDegrees() == yaw && f.camera.pitchDegrees() == pitch, "Dragging must freeze camera orientation");
+    require(f.camera.yawDegrees() != yaw && f.camera.pitchDegrees() != pitch, "Dragging a door must preserve camera look");
     f.input.release();
     f.input.look(f.camera, 10, 5);
     require(f.camera.yawDegrees() != yaw && f.camera.pitchDegrees() != pitch, "Release must immediately restore mouse look");

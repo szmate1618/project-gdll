@@ -695,8 +695,8 @@ the left mouse button. Walls and solid trunks block the grab. The selected
 point stays attached to the door as it swings. Dragging right/left moves a
 horizontal grip target sideways; dragging up pushes it forward along the
 camera's horizontal heading, and dragging down pulls it back. Moving with WASD
-also moves the grip target and tugs the door. Mouse motion keeps the camera's
-orientation fixed during a successful grab.
+also moves the grip target and tugs the door. Mouse look remains active while
+grabbing, so mouse motion rotates the camera and moves the grip together.
 A click that misses all reachable objects keeps normal mouse look. Interaction
 clicks never shoot. Changing control/camera mode, releasing the cursor, or
 losing window focus ends the grab.
@@ -722,8 +722,8 @@ either mouse button: left and right buttons control independent hands. The left
 button selects the nearer door or box; walls, trunks, doors and other boxes
 block grabs behind them. Mouse right/left moves the picked point sideways,
 up/down moves it vertically, and WASD moves the grip with the player. Camera
-look stays fixed while either hand holds anything, then resumes after the last
-grip ends. If both hands hold different objects, mouse movement moves both.
+look remains active while either hand holds anything. If both hands hold
+different objects, mouse movement moves both and rotates the camera once.
 Both hands can also share an object; releasing one leaves the other attached.
 
 Grips apply bounded forces to the live body instead of teleporting it. Each hand
