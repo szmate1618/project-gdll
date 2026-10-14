@@ -6,6 +6,7 @@
 #include "zombie_spatial_index.hpp"
 #include "zombie_ragdoll.hpp"
 #include "zombie_hit.hpp"
+#include "zombie_render_updates.hpp"
 
 #include <memory>
 #include <unordered_map>
@@ -101,10 +102,16 @@ struct ZombieLayer {
     // Dense, unordered list of stable instance IDs, including externally driven
     // corpses. Borrowed view invalidated by corpse creation/removal or rebuild.
     const std::vector<std::size_t>& ragdollIds() const { return ragdollIds_; }
+    // Owning APIs notify automatically. After direct instance edits, notify the
+    // ID (default also refreshes bounds), or invalidate after bulk replacement.
+    void markRenderChanged(std::size_t id, bool bounds = true);
+    void invalidateRenderData() { renderUpdates_.invalidate(); }
+    const ZombieRenderUpdates& renderUpdates() const { return renderUpdates_; }
 
 private:
     struct Physics;
     std::unique_ptr<Physics> physics_;
+    ZombieRenderUpdates renderUpdates_;
     void registerRagdoll(std::size_t zombie);
     void unregisterRagdoll(std::size_t zombie);
     void rebuildRagdollIndex();

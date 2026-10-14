@@ -317,10 +317,16 @@ void layerOwnsPoseInvalidation() {
     require(layer.ragdollIds() == std::vector<std::size_t>{0} && layer.ragdollCount() == 1,
             "Shooting must publish the corpse ID immediately");
     const auto initial = layer.instances[0].ragdollPoseVersion;
+    auto renderRevision = layer.renderUpdates().since(0).revision;
+    layer.renderUpdates().acknowledge(renderRevision);
     layer.synchronizePhysics();
     require(layer.instances[0].ragdollPoseVersion == initial, "Unchanged physics must skip palette reconstruction");
+    require(!layer.renderUpdates().since(renderRevision).ids, "Unchanged physics must not dirty renderer data");
     layer.update(1.0f / 60);
     require(layer.instances[0].ragdollPoseVersion > initial, "Moving physics must publish a new palette version");
+    auto changes = layer.renderUpdates().since(renderRevision);
+    require(changes.ids && *changes.ids == std::vector<std::size_t>{0} && layer.renderUpdates().boundsChanged(0),
+            "Physics motion must publish exactly the changed corpse's render bounds");
     const auto before = layer.instances[0].transform;
     const auto revision = layer.instances[0].ragdollPoseVersion;
     layer.translateRagdoll(0, {7, 3, -2});
@@ -338,6 +344,28 @@ void layerOwnsPoseInvalidation() {
     layer.rebuildSpatialIndex();
     require(layer.instances[0].removed && layer.ragdollCount() == 0, "Owner removal must leave a stable tombstone");
     require(!layer.shoot({7, 3.9f, 1}, {0, 0, -1}), "Removed corpses must not become living targets again");
+}
+
+void renderChangesFollowBehavior() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(humanoid());
+    layer.instances.emplace_back();
+    layer.rebuildSpatialIndex();
+    auto revision = layer.renderUpdates().since(0).revision;
+    layer.renderUpdates().acknowledge(revision);
+    viewer::CollisionWorld world(viewer::Model{});
+    layer.chase(.1f, {0, 0, 10}, world);
+    auto changes = layer.renderUpdates().since(revision);
+    require(changes.ids && *changes.ids == std::vector<std::size_t>{0} && layer.renderUpdates().boundsChanged(0),
+            "Locomotion must notify the renderer automatically");
+    layer.chase(5, {0, 0, 10}, world);
+    changes = layer.renderUpdates().since(revision);
+    revision = changes.revision;
+    layer.renderUpdates().acknowledge(revision);
+    require(!layer.instances[0].walking, "Fixture must reach attack range and stop");
+    layer.chase(.1f, {0, 0, 10}, world);
+    require(!layer.renderUpdates().since(revision).ids,
+            "A stationary active zombie must not dirty renderer data every behavior step");
 }
 
 void corpseMembership() {
@@ -411,6 +439,7 @@ int main() {
         unknownRigFollowsFallbackMotion();
         shotWhileWalking();
         layerOwnsPoseInvalidation();
+        renderChangesFollowBehavior();
         corpseMembership();
         headshotFollowsDisplayedPose(false);
         headshotFollowsDisplayedPose(true);

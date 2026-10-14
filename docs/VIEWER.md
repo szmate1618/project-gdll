@@ -381,7 +381,7 @@ center of its full world-space rendering bounds. Each group's bounding box
 encloses all members' complete boxes, including animation, fallen ragdolls,
 and geometry extending beyond the cell. A group outside the frustum skips all
 members; a group wholly inside accepts all members; only boundary groups need
-individual tests. Camera and sun-light classification are independent, retaining
+individual tests. Camera, sunlight, and flashlight classification are independent, retaining
 offscreen shadow casters. Results retain original instance-ID order before asset
 batching, so draw ordering and palette assignment remain stable.
 
@@ -391,9 +391,33 @@ the next camera/shadow query, dirty groups rebuild their aggregate boxes once,
 including shrinking after removal or a pose change. Empty group slots are reused
 without retaining historical cells in the query. Animation time alone does not
 dirty living bounds, which already cover every baked clip sample; unchanged
-settled corpses also retain their groups. The existing population update still
-visits every instance; this optimization reduces frustum tests, not that scan or
-the geometry drawn for visible zombies.
+settled corpses also retain their groups. Camera movement still queries the
+groups every frame, independently of instance preparation.
+
+Instance preparation is incremental. `ZombieLayer` publishes deduplicated changed
+IDs, and `Renderer::updateZombies()` refreshes only those entries after the initial
+full upload. Locomotion, turns, animation-state/time changes, shooting, physics
+pose changes, external palettes, and corpse removal notify automatically.
+Transform or pose changes update world bounds; animation-only changes refresh
+instance data without recalculating bounds. Idle playback still advances from
+render time, and each frame still selects camera/shadow instances, LODs, and
+uploads the same compact instance buffers. This reduces CPU preparation work;
+it does not reduce the geometry or shader work on the GPU.
+
+Direct edits to public instance fields require `markRenderChanged(id)` before
+the next renderer update. Its default also refreshes bounds; use
+`markRenderChanged(id, false)` only for animation state, phase, or clip time.
+After bulk replacement use `invalidateRenderData()`, or `rebuildSpatialIndex()`
+when gameplay indices also need rebuilding. Population and asset topology stay
+fixed after renderer creation. A full refresh also resets retained palette slots,
+so an explicitly replaced pose cannot inherit stale GPU data.
+
+Each renderer retains its own publication cursor. Changes are retired only after
+successful preparation; a consumer that missed a retired batch performs a full
+refresh. Replacing a layer at the same address also invalidates cached data.
+All operations run synchronously on the existing thread. `--profile` reports
+the last update's instance and bounds counts, including full versus incremental
+refreshes, through `Renderer::zombieUpdateStats()`.
 
 The group index borrows the existing per-instance bound boxes; their vectors
 and asset/population topology must remain fixed after upload. Changed boxes must
@@ -1326,6 +1350,7 @@ src/zombie_ragdoll.{hpp,cpp} Box3D ragdoll simulation and simplified ground plan
 src/zombie_ragdoll_pose.{hpp,cpp} Animated-pose handoff and physics-to-skin mapping
 src/zombie_palette_cache.{hpp,cpp} Persistent GPU palettes and coalesced dirty uploads
 src/zombie_visibility.{hpp,cpp} Dynamic group bounds and camera/shadow culling
+src/zombie_render_updates.{hpp,cpp} Deduplicated instance changes and render publication cursors
 src/zombie_renderer.cpp    Shared animation buffers, skinning data, and GPU instancing
 src/camera.{hpp,cpp}        Perspective free-fly camera
 src/camera_rig.{hpp,cpp}    Runtime camera mode switching

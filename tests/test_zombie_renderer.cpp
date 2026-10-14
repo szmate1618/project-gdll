@@ -163,6 +163,7 @@ void renderCrowd(std::size_t primitiveCount, const std::filesystem::path& screen
                 instance.walking = !instance.ragdoll;
                 instance.running = (index / 3) % 3 == 2;
                 instance.phase = 0;
+                layer.markRenderChanged(index);
                 instance.walkSeconds = instance.running ? (pose == 0 ? 1.75 : 0.5) : (pose == 0 ? 1.375 : 0.625);
                 instance.transform = glm::translate(glm::mat4(1), instancePosition(index) +
                     glm::vec3(0.08f * static_cast<float>(pose), 0, 0));
@@ -248,6 +249,7 @@ void renderFrustumCulling() {
             throw std::runtime_error("Frustum culling changed visible animation or skinning");
     }
     layer.instances[2].transform = glm::translate(glm::mat4(1), {4, 0, 0});
+    layer.markRenderChanged(2);
     renderer.updateZombies(layer);
     renderer.render(camera, 0.25);
     if (renderer.zombieVisibleCount() != 7)
@@ -334,19 +336,26 @@ void renderGroupMovementAndPoseChanges() {
     renderer.setShadows(false);
     renderer.resize(width, height);
     renderer.render(camera, 0.25);
+    if (!renderer.zombieUpdateStats().full || renderer.zombieUpdateStats().instances != 40)
+        throw std::runtime_error("Initial upload must initialize the entire population once");
     auto stats = renderer.zombieVisibilityStats();
     if (stats.groups != 1 || stats.cameraGroupTests != 1 || stats.cameraInstanceTests != 0 ||
         renderer.zombieVisibleCount() != 0)
         throw std::runtime_error("Offscreen groups must reject all asset variants with one group test");
     layer.instances[1].transform = glm::translate(glm::mat4(1), {1, 0, 0});
+    layer.markRenderChanged(1);
     layer.instances[2].transform = glm::translate(glm::mat4(1), {2, 0, 0});
+    layer.markRenderChanged(2);
     renderer.updateZombies(layer);
+    if (renderer.zombieUpdateStats().instances != 2 || renderer.zombieUpdateStats().bounds != 2 || renderer.zombieUpdateStats().full)
+        throw std::runtime_error("Moving two instances must prepare only those IDs and bounds");
     renderer.render(camera, 0.25);
     stats = renderer.zombieVisibilityStats();
     if (stats.groups != 2 || stats.refittedGroups != 2 || stats.cameraInstanceTests != 0 ||
         renderer.zombieVisibleCount() != 2)
         throw std::runtime_error("Cell crossings must refit both groups and accept fully visible groups without member tests");
     layer.instances[3].transform = glm::translate(glm::mat4(1), {12, 0, 0});
+    layer.markRenderChanged(3);
     renderer.updateZombies(layer);
     renderer.render(camera, 0.25);
     if (renderer.zombieVisibleCount() != 2 || renderer.zombieVisibilityStats().cameraInstanceTests != 3)
@@ -366,6 +375,8 @@ void renderGroupMovementAndPoseChanges() {
     renderer.render(camera, 0.25);
     if (renderer.zombieVisibilityStats().refittedGroups != 0 || renderer.zombiePaletteStats().uploaded != 0)
         throw std::runtime_error("Unchanged settled poses must retain group bounds and GPU palettes");
+    if (renderer.zombieUpdateStats().instances != 0 || renderer.zombieUpdateStats().bounds != 0)
+        throw std::runtime_error("Unchanged instances must skip render preparation entirely");
     // An externally driven pose change exercises the same revision publication
     // used by physics wake-up, expanding the bounds and moving their center.
     layer.setRagdollPalette(3, std::vector<glm::mat4>(2, glm::translate(glm::mat4(1), {50, 0, 0})));
@@ -374,13 +385,79 @@ void renderGroupMovementAndPoseChanges() {
     if (renderer.zombieVisibleCount() != 2)
         throw std::runtime_error("Changed corpse pose must update membership and stop drawing its old geometry");
     layer.removeRagdoll(3);
-    for (const std::size_t id : {1u, 2u}) layer.instances[id].transform = glm::translate(glm::mat4(1), {102, 0, 0});
+    for (const std::size_t id : {1u, 2u}) {
+        layer.instances[id].transform = glm::translate(glm::mat4(1), {102, 0, 0});
+        layer.markRenderChanged(id);
+    }
     renderer.updateZombies(layer);
     renderer.render(camera, 0.25);
     if (renderer.zombieVisibleCount() != 0 || renderer.zombieCount() != 39 ||
         renderer.zombieVisibilityStats().groups != 1 || renderer.zombieVisibilityStats().cameraInstanceTests != 0)
         throw std::runtime_error("Removal and movement must release empty groups and repair swapped membership");
     viewer::Renderer::checkErrors("grouped zombie rendering regression");
+}
+
+void renderIncrementalAndFullRefresh() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(makeAsset(1, 2));
+    layer.instances.resize(2);
+    layer.instances[1].transform = glm::translate(glm::mat4(1), {2, 0, 0});
+    viewer::Camera camera;
+    camera.setPosition({0, .8f, 10});
+    camera.look(0, 200);
+    viewer::Renderer first(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    viewer::Renderer second(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    for (auto* renderer : {&first, &second}) {
+        renderer->resize(width, height);
+        renderer->setHaze(false);
+        renderer->setGroundFog(false);
+        renderer->setShadows(false);
+    }
+    first.updateZombies(layer);
+    first.render(camera, 0);
+    const auto idle = colorPixels();
+    first.render(camera, .5);
+    if (colorPixels() == idle || first.zombieUpdateStats().instances != 0)
+        throw std::runtime_error("Idle animation must advance with zero instance preparation");
+    layer.instances[0].walking = true;
+    layer.instances[0].walkSeconds = .625;
+    layer.markRenderChanged(0, false);
+    first.updateZombies(layer);
+    if (first.zombieUpdateStats().instances != 1 || first.zombieUpdateStats().bounds != 0)
+        throw std::runtime_error("Animation state must update staging without recomputing conservative bounds");
+    first.render(camera, .25);
+    const auto incremental = colorPixels();
+    second.updateZombies(layer);
+    if (!second.zombieUpdateStats().full) throw std::runtime_error("A consumer that missed changes must refresh");
+    second.render(camera, .25);
+    if (colorPixels() != incremental) throw std::runtime_error("Incremental and full preparation must produce identical poses");
+    first.updateZombies(layer);
+    if (first.zombieUpdateStats().instances != 0) throw std::runtime_error("Other consumers must not create false updates");
+    layer.instances[0].phase = .4f;
+    layer.instances[0].running = true;
+    layer.instances[0].walkSeconds = 1.75;
+    layer.instances[0].transform = glm::translate(glm::mat4(1), {-2, 0, 0});
+    layer.markRenderChanged(0);
+    first.updateZombies(layer);
+    first.render(camera, .25);
+    const auto moved = colorPixels();
+    layer.invalidateRenderData();
+    first.updateZombies(layer);
+    first.render(camera, .25);
+    if (colorPixels() != moved || first.zombieUpdateStats().instances != 2)
+        throw std::runtime_error("Bulk invalidation must match incremental transform and clip changes");
+    // Replace the borrowed layer at the same address, preserving GPU topology.
+    viewer::ZombieLayer replacement;
+    replacement.assets.push_back(makeAsset(1, 2));
+    replacement.instances.resize(2);
+    replacement.instances[0].transform = glm::translate(glm::mat4(1), {100, 0, 0});
+    replacement.instances[1].transform = glm::translate(glm::mat4(1), {-1, 0, 0});
+    layer = std::move(replacement);
+    first.updateZombies(layer);
+    first.render(camera, .25);
+    if (!first.zombieUpdateStats().full || first.zombieVisibleCount() != 1)
+        throw std::runtime_error("Layer replacement must discard cached placements at the same address");
+    viewer::Renderer::checkErrors("incremental zombie render updates");
 }
 
 void paletteGrowthAndReuse() {
@@ -548,6 +625,7 @@ void renderDistanceLods() {
     corpse.ragdoll = true;
     corpse.ragdollBones.assign(2, glm::scale(glm::mat4(1), glm::vec3(.01f)));
     corpse.ragdollPoseVersion = 1;
+    layer.markRenderChanged(0);
     renderer.setShadows(true); renderer.setZombieDrawDistance(1);
     renderAt(20);
     if (renderer.zombieVisibleCount() != 0 || renderer.zombieRenderStats().shadowLevels[3] != 1 ||
@@ -687,6 +765,7 @@ int main(int argc, char** argv) {
         renderFrustumCulling();
         paletteVisibilityAndDeferredChanges();
         renderGroupMovementAndPoseChanges();
+        renderIncrementalAndFullRefresh();
         paletteGrowthAndReuse();
         if (mode == "--assets") {
             if (argc < 3) throw std::runtime_error("--assets requires a model directory");

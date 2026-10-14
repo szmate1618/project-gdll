@@ -196,6 +196,7 @@ void ZombieLayer::makeNoise(glm::vec3 position, float decibels) {
         if (!std::isfinite(distance) || distance < 1e-4f) continue; // No usable horizontal direction.
         behavior->lookDirection = offset / distance;
         changeState(*behavior, ZombieState::looking, now);
+        if (instance.walking) markRenderChanged(id, false);
         instance.walking = false;
     }
 }
@@ -228,19 +229,28 @@ void ZombieLayer::updateBehavior(float seconds, const ZombiePlayer& player,
     while (index < behaviors.entries().size()) {
         const auto id = behaviors.entries()[index].zombie;
         auto& behavior = *behaviors.find(id);
+        const bool wasWalking = id < instances.size() && instances[id].walking;
         if (id < instances.size()) instances[id].walking = false;
         if (id >= instances.size() || instances[id].removed || instances[id].ragdoll || instances[id].asset >= assets.size() ||
             (behavior.state == ZombieState::idle && now - behavior.idleSinceSeconds >= idleLifetime)) {
+            if (wasWalking) markRenderChanged(id, false);
             behaviors.remove(id);
             continue; // Process the member moved into this slot.
         }
         auto& instance = instances[id];
         if (distantIdle(behavior, instance, player)) {
+            if (wasWalking) markRenderChanged(id, false);
             behaviors.remove(id);
             continue;
         }
+        const auto beforeTransform = instance.transform;
+        const auto beforeSeconds = instance.walkSeconds;
+        const bool wasRunning = instance.running;
         stepBehavior(behavior, instance, assets[instance.asset], player, world,
                      seconds, now, animationSeconds, staggerPerception_, behaviorStats_);
+        const bool moved = beforeTransform != instance.transform;
+        if (moved || wasWalking != instance.walking || wasRunning != instance.running || beforeSeconds != instance.walkSeconds)
+            markRenderChanged(id, moved);
         updateSpatialMembership(id);
         // Arrival or a completed looking turn can become idle in this step.
         // Keep the living zombie indexed for later activation and shooting.

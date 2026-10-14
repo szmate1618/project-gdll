@@ -39,6 +39,11 @@ struct ZombieRenderStats {
     std::size_t cameraTriangles = 0, shadowTriangles = 0, flashlightTriangles = 0, distanceCulled = 0;
 };
 
+struct ZombieUpdateStats {
+    std::size_t instances = 0, bounds = 0;
+    bool full = false;
+};
+
 struct SceneRenderStats {
     std::size_t total = 0, visible = 0, drawCalls = 0;
 };
@@ -57,6 +62,7 @@ public:
     void render(const Camera& camera, double animationSeconds = 0.0);
     // Fixed asset/population topology. Borrows this layer through render(); call
     // after owning API/physics changes and keep the layer alive during rendering.
+    // Direct edits require ZombieLayer::markRenderChanged()/invalidateRenderData().
     void updateZombies(const ZombieLayer& zombies);
     void updateDoors(const DoorLayer& doors);
     void present(int width, int height);
@@ -87,6 +93,7 @@ public:
     std::size_t zombieVisibleCount() const { return zombieVisibleCount_; }
     std::size_t zombieDrawCalls() const { return zombieDrawCalls_; }
     const ZombieRenderStats& zombieRenderStats() const { return zombieRenderStats_; }
+    const ZombieUpdateStats& zombieUpdateStats() const { return zombieUpdateStats_; }
     const ZombiePaletteStats& zombiePaletteStats() const { return zombiePaletteStats_; }
     const ZombieVisibilityStats& zombieVisibilityStats() const { return zombieVisibilityStats_; }
     static void checkErrors(const char* stage);
@@ -162,6 +169,7 @@ private:
         std::vector<VisibilityBounds> poseBounds;
         std::vector<std::uint64_t> poseVersions;
         std::vector<bool> livePoses;
+        std::vector<bool> removedPoses;
     };
     void release() noexcept;
     static void releaseModel(ModelGPU& model) noexcept;
@@ -176,6 +184,7 @@ private:
     void prepareForestView(const Camera& camera);
     void drawForests(const glm::mat4& projectionView, bool shadowPass = false);
     void uploadZombies(const ZombieLayer& zombies);
+    void updateZombieInstance(std::size_t id, bool bounds, bool full);
     void uploadZombieGeometry(const AnimatedModel& source, ZombieGeometry& geometry, std::size_t capacity, GLint maximumTexels);
     void prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* lightFrustum,
                             const Camera& camera, const glm::mat4& projection, double seconds, const Frustum* flashlightFrustum);
@@ -257,10 +266,13 @@ private:
     // Shared groups across assets; bounds storage in batches stays fixed-size.
     ZombieVisibility zombieVisibility_;
     std::vector<std::size_t> zombieBatchLocals_;
+    std::vector<std::size_t> zombieBatchAssets_;
     std::vector<ZombieVisibilityResult> visibleZombies_;
     ZombieVisibilityStats zombieVisibilityStats_;
     // Borrowed until the next update; the fixed population must outlive render().
     const ZombieLayer* zombieSource_ = nullptr;
+    std::uint64_t zombieUpdateRevision_ = 0;
+    ZombieUpdateStats zombieUpdateStats_;
     ZombiePaletteStats zombiePaletteStats_;
     std::vector<std::size_t> displayedZombieSources_;
     ZombieRenderStats zombieRenderStats_;

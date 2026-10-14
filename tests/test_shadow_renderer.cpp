@@ -299,14 +299,17 @@ void checkAnimatedCaster() {
     const float idleLit = brightness(camera, {0, 0, 0});
     require(idleLit - idleShadow > 50, "Baked animation must move its cast shadow with the visible pose");
     layer.instances[0].walking = true;
+    layer.markRenderChanged(0, false);
     renderer.updateZombies(layer);
     renderer.render(camera, 0.5);
     require(std::abs(brightness(camera, {0, 0, 0}) - idleShadow) < 3, "Walk shadow must use the selected clip and local clock");
     layer.instances[0].walkSeconds = 0.5;
+    layer.markRenderChanged(0, false);
     renderer.updateZombies(layer);
     renderer.render(camera, 0);
     require(std::abs(brightness(camera, {0, 0, 0}) - idleLit) < 3, "Authored walking must move its shadow independently of idle time");
     layer.instances[0].running = true;
+    layer.markRenderChanged(0, false);
     renderer.updateZombies(layer);
     renderer.render(camera, 0.5);
     require(std::abs(brightness(camera, {0, 0, 0}) - idleShadow) < 3, "Run shadow must use its own frame range");

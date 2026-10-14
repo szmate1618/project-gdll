@@ -76,13 +76,17 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
     zombieBatches_.resize(zombies.assets.size());
     zombieVisibility_.reset(zombies.instances.size());
     zombieBatchLocals_.resize(zombies.instances.size());
+    zombieBatchAssets_.resize(zombies.instances.size());
+    zombieCount_ = zombies.instances.size();
     visibleZombies_.reserve(zombies.instances.size());
     for (std::size_t i = 0; i < zombies.assets.size(); ++i) {
         const auto& source = zombies.assets[i];
         auto& batch = zombieBatches_[i];
         batch.sourceIndices = std::move(sourceIndices[i]);
-        for (std::size_t local = 0; local < batch.sourceIndices.size(); ++local)
+        for (std::size_t local = 0; local < batch.sourceIndices.size(); ++local) {
             zombieBatchLocals_[batch.sourceIndices[local]] = local;
+            zombieBatchAssets_[batch.sourceIndices[local]] = i;
+        }
         batch.staging = instances[i];
         if (source.frameCount < 2 || source.frameCount > static_cast<std::size_t>(std::numeric_limits<GLint>::max()) ||
             !std::isfinite(source.duration) || source.duration <= 0 ||
@@ -116,6 +120,7 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
         batch.poseBounds.assign(batch.staging.size(), batch.animationBounds);
         batch.poseVersions.resize(batch.staging.size());
         batch.livePoses.resize(batch.staging.size());
+        batch.removedPoses.resize(batch.staging.size());
         batch.palettes = std::make_unique<ZombiePaletteCache>(batch.staging.size(), source.skeleton.size(),
                                                               static_cast<std::size_t>(maximumTexels));
         uploadZombieGeometry(source, batch, batch.staging.size(), maximumTexels);
@@ -235,52 +240,69 @@ void Renderer::uploadZombieGeometry(const AnimatedModel& source, ZombieGeometry&
 void Renderer::updateZombies(const ZombieLayer& zombies) {
     if (zombieBatches_.size() != zombies.assets.size())
         throw std::runtime_error("Zombie layer changed after renderer upload");
-    std::size_t population = 0;
-    for (const auto& batch : zombieBatches_) population += batch.sourceIndices.size();
-    if (population != zombies.instances.size())
+    if (zombieBatchLocals_.size() != zombies.instances.size())
         throw std::runtime_error("Zombie population changed after renderer upload");
-    zombieSource_ = &zombies;
-    zombieCount_ = 0;
-    for (std::size_t i = 0; i < zombieBatches_.size(); ++i) {
-        auto& batch = zombieBatches_[i];
-        if (zombies.assets[i].skeleton.size() != static_cast<std::size_t>(batch.skinningBoneCount))
+    for (std::size_t asset = 0; asset < zombieBatches_.size(); ++asset)
+        if (zombies.assets[asset].skeleton.size() != static_cast<std::size_t>(zombieBatches_[asset].skinningBoneCount))
             throw std::runtime_error("Zombie skeleton changed after renderer upload");
-        for (std::size_t local = 0; local < batch.sourceIndices.size(); ++local) {
-            const auto sourceIndex = batch.sourceIndices[local];
-            if (sourceIndex >= zombies.instances.size()) throw std::runtime_error("Invalid zombie source index");
-            const auto& source = zombies.instances[sourceIndex];
-            if (source.asset != i) throw std::runtime_error("Zombie asset changed after renderer upload");
-            zombieCount_ += !source.removed;
-            if (source.removed) {
-                zombieVisibility_.erase(sourceIndex);
-                batch.palettes->release(local);
-                continue;
-            }
-            const bool live = source.ragdoll;
-            if (!live) batch.palettes->release(local);
-            if (live && source.ragdollBones.size() != static_cast<std::size_t>(batch.skinningBoneCount))
-                throw std::runtime_error("Live skeleton data does not match zombie asset");
-            batch.staging[local] = zombieGPUInstance(zombies.assets[i], source);
-            // Bone-transformed bind boxes contain every weighted skin vertex;
-            // animation bounds also cover primitives without skin attributes.
-            // Cache the expensive union by pose revision. World placement
-            // is still applied each update, including ordinary living movement.
-            if (live != batch.livePoses[local] || (live && source.ragdollPoseVersion != batch.poseVersions[local])) {
-                auto bounds = batch.animationBounds;
-                if (live)
-                    for (const auto& bone : source.ragdollBones)
-                        includeBounds(bounds, transformedBounds(batch.bindBounds, bone));
-                batch.poseBounds[local] = bounds;
-                batch.poseVersions[local] = source.ragdollPoseVersion;
-                batch.livePoses[local] = live;
-            }
-            const auto bounds = transformedBounds(batch.poseBounds[local], source.transform);
-            auto& previous = batch.instanceBounds[local];
-            const bool changed = bounds.minimum != previous.minimum || bounds.maximum != previous.maximum;
-            previous = bounds;
-            if (changed || !zombieVisibility_.contains(sourceIndex))
-                zombieVisibility_.update(sourceIndex, previous);
-        }
+    const auto& changes = zombies.renderUpdates();
+    const auto update = changes.since(zombieUpdateRevision_);
+    const bool full = zombieSource_ != &zombies || update.full;
+    zombieSource_ = &zombies;
+    zombieUpdateStats_ = {0, 0, full};
+    if (full) {
+        for (std::size_t id = 0; id < zombies.instances.size(); ++id)
+            updateZombieInstance(id, true, true);
+    } else if (update.ids) {
+        for (const auto id : *update.ids)
+            updateZombieInstance(id, changes.boundsChanged(id), false);
+    }
+    // Publishing the cursor and retiring the batch happen only after all
+    // instances succeed. Other consumers that missed it refresh conservatively.
+    zombieUpdateRevision_ = update.revision;
+    changes.acknowledge(update.revision);
+}
+
+void Renderer::updateZombieInstance(std::size_t id, bool boundsChanged, bool full) {
+    if (id >= zombieBatchLocals_.size()) throw std::runtime_error("Invalid zombie source index");
+    const auto asset = zombieBatchAssets_[id];
+    auto& batch = zombieBatches_[asset];
+    const auto local = zombieBatchLocals_[id];
+    const auto& source = zombieSource_->instances[id];
+    if (source.asset != asset) throw std::runtime_error("Zombie asset changed after renderer upload");
+    ++zombieUpdateStats_.instances;
+    if (source.removed) {
+        if (!batch.removedPoses[local]) --zombieCount_;
+        batch.removedPoses[local] = true;
+        zombieVisibility_.erase(id);
+        batch.palettes->release(local);
+        return;
+    }
+    if (batch.removedPoses[local]) ++zombieCount_;
+    batch.removedPoses[local] = false;
+    const bool live = source.ragdoll;
+    if (full || !live) batch.palettes->release(local);
+    if (live && source.ragdollBones.size() != static_cast<std::size_t>(batch.skinningBoneCount))
+        throw std::runtime_error("Live skeleton data does not match zombie asset");
+    batch.staging[local] = zombieGPUInstance(zombieSource_->assets[asset], source);
+    const bool poseChanged = full || live != batch.livePoses[local] ||
+        (live && source.ragdollPoseVersion != batch.poseVersions[local]);
+    if (poseChanged) {
+        auto bounds = batch.animationBounds;
+        if (live)
+            for (const auto& bone : source.ragdollBones)
+                includeBounds(bounds, transformedBounds(batch.bindBounds, bone));
+        batch.poseBounds[local] = bounds;
+        batch.poseVersions[local] = source.ragdollPoseVersion;
+        batch.livePoses[local] = live;
+    }
+    if (boundsChanged || poseChanged || !zombieVisibility_.contains(id)) {
+        ++zombieUpdateStats_.bounds;
+        const auto bounds = transformedBounds(batch.poseBounds[local], source.transform);
+        auto& previous = batch.instanceBounds[local];
+        const bool changed = bounds.minimum != previous.minimum || bounds.maximum != previous.maximum;
+        previous = bounds;
+        if (changed || !zombieVisibility_.contains(id)) zombieVisibility_.update(id, previous);
     }
 }
 

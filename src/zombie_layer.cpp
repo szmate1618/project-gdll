@@ -35,6 +35,11 @@ ZombieLayer::~ZombieLayer() = default;
 ZombieLayer::ZombieLayer(ZombieLayer&&) noexcept = default;
 ZombieLayer& ZombieLayer::operator=(ZombieLayer&&) noexcept = default;
 
+void ZombieLayer::markRenderChanged(std::size_t id, bool bounds) {
+    if (id >= instances.size()) throw std::out_of_range("Invalid zombie render ID");
+    renderUpdates_.mark(id, bounds);
+}
+
 void ZombieLayer::registerRagdoll(std::size_t zombie) {
     const auto inserted = ragdollSlots_.emplace(zombie, ragdollIds_.size());
     if (!inserted.second) return;
@@ -107,6 +112,7 @@ bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationS
     updateZombieRagdollSkin(instance, assets[instance.asset], physics_->world);
     instance.physicsPoseRevision = physics_->world.poseRevision(instance.ragdollHandle);
     ++instance.ragdollPoseVersion;
+    markRenderChanged(selected);
     return true;
 }
 
@@ -133,6 +139,7 @@ void ZombieLayer::synchronizePhysics() {
         if (instance.asset < assets.size()) updateZombieRagdollSkin(instance, assets[instance.asset], physics_->world);
         instance.physicsPoseRevision = revision;
         ++instance.ragdollPoseVersion;
+        markRenderChanged(id);
     }
 }
 
@@ -161,6 +168,7 @@ void ZombieLayer::removeRagdoll(std::size_t zombie) {
     ++instance.ragdollPoseVersion;
     spatialIndex_.erase(zombie);
     behaviors.remove(zombie);
+    markRenderChanged(zombie);
 }
 void ZombieLayer::setRagdollPalette(std::size_t zombie, std::vector<glm::mat4> palette) {
     auto& instance = instances.at(zombie);
@@ -178,6 +186,7 @@ void ZombieLayer::setRagdollPalette(std::size_t zombie, std::vector<glm::mat4> p
     ++instance.ragdollPoseVersion;
     spatialIndex_.erase(zombie);
     behaviors.remove(zombie);
+    markRenderChanged(zombie);
 }
 
 std::size_t ZombieLayer::ragdollCount() const {
