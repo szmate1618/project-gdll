@@ -56,6 +56,7 @@ void Renderer::drawShadowCasters(const glm::mat4& view, const glm::mat4& project
         drawForests(projectionView, true);
     }
     drawZombies(seconds, pass);
+    drawBoxes(projectionView);
     glUniform1i(shadowPassLocation_, GL_FALSE);
     glDisable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(0, 0);

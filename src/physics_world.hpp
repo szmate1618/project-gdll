@@ -6,6 +6,14 @@
 
 namespace viewer {
 
+// Box3D defaults to all category bits. Assign single categories so prop-only
+// meshes and queries can exclude ordinary door and ragdoll bodies.
+constexpr std::uint64_t ordinaryBodyCategory = 1ull;
+constexpr std::uint64_t interiorBoxCategory = 1ull << 10;
+// Ragdolls retain local fallback floors; those artificial surfaces must not
+// support unrelated movable props when a real scene mesh is available.
+constexpr std::uint64_t ragdollFloorCategory = 1ull << 11;
+
 // Shared Box3D simulation in runtime meters (X east, Y up, Z south).
 // Owners of bodies/joints must retain this world and destroy their resources
 // before releasing it. Advance once per application frame, then read all poses.

@@ -144,7 +144,7 @@ target_include_directories(viewer_noise PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src"
 target_link_libraries(viewer_noise PUBLIC glm::glm)
 viewer_warnings(viewer_noise)
 
-add_library(viewer_physics STATIC src/physics_world.cpp src/door_geometry.cpp src/door_layer.cpp)
+add_library(viewer_physics STATIC src/physics_world.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp)
 target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
@@ -170,6 +170,10 @@ add_library(viewer_interaction STATIC src/door_interaction.cpp)
 target_link_libraries(viewer_interaction PUBLIC viewer_camera viewer_collision viewer_physics)
 viewer_warnings(viewer_interaction)
 
+add_library(viewer_objects STATIC src/interior_objects.cpp src/physics_scene.cpp)
+target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics)
+viewer_warnings(viewer_objects)
+
 set(VIEWER_TEST_ASSET "${CMAKE_CURRENT_SOURCE_DIR}/assets/test.glb")
 add_custom_command(
     OUTPUT "${VIEWER_TEST_ASSET}"
@@ -188,6 +192,7 @@ target_link_libraries(viewer_sun_lighting PUBLIC glm::glm viewer_camera)
 viewer_warnings(viewer_sun_lighting)
 
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
+    src/box_renderer.cpp
     src/roof_renderer.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
     src/zombie_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
@@ -199,7 +204,7 @@ viewer_warnings(viewer_renderer)
 add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp
     src/reticle_overlay.cpp src/gpu_timer.cpp)
 target_link_libraries(godollo_viewer PRIVATE
-    viewer_renderer viewer_fps viewer_interaction viewer_poles viewer_guardrails glfw
+    viewer_renderer viewer_fps viewer_interaction viewer_objects viewer_poles viewer_guardrails glfw
 )
 target_compile_definitions(godollo_viewer PRIVATE
     GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -213,6 +218,21 @@ add_dependencies(godollo_viewer viewer_test_asset)
 viewer_warnings(godollo_viewer)
 
 if(BUILD_TESTING)
+    add_executable(test_interior_objects tests/test_interior_objects.cpp)
+    target_link_libraries(test_interior_objects PRIVATE viewer_objects viewer_interaction)
+    viewer_warnings(test_interior_objects)
+    add_test(NAME viewer_interior_objects COMMAND test_interior_objects)
+    add_executable(test_physics_boxes tests/test_physics_boxes.cpp)
+    target_link_libraries(test_physics_boxes PRIVATE viewer_objects viewer_fps)
+    viewer_warnings(test_physics_boxes)
+    add_test(NAME viewer_physics_boxes COMMAND test_physics_boxes)
+    add_executable(test_box_renderer tests/test_box_renderer.cpp)
+    target_link_libraries(test_box_renderer PRIVATE viewer_objects viewer_renderer glfw)
+    target_compile_definitions(test_box_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_box_renderer)
+    add_test(NAME viewer_box_renderer COMMAND test_box_renderer)
+    set_tests_properties(viewer_box_renderer PROPERTIES SKIP_RETURN_CODE 77)
     add_executable(test_guardrail_layer tests/test_guardrail_layer.cpp)
     target_link_libraries(test_guardrail_layer PRIVATE viewer_guardrails viewer_collision viewer_fingerprints)
     target_include_directories(test_guardrail_layer SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")

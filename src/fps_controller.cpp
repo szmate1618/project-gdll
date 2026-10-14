@@ -194,6 +194,7 @@ void FPSController::step(float dt, const FPSInput& input, const CollisionWorld& 
         }
         glm::vec3 previous = feet_;
         feet_ += horizontal;
+        world.pushBoxes(feet_, config_.radius, config_.height, movement, subDt);
         resolve(world, true, previous);
 
         // Preserve an existing support constraint before applying gravity. If a

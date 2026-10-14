@@ -95,6 +95,7 @@ public:
         groundDef.position = toB3Pos({feet.x, feet.y - 0.05f, feet.z});
         ground_ = b3CreateBody(world_, &groundDef);
         auto groundShape = b3DefaultShapeDef();
+        groundShape.filter.categoryBits = ragdollFloorCategory;
         const auto groundBox = b3MakeBoxHull(3.0f, 0.05f, 3.0f);
         b3CreateHullShape(ground_, &groundShape, &groundBox.base);
 
@@ -249,6 +250,7 @@ private:
         bodyDef.angularDamping = 0.045f;
         const auto body = b3CreateBody(world_, &bodyDef);
         auto shapeDef = b3DefaultShapeDef();
+        shapeDef.filter.categoryBits = ordinaryBodyCategory;
         shapeDef.density = mass / (pi * radius * radius * (2 * halfLength) + (4.0f / 3.0f) * pi * radius * radius * radius);
         shapeDef.baseMaterial.friction = 0.6f;
         shapeDef.filter.groupIndex = collisionGroup;

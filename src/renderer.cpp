@@ -217,6 +217,9 @@ void Renderer::release() noexcept {
     rain_.reset();
     releaseZombies();
     releaseModel(model_);
+    releaseModel(boxModel_);
+    if (boxInstanceBuffer_) glDeleteBuffers(1, &boxInstanceBuffer_);
+    boxInstanceBuffer_ = 0;
     releaseModel(roofModel_);
     releaseModel(forestModel_);
     for (auto& batch : treeBatches_) {
@@ -373,6 +376,7 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     drawTrees(projection * view);
     drawForests(projection * view);
     drawZombies(animationSeconds);
+    drawBoxes(projection * view);
     if (!transparentScene_.empty()) {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

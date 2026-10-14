@@ -15,6 +15,7 @@ public:
     const char* modeName() const { return mode_ == ControlMode::Combat ? "Combat" : "Interaction"; }
     void toggleMode();
     bool grabbing() const { return grab_.has_value(); }
+    std::optional<std::size_t> grabbedDoor() const { return grab_ ? std::optional<std::size_t>(grab_->door) : std::nullopt; }
     bool press(const Camera& camera, DoorLayer& doors, const CollisionWorld& world);
     void release() { grab_.reset(); }
     // Pixels, positive dy upwards: drag right/left or push forward/pull back.

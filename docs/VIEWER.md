@@ -701,6 +701,22 @@ A click that misses a reachable door keeps normal mouse look. Interaction
 clicks never shoot. Changing control/camera mode, releasing the cursor, or
 losing window focus ends the grab.
 
+The first successful grab of any door in a building also populates its interior
+with untextured brown boxes. Each building gets a random target of 12–36 props:
+75% small crates (25–65 cm per side), 18% medium boxes, and 7% tall cabinet-sized
+boxes (1.65–2.15 m high). Placement may yield fewer in cramped buildings. Boxes
+stay inside the roof footprint, avoid courtyards and walls, clear all door hinge
+sweeps and approaches, and rest on the published terrain. Grabbing another door
+in the same building preserves the existing boxes; populations last for the
+current viewer session.
+
+The boxes are dynamic Box3D bodies. Walk into a side to push it, or jump onto a
+crate to stand on its top. Boxes can rotate, tumble and stack, and collide with
+the surrounding terrain, walls and live doors. The player keeps its existing
+capsule controller: it reads oriented box contacts and support surfaces, then
+applies bounded, time-scaled impulses during walking. Ordinary clearance,
+support and sight queries do not move boxes. There is no mouse grab for boxes.
+
 The viewer follows glTF's right-handed coordinate system: Y is up, and the
 camera looks toward negative Z before orientation is applied. Distances are
 interpreted as meters. The vertical field of view starts at 60°. Each
@@ -829,9 +845,21 @@ Advance `PhysicsWorld::step(dt)` once per app frame, then call
 the same physics poses. `ZombieLayer::attachPhysics(world)` must run before the first ragdoll;
 its standalone `update(dt)` continues to advance its own simulation for tests
 and independent callers. Ragdoll and door owners destroy their bodies before
-releasing the shared world. The rigid-body world currently contains doors and
-the existing ragdoll ground boxes; town walls, terrain and walking collision
-remain in `CollisionWorld` rather than being imported into Box3D.
+releasing the shared world. The rigid-body world contains doors, dynamic interior
+boxes and the existing ragdoll ground boxes. Ragdoll fallback floors do not
+collide with interior props. `PhysicsScene` lazily imports the BVH-selected town
+triangles around props into Box3D, retaining actual terrain heights and clipped
+doorways. It uploads each triangle once, with both collision sides, and expands
+coverage as props travel. These imported mesh contacts apply to props;
+doors retain their authored hinge limits without catching their finite collider
+thickness on a flush wall jamb. Props still collide with live door bodies.
+Mesh data stays alive through shape destruction.
+Call `PhysicsScene::prepare(boxes)` before the shared physics step and
+`Renderer::updateBoxes(boxes)` before drawing. Rendering shares one cube mesh
+and uses an instanced draw per pass, with a BVH over current transformed bounds.
+Sleeping bodies retain their cached render data until motion or spawning changes
+the layer revision. Walking continues to query `CollisionWorld`, which borrows
+the box layer through `setBoxes()`.
 
 The controller uses fixed 120 Hz simulation and further divides large capsule
 displacements. Iterative contact corrections stop motion into walls while
@@ -1342,6 +1370,10 @@ src/zombie_lod.py          Rig-preserving offline mesh preparation
 src/zombie_placement.{hpp,cpp} Ground queries and deterministic safe placement
 src/zombie_park.{hpp,cpp}  Palace garden outline in the published map's frame
 src/physics_world.{hpp,cpp} Shared Box3D world and fixed simulation stepping
+src/physics_scene.{hpp,cpp} Lazy static triangle collision around moving props
+src/box_layer.{hpp,cpp} Dynamic prop bodies, capsule contacts, support and pushes
+src/interior_objects.{hpp,cpp} Once-per-building random interior placement
+src/box_renderer.cpp       Shared cube instances and current-pose visibility
 src/door_geometry.{hpp,cpp} Runtime extraction of independent door panels
 src/door_layer.{hpp,cpp} Local hinge activation, force API and door poses
 src/door_interaction.{hpp,cpp} Combat/interaction mode and mouse/player door grabs

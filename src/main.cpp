@@ -2,6 +2,9 @@
 #include "door_layer.hpp"
 #include "door_interaction.hpp"
 #include "physics_world.hpp"
+#include "box_layer.hpp"
+#include "physics_scene.hpp"
+#include "interior_objects.hpp"
 #include "reticle_overlay.hpp"
 #include "camera_rig.hpp"
 #include "collision_debug.hpp"
@@ -24,6 +27,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -288,6 +292,9 @@ struct AppState {
     viewer::CameraRig rig;
     viewer::DoorInteraction interaction;
     viewer::DoorLayer* doors = nullptr;
+    viewer::BoxLayer* boxes = nullptr;
+    viewer::PhysicsScene* physicsScene = nullptr;
+    viewer::InteriorObjects* interiors = nullptr;
     const viewer::CollisionWorld& world;
     viewer::ZombieLayer* zombies = nullptr;
     double displayedAnimationSeconds = 0.0;
@@ -363,7 +370,10 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     }
     if (button != GLFW_MOUSE_BUTTON_LEFT) return;
     if (app.interaction.mode() == viewer::ControlMode::Interaction) {
-        if (app.doors) app.interaction.press(app.rig.camera(), *app.doors, app.world);
+        if (app.doors && app.interaction.press(app.rig.camera(), *app.doors, app.world) && app.interiors) {
+            const auto added = app.interiors->populate(*app.interaction.grabbedDoor(), app.world, *app.physicsScene, *app.boxes);
+            if (added) std::cout << "Interior: spawned " << added << " physical boxes\n";
+        }
         return;
     }
     if (!app.zombies) return;
@@ -681,9 +691,13 @@ int run(const Options& options) {
             trunks.push_back({glm::vec3(tree.transform[3]), radius, height});
         }
     }
-    // Only the town geometry and simple trunks participate in collision.
+    // Town geometry, trunks and live props participate in walking collision.
     // Shared impostor cards stay exclusively in the rendering layer.
-    const viewer::CollisionWorld collision(model, trunks, &doors);
+    viewer::BoxLayer boxes(physics);
+    viewer::CollisionWorld collision(model, trunks, &doors);
+    collision.setBoxes(&boxes);
+    viewer::PhysicsScene physicsScene(physics, collision, model.boundsMin, model.boundsMax);
+    viewer::InteriorObjects interiors(model, doors, std::random_device{}());
     const auto& collisionStats = collision.stats();
     std::cout << "Collision world: " << collisionStats.triangles << " triangles, "
               << collisionStats.buildings << " buildings, " << collisionStats.bvhNodes << " BVH nodes, "
@@ -745,6 +759,9 @@ int run(const Options& options) {
             static_cast<float>(std::max(app.width, 1)) / static_cast<float>(std::max(app.height, 1)));
     app.zombies = zombies ? &*zombies : nullptr;
     app.doors = &doors;
+    app.boxes = &boxes;
+    app.physicsScene = &physicsScene;
+    app.interiors = &interiors;
     glfwSetWindowUserPointer(window.get(), &app);
     glfwSetFramebufferSizeCallback(window.get(), framebufferCallback);
     glfwSetKeyCallback(window.get(), keyCallback);
@@ -832,9 +849,12 @@ int run(const Options& options) {
             renderer.setDayNightLighting(viewer::dayNightLighting(displayedHour, {}, {}, atmosphere));
         }
         doors.activateNear(app.rig.camera().position());
+        for (std::size_t i = 0; i < boxes.count(); ++i)
+            doors.activateNear(boxes.pose(i).center, 8);
         if (zombies)
             for (const auto id : zombies->ragdollIds())
                 doors.activateNear(glm::vec3(zombies->instances[id].transform[3]));
+        physicsScene.prepare(boxes);
         physics->step(dt);
         if (zombies) zombies->synchronizePhysics();
         moveCamera(app, dt);
@@ -855,6 +875,7 @@ int run(const Options& options) {
         intervalBehaviorSeconds += preparationStart - behaviorStart;
         intervalSimulationSeconds += preparationStart - simulationStart;
         renderer.updateDoors(doors);
+        renderer.updateBoxes(boxes);
         renderer.resize(app.width, app.height);
         if (zombies) renderer.updateZombies(*zombies);
         std::vector<viewer::DebugVertex> overlay;

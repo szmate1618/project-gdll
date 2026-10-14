@@ -28,6 +28,7 @@ namespace viewer {
 
 class RainRenderer;
 class DoorLayer;
+class BoxLayer;
 
 struct TreeRenderStats {
     std::size_t total = 0, visible = 0, drawCalls = 0;
@@ -65,6 +66,9 @@ public:
     // Direct edits require ZombieLayer::markRenderChanged()/invalidateRenderData().
     void updateZombies(const ZombieLayer& zombies);
     void updateDoors(const DoorLayer& doors);
+    // Refresh cached poses after physics or spawning. The source must outlive
+    // this renderer; unchanged revisions retain meshes and visibility bounds.
+    void updateBoxes(const BoxLayer& boxes);
     void present(int width, int height);
     void writeScreenshot(const std::filesystem::path& path) const;
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
@@ -176,6 +180,7 @@ private:
     void uploadModel(const Model& source, ModelGPU& destination);
     void uploadMeshes(const std::vector<Primitive>& source, ModelGPU& destination);
     void uploadRoofBatches(const Model& source);
+    void drawBoxes(const glm::mat4& projectionView);
     // Returns false when a roof's spatial batch was already drawn in this pass.
     bool drawTownSource(std::size_t index);
     void uploadTrees(const TreeLayer& trees, const ForestLayer* forests);
@@ -237,6 +242,13 @@ private:
     bool shadows_ = true;
     std::vector<std::size_t> shadowScene_;
     ModelGPU model_;
+    ModelGPU boxModel_;
+    GLuint boxInstanceBuffer_ = 0;
+    std::vector<glm::mat4> boxTransforms_, visibleBoxTransforms_;
+    std::vector<std::size_t> visibleBoxes_;
+    VisibilityIndex boxVisibility_;
+    const BoxLayer* boxSource_ = nullptr;
+    std::uint64_t boxRevision_ = 0;
     ModelGPU roofModel_;
     std::vector<std::size_t> roofBatchForDraw_;
     std::vector<bool> roofBatchDrawn_;

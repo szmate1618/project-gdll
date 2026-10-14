@@ -57,6 +57,7 @@ struct DoorLayer::Impl {
         const auto half = e.panel.halfExtents;
         const auto box = b3MakeBoxHull(half.x, half.y, half.z);
         auto shape = b3DefaultShapeDef();
+        shape.filter.categoryBits = ordinaryBodyCategory;
         shape.density = 25.0f / (8 * half.x * half.y * half.z); // 25 kg wooden panel.
         shape.baseMaterial.friction = .5f;
         b3CreateHullShape(e.body, &shape, &box.base);

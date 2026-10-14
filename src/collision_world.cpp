@@ -1,5 +1,6 @@
 #include "collision_world.hpp"
 #include "door_collision.hpp"
+#include "box_layer.hpp"
 
 #include <algorithm>
 #include <array>
@@ -233,6 +234,7 @@ struct CollisionWorld::Impl {
     CollisionStats stats;
     bool hasTerrain = false;
     const DoorLayer* doors = nullptr;
+    BoxLayer* boxes = nullptr;
 
     void addTriangle(const CollisionFace& face, float winding, int group, bool terrain, bool roof) {
         Triangle triangle;
@@ -485,7 +487,8 @@ bool CollisionWorld::lineOfSight(glm::vec3 origin, glm::vec3 target) const {
     // Door queries materialize current panel boxes over the segment's AABB.
     // Long diagonal rays can span much of town: let the segment-indexed wall
     // and trunk tests reject blocked sight before paying that broad-phase cost.
-    return !impl_->doors || !doorsBlockSight(*impl_->doors, origin, target);
+    return (!impl_->doors || !doorsBlockSight(*impl_->doors, origin, target)) &&
+           (!impl_->boxes || !impl_->boxes->blocksSight(origin, target));
 }
 
 std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, float height, float skin) const {
@@ -526,6 +529,7 @@ std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, floa
         result.push_back({normal, point, combinedRadius - distance});
     });
     if (impl_->doors) appendDoorContacts(*impl_->doors, feet, radius, height, skin, result);
+    if (impl_->boxes) impl_->boxes->appendContacts(feet, radius, height, skin, result);
     std::sort(result.begin(), result.end(), [](const Contact& a, const Contact& b) { return a.depth > b.depth; });
     return result;
 }
@@ -543,6 +547,10 @@ std::optional<GroundHit> CollisionWorld::groundAt(float x, float z, float minY, 
         if (!verticalIntersection(t, x, z, y) || y < minY - epsilon || y > maxY + epsilon) return;
         if (!result || y > result->height) result = GroundHit{y, normal};
     });
+    if (!terrainOnly && impl_->boxes) {
+        const auto box = impl_->boxes->groundAt(x, z, minY, maxY);
+        if (box && (!result || box->height > result->height)) result = box;
+    }
     return result;
 }
 
@@ -639,9 +647,26 @@ std::vector<glm::vec3> CollisionWorld::debugLines(glm::vec3 near, float distance
         const auto doors = doorCollisionDebugLines(*impl_->doors, region.low, region.high);
         result.insert(result.end(), doors.begin(), doors.end());
     }
+    if (impl_->boxes) {
+        const auto boxes = impl_->boxes->debugLines(region.low, region.high);
+        result.insert(result.end(), boxes.begin(), boxes.end());
+    }
     return result;
 }
 
 const CollisionStats& CollisionWorld::stats() const { return impl_->stats; }
+void CollisionWorld::setBoxes(BoxLayer* boxes) { impl_->boxes = boxes; }
+void CollisionWorld::pushBoxes(glm::vec3 feet, float radius, float height, glm::vec3 velocity, float dt) const {
+    if (impl_->boxes) impl_->boxes->push(feet, radius, height, velocity, dt);
+}
+std::vector<StaticCollisionFace> CollisionWorld::staticFaces(glm::vec3 minimum, glm::vec3 maximum) const {
+    std::vector<StaticCollisionFace> result;
+    if (!finite(minimum) || !finite(maximum) || glm::any(glm::greaterThan(minimum, maximum))) return result;
+    Bounds region; region.include(minimum); region.include(maximum);
+    impl_->query(region, [&](const Triangle& t) {
+        result.push_back({static_cast<std::size_t>(&t - impl_->triangles.data()), {t.a, t.b, t.c}});
+    });
+    return result;
+}
 
 }  // namespace viewer
