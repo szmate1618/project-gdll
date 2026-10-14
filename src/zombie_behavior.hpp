@@ -21,6 +21,8 @@ struct ZombieBehavior {
     glm::vec2 lookDirection{0, 1}; // Unit horizontal direction toward a heard noise.
     ZombieSight sight = ZombieSight::none; // Last observation, never a live player tracker.
     ZombiePerceptionClock perception{};
+    // Suspend beyond 150 m; resume within 100 m. Retain the last movement target.
+    bool perceptionSuspended = false;
 };
 
 // Dense, unordered pool with expected O(1) membership, lookup and swap removal.

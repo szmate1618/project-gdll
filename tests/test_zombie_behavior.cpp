@@ -140,27 +140,28 @@ void targetMemoryAndEveryIdleTimeout() {
     clock.reset();
     const viewer::CollisionWorld clear(viewer::Model{});
     auto layer = crowd();
+    // Keep the unseen player inside 150 m to isolate the ordinary idle timer.
     layer.chase(0.1f, {0, 0, 10}, clear);
     clock.advance(20);
-    layer.chase(4, {0, 0, -200}, clear);
+    layer.chase(4, {0, 0, -120}, clear);
     require(state(layer) == ZombieState::idle && layer.instances[0].restRoot[3].z == 10,
             "Lost sight follows last seen feet and returns to idle on arrival");
     require(layer.behaviors.find(0)->idleSinceSeconds == 20 && !layer.instances[0].walking,
             "Return to idle starts a fresh timer and uses idle animation");
     clock.advance(9);
-    layer.chase(0.1f, {0, 0, -200}, clear);
+    layer.chase(0.1f, {0, 0, -120}, clear);
     require(layer.behaviors.contains(0), "Object age does not expire a newly idle state");
     layer.chase(0.1f, {0, 0, 20}, clear);
     require(state(layer) == ZombieState::chasing, "Reacquisition cancels the idle countdown");
     clock.advance(2);
-    layer.chase(4, {0, 0, -200}, clear);
+    layer.chase(4, {0, 0, -120}, clear);
     require(state(layer) == ZombieState::idle && layer.behaviors.find(0)->idleSinceSeconds == 31,
             "Every subsequent return to idle resets the countdown");
     clock.advance(9.9);
-    layer.chase(0.1f, {0, 0, -200}, clear);
+    layer.chase(0.1f, {0, 0, -120}, clear);
     require(layer.behaviors.contains(0), "Second idle timer survives before its deadline");
     clock.advance(0.1);
-    layer.chase(0.1f, {0, 0, -200}, clear);
+    layer.chase(0.1f, {0, 0, -120}, clear);
     require(layer.behaviors.entries().empty(), "Second idle period expires after ten seconds");
 }
 
@@ -296,6 +297,205 @@ void staggeredObservationsAndContinuousMovement() {
             !layer.instances[0].walking, "Attack range is checked immediately between perception ticks");
 }
 
+void distantPursuitRetainsTargetAndEvictsOnArrival() {
+    auto& clock = viewer::SimulationClock::instance();
+    const viewer::CollisionWorld clear(viewer::Model{}), partial(wall(1));
+    for (const bool staggered : {false, true}) {
+        for (const auto* initialWorld : {&clear, &partial}) {
+            clock.reset();
+            auto layer = crowd();
+            layer.setPerceptionStaggering(staggered);
+            layer.chase(0.01f, {0, 0, 10}, *initialWorld);
+            const auto expected = initialWorld == &clear ? ZombieState::chasing : ZombieState::investigating;
+            require(state(layer) == expected, "Fixture must acquire a chasing or investigating target");
+            const auto oldFeet = glm::vec3(layer.instances[0].restRoot[3]);
+            const auto oldTime = layer.instances[0].walkSeconds;
+            clock.advance(.01);
+            // Player is ahead and unobstructed: any unsuspended observation
+            // would overwrite the old target. The clock isn't due yet either,
+            // so cached clear sight must also be discarded on leaving range.
+            layer.chase(0.1f, {0, 0, 300}, clear);
+            const auto* behavior = layer.behaviors.find(0);
+            require(behavior && behavior->perceptionSuspended && behavior->sight == viewer::ZombieSight::none &&
+                    behavior->target == glm::vec3(0, 0, 10) && behavior->state == expected,
+                    "Distant pursuit must lose cached visibility while retaining its target and state");
+            require(layer.behaviorStats().perceptionChecks == 0 && layer.behaviorStats().sightRays == 0,
+                    "Suspension must skip both observations and sight rays, including unstaggered mode");
+            const float speed = expected == ZombieState::chasing ? 3.0f : 1.2f;
+            require(std::abs(layer.instances[0].restRoot[3].z - oldFeet.z - speed * .1f) < 1e-4f &&
+                    layer.instances[0].walking && layer.instances[0].running == (expected == ZombieState::chasing) &&
+                    layer.instances[0].walkSeconds > oldTime,
+                    "Suspended pursuers keep their speed and advancing locomotion animation");
+            clock.advance(2);
+            layer.chase(.1f, {100, 0, 350}, clear);
+            require(layer.behaviorStats().perceptionChecks == 0 && layer.behaviorStats().sightRays == 0 &&
+                    layer.behaviors.find(0)->target == glm::vec3(0, 0, 10),
+                    "Elapsed deadlines and a moving distant player cannot refresh the frozen target");
+            layer.chase(20, {0, 0, 300}, clear);
+            require(layer.instances[0].restRoot[3].z == 10 && !layer.instances[0].walking &&
+                    !layer.behaviors.contains(0),
+                    "Distant arrival reaches the actual last target and evicts idle behavior immediately");
+            // The corpse/removed flags are untouched and spatial membership was
+            // kept current even when arrival removed the behavior pool entry.
+            require(!layer.instances[0].removed && !layer.instances[0].ragdoll,
+                    "Behavior eviction must preserve the living zombie");
+            layer.chase(.01f, {0, 0, 60}, clear);
+            require(layer.behaviorStats().activationCandidates == 1 && layer.behaviorStats().perceptionChecks == 1 &&
+                    state(layer) == ZombieState::chasing && layer.behaviors.find(0)->target == glm::vec3(0, 0, 60) &&
+                    !layer.behaviors.find(0)->perceptionSuspended,
+                    "Evicted arrivals must reactivate through their updated spatial cell with a fresh observation");
+        }
+    }
+    clock.reset();
+    auto moved = crowd();
+    moved.chase(.01f, {0, 0, 50}, clear);
+    moved.chase(.01f, {0, 0, 150}, clear); // Existing entry still observes inside the outer boundary.
+    moved.chase(100, {0, 0, 600}, clear);
+    require(!moved.behaviors.contains(0) && moved.instances[0].restRoot[3].z == 150,
+            "Arrival can evict a pursuer after travelling across several spatial cells");
+    moved.chase(.01f, {0, 0, 180}, clear);
+    require(moved.behaviorStats().activationCandidates == 1 && moved.behaviors.contains(0) &&
+            moved.behaviors.find(0)->target == glm::vec3(0, 0, 180),
+            "Evicted arrivals must be indexed at their destination, beyond the original activation-query cells");
+}
+
+void perceptionRangeHysteresisAndImmediateResume() {
+    auto& clock = viewer::SimulationClock::instance();
+    const viewer::CollisionWorld clear(viewer::Model{});
+    clock.reset();
+    auto layer = crowd();
+    layer.setPerceptionStaggering(true);
+    layer.chase(.01f, {0, 0, 50}, clear);
+    layer.chase(.01f, {0, 0, 300}, clear);
+    require(layer.behaviors.find(0)->perceptionSuspended, "Far player suspends an active pursuer");
+    clock.advance(2);
+    layer.chase(.01f, {0, 0, 120}, clear);
+    require(layer.behaviors.find(0)->perceptionSuspended && layer.behaviorStats().perceptionChecks == 0 &&
+            layer.behaviors.find(0)->target == glm::vec3(0, 0, 50),
+            "Returning through 100-150 m must retain suspension even after an observation deadline");
+    layer.setPerceptionStaggering(false);
+    layer.chase(.01f, {0, 0, 120}, clear);
+    require(layer.behaviorStats().perceptionChecks == 0 && layer.behaviors.find(0)->perceptionSuspended,
+            "Disabling staggering must not bypass range suspension");
+    layer.setPerceptionStaggering(true);
+    layer.behaviors.find(0)->perception.initialized = true;
+    layer.behaviors.find(0)->perception.nextSeconds = 10000;
+    const auto nearPlayer = glm::vec3(layer.instances[0].restRoot[3]) + glm::vec3(0, 0, 99);
+    layer.chase(.01f, nearPlayer, clear);
+    require(!layer.behaviors.find(0)->perceptionSuspended && layer.behaviorStats().perceptionChecks == 1 &&
+            layer.behaviorStats().sightRays == 3 && layer.behaviors.find(0)->target == nearPlayer &&
+            layer.behaviors.find(0)->perception.period == 1,
+            "Reentry immediately observes the actual player and starts the normal distant schedule");
+    clock.advance(.01);
+    layer.chase(.01f, nearPlayer + glm::vec3(1, 0, 0), clear);
+    require(layer.behaviorStats().perceptionChecks == 0 && layer.behaviors.find(0)->target == nearPlayer,
+            "Immediate resume must be followed by scheduled rather than every-step observations");
+
+    // Exact boundaries use untouched feet so locomotion doesn't perturb the
+    // distance predicate before it is tested. Both histories at 150 m matter.
+    for (const bool suspended : {false, true}) {
+        auto boundary = crowd();
+        auto& behavior = boundary.behaviors.create(0, clock.seconds());
+        behavior.state = ZombieState::chasing;
+        behavior.target = {0, 0, 50};
+        behavior.perceptionSuspended = suspended;
+        boundary.chase(.001f, {0, 0, 150}, clear);
+        require(boundary.behaviors.find(0)->perceptionSuspended == suspended &&
+                boundary.behaviorStats().perceptionChecks == (suspended ? 0u : 1u),
+                "Exactly 150 m preserves the previous suspension state");
+    }
+    auto boundary = crowd();
+    boundary.setPerceptionStaggering(true);
+    auto& behavior = boundary.behaviors.create(0, clock.seconds());
+    behavior.state = ZombieState::chasing;
+    behavior.target = {0, 0, 50};
+    behavior.perceptionSuspended = true;
+    behavior.perception.initialized = true;
+    behavior.perception.nextSeconds = 10000;
+    boundary.chase(.001f, {0, 0, 100}, clear);
+    require(!boundary.behaviors.find(0)->perceptionSuspended && boundary.behaviorStats().perceptionChecks == 1 &&
+            boundary.behaviors.find(0)->target == glm::vec3(0, 0, 100),
+            "Exactly 100 m resumes sight immediately");
+}
+
+void movingPursuerResumesAndIdleBandRetainsTimeout() {
+    auto& clock = viewer::SimulationClock::instance();
+    clock.reset();
+    const viewer::CollisionWorld clear(viewer::Model{});
+    auto moving = crowd();
+    moving.setPerceptionStaggering(true);
+    moving.chase(.01f, {0, 0, 50}, clear);
+    moving.chase(.01f, {0, 0, 300}, clear);
+    moving.chase(7, {0, 0, 120}, clear);
+    require(moving.behaviors.find(0)->perceptionSuspended && moving.behaviorStats().perceptionChecks == 0 &&
+            moving.instances[0].restRoot[3].z > 20,
+            "A suspended pursuer moves back within 100 m of a stationary player using its old target");
+    moving.chase(.01f, {0, 0, 120}, clear);
+    require(!moving.behaviors.find(0)->perceptionSuspended && moving.behaviorStats().perceptionChecks == 1 &&
+            moving.behaviors.find(0)->target == glm::vec3(0, 0, 120),
+            "Pursuer movement itself can resume perception on the first update inside 100 m");
+
+    clock.reset();
+    auto idle = crowd();
+    idle.setPerceptionStaggering(true);
+    idle.chase(.01f, {0, 0, 20}, clear);
+    idle.chase(.01f, {0, 0, 300}, clear);
+    clock.advance(2);
+    idle.chase(10, {0, 0, 130}, clear);
+    require(state(idle) == ZombieState::idle && idle.behaviors.find(0)->perceptionSuspended &&
+            !idle.instances[0].walking && idle.instances[0].restRoot[3].z == 20,
+            "Arrival inside the 100-150 m band keeps a suspended idle entry with its normal timeout");
+    clock.advance(9.9);
+    idle.chase(.01f, {0, 0, 130}, clear);
+    require(idle.behaviors.contains(0) && idle.behaviorStats().perceptionChecks == 0,
+            "Idle hysteresis-band entries neither observe nor expire before ten seconds");
+    clock.advance(.1);
+    idle.chase(.01f, {0, 0, 130}, clear);
+    require(!idle.behaviors.contains(0), "Normal ten-second idle expiration also applies to suspended band entries");
+}
+
+void distantIdleEvictionUsesThreeDimensionalDistance() {
+    auto& clock = viewer::SimulationClock::instance();
+    clock.reset();
+    const viewer::CollisionWorld clear(viewer::Model{});
+    auto layer = crowd({{0, 0, 0}, {10, 0, 0}, {20, 0, 0}});
+    layer.chase(.01f, {0, 0, -20}, clear);
+    require(layer.behaviors.entries().size() == 3, "Fixture starts with three idle entries");
+    layer.chase(.01f, {0, 0, -150}, clear);
+    require(layer.behaviors.entries().size() == 1 && layer.behaviors.contains(0) &&
+            !layer.behaviors.contains(1) && !layer.behaviors.contains(2),
+            "Idle entries beyond 150 m are evicted, including swapped-in entries; the boundary remains active");
+    layer.chase(.01f, {0, 151, 0}, clear);
+    require(layer.behaviors.entries().empty() && layer.behaviorStats().perceptionChecks == 0,
+            "Vertical separation counts and distant idle entries cast no sight checks before eviction");
+    for (const auto& instance : layer.instances)
+        require(!instance.walking && !instance.ragdoll && !instance.removed,
+                "Idle eviction doesn't move, kill or remove any living instance");
+    clock.advance(.01);
+    layer.chase(.01f, {0, 0, -100}, clear);
+    require(layer.behaviors.entries().size() == 1 && layer.behaviors.contains(0) &&
+            layer.behaviorStats().perceptionChecks == 1 && layer.behaviors.find(0)->createdSeconds == clock.seconds(),
+            "An evicted idle entry reactivates at the inclusive 100 m boundary");
+}
+
+void distantLookingFinishesBeforeEviction() {
+    auto& clock = viewer::SimulationClock::instance();
+    clock.reset();
+    const viewer::CollisionWorld clear(viewer::Model{});
+    auto layer = crowd();
+    layer.chase(.01f, {0, 0, -20}, clear);
+    layer.makeNoise({10, 0, 0}, viewer::walkingFootstepDecibels);
+    require(state(layer) == ZombieState::looking, "Fixture is turning toward an audible noise");
+    layer.chase(.1f, {0, 0, 300}, clear);
+    require(state(layer) == ZombieState::looking && layer.behaviors.find(0)->perceptionSuspended &&
+            layer.behaviorStats().perceptionChecks == 0 && !layer.instances[0].walking,
+            "A distant looking entry finishes its turn without further sight checks");
+    layer.chase(1, {0, 0, 300}, clear);
+    require(!layer.behaviors.contains(0) && !layer.instances[0].walking &&
+            std::abs(layer.instances[0].restRoot[2].x - 1) < 1e-4f,
+            "Completion of a distant looking turn returns to idle and evicts in the same step");
+}
+
 void indexedMovementAndImmediateHearing() {
     auto& clock = viewer::SimulationClock::instance();
     clock.reset();
@@ -402,6 +602,11 @@ int main() {
         lookingTurnAndIdleTimer();
         lookingPerceptionAndShortestTurn();
         staggeredObservationsAndContinuousMovement();
+        distantPursuitRetainsTargetAndEvictsOnArrival();
+        perceptionRangeHysteresisAndImmediateResume();
+        movingPursuerResumesAndIdleBandRetainsTimeout();
+        distantIdleEvictionUsesThreeDimensionalDistance();
+        distantLookingFinishesBeforeEviction();
         indexedMovementAndImmediateHearing();
         largePopulationUsesLocalCandidates();
         std::cout << "Zombie behavior tests passed\n";

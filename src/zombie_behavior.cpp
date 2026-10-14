@@ -11,6 +11,7 @@
 namespace viewer {
 namespace {
 constexpr float activationDistance = 100.0f;
+constexpr float suspensionDistance = activationDistance * 1.5f;
 constexpr float attackDistance = 1.5f;
 constexpr float walkSpeed = 1.2f;
 constexpr float runSpeed = 3.0f;
@@ -24,6 +25,24 @@ void changeState(ZombieBehavior& behavior, ZombieState state, double now) {
     if (behavior.state == state) return;
     behavior.state = state;
     if (state == ZombieState::idle) behavior.idleSinceSeconds = now;
+}
+
+void updatePerceptionRange(ZombieBehavior& behavior, float squaredDistance) {
+    if (squaredDistance > suspensionDistance * suspensionDistance) {
+        behavior.perceptionSuspended = true;
+        // A cached clear view must not shorten the approach to the last target.
+        // Suspension loses visibility, not target memory or pursuit state.
+        behavior.sight = ZombieSight::none;
+    } else if (behavior.perceptionSuspended && squaredDistance <= activationDistance * activationDistance) {
+        behavior.perceptionSuspended = false;
+        behavior.perception = {}; // Observe immediately on reentry, then stagger normally.
+    }
+}
+
+bool distantIdle(const ZombieBehavior& behavior, const ZombieInstance& instance, const ZombiePlayer& player) {
+    if (behavior.state != ZombieState::idle) return false;
+    const auto offset = player.feet - glm::vec3(instance.restRoot[3]);
+    return glm::dot(offset, offset) > suspensionDistance * suspensionDistance;
 }
 
 glm::vec3 approachDestination(glm::vec3 target, glm::vec3 feet, bool playerVisible) {
@@ -48,7 +67,10 @@ void stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
     if (behavior.state == ZombieState::looking && turnZombieToward(instance, behavior.lookDirection, seconds))
         changeState(behavior, ZombieState::idle, now);
     const auto offset = player.feet - glm::vec3(instance.restRoot[3]);
-    const bool observed = !staggerPerception || behavior.perception.due(now, glm::dot(offset, offset), behavior.zombie);
+    const float squaredDistance = glm::dot(offset, offset);
+    updatePerceptionRange(behavior, squaredDistance);
+    const bool observed = !behavior.perceptionSuspended &&
+        (!staggerPerception || behavior.perception.due(now, squaredDistance, behavior.zombie));
     if (observed) {
         ++stats.perceptionChecks;
         // Scheduled observations retain none/partial/full for later attack
@@ -56,7 +78,7 @@ void stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
         behavior.sight = sampleZombieSight(instance, player, world, stats.sightRays,
                                            !staggerPerception && behavior.state == ZombieState::chasing);
     }
-    const bool visible = behavior.sight != ZombieSight::none;
+    const bool visible = !behavior.perceptionSuspended && behavior.sight != ZombieSight::none;
     if (observed && visible) {
         behavior.target = player.feet;
         if (behavior.sight == ZombieSight::full &&
@@ -213,9 +235,19 @@ void ZombieLayer::updateBehavior(float seconds, const ZombiePlayer& player,
             continue; // Process the member moved into this slot.
         }
         auto& instance = instances[id];
+        if (distantIdle(behavior, instance, player)) {
+            behaviors.remove(id);
+            continue;
+        }
         stepBehavior(behavior, instance, assets[instance.asset], player, world,
                      seconds, now, animationSeconds, staggerPerception_, behaviorStats_);
         updateSpatialMembership(id);
+        // Arrival or a completed looking turn can become idle in this step.
+        // Keep the living zombie indexed for later activation and shooting.
+        if (distantIdle(behavior, instance, player)) {
+            behaviors.remove(id);
+            continue;
+        }
         ++index;
     }
 }

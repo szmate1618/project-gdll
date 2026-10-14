@@ -493,6 +493,27 @@ observations. Everything is polled synchronously on the existing simulation
 thread using `SimulationClock`; there are no worker threads, background tasks,
 or timer callbacks.
 
+Perception has a separate **100/150 m** activation/suspension boundary, using
+3D distance between feet in both walking and free-fly. An active entry keeps
+observing through 150 m, including that boundary. Beyond 150 m it suspends all
+sight checks and clears cached visibility, retaining its last seen target and
+pursuit state. Investigating/chasing zombies continue terrain-following movement
+and their walk/run animation toward that target, without tracking the current
+player or stopping short based on a stale clear view. Looking zombies finish
+their existing turn. Idle entries beyond 150 m are evicted immediately, including
+entries that become idle on arrival or after finishing a turn in the current step.
+
+A suspended entry stays suspended while returning through the 100–150 m band.
+On the first update within 100 m, including the boundary, its perception clock
+resets and performs an immediate observation, then returns to the normal
+10/5/1 Hz schedule. The gap avoids repeated suspend/resume transitions near one
+boundary. Evicted living zombies remain in the spatial index and can receive a
+fresh idle entry with immediate sight when the player returns within 100 m.
+Range suspension also applies with `--no-zombie-staggering`; that option changes
+observation cadence, not activation/suspension distances. No concurrency or
+ragdoll-physics policy is added. Distant pursuers still incur movement and terrain
+query costs until arrival; their sight queries are skipped entirely.
+
 Between observations, zombies retain the last observed visibility and target;
 cached sight never copies the player's current position into that target.
 Movement, looking turns, attack-range checks, and idle expiration still run
@@ -530,9 +551,10 @@ not emit landing noise. These events only drive perception; no audio plays.
 Investigating zombies walk at **1.2 m/s**; chasing zombies run at **3 m/s** with
 faster strides. When sight is lost, they continue to the last seen position and
 return to idle on arrival. Every return to idle starts a fresh **10-second**
-countdown, including initial creation. Remaining idle for that interval removes
-the behavior object. Leaving idle cancels the countdown. A nearby zombie can
-receive a new idle object on the step after expiration. Active zombies within
+countdown, including initial creation. Within 150 m, remaining idle for that
+interval removes the behavior object; beyond 150 m, idle eviction is immediate.
+Leaving idle cancels the countdown. A nearby zombie can receive a new idle
+object on the step after expiration. Active zombies within
 **1.5 m** of the player enter **attacking**, stop moving, and currently play idle
 without dealing damage. They resume pursuit if the player leaves attack range.
 
