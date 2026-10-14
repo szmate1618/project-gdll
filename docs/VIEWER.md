@@ -404,14 +404,15 @@ occupied/refitted groups and camera/light group and individual test counts for
 the last rendered frame. `--no-zombie-culling` bypasses camera group/individual
 tests while retaining shadow culling.
 
-Ragdoll bone palettes are uploaded for the union of the camera-visible and
-sun-shadow-casting instances, before either draw pass. A corpse needed by both
-passes uploads once. The light frustum remains conservative, so it can include
-casters whose shadows ultimately do not affect visible pixels. Disabled shadows
-and nighttime do not request sunlight caster palettes.
+Ragdoll bone palettes are uploaded for the union of camera-visible,
+sun-shadow-casting, and flashlight-shadow-casting instances before the draw
+passes. A corpse needed by several passes uploads once. The light volumes remain
+conservative, so they can include casters whose shadows ultimately do not affect
+visible pixels. Disabled shadows and nighttime do not request sunlight caster
+palettes.
 
 Each asset batch lazily assigns persistent GPU palette slots. Unchanged poses
-remain in their slots, including hidden corpses; changes while outside both
+remain in their slots, including hidden corpses; changes outside all active
 frusta wait until the corpse is needed again. Adjacent dirty slots are combined
 into one buffer update. Storage grows geometrically and copies existing slots
 on the GPU, preserving hidden settled palettes. Removal releases a slot for
@@ -969,18 +970,48 @@ weak blue ambient light, and changes the sky and fog to a
 dark matching color. Fog density, height, and start distances keep their current
 settings; `--no-haze` and `--no-ground-fog` still work.
 
-A warm flashlight starts at the camera eyes and follows mouse look and walking.
+A warm flashlight is held 25 cm right, 15 cm below, and 10 cm ahead of the
+camera eyes. It follows mouse look and walking and aims at the reticle's
+ten-meter target. The small offset makes cast shadows visible beside objects.
 Its bright core extends 12 degrees from the viewing axis, fading to zero at
 22 degrees. Brightness decreases with distance and fades out completely at
 40 meters. It illuminates terrain, buildings, zombies, and visible tree texels.
 Tree cards retain their alpha masks and bypass normal-based shading, but receive
 night dimming and the flashlight's cone/distance attenuation.
 
-The flashlight runs in the existing color pass without an extra shadow map.
-Because it shares the camera origin, ordinary depth testing hides surfaces
-blocked from the light along camera rays. There is no separate shadow effect
-from an offset lamp, and no visible beam or light scattering through fog.
-Night colors, cone angles, and range are configured in `src/night_lighting.hpp`.
+Flashlight shadows are disabled by default. Enable them with
+`--flashlight-shadows`, for example:
+
+```bash
+./build/godollo_viewer output/godollo.glb --fps --night --flashlight-shadows
+```
+
+They use one 1024×1024 perspective depth map, with a 5 cm near
+plane and 25 m coverage. Shadows fade out between 20 and 25 m; illumination
+still reaches 40 m. The map is allocated lazily and rendered only while night
+lighting contributes, including twilight. Its cone is independent of scope
+zoom. Town, tree, forest, and zombie casters are culled against this light volume
+independently of the camera, so offscreen objects can still cast onto visible
+surfaces. Nearby building details and moving doors cast their actual silhouettes,
+rather than the original closed building shell. Alpha-mask holes remain open;
+blended glass does not cast. Tree/photo-card shadows are approximate.
+
+The color pass applies four filtered depth comparisons only to surfaces inside
+the beam and shadow range. This shadows the flashlight contribution, including
+on unlit tree cards, while preserving ambient and sunlight. Zombies use the
+original mesh inside 12 m and the first mesh LoD beyond that, preserving the
+camera's animation pose where visible. Camera, sun, and flashlight share one
+persistent ragdoll palette cache; settled palettes do not upload again.
+
+Use `--no-flashlight-shadows` for a direct cost comparison. `--no-shadows`
+disables both lights' shadows; `--no-tree-shadows` and `--no-zombie-shadows`
+disable their respective casters for both lights. The asynchronous GPU timer
+includes this extra pass. Its cost depends on nearby geometry and caster density;
+large terrain/road primitives remain whole draw calls when intersecting the cone.
+Rain streaks follow the same offset light but do not sample the shadow map.
+There is no visible volumetric beam or light scattering through fog.
+Night colors, cone angles, ranges, and shadow resolution are configured in
+`src/night_lighting.hpp`; the held-light pose is in `src/flashlight.cpp`.
 
 ## Rain
 
@@ -1113,7 +1144,14 @@ Ground fog checks cover layer crossings, horizontal rays, translated world
 heights, clear air above the layer, and comparison with independent numerical
 ray integration. Night checks cover scene/tree/zombie dimming, dark fog,
 flashlight cone edges, camera tracking, range cutoff, and daylight restoration.
-It also skips without an accessible OpenGL display/context.
+`viewer_flashlight` checks the held-light pose, zoom independence, and bounded
+cone without a GPU. `viewer_shadow_renderer` also checks flashlight shadows
+from opaque/alpha-mask geometry, moving doors, trees, and live ragdolls,
+including palette sharing during twilight, fade/cutoff, and restored GL state.
+For synthetic flashlight captures, run
+`./build/test_shadow_renderer build/flashlight-check`; it writes `.on.ppm` and
+`.off.ppm` comparisons.
+Rendering tests skip without an accessible OpenGL display/context.
 Geometry/palette and shadow regressions disable atmospheric effects to isolate
 their expected colors.
 
@@ -1242,7 +1280,8 @@ src/atmosphere.hpp         Distance haze, ground fog, and matching sky color
 src/night_lighting.hpp     Night ambient, sky/fog color, and camera flashlight settings
 src/rain_renderer.{hpp,cpp} Instanced rain seeds, draw, and GL state ownership
 src/shader_program.{hpp,cpp} Shared scene/rain shader compilation and linking
-src/sun_shadow_map.{hpp,cpp} Depth-only shadow framebuffer and texture ownership
+src/shadow_map.{hpp,cpp}  Depth-only shadow framebuffer and texture ownership
+src/flashlight.{hpp,cpp}   Held-light pose and short-range perspective shadow volume
 src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin data
 src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting
 src/zombie_hit.{hpp,cpp}    Head hit regions from the displayed skinning pose

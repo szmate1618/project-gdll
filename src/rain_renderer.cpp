@@ -1,5 +1,6 @@
 #include "rain_renderer.hpp"
 #include "shader_program.hpp"
+#include "flashlight.hpp"
 
 #include <array>
 #include <cmath>
@@ -19,6 +20,7 @@ RainRenderer::RainRenderer(const std::filesystem::path& shaderDirectory) {
         eyeLocation_ = glGetUniformLocation(program_, "uEye");
         timeLocation_ = glGetUniformLocation(program_, "uTime");
         nightBlendLocation_ = glGetUniformLocation(program_, "uNightBlend");
+        lightPositionLocation_ = glGetUniformLocation(program_, "uFlashlightPosition");
         directionLocation_ = glGetUniformLocation(program_, "uFlashlightDirection");
         colorLocation_ = glGetUniformLocation(program_, "uFlashlightColor");
         coneLocation_ = glGetUniformLocation(program_, "uFlashlightCone");
@@ -74,13 +76,14 @@ void RainRenderer::draw(const Camera& camera, float aspect, double seconds, floa
     const auto view = camera.view();
     const auto projection = camera.projection(aspect);
     const auto eye = camera.position();
-    const auto direction = camera.direction();
+    const auto light = flashlightView(camera, lighting);
     glUniformMatrix4fv(viewLocation_, 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, glm::value_ptr(projection));
     glUniform3fv(eyeLocation_, 1, glm::value_ptr(eye));
     glUniform1f(timeLocation_, static_cast<float>(seconds));
     glUniform1f(nightBlendLocation_, nightBlend);
-    glUniform3fv(directionLocation_, 1, glm::value_ptr(direction));
+    glUniform3fv(lightPositionLocation_, 1, glm::value_ptr(light.position));
+    glUniform3fv(directionLocation_, 1, glm::value_ptr(light.direction));
     glUniform3fv(colorLocation_, 1, glm::value_ptr(lighting.flashlightColor));
     glUniform3f(coneLocation_, lighting.flashlightRange,
                 std::cos(glm::radians(lighting.innerAngle)), std::cos(glm::radians(lighting.outerAngle)));

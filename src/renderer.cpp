@@ -76,6 +76,11 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         groundFogLocation_ = glGetUniformLocation(program_, "uGroundFog");
         nightBlendLocation_ = glGetUniformLocation(program_, "uNightBlend");
         unlitLightLocation_ = glGetUniformLocation(program_, "uUnlitLight");
+        flashlightPositionLocation_ = glGetUniformLocation(program_, "uFlashlightPosition");
+        flashlightShadowsLocation_ = glGetUniformLocation(program_, "uFlashlightShadows");
+        flashlightShadowMapLocation_ = glGetUniformLocation(program_, "uFlashlightShadowMap");
+        flashlightMatrixLocation_ = glGetUniformLocation(program_, "uFlashlightMatrix");
+        flashlightShadowDistancesLocation_ = glGetUniformLocation(program_, "uFlashlightShadowDistances");
         flashlightDirectionLocation_ = glGetUniformLocation(program_, "uFlashlightDirection");
         flashlightColorLocation_ = glGetUniformLocation(program_, "uFlashlightColor");
         flashlightConeLocation_ = glGetUniformLocation(program_, "uFlashlightCone");
@@ -321,10 +326,11 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     glActiveTexture(GL_TEXTURE0);
     glUniform1i(textureLocation_, 0);
     // Assign all active sampler types distinct units in both passes, including
-    // empty scenes. Unit 3 belongs exclusively to the sun depth comparison.
+    // empty scenes. Units 3/4 belong to the sun/flashlight depth comparisons.
     glUniform1i(animationLocation_, 1);
     glUniform1i(skinningBonesLocation_, 2);
     glUniform1i(shadowMapLocation_, 3);
+    glUniform1i(flashlightShadowMapLocation_, 4);
     SunShadowView shadowView;
     const auto lighting = lightingForFrame();
     const auto view = camera.view();
@@ -333,10 +339,15 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     const bool sunlight = glm::any(glm::greaterThan(lighting.sun.color, glm::vec3(0)));
     if (sunlight) shadowView = sunShadowView(camera.position(), lighting.sun.direction);
     const bool castShadows = sunlight && shadows_ && shadowPassLocation_ >= 0;
+    const auto flashlight = flashlightView(camera, nightLighting_);
+    const bool flashlightCasting = lighting.nightBlend > 0 && shadows_ && flashlightShadows_ &&
+        shadowPassLocation_ >= 0 && flashlightShadowsLocation_ >= 0;
+    const Frustum flashlightFrustum(flashlight.projectionView());
     const Frustum lightFrustum(shadowView.projectionView());
-    prepareZombieDraws(Frustum(projection * view), castShadows ? &lightFrustum : nullptr, camera, projection, animationSeconds);
+    prepareZombieDraws(Frustum(projection * view), castShadows ? &lightFrustum : nullptr, camera, projection, animationSeconds, flashlightCasting ? &flashlightFrustum : nullptr);
     if (castShadows) drawSunShadows(shadowView, animationSeconds);
-    applyLighting(camera, shadowView, lighting);
+    if (flashlightCasting) drawFlashlightShadows(flashlight, animationSeconds);
+    applyLighting(camera, shadowView, lighting, flashlight, flashlightCasting);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
     glViewport(0, 0, width_, height_);
     auto atmosphere = atmosphere_;

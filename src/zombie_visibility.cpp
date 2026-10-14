@@ -115,7 +115,7 @@ std::size_t ZombieVisibility::refit() {
 }
 
 ZombieVisibilityStats ZombieVisibility::query(const Frustum& camera, const Frustum* light,
-                                             bool cameraCulling, std::vector<ZombieVisibilityResult>& visible) {
+                                             bool cameraCulling, std::vector<ZombieVisibilityResult>& visible, const Frustum* flashlight) {
     visible.clear();
     ZombieVisibilityStats stats;
     stats.groups = cells_.size();
@@ -127,13 +127,16 @@ ZombieVisibilityStats ZombieVisibility::query(const Frustum& camera, const Frust
         const auto& group = groups_[entry.second];
         const auto cameraRelation = cameraCulling ? camera.classify(group.bounds.minimum, group.bounds.maximum) : Relation::Inside;
         const auto shadowRelation = light ? light->classify(group.bounds.minimum, group.bounds.maximum) : Relation::Outside;
+        const auto flashlightRelation = flashlight ? flashlight->classify(group.bounds.minimum, group.bounds.maximum) : Relation::Outside;
+        stats.flashlightGroupTests += flashlight != nullptr;
         stats.cameraGroupTests += cameraCulling;
         stats.shadowGroupTests += light != nullptr;
-        if (cameraRelation == Relation::Outside && shadowRelation == Relation::Outside) continue;
+        if (cameraRelation == Relation::Outside && shadowRelation == Relation::Outside && flashlightRelation == Relation::Outside) continue;
         for (const auto instance : group.members) {
             const auto& bounds = *locations_[instance].bounds;
             bool inCamera = cameraRelation == Relation::Inside;
             bool inShadow = shadowRelation == Relation::Inside;
+            bool inFlashlight = flashlightRelation == Relation::Inside;
             if (cameraRelation == Relation::Intersecting) {
                 ++stats.cameraInstanceTests;
                 inCamera = camera.intersects(bounds.minimum, bounds.maximum);
@@ -142,7 +145,11 @@ ZombieVisibilityStats ZombieVisibility::query(const Frustum& camera, const Frust
                 ++stats.shadowInstanceTests;
                 inShadow = light->intersects(bounds.minimum, bounds.maximum);
             }
-            if (inCamera || inShadow) visible.push_back({instance, inCamera, inShadow});
+            if (flashlightRelation == Relation::Intersecting) {
+                ++stats.flashlightInstanceTests;
+                inFlashlight = flashlight->intersects(bounds.minimum, bounds.maximum);
+            }
+            if (inCamera || inShadow || inFlashlight) visible.push_back({instance, inCamera, inShadow, inFlashlight});
         }
     }
     // Hash/group and swap-removal ordering must not change batch draw ordering

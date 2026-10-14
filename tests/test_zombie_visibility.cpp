@@ -14,9 +14,9 @@ VisibilityBounds box(glm::vec3 center, glm::vec3 half = glm::vec3(0.5f)) { retur
 
 viewer::ZombieVisibilityStats compare(viewer::ZombieVisibility& groups, const std::vector<VisibilityBounds>& bounds,
                                      const std::vector<bool>& active, const viewer::Frustum& camera, const viewer::Frustum* light = nullptr,
-                                     bool cameraCulling = true) {
+                                     bool cameraCulling = true, const viewer::Frustum* flashlight = nullptr) {
     std::vector<viewer::ZombieVisibilityResult> actual, expected;
-    const auto stats = groups.query(camera, light, cameraCulling, actual);
+    const auto stats = groups.query(camera, light, cameraCulling, actual, flashlight);
     // Independent full population query is the original rendering predicate.
     for (std::size_t id = 0; id < bounds.size(); ++id) {
         require(groups.contains(id) == active[id], "Membership must match independently recorded updates/removals");
@@ -24,12 +24,13 @@ viewer::ZombieVisibilityStats compare(viewer::ZombieVisibility& groups, const st
         const auto& b = bounds[id];
         const bool inCamera = !cameraCulling || camera.intersects(b.minimum, b.maximum);
         const bool inShadow = light && light->intersects(b.minimum, b.maximum);
-        if (inCamera || inShadow) expected.push_back({id, inCamera, inShadow});
+        const bool inFlashlight = flashlight && flashlight->intersects(b.minimum, b.maximum);
+        if (inCamera || inShadow || inFlashlight) expected.push_back({id, inCamera, inShadow, inFlashlight});
     }
     require(actual.size() == expected.size(), "Grouped culling must match the full-scan visible union");
     for (std::size_t i = 0; i < actual.size(); ++i)
         require(actual[i].instance == expected[i].instance && actual[i].camera == expected[i].camera &&
-                actual[i].shadow == expected[i].shadow,
+                actual[i].shadow == expected[i].shadow && actual[i].flashlight == expected[i].flashlight,
                 "Grouped camera/shadow masks and source ordering must match individual tests");
     return stats;
 }
@@ -59,7 +60,11 @@ void insideOutsideAndBoundaryGroups() {
     stats = compare(groups, bounds, active, camera, &light, false);
     require(stats.cameraGroupTests == 0 && stats.cameraInstanceTests == 0 && stats.shadowGroupTests == 3,
             "Disabling camera culling must retain independent shadow culling");
-    compare(groups, bounds, active, camera); // No active sunlight: camera list only.
+    const viewer::Frustum flashlight(glm::ortho(190.0f, 210.0f, -10.0f, 10.0f, -10.0f, 10.0f));
+    stats = compare(groups, bounds, active, camera, &light, true, &flashlight);
+    require(stats.flashlightGroupTests == 3 && stats.flashlightInstanceTests == 0,
+            "A flashlight-only group must join the visible union without individual checks");
+    compare(groups, bounds, active, camera); // No active lights: camera list only.
 }
 
 void movementRemovalAndReuse() {
@@ -138,7 +143,10 @@ void randomViewsMatchFullScan() {
                                      glm::lookAt(eye, glm::vec3(0), glm::vec3(0, 1, 0)));
         const viewer::Frustum light(glm::ortho(-120.0f, 120.0f, -120.0f, 120.0f, 0.1f, 600.0f) *
                                     glm::lookAt(eye + glm::vec3(-100, 250, 100), eye, glm::vec3(0, 1, 0)));
-        compare(groups, bounds, active, camera, view % 3 == 0 ? nullptr : &light, view % 4 != 0);
+        const viewer::Frustum flashlight(glm::perspective(glm::radians(44.0f), 1.0f, 0.05f, 25.0f) *
+                                        glm::lookAt(eye, glm::vec3(0), glm::vec3(0, 1, 0)));
+        compare(groups, bounds, active, camera, view % 3 == 0 ? nullptr : &light, view % 4 != 0,
+                view % 2 == 0 ? nullptr : &flashlight);
     }
 }
 

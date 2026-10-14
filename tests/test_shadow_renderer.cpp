@@ -1,4 +1,6 @@
 #include "renderer.hpp"
+#include "door_layer.hpp"
+#include "physics_world.hpp"
 
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -91,6 +93,7 @@ void checkMovingSun() {
     viewer::Renderer renderer(scene(false), VIEWER_SHADER_DIR);
     renderer.setHaze(false);
     renderer.setGroundFog(false);
+    renderer.setFlashlightShadows(false); // Isolate sunlight at night/horizon.
     renderer.resize(width, height);
     const auto camera = cameraAt({0, 6, 6});
     const auto sample = [&](double hour, bool shadows, glm::vec3 point) {
@@ -326,9 +329,203 @@ void checkAnimatedCaster() {
             "Offscreen zombie casters must shadow the ground independently of camera culling");
     viewer::Renderer::checkErrors("animated shadow regression");
 }
+
+enum class FlashlightCaster { Opaque, Masked, Blended, Zombie, Door, Tree };
+void checkFlashlight(FlashlightCaster kind, bool unlit = false, const std::string& capture = {}) {
+    const bool masked = kind == FlashlightCaster::Masked || kind == FlashlightCaster::Tree;
+    const bool blended = kind == FlashlightCaster::Blended;
+    const bool zombie = kind == FlashlightCaster::Zombie;
+    const bool tree = kind == FlashlightCaster::Tree;
+    const bool door = kind == FlashlightCaster::Door;
+    viewer::Camera camera;
+    camera.setPosition({0, 1.7f, 0});
+    camera.look(0, 200); // Horizontal, looking along -Z.
+    viewer::Model model;
+    viewer::Material receiver;
+    receiver.baseColor = {0.15f, 0.15f, 0.15f, 1};
+    receiver.unlit = unlit;
+    model.materials.push_back(receiver);
+    model.materials.push_back(scene(masked).materials[1]);
+    if (masked) {
+        auto mask = scene(true);
+        model.images = std::move(mask.images);
+        model.textures = std::move(mask.textures);
+    }
+    if (blended) model.materials[1].alphaMode = "BLEND";
+    model.primitives.push_back(quad({{{-3, 0, -5}, {3, 0, -5}, {3, 4, -5}, {-3, 4, -5}}}, {0, 0, 1}, 0));
+    model.draws.push_back({0, glm::mat4(1), "receiver"});
+    const auto caster = quad({{{-.12f, 1.45f, -1}, {.12f, 1.45f, -1}, {.12f, 1.85f, -1}, {-.12f, 1.85f, -1}}}, {0, 0, 1}, 1);
+    viewer::ZombieLayer layer;
+    if (zombie) {
+        viewer::AnimatedModel asset;
+        asset.frameCount = 2;
+        asset.duration = 1;
+        asset.skeleton.resize(1);
+        asset.model.materials.push_back(model.materials[1]);
+        auto mesh = caster;
+        mesh.material = 0;
+        asset.model.primitives.push_back(mesh);
+        viewer::AnimatedPrimitive animation;
+        for (const auto& vertex : mesh.vertices) {
+            animation.frames.push_back({glm::vec4(vertex.position, 1), glm::vec4(vertex.normal, 0)});
+            viewer::SkinningVertex skin;
+            skin.weights[0] = 1;
+            animation.skinning.push_back(skin);
+        }
+        const auto frame = animation.frames;
+        animation.frames.insert(animation.frames.end(), frame.begin(), frame.end());
+        asset.animation.push_back(animation);
+        layer.assets.push_back(asset);
+        layer.instances.emplace_back();
+        layer.setRagdollPalette(0, {glm::mat4(1)});
+    } else if (!tree) {
+        model.primitives.push_back(caster);
+        model.draws.push_back({1, glm::mat4(1), door ? "building_test_doors" : "caster"});
+        if (door) {
+            model.draws.back().detailDistance = 120;
+            model.draws.back().detailGroup = "building_test";
+            // The original closed shell must not block light through an opened
+            // detailed door. Sun shadows intentionally retain that shell.
+            model.draws.push_back({1, glm::mat4(1), "building_test_walls", 120, true, "building_test"});
+        }
+    }
+    viewer::TreeLayer trees;
+    if (tree) {
+        viewer::TreeAsset asset;
+        asset.model.materials.push_back(model.materials[1]);
+        asset.model.materials[0].unlit = true;
+        asset.model.images = model.images;
+        asset.model.textures = model.textures;
+        auto mesh = caster;
+        mesh.material = 0;
+        asset.model.primitives.push_back(mesh);
+        asset.model.draws.push_back({0, glm::mat4(1), "tree"});
+        trees.assets.push_back(std::move(asset));
+        viewer::TreeInstance instance;
+        instance.boundsMin = {-.12f, 1.45f, -1};
+        instance.boundsMax = {.12f, 1.85f, -1};
+        trees.instances.push_back(instance);
+    }
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    std::unique_ptr<viewer::DoorLayer> doors;
+    if (door) doors = std::make_unique<viewer::DoorLayer>(viewer::prepareDoorPanels(model), physics);
+    viewer::Renderer renderer(model, VIEWER_SHADER_DIR, tree ? &trees : nullptr, zombie ? &layer : nullptr);
+    renderer.setNight(true);
+    renderer.setHaze(false);
+    renderer.setGroundFog(false);
+    renderer.resize(width, height);
+    // The shadow lies to the left of the camera-visible caster because the
+    // lamp is held to the right. Test a receiver the camera sees directly.
+    const glm::vec3 opaque{-1.0f, 1.7f, -5}, hole{-1.6f, 1.7f, -5};
+    // The initial baseline also verifies that flashlight shadows default off.
+    renderer.render(camera);
+    const auto clear = brightness(camera, opaque), clearHole = brightness(camera, hole);
+    if (!capture.empty()) renderer.writeScreenshot(capture + ".off.ppm");
+    renderer.setFlashlightShadows(true);
+    renderer.render(camera);
+    const auto shadow = brightness(camera, opaque);
+    if (!capture.empty()) renderer.writeScreenshot(capture + ".on.ppm");
+    if (blended) require(std::abs(clear - shadow) < 3, "Blended surfaces must not cast flashlight shadows");
+    else {
+        require(clear - shadow > 45, "Flashlight must cast visible offset shadows, including onto unlit receivers");
+        if (masked) require(std::abs(clearHole - brightness(camera, hole)) < 3,
+                            "Transparent mask texels must leave flashlight shadows open");
+        else require(clearHole - brightness(camera, hole) > 25, "Opaque caster must shadow both halves");
+    }
+    if (zombie) {
+        require(renderer.zombiePaletteStats().needed == 1 && renderer.zombiePaletteStats().uploaded == 0,
+                "Camera and flashlight must share one retained ragdoll palette");
+        auto twilight = viewer::dayNightLighting(12);
+        twilight.nightBlend = .5f;
+        renderer.setDayNightLighting(twilight);
+        renderer.render(camera);
+        require(renderer.zombieRenderStats().shadowTriangles == 2 && renderer.zombieRenderStats().flashlightTriangles == 2 &&
+                renderer.zombiePaletteStats().needed == 1 && renderer.zombiePaletteStats().uploaded == 0,
+                "Both lights and the camera must share a single palette during twilight");
+        renderer.setNight(true);
+        renderer.setZombieDrawDistance(0.01f);
+        renderer.render(camera);
+        require(renderer.zombieVisibleCount() == 0 && renderer.zombieRenderStats().flashlightTriangles == 2 &&
+                renderer.zombiePaletteStats().needed == 1,
+                "A camera-culled ragdoll must remain a flashlight caster");
+        require(std::abs(shadow - brightness(camera, opaque)) < 3, "Shadow-only ragdoll must preserve its live pose");
+        renderer.setZombieShadows(false);
+        renderer.render(camera);
+        require(renderer.zombiePaletteStats().needed == 0 && std::abs(clear - brightness(camera, opaque)) < 3,
+                "Disabling zombie shadows must omit flashlight-only palettes");
+    }
+    if (tree) {
+        renderer.setTreeShadows(false);
+        renderer.render(camera);
+        require(std::abs(clear - brightness(camera, opaque)) < 3, "Tree shadow toggle must include flashlight casting");
+    }
+    if (door) {
+        const auto& panel = doors->panel(0);
+        const auto freeEdge = panel.center + glm::cross(glm::vec3(0, 1, 0), panel.outward) * (panel.halfExtents.x * .9f);
+        for (int step = 0; step < 180; ++step) {
+            const auto point = glm::vec3(doors->transform(0) * glm::inverse(panel.closedTransform) * glm::vec4(freeEdge, 1));
+            doors->applyForce(0, glm::cross(glm::vec3(0, -1, 0), point - panel.hinge) * 100.0f, point);
+            physics->step(1.0f / 60);
+        }
+        require(doors->angle(0) > glm::radians(100.0f), "Fixture door must reach its open stop");
+        renderer.updateDoors(*doors);
+        renderer.render(camera);
+        // The open panel now covers the first sample from the camera. Use
+        // the other originally shadowed receiver, which remains camera-visible.
+        require(std::abs(clearHole - brightness(camera, hole)) < 3,
+                "Flashlight shadow must follow an opened door, excluding the original closed shell");
+    }
+    renderer.setShadows(false);
+    renderer.render(camera);
+    require(std::abs((door ? clearHole : clear) - brightness(camera, door ? hole : opaque)) < 3,
+            "Global shadow toggle must disable flashlight shadows");
+    require(!glIsEnabled(GL_POLYGON_OFFSET_FILL), "Flashlight must restore polygon offset state");
+    GLint viewport[4]{};
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    require(viewport[2] == width && viewport[3] == height, "Flashlight must restore the color viewport");
+    viewer::Renderer::checkErrors("flashlight shadow regression");
 }
 
-int main() {
+void checkFlashlightRange() {
+    viewer::Camera camera;
+    camera.setPosition({0, 1.7f, 0});
+    camera.look(0, 200);
+    const auto light = viewer::flashlightView(camera);
+    const glm::vec3 casterCenter{0, 1.7f, -1};
+    std::array<float, 3> ratios{};
+    std::size_t sample = 0;
+    for (const float distance : {18.0f, 22.5f, 28.0f}) {
+        // Follow one blocked light ray to receivers before, within, and beyond
+        // the fade band. Their projected shadows stay visible beside the caster.
+        const auto point = light.position + glm::normalize(casterCenter - light.position) * distance;
+        viewer::Model model;
+        viewer::Material material;
+        material.baseColor = {.4f, .4f, .4f, 1};
+        material.doubleSided = true;
+        model.materials.push_back(material);
+        model.primitives.push_back(quad({{point + glm::vec3(-2, -2, 0), point + glm::vec3(2, -2, 0),
+                                          point + glm::vec3(2, 2, 0), point + glm::vec3(-2, 2, 0)}}, {0, 0, 1}, 0));
+        model.primitives.push_back(quad({{{-.12f, 1.45f, -1}, {.12f, 1.45f, -1}, {.12f, 1.85f, -1}, {-.12f, 1.85f, -1}}}, {0, 0, 1}, 0));
+        model.draws = {{0, glm::mat4(1), "receiver"}, {1, glm::mat4(1), "caster"}};
+        viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
+        renderer.setNight(true);
+        renderer.setHaze(false);
+        renderer.setGroundFog(false);
+        renderer.resize(width, height);
+        renderer.setFlashlightShadows(false);
+        renderer.render(camera);
+        const float clear = brightness(camera, point);
+        renderer.setFlashlightShadows(true);
+        renderer.render(camera);
+        ratios[sample++] = brightness(camera, point) / clear;
+        viewer::Renderer::checkErrors("flashlight range regression");
+    }
+    require(ratios[0] < .3f && ratios[1] > .5f && ratios[1] < .95f && std::abs(ratios[2] - 1) < .02f,
+            "Flashlight shadows must fade between 20 and 25 m and stop beyond 25 m");
+}
+}
+
+int main(int argc, char** argv) {
     if (!glfwInit()) { std::cout << "SKIP: no display\n"; return 77; }
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -346,6 +543,14 @@ int main() {
         checkTreeCaster();
         checkAnimatedCaster();
         checkMovingSun();
+        checkFlashlight(FlashlightCaster::Opaque, false, argc > 1 ? argv[1] : "");
+        checkFlashlight(FlashlightCaster::Masked);
+        checkFlashlight(FlashlightCaster::Opaque, true);
+        checkFlashlight(FlashlightCaster::Blended);
+        checkFlashlight(FlashlightCaster::Zombie);
+        checkFlashlight(FlashlightCaster::Tree);
+        checkFlashlight(FlashlightCaster::Door);
+        checkFlashlightRange();
         std::cout << "Shadow rendering tests passed (" << glGetString(GL_RENDERER) << ")\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

@@ -10,17 +10,19 @@ namespace viewer {
 
 struct ZombieVisibilityResult {
     std::size_t instance = 0;
-    bool camera = false, shadow = false;
+    bool camera = false, shadow = false, flashlight = false;
 };
 struct ZombieVisibilityStats {
     std::size_t groups = 0, refittedGroups = 0;
     std::size_t cameraGroupTests = 0, shadowGroupTests = 0;
+    std::size_t flashlightGroupTests = 0, flashlightInstanceTests = 0;
     std::size_t cameraInstanceTests = 0, shadowInstanceTests = 0;
 };
 
 // Render-thread grid in X/Z world meters. Membership uses full bound centers;
 // each group encloses its members' entire boxes, including geometry outside the
-// cell. Queries refit dirty groups before independently testing camera/light.
+// cell. Queries refit dirty groups before independently testing the camera,
+// sunlight, and optional flashlight volumes.
 class ZombieVisibility {
 public:
     void reset(std::size_t population);
@@ -30,7 +32,8 @@ public:
     void update(std::size_t instance, const VisibilityBounds& bounds);
     void erase(std::size_t instance);
     ZombieVisibilityStats query(const Frustum& camera, const Frustum* light,
-                                bool cameraCulling, std::vector<ZombieVisibilityResult>& visible);
+                                bool cameraCulling, std::vector<ZombieVisibilityResult>& visible,
+                                const Frustum* flashlight = nullptr);
 
 private:
     static constexpr std::size_t noGroup = static_cast<std::size_t>(-1);

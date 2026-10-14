@@ -29,7 +29,7 @@ private:
     static constexpr GLsizei streakCount = 3000;
     GLuint program_ = 0, vao_ = 0, seeds_ = 0;
     GLint viewLocation_, projectionLocation_, eyeLocation_, timeLocation_;
-    GLint nightBlendLocation_, directionLocation_, colorLocation_, coneLocation_;
+    GLint nightBlendLocation_, lightPositionLocation_, directionLocation_, colorLocation_, coneLocation_;
 };
 
 } // namespace viewer

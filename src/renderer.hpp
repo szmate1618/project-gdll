@@ -17,7 +17,8 @@
 #include "zombie_palette_cache.hpp"
 #include "zombie_visibility.hpp"
 #include "sun_lighting.hpp"
-#include "sun_shadow_map.hpp"
+#include "shadow_map.hpp"
+#include "flashlight.hpp"
 #include "atmosphere.hpp"
 #include "night_lighting.hpp"
 #include "day_night.hpp"
@@ -33,8 +34,8 @@ struct TreeRenderStats {
 };
 
 struct ZombieRenderStats {
-    std::array<std::size_t, 4> cameraLevels{}, shadowLevels{};
-    std::size_t cameraTriangles = 0, shadowTriangles = 0, distanceCulled = 0;
+    std::array<std::size_t, 4> cameraLevels{}, shadowLevels{}, flashlightLevels{};
+    std::size_t cameraTriangles = 0, shadowTriangles = 0, flashlightTriangles = 0, distanceCulled = 0;
 };
 
 struct SceneRenderStats {
@@ -62,6 +63,7 @@ public:
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
     void setRoofBatching(bool enabled) { roofBatching_ = enabled; }
     void setShadows(bool enabled) { shadows_ = enabled; }
+    void setFlashlightShadows(bool enabled) { flashlightShadows_ = enabled; }
     void setTreeShadows(bool enabled) { treeShadows_ = enabled; }
     void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
     void setNight(bool enabled) { night_ = enabled; dayNight_.reset(); }
@@ -142,7 +144,7 @@ private:
         GLsizei count = 0;
         GLint frameCount = 0;
         float duration = 0;
-        std::vector<ZombieGPUInstance> cameraInstances, shadowInstances;
+        std::vector<ZombieGPUInstance> cameraInstances, shadowInstances, flashlightInstances;
     };
     struct ZombieBatch : ZombieGeometry {
         std::vector<ZombieGeometry> lods;
@@ -170,12 +172,16 @@ private:
     void uploadZombies(const ZombieLayer& zombies);
     void uploadZombieGeometry(const AnimatedModel& source, ZombieGeometry& geometry, std::size_t capacity, GLint maximumTexels);
     void prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* lightFrustum,
-                            const Camera& camera, const glm::mat4& projection, double seconds);
-    void drawZombies(double seconds, bool shadowPass = false);
+                            const Camera& camera, const glm::mat4& projection, double seconds, const Frustum* flashlightFrustum);
+    enum class ZombiePass { Camera, SunShadow, FlashlightShadow };
+    void drawZombies(double seconds, ZombiePass pass = ZombiePass::Camera);
     void drawSunShadows(const SunShadowView& shadowView, double seconds);
+    void drawFlashlightShadows(const FlashlightView& view, double seconds);
+    void drawShadowCasters(const glm::mat4& view, const glm::mat4& projection, double seconds,
+                           ZombiePass pass, glm::vec3 detailEye);
     DayNightLighting lightingForFrame() const;
     void applyLighting(const Camera& camera, const SunShadowView& shadowView,
-                       const DayNightLighting& lighting);
+                       const DayNightLighting& lighting, const FlashlightView& flashlight, bool flashlightCasting);
     void releaseZombies() noexcept;
     void applyMaterial(const ModelGPU& model, int index, bool mirrored);
     void draw(const DrawGPU& draw);
@@ -198,6 +204,8 @@ private:
     GLint hazeColorLocation_, hazeDensityLocation_, hazeStartLocation_;
     GLint groundFogLocation_;
     GLint nightBlendLocation_, unlitLightLocation_;
+    GLint flashlightPositionLocation_, flashlightShadowsLocation_, flashlightShadowMapLocation_;
+    GLint flashlightMatrixLocation_, flashlightShadowDistancesLocation_;
     GLint flashlightDirectionLocation_, flashlightColorLocation_, flashlightConeLocation_;
     Atmosphere atmosphere_;
     bool haze_ = true;
@@ -207,7 +215,9 @@ private:
     NightLighting nightLighting_;
     bool night_ = false;
     std::optional<DayNightLighting> dayNight_;
-    SunShadowMap shadowMap_;
+    ShadowMap shadowMap_{SunLighting::shadowResolution};
+    std::unique_ptr<ShadowMap> flashlightShadowMap_;
+    bool flashlightShadows_ = false;
     bool shadows_ = true;
     std::vector<std::size_t> shadowScene_;
     ModelGPU model_;

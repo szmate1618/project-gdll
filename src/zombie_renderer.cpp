@@ -285,7 +285,7 @@ void Renderer::updateZombies(const ZombieLayer& zombies) {
 }
 
 void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* lightFrustum,
-                                  const Camera& camera, const glm::mat4& projection, double seconds) {
+                                  const Camera& camera, const glm::mat4& projection, double seconds, const Frustum* flashlightFrustum) {
     zombiePaletteStats_ = {};
     zombieRenderStats_ = {};
     zombieVisibilityStats_ = {};
@@ -298,10 +298,11 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
     for (auto& batch : zombieBatches_) {
         batch.cameraInstances.clear();
         batch.shadowInstances.clear();
-        for (auto& lod : batch.lods) { lod.cameraInstances.clear(); lod.shadowInstances.clear(); }
+        batch.flashlightInstances.clear();
+        for (auto& lod : batch.lods) { lod.cameraInstances.clear(); lod.shadowInstances.clear(); lod.flashlightInstances.clear(); }
         batch.palettes->beginFrame();
     }
-    zombieVisibilityStats_ = zombieVisibility_.query(cameraFrustum, lightFrustum, zombieCulling_, visibleZombies_);
+    zombieVisibilityStats_ = zombieVisibility_.query(cameraFrustum, lightFrustum, zombieCulling_, visibleZombies_, flashlightFrustum);
     for (const auto& visible : visibleZombies_) {
         const auto& source = zombieSource_->instances[visible.instance];
         auto& batch = zombieBatches_[source.asset];
@@ -313,7 +314,8 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
         const bool cameraVisible = visible.camera && detail.visible;
         if (visible.camera && !detail.visible) ++zombieRenderStats_.distanceCulled;
         const bool shadowVisible = visible.shadow && zombieShadows_;
-        if (!cameraVisible && !shadowVisible) continue;
+        const bool flashlightVisible = visible.flashlight && zombieShadows_;
+        if (!cameraVisible && !shadowVisible && !flashlightVisible) continue;
         if (source.ragdoll && batch.skinningBoneCount > 0)
             instance.boneBase = batch.palettes->request(local, source.ragdollPoseVersion, source.ragdollBones);
         const auto& asset = zombieSource_->assets[source.asset];
@@ -351,6 +353,15 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
             geometry.shadowInstances.push_back(shadowInstance);
             ++zombieRenderStats_.shadowLevels[level];
         }
+        if (flashlightVisible) {
+            auto caster = cameraVisible ? cameraInstance : instance;
+            if (!cameraVisible) { caster.animationFrame = std::floor(frame); caster.animationStep = 1; }
+            // Nearby flashlight silhouettes need more detail than sun shadows.
+            const auto level = zombieDistanceDetail_ && distance >= 12 ? std::min(std::size_t(1), batch.lods.size()) : 0;
+            auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
+            geometry.flashlightInstances.push_back(caster);
+            ++zombieRenderStats_.flashlightLevels[level];
+        }
     }
     for (auto& batch : zombieBatches_) {
         batch.palettes->flush();
@@ -365,7 +376,8 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
     checkErrors("zombie palette update");
 }
 
-void Renderer::drawZombies(double seconds, bool shadowPass) {
+void Renderer::drawZombies(double seconds, ZombiePass pass) {
+    const bool shadowPass = pass != ZombiePass::Camera;
     if (!shadowPass) {
         zombieDrawCalls_ = 0;
         zombieVisibleCount_ = 0;
@@ -382,7 +394,8 @@ void Renderer::drawZombies(double seconds, bool shadowPass) {
         for (std::size_t level = 0; level <= batch.lods.size(); ++level) {
             auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
             if (geometry.count == 0) continue;
-            const auto& visible = shadowPass ? geometry.shadowInstances : geometry.cameraInstances;
+            const auto& visible = pass == ZombiePass::FlashlightShadow ? geometry.flashlightInstances :
+                shadowPass ? geometry.shadowInstances : geometry.cameraInstances;
             const auto count = static_cast<GLsizei>(visible.size());
             if (!shadowPass) zombieVisibleCount_ += visible.size();
             if (count == 0) continue;
@@ -414,7 +427,8 @@ void Renderer::drawZombies(double seconds, bool shadowPass) {
                 if (!shadowPass) {
                     ++zombieDrawCalls_;
                     zombieRenderStats_.cameraTriangles += visible.size() * static_cast<std::size_t>(mesh.count / 3);
-                } else zombieRenderStats_.shadowTriangles += visible.size() * static_cast<std::size_t>(mesh.count / 3);
+                } else if (pass == ZombiePass::SunShadow) zombieRenderStats_.shadowTriangles += visible.size() * static_cast<std::size_t>(mesh.count / 3);
+                else zombieRenderStats_.flashlightTriangles += visible.size() * static_cast<std::size_t>(mesh.count / 3);
             }
         }
     }

@@ -59,6 +59,7 @@ struct Options {
     bool noZombies = false, zombieView = false, explicitZombies = false, zombieCulling = true;
     bool zombiePerceptionStaggering = true;
     bool zombieDistanceDetail = true, zombieShadows = true, profile = false;
+    bool flashlightShadows = false;
     std::optional<float> zombieDrawDistance;
     int zombieCount = 1000;
     bool explicitZombieCount = false, explicitZombieRadius = false;
@@ -79,6 +80,8 @@ Options parseOptions(int argc, char** argv) {
         if (argument == "--help" || argument == "-h") options.help = true;
         else if (argument == "--profile") options.profile = true;
         else if (argument == "--no-zombie-lod") options.zombieDistanceDetail = false;
+        else if (argument == "--flashlight-shadows") options.flashlightShadows = true;
+        else if (argument == "--no-flashlight-shadows") options.flashlightShadows = false;
         else if (argument == "--no-zombie-shadows") options.zombieShadows = false;
         else if (argument == "--zombie-draw-distance") {
             const auto text = value();
@@ -222,8 +225,8 @@ void printHelp() {
               << "  --day-length S      Seconds per full day, default 1200; 0 freezes the hour\n"
               << "  --night             Fixed night with a camera flashlight\n"
               << "  --rain              Enable nearby animated rain streaks\n"
-              << "  --no-shadows        Disable nearby sun shadows for comparison\n"
-              << "  --no-tree-shadows   Disable tree casting while retaining other sun shadows\n"
+              << "  --no-shadows        Disable sun and flashlight shadows for comparison\n"
+              << "  --no-tree-shadows   Disable tree casting for both lights\n"
               << "  --no-haze           Disable atmospheric distance haze for comparison\n"
               << "  --no-ground-fog     Disable the analytical ground mist layer\n"
               << "  --spawn X Z         Start walking near world X/Z in meters\n"
@@ -241,6 +244,8 @@ void printHelp() {
               << "  --no-tree-culling   Render all tree instances for comparison\n"
               << "  --no-zombie-lod     Disable zombie mesh LOD, distance cutoff and stepped animation\n"
               << "  --zombie-draw-distance M Camera cutoff at normal FOV (180 m; overview unlimited; 0 disables)\n"
+              << "  --flashlight-shadows Enable nearby flashlight shadows (default off)\n"
+              << "  --no-flashlight-shadows Disable nearby flashlight shadows\n"
               << "  --no-zombie-shadows Disable zombie casting for GPU cost comparisons\n"
               << "  --profile           Print frame/GPU/CPU simulation and render timings\n"
               << "  --no-zombie-culling Disable zombie camera-frustum culling for comparison\n"
@@ -759,6 +764,7 @@ int run(const Options& options) {
     renderer.setSceneCulling(options.sceneCulling);
     renderer.setRoofBatching(options.roofBatching);
     renderer.setShadows(options.shadows);
+    renderer.setFlashlightShadows(options.flashlightShadows);
     renderer.setTreeShadows(options.treeShadows);
     renderer.setNight(options.night);
     renderer.setRain(options.rain);
@@ -950,7 +956,7 @@ int run(const Options& options) {
         std::cout << "Zombie detail: camera LOD0/1/2/3 " << stats.cameraLevels[0] << '/' << stats.cameraLevels[1]
                   << '/' << stats.cameraLevels[2] << '/' << stats.cameraLevels[3]
                   << "; " << stats.cameraTriangles << " camera triangles, " << stats.shadowTriangles
-                  << " shadow triangles; " << stats.distanceCulled << " distance culled\n";
+                  << " sun shadow triangles, " << stats.flashlightTriangles << " flashlight triangles; " << stats.distanceCulled << " distance culled\n";
     }
     viewer::Renderer::checkErrors("shutdown");
     std::cout << "Rendered " << frameCount << " frames successfully\n";

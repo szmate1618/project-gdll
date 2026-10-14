@@ -28,7 +28,12 @@ uniform float uHazeStart;
 uniform vec4 uGroundFog; // Base Y, inverse layer height, base density, clear distance.
 uniform float uNightBlend;
 uniform vec3 uUnlitLight;
+uniform vec3 uFlashlightPosition;
 uniform vec3 uFlashlightDirection;
+uniform bool uFlashlightShadows;
+uniform sampler2DShadow uFlashlightShadowMap;
+uniform mat4 uFlashlightMatrix;
+uniform vec3 uFlashlightShadowDistances; // Near plane, fade start, shadow distance, in meters.
 uniform vec3 uFlashlightColor;
 uniform vec3 uFlashlightCone; // Range in meters, cosine of inner/outer half angles.
 
@@ -79,16 +84,42 @@ float sunlightVisibility(float sunFacing, float distanceFromEye) {
     return mix(visibility * 0.25, 1.0, fade);
 }
 
-vec3 flashlight(vec3 normal, float distanceFromEye) {
-    if (uNightBlend <= 0.0 || distanceFromEye >= uFlashlightCone.x) return vec3(0.0);
-    vec3 fromEye = (vWorldPosition - uEye) / max(distanceFromEye, 0.001);
+float flashlightVisibility(float facing, float distanceFromLight) {
+    if (!uFlashlightShadows || distanceFromLight >= uFlashlightShadowDistances.z) return 1.0;
+    vec4 clip = uFlashlightMatrix * vec4(vWorldPosition, 1.0);
+    if (clip.w <= 0.0) return 1.0;
+    vec3 coord = clip.xyz / clip.w * 0.5 + 0.5;
+    if (any(lessThan(coord, vec3(0.0))) || any(greaterThan(coord, vec3(1.0)))) return 1.0;
+    // Perspective depth is nonlinear. Convert a small world-space receiver bias
+    // to depth units; a fixed normalized bias would erase distant spot shadows.
+    float meters = max(0.002, 0.01 * (1.0 - facing));
+    float near = uFlashlightShadowDistances.x;
+    float far = uFlashlightShadowDistances.z;
+    float bias = (far * near / (far - near)) * meters / (clip.w * max(clip.w - meters, near));
+    vec2 texel = 1.0 / vec2(textureSize(uFlashlightShadowMap, 0));
+    float visibility = 0.0;
+    for (int y = 0; y < 2; ++y)
+        for (int x = 0; x < 2; ++x)
+            visibility += texture(uFlashlightShadowMap,
+                vec3(coord.xy + (vec2(x, y) - 0.5) * texel, coord.z - bias));
+    float fade = smoothstep(uFlashlightShadowDistances.y, far, distanceFromLight);
+    return mix(visibility * 0.25, 1.0, fade);
+}
+
+vec3 flashlight(vec3 normal) {
+    if (uNightBlend <= 0.0) return vec3(0.0);
+    float distanceFromLight = length(vWorldPosition - uFlashlightPosition);
+    if (distanceFromLight >= uFlashlightCone.x) return vec3(0.0);
+    vec3 fromLight = (vWorldPosition - uFlashlightPosition) / max(distanceFromLight, 0.001);
     float cone = smoothstep(uFlashlightCone.z, uFlashlightCone.y,
-                           dot(fromEye, uFlashlightDirection));
-    float rangeFade = 1.0 - smoothstep(uFlashlightCone.x * 0.75, uFlashlightCone.x, distanceFromEye);
-    float falloff = 1.0 / (1.0 + 0.025 * distanceFromEye * distanceFromEye);
+                           dot(fromLight, uFlashlightDirection));
+    float rangeFade = 1.0 - smoothstep(uFlashlightCone.x * 0.75, uFlashlightCone.x, distanceFromLight);
+    float falloff = 1.0 / (1.0 + 0.025 * distanceFromLight * distanceFromLight);
     // Impostor normals describe a card rather than the photographed canopy.
-    float facing = uUnlit ? 1.0 : max(dot(normal, -fromEye), 0.0);
-    return uFlashlightColor * (uNightBlend * cone * rangeFade * falloff * facing);
+    float facing = uUnlit ? 1.0 : max(dot(normal, -fromLight), 0.0);
+    if (cone <= 0.0 || facing <= 0.0) return vec3(0.0);
+    float visibility = flashlightVisibility(facing, distanceFromLight);
+    return uFlashlightColor * (uNightBlend * cone * rangeFade * falloff * facing * visibility);
 }
 
 float alphaMaskCutoff() {
@@ -118,7 +149,7 @@ void main() {
     float distanceFromEye = length(vWorldPosition - uEye);
     vec3 light = uUnlit ? uUnlitLight
                         : ambient + uSunColor * sunFacing * sunlightVisibility(sunFacing, distanceFromEye);
-    light += flashlight(normal, distanceFromEye);
+    light += flashlight(normal);
     vec3 linearColor = max(color.rgb * light, vec3(0.0));
     // Haze affects unlit tree cards too, after alpha discard and lighting but
     // before output encoding. Keep material alpha intact for blended surfaces.

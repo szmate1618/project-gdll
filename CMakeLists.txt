@@ -182,15 +182,15 @@ add_custom_command(
 )
 add_custom_target(viewer_test_asset DEPENDS "${VIEWER_TEST_ASSET}")
 
-add_library(viewer_sun_lighting STATIC src/sun_lighting.cpp src/day_night.cpp)
+add_library(viewer_sun_lighting STATIC src/sun_lighting.cpp src/day_night.cpp src/flashlight.cpp)
 target_include_directories(viewer_sun_lighting PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
-target_link_libraries(viewer_sun_lighting PUBLIC glm::glm)
+target_link_libraries(viewer_sun_lighting PUBLIC glm::glm viewer_camera)
 viewer_warnings(viewer_sun_lighting)
 
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/roof_renderer.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
-    src/zombie_renderer.cpp src/zombie_palette_cache.cpp src/sun_shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
+    src/zombie_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
     viewer_model viewer_roof_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting OpenGL::GL)
 target_compile_definitions(viewer_renderer PRIVATE GL_GLEXT_PROTOTYPES)
@@ -327,6 +327,11 @@ if(BUILD_TESTING)
     target_link_libraries(test_sun_lighting PRIVATE viewer_sun_lighting viewer_visibility)
     viewer_warnings(test_sun_lighting)
     add_test(NAME viewer_sun_lighting COMMAND test_sun_lighting)
+
+    add_executable(test_flashlight tests/test_flashlight.cpp)
+    target_link_libraries(test_flashlight PRIVATE viewer_sun_lighting viewer_camera viewer_visibility)
+    viewer_warnings(test_flashlight)
+    add_test(NAME viewer_flashlight COMMAND test_flashlight)
 
     add_executable(test_day_night tests/test_day_night.cpp)
     target_link_libraries(test_day_night PRIVATE viewer_sun_lighting)
