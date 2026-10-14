@@ -242,7 +242,7 @@ void printHelp() {
               << "  --no-zombie-lod     Disable zombie mesh LOD, distance cutoff and stepped animation\n"
               << "  --zombie-draw-distance M Camera cutoff at normal FOV (180 m; overview unlimited; 0 disables)\n"
               << "  --no-zombie-shadows Disable zombie casting for GPU cost comparisons\n"
-              << "  --profile           Print frame/GPU/CPU render timings once per second\n"
+              << "  --profile           Print frame/GPU/CPU simulation and render timings\n"
               << "  --no-zombie-culling Disable zombie camera-frustum culling for comparison\n"
               << "  --no-zombie-staggering Check zombie sight every simulation step\n"
               << "  --no-town-culling   Render all town draw instances for comparison\n"
@@ -797,6 +797,9 @@ int run(const Options& options) {
     auto& simulationClock = viewer::SimulationClock::instance();
     simulationClock.reset();
     double intervalRenderSeconds = 0.0;
+    double intervalSimulationSeconds = 0.0;
+    double intervalBehaviorSeconds = 0.0;
+    double intervalPreparationSeconds = 0.0;
     int frameCount = 0, intervalFrames = 0;
     while (!glfwWindowShouldClose(window.get())) {
         glfwPollEvents();
@@ -808,9 +811,11 @@ int run(const Options& options) {
             titleTime = glfwGetTime();
             intervalFrames = 0;
             intervalRenderSeconds = 0.0;
+            intervalSimulationSeconds = intervalBehaviorSeconds = intervalPreparationSeconds = 0.0;
             gpuTimer.takeAverageMilliseconds();
             continue;
         }
+        const double simulationStart = glfwGetTime();
         simulationClock.advance(dt);
         if (!options.night) {
             displayedHour = options.dayNight.hourAt(simulationClock.seconds());
@@ -825,6 +830,7 @@ int run(const Options& options) {
         moveCamera(app, dt);
         anchorGroundFog();
         app.displayedAnimationSeconds = options.animationTime.value_or(simulationClock.seconds());
+        const double behaviorStart = glfwGetTime();
         if (zombies) {
             const auto& config = app.rig.player().config();
             const auto feet = app.rig.walking() ? app.rig.player().feet() :
@@ -835,6 +841,9 @@ int run(const Options& options) {
                 for (const auto& noise : app.rig.player().noises())
                     zombies->makeNoise(noise.position, noise.decibels);
         }
+        const double preparationStart = glfwGetTime();
+        intervalBehaviorSeconds += preparationStart - behaviorStart;
+        intervalSimulationSeconds += preparationStart - simulationStart;
         renderer.updateDoors(doors);
         renderer.resize(app.width, app.height);
         if (zombies) renderer.updateZombies(*zombies);
@@ -843,6 +852,7 @@ int run(const Options& options) {
             if (!debug) debug = std::make_unique<viewer::CollisionDebug>(options.shaders);
             overlay = collisionOverlay(app);
         }
+        intervalPreparationSeconds += glfwGetTime() - preparationStart;
         gpuTimer.begin();
         const double renderStart = glfwGetTime();
         renderer.render(app.rig.camera(), app.displayedAnimationSeconds);
@@ -874,7 +884,9 @@ int run(const Options& options) {
             const auto gpuMilliseconds = gpuTimer.takeAverageMilliseconds();
             const auto gpuTime = gpuMilliseconds ? milliseconds(*gpuMilliseconds)
                 : gpuTimer.supported() ? std::string("pending") : std::string("unavailable");
-            const auto cpuTime = milliseconds(intervalRenderSeconds * 1000.0 / static_cast<double>(intervalFrames));
+            const double frameScale = 1000.0 / static_cast<double>(intervalFrames);
+            const auto cpuTime = milliseconds(intervalRenderSeconds * frameScale);
+            const auto simulationTime = milliseconds(intervalSimulationSeconds * frameScale);
             const auto status = app.rig.walking() ? (app.rig.player().grounded() ? " | grounded" : " | airborne") : "";
             const auto& treeStats = renderer.treeStats();
             const auto& sceneStats = renderer.sceneStats();
@@ -892,13 +904,25 @@ int run(const Options& options) {
             }
             const auto caption = title + " | " + app.rig.modeName() + " | " + app.interaction.modeName()
                 + (app.interaction.grabbing() ? " (door grabbed)" : "") + status + " | " + std::to_string(fps)
-                + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + townStatus + treeStatus + zombieStatus + clockStatus.str() + " | " + std::to_string(static_cast<int>(app.rig.speed(
+                + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + " | CPU sim " + simulationTime + townStatus + treeStatus + zombieStatus + clockStatus.str() + " | " + std::to_string(static_cast<int>(app.rig.speed(
                     app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]))) + " m/s";
             glfwSetWindowTitle(window.get(), caption.c_str());
-            if (options.profile) std::cout << caption << '\n';
+            if (options.profile) {
+                std::cout << caption << '\n'
+                          << "CPU stages: behavior " << milliseconds(intervalBehaviorSeconds * frameScale)
+                          << "; preparation " << milliseconds(intervalPreparationSeconds * frameScale);
+                if (zombies) {
+                    const auto& stats = zombies->behaviorStats();
+                    std::cout << "; active zombies " << zombies->behaviors.entries().size()
+                              << "; last step " << stats.perceptionChecks << " perception checks, "
+                              << stats.sightRays << " sight rays";
+                }
+                std::cout << '\n';
+            }
             titleTime = completed;
             intervalFrames = 0;
             intervalRenderSeconds = 0.0;
+            intervalSimulationSeconds = intervalBehaviorSeconds = intervalPreparationSeconds = 0.0;
         }
         if (options.frames > 0 && frameCount >= options.frames) break;
     }

@@ -463,7 +463,6 @@ bool CollisionWorld::lineOfSight(glm::vec3 origin, glm::vec3 target) const {
     const auto inset = delta * (0.001f / length);
     origin += inset;
     target -= inset;
-    if (impl_->doors && doorsBlockSight(*impl_->doors, origin, target)) return false;
     if (impl_->segmentBlocked(impl_->nodes, impl_->order, origin, target, [&](std::uint32_t i) {
         const auto& t = impl_->triangles[i];
         if (!segmentBounds(origin, target, t.bounds)) return false;
@@ -475,14 +474,18 @@ bool CollisionWorld::lineOfSight(glm::vec3 origin, glm::vec3 target) const {
         const auto pair = closestSegmentTriangle(origin, target, t);
         return squareLength(pair.segment - pair.triangle) < 1e-10f;
     })) return false;
-    return !impl_->segmentBlocked(impl_->trunkNodes, impl_->trunkOrder, origin, target, [&](std::uint32_t i) {
+    if (impl_->segmentBlocked(impl_->trunkNodes, impl_->trunkOrder, origin, target, [&](std::uint32_t i) {
         const auto& trunk = impl_->trunks[i];
         if (!segmentBounds(origin, target, trunk.bounds)) return false;
         const auto& c = trunk.collider;
         const auto pair = closestSegments(origin, target, c.base + glm::vec3(0, c.radius, 0),
                                           c.base + glm::vec3(0, c.height - c.radius, 0));
         return squareLength(pair.segment - pair.triangle) <= c.radius * c.radius;
-    });
+    })) return false;
+    // Door queries materialize current panel boxes over the segment's AABB.
+    // Long diagonal rays can span much of town: let the segment-indexed wall
+    // and trunk tests reject blocked sight before paying that broad-phase cost.
+    return !impl_->doors || !doorsBlockSight(*impl_->doors, origin, target);
 }
 
 std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, float height, float skin) const {

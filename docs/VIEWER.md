@@ -354,8 +354,11 @@ no distance cutoff, so its overview can show the entire crowd; an explicit
 selection, animation stepping and the distance cutoff for comparison.
 `--no-zombie-shadows` disables only zombie casting for GPU cost comparisons.
 `--profile` prints the existing asynchronous GPU and CPU render timings once per
-second, including during hidden runs. CPU render time covers submission, not the
-entire AI/physics loop; hidden-run FPS omits presentation/VSync waits. Shutdown
+second, including during hidden runs. The title also reports `CPU sim` for
+physics, camera movement and zombie behavior before rendering. Console profiling
+separates behavior time and renderer preparation (door/instance/bounds updates),
+and reports active behavior count and the last step's perception/sight-ray counts.
+CPU render time covers submission; hidden-run FPS omits presentation/VSync waits. Shutdown
 also reports camera LOD counts, submitted camera/shadow triangles and the number
 of frustum-visible zombies rejected by distance.
 
@@ -472,7 +475,11 @@ uses the character's forward direction (+Z), ignoring height for the cone test.
 Inside the cone, three finite rays run from zombie eye height (1.65 m) to player
 head, torso, and feet. The scene and trunk collision BVHs test occlusion by
 double-sided triangle surfaces and trunk capsules; canopy cards and other
-zombies do not block sight. One or two clear rays store the current player feet
+zombies do not block sight. Scene geometry and trunks are checked before live
+door panels: already-blocked long rays skip the door query over the endpoints'
+bounding rectangle. This preserves occlusion while avoiding large door-candidate
+lists when free-fly takes the perceived player far from activated zombies.
+One or two clear rays store the current player feet
 and change idle or looking to **investigating**. Three clear rays store the same target and
 change idle, looking, or investigating to **chasing**. Partial sight refreshes a chasing
 zombie's target without downgrading its state.
@@ -1042,12 +1049,21 @@ Disable just the mist, or both atmospheric effects, for comparisons:
 ## Verification and diagnostics
 
 The window title updates about once per second with
-`FPS | GPU <average> ms | CPU render <average> ms`. FPS uses the actual frame
+`FPS | GPU <average> ms | CPU render <average> ms | CPU sim <average> ms`.
+FPS uses the actual frame
 interval, including any VSync wait. GPU time uses asynchronous
 `GL_TIME_ELAPSED` queries for the scene and enabled collision overlay; CPU
 render time measures time spent submitting those draws, including driver
 overhead and stalls. Both render timings exclude events, physics updates,
 framebuffer resize, the presentation blit, and the buffer swap/VSync wait.
+`CPU sim` measures the simulation portion before renderer preparation; it includes
+zombie AI, player/camera updates, door activation and physics. Add `--profile` to
+print those timings plus zombie behavior and preparation times. Preparation
+includes renderer instance/bounds updates, resize and collision-overlay assembly;
+it is outside both the simulation and render measurements. A low CPU render time
+alone therefore does not establish that the whole frame is inexpensive. Flying
+through a large crowd can accumulate active pursuers whose simulation continues
+even after camera distance culling hides them or the camera returns to FPS mode.
 GPU results can lag and show `pending` or `unavailable` as appropriate. Compare
 CPU and GPU timings separately: their work overlaps, so the times cannot be
 added. Timing appears automatically in the title without additional console
