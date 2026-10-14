@@ -670,9 +670,9 @@ idle cycles at a chosen elapsed time:
 | W / S | Move forward / backward |
 | A / D | Strafe left / right |
 | Q / E | Move down / up along world Y in free-fly mode |
-| Mouse | Look around while captured; during a door grab, drag sideways or push/pull |
-| Left mouse button | Combat: shoot a camera-center ray; Interaction: hold to grab a door within 1.5 m |
-| Right mouse button | Cycle normal, 10°, and 1° vertical fields of view while captured |
+| Mouse | Look around while captured; held boxes move sideways/up/down; held doors move sideways or push/pull |
+| Left mouse button | Combat: shoot; Interaction: left-hand box grab within 2 m or door grab within 1.5 m |
+| Right mouse button | Combat: cycle normal, 10°, and 1° fields of view; Interaction: right-hand box grab within 2 m |
 | Shift | Free-fly: move four times faster; walking: run at 6 m/s |
 | Mouse wheel | Adjust free-fly movement speed |
 | F1 | Switch to free-fly mode |
@@ -696,8 +696,8 @@ point stays attached to the door as it swings. Dragging right/left moves a
 horizontal grip target sideways; dragging up pushes it forward along the
 camera's horizontal heading, and dragging down pulls it back. Moving with WASD
 also moves the grip target and tugs the door. Mouse motion keeps the camera's
-orientation fixed during a successful grab; release restores normal look.
-A click that misses a reachable door keeps normal mouse look. Interaction
+orientation fixed during a successful grab.
+A click that misses all reachable objects keeps normal mouse look. Interaction
 clicks never shoot. Changing control/camera mode, releasing the cursor, or
 losing window focus ends the grab.
 
@@ -715,12 +715,37 @@ crate to stand on its top. Boxes can rotate, tumble and stack, and collide with
 the surrounding terrain, walls and live doors. The player keeps its existing
 capsule controller: it reads oriented box contacts and support surfaces, then
 applies bounded, time-scaled impulses during walking. Ordinary clearance,
-support and sight queries do not move boxes. There is no mouse grab for boxes.
+support and sight queries do not move boxes.
+
+In Interaction mode, aim the center crosshair at a box within 2 m and hold
+either mouse button: left and right buttons control independent hands. The left
+button selects the nearer door or box; walls, trunks, doors and other boxes
+block grabs behind them. Mouse right/left moves the picked point sideways,
+up/down moves it vertically, and WASD moves the grip with the player. Camera
+look stays fixed while either hand holds anything, then resumes after the last
+grip ends. If both hands hold different objects, mouse movement moves both.
+Both hands can also share an object; releasing one leaves the other attached.
+
+Grips apply bounded forces to the live body instead of teleporting it. Each hand
+can exert 180 N vertically and 240 N horizontally, so one hand can suspend up
+to about 18 kg and two hands about 36 kg. Heavier objects respond more slowly
+and can be dragged or tipped on the floor. Mouse offsets are bounded, and a
+large camera teleport or an object too far from its target ends the grip.
+Existing collisions remain active while holding objects.
+
+Release a button to drop that hand's object. Swing the mouse and release within
+100 ms to add a throw impulse in the recent motion's direction. Upward swings
+also add forward speed equal to 60% of their upward component; diagonal swings
+therefore interpolate that boost. Perfect sideways and downward swings add no
+forward momentum. Each releasing hand adds at most 60 N·s, giving heavy objects
+less speed; an object too heavy for that hand to lift receives no upward boost.
+Existing body momentum is preserved. Changing mode, releasing the cursor or
+losing focus drops both hands without adding a throw impulse.
 
 The viewer follows glTF's right-handed coordinate system: Y is up, and the
 camera looks toward negative Z before orientation is applied. Distances are
 interpreted as meters. The vertical field of view starts at 60°. Each
-right-click selects 10°, then 1°, then returns to 60° in either camera mode.
+right-click in Combat mode selects 10°, then 1°, then returns to 60° in either camera mode.
 Normal view has a small center crosshair; both zoom modes show scope markings
 and a circular tunnel-vision vignette whose opening spans nearly the full screen
 height. Mouse sensitivity scales with perspective
@@ -1377,6 +1402,8 @@ src/box_renderer.cpp       Shared cube instances and current-pose visibility
 src/door_geometry.{hpp,cpp} Runtime extraction of independent door panels
 src/door_layer.{hpp,cpp} Local hinge activation, force API and door poses
 src/door_interaction.{hpp,cpp} Combat/interaction mode and mouse/player door grabs
+src/player_interaction.{hpp,cpp} Nearest door/box picking and shared input routing
+src/object_interaction.{hpp,cpp} Independent hand grips, strength and release throws
 src/door_collision.{hpp,cpp} Doorway clipping and live Box3D capsule contacts
 src/zombie_ragdoll.{hpp,cpp} Box3D ragdoll simulation and simplified ground planes
 src/zombie_ragdoll_pose.{hpp,cpp} Animated-pose handoff and physics-to-skin mapping

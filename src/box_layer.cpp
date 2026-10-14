@@ -94,6 +94,37 @@ BoxPose BoxLayer::pose(std::size_t index) const {
 glm::vec3 BoxLayer::velocity(std::size_t index) const {
     return vector(b3Body_GetLinearVelocity(impl_->entries.at(index)->body));
 }
+float BoxLayer::mass(std::size_t index) const { return b3Body_GetMass(impl_->entries.at(index)->body); }
+BoxPointState BoxLayer::pointState(std::size_t index, glm::vec3 localPoint) const {
+    if (!finite(localPoint)) throw std::invalid_argument("Box grip point must be finite");
+    const auto body = impl_->entries.at(index)->body;
+    const auto point = b3Body_GetWorldPoint(body, vector(localPoint));
+    return {{point.x, point.y, point.z}, vector(b3Body_GetWorldPointVelocity(body, point))};
+}
+void BoxLayer::applyImpulse(std::size_t index, glm::vec3 impulse, glm::vec3 point) {
+    if (!finite(impulse) || !finite(point)) throw std::invalid_argument("Box impulse and point must be finite");
+    b3Body_ApplyLinearImpulse(impl_->entries.at(index)->body, vector(impulse), {point.x, point.y, point.z}, true);
+}
+std::optional<BoxRayHit> BoxLayer::raycast(glm::vec3 origin, glm::vec3 direction, float reach) const {
+    const float length = glm::length(direction);
+    if (!finite(origin) || !finite(direction) || length < 1e-6f || !std::isfinite(length) ||
+        !std::isfinite(reach) || reach <= 0 || reach > 1024) return std::nullopt;
+    const auto end = origin + direction / length * reach;
+    std::optional<BoxRayHit> closest;
+    for (const auto& box : query(glm::min(origin, end), glm::max(origin, end))) {
+        const auto inverse = glm::conjugate(box.rotation);
+        b3RayCastInput ray{};
+        ray.origin = vector(inverse * (origin - box.center));
+        ray.translation = vector(inverse * (end - origin)); ray.maxFraction = 1;
+        const auto h = box.halfExtents;
+        const auto hull = b3MakeBoxHull(h.x, h.y, h.z);
+        const auto hit = b3RayCastHull(&hull.base, &ray);
+        if (!hit.hit || (closest && closest->distance <= hit.fraction * reach)) continue;
+        const auto point = origin + (end - origin) * hit.fraction;
+        closest = BoxRayHit{box.index, point, inverse * (point - box.center), hit.fraction * reach};
+    }
+    return closest;
+}
 std::vector<BoxPose> BoxLayer::query(glm::vec3 minimum, glm::vec3 maximum) const {
     std::vector<BoxPose> result;
     if (!finite(minimum) || !finite(maximum) || glm::any(glm::greaterThan(minimum, maximum))) return result;

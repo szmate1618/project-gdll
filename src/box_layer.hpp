@@ -14,6 +14,12 @@ struct BoxPose {
     glm::quat rotation;
     glm::mat4 transform() const;
 };
+struct BoxRayHit {
+    std::size_t box;
+    glm::vec3 point, localPoint; // World and body-local meters.
+    float distance;
+};
+struct BoxPointState { glm::vec3 point, velocity; }; // World meters and m/s.
 
 // Owns dynamic untextured props in the shared Y-up, meter-based simulation.
 // Collision queries are read-only; pushing is an explicit dt-scaled action.
@@ -28,6 +34,10 @@ public:
     std::uint64_t revision() const;
     BoxPose pose(std::size_t index) const;
     glm::vec3 velocity(std::size_t index) const; // World meters per second.
+    float mass(std::size_t index) const; // Kilograms.
+    BoxPointState pointState(std::size_t index, glm::vec3 localPoint) const;
+    void applyImpulse(std::size_t index, glm::vec3 impulse, glm::vec3 point); // N*s, world meters.
+    std::optional<BoxRayHit> raycast(glm::vec3 origin, glm::vec3 direction, float reach) const;
     std::vector<BoxPose> query(glm::vec3 minimum, glm::vec3 maximum) const;
     void appendContacts(glm::vec3 feet, float radius, float height, float skin,
                         std::vector<Contact>& contacts) const;

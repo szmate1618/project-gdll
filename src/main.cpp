@@ -1,6 +1,6 @@
 #include "renderer.hpp"
 #include "door_layer.hpp"
-#include "door_interaction.hpp"
+#include "player_interaction.hpp"
 #include "physics_world.hpp"
 #include "box_layer.hpp"
 #include "physics_scene.hpp"
@@ -221,9 +221,10 @@ void printHelp() {
     std::cout << "Usage: godollo_viewer [model.glb|model.gltf] [options]\n"
               << "Default model: " << VIEWER_DEFAULT_ASSET << "\n\n"
               << "W/S forward/back, A/D strafe, Q/E down/up, mouse look, Shift faster\n"
-              << "Tab switch Combat/Interaction; left mouse shoot in Combat, hold to grab a door within 1.5 m in Interaction\n"
-              << "While grabbing: mouse right/left moves sideways, up/down pushes/pulls; WASD also tugs the door\n"
-              << "Right mouse button cycle normal, 10-degree, and 1-degree views while the mouse is captured\n"
+              << "Tab switch Combat/Interaction; left mouse shoot in Combat, grab a door (1.5 m) or box (2 m) in Interaction\n"
+              << "Interaction: left/right mouse hold boxes with separate hands; mouse sideways/up/down moves boxes; WASD moves grips\n"
+              << "Release to drop; swing and release to throw. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
+              << "Combat: right mouse cycle normal, 10-degree, and 1-degree views while captured\n"
               << "Left Alt release/capture mouse, wheel change speed, F frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
               << "  --fps               Start in walking mode\n"
@@ -290,7 +291,7 @@ struct AppState {
     AppState(const viewer::CollisionWorld& collision, const viewer::Model& model)
         : rig(collision, model.boundsMin, model.boundsMax, 1280.0f / 720.0f), world(collision) {}
     viewer::CameraRig rig;
-    viewer::DoorInteraction interaction;
+    viewer::PlayerInteraction interaction;
     viewer::DoorLayer* doors = nullptr;
     viewer::BoxLayer* boxes = nullptr;
     viewer::PhysicsScene* physicsScene = nullptr;
@@ -311,7 +312,7 @@ AppState& state(GLFWwindow* window) { return *static_cast<AppState*>(glfwGetWind
 void captureMouse(GLFWwindow* window, bool captured) {
     auto& app = state(window);
     app.capture = captured;
-    if (!captured) app.interaction.release();
+    if (!captured) app.interaction.cancel();
     app.firstMouse = true;
     if (!app.hidden) glfwSetInputMode(window, GLFW_CURSOR, captured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
 }
@@ -332,13 +333,13 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         std::cout << "Control mode: " << app.interaction.modeName() << '\n';
     } else if (key == GLFW_KEY_LEFT_ALT) captureMouse(window, !app.capture);
     else if (key == GLFW_KEY_F) {
-        app.interaction.release();
+        app.interaction.cancel();
         app.rig.frame(static_cast<float>(std::max(app.width, 1)) / static_cast<float>(std::max(app.height, 1)));
     } else if (key == GLFW_KEY_F1) {
-        app.interaction.release();
+        app.interaction.cancel();
         app.rig.enterFreeFly();
     } else if (key == GLFW_KEY_F2) {
-        app.interaction.release();
+        app.interaction.cancel();
         try { app.rig.enterWalking(); }
         catch (const std::exception& error) { std::cerr << "FPS placement failed: " << error.what() << '\n'; }
     } else if (key == GLFW_KEY_F3) {
@@ -351,7 +352,7 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
     auto& app = state(window);
     if (!app.capture) return;
     if (!app.firstMouse && std::isfinite(x) && std::isfinite(y))
-        app.interaction.look(app.rig.camera(), static_cast<float>(x - app.lastX), static_cast<float>(app.lastY - y));
+        app.interaction.look(app.rig.camera(), static_cast<float>(x - app.lastX), static_cast<float>(app.lastY - y), glfwGetTime());
     app.lastX = x;
     app.lastY = y;
     app.firstMouse = false;
@@ -359,18 +360,20 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     auto& app = state(window);
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
-        app.interaction.release();
+    if ((button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT) && action == GLFW_RELEASE) {
+        app.interaction.release(button == GLFW_MOUSE_BUTTON_LEFT ? viewer::Hand::Left : viewer::Hand::Right, glfwGetTime());
         return;
     }
     if (action != GLFW_PRESS || !app.capture) return;
-    if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+    if (button == GLFW_MOUSE_BUTTON_RIGHT && app.interaction.mode() == viewer::ControlMode::Combat) {
         app.rig.camera().cycleViewMode();
         return;
     }
-    if (button != GLFW_MOUSE_BUTTON_LEFT) return;
+    if (button != GLFW_MOUSE_BUTTON_LEFT && button != GLFW_MOUSE_BUTTON_RIGHT) return;
     if (app.interaction.mode() == viewer::ControlMode::Interaction) {
-        if (app.doors && app.interaction.press(app.rig.camera(), *app.doors, app.world) && app.interiors) {
+        const auto hand = button == GLFW_MOUSE_BUTTON_LEFT ? viewer::Hand::Left : viewer::Hand::Right;
+        if (app.doors && app.boxes && app.interaction.press(hand, app.rig.camera(), *app.doors, *app.boxes, app.world, glfwGetTime()) &&
+            app.interaction.grabbedDoor() && hand == viewer::Hand::Left && app.interiors) {
             const auto added = app.interiors->populate(*app.interaction.grabbedDoor(), app.world, *app.physicsScene, *app.boxes);
             if (added) std::cout << "Interior: spawned " << added << " physical boxes\n";
         }
@@ -391,7 +394,7 @@ void focusCallback(GLFWwindow* window, int focused) {
     if (!focused) {
         state(window).keys.fill(false);
         state(window).firstMouse = true;
-        state(window).interaction.release();
+        state(window).interaction.cancel();
     }
 }
 
@@ -454,6 +457,10 @@ void inputSelfTest(GLFWwindow* window) {
     key(window, GLFW_KEY_TAB, 0, GLFW_REPEAT, 0);
     if (app.interaction.mode() != viewer::ControlMode::Interaction)
         throw std::runtime_error("Tab repeat changed the control mode");
+    mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+    mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+    if (app.rig.camera().projection(1.0f) != originalProjection)
+        throw std::runtime_error("Interaction right hand changed zoom");
     key(window, GLFW_KEY_TAB, 0, GLFW_RELEASE, 0);
     key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
     key(window, GLFW_KEY_TAB, 0, GLFW_RELEASE, 0);
@@ -934,7 +941,7 @@ int run(const Options& options) {
                             << ':' << std::setw(2) << minutes % 60;
             }
             const auto caption = title + " | " + app.rig.modeName() + " | " + app.interaction.modeName()
-                + (app.interaction.grabbing() ? " (door grabbed)" : "") + status + " | " + std::to_string(fps)
+                + (app.interaction.grabbing() ? " (holding)" : "") + status + " | " + std::to_string(fps)
                 + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + " | CPU sim " + simulationTime + townStatus + treeStatus + zombieStatus + clockStatus.str() + " | " + std::to_string(static_cast<int>(app.rig.speed(
                     app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]))) + " m/s";
             glfwSetWindowTitle(window.get(), caption.c_str());
