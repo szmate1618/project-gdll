@@ -454,11 +454,22 @@ simulation must go through the ragdoll's owning API**. This includes:
 forces. `setRagdollPalette()` supports externally driven rigs and fixtures,
 validates the palette and advances its revision, and rejects physics-owned or
 removed corpses. Initial placement/fixture construction may populate instance
-fields directly, but subsequent ragdoll changes must respect these APIs. After
-simulation or owning API changes, call `Renderer::updateZombies()` before
+fields directly, followed by `rebuildSpatialIndex()` to rebuild shooting,
+activation, and corpse membership. Subsequent ragdoll changes must respect these
+APIs. After simulation or owning API changes, call `Renderer::updateZombies()` before
 `render()`, as the application already does. The renderer borrows the most recent
 layer for palette data, so that layer must remain alive and unchanged throughout
 rendering. Corpse removal is an API facility; no automatic removal policy is added.
+
+`ZombieLayer` maintains a dense, unordered list of corpse IDs exposed through
+`ragdollIds()`. Shooting and external palette activation add IDs once; removal
+swap-removes them without moving the actual instances. Door activation around
+corpses and physics synchronization iterate this list, while `ragdollCount()`
+reads its size. Their work scales with the number of corpses, rather than the
+entire zombie population. Sleeping corpses remain listed; synchronization retains
+the existing pose-revision check, so unchanged poses still skip reconstruction.
+The list is updated synchronously and adds no concurrency. Its borrowed view is
+invalidated by corpse creation/removal or an explicit index rebuild.
 
 Living zombies normally play idle. Within **100 m**, including the boundary,
 each receives an initially idle behavior object. Distance uses player feet in

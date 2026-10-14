@@ -1,13 +1,16 @@
 #include "zombie_layer.hpp"
 #include "zombie_animation.hpp"
+#include "physics_world.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <array>
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -311,6 +314,8 @@ void layerOwnsPoseInvalidation() {
     layer.assets.push_back(humanoid());
     layer.instances.emplace_back();
     require(layer.shoot({0, 0.9f, 3}, {0, 0, -1}), "Fixture must activate physics");
+    require(layer.ragdollIds() == std::vector<std::size_t>{0} && layer.ragdollCount() == 1,
+            "Shooting must publish the corpse ID immediately");
     const auto initial = layer.instances[0].ragdollPoseVersion;
     layer.synchronizePhysics();
     require(layer.instances[0].ragdollPoseVersion == initial, "Unchanged physics must skip palette reconstruction");
@@ -327,10 +332,72 @@ void layerOwnsPoseInvalidation() {
     catch (const std::logic_error&) { rejected = true; }
     require(rejected, "External palette replacement must not bypass a physics owner");
     layer.removeRagdoll(0);
+    require(layer.ragdollIds().empty() && layer.ragdollCount() == 0,
+            "Removing a physics corpse must immediately remove its membership");
     layer.update(1.0f / 60);
     layer.rebuildSpatialIndex();
     require(layer.instances[0].removed && layer.ragdollCount() == 0, "Owner removal must leave a stable tombstone");
     require(!layer.shoot({7, 3.9f, 1}, {0, 0, -1}), "Removed corpses must not become living targets again");
+}
+
+void corpseMembership() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(humanoid());
+    layer.instances.resize(100000);
+    layer.attachPhysics(std::make_shared<viewer::PhysicsWorld>());
+    const auto palette = std::vector<glm::mat4>(layer.assets[0].skeleton.size(), glm::mat4(1));
+    const auto check = [](const viewer::ZombieLayer& crowd, std::vector<std::size_t> expected) {
+        auto actual = crowd.ragdollIds();
+        std::sort(actual.begin(), actual.end());
+        std::sort(expected.begin(), expected.end());
+        require(actual == expected && crowd.ragdollCount() == expected.size(),
+                "Corpse membership must contain precisely the live corpse IDs without duplicates");
+        for (const auto id : actual)
+            require(crowd.instances[id].ragdoll && !crowd.instances[id].removed, "Corpse IDs must reference live corpses");
+    };
+    check(layer, {});
+    layer.setRagdollPalette(70000, palette);
+    layer.setRagdollPalette(7, palette);
+    layer.setRagdollPalette(99999, palette);
+    layer.setRagdollPalette(7, palette); // Pose updates must not duplicate an ID.
+    check(layer, {7, 70000, 99999});
+    bool rejected = false;
+    try { layer.setRagdollPalette(123, {}); }
+    catch (const std::invalid_argument&) { rejected = true; }
+    require(rejected, "Malformed palettes must not create corpse membership");
+    check(layer, {7, 70000, 99999});
+    const auto version = layer.instances[7].ragdollPoseVersion;
+    layer.synchronizePhysics(); // Externally driven corpses have no physics body.
+    require(layer.instances[7].ragdollPoseVersion == version, "Physics synchronization must preserve external palettes");
+    layer.removeRagdoll(7); // Swap-removes the middle member.
+    layer.removeRagdoll(99999); // Removes the member moved into its slot.
+    layer.removeRagdoll(7); // Repeated removal is harmless.
+    layer.removeRagdoll(123); // Living zombies stay living.
+    check(layer, {70000});
+    require(layer.instances.size() == 100000 && layer.instances[7].removed && layer.instances[99999].removed &&
+            !layer.instances[123].removed && !layer.instances[123].ragdoll,
+            "Corpse list compaction must preserve population IDs and living instances");
+    layer.setRagdollPalette(60000, palette);
+    auto moved = std::move(layer);
+    check(moved, {60000, 70000});
+    viewer::ZombieLayer assigned;
+    assigned = std::move(moved);
+    assigned.removeRagdoll(70000);
+    check(assigned, {60000});
+    assigned.rebuildSpatialIndex();
+    check(assigned, {60000});
+    // Initial/bulk fixtures can edit flags, then explicitly rebuild all indices.
+    assigned.instances[123].ragdoll = true;
+    assigned.instances[123].ragdollBones = palette;
+    assigned.instances[60000].removed = true;
+    assigned.rebuildSpatialIndex();
+    check(assigned, {123});
+    assigned.removeRagdoll(123);
+    check(assigned, {});
+    rejected = false;
+    try { assigned.setRagdollPalette(7, palette); }
+    catch (const std::logic_error&) { rejected = true; }
+    require(rejected && assigned.ragdollCount() == 0, "Removed corpse IDs must remain tombstones");
 }
 
 } // namespace
@@ -344,6 +411,7 @@ int main() {
         unknownRigFollowsFallbackMotion();
         shotWhileWalking();
         layerOwnsPoseInvalidation();
+        corpseMembership();
         headshotFollowsDisplayedPose(false);
         headshotFollowsDisplayedPose(true);
         std::cout << "Zombie activation transition tests passed\n";
