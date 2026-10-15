@@ -104,9 +104,11 @@ void stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
         behavior.target = player.feet;
         if (behavior.sight == ZombieSight::full &&
             (behavior.state == ZombieState::idle || behavior.state == ZombieState::looking ||
-             behavior.state == ZombieState::investigating))
+             behavior.state == ZombieState::investigating)) {
             changeState(behavior, ZombieState::chasing, now);
-        else if (behavior.state == ZombieState::idle || behavior.state == ZombieState::looking)
+            ++instance.chaseRevision;
+            instance.chaseSeconds = now;
+        } else if (behavior.state == ZombieState::idle || behavior.state == ZombieState::looking)
             changeState(behavior, ZombieState::investigating, now);
     }
     if (behavior.state == ZombieState::idle || behavior.state == ZombieState::looking) {
@@ -223,6 +225,8 @@ void ZombieLayer::makeNoise(glm::vec3 position, float decibels) {
         if (!std::isfinite(distance) || distance < 1e-4f) continue; // No usable horizontal direction.
         behavior->lookDirection = offset / distance;
         changeState(*behavior, ZombieState::looking, now);
+        ++instance.heardNoiseRevision;
+        instance.heardNoiseSeconds = now;
         if (instance.walking) markRenderChanged(id, false);
         stopZombieLocomotion(instance);
     }

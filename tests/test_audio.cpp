@@ -17,7 +17,7 @@ void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
 std::vector<std::size_t> ids(const viewer::AudioSystem& audio) {
-    auto result = audio.stats().zombies;
+    auto result = audio.stats().zombieEmitters;
     std::sort(result.begin(), result.end());
     return result;
 }
@@ -46,7 +46,9 @@ int main(int argc, char** argv) {
         }
         std::filesystem::create_directories(options.directory);
         const std::vector<std::int16_t> samples(48000, 300); // One-second mono fixtures.
-        for (const auto* name : {"footstep", "landing", "pistol", "smg", "sniper", "shotgun", "reload", "zombie"})
+        for (const auto* name : {"footstep", "landing", "pistol", "smg", "sniper", "shotgun", "reload", "zombie",
+                                "footstep2", "footstep3", "footstep4", "zombie2", "zombie3", "huh", "intrigued",
+                                "chase", "chase2", "door_latch", "door_slam", "empty_click", "reload_rifle", "reload_shotgun"})
             writeAudioFixture(options.directory / (std::string(name) + ".wav"), 1, samples);
         writeAudioFixture(options.directory / "wind.wav", 2, std::vector<std::int16_t>(96000, 100));
         writeAudioFixture(options.directory / "rain.wav", 2, {100, -100, 200, -200});
@@ -76,10 +78,18 @@ int main(int argc, char** argv) {
                                                        {3, {-5, 0, 0}}, {4, {2, 0, 0}}};
             audio.setZombieEmitters(candidates);
             require(ids(audio) == std::vector<std::size_t>({3, 4}), "Only the nearest two zombies receive voices");
+            require(audio.stats().zombies.empty(), "Reserving a voice never starts a continuous loop");
+            require(audio.playZombie(3, viewer::AudioEffect::zombie), "An ordinary moan plays as a one-shot");
+            require(!audio.playZombie(3, viewer::AudioEffect::zombie2), "Ordinary moans do not interrupt each other");
+            require(audio.playZombie(3, viewer::AudioEffect::huh, 2), "A hearing reaction interrupts an ordinary moan");
+            require(!audio.playZombie(3, viewer::AudioEffect::zombie), "An ordinary moan cannot interrupt a reaction");
+            require(audio.playZombie(3, viewer::AudioEffect::chase, 3), "A chase-start grunt takes priority over hearing");
+            require(!audio.playZombie(1, viewer::AudioEffect::zombie), "A far unselected zombie cannot allocate another voice");
             candidates.push_back({99, {0, 0, 1}});
             candidates.push_back({99, {0, 0, 1}});
             audio.setZombieEmitters(candidates);
             require(ids(audio) == std::vector<std::size_t>({4, 99}), "A nearer zombie replaces the farthest; IDs never duplicate");
+            require(audio.stats().zombies.empty(), "Replacing an emitter stops its old vocalization immediately");
             audio.setListener({0, 0, 29}, {0, 0, 1});
             audio.setZombieEmitters(candidates);
             require(ids(audio) == std::vector<std::size_t>({1, 2}), "Moving the camera reprioritizes voices");

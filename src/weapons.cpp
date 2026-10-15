@@ -83,18 +83,27 @@ bool Weapons::equip(std::size_t slot) {
 }
 void Weapons::trigger(bool held) {
     if (held && !held_) pressed_ = true;
+    if (!held) emptyClicked_ = false;
     held_ = held;
 }
-void Weapons::cancelTrigger() { held_ = pressed_ = false; }
+void Weapons::cancelTrigger() { held_ = pressed_ = emptyClicked_ = false; }
 bool Weapons::fire(double seconds) {
+    return fireAttempt(seconds) == WeaponFireResult::fired;
+}
+WeaponFireResult Weapons::fireAttempt(double seconds) {
     auto& weapon = weapons_[slot_];
     const bool requested = pressed_ || (held_ && weapon.config.automatic);
     pressed_ = false;
-    if (!requested || !std::isfinite(seconds) || seconds < weapon.readyAt || weapon.loaded < weapon.config.ammoPerShot)
-        return false;
+    if (!requested || !std::isfinite(seconds) || seconds < weapon.readyAt) return WeaponFireResult::none;
+    if (weapon.loaded < weapon.config.ammoPerShot) {
+        if (emptyClicked_) return WeaponFireResult::none;
+        emptyClicked_ = true;
+        return WeaponFireResult::empty;
+    }
     weapon.loaded -= weapon.config.ammoPerShot;
     weapon.readyAt = seconds + weapon.config.shotIntervalSeconds;
-    return true;
+    emptyClicked_ = false;
+    return WeaponFireResult::fired;
 }
 int Weapons::reload() {
     auto& weapon = weapons_[slot_];

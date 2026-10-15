@@ -1692,6 +1692,8 @@ src/camera_rig.{hpp,cpp}    Runtime camera mode switching
 src/audio.{hpp,cpp}         OpenAL playback, listener, voice limits and streaming
 src/audio_wave.{hpp,cpp}    PCM16 WAV parsing and incremental decoding
 src/scene_audio.{hpp,cpp}   Camera/gameplay playback routing and zombie selection
+src/zombie_audio.{hpp,cpp}  Deterministic reaction, moan and footstep scheduling
+src/door_audio.{hpp,cpp}    Physics-pose slam detection without changing hinges
 src/fps_controller.{hpp,cpp} Fixed-step walking, gravity, jump and contact response
 src/player_stance.cpp      Player stance dimensions, clearance and airborne leg tuck
 src/collision_world.{hpp,cpp} World-space triangle BVH and capsule/ground queries
@@ -1701,7 +1703,9 @@ src/model.{hpp,cpp}         glTF loading and scene data
 shaders/basic.{vert,frag}   GLSL 330 sun/ambient lighting and shadow passes
 shaders/debug.{vert,frag}   GLSL 330 collision lines
 tools/create_test_asset.py Reproducible test-model generator
-tools/create_audio_assets.py Reproducible placeholder sounds in build/audio/
+tools/create_audio_assets.py Synthesized landing and ambience in build/audio/
+tools/prepare_audio_assets.py Hash-checked recorded sound preparation
+assets/audio/              Curated sound effects, credits and source manifest
 assets/test.glb            Generated test model, ignored by Git
 tests/test_camera.cpp      Camera checks
 tests/test_camera_rig.cpp  Free-fly/walking mode switching and look-pitch checks

@@ -173,15 +173,26 @@ viewer_warnings(viewer_audio)
 
 set(VIEWER_AUDIO_DIR "${CMAKE_CURRENT_BINARY_DIR}/audio")
 set(VIEWER_AUDIO_FILES)
-foreach(sound footstep landing pistol smg sniper shotgun reload zombie wind rain)
+foreach(sound landing wind rain)
     list(APPEND VIEWER_AUDIO_FILES "${VIEWER_AUDIO_DIR}/${sound}.wav")
 endforeach()
+file(GLOB VIEWER_RECORDED_AUDIO CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/assets/audio/*.wav")
+foreach(source IN LISTS VIEWER_RECORDED_AUDIO)
+    get_filename_component(name "${source}" NAME)
+    list(APPEND VIEWER_AUDIO_FILES "${VIEWER_AUDIO_DIR}/${name}")
+endforeach()
+list(APPEND VIEWER_AUDIO_FILES "${VIEWER_AUDIO_DIR}/CREDITS.md" "${VIEWER_AUDIO_DIR}/sources.json")
 add_custom_command(
     OUTPUT ${VIEWER_AUDIO_FILES}
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/create_audio_assets.py"
         --output "${VIEWER_AUDIO_DIR}"
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/create_audio_assets.py"
-    COMMENT "Generating original placeholder effects and ambience"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${VIEWER_RECORDED_AUDIO} "${VIEWER_AUDIO_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/audio/CREDITS.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/audio/sources.json" "${VIEWER_AUDIO_DIR}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/create_audio_assets.py" ${VIEWER_RECORDED_AUDIO}
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/audio/CREDITS.md" "${CMAKE_CURRENT_SOURCE_DIR}/assets/audio/sources.json"
+    COMMENT "Preparing recorded effects and synthesized landing/ambience"
     VERBATIM
 )
 add_custom_target(viewer_audio_assets DEPENDS ${VIEWER_AUDIO_FILES})
@@ -249,8 +260,13 @@ target_link_libraries(viewer_renderer PUBLIC
 target_compile_definitions(viewer_renderer PRIVATE GL_GLEXT_PROTOTYPES)
 viewer_warnings(viewer_renderer)
 
+add_library(viewer_audio_cues STATIC src/zombie_audio.cpp src/door_audio.cpp)
+target_link_libraries(viewer_audio_cues PUBLIC glm::glm)
+target_include_directories(viewer_audio_cues PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+viewer_warnings(viewer_audio_cues)
+
 add_library(viewer_scene_audio STATIC src/scene_audio.cpp)
-target_link_libraries(viewer_scene_audio PUBLIC viewer_audio viewer_fps viewer_zombies)
+target_link_libraries(viewer_scene_audio PUBLIC viewer_audio viewer_audio_cues viewer_fps viewer_zombies)
 viewer_warnings(viewer_scene_audio)
 
 add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp
@@ -273,6 +289,11 @@ add_dependencies(godollo_viewer viewer_test_asset viewer_audio_assets)
 viewer_warnings(godollo_viewer)
 
 if(BUILD_TESTING)
+    add_executable(test_audio_cues tests/test_audio_cues.cpp)
+    target_link_libraries(test_audio_cues PRIVATE viewer_audio_cues)
+    viewer_warnings(test_audio_cues)
+    add_test(NAME viewer_audio_cues COMMAND test_audio_cues)
+
     add_executable(test_audio_wave tests/test_audio_wave.cpp)
     target_link_libraries(test_audio_wave PRIVATE viewer_audio)
     viewer_warnings(test_audio_wave)

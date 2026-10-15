@@ -24,9 +24,10 @@ to frame the crowd or `--no-zombies` to disable it; see the
 [crowd controls](docs/VIEWER.md#idle-zombie-crowd) for placement options.
 
 [OpenAL Soft audio](docs/AUDIO.md) follows the camera, plays movement and weapon
-effects, streams ambience, and prioritizes nearby zombie voices. The build creates
-synthesized placeholder sounds; use `--audio-dir DIR` to supply replacements or
-`--no-audio` to mute playback without changing AI hearing.
+effects, streams ambience, and prioritizes nearby zombie voices. Recorded hearing
+reactions, moans, chase grunts, footsteps, doors and weapon effects include
+[credits and permissive licenses](assets/audio/CREDITS.md). Use `--audio-dir DIR`
+to supply replacements or `--no-audio` to mute playback without changing AI hearing.
 
 **F1** selects free-fly; **F2** places a walking player on nearby clear ground.
 In walking mode, use **WASD** to walk, the mouse to look, **Space** to jump, and

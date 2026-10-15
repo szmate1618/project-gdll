@@ -22,6 +22,7 @@ struct WeaponState {
     int loaded = 0, reserve = 0;
     double readyAt = 0;
 };
+enum class WeaponFireResult { none, fired, empty };
 
 class Weapons {
 public:
@@ -34,12 +35,15 @@ public:
     // One firing opportunity per frame, with no burst of overdue shots after a
     // stall. Semi-automatic clicks during cooldown are discarded, not queued.
     bool fire(double seconds);
+    // Empty triggers report once per hold, after the normal shot cooldown.
+    WeaponFireResult fireAttempt(double seconds);
     int reload(); // Instant for the prototype; returns transferred rounds.
     std::string status() const;
 private:
     std::array<WeaponState, 4> weapons_;
     std::size_t slot_ = 0;
     bool held_ = false, pressed_ = false;
+    bool emptyClicked_ = false;
 };
 
 // Deterministic cone pattern, including a centered pellet. Each direction uses

@@ -31,6 +31,10 @@ struct ZombieInstance {
     bool running = false; // Select the authored run clip during pursuit.
     glm::mat4 chaseNormalization{1}; // Captured on activation; preserve asset scale/offset.
     double walkSeconds = 0; // Locomotion clip time; advances only while travelling.
+    // Presentation notifications only. Counters survive behavior-pool eviction;
+    // timestamps let audio discard old reactions when a source enters range.
+    std::uint64_t heardNoiseRevision = 0, chaseRevision = 0;
+    double heardNoiseSeconds = -1, chaseSeconds = -1;
     // Presentation hysteresis for intermittent crowd/door contact. Neither
     // timer changes physical movement or evaluates a per-character skeleton.
     float blockedAnimationSeconds = 0, animationRestartSeconds = 0;

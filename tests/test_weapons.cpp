@@ -70,6 +70,28 @@ void pelletPattern() {
             "Sniper must have scope and single ray");
 }
 
+void dryFire() {
+    using Result = viewer::WeaponFireResult;
+    viewer::Weapons weapons(VIEWER_ITEMS, VIEWER_INVENTORY);
+    weapons.equip(1);
+    click(weapons);
+    const auto rounds = weapons.equipped().loaded;
+    for (int i = 0; i < rounds; ++i)
+        require(weapons.fireAttempt(i) == Result::fired, "Held SMG consumes its magazine normally");
+    require(weapons.fireAttempt(rounds - 1 + .01) == Result::none, "Shot cooldown cannot produce an empty click");
+    require(weapons.fireAttempt(rounds) == Result::empty, "Held automatic trigger reports empty after its last round");
+    require(weapons.fireAttempt(rounds + 1) == Result::none && weapons.fireAttempt(rounds + 2) == Result::none,
+            "Holding an empty gun cannot spam clicks every frame");
+    click(weapons);
+    require(weapons.fireAttempt(rounds + 3) == Result::empty, "A new trigger press allows one more empty click");
+    const auto reserve = weapons.equipped().reserve;
+    require(weapons.equipped().loaded == 0, "Dry fire cannot consume ammunition");
+    require(weapons.reload() == rounds && weapons.equipped().reserve == reserve - rounds, "Reload still transfers rounds normally");
+    require(weapons.fireAttempt(rounds + 4) == Result::none, "Reload clears held/empty input");
+    click(weapons);
+    require(weapons.fireAttempt(rounds + 5) == Result::fired, "A fresh trigger fires after reload");
+}
+
 void fixtures(const std::filesystem::path& scratch) {
     std::filesystem::create_directories(scratch / "items");
     for (const auto& entry : std::filesystem::directory_iterator(VIEWER_ITEMS))
@@ -131,7 +153,7 @@ void fixtures(const std::filesystem::path& scratch) {
 } // namespace
 int main() {
     try {
-        firingAndReload(); pelletPattern();
+        firingAndReload(); pelletPattern(); dryFire();
         fixtures(std::filesystem::current_path() / "weapon-test-fixtures");
         std::cout << "Weapon configuration, inventory, firing, reload, and pellet tests passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

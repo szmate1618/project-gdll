@@ -2,6 +2,7 @@
 #include "camera_rig.hpp"
 #include "noise.hpp"
 #include "zombie_layer.hpp"
+#include "simulation_clock.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -44,6 +45,7 @@ int main(int argc, char** argv) {
         const auto model = ground();
         const viewer::CollisionWorld world(model);
         for (const bool enabled : {true, false}) {
+            viewer::SimulationClock::instance().reset();
             viewer::AudioOptions options;
             options.directory = argv[1]; options.enabled = enabled;
             options.zombieVoices = 1;
@@ -60,15 +62,18 @@ int main(int argc, char** argv) {
             audio.reload();
             require(zombies.behaviors.find(0)->state == viewer::ZombieState::idle,
                     "Audio playback alone never produces an AI hearing event");
-            if (enabled) require(audio.stats().zombies == std::vector<std::size_t>{0},
-                                 "Nearest zombie is audible even without activated behavior or rendering");
+            if (enabled) require(audio.stats().zombieEmitters == std::vector<std::size_t>{0},
+                                 "Nearest zombie reserves a voice independently of activated behavior or rendering");
             zombies.makeNoise({0, 0, 0}, viewer::walkingFootstepDecibels);
             require(zombies.behaviors.find(0)->state == viewer::ZombieState::looking,
                     "Simulation hearing works identically with playback enabled or muted");
+            audio.update(rig, &zombies, .01f);
+            if (enabled) require(audio.stats().zombies == std::vector<std::size_t>{0},
+                                 "An accepted hearing event plays a positional reaction");
             zombies.instances[0].ragdoll = true;
             // Do not wait for the 5 Hz grid refresh: death must stop the voice now.
             audio.update(rig, &zombies, 0.01f);
-            if (enabled) require(audio.stats().zombies == std::vector<std::size_t>{1},
+            if (enabled) require(audio.stats().zombieEmitters == std::vector<std::size_t>{1} && audio.stats().zombies.empty(),
                                  "Dead voice stops immediately and the next nearby zombie takes the slot");
             zombies.instances[1].removed = true;
             audio.update(rig, &zombies, 0.01f);
@@ -77,7 +82,7 @@ int main(int argc, char** argv) {
             require(ids.empty(), "Living query filters corpses and removals");
             rig.camera().setPosition({200, 1.7f, 0});
             audio.update(rig, &zombies, 0.21f);
-            if (enabled) require(audio.stats().zombies == std::vector<std::size_t>{2},
+            if (enabled) require(audio.stats().zombieEmitters == std::vector<std::size_t>{2},
                                  "Grid refresh discovers a new neighborhood after moving the camera");
         }
         // Route real fixed-step movement actions independently of zombie presence.

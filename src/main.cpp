@@ -354,7 +354,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
             std::cout << app.weapons.status() << '\n';
         }
     } else if (key == GLFW_KEY_R) {
-        if (app.weapons.reload() > 0 && app.audio) app.audio->reload();
+        if (app.weapons.reload() > 0 && app.audio) app.audio->reload(app.weapons.slot());
         std::cout << app.weapons.status() << '\n';
     } else if (key == GLFW_KEY_LEFT_ALT) captureMouse(window, !app.capture);
     else if (key == GLFW_KEY_F) {
@@ -407,9 +407,13 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     if (app.interaction.mode() == viewer::ControlMode::Interaction) {
         const auto hand = button == GLFW_MOUSE_BUTTON_LEFT ? viewer::Hand::Left : viewer::Hand::Right;
         if (app.doors && app.boxes && app.interaction.press(hand, app.rig.camera(), *app.doors, *app.boxes, app.world, glfwGetTime()) &&
-            app.interaction.grabbedDoor() && hand == viewer::Hand::Left && app.interiors) {
-            const auto added = app.interiors->populate(*app.interaction.grabbedDoor(), app.world, *app.physicsScene, *app.boxes);
-            if (added) std::cout << "Interior: spawned " << added << " physical boxes\n";
+            app.interaction.grabbedDoor() && hand == viewer::Hand::Left) {
+            const auto id = *app.interaction.grabbedDoor();
+            if (app.audio) app.audio->grabDoor(*app.doors, id);
+            if (app.interiors) {
+                const auto added = app.interiors->populate(id, app.world, *app.physicsScene, *app.boxes);
+                if (added) std::cout << "Interior: spawned " << added << " physical boxes\n";
+            }
         }
         return;
     }
@@ -436,7 +440,9 @@ void updateWeapons(AppState& app, double seconds) {
         app.weapons.cancelTrigger();
         return;
     }
-    if (!app.weapons.fire(seconds)) return;
+    const auto result = app.weapons.fireAttempt(seconds);
+    if (result == viewer::WeaponFireResult::empty && app.audio) app.audio->emptyClick();
+    if (result != viewer::WeaponFireResult::fired) return;
     if (app.audio) app.audio->shot(app.weapons.slot());
     if (app.zombies) {
         for (const auto direction : viewer::weaponShotDirections(app.weapons.equipped().config, app.rig.camera().direction()))
@@ -987,7 +993,7 @@ int run(const Options& options) {
                     zombies->makeNoise(noise.position, noise.decibels);
         }
         updateWeapons(app, simulationClock.seconds());
-        audio.update(app.rig, zombies ? &*zombies : nullptr, dt);
+        audio.update(app.rig, zombies ? &*zombies : nullptr, dt, &doors);
         const double preparationStart = glfwGetTime();
         intervalBehaviorSeconds += preparationStart - behaviorStart;
         intervalSimulationSeconds += preparationStart - simulationStart;

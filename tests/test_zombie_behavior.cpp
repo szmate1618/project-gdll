@@ -127,12 +127,14 @@ void perceptionAndStates() {
     auto layer = crowd();
     layer.chase(0.1f, {0, 0, 10}, clear);
     require(state(layer) == ZombieState::chasing, "Three rays upgrade idle directly to chasing");
+    require(layer.instances[0].chaseRevision == 1, "Initial chase acquisition publishes one presentation notification");
     layer.chase(5, {0, 0, 10}, clear);
     require(state(layer) == ZombieState::attacking && !layer.instances[0].walking,
             "Attack range stops locomotion and plays idle even with a large step");
     require(std::abs(layer.instances[0].restRoot[3].z - 8.5f) < 1e-4f, "Stop 1.5 m from the player");
     layer.chase(0.1f, {0, 0, 20}, clear);
     require(state(layer) == ZombieState::chasing && layer.instances[0].walking, "Resume pursuit when player leaves attack range");
+    require(layer.instances[0].chaseRevision == 1, "Attack-range transitions do not spam new acquisition grunts");
 }
 
 void targetMemoryAndEveryIdleTimeout() {
@@ -198,6 +200,8 @@ void hearingThresholdAndEligibility() {
     layer.behaviors.remove(7);
     layer.makeNoise({0, 0, 0}, viewer::walkingFootstepDecibels);
     require(state(layer, 0) == ZombieState::looking, "Walking noise is audible at exactly 10 m");
+    require(layer.instances[0].heardNoiseRevision == 1 && layer.instances[1].heardNoiseRevision == 0 &&
+            layer.instances[6].heardNoiseRevision == 0, "Only accepted living hearing reactions publish audio notifications");
     require(state(layer, 1) == ZombieState::idle && state(layer, 2) == ZombieState::idle,
             "Walking noise beyond 10 m is inaudible; propagation includes height");
     require(state(layer, 3) == ZombieState::investigating && state(layer, 4) == ZombieState::chasing &&
@@ -208,6 +212,7 @@ void hearingThresholdAndEligibility() {
             layer.behaviors.find(0)->target == glm::vec3(0), "Noise stores direction, not a seen-player target");
     layer.makeNoise({10, 0, 10}, 80);
     require(layer.behaviors.find(0)->lookDirection == glm::vec2(0, -1), "A looking zombie ignores new noises");
+    require(layer.instances[0].heardNoiseRevision == 1, "Ignored follow-up noise cannot replay a hearing reaction");
 
     auto invalid = crowd();
     invalid.chase(0.1f, {0, 0, -20}, clear);

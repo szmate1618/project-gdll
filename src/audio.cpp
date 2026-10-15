@@ -17,7 +17,9 @@ namespace {
 constexpr std::size_t effectCount = static_cast<std::size_t>(AudioEffect::count);
 constexpr std::array<const char*, effectCount> effectFiles{
     "footstep.wav", "landing.wav", "pistol.wav", "smg.wav", "sniper.wav",
-    "shotgun.wav", "reload.wav", "zombie.wav"};
+    "shotgun.wav", "reload.wav", "zombie.wav", "footstep2.wav", "footstep3.wav", "footstep4.wav",
+    "zombie2.wav", "zombie3.wav", "huh.wav", "intrigued.wav", "chase.wav", "chase2.wav",
+    "door_latch.wav", "door_slam.wav", "empty_click.wav", "reload_rifle.wav", "reload_shotgun.wav"};
 constexpr std::size_t streamBufferCount = 4, streamBufferFrames = 4096;
 
 void checkAudio(const char* operation) {
@@ -54,6 +56,7 @@ struct AudioSystem::Impl {
     struct Voice {
         ALuint source = 0;
         std::optional<std::size_t> zombie;
+        int priority = 0;
     };
     struct Stream {
         std::unique_ptr<AudioWave> wave;
@@ -262,8 +265,8 @@ void AudioSystem::playLocal(AudioEffect effect, float gain) {
     if (enabled()) impl_->play(effect, {0, 0, -0.5f}, gain, 1, true);
 }
 
-void AudioSystem::setZombieEmitters(const std::vector<AudioEmitter>& candidates) {
-    if (!enabled()) return;
+std::vector<std::size_t> AudioSystem::setZombieEmitters(const std::vector<AudioEmitter>& candidates) {
+    if (!enabled()) return {};
     auto& state = *impl_;
     std::vector<AudioEmitter> selected;
     for (const auto& candidate : candidates)
@@ -278,13 +281,12 @@ void AudioSystem::setZombieEmitters(const std::vector<AudioEmitter>& candidates)
         return !ids.insert(emitter.id).second;
     }), selected.end());
     if (selected.size() > state.zombies.size()) selected.resize(state.zombies.size());
-    const auto& sound = state.sounds[static_cast<std::size_t>(AudioEffect::zombie)];
-    if (!sound.buffer) selected.clear();
     for (auto& voice : state.zombies) {
         if (!voice.zombie) continue;
         if (std::none_of(selected.begin(), selected.end(), [&](const auto& emitter) { return emitter.id == *voice.zombie; })) {
             alSourceStop(voice.source);
             voice.zombie.reset();
+            voice.priority = 0;
         }
     }
     for (const auto& emitter : selected) {
@@ -295,16 +297,33 @@ void AudioSystem::setZombieEmitters(const std::vector<AudioEmitter>& candidates)
             found = std::find_if(state.zombies.begin(), state.zombies.end(), [](const auto& voice) { return !voice.zombie; });
             if (found == state.zombies.end()) continue;
             found->zombie = emitter.id;
-            alSourcei(found->source, AL_BUFFER, static_cast<ALint>(sound.buffer));
-            alSourcei(found->source, AL_LOOPING, AL_TRUE);
-            alSourcef(found->source, AL_GAIN, 0.7f);
-            alSourcef(found->source, AL_PITCH, 0.88f + 0.03f * (emitter.id % 9));
-            // Desynchronize repeated calls without changing gameplay RNG.
-            alSourcef(found->source, AL_SEC_OFFSET, static_cast<float>(std::fmod(emitter.id * 0.61803398875, sound.seconds)));
+            found->priority = 0;
         }
         positionSource(found->source, emitter.position);
-        if (sourceState(found->source) != AL_PLAYING) alSourcePlay(found->source);
     }
+    std::vector<std::size_t> result;
+    for (const auto& emitter : selected) result.push_back(emitter.id);
+    return result;
+}
+
+bool AudioSystem::playZombie(std::size_t id, AudioEffect effect, int priority, float gain, float pitch) {
+    if (!enabled()) return false;
+    const auto index = static_cast<std::size_t>(effect);
+    if (index >= impl_->sounds.size() || !impl_->sounds[index].buffer || priority < 1 ||
+        !std::isfinite(gain) || gain <= 0 || !std::isfinite(pitch) || pitch < .5f || pitch > 2) return false;
+    auto found = std::find_if(impl_->zombies.begin(), impl_->zombies.end(), [&](const auto& voice) {
+        return voice.zombie == id;
+    });
+    if (found == impl_->zombies.end()) return false;
+    if (sourceState(found->source) == AL_PLAYING && priority <= found->priority) return false;
+    alSourceStop(found->source);
+    alSourcei(found->source, AL_BUFFER, static_cast<ALint>(impl_->sounds[index].buffer));
+    alSourcei(found->source, AL_LOOPING, AL_FALSE);
+    alSourcef(found->source, AL_GAIN, std::min(gain, 1.f));
+    alSourcef(found->source, AL_PITCH, pitch);
+    alSourcePlay(found->source);
+    found->priority = priority;
+    return true;
 }
 
 void AudioSystem::update() {
@@ -328,8 +347,11 @@ AudioStats AudioSystem::stats() const {
     AudioStats result;
     if (!enabled()) return result;
     for (const auto& voice : impl_->effects) if (sourceState(voice.source) == AL_PLAYING) ++result.effects;
-    for (const auto& voice : impl_->zombies)
-        if (voice.zombie && sourceState(voice.source) == AL_PLAYING) result.zombies.push_back(*voice.zombie);
+    for (const auto& voice : impl_->zombies) {
+        if (!voice.zombie) continue;
+        result.zombieEmitters.push_back(*voice.zombie);
+        if (sourceState(voice.source) == AL_PLAYING) result.zombies.push_back(*voice.zombie);
+    }
     for (const auto& stream : impl_->streams) {
         ALint queued = 0;
         alGetSourcei(stream->source, AL_BUFFERS_QUEUED, &queued);

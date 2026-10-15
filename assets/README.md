@@ -18,6 +18,15 @@ should frame the full scene without assuming it is at the origin.
 All geometry and texture pixels are created by the local script. No external
 assets, downloads, or attribution are required.
 
+## Recorded audio
+
+`audio/` contains curated PCM16 WAV effects used by the viewer, including hearing
+reactions, zombie moans/grunts, footsteps, doors, and weapons. See
+[credits and licenses](audio/CREDITS.md) for attribution, provenance, processing,
+and reproduction. Normal builds copy these recordings without downloading them.
+Landing, wind, and rain remain synthesized build assets. Runtime behavior is
+documented in [the audio guide](../docs/AUDIO.md).
+
 ## Tree and pine impostors
 
 Generate `tree_impostor.glb` and `pine_impostor.glb` from the existing PNGs:
