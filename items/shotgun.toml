@@ -1,0 +1,9 @@
+name = "Shotgun"
+ammo_type = "shotgun_shells"
+shot_interval_seconds = 0.9
+automatic = false
+pellets = 8
+has_scope = false
+spread_degrees = 4.0
+magazine_capacity = 6
+ammo_per_shot = 1

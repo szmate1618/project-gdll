@@ -1,0 +1,9 @@
+name = "Submachine gun"
+ammo_type = "smg_rounds"
+shot_interval_seconds = 0.08
+automatic = true
+has_scope = false
+pellets = 1
+spread_degrees = 0.0
+magazine_capacity = 30
+ammo_per_shot = 1

@@ -79,7 +79,13 @@ FetchContent_Declare(meshoptimizer
     DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/_archives"
     DOWNLOAD_NAME meshoptimizer-v1.3.tar.gz
 )
-FetchContent_MakeAvailable(glfw glm tinygltf box3d meshoptimizer)
+FetchContent_Declare(tomlplusplus
+    URL https://codeload.github.com/marzer/tomlplusplus/tar.gz/refs/tags/v3.4.0
+    URL_HASH SHA256=8517f65938a4faae9ccf8ebb36631a38c1cadfb5efa85d9a72e15b9e97d25155
+    DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/_archives"
+    DOWNLOAD_NAME tomlplusplus-3.4.0.tar.gz
+)
+FetchContent_MakeAvailable(glfw glm tinygltf box3d meshoptimizer tomlplusplus)
 
 # Offline asset preparation; never runs during viewer startup.
 add_executable(zombie_mesh_simplify tools/zombie_mesh_simplify.cpp)
@@ -170,6 +176,11 @@ add_library(viewer_interaction STATIC src/door_interaction.cpp src/object_intera
 target_link_libraries(viewer_interaction PUBLIC viewer_camera viewer_collision viewer_physics)
 viewer_warnings(viewer_interaction)
 
+add_library(viewer_weapons STATIC src/weapons.cpp)
+target_include_directories(viewer_weapons PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(viewer_weapons PUBLIC glm::glm PRIVATE tomlplusplus::tomlplusplus)
+viewer_warnings(viewer_weapons)
+
 add_library(viewer_objects STATIC src/interior_objects.cpp src/physics_scene.cpp)
 target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics)
 viewer_warnings(viewer_objects)
@@ -193,6 +204,7 @@ viewer_warnings(viewer_sun_lighting)
 
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/box_renderer.cpp
+    src/weapon_overlay.cpp
     src/roof_renderer.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
     src/zombie_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
@@ -204,7 +216,7 @@ viewer_warnings(viewer_renderer)
 add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp
     src/reticle_overlay.cpp src/gpu_timer.cpp)
 target_link_libraries(godollo_viewer PRIVATE
-    viewer_renderer viewer_fps viewer_interaction viewer_objects viewer_poles viewer_guardrails glfw
+    viewer_renderer viewer_fps viewer_interaction viewer_objects viewer_poles viewer_guardrails viewer_weapons glfw
 )
 target_compile_definitions(godollo_viewer PRIVATE
     GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -213,11 +225,28 @@ target_compile_definitions(godollo_viewer PRIVATE
     VIEWER_ZOMBIE_ASSETS="${CMAKE_CURRENT_SOURCE_DIR}/assets/zombies/models"
     VIEWER_ZOMBIE_PARK="${CMAKE_CURRENT_SOURCE_DIR}/assets/zombies/grassalkovich_park.json"
     VIEWER_FOREST_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/forest_patches.json"
+    VIEWER_ITEMS="${CMAKE_CURRENT_SOURCE_DIR}/items"
+    VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml"
 )
 add_dependencies(godollo_viewer viewer_test_asset)
 viewer_warnings(godollo_viewer)
 
 if(BUILD_TESTING)
+    add_executable(test_weapons tests/test_weapons.cpp)
+    target_link_libraries(test_weapons PRIVATE viewer_weapons)
+    target_compile_definitions(test_weapons PRIVATE
+        VIEWER_ITEMS="${CMAKE_CURRENT_SOURCE_DIR}/items"
+        VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml")
+    viewer_warnings(test_weapons)
+    add_test(NAME viewer_weapons COMMAND test_weapons)
+
+    add_executable(test_weapon_overlay tests/test_weapon_overlay.cpp)
+    target_link_libraries(test_weapon_overlay PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_weapon_overlay PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_weapon_overlay)
+    add_test(NAME viewer_weapon_overlay COMMAND test_weapon_overlay)
+    set_tests_properties(viewer_weapon_overlay PROPERTIES SKIP_RETURN_CODE 77)
     add_executable(test_object_interaction tests/test_object_interaction.cpp)
     target_link_libraries(test_object_interaction PRIVATE viewer_interaction viewer_objects)
     viewer_warnings(test_object_interaction)

@@ -615,9 +615,10 @@ advances by actual travel time; the CPU does not evaluate or upload a skeleton f
 each moving zombie. Distance LOD affects rendering and displayed poses; zombies
 still have no occlusion culling.
 
-In Combat mode while the mouse is captured, left click casts a ray from
-the camera center and activates the nearest living zombie under a conservative
-body or head sphere. The head sphere encloses the displayed skinned head geometry,
+In Combat mode while the mouse is captured, a weapon shot casts one ray per
+pellet from the camera center and activates the nearest living zombie along
+each ray under a conservative body or head sphere. The head sphere encloses
+the displayed skinned head geometry,
 including hair and child joints, and follows the displayed idle, walk, or run pose.
 Shooting first queries the same spatial grid along the forward ray. The query
 tests occupied X/Z cells expanded by the maximum hit-region reach, avoiding
@@ -672,7 +673,9 @@ idle cycles at a chosen elapsed time:
 | Q / E | Move down / up along world Y in free-fly mode |
 | Mouse | Look around while captured; held boxes move sideways/up/down; held doors move sideways or push/pull |
 | Left mouse button | Combat: shoot; Interaction: left-hand box grab within 2 m or door grab within 1.5 m |
-| Right mouse button | Combat: cycle normal, 10°, and 1° fields of view; Interaction: right-hand box grab within 2 m |
+| Right mouse button | Combat with a scoped weapon: cycle normal, 10°, and 1° fields of view; Interaction: right-hand box grab within 2 m |
+| 1 / 2 / 3 / 4 | Equip pistol / submachine gun / sniper / shotgun |
+| R | Reload equipped weapon from its matching reserve ammo |
 | Shift | Free-fly: move four times faster; walking: run at 6 m/s |
 | Mouse wheel | Adjust free-fly movement speed |
 | F1 | Switch to free-fly mode |
@@ -745,7 +748,8 @@ losing focus drops both hands without adding a throw impulse.
 The viewer follows glTF's right-handed coordinate system: Y is up, and the
 camera looks toward negative Z before orientation is applied. Distances are
 interpreted as meters. The vertical field of view starts at 60°. Each
-right-click in Combat mode selects 10°, then 1°, then returns to 60° in either camera mode.
+right-click in Combat mode with a scoped weapon selects 10°, then 1°, then
+returns to 60° in either camera mode.
 Normal view has a small center crosshair; both zoom modes show scope markings
 and a circular tunnel-vision vignette whose opening spans nearly the full screen
 height. Mouse sensitivity scales with perspective
@@ -759,6 +763,40 @@ than these distances is clipped until zooming out. Far clipping is at least
 generator's existing root transform maps its east/north/up geometry
 to glTF X=east, Y=up, Z=south; no scene-specific rotation is needed in the viewer.
 Framebuffer resize updates the viewport and projection aspect ratio.
+
+## Prototype weapons and inventory
+
+Keys **1–4** equip the pistol, submachine gun, sniper, and shotgun. The pistol,
+sniper, and shotgun fire once per click; the SMG repeats while left mouse is
+held. Every shot respects its configured cooldown and consumes magazine ammo,
+including misses and shots in scenes without zombies. Empty weapons stop firing.
+The shotgun casts eight rays (one centered and seven around a 4° cone) while
+consuming one shell. All weapons use the existing zombie hit/ragdoll behavior.
+The sniper alone enables the existing right-click scope cycle. Equipping a
+weapon resets zoom. Combat normal view displays two grey boxes with different
+body sizes for each weapon; the boxes are hidden in scope and Interaction mode.
+The window title and console report the equipped weapon, magazine, and reserve.
+
+Each [weapon TOML](../items/) defines `name`, `ammo_type`,
+`shot_interval_seconds`, `automatic`, `has_scope`, `pellets`, `spread_degrees`
+(cone half-angle), `magazine_capacity`, and `ammo_per_shot`. Counts use rounds
+or shells, rather than pellets. `pellets` supports 1–64; `ammo_per_shot` must be
+positive and fit the magazine; cooldown must be positive and spread in [0°, 90°).
+The viewer uses [toml++](https://github.com/marzer/tomlplusplus), pinned to 3.4.0
+through CMake's dependency cache. Invalid or missing required values fail startup
+with a configuration error.
+
+[inventory.toml](../inventory.toml) chooses the initially `equipped` weapon.
+Its `[weapons]` table lists owned weapon IDs and their starting loaded rounds;
+omit a weapon to remove ownership. `[ammo]` holds additional reserves for the
+four separate `ammo_type` values, including zero reserves. **R** instantly
+transfers matching reserve rounds into the equipped magazine, allowing partial
+reloads when the reserve is low. Firing, switching, and reloading preserve each
+weapon's own cooldown. Reloading and equipping require a fresh trigger press;
+cursor release, focus loss, and camera/control-mode changes also clear held fire.
+At most one shot fires per rendered frame; stalls do not produce catch-up bursts.
+Semi-auto clicks during cooldown are discarded. Configuration and inventory are
+read once at startup; gameplay changes live in memory and restart from the file.
 
 ## First-person walking
 
@@ -1358,6 +1396,10 @@ resize, and Escape callbacks passed the input check. Screenshots are in
 ```text
 CMakeLists.txt              Viewer and unit-test build configuration
 src/main.cpp               Window, input callbacks, render loop, CLI
+items/*.toml               Four prototype weapon configurations
+inventory.toml             Starting weapons, loaded rounds, and ammo reserves
+src/weapons.{hpp,cpp}       TOML loading, trigger/cooldown state, ammo, and pellet rays
+src/weapon_overlay.{hpp,cpp} Camera-local grey placeholder boxes
 src/renderer.{hpp,cpp}      OpenGL resources, shaders, drawing
 src/renderer_shadows.cpp   Sun caster pass and lighting uniforms
 src/tree_canopy.{hpp,cpp}  Static neighbor canopy cover and tree brightness

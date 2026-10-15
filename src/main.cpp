@@ -6,6 +6,8 @@
 #include "physics_scene.hpp"
 #include "interior_objects.hpp"
 #include "reticle_overlay.hpp"
+#include "weapons.hpp"
+#include "weapon_overlay.hpp"
 #include "camera_rig.hpp"
 #include "collision_debug.hpp"
 #include "gpu_timer.hpp"
@@ -224,7 +226,8 @@ void printHelp() {
               << "Tab switch Combat/Interaction; left mouse shoot in Combat, grab a door (1.5 m) or box (2 m) in Interaction\n"
               << "Interaction: left/right mouse hold boxes with separate hands; mouse sideways/up/down moves boxes; WASD moves grips\n"
               << "Release to drop; swing and release to throw. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
-              << "Combat: right mouse cycle normal, 10-degree, and 1-degree views while captured\n"
+              << "Combat: 1 pistol, 2 SMG, 3 sniper, 4 shotgun; R reload; hold left mouse for automatic fire\n"
+              << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
               << "Left Alt release/capture mouse, wheel change speed, F frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
               << "  --fps               Start in walking mode\n"
@@ -292,6 +295,7 @@ struct AppState {
         : rig(collision, model.boundsMin, model.boundsMax, 1280.0f / 720.0f), world(collision) {}
     viewer::CameraRig rig;
     viewer::PlayerInteraction interaction;
+    viewer::Weapons weapons{VIEWER_ITEMS, VIEWER_INVENTORY};
     viewer::DoorLayer* doors = nullptr;
     viewer::BoxLayer* boxes = nullptr;
     viewer::PhysicsScene* physicsScene = nullptr;
@@ -312,7 +316,7 @@ AppState& state(GLFWwindow* window) { return *static_cast<AppState*>(glfwGetWind
 void captureMouse(GLFWwindow* window, bool captured) {
     auto& app = state(window);
     app.capture = captured;
-    if (!captured) app.interaction.cancel();
+    if (!captured) { app.interaction.cancel(); app.weapons.cancelTrigger(); }
     app.firstMouse = true;
     if (!app.hidden) glfwSetInputMode(window, GLFW_CURSOR, captured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
 }
@@ -329,16 +333,29 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     if (action != GLFW_PRESS) return;
     if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(window, GLFW_TRUE);
     else if (key == GLFW_KEY_TAB) {
+        app.weapons.cancelTrigger();
         app.interaction.toggleMode();
         std::cout << "Control mode: " << app.interaction.modeName() << '\n';
+    } else if (key >= GLFW_KEY_1 && key <= GLFW_KEY_4) {
+        if (app.weapons.equip(static_cast<std::size_t>(key - GLFW_KEY_1))) {
+            while (app.rig.camera().viewMode() != viewer::Camera::ViewMode::original)
+                app.rig.camera().cycleViewMode();
+            std::cout << app.weapons.status() << '\n';
+        }
+    } else if (key == GLFW_KEY_R) {
+        app.weapons.reload();
+        std::cout << app.weapons.status() << '\n';
     } else if (key == GLFW_KEY_LEFT_ALT) captureMouse(window, !app.capture);
     else if (key == GLFW_KEY_F) {
+        app.weapons.cancelTrigger();
         app.interaction.cancel();
         app.rig.frame(static_cast<float>(std::max(app.width, 1)) / static_cast<float>(std::max(app.height, 1)));
     } else if (key == GLFW_KEY_F1) {
+        app.weapons.cancelTrigger();
         app.interaction.cancel();
         app.rig.enterFreeFly();
     } else if (key == GLFW_KEY_F2) {
+        app.weapons.cancelTrigger();
         app.interaction.cancel();
         try { app.rig.enterWalking(); }
         catch (const std::exception& error) { std::cerr << "FPS placement failed: " << error.what() << '\n'; }
@@ -361,12 +378,13 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     auto& app = state(window);
     if ((button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT) && action == GLFW_RELEASE) {
+        if (button == GLFW_MOUSE_BUTTON_LEFT) app.weapons.trigger(false);
         app.interaction.release(button == GLFW_MOUSE_BUTTON_LEFT ? viewer::Hand::Left : viewer::Hand::Right, glfwGetTime());
         return;
     }
     if (action != GLFW_PRESS || !app.capture) return;
     if (button == GLFW_MOUSE_BUTTON_RIGHT && app.interaction.mode() == viewer::ControlMode::Combat) {
-        app.rig.camera().cycleViewMode();
+        if (app.weapons.equipped().config.hasScope) app.rig.camera().cycleViewMode();
         return;
     }
     if (button != GLFW_MOUSE_BUTTON_LEFT && button != GLFW_MOUSE_BUTTON_RIGHT) return;
@@ -379,10 +397,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
         }
         return;
     }
-    if (!app.zombies) return;
-    if (app.zombies->shoot(app.rig.camera().position(), app.rig.camera().direction(),
-                           app.displayedAnimationSeconds))
-        std::cout << "Zombie hit: ragdoll activated (" << app.zombies->ragdollCount() << " active)\n";
+    app.weapons.trigger(true);
 }
 
 void scrollCallback(GLFWwindow* window, double, double y) {
@@ -395,7 +410,21 @@ void focusCallback(GLFWwindow* window, int focused) {
         state(window).keys.fill(false);
         state(window).firstMouse = true;
         state(window).interaction.cancel();
+        state(window).weapons.cancelTrigger();
     }
+}
+
+void updateWeapons(AppState& app, double seconds) {
+    if (!app.capture || app.interaction.mode() != viewer::ControlMode::Combat) {
+        app.weapons.cancelTrigger();
+        return;
+    }
+    if (!app.weapons.fire(seconds)) return;
+    if (app.zombies) {
+        for (const auto direction : viewer::weaponShotDirections(app.weapons.equipped().config, app.rig.camera().direction()))
+            app.zombies->shoot(app.rig.camera().position(), direction, app.displayedAnimationSeconds);
+    }
+    std::cout << app.weapons.status() << '\n';
 }
 
 void moveCamera(AppState& app, float dt) {
@@ -416,6 +445,7 @@ void inputSelfTest(GLFWwindow* window) {
     const auto resize = glfwSetFramebufferSizeCallback(window, framebufferCallback);
     if (!key || !cursor || !mouse || !resize) throw std::runtime_error("Input callbacks were not registered");
     const auto original = app.rig.camera();
+    const auto originalWeapons = app.weapons;
     const bool wasWalking = app.rig.walking();
     app.rig.enterFreeFly();
     for (int code : {GLFW_KEY_W, GLFW_KEY_S, GLFW_KEY_A, GLFW_KEY_D, GLFW_KEY_Q, GLFW_KEY_E}) {
@@ -434,6 +464,12 @@ void inputSelfTest(GLFWwindow* window) {
     if (change < 1e-5f) throw std::runtime_error("Mouse input self-test failed");
     const auto originalProjection = app.rig.camera().projection(1.0f);
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+    mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+    if (app.rig.camera().projection(1.0f) != originalProjection)
+        throw std::runtime_error("Unscoped pistol changed the view mode");
+    key(window, GLFW_KEY_3, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_3, 0, GLFW_RELEASE, 0);
+    mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
     const auto tenDegreeProjection = app.rig.camera().projection(1.0f);
     const float tenDegrees = glm::degrees(2.0f * std::atan(1.0f / tenDegreeProjection[1][1]));
     if (std::abs(tenDegrees - 10.0f) > 1e-5f || app.rig.camera().viewMode() != viewer::Camera::ViewMode::zoom10)
@@ -451,6 +487,22 @@ void inputSelfTest(GLFWwindow* window) {
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
     if (app.rig.camera().projection(1.0f) != originalProjection)
         throw std::runtime_error("Right-click did not restore the original field of view");
+    for (int slot = 0; slot < 4; ++slot) {
+        key(window, GLFW_KEY_1 + slot, 0, GLFW_PRESS, 0);
+        key(window, GLFW_KEY_1 + slot, 0, GLFW_RELEASE, 0);
+        if (app.weapons.slot() != static_cast<std::size_t>(slot))
+            throw std::runtime_error("Weapon selection callback failed");
+    }
+    const auto loaded = app.weapons.equipped().loaded;
+    mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+    updateWeapons(app, 0);
+    mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+    if (app.weapons.equipped().loaded != loaded - app.weapons.equipped().config.ammoPerShot)
+        throw std::runtime_error("Shooting callback did not consume ammo");
+    key(window, GLFW_KEY_R, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_R, 0, GLFW_RELEASE, 0);
+    if (app.weapons.equipped().loaded != loaded)
+        throw std::runtime_error("Reload callback did not refill magazine");
     key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
     if (!app.capture || app.interaction.mode() != viewer::ControlMode::Interaction)
         throw std::runtime_error("Tab failed to select interaction mode with mouse captured");
@@ -485,9 +537,10 @@ void inputSelfTest(GLFWwindow* window) {
     glfwSetWindowShouldClose(window, GLFW_FALSE);
     app.keys.fill(false);
     app.rig.camera() = original;
+    app.weapons = originalWeapons;
     if (wasWalking && !app.rig.enterWalking()) throw std::runtime_error("Failed to restore walking mode after input test");
     app.firstMouse = true;
-    std::cout << "Input self-test passed: WASDQE movement, mouse look/capture, Tab control modes, right-click view cycle, resize, Escape\n";
+    std::cout << "Input self-test passed: movement, mouse capture, control modes, weapon selection/fire/reload, scope, resize, Escape\n";
 }
 
 void fpsInputSelfTest(GLFWwindow* window) {
@@ -783,6 +836,8 @@ int run(const Options& options) {
     viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr,
                               zombies ? &*zombies : nullptr, forests ? &*forests : nullptr);
     viewer::ReticleOverlay reticle(options.shaders);
+    viewer::WeaponOverlay weaponOverlay(options.shaders);
+    std::cout << "Weapons: 1 pistol, 2 SMG, 3 sniper, 4 shotgun; R reload\n" << app.weapons.status() << '\n';
     renderer.setTreeCulling(options.treeCulling);
     renderer.setZombieCulling(options.zombieCulling);
     renderer.setZombieDistanceDetail(options.zombieDistanceDetail);
@@ -878,6 +933,7 @@ int run(const Options& options) {
                 for (const auto& noise : app.rig.player().noises())
                     zombies->makeNoise(noise.position, noise.decibels);
         }
+        updateWeapons(app, simulationClock.seconds());
         const double preparationStart = glfwGetTime();
         intervalBehaviorSeconds += preparationStart - behaviorStart;
         intervalSimulationSeconds += preparationStart - simulationStart;
@@ -896,6 +952,9 @@ int run(const Options& options) {
         renderer.render(app.rig.camera(), app.displayedAnimationSeconds);
         if (app.collisionDebug)
             debug->draw(app.rig.camera(), overlay, app.width, app.height);
+        if (app.interaction.mode() == viewer::ControlMode::Combat &&
+            app.rig.camera().viewMode() == viewer::Camera::ViewMode::original)
+            weaponOverlay.draw(app.weapons.slot(), app.width, app.height);
         reticle.draw(app.rig.camera().viewMode(), app.width, app.height);
         intervalRenderSeconds += glfwGetTime() - renderStart;
         gpuTimer.end();
@@ -941,6 +1000,7 @@ int run(const Options& options) {
                             << ':' << std::setw(2) << minutes % 60;
             }
             const auto caption = title + " | " + app.rig.modeName() + " | " + app.interaction.modeName()
+                + " | " + app.weapons.status()
                 + (app.interaction.grabbing() ? " (holding)" : "") + status + " | " + std::to_string(fps)
                 + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + " | CPU sim " + simulationTime + townStatus + treeStatus + zombieStatus + clockStatus.str() + " | " + std::to_string(static_cast<int>(app.rig.speed(
                     app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]))) + " m/s";
