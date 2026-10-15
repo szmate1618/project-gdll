@@ -62,20 +62,19 @@ void locomotionSpeedsAndArrival() {
     require(!walking.instances[0].walking, "Coincident target must not walk in place");
 }
 
-void terrainWithoutAvoidance() {
+void terrainFollowing() {
     viewer::Model model;
     // Folded quad: the center belongs to a triangle at y=6, not the bilinear y=3.
     quad(model, "terrain", {-20, 0, -20}, {-20, 0, 20}, {20, 12, 20}, {20, 0, -20});
     quad(model, "building_roof", {-20, 25, -20}, {-20, 25, 20}, {20, 25, 20}, {20, 25, -20});
-    quad(model, "building_wall", {0, 0, -20}, {0, 0, 20}, {0, 25, 20}, {0, 25, -20});
-    const viewer::CollisionWorld world(model, {{{0, 6, 0}, 2, 10}});
+    const viewer::CollisionWorld world(model);
     auto layer = crowd({{-1.2f, 5.64f, 0}});
     move(layer, 1, {5, 7.5f, 0}, world);
     require(near(glm::vec3(layer.instances[0].restRoot[3]), {0, 6, 0}),
-            "Follow the rendered ground triangle through walls and trunks, below roofs");
+            "Follow the rendered ground triangle below roofs");
     move(layer, 1, {5, 7.5f, 0}, world);
     require(near(glm::vec3(layer.instances[0].restRoot[3]), {1.2f, 6, 0}),
-            "Continue straight through obstacles on the next terrain triangle");
+            "Continue on the next rendered terrain triangle");
 }
 
 void timeAndNormalization() {
@@ -136,7 +135,7 @@ void sharedLocomotionAndPoseSampling() {
 int main() {
     try {
         locomotionSpeedsAndArrival();
-        terrainWithoutAvoidance();
+        terrainFollowing();
         timeAndNormalization();
         sharedLocomotionAndPoseSampling();
         std::cout << "Zombie chase tests passed\n";

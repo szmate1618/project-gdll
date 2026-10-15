@@ -20,6 +20,7 @@ struct Contact {
     glm::vec3 normal{0.0f, 1.0f, 0.0f};
     glm::vec3 point{0.0f};
     float depth = 0.0f;
+    bool terrain = false; // Rendered terrain/roads; not a prop or building floor.
 };
 
 struct GroundHit {
@@ -78,6 +79,7 @@ public:
     // Consecutive pairs are line segments, suitable for GL_LINES.
     std::vector<glm::vec3> debugLines(glm::vec3 near, float distance = 15.0f) const;
     const CollisionStats& stats() const;
+    bool empty() const; // No static geometry, trunks, doors or boxes.
     // Borrowed dynamic props must outlive this world. Queries remain read-only.
     void setBoxes(BoxLayer* boxes);
     void pushBoxes(glm::vec3 feet, float radius, float height, glm::vec3 velocity, float dt) const;

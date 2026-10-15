@@ -619,8 +619,9 @@ alongside the perception/shooting index. Only active behavior IDs are sorted and
 stepped, in stable ID order, so pool swap removal and hash iteration do not
 choose collision priority. Given the same initial data and simulation steps,
 movement is repeatable; different frame timesteps need not produce identical
-crowd paths. Each movement allows up to three sliding contacts and **64 neighbor
-checks total**. Exhausting that budget stops at the last verified position
+crowd paths. Each crowd segment allows up to three sliding contacts, with **64
+neighbor checks total across all segments of one zombie's movement**.
+Exhausting that budget stops at the last verified position
 instead of skipping unchecked bodies. This bounds dense-cell neighbor work,
 including malformed piles, without rigid bodies or all-pairs crowd checks.
 `--profile` reports neighbor checks and budget stops; `ZombieLayer::crowdStats()`
@@ -628,10 +629,30 @@ exposes those counters. The existing deterministic spawn placement starts bodies
 well apart. This constraint preserves that separation; it does not untangle
 arbitrarily overlapping spawn data, although outward escape is allowed.
 
-There is no pathfinding or scene/player collision for living zombies yet:
-moving zombies can still pass through buildings, trees, and the player. The
-crowd constraint is separate from terrain sampling and transform publication so
-scene sweeps and player collision can be added to the movement stage later.
+Moving zombies also collide with **walls, current door panels, interior boxes,
+pole columns, fences, guardrails, and tree trunks**, using the same accelerated
+`CollisionWorld` queries as player walking. The world body is a **0.30 m radius,
+1.8 m tall upright capsule**. Movement uses segments no longer than **0.10 m**
+and at most four contact corrections per segment; normal app timesteps need one
+or two segments. A hard 2,048-segment limit stops excess displacement from huge
+external timesteps. Stable contact tie-breaking, bounded correction, and retaining
+the last safe position keep tight corners deterministic. A crowd slide is checked
+against the world again before acceptance, so corrections cannot move a body
+through another zombie or a wall. Only moving zombies query obstacles.
+
+Doors and boxes block at their current physical poses without zombie forces or
+impulses. Opening a door reveals the existing doorway without rebuilding the
+collision world. The rendered fence/guardrail panels are solid for movement,
+including transparent texels, while actual mesh entrance gaps remain open.
+`--no-poles`, `--no-fences`, `--no-guardrails` and `--no-tree-collisions` also remove
+those respective zombie obstacles. Pole/guardrail sidecar fingerprint checks
+remain the same as for rendering and player collision.
+
+Zombies do not yet find routes around buildings or crowds, push/open doors,
+push boxes, or collide with the player. Standing zombies are not physics bodies:
+a moving prop does not push an idle zombie. The movement module keeps scene
+constraints, crowd constraints, terrain sampling and transform publication
+separate for later navigation and player interaction work.
 Outside the map zombies retain their last ground height. Walking and running play
 the creator's walk/run clips using shared baked vertex animation. Investigating
 uses walk; chasing uses run, falling back to walk when only that clip is available.
@@ -1337,6 +1358,13 @@ converging 10,000-body crowd check identical positions, bounded neighbor work,
 and final torso separation using an independent sweep-and-prune check. Reported
 elapsed time is diagnostic, with no machine-dependent timing assertion.
 
+`viewer_zombie_movement` covers thin walls from both sides, sliding/corners,
+transformed scene nodes, mapped pole geometry, fence entrances/toggles, low
+guardrails, trunks, closed/open/rotated doors, read-only box collision, blocked
+behavior and animation, and asset normalization. A 1,000-zombie wall convergence
+fixture verifies deterministic replays, bounded crowd checks across substeps,
+and separation after combining world and crowd constraints, without a GPU.
+
 `viewer_zombie_visibility` compares grouped camera/shadow masks and stable IDs
 against a full individual-frustum scan. It covers inside/outside/boundary groups,
 negative cell coordinates, geometry crossing cell borders, movement, removal,
@@ -1463,6 +1491,7 @@ src/player_noise.{hpp,cpp} Fixed-step footsteps and landing noise emission
 src/simulation_clock.hpp   Global simulation-thread in-game clock
 src/zombie_chase.{hpp,cpp}  Terrain-following locomotion and clip clocks
 src/zombie_crowd.{hpp,cpp}  Deterministic swept body constraints and fine crowd grid
+src/zombie_movement.{hpp,cpp} Scene/crowd-constrained capsule motion and terrain support
 src/zombie_animation.{hpp,cpp} Authored clip selection and on-demand displayed poses
 src/zombie_lod.{hpp,cpp}    Camera detail, distance cutoff and shadow detail policy
 src/zombie_lod_assets.cpp   Local LOD manifest, fingerprint and rig validation

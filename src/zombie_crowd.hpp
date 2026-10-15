@@ -30,6 +30,10 @@ public:
     // the caller can apply terrain support or future scene collision before
     // publishing the accepted position. Existing overlaps may escape outward.
     glm::vec3 constrain(std::size_t id, glm::vec3 desired);
+    // Multiple short segments of one movement share the same neighbor budget.
+    // The indexed body stays at its published position until the caller commits.
+    glm::vec3 constrainFrom(std::size_t id, glm::vec3 start, glm::vec3 desired,
+                            std::size_t& checks);
 
 private:
     struct Cell {

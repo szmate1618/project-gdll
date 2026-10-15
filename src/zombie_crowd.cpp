@@ -56,12 +56,17 @@ void ZombieCrowd::update(std::size_t id, glm::vec3 feet) {
 
 glm::vec3 ZombieCrowd::constrain(std::size_t id, glm::vec3 desired) {
     if (id >= bodies_.size() || !bodies_[id].present || !finite(desired)) return desired;
-    const auto start = bodies_[id].feet;
+    std::size_t checks = 0;
+    return constrainFrom(id, bodies_[id].feet, desired, checks);
+}
+
+glm::vec3 ZombieCrowd::constrainFrom(std::size_t id, glm::vec3 start, glm::vec3 desired,
+                                     std::size_t& checks) {
+    if (id >= bodies_.size() || !bodies_[id].present || !finite(start) || !finite(desired)) return start;
     glm::dvec2 position(start.x, start.z);
     glm::dvec2 remaining = glm::dvec2(desired.x, desired.z) - position;
     if (glm::dot(remaining, remaining) < 1e-16) return desired;
     ++stats_.moves;
-    std::size_t checks = 0;
     // Three contacts suffice for a slide, then a corner/packed crowd stops.
     for (int slide = 0; slide < 3 && glm::dot(remaining, remaining) > 1e-16; ++slide) {
         double fraction = 1;
@@ -76,7 +81,7 @@ glm::vec3 ZombieCrowd::constrain(std::size_t id, glm::vec3 desired) {
         const auto visit = [&](const std::vector<std::size_t>& bucket) {
             for (const auto other : bucket) {
                 if (other == id) continue;
-                if (checks == neighborBudget) { exhausted = true; return; }
+                if (checks >= neighborBudget) { exhausted = true; return; }
                 ++checks;
                 ++stats_.neighborChecks;
                 const auto feet = bodies_[other].feet;

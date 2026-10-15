@@ -83,7 +83,7 @@ struct ZombieLayer {
     // initial fixture/bulk edits to ragdoll/removed flags. Ordinary locomotion
     // and the corpse owning APIs maintain these indices incrementally.
     void rebuildSpatialIndex();
-    // Perception/state update, followed by terrain-following locomotion.
+    // Perception/state update, followed by scene/crowd-constrained locomotion.
     // The app advances SimulationClock before calling this once per step.
     void updateBehavior(float seconds, const ZombiePlayer& player, const CollisionWorld& world,
                         double animationSeconds = 0.0);

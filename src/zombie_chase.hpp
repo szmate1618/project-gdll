@@ -12,7 +12,7 @@ class ZombieCrowd;
 // when aligned. Keep the idle animation and the asset's normalization intact.
 bool turnZombieToward(ZombieInstance& instance, glm::vec2 direction, float seconds);
 
-// Desired movement in X/Z, optional crowd constraint, then terrain support.
+// Desired movement in X/Z constrained by the scene, optional crowd and terrain.
 // Returns true only on actual arrival; blocked characters retain their target.
 bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& asset,
                       glm::vec3 target, float speed, float seconds,

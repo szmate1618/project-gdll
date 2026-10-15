@@ -506,7 +506,7 @@ std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, floa
         auto normal = t.normal;
         if (distance > 1e-6f) normal = separation / distance;
         else if (glm::dot((p + q) * 0.5f - t.a, normal) < 0) normal = -normal;
-        result.push_back({normal, pair.triangle, reach - distance});
+        result.push_back({normal, pair.triangle, reach - distance, t.terrain});
     });
     impl_->queryTrunks(region, [&](const TrunkCollider& trunk) {
         const float low = trunk.base.y + trunk.radius;
@@ -655,6 +655,10 @@ std::vector<glm::vec3> CollisionWorld::debugLines(glm::vec3 near, float distance
 }
 
 const CollisionStats& CollisionWorld::stats() const { return impl_->stats; }
+bool CollisionWorld::empty() const {
+    return impl_->triangles.empty() && impl_->trunks.empty() &&
+           (!impl_->doors || impl_->doors->count() == 0) && (!impl_->boxes || impl_->boxes->count() == 0);
+}
 void CollisionWorld::setBoxes(BoxLayer* boxes) { impl_->boxes = boxes; }
 void CollisionWorld::pushBoxes(glm::vec3 feet, float radius, float height, glm::vec3 velocity, float dt) const {
     if (impl_->boxes) impl_->boxes->push(feet, radius, height, velocity, dt);

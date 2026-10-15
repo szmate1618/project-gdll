@@ -1,9 +1,9 @@
 #include "zombie_chase.hpp"
 #include "zombie_layer.hpp"
+#include "zombie_movement.hpp"
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace viewer {
@@ -37,24 +37,9 @@ bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& /*asset*/,
     if (!instance.walking) return true;
     const auto direction = horizontal / distance;
     const float step = std::min(speed * seconds, distance);
-    feet.x += direction.x * step;
-    feet.z += direction.y * step;
-    // Terrain-only support follows the rendered triangle surface, below roofs.
-    const auto support = [&](glm::vec3& position) {
-        const auto ground = world.groundAt(position.x, position.z,
-            std::numeric_limits<float>::lowest(), std::numeric_limits<float>::max(),
-            world.stats().terrainTriangles != 0);
-        if (ground) position.y = ground->height;
-    };
-    support(feet);
-    if (crowd) {
-        const auto accepted = crowd->constrain(id, feet);
-        if (accepted.x != feet.x || accepted.z != feet.z) {
-            feet = accepted;
-            if (feet.x == start.x && feet.z == start.z) feet.y = start.y;
-            else support(feet);
-        }
-    }
+    const auto movement = moveZombieBody(start,
+        feet + glm::vec3(direction.x * step, 0, direction.y * step), world, crowd, id);
+    feet = movement.feet;
 
     const glm::vec2 travelled(feet.x - start.x, feet.z - start.z);
     const float travel = glm::length(travelled);
@@ -66,7 +51,7 @@ bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& /*asset*/,
     instance.running = speed > 1.2f;
     // Advance the selected authored clip by actual travel time, excluding any
     // leftover step after arrival. No per-character skeleton is evaluated here.
-    if (speed > 0 && instance.walking) instance.walkSeconds += travel / speed;
+    if (speed > 0 && instance.walking) instance.walkSeconds += movement.travel / speed;
     return glm::length(glm::vec2(target.x - feet.x, target.z - feet.z)) <= 1e-4f;
 }
 
