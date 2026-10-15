@@ -673,9 +673,17 @@ separate for later navigation and player interaction work.
 Outside the map zombies retain their last ground height. Walking and running play
 the creator's walk/run clips using shared baked vertex animation. Investigating
 uses walk; chasing uses run, falling back to walk when only that clip is available.
-Custom idle-only models retain idle playback while moving. Locomotion clip time
-advances by actual travel time; the CPU does not evaluate or upload a skeleton for
-each moving zombie. Distance LOD affects rendering and displayed poses; zombies
+Custom idle-only models retain idle playback while moving. Tiny collision slides
+retain facing, including backward/sideways slides under 2 cm that achieve less
+than half the requested movement. Larger locomotion turns follow the shortest
+arc at up to 180 degrees/s. Animation starts above 0.20 m/s and continues down to
+0.10 m/s of forward progress. Brief obstruction holds the current gait pose;
+after 0.15 s it settles into idle, with a 0.15 s restart hold to avoid rapid
+idle/run switching. Explicit idle, looking and attack transitions stop immediately.
+Locomotion clip time advances by actual travel time during meaningful movement;
+the CPU does not evaluate or upload a skeleton for each moving zombie. These
+presentation rules leave accepted collision positions unchanged.
+Distance LOD affects rendering and displayed poses; zombies
 still have no occlusion culling.
 
 In Combat mode while the mouse is captured, a weapon shot casts one ray per
@@ -1383,6 +1391,15 @@ guardrails, trunks, closed/open/rotated doors, read-only box collision, blocked
 behavior and animation, and asset normalization. A 1,000-zombie wall convergence
 fixture verifies deterministic replays, bounded crowd checks across substeps,
 and separation after combining world and crowd constraints, without a GPU.
+
+`viewer_zombie_motion` records positions, facing, selected clip and interpolated
+animation frames in deterministic crowded convergence, wall and moving-door
+fixtures. It checks retained tiny backward slides, bounded turning, absence of
+rapid clip switching, and continuous pursuit of a moving target. Separate
+30/60/144 Hz checks cover held gait poses, sustained blockage, resumed movement
+and deliberate reverse turns. To save CSV traces using an actual animation asset:
+`./build/test_zombie_motion build/zombie-motion-trace assets/zombies/models/ZombieMale_A.glb`.
+Omitting both arguments uses synthetic clip timing and writes no files.
 
 `viewer_character_step` runs both controllers against raised road sheets,
 downward-facing building caps and solid curbs at 2, 8.7, 25, 30, 31 and 45 cm.

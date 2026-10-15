@@ -89,11 +89,15 @@ void stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
         else if (behavior.state == ZombieState::idle || behavior.state == ZombieState::looking)
             changeState(behavior, ZombieState::investigating, now);
     }
-    if (behavior.state == ZombieState::idle || behavior.state == ZombieState::looking) return;
+    if (behavior.state == ZombieState::idle || behavior.state == ZombieState::looking) {
+        stopZombieLocomotion(instance);
+        return;
+    }
 
     auto feet = glm::vec3(instance.restRoot[3]);
     if (glm::length(player.feet - feet) <= attackDistance + 1e-4f) {
         changeState(behavior, ZombieState::attacking, now);
+        stopZombieLocomotion(instance);
         return;
     }
     if (behavior.state == ZombieState::attacking)
@@ -109,7 +113,7 @@ void stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
     else if (arrived)
         changeState(behavior, ZombieState::idle, now);
     if (behavior.state == ZombieState::idle || behavior.state == ZombieState::attacking)
-        instance.walking = false;
+        stopZombieLocomotion(instance);
 }
 
 }
@@ -199,7 +203,7 @@ void ZombieLayer::makeNoise(glm::vec3 position, float decibels) {
         behavior->lookDirection = offset / distance;
         changeState(*behavior, ZombieState::looking, now);
         if (instance.walking) markRenderChanged(id, false);
-        instance.walking = false;
+        stopZombieLocomotion(instance);
     }
 }
 
@@ -236,15 +240,16 @@ void ZombieLayer::updateBehavior(float seconds, const ZombiePlayer& player,
     for (const auto id : behaviorOrder_) {
         auto& behavior = *behaviors.find(id);
         const bool wasWalking = id < instances.size() && instances[id].walking;
-        if (id < instances.size()) instances[id].walking = false;
         if (id >= instances.size() || instances[id].removed || instances[id].ragdoll || instances[id].asset >= assets.size() ||
             (behavior.state == ZombieState::idle && now - behavior.idleSinceSeconds >= idleLifetime)) {
+            if (id < instances.size()) stopZombieLocomotion(instances[id]);
             if (wasWalking) markRenderChanged(id, false);
             behaviors.remove(id);
             continue;
         }
         auto& instance = instances[id];
         if (distantIdle(behavior, instance, player)) {
+            stopZombieLocomotion(instance);
             if (wasWalking) markRenderChanged(id, false);
             behaviors.remove(id);
             continue;

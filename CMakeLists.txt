@@ -363,7 +363,7 @@ if(BUILD_TESTING)
     viewer_warnings(test_door_walking)
     add_test(NAME viewer_door_walking COMMAND test_door_walking)
 
-    foreach(suite animated_model zombie_lod zombie_placement zombie_chase zombie_crowd zombie_movement zombie_behavior zombie_shooting zombie_spatial_index zombie_perception zombie_ragdoll zombie_transition zombie_render_updates)
+    foreach(suite animated_model zombie_lod zombie_placement zombie_chase zombie_crowd zombie_movement zombie_motion zombie_behavior zombie_shooting zombie_spatial_index zombie_perception zombie_ragdoll zombie_transition zombie_render_updates)
         add_executable(test_${suite} tests/test_${suite}.cpp)
         target_link_libraries(test_${suite} PRIVATE viewer_zombies)
         target_include_directories(test_${suite} SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")

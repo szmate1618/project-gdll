@@ -9,6 +9,14 @@
 namespace viewer {
 namespace {
 constexpr double tau = 6.283185307179586;
+constexpr float startAnimationSpeed = .20f, stopAnimationSpeed = .10f; // m/s.
+constexpr float animationHoldSeconds = .15f;
+constexpr float locomotionTurnSpeed = static_cast<float>(tau / 2); // 180 degrees/s.
+}
+
+void stopZombieLocomotion(ZombieInstance& instance) {
+    instance.walking = false;
+    instance.blockedAnimationSeconds = instance.animationRestartSeconds = 0;
 }
 
 bool turnZombieToward(ZombieInstance& instance, glm::vec2 direction, float seconds) {
@@ -21,7 +29,7 @@ bool turnZombieToward(ZombieInstance& instance, glm::vec2 direction, float secon
     const auto feet = glm::vec3(instance.restRoot[3]);
     instance.restRoot = glm::rotate(glm::translate(glm::mat4(1), feet), nextYaw, {0, 1, 0});
     instance.transform = instance.restTransform = instance.restRoot * instance.chaseNormalization;
-    instance.walking = false;
+    stopZombieLocomotion(instance);
     return aligned;
 }
 
@@ -33,26 +41,52 @@ bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& /*asset*/,
     const auto start = feet;
     const glm::vec2 horizontal(target.x - feet.x, target.z - feet.z);
     const float distance = glm::length(horizontal);
-    instance.walking = distance > 1e-4f;
-    if (!instance.walking) return true;
+    if (distance <= 1e-4f) {
+        stopZombieLocomotion(instance);
+        return true;
+    }
     const auto direction = horizontal / distance;
     const float step = std::min(speed * seconds, distance);
     const auto movement = moveZombieBody(start,
         feet + glm::vec3(direction.x * step, 0, direction.y * step), world, crowd, id);
     feet = movement.feet;
 
-    const glm::vec2 travelled(feet.x - start.x, feet.z - start.z);
+    const auto travelled = glm::vec2(feet.x - start.x, feet.z - start.z);
     const float travel = glm::length(travelled);
-    instance.walking = travel > 1e-5f;
-    const auto facing = instance.walking ? travelled / travel : direction;
-    const float yaw = std::atan2(facing.x, facing.y);
-    instance.restRoot = glm::rotate(glm::translate(glm::mat4(1), feet), yaw, {0, 1, 0});
-    instance.transform = instance.restTransform = instance.restRoot * instance.chaseNormalization;
+    const bool arrived = glm::length(glm::vec2(target.x - feet.x, target.z - feet.z)) <= 1e-4f;
+    const float threshold = instance.walking ? stopAnimationSpeed : startAnimationSpeed;
+    const bool locomotion = travel >= threshold * seconds && glm::dot(travelled, direction) > 0;
+    instance.animationRestartSeconds = std::max(0.f, instance.animationRestartSeconds - seconds);
+    if (locomotion) {
+        instance.blockedAnimationSeconds = 0;
+        if (instance.animationRestartSeconds == 0) instance.walking = true;
+    } else if (instance.walking) {
+        instance.blockedAnimationSeconds += seconds;
+        if (instance.blockedAnimationSeconds >= animationHoldSeconds) {
+            instance.walking = false;
+            instance.animationRestartSeconds = animationHoldSeconds;
+        }
+    }
+    const float yaw = std::atan2(instance.restRoot[2].x, instance.restRoot[2].z);
+    float nextYaw = yaw;
+    // Tiny contact slides may go backward or sideways. Keep their physical
+    // clearance correction without reorienting the whole animated body.
+    const bool smallAdjustment = travel < .02f && travel < step * .5f;
+    if (locomotion && !smallAdjustment) {
+        const float targetYaw = std::atan2(travelled.x, travelled.y);
+        const float delta = std::remainder(targetYaw - yaw, static_cast<float>(tau));
+        const float turn = locomotionTurnSpeed * seconds;
+        nextYaw += std::clamp(delta, -turn, turn);
+    }
+    if (feet != start || nextYaw != yaw) {
+        instance.restRoot = glm::rotate(glm::translate(glm::mat4(1), feet), nextYaw, {0, 1, 0});
+        instance.transform = instance.restTransform = instance.restRoot * instance.chaseNormalization;
+    }
     instance.running = speed > 1.2f;
     // Advance the selected authored clip by actual travel time, excluding any
     // leftover step after arrival. No per-character skeleton is evaluated here.
-    if (speed > 0 && instance.walking) instance.walkSeconds += movement.travel / speed;
-    return glm::length(glm::vec2(target.x - feet.x, target.z - feet.z)) <= 1e-4f;
+    if (speed > 0 && instance.walking && locomotion) instance.walkSeconds += movement.travel / speed;
+    return arrived;
 }
 
 } // namespace viewer
