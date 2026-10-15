@@ -110,6 +110,12 @@ void prediction() {
     require(client.commandsToSend().commands.front().sequence == 36, "Resend includes resolved inputs");
     state.resolved = 100;
     rejects([&] { client.reconcile(state, collision); }, "Future acknowledgement accepted");
+    for (int i = 0; i < 40; ++i) client.advance({}, collision);
+    const auto batch = client.commandsToSend();
+    require(batch.commands.size() == 32 && batch.commands.front().sequence == 36 && batch.commands.back().sequence == 100,
+        "Bounded resend batch omitted old input or the newest input");
+    const auto wire = encode(batch);
+    decode(wire.data(), wire.size());
     viewer::FPSState invalid; invalid.accumulator = -1;
     rejects([&] { server.restoreMovement(invalid); }, "Invalid movement state restored");
     Snapshots buffer;
@@ -253,12 +259,78 @@ void serverCommands(const std::filesystem::path& asset) {
     }
     require(player.shots > automaticShots + 1, "Holding an automatic trigger stopped firing");
 }
+void inputRecovery(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
+    Scene scene(options); scene.model = ground();
+    scene.collision = std::make_unique<viewer::CollisionWorld>(scene.model, std::vector<viewer::TrunkCollider>{}, scene.doors.get());
+    scene.collision->setBoxes(scene.boxes.get()); scene.spawnEye = {0, 1.7f, 0};
+    World world(scene); const auto id = world.join();
+    Prediction client; client.reconcile(world.snapshot(id).players.front(), *scene.collision);
+    std::deque<Commands> transit;
+    for (int frame = 0; frame < 1800; ++frame) {
+        const int cycle = frame % 300;
+        const int lossEnd = frame < 900 ? 90 : 150;
+        Command c; c.movement.forward = 1; c.movement.yawDegrees = 0;
+        c.movement.toggleProne = cycle == 68;
+        c.left = cycle == 70; c.reload = cycle == 76;
+        client.advance(c, *scene.collision);
+        transit.push_back(client.commandsToSend());
+        if (transit.size() > 3) {
+            if (cycle < 60 || cycle >= lossEnd) {
+                world.submit(id, transit.front()); world.submit(id, transit.front());
+            }
+            transit.pop_front();
+        }
+        const auto before = world.players().at(id).controller.feet();
+        world.step();
+        const auto& player = world.players().at(id);
+        require(glm::distance(before, player.controller.feet()) <= 3 * tickSeconds + .0001f,
+            "Input catch-up advanced movement faster than real time");
+        require(world.tick() == static_cast<std::uint64_t>(frame + 1), "Input catch-up advanced the world clock");
+        if (frame % 3 == 2) client.reconcile(world.snapshot(id).players.front(), *scene.collision);
+        if (cycle == 299) {
+            require(client.outstanding() <= 8, "Recovered connection retained its input backlog");
+            const auto cycles = static_cast<std::uint64_t>(frame / 300 + 1);
+            require(player.shots == cycles && player.weapons.equipped().loaded == 12,
+                "Input catch-up lost or repeated a click/reload");
+            require(player.controller.stance() == (cycles % 2 ? viewer::PlayerStance::Prone : viewer::PlayerStance::Standing),
+                "Input catch-up lost or repeated a prone toggle");
+        }
+    }
+    const auto flood = world.join();
+    Commands batch;
+    for (std::uint64_t seq = 1; seq <= 64; ++seq) {
+        Command c; c.sequence = seq; c.movement.forward = 1; c.movement.yawDegrees = 0; c.movement.run = true;
+        batch.commands.push_back(c);
+        if (batch.commands.size() == 32) { world.submit(flood, batch); batch.commands.clear(); }
+    }
+    const auto before = world.players().at(flood).controller.feet();
+    world.step();
+    require(glm::distance(before, world.players().at(flood).controller.feet()) <= 6 * tickSeconds + .0001f,
+        "Flooding commands increased running speed");
+
+    const auto gap = world.join();
+    Command first; first.sequence = 1; first.movement.toggleProne = true;
+    auto last = first; last.sequence = 40;
+    world.submit(gap, Commands{{first, last}});
+    for (int i = 0; i < 8; ++i) world.step();
+    require(world.players().at(gap).resolved == 1, "Newest input hint acknowledged missing button actions");
+    for (std::uint64_t seq = 2; seq < 40; ++seq) {
+        Command c; c.sequence = seq; batch.commands.push_back(c);
+        if (batch.commands.size() == 32) { world.submit(gap, batch); batch.commands.clear(); }
+    }
+    world.submit(gap, batch);
+    for (int i = 0; i < 24; ++i) { world.submit(gap, Commands{}); world.step(); }
+    require(world.players().at(gap).resolved == 40 && world.players().at(gap).controller.stance() == viewer::PlayerStance::Standing,
+        "Filling an input gap lost ordered button actions");
+}
 }
 int main(int argc, char** argv) {
     try {
         protocol(); fragments(); prediction(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        serverCommands(argv[1]);
+        serverCommands(argv[1]); inputRecovery(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

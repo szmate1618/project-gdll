@@ -22,9 +22,10 @@ void Prediction::reconcile(const PlayerState& state, const viewer::CollisionWorl
 Commands Prediction::commandsToSend() const {
     Commands result;
     for (const auto& c : pending_) {
-        if (result.commands.size() == 32) break;
+        if (result.commands.size() == 31) break;
         result.commands.push_back(c);
     }
+    if (pending_.size() > 31) result.commands.push_back(pending_.back());
     return result;
 }
 } // namespace multiplayer

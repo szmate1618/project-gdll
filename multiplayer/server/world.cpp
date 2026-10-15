@@ -48,60 +48,64 @@ void World::step() {
     std::vector<viewer::ZombiePlayer> targets;
     std::vector<viewer::NoiseEvent> noises;
     for (auto& [id, player] : players_) {
-        auto command = player.held;
-        command.movement.toggleProne = false; command.reload = false; command.drag = {};
         // A small startup buffer absorbs ordinary packet jitter without delaying local prediction.
         if (!player.started && (player.pending.size() >= 3 || tick_ - player.lastPacketTick > 3)) player.started = true;
-        if (player.started && !player.pending.empty()) {
-            const auto first = player.pending.begin();
-            if (first->first == player.resolved + 1 || player.pending.size() >= 3 || tick_ - player.lastPacketTick > 3) {
-                command = first->second; player.resolved = first->first; player.pending.erase(first);
-            }
-        }
-        if (tick_ - player.lastPacketTick > 12) {
-            command.movement = {}; command.movement.yawDegrees = player.camera.yawDegrees();
-            command.left = command.right = command.reload = false;
-            player.interaction.cancel();
-        }
-        player.controller.update(tickSeconds, command.movement, *scene_.collision);
-        noises.insert(noises.end(), player.controller.noises().begin(), player.controller.noises().end());
-        player.camera.setPosition(player.controller.eyePosition());
-        player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
-        const bool mode = player.interaction.mode() == viewer::ControlMode::Interaction;
-        if (mode != command.interaction) player.interaction.toggleMode();
-        if (command.interaction) {
-            for (const auto hand : {viewer::Hand::Left, viewer::Hand::Right}) {
-                const bool held = hand == viewer::Hand::Left ? command.left : command.right;
-                const bool wasHeld = hand == viewer::Hand::Left ? player.held.left : player.held.right;
-                if (!held && wasHeld) player.interaction.release(hand, now);
-                if (held && (!wasHeld || !player.held.interaction)) {
-                    player.interaction.press(hand, player.camera, *scene_.doors, *scene_.boxes, *scene_.collision, now);
-                    bool conflict = false;
-                    for (const auto& [otherId, other] : players_) {
-                        if (otherId == id) continue;
-                        const auto box = player.interaction.heldBox(hand);
-                        const auto door = player.interaction.grabbedDoor();
-                        conflict |= box && (box == other.interaction.heldBox(viewer::Hand::Left) || box == other.interaction.heldBox(viewer::Hand::Right));
-                        conflict |= door && door == other.interaction.grabbedDoor();
-                    }
-                    if (conflict) player.interaction.cancel();
-                    if (const auto door = player.interaction.grabbedDoor()) {
-                        // shortcut: stop populating before the fixed protocol prop budget; raise/version it for larger sessions.
-                        if (scene_.boxes->count() + 64 < maxBoxes)
-                            interiors_.populate(*door, *scene_.collision, physicsScene_, *scene_.boxes);
-                    }
+        // Drain jitter backlogs using the existing 120 Hz substeps, never extra movement time.
+        const int inputs = player.pending.size() > 3 ? 2 : 1;
+        for (int input = 0; input < inputs; ++input) {
+            auto command = player.held;
+            command.movement.toggleProne = false; command.reload = false; command.drag = {};
+            if (player.started && !player.pending.empty()) {
+                const auto first = player.pending.begin();
+                if (first->first == player.resolved + 1) {
+                    command = first->second; player.resolved = first->first; player.pending.erase(first);
                 }
             }
-            player.interaction.look(player.camera, command.drag.x, command.drag.y, now);
+            if (tick_ - player.lastPacketTick > 12) {
+                command.movement = {}; command.movement.yawDegrees = player.camera.yawDegrees();
+                command.left = command.right = command.reload = false;
+                player.interaction.cancel();
+            }
+            player.controller.update(tickSeconds / inputs, command.movement, *scene_.collision);
+            noises.insert(noises.end(), player.controller.noises().begin(), player.controller.noises().end());
+            player.camera.setPosition(player.controller.eyePosition());
             player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
-            player.interaction.update(player.camera, tickSeconds);
+            const bool mode = player.interaction.mode() == viewer::ControlMode::Interaction;
+            if (mode != command.interaction) player.interaction.toggleMode();
+            if (command.interaction) {
+                for (const auto hand : {viewer::Hand::Left, viewer::Hand::Right}) {
+                    const bool held = hand == viewer::Hand::Left ? command.left : command.right;
+                    const bool wasHeld = hand == viewer::Hand::Left ? player.held.left : player.held.right;
+                    if (!held && wasHeld) player.interaction.release(hand, now);
+                    if (held && (!wasHeld || !player.held.interaction)) {
+                        player.interaction.press(hand, player.camera, *scene_.doors, *scene_.boxes, *scene_.collision, now);
+                        bool conflict = false;
+                        for (const auto& [otherId, other] : players_) {
+                            if (otherId == id) continue;
+                            const auto box = player.interaction.heldBox(hand);
+                            const auto door = player.interaction.grabbedDoor();
+                            conflict |= box && (box == other.interaction.heldBox(viewer::Hand::Left) || box == other.interaction.heldBox(viewer::Hand::Right));
+                            conflict |= door && door == other.interaction.grabbedDoor();
+                        }
+                        if (conflict) player.interaction.cancel();
+                        if (const auto door = player.interaction.grabbedDoor()) {
+                            // shortcut: stop populating before the fixed protocol prop budget; raise/version it for larger sessions.
+                            if (scene_.boxes->count() + 64 < maxBoxes)
+                                interiors_.populate(*door, *scene_.collision, physicsScene_, *scene_.boxes);
+                        }
+                    }
+                }
+                player.interaction.look(player.camera, command.drag.x, command.drag.y, now);
+                player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
+                player.interaction.update(player.camera, tickSeconds / inputs);
+            }
+            if (player.weapons.slot() != command.slot) player.weapons.equip(command.slot);
+            if (command.reload) player.weapons.reload();
+            player.weapons.trigger(command.left && !command.interaction);
+            player.held = command;
         }
-        if (player.weapons.slot() != command.slot) player.weapons.equip(command.slot);
-        if (command.reload) player.weapons.reload();
-        player.weapons.trigger(command.left && !command.interaction);
         scene_.doors->activateNear(player.controller.feet());
         targets.push_back({player.controller.feet(), player.controller.eyeHeight(), player.controller.bodyHeight(), id});
-        player.held = command;
     }
     physicsScene_.prepare(*scene_.boxes);
     for (std::size_t i = 0; i < scene_.boxes->count(); ++i) scene_.doors->activateNear(scene_.boxes->pose(i).center, 8);

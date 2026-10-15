@@ -90,6 +90,10 @@ sends self-contained snapshots at 20 Hz. One peer cannot advance the world by
 sending more commands. Sequence numbers, bounded queues, redundant input
 transmission, timeouts and rejection of malformed messages handle late,
 duplicated and reordered traffic. Missing input is held briefly, then neutralized.
+After an input backlog builds up, the server processes two queued commands per
+tick using one 120 Hz player substep each. This drains the queue without adding
+movement time or speeding up the world. Button transitions stay ordered;
+unreceived commands remain unacknowledged and are resent alongside the newest input.
 Large replaceable messages use bounded datagram fragments, keeping them out of
 GameNetworkingSockets' automatic large-message reliable queue. Incomplete older
 snapshots do not block newer complete ones.
@@ -125,7 +129,9 @@ initial view for repeatable captures. Both still require a display/GPU.
 Unit checks cover protocol validation, reconciliation across jumps/stances,
 multi-player target selection, single-player equivalence, blocked shots, pose
 replication, late-join corpses, command deduplication, fragment loss/reordering and
-stale snapshots. The process integration
+stale snapshots. They also cover recovery from repeated half-second and 1.5-second input
+outages, retained button actions, command gaps and the movement speed limit.
+The process integration
 test connects two real clients under artificial packet loss and latency,
 exercises late join, and checks content mismatch rejection.
 
