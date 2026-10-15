@@ -147,6 +147,17 @@ CI uses synthetic fixtures without generating the town or downloading map data.
 The two actual-town integration tests require a generated map and run locally
 when that map exists. CTest diagnostics are retained as artifacts for seven days.
 
+The separate [Build apps workflow](.github/workflows/build-apps.yml) compiles
+Release versions of `godollo_viewer`, `godollo_server`, and the graphical
+`godollo_client` on Ubuntu 24.04 x86-64, with tests disabled. It has the same
+push, pull-request, and manual triggers. Download `godollo-apps-linux-x86_64`
+from a successful run's **Artifacts** list; the enclosed tarball preserves
+executable permissions and is retained for fourteen days. These are compilation
+outputs, not standalone game packages: runtime libraries and scene assets are
+not bundled, and resource defaults still embed the build checkout's paths.
+Relocatable resource lookup and packaging are needed before distributing them
+as playable downloads. Windows builds are not configured.
+
 ## Configuration and coordinates
 
 Edit `config.json`. Its geographic bounding box uses **longitude, latitude** in
