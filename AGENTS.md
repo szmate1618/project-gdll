@@ -18,6 +18,7 @@ Use this guide as a navigation aid; read the relevant code for current behavior.
 | Work area | Start here |
 | --- | --- |
 | Suggested optimization backlog | [tasks/suggested-optimizations.md](tasks/suggested-optimizations.md) |
+| Known correctness tasks | [tasks/review-follow-ups.md](tasks/review-follow-ups.md) |
 | Setup, generator usage, geography | [README.md](README.md), `config.json`, `src/config.py` |
 | Downloads and map publication | `src/data.py`, `src/generate.py`, `src/fence_scene_update.py`, `src/glb.py`, `src/verify.py` |
 | Terrain and town geometry | `src/terrain.py`, `src/osm.py`, `src/buildings.py`, `src/building_details.py`, `src/wall_openings.py`, `src/facade_surface.py`, `src/building_caps.py`, `src/roads.py`, `src/road_scene_update.py`, `tools/update_road_offset.py`, `src/railways.py`, `src/fences.py`, `src/terrain_surfaces.py`, `src/terrain_profile.py` |
