@@ -20,7 +20,8 @@ public:
     bool enterWalking(std::optional<glm::vec3> preferredEye = std::nullopt);
     void enterFreeFly();
     void frame(float aspect);
-    void update(float dt, float forward, float right, float up, bool run, bool jump);
+    void update(float dt, float forward, float right, float up, bool run, bool jump,
+                bool crouch = false, bool toggleProne = false);
     Camera& camera() { return camera_; }
     const Camera& camera() const { return camera_; }
     const FPSController& player() const { return player_; }

@@ -23,7 +23,11 @@ struct FPSConfig {
     float skin = 0.002F;
     float fixedDt = 1.0F / 120.0F;
     float terminalVelocity = 50.0F;
+    float crouchHeight = 1.10F, proneHeight = .60F;
+    float crouchSpeed = 1.5F, proneSpeed = .75F;
 };
+
+enum class PlayerStance { Standing, Crouched, Prone };
 
 struct FPSInput {
     float forward = 0.0F;
@@ -31,6 +35,8 @@ struct FPSInput {
     float yawDegrees = -90.0F;
     bool run = false;
     bool jump = false;
+    bool crouch = false; // Held; airborne this tucks legs without moving eyes.
+    bool toggleProne = false; // One press event, not the held key state.
 };
 
 class FPSController {
@@ -44,7 +50,11 @@ public:
     void update(float dt, const FPSInput& input, const CollisionWorld& world);
 
     [[nodiscard]] glm::vec3 feet() const { return feet_; }
-    [[nodiscard]] glm::vec3 eyePosition() const { return feet_ + glm::vec3(0, config_.eyeHeight, 0); }
+    [[nodiscard]] glm::vec3 eyePosition() const { return feet_ + glm::vec3(0, eyeHeight(), 0); }
+    [[nodiscard]] float bodyHeight() const;
+    [[nodiscard]] float eyeHeight() const;
+    [[nodiscard]] PlayerStance stance() const { return stance_; }
+    [[nodiscard]] float movementSpeed(bool run = false) const;
     [[nodiscard]] bool grounded() const { return grounded_; }
     [[nodiscard]] float verticalVelocity() const { return verticalVelocity_; }
     [[nodiscard]] glm::vec3 groundNormal() const { return groundNormal_; }
@@ -57,6 +67,9 @@ private:
     bool resolve(const CollisionWorld& world, bool horizontal, glm::vec3 previous);
     bool snapToGround(const CollisionWorld& world, float distance);
     [[nodiscard]] bool walkable(glm::vec3 normal) const;
+    [[nodiscard]] float stanceHeight(PlayerStance stance) const;
+    bool changeStance(PlayerStance stance, const CollisionWorld& world);
+    void updateStance(bool crouch, const CollisionWorld& world);
 
     FPSConfig config_;
     glm::vec3 feet_{0.0F};
@@ -66,6 +79,9 @@ private:
     bool grounded_ = false;
     bool jumpHeld_ = false;
     bool jumpQueued_ = false;
+    PlayerStance stance_ = PlayerStance::Standing;
+    PlayerStance takeoffStance_ = PlayerStance::Standing; // A leg tuck preserves airborne movement speed.
+    bool proneRequested_ = false, proneQueued_ = false;
     PlayerNoiseEmitter noiseEmitter_;
     std::vector<NoiseEvent> noises_;
 };

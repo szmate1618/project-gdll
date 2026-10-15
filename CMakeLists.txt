@@ -168,7 +168,7 @@ target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_zombies)
 
-add_library(viewer_fps STATIC src/fps_controller.cpp src/camera_rig.cpp)
+add_library(viewer_fps STATIC src/fps_controller.cpp src/player_stance.cpp src/camera_rig.cpp)
 target_link_libraries(viewer_fps PUBLIC viewer_collision viewer_camera viewer_noise)
 viewer_warnings(viewer_fps)
 
@@ -379,6 +379,11 @@ if(BUILD_TESTING)
     target_link_libraries(test_character_step PRIVATE viewer_fps viewer_zombies)
     viewer_warnings(test_character_step)
     add_test(NAME viewer_character_step COMMAND test_character_step)
+
+    add_executable(test_player_stance tests/test_player_stance.cpp)
+    target_link_libraries(test_player_stance PRIVATE viewer_fps viewer_zombies)
+    viewer_warnings(test_player_stance)
+    add_test(NAME viewer_player_stance COMMAND test_player_stance)
 
     add_executable(test_zombie_visibility tests/test_zombie_visibility.cpp)
     target_link_libraries(test_zombie_visibility PRIVATE viewer_zombie_visibility)

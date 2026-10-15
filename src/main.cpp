@@ -306,6 +306,7 @@ struct AppState {
     double displayedAnimationSeconds = 0.0;
     glm::vec3 boundsMin, boundsMax;
     std::array<bool, GLFW_KEY_LAST + 1> keys{};
+    bool proneToggleQueued = false;
     int width = 1280, height = 720;
     bool capture = true, firstMouse = true, hidden = false;
     bool collisionDebug = false;
@@ -352,6 +353,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         app.interaction.cancel();
         app.rig.frame(static_cast<float>(std::max(app.width, 1)) / static_cast<float>(std::max(app.height, 1)));
     } else if (key == GLFW_KEY_F1) {
+        app.proneToggleQueued = false;
         app.weapons.cancelTrigger();
         app.interaction.cancel();
         app.rig.enterFreeFly();
@@ -363,6 +365,10 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     } else if (key == GLFW_KEY_F3) {
         app.collisionDebug = !app.collisionDebug;
         std::cout << "Collision overlay: " << (app.collisionDebug ? "on" : "off") << '\n';
+    } else if (key == GLFW_KEY_Z && app.rig.walking()) {
+        // GLFW key tokens identify US-layout physical positions. This is the
+        // bottom-row key left of X, labelled Y on a QWERTZ keyboard.
+        app.proneToggleQueued = !app.proneToggleQueued;
     }
 }
 
@@ -409,6 +415,7 @@ void scrollCallback(GLFWwindow* window, double, double y) {
 void focusCallback(GLFWwindow* window, int focused) {
     if (!focused) {
         state(window).keys.fill(false);
+        state(window).proneToggleQueued = false;
         state(window).firstMouse = true;
         state(window).interaction.cancel();
         state(window).weapons.cancelTrigger();
@@ -432,7 +439,9 @@ void moveCamera(AppState& app, float dt) {
     const auto held = [&](int key) { return app.keys[static_cast<std::size_t>(key)] ? 1.0f : 0.0f; };
     app.rig.update(dt, held(GLFW_KEY_W) - held(GLFW_KEY_S), held(GLFW_KEY_D) - held(GLFW_KEY_A),
                    held(GLFW_KEY_E) - held(GLFW_KEY_Q),
-                   app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT], app.keys[GLFW_KEY_SPACE]);
+                   app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT], app.keys[GLFW_KEY_SPACE],
+                   app.keys[GLFW_KEY_LEFT_CONTROL] || app.keys[GLFW_KEY_RIGHT_CONTROL], app.proneToggleQueued);
+    if (dt > 0) app.proneToggleQueued = false;
     app.interaction.update(app.rig.camera(), dt);
 }
 
@@ -563,6 +572,26 @@ void fpsInputSelfTest(GLFWwindow* window) {
     for (int frame = 0; frame < 240; ++frame) moveCamera(app, 1.0f / 120.0f);
     if (!app.rig.player().grounded() || std::abs(app.rig.player().feet().y - feet) > 0.03f)
         throw std::runtime_error("FPS jump failed to return to the supporting ground");
+    key(window, GLFW_KEY_LEFT_CONTROL, 0, GLFW_PRESS, 0);
+    moveCamera(app, 1.0f / 120.0f);
+    if (app.rig.player().stance() != viewer::PlayerStance::Crouched)
+        throw std::runtime_error("Held Ctrl failed to crouch");
+    key(window, GLFW_KEY_LEFT_CONTROL, 0, GLFW_RELEASE, 0);
+    moveCamera(app, 1.0f / 120.0f);
+    if (app.rig.player().stance() != viewer::PlayerStance::Standing)
+        throw std::runtime_error("Releasing Ctrl failed to stand");
+    key(window, GLFW_KEY_Z, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_Z, 0, GLFW_REPEAT, 0);
+    key(window, GLFW_KEY_Z, 0, GLFW_RELEASE, 0);
+    moveCamera(app, 1.0f / 120.0f);
+    moveCamera(app, 1.0f / 120.0f);
+    if (app.rig.player().stance() != viewer::PlayerStance::Prone)
+        throw std::runtime_error("A short prone press must toggle once, ignore repeats and persist after release");
+    key(window, GLFW_KEY_Z, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_Z, 0, GLFW_RELEASE, 0);
+    moveCamera(app, 1.0f / 120.0f);
+    if (app.rig.player().stance() != viewer::PlayerStance::Standing)
+        throw std::runtime_error("A second prone press failed to stand");
     const bool overlay = app.collisionDebug;
     key(window, GLFW_KEY_F3, 0, GLFW_PRESS, 0);
     if (app.collisionDebug == overlay) throw std::runtime_error("F3 failed to toggle collision debugging");
@@ -573,7 +602,7 @@ void fpsInputSelfTest(GLFWwindow* window) {
         throw std::runtime_error("Leaving FPS mode moved the free-fly camera unexpectedly");
     key(window, GLFW_KEY_F2, 0, GLFW_PRESS, 0);
     app.keys.fill(false);
-    std::cout << "FPS input self-test passed: F1/F2 modes, 1.70 m eye height, Space jump/landing, F3 overlay\n";
+    std::cout << "FPS input self-test passed: F1/F2 modes, 1.70 m eye height, Space jump/landing, Ctrl crouch, prone toggle, F3 overlay\n";
 }
 
 std::vector<viewer::DebugVertex> collisionOverlay(const AppState& app) {
@@ -594,7 +623,7 @@ std::vector<viewer::DebugVertex> collisionOverlay(const AppState& app) {
     for (int i = 0; i < slices; ++i) {
         const float a = 2.0f * pi * static_cast<float>(i) / slices;
         const float b = 2.0f * pi * static_cast<float>(i + 1) / slices;
-        for (float y : {config.radius, config.height - config.radius}) {
+        for (float y : {config.radius, player.bodyHeight() - config.radius}) {
             line(feet + glm::vec3(config.radius * std::cos(a), y, config.radius * std::sin(a)),
                  feet + glm::vec3(config.radius * std::cos(b), y, config.radius * std::sin(b)), color);
         }
@@ -602,7 +631,7 @@ std::vector<viewer::DebugVertex> collisionOverlay(const AppState& app) {
         for (int axis = 0; axis < 2; ++axis) {
             const auto capPoint = [&](float angle) {
                 const float y = std::sin(angle);
-                glm::vec3 p(0, y * config.radius + (y > 0 ? config.height - config.radius : config.radius), 0);
+                glm::vec3 p(0, y * config.radius + (y > 0 ? player.bodyHeight() - config.radius : config.radius), 0);
                 p[axis == 0 ? 0 : 2] = std::cos(angle) * config.radius;
                 return feet + p;
             };
@@ -833,8 +862,11 @@ int run(const Options& options) {
     glfwSetWindowFocusCallback(window.get(), focusCallback);
     captureMouse(window.get(), true);
     if (!options.hidden && glfwRawMouseMotionSupported()) glfwSetInputMode(window.get(), GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+    const char* proneKeyName = glfwGetKeyName(GLFW_KEY_Z, 0);
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
-              << " m/s; F1 free-fly, F2 walk, F3 collisions, WASD move, Space jump, mouse look, Tab Combat/Interaction, Left Alt cursor, Escape quit\n";
+              << " m/s; F1 free-fly, F2 walk, F3 collisions, WASD move, Space jump, Ctrl hold crouch/airborne tuck, "
+              << (proneKeyName ? proneKeyName : "Z")
+              << " toggle prone, mouse look, Tab Combat/Interaction, Left Alt cursor, Escape quit\n";
     viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr,
                               zombies ? &*zombies : nullptr, forests ? &*forests : nullptr);
     viewer::ReticleOverlay reticle(options.shaders);
@@ -927,10 +959,13 @@ int run(const Options& options) {
         app.displayedAnimationSeconds = options.animationTime.value_or(simulationClock.seconds());
         const double behaviorStart = glfwGetTime();
         if (zombies) {
-            const auto& config = app.rig.player().config();
-            const auto feet = app.rig.walking() ? app.rig.player().feet() :
-                app.rig.camera().position() - glm::vec3(0, config.eyeHeight, 0);
-            zombies->updateBehavior(dt, {feet, config.eyeHeight, config.height}, collision,
+            const auto& player = app.rig.player();
+            const auto& config = player.config();
+            const float eyeHeight = app.rig.walking() ? player.eyeHeight() : config.eyeHeight;
+            const float height = app.rig.walking() ? player.bodyHeight() : config.height;
+            const auto feet = app.rig.walking() ? player.feet() :
+                app.rig.camera().position() - glm::vec3(0, eyeHeight, 0);
+            zombies->updateBehavior(dt, {feet, eyeHeight, height}, collision,
                                     app.displayedAnimationSeconds);
             if (app.rig.walking())
                 for (const auto& noise : app.rig.player().noises())
@@ -1002,11 +1037,13 @@ int run(const Options& options) {
                 clockStatus << " | " << std::setfill('0') << std::setw(2) << minutes / 60
                             << ':' << std::setw(2) << minutes % 60;
             }
+            std::ostringstream speedStatus;
+            speedStatus << std::fixed << std::setprecision(2) << app.rig.speed(
+                app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]);
             const auto caption = title + " | " + app.rig.modeName() + " | " + app.interaction.modeName()
                 + " | " + app.weapons.status()
                 + (app.interaction.grabbing() ? " (holding)" : "") + status + " | " + std::to_string(fps)
-                + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + " | CPU sim " + simulationTime + townStatus + treeStatus + zombieStatus + clockStatus.str() + " | " + std::to_string(static_cast<int>(app.rig.speed(
-                    app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]))) + " m/s";
+                + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + " | CPU sim " + simulationTime + townStatus + treeStatus + zombieStatus + clockStatus.str() + " | " + speedStatus.str() + " m/s";
             glfwSetWindowTitle(window.get(), caption.c_str());
             if (options.profile) {
                 std::cout << caption << '\n'

@@ -791,11 +791,13 @@ idle cycles at a chosen elapsed time:
 | Right mouse button | Combat with a scoped weapon: cycle normal, 10°, and 1° fields of view; Interaction: right-hand box grab within 2 m |
 | 1 / 2 / 3 / 4 | Equip pistol / submachine gun / sniper / shotgun |
 | R | Reload equipped weapon from its matching reserve ammo |
-| Shift | Free-fly: move four times faster; walking: run at 6 m/s |
+| Shift | Free-fly: move four times faster; standing: run at 6 m/s |
 | Mouse wheel | Adjust free-fly movement speed |
 | F1 | Switch to free-fly mode |
 | F2 | Switch to walking mode at the camera position and fall onto the surface below; recover to safe ground if needed |
-| Space | Jump while grounded in walking mode |
+| Space | Jump while grounded in walking mode; get up first when prone |
+| Ctrl (hold) | Crouch on the ground; tuck legs in the air without lowering the camera |
+| Physical key left of X: Z (QWERTY), Y (QWERTZ) | Toggle prone in walking mode; an airborne press waits for landing |
 | F3 | Toggle collision visualization |
 | Tab | Switch between Combat (default) and Interaction controls |
 | Left Alt | Release / capture the mouse |
@@ -942,6 +944,25 @@ normalized. Walking speed is 3 m/s; Shift increases it to 6 m/s. Gravity is
 roughly 0.74 m above standing height on flat ground. Holding Space does not
 repeat jumps, and presses in the air do not add another jump.
 
+Holding either Ctrl key crouches to a 1.10 m capsule with a 1.00 m eye height
+and 1.5 m/s movement speed. Toggling prone uses a 0.60 m capsule, a 0.50 m eye
+height, and 0.75 m/s movement. Prone persists after releasing its key and takes
+priority over Ctrl. Shift does not accelerate crouching or crawling. Space
+requests getting up from prone; another press can jump. The prone key uses the
+physical US Z position (left of X), independent of the printed letter; the
+existing console help uses GLFW's layout-specific key name. Rebinding is not
+implemented.
+
+Grounded stance changes keep the feet planted and lower or raise the camera.
+Airborne Ctrl instead lifts the collision feet by 0.70 m, preserving the head's
+ballistic path, vertical velocity, and takeoff movement speed. It can clear a
+taller obstacle without increasing jump height. Releasing Ctrl extends the legs
+only if the larger capsule fits; otherwise it retains the tuck. Grounded
+standing is also blocked by low ceilings and resumes when there is space.
+Prone is a short upright collision capsule rather than a full horizontal body;
+there is no rendered player body or leg animation. Collision, debug geometry,
+and zombie head/body/leg perception targets all use the current stance dimensions.
+
 Collision data is built from the existing loaded GLB, with scene-node transforms
 applied in the same Y-up coordinates used for rendering. The loader preserves
 node/mesh names, identifying the generator's terrain, buildings, and roads.
@@ -1053,6 +1074,9 @@ keeps the player on descending terrain and small drops.
 Important dimensions, speeds, gravity, jump strength, slope limit, contact skin,
 ground snap, and simulation timestep live together in `FPSConfig` in
 `src/fps_controller.hpp`. Change these defaults and rebuild to tune the controller.
+Configured heights and eye height describe standing; `bodyHeight()` and
+`eyeHeight()` return current dimensions. Reduced heights are clamped to fit the
+capsule diameter and the configured eye inset for custom controller profiles.
 The default contact skin is 0.002 m. On slopes the rounded capsule's bottom sits
 slightly above the terrain height at its center, so eye height measured vertically
 from that point can be slightly greater than 1.70 m.
@@ -1069,7 +1093,7 @@ For arbitrary unnamed glTF geometry, closed surfaces within one draw can be
 recognized as solid interiors for spawning. A solid split across unrelated
 draws may only receive surface collision; named generated buildings are grouped
 across their wall and roof draws.
-The controller is a lightweight walking controller with no crouching, swimming,
+The controller is a lightweight walking controller with no swimming,
 moving platforms, or navigation system. Terrain gaps in the source geometry
 remain gaps, and walking beyond the generated terrain causes falling. The
 interactive viewer clamps frame time to 0.1 seconds after stalls; the standalone
@@ -1522,7 +1546,13 @@ For a finite render run that also exercises the input callbacks:
 ./build/godollo_viewer --frames 3 --self-test-input --screenshot build/test.ppm
 ```
 
-Exercise walking mode, mode switches, jump input, and the collision overlay with
+`viewer_player_stance` tests planted-foot crouching, toggled prone, low-ceiling
+clearance and recovery, airborne camera-path preservation, delayed leg extension,
+and zombie perception behind cover. A synthetic 1.15 m platform blocks a normal
+jump but permits a tucked jump at 30, 60, and 144 render updates per second.
+
+Exercise walking mode, mode switches, jump input, Ctrl crouch, prone key events,
+and the collision overlay with
 the actual GLFW callbacks:
 
 ```bash
@@ -1623,6 +1653,7 @@ src/zombie_renderer.cpp    Shared animation buffers, skinning data, and GPU inst
 src/camera.{hpp,cpp}        Perspective free-fly camera
 src/camera_rig.{hpp,cpp}    Runtime camera mode switching
 src/fps_controller.{hpp,cpp} Fixed-step walking, gravity, jump and contact response
+src/player_stance.cpp      Player stance dimensions, clearance and airborne leg tuck
 src/collision_world.{hpp,cpp} World-space triangle BVH and capsule/ground queries
 src/character_step.{hpp,cpp} Shared bounded capsule step-up and landing checks
 src/collision_debug.{hpp,cpp} Optional OpenGL collision line overlay
@@ -1633,6 +1664,7 @@ tools/create_test_asset.py Reproducible test-model generator
 assets/test.glb            Generated test model, ignored by Git
 tests/test_camera.cpp      Camera checks
 tests/test_camera_rig.cpp  Free-fly/walking mode switching and look-pitch checks
+tests/test_player_stance.cpp Crouch/prone clearance, airborne tuck and perception checks
 tests/test_model.cpp       Loader checks
 tests/test_collision.cpp   Synthetic collision checks
 tests/test_fps.cpp         Synthetic walking-controller checks

@@ -34,7 +34,7 @@ Use this guide as a navigation aid; read the relevant code for current behavior.
 | Zombie ragdoll handoff and physics | `src/zombie_ragdoll_pose.hpp/.cpp`, `src/zombie_ragdoll.hpp/.cpp`, [docs/VIEWER.md](docs/VIEWER.md) |
 | Rendering, lighting, and visibility | `src/renderer.hpp/.cpp`, `src/renderer_shadows.cpp`, `src/roof_batch.hpp/.cpp`, `src/roof_renderer.cpp`, `src/sun_lighting.hpp/.cpp`, `src/shadow_map.hpp/.cpp`, `src/flashlight.hpp/.cpp`, `src/atmosphere.hpp`, `src/night_lighting.hpp`, `src/rain_renderer.hpp/.cpp`, `src/shader_program.hpp/.cpp`, `src/visibility.hpp/.cpp`, `src/model_visibility.hpp/.cpp`, `src/tree_visibility.hpp/.cpp`, `src/gpu_timer.hpp/.cpp`, `shaders/` |
 | Day/night clock and lighting transitions | `src/day_night.hpp/.cpp`, [docs/VIEWER.md](docs/VIEWER.md#daynight-cycle) |
-| Cameras, walking, collision, and player noise | [docs/VIEWER.md](docs/VIEWER.md), `src/camera*`, `src/fps_controller*`, `src/character_step.hpp/.cpp`, `src/player_noise.hpp/.cpp`, `src/collision_world*`, `src/collision_debug*` |
+| Cameras, walking, stances, collision, and player noise | [docs/VIEWER.md](docs/VIEWER.md), `src/camera*`, `src/fps_controller*`, `src/player_stance.cpp`, `src/character_step.hpp/.cpp`, `src/player_noise.hpp/.cpp`, `src/collision_world*`, `src/collision_debug*` |
 | App wiring and checks | `src/main.cpp`, `CMakeLists.txt`, corresponding `tests/test_*` files |
 
 ## Organize code for people

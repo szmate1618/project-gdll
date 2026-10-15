@@ -43,16 +43,17 @@ void CameraRig::frame(float aspect) {
     if (!walking()) camera_.frame(minimum_, maximum_, aspect);
 }
 
-void CameraRig::update(float dt, float forward, float right, float up, bool run, bool jump) {
+void CameraRig::update(float dt, float forward, float right, float up, bool run, bool jump,
+                       bool crouch, bool toggleProne) {
     if (walking()) {
-        player_.update(dt, {forward, right, camera_.yawDegrees(), run, jump}, world_);
+        player_.update(dt, {forward, right, camera_.yawDegrees(), run, jump, crouch, toggleProne}, world_);
         camera_.setPosition(player_.eyePosition());
     } else camera_.move(forward, right, up, dt, run);
 }
 
 float CameraRig::speed(bool run) const {
     if (!walking()) return camera_.speed();
-    return run ? player_.config().runSpeed : player_.config().walkSpeed;
+    return player_.movementSpeed(run);
 }
 
 } // namespace viewer
