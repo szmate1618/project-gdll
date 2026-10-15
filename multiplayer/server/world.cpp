@@ -47,6 +47,8 @@ void World::step() {
     const double now = clock.seconds();
     std::vector<viewer::ZombiePlayer> targets;
     std::vector<viewer::NoiseEvent> noises;
+    struct Shot { glm::vec3 origin; std::vector<glm::vec3> directions; };
+    std::vector<Shot> shots;
     for (auto& [id, player] : players_) {
         // A small startup buffer absorbs ordinary packet jitter without delaying local prediction.
         if (!player.started && (player.pending.size() >= 3 || tick_ - player.lastPacketTick > 3)) player.started = true;
@@ -102,6 +104,12 @@ void World::step() {
             if (player.weapons.slot() != command.slot) player.weapons.equip(command.slot);
             if (command.reload) player.weapons.reload();
             player.weapons.trigger(command.left && !command.interaction);
+            // Accept before the next input can reload/switch weapons or change aim.
+            if (player.weapons.fireAttempt(now) == viewer::WeaponFireResult::fired) {
+                ++player.shots;
+                shots.push_back({player.camera.position(), viewer::weaponShotDirections(
+                    player.weapons.equipped().config, player.camera.direction())});
+            }
             player.held = command;
         }
         scene_.doors->activateNear(player.controller.feet());
@@ -115,14 +123,11 @@ void World::step() {
     scene_.zombies.synchronizePhysics();
     scene_.zombies.updateBehaviorForPlayers(tickSeconds, targets, *scene_.collision, now);
     for (const auto& noise : noises) scene_.zombies.makeNoise(noise.position, noise.decibels);
-    for (auto& [id, player] : players_) {
-        (void)id;
-        if (player.weapons.fireAttempt(now) != viewer::WeaponFireResult::fired) continue;
-        ++player.shots;
-        scene_.zombies.makeNoise(player.camera.position(), 110);
+    for (const auto& shot : shots) {
+        scene_.zombies.makeNoise(shot.origin, 110);
         // Match the current prototype's server-tick hit pose; bounded historical hit testing can be added independently.
-        for (const auto direction : viewer::weaponShotDirections(player.weapons.equipped().config, player.camera.direction())) {
-            scene_.zombies.shootWithOcclusion(player.camera.position(), direction, now, *scene_.collision);
+        for (const auto direction : shot.directions) {
+            scene_.zombies.shootWithOcclusion(shot.origin, direction, now, *scene_.collision);
         }
     }
 }

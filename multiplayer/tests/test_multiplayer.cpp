@@ -259,6 +259,42 @@ void serverCommands(const std::filesystem::path& asset) {
     }
     require(player.shots > automaticShots + 1, "Holding an automatic trigger stopped firing");
 }
+void catchUpWeapons(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    for (const bool switchWeapon : {false, true}) {
+        Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
+        Scene scene(options); scene.model = ground();
+        scene.collision = std::make_unique<viewer::CollisionWorld>(scene.model, std::vector<viewer::TrunkCollider>{}, scene.doors.get());
+        scene.collision->setBoxes(scene.boxes.get()); scene.spawnEye = {0, 1.7f, 0};
+        scene.zombies = crowd(); scene.zombies.instances.resize(1);
+        auto& model = scene.zombies.assets.front();
+        model.skeleton.resize(1); model.boneFrames = {glm::mat4(1), glm::mat4(1)};
+        model.frameCount = 2; model.duration = 1;
+        auto& zombie = scene.zombies.instances.front();
+        zombie.transform = zombie.restTransform = zombie.restRoot = glm::translate(glm::mat4(1), glm::vec3(8, 0, 0));
+        scene.zombies.rebuildSpatialIndex();
+        World world(scene); const auto id = world.join();
+        Commands batch;
+        for (std::uint64_t sequence = 1; sequence <= 4; ++sequence) {
+            Command c; c.sequence = sequence; c.left = sequence == 1;
+            c.movement.yawDegrees = sequence == 1 ? 0 : 180;
+            c.reload = !switchWeapon && sequence == 2;
+            c.slot = switchWeapon && sequence > 1 ? 1 : 0;
+            batch.commands.push_back(c);
+        }
+        world.submit(id, batch); world.submit(id, batch);
+        world.step();
+        const auto& player = world.players().at(id);
+        require(player.resolved == 2 && player.shots == 1,
+            "Catch-up reload or weapon switch erased a preceding click");
+        require(zombie.ragdoll, "Catch-up shot used the later command's aim");
+        if (!switchWeapon)
+            require(player.weapons.equipped().loaded == 12 && player.weapons.equipped().reserve == 119,
+                "Catch-up reload did not account for the preceding shot");
+        world.step();
+        require(player.shots == 1, "Catch-up replay repeated a shot");
+    }
+}
 void inputRecovery(const std::filesystem::path& asset) {
     using namespace multiplayer;
     Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
@@ -330,7 +366,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); fragments(); prediction(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        serverCommands(argv[1]); inputRecovery(argv[1]);
+        serverCommands(argv[1]); catchUpWeapons(argv[1]); inputRecovery(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
