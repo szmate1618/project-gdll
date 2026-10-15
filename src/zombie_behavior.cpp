@@ -4,6 +4,7 @@
 #include "zombie_chase.hpp"
 #include "zombie_layer.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <utility>
@@ -63,7 +64,7 @@ glm::vec3 approachDestination(glm::vec3 target, glm::vec3 feet, bool playerVisib
 void stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const AnimatedModel& asset,
                   const ZombiePlayer& player, const CollisionWorld& world,
                   float seconds, double now, double animationSeconds,
-                  bool staggerPerception, ZombieBehaviorStats& stats) {
+                  bool staggerPerception, ZombieBehaviorStats& stats, ZombieCrowd& crowd) {
     if (behavior.state == ZombieState::looking && turnZombieToward(instance, behavior.lookDirection, seconds))
         changeState(behavior, ZombieState::idle, now);
     const auto offset = player.feet - glm::vec3(instance.restRoot[3]);
@@ -100,7 +101,8 @@ void stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
 
     const float speed = behavior.state == ZombieState::chasing ? runSpeed : walkSpeed;
     const auto destination = approachDestination(behavior.target, feet, visible);
-    const bool arrived = moveZombieToward(instance, asset, destination, speed, seconds, world, animationSeconds);
+    const bool arrived = moveZombieToward(instance, asset, destination, speed, seconds, world, animationSeconds,
+                                         &crowd, behavior.zombie);
     feet = glm::vec3(instance.restRoot[3]);
     if (glm::length(player.feet - feet) <= attackDistance + 1e-4f)
         changeState(behavior, ZombieState::attacking, now);
@@ -209,6 +211,7 @@ void ZombieLayer::updateBehavior(float seconds, const ZombiePlayer& player,
     const double now = SimulationClock::instance().seconds();
     behaviorStats_ = {};
     ensureSpatialIndex();
+    crowd_.beginStep();
     // The small expansion keeps the broad phase conservative around float
     // distance rounding. Activation still uses the original exact predicate.
     spatialIndex_.query(player.feet, activationDistance + 0.0001, spatialCandidates_);
@@ -225,9 +228,12 @@ void ZombieLayer::updateBehavior(float seconds, const ZombiePlayer& player,
 
     // Creation precedes expiration: a removed idle member stays absent for
     // this step and can be recreated in idle on the next nearby-player step.
-    std::size_t index = 0;
-    while (index < behaviors.entries().size()) {
-        const auto id = behaviors.entries()[index].zombie;
+    // Pool swap removal must not change collision priority. Reuse the scratch
+    // storage and sort only active IDs, never scan the full city population.
+    behaviorOrder_.clear();
+    for (const auto& entry : behaviors.entries()) behaviorOrder_.push_back(entry.zombie);
+    std::sort(behaviorOrder_.begin(), behaviorOrder_.end());
+    for (const auto id : behaviorOrder_) {
         auto& behavior = *behaviors.find(id);
         const bool wasWalking = id < instances.size() && instances[id].walking;
         if (id < instances.size()) instances[id].walking = false;
@@ -235,7 +241,7 @@ void ZombieLayer::updateBehavior(float seconds, const ZombiePlayer& player,
             (behavior.state == ZombieState::idle && now - behavior.idleSinceSeconds >= idleLifetime)) {
             if (wasWalking) markRenderChanged(id, false);
             behaviors.remove(id);
-            continue; // Process the member moved into this slot.
+            continue;
         }
         auto& instance = instances[id];
         if (distantIdle(behavior, instance, player)) {
@@ -247,7 +253,7 @@ void ZombieLayer::updateBehavior(float seconds, const ZombiePlayer& player,
         const auto beforeSeconds = instance.walkSeconds;
         const bool wasRunning = instance.running;
         stepBehavior(behavior, instance, assets[instance.asset], player, world,
-                     seconds, now, animationSeconds, staggerPerception_, behaviorStats_);
+                     seconds, now, animationSeconds, staggerPerception_, behaviorStats_, crowd_);
         const bool moved = beforeTransform != instance.transform;
         if (moved || wasWalking != instance.walking || wasRunning != instance.running || beforeSeconds != instance.walkSeconds)
             markRenderChanged(id, moved);
@@ -258,7 +264,6 @@ void ZombieLayer::updateBehavior(float seconds, const ZombiePlayer& player,
             behaviors.remove(id);
             continue;
         }
-        ++index;
     }
 }
 

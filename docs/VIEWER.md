@@ -605,9 +605,34 @@ this clock too; `--animation-time` overrides visual animation time while AI and
 physics continue simulating.
 
 Locomotion faces the direction of travel and follows rendered terrain triangles.
-There is no pathfinding, flocking, collision response, or obstacle avoidance:
-moving zombies can pass through buildings, trees, and each other. Outside the
-map they retain their last ground height. Walking and running play
+Living zombies use **0.30 m radius, 1.8 m tall upright body cylinders** for cheap
+crowd collision. Their centers stay at least 0.60 m apart on the same level;
+animated arms and other extremities can still intersect. Movement sweeps the
+whole proposed segment, stops at a body, and slides along an oblique contact.
+Head-on queues can stop without choosing a route around the crowd. Idle and
+inactive living zombies also block movement; ragdolls and removed bodies do not.
+Characters on vertically separate floors do not block each other. Blocked
+pursuers keep their target and stop advancing their locomotion animation.
+
+`ZombieCrowd` maintains a separate **1 m X/Z spatial grid**, updated incrementally
+alongside the perception/shooting index. Only active behavior IDs are sorted and
+stepped, in stable ID order, so pool swap removal and hash iteration do not
+choose collision priority. Given the same initial data and simulation steps,
+movement is repeatable; different frame timesteps need not produce identical
+crowd paths. Each movement allows up to three sliding contacts and **64 neighbor
+checks total**. Exhausting that budget stops at the last verified position
+instead of skipping unchecked bodies. This bounds dense-cell neighbor work,
+including malformed piles, without rigid bodies or all-pairs crowd checks.
+`--profile` reports neighbor checks and budget stops; `ZombieLayer::crowdStats()`
+exposes those counters. The existing deterministic spawn placement starts bodies
+well apart. This constraint preserves that separation; it does not untangle
+arbitrarily overlapping spawn data, although outward escape is allowed.
+
+There is no pathfinding or scene/player collision for living zombies yet:
+moving zombies can still pass through buildings, trees, and the player. The
+crowd constraint is separate from terrain sampling and transform publication so
+scene sweeps and player collision can be added to the movement stage later.
+Outside the map zombies retain their last ground height. Walking and running play
 the creator's walk/run clips using shared baked vertex animation. Investigating
 uses walk; chasing uses run, falling back to walk when only that clip is available.
 Custom idle-only models retain idle playback while moving. Locomotion clip time
@@ -1305,6 +1330,13 @@ primitives through the actual shader. It requires
 an accessible OpenGL display and reports a skip when none is available. The
 remaining checks run without a display.
 
+`viewer_zombie_crowd` checks swept contacts, sliding, opposing movers, separate
+floors, inactive blockers, animation stopping, ragdoll release, grid updates,
+stable movement priority, and conservative overload handling. Two replays of a
+converging 10,000-body crowd check identical positions, bounded neighbor work,
+and final torso separation using an independent sweep-and-prune check. Reported
+elapsed time is diagnostic, with no machine-dependent timing assertion.
+
 `viewer_zombie_visibility` compares grouped camera/shadow masks and stable IDs
 against a full individual-frustum scan. It covers inside/outside/boundary groups,
 negative cell coordinates, geometry crossing cell borders, movement, removal,
@@ -1430,6 +1462,7 @@ src/noise.{hpp,cpp}        Noise events, source levels, and distance attenuation
 src/player_noise.{hpp,cpp} Fixed-step footsteps and landing noise emission
 src/simulation_clock.hpp   Global simulation-thread in-game clock
 src/zombie_chase.{hpp,cpp}  Terrain-following locomotion and clip clocks
+src/zombie_crowd.{hpp,cpp}  Deterministic swept body constraints and fine crowd grid
 src/zombie_animation.{hpp,cpp} Authored clip selection and on-demand displayed poses
 src/zombie_lod.{hpp,cpp}    Camera detail, distance cutoff and shadow detail policy
 src/zombie_lod_assets.cpp   Local LOD manifest, fingerprint and rig validation

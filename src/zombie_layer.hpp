@@ -4,6 +4,7 @@
 #include "collision_world.hpp"
 #include "zombie_behavior.hpp"
 #include "zombie_spatial_index.hpp"
+#include "zombie_crowd.hpp"
 #include "zombie_ragdoll.hpp"
 #include "zombie_hit.hpp"
 #include "zombie_render_updates.hpp"
@@ -75,6 +76,7 @@ struct ZombieLayer {
     // Disable only for comparison/tests of the original every-step perception.
     void setPerceptionStaggering(bool enabled);
     const ZombieBehaviorStats& behaviorStats() const { return behaviorStats_; }
+    const ZombieCrowdStats& crowdStats() const { return crowd_.stats(); }
     // Rebuild after external edits to instance feet or replacing a population
     // with the same size, or edits to asset rigs/clips or instance normalization.
     // Rebuilds prepared hit geometry and corpse membership too. Call after
@@ -122,6 +124,8 @@ private:
     std::size_t findShotTarget(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                                std::vector<glm::mat4>& selectedPose);
     ZombieSpatialIndex spatialIndex_;
+    ZombieCrowd crowd_;
+    std::vector<std::size_t> behaviorOrder_;
     std::vector<ZombieHitGeometry> hitGeometry_;
     std::vector<ZombieHitBounds> shotBounds_;
     double shotPadding_ = 0;

@@ -24,6 +24,7 @@ void ZombieLayer::rebuildSpatialIndex() {
     invalidateRenderData();
     rebuildRagdollIndex();
     spatialIndex_.reset(instances.size());
+    crowd_.reset(instances.size());
     hitGeometry_.clear();
     hitGeometry_.reserve(assets.size());
     for (const auto& asset : assets) hitGeometry_.push_back(prepareZombieHitGeometry(asset));
@@ -41,10 +42,12 @@ void ZombieLayer::updateSpatialMembership(std::size_t id) {
     const auto& instance = instances[id];
     if (instance.removed || instance.ragdoll || instance.asset >= assets.size()) {
         spatialIndex_.erase(id);
+        crowd_.erase(id);
         return;
     }
     const auto feet = glm::vec3(instance.restRoot[3]);
     spatialIndex_.update(id, feet);
+    crowd_.update(id, feet);
     auto& bounds = shotBounds_[id];
     bounds = zombieShotBounds(instance, hitGeometry_[instance.asset]);
     shotCoordinateScale_ = std::max(shotCoordinateScale_,

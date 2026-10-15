@@ -1014,6 +1014,9 @@ int run(const Options& options) {
                     std::cout << "; active zombies " << zombies->behaviors.entries().size()
                               << "; last step " << stats.perceptionChecks << " perception checks, "
                               << stats.sightRays << " sight rays";
+                    const auto& crowdStats = zombies->crowdStats();
+                    std::cout << "; crowd " << crowdStats.neighborChecks << " neighbor checks, "
+                              << crowdStats.budgetStops << " budget stops";
                     const auto& updates = renderer.zombieUpdateStats();
                     std::cout << "; render preparation " << updates.instances << " instances, " << updates.bounds
                               << " bounds" << (updates.full ? " (full refresh)" : " (incremental)");
