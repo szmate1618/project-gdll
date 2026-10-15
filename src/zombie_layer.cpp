@@ -35,6 +35,18 @@ ZombieLayer::~ZombieLayer() = default;
 ZombieLayer::ZombieLayer(ZombieLayer&&) noexcept = default;
 ZombieLayer& ZombieLayer::operator=(ZombieLayer&&) noexcept = default;
 
+void ZombieLayer::queryLivingNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids) {
+    ids.clear();
+    if (!finite(center) || !std::isfinite(radius) || radius < 0) return;
+    ensureSpatialIndex();
+    spatialIndex_.query(center, radius, ids);
+    ids.erase(std::remove_if(ids.begin(), ids.end(), [&](std::size_t id) {
+        const auto& instance = instances[id];
+        const auto delta = glm::dvec3(instance.restRoot[3]) - glm::dvec3(center);
+        return instance.ragdoll || instance.removed || glm::dot(delta, delta) > double(radius) * radius;
+    }), ids.end());
+}
+
 void ZombieLayer::markRenderChanged(std::size_t id, bool bounds) {
     if (id >= instances.size()) throw std::out_of_range("Invalid zombie render ID");
     renderUpdates_.mark(id, bounds);

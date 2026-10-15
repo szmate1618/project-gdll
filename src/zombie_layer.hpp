@@ -77,6 +77,9 @@ struct ZombieLayer {
     // Silent noise at a world position, with a source level in dB at one meter.
     // Only idle, living zombies already in the behavior pool can hear it.
     void makeNoise(glm::vec3 position, float decibels);
+    // Exact 3D feet query using the living-body index, independent of camera
+    // visibility and behavior activation. Reuses the caller's output storage.
+    void queryLivingNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids);
     // Disable only for comparison/tests of the original every-step perception.
     void setPerceptionStaggering(bool enabled);
     const ZombieBehaviorStats& behaviorStats() const { return behaviorStats_; }

@@ -6,6 +6,11 @@ the scene with a perspective free-fly or first-person walking camera and directi
 prints the OpenGL version, renderer, vendor, and GLSL version. The Python scene
 generator remains a separate program.
 
+The viewer also plays positional sound through OpenAL Soft, with a camera
+listener, preloaded effects, streamed ambience, and a bounded nearby-zombie voice
+pool. See [audio setup and replacement sounds](AUDIO.md). Use `--no-audio` to
+disable playback while retaining simulation hearing.
+
 ## Linux dependencies
 
 Install a C++17 compiler, CMake 3.20 or newer, Python 3, OpenGL development
@@ -32,6 +37,8 @@ CMake downloads pinned versions of [GLFW 3.4](https://github.com/glfw/glfw/relea
 [GLM 1.0.1](https://github.com/g-truc/glm/releases/tag/1.0.1), and
 [tinygltf 2.9.7](https://github.com/syoyo/tinygltf/releases/tag/v2.9.7), verifying
 each archive's SHA-256. It also fetches a pinned Box3D commit for door and ragdoll physics.
+Audio uses [OpenAL Soft 1.24.3](https://github.com/kcat/openal-soft/releases/tag/1.24.3),
+also pinned and hash-checked, with its built-in HRTF data.
 The first configure needs network access. Downloads live
 under `build/_archives/`; extracted dependencies and their build products live
 under `build/_deps/`. Their examples, tests, and install targets are disabled.
@@ -587,7 +594,9 @@ steps, keeping cadence independent of rendering frame rate. Standing still,
 being blocked by a wall, jumping/falling, and free-fly movement do not produce
 footsteps. A transition from airborne to grounded emits one landing noise,
 including after a jump or fall. Spawning or switching into walking mode does
-not emit landing noise. These events only drive perception; no audio plays.
+not emit landing noise. The same actions also drive footsteps/landing playback
+through the separate [audio layer](AUDIO.md); muting or unavailable audio never
+changes these perception events.
 
 Investigating zombies walk at **1.2 m/s**; chasing zombies run at **3 m/s** with
 faster strides. When sight is lost, they continue to the last seen position and
@@ -1680,6 +1689,9 @@ src/zombie_render_updates.{hpp,cpp} Deduplicated instance changes and render pub
 src/zombie_renderer.cpp    Shared animation buffers, skinning data, and GPU instancing
 src/camera.{hpp,cpp}        Perspective free-fly camera
 src/camera_rig.{hpp,cpp}    Runtime camera mode switching
+src/audio.{hpp,cpp}         OpenAL playback, listener, voice limits and streaming
+src/audio_wave.{hpp,cpp}    PCM16 WAV parsing and incremental decoding
+src/scene_audio.{hpp,cpp}   Camera/gameplay playback routing and zombie selection
 src/fps_controller.{hpp,cpp} Fixed-step walking, gravity, jump and contact response
 src/player_stance.cpp      Player stance dimensions, clearance and airborne leg tuck
 src/collision_world.{hpp,cpp} World-space triangle BVH and capsule/ground queries
@@ -1689,6 +1701,7 @@ src/model.{hpp,cpp}         glTF loading and scene data
 shaders/basic.{vert,frag}   GLSL 330 sun/ambient lighting and shadow passes
 shaders/debug.{vert,frag}   GLSL 330 collision lines
 tools/create_test_asset.py Reproducible test-model generator
+tools/create_audio_assets.py Reproducible placeholder sounds in build/audio/
 assets/test.glb            Generated test model, ignored by Git
 tests/test_camera.cpp      Camera checks
 tests/test_camera_rig.cpp  Free-fly/walking mode switching and look-pitch checks

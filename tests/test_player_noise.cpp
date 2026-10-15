@@ -49,6 +49,7 @@ void cadenceAndMovement() {
                     "Footsteps occur along actual movement, not repeatedly at the frame endpoint");
             require(events[step].decibels == (running ? viewer::runningFootstepDecibels : viewer::walkingFootstepDecibels),
                     "Footstep loudness follows walk/run mode");
+            require(events[step].kind == viewer::NoiseEvent::Kind::footstep, "Footstep action is explicit for playback routing");
         }
         viewer::PlayerNoiseEmitter single;
         require(single.update(2, {{0, 0, 0}, true}, {feet, true}, running).size() == events.size(),
@@ -70,6 +71,7 @@ void cadenceAndMovement() {
     const auto landing = emitter.update(0.1f, {{0, 1, 0}, false}, {{0, 0, 0}, true}, true);
     require(landing.size() == 1 && landing[0].decibels == viewer::landingDecibels && landing[0].position == glm::vec3(0),
             "Landing emits exactly one louder noise at the landing feet");
+    require(landing[0].kind == viewer::NoiseEvent::Kind::landing, "Landing action is explicit for playback routing");
     require(emitter.update(1, {{0, 0, 0}, true}, {{0, 0, 0}, true}, true).empty(), "A landing event is not repeated");
 }
 

@@ -85,7 +85,23 @@ FetchContent_Declare(tomlplusplus
     DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/_archives"
     DOWNLOAD_NAME tomlplusplus-3.4.0.tar.gz
 )
-FetchContent_MakeAvailable(glfw glm tinygltf box3d meshoptimizer tomlplusplus)
+set(ALSOFT_UTILS OFF CACHE BOOL "" FORCE)
+set(ALSOFT_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(ALSOFT_TESTS OFF CACHE BOOL "" FORCE)
+set(ALSOFT_INSTALL OFF CACHE BOOL "" FORCE)
+set(ALSOFT_INSTALL_CONFIG OFF CACHE BOOL "" FORCE)
+set(ALSOFT_INSTALL_HRTF_DATA OFF CACHE BOOL "" FORCE)
+set(ALSOFT_INSTALL_AMBDEC_PRESETS OFF CACHE BOOL "" FORCE)
+set(ALSOFT_INSTALL_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(ALSOFT_INSTALL_UTILS OFF CACHE BOOL "" FORCE)
+set(ALSOFT_UPDATE_BUILD_VERSION OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(openal_soft
+    URL https://codeload.github.com/kcat/openal-soft/tar.gz/refs/tags/1.24.3
+    URL_HASH SHA256=7e1fecdeb45e7f78722b776c5cf30bd33934b961d7fd2a11e0494e064cc631ce
+    DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/_archives"
+    DOWNLOAD_NAME openal-soft-1.24.3.tar.gz
+)
+FetchContent_MakeAvailable(glfw glm tinygltf box3d meshoptimizer tomlplusplus openal_soft)
 
 # Offline asset preparation; never runs during viewer startup.
 add_executable(zombie_mesh_simplify tools/zombie_mesh_simplify.cpp)
@@ -150,6 +166,26 @@ target_include_directories(viewer_noise PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src"
 target_link_libraries(viewer_noise PUBLIC glm::glm)
 viewer_warnings(viewer_noise)
 
+add_library(viewer_audio STATIC src/audio.cpp src/audio_wave.cpp)
+target_include_directories(viewer_audio PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(viewer_audio PUBLIC glm::glm PRIVATE OpenAL::OpenAL)
+viewer_warnings(viewer_audio)
+
+set(VIEWER_AUDIO_DIR "${CMAKE_CURRENT_BINARY_DIR}/audio")
+set(VIEWER_AUDIO_FILES)
+foreach(sound footstep landing pistol smg sniper shotgun reload zombie wind rain)
+    list(APPEND VIEWER_AUDIO_FILES "${VIEWER_AUDIO_DIR}/${sound}.wav")
+endforeach()
+add_custom_command(
+    OUTPUT ${VIEWER_AUDIO_FILES}
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/create_audio_assets.py"
+        --output "${VIEWER_AUDIO_DIR}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/create_audio_assets.py"
+    COMMENT "Generating original placeholder effects and ambience"
+    VERBATIM
+)
+add_custom_target(viewer_audio_assets DEPENDS ${VIEWER_AUDIO_FILES})
+
 add_library(viewer_physics STATIC src/physics_world.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp)
 target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d)
 viewer_warnings(viewer_physics)
@@ -213,10 +249,14 @@ target_link_libraries(viewer_renderer PUBLIC
 target_compile_definitions(viewer_renderer PRIVATE GL_GLEXT_PROTOTYPES)
 viewer_warnings(viewer_renderer)
 
+add_library(viewer_scene_audio STATIC src/scene_audio.cpp)
+target_link_libraries(viewer_scene_audio PUBLIC viewer_audio viewer_fps viewer_zombies)
+viewer_warnings(viewer_scene_audio)
+
 add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp
     src/reticle_overlay.cpp src/gpu_timer.cpp)
 target_link_libraries(godollo_viewer PRIVATE
-    viewer_renderer viewer_fps viewer_interaction viewer_objects viewer_poles viewer_guardrails viewer_weapons glfw
+    viewer_renderer viewer_fps viewer_interaction viewer_objects viewer_poles viewer_guardrails viewer_weapons viewer_scene_audio glfw
 )
 target_compile_definitions(godollo_viewer PRIVATE
     GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -227,11 +267,32 @@ target_compile_definitions(godollo_viewer PRIVATE
     VIEWER_FOREST_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/forest_patches.json"
     VIEWER_ITEMS="${CMAKE_CURRENT_SOURCE_DIR}/items"
     VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml"
+    VIEWER_AUDIO_DIR="${VIEWER_AUDIO_DIR}"
 )
-add_dependencies(godollo_viewer viewer_test_asset)
+add_dependencies(godollo_viewer viewer_test_asset viewer_audio_assets)
 viewer_warnings(godollo_viewer)
 
 if(BUILD_TESTING)
+    add_executable(test_audio_wave tests/test_audio_wave.cpp)
+    target_link_libraries(test_audio_wave PRIVATE viewer_audio)
+    viewer_warnings(test_audio_wave)
+    add_test(NAME viewer_audio_wave COMMAND test_audio_wave "${CMAKE_CURRENT_BINARY_DIR}/audio-tests/wave")
+
+    add_executable(test_audio tests/test_audio.cpp)
+    target_link_libraries(test_audio PRIVATE viewer_audio viewer_camera OpenAL::OpenAL)
+    viewer_warnings(test_audio)
+    add_test(NAME viewer_audio COMMAND test_audio "${CMAKE_CURRENT_BINARY_DIR}/audio-tests/backend")
+    set_tests_properties(viewer_audio PROPERTIES ENVIRONMENT "ALSOFT_DRIVERS=null;ALSOFT_LOGLEVEL=0" TIMEOUT 15)
+    add_test(NAME viewer_audio_unavailable COMMAND test_audio "${CMAKE_CURRENT_BINARY_DIR}/audio-tests/unavailable" unavailable)
+    set_tests_properties(viewer_audio_unavailable PROPERTIES ENVIRONMENT "ALSOFT_DRIVERS=gdll-unavailable;ALSOFT_LOGLEVEL=0" TIMEOUT 15)
+
+    add_executable(test_scene_audio tests/test_scene_audio.cpp)
+    target_link_libraries(test_scene_audio PRIVATE viewer_scene_audio)
+    viewer_warnings(test_scene_audio)
+    add_dependencies(test_scene_audio viewer_audio_assets)
+    add_test(NAME viewer_scene_audio COMMAND test_scene_audio "${VIEWER_AUDIO_DIR}")
+    set_tests_properties(viewer_scene_audio PROPERTIES ENVIRONMENT "ALSOFT_DRIVERS=null;ALSOFT_LOGLEVEL=0" TIMEOUT 15)
+
     add_executable(test_weapons tests/test_weapons.cpp)
     target_link_libraries(test_weapons PRIVATE viewer_weapons)
     target_compile_definitions(test_weapons PRIVATE

@@ -20,6 +20,7 @@
 #include "zombie_door_collision.hpp"
 #include "zombie_park.hpp"
 #include "simulation_clock.hpp"
+#include "scene_audio.hpp"
 
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -56,6 +57,7 @@ struct Options {
     viewer::DayNightCycle dayNight;
     bool explicitDayNight = false;
     bool rain = false;
+    viewer::AudioOptions audio{VIEWER_AUDIO_DIR};
     bool noForests = false;
     bool noFences = false;
     bool noPoles = false;
@@ -123,6 +125,9 @@ Options parseOptions(int argc, char** argv) {
             options.explicitDayNight = true;
         }
         else if (argument == "--rain") options.rain = true;
+        else if (argument == "--no-audio") options.audio.enabled = false;
+        else if (argument == "--no-hrtf") options.audio.hrtf = false;
+        else if (argument == "--audio-dir") options.audio.directory = value();
         else if (argument == "--no-shadows") options.shadows = false;
         else if (argument == "--no-tree-shadows") options.treeShadows = false;
         else if (argument == "--no-tree-canopy-shading") options.treeCanopyShading = false;
@@ -236,6 +241,9 @@ void printHelp() {
               << "  --day-length S      Seconds per full day, default 1200; 0 freezes the hour\n"
               << "  --night             Fixed night with a camera flashlight\n"
               << "  --rain              Enable nearby animated rain streaks\n"
+              << "  --no-audio          Disable playback; AI hearing stays active\n"
+              << "  --no-hrtf           Use ordinary positional audio\n"
+              << "  --audio-dir DIR     Load PCM16 WAV effects and ambience from DIR\n"
               << "  --no-shadows        Disable sun and flashlight shadows for comparison\n"
               << "  --no-tree-shadows   Disable tree casting for both lights\n"
               << "  --no-tree-canopy-shading Disable approximate daytime canopy shade\n"
@@ -303,6 +311,7 @@ struct AppState {
     viewer::InteriorObjects* interiors = nullptr;
     const viewer::CollisionWorld& world;
     viewer::ZombieLayer* zombies = nullptr;
+    viewer::SceneAudio* audio = nullptr;
     double displayedAnimationSeconds = 0.0;
     glm::vec3 boundsMin, boundsMax;
     std::array<bool, GLFW_KEY_LAST + 1> keys{};
@@ -345,7 +354,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
             std::cout << app.weapons.status() << '\n';
         }
     } else if (key == GLFW_KEY_R) {
-        app.weapons.reload();
+        if (app.weapons.reload() > 0 && app.audio) app.audio->reload();
         std::cout << app.weapons.status() << '\n';
     } else if (key == GLFW_KEY_LEFT_ALT) captureMouse(window, !app.capture);
     else if (key == GLFW_KEY_F) {
@@ -428,6 +437,7 @@ void updateWeapons(AppState& app, double seconds) {
         return;
     }
     if (!app.weapons.fire(seconds)) return;
+    if (app.audio) app.audio->shot(app.weapons.slot());
     if (app.zombies) {
         for (const auto direction : viewer::weaponShotDirections(app.weapons.equipped().config, app.rig.camera().direction()))
             app.zombies->shoot(app.rig.camera().position(), direction, app.displayedAnimationSeconds);
@@ -853,6 +863,10 @@ int run(const Options& options) {
     app.boxes = &boxes;
     app.physicsScene = &physicsScene;
     app.interiors = &interiors;
+    auto audioOptions = options.audio;
+    audioOptions.rain = options.rain;
+    viewer::SceneAudio audio(audioOptions);
+    app.audio = &audio;
     glfwSetWindowUserPointer(window.get(), &app);
     glfwSetFramebufferSizeCallback(window.get(), framebufferCallback);
     glfwSetKeyCallback(window.get(), keyCallback);
@@ -930,6 +944,7 @@ int run(const Options& options) {
         const float dt = static_cast<float>(std::clamp(now - previous, 0.0, 0.1));
         previous = now;
         if (app.width <= 0 || app.height <= 0) {
+            audio.service();
             glfwWaitEventsTimeout(0.05);
             titleTime = glfwGetTime();
             intervalFrames = 0;
@@ -972,6 +987,7 @@ int run(const Options& options) {
                     zombies->makeNoise(noise.position, noise.decibels);
         }
         updateWeapons(app, simulationClock.seconds());
+        audio.update(app.rig, zombies ? &*zombies : nullptr, dt);
         const double preparationStart = glfwGetTime();
         intervalBehaviorSeconds += preparationStart - behaviorStart;
         intervalSimulationSeconds += preparationStart - simulationStart;

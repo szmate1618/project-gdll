@@ -11,7 +11,7 @@ std::vector<NoiseEvent> PlayerNoiseEmitter::update(float seconds, const PlayerNo
     const auto delta = after.feet - before.feet;
     if (!std::isfinite(seconds) || seconds <= 0 || !std::isfinite(glm::length(delta))) return noises;
     if (!before.grounded && after.grounded) {
-        noises.push_back({after.feet, landingDecibels});
+        noises.push_back({after.feet, landingDecibels, NoiseEvent::Kind::landing});
         reset();
         return noises;
     }
@@ -27,7 +27,8 @@ std::vector<NoiseEvent> PlayerNoiseEmitter::update(float seconds, const PlayerNo
     for (std::size_t step = 1; footstepPhase_ >= 1.0; ++step) {
         const auto fraction = static_cast<float>(std::clamp((step - initialPhase) / (seconds * cadence), 0.0, 1.0));
         noises.push_back({glm::mix(before.feet, after.feet, fraction),
-                          running ? runningFootstepDecibels : walkingFootstepDecibels});
+                          running ? runningFootstepDecibels : walkingFootstepDecibels,
+                          NoiseEvent::Kind::footstep});
         footstepPhase_ -= 1.0;
     }
     return noises;
