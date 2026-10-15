@@ -1,0 +1,64 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      LIBGL_ALWAYS_SOFTWARE: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake pkg-config libgl1-mesa-dev \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
+            libssl-dev libprotobuf-dev protobuf-compiler xvfb xauth libgl1-mesa-dri
+          python -m pip install -r requirements.txt
+      - name: Configure
+        run: >-
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+          -DGD_VIEWER=ON -DGD_MULTIPLAYER=ON -DBUILD_TESTING=ON
+      - name: Build apps and tests
+        run: cmake --build build --parallel 2
+      # Build first so the Python zombie LoD test can use zombie_mesh_simplify.
+      - name: Python tests
+        run: python -m unittest discover -s tests -v
+      - name: C++ and multiplayer tests
+        run: >-
+          xvfb-run -a -s '-screen 0 1280x720x24'
+          ctest --test-dir build --output-on-failure --no-tests=error
+          --timeout 120 --output-junit test-results.xml
+      - name: Single-player input regression
+        run: >-
+          xvfb-run -a -s '-screen 0 1280x720x24'
+          ./build/godollo_viewer assets/test.glb --hidden --frames 3
+          --self-test-input --no-audio --allow-software
+      - name: Upload test diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-diagnostics-linux
+          path: |
+            build/test-results.xml
+            build/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+          retention-days: 7

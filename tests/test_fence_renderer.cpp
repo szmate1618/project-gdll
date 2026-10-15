@@ -48,7 +48,8 @@ viewer::Model fence(bool railing, bool tuned, float distance, float angle, bool 
     material.doubleSided = true;
     material.unlit = true;
     material.alphaMode = "MASK";
-    material.minifiedAlphaCutoff = tuned ? (railing ? .3f : .2f) : 0;
+    // Keep anisotropic sampling enabled in both cases; only vary the cutoff.
+    material.minifiedAlphaCutoff = tuned ? (railing ? .3f : .2f) : material.alphaCutoff;
     model.materials.push_back(material);
     viewer::Primitive mesh;
     mesh.material = 0;

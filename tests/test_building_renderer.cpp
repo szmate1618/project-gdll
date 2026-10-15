@@ -50,9 +50,12 @@ void check(float distance, int zooms, bool detailVisible, bool culling) {
     window.baseColor = {86.0f / 255, 156.0f / 255, 210.0f / 255, .4f};
     window.alphaMode = "BLEND";
     model.materials = {wall, door, window};
+    // Separate these stacked LoD cards beyond depth quantization at long range.
+    // Flush panels in real openings are checked separately below.
+    const float panelZ = -distance + distance * .001f;
     card(model, {0, 3, -distance}, {10, 6}, 0);
-    card(model, {2, 3, -distance + .025f}, {1, 2.1f}, 1, 120);
-    card(model, {-2, 3, -distance + .025f}, {1.2f, 1.2f}, 2, 120);
+    card(model, {2, 3, panelZ}, {1, 2.1f}, 1, 120);
+    card(model, {-2, 3, panelZ}, {1.2f, 1.2f}, 2, 120);
     // Outside both scope frustums, but within the scope's detail range.
     card(model, {100, 3, -distance}, {1, 2}, 1, 120);
 
@@ -67,8 +70,8 @@ void check(float distance, int zooms, bool detailVisible, bool culling) {
     renderer.setSceneCulling(culling);
     renderer.resize(width, height);
     renderer.render(camera);
-    const auto doorPixel = pixel(camera, {2, 3, -distance + .025f});
-    const auto windowPixel = pixel(camera, {-2, 3, -distance + .025f});
+    const auto doorPixel = pixel(camera, {2, 3, panelZ});
+    const auto windowPixel = pixel(camera, {-2, 3, panelZ});
     // glTF color factors are linear; the shader encodes RGB as sRGB before the
     // existing framebuffer alpha blend. These are independently rounded values.
     const auto expectedDoor = detailVisible ? glm::vec3(177, 138, 99) : glm::vec3(255);

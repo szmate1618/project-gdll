@@ -138,6 +138,15 @@ runs can use `--offline` again.
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
+The [Tests workflow](.github/workflows/tests.yml) runs on every push and pull
+request, and can also be started manually from GitHub Actions. It builds with
+multiplayer enabled, then runs the Python suite, CTest (including the two-client
+loopback check), and the single-player input self-test. Graphics checks use Xvfb
+and Mesa software rendering; they do not validate hardware GPU performance.
+CI uses synthetic fixtures without generating the town or downloading map data.
+The two actual-town integration tests require a generated map and run locally
+when that map exists. CTest diagnostics are retained as artifacts for seven days.
+
 ## Configuration and coordinates
 
 Edit `config.json`. Its geographic bounding box uses **longitude, latitude** in
