@@ -33,7 +33,7 @@ def load_config(path: Path) -> dict:
         ("buildings", "default_height_m", 8, 1, 200),
         ("buildings", "detail_distance_m", 120, 1, 10000),
         ("roads", "lane_width_m", 3, 1, 10),
-        ("roads", "offset_m", .25, .01, 5),
+        ("roads", "offset_m", .02, .01, 5),
         ("roads", "sample_spacing_m", 8, 1, 100),
         ("railways", "width_m", 4, .1, 100),
         ("railways", "offset_m", .3, .01, 5),

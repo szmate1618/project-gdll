@@ -24,10 +24,22 @@ std::optional<CharacterStep> tryCharacterStep(glm::vec3 start, glm::vec3 desired
     // The center is still outside a ledge when the rounded foot first touches
     // its edge. Looking only directly beneath the center cannot discover it.
     const auto forward = offset / distance;
+    const auto ground = world.walkingGroundAt(start.x, start.z,
+        start.y - config.radius - config.skin, start.y + config.skin);
     std::optional<GroundHit> support;
     for (const float reach : {0.f, config.radius * .5f, config.radius}) {
-        const auto hit = world.walkingGroundAt(desired.x + forward.x * reach,
-            desired.z + forward.y * reach, start.y + tolerance, start.y + config.maxRise);
+        const auto sample = glm::vec2(desired.x, desired.z) + forward * reach;
+        // Measure the ledge above the supporting slope at its edge, rather
+        // than above feet still a capsule radius downhill from that edge.
+        float slopeRise = 0;
+        float baseHeight = start.y;
+        if (ground && ground->normal.y >= config.minNormalY) {
+            const auto delta = sample - glm::vec2(start.x, start.z);
+            slopeRise = -(ground->normal.x * delta.x + ground->normal.z * delta.y) / ground->normal.y;
+            baseHeight = ground->height;
+        }
+        const auto hit = world.walkingGroundAt(sample.x, sample.y,
+            start.y + tolerance, baseHeight + slopeRise + config.maxRise + tolerance);
         if (hit && hit->normal.y >= config.minNormalY &&
             (!support || hit->height > support->height)) support = hit;
     }

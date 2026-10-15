@@ -37,8 +37,11 @@ viewer::Model ledge(float height, int kind) {
     }
     return model;
 }
-void clear(glm::vec3 feet, const viewer::CollisionWorld& world) {
+void clear(glm::vec3 feet, const viewer::CollisionWorld& world, bool terrainSupport = false) {
     for (const auto& contact : world.contacts(feet, .3f, 1.8f)) {
+        // Zombie feet follow the rendered terrain rather than a rounded-foot
+        // slope offset. Only their classified supporting contacts are allowed.
+        if (terrainSupport && contact.terrainSupport) continue;
         if (contact.depth >= .0003f)
             std::cerr << "Penetration feet=" << feet.x << ',' << feet.y << ',' << feet.z
                       << " depth=" << contact.depth << " normal=" << contact.normal.x << ','
@@ -97,6 +100,38 @@ void heightsAndSurfaceKinds() {
                 clear(player.feet(), world);
                 clear(zombie.feet, world);
             }
+        }
+    }
+}
+
+void roadsOnSlopes() {
+    for (const float slope : {-.15f, .07f, .11f, .25f}) {
+        for (const float rise : {.25f, .28f, .30f, .31f, .40f}) {
+            viewer::Model model;
+            quad(model, "terrain", {-10, -10 * slope, -10}, {-10, -10 * slope, 10},
+                 {10, 10 * slope, 10}, {10, 10 * slope, -10});
+            quad(model, "roads_asphalt", {0, rise, -3}, {0, rise, 3},
+                 {5, rise + 5 * slope, 3}, {5, rise + 5 * slope, -3});
+            const viewer::CollisionWorld world(model);
+            auto player = playerAt(world);
+            const auto start = player.feet();
+            playerWalk(player, world, 1);
+            const auto zombie = viewer::moveZombieBody(start, {2, start.y, 0}, world);
+            if (rise <= .30f) {
+                if (player.feet().x < 1.9f || zombie.feet.x < 1.9f)
+                    std::cerr << "Blocked sloped road: slope=" << slope << " rise=" << rise
+                              << " player=" << player.feet().x << " zombie=" << zombie.feet.x << '\n';
+                require(player.feet().x > 1.9f && zombie.feet.x > 1.9f && player.grounded(),
+                        "A road raised by at most 30 cm must remain walkable on sloped terrain");
+            } else {
+                if (player.feet().x >= 0 || zombie.feet.x >= 0)
+                    std::cerr << "Exceeded sloped road: slope=" << slope << " rise=" << rise
+                              << " player=" << player.feet().x << " zombie=" << zombie.feet.x << '\n';
+                require(player.feet().x < 0 && zombie.feet.x < 0,
+                        "Slope compensation must not allow road ledges higher than 30 cm");
+            }
+            clear(player.feet(), world);
+            clear(zombie.feet, world, true);
         }
     }
 }
@@ -212,6 +247,7 @@ int main(int argc, char** argv) {
         }
         require(argc == 1, "Usage: test_character_step [map.glb X Z]");
         heightsAndSurfaceKinds();
+        roadsOnSlopes();
         headroomAndWalls();
         ratesCrowdsAndQueryContracts();
         std::cout << "Shared player/zombie steps, foundations, roads, limits, headroom and crowd checks passed\n";

@@ -134,7 +134,7 @@ def add_roads(scene: trimesh.Scene, features: list, elevation: Callable, config:
     """
     settings = config.get("roads", {})
     spacing = float(settings.get("sample_spacing_m", 10.0))
-    offset = float(settings.get("offset_m", 0.2))
+    offset = float(settings.get("offset_m", 0.02))
     lane_width = float(settings.get("lane_width_m", 3.0))
     if not math.isfinite(spacing) or spacing <= 0:
         raise ValueError("roads.sample_spacing_m must be a positive finite number")
@@ -206,4 +206,5 @@ def add_roads(scene: trimesh.Scene, features: list, elevation: Callable, config:
         "road_materials": dict(materials),
         "road_categories": dict(categories),
         "roads_skipped": skipped_count,
+        "offset_m": offset,
     }

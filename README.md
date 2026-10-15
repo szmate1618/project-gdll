@@ -170,7 +170,7 @@ Other settings include:
 | `buildings.detail_distance_m` | 120 | Range for walls with door/window openings; scope magnification extends it |
 | `roads.lane_width_m` | 3 | Lane-based road-width estimate |
 | `roads.sample_spacing_m` | 8 | Road surface subdivision size |
-| `roads.offset_m` | 0.25 | Small road clearance above terrain |
+| `roads.offset_m` | 0.02 | Base road clearance above terrain; ridge corrections can increase it |
 | `railways.width_m` | 4 | Track-bed width when an OSM `width` tag is absent |
 | `railways.sample_spacing_m` | 8 | Railway surface subdivision size |
 | `railways.offset_m` | 0.3 | Track-bed clearance above terrain |

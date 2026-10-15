@@ -1071,6 +1071,34 @@ support and body clearance. It is enabled only during grounded horizontal
 movement, without granting an airborne step or a jump. A 0.30 m support snap
 keeps the player on descending terrain and small drops.
 
+The step limit is measured above the supporting slope at the ledge, so a
+30 cm road lip remains traversable when the feet are still downhill from it.
+The player attempts this step before edge collision correction can lift the
+capsule off the ground. Both player and zombie checks retain ceiling, wall,
+whole-body clearance and crowd constraints.
+
+Roads default to a 0.02 m base offset above terrain. Terrain-ridge clearance
+corrections may raise individual sections further; a configured offset is not
+an exact bound on every rendered road-to-ground gap. Older maps generated with
+a 0.25 m offset can have edges over 0.30 m. To lower only their roads without
+regenerating the town, set `roads.offset_m` in `config.json`, then run:
+
+```bash
+.venv/bin/python tools/update_road_offset.py --from-offset .25 \
+  --companion output/trees.instances.json \
+  --companion output/poles.instances.json \
+  --companion output/guardrails.glb --companion forest_patches.json
+```
+
+Supply the actual source offset and only companions present for that map.
+The updater translates road leaf nodes in world Y, preserving all mesh buffers,
+road footprints, terrain and buildings. It validates the candidate GLB and
+unchanged terrain before publication, saves originals under
+`output/road-offset-backups/`, and refreshes only companion fingerprints matching
+the original map. Placements and companion geometry stay intact. A stale
+companion fingerprint is rejected. New generations record the road offset so
+accidentally repeating a patch with the old source offset is rejected too.
+
 Important dimensions, speeds, gravity, jump strength, slope limit, contact skin,
 ground snap, and simulation timestep live together in `FPSConfig` in
 `src/fps_controller.hpp`. Change these defaults and rebuild to tune the controller.

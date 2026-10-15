@@ -16,7 +16,7 @@
   },
   "roads": {
     "lane_width_m": 3.0,
-    "offset_m": 0.25,
+    "offset_m": 0.02,
     "sample_spacing_m": 8.0
   },
   "network": {

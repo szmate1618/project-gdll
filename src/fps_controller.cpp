@@ -213,25 +213,21 @@ void FPSController::step(float dt, const FPSInput& input, const CollisionWorld& 
         glm::vec3 previous = feet_;
         feet_ += horizontal;
         const auto requested = feet_;
-        resolve(world, true, previous);
-        const auto lost = glm::vec2(requested.x - feet_.x, requested.z - feet_.z);
-        if (wasGrounded && verticalVelocity_ <= 0 && glm::dot(lost, lost) > 1e-8f) {
+        // Step before edge depenetration can lift the rounded capsule off its
+        // ground support. Waiting for lost horizontal travel can leave the
+        // player airborne and unable to attempt the otherwise valid step.
+        if (wasGrounded && verticalVelocity_ <= 0) {
             const CharacterStepConfig stepConfig{config_.radius, bodyHeight(), config_.stepHeight,
                 std::cos(glm::radians(config_.maxSlopeDegrees)), config_.skin};
             if (const auto stepped = tryCharacterStep(previous, requested, world, stepConfig)) {
-                const glm::vec2 intended(horizontal.x, horizontal.z);
-                const auto progress = [&](glm::vec3 feet) {
-                    return glm::dot(glm::vec2(feet.x - previous.x, feet.z - previous.z), intended);
-                };
-                if (progress(stepped->feet) > progress(feet_) + 1e-10f) {
-                    feet_ = stepped->feet;
-                    groundNormal_ = stepped->groundNormal;
-                    grounded_ = true;
-                    verticalVelocity_ = 0;
-                    continue;
-                }
+                feet_ = stepped->feet;
+                groundNormal_ = stepped->groundNormal;
+                grounded_ = true;
+                verticalVelocity_ = 0;
+                continue;
             }
         }
+        resolve(world, true, previous);
         // Apply pushing only after selecting the movement. A successful step
         // onto a low prop should not also shove it sideways.
         world.pushBoxes(requested, config_.radius, bodyHeight(), movement, subDt);

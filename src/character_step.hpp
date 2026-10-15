@@ -5,7 +5,7 @@
 namespace viewer {
 struct CharacterStepConfig {
     float radius = .30f, height = 1.8f;
-    float maxRise = .30f, minNormalY = .70710678f, skin = .002f;
+    float maxRise = .30f, minNormalY = .70710678f, skin = .002f; // Rise above the supporting slope at the edge.
     float wallClearance = 0; // Meters; same wall margin as the caller's ordinary motion.
 };
 
