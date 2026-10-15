@@ -18,10 +18,14 @@ endif()
 
 include(FetchContent)
 include(CTest)
+option(GD_MULTIPLAYER "Build the experimental multiplayer client and server" OFF)
+option(GD_VIEWER "Build OpenGL clients and the original single-player viewer" ON)
 if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW)
 endif()
-find_package(OpenGL REQUIRED)
+if(GD_VIEWER)
+    find_package(OpenGL REQUIRED)
+endif()
 find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
@@ -101,7 +105,10 @@ FetchContent_Declare(openal_soft
     DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/_archives"
     DOWNLOAD_NAME openal-soft-1.24.3.tar.gz
 )
-FetchContent_MakeAvailable(glfw glm tinygltf box3d meshoptimizer tomlplusplus openal_soft)
+FetchContent_MakeAvailable(glm tinygltf box3d meshoptimizer tomlplusplus)
+if(GD_VIEWER)
+    FetchContent_MakeAvailable(glfw openal_soft)
+endif()
 
 # Offline asset preparation; never runs during viewer startup.
 add_executable(zombie_mesh_simplify tools/zombie_mesh_simplify.cpp)
@@ -166,6 +173,7 @@ target_include_directories(viewer_noise PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src"
 target_link_libraries(viewer_noise PUBLIC glm::glm)
 viewer_warnings(viewer_noise)
 
+if(GD_VIEWER)
 add_library(viewer_audio STATIC src/audio.cpp src/audio_wave.cpp)
 target_include_directories(viewer_audio PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(viewer_audio PUBLIC glm::glm PRIVATE OpenAL::OpenAL)
@@ -196,6 +204,7 @@ add_custom_command(
     VERBATIM
 )
 add_custom_target(viewer_audio_assets DEPENDS ${VIEWER_AUDIO_FILES})
+endif()
 
 add_library(viewer_physics STATIC src/physics_world.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp)
 target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d)
@@ -249,6 +258,7 @@ target_include_directories(viewer_sun_lighting PUBLIC "${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(viewer_sun_lighting PUBLIC glm::glm viewer_camera)
 viewer_warnings(viewer_sun_lighting)
 
+if(GD_VIEWER)
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/box_renderer.cpp
     src/weapon_overlay.cpp
@@ -259,12 +269,14 @@ target_link_libraries(viewer_renderer PUBLIC
     viewer_model viewer_roof_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting OpenGL::GL)
 target_compile_definitions(viewer_renderer PRIVATE GL_GLEXT_PROTOTYPES)
 viewer_warnings(viewer_renderer)
+endif()
 
 add_library(viewer_audio_cues STATIC src/zombie_audio.cpp src/door_audio.cpp)
 target_link_libraries(viewer_audio_cues PUBLIC glm::glm)
 target_include_directories(viewer_audio_cues PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 viewer_warnings(viewer_audio_cues)
 
+if(GD_VIEWER)
 add_library(viewer_scene_audio STATIC src/scene_audio.cpp)
 target_link_libraries(viewer_scene_audio PUBLIC viewer_audio viewer_audio_cues viewer_fps viewer_zombies)
 viewer_warnings(viewer_scene_audio)
@@ -287,8 +299,9 @@ target_compile_definitions(godollo_viewer PRIVATE
 )
 add_dependencies(godollo_viewer viewer_test_asset viewer_audio_assets)
 viewer_warnings(godollo_viewer)
+endif()
 
-if(BUILD_TESTING)
+if(BUILD_TESTING AND GD_VIEWER)
     add_executable(test_audio_cues tests/test_audio_cues.cpp)
     target_link_libraries(test_audio_cues PRIVATE viewer_audio_cues)
     viewer_warnings(test_audio_cues)
@@ -609,4 +622,8 @@ if(BUILD_TESTING)
         target_compile_options(test_model_visibility PRIVATE -UNDEBUG)
         target_compile_options(test_camera PRIVATE -UNDEBUG)
     endif()
+endif()
+
+if(GD_MULTIPLAYER)
+    add_subdirectory(multiplayer)
 endif()

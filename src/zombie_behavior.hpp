@@ -4,6 +4,7 @@
 
 #include <glm/glm.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <unordered_map>
 #include <vector>
 
@@ -25,6 +26,7 @@ struct ZombieBehavior {
     bool attackVisible = false; // Eligibility cache only; never authority for damage.
     // Suspend beyond 150 m; resume within 100 m. Retain the last movement target.
     bool perceptionSuspended = false;
+    std::uint32_t targetPlayer = 0; // Zero in the original single-player path.
 };
 
 // Dense, unordered pool with expected O(1) membership, lookup and swap removal.
@@ -49,6 +51,7 @@ struct ZombiePlayer {
     glm::vec3 feet{0};
     float eyeHeight = 1.7f;
     float height = 1.8f;
+    std::uint32_t id = 0;
 };
 
 // Horizontal +Z is the character's forward direction; ignores vertical offset.

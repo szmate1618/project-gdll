@@ -77,6 +77,8 @@ struct ZombieLayer {
     // Returns true when the nearest living zombie under the ray was activated.
     // animationSeconds is the time of the last displayed frame (before phase).
     bool shoot(glm::vec3 origin, glm::vec3 direction, double animationSeconds = 0.0);
+    bool shootWithOcclusion(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
+                            const CollisionWorld& world);
     const ZombieShootingStats& shootingStats() const { return shootingStats_; }
     // Silent noise at a world position, with a source level in dB at one meter.
     // Only idle, living zombies already in the behavior pool can hear it.
@@ -98,6 +100,9 @@ struct ZombieLayer {
     // The app advances SimulationClock before calling this once per step.
     void updateBehavior(float seconds, const ZombiePlayer& player, const CollisionWorld& world,
                         double animationSeconds = 0.0);
+    // Observes all players and advances each zombie exactly once.
+    void updateBehaviorForPlayers(float seconds, const std::vector<ZombiePlayer>& players,
+                                  const CollisionWorld& world, double animationSeconds);
     // Convenience entry point for a standard 1.8 m player; target is feet.
     void chase(float seconds, glm::vec3 target, const CollisionWorld& world,
                double animationSeconds = 0.0);
@@ -122,6 +127,10 @@ struct ZombieLayer {
     const ZombieRenderUpdates& renderUpdates() const { return renderUpdates_; }
 
 private:
+    bool shootImpl(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
+                   const CollisionWorld* occlusion);
+    void updateBehaviorImpl(float seconds, const ZombiePlayer& player, const CollisionWorld& world,
+                            double animationSeconds, const std::vector<ZombiePlayer>* players);
     friend class ZombieDoorCollision; // Reuse the living-body spatial index for door-local physics proxies.
     struct Physics;
     std::unique_ptr<Physics> physics_;
@@ -134,7 +143,7 @@ private:
     void ensureSpatialIndex();
     void updateSpatialMembership(std::size_t id);
     std::size_t findShotTarget(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
-                               std::vector<glm::mat4>& selectedPose);
+                               std::vector<glm::mat4>& selectedPose, float* distance = nullptr);
     ZombieSpatialIndex spatialIndex_;
     ZombieCrowd crowd_;
     std::vector<std::size_t> behaviorOrder_;

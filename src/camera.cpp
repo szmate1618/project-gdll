@@ -24,6 +24,13 @@ void Camera::setPosition(glm::vec3 position) {
     position_ = position;
 }
 
+void Camera::setOrientation(float yawDegrees, float pitchDegrees) {
+    if (!std::isfinite(yawDegrees) || !std::isfinite(pitchDegrees))
+        throw std::invalid_argument("Camera orientation must be finite");
+    yaw_ = std::remainder(yawDegrees, 360.0f);
+    pitch_ = std::clamp(pitchDegrees, -89.0f, 89.0f);
+}
+
 glm::vec3 Camera::forward() const {
     const float yaw = glm::radians(yaw_);
     const float pitch = glm::radians(pitch_);

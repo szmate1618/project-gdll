@@ -60,7 +60,7 @@ void ZombieLayer::updateSpatialMembership(std::size_t id) {
 }
 
 std::size_t ZombieLayer::findShotTarget(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
-                                      std::vector<glm::mat4>& selectedPose) {
+                                      std::vector<glm::mat4>& selectedPose, float* hitDistance) {
     ensureSpatialIndex();
     const double roundoff = zombieShotRoundoffPadding(glm::length(glm::dvec3(origin)) + shotCoordinateScale_);
     spatialIndex_.queryRay(origin, direction, shotPadding_ + roundoff, spatialCandidates_);
@@ -89,6 +89,7 @@ std::size_t ZombieLayer::findShotTarget(glm::vec3 origin, glm::vec3 direction, d
             selectedPose = std::move(pose);
         }
     }
+    if (hitDistance) *hitDistance = nearest;
     return selected;
 }
 } // namespace viewer

@@ -10,6 +10,10 @@ The repository also includes a **C++17 Linux desktop viewer** with GLFW,
 OpenGL 3.3 Core, textures, free-fly and first-person walking cameras. See
 [desktop viewer setup and controls](docs/VIEWER.md) for Linux packages and details.
 
+An optional [multiplayer client and authoritative server](multiplayer/README.md)
+live under `multiplayer/`. They build separately from the original single-player
+executable with `-DGD_MULTIPLAYER=ON`.
+
 ```bash
 cmake -S . -B build
 cmake --build build -j

@@ -29,6 +29,7 @@ public:
     [[nodiscard]] float pitchDegrees() const { return pitch_; }
     [[nodiscard]] ViewMode viewMode() const { return viewMode_; }
     void setPosition(glm::vec3 position);
+    void setOrientation(float yawDegrees, float pitchDegrees);
 
 private:
     [[nodiscard]] glm::vec3 forward() const;

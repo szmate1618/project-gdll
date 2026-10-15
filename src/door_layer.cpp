@@ -142,6 +142,14 @@ float DoorLayer::angle(std::size_t door) const {
     const auto& e = impl_->entries.at(door);
     return b3Body_IsValid(e.body) ? b3RevoluteJoint_GetAngle(e.joint) : 0;
 }
+void DoorLayer::setAngle(std::size_t door, float radians) {
+    if (!std::isfinite(radians) || std::abs(radians) > 4)
+        throw std::invalid_argument("Invalid replicated door angle");
+    auto& e = impl_->activate(door);
+    const auto turn = glm::angleAxis(-radians, glm::vec3(0, 1, 0));
+    const auto p = e.panel.hinge + turn * (e.panel.center - e.panel.hinge);
+    b3Body_SetTransform(e.body, position(p), rotation(turn * e.panel.rotation));
+}
 glm::mat4 DoorLayer::transform(std::size_t door) const {
     const auto& e = impl_->entries.at(door);
     if (!b3Body_IsValid(e.body)) return e.panel.closedTransform;

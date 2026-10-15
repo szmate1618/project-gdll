@@ -33,6 +33,8 @@ public:
     std::size_t count() const;
     std::uint64_t revision() const;
     BoxPose pose(std::size_t index) const;
+    // Apply a server pose without advancing local physics. Size is immutable.
+    void setPose(std::size_t index, glm::vec3 center, glm::quat rotation);
     glm::vec3 velocity(std::size_t index) const; // World meters per second.
     float mass(std::size_t index) const; // Kilograms.
     BoxPointState pointState(std::size_t index, glm::vec3 localPoint) const;

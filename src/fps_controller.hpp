@@ -39,6 +39,16 @@ struct FPSInput {
     bool toggleProne = false; // One press event, not the held key state.
 };
 
+// Complete movement state for network reconciliation; positions denote feet.
+struct FPSState {
+    glm::vec3 feet{0}, groundNormal{0, 1, 0};
+    float verticalVelocity = 0;
+    double accumulator = 0;
+    PlayerStance stance = PlayerStance::Standing, takeoffStance = PlayerStance::Standing;
+    bool grounded = false, jumpHeld = false, jumpQueued = false;
+    bool proneRequested = false, proneQueued = false;
+};
+
 class FPSController {
 public:
     explicit FPSController(FPSConfig config = {});
@@ -48,6 +58,8 @@ public:
     bool startFalling(glm::vec3 eye, const CollisionWorld& world);
     void teleport(glm::vec3 feet);
     void update(float dt, const FPSInput& input, const CollisionWorld& world);
+    FPSState movementState() const;
+    void restoreMovement(const FPSState& state);
 
     [[nodiscard]] glm::vec3 feet() const { return feet_; }
     [[nodiscard]] glm::vec3 eyePosition() const { return feet_ + glm::vec3(0, eyeHeight(), 0); }

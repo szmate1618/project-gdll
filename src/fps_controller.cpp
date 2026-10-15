@@ -258,6 +258,35 @@ void FPSController::step(float dt, const FPSInput& input, const CollisionWorld& 
     }
 }
 
+FPSState FPSController::movementState() const {
+    return {feet_, groundNormal_, verticalVelocity_, accumulator_, stance_, takeoffStance_,
+            grounded_, jumpHeld_, jumpQueued_, proneRequested_, proneQueued_};
+}
+
+void FPSController::restoreMovement(const FPSState& state) {
+    const auto finiteVector = [](glm::vec3 p) {
+        return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z);
+    };
+    if (!finiteVector(state.feet) || !finiteVector(state.groundNormal) ||
+        !std::isfinite(state.verticalVelocity) || !std::isfinite(state.accumulator) ||
+        state.accumulator < 0 || state.accumulator > 1 ||
+        state.stance < PlayerStance::Standing || state.stance > PlayerStance::Prone ||
+        state.takeoffStance < PlayerStance::Standing || state.takeoffStance > PlayerStance::Prone)
+        throw std::invalid_argument("Invalid movement state");
+    feet_ = state.feet;
+    groundNormal_ = state.groundNormal;
+    verticalVelocity_ = state.verticalVelocity;
+    accumulator_ = state.accumulator;
+    stance_ = state.stance;
+    takeoffStance_ = state.takeoffStance;
+    grounded_ = state.grounded;
+    jumpHeld_ = state.jumpHeld;
+    jumpQueued_ = state.jumpQueued;
+    proneRequested_ = state.proneRequested;
+    proneQueued_ = state.proneQueued;
+    noises_.clear();
+}
+
 void FPSController::update(float dt, const FPSInput& input, const CollisionWorld& world) {
     noises_.clear();
     if (!std::isfinite(dt) || dt <= 0.0F || !std::isfinite(input.forward) ||

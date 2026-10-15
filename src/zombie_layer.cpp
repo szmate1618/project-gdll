@@ -89,14 +89,22 @@ void ZombieLayer::rebuildRagdollIndex() {
 }
 
 bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationSeconds) {
+    return shootImpl(origin, direction, animationSeconds, nullptr);
+}
+bool ZombieLayer::shootWithOcclusion(glm::vec3 origin, glm::vec3 direction, double animationSeconds, const CollisionWorld& world) {
+    return shootImpl(origin, direction, animationSeconds, &world);
+}
+bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animationSeconds, const CollisionWorld* occlusion) {
     shootingStats_ = {};
     if (!finite(origin) || !finite(direction)) return false;
     const float length = glm::length(direction);
     if (length < 1e-6f) return false;
     direction /= length;
     std::vector<glm::mat4> selectedPose;
-    const auto selected = findShotTarget(origin, direction, animationSeconds, selectedPose);
+    float distance = 0;
+    const auto selected = findShotTarget(origin, direction, animationSeconds, selectedPose, &distance);
     if (selected == instances.size()) return false;
+    if (occlusion && !occlusion->lineOfSight(origin, origin + direction * distance)) return false;
     if (!physics_) physics_ = std::make_unique<Physics>();
     auto& instance = instances[selected];
     const auto feet = glm::vec3(instance.restRoot[3]);

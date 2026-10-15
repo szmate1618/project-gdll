@@ -39,6 +39,8 @@ public:
     void applyImpulse(std::size_t door, glm::vec3 impulse, glm::vec3 point);
     float angle(std::size_t door) const; // Radians: zero closed, positive outward.
     glm::mat4 transform(std::size_t door) const;
+    // Apply a server angle without advancing local physics; radians, positive outward.
+    void setAngle(std::size_t door, float radians);
     // Read after PhysicsWorld::step(). Only active panels need renderer updates.
     std::vector<DoorDrawPose> poses() const;
     // Conservative spatial query over hinge sweeps. Returns current Box3D body

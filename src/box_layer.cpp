@@ -91,6 +91,14 @@ BoxPose BoxLayer::pose(std::size_t index) const {
     const auto q = b3Body_GetRotation(e.body);
     return {index, {p.x, p.y, p.z}, e.halfExtents, {q.s, q.v.x, q.v.y, q.v.z}};
 }
+void BoxLayer::setPose(std::size_t index, glm::vec3 center, glm::quat q) {
+    if (!finite(center) || !std::isfinite(glm::length(q)) || std::abs(glm::length(q) - 1) > .001f)
+        throw std::invalid_argument("Invalid replicated box pose");
+    b3Body_SetTransform(impl_->entries.at(index)->body, {center.x, center.y, center.z}, {{q.x, q.y, q.z}, q.w});
+    b3Body_SetLinearVelocity(impl_->entries.at(index)->body, b3Vec3_zero);
+    b3Body_SetAngularVelocity(impl_->entries.at(index)->body, b3Vec3_zero);
+    ++impl_->revision;
+}
 glm::vec3 BoxLayer::velocity(std::size_t index) const {
     return vector(b3Body_GetLinearVelocity(impl_->entries.at(index)->body));
 }
