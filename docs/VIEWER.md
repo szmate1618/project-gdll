@@ -640,6 +640,23 @@ the last safe position keep tight corners deterministic. A crowd slide is checke
 against the world again before acceptance, so corrections cannot move a body
 through another zombie or a wall. Only moving zombies query obstacles.
 
+Zombies and grounded players can step onto walkable surfaces up to **0.30 m**
+higher, including road overlays, low curbs/props, and exposed building foundation
+caps. `character_step` supplies the shared lift/forward/lower check. It probes
+within the rounded foot's forward radius so a raised edge can be found before
+the feet center crosses it, checks headroom throughout the lift, and settles
+onto capsule support without adding horizontal speed. Steeper surfaces, taller
+steps, low ceilings and intervening walls remain blocking. Ordinary movement
+uses its existing collision path; the extra step checks run when that motion
+is obstructed. Zombie crowd checks still share one budget across the movement.
+
+Walking support includes the upper side of downward-facing foundation caps
+within the permitted height range, without changing their mesh or winding.
+`CollisionWorld::walkingGroundAt()` provides that query; ordinary `groundAt()`
+and terrain-only placement retain their previous cap exclusion. Ceiling and
+roof undersides are not reclassified as floors. Road clearance, map geometry,
+and the generator configuration are unchanged.
+
 Doors and boxes block at their current physical poses without zombie forces or
 impulses. Opening a door reveals the existing doorway without rebuilding the
 collision world. The rendered fence/guardrail panels are solid for movement,
@@ -975,9 +992,11 @@ displacements. Iterative contact corrections stop motion into walls while
 preserving movement along them. Ground normals guide walking on slopes up to
 45°; steeper uphill contacts block climbing. A short ground snap keeps downhill
 walking in contact with terrain. Leaving a larger drop enables falling, and
-landing cancels downward velocity. Rounded contacts and a 0.30 m support snap
-help with small mesh height changes; there is no dedicated stair-climbing solver,
-so sharp vertical curbs can still block movement.
+landing cancels downward velocity. The shared capsule step check climbs sharp
+edges up to `FPSConfig::stepHeight` (0.30 m by default) when there is walkable
+support and body clearance. It is enabled only during grounded horizontal
+movement, without granting an airborne step or a jump. A 0.30 m support snap
+keeps the player on descending terrain and small drops.
 
 Important dimensions, speeds, gravity, jump strength, slope limit, contact skin,
 ground snap, and simulation timestep live together in `FPSConfig` in
@@ -1365,6 +1384,13 @@ behavior and animation, and asset normalization. A 1,000-zombie wall convergence
 fixture verifies deterministic replays, bounded crowd checks across substeps,
 and separation after combining world and crowd constraints, without a GPU.
 
+`viewer_character_step` runs both controllers against raised road sheets,
+downward-facing building caps and solid curbs at 2, 8.7, 25, 30, 31 and 45 cm.
+It verifies ascent/descent, standing stability, running at multiple frame rates,
+headroom, thin walls behind steps, placement-query compatibility and crowded
+foundation traversal. An optional read-only actual-map check takes a path and
+world X/Z: `./build/test_character_step output/godollo.glb X Z`.
+
 `viewer_zombie_visibility` compares grouped camera/shadow masks and stable IDs
 against a full individual-frustum scan. It covers inside/outside/boundary groups,
 negative cell coordinates, geometry crossing cell borders, movement, removal,
@@ -1519,6 +1545,7 @@ src/camera.{hpp,cpp}        Perspective free-fly camera
 src/camera_rig.{hpp,cpp}    Runtime camera mode switching
 src/fps_controller.{hpp,cpp} Fixed-step walking, gravity, jump and contact response
 src/collision_world.{hpp,cpp} World-space triangle BVH and capsule/ground queries
+src/character_step.{hpp,cpp} Shared bounded capsule step-up and landing checks
 src/collision_debug.{hpp,cpp} Optional OpenGL collision line overlay
 src/model.{hpp,cpp}         glTF loading and scene data
 shaders/basic.{vert,frag}   GLSL 330 sun/ambient lighting and shadow passes

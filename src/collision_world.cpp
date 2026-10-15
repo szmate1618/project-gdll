@@ -35,7 +35,9 @@ struct Triangle {
     Bounds bounds;
     int group = -1;
     bool terrain = false;
+    bool road = false;
     bool roof = false;
+    bool foundation = false;
 };
 
 float squareLength(glm::vec3 p) { return glm::dot(p, p); }
@@ -236,7 +238,8 @@ struct CollisionWorld::Impl {
     const DoorLayer* doors = nullptr;
     BoxLayer* boxes = nullptr;
 
-    void addTriangle(const CollisionFace& face, float winding, int group, bool terrain, bool roof) {
+    void addTriangle(const CollisionFace& face, float winding, int group, bool terrain, bool roof,
+                     bool wallBase, bool road) {
         Triangle triangle;
         triangle.a = face[0]; triangle.b = face[1]; triangle.c = face[2];
         const auto cross = glm::cross(glm::dvec3(triangle.b) - glm::dvec3(triangle.a),
@@ -250,7 +253,9 @@ struct CollisionWorld::Impl {
         triangle.bounds.include(triangle.a); triangle.bounds.include(triangle.b); triangle.bounds.include(triangle.c);
         triangle.group = group;
         triangle.terrain = terrain;
+        triangle.road = road;
         triangle.roof = roof;
+        triangle.foundation = wallBase && triangle.normal.y < 0;
         bounds.include(triangle.bounds);
         if (group >= 0) groups[static_cast<std::size_t>(group)].bounds.include(triangle.bounds);
         triangles.push_back(triangle);
@@ -398,8 +403,11 @@ CollisionWorld::CollisionWorld(const Model& model, const std::vector<TrunkCollid
         // its front-face convention. Preserve the same physical surface side.
         const float winding = glm::determinant(glm::mat3(draw.transform)) < 0 ? -1.0f : 1.0f;
         const auto namedBuilding = buildingName(draw.name);
-        const bool terrain = draw.name.rfind("terrain", 0) == 0 || draw.name.rfind("road", 0) == 0;
+        const bool road = draw.name.rfind("road", 0) == 0;
+        const bool terrain = draw.name.rfind("terrain", 0) == 0 || road;
         const bool roof = !namedBuilding.empty() && draw.name.find("_roof") != std::string::npos;
+        const bool wallBase = !namedBuilding.empty() && draw.name.size() >= 6 &&
+                              draw.name.compare(draw.name.size() - 6, 6, "_walls") == 0;
         int group = -1;
         if (!terrain) {
             if (!namedBuilding.empty()) {
@@ -417,9 +425,9 @@ CollisionWorld::CollisionWorld(const Model& model, const std::vector<TrunkCollid
             const CollisionFace original{{glm::vec3(draw.transform * glm::vec4(primitive.vertices[ia].position, 1)),
                                           glm::vec3(draw.transform * glm::vec4(primitive.vertices[ib].position, 1)),
                                           glm::vec3(draw.transform * glm::vec4(primitive.vertices[ic].position, 1))}};
-            if (openings[drawIndex].empty()) data.addTriangle(original, winding, group, terrain, roof);
+            if (openings[drawIndex].empty()) data.addTriangle(original, winding, group, terrain, roof, wallBase, road);
             else for (const auto& face : cutCollisionDoorways(original, openings[drawIndex]))
-                data.addTriangle(face, winding, group, terrain, roof);
+                data.addTriangle(face, winding, group, terrain, roof, wallBase, road);
         }
     }
     data.stats.triangles = data.triangles.size();
@@ -506,7 +514,10 @@ std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, floa
         auto normal = t.normal;
         if (distance > 1e-6f) normal = separation / distance;
         else if (glm::dot((p + q) * 0.5f - t.a, normal) < 0) normal = -normal;
-        result.push_back({normal, pair.triangle, reach - distance, t.terrain});
+        const auto groundNormal = t.normal.y < 0 ? -t.normal : t.normal;
+        const bool terrainSupport = t.terrain && groundNormal.y > epsilon &&
+            (!t.road || glm::dot(groundNormal, feet - pair.triangle) >= -epsilon);
+        result.push_back({normal, pair.triangle, reach - distance, t.terrain, terrainSupport});
     });
     impl_->queryTrunks(region, [&](const TrunkCollider& trunk) {
         const float low = trunk.base.y + trunk.radius;
@@ -535,17 +546,26 @@ std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, floa
 }
 
 std::optional<GroundHit> CollisionWorld::groundAt(float x, float z, float minY, float maxY, bool terrainOnly) const {
+    return queryGround(x, z, minY, maxY, terrainOnly, false);
+}
+
+std::optional<GroundHit> CollisionWorld::walkingGroundAt(float x, float z, float minY, float maxY) const {
+    return queryGround(x, z, minY, maxY, false, true);
+}
+
+std::optional<GroundHit> CollisionWorld::queryGround(float x, float z, float minY, float maxY,
+                                                    bool terrainOnly, bool foundationCaps) const {
     if (!std::isfinite(x) || !std::isfinite(z) || !std::isfinite(minY) || !std::isfinite(maxY) || minY > maxY) return std::nullopt;
     Bounds region; region.include({x - epsilon, minY, z - epsilon}); region.include({x + epsilon, maxY, z + epsilon});
     std::optional<GroundHit> result;
     impl_->query(region, [&](const Triangle& t) {
         if (terrainOnly && !t.terrain) return;
         auto normal = t.normal;
-        if (t.terrain && normal.y < 0) normal = -normal;
+        if ((t.terrain || (foundationCaps && t.foundation)) && normal.y < 0) normal = -normal;
         if (normal.y <= 1e-4f) return;
         float y;
         if (!verticalIntersection(t, x, z, y) || y < minY - epsilon || y > maxY + epsilon) return;
-        if (!result || y > result->height) result = GroundHit{y, normal};
+        if (!result || y > result->height) result = GroundHit{y, normal, t.terrain};
     });
     if (!terrainOnly && impl_->boxes) {
         const auto box = impl_->boxes->groundAt(x, z, minY, maxY);

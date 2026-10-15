@@ -1,6 +1,7 @@
 #include "fps_controller.hpp"
 
 #include "collision_world.hpp"
+#include "character_step.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -132,7 +133,7 @@ bool FPSController::resolve(const CollisionWorld& world, bool horizontal, glm::v
 }
 
 bool FPSController::snapToGround(const CollisionWorld& world, float distance) {
-    const auto ground = world.groundAt(feet_.x, feet_.z,
+    const auto ground = world.walkingGroundAt(feet_.x, feet_.z,
                                        feet_.y - distance - config_.radius,
                                        feet_.y + config_.stepHeight + config_.skin);
     if (!ground || !walkable(ground->normal)) {
@@ -194,8 +195,29 @@ void FPSController::step(float dt, const FPSInput& input, const CollisionWorld& 
         }
         glm::vec3 previous = feet_;
         feet_ += horizontal;
-        world.pushBoxes(feet_, config_.radius, config_.height, movement, subDt);
+        const auto requested = feet_;
         resolve(world, true, previous);
+        const auto lost = glm::vec2(requested.x - feet_.x, requested.z - feet_.z);
+        if (wasGrounded && verticalVelocity_ <= 0 && glm::dot(lost, lost) > 1e-8f) {
+            const CharacterStepConfig stepConfig{config_.radius, config_.height, config_.stepHeight,
+                std::cos(glm::radians(config_.maxSlopeDegrees)), config_.skin};
+            if (const auto stepped = tryCharacterStep(previous, requested, world, stepConfig)) {
+                const glm::vec2 intended(horizontal.x, horizontal.z);
+                const auto progress = [&](glm::vec3 feet) {
+                    return glm::dot(glm::vec2(feet.x - previous.x, feet.z - previous.z), intended);
+                };
+                if (progress(stepped->feet) > progress(feet_) + 1e-10f) {
+                    feet_ = stepped->feet;
+                    groundNormal_ = stepped->groundNormal;
+                    grounded_ = true;
+                    verticalVelocity_ = 0;
+                    continue;
+                }
+            }
+        }
+        // Apply pushing only after selecting the movement. A successful step
+        // onto a low prop should not also shove it sideways.
+        world.pushBoxes(requested, config_.radius, config_.height, movement, subDt);
 
         // Preserve an existing support constraint before applying gravity. If a
         // resting capsule first falls a tiny distance and is pushed out along a

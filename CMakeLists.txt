@@ -141,7 +141,7 @@ target_include_directories(viewer_camera PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src
 target_link_libraries(viewer_camera PUBLIC glm::glm)
 viewer_warnings(viewer_camera)
 
-add_library(viewer_collision STATIC src/collision_world.cpp src/door_collision.cpp)
+add_library(viewer_collision STATIC src/collision_world.cpp src/door_collision.cpp src/character_step.cpp)
 target_link_libraries(viewer_collision PUBLIC viewer_model)
 viewer_warnings(viewer_collision)
 
@@ -374,6 +374,11 @@ if(BUILD_TESTING)
     endforeach()
 
     target_link_libraries(test_zombie_movement PRIVATE viewer_poles)
+
+    add_executable(test_character_step tests/test_character_step.cpp)
+    target_link_libraries(test_character_step PRIVATE viewer_fps viewer_zombies)
+    viewer_warnings(test_character_step)
+    add_test(NAME viewer_character_step COMMAND test_character_step)
 
     add_executable(test_zombie_visibility tests/test_zombie_visibility.cpp)
     target_link_libraries(test_zombie_visibility PRIVATE viewer_zombie_visibility)

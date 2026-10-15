@@ -21,11 +21,13 @@ struct Contact {
     glm::vec3 point{0.0f};
     float depth = 0.0f;
     bool terrain = false; // Rendered terrain/roads; not a prop or building floor.
+    bool terrainSupport = false; // Terrain support; elevated road edges remain obstacles.
 };
 
 struct GroundHit {
     float height = 0.0f;
     glm::vec3 normal{0.0f, 1.0f, 0.0f};
+    bool terrain = false;
 };
 
 // Y-up vertical capsule. Base and height include the rounded end caps; the
@@ -67,6 +69,10 @@ public:
     // terrainOnly, ignore props and buildings for terrain-based placement.
     std::optional<GroundHit> groundAt(float x, float z, float minY, float maxY,
                                      bool terrainOnly = false) const;
+    // Walking also supports the exposed upper side of generated foundation
+    // bottom caps. Other downward faces (ceilings/roofs) remain excluded.
+    // Callers bound maxY by their step height and check slope/body clearance.
+    std::optional<GroundHit> walkingGroundAt(float x, float z, float minY, float maxY) const;
     bool insideBuilding(glm::vec3 feet, float radius, float height) const;
     // Finite segment visibility through scene triangles and solid trunk
     // capsules. Double-sided geometry blocks sight; foliage does not. Ignore
@@ -88,6 +94,8 @@ public:
     std::vector<StaticCollisionFace> staticFaces(glm::vec3 minimum, glm::vec3 maximum) const;
 
 private:
+    std::optional<GroundHit> queryGround(float x, float z, float minY, float maxY,
+                                        bool terrainOnly, bool foundationCaps) const;
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
