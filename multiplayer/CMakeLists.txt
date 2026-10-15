@@ -50,6 +50,11 @@ if(BUILD_TESTING)
     viewer_warnings(test_multiplayer)
     add_dependencies(test_multiplayer viewer_test_asset)
     add_test(NAME multiplayer_core COMMAND test_multiplayer "${VIEWER_TEST_ASSET}")
+    add_executable(test_server_handshake tests/test_server_handshake.cpp)
+    target_link_libraries(test_server_handshake PRIVATE multiplayer_core)
+    viewer_warnings(test_server_handshake)
+    add_dependencies(test_server_handshake viewer_test_asset)
+    add_test(NAME multiplayer_handshake COMMAND test_server_handshake "${VIEWER_TEST_ASSET}")
     add_test(NAME multiplayer_loopback COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/loopback.py"
         "$<TARGET_FILE:godollo_server>" "$<TARGET_FILE:godollo_client>" "${VIEWER_TEST_ASSET}")

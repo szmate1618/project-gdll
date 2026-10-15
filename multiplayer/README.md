@@ -129,7 +129,9 @@ initial view for repeatable captures. Both still require a display/GPU.
 Unit checks cover protocol validation, reconciliation across jumps/stances,
 multi-player target selection, single-player equivalence, blocked shots, pose
 replication, late-join corpses, command deduplication, fragment loss/reordering and
-stale snapshots. They also cover recovery from repeated half-second and 1.5-second input
+stale snapshots. A scripted transport check covers Hello arriving before the
+Connected callback and verifies that the later callback preserves the joined peer.
+They also cover recovery from repeated half-second and 1.5-second input
 outages, retained button actions, command gaps and the movement speed limit.
 The process integration
 test connects two real clients under artificial packet loss and latency,

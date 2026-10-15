@@ -34,7 +34,8 @@ int main(int argc, char** argv) {
         while (running && (!options.seconds || std::chrono::duration<double>(Clock::now() - start).count() < options.seconds)) {
             const auto messages = network.receive();
             for (const auto& event : network.events) {
-                if (event.state == k_ESteamNetworkingConnectionState_Connected) peers.try_emplace(event.connection);
+                // Network emits Connecting only after accepting the peer; Hello may already be queued.
+                if (event.state == k_ESteamNetworkingConnectionState_Connecting) peers.try_emplace(event.connection);
                 else if (event.state == k_ESteamNetworkingConnectionState_ClosedByPeer || event.state == k_ESteamNetworkingConnectionState_ProblemDetectedLocally)
                     disconnect(event.connection, event.reason);
             }
