@@ -56,14 +56,17 @@ void World::step() {
         const int inputs = player.pending.size() > 3 ? 2 : 1;
         for (int input = 0; input < inputs; ++input) {
             auto command = player.held;
+            bool consumed = false;
             command.movement.toggleProne = false; command.reload = false; command.drag = {};
             if (player.started && !player.pending.empty()) {
                 const auto first = player.pending.begin();
                 if (first->first == player.resolved + 1) {
                     command = first->second; player.resolved = first->first; player.pending.erase(first);
+                    consumed = true;
                 }
             }
-            if (tick_ - player.lastPacketTick > 12) {
+            // Timeout only synthesized held input; queued actions must execute before acknowledgement.
+            if (!consumed && tick_ - player.lastPacketTick > 12) {
                 command.movement = {}; command.movement.yawDegrees = player.camera.yawDegrees();
                 command.left = command.right = command.reload = false;
                 player.interaction.cancel();

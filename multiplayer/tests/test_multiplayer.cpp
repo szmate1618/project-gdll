@@ -295,6 +295,43 @@ void catchUpWeapons(const std::filesystem::path& asset) {
         require(player.shots == 1, "Catch-up replay repeated a shot");
     }
 }
+void queuedInputTimeout(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
+    Scene scene(options); scene.model = ground();
+    scene.collision = std::make_unique<viewer::CollisionWorld>(scene.model, std::vector<viewer::TrunkCollider>{}, scene.doors.get());
+    scene.collision->setBoxes(scene.boxes.get()); scene.spawnEye = {0, 1.7f, 0};
+    World world(scene); const auto id = world.join();
+    Commands batch;
+    for (std::uint64_t sequence = 1; sequence <= 32; ++sequence) {
+        Command c; c.sequence = sequence; c.movement.forward = 1; c.movement.yawDegrees = 0;
+        c.movement.toggleProne = sequence == 29; c.left = sequence == 31; c.reload = sequence == 32;
+        batch.commands.push_back(c);
+    }
+    world.submit(id, batch);
+    for (int tick = 0; tick < 12; ++tick) world.step();
+    const auto beforeTimeout = world.players().at(id).controller.feet();
+    for (int tick = 0; tick < 5; ++tick) world.step();
+    const auto& player = world.players().at(id);
+    require(world.snapshot(id).players.front().resolved == 32 && player.pending.empty(),
+        "Queued timeout fixture did not drain all commands");
+    require(player.shots == 1 && player.weapons.equipped().loaded == 12 && player.weapons.equipped().reserve == 119,
+        "Packet timeout erased an acknowledged shot or reload");
+    require(player.controller.stance() == viewer::PlayerStance::Prone &&
+            glm::distance(beforeTimeout, player.controller.feet()) > .01f,
+        "Packet timeout erased acknowledged movement or a prone toggle");
+
+    // A gap is not consumable input, even when the queue is nonempty.
+    Command gap; gap.sequence = 34; gap.left = true; gap.movement.toggleProne = true;
+    world.submit(id, Commands{{gap}});
+    for (int tick = 0; tick < 14; ++tick) world.step();
+    const auto stopped = player.controller.feet();
+    for (int tick = 0; tick < 30; ++tick) world.step();
+    require(player.resolved == 32 && player.pending.size() == 1 && player.shots == 1 &&
+            player.controller.stance() == viewer::PlayerStance::Prone &&
+            glm::distance(stopped, player.controller.feet()) < .001f && player.held.movement.forward == 0,
+        "Missing input did not neutralize held movement or skipped an unresolved action");
+}
 void inputRecovery(const std::filesystem::path& asset) {
     using namespace multiplayer;
     Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
@@ -366,7 +403,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); fragments(); prediction(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        serverCommands(argv[1]); catchUpWeapons(argv[1]); inputRecovery(argv[1]);
+        serverCommands(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

@@ -89,7 +89,8 @@ The server runs at 60 Hz, including two existing 120 Hz player substeps. It
 sends self-contained snapshots at 20 Hz. One peer cannot advance the world by
 sending more commands. Sequence numbers, bounded queues, redundant input
 transmission, timeouts and rejection of malformed messages handle late,
-duplicated and reordered traffic. Missing input is held briefly, then neutralized.
+duplicated and reordered traffic. Missing input is held briefly, then neutralized;
+already queued commands still execute even after packets stop arriving.
 After an input backlog builds up, the server processes two queued commands per
 tick using one 120 Hz player substep each. This drains the queue without adding
 movement time or speeding up the world. Button transitions stay ordered;
@@ -132,7 +133,8 @@ replication, late-join corpses, command deduplication, fragment loss/reordering 
 stale snapshots. A scripted transport check covers Hello arriving before the
 Connected callback and verifies that the later callback preserves the joined peer.
 They also cover recovery from repeated half-second and 1.5-second input
-outages, retained button actions, command gaps and the movement speed limit.
+outages, retained button actions, queue draining after a packet timeout,
+command gaps and the movement speed limit.
 The process integration
 test connects two real clients under artificial packet loss and latency,
 exercises late join, and checks content mismatch rejection.
