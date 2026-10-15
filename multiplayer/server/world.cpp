@@ -96,7 +96,7 @@ void World::step() {
             player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
             player.interaction.update(player.camera, tickSeconds);
         }
-        player.weapons.equip(command.slot);
+        if (player.weapons.slot() != command.slot) player.weapons.equip(command.slot);
         if (command.reload) player.weapons.reload();
         player.weapons.trigger(command.left && !command.interaction);
         scene_.doors->activateNear(player.controller.feet());

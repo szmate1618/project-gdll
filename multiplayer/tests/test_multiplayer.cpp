@@ -234,6 +234,24 @@ void serverCommands(const std::filesystem::path& asset) {
     playback.apply(client, .1);
     require(client.zombies.instances[0].ragdoll && client.zombies.instances[0].transform == snap.zombies[0].transform,
         "Late-join snapshot lost corpse pose/frame");
+
+    const auto shots = player.shots;
+    for (c.sequence = 2; c.sequence <= 121; ++c.sequence) {
+        world.submit(first, Commands{{c}}); world.step();
+    }
+    require(player.shots == shots + 1 && player.weapons.equipped().loaded == 10,
+        "Holding a semiautomatic trigger repeated shots");
+    c.left = false;
+    world.submit(first, Commands{{c}}); world.step(); ++c.sequence;
+    c.left = true;
+    world.submit(first, Commands{{c}}); world.step(); ++c.sequence;
+    require(player.shots == shots + 2, "Releasing and pressing the trigger did not fire again");
+    c.slot = 1;
+    const auto automaticShots = player.shots;
+    for (int tick = 0; tick < 60; ++tick, ++c.sequence) {
+        world.submit(first, Commands{{c}}); world.step();
+    }
+    require(player.shots > automaticShots + 1, "Holding an automatic trigger stopped firing");
 }
 }
 int main(int argc, char** argv) {
