@@ -114,6 +114,7 @@ struct ZombieLayer {
     const ZombieRenderUpdates& renderUpdates() const { return renderUpdates_; }
 
 private:
+    friend class ZombieDoorCollision; // Reuse the living-body spatial index for door-local physics proxies.
     struct Physics;
     std::unique_ptr<Physics> physics_;
     ZombieRenderUpdates renderUpdates_;

@@ -146,6 +146,14 @@ void boxesAndDoorPoses() {
             "An opened physical door must reveal the actual doorway without rebuilding collision");
     require(viewer::moveZombieBody({.12f, 0, 2}, {.12f, 0, -2}, doorWorld).feet.z < -1.99f,
             "A 1 m doorway must retain passage off center with the extra wall clearance");
+    glm::vec3 nearJamb{.150861f, 0, .044788f};
+    for (int step = 0; step < 60; ++step) {
+        const auto desired = nearJamb + glm::normalize(glm::vec3(0, 0, -12) - nearJamb) * .05f;
+        const auto accepted = viewer::moveZombieBody(nearJamb, desired, doorWorld);
+        require(distance(nearJamb, accepted.feet) <= .0501f, "Jamb sliding must preserve the speed bound");
+        nearJamb = accepted.feet;
+    }
+    require(nearJamb.z < -1, "A glancing approach must slide past a cleared doorway jamb without wedging");
     const auto current = doors.colliders({-3, 0, -3}, {3, 3, 3}).at(0);
     const auto axis = current.rotation * glm::vec3(0, 0, 1);
     auto from = current.center + axis * 1.2f, to = current.center - axis * 1.2f;

@@ -29,6 +29,8 @@ public:
     DoorLayer& operator=(const DoorLayer&) = delete;
     std::size_t count() const;
     std::size_t activeCount() const;
+    // Stable panel IDs; borrowed view invalidated by further activation.
+    const std::vector<std::size_t>& activeDoors() const;
     const DoorPanel& panel(std::size_t door) const; // Immutable closed geometry; stable door index.
     void activateNear(glm::vec3 position, float radius = 32);
     // World-space forces in N, impulses in N*s, application points in meters.

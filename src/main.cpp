@@ -17,6 +17,7 @@
 #include "model_merge.hpp"
 #include "forest_layer.hpp"
 #include "zombie_layer.hpp"
+#include "zombie_door_collision.hpp"
 #include "zombie_park.hpp"
 #include "simulation_clock.hpp"
 
@@ -695,6 +696,7 @@ int run(const Options& options) {
         std::cout << "Fences disabled: " << viewer::removeFenceDraws(model) << " draw instances removed\n";
     auto physics = std::make_shared<viewer::PhysicsWorld>();
     viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics);
+    viewer::ZombieDoorCollision zombieDoorCollision(physics);
     std::cout << "Doors: " << doors.count() << " hinged panels; nearby physics activation\n";
     std::size_t triangles = 0;
     for (const auto& draw : model.draws) triangles += model.primitives.at(draw.primitive).indices.size() / 3;
@@ -917,6 +919,7 @@ int run(const Options& options) {
             for (const auto id : zombies->ragdollIds())
                 doors.activateNear(glm::vec3(zombies->instances[id].transform[3]));
         physicsScene.prepare(boxes);
+        if (zombies) zombieDoorCollision.prepare(doors, *zombies);
         physics->step(dt);
         if (zombies) zombies->synchronizePhysics();
         moveCamera(app, dt);

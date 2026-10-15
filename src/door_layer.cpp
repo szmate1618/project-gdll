@@ -57,7 +57,7 @@ struct DoorLayer::Impl {
         const auto half = e.panel.halfExtents;
         const auto box = b3MakeBoxHull(half.x, half.y, half.z);
         auto shape = b3DefaultShapeDef();
-        shape.filter.categoryBits = ordinaryBodyCategory;
+        shape.filter.categoryBits = ordinaryBodyCategory | doorBodyCategory;
         shape.density = 25.0f / (8 * half.x * half.y * half.z); // 25 kg wooden panel.
         shape.baseMaterial.friction = .5f;
         b3CreateHullShape(e.body, &shape, &box.base);
@@ -113,6 +113,7 @@ DoorLayer::DoorLayer(std::vector<DoorPanel> panels, std::shared_ptr<PhysicsWorld
 DoorLayer::~DoorLayer() = default;
 std::size_t DoorLayer::count() const { return impl_->entries.size(); }
 std::size_t DoorLayer::activeCount() const { return impl_->active.size(); }
+const std::vector<std::size_t>& DoorLayer::activeDoors() const { return impl_->active; }
 const DoorPanel& DoorLayer::panel(std::size_t door) const { return impl_->entries.at(door).panel; }
 
 void DoorLayer::activateNear(glm::vec3 p, float radius) {

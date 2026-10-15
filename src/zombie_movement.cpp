@@ -70,7 +70,15 @@ glm::vec3 resolve(glm::vec3 start, glm::vec3 desired, const CollisionWorld& worl
         const auto correction = normal * (deepest->depth / squared);
         feet.x += correction.x;
         feet.z += correction.y;
-        if (horizontalDistance(start, feet) > allowance + tolerance) return start;
+        const float correctedTravel = horizontalDistance(start, feet);
+        if (correctedTravel > allowance + tolerance) {
+            // A glancing jamb correction can slightly exceed the requested
+            // length. Shorten it and recheck contacts instead of discarding
+            // every subsequent step at the same otherwise passable corner.
+            const float scale = allowance / correctedTravel;
+            feet.x = start.x + (feet.x - start.x) * scale;
+            feet.z = start.z + (feet.z - start.z) * scale;
+        }
     }
     support(feet, world, start.y + stepHeight);
     return clear(feet, world) ? feet : start;

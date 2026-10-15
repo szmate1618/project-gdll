@@ -636,8 +636,10 @@ pole columns, fences, guardrails, and tree trunks**, using the same accelerated
 and at most four contact corrections per segment; normal app timesteps need one
 or two segments. A hard 2,048-segment limit stops excess displacement from huge
 external timesteps. Stable contact tie-breaking, bounded correction, and retaining
-the last safe position keep tight corners deterministic. A crowd slide is checked
-against the world again before acceptance, so corrections cannot move a body
+the last safe position keep tight corners deterministic. Glancing wall/jamb
+corrections are shortened to the allowed travel and checked again, allowing
+sliding without extra speed or repeated rejection at a clear doorway. A crowd
+slide is checked against the world again before acceptance, so corrections cannot move a body
 through another zombie or a wall. Only moving zombies query obstacles.
 
 Zombies keep an additional **0.05 m clearance from steep building wall faces**
@@ -667,16 +669,30 @@ and the generator configuration are unchanged.
 
 Doors and boxes block at their current physical poses without zombie forces or
 impulses. Opening a door reveals the existing doorway without rebuilding the
-collision world. The rendered fence/guardrail panels are solid for movement,
+collision world. Living zombies near activated door sweeps also have lightweight
+kinematic capsules in the shared physics world. Door forces still apply normally;
+the existing hinge/contact solver stops the panel against a zombie instead of
+swinging through it. This includes idle zombies. An outward-opening door may
+remain blocked until the zombie clears its swing path.
+
+`ZombieDoorCollision::prepare()` runs after door activation and before physics,
+using the existing zombie spatial index. Only zombies near activated door sweeps
+receive proxies; stable ID order and shared proxies for adjacent doors keep
+updates deterministic. Proxies follow accepted zombie feet and are removed when
+the zombie leaves, dies or is removed. They contact door panels only, with a 2 cm
+numerical pad outside the movement body for contact slop and impulse compression.
+They do not make zombies dynamic bodies or add collisions with boxes/player/ragdolls.
+
+The rendered fence/guardrail panels are solid for movement,
 including transparent texels, while actual mesh entrance gaps remain open.
 `--no-poles`, `--no-fences`, `--no-guardrails` and `--no-tree-collisions` also remove
 those respective zombie obstacles. Pole/guardrail sidecar fingerprint checks
 remain the same as for rendering and player collision.
 
 Zombies do not yet find routes around buildings or crowds, push/open doors,
-push boxes, or collide with the player. Standing zombies are not physics bodies:
-a moving prop does not push an idle zombie. The movement module keeps scene
-constraints, crowd constraints, terrain sampling and transform publication
+push boxes, or collide with the player. Standing zombies have no dynamic physics
+response: doors stop against them, while other moving props do not push them.
+The movement module keeps scene constraints, crowd constraints, terrain sampling and transform publication
 separate for later navigation and player interaction work.
 Outside the map zombies retain their last ground height. Walking and running play
 the creator's walk/run clips using shared baked vertex animation. Investigating
@@ -1409,6 +1425,16 @@ and deliberate reverse turns. To save CSV traces using an actual animation asset
 `./build/test_zombie_motion build/zombie-motion-trace assets/zombies/models/ZombieMale_A.glb`.
 Omitting both arguments uses synthetic clip timing and writes no files.
 
+`viewer_zombie_door_collision` covers six zombies following through doors that
+open toward/away from the crowd, closing/reopening under force, idle obstruction,
+and passage/opening after the obstruction clears. It checks zero body/panel
+overlap, identical position/angle replays, 10/30/60/144 Hz opening attempts at the
+player interaction's maximum force, corpse proxy removal, floor separation and
+door-local selection with 10,000 remote
+zombies. Boxes remain outside the proxy collision filter. Optional CSV position,
+orientation, animation frame, door angle and overlap logs:
+`./build/test_zombie_door_collision build/zombie-door-trace`.
+
 `viewer_character_step` runs both controllers against raised road sheets,
 downward-facing building caps and solid curbs at 2, 8.7, 25, 30, 31 and 45 cm.
 It verifies ascent/descent, standing stability, running at multiple frame rates,
@@ -1537,6 +1563,7 @@ src/zombie_shooting.cpp    Prepared hit geometry, spatial bounds, and shot selec
 src/zombie_behavior.{hpp,cpp} Dense behavior pool, perception and state transitions
 src/zombie_perception.{hpp,cpp} Simulation-thread sight scheduling and ray classification
 src/zombie_spatial_index.{hpp,cpp} Stable-ID spatial grid for activation, hearing, and shooting
+src/zombie_door_collision.{hpp,cpp} Nearby living capsules blocking hinged door motion
 src/noise.{hpp,cpp}        Noise events, source levels, and distance attenuation
 src/player_noise.{hpp,cpp} Fixed-step footsteps and landing noise emission
 src/simulation_clock.hpp   Global simulation-thread in-game clock
