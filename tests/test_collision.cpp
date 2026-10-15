@@ -107,6 +107,26 @@ void wallsCornersAndSolidSpawn() {
     require(mirroredGround && std::abs(mirroredGround->height - 4) < 1e-5f, "Mirrored nodes preserve rendered support orientation");
 }
 
+void wallClearanceIsOptIn() {
+    viewer::Model model;
+    addGround(model);
+    addBox(model, "building_test_walls");
+    const viewer::CollisionWorld world(model);
+    require(world.contacts({2.33f, .1f, 0}, .3f, 1.8f).empty(),
+            "Ordinary/player contacts must retain the original wall distance");
+    const auto padded = world.contacts({2.33f, .1f, 0}, .3f, 1.8f, 0, .05f);
+    require(!padded.empty() && std::abs(padded[0].depth - .02f) < .0001f && padded[0].normal.x > .999f,
+            "Wall clearance must find faces outside the ordinary capsule's BVH query and add exactly 5 cm");
+    require(world.contacts({2.351f, .1f, 0}, .3f, 1.8f, 0, .05f).empty(),
+            "Wall clearance must stop at the requested margin");
+    require(world.contacts({0, 4.02f, 0}, .3f, 1.8f, 0, .05f).empty() &&
+            world.contacts({4, .02f, 0}, .3f, 1.8f, 0, .05f).empty(),
+            "Horizontal building caps and terrain must not receive wall clearance");
+    const viewer::CollisionWorld trunkWorld(viewer::Model{}, {{{0, 0, 0}, .15f, 4}});
+    require(trunkWorld.contacts({.47f, .1f, 0}, .3f, 1.8f, 0, .05f).empty(),
+            "Wall clearance must not inflate trunk contacts");
+}
+
 void courtyardRemainsOpen() {
     viewer::Model model; addGround(model);
     viewer::Primitive roof, base;
@@ -208,7 +228,7 @@ void disabledFencesRemoveBarriers() {
 
 int main() {
     try {
-        flatGroundAndContacts(); wallsCornersAndSolidSpawn(); courtyardRemainsOpen();
+        flatGroundAndContacts(); wallsCornersAndSolidSpawn(); wallClearanceIsOptIn(); courtyardRemainsOpen();
         transformedSlopeAndCeiling(); degenerateAndEmptyGeometry(); visibilitySegments();
         disabledFencesRemoveBarriers();
         std::cout << "Collision world tests passed\n";

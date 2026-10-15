@@ -12,6 +12,7 @@ namespace viewer {
 namespace {
 constexpr float radius = ZombieCrowd::bodyRadius, height = ZombieCrowd::bodyHeight;
 constexpr float skin = .002f, tolerance = .0001f;
+constexpr float wallClearance = .05f; // Extra visual room for animated limbs, in meters.
 constexpr float maxSegment = radius / 3;
 constexpr int maxSegments = 2048, resolutionIterations = 4;
 constexpr float stepHeight = .30f, minNormalY = .70710678f;
@@ -35,7 +36,7 @@ auto key(const Contact& c) {
 }
 
 bool clear(glm::vec3 feet, const CollisionWorld& world, float padding = 0) {
-    for (const auto& c : world.contacts(feet, radius, height, padding))
+    for (const auto& c : world.contacts(feet, radius, height, padding, wallClearance))
         if (blocking(c, feet)) return false;
     return true;
 }
@@ -58,7 +59,7 @@ glm::vec3 resolve(glm::vec3 start, glm::vec3 desired, const CollisionWorld& worl
     const float allowance = horizontalDistance(start, desired);
     for (int iteration = 0; iteration < resolutionIterations; ++iteration) {
         support(feet, world, start.y + stepHeight);
-        const auto contacts = world.contacts(feet, radius, height, skin);
+        const auto contacts = world.contacts(feet, radius, height, skin, wallClearance);
         const Contact* deepest = nullptr;
         for (const auto& contact : contacts)
             if (blocking(contact, feet) && (!deepest || key(contact) > key(*deepest))) deepest = &contact;
@@ -98,7 +99,7 @@ ZombieMovement moveZombieBody(glm::vec3 start, glm::vec3 desired, const Collisio
         auto proposed = result.feet + glm::vec3(direction.x * step, 0, direction.y * step);
         auto accepted = resolve(result.feet, proposed, world);
         if (horizontalDistance(accepted, proposed) > tolerance) {
-            const CharacterStepConfig config{radius, height, stepHeight, minNormalY, skin};
+            const CharacterStepConfig config{radius, height, stepHeight, minNormalY, skin, wallClearance};
             if (const auto stepped = tryCharacterStep(result.feet, proposed, world, config)) {
                 const auto progress = [&](glm::vec3 feet) {
                     return glm::dot(glm::vec2(feet.x - result.feet.x, feet.z - result.feet.z), direction);

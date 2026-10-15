@@ -125,6 +125,8 @@ void headroomAndWalls() {
     const auto zombie = viewer::moveZombieBody({-1, 0, 0}, {2, 0, 0}, world);
     require(player.feet().x < -.09f && zombie.feet.x < -.09f,
             "Stepping must not bypass a thin wall directly behind the ledge");
+    require(zombie.feet.x <= -.149f,
+            "Stepping must also preserve the zombie's additional 5 cm wall clearance");
     clear(player.feet(), world);
     clear(zombie.feet, world);
 }

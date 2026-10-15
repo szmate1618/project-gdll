@@ -640,6 +640,14 @@ the last safe position keep tight corners deterministic. A crowd slide is checke
 against the world again before acceptance, so corrections cannot move a body
 through another zombie or a wall. Only moving zombies query obstacles.
 
+Zombies keep an additional **0.05 m clearance from steep building wall faces**
+on either side, including doorway jambs. This leaves room for animated limbs
+without changing wall meshes, rendering cost or the 0.30 m crowd body radius.
+The same margin applies during step-up and crowd-slide validation. Player
+collision, horizontal floors/foundation caps, door panels and other props retain
+their existing clearance. A 1 m doorway still accommodates the 0.60 m body plus
+the two 0.05 m wall margins.
+
 Zombies and grounded players can step onto walkable surfaces up to **0.30 m**
 higher, including road overlays, low curbs/props, and exposed building foundation
 caps. `character_step` supplies the shared lift/forward/lower check. It probes

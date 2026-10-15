@@ -38,6 +38,7 @@ struct Triangle {
     bool road = false;
     bool roof = false;
     bool foundation = false;
+    bool wall = false;
 };
 
 float squareLength(glm::vec3 p) { return glm::dot(p, p); }
@@ -256,6 +257,7 @@ struct CollisionWorld::Impl {
         triangle.road = road;
         triangle.roof = roof;
         triangle.foundation = wallBase && triangle.normal.y < 0;
+        triangle.wall = wallBase && std::abs(triangle.normal.y) < .70710678f;
         bounds.include(triangle.bounds);
         if (group >= 0) groups[static_cast<std::size_t>(group)].bounds.include(triangle.bounds);
         triangles.push_back(triangle);
@@ -499,17 +501,22 @@ bool CollisionWorld::lineOfSight(glm::vec3 origin, glm::vec3 target) const {
            (!impl_->boxes || !impl_->boxes->blocksSight(origin, target));
 }
 
-std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, float height, float skin) const {
+std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, float height,
+                                             float skin, float wallClearance) const {
     std::vector<Contact> result;
-    if (!finite(feet) || radius <= 0 || height < radius * 2 || skin < 0) return result;
+    if (!finite(feet) || radius <= 0 || height < radius * 2 || skin < 0 || wallClearance < 0) return result;
     const float reach = radius + skin;
     const glm::vec3 p = feet + glm::vec3(0, radius, 0), q = feet + glm::vec3(0, height - radius, 0);
     Bounds region; region.include(p - glm::vec3(reach)); region.include(q + glm::vec3(reach));
-    impl_->query(region, [&](const Triangle& t) {
+    auto wallRegion = region;
+    wallRegion.low -= glm::vec3(wallClearance);
+    wallRegion.high += glm::vec3(wallClearance);
+    impl_->query(wallRegion, [&](const Triangle& t) {
+        const float triangleReach = reach + (t.wall ? wallClearance : 0.f);
         const auto pair = closestSegmentTriangle(p, q, t);
         const auto separation = pair.segment - pair.triangle;
         const float squared = squareLength(separation);
-        if (squared >= reach * reach) return;
+        if (squared >= triangleReach * triangleReach) return;
         const float distance = std::sqrt(std::max(squared, 0.0f));
         auto normal = t.normal;
         if (distance > 1e-6f) normal = separation / distance;
@@ -517,7 +524,7 @@ std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, floa
         const auto groundNormal = t.normal.y < 0 ? -t.normal : t.normal;
         const bool terrainSupport = t.terrain && groundNormal.y > epsilon &&
             (!t.road || glm::dot(groundNormal, feet - pair.triangle) >= -epsilon);
-        result.push_back({normal, pair.triangle, reach - distance, t.terrain, terrainSupport});
+        result.push_back({normal, pair.triangle, triangleReach - distance, t.terrain, terrainSupport});
     });
     impl_->queryTrunks(region, [&](const TrunkCollider& trunk) {
         const float low = trunk.base.y + trunk.radius;

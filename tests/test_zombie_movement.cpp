@@ -52,17 +52,17 @@ void thinWallsSlidingAndCorners() {
     const viewer::CollisionWorld world(model);
     for (const float side : {-1.f, 1.f}) {
         const auto move = viewer::moveZombieBody({side * 2, 0, 0}, {-side * 4, 0, 0}, world);
-        require(move.feet.x * side >= .3f && move.feet.x * side < .31f,
-                "Large movement must stop at either side of a zero-thickness wall");
+        require(move.feet.x * side >= .35f && move.feet.x * side < .36f,
+                "Large movement must retain 5 cm extra wall clearance on either side");
         clear(world, move.feet);
     }
     const auto slid = viewer::moveZombieBody({-1, 0, -1}, {1, 0, 1}, world);
-    require(slid.feet.x <= -.3f && slid.feet.z > .9f && slid.travel <= 2.83f,
+    require(slid.feet.x <= -.35f && slid.feet.z > .9f && slid.travel <= 2.83f,
             "Oblique movement must slide along a wall without gaining speed");
     quad(model, "building_test_walls", {-20, 0, 0}, {20, 0, 0}, {20, 3, 0}, {-20, 3, 0});
     const viewer::CollisionWorld corner(model);
     const auto stopped = viewer::moveZombieBody({-1, 0, -1}, {2, 0, 2}, corner);
-    require(stopped.feet.x <= -.3f && stopped.feet.z <= -.3f, "Inside corners must retain a valid position");
+    require(stopped.feet.x <= -.35f && stopped.feet.z <= -.35f, "Inside corners must retain wall clearance");
     clear(corner, stopped.feet);
     // Non-identity scene nodes must be applied exactly once, as in rendering.
     auto transformed = floor();
@@ -70,7 +70,7 @@ void thinWallsSlidingAndCorners() {
         glm::rotate(glm::mat4(1), glm::radians(90.f), {0, 1, 0});
     quad(transformed, "building_test_walls", {0, 0, -5}, {0, 0, 5}, {0, 3, 5}, {0, 3, -5}, false, false, node);
     const viewer::CollisionWorld transformedWorld(transformed);
-    require(viewer::moveZombieBody({4, 0, -2}, {4, 0, 2}, transformedWorld).feet.z <= -.3f,
+    require(viewer::moveZombieBody({4, 0, -2}, {4, 0, 2}, transformedWorld).feet.z <= -.35f,
             "Node-transformed collision must match the rendered wall");
 }
 
@@ -91,8 +91,9 @@ void polesFencesGuardrailsAndTrunks() {
     fences.primitives[1].material = fences.primitives[2].material = 0;
     for (auto& draw : fences.draws) draw.fence = draw.name == "fences_wire";
     const viewer::CollisionWorld fenceWorld(fences);
-    require(viewer::moveZombieBody({-2, 0, 2}, {2, 0, 2}, fenceWorld).feet.x <= -.3f,
-            "Fence panels must block zombies even when rendered with alpha masks");
+    const auto fenced = viewer::moveZombieBody({-2, 0, 2}, {2, 0, 2}, fenceWorld);
+    require(fenced.feet.x <= -.3f && fenced.feet.x > -.31f,
+            "Fence panels must retain their original clearance, including alpha-masked panels");
     require(viewer::moveZombieBody({-2, 0, 0}, {2, 0, 0}, fenceWorld).feet.x > 1.99f,
             "An actual fence entrance must remain traversable");
     viewer::removeFenceDraws(fences);
@@ -102,8 +103,9 @@ void polesFencesGuardrailsAndTrunks() {
     auto rails = floor();
     wall(rails, "guardrails_metal", .55f, .85f);
     const viewer::CollisionWorld railWorld(rails);
-    require(viewer::moveZombieBody({-2, 0, 0}, {2, 0, 0}, railWorld).feet.x <= -.3f,
-            "A low guardrail strip must block the torso capsule without being climbed");
+    const auto railed = viewer::moveZombieBody({-2, 0, 0}, {2, 0, 0}, railWorld);
+    require(railed.feet.x <= -.3f && railed.feet.x > -.31f,
+            "A low guardrail must retain its original clearance without being climbed");
     clear(railWorld, viewer::moveZombieBody({-2, 0, 0}, {2, 0, 0}, railWorld).feet);
 }
 
@@ -131,7 +133,7 @@ void boxesAndDoorPoses() {
     const viewer::CollisionWorld doorWorld(model, {}, &doors);
     require(doors.count() == 1, "Fixture must have a physical door panel");
     const auto closed = viewer::moveZombieBody({0, 0, 2}, {0, 0, -2}, doorWorld);
-    require(closed.feet.z >= .319f && doors.activeCount() == 0,
+    require(closed.feet.z >= .319f && closed.feet.z < .33f && doors.activeCount() == 0,
             "A closed door must block without collision queries activating its physics");
     const auto& panel = doors.panel(0);
     const auto edge = panel.center + glm::cross(glm::vec3(0, 1, 0), panel.outward) * (panel.halfExtents.x * .9f);
@@ -142,6 +144,8 @@ void boxesAndDoorPoses() {
     }
     require(viewer::moveZombieBody({0, 0, 2}, {0, 0, -2}, doorWorld).feet.z < -1.99f,
             "An opened physical door must reveal the actual doorway without rebuilding collision");
+    require(viewer::moveZombieBody({.12f, 0, 2}, {.12f, 0, -2}, doorWorld).feet.z < -1.99f,
+            "A 1 m doorway must retain passage off center with the extra wall clearance");
     const auto current = doors.colliders({-3, 0, -3}, {3, 3, 3}).at(0);
     const auto axis = current.rotation * glm::vec3(0, 0, 1);
     auto from = current.center + axis * 1.2f, to = current.center - axis * 1.2f;
@@ -169,7 +173,7 @@ void blockedBehaviorAndAnimation() {
     for (int step = 0; step < 20; ++step) layer.chase(.1f, {300, 0, 0}, world);
     const auto& stopped = layer.instances[0];
     const auto clock = stopped.walkSeconds;
-    require(stopped.restRoot[3].x <= -.3f && stopped.restRoot[3].x > -.31f && !stopped.walking,
+    require(stopped.restRoot[3].x <= -.35f && stopped.restRoot[3].x > -.36f && !stopped.walking,
             "Offscreen pursuit must stop at the world obstacle and leave walking animation");
     require(layer.behaviors.find(0)->state == viewer::ZombieState::chasing &&
             layer.behaviors.find(0)->target == glm::vec3(10, 0, 0),
@@ -212,7 +216,7 @@ void crowdAgainstWallAndDeterminism() {
             const auto accepted = viewer::moveZombieBody(positions[id], desired, world, &a, id);
             const auto replay = viewer::moveZombieBody(positions[id], desired, world, &b, id);
             require(accepted.feet == replay.feet, "World/crowd movement must repeat across bucket insertion histories");
-            require(accepted.feet.x <= -.3f && distance(positions[id], accepted.feet) <= .1502f,
+            require(accepted.feet.x <= -.35f && distance(positions[id], accepted.feet) <= .1502f,
                     "World/crowd correction must not cross a wall or add speed");
             positions[id] = accepted.feet;
             a.update(id, accepted.feet); b.update(id, accepted.feet);

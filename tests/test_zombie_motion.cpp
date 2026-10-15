@@ -186,7 +186,7 @@ void locomotionTransitions() {
         const float dt = 1.f / fps;
         viewer::moveZombieToward(instance, asset, {0, 0, 10}, 3, dt, clear, 0);
         viewer::Model model;
-        const float wallZ = instance.restRoot[3].z + .302f;
+        const float wallZ = instance.restRoot[3].z + .352f; // Body + wall clearance + collision skin.
         quad(model, "building_trace_walls", {-10, 0, wallZ}, {10, 0, wallZ},
              {10, 3, wallZ}, {-10, 3, wallZ});
         const viewer::CollisionWorld blocked(model);

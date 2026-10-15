@@ -16,6 +16,7 @@ struct ZombieMovement {
 // Queries dynamic props at their current pose without applying impulses. Short
 // segments prevent crossing thin barriers; unresolved contacts retain safe feet.
 // Does not mutate the crowd index or publish transforms.
+// Building walls have 5 cm extra clearance; other obstacles use the body radius.
 ZombieMovement moveZombieBody(glm::vec3 start, glm::vec3 desired,
                               const CollisionWorld& world,
                               ZombieCrowd* crowd = nullptr, std::size_t id = 0);

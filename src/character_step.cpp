@@ -7,7 +7,7 @@ namespace viewer {
 namespace {
 constexpr float tolerance = .0001f;
 bool blocked(glm::vec3 feet, const CollisionWorld& world, const CharacterStepConfig& config) {
-    for (const auto& c : world.contacts(feet, config.radius, config.height, config.skin))
+    for (const auto& c : world.contacts(feet, config.radius, config.height, config.skin, config.wallClearance))
         if (c.depth > tolerance) return true;
     return false;
 }
@@ -40,7 +40,7 @@ std::optional<CharacterStep> tryCharacterStep(glm::vec3 start, glm::vec3 desired
     for (int i = 1; i <= lifts; ++i) {
         auto lifted = start;
         lifted.y = start.y + (liftedY - start.y) * (float(i) / lifts);
-        for (const auto& c : world.contacts(lifted, config.radius, config.height, config.skin)) {
+        for (const auto& c : world.contacts(lifted, config.radius, config.height, config.skin, config.wallClearance)) {
             // Rising away from the supporting surface is allowed. A ceiling or
             // side contact blocks the lift, including thin overhead geometry.
             if (c.depth > tolerance && c.normal.y <= 0) return std::nullopt;
@@ -57,7 +57,7 @@ std::optional<CharacterStep> tryCharacterStep(glm::vec3 start, glm::vec3 desired
     auto bottom = landing;
     bottom.y = low;
     bool upwardContact = false;
-    for (const auto& c : world.contacts(bottom, config.radius, config.height, config.skin))
+    for (const auto& c : world.contacts(bottom, config.radius, config.height, config.skin, config.wallClearance))
         if (c.depth > tolerance && c.normal.y > 0) upwardContact = true;
     if (!upwardContact) return std::nullopt;
     for (int i = 0; i < 12; ++i) {

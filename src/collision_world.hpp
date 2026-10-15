@@ -63,8 +63,10 @@ public:
     CollisionWorld(const CollisionWorld&) = delete;
     CollisionWorld& operator=(const CollisionWorld&) = delete;
 
+    // Optional extra clearance (meters) against steep building wall faces only.
+    // Does not inflate floors, props, door panels, trunks or rendered geometry.
     std::vector<Contact> contacts(glm::vec3 feet, float radius, float height,
-                                  float skin = 0.0f) const;
+                                  float skin = 0.0f, float wallClearance = 0.0f) const;
     // Support comes from scene meshes and live props, never vegetation. With
     // terrainOnly, ignore props and buildings for terrain-based placement.
     std::optional<GroundHit> groundAt(float x, float z, float minY, float maxY,
