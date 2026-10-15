@@ -49,6 +49,7 @@ struct ZombieInstance {
 
 struct ZombieBehaviorStats {
     std::size_t activationCandidates = 0, perceptionChecks = 0, sightRays = 0, hearingCandidates = 0;
+    std::size_t attackChecks = 0, attackRays = 0;
 };
 struct ZombieShootingStats {
     std::size_t spatialCandidates = 0, poseSamples = 0, headVertices = 0;

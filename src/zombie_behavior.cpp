@@ -2,6 +2,7 @@
 #include "simulation_clock.hpp"
 #include "noise.hpp"
 #include "zombie_chase.hpp"
+#include "zombie_attack.hpp"
 #include "zombie_layer.hpp"
 
 #include <algorithm>
@@ -13,7 +14,8 @@ namespace viewer {
 namespace {
 constexpr float activationDistance = 100.0f;
 constexpr float suspensionDistance = activationDistance * 1.5f;
-constexpr float attackDistance = 1.5f;
+constexpr float attackDistance = zombieAttackDistance;
+constexpr double attackCheckPeriod = .1;
 constexpr float walkSpeed = 1.2f;
 constexpr float runSpeed = 3.0f;
 constexpr double idleLifetime = 10.0;
@@ -61,6 +63,24 @@ glm::vec3 approachDestination(glm::vec3 target, glm::vec3 feet, bool playerVisib
     return target;
 }
 
+bool attackEligible(ZombieBehavior& behavior, const ZombieInstance& instance, const ZombiePlayer& player,
+                    const CollisionWorld& world, double now, ZombieBehaviorStats& stats) {
+    if (!zombieInAttackRange(instance, player)) {
+        behavior.attackVisible = false;
+        behavior.attackClock = {}; // Reentry needs an immediate fresh observation.
+        return false;
+    }
+    if (behavior.attackClock.dueEvery(now, attackCheckPeriod, behavior.zombie)) {
+        ++stats.attackChecks;
+        behavior.attackVisible = canZombieAttack(instance, player, world, stats.attackRays);
+        // A fresh failed close-range observation supersedes old clear sight.
+        // Preserve the remembered target, but do not stop short of a player
+        // whom a door now hides just because normal perception isn't due yet.
+        if (!behavior.attackVisible) behavior.sight = ZombieSight::none;
+    }
+    return behavior.attackVisible;
+}
+
 void stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const AnimatedModel& asset,
                   const ZombiePlayer& player, const CollisionWorld& world,
                   float seconds, double now, double animationSeconds,
@@ -95,7 +115,7 @@ void stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
     }
 
     auto feet = glm::vec3(instance.restRoot[3]);
-    if (glm::length(player.feet - feet) <= attackDistance + 1e-4f) {
+    if (attackEligible(behavior, instance, player, world, now, stats)) {
         changeState(behavior, ZombieState::attacking, now);
         stopZombieLocomotion(instance);
         return;
@@ -104,13 +124,14 @@ void stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
         changeState(behavior, behavior.sight == ZombieSight::full ? ZombieState::chasing : ZombieState::investigating, now);
 
     const float speed = behavior.state == ZombieState::chasing ? runSpeed : walkSpeed;
-    const auto destination = approachDestination(behavior.target, feet, visible);
+    const auto destination = approachDestination(behavior.target, feet, behavior.sight != ZombieSight::none);
     const bool arrived = moveZombieToward(instance, asset, destination, speed, seconds, world, animationSeconds,
                                          &crowd, behavior.zombie);
     feet = glm::vec3(instance.restRoot[3]);
-    if (glm::length(player.feet - feet) <= attackDistance + 1e-4f)
+    if (attackEligible(behavior, instance, player, world, now, stats))
         changeState(behavior, ZombieState::attacking, now);
-    else if (arrived)
+    else if (arrived && (behavior.sight != ZombieSight::none ||
+             glm::length(glm::vec2(behavior.target.x - feet.x, behavior.target.z - feet.z)) <= 1e-4f))
         changeState(behavior, ZombieState::idle, now);
     if (behavior.state == ZombieState::idle || behavior.state == ZombieState::attacking)
         stopZombieLocomotion(instance);

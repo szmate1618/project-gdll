@@ -14,6 +14,9 @@ struct ZombiePerceptionClock {
     bool initialized = false;
     double nextSeconds = 0, period = 0;
     bool due(double now, double squaredDistance, std::size_t zombie);
+    // Same stable-ID phase and missed-slot handling, with a fixed period in
+    // seconds (e.g. nearby attack eligibility remains 10 Hz at every distance).
+    bool dueEvery(double now, double nextPeriod, std::size_t zombie);
 };
 
 double zombiePerceptionPeriod(double squaredDistance);

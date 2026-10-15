@@ -25,7 +25,10 @@ double zombiePerceptionPeriod(double squaredDistance) {
 }
 
 bool ZombiePerceptionClock::due(double now, double squaredDistance, std::size_t zombie) {
-    const double nextPeriod = zombiePerceptionPeriod(squaredDistance);
+    return dueEvery(now, zombiePerceptionPeriod(squaredDistance), zombie);
+}
+
+bool ZombiePerceptionClock::dueEvery(double now, double nextPeriod, std::size_t zombie) {
     if (!initialized) {
         initialized = true;
         period = nextPeriod;

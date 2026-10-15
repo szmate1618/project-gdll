@@ -556,8 +556,9 @@ query costs until arrival; their sight queries are skipped entirely.
 
 Between observations, zombies retain the last observed visibility and target;
 cached sight never copies the player's current position into that target.
-Movement, looking turns, attack-range checks, and idle expiration still run
-every simulation step. Hearing remains immediate and event-driven. Sight can
+Movement, looking turns, the cheap attack-distance guard, and idle expiration
+still run every simulation step. Attack visibility has its own fixed 10 Hz
+schedule within 1.5 m. Hearing remains immediate and event-driven. Sight can
 take up to roughly 100/200/1000 ms plus frame scheduling to react, and brief
 glimpses between checks may be missed. `--no-zombie-staggering` restores
 every-step sight checks for comparison. Rays stop once partial visibility is
@@ -594,9 +595,28 @@ return to idle on arrival. Every return to idle starts a fresh **10-second**
 countdown, including initial creation. Within 150 m, remaining idle for that
 interval removes the behavior object; beyond 150 m, idle eviction is immediate.
 Leaving idle cancels the countdown. A nearby zombie can receive a new idle
-object on the step after expiration. Active zombies within
-**1.5 m** of the player enter **attacking**, stop moving, and currently play idle
-without dealing damage. They resume pursuit if the player leaves attack range.
+object on the step after expiration. Active zombies within **1.5 m** of the
+player enter **attacking** only when the player is in the normal horizontal FOV
+and a fresh ray to the head/eye height, middle of the body or feet is clear.
+The check stops at the first clear point, using at most three rays against
+current walls, doors and props. They stop moving and currently play idle without
+dealing damage.
+
+Attack eligibility is sampled at **10 Hz**, with stable-ID phases in simulation
+time, independently of normal perception and `--no-zombie-staggering`. Entering
+or reentering range checks immediately, then follows those slots; missed slots
+never cause a catch-up burst. Leaving range clears eligibility immediately
+without rays. Closing a door can take up to 100 ms plus frame scheduling to
+leave the attack state. A newly blocked attack observation invalidates stale
+clear sight while preserving the last seen target. Reopening restores eligibility
+on a subsequent scheduled check. `ZombieBehaviorStats::attackChecks/attackRays`
+report this work separately from ordinary perception.
+
+`canZombieAttack()` in `zombie_attack` always checks current range, FOV and
+visibility without using either cache. Future damage application must call it
+at the actual hit; an attacking state or cached eligibility alone does not
+authorize damage. It also rejects removed zombies and ragdolls. No zombie damage
+or attack-animation system exists yet.
 
 `SimulationClock::instance()` provides elapsed in-game seconds throughout the
 viewer. The app advances it once per simulation step using the same capped
@@ -1435,6 +1455,12 @@ zombies. Boxes remain outside the proxy collision filter. Optional CSV position,
 orientation, animation frame, door angle and overlap logs:
 `./build/test_zombie_door_collision build/zombie-door-trace`.
 
+`viewer_zombie_attack` covers each independently exposed body point, solid cover,
+3D range/FOV, dead attackers, pre/post-movement attack transitions, stale sight
+and attack caches, and a physical door opening/closing/reopening. It verifies
+immediate uncached hit rejection, 10 Hz cadence at 30/60/144 FPS, deterministic
+ID staggering, no catch-up bursts, and fresh checks when entering range.
+
 `viewer_character_step` runs both controllers against raised road sheets,
 downward-facing building caps and solid curbs at 2, 8.7, 25, 30, 31 and 45 cm.
 It verifies ascent/descent, standing stability, running at multiple frame rates,
@@ -1561,6 +1587,7 @@ src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooti
 src/zombie_hit.{hpp,cpp}    Head hit regions from the displayed skinning pose
 src/zombie_shooting.cpp    Prepared hit geometry, spatial bounds, and shot selection
 src/zombie_behavior.{hpp,cpp} Dense behavior pool, perception and state transitions
+src/zombie_attack.{hpp,cpp} Fresh range/FOV/body-exposure validation for attacks and future hits
 src/zombie_perception.{hpp,cpp} Simulation-thread sight scheduling and ray classification
 src/zombie_spatial_index.{hpp,cpp} Stable-ID spatial grid for activation, hearing, and shooting
 src/zombie_door_collision.{hpp,cpp} Nearby living capsules blocking hinged door motion
