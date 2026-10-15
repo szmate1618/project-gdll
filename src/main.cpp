@@ -446,7 +446,8 @@ void updateWeapons(AppState& app, double seconds) {
     if (app.audio) app.audio->shot(app.weapons.slot());
     if (app.zombies) {
         for (const auto direction : viewer::weaponShotDirections(app.weapons.equipped().config, app.rig.camera().direction()))
-            app.zombies->shoot(app.rig.camera().position(), direction, app.displayedAnimationSeconds);
+            app.zombies->shootWithOcclusion(app.rig.camera().position(), direction,
+                                            app.displayedAnimationSeconds, app.world);
     }
     std::cout << app.weapons.status() << '\n';
 }
@@ -529,6 +530,31 @@ void inputSelfTest(GLFWwindow* window) {
     key(window, GLFW_KEY_R, 0, GLFW_RELEASE, 0);
     if (app.weapons.equipped().loaded != loaded)
         throw std::runtime_error("Reload callback did not refill magazine");
+    for (const bool blocked : {true, false}) {
+        viewer::Model fixture;
+        fixture.boundsMin = {-5, 0, 0}; fixture.boundsMax = {5, 3, 12};
+        if (blocked) {
+            viewer::Primitive wall;
+            for (const auto p : {glm::vec3(-5, 0, 5), {5, 0, 5}, {5, 3, 5}, {-5, 3, 5}}) {
+                viewer::Vertex vertex; vertex.position = p; wall.vertices.push_back(vertex);
+            }
+            wall.indices = {0, 1, 2, 0, 2, 3};
+            fixture.primitives.push_back(std::move(wall)); fixture.draws.push_back({});
+        }
+        const viewer::CollisionWorld world(fixture);
+        viewer::ZombieLayer zombies;
+        zombies.assets.emplace_back(); zombies.instances.emplace_back();
+        auto& zombie = zombies.instances.front();
+        zombie.transform[3] = {0, 0, 10, 1};
+        zombie.restTransform = zombie.restRoot = zombie.transform;
+        AppState shot(world, fixture); shot.zombies = &zombies;
+        shot.rig.camera().setPosition({0, .9f, 0}); shot.rig.camera().setOrientation(90, 0);
+        shot.weapons.equip(0); shot.weapons.trigger(true);
+        const auto rounds = shot.weapons.equipped().loaded;
+        updateWeapons(shot, 0);
+        if (zombie.ragdoll == blocked || shot.weapons.equipped().loaded != rounds - 1)
+            throw std::runtime_error("Single-player shooting occlusion/ammo self-test failed");
+    }
     key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
     if (!app.capture || app.interaction.mode() != viewer::ControlMode::Interaction)
         throw std::runtime_error("Tab failed to select interaction mode with mouse captured");
@@ -566,7 +592,7 @@ void inputSelfTest(GLFWwindow* window) {
     app.weapons = originalWeapons;
     if (wasWalking && !app.rig.enterWalking()) throw std::runtime_error("Failed to restore walking mode after input test");
     app.firstMouse = true;
-    std::cout << "Input self-test passed: movement, mouse capture, control modes, weapon selection/fire/reload, scope, resize, Escape\n";
+    std::cout << "Input self-test passed: movement, mouse capture, control modes, weapon selection/fire/reload, shot occlusion, scope, resize, Escape\n";
 }
 
 void fpsInputSelfTest(GLFWwindow* window) {
