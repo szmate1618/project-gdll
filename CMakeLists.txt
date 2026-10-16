@@ -261,6 +261,22 @@ add_custom_command(
 )
 add_custom_target(viewer_test_asset DEPENDS "${VIEWER_TEST_ASSET}")
 
+set(VIEWER_WEAPON_ASSETS "${CMAKE_CURRENT_BINARY_DIR}/assets/weapons")
+set(VIEWER_WEAPON_MODELS)
+foreach(weapon pistol submachine_gun sniper shotgun)
+    list(APPEND VIEWER_WEAPON_MODELS "${VIEWER_WEAPON_ASSETS}/${weapon}.glb")
+endforeach()
+add_custom_command(
+    OUTPUT ${VIEWER_WEAPON_MODELS}
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_weapon_assets.py"
+        --source "${CMAKE_CURRENT_SOURCE_DIR}/assets/weapons/models.json"
+        --output-dir "${VIEWER_WEAPON_ASSETS}"
+    DEPENDS tools/build_weapon_assets.py assets/weapons/models.json
+    COMMENT "Building the low-poly Durango weapon models (offline)"
+    VERBATIM
+)
+add_custom_target(viewer_weapon_assets DEPENDS ${VIEWER_WEAPON_MODELS})
+
 add_library(viewer_sun_lighting STATIC src/sun_lighting.cpp src/day_night.cpp src/flashlight.cpp)
 target_include_directories(viewer_sun_lighting PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(viewer_sun_lighting PUBLIC glm::glm viewer_camera)
@@ -305,10 +321,11 @@ target_compile_definitions(godollo_viewer PRIVATE
     VIEWER_ZOMBIE_PARK="${CMAKE_CURRENT_SOURCE_DIR}/assets/zombies/grassalkovich_park.json"
     VIEWER_FOREST_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/forest_patches.json"
     VIEWER_ITEMS="${CMAKE_CURRENT_SOURCE_DIR}/items"
+    VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}"
     VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml"
     VIEWER_AUDIO_DIR="${VIEWER_AUDIO_DIR}"
 )
-add_dependencies(godollo_viewer viewer_test_asset viewer_audio_assets)
+add_dependencies(godollo_viewer viewer_test_asset viewer_audio_assets viewer_weapon_assets)
 viewer_warnings(godollo_viewer)
 endif()
 
@@ -349,10 +366,19 @@ if(BUILD_TESTING AND GD_VIEWER)
     add_executable(test_weapon_overlay tests/test_weapon_overlay.cpp)
     target_link_libraries(test_weapon_overlay PRIVATE viewer_renderer glfw)
     target_compile_definitions(test_weapon_overlay PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
-        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
+        VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}")
+    add_dependencies(test_weapon_overlay viewer_weapon_assets)
     viewer_warnings(test_weapon_overlay)
     add_test(NAME viewer_weapon_overlay COMMAND test_weapon_overlay)
     set_tests_properties(viewer_weapon_overlay PROPERTIES SKIP_RETURN_CODE 77)
+
+    add_executable(test_weapon_models tests/test_weapon_models.cpp)
+    target_link_libraries(test_weapon_models PRIVATE viewer_model)
+    target_compile_definitions(test_weapon_models PRIVATE VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}")
+    add_dependencies(test_weapon_models viewer_weapon_assets)
+    viewer_warnings(test_weapon_models)
+    add_test(NAME viewer_weapon_models COMMAND test_weapon_models)
     add_executable(test_object_interaction tests/test_object_interaction.cpp)
     target_link_libraries(test_object_interaction PRIVATE viewer_interaction viewer_objects)
     viewer_warnings(test_object_interaction)

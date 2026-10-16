@@ -902,8 +902,10 @@ including misses and shots in scenes without zombies. Empty weapons stop firing.
 The shotgun casts eight rays (one centered and seven around a 4° cone) while
 consuming one shell. All weapons use the existing zombie hit/ragdoll behavior.
 The sniper alone enables the existing right-click scope cycle. Equipping a
-weapon resets zoom. Combat normal view displays two grey boxes with different
-body sizes for each weapon; the boxes are hidden in scope and Interaction mode.
+weapon resets zoom. Combat normal view displays [low-poly firearm models](../assets/weapons/README.md):
+a 1911 pistol, UMP SMG, a scoped and extended M14 sniper, and a stock pump shotgun.
+The models are hidden in scope and Interaction mode. They use static poses with
+simple material colors, without arms or firing/reload animations.
 The window title and console report the equipped weapon, magazine, and reserve.
 
 Each [weapon TOML](../items/) defines `name`, `ammo_type`,
@@ -1632,7 +1634,10 @@ src/main.cpp               Window, input callbacks, render loop, CLI
 items/*.toml               Four prototype weapon configurations
 inventory.toml             Starting weapons, loaded rounds, and ammo reserves
 src/weapons.{hpp,cpp}       TOML loading, trigger/cooldown state, ammo, and pellet rays
-src/weapon_overlay.{hpp,cpp} Camera-local grey placeholder boxes
+src/weapon_overlay.{hpp,cpp} Batched camera-local firearm meshes
+assets/weapons/models.json  CC0 Durango mesh source and modified M14 sniper
+tools/build_weapon_assets.py Offline GLB builder for the four weapon slots
+tools/prepare_weapon_models.py Blender extraction and sniper modification
 src/renderer.{hpp,cpp}      OpenGL resources, shaders, drawing
 src/renderer_shadows.cpp   Sun caster pass and lighting uniforms
 src/tree_canopy.{hpp,cpp}  Static neighbor canopy cover and tree brightness

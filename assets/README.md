@@ -92,3 +92,9 @@ The Polyart Zombie pack belongs in `zombies/models/`. See its
 and the [idle crowd controls](../docs/VIEWER.md#idle-zombie-crowd) to run 1,000
 instances on the generated town. Character assets remain separate from the
 town GLB and tree placement manifests.
+
+## Firearm models
+
+The camera-local 1911, UMP, pump shotgun and modified scoped M14 use CC0 meshes
+from chilly_durango. See [weapon assets](weapons/README.md) for attribution,
+triangle counts, the tracked mesh source, and offline GLB preparation.
