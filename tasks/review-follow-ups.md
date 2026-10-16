@@ -56,3 +56,29 @@ Numbers are stable identifiers for review follow-ups.
   Acceptance: synthetic GLBs with external buffers or images are rejected before
   joining, embedded equivalents load, and single-player external assets still
   work. Cover the multiplayer model-loading paths, not just the map extension.
+
+- [ ] **7. [P2] Preserve skin-specific inverse binds for shared joints.**
+  [animated_model.cpp](../src/animated_model.cpp) stores one inverse bind matrix
+  per skeleton joint, so the last skin overwrites earlier skins' bindings.
+  Baked animation uses the correct per-skin matrices, but hit geometry and live
+  ragdoll skinning can disagree; a two-skin fixture showed a 2 m displacement.
+  **Appears dormant with the current prepared zombie assets and their LoDs:**
+  none has conflicting inverse binds for a shared joint, so this does not appear
+  to affect current gameplay. Preserve the skin association through loading,
+  hit queries, and ragdoll rendering before supporting assets with this layout.
+  Acceptance: a synthetic asset with two skins sharing a joint but using
+  different bindings keeps baked vertices, hit geometry, and the initial GPU
+  ragdoll pose consistent for both skins.
+
+- [ ] **8. [P2] Preserve unskinned animation at ragdoll handoff.**
+  [zombie_renderer.cpp](../src/zombie_renderer.cpp) forces ragdolls to frame zero,
+  including primitives still using baked animation instead of live skinning.
+  An animated unskinned primitive can therefore jump when shot, before physics
+  advances; a synthetic animation showed a 0.5 m frame difference.
+  **Appears dormant with the current prepared zombie assets and their LoDs:**
+  none has unskinned mesh nodes, so this does not appear to affect current
+  gameplay. Preserve the captured clip, frame, and interpolation for primitives
+  that remain baked, including the multiplayer snapshot handoff.
+  Acceptance: GPU captures immediately before and after a shot, without a physics
+  step, show no pose jump for mixed skinned/unskinned and fully unskinned assets;
+  cover idle and locomotion clips while keeping skinned ragdolls working.
