@@ -39,7 +39,7 @@ Use this guide as a navigation aid; read the relevant code for current behavior.
 | Cameras, walking, stances, collision, and player noise | [docs/VIEWER.md](docs/VIEWER.md), `src/camera*`, `src/fps_controller*`, `src/player_stance.cpp`, `src/character_step.hpp/.cpp`, `src/player_noise.hpp/.cpp`, `src/collision_world*`, `src/collision_debug*` |
 | App wiring and checks | `src/main.cpp`, `CMakeLists.txt`, corresponding `tests/test_*` files |
 | Optional multiplayer client/server and asset packaging | [multiplayer/README.md](multiplayer/README.md), `tools/package_multiplayer_assets.py`, `multiplayer/CMakeLists.txt`, `multiplayer/protocol.hpp/.cpp`, `multiplayer/scene.hpp/.cpp`, `multiplayer/server/`, `multiplayer/client/`, `multiplayer/tests/` |
-| Windows multiplayer client build and packaging | [multiplayer/windows/README.md](multiplayer/windows/README.md), `multiplayer/windows/vcpkg.json`, `.github/workflows/build-apps.yml`, `src/opengl.hpp`, `multiplayer/resources.hpp/.cpp` |
+| Multiplayer client builds and packaging | [Linux package](multiplayer/linux/README.md), [Windows package](multiplayer/windows/README.md), `multiplayer/linux/package.cmake`, `multiplayer/tests/linux_package.py`, `multiplayer/windows/vcpkg.json`, `.github/workflows/build-apps.yml`, `src/opengl.hpp`, `multiplayer/resources.hpp/.cpp` |
 
 ## Organize code for people
 

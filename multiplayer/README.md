@@ -30,6 +30,18 @@ cmake --build build-server -j4
 This also builds a headless client for network checks. Existing viewer graphics
 tests are excluded in this configuration; multiplayer tests still run.
 
+## Linux client package
+
+The **Build apps** workflow also uploads `godollo-client-linux-x86_64`, a tarball
+for Ubuntu 24.04 x86-64 and compatible newer desktop Linux systems. Extract it
+and use `./run-client.sh`; the launcher selects its bundled libraries and resolves
+relative scene paths from the package folder. Resources are located beside the
+executable. The package includes the small sample scene, shaders, configuration,
+and library notices. The full town uses the separate asset pack below.
+See [Linux package instructions](linux/README.md) for requirements and commands.
+CI checks the extracted package's real networking, resource lookup, and rendering
+under Xvfb/Mesa software rendering. This does not validate hardware performance.
+
 ## Windows client
 
 The **Build apps** GitHub Actions workflow also builds the graphical client on
@@ -84,11 +96,12 @@ paths/options and SHA-256 of every included file. Spawn, zombie count/radius,
 and vegetation options still need to match between server and clients.
 
 Extract into a fresh destination for each pack version, keeping the archive's
-folder layout. On Windows, first extract the client ZIP there, then the asset
-ZIP beside `godollo_client.exe`. Linux source builds read resources from their
-checkout, so extract there before building/running. This script does not make the
-Linux CI executables relocatable; their separate resource lookup/packaging work
-is still needed. Windows compilation and runtime checks remain in GitHub CI.
+folder layout. For either packaged client, first extract the client archive
+there, then the asset ZIP beside `godollo_client` or `godollo_client.exe`.
+Use `./run-client.sh` for the packaged Linux client. Linux source builds fall
+back to their checkout for resources, so extract there before building/running.
+The original single-player executable still uses its build checkout's paths.
+Windows compilation and runtime checks remain in GitHub CI.
 
 ## Run
 

@@ -153,10 +153,17 @@ Release versions of `godollo_viewer`, `godollo_server`, and the graphical
 push, pull-request, and manual triggers. Download `godollo-apps-linux-x86_64`
 from a successful run's **Artifacts** list; the enclosed tarball preserves
 executable permissions and is retained for fourteen days. These are compilation
-outputs, not standalone game packages: runtime libraries and scene assets are
-not bundled, and resource defaults still embed the build checkout's paths.
-Relocatable resource lookup and packaging are needed before distributing them
-as playable downloads.
+outputs; runtime resources and libraries are not bundled in this three-binary archive.
+
+For a packaged Linux multiplayer client, download `godollo-client-linux-x86_64`
+from the same run. It includes a launcher, client resources, sample scene, and
+non-system runtime libraries. It targets Ubuntu 24.04 x86-64 and compatible newer
+desktop systems; system runtimes and graphics drivers come from the destination system.
+CI extracts it outside the checkout, checks two-client networking and packaged
+resource lookup, and renders the sample under Xvfb/Mesa software rendering.
+The real town is supplied separately with the
+[portable asset pack](multiplayer/README.md#portable-asset-pack).
+See [Linux client instructions](multiplayer/linux/README.md).
 
 The same workflow has a Windows x64 job for `godollo_client` using MSVC 2022
 and pinned vcpkg dependencies. Its `godollo-client-windows-x86_64` artifact
