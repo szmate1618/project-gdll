@@ -104,9 +104,12 @@ void World::step() {
                 player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
                 player.interaction.update(player.camera, tickSeconds / inputs);
             }
-            if (player.weapons.slot() != command.slot) player.weapons.equip(command.slot);
+            const bool switchedWeapon = player.weapons.slot() != command.slot && player.weapons.equip(command.slot);
             if (command.reload) player.weapons.reload();
-            player.weapons.trigger(command.left && !command.interaction);
+            // Resetting Weapons must not turn an already-held button into a new press.
+            if (consumed && !command.left) player.triggerNeedsRelease = false;
+            if ((switchedWeapon || command.reload) && command.left && player.held.left) player.triggerNeedsRelease = true;
+            player.weapons.trigger(command.left && !command.interaction && !player.triggerNeedsRelease);
             // Accept before the next input can reload/switch weapons or change aim.
             if (player.weapons.fireAttempt(now) == viewer::WeaponFireResult::fired) {
                 ++player.shots;

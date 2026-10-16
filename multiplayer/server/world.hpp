@@ -21,7 +21,7 @@ struct ServerPlayer {
     std::uint64_t acknowledgedSnapshot = 0;
     // Zombie ID -> (palette version, first snapshot tick carrying that version).
     std::map<std::size_t, std::pair<std::uint64_t, std::uint64_t>> sentPalettes;
-    bool started = false;
+    bool started = false, triggerNeedsRelease = false;
     std::set<std::size_t> interested;
 };
 class World {

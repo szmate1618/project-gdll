@@ -253,11 +253,51 @@ void serverCommands(const std::filesystem::path& asset) {
     world.submit(first, Commands{{c}}); world.step(); ++c.sequence;
     require(player.shots == shots + 2, "Releasing and pressing the trigger did not fire again");
     c.slot = 1;
+    for (int tick = 0; tick < 60; ++tick, ++c.sequence) {
+        world.submit(first, Commands{{c}}); world.step();
+    }
+    require(player.shots == shots + 2, "Switching to an automatic weapon fired the held trigger");
+    c.left = false;
+    world.submit(first, Commands{{c}}); world.step(); ++c.sequence;
+    c.left = true;
     const auto automaticShots = player.shots;
     for (int tick = 0; tick < 60; ++tick, ++c.sequence) {
         world.submit(first, Commands{{c}}); world.step();
     }
     require(player.shots > automaticShots + 1, "Holding an automatic trigger stopped firing");
+}
+void triggerResets(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    struct Reset { std::uint8_t slot; bool reload; };
+    for (const auto reset : {Reset{0, true}, {1, true}, {1, false}, {2, false}}) {
+        Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
+        Scene scene(options);
+        World world(scene); const auto id = world.join();
+        const auto& player = world.players().at(id);
+        for (int tick = 0; tick < 4; ++tick) world.step();
+        std::uint64_t sequence = 0;
+        const auto advance = [&](Command command, int ticks = 1) {
+            for (int tick = 0; tick < ticks; ++tick) {
+                command.sequence = ++sequence;
+                world.submit(id, Commands{{command}}); world.step();
+            }
+        };
+        Command command; command.slot = reset.reload ? reset.slot : 0;
+        advance(command);
+        command.left = true; advance(command, 90);
+        const auto shots = player.shots;
+        require(shots > 0, "Trigger reset fixture must fire before reloading/switching");
+        command.reload = reset.reload; command.slot = reset.slot; advance(command);
+        command.reload = false; advance(command, 90);
+        require(player.shots == shots, "Reloading/switching fired without releasing LMB");
+        // A synthesized timeout release is not a physical button release.
+        for (int tick = 0; tick < 20; ++tick) world.step();
+        advance(command, 90);
+        require(player.shots == shots, "Input timeout cleared the reload/switch release requirement");
+        command.left = false; advance(command);
+        command.left = true; advance(command);
+        require(player.shots == shots + 1, "A fresh press after reloading/switching did not fire");
+    }
 }
 void catchUpWeapons(const std::filesystem::path& asset) {
     using namespace multiplayer;
@@ -403,7 +443,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); fragments(); prediction(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        serverCommands(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]);
+        triggerResets(argv[1]); serverCommands(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
