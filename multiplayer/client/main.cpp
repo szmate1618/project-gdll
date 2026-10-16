@@ -186,6 +186,10 @@ int main(int argc, char** argv) {
                         if (ready && glm::length(correction) < 2) visualOffset += correction; else visualOffset = {};
                     }
                     if (!found) throw std::runtime_error("Server omitted local player state");
+                } else if (const auto* pose = std::get_if<multiplayer::CorpsePose>(&message)) {
+                    snapshots.pushPose(scene, *pose);
+                    if (!network.send(connection, multiplayer::PoseAck{pose->id, pose->version}, true))
+                        throw std::runtime_error("Cannot acknowledge corpse pose");
                 } else throw std::runtime_error("Unexpected server message");
             }
             if (now - lastSnapshot > (prediction.ready() ? 5 : 15)) throw std::runtime_error("Server snapshot timeout");
@@ -208,8 +212,10 @@ int main(int argc, char** argv) {
                 if (width > 0 && height > 0) {
                     auto& renderer = *graphics.renderer;
                     renderer.resize(width, height); renderer.updateDoors(*scene.doors); renderer.updateBoxes(*scene.boxes);
-                    renderer.updateZombies(scene.zombies); renderer.render(in.camera, snapshots.animationSeconds());
-                    graphics.players->draw(in.camera, snapshots.players(), self, width, height);
+                    renderer.updateZombies(scene.zombies);
+                    renderer.render(in.camera, snapshots.animationSeconds(), [&] {
+                        graphics.players->draw(in.camera, snapshots.players(), self, width, height);
+                    });
                     graphics.reticle->draw(in.camera.viewMode(), width, height);
                     renderer.present(width, height); glfwSwapBuffers(graphics.window);
                     viewer::Renderer::checkErrors("multiplayer frame");

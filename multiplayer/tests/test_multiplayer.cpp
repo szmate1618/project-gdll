@@ -222,24 +222,46 @@ void serverCommands(const std::filesystem::path& asset) {
     const auto snap = world.snapshot(first);
     require(snap.tick == 30 && snap.players.size() == 2, "Server snapshot omitted players");
     require(snap.zombies.size() == 1 && snap.zombies[0].dead, "Server did not replicate an authoritative kill");
-    require(snap.zombies[0].bones.size() == 1 && world.snapshot(first).zombies[0].bones.size() == 1,
-        "Unacknowledged corpse palette was not repeated");
+    const auto pose = world.nextPose(first);
+    require(pose && pose->bones.size() == 1, "Kill did not produce an independent corpse pose");
+    world.poseSent(first, *pose);
+    require(!world.nextPose(first), "Unacknowledged pose queued duplicate transfers");
     world.submit(first, Commands{{}, snap.tick});
+    require(!world.nextPose(first), "Snapshot acknowledgement released a bulk transfer");
+    rejects([&] { world.acknowledgePose(first, {pose->id, pose->version + 1}); },
+        "Unsent corpse pose acknowledgement accepted");
+    world.acknowledgePose(first, {pose->id, pose->version});
+    require(!world.nextPose(first), "Acknowledged unchanged corpse wastes bandwidth");
     auto unchanged = world.snapshot(first);
-    require(unchanged.zombies[0].bones.empty(), "Acknowledged unchanged corpse palette wastes snapshot bandwidth");
     rejects([&] { world.submit(first, Commands{{}, snap.tick + 1}); }, "Future snapshot acknowledgement accepted");
     world.leave(second); const auto third = world.join();
     require(third != second && world.snapshot(first).players.size() == 2, "Disconnect reused a stale player identity");
+    world.snapshot(third);
+    require(world.nextPose(third).has_value(), "Late join inherited another client's pose acknowledgement");
     Snapshots playback;
     require(playback.push(snap, 0), "Initial server snapshot rejected");
     Scene client(options); client.zombies = crowd(); client.zombies.instances.resize(1);
     client.zombies.assets[0].skeleton.resize(1);
+    Snapshots reordered;
+    reordered.pushPose(client, *pose); // Reliable bulk and welcome/state may arrive in either order.
+    require(reordered.empty() && reordered.push(snap, 0), "Early pose blocked initial world state");
+    reordered.apply(client, 0);
+    require(!client.zombies.instances[0].removed && client.zombies.instances[0].ragdoll,
+        "Pose received before world state was discarded");
+    playback.apply(client, 0);
+    require(client.zombies.instances[0].removed, "Corpse rendered before its complete pose arrived");
+    playback.pushPose(client, *pose);
     unchanged.tick += 3;
-    require(playback.push(unchanged, .05) && playback.latest().zombies[0].bones.size() == 1,
-        "Skipped display frames lost an acknowledged corpse palette");
+    require(playback.push(unchanged, .05), "New essential state rejected");
     playback.apply(client, .1);
-    require(client.zombies.instances[0].ragdoll && client.zombies.instances[0].transform == snap.zombies[0].transform,
-        "Late-join snapshot lost corpse pose/frame");
+    require(client.zombies.instances[0].ragdoll && !client.zombies.instances[0].removed &&
+        client.zombies.instances[0].transform == pose->transform,
+        "Late-join independent corpse pose lost its root/frame");
+    auto newer = *pose; ++newer.version; newer.transform[3].y += 1;
+    playback.pushPose(client, newer);
+    playback.pushPose(client, *pose);
+    playback.apply(client, .2);
+    require(client.zombies.instances[0].transform == newer.transform, "Old pose overwrote newer pose");
 
     const auto shots = player.shots;
     for (c.sequence = 2; c.sequence <= 121; ++c.sequence) {

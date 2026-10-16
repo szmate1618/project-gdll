@@ -323,7 +323,7 @@ void Renderer::setRain(bool enabled) {
     rainEnabled_ = enabled;
 }
 
-void Renderer::render(const Camera& camera, double animationSeconds) {
+void Renderer::render(const Camera& camera, double animationSeconds, const std::function<void()>& drawOpaque) {
     sceneStats_ = {sceneDraws_.size(), 0, 0};
     if (width_ <= 0 || height_ <= 0) return;
     glUseProgram(program_);
@@ -377,6 +377,7 @@ void Renderer::render(const Camera& camera, double animationSeconds) {
     drawForests(projection * view);
     drawZombies(animationSeconds);
     drawBoxes(projection * view);
+    if (drawOpaque) drawOpaque();
     if (!transparentScene_.empty()) {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

@@ -8,6 +8,7 @@
 #include "physics_world.hpp"
 #include "tree_layer.hpp"
 #include "zombie_layer.hpp"
+#include "weapons.hpp"
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -44,5 +45,6 @@ struct Scene {
     viewer::ZombieLayer zombies;
     glm::vec3 spawnEye{0};
     std::string fingerprint;
+    const viewer::Weapons initialWeapons;
 };
 } // namespace multiplayer

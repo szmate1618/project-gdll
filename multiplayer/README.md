@@ -122,7 +122,13 @@ protocol version, map, adjacent pole/guardrail layers, tree manifests/assets,
 forest configuration, zombie GLBs, weapon definitions, inventory and spawn.
 Existing manifest provenance checks remain enabled. A stale adjacent layer is
 an error, so both peers load the same collision world. No town regeneration or
-asset download occurs during startup. Maps and zombie assets must be GLBs.
+asset download occurs during startup. Model assets must be self-contained GLBs;
+external buffer/image URIs are rejected even inside a `.glb`. Embedded BIN data
+and data URIs are supported. Zombie assets may have at most 128 skeleton nodes
+(including non-joint scene nodes); incompatible rigs fail before hosting.
+Weapon definitions and starting inventory are loaded once per scene and copied
+for each joining player, so changing files cannot change a running session.
+The current wire protocol is version 2; rebuild both client and server together.
 
 Scene options:
 
@@ -159,7 +165,7 @@ selects the nearest visible player. Disconnects release grabs and invalidate
 target identities. Two players cannot own the same grabbed object.
 
 The server runs at 60 Hz, including two existing 120 Hz player substeps. It
-sends self-contained snapshots at 20 Hz. One peer cannot advance the world by
+sends essential world snapshots at 20 Hz. One peer cannot advance the world by
 sending more commands. Sequence numbers, bounded queues, redundant input
 transmission, timeouts and rejection of malformed messages handle late,
 duplicated and reordered traffic. Missing input is held briefly, then neutralized;
@@ -168,23 +174,39 @@ After an input backlog builds up, the server processes two queued commands per
 tick using one 120 Hz player substep each. This drains the queue without adding
 movement time or speeding up the world. Button transitions stay ordered;
 unreceived commands remain unacknowledged and are resent alongside the newest input.
-Large replaceable messages use bounded datagram fragments, keeping them out of
-GameNetworkingSockets' automatic large-message reliable queue. Incomplete older
-snapshots do not block newer complete ones.
+Large replaceable messages use paced datagram fragments, keeping them out of
+GameNetworkingSockets' automatic large-message reliable queue. Each connection
+retains one active transfer and only its newest pending snapshot. A temporary
+send failure resumes the active fragment; it never starts another incomplete
+prefix. Queued essential data is bounded to roughly 10 ms of estimated link
+capacity, capped at 16 KiB. Incomplete received snapshots do not block newer
+complete ones.
 
 The local client predicts movement, restores the complete authoritative
 movement state, and replays unresolved inputs. Other players, zombies, doors
-and boxes use buffered snapshot interpolation. The server does not render, so
+and boxes use buffered snapshot interpolation. Zombie root rotation uses
+quaternions with the fixed asset normalization kept separate, preserving size
+through turns. Remote players draw in the opaque pass before glass and rain.
+The server does not render, so
 authoritative hit/ragdoll poses come from its animation clock.
 
 Living zombies use the existing spatial index for interest queries. Entry/exit
 radii are 220/240 m in all directions; offscreen threats still simulate.
-Snapshots prioritize the nearest 256 zombies and stay under 256 KiB, including
+Snapshots prioritize the nearest 256 zombies and stay under 256 KiB without
 corpse palettes. Doors are replicated near the observer; the bounded set of
 interior boxes is sent in full, including to late joiners. Geometry keeps the
 runtime X-east/Y-up/Z-south meter frame and player positions denote feet.
-Unchanged corpse palettes are omitted only after a client acknowledges receiving
-that version. Clients retain them even when an intermediate frame is not drawn.
+Corpse poses carry independently versioned roots and palettes on a separate
+reliable transport lane. Each peer has at most four unacknowledged poses and a
+32 KiB bulk transport budget. Changes while a pose is in flight coalesce to the
+latest version; round-robin selection prevents moving corpses starving others.
+The essential/bulk lanes share bandwidth at 4:1 when both are busy, so bulk
+retries cannot block essential delivery and bulk still makes progress. An
+explicit pose acknowledgement releases a transfer slot; snapshot acknowledgements
+cannot suppress an unreceived palette. Late joins receive their own initial
+poses. Clients retain complete root/palette pairs outside the display buffer and
+apply them together without blending affine bone matrices. Corpses stay hidden
+until their first complete pose arrives.
 
 ## Checks and current limits
 
@@ -203,7 +225,13 @@ initial view for repeatable captures. Both still require a display/GPU.
 Unit checks cover protocol validation, reconciliation across jumps/stances,
 multi-player target selection, single-player equivalence, blocked shots, pose
 replication, late-join corpses, command deduplication, fragment loss/reordering and
-stale snapshots. A scripted transport check covers Hello arriving before the
+stale snapshots. Focused checks cover startup rejection of external GLB resources
+and oversized rigs, the 128-node boundary, rigid turning through a 500 ms gap,
+bounded/fair corpse transfers, reordered pose/state arrival, and interrupted
+fragment sends. A real transport regression exercises large snapshots without
+packet loss and continuous bulk transfers with 5% loss in both directions. A GPU
+regression checks remote players behind and in front of transparent glass.
+A scripted transport check covers Hello arriving before the
 Connected callback and verifies that the later callback preserves the joined peer.
 They also cover recovery from repeated half-second and 1.5-second input
 outages, retained button actions, queue draining after a packet timeout,
@@ -220,11 +248,15 @@ server authentication are not implemented. Shots use the current server pose
 and respect map/door/prop occlusion. Dynamic objects remain server-owned, so
 moving through or pushing them can cause client movement corrections. Existing
 prototype zombie attack states do not yet apply player damage.
-Large corpse-heavy snapshots still cost bandwidth and are more vulnerable to
-packet loss; their packing and update frequency need profiling before scaling up.
+Corpse poses still cost bandwidth and may update less frequently on slow links;
+their packing and update frequency need profiling before scaling up. Essential
+snapshots still use unreliable fragments, so loss can drop a complete world
+update; the next complete snapshot supersedes it.
 
-Implementation lives in `protocol.*`, `network.*` and `scene.*` at this directory
-root, `server/` for simulation/hosting, and `client/` for input, prediction,
+Implementation lives in `protocol.*`, `network.*`, `outgoing_snapshots.*`,
+`asset_validation.*` and `scene.*` at this directory root. `server/replication.*`
+owns per-peer interest and corpse transfers; `server/world.*` owns simulation.
+The remaining `server/` code hosts sessions, and `client/` handles input, prediction,
 snapshot playback and rendering. Shared `src/` additions expose movement
 save/restore and remote physics poses; existing single-player APIs and defaults
 are retained.

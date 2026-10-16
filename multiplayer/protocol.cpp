@@ -115,9 +115,8 @@ void payload(Wire& w, Snapshot& s) {
     w.list(s.zombies, maxVisibleZombies, [&](ZombieState& z) {
         w.integer(z.id); w.integer(z.asset); w.matrix(z.transform); w.matrix(z.root);
         w.number(z.phase); w.number(z.walkSeconds); w.flag(z.walking); w.flag(z.running); w.flag(z.dead);
-        w.list(z.bones, maxBones, [&](glm::mat4& m) { w.matrix(m); });
-        if (z.id >= maxZombies || z.asset >= maxZombies || z.phase < 0 || z.phase >= 1 || z.walkSeconds < 0 ||
-            (!z.dead && !z.bones.empty())) throw std::runtime_error("Invalid zombie snapshot");
+        if (z.id >= maxZombies || z.asset >= maxZombies || z.phase < 0 || z.phase >= 1 || z.walkSeconds < 0)
+            throw std::runtime_error("Invalid zombie snapshot");
     });
     w.list(s.doors, maxDoors, [&](DoorState& d) {
         w.integer(d.id); w.number(d.angle);
@@ -131,6 +130,17 @@ void payload(Wire& w, Snapshot& s) {
             throw std::runtime_error("Invalid box snapshot");
     });
     uniqueIds(s.players); uniqueIds(s.zombies); uniqueIds(s.doors); uniqueIds(s.boxes);
+}
+void payload(Wire& w, CorpsePose& pose) {
+    w.integer(pose.id); w.integer(pose.asset); w.integer(pose.version);
+    w.matrix(pose.transform); w.matrix(pose.root);
+    w.list(pose.bones, maxBones, [&](glm::mat4& m) { w.matrix(m); });
+    if (pose.id >= maxZombies || pose.asset >= maxZombies || !pose.version)
+        throw std::runtime_error("Invalid corpse pose");
+}
+void payload(Wire& w, PoseAck& ack) {
+    w.integer(ack.id); w.integer(ack.version);
+    if (ack.id >= maxZombies || !ack.version) throw std::runtime_error("Invalid corpse acknowledgement");
 }
 }
 std::vector<std::uint8_t> encode(const Message& message) {
@@ -147,11 +157,12 @@ Message decode(const void* data, std::size_t bytes) {
     Wire w; w.input = static_cast<const std::uint8_t*>(data); w.size = bytes; w.reading = true;
     std::uint32_t magic = 0, version = 0; std::uint8_t type = 0;
     w.integer(magic); w.integer(version); w.integer(type);
-    if (magic != 0x4c4c4447 || version != protocolVersion || type > 5) throw std::runtime_error("Incompatible multiplayer protocol");
+    if (magic != 0x4c4c4447 || version != protocolVersion || type > 7) throw std::runtime_error("Incompatible multiplayer protocol");
     Message result;
     switch (type) { case 0: result = Hello{}; break; case 1: result = Welcome{}; break;
         case 2: result = Commands{}; break; case 3: result = Snapshot{}; break;
-        case 4: result = Goodbye{}; break; case 5: result = Fragment{}; break; }
+        case 4: result = Goodbye{}; break; case 5: result = Fragment{}; break;
+        case 6: result = CorpsePose{}; break; case 7: result = PoseAck{}; break; }
     std::visit([&](auto& value) { payload(w, value); }, result);
     if (w.offset != bytes) throw std::runtime_error("Trailing multiplayer message data");
     return result;

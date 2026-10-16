@@ -3,21 +3,23 @@
 #include <array>
 #include <unordered_map>
 #include <stdexcept>
+#include <glm/gtc/quaternion.hpp>
 
 namespace multiplayer {
 bool Snapshots::push(Snapshot snapshot, double receivedSeconds) {
     if (!frames_.empty() && snapshot.tick <= frames_.back().tick) return false;
-    // Materialize before acknowledging: skipped display frames must still retain
-    // palettes that subsequent snapshots are allowed to omit.
-    for (auto& z : snapshot.zombies) if (z.dead) {
-        auto& cached = palettes_.at(z.id);
-        if (!z.bones.empty()) cached = z.bones;
-        else z.bones = cached;
-    }
     frames_.push_back(std::move(snapshot));
     if (frames_.size() > 32) frames_.pop_front();
     received_ = receivedSeconds;
     return true;
+}
+void Snapshots::pushPose(const Scene& scene, const CorpsePose& pose) {
+    if (pose.id >= scene.zombies.instances.size() || pose.asset >= scene.zombies.assets.size() ||
+        pose.asset != scene.zombies.instances[pose.id].asset || !pose.version ||
+        pose.bones.size() != scene.zombies.assets[pose.asset].skeleton.size())
+        throw std::runtime_error("Corpse pose does not match session assets");
+    auto& cached = poses_.at(pose.id);
+    if (!cached || cached->version < pose.version) cached = pose;
 }
 void Snapshots::apply(Scene& scene, double now) {
     if (frames_.empty()) return;
@@ -72,16 +74,30 @@ void Snapshots::apply(Scene& scene, double now) {
         instance.walking = z->walking; instance.running = z->running; instance.ragdoll = z->dead;
         instance.displayedAnimationFrame = -1;
         const auto* before = previous[id];
-        if (before && before->dead == z->dead) {
-            for (int c = 0; c < 4; ++c) instance.transform[c] = glm::mix(before->transform[c], z->transform[c], t);
+        if (before && !before->dead && !z->dead) {
+            // Root motion is rigid. Keep the asset normalization (including its
+            // translation, reflection or shear) outside quaternion interpolation.
+            const auto rotation = glm::slerp(glm::normalize(glm::quat_cast(glm::mat3(before->root))),
+                glm::normalize(glm::quat_cast(glm::mat3(z->root))), t);
+            auto root = glm::mat4_cast(rotation);
+            root[3] = glm::mix(before->root[3], z->root[3], t);
+            instance.restRoot = root;
+            instance.transform = root * glm::inverse(z->root) * z->transform;
             instance.walkSeconds = glm::mix(before->walkSeconds, z->walkSeconds, t);
         }
         if (z->dead) {
-            auto bones = z->bones;
-            if (before && before->bones.size() == bones.size())
-                for (std::size_t i = 0; i < bones.size(); ++i)
-                    for (int c = 0; c < 4; ++c) bones[i][c] = glm::mix(before->bones[i][c], bones[i][c], t);
-            scene.zombies.setRagdollPalette(id, std::move(bones));
+            const auto& pose = poses_[id];
+            // Until its first complete pose arrives a corpse stays hidden. Never
+            // pair a newer root with an older palette or blend affine bone
+            // matrices, which may legitimately contain baked scale and shear.
+            if (!pose) instance.removed = true;
+            else {
+                instance.transform = pose->transform; instance.restRoot = pose->root;
+                if (appliedPoseVersions_[id] != pose->version) {
+                    scene.zombies.setRagdollPalette(id, pose->bones);
+                    appliedPoseVersions_[id] = pose->version;
+                }
+            }
         }
         scene.zombies.markRenderChanged(id);
     }

@@ -6,7 +6,7 @@
 #include <stdexcept>
 
 namespace multiplayer {
-ServerPlayer::ServerPlayer() : weapons(resourceRoot() / "items", resourceRoot() / "inventory.toml") {
+ServerPlayer::ServerPlayer(const viewer::Weapons& initialWeapons) : weapons(initialWeapons) {
     held.slot = static_cast<std::uint8_t>(weapons.slot());
 }
 World::World(Scene& scene) : scene_(scene),
@@ -18,7 +18,7 @@ World::World(Scene& scene) : scene_(scene),
 std::uint32_t World::join() {
     if (players_.size() >= maxPlayers || nextPlayer_ == 0) throw std::runtime_error("Server full");
     const auto id = nextPlayer_++;
-    auto& player = players_.try_emplace(id).first->second;
+    auto& player = players_.try_emplace(id, scene_.initialWeapons).first->second;
     auto spawn = scene_.spawnEye;
     spawn.x += static_cast<float>((id - 1) % maxPlayers) * 1.0f;
     if (!player.controller.spawn(spawn, *scene_.collision)) { players_.erase(id); throw std::runtime_error("No safe player spawn"); }
@@ -34,7 +34,6 @@ void World::leave(std::uint32_t id) {
 void World::submit(std::uint32_t id, const Commands& commands) {
     auto& player = players_.at(id);
     if (commands.snapshotTick > tick_) throw std::runtime_error("Client acknowledged a future snapshot");
-    player.acknowledgedSnapshot = std::max(player.acknowledgedSnapshot, commands.snapshotTick);
     for (const auto& c : commands.commands) {
         if (c.sequence <= player.resolved) continue;
         if (c.sequence - player.resolved > 180) throw std::runtime_error("Client command window exceeded");
@@ -148,56 +147,15 @@ Snapshot World::snapshot(std::uint32_t id) {
             player.camera.yawDegrees(), player.camera.pitchDegrees(), static_cast<std::uint8_t>(player.weapons.slot()),
             static_cast<std::uint32_t>(weapon.loaded), static_cast<std::uint32_t>(weapon.reserve), player.shots});
     }
-    for (const auto door : scene_.doors->activeDoors()) {
-        const auto offset = scene_.doors->panel(door).center - observer.controller.feet();
-        if (glm::dot(offset, offset) < 240.0f * 240 && s.doors.size() < maxDoors)
-            s.doors.push_back({static_cast<std::uint32_t>(door), scene_.doors->angle(door)});
-    }
-    // Props are capped and persistent; sending all avoids missing late-join creations or collision changes.
-    for (std::size_t i = 0; i < scene_.boxes->count(); ++i) {
-        const auto p = scene_.boxes->pose(i);
-        s.boxes.push_back({static_cast<std::uint32_t>(i), p.center, p.halfExtents, p.rotation});
-    }
-    std::vector<std::size_t> candidates;
-    scene_.zombies.queryLivingNear(observer.controller.feet(), 240, candidates);
-    candidates.insert(candidates.end(), scene_.zombies.ragdollIds().begin(), scene_.zombies.ragdollIds().end());
-    const auto distance = [&](std::size_t z) {
-        const auto& instance = scene_.zombies.instances[z];
-        const glm::vec3 position(instance.ragdoll ? instance.transform[3] : instance.restRoot[3]);
-        const auto d = position - observer.controller.feet(); return glm::dot(d, d);
-    };
-    std::sort(candidates.begin(), candidates.end(), [&](auto a, auto b) {
-        const auto da = distance(a), db = distance(b); return da == db ? a < b : da < db;
-    });
-    std::set<std::size_t> interested;
-    std::size_t budget = encode(s).size();
-    for (const auto z : candidates) {
-        const auto& instance = scene_.zombies.instances[z];
-        const float radius = observer.interested.count(z) ? 240.0f : 220.0f;
-        if (instance.removed || distance(z) > radius * radius || s.zombies.size() == maxVisibleZombies) continue;
-        const auto sent = observer.sentPalettes.find(z);
-        const bool palette = instance.ragdoll && !instance.ragdollBones.empty() &&
-            (sent == observer.sentPalettes.end() || sent->second.first != instance.ragdollPoseVersion ||
-             observer.acknowledgedSnapshot < sent->second.second);
-        const auto bytes = 160 + (palette ? instance.ragdollBones.size() * sizeof(float) * 16 : 0);
-        if (budget + bytes > maxMessageBytes - 1024) continue;
-        if (instance.ragdollBones.size() > maxBones) throw std::runtime_error("Zombie skeleton exceeds protocol bone budget");
-        budget += bytes;
-        s.zombies.push_back({static_cast<std::uint32_t>(z), static_cast<std::uint32_t>(instance.asset),
-            instance.transform, instance.restRoot, instance.phase, static_cast<float>(instance.walkSeconds),
-            instance.walking, instance.running, instance.ragdoll, palette ? instance.ragdollBones : std::vector<glm::mat4>{}});
-        if (palette && (sent == observer.sentPalettes.end() || sent->second.first != instance.ragdollPoseVersion))
-            observer.sentPalettes[z] = {instance.ragdollPoseVersion, tick_};
-        interested.insert(z);
-    }
-    // An acknowledgement of an out-of-interest snapshot proves nothing about
-    // a previously lost palette. Reentry must resend any unconfirmed version.
-    for (auto it = observer.sentPalettes.begin(); it != observer.sentPalettes.end();) {
-        if (!interested.count(it->first) && observer.acknowledgedSnapshot < it->second.second)
-            it = observer.sentPalettes.erase(it);
-        else ++it;
-    }
-    observer.interested = std::move(interested);
-    return s;
+    return observer.replication.snapshot(scene_, observer.controller.feet(), std::move(s));
+}
+std::optional<CorpsePose> World::nextPose(std::uint32_t id) const {
+    return players_.at(id).replication.nextPose(scene_);
+}
+void World::poseSent(std::uint32_t id, const CorpsePose& pose) {
+    players_.at(id).replication.sent(pose);
+}
+void World::acknowledgePose(std::uint32_t id, const PoseAck& ack) {
+    players_.at(id).replication.acknowledge(ack);
 }
 } // namespace multiplayer

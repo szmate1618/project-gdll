@@ -28,6 +28,14 @@ int main(int argc, char** argv) {
             }
             network.close(c, reason);
         };
+        const auto sendState = [&](HSteamNetConnection c, std::uint32_t id) {
+            network.send(c, world.snapshot(id), false);
+            for (std::size_t i = 0; i < multiplayer::Replication::maxPoseTransfers; ++i) {
+                const auto pose = world.nextPose(id);
+                if (!pose || !network.send(c, *pose, true)) break;
+                world.poseSent(id, *pose);
+            }
+        };
         const auto start = Clock::now(); auto next = start;
         const auto step = std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(1.0 / 60));
         std::cout << "Listening on UDP " << options.port << " (maximum " << multiplayer::maxPlayers << " players)" << std::endl;
@@ -49,10 +57,12 @@ int main(int argc, char** argv) {
                         if (peer.id || hello->fingerprint != scene.fingerprint) throw std::runtime_error("Content mismatch or duplicate hello");
                         peer.id = world.join();
                         if (!network.send(c, multiplayer::Welcome{peer.id}, true)) throw std::runtime_error("Cannot send welcome");
-                        network.send(c, world.snapshot(peer.id), false);
+                        sendState(c, peer.id);
                         std::cout << "Joined player " << peer.id << std::endl;
                     } else if (const auto* commands = std::get_if<multiplayer::Commands>(&message); commands && peer.id)
                         world.submit(peer.id, *commands);
+                    else if (const auto* ack = std::get_if<multiplayer::PoseAck>(&message); ack && peer.id)
+                        world.acknowledgePose(peer.id, *ack);
                     else throw std::runtime_error("Unexpected client message");
                     peer.last = Clock::now();
                 } catch (const std::exception& error) { disconnect(c, error.what()); }
@@ -67,7 +77,7 @@ int main(int argc, char** argv) {
             while (next <= now && steps++ < 8) {
                 world.step(); next += step;
                 if (world.tick() % 3 == 0)
-                    for (const auto& [c, peer] : peers) if (peer.id) network.send(c, world.snapshot(peer.id), false);
+                    for (const auto& [c, peer] : peers) if (peer.id) sendState(c, peer.id);
             }
             // Bound catch-up work under overload; gameplay dt remains fixed.
             if (next + std::chrono::milliseconds(500) < now) next = now;

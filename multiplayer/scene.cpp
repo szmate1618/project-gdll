@@ -1,4 +1,5 @@
 #include "scene.hpp"
+#include "asset_validation.hpp"
 #include "file_fingerprint.hpp"
 #include "guardrail_layer.hpp"
 #include "model_merge.hpp"
@@ -11,6 +12,7 @@
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <cctype>
 
 namespace multiplayer {
 Options parseOptions(int argc, char** argv, bool server) {
@@ -115,7 +117,14 @@ std::string sceneFingerprint(const Options& o, std::size_t count, glm::vec3 spaw
     return result;
 }
 
-Scene::Scene(const Options& o) : model(viewer::loadModel(o.map)), physics(std::make_shared<viewer::PhysicsWorld>()) {
+namespace {
+viewer::Model loadSessionMap(const std::filesystem::path& path) {
+    validateSessionGlb(path);
+    return viewer::loadModel(path);
+}
+}
+Scene::Scene(const Options& o) : model(loadSessionMap(o.map)), physics(std::make_shared<viewer::PhysicsWorld>()),
+    initialWeapons(resourceRoot() / "items", resourceRoot() / "inventory.toml") {
     std::vector<std::filesystem::path> content{o.map};
     const auto adjacent = [&](const char* name) { return o.map.parent_path() / name; };
     if (std::filesystem::exists(adjacent("poles.instances.json"))) {
@@ -164,6 +173,7 @@ Scene::Scene(const Options& o) : model(viewer::loadModel(o.map)), physics(std::m
             for (const auto& entry : std::filesystem::directory_iterator(o.zombieAssets))
                 if (entry.path().extension() == ".gltf") throw std::runtime_error("Multiplayer requires self-contained GLB zombie assets");
         zombies = viewer::loadZombieLayer(o.zombieAssets, *collision, model, spawn, count, o.zombieRadius);
+        validateSessionZombies(zombies);
         if (std::filesystem::is_directory(o.zombieAssets)) {
             std::vector<std::filesystem::path> assets;
             for (const auto& entry : std::filesystem::directory_iterator(o.zombieAssets))
@@ -181,6 +191,13 @@ Scene::Scene(const Options& o) : model(viewer::loadModel(o.map)), physics(std::m
     std::sort(items.begin(), items.end());
     content.insert(content.end(), items.begin(), items.end());
     content.push_back(resourceRoot() / "inventory.toml");
+    for (const auto& path : content) {
+        if (path == o.map) continue; // The map was validated before loading it.
+        auto extension = path.extension().string();
+        std::transform(extension.begin(), extension.end(), extension.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (extension == ".glb" || extension == ".gltf") validateSessionGlb(path);
+    }
     fingerprint = sceneFingerprint(o, count, spawnEye, content);
     std::cout << "Scene ready: " << zombies.instances.size() << " zombies, fingerprint " << fingerprint << '\n';
 }

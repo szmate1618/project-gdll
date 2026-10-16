@@ -5,12 +5,13 @@
 #include "player_interaction.hpp"
 #include "weapons.hpp"
 #include "zombie_door_collision.hpp"
+#include "replication.hpp"
 #include <map>
 #include <set>
 
 namespace multiplayer {
 struct ServerPlayer {
-    ServerPlayer();
+    explicit ServerPlayer(const viewer::Weapons& initialWeapons);
     viewer::FPSController controller;
     viewer::Camera camera;
     viewer::Weapons weapons;
@@ -18,11 +19,8 @@ struct ServerPlayer {
     std::map<std::uint64_t, Command> pending;
     Command held;
     std::uint64_t resolved = 0, lastPacketTick = 0, shots = 0;
-    std::uint64_t acknowledgedSnapshot = 0;
-    // Zombie ID -> (palette version, first snapshot tick carrying that version).
-    std::map<std::size_t, std::pair<std::uint64_t, std::uint64_t>> sentPalettes;
+    Replication replication;
     bool started = false, triggerNeedsRelease = false;
-    std::set<std::size_t> interested;
 };
 class World {
 public:
@@ -32,6 +30,9 @@ public:
     void submit(std::uint32_t id, const Commands& commands);
     void step();
     Snapshot snapshot(std::uint32_t id);
+    std::optional<CorpsePose> nextPose(std::uint32_t id) const;
+    void poseSent(std::uint32_t id, const CorpsePose& pose);
+    void acknowledgePose(std::uint32_t id, const PoseAck& ack);
     std::uint64_t tick() const { return tick_; }
     const std::map<std::uint32_t, ServerPlayer>& players() const { return players_; }
 private:

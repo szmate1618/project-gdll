@@ -3,6 +3,7 @@
 #include "opengl.hpp"
 #include <array>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -60,7 +61,10 @@ public:
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
     void resize(int width, int height);
-    void render(const Camera& camera, double animationSeconds = 0.0);
+    // Optional external opaque draws run with depth writes enabled before glass
+    // and rain. They must restore the GL state they change before returning.
+    void render(const Camera& camera, double animationSeconds = 0.0,
+                const std::function<void()>& drawOpaque = {});
     // Fixed asset/population topology. Borrows this layer through render(); call
     // after owning API/physics changes and keep the layer alive during rendering.
     // Direct edits require ZombieLayer::markRenderChanged()/invalidateRenderData().

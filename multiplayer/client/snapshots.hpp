@@ -7,6 +7,7 @@ namespace multiplayer {
 class Snapshots {
 public:
     bool push(Snapshot snapshot, double receivedSeconds);
+    void pushPose(const Scene& scene, const CorpsePose& pose);
     const Snapshot& latest() const { return frames_.back(); }
     bool empty() const { return frames_.empty(); }
     void apply(Scene& scene, double now);
@@ -16,6 +17,7 @@ private:
     std::deque<Snapshot> frames_;
     std::vector<PlayerState> players_;
     double received_ = 0, renderTick_ = 0;
-    std::array<std::vector<glm::mat4>, maxZombies> palettes_;
+    std::array<std::optional<CorpsePose>, maxZombies> poses_;
+    std::array<std::uint64_t, maxZombies> appliedPoseVersions_{};
 };
 } // namespace multiplayer

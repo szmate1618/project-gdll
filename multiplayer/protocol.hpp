@@ -12,7 +12,7 @@ constexpr float tickSeconds = 1.0f / 60;
 constexpr std::size_t maxPlayers = 8, maxZombies = 1024, maxVisibleZombies = 256;
 constexpr std::size_t maxBoxes = 512, maxDoors = 4096, maxBones = 128;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 1;
+constexpr std::uint32_t protocolVersion = 2;
 
 struct Hello { std::string fingerprint; };
 struct Welcome { std::uint32_t player = 0; };
@@ -34,7 +34,7 @@ struct Command {
 };
 struct Commands {
     std::vector<Command> commands;
-    std::uint64_t snapshotTick = 0; // Last complete snapshot received, including corpse palettes.
+    std::uint64_t snapshotTick = 0; // Last complete essential snapshot received.
 };
 struct PlayerState {
     std::uint32_t id = 0;
@@ -50,8 +50,17 @@ struct ZombieState {
     glm::mat4 transform{1}, root{1};
     float phase = 0, walkSeconds = 0;
     bool walking = false, running = false, dead = false;
-    std::vector<glm::mat4> bones; // Empty on a corpse retains its acknowledged cached palette.
 };
+// A complete, coherent corpse pose, delivered independently of essential state.
+// Versions increase for each zombie; an acknowledgement releases a bounded
+// transfer slot. Intermediate versions are coalesced while a transfer is active.
+struct CorpsePose {
+    std::uint32_t id = 0, asset = 0;
+    std::uint64_t version = 0;
+    glm::mat4 transform{1}, root{1};
+    std::vector<glm::mat4> bones;
+};
+struct PoseAck { std::uint32_t id = 0; std::uint64_t version = 0; };
 struct DoorState { std::uint32_t id = 0; float angle = 0; };
 struct BoxState {
     std::uint32_t id = 0;
@@ -66,7 +75,7 @@ struct Snapshot {
     std::vector<DoorState> doors;
     std::vector<BoxState> boxes;
 };
-using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment>;
+using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment, CorpsePose, PoseAck>;
 std::vector<std::uint8_t> encode(const Message& message);
 Message decode(const void* data, std::size_t bytes);
 } // namespace multiplayer

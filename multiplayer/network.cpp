@@ -1,6 +1,8 @@
 #include "network.hpp"
 #include <steam/isteamnetworkingutils.h>
 #include <stdexcept>
+#include <algorithm>
+#include <cstring>
 
 namespace multiplayer {
 thread_local Network* Network::callbackOwner_ = nullptr;
@@ -36,6 +38,7 @@ HSteamNetConnection Network::connect(const std::string& text) {
     const auto c = sockets_->ConnectByIPAddress(address, 1, &callback);
     if (c == k_HSteamNetConnection_Invalid) throw std::runtime_error("Cannot connect to server");
     connections_.insert(c);
+    if (!configureLanes(c)) throw std::runtime_error("Cannot configure network priorities");
     if (!sockets_->SetConnectionPollGroup(c, group_)) throw std::runtime_error("Cannot assign connection poll group");
     return c;
 }
@@ -47,12 +50,15 @@ void Network::status(SteamNetConnectionStatusChangedCallback_t* info) {
             self.sockets_->CloseConnection(c, 0, "Server full", false); return;
         }
         self.connections_.insert(c);
-        self.sockets_->SetConnectionPollGroup(c, self.group_);
+        if (!self.configureLanes(c) || !self.sockets_->SetConnectionPollGroup(c, self.group_)) {
+            self.close(c, "Cannot configure peer transport"); return;
+        }
     }
     self.pendingEvents_.push_back({c, info->m_info.m_eState, info->m_info.m_szEndDebug});
 }
 std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
     callbackOwner_ = this; sockets_->RunCallbacks(); callbackOwner_ = nullptr;
+    for (const auto c : connections_) pump(c);
     std::vector<std::pair<HSteamNetConnection, Message>> result;
     // Bound receive work so a peer cannot indefinitely postpone simulation ticks.
     for (int i = 0; i < 128; ++i) {
@@ -80,28 +86,59 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
     return result;
 }
 bool Network::send(HSteamNetConnection c, const Message& message, bool reliable) {
-    const auto bytes = encode(message);
-    const auto transmit = [&](const std::vector<std::uint8_t>& data) {
-        const auto result = sockets_->SendMessageToConnection(c, data.data(), static_cast<std::uint32_t>(data.size()),
-            reliable ? k_nSteamNetworkingSend_Reliable : k_nSteamNetworkingSend_UnreliableNoDelay, nullptr);
-        if (result == k_EResultLimitExceeded && reliable) close(c, "Outgoing queue full");
-        return result == k_EResultOK;
-    };
-    if (reliable || bytes.size() <= fragmentBytes) return transmit(bytes);
-    // GNS v1.4.1 promotes unreliable messages over 16.5 KB to reliable. Small
-    // application fragments keep obsolete snapshots out of its reliable queue.
-    const auto messageId = nextMessage_++;
-    for (std::size_t offset = 0; offset < bytes.size(); offset += fragmentBytes) {
-        Fragment f{messageId, static_cast<std::uint32_t>(bytes.size()), static_cast<std::uint16_t>(offset / fragmentBytes), {}};
-        const auto end = std::min(bytes.size(), offset + fragmentBytes);
-        f.bytes.assign(bytes.begin() + offset, bytes.begin() + end);
-        if (!transmit(encode(f))) return false;
+    if (!connections_.count(c)) return false;
+    auto bytes = encode(message);
+    if (std::holds_alternative<CorpsePose>(message)) {
+        if (!reliable) throw std::invalid_argument("Corpse poses require reliable bulk delivery");
+        SteamNetConnectionRealTimeStatus_t status{};
+        SteamNetConnectionRealTimeLaneStatus_t lanes[2]{};
+        if (sockets_->GetConnectionRealTimeStatus(c, &status, 2, lanes) != k_EResultOK ||
+            lanes[1].m_cbPendingReliable + lanes[1].m_cbSentUnackedReliable + bytes.size() > 32 * 1024)
+            return false;
+        auto* packet = SteamNetworkingUtils()->AllocateMessage(static_cast<int>(bytes.size()));
+        if (!packet) return false;
+        std::memcpy(packet->m_pData, bytes.data(), bytes.size());
+        packet->m_conn = c; packet->m_nFlags = k_nSteamNetworkingSend_Reliable; packet->m_idxLane = 1;
+        int64 result = 0;
+        sockets_->SendMessages(1, &packet, &result);
+        return result > 0;
     }
-    return true;
+    if (!reliable && (bytes.size() > fragmentBytes || std::holds_alternative<Snapshot>(message))) {
+        outgoing_[c].enqueue(std::move(bytes)); pump(c); return true;
+    }
+    const auto result = sockets_->SendMessageToConnection(c, bytes.data(), static_cast<std::uint32_t>(bytes.size()),
+        reliable ? k_nSteamNetworkingSend_Reliable : k_nSteamNetworkingSend_UnreliableNoDelay, nullptr);
+    if (result == k_EResultLimitExceeded && reliable) close(c, "Outgoing queue full");
+    return result == k_EResultOK;
+}
+bool Network::configureLanes(HSteamNetConnection c) {
+    // Reserve a share for bulk even when essential snapshots saturate the link.
+    // Separate lanes also prevent reliable pose retransmits blocking movement.
+    const int priorities[] = {0, 0};
+    const uint16 weights[] = {4, 1};
+    return sockets_->ConfigureConnectionLanes(c, 2, priorities, weights) == k_EResultOK;
+}
+void Network::pump(HSteamNetConnection c) {
+    const auto queued = outgoing_.find(c);
+    if (queued == outgoing_.end() || queued->second.empty()) return;
+    SteamNetConnectionRealTimeStatus_t status{};
+    SteamNetConnectionRealTimeLaneStatus_t lanes[2]{};
+    if (sockets_->GetConnectionRealTimeStatus(c, &status, 2, lanes) != k_EResultOK ||
+        status.m_eState != k_ESteamNetworkingConnectionState_Connected) return;
+    // Bound the essential lane to roughly 10 ms of transport capacity. Query
+    // before each pump so repeated calls in one simulation tick cannot burst.
+    const int window = std::clamp(status.m_nSendRateBytesPerSecond / 100, 1200, 16 * 1024);
+    const int available = window - lanes[0].m_cbPendingUnreliable - lanes[0].m_cbPendingReliable;
+    if (available <= 0) return;
+    queued->second.pump(static_cast<std::size_t>(available), [&](const auto& packet) {
+        return sockets_->SendMessageToConnection(c, packet.data(), static_cast<std::uint32_t>(packet.size()),
+            k_nSteamNetworkingSend_UnreliableNoDelay, nullptr) == k_EResultOK;
+    });
 }
 void Network::close(HSteamNetConnection c, const std::string& reason) {
     if (connections_.erase(c)) {
         fragments_.erase(c);
+        outgoing_.erase(c);
         sockets_->CloseConnection(c, 0, reason.c_str(), false);
         pendingEvents_.push_back({c, k_ESteamNetworkingConnectionState_ProblemDetectedLocally, reason});
     }

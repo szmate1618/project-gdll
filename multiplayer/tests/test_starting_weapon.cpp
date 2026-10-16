@@ -77,6 +77,13 @@ int main(int argc, char** argv) {
         char* args[] = {program, argv[1], noTrees, count, zero, headless, seconds, duration};
         require(clientMain(8, args) == 0 && commands > 1, "Client did not preserve its initial authoritative selection");
         require(world->players().at(player).weapons.slot() == 2, "Client commands replaced the configured starting weapon");
+        // A later join must use the session's fingerprinted starting definitions,
+        // even if the source inventory is edited while the server is running.
+        { std::ofstream inventory(resources / "inventory.toml"); inventory << "invalid inventory\n"; }
+        const auto late = world->join();
+        require(world->players().at(late).weapons.slot() == 2 &&
+                world->players().at(late).weapons.equipped().loaded == 5,
+                "Late join reread resources or inherited another player's ammo");
         std::cout << "Starting weapon checks passed\n";
         return 0;
     } catch (const std::exception& error) {
