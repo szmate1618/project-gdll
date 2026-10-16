@@ -34,6 +34,138 @@ Review images are generated local artifacts:
 The prior configuration is preserved locally at
 `data/tmp/forest_review/forest_patches_satellite_previous.json`.
 
+## Select one vegetation source
+
+Use `--vegetation` once, with exactly one of these values:
+
+| Value | Forests | Individual trees |
+| --- | --- | --- |
+| `original` (default) | `forest_patches.json` | Detector placements beside the map |
+| `osm` | `osm/forest_patches.json` beside the map | `osm/trees.instances.json` beside the map |
+| `sentinel-astra` | `forest_patches_astra.json` beside the original forest config | Generated only from the Astra polygons |
+
+```bash
+./build/godollo_viewer output/godollo.glb --vegetation original
+./build/godollo_viewer output/godollo.glb --vegetation osm
+./build/godollo_viewer output/godollo.glb --vegetation sentinel-astra
+```
+
+Modes are exclusive. Repeating `--vegetation`, even with the same value, is an
+error. Explicit modes reject `--trees` and `--forests` file overrides and report
+missing or stale selected files; no other source is substituted. Omitting the
+flag retains the original automatic loading behavior and permits those manual
+file overrides. `--no-trees` disables all vegetation. `--no-forests` disables
+forest polygons and their generated trees, retaining any separate tree instances
+in the selected mode; Sentinel-Astra has no separate tree-instance file.
+The former `--osm-vegetation` flag is replaced by `--vegetation osm`.
+
+## Optional OpenStreetMap vegetation
+
+Prepare an independent OSM vegetation layer for the published map:
+
+```bash
+.venv/bin/python tools/prepare_osm_vegetation.py
+./build/godollo_viewer output/godollo.glb --vegetation osm
+```
+
+`--vegetation osm` selects **only** `output/osm/trees.instances.json` and
+`output/osm/forest_patches.json` (the `osm/` directory beside the selected map).
+It does not mix in the default trees or forests. Missing, stale or invalid OSM
+files are errors. Select `--vegetation original` to return to the existing data. `--no-forests`
+retains just the OSM individual trees; `--no-trees` disables all vegetation.
+Explicit `--trees`/`--forests` overrides cannot be combined with this flag.
+
+Preparation downloads a separate cached Overpass query. Use `--offline` for a
+cached extract, `--refresh` to update it, or `--input FILE.json` for a local OSM
+JSON extract. Inputs can contain Overpass inline geometry or OSM API-style node
+and way references with complete multipolygon members. The locally cached API
+extract can be reused with:
+
+```bash
+.venv/bin/python tools/prepare_osm_vegetation.py \
+  --input data/raw/osm/vegetation-api/vegetation.json
+```
+
+`natural=wood` and `landuse=forest` become runtime forest polygons, unioned to
+avoid duplicate coverage and split into at-most-500 m cells. Multipolygon holes
+remain clearings; unclosed or incomplete boundaries fail preparation. Park and
+grass polygons alone do not imply forests. Forests use the existing deterministic
+tree placement, building exclusions, collision and distance-dependent volumes.
+
+`natural=tree` nodes place individual trees at their mapped trunk coordinates,
+on the published terrain triangles. Valid `height` and `diameter_crown` tags
+set their dimensions; otherwise the calibrated asset proportions are used.
+`leaf_type=needleleaved` selects the pine asset. `natural=tree_row` ways generate
+approximate individual positions at up to 9 m spacing, excluding candidates
+within 3 m of a mapped tree or another row candidate. Row positions, unspecified
+sizes and trees inside forest areas are approximations, not an inventory.
+
+Both outputs retain source IDs/tags, OSM attribution, source and map fingerprints,
+and the existing runtime schemas. Preparation leaves the map, default forest
+configurations and detector tree file untouched. After rebuilding the map, rerun
+preparation against the new published GLB; fingerprint validation stays enabled.
+
+## Independent Astra satellite dataset
+
+[`forest_patches_astra.json`](../forest_patches_astra.json) is an alternative
+configuration traced by GPT-6 Astra from the cached Sentinel-2 satellite RGB
+imagery only. It does not use the orthophotos or intersect with the existing
+conservative cores. The original `forest_patches.json` remains the runtime
+default, and the earlier satellite configuration is retained in its location
+above. The alternative uses the same published map frame, fingerprint checks,
+runtime assets and at-most-500 m subdivisions.
+
+The alternative contains 22 regions and 111 patches, covering approximately
+8.353 km². Its [saved traces](../assets/forests/astra_canopy_traces.json) record
+GPT-6 Astra as reviewer, the satellite affine transform and hashes, canopy
+outlines, clearings and selected tracks. Canopy outlines are inset 5 m;
+clearings receive a 5 m margin and selected tracks a 6 m half-width exclusion.
+Those margins express a tracing policy, not accuracy finer than the 10 m imagery.
+Rebuild the alternative from the saved traces with:
+
+```bash
+.venv/bin/python tools/build_astra_forests.py
+```
+
+The builder checks the configured frame against the published map and validates
+the recorded map, satellite and texture fingerprints before atomically
+replacing the alternative. It does not download imagery or regenerate the town.
+
+Use the alternative without replacing the existing configuration:
+
+```bash
+./build/godollo_viewer output/godollo.glb --vegetation sentinel-astra
+```
+
+Generate the comparison locally without downloads or map regeneration:
+
+```bash
+.venv/bin/python tools/compare_forests.py
+```
+
+The command writes an [interactive comparison](../output/forest_astra_comparison/index.html),
+a [three-panel image](../output/forest_astra_comparison/comparison.png), and
+[`metrics.json`](../output/forest_astra_comparison/metrics.json). The interactive
+map embeds its satellite backdrop and works offline. It shows Original, OSM and
+Sentinel-Astra separately or as outlines, with pairwise shared/source-only
+coverage, opacity, zoom and pan. An optional marker layer shows mapped OSM trees
+and approximate tree-row positions; those points do not contribute to forest
+area metrics. Original detector-tree points are not plotted. The static image
+shows the three forest sources side by side.
+`--old`, `--new`, `--osm`, `--osm-trees`, `--imagery`, `--map`, and `--output` select other local inputs
+and destinations. The backdrop defaults to the satellite raster recorded in
+the new configuration, falling back to the processed Sentinel RGB if none is
+recorded. All comparison imagery uses satellite RGB, including when
+displaying the preserved orthophoto-derived baseline.
+
+Areas are calculated from actual polygon unions with holes. Shared coverage is
+their intersection; each source's exclusive coverage is its respective
+differences. Subdivision boundaries do not inflate areas. The tool rejects
+incompatible coordinate frames and map fingerprints before publishing its
+outputs. These are differences in interpretation and source dates, not measured
+forest growth or loss. Sentinel-2 RGB has roughly 10 m native spacing, so small
+clearings, narrow roads and individual crowns cannot be reliably resolved.
+
 ## Runtime rendering
 
 ```bash

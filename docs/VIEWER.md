@@ -113,10 +113,21 @@ the shared GLBs.
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --trees output/trees.instances.json --fps
+./build/godollo_viewer output/godollo.glb --vegetation original --fps
+./build/godollo_viewer output/godollo.glb --vegetation osm --fps
+./build/godollo_viewer output/godollo.glb --vegetation sentinel-astra --fps
 ./build/godollo_viewer output/godollo.glb --no-trees --fps
 ./build/godollo_viewer output/godollo.glb --no-tree-culling --fps
 ./build/godollo_viewer output/godollo.glb --no-tree-collisions --fps
 ```
+
+`--vegetation original|osm|sentinel-astra` selects exactly one vegetation source.
+Original is the default. OSM loads only the prepared OSM forests and trees;
+Sentinel-Astra generates trees from its satellite polygons and excludes the
+original detector placements. Repeated selections and combinations with
+`--trees`/`--forests` overrides are errors. See
+[vegetation selection](FORESTS.md#select-one-vegetation-source) and
+[OSM preparation](FORESTS.md#optional-openstreetmap-vegetation).
 
 Trees use GPU instancing: visible instances share geometry, textures, and four
 draw calls per species for the current four-card assets. A static spatial index

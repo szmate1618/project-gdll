@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vegetation comparison · Original / OSM / Sentinel-Astra</title>
+<style>
+:root{color-scheme:dark;--bg:#101820;--surface:#192630;--text:#eff6fb;--muted:#b5c4d0;--line:#364957;--old:#ffb84d;--new:#53cfff;--osm:#d7a8ff;--shared:#b4df80}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,sans-serif}main{max-width:1400px;margin:auto;padding:28px}header{display:flex;justify-content:space-between;align-items:start;gap:24px;flex-wrap:wrap}h1{font-size:clamp(24px,4vw,36px);line-height:1.2;margin:4px 0 12px;font-weight:600}.eyebrow{text-transform:uppercase;letter-spacing:.13em;font-size:12px;color:var(--muted)}p{margin:8px 0;color:var(--muted)}.stats{display:flex;gap:30px;flex-wrap:wrap;margin:18px 0 24px}.stat span{display:block;color:var(--muted);font-size:13px}.stat strong{font-size:28px;font-weight:500;font-variant-numeric:tabular-nums}.controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px}button,select,input{font:inherit}button,select{background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px 12px}button{cursor:pointer}button[aria-pressed=true]{background:#dcecf5;color:#12212b;border-color:#dcecf5}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--new);outline-offset:3px}.modes{display:flex;gap:6px;flex-wrap:wrap}.controls label{display:flex;align-items:center;gap:8px;color:var(--muted)}input[type=range]{width:110px;accent-color:var(--new)}.map{position:relative;overflow:hidden;background:#1a2630;border:1px solid var(--line);border-radius:8px;max-width:1100px;margin:auto;touch-action:none}.map svg{display:block;width:100%;height:auto;max-height:72vh;cursor:grab;user-select:none}.map svg:active{cursor:grabbing}.north{position:absolute;right:12px;top:10px;color:white;text-shadow:0 1px 4px black;pointer-events:none;font-size:22px}.map .zoom{position:absolute;left:12px;top:12px;display:flex;gap:6px}.map .zoom button{background:#15222be8}.legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:14px;font-size:14px}.legend span{display:inline-flex;align-items:center;gap:7px}.swatch{width:14px;height:14px;border-radius:2px;display:inline-block}.small{font-size:13px}.bottom{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:14px 0}.original{fill:var(--old);stroke:var(--old)}.sentinel-astra{fill:var(--new);stroke:var(--new)}.osm{fill:var(--osm);stroke:var(--osm)}.tree-points circle{fill:var(--osm);stroke:#18212a;stroke-width:.7;vector-effect:non-scaling-stroke}.shared{fill:var(--shared);stroke:var(--shared)}.layer path{fill-rule:evenodd;stroke-width:1.4;vector-effect:non-scaling-stroke;fill-opacity:.24}.detail{max-width:100%;overflow-wrap:anywhere}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+[hidden]{display:none!important}
+@media(max-width:600px){main{padding:16px}.stats{gap:18px}.stat strong{font-size:24px}.legend{gap:12px}.controls{align-items:start}.map svg{max-height:none}.bottom{display:block}}
+</style>
+</head>
+<body>
+<main>
+<header><div><div class="eyebrow">Gödöllő / vegetation review</div><h1>Original / OSM / Sentinel-Astra</h1><p>Forest coverage and mapped OSM trees over the same satellite image.</p></div></header>
+<div class="stats" aria-label="Forest coverage areas">@@STATS@@</div>
+<div class="controls">
+<div class="modes" role="group" aria-label="Coverage view">
+<button type="button" data-mode="difference" aria-pressed="true">Difference</button>
+<button type="button" data-mode="original" aria-pressed="false">Original</button>
+<button type="button" data-mode="osm" aria-pressed="false">OSM</button>
+<button type="button" data-mode="sentinel-astra" aria-pressed="false">Sentinel-Astra</button>
+<button type="button" data-mode="overlay" aria-pressed="false">All outlines</button>
+<button type="button" data-mode="imagery" aria-pressed="false">Satellite only</button>
+</div>
+<label for="opacity">Fill <input id="opacity" type="range" min="0" max="60" value="24"><output id="opacity-value">24%</output></label>
+</div>
+<div class="controls" id="pair-controls">
+<label for="baseline">Compare <select id="baseline" aria-label="Baseline dataset"></select></label>
+<label for="candidate">with <select id="candidate" aria-label="Comparison dataset"></select></label>
+</div>
+<div class="controls" id="tree-control"><label for="show-osm-trees"><input id="show-osm-trees" type="checkbox" checked>Mapped OSM trees / rows <span id="point-count"></span></label></div>
+<div class="map">
+<svg id="map" viewBox="0 0 1000 @@HEIGHT@@" role="img" aria-label="North-up satellite map comparing original, OSM and Sentinel-Astra forest polygons. Use zoom buttons or drag to inspect boundaries.">
+<title>Forest coverage comparison over satellite imagery</title>
+<g id="viewport">
+<image x="0" y="0" width="1000" height="@@HEIGHT@@" href="data:image/jpeg;base64,@@BACKGROUND@@"/>
+@@LAYERS@@
+<g id="scale" transform="translate(28,@@HEIGHT@@)"><path d="M0 -35H@@SCALE@@" stroke="white" stroke-width="3" vector-effect="non-scaling-stroke"/><text x="0" y="-47" fill="white" stroke="#101820" stroke-width=".8" paint-order="stroke" font-size="16">1 km</text></g>
+</g>
+</svg>
+<div class="north" aria-hidden="true">N ↑</div>
+<div class="zoom" role="group" aria-label="Map zoom"><button id="zoom-in" type="button" aria-label="Zoom in">+</button><button id="zoom-out" type="button" aria-label="Zoom out">−</button><button id="reset" type="button">Fit map</button></div>
+</div>
+<div class="legend" id="legend" aria-live="polite"></div>
+<div class="bottom small"><span>Drag to pan · scroll or use + / − to zoom</span><span>Backdrop: Sentinel-2 satellite RGB · @@IMAGERY@@</span></div>
+<p class="small">Sentinel-Astra uses satellite imagery only; Original retains its earlier orthophoto review; OSM uses mapped woodlands and trees. Areas measure forest polygons and exclude individual tree points. Dots show mapped OSM trees and approximate tree-row positions. Original detector-tree points are not shown. Differences show source disagreement, not measured forest growth or loss. © OpenStreetMap contributors · ODbL 1.0 · Contains modified Copernicus Sentinel data (2025).</p>
+</main>
+<script>
+const data = @@DATA@@;
+const area = value => `${(value / 1e6).toFixed(3)} km²`;
+const svg = document.getElementById('map');
+const viewport = document.getElementById('viewport');
+const legend = document.getElementById('legend');
+const opacity = document.getElementById('opacity');
+const baseline = document.getElementById('baseline');
+const candidate = document.getElementById('candidate');
+const treeToggle = document.getElementById('show-osm-trees');
+const sources = Object.keys(data.datasets);
+const colors = {original:'var(--old)',osm:'var(--osm)','sentinel-astra':'var(--new)'};
+for (const select of [baseline,candidate]) {
+  for (const [id,dataset] of Object.entries(data.datasets)) {
+    const option = document.createElement('option'); option.value = id; option.textContent = dataset.label; select.append(option);
+  }
+}
+baseline.value = 'original'; candidate.value = 'sentinel-astra';
+const osmCount = data.datasets.osm?.point_count || 0;
+document.getElementById('point-count').textContent = `(${osmCount})`;
+for (const button of document.querySelectorAll('[data-mode]')) {
+  if (!['difference','overlay','imagery'].includes(button.dataset.mode) && !data.datasets[button.dataset.mode]) button.hidden = true;
+}
+let mode = 'difference';
+function updatePairOptions() {
+  for (const option of baseline.options) option.disabled = option.value === candidate.value;
+  for (const option of candidate.options) option.disabled = option.value === baseline.value;
+}
+function selectMode(next) {
+  mode = next;
+  const a = baseline.value, b = candidate.value;
+  const pair = data.comparisons[`${a}|${b}`] || data.comparisons[`${b}|${a}`];
+  const pairId = `${pair.base}|${pair.target}`;
+  document.querySelectorAll('[data-source]').forEach(layer => { layer.style.display = mode === layer.dataset.source || mode === 'overlay' ? '' : 'none'; });
+  document.querySelectorAll('[data-pair]').forEach(layer => { layer.style.display = mode === 'difference' && layer.dataset.pair === pairId ? '' : 'none'; });
+  document.getElementById('pair-controls').hidden = mode !== 'difference';
+  const showPoints = osmCount > 0 && (mode === 'osm' || mode === 'overlay' || mode === 'difference' && [a,b].includes('osm'));
+  document.getElementById('tree-control').hidden = !showPoints;
+  document.getElementById('osm-points').style.display = showPoints && treeToggle.checked ? '' : 'none';
+  document.querySelectorAll('[data-mode]').forEach(button => button.setAttribute('aria-pressed',String(button.dataset.mode === mode)));
+  const items = [];
+  if (mode === 'difference') {
+    items.push(['var(--shared)','In both',pair.shared_area_m2]);
+    for (const id of [a,b]) items.push([colors[id],`${data.datasets[id].label} only`,id === pair.base ? pair.removed_area_m2 : pair.added_area_m2]);
+  } else if (mode === 'overlay') {
+    for (const id of sources) items.push([colors[id],data.datasets[id].label,data.datasets[id].area_m2]);
+  } else if (data.datasets[mode]) items.push([colors[mode],data.datasets[mode].label,data.datasets[mode].area_m2]);
+  legend.replaceChildren(...items.map(([color,label,value]) => {
+    const span = document.createElement('span'), swatch = document.createElement('i');
+    swatch.className = 'swatch'; swatch.style.background = color; swatch.setAttribute('aria-hidden','true');
+    span.append(swatch,document.createTextNode(`${label} · ${area(value)}`)); return span;
+  }));
+  updatePairOptions(); setOpacity();
+}
+function setOpacity() {
+  const value = Number(opacity.value) / 100;
+  document.getElementById('opacity-value').textContent = `${opacity.value}%`;
+  document.querySelectorAll('.layer path').forEach(path => { path.style.fillOpacity = mode === 'overlay' ? 0 : value; });
+}
+document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click',() => selectMode(button.dataset.mode)));
+for (const input of [baseline,candidate,treeToggle]) input.addEventListener('change',() => selectMode(mode));
+opacity.addEventListener('input',setOpacity);
+let zoom = 1, tx = 0, ty = 0, drag = null;
+function updateTransform() { viewport.setAttribute('transform',`translate(${tx} ${ty}) scale(${zoom})`); }
+function zoomAt(factor, x = 500, y = @@HEIGHT@@ / 2) {
+  const next = Math.min(10,Math.max(1,zoom * factor));
+  tx = x - (x-tx) * next/zoom; ty = y - (y-ty) * next/zoom; zoom = next;
+  if (zoom === 1) { tx = 0; ty = 0; }
+  updateTransform();
+}
+function point(event) { return new DOMPoint(event.clientX,event.clientY).matrixTransform(svg.getScreenCTM().inverse()); }
+svg.addEventListener('wheel',event => { event.preventDefault(); const p = point(event); zoomAt(event.deltaY < 0 ? 1.2 : 1/1.2,p.x,p.y); },{passive:false});
+svg.addEventListener('pointerdown',event => { const p = point(event); drag = {x:p.x,y:p.y,tx,ty}; svg.setPointerCapture(event.pointerId); });
+svg.addEventListener('pointermove',event => { if (!drag) return; const p = point(event); tx = drag.tx+p.x-drag.x; ty = drag.ty+p.y-drag.y; updateTransform(); });
+function endDrag() { drag = null; }
+svg.addEventListener('pointerup',endDrag); svg.addEventListener('pointercancel',endDrag);
+document.getElementById('zoom-in').addEventListener('click',() => zoomAt(1.5));
+document.getElementById('zoom-out').addEventListener('click',() => zoomAt(1/1.5));
+document.getElementById('reset').addEventListener('click',() => { zoom = 1; tx = 0; ty = 0; updateTransform(); });
+selectMode(mode);
+</script>
+</body>
+</html>

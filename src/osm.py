@@ -60,7 +60,7 @@ def _clipped_line_features(way: dict, coords: list, clip: Polygon) -> list:
     ]
 
 
-def _building_relation_area(outer: list, inner: list):
+def _relation_area(outer: list, inner: list):
     """Stitch rings and attach each hole to its smallest containing shell."""
     # Polygonize adds holes for nested rings even when both have role outer.
     shells = sorted((Polygon(part.exterior) for part in polygonize(unary_union(outer))),
@@ -115,7 +115,7 @@ def parse_osm(payload: dict, transformer, origin: tuple[float, float], clip: Pol
         if not outer:
             continue
         try:
-            geometry = clipped_area(_building_relation_area(outer, inner))
+            geometry = clipped_area(_relation_area(outer, inner))
         except (ValueError, TypeError, ShapelyError) as error:
             LOG.warning("Skipping malformed building relation %s: %s", relation.get("id"), error)
             continue

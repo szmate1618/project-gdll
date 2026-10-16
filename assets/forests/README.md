@@ -5,6 +5,14 @@ clearings and selected tracks in local east/north metres, plus the inset and
 minimum-area parameters used for the active polygon configuration. See
 [forest configuration and imagery provenance](../../docs/FORESTS.md).
 
+`astra_canopy_traces.json` preserves the separate GPT-6 Astra satellite-only
+review, with local east/north coordinates, review pixel coordinates, exclusions,
+processing parameters and source raster fingerprints. It is independent of
+the conservative orthophoto traces above. Rebuild the alternative root-level
+`forest_patches_astra.json` with `tools/build_astra_forests.py`; use
+`tools/compare_forests.py` for the offline satellite comparison. The existing
+configuration remains the default. See the [alternative dataset instructions](../../docs/FORESTS.md#independent-astra-satellite-dataset).
+
 `side.png` and `top.png` are generated opaque summer woodland textures for the
 viewer runtime forest layer. They remain separate from the town GLB. The
 side image repeats horizontally over 32 metres and covers the whole wall

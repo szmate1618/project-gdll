@@ -12,6 +12,12 @@ with GPU instancing and frustum culling. Run
 [tree rendering and collision controls](VIEWER.md#trees). Preparation keeps the
 town GLB separate; the viewer creates simple trunk colliders at runtime.
 
+For a separate OpenStreetMap alternative, use
+`tools/prepare_osm_vegetation.py` and the viewer's `--vegetation osm` option.
+This preserves the detector placements and selects only mapped OSM trees,
+approximated tree rows and OSM forests. See
+[OSM vegetation preparation and controls](FORESTS.md#optional-openstreetmap-vegetation).
+
 ## Run the local example
 
 Use the existing Python environment from the [project setup](../README.md#setup-and-run-on-linux),

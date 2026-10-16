@@ -1,0 +1,6551 @@
+{
+  "schema": "godollo.forest_patches",
+  "version": 1,
+  "description": "Separate Astra satellite-only visual forest approximation; preserves default forest_patches.json and splits fresh traces into at most 500 m cells.",
+  "coordinate_frame": {
+    "units": "meters",
+    "coordinate_order": [
+      "east",
+      "north"
+    ],
+    "crs": "EPSG:32634",
+    "origin_projected_m": [
+      376376.8814786446,
+      5272820.240192172
+    ],
+    "origin_wgs84": [
+      19.3555,
+      47.597
+    ],
+    "bounds_m": [
+      -3001.459228515625,
+      -2999.251708984375,
+      2998.529541015625,
+      3000.734619140625
+    ],
+    "ring_closure": "First vertex is repeated as the last vertex.",
+    "ring_winding": {
+      "polygon": "counterclockwise",
+      "holes": "clockwise"
+    },
+    "viewer_conversion": {
+      "X": "east",
+      "Z": "-north",
+      "Y": "Sample published terrain at (east, north); heights are not stored here."
+    }
+  },
+  "source": {
+    "method": "independent_manual_satellite_only_visual_tracing",
+    "map_path": "output/godollo.glb",
+    "map_sha256": "a98d8bd007c07260533749aefff16cb00de54cf104dd4cf38438dcc4bf3992c5",
+    "texture_path": "data/processed/terrain_texture.png",
+    "texture_sha256": "265aa4a8369d1fecab128df43164c0d2ca42db310f47ba104f64b3e9934fb9cb",
+    "satellite_scene": "S2A_34TCT_20250813_0_L2A",
+    "imagery_date": "2025-08-13T09:47:43.273000Z",
+    "native_resolution_m": [
+      10,
+      10
+    ],
+    "attribution": "Contains modified Copernicus Sentinel data (2025)",
+    "primary_imagery": "Sentinel-2 L2A true-colour RGB only; no orthophoto boundaries or prior forest polygon constraints.",
+    "satellite": {
+      "path": "data/raw/sentinel/sentinel_rgb_1634a030a25fb17e.tif",
+      "sha256": "84ccd98ca110f886e33da37a9b2e2d580e9aee2eb85384083cbe3845bcf17911",
+      "processed_path": "data/processed/sentinel_rgb.tif",
+      "processed_sha256": "e917e959369982604769eb274333ffaacc127a380652d2df7bbb0ca3218a13d2",
+      "source_url": "https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/34/T/CT/2025/8/S2A_34TCT_20250813_0_L2A/TCI.tif",
+      "pixel_edge_affine": [
+        10.0,
+        0.0,
+        373220.0,
+        0.0,
+        -10.0,
+        5276050.0
+      ],
+      "dimensions_pixels": [
+        632,
+        646
+      ],
+      "crs": "EPSG:32634"
+    },
+    "astra_review": {
+      "trace_path": "assets/forests/astra_canopy_traces.json",
+      "parameters": {
+        "canopy_edge_inset_m": 5,
+        "clearing_margin_m": 5,
+        "track_half_width_m": 6,
+        "minimum_component_area_m2": 2500,
+        "minimum_patch_area_m2": 100,
+        "terrain_edge_inset_m": 2,
+        "grid_cell_size_m": 500,
+        "coordinate_precision_m": 0.001
+      },
+      "reviewer_model": "GPT-6 Astra",
+      "trace_sha256": "16a0d05596ad0313d4224e62e9f021fa908dd3556d0553131ea61033d860c84a"
+    },
+    "limitations": [
+      "Approximate manually interpreted canopy extent, not a forest inventory or surveyed boundary.",
+      "Only visible RGB satellite imagery was used; no infrared bands, classifier, orthophoto tracing or old polygon intersection.",
+      "Native resolution is 10 m; narrow roads, small structures, canopy gaps and mixed pixels are not reliably resolved.",
+      "Dense woods are included; sparse park trees, narrow hedgerows and ambiguous mixed urban strips are generally omitted.",
+      "Confidence labels are qualitative visual judgements; image acquisition date is 2025-08-13, not a current-ground guarantee.",
+      "Five metre canopy inset and clearing margins only reduce mixed-pixel edge uncertainty; they do not improve image resolution."
+    ],
+    "texture_dimensions_pixels": [
+      512,
+      512
+    ],
+    "texture_pixel_size_m": [
+      11.718727989655008,
+      11.718723425708959
+    ],
+    "texture_pixel_edge_affine": [
+      11.718727989655008,
+      0.0,
+      373375.42222364893,
+      0.0,
+      -11.718723425708959,
+      5275820.974840535
+    ]
+  },
+  "subdivision": {
+    "method": "intersection_with_axis_aligned_grid",
+    "cell_size_m": 500,
+    "grid_origin_local_m": [
+      0,
+      0
+    ],
+    "grid_cell_definition": "[floor(east/500), floor(north/500)]",
+    "maximum_patch_bounds_size_m": [
+      500,
+      500
+    ],
+    "coordinate_precision_m": 0.001,
+    "boundary_policy": "Shared grid boundaries do not overlap; components below 2500 m² and clipped fragments below 100 m² omitted."
+  },
+  "counts": {
+    "regions": 22,
+    "patches": 111,
+    "total_area_m2": 8352946.768
+  },
+  "runtime": {
+    "tree_asset": "assets/tree_impostor.glb",
+    "side_texture": "assets/forests/side.png",
+    "top_texture": "assets/forests/top.png",
+    "seed": 20261011,
+    "tree_spacing_m": 9.0,
+    "min_tree_height_m": 12.0,
+    "max_tree_height_m": 20.0,
+    "volume_height_m": 16.0,
+    "texture_tile_m": 32.0,
+    "detail_distance_m": 350.0
+  },
+  "regions": [
+    {
+      "id": "astra_northern_woodland",
+      "label": "Northern woodland above motorway",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 14,
+      "area_m2": 1897037.292,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_northeast_edge",
+      "label": "Northeastern border woodland",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 5,
+      "area_m2": 361935.288,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_eastern_woodland",
+      "label": "Eastern woodland below motorway",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 14,
+      "area_m2": 1461893.733,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_far_east_strip",
+      "label": "Eastern edge woodland beyond housing",
+      "kind": "forest",
+      "confidence": "low",
+      "patch_count": 1,
+      "area_m2": 47197.031,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_northwest_woodlot",
+      "label": "Northwestern woodland remnant",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 2,
+      "area_m2": 41187.398,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_northwest_small",
+      "label": "Northwestern dense grove",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 1,
+      "area_m2": 41375.836,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_west_industrial_edge",
+      "label": "Woodland west of industrial area",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 5,
+      "area_m2": 346190.295,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_west_border_north",
+      "label": "Western border woodland north",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 3,
+      "area_m2": 238093.32,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_west_border_south",
+      "label": "Western border woodland south",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 3,
+      "area_m2": 168202.202,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_west_inner_north",
+      "label": "Western inner woodland north of track",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 3,
+      "area_m2": 56781.378,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_west_inner_south",
+      "label": "Western inner woodland to railway",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 10,
+      "area_m2": 603094.822,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_southwest_small",
+      "label": "Southwestern woodland beside motorway northbound",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 2,
+      "area_m2": 83695.61,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_southwest_edge",
+      "label": "Southwestern border woodland",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 7,
+      "area_m2": 615424.059,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_southwest_roadside",
+      "label": "Wooded strip east of southwestern motorway",
+      "kind": "forest",
+      "confidence": "low",
+      "patch_count": 2,
+      "area_m2": 99350.715,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_southwest_bottom",
+      "label": "Southwestern lower woodland",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 2,
+      "area_m2": 73678.896,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_south_central_woodlot",
+      "label": "Woodlot southwest of town",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 4,
+      "area_m2": 156456.027,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_south_railway_grove",
+      "label": "South central grove beside railway",
+      "kind": "forest",
+      "confidence": "low",
+      "patch_count": 4,
+      "area_m2": 79160.951,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_university_woodland",
+      "label": "Woodland east of university",
+      "kind": "forest",
+      "confidence": "high",
+      "patch_count": 5,
+      "area_m2": 355592.679,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_southeast_north",
+      "label": "Southeastern woodland north of diagonal road",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 3,
+      "area_m2": 165698.427,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_southeast_outer",
+      "label": "Southeastern outer woodland",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 7,
+      "area_m2": 667202.884,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_southeast_inner",
+      "label": "Southeastern inner woodland",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 10,
+      "area_m2": 690130.589,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    },
+    {
+      "id": "astra_southeast_railway",
+      "label": "Southeastern railway-side woodland",
+      "kind": "forest",
+      "confidence": "medium",
+      "patch_count": 4,
+      "area_m2": 103567.336,
+      "review_policy": "Independent satellite visual tracing; obvious fields, built-up areas, clearings and selected visible tracks excluded."
+    }
+  ],
+  "patches": [
+    {
+      "id": "astra_northern_woodland_-1_5_0",
+      "region_id": "astra_northern_woodland",
+      "grid_cell": [
+        -1,
+        5
+      ],
+      "bounds_m": [
+        -355.468,
+        2536.347,
+        0.0,
+        2985.735
+      ],
+      "area_m2": 102124.987,
+      "polygon": [
+        [
+          -8.326,
+          2544.673
+        ],
+        [
+          0.0,
+          2536.347
+        ],
+        [
+          0.0,
+          2985.735
+        ],
+        [
+          -355.468,
+          2985.735
+        ],
+        [
+          -336.703,
+          2882.526
+        ],
+        [
+          -277.557,
+          2783.95
+        ],
+        [
+          -177.919,
+          2694.275
+        ],
+        [
+          -88.213,
+          2594.602
+        ],
+        [
+          -8.326,
+          2544.673
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northern_woodland_0_4_0",
+      "region_id": "astra_northern_woodland",
+      "grid_cell": [
+        0,
+        4
+      ],
+      "bounds_m": [
+        36.347,
+        2255.735,
+        500.0,
+        2500.0
+      ],
+      "area_m2": 76166.283,
+      "polygon": [
+        [
+          272.877,
+          2255.735
+        ],
+        [
+          500.0,
+          2255.735
+        ],
+        [
+          500.0,
+          2500.0
+        ],
+        [
+          36.347,
+          2500.0
+        ],
+        [
+          61.619,
+          2474.728
+        ],
+        [
+          181.619,
+          2404.728
+        ],
+        [
+          263.255,
+          2323.092
+        ],
+        [
+          272.877,
+          2255.735
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northern_woodland_0_5_0",
+      "region_id": "astra_northern_woodland",
+      "grid_cell": [
+        0,
+        5
+      ],
+      "bounds_m": [
+        0.0,
+        2500.0,
+        500.0,
+        2985.735
+      ],
+      "area_m2": 234233.281,
+      "polygon": [
+        [
+          0.0,
+          2536.347
+        ],
+        [
+          36.347,
+          2500.0
+        ],
+        [
+          500.0,
+          2500.0
+        ],
+        [
+          500.0,
+          2985.735
+        ],
+        [
+          0.0,
+          2985.735
+        ],
+        [
+          0.0,
+          2536.347
+        ]
+      ],
+      "holes": [
+        [
+          [
+            130.765,
+            2746.747
+          ],
+          [
+            164.241,
+            2690.954
+          ],
+          [
+            141.631,
+            2645.735
+          ],
+          [
+            63.541,
+            2645.735
+          ],
+          [
+            63.541,
+            2724.339
+          ],
+          [
+            130.765,
+            2746.747
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "astra_northern_woodland_1_4_0",
+      "region_id": "astra_northern_woodland",
+      "grid_cell": [
+        1,
+        4
+      ],
+      "bounds_m": [
+        500.0,
+        2216.461,
+        1000.0,
+        2500.0
+      ],
+      "area_m2": 127202.654,
+      "polygon": [
+        [
+          949.326,
+          2225.674
+        ],
+        [
+          1000.0,
+          2216.461
+        ],
+        [
+          1000.0,
+          2500.0
+        ],
+        [
+          500.0,
+          2500.0
+        ],
+        [
+          500.0,
+          2255.735
+        ],
+        [
+          728.88,
+          2255.735
+        ],
+        [
+          949.326,
+          2225.674
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northern_woodland_1_5_0",
+      "region_id": "astra_northern_woodland",
+      "grid_cell": [
+        1,
+        5
+      ],
+      "bounds_m": [
+        500.0,
+        2500.0,
+        1000.0,
+        2985.735
+      ],
+      "area_m2": 242867.5,
+      "polygon": [
+        [
+          1000.0,
+          2985.735
+        ],
+        [
+          500.0,
+          2985.735
+        ],
+        [
+          500.0,
+          2500.0
+        ],
+        [
+          1000.0,
+          2500.0
+        ],
+        [
+          1000.0,
+          2985.735
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northern_woodland_2_4_0",
+      "region_id": "astra_northern_woodland",
+      "grid_cell": [
+        2,
+        4
+      ],
+      "bounds_m": [
+        1000.0,
+        2067.061,
+        1500.0,
+        2500.0
+      ],
+      "area_m2": 172204.993,
+      "polygon": [
+        [
+          1370.293,
+          2125.43
+        ],
+        [
+          1500.0,
+          2067.061
+        ],
+        [
+          1500.0,
+          2500.0
+        ],
+        [
+          1000.0,
+          2500.0
+        ],
+        [
+          1000.0,
+          2216.461
+        ],
+        [
+          1169.71,
+          2185.604
+        ],
+        [
+          1370.293,
+          2125.43
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northern_woodland_2_5_0",
+      "region_id": "astra_northern_woodland",
+      "grid_cell": [
+        2,
+        5
+      ],
+      "bounds_m": [
+        1000.0,
+        2500.0,
+        1500.0,
+        2985.735
+      ],
+      "area_m2": 242867.5,
+      "polygon": [
+        [
+          1500.0,
+          2985.735
+        ],
+        [
+          1000.0,
+          2985.735
+        ],
+        [
+          1000.0,
+          2500.0
+        ],
+        [
+          1500.0,
+          2500.0
+        ],
+        [
+          1500.0,
+          2985.735
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northern_woodland_3_3_0",
+      "region_id": "astra_northern_woodland",
+      "grid_cell": [
+        3,
+        3
+      ],
+      "bounds_m": [
+        1658.842,
+        1865.524,
+        2000.0,
+        2000.0
+      ],
+      "area_m2": 23696.54,
+      "polygon": [
+        [
+          1960.127,
+          1875.492
+        ],
+        [
+          2000.0,
+          1865.524
+        ],
+        [
+          2000.0,
+          2000.0
+        ],
+        [
+          1658.842,
+          2000.0
+        ],
+        [
+          1770.44,
+          1955.361
+        ],
+        [
+          1960.127,
+          1875.492
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northern_woodland_3_4_0",
+      "region_id": "astra_northern_woodland",
+      "grid_cell": [
+        3,
+        4
+      ],
+      "bounds_m": [
+        1500.0,
+        2000.0,
+        2000.0,
+        2500.0
+      ],
+      "area_m2": 216344.134,
+      "polygon": [
+        [
+          1894.432,
+          2493.697
+        ],
+        [
+          1897.584,
+          2500.0
+        ],
+        [
+          1500.0,
+          2500.0
+        ],
+        [
+          1500.0,
+          2067.061
+        ],
+        [
+          1570.496,
+          2035.338
+        ],
+        [
+          1658.842,
+          2000.0
+        ],
+        [
+          2000.0,
+          2000.0
+        ],
+        [
+          2000.0,
+          2269.928
+        ],
+        [
+          1925.777,
+          2255.083
+        ],
+        [
+          1873.794,
+          2359.049
+        ],
+        [
+          1853.065,
+          2452.33
+        ],
+        [
+          1894.432,
+          2493.697
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northern_woodland_3_5_0",
+      "region_id": "astra_northern_woodland",
+      "grid_cell": [
+        3,
+        5
+      ],
+      "bounds_m": [
+        1500.0,
+        2500.0,
+        1933.199,
+        2985.735
+      ],
+      "area_m2": 155255.517,
+      "polygon": [
+        [
+          1894.238,
+          2707.594
+        ],
+        [
+          1805.356,
+          2766.849
+        ],
+        [
+          1714.127,
+          2858.078
+        ],
+        [
+          1674.848,
+          2985.735
+        ],
+        [
+          1500.0,
+          2985.735
+        ],
+        [
+          1500.0,
+          2500.0
+        ],
+        [
+          1897.584,
+          2500.0
+        ],
+        [
+          1933.199,
+          2571.231
+        ],
+        [
+          1894.238,
+          2707.594
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northern_woodland_4_3_0",
+      "region_id": "astra_northern_woodland",
+      "grid_cell": [
+        4,
+        3
+      ],
+      "bounds_m": [
+        2000.0,
+        1771.846,
+        2500.0,
+        2000.0
+      ],
+      "area_m2": 93659.684,
+      "polygon": [
+        [
+          2479.35,
+          1775.67
+        ],
+        [
+          2500.0,
+          1771.846
+        ],
+        [
+          2500.0,
+          2000.0
+        ],
+        [
+          2000.0,
+          2000.0
+        ],
+        [
+          2000.0,
+          1865.524
+        ],
+        [
+          2199.503,
+          1815.648
+        ],
+        [
+          2479.35,
+          1775.67
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northern_woodland_4_4_0",
+      "region_id": "astra_northern_woodland",
+      "grid_cell": [
+        4,
+        4
+      ],
+      "bounds_m": [
+        2000.0,
+        2000.0,
+        2500.0,
+        2295.735
+      ],
+      "area_m2": 118856.016,
+      "polygon": [
+        [
+          2129.036,
+          2295.735
+        ],
+        [
+          2000.0,
+          2269.928
+        ],
+        [
+          2000.0,
+          2000.0
+        ],
+        [
+          2500.0,
+          2000.0
+        ],
+        [
+          2500.0,
+          2071.044
+        ],
+        [
+          2256.586,
+          2295.735
+        ],
+        [
+          2129.036,
+          2295.735
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northern_woodland_5_3_0",
+      "region_id": "astra_northern_woodland",
+      "grid_cell": [
+        5,
+        3
+      ],
+      "bounds_m": [
+        2500.0,
+        1706.169,
+        2983.541,
+        2000.0
+      ],
+      "area_m2": 88152.239,
+      "polygon": [
+        [
+          2635.925,
+          1976.47
+        ],
+        [
+          2600.63,
+          2000.0
+        ],
+        [
+          2500.0,
+          2000.0
+        ],
+        [
+          2500.0,
+          1771.846
+        ],
+        [
+          2749.205,
+          1725.697
+        ],
+        [
+          2983.541,
+          1706.169
+        ],
+        [
+          2983.541,
+          1797.571
+        ],
+        [
+          2796.242,
+          1886.291
+        ],
+        [
+          2635.925,
+          1976.47
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northern_woodland_5_4_0",
+      "region_id": "astra_northern_woodland",
+      "grid_cell": [
+        5,
+        4
+      ],
+      "bounds_m": [
+        2500.0,
+        2000.0,
+        2600.63,
+        2071.044
+      ],
+      "area_m2": 3405.964,
+      "polygon": [
+        [
+          2515.439,
+          2056.793
+        ],
+        [
+          2500.0,
+          2071.044
+        ],
+        [
+          2500.0,
+          2000.0
+        ],
+        [
+          2600.63,
+          2000.0
+        ],
+        [
+          2515.439,
+          2056.793
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northeast_edge_4_4_0",
+      "region_id": "astra_northeast_edge",
+      "grid_cell": [
+        4,
+        4
+      ],
+      "bounds_m": [
+        2473.899,
+        2354.512,
+        2500.0,
+        2479.284
+      ],
+      "area_m2": 1911.651,
+      "polygon": [
+        [
+          2473.899,
+          2391.799
+        ],
+        [
+          2500.0,
+          2354.512
+        ],
+        [
+          2500.0,
+          2479.284
+        ],
+        [
+          2492.808,
+          2476.887
+        ],
+        [
+          2473.899,
+          2391.799
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northeast_edge_4_5_0",
+      "region_id": "astra_northeast_edge",
+      "grid_cell": [
+        4,
+        5
+      ],
+      "bounds_m": [
+        2485.311,
+        2937.995,
+        2500.0,
+        2985.735
+      ],
+      "area_m2": 350.626,
+      "polygon": [
+        [
+          2485.311,
+          2985.735
+        ],
+        [
+          2500.0,
+          2937.995
+        ],
+        [
+          2500.0,
+          2985.735
+        ],
+        [
+          2485.311,
+          2985.735
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northeast_edge_5_3_0",
+      "region_id": "astra_northeast_edge",
+      "grid_cell": [
+        5,
+        3
+      ],
+      "bounds_m": [
+        2742.405,
+        1888.201,
+        2983.541,
+        2000.0
+      ],
+      "area_m2": 14497.489,
+      "polygon": [
+        [
+          2983.541,
+          1888.201
+        ],
+        [
+          2983.541,
+          2000.0
+        ],
+        [
+          2742.405,
+          2000.0
+        ],
+        [
+          2820.742,
+          1955.236
+        ],
+        [
+          2983.541,
+          1888.201
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northeast_edge_5_4_0",
+      "region_id": "astra_northeast_edge",
+      "grid_cell": [
+        5,
+        4
+      ],
+      "bounds_m": [
+        2500.0,
+        2000.0,
+        2983.541,
+        2500.0
+      ],
+      "area_m2": 207350.12,
+      "polygon": [
+        [
+          2983.541,
+          2000.0
+        ],
+        [
+          2983.541,
+          2500.0
+        ],
+        [
+          2562.146,
+          2500.0
+        ],
+        [
+          2500.0,
+          2479.284
+        ],
+        [
+          2500.0,
+          2354.512
+        ],
+        [
+          2543.054,
+          2293.006
+        ],
+        [
+          2592.993,
+          2143.189
+        ],
+        [
+          2681.825,
+          2034.617
+        ],
+        [
+          2742.405,
+          2000.0
+        ],
+        [
+          2983.541,
+          2000.0
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northeast_edge_5_5_0",
+      "region_id": "astra_northeast_edge",
+      "grid_cell": [
+        5,
+        5
+      ],
+      "bounds_m": [
+        2500.0,
+        2500.0,
+        2983.541,
+        2985.735
+      ],
+      "area_m2": 137825.402,
+      "polygon": [
+        [
+          2983.541,
+          2500.0
+        ],
+        [
+          2983.541,
+          2658.664
+        ],
+        [
+          2656.47,
+          2985.735
+        ],
+        [
+          2500.0,
+          2985.735
+        ],
+        [
+          2500.0,
+          2937.995
+        ],
+        [
+          2523.054,
+          2863.068
+        ],
+        [
+          2622.985,
+          2733.159
+        ],
+        [
+          2674.226,
+          2589.684
+        ],
+        [
+          2611.436,
+          2516.43
+        ],
+        [
+          2562.146,
+          2500.0
+        ],
+        [
+          2983.541,
+          2500.0
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_eastern_woodland_0_4_0",
+      "region_id": "astra_eastern_woodland",
+      "grid_cell": [
+        0,
+        4
+      ],
+      "bounds_m": [
+        347.753,
+        2000.0,
+        500.0,
+        2174.226
+      ],
+      "area_m2": 15658.009,
+      "polygon": [
+        [
+          432.156,
+          2044.297
+        ],
+        [
+          494.172,
+          2000.0
+        ],
+        [
+          500.0,
+          2000.0
+        ],
+        [
+          500.0,
+          2174.226
+        ],
+        [
+          347.753,
+          2166.213
+        ],
+        [
+          432.156,
+          2044.297
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_eastern_woodland_1_3_0",
+      "region_id": "astra_eastern_woodland",
+      "grid_cell": [
+        1,
+        3
+      ],
+      "bounds_m": [
+        500.0,
+        1686.038,
+        1000.0,
+        2000.0
+      ],
+      "area_m2": 105213.036,
+      "polygon": [
+        [
+          958.443,
+          1686.038
+        ],
+        [
+          1000.0,
+          1701.622
+        ],
+        [
+          1000.0,
+          2000.0
+        ],
+        [
+          500.0,
+          2000.0
+        ],
+        [
+          500.0,
+          1995.837
+        ],
+        [
+          502.125,
+          1994.319
+        ],
+        [
+          551.888,
+          1924.652
+        ],
+        [
+          612.415,
+          1894.388
+        ],
+        [
+          642.349,
+          1824.543
+        ],
+        [
+          711.396,
+          1794.951
+        ],
+        [
+          771.006,
+          1735.341
+        ],
+        [
+          869.827,
+          1715.577
+        ],
+        [
+          958.443,
+          1686.038
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_eastern_woodland_1_4_0",
+      "region_id": "astra_eastern_woodland",
+      "grid_cell": [
+        1,
+        4
+      ],
+      "bounds_m": [
+        500.0,
+        2000.0,
+        1000.0,
+        2175.729
+      ],
+      "area_m2": 78180.797,
+      "polygon": [
+        [
+          528.564,
+          2175.729
+        ],
+        [
+          500.0,
+          2174.226
+        ],
+        [
+          500.0,
+          2000.0
+        ],
+        [
+          1000.0,
+          2000.0
+        ],
+        [
+          1000.0,
+          2115.181
+        ],
+        [
+          997.394,
+          2115.867
+        ],
+        [
+          757.918,
+          2165.757
+        ],
+        [
+          528.564,
+          2175.729
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_eastern_woodland_2_3_0",
+      "region_id": "astra_eastern_woodland",
+      "grid_cell": [
+        2,
+        3
+      ],
+      "bounds_m": [
+        1000.0,
+        1585.519,
+        1500.0,
+        2000.0
+      ],
+      "area_m2": 155373.344,
+      "polygon": [
+        [
+          1406.669,
+          1986.095
+        ],
+        [
+          1368.43,
+          2000.0
+        ],
+        [
+          1000.0,
+          2000.0
+        ],
+        [
+          1000.0,
+          1701.622
+        ],
+        [
+          1036.246,
+          1715.215
+        ],
+        [
+          1099.703,
+          1757.519
+        ],
+        [
+          1131.041,
+          1715.735
+        ],
+        [
+          1220.055,
+          1715.735
+        ],
+        [
+          1280.422,
+          1675.491
+        ],
+        [
+          1402.138,
+          1655.204
+        ],
+        [
+          1422.234,
+          1604.966
+        ],
+        [
+          1499.94,
+          1585.539
+        ],
+        [
+          1500.0,
+          1585.519
+        ],
+        [
+          1500.0,
+          1944.615
+        ],
+        [
+          1406.669,
+          1986.095
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_eastern_woodland_2_4_0",
+      "region_id": "astra_eastern_woodland",
+      "grid_cell": [
+        2,
+        4
+      ],
+      "bounds_m": [
+        1000.0,
+        2000.0,
+        1368.43,
+        2115.181
+      ],
+      "area_m2": 22922.583,
+      "polygon": [
+        [
+          1368.43,
+          2000.0
+        ],
+        [
+          1187.047,
+          2065.958
+        ],
+        [
+          1000.0,
+          2115.181
+        ],
+        [
+          1000.0,
+          2000.0
+        ],
+        [
+          1368.43,
+          2000.0
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_eastern_woodland_3_2_0",
+      "region_id": "astra_eastern_woodland",
+      "grid_cell": [
+        3,
+        2
+      ],
+      "bounds_m": [
+        1601.191,
+        1178.609,
+        1983.974,
+        1500.0
+      ],
+      "area_m2": 32703.875,
+      "polygon": [
+        [
+          1823.551,
+          1367.341
+        ],
+        [
+          1752.8,
+          1500.0
+        ],
+        [
+          1601.191,
+          1500.0
+        ],
+        [
+          1673.29,
+          1463.95
+        ],
+        [
+          1683.261,
+          1344.305
+        ],
+        [
+          1761.475,
+          1314.975
+        ],
+        [
+          1829.76,
+          1236.935
+        ],
+        [
+          1869.23,
+          1256.67
+        ],
+        [
+          1931.296,
+          1204.948
+        ],
+        [
+          1983.974,
+          1178.609
+        ],
+        [
+          1823.551,
+          1367.341
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_eastern_woodland_3_2_1",
+      "region_id": "astra_eastern_woodland",
+      "grid_cell": [
+        3,
+        2
+      ],
+      "bounds_m": [
+        1766.4,
+        1178.283,
+        2000.0,
+        1500.0
+      ],
+      "area_m2": 41479.686,
+      "polygon": [
+        [
+          1833.531,
+          1374.129
+        ],
+        [
+          2000.0,
+          1178.283
+        ],
+        [
+          2000.0,
+          1500.0
+        ],
+        [
+          1766.4,
+          1500.0
+        ],
+        [
+          1833.531,
+          1374.129
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_eastern_woodland_3_3_0",
+      "region_id": "astra_eastern_woodland",
+      "grid_cell": [
+        3,
+        3
+      ],
+      "bounds_m": [
+        1500.0,
+        1500.0,
+        2000.0,
+        1944.615
+      ],
+      "area_m2": 162920.587,
+      "polygon": [
+        [
+          1586.634,
+          1906.111
+        ],
+        [
+          1500.0,
+          1944.615
+        ],
+        [
+          1500.0,
+          1585.519
+        ],
+        [
+          1593.541,
+          1554.339
+        ],
+        [
+          1593.541,
+          1503.825
+        ],
+        [
+          1601.191,
+          1500.0
+        ],
+        [
+          1752.8,
+          1500.0
+        ],
+        [
+          1743.667,
+          1517.124
+        ],
+        [
+          1610.21,
+          1650.581
+        ],
+        [
+          1744.144,
+          1794.818
+        ],
+        [
+          1752.938,
+          1786.652
+        ],
+        [
+          1626.872,
+          1650.889
+        ],
+        [
+          1753.415,
+          1524.346
+        ],
+        [
+          1766.4,
+          1500.0
+        ],
+        [
+          2000.0,
+          1500.0
+        ],
+        [
+          2000.0,
+          1769.135
+        ],
+        [
+          1796.974,
+          1825.982
+        ],
+        [
+          1586.634,
+          1906.111
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_eastern_woodland_4_1_0",
+      "region_id": "astra_eastern_woodland",
+      "grid_cell": [
+        4,
+        1
+      ],
+      "bounds_m": [
+        2140.4,
+        708.291,
+        2500.0,
+        1000.0
+      ],
+      "area_m2": 58754.499,
+      "polygon": [
+        [
+          2441.072,
+          735.077
+        ],
+        [
+          2500.0,
+          708.291
+        ],
+        [
+          2500.0,
+          1000.0
+        ],
+        [
+          2140.4,
+          1000.0
+        ],
+        [
+          2142.999,
+          984.403
+        ],
+        [
+          2222.364,
+          954.642
+        ],
+        [
+          2262.536,
+          854.211
+        ],
+        [
+          2331.26,
+          814.94
+        ],
+        [
+          2441.072,
+          735.077
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_eastern_woodland_4_2_0",
+      "region_id": "astra_eastern_woodland",
+      "grid_cell": [
+        4,
+        2
+      ],
+      "bounds_m": [
+        2000.0,
+        1000.0,
+        2500.0,
+        1500.0
+      ],
+      "area_m2": 235993.917,
+      "polygon": [
+        [
+          2133.024,
+          1044.254
+        ],
+        [
+          2140.4,
+          1000.0
+        ],
+        [
+          2500.0,
+          1000.0
+        ],
+        [
+          2500.0,
+          1500.0
+        ],
+        [
+          2000.0,
+          1500.0
+        ],
+        [
+          2000.0,
+          1178.283
+        ],
+        [
+          2003.252,
+          1174.457
+        ],
+        [
+          2009.606,
+          1165.793
+        ],
+        [
+          2053.12,
+          1144.036
+        ],
+        [
+          2059.788,
+          1097.363
+        ],
+        [
+          2083.018,
+          1065.684
+        ],
+        [
+          2133.024,
+          1044.254
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_eastern_woodland_4_3_0",
+      "region_id": "astra_eastern_woodland",
+      "grid_cell": [
+        4,
+        3
+      ],
+      "bounds_m": [
+        2000.0,
+        1500.0,
+        2500.0,
+        1769.135
+      ],
+      "area_m2": 112978.983,
+      "polygon": [
+        [
+          2047.509,
+          1755.832
+        ],
+        [
+          2000.0,
+          1769.135
+        ],
+        [
+          2000.0,
+          1500.0
+        ],
+        [
+          2500.0,
+          1500.0
+        ],
+        [
+          2500.0,
+          1683.898
+        ],
+        [
+          2327.732,
+          1715.8
+        ],
+        [
+          2047.509,
+          1755.832
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_eastern_woodland_5_1_0",
+      "region_id": "astra_eastern_woodland",
+      "grid_cell": [
+        5,
+        1
+      ],
+      "bounds_m": [
+        2500.0,
+        579.893,
+        2983.541,
+        1000.0
+      ],
+      "area_m2": 132096.299,
+      "polygon": [
+        [
+          2983.541,
+          579.893
+        ],
+        [
+          2983.541,
+          1000.0
+        ],
+        [
+          2500.0,
+          1000.0
+        ],
+        [
+          2500.0,
+          708.291
+        ],
+        [
+          2546.02,
+          687.373
+        ],
+        [
+          2585.479,
+          776.157
+        ],
+        [
+          2670.277,
+          765.557
+        ],
+        [
+          2780.883,
+          695.171
+        ],
+        [
+          2850.894,
+          665.166
+        ],
+        [
+          2983.541,
+          579.893
+        ]
+      ],
+      "holes": [
+        [
+          [
+            2850.689,
+            835.479
+          ],
+          [
+            2924.48,
+            824.937
+          ],
+          [
+            2912.532,
+            765.197
+          ],
+          [
+            2827.538,
+            775.821
+          ],
+          [
+            2755.053,
+            796.532
+          ],
+          [
+            2721.998,
+            862.64
+          ],
+          [
+            2779.059,
+            896.877
+          ],
+          [
+            2850.689,
+            835.479
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "astra_eastern_woodland_5_2_0",
+      "region_id": "astra_eastern_woodland",
+      "grid_cell": [
+        5,
+        2
+      ],
+      "bounds_m": [
+        2500.0,
+        1000.0,
+        2983.541,
+        1500.0
+      ],
+      "area_m2": 241770.5,
+      "polygon": [
+        [
+          2983.541,
+          1000.0
+        ],
+        [
+          2983.541,
+          1500.0
+        ],
+        [
+          2500.0,
+          1500.0
+        ],
+        [
+          2500.0,
+          1000.0
+        ],
+        [
+          2983.541,
+          1000.0
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_eastern_woodland_5_3_0",
+      "region_id": "astra_eastern_woodland",
+      "grid_cell": [
+        5,
+        3
+      ],
+      "bounds_m": [
+        2500.0,
+        1500.0,
+        2983.541,
+        1683.898
+      ],
+      "area_m2": 65847.618,
+      "polygon": [
+        [
+          2597.478,
+          1665.847
+        ],
+        [
+          2500.0,
+          1683.898
+        ],
+        [
+          2500.0,
+          1500.0
+        ],
+        [
+          2983.541,
+          1500.0
+        ],
+        [
+          2983.541,
+          1605.991
+        ],
+        [
+          2797.796,
+          1615.767
+        ],
+        [
+          2597.478,
+          1665.847
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_far_east_strip_5_0_0",
+      "region_id": "astra_far_east_strip",
+      "grid_cell": [
+        5,
+        0
+      ],
+      "bounds_m": [
+        2803.88,
+        119.233,
+        2983.541,
+        500.0
+      ],
+      "area_m2": 47197.031,
+      "polygon": [
+        [
+          2901.581,
+          164.766
+        ],
+        [
+          2983.541,
+          119.233
+        ],
+        [
+          2983.541,
+          447.767
+        ],
+        [
+          2887.781,
+          500.0
+        ],
+        [
+          2879.446,
+          500.0
+        ],
+        [
+          2803.88,
+          320.53
+        ],
+        [
+          2832.911,
+          233.436
+        ],
+        [
+          2901.581,
+          164.766
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northwest_woodlot_-5_5_0",
+      "region_id": "astra_northwest_woodlot",
+      "grid_cell": [
+        -5,
+        5
+      ],
+      "bounds_m": [
+        -2185.13,
+        2716.693,
+        -2000.0,
+        2985.735
+      ],
+      "area_m2": 33770.935,
+      "polygon": [
+        [
+          -2015.486,
+          2793.725
+        ],
+        [
+          -2000.0,
+          2818.503
+        ],
+        [
+          -2000.0,
+          2985.735
+        ],
+        [
+          -2128.491,
+          2985.735
+        ],
+        [
+          -2185.13,
+          2881.896
+        ],
+        [
+          -2116.198,
+          2822.811
+        ],
+        [
+          -2126.069,
+          2733.964
+        ],
+        [
+          -2082.89,
+          2716.693
+        ],
+        [
+          -2015.486,
+          2793.725
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northwest_woodlot_-4_5_0",
+      "region_id": "astra_northwest_woodlot",
+      "grid_cell": [
+        -4,
+        5
+      ],
+      "bounds_m": [
+        -2000.0,
+        2818.503,
+        -1918.959,
+        2985.735
+      ],
+      "area_m2": 7416.463,
+      "polygon": [
+        [
+          -2000.0,
+          2818.503
+        ],
+        [
+          -1965.917,
+          2873.037
+        ],
+        [
+          -1918.959,
+          2985.735
+        ],
+        [
+          -2000.0,
+          2985.735
+        ],
+        [
+          -2000.0,
+          2818.503
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_northwest_small_-5_4_0",
+      "region_id": "astra_northwest_small",
+      "grid_cell": [
+        -5,
+        4
+      ],
+      "bounds_m": [
+        -2476.175,
+        2176.02,
+        -2246.504,
+        2464.907
+      ],
+      "area_m2": 41375.836,
+      "polygon": [
+        [
+          -2256.17,
+          2243.877
+        ],
+        [
+          -2246.504,
+          2340.533
+        ],
+        [
+          -2265.822,
+          2446.782
+        ],
+        [
+          -2329.261,
+          2464.907
+        ],
+        [
+          -2417.351,
+          2327.879
+        ],
+        [
+          -2476.175,
+          2249.447
+        ],
+        [
+          -2467.082,
+          2194.884
+        ],
+        [
+          -2382.191,
+          2176.02
+        ],
+        [
+          -2256.17,
+          2243.877
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_industrial_edge_-6_2_0",
+      "region_id": "astra_west_industrial_edge",
+      "grid_cell": [
+        -6,
+        2
+      ],
+      "bounds_m": [
+        -2674.399,
+        1063.905,
+        -2500.0,
+        1500.0
+      ],
+      "area_m2": 53124.088,
+      "polygon": [
+        [
+          -2567.303,
+          1123.731
+        ],
+        [
+          -2500.0,
+          1063.905
+        ],
+        [
+          -2500.0,
+          1500.0
+        ],
+        [
+          -2674.399,
+          1500.0
+        ],
+        [
+          -2666.513,
+          1381.708
+        ],
+        [
+          -2626.781,
+          1262.513
+        ],
+        [
+          -2567.303,
+          1123.731
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_industrial_edge_-6_3_0",
+      "region_id": "astra_west_industrial_edge",
+      "grid_cell": [
+        -6,
+        3
+      ],
+      "bounds_m": [
+        -2676.394,
+        1500.0,
+        -2500.0,
+        1755.366
+      ],
+      "area_m2": 33239.301,
+      "polygon": [
+        [
+          -2676.394,
+          1529.933
+        ],
+        [
+          -2674.399,
+          1500.0
+        ],
+        [
+          -2500.0,
+          1500.0
+        ],
+        [
+          -2500.0,
+          1747.548
+        ],
+        [
+          -2549.513,
+          1755.366
+        ],
+        [
+          -2617.134,
+          1678.085
+        ],
+        [
+          -2676.394,
+          1529.933
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_industrial_edge_-5_2_0",
+      "region_id": "astra_west_industrial_edge",
+      "grid_cell": [
+        -5,
+        2
+      ],
+      "bounds_m": [
+        -2500.0,
+        1047.604,
+        -2000.0,
+        1500.0
+      ],
+      "area_m2": 174009.669,
+      "polygon": [
+        [
+          -2004.42,
+          1486.107
+        ],
+        [
+          -2101.671,
+          1500.0
+        ],
+        [
+          -2382.89,
+          1500.0
+        ],
+        [
+          -2385.372,
+          1432.974
+        ],
+        [
+          -2277.036,
+          1314.789
+        ],
+        [
+          -2285.882,
+          1306.681
+        ],
+        [
+          -2397.546,
+          1428.496
+        ],
+        [
+          -2394.898,
+          1500.0
+        ],
+        [
+          -2500.0,
+          1500.0
+        ],
+        [
+          -2500.0,
+          1063.905
+        ],
+        [
+          -2481.661,
+          1047.604
+        ],
+        [
+          -2434.015,
+          1095.25
+        ],
+        [
+          -2354.776,
+          1115.06
+        ],
+        [
+          -2305.079,
+          1204.515
+        ],
+        [
+          -2260.726,
+          1226.692
+        ],
+        [
+          -2189.263,
+          1165.438
+        ],
+        [
+          -2129.3,
+          1155.444
+        ],
+        [
+          -2072.177,
+          1107.842
+        ],
+        [
+          -2000.0,
+          1198.063
+        ],
+        [
+          -2000.0,
+          1479.276
+        ],
+        [
+          -2004.42,
+          1486.107
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_industrial_edge_-5_3_0",
+      "region_id": "astra_west_industrial_edge",
+      "grid_cell": [
+        -5,
+        3
+      ],
+      "bounds_m": [
+        -2500.0,
+        1500.0,
+        -2101.671,
+        1747.548
+      ],
+      "area_m2": 73298.983,
+      "polygon": [
+        [
+          -2145.134,
+          1506.209
+        ],
+        [
+          -2186.326,
+          1619.489
+        ],
+        [
+          -2205.662,
+          1745.171
+        ],
+        [
+          -2361.54,
+          1725.686
+        ],
+        [
+          -2500.0,
+          1747.548
+        ],
+        [
+          -2500.0,
+          1500.0
+        ],
+        [
+          -2394.898,
+          1500.0
+        ],
+        [
+          -2387.455,
+          1700.957
+        ],
+        [
+          -2375.463,
+          1700.513
+        ],
+        [
+          -2382.89,
+          1500.0
+        ],
+        [
+          -2101.671,
+          1500.0
+        ],
+        [
+          -2145.134,
+          1506.209
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_industrial_edge_-4_2_0",
+      "region_id": "astra_west_industrial_edge",
+      "grid_cell": [
+        -4,
+        2
+      ],
+      "bounds_m": [
+        -2000.0,
+        1198.063,
+        -1897.853,
+        1479.276
+      ],
+      "area_m2": 12518.254,
+      "polygon": [
+        [
+          -1897.853,
+          1321.412
+        ],
+        [
+          -2000.0,
+          1479.276
+        ],
+        [
+          -2000.0,
+          1198.063
+        ],
+        [
+          -1996.216,
+          1202.793
+        ],
+        [
+          -1985.561,
+          1277.373
+        ],
+        [
+          -1952.809,
+          1266.456
+        ],
+        [
+          -1897.853,
+          1321.412
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_border_north_-6_1_0",
+      "region_id": "astra_west_border_north",
+      "grid_cell": [
+        -6,
+        1
+      ],
+      "bounds_m": [
+        -2986.459,
+        605.952,
+        -2646.5,
+        1000.0
+      ],
+      "area_m2": 115603.455,
+      "polygon": [
+        [
+          -2646.5,
+          820.284
+        ],
+        [
+          -2691.429,
+          1000.0
+        ],
+        [
+          -2986.459,
+          1000.0
+        ],
+        [
+          -2986.459,
+          663.825
+        ],
+        [
+          -2870.714,
+          605.952
+        ],
+        [
+          -2762.964,
+          625.543
+        ],
+        [
+          -2656.249,
+          674.05
+        ],
+        [
+          -2646.5,
+          820.284
+        ]
+      ],
+      "holes": [
+        [
+          [
+            -2740.822,
+            837.169
+          ],
+          [
+            -2705.922,
+            802.269
+          ],
+          [
+            -2717.555,
+            755.735
+          ],
+          [
+            -2754.844,
+            755.735
+          ],
+          [
+            -2777.608,
+            812.645
+          ],
+          [
+            -2740.822,
+            837.169
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "astra_west_border_north_-6_2_0",
+      "region_id": "astra_west_border_north",
+      "grid_cell": [
+        -6,
+        2
+      ],
+      "bounds_m": [
+        -2986.459,
+        1000.0,
+        -2691.429,
+        1500.0
+      ],
+      "area_m2": 107472.998,
+      "polygon": [
+        [
+          -2756.292,
+          1189.406
+        ],
+        [
+          -2786.215,
+          1339.022
+        ],
+        [
+          -2856.088,
+          1468.786
+        ],
+        [
+          -2865.842,
+          1500.0
+        ],
+        [
+          -2986.459,
+          1500.0
+        ],
+        [
+          -2986.459,
+          1000.0
+        ],
+        [
+          -2691.429,
+          1000.0
+        ],
+        [
+          -2696.252,
+          1019.293
+        ],
+        [
+          -2756.292,
+          1189.406
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_border_north_-6_3_0",
+      "region_id": "astra_west_border_north",
+      "grid_cell": [
+        -6,
+        3
+      ],
+      "bounds_m": [
+        -2986.459,
+        1500.0,
+        -2865.842,
+        1681.392
+      ],
+      "area_m2": 15016.867,
+      "polygon": [
+        [
+          -2986.459,
+          1681.392
+        ],
+        [
+          -2986.459,
+          1500.0
+        ],
+        [
+          -2865.842,
+          1500.0
+        ],
+        [
+          -2905.704,
+          1627.556
+        ],
+        [
+          -2986.459,
+          1681.392
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_border_south_-6_-1_0",
+      "region_id": "astra_west_border_south",
+      "grid_cell": [
+        -6,
+        -1
+      ],
+      "bounds_m": [
+        -2986.459,
+        -243.663,
+        -2824.435,
+        0.0
+      ],
+      "area_m2": 20503.893,
+      "polygon": [
+        [
+          -2895.632,
+          -116.505
+        ],
+        [
+          -2824.435,
+          0.0
+        ],
+        [
+          -2986.459,
+          0.0
+        ],
+        [
+          -2986.459,
+          -243.663
+        ],
+        [
+          -2895.632,
+          -116.505
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_border_south_-6_0_0",
+      "region_id": "astra_west_border_south",
+      "grid_cell": [
+        -6,
+        0
+      ],
+      "bounds_m": [
+        -2986.459,
+        0.0,
+        -2655.489,
+        500.0
+      ],
+      "area_m2": 127411.7,
+      "polygon": [
+        [
+          -2676.327,
+          381.92
+        ],
+        [
+          -2655.489,
+          500.0
+        ],
+        [
+          -2986.459,
+          500.0
+        ],
+        [
+          -2986.459,
+          0.0
+        ],
+        [
+          -2824.435,
+          0.0
+        ],
+        [
+          -2785.974,
+          62.936
+        ],
+        [
+          -2726.19,
+          222.36
+        ],
+        [
+          -2676.327,
+          381.92
+        ]
+      ],
+      "holes": [
+        [
+          [
+            -2755.702,
+            216.492
+          ],
+          [
+            -2885.894,
+            346.685
+          ],
+          [
+            -2986.068,
+            466.894
+          ],
+          [
+            -2976.85,
+            474.576
+          ],
+          [
+            -2877.024,
+            354.785
+          ],
+          [
+            -2747.216,
+            224.978
+          ],
+          [
+            -2755.702,
+            216.492
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "astra_west_border_south_-6_1_0",
+      "region_id": "astra_west_border_south",
+      "grid_cell": [
+        -6,
+        1
+      ],
+      "bounds_m": [
+        -2986.459,
+        500.0,
+        -2646.603,
+        604.232
+      ],
+      "area_m2": 20286.609,
+      "polygon": [
+        [
+          -2646.603,
+          550.356
+        ],
+        [
+          -2664.562,
+          604.232
+        ],
+        [
+          -2739.74,
+          576.04
+        ],
+        [
+          -2881.684,
+          525.345
+        ],
+        [
+          -2986.459,
+          572.97
+        ],
+        [
+          -2986.459,
+          500.0
+        ],
+        [
+          -2655.489,
+          500.0
+        ],
+        [
+          -2646.603,
+          550.356
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_inner_north_-6_1_0",
+      "region_id": "astra_west_inner_north",
+      "grid_cell": [
+        -6,
+        1
+      ],
+      "bounds_m": [
+        -2566.299,
+        616.586,
+        -2500.0,
+        1000.0
+      ],
+      "area_m2": 21674.084,
+      "polygon": [
+        [
+          -2541.222,
+          616.586
+        ],
+        [
+          -2500.0,
+          639.487
+        ],
+        [
+          -2500.0,
+          979.855
+        ],
+        [
+          -2527.699,
+          1000.0
+        ],
+        [
+          -2556.459,
+          1000.0
+        ],
+        [
+          -2556.459,
+          800.588
+        ],
+        [
+          -2566.299,
+          633.304
+        ],
+        [
+          -2541.222,
+          616.586
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_inner_north_-6_2_0",
+      "region_id": "astra_west_inner_north",
+      "grid_cell": [
+        -6,
+        2
+      ],
+      "bounds_m": [
+        -2556.459,
+        1000.0,
+        -2527.699,
+        1020.916
+      ],
+      "area_m2": 300.772,
+      "polygon": [
+        [
+          -2556.459,
+          1020.916
+        ],
+        [
+          -2556.459,
+          1000.0
+        ],
+        [
+          -2527.699,
+          1000.0
+        ],
+        [
+          -2556.459,
+          1020.916
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_inner_north_-5_1_0",
+      "region_id": "astra_west_inner_north",
+      "grid_cell": [
+        -5,
+        1
+      ],
+      "bounds_m": [
+        -2500.0,
+        639.487,
+        -2336.845,
+        979.855
+      ],
+      "area_m2": 34806.522,
+      "polygon": [
+        [
+          -2336.845,
+          781.387
+        ],
+        [
+          -2355.911,
+          848.116
+        ],
+        [
+          -2454.717,
+          946.922
+        ],
+        [
+          -2500.0,
+          979.855
+        ],
+        [
+          -2500.0,
+          639.487
+        ],
+        [
+          -2454.0,
+          665.043
+        ],
+        [
+          -2375.176,
+          714.308
+        ],
+        [
+          -2336.845,
+          781.387
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_inner_south_-6_0_0",
+      "region_id": "astra_west_inner_south",
+      "grid_cell": [
+        -6,
+        0
+      ],
+      "bounds_m": [
+        -2636.0,
+        16.619,
+        -2500.0,
+        500.0
+      ],
+      "area_m2": 42473.678,
+      "polygon": [
+        [
+          -2582.914,
+          336.556
+        ],
+        [
+          -2500.0,
+          357.285
+        ],
+        [
+          -2500.0,
+          500.0
+        ],
+        [
+          -2561.069,
+          500.0
+        ],
+        [
+          -2576.606,
+          449.506
+        ],
+        [
+          -2606.563,
+          299.721
+        ],
+        [
+          -2636.0,
+          162.347
+        ],
+        [
+          -2577.82,
+          104.167
+        ],
+        [
+          -2500.0,
+          16.619
+        ],
+        [
+          -2500.0,
+          344.915
+        ],
+        [
+          -2580.004,
+          324.914
+        ],
+        [
+          -2582.914,
+          336.556
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_inner_south_-6_1_0",
+      "region_id": "astra_west_inner_south",
+      "grid_cell": [
+        -6,
+        1
+      ],
+      "bounds_m": [
+        -2561.069,
+        500.0,
+        -2500.0,
+        609.686
+      ],
+      "area_m2": 4413.062,
+      "polygon": [
+        [
+          -2537.106,
+          577.881
+        ],
+        [
+          -2561.069,
+          500.0
+        ],
+        [
+          -2500.0,
+          500.0
+        ],
+        [
+          -2500.0,
+          609.686
+        ],
+        [
+          -2537.106,
+          577.881
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_inner_south_-5_-1_0",
+      "region_id": "astra_west_inner_south",
+      "grid_cell": [
+        -5,
+        -1
+      ],
+      "bounds_m": [
+        -2430.767,
+        -393.875,
+        -2000.0,
+        0.0
+      ],
+      "area_m2": 103197.318,
+      "polygon": [
+        [
+          -2092.76,
+          -384.413
+        ],
+        [
+          -2000.0,
+          -349.628
+        ],
+        [
+          -2000.0,
+          0.0
+        ],
+        [
+          -2076.37,
+          0.0
+        ],
+        [
+          -2075.464,
+          -29.005
+        ],
+        [
+          -2065.468,
+          -208.932
+        ],
+        [
+          -2077.45,
+          -209.598
+        ],
+        [
+          -2087.454,
+          -29.525
+        ],
+        [
+          -2088.377,
+          0.0
+        ],
+        [
+          -2430.767,
+          0.0
+        ],
+        [
+          -2387.643,
+          -35.936
+        ],
+        [
+          -2337.831,
+          -115.637
+        ],
+        [
+          -2257.136,
+          -166.071
+        ],
+        [
+          -2216.928,
+          -316.85
+        ],
+        [
+          -2149.532,
+          -393.875
+        ],
+        [
+          -2092.76,
+          -384.413
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_inner_south_-5_0_0",
+      "region_id": "astra_west_inner_south",
+      "grid_cell": [
+        -5,
+        0
+      ],
+      "bounds_m": [
+        -2500.0,
+        0.0,
+        -2000.0,
+        407.515
+      ],
+      "area_m2": 179942.477,
+      "polygon": [
+        [
+          -2340.236,
+          384.856
+        ],
+        [
+          -2500.0,
+          344.915
+        ],
+        [
+          -2500.0,
+          16.619
+        ],
+        [
+          -2499.214,
+          15.735
+        ],
+        [
+          -2449.649,
+          15.735
+        ],
+        [
+          -2430.767,
+          0.0
+        ],
+        [
+          -2088.377,
+          0.0
+        ],
+        [
+          -2097.456,
+          290.548
+        ],
+        [
+          -2085.462,
+          290.922
+        ],
+        [
+          -2076.37,
+          0.0
+        ],
+        [
+          -2000.0,
+          0.0
+        ],
+        [
+          -2000.0,
+          373.088
+        ],
+        [
+          -2050.203,
+          314.517
+        ],
+        [
+          -2134.065,
+          356.448
+        ],
+        [
+          -2204.282,
+          407.515
+        ],
+        [
+          -2340.236,
+          384.856
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_inner_south_-5_0_1",
+      "region_id": "astra_west_inner_south",
+      "grid_cell": [
+        -5,
+        0
+      ],
+      "bounds_m": [
+        -2500.0,
+        357.285,
+        -2217.891,
+        500.0
+      ],
+      "area_m2": 26222.585,
+      "polygon": [
+        [
+          -2217.891,
+          417.412
+        ],
+        [
+          -2244.383,
+          436.679
+        ],
+        [
+          -2333.033,
+          500.0
+        ],
+        [
+          -2500.0,
+          500.0
+        ],
+        [
+          -2500.0,
+          357.285
+        ],
+        [
+          -2342.682,
+          396.614
+        ],
+        [
+          -2217.891,
+          417.412
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_inner_south_-5_1_0",
+      "region_id": "astra_west_inner_south",
+      "grid_cell": [
+        -5,
+        1
+      ],
+      "bounds_m": [
+        -2500.0,
+        500.0,
+        -2333.033,
+        635.419
+      ],
+      "area_m2": 14253.838,
+      "polygon": [
+        [
+          -2469.978,
+          635.419
+        ],
+        [
+          -2500.0,
+          609.686
+        ],
+        [
+          -2500.0,
+          500.0
+        ],
+        [
+          -2333.033,
+          500.0
+        ],
+        [
+          -2385.688,
+          537.611
+        ],
+        [
+          -2415.25,
+          626.298
+        ],
+        [
+          -2469.978,
+          635.419
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_inner_south_-4_-1_0",
+      "region_id": "astra_west_inner_south",
+      "grid_cell": [
+        -4,
+        -1
+      ],
+      "bounds_m": [
+        -2000.0,
+        -349.628,
+        -1500.0,
+        0.0
+      ],
+      "area_m2": 62680.028,
+      "polygon": [
+        [
+          -1507.633,
+          -94.931
+        ],
+        [
+          -1500.0,
+          -117.83
+        ],
+        [
+          -1500.0,
+          0.0
+        ],
+        [
+          -2000.0,
+          0.0
+        ],
+        [
+          -2000.0,
+          -349.628
+        ],
+        [
+          -1932.705,
+          -324.392
+        ],
+        [
+          -1800.526,
+          -305.509
+        ],
+        [
+          -1825.246,
+          -272.549
+        ],
+        [
+          -1865.468,
+          -232.327
+        ],
+        [
+          -1906.176,
+          -161.089
+        ],
+        [
+          -1926.569,
+          -69.319
+        ],
+        [
+          -1915.668,
+          -14.816
+        ],
+        [
+          -1840.468,
+          -4.073
+        ],
+        [
+          -1768.596,
+          -45.142
+        ],
+        [
+          -1709.348,
+          -94.516
+        ],
+        [
+          -1643.227,
+          -103.962
+        ],
+        [
+          -1613.102,
+          -73.837
+        ],
+        [
+          -1507.633,
+          -94.931
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_inner_south_-4_0_0",
+      "region_id": "astra_west_inner_south",
+      "grid_cell": [
+        -4,
+        0
+      ],
+      "bounds_m": [
+        -2000.0,
+        0.0,
+        -1500.0,
+        383.382
+      ],
+      "area_m2": 113729.77,
+      "polygon": [
+        [
+          -1991.177,
+          383.382
+        ],
+        [
+          -2000.0,
+          373.088
+        ],
+        [
+          -2000.0,
+          0.0
+        ],
+        [
+          -1500.0,
+          0.0
+        ],
+        [
+          -1500.0,
+          79.43
+        ],
+        [
+          -1574.21,
+          106.415
+        ],
+        [
+          -1664.606,
+          196.811
+        ],
+        [
+          -1770.76,
+          264.363
+        ],
+        [
+          -1800.919,
+          234.204
+        ],
+        [
+          -1944.702,
+          336.907
+        ],
+        [
+          -1991.177,
+          383.382
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_inner_south_-3_-1_0",
+      "region_id": "astra_west_inner_south",
+      "grid_cell": [
+        -3,
+        -1
+      ],
+      "bounds_m": [
+        -1500.0,
+        -223.878,
+        -1168.767,
+        0.0
+      ],
+      "area_m2": 50970.233,
+      "polygon": [
+        [
+          -1283.896,
+          -43.65
+        ],
+        [
+          -1379.925,
+          0.0
+        ],
+        [
+          -1500.0,
+          0.0
+        ],
+        [
+          -1500.0,
+          -117.83
+        ],
+        [
+          -1477.258,
+          -186.056
+        ],
+        [
+          -1420.526,
+          -223.878
+        ],
+        [
+          -1263.001,
+          -184.497
+        ],
+        [
+          -1168.767,
+          -146.803
+        ],
+        [
+          -1195.168,
+          -102.802
+        ],
+        [
+          -1283.896,
+          -43.65
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_west_inner_south_-3_0_0",
+      "region_id": "astra_west_inner_south",
+      "grid_cell": [
+        -3,
+        0
+      ],
+      "bounds_m": [
+        -1500.0,
+        0.0,
+        -1379.925,
+        79.43
+      ],
+      "area_m2": 5211.833,
+      "polygon": [
+        [
+          -1464.022,
+          66.347
+        ],
+        [
+          -1500.0,
+          79.43
+        ],
+        [
+          -1500.0,
+          0.0
+        ],
+        [
+          -1379.925,
+          0.0
+        ],
+        [
+          -1394.174,
+          6.477
+        ],
+        [
+          -1464.022,
+          66.347
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southwest_small_-6_-4_0",
+      "region_id": "astra_southwest_small",
+      "grid_cell": [
+        -6,
+        -4
+      ],
+      "bounds_m": [
+        -2986.459,
+        -1884.265,
+        -2500.0,
+        -1535.669
+      ],
+      "area_m2": 81640.531,
+      "polygon": [
+        [
+          -2723.53,
+          -1624.265
+        ],
+        [
+          -2783.53,
+          -1564.265
+        ],
+        [
+          -2872.075,
+          -1564.265
+        ],
+        [
+          -2986.459,
+          -1535.669
+        ],
+        [
+          -2986.459,
+          -1685.446
+        ],
+        [
+          -2879.402,
+          -1714.643
+        ],
+        [
+          -2739.283,
+          -1804.72
+        ],
+        [
+          -2500.648,
+          -1884.265
+        ],
+        [
+          -2500.0,
+          -1884.265
+        ],
+        [
+          -2500.0,
+          -1813.388
+        ],
+        [
+          -2525.396,
+          -1782.349
+        ],
+        [
+          -2643.959,
+          -1624.265
+        ],
+        [
+          -2723.53,
+          -1624.265
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southwest_small_-5_-4_0",
+      "region_id": "astra_southwest_small",
+      "grid_cell": [
+        -5,
+        -4
+      ],
+      "bounds_m": [
+        -2500.0,
+        -1884.265,
+        -2442.01,
+        -1813.388
+      ],
+      "area_m2": 2055.079,
+      "polygon": [
+        [
+          -2442.01,
+          -1884.265
+        ],
+        [
+          -2500.0,
+          -1813.388
+        ],
+        [
+          -2500.0,
+          -1884.265
+        ],
+        [
+          -2442.01,
+          -1884.265
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southwest_edge_-6_-6_0",
+      "region_id": "astra_southwest_edge",
+      "grid_cell": [
+        -6,
+        -6
+      ],
+      "bounds_m": [
+        -2986.459,
+        -2984.265,
+        -2500.0,
+        -2500.0
+      ],
+      "area_m2": 173747.68,
+      "polygon": [
+        [
+          -2606.082,
+          -2785.429
+        ],
+        [
+          -2500.0,
+          -2669.703
+        ],
+        [
+          -2500.0,
+          -2500.0
+        ],
+        [
+          -2927.919,
+          -2500.0
+        ],
+        [
+          -2898.786,
+          -2524.971
+        ],
+        [
+          -2832.243,
+          -2553.489
+        ],
+        [
+          -2780.324,
+          -2511.954
+        ],
+        [
+          -2755.45,
+          -2549.265
+        ],
+        [
+          -2798.783,
+          -2614.265
+        ],
+        [
+          -2852.787,
+          -2614.265
+        ],
+        [
+          -2923.819,
+          -2573.675
+        ],
+        [
+          -2986.459,
+          -2542.355
+        ],
+        [
+          -2986.459,
+          -2815.78
+        ],
+        [
+          -2825.853,
+          -2655.174
+        ],
+        [
+          -2695.993,
+          -2505.335
+        ],
+        [
+          -2686.925,
+          -2513.195
+        ],
+        [
+          -2817.065,
+          -2663.356
+        ],
+        [
+          -2986.459,
+          -2832.75
+        ],
+        [
+          -2986.459,
+          -2984.265
+        ],
+        [
+          -2755.209,
+          -2984.265
+        ],
+        [
+          -2606.082,
+          -2785.429
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southwest_edge_-6_-6_1",
+      "region_id": "astra_southwest_edge",
+      "grid_cell": [
+        -6,
+        -6
+      ],
+      "bounds_m": [
+        -2986.459,
+        -2538.91,
+        -2980.901,
+        -2500.0
+      ],
+      "area_m2": 108.131,
+      "polygon": [
+        [
+          -2986.459,
+          -2538.91
+        ],
+        [
+          -2980.901,
+          -2500.0
+        ],
+        [
+          -2986.459,
+          -2500.0
+        ],
+        [
+          -2986.459,
+          -2538.91
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southwest_edge_-6_-6_2",
+      "region_id": "astra_southwest_edge",
+      "grid_cell": [
+        -6,
+        -6
+      ],
+      "bounds_m": [
+        -2740.209,
+        -2984.265,
+        -2500.0,
+        -2687.462
+      ],
+      "area_m2": 37330.264,
+      "polygon": [
+        [
+          -2740.209,
+          -2984.265
+        ],
+        [
+          -2500.0,
+          -2984.265
+        ],
+        [
+          -2500.0,
+          -2687.462
+        ],
+        [
+          -2596.836,
+          -2793.101
+        ],
+        [
+          -2740.209,
+          -2984.265
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southwest_edge_-6_-5_0",
+      "region_id": "astra_southwest_edge",
+      "grid_cell": [
+        -6,
+        -5
+      ],
+      "bounds_m": [
+        -2986.459,
+        -2500.0,
+        -2500.0,
+        -2000.0
+      ],
+      "area_m2": 233219.57,
+      "polygon": [
+        [
+          -2975.121,
+          -2459.541
+        ],
+        [
+          -2927.919,
+          -2500.0
+        ],
+        [
+          -2500.0,
+          -2500.0
+        ],
+        [
+          -2500.0,
+          -2133.217
+        ],
+        [
+          -2564.845,
+          -2062.969
+        ],
+        [
+          -2646.704,
+          -2000.0
+        ],
+        [
+          -2986.459,
+          -2000.0
+        ],
+        [
+          -2986.459,
+          -2500.0
+        ],
+        [
+          -2980.901,
+          -2500.0
+        ],
+        [
+          -2975.121,
+          -2459.541
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southwest_edge_-6_-4_0",
+      "region_id": "astra_southwest_edge",
+      "grid_cell": [
+        -6,
+        -4
+      ],
+      "bounds_m": [
+        -2986.459,
+        -2000.0,
+        -2646.704,
+        -1827.355
+      ],
+      "area_m2": 30764.716,
+      "polygon": [
+        [
+          -2986.459,
+          -1827.355
+        ],
+        [
+          -2986.459,
+          -2000.0
+        ],
+        [
+          -2646.704,
+          -2000.0
+        ],
+        [
+          -2694.023,
+          -1963.601
+        ],
+        [
+          -2853.58,
+          -1893.794
+        ],
+        [
+          -2986.459,
+          -1827.355
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southwest_edge_-5_-6_0",
+      "region_id": "astra_southwest_edge",
+      "grid_cell": [
+        -5,
+        -6
+      ],
+      "bounds_m": [
+        -2500.0,
+        -2984.265,
+        -2266.479,
+        -2500.0
+      ],
+      "area_m2": 97923.622,
+      "polygon": [
+        [
+          -2276.433,
+          -2669.848
+        ],
+        [
+          -2306.311,
+          -2500.54
+        ],
+        [
+          -2306.502,
+          -2500.0
+        ],
+        [
+          -2500.0,
+          -2500.0
+        ],
+        [
+          -2500.0,
+          -2669.703
+        ],
+        [
+          -2494.937,
+          -2664.18
+        ],
+        [
+          -2313.634,
+          -2593.673
+        ],
+        [
+          -2309.284,
+          -2604.857
+        ],
+        [
+          -2487.981,
+          -2674.35
+        ],
+        [
+          -2500.0,
+          -2687.462
+        ],
+        [
+          -2500.0,
+          -2984.265
+        ],
+        [
+          -2285.837,
+          -2984.265
+        ],
+        [
+          -2266.479,
+          -2839.08
+        ],
+        [
+          -2276.433,
+          -2669.848
+        ]
+      ],
+      "holes": [
+        [
+          [
+            -2445.306,
+            -2813.112
+          ],
+          [
+            -2468.334,
+            -2755.541
+          ],
+          [
+            -2410.155,
+            -2743.905
+          ],
+          [
+            -2354.551,
+            -2788.388
+          ],
+          [
+            -2389.758,
+            -2835.331
+          ],
+          [
+            -2445.306,
+            -2813.112
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "astra_southwest_edge_-5_-5_0",
+      "region_id": "astra_southwest_edge",
+      "grid_cell": [
+        -5,
+        -5
+      ],
+      "bounds_m": [
+        -2500.0,
+        -2500.0,
+        -2306.502,
+        -2133.217
+      ],
+      "area_m2": 42330.076,
+      "polygon": [
+        [
+          -2445.518,
+          -2192.239
+        ],
+        [
+          -2500.0,
+          -2133.217
+        ],
+        [
+          -2500.0,
+          -2500.0
+        ],
+        [
+          -2306.502,
+          -2500.0
+        ],
+        [
+          -2366.024,
+          -2331.354
+        ],
+        [
+          -2445.518,
+          -2192.239
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southwest_roadside_-5_-6_0",
+      "region_id": "astra_southwest_roadside",
+      "grid_cell": [
+        -5,
+        -6
+      ],
+      "bounds_m": [
+        -2192.607,
+        -2984.265,
+        -2016.582,
+        -2500.0
+      ],
+      "area_m2": 50846.918,
+      "polygon": [
+        [
+          -2026.459,
+          -2539.457
+        ],
+        [
+          -2026.459,
+          -2500.0
+        ],
+        [
+          -2192.607,
+          -2500.0
+        ],
+        [
+          -2176.48,
+          -2588.696
+        ],
+        [
+          -2166.446,
+          -2799.409
+        ],
+        [
+          -2185.905,
+          -2984.265
+        ],
+        [
+          -2145.363,
+          -2984.265
+        ],
+        [
+          -2126.29,
+          -2907.971
+        ],
+        [
+          -2086.036,
+          -2767.085
+        ],
+        [
+          -2016.582,
+          -2667.864
+        ],
+        [
+          -2026.459,
+          -2539.457
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southwest_roadside_-5_-5_0",
+      "region_id": "astra_southwest_roadside",
+      "grid_cell": [
+        -5,
+        -5
+      ],
+      "bounds_m": [
+        -2216.373,
+        -2500.0,
+        -2016.59,
+        -2167.239
+      ],
+      "area_m2": 48503.797,
+      "polygon": [
+        [
+          -2016.59,
+          -2350.325
+        ],
+        [
+          -2065.49,
+          -2262.305
+        ],
+        [
+          -2134.559,
+          -2193.236
+        ],
+        [
+          -2177.888,
+          -2167.239
+        ],
+        [
+          -2216.373,
+          -2369.286
+        ],
+        [
+          -2192.607,
+          -2500.0
+        ],
+        [
+          -2026.459,
+          -2500.0
+        ],
+        [
+          -2026.459,
+          -2449.016
+        ],
+        [
+          -2016.59,
+          -2350.325
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southwest_bottom_-5_-6_0",
+      "region_id": "astra_southwest_bottom",
+      "grid_cell": [
+        -5,
+        -6
+      ],
+      "bounds_m": [
+        -2045.631,
+        -2984.265,
+        -2000.0,
+        -2842.568
+      ],
+      "area_m2": 4688.769,
+      "polygon": [
+        [
+          -2045.631,
+          -2984.265
+        ],
+        [
+          -2000.0,
+          -2984.265
+        ],
+        [
+          -2000.0,
+          -2842.568
+        ],
+        [
+          -2026.834,
+          -2862.084
+        ],
+        [
+          -2045.631,
+          -2984.265
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southwest_bottom_-4_-6_0",
+      "region_id": "astra_southwest_bottom",
+      "grid_cell": [
+        -4,
+        -6
+      ],
+      "bounds_m": [
+        -2000.0,
+        -2984.265,
+        -1567.842,
+        -2784.892
+      ],
+      "area_m2": 68990.127,
+      "polygon": [
+        [
+          -1791.393,
+          -2834.677
+        ],
+        [
+          -1843.265,
+          -2813.928
+        ],
+        [
+          -1920.695,
+          -2784.892
+        ],
+        [
+          -2000.0,
+          -2842.568
+        ],
+        [
+          -2000.0,
+          -2984.265
+        ],
+        [
+          -1624.844,
+          -2984.265
+        ],
+        [
+          -1606.024,
+          -2937.215
+        ],
+        [
+          -1567.842,
+          -2860.85
+        ],
+        [
+          -1633.305,
+          -2814.091
+        ],
+        [
+          -1720.701,
+          -2804.38
+        ],
+        [
+          -1791.393,
+          -2834.677
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_south_central_woodlot_-2_-4_0",
+      "region_id": "astra_south_central_woodlot",
+      "grid_cell": [
+        -2,
+        -4
+      ],
+      "bounds_m": [
+        -638.813,
+        -1616.561,
+        -500.0,
+        -1500.0
+      ],
+      "area_m2": 7713.156,
+      "polygon": [
+        [
+          -578.27,
+          -1545.407
+        ],
+        [
+          -500.0,
+          -1616.561
+        ],
+        [
+          -500.0,
+          -1500.0
+        ],
+        [
+          -638.813,
+          -1500.0
+        ],
+        [
+          -578.27,
+          -1545.407
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_south_central_woodlot_-2_-3_0",
+      "region_id": "astra_south_central_woodlot",
+      "grid_cell": [
+        -2,
+        -3
+      ],
+      "bounds_m": [
+        -756.15,
+        -1500.0,
+        -500.0,
+        -1225.38
+      ],
+      "area_m2": 51656.562,
+      "polygon": [
+        [
+          -697.774,
+          -1455.779
+        ],
+        [
+          -638.813,
+          -1500.0
+        ],
+        [
+          -500.0,
+          -1500.0
+        ],
+        [
+          -500.0,
+          -1326.592
+        ],
+        [
+          -534.802,
+          -1283.09
+        ],
+        [
+          -630.986,
+          -1225.38
+        ],
+        [
+          -746.902,
+          -1321.976
+        ],
+        [
+          -756.15,
+          -1368.215
+        ],
+        [
+          -697.774,
+          -1455.779
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_south_central_woodlot_-1_-4_0",
+      "region_id": "astra_south_central_woodlot",
+      "grid_cell": [
+        -1,
+        -4
+      ],
+      "bounds_m": [
+        -500.0,
+        -1762.927,
+        -136.735,
+        -1500.0
+      ],
+      "area_m2": 70937.001,
+      "polygon": [
+        [
+          -253.754,
+          -1504.041
+        ],
+        [
+          -257.795,
+          -1500.0
+        ],
+        [
+          -500.0,
+          -1500.0
+        ],
+        [
+          -500.0,
+          -1616.561
+        ],
+        [
+          -467.744,
+          -1645.885
+        ],
+        [
+          -379.963,
+          -1762.927
+        ],
+        [
+          -327.574,
+          -1736.732
+        ],
+        [
+          -348.927,
+          -1672.672
+        ],
+        [
+          -288.994,
+          -1684.659
+        ],
+        [
+          -238.994,
+          -1734.659
+        ],
+        [
+          -193.934,
+          -1743.671
+        ],
+        [
+          -166.153,
+          -1697.37
+        ],
+        [
+          -136.735,
+          -1569.893
+        ],
+        [
+          -164.715,
+          -1513.934
+        ],
+        [
+          -253.754,
+          -1504.041
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_south_central_woodlot_-1_-3_0",
+      "region_id": "astra_south_central_woodlot",
+      "grid_cell": [
+        -1,
+        -3
+      ],
+      "bounds_m": [
+        -500.0,
+        -1500.0,
+        -257.795,
+        -1326.592
+      ],
+      "area_m2": 26149.308,
+      "polygon": [
+        [
+          -364.545,
+          -1373.547
+        ],
+        [
+          -494.401,
+          -1333.591
+        ],
+        [
+          -500.0,
+          -1326.592
+        ],
+        [
+          -500.0,
+          -1500.0
+        ],
+        [
+          -257.795,
+          -1500.0
+        ],
+        [
+          -315.287,
+          -1442.508
+        ],
+        [
+          -364.545,
+          -1373.547
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_south_railway_grove_-1_-4_0",
+      "region_id": "astra_south_railway_grove",
+      "grid_cell": [
+        -1,
+        -4
+      ],
+      "bounds_m": [
+        -25.943,
+        -1577.83,
+        0.0,
+        -1500.0
+      ],
+      "area_m2": 1009.572,
+      "polygon": [
+        [
+          -25.943,
+          -1500.0
+        ],
+        [
+          0.0,
+          -1577.83
+        ],
+        [
+          0.0,
+          -1500.0
+        ],
+        [
+          -25.943,
+          -1500.0
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_south_railway_grove_-1_-3_0",
+      "region_id": "astra_south_railway_grove",
+      "grid_cell": [
+        -1,
+        -3
+      ],
+      "bounds_m": [
+        -26.136,
+        -1500.0,
+        0.0,
+        -1434.08
+      ],
+      "area_m2": 868.953,
+      "polygon": [
+        [
+          -26.136,
+          -1499.421
+        ],
+        [
+          -25.943,
+          -1500.0
+        ],
+        [
+          0.0,
+          -1500.0
+        ],
+        [
+          0.0,
+          -1434.08
+        ],
+        [
+          -26.136,
+          -1499.421
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_south_railway_grove_0_-4_0",
+      "region_id": "astra_south_railway_grove",
+      "grid_cell": [
+        0,
+        -4
+      ],
+      "bounds_m": [
+        0.0,
+        -1963.589,
+        273.541,
+        -1500.0
+      ],
+      "area_m2": 65814.839,
+      "polygon": [
+        [
+          173.703,
+          -1580.529
+        ],
+        [
+          153.571,
+          -1500.0
+        ],
+        [
+          0.0,
+          -1500.0
+        ],
+        [
+          0.0,
+          -1577.83
+        ],
+        [
+          12.911,
+          -1616.564
+        ],
+        [
+          72.65,
+          -1676.303
+        ],
+        [
+          123.541,
+          -1778.085
+        ],
+        [
+          123.541,
+          -1897.663
+        ],
+        [
+          170.631,
+          -1963.589
+        ],
+        [
+          245.097,
+          -1944.972
+        ],
+        [
+          273.541,
+          -1888.085
+        ],
+        [
+          273.541,
+          -1790.841
+        ],
+        [
+          203.946,
+          -1691.42
+        ],
+        [
+          173.703,
+          -1580.529
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_south_railway_grove_0_-3_0",
+      "region_id": "astra_south_railway_grove",
+      "grid_cell": [
+        0,
+        -3
+      ],
+      "bounds_m": [
+        0.0,
+        -1500.0,
+        153.571,
+        -1404.705
+      ],
+      "area_m2": 11467.587,
+      "polygon": [
+        [
+          153.571,
+          -1500.0
+        ],
+        [
+          144.086,
+          -1462.061
+        ],
+        [
+          86.466,
+          -1414.045
+        ],
+        [
+          11.75,
+          -1404.705
+        ],
+        [
+          0.0,
+          -1434.08
+        ],
+        [
+          0.0,
+          -1500.0
+        ],
+        [
+          153.571,
+          -1500.0
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_university_woodland_1_-2_0",
+      "region_id": "astra_university_woodland",
+      "grid_cell": [
+        1,
+        -2
+      ],
+      "bounds_m": [
+        963.603,
+        -890.137,
+        1000.0,
+        -507.347
+      ],
+      "area_m2": 10369.586,
+      "polygon": [
+        [
+          963.838,
+          -884.971
+        ],
+        [
+          1000.0,
+          -890.137
+        ],
+        [
+          1000.0,
+          -507.347
+        ],
+        [
+          993.051,
+          -512.211
+        ],
+        [
+          963.603,
+          -659.45
+        ],
+        [
+          973.562,
+          -739.12
+        ],
+        [
+          963.838,
+          -884.971
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_university_woodland_2_-2_0",
+      "region_id": "astra_university_woodland",
+      "grid_cell": [
+        2,
+        -2
+      ],
+      "bounds_m": [
+        1000.0,
+        -983.544,
+        1500.0,
+        -500.0
+      ],
+      "area_m2": 198762.606,
+      "polygon": [
+        [
+          1464.45,
+          -736.389
+        ],
+        [
+          1500.0,
+          -687.166
+        ],
+        [
+          1500.0,
+          -500.0
+        ],
+        [
+          1010.496,
+          -500.0
+        ],
+        [
+          1000.0,
+          -507.347
+        ],
+        [
+          1000.0,
+          -890.137
+        ],
+        [
+          1030.455,
+          -894.488
+        ],
+        [
+          1100.143,
+          -944.265
+        ],
+        [
+          1159.352,
+          -944.265
+        ],
+        [
+          1277.191,
+          -983.544
+        ],
+        [
+          1334.677,
+          -926.058
+        ],
+        [
+          1464.45,
+          -736.389
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_university_woodland_2_-1_0",
+      "region_id": "astra_university_woodland",
+      "grid_cell": [
+        2,
+        -1
+      ],
+      "bounds_m": [
+        1010.496,
+        -500.0,
+        1500.0,
+        -184.386
+      ],
+      "area_m2": 104624.162,
+      "polygon": [
+        [
+          1465.249,
+          -273.209
+        ],
+        [
+          1405.839,
+          -193.996
+        ],
+        [
+          1319.357,
+          -184.386
+        ],
+        [
+          1211.854,
+          -233.252
+        ],
+        [
+          1142.902,
+          -331.754
+        ],
+        [
+          1092.528,
+          -442.578
+        ],
+        [
+          1010.496,
+          -500.0
+        ],
+        [
+          1500.0,
+          -500.0
+        ],
+        [
+          1500.0,
+          -290.585
+        ],
+        [
+          1465.249,
+          -273.209
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_university_woodland_3_-2_0",
+      "region_id": "astra_university_woodland",
+      "grid_cell": [
+        3,
+        -2
+      ],
+      "bounds_m": [
+        1500.0,
+        -687.166,
+        1629.685,
+        -500.0
+      ],
+      "area_m2": 12495.15,
+      "polygon": [
+        [
+          1594.39,
+          -556.473
+        ],
+        [
+          1629.685,
+          -500.0
+        ],
+        [
+          1500.0,
+          -500.0
+        ],
+        [
+          1500.0,
+          -687.166
+        ],
+        [
+          1594.39,
+          -556.473
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_university_woodland_3_-1_0",
+      "region_id": "astra_university_woodland",
+      "grid_cell": [
+        3,
+        -1
+      ],
+      "bounds_m": [
+        1500.0,
+        -500.0,
+        1692.956,
+        -290.585
+      ],
+      "area_m2": 29341.175,
+      "polygon": [
+        [
+          1566.748,
+          -323.959
+        ],
+        [
+          1500.0,
+          -290.585
+        ],
+        [
+          1500.0,
+          -500.0
+        ],
+        [
+          1629.685,
+          -500.0
+        ],
+        [
+          1692.956,
+          -398.766
+        ],
+        [
+          1674.823,
+          -353.434
+        ],
+        [
+          1566.748,
+          -323.959
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_north_4_-4_0",
+      "region_id": "astra_southeast_north",
+      "grid_cell": [
+        4,
+        -4
+      ],
+      "bounds_m": [
+        2417.116,
+        -1604.04,
+        2500.0,
+        -1500.0
+      ],
+      "area_m2": 4799.386,
+      "polygon": [
+        [
+          2479.476,
+          -1604.04
+        ],
+        [
+          2500.0,
+          -1600.619
+        ],
+        [
+          2500.0,
+          -1500.0
+        ],
+        [
+          2497.514,
+          -1500.0
+        ],
+        [
+          2491.434,
+          -1503.378
+        ],
+        [
+          2417.116,
+          -1568.406
+        ],
+        [
+          2479.476,
+          -1604.04
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_north_5_-4_0",
+      "region_id": "astra_southeast_north",
+      "grid_cell": [
+        5,
+        -4
+      ],
+      "bounds_m": [
+        2500.0,
+        -1693.458,
+        2900.735,
+        -1500.0
+      ],
+      "area_m2": 51523.792,
+      "polygon": [
+        [
+          2884.496,
+          -1516.239
+        ],
+        [
+          2900.735,
+          -1500.0
+        ],
+        [
+          2500.0,
+          -1500.0
+        ],
+        [
+          2500.0,
+          -1600.619
+        ],
+        [
+          2539.421,
+          -1594.049
+        ],
+        [
+          2650.544,
+          -1654.662
+        ],
+        [
+          2766.933,
+          -1693.458
+        ],
+        [
+          2824.403,
+          -1626.41
+        ],
+        [
+          2884.496,
+          -1516.239
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_north_5_-3_0",
+      "region_id": "astra_southeast_north",
+      "grid_cell": [
+        5,
+        -3
+      ],
+      "bounds_m": [
+        2500.0,
+        -1500.0,
+        2983.541,
+        -1015.894
+      ],
+      "area_m2": 109375.249,
+      "polygon": [
+        [
+          2712.384,
+          -1352.759
+        ],
+        [
+          2631.674,
+          -1403.203
+        ],
+        [
+          2581.581,
+          -1453.296
+        ],
+        [
+          2500.0,
+          -1498.619
+        ],
+        [
+          2500.0,
+          -1500.0
+        ],
+        [
+          2900.735,
+          -1500.0
+        ],
+        [
+          2947.007,
+          -1453.728
+        ],
+        [
+          2983.541,
+          -1462.861
+        ],
+        [
+          2983.541,
+          -1015.894
+        ],
+        [
+          2920.665,
+          -1033.858
+        ],
+        [
+          2862.796,
+          -1072.437
+        ],
+        [
+          2822.883,
+          -1202.155
+        ],
+        [
+          2762.545,
+          -1252.437
+        ],
+        [
+          2712.384,
+          -1352.759
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_outer_3_-5_0",
+      "region_id": "astra_southeast_outer",
+      "grid_cell": [
+        3,
+        -5
+      ],
+      "bounds_m": [
+        1974.964,
+        -2238.029,
+        2000.0,
+        -2172.935
+      ],
+      "area_m2": 814.847,
+      "polygon": [
+        [
+          1974.964,
+          -2218.0
+        ],
+        [
+          2000.0,
+          -2238.029
+        ],
+        [
+          2000.0,
+          -2172.935
+        ],
+        [
+          1974.964,
+          -2218.0
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_outer_4_-6_0",
+      "region_id": "astra_southeast_outer",
+      "grid_cell": [
+        4,
+        -6
+      ],
+      "bounds_m": [
+        2454.244,
+        -2819.621,
+        2500.0,
+        -2675.325
+      ],
+      "area_m2": 3765.891,
+      "polygon": [
+        [
+          2482.726,
+          -2806.186
+        ],
+        [
+          2500.0,
+          -2819.621
+        ],
+        [
+          2500.0,
+          -2675.325
+        ],
+        [
+          2454.244,
+          -2730.232
+        ],
+        [
+          2482.726,
+          -2806.186
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_outer_4_-5_0",
+      "region_id": "astra_southeast_outer",
+      "grid_cell": [
+        4,
+        -5
+      ],
+      "bounds_m": [
+        2000.0,
+        -2477.13,
+        2500.0,
+        -2000.0
+      ],
+      "area_m2": 120854.54,
+      "polygon": [
+        [
+          2471.905,
+          -2445.523
+        ],
+        [
+          2500.0,
+          -2477.13
+        ],
+        [
+          2500.0,
+          -2000.0
+        ],
+        [
+          2440.287,
+          -2000.0
+        ],
+        [
+          2308.781,
+          -2005.26
+        ],
+        [
+          2308.57,
+          -2000.0
+        ],
+        [
+          2235.308,
+          -2000.0
+        ],
+        [
+          2222.131,
+          -2023.06
+        ],
+        [
+          2139.123,
+          -2064.564
+        ],
+        [
+          2061.404,
+          -2045.135
+        ],
+        [
+          2023.02,
+          -2131.499
+        ],
+        [
+          2000.0,
+          -2172.935
+        ],
+        [
+          2000.0,
+          -2238.029
+        ],
+        [
+          2019.011,
+          -2253.238
+        ],
+        [
+          2084.293,
+          -2215.934
+        ],
+        [
+          2104.96,
+          -2143.599
+        ],
+        [
+          2170.764,
+          -2154.567
+        ],
+        [
+          2251.86,
+          -2225.525
+        ],
+        [
+          2352.408,
+          -2316.019
+        ],
+        [
+          2402.255,
+          -2395.773
+        ],
+        [
+          2471.905,
+          -2445.523
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_outer_4_-4_0",
+      "region_id": "astra_southeast_outer",
+      "grid_cell": [
+        4,
+        -4
+      ],
+      "bounds_m": [
+        2235.308,
+        -2000.0,
+        2500.0,
+        -1690.186
+      ],
+      "area_m2": 25927.49,
+      "polygon": [
+        [
+          2262.453,
+          -1952.498
+        ],
+        [
+          2235.308,
+          -2000.0
+        ],
+        [
+          2308.57,
+          -2000.0
+        ],
+        [
+          2308.301,
+          -1993.27
+        ],
+        [
+          2500.0,
+          -1985.602
+        ],
+        [
+          2500.0,
+          -1924.877
+        ],
+        [
+          2459.264,
+          -1965.613
+        ],
+        [
+          2372.036,
+          -1911.095
+        ],
+        [
+          2404.814,
+          -1845.538
+        ],
+        [
+          2468.76,
+          -1813.565
+        ],
+        [
+          2500.0,
+          -1832.309
+        ],
+        [
+          2500.0,
+          -1690.186
+        ],
+        [
+          2442.225,
+          -1772.721
+        ],
+        [
+          2392.16,
+          -1812.773
+        ],
+        [
+          2332.212,
+          -1892.704
+        ],
+        [
+          2262.453,
+          -1952.498
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_outer_5_-6_0",
+      "region_id": "astra_southeast_outer",
+      "grid_cell": [
+        5,
+        -6
+      ],
+      "bounds_m": [
+        2500.0,
+        -2984.265,
+        2983.541,
+        -2500.0
+      ],
+      "area_m2": 209934.193,
+      "polygon": [
+        [
+          2983.541,
+          -2984.265
+        ],
+        [
+          2983.541,
+          -2500.0
+        ],
+        [
+          2520.329,
+          -2500.0
+        ],
+        [
+          2553.541,
+          -2537.364
+        ],
+        [
+          2553.541,
+          -2611.075
+        ],
+        [
+          2500.0,
+          -2675.325
+        ],
+        [
+          2500.0,
+          -2819.621
+        ],
+        [
+          2572.926,
+          -2876.341
+        ],
+        [
+          2602.36,
+          -2984.265
+        ],
+        [
+          2983.541,
+          -2984.265
+        ]
+      ],
+      "holes": [
+        [
+          [
+            2980.716,
+            -2544.857
+          ],
+          [
+            2801.524,
+            -2614.543
+          ],
+          [
+            2582.21,
+            -2784.013
+          ],
+          [
+            2574.872,
+            -2774.517
+          ],
+          [
+            2795.558,
+            -2603.987
+          ],
+          [
+            2976.366,
+            -2533.673
+          ],
+          [
+            2980.716,
+            -2544.857
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "astra_southeast_outer_5_-5_0",
+      "region_id": "astra_southeast_outer",
+      "grid_cell": [
+        5,
+        -5
+      ],
+      "bounds_m": [
+        2500.0,
+        -2500.0,
+        2983.541,
+        -2000.0
+      ],
+      "area_m2": 209141.259,
+      "polygon": [
+        [
+          2843.392,
+          -2048.383
+        ],
+        [
+          2867.583,
+          -2000.0
+        ],
+        [
+          2500.0,
+          -2000.0
+        ],
+        [
+          2500.0,
+          -2477.13
+        ],
+        [
+          2520.329,
+          -2500.0
+        ],
+        [
+          2983.541,
+          -2500.0
+        ],
+        [
+          2983.541,
+          -2321.336
+        ],
+        [
+          2894.28,
+          -2232.075
+        ],
+        [
+          2853.659,
+          -2130.524
+        ],
+        [
+          2843.392,
+          -2048.383
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_outer_5_-4_0",
+      "region_id": "astra_southeast_outer",
+      "grid_cell": [
+        5,
+        -4
+      ],
+      "bounds_m": [
+        2500.0,
+        -2000.0,
+        2983.541,
+        -1675.427
+      ],
+      "area_m2": 96764.664,
+      "polygon": [
+        [
+          2895.628,
+          -1943.911
+        ],
+        [
+          2983.541,
+          -1953.679
+        ],
+        [
+          2983.541,
+          -1823.364
+        ],
+        [
+          2887.488,
+          -1804.153
+        ],
+        [
+          2757.074,
+          -1774.058
+        ],
+        [
+          2626.682,
+          -1723.907
+        ],
+        [
+          2510.331,
+          -1675.427
+        ],
+        [
+          2500.0,
+          -1690.186
+        ],
+        [
+          2500.0,
+          -1832.309
+        ],
+        [
+          2519.338,
+          -1843.912
+        ],
+        [
+          2599.637,
+          -1823.837
+        ],
+        [
+          2645.81,
+          -1858.467
+        ],
+        [
+          2580.588,
+          -1934.56
+        ],
+        [
+          2500.347,
+          -1924.53
+        ],
+        [
+          2500.0,
+          -1924.877
+        ],
+        [
+          2500.0,
+          -1985.602
+        ],
+        [
+          2557.764,
+          -1983.291
+        ],
+        [
+          2737.239,
+          -1943.408
+        ],
+        [
+          2739.843,
+          -1955.122
+        ],
+        [
+          2559.318,
+          -1995.239
+        ],
+        [
+          2500.0,
+          -1997.612
+        ],
+        [
+          2500.0,
+          -2000.0
+        ],
+        [
+          2867.583,
+          -2000.0
+        ],
+        [
+          2895.628,
+          -1943.911
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_inner_1_-5_0",
+      "region_id": "astra_southeast_inner",
+      "grid_cell": [
+        1,
+        -5
+      ],
+      "bounds_m": [
+        814.205,
+        -2494.265,
+        1000.0,
+        -2195.265
+      ],
+      "area_m2": 25504.809,
+      "polygon": [
+        [
+          977.332,
+          -2474.398
+        ],
+        [
+          1000.0,
+          -2466.842
+        ],
+        [
+          1000.0,
+          -2195.265
+        ],
+        [
+          969.34,
+          -2195.265
+        ],
+        [
+          953.304,
+          -2331.573
+        ],
+        [
+          891.396,
+          -2393.481
+        ],
+        [
+          823.147,
+          -2422.731
+        ],
+        [
+          814.205,
+          -2494.265
+        ],
+        [
+          858.127,
+          -2494.265
+        ],
+        [
+          977.332,
+          -2474.398
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_inner_1_-5_1",
+      "region_id": "astra_southeast_inner",
+      "grid_cell": [
+        1,
+        -5
+      ],
+      "bounds_m": [
+        970.752,
+        -2183.265,
+        1000.0,
+        -2151.718
+      ],
+      "area_m2": 723.047,
+      "polygon": [
+        [
+          973.163,
+          -2162.769
+        ],
+        [
+          970.752,
+          -2183.265
+        ],
+        [
+          1000.0,
+          -2183.265
+        ],
+        [
+          1000.0,
+          -2151.718
+        ],
+        [
+          973.163,
+          -2162.769
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_inner_2_-6_0",
+      "region_id": "astra_southeast_inner",
+      "grid_cell": [
+        2,
+        -6
+      ],
+      "bounds_m": [
+        1275.261,
+        -2984.265,
+        1500.0,
+        -2778.366
+      ],
+      "area_m2": 34320.288,
+      "polygon": [
+        [
+          1275.261,
+          -2984.265
+        ],
+        [
+          1500.0,
+          -2984.265
+        ],
+        [
+          1500.0,
+          -2778.366
+        ],
+        [
+          1439.862,
+          -2804.139
+        ],
+        [
+          1361.267,
+          -2813.963
+        ],
+        [
+          1303.075,
+          -2891.554
+        ],
+        [
+          1275.261,
+          -2984.265
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_inner_2_-6_1",
+      "region_id": "astra_southeast_inner",
+      "grid_cell": [
+        2,
+        -6
+      ],
+      "bounds_m": [
+        1299.042,
+        -2734.449,
+        1500.0,
+        -2500.0
+      ],
+      "area_m2": 19249.554,
+      "polygon": [
+        [
+          1472.273,
+          -2665.131
+        ],
+        [
+          1500.0,
+          -2734.449
+        ],
+        [
+          1500.0,
+          -2500.0
+        ],
+        [
+          1299.042,
+          -2500.0
+        ],
+        [
+          1330.248,
+          -2504.458
+        ],
+        [
+          1383.055,
+          -2536.143
+        ],
+        [
+          1402.904,
+          -2645.312
+        ],
+        [
+          1472.273,
+          -2665.131
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_inner_2_-5_0",
+      "region_id": "astra_southeast_inner",
+      "grid_cell": [
+        2,
+        -5
+      ],
+      "bounds_m": [
+        1000.0,
+        -2500.0,
+        1500.0,
+        -2195.265
+      ],
+      "area_m2": 128373.654,
+      "polygon": [
+        [
+          1260.898,
+          -2494.551
+        ],
+        [
+          1299.042,
+          -2500.0
+        ],
+        [
+          1500.0,
+          -2500.0
+        ],
+        [
+          1500.0,
+          -2198.936
+        ],
+        [
+          1398.586,
+          -2205.274
+        ],
+        [
+          1188.398,
+          -2195.265
+        ],
+        [
+          1000.0,
+          -2195.265
+        ],
+        [
+          1000.0,
+          -2466.842
+        ],
+        [
+          1063.541,
+          -2445.661
+        ],
+        [
+          1063.541,
+          -2396.589
+        ],
+        [
+          1131.467,
+          -2351.305
+        ],
+        [
+          1152.624,
+          -2425.356
+        ],
+        [
+          1211.242,
+          -2444.895
+        ],
+        [
+          1260.898,
+          -2494.551
+        ]
+      ],
+      "holes": [
+        [
+          [
+            1349.528,
+            -2253.181
+          ],
+          [
+            1385.612,
+            -2289.265
+          ],
+          [
+            1348.541,
+            -2326.336
+          ],
+          [
+            1300.1,
+            -2277.895
+          ],
+          [
+            1349.528,
+            -2253.181
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "astra_southeast_inner_2_-5_1",
+      "region_id": "astra_southeast_inner",
+      "grid_cell": [
+        2,
+        -5
+      ],
+      "bounds_m": [
+        1000.0,
+        -2193.256,
+        1495.108,
+        -2044.875
+      ],
+      "area_m2": 39174.624,
+      "polygon": [
+        [
+          1140.528,
+          -2093.854
+        ],
+        [
+          1000.0,
+          -2151.718
+        ],
+        [
+          1000.0,
+          -2183.265
+        ],
+        [
+          1188.684,
+          -2183.265
+        ],
+        [
+          1398.496,
+          -2193.256
+        ],
+        [
+          1495.108,
+          -2187.218
+        ],
+        [
+          1386.041,
+          -2123.595
+        ],
+        [
+          1248.281,
+          -2044.875
+        ],
+        [
+          1140.528,
+          -2093.854
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_inner_3_-6_0",
+      "region_id": "astra_southeast_inner",
+      "grid_cell": [
+        3,
+        -6
+      ],
+      "bounds_m": [
+        1500.0,
+        -2984.265,
+        2000.0,
+        -2500.0
+      ],
+      "area_m2": 235687.742,
+      "polygon": [
+        [
+          1500.0,
+          -2984.265
+        ],
+        [
+          2000.0,
+          -2984.265
+        ],
+        [
+          2000.0,
+          -2619.627
+        ],
+        [
+          1921.05,
+          -2654.716
+        ],
+        [
+          1711.108,
+          -2754.688
+        ],
+        [
+          1541.096,
+          -2834.694
+        ],
+        [
+          1535.986,
+          -2823.836
+        ],
+        [
+          1705.974,
+          -2743.842
+        ],
+        [
+          1916.032,
+          -2643.814
+        ],
+        [
+          2000.0,
+          -2606.495
+        ],
+        [
+          2000.0,
+          -2500.0
+        ],
+        [
+          1500.0,
+          -2500.0
+        ],
+        [
+          1500.0,
+          -2734.449
+        ],
+        [
+          1514.996,
+          -2771.939
+        ],
+        [
+          1500.0,
+          -2778.366
+        ],
+        [
+          1500.0,
+          -2984.265
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_inner_3_-5_0",
+      "region_id": "astra_southeast_inner",
+      "grid_cell": [
+        3,
+        -5
+      ],
+      "bounds_m": [
+        1500.0,
+        -2500.0,
+        2000.0,
+        -2197.895
+      ],
+      "area_m2": 82114.013,
+      "polygon": [
+        [
+          1516.652,
+          -2197.895
+        ],
+        [
+          1500.0,
+          -2198.936
+        ],
+        [
+          1500.0,
+          -2500.0
+        ],
+        [
+          2000.0,
+          -2500.0
+        ],
+        [
+          2000.0,
+          -2468.362
+        ],
+        [
+          1915.591,
+          -2393.333
+        ],
+        [
+          1796.161,
+          -2323.665
+        ],
+        [
+          1656.491,
+          -2253.83
+        ],
+        [
+          1516.652,
+          -2197.895
+        ]
+      ],
+      "holes": [
+        [
+          [
+            1649.388,
+            -2365.068
+          ],
+          [
+            1574.733,
+            -2333.073
+          ],
+          [
+            1541.927,
+            -2256.525
+          ],
+          [
+            1598.643,
+            -2233.839
+          ],
+          [
+            1691.897,
+            -2275.285
+          ],
+          [
+            1715.193,
+            -2310.23
+          ],
+          [
+            1649.388,
+            -2365.068
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "astra_southeast_inner_4_-6_0",
+      "region_id": "astra_southeast_inner",
+      "grid_cell": [
+        4,
+        -6
+      ],
+      "bounds_m": [
+        2000.0,
+        -2984.265,
+        2477.238,
+        -2500.0
+      ],
+      "area_m2": 124437.406,
+      "polygon": [
+        [
+          2254.735,
+          -2752.53
+        ],
+        [
+          2144.79,
+          -2602.605
+        ],
+        [
+          2034.292,
+          -2500.0
+        ],
+        [
+          2000.0,
+          -2500.0
+        ],
+        [
+          2000.0,
+          -2606.495
+        ],
+        [
+          2006.104,
+          -2603.782
+        ],
+        [
+          2010.978,
+          -2614.748
+        ],
+        [
+          2000.0,
+          -2619.627
+        ],
+        [
+          2000.0,
+          -2984.265
+        ],
+        [
+          2477.238,
+          -2984.265
+        ],
+        [
+          2384.921,
+          -2882.716
+        ],
+        [
+          2254.735,
+          -2752.53
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_inner_4_-5_0",
+      "region_id": "astra_southeast_inner",
+      "grid_cell": [
+        4,
+        -5
+      ],
+      "bounds_m": [
+        2000.0,
+        -2500.0,
+        2034.292,
+        -2468.362
+      ],
+      "area_m2": 545.452,
+      "polygon": [
+        [
+          2005.179,
+          -2472.966
+        ],
+        [
+          2000.0,
+          -2468.362
+        ],
+        [
+          2000.0,
+          -2500.0
+        ],
+        [
+          2034.292,
+          -2500.0
+        ],
+        [
+          2005.179,
+          -2472.966
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_railway_1_-6_0",
+      "region_id": "astra_southeast_railway",
+      "grid_cell": [
+        1,
+        -6
+      ],
+      "bounds_m": [
+        794.16,
+        -2909.007,
+        1000.0,
+        -2500.0
+      ],
+      "area_m2": 59523.935,
+      "polygon": [
+        [
+          945.495,
+          -2854.82
+        ],
+        [
+          1000.0,
+          -2842.707
+        ],
+        [
+          1000.0,
+          -2500.0
+        ],
+        [
+          957.349,
+          -2500.0
+        ],
+        [
+          889.879,
+          -2524.096
+        ],
+        [
+          794.16,
+          -2543.24
+        ],
+        [
+          813.411,
+          -2677.998
+        ],
+        [
+          863.154,
+          -2807.331
+        ],
+        [
+          909.371,
+          -2909.007
+        ],
+        [
+          945.495,
+          -2854.82
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_railway_1_-5_0",
+      "region_id": "astra_southeast_railway",
+      "grid_cell": [
+        1,
+        -5
+      ],
+      "bounds_m": [
+        957.349,
+        -2500.0,
+        1000.0,
+        -2484.768
+      ],
+      "area_m2": 324.83,
+      "polygon": [
+        [
+          1000.0,
+          -2484.768
+        ],
+        [
+          957.349,
+          -2500.0
+        ],
+        [
+          1000.0,
+          -2500.0
+        ],
+        [
+          1000.0,
+          -2484.768
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_railway_2_-6_0",
+      "region_id": "astra_southeast_railway",
+      "grid_cell": [
+        2,
+        -6
+      ],
+      "bounds_m": [
+        1000.0,
+        -2842.707,
+        1181.998,
+        -2500.0
+      ],
+      "area_m2": 42768.856,
+      "polygon": [
+        [
+          1074.984,
+          -2512.822
+        ],
+        [
+          1058.956,
+          -2500.0
+        ],
+        [
+          1000.0,
+          -2500.0
+        ],
+        [
+          1000.0,
+          -2842.707
+        ],
+        [
+          1037.747,
+          -2834.319
+        ],
+        [
+          1136.929,
+          -2824.401
+        ],
+        [
+          1181.998,
+          -2797.36
+        ],
+        [
+          1123.638,
+          -2680.64
+        ],
+        [
+          1113.685,
+          -2561.199
+        ],
+        [
+          1074.984,
+          -2512.822
+        ]
+      ],
+      "holes": []
+    },
+    {
+      "id": "astra_southeast_railway_2_-5_0",
+      "region_id": "astra_southeast_railway",
+      "grid_cell": [
+        2,
+        -5
+      ],
+      "bounds_m": [
+        1000.0,
+        -2500.0,
+        1058.956,
+        -2474.912
+      ],
+      "area_m2": 949.715,
+      "polygon": [
+        [
+          1058.956,
+          -2500.0
+        ],
+        [
+          1027.596,
+          -2474.912
+        ],
+        [
+          1000.0,
+          -2484.768
+        ],
+        [
+          1000.0,
+          -2500.0
+        ],
+        [
+          1058.956,
+          -2500.0
+        ]
+      ],
+      "holes": []
+    }
+  ]
+}

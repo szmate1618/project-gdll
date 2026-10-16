@@ -16,6 +16,7 @@
 #include "guardrail_layer.hpp"
 #include "model_merge.hpp"
 #include "forest_layer.hpp"
+#include "vegetation_selection.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_door_collision.hpp"
 #include "zombie_park.hpp"
@@ -59,6 +60,7 @@ struct Options {
     bool rain = false;
     viewer::AudioOptions audio{VIEWER_AUDIO_DIR};
     bool noForests = false;
+    viewer::VegetationSelection vegetation;
     bool noFences = false;
     bool noPoles = false;
     bool noGuardrails = false;
@@ -141,6 +143,9 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--no-guardrails") options.noGuardrails = true;
         else if (argument == "--no-poles") options.noPoles = true;
         else if (argument == "--forests") options.forests = value();
+        else if (argument == "--vegetation") options.vegetation.select(value());
+        else if (argument == "--osm-vegetation")
+            throw std::runtime_error("--osm-vegetation was replaced by --vegetation osm");
         else if (argument == "--no-forests") options.noForests = true;
         else if (argument == "--no-fences") options.noFences = true;
         else if (argument == "--no-roof-batching") options.roofBatching = false;
@@ -210,6 +215,8 @@ Options parseOptions(int argc, char** argv) {
     if ((options.hidden || options.selfTest || options.selfTestFPS || !options.screenshot.empty()) && options.frames == 0) options.frames = 3;
     if (options.noTrees && !options.trees.empty())
         throw std::runtime_error("Use either --trees FILE or --no-trees");
+    (void)viewer::vegetationPaths(options.vegetation, options.model, VIEWER_FOREST_CONFIG,
+                                  options.trees, options.forests);
     if (options.noPoles && !options.poles.empty())
         throw std::runtime_error("Use either --poles FILE or --no-poles");
     if (options.noGuardrails && !options.guardrails.empty())
@@ -252,9 +259,10 @@ void printHelp() {
               << "  --spawn X Z         Start walking near world X/Z in meters\n"
               << "  --collision-debug   Show colliders and ground normal (F3)\n"
               << "  --trees FILE        Load a tree instance JSON explicitly\n"
-              << "  --no-trees          Disable detected trees and runtime forests\n"
+              << "  --no-trees          Disable individual trees and runtime forests\n"
               << "  --forests FILE      Load runtime woodland polygons explicitly\n"
-              << "  --no-forests        Disable runtime forests, keep detected trees\n"
+              << "  --vegetation MODE  Select original (default), osm or sentinel-astra; one source only\n"
+              << "  --no-forests        Disable runtime forests, keep individual trees\n"
               << "  --no-fences         Disable fence panels, shadows and collisions\n"
               << "  --poles FILE        Load a mapped pole column JSON explicitly\n"
               << "  --no-poles          Disable pole columns, shadows and collisions\n"
@@ -775,9 +783,11 @@ int run(const Options& options) {
               << " draw instances, " << triangles << " triangles, " << model.images.size() << " images\n";
     for (const auto& warning : model.warnings) std::cerr << "Model warning: " << warning << '\n';
     std::optional<viewer::TreeLayer> trees;
-    if (!options.noTrees) {
-        const bool explicitTrees = !options.trees.empty();
-        const auto path = explicitTrees ? options.trees : options.model.parent_path() / "trees.instances.json";
+    const auto vegetation = viewer::vegetationPaths(options.vegetation, options.model,
+        VIEWER_FOREST_CONFIG, options.trees, options.forests);
+    if (!options.noTrees && !vegetation.trees.empty()) {
+        const bool explicitTrees = vegetation.requireTrees;
+        const auto& path = vegetation.trees;
         if (explicitTrees || std::filesystem::exists(path)) {
             try {
                 std::cout << "Loading trees: " << path << '\n';
@@ -796,8 +806,8 @@ int run(const Options& options) {
     }
     std::optional<viewer::ForestLayer> forests;
     if (!options.noTrees && !options.noForests) {
-        const bool explicitForests = !options.forests.empty();
-        const auto path = explicitForests ? options.forests : std::filesystem::path(VIEWER_FOREST_CONFIG);
+        const bool explicitForests = vegetation.requireForests;
+        const auto& path = vegetation.forests;
         if (explicitForests || (model.geographicFrame && std::filesystem::exists(path))) {
             try {
                 if (!trees) trees.emplace();

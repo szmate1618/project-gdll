@@ -37,7 +37,7 @@
   "source": {
     "method": "manual_conservative_orthophoto_review_with_satellite_intersection",
     "map_path": "output/godollo.glb",
-    "map_sha256": "97cd279ea59064ae8d0d6e0d295bd4010837f0c343f6852db9567a65916aded2",
+    "map_sha256": "a98d8bd007c07260533749aefff16cb00de54cf104dd4cf38438dcc4bf3992c5",
     "texture_path": "data/processed/terrain_texture.png",
     "texture_sha256": "265aa4a8369d1fecab128df43164c0d2ca42db310f47ba104f64b3e9934fb9cb",
     "texture_dimensions_pixels": [
