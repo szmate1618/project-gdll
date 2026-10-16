@@ -6,7 +6,9 @@
 #include <stdexcept>
 
 namespace multiplayer {
-ServerPlayer::ServerPlayer() : weapons(resourceRoot() / "items", resourceRoot() / "inventory.toml") {}
+ServerPlayer::ServerPlayer() : weapons(resourceRoot() / "items", resourceRoot() / "inventory.toml") {
+    held.slot = static_cast<std::uint8_t>(weapons.slot());
+}
 World::World(Scene& scene) : scene_(scene),
     physicsScene_(scene.physics, *scene.collision, scene.model.boundsMin, scene.model.boundsMax),
     interiors_(scene.model, *scene.doors, 1), zombieDoors_(scene.physics) {

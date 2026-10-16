@@ -181,6 +181,7 @@ int main(int argc, char** argv) {
                     for (const auto& p : snapshot->players) if (p.id == self) {
                         const bool ready = prediction.ready(); const auto before = prediction.eye();
                         prediction.reconcile(p, *scene.collision); ownState = p; found = true;
+                        if (!ready) in.slot = p.slot;
                         const auto correction = before - prediction.eye();
                         if (ready && glm::length(correction) < 2) visualOffset += correction; else visualOffset = {};
                     }
