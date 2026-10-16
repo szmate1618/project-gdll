@@ -1,0 +1,5 @@
+# Multiplayer fingerprints hash raw bytes, including line endings. Keep LF so
+# Windows CRLF conversion cannot make matching content fail the Linux handshake.
+/items/*.toml text eol=lf
+/inventory.toml text eol=lf
+/forest_patches.json text eol=lf

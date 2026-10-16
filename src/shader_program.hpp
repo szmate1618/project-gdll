@@ -1,7 +1,7 @@
 #pragma once
 
 #include <filesystem>
-#include <GL/glcorearb.h>
+#include "opengl.hpp"
 
 namespace viewer {
 

@@ -97,7 +97,7 @@ Scene::Scene(const Options& o) : model(viewer::loadModel(o.map)), physics(std::m
         trees = viewer::loadTreeLayer(adjacent("trees.instances.json"), o.map);
         content.push_back(adjacent("trees.instances.json"));
     }
-    const auto forestConfig = std::filesystem::path(MP_ROOT) / "forest_patches.json";
+    const auto forestConfig = resourceRoot() / "forest_patches.json";
     if (o.forests && model.geographicFrame && std::filesystem::exists(forestConfig)) {
         if (!trees) trees.emplace();
         viewer::CollisionWorld placement(model, {}, doors.get());
@@ -141,11 +141,11 @@ Scene::Scene(const Options& o) : model(viewer::loadModel(o.map)), physics(std::m
         }
     }
     std::vector<std::filesystem::path> items;
-    for (const auto& entry : std::filesystem::directory_iterator(std::filesystem::path(MP_ROOT) / "items"))
+    for (const auto& entry : std::filesystem::directory_iterator(resourceRoot() / "items"))
         if (entry.path().extension() == ".toml") items.push_back(entry.path());
     std::sort(items.begin(), items.end());
     content.insert(content.end(), items.begin(), items.end());
-    content.push_back(std::filesystem::path(MP_ROOT) / "inventory.toml");
+    content.push_back(resourceRoot() / "inventory.toml");
     // Hash content, not machine-specific paths. Loaders validate manifest provenance too.
     std::ostringstream identity;
     identity << protocolVersion << ':' << count << ':' << std::hexfloat << o.zombieRadius << ':'

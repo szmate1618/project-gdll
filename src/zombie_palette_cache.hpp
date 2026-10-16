@@ -1,6 +1,6 @@
 #pragma once
 
-#include <GL/glcorearb.h>
+#include "opengl.hpp"
 #include <glm/glm.hpp>
 #include <cstddef>
 #include <cstdint>

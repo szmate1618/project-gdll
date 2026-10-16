@@ -30,6 +30,26 @@ cmake --build build-server -j4
 This also builds a headless client for network checks. Existing viewer graphics
 tests are excluded in this configuration; multiplayer tests still run.
 
+## Windows client
+
+The **Build apps** GitHub Actions workflow also builds the graphical client on
+`windows-2022`. It uses MSVC, GLEW for OpenGL loading, and the pinned vcpkg
+manifest in `windows/`. Protobuf stays at 3.21.12 for compatibility with the
+existing GameNetworkingSockets build. Linux retains its current OpenGL setup.
+
+Download `godollo-client-windows-x86_64` from the workflow run and extract the
+enclosed ZIP. It includes the client, shaders, item/inventory definitions,
+forest configuration, licenses and the synthetic test scene. Windows looks for
+these resources beside the executable, with the source checkout as a development
+fallback. It needs an OpenGL 3.3 driver and the Visual C++ x64 Redistributable.
+See [package usage](windows/README.md) for commands and matching town assets.
+Git attributes preserve LF endings in fingerprinted configuration files so
+Windows checkout conversion does not create a content mismatch with Linux.
+
+The Windows job builds only the multiplayer client and checks `--help` startup;
+it does not run graphics or gameplay tests. The original viewer, headless server,
+and regression suites continue to be built/tested on Linux.
+
 ## Run
 
 From the repository root, start the server, then clients in separate terminals:

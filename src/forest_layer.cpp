@@ -47,11 +47,11 @@ std::filesystem::path assetPath(const Json& settings,const char* key,const char*
 }
 ImageData image(const std::filesystem::path& path) {
     ImageData result; int channels=0;
-    if (!stbi_info(path.c_str(),&result.width,&result.height,&channels) ||
+    if (!stbi_info(path.u8string().c_str(),&result.width,&result.height,&channels) ||
         result.width<1||result.height<1||result.width>4096||result.height>4096)
         throw std::runtime_error("Invalid forest texture: "+path.string());
     std::unique_ptr<unsigned char,decltype(&stbi_image_free)> pixels(
-        stbi_load(path.c_str(),&result.width,&result.height,&channels,4),stbi_image_free);
+        stbi_load(path.u8string().c_str(),&result.width,&result.height,&channels,4),stbi_image_free);
     if (!pixels) throw std::runtime_error("Cannot decode forest texture: "+path.string());
     result.rgba.assign(pixels.get(),pixels.get()+static_cast<std::size_t>(result.width)*result.height*4);
     return result;

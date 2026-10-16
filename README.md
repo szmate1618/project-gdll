@@ -156,7 +156,15 @@ executable permissions and is retained for fourteen days. These are compilation
 outputs, not standalone game packages: runtime libraries and scene assets are
 not bundled, and resource defaults still embed the build checkout's paths.
 Relocatable resource lookup and packaging are needed before distributing them
-as playable downloads. Windows builds are not configured.
+as playable downloads.
+
+The same workflow has a Windows x64 job for `godollo_client` using MSVC 2022
+and pinned vcpkg dependencies. Its `godollo-client-windows-x86_64` artifact
+includes shaders, weapon/inventory configuration, licenses, and the small test
+scene. Large map/tree/zombie assets must match the server and are not bundled.
+See [Windows client instructions](multiplayer/windows/README.md). Windows
+compilation and the executable startup check run on GitHub; interactive graphics
+and Linux-server/Windows-client gameplay still need Windows hardware validation.
 
 ## Configuration and coordinates
 

@@ -1,6 +1,6 @@
 #pragma once
 #include <filesystem>
-#include <GL/glcorearb.h>
+#include "opengl.hpp"
 
 namespace viewer {
 // Camera-local grey cubes, without scene assets, collision, or shadow casters.

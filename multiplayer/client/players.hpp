@@ -1,7 +1,7 @@
 #pragma once
 #include "protocol.hpp"
 #include "camera.hpp"
-#include <GL/glcorearb.h>
+#include "opengl.hpp"
 
 namespace multiplayer {
 class PlayerRenderer {

@@ -1,5 +1,8 @@
 # Linux GLB viewer
 
+Windows multiplayer client builds are described in
+[the multiplayer documentation](../multiplayer/README.md#windows-client).
+
 `godollo_viewer` is a small C++17 desktop viewer for glTF 2.0 scenes. It opens a
 resizable 1280 × 720 GLFW window, requests an OpenGL 3.3 Core context, and draws
 the scene with a perspective free-fly or first-person walking camera and directional lighting. Startup

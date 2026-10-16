@@ -1,4 +1,5 @@
 #include "players.hpp"
+#include "resources.hpp"
 #include "box_layer.hpp"
 #include "shader_program.hpp"
 #include <glm/gtc/matrix_transform.hpp>
@@ -9,7 +10,7 @@ PlayerRenderer::PlayerRenderer() {
     const auto cube = viewer::BoxLayer::unitCube();
     std::vector<glm::vec3> vertices;
     for (const auto i : cube.primitives.front().indices) vertices.push_back(cube.primitives.front().vertices[i].position);
-    const auto path = std::filesystem::path(MP_ROOT) / "multiplayer/client";
+    const auto path = resourceRoot() / "multiplayer/client";
     program_ = viewer::createShaderProgram(path / "players.vert", path / "players.frag");
     glGenVertexArrays(1, &vao_); glGenBuffers(1, &vbo_);
     glBindVertexArray(vao_); glBindBuffer(GL_ARRAY_BUFFER, vbo_);

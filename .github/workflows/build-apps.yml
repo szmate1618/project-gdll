@@ -48,3 +48,67 @@ jobs:
           path: build/godollo-apps-linux-x86_64.tar.gz
           if-no-files-found: error
           retention-days: 14
+
+  windows-client:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: microsoft/vcpkg
+          ref: c52f7bd748185ef0e0daf033d9f2ddfc8a3449ea
+          path: build/vcpkg
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install CMake
+        # Keep the older pinned dependency projects on the CMake 3 policy rules.
+        run: python -m pip install cmake==3.31.6
+      - name: Bootstrap Windows dependencies
+        run: ./build/vcpkg/bootstrap-vcpkg.bat -disableMetrics
+      - name: Configure Windows client
+        run: >-
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/build/vcpkg/scripts/buildsystems/vcpkg.cmake"
+          -DVCPKG_MANIFEST_DIR="${{ github.workspace }}/multiplayer/windows"
+          -DVCPKG_TARGET_TRIPLET=x64-windows-static-md
+          -DVCPKG_HOST_TRIPLET=x64-windows-static-md
+          -DOPENSSL_USE_STATIC_LIBS=ON -DProtobuf_USE_STATIC_LIBS=ON
+          -DGD_VIEWER=ON -DGD_MULTIPLAYER=ON -DBUILD_TESTING=OFF
+      - name: Build Windows client
+        run: cmake --build build --config Release --parallel 2 --target godollo_client viewer_test_asset
+      - name: Check executable startup
+        run: ./build/multiplayer/Release/godollo_client.exe --help
+      - name: Package Windows client
+        shell: pwsh
+        run: |
+          $package = 'build/windows-client'
+          New-Item -ItemType Directory -Force "$package/assets", "$package/multiplayer/client", "$package/licenses"
+          Copy-Item build/multiplayer/Release/godollo_client.exe $package
+          Copy-Item shaders, items $package -Recurse
+          Copy-Item inventory.toml, forest_patches.json $package
+          Copy-Item assets/test.glb "$package/assets"
+          Copy-Item multiplayer/client/players.vert, multiplayer/client/players.frag "$package/multiplayer/client"
+          Copy-Item multiplayer/windows/README.md "$package/README.md"
+          Get-ChildItem build/vcpkg_installed/x64-windows-static-md/share/*/copyright | ForEach-Object {
+            Copy-Item $_.FullName "$package/licenses/$($_.Directory.Name).txt"
+          }
+          Copy-Item build/_deps/gamenetworkingsockets-src/LICENSE "$package/licenses/GameNetworkingSockets.txt"
+          Copy-Item build/_deps/glfw-src/LICENSE.md "$package/licenses/GLFW.txt"
+          Copy-Item build/_deps/glm-src/copying.txt "$package/licenses/GLM.txt"
+          Copy-Item build/_deps/box3d-src/LICENSE "$package/licenses/Box3D.txt"
+          Copy-Item build/_deps/tinygltf-src/LICENSE "$package/licenses/tinygltf.txt"
+          Copy-Item build/_deps/tomlplusplus-src/LICENSE "$package/licenses/tomlplusplus.txt"
+          Compress-Archive -Path "$package/*" -DestinationPath build/godollo-client-windows-x86_64.zip
+      - name: Upload Windows client
+        uses: actions/upload-artifact@v7
+        with:
+          name: godollo-client-windows-x86_64
+          path: build/godollo-client-windows-x86_64.zip
+          if-no-files-found: error
+          retention-days: 14

@@ -2,7 +2,7 @@
 
 #include <filesystem>
 
-#include <GL/glcorearb.h>
+#include "opengl.hpp"
 
 #include "camera.hpp"
 

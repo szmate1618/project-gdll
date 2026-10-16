@@ -22,7 +22,7 @@ else()
     set(mp_transport GameNetworkingSockets::GameNetworkingSockets)
 endif()
 
-add_library(multiplayer_core STATIC protocol.cpp scene.cpp network.cpp fragments.cpp
+add_library(multiplayer_core STATIC protocol.cpp scene.cpp resources.cpp network.cpp fragments.cpp
     server/world.cpp client/prediction.cpp client/snapshots.cpp)
 target_include_directories(multiplayer_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(multiplayer_core PUBLIC viewer_fps viewer_zombies viewer_interaction

@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <vector>
 
-#include <GL/glcorearb.h>
+#include "opengl.hpp"
 #include <glm/glm.hpp>
 
 #include "camera.hpp"

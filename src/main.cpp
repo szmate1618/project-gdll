@@ -872,6 +872,7 @@ int run(const Options& options) {
         glfwCreateWindow(1280, 720, title.c_str(), nullptr, nullptr), glfwDestroyWindow);
     if (!window) throw std::runtime_error("Cannot create an OpenGL 3.3 Core window. Check display access and the graphics driver.");
     glfwMakeContextCurrent(window.get());
+    viewer::initializeOpenGL();
     glfwSwapInterval(options.frames > 0 ? 0 : 1);
     initializeGraphics(options.allowSoftware);
     AppState app(collision, model);

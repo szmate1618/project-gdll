@@ -6,7 +6,7 @@
 #include <stdexcept>
 
 namespace multiplayer {
-ServerPlayer::ServerPlayer() : weapons(std::filesystem::path(MP_ROOT) / "items", std::filesystem::path(MP_ROOT) / "inventory.toml") {}
+ServerPlayer::ServerPlayer() : weapons(resourceRoot() / "items", resourceRoot() / "inventory.toml") {}
 World::World(Scene& scene) : scene_(scene),
     physicsScene_(scene.physics, *scene.collision, scene.model.boundsMin, scene.model.boundsMax),
     interiors_(scene.model, *scene.doors, 1), zombieDoors_(scene.physics) {

@@ -1,5 +1,6 @@
 #pragma once
 #include "protocol.hpp"
+#include "resources.hpp"
 #include "box_layer.hpp"
 #include "collision_world.hpp"
 #include "door_layer.hpp"
@@ -14,7 +15,7 @@
 namespace multiplayer {
 struct Options {
     std::filesystem::path map = "output/godollo.glb";
-    std::filesystem::path zombieAssets = std::filesystem::path(MP_ROOT) / "assets/zombies/models";
+    std::filesystem::path zombieAssets = resourceRoot() / "assets/zombies/models";
     std::string address = "127.0.0.1:27020";
     std::uint16_t port = 27020;
     std::optional<glm::vec2> spawn;

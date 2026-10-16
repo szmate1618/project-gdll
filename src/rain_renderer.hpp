@@ -1,7 +1,7 @@
 #pragma once
 
 #include <filesystem>
-#include <GL/glcorearb.h>
+#include "opengl.hpp"
 
 #include "camera.hpp"
 #include "night_lighting.hpp"

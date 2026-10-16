@@ -86,11 +86,12 @@ struct Graphics {
         window = glfwCreateWindow(1280, 720, "Gödöllő Multiplayer", nullptr, nullptr);
         if (!window) throw std::runtime_error("Cannot create OpenGL 3.3 window");
         glfwMakeContextCurrent(window); glfwSwapInterval(1);
+        viewer::initializeOpenGL();
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << std::endl;
         glfwSetWindowUserPointer(window, &in); glfwSetKeyCallback(window, key); glfwSetCursorPosCallback(window, mouse);
         glfwSetMouseButtonCallback(window, button); glfwSetWindowFocusCallback(window, focus);
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-        const auto shaders = std::filesystem::path(MP_ROOT) / "shaders";
+        const auto shaders = multiplayer::resourceRoot() / "shaders";
         renderer = std::make_unique<viewer::Renderer>(scene.model, shaders, scene.trees ? &*scene.trees : nullptr,
             &scene.zombies, scene.forests ? &*scene.forests : nullptr);
         reticle = std::make_unique<viewer::ReticleOverlay>(shaders);
