@@ -1,6 +1,6 @@
 # Remaining correctness tasks
 
-Numbers identify findings from the repository-wide review.
+Numbers are stable identifiers for review follow-ups.
 
 - [ ] **1. Preserve the last good map when companion publication fails.**
   In [generate.py](../src/generate.py), the validated pending GLB replaces the
@@ -41,3 +41,18 @@ Numbers identify findings from the repository-wide review.
   stale companions prevent publication, and injected replacement failures restore
   the map and every affected companion. Include an explicitly supplied forest
   configuration, which may live outside the map directory.
+
+- [ ] **6. [P2] Enforce self-contained multiplayer model assets.**
+  [scene.cpp](../multiplayer/scene.cpp) fingerprints selected files, but
+  [the model loader](../src/model.cpp) follows external buffer/image references
+  inside GLBs. Changing an external `geometry.bin` can move a wall from 5 m to
+  10 m while leaving the GLB and multiplayer fingerprint identical. Peers can
+  therefore pass the handshake with different collision worlds. Normal generated
+  runtime GLBs are self-contained; this was reproduced with a synthetic asset.
+  Reject external buffer/image references for every model multiplayer loads,
+  including map, tree/forest and zombie models. Embedded binary data and inline
+  `data:` URIs remain valid. Keep single-player external-file support; inspect
+  [guardrail validation](../src/guardrail_layer.cpp) for an existing strict check.
+  Acceptance: synthetic GLBs with external buffers or images are rejected before
+  joining, embedded equivalents load, and single-player external assets still
+  work. Cover the multiplayer model-loading paths, not just the map extension.
