@@ -112,37 +112,27 @@ ZombieHitBounds zombieShotBounds(const ZombieInstance& instance, const ZombieHit
     include(result, head.minimum);
     include(result, head.maximum);
     // Outward tolerance covers affine/frame interpolation rounding. Broad-phase
-    // bounds may overinclude; the original sphere tests make the final decision.
+    // bounds may overinclude; the sphere tests make the final decision.
     const auto padding = glm::vec3(0.001f) +
         glm::max(glm::abs(result.minimum), glm::abs(result.maximum)) * (8 * std::numeric_limits<float>::epsilon());
     return {result.minimum - padding, result.maximum + padding};
 }
 
 bool zombieRayIntersectsBounds(glm::vec3 origin, glm::vec3 direction, const ZombieHitBounds& bounds) {
-    const auto reach = glm::max(glm::abs(glm::dvec3(bounds.minimum) - glm::dvec3(origin)),
-                                glm::abs(glm::dvec3(bounds.maximum) - glm::dvec3(origin)));
-    const double padding = zombieShotRoundoffPadding(glm::length(reach));
     double near = 0, far = std::numeric_limits<double>::infinity();
     for (int axis = 0; axis < 3; ++axis) {
         if (!std::isfinite(origin[axis]) || !std::isfinite(direction[axis])) return false;
         if (direction[axis] == 0) {
-            if (origin[axis] < double(bounds.minimum[axis]) - padding ||
-                origin[axis] > double(bounds.maximum[axis]) + padding) return false;
+            if (origin[axis] < bounds.minimum[axis] || origin[axis] > bounds.maximum[axis]) return false;
         } else {
-            const double a = (double(bounds.minimum[axis]) - padding - origin[axis]) / direction[axis];
-            const double b = (double(bounds.maximum[axis]) + padding - origin[axis]) / direction[axis];
+            const double a = (double(bounds.minimum[axis]) - origin[axis]) / direction[axis];
+            const double b = (double(bounds.maximum[axis]) - origin[axis]) / direction[axis];
             near = std::max(near, std::min(a, b));
             far = std::min(far, std::max(a, b));
             if (near > far) return false;
         }
     }
     return true;
-}
-
-double zombieShotRoundoffPadding(double distance) {
-    // Guard dot products, subtraction, and the float-normalized ray's small
-    // length error. Preserve the existing final sphere predicate unchanged.
-    return std::sqrt(32.0 * std::numeric_limits<float>::epsilon()) * distance;
 }
 
 ZombieHitSphere zombieHeadHitSphere(const AnimatedModel& asset, const ZombieInstance& instance,

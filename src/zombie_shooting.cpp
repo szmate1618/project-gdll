@@ -8,14 +8,19 @@
 namespace viewer {
 namespace {
 bool raySphere(glm::vec3 origin, glm::vec3 direction, glm::vec3 center, float radius, float& distance) {
-    const auto offset = origin - center;
-    const float projection = glm::dot(offset, direction);
-    const float discriminant = projection * projection - (glm::dot(offset, offset) - radius * radius);
-    if (discriminant < 0.0f) return false;
-    const float root = std::sqrt(discriminant);
-    const float near = -projection - root;
-    const float far = -projection + root;
-    distance = near >= 0.0f ? near : far;
+    const auto offset = glm::dvec3(center) - glm::dvec3(origin);
+    const auto ray = glm::dvec3(direction);
+    // The closest-point distance avoids subtracting two large squared ranges.
+    // Account for the float-normalized direction not being exactly unit length.
+    const double lengthSquared = glm::dot(ray, ray);
+    const double projection = glm::dot(offset, ray) / lengthSquared;
+    const auto perpendicular = offset - projection * ray;
+    const double discriminant = double(radius) * radius - glm::dot(perpendicular, perpendicular);
+    if (discriminant < 0.0) return false;
+    const double root = std::sqrt(discriminant / lengthSquared);
+    const double near = projection - root;
+    const double far = projection + root;
+    distance = static_cast<float>(near >= 0.0 ? near : far);
     return distance >= 0.0f && std::isfinite(distance);
 }
 }
@@ -30,7 +35,6 @@ void ZombieLayer::rebuildSpatialIndex() {
     for (const auto& asset : assets) hitGeometry_.push_back(prepareZombieHitGeometry(asset));
     shotBounds_.resize(instances.size());
     shotPadding_ = 0;
-    shotCoordinateScale_ = 0;
     for (std::size_t id = 0; id < instances.size(); ++id) updateSpatialMembership(id);
 }
 
@@ -50,8 +54,6 @@ void ZombieLayer::updateSpatialMembership(std::size_t id) {
     crowd_.update(id, feet);
     auto& bounds = shotBounds_[id];
     bounds = zombieShotBounds(instance, hitGeometry_[instance.asset]);
-    shotCoordinateScale_ = std::max(shotCoordinateScale_,
-        glm::length(glm::max(glm::abs(glm::dvec3(bounds.minimum)), glm::abs(glm::dvec3(bounds.maximum)))));
     // A high-water mark avoids rescanning the crowd when one actor moves. Normal
     // yaw/locomotion cannot grow it unboundedly; explicit rebuild resets it.
     for (const int axis : {0, 2})
@@ -62,8 +64,7 @@ void ZombieLayer::updateSpatialMembership(std::size_t id) {
 std::size_t ZombieLayer::findShotTarget(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                                       std::vector<glm::mat4>& selectedPose, float* hitDistance) {
     ensureSpatialIndex();
-    const double roundoff = zombieShotRoundoffPadding(glm::length(glm::dvec3(origin)) + shotCoordinateScale_);
-    spatialIndex_.queryRay(origin, direction, shotPadding_ + roundoff, spatialCandidates_);
+    spatialIndex_.queryRay(origin, direction, shotPadding_, spatialCandidates_);
     shootingStats_.spatialCandidates = spatialCandidates_.size();
     std::size_t selected = instances.size();
     float nearest = std::numeric_limits<float>::max();

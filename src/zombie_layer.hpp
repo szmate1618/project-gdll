@@ -150,7 +150,6 @@ private:
     std::vector<ZombieHitGeometry> hitGeometry_;
     std::vector<ZombieHitBounds> shotBounds_;
     double shotPadding_ = 0;
-    double shotCoordinateScale_ = 0;
     ZombieShootingStats shootingStats_;
     std::vector<std::size_t> spatialCandidates_;
     bool staggerPerception_ = true;

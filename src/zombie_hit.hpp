@@ -27,9 +27,6 @@ ZombieHitGeometry prepareZombieHitGeometry(const AnimatedModel& asset);
 ZombieHitBounds zombieShotBounds(const ZombieInstance& instance, const ZombieHitGeometry& geometry);
 // Conservative forward-ray broad phase; direction need not be normalized.
 bool zombieRayIntersectsBounds(glm::vec3 origin, glm::vec3 direction, const ZombieHitBounds& bounds);
-// Existing narrow-phase sphere math uses float squared distances. Its roundoff
-// can accept near misses on long rays; coarse queries must not reject those.
-double zombieShotRoundoffPadding(double distance);
 
 // World-meter head bounds from the displayed pose, including hair and child
 // joints. Unmapped/custom rigs use the standard 1.8 m character's head region.

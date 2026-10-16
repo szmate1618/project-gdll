@@ -64,7 +64,7 @@ viewer::AnimatedModel asset(bool animated = true) {
     return result;
 }
 
-// Full mesh/ancestry scan reproduces the old hit path independently of prepared
+// Full mesh/ancestry scan provides a reference independently of prepared
 // vertex lists, motion bounds, spatial membership, and coarse ray rejection.
 viewer::ZombieHitSphere referenceHead(const viewer::AnimatedModel& model, const viewer::ZombieInstance& instance,
                                        const std::vector<glm::mat4>& pose) {
@@ -101,13 +101,15 @@ viewer::ZombieHitSphere referenceHead(const viewer::AnimatedModel& model, const 
 }
 
 bool referenceSphere(glm::vec3 origin, glm::vec3 direction, viewer::ZombieHitSphere sphere, float& distance) {
-    const auto offset = origin - sphere.center;
-    const float projection = glm::dot(offset, direction);
-    const float discriminant = projection * projection - (glm::dot(offset, offset) - sphere.radius * sphere.radius);
+    const auto offset = glm::dvec3(origin) - glm::dvec3(sphere.center);
+    const auto ray = glm::dvec3(direction);
+    const double a = glm::dot(ray, ray), b = glm::dot(offset, ray);
+    const double c = glm::dot(offset, offset) - double(sphere.radius) * sphere.radius;
+    const double discriminant = b * b - a * c;
     if (discriminant < 0) return false;
-    const float root = std::sqrt(discriminant);
-    distance = -projection - root;
-    if (distance < 0) distance = -projection + root;
+    const double root = std::sqrt(discriminant);
+    const double near = (-b - root) / a, far = (-b + root) / a;
+    distance = static_cast<float>(near >= 0 ? near : far);
     return distance >= 0 && std::isfinite(distance);
 }
 std::size_t referenceTarget(const viewer::ZombieLayer& layer, glm::vec3 origin, glm::vec3 direction, double seconds) {
@@ -127,6 +129,72 @@ std::size_t referenceTarget(const viewer::ZombieLayer& layer, glm::vec3 origin, 
         if (distance < nearest) { nearest = distance; target = i; }
     }
     return target;
+}
+
+viewer::ZombieLayer singleZombie(glm::vec3 feet) {
+    viewer::ZombieLayer layer;
+    layer.assets.emplace_back();
+    layer.instances.emplace_back();
+    auto& instance = layer.instances[0];
+    instance.restRoot = instance.restTransform = instance.transform = translation(feet);
+    return layer;
+}
+
+void longDistanceGeometry() {
+    const viewer::CollisionWorld clear(viewer::Model{});
+    for (const bool occlusion : {false, true}) {
+        const auto shoot = [&](viewer::ZombieLayer& layer, glm::vec3 origin, glm::vec3 direction) {
+            return occlusion ? layer.shootWithOcclusion(origin, direction, 0, clear) : layer.shoot(origin, direction);
+        };
+        for (const float range : {10.0f, 1000.0f, 4000.0f, 10000.0f})
+            for (const float angle : {0.0f, .03f, .7f})
+                for (const float height : {.9f, 1.65f}) {
+                    const glm::vec3 feet{range * std::sin(angle), 0, -range * std::cos(angle)};
+                    auto layer = singleZombie(feet);
+                    require(shoot(layer, {0, height, 0}, feet), "Centered head/body ray must hit at every range and angle");
+                }
+        struct OffsetShot { float x, height; bool hit; };
+        for (const auto shot : {OffsetShot{.7f, .9f, false}, {.5f, 1.4f, false},
+                                {.61f, .9f, true}, {.63f, .9f, false},
+                                {.62f, .9f, true}, {std::nextafter(.62f, 1.0f), .9f, false},
+                                {.22f, 1.65f, true}, {.24f, 1.65f, false},
+                                {.23f, 1.65f, true}, {std::nextafter(.23f, 1.0f), 1.65f, false}}) {
+            auto layer = singleZombie({0, 0, -4000});
+            require(shoot(layer, {shot.x, shot.height, 0}, {0, 0, -1}) == shot.hit,
+                    "Long-range offsets must respect body/head radii, including misses inside the coarse bounds");
+        }
+        auto posed = singleZombie({30, 0, -1000});
+        posed.assets[0] = asset(false);
+        const auto pose = viewer::sampleZombiePose(posed.assets[0], posed.instances[0], 0);
+        const auto head = referenceHead(posed.assets[0], posed.instances[0], pose);
+        require(shoot(posed, {0, 1.75f, 0}, head.center - glm::vec3(0, 1.75f, 0)),
+                "Long-range headshots must also hit the posed mesh's head sphere");
+        auto behind = singleZombie({0, 0, 4000});
+        require(!shoot(behind, {0, .9f, 0}, {0, 0, -1}), "A target behind the shot must miss");
+        auto inside = singleZombie({0, 0, -4000});
+        require(shoot(inside, {0, .9f, -4000}, {0, 0, -1}), "A ray starting inside the body must hit");
+        auto nearest = singleZombie({0, 0, -4001});
+        nearest.instances.push_back(singleZombie({0, 0, -4000}).instances[0]);
+        require(shoot(nearest, {0, .9f, 0}, {0, 0, -1}) && nearest.instances[1].ragdoll && !nearest.instances[0].ragdoll,
+                "A long-range shot must select the nearer target even when listed second");
+    }
+}
+
+void longDistanceOcclusion() {
+    for (const float wallZ : {-999.0f, -999.8f}) {
+        viewer::Model model;
+        viewer::Primitive wall;
+        for (const auto p : {glm::vec3(-2, 0, wallZ), {2, 0, wallZ}, {2, 3, wallZ}, {-2, 3, wallZ}}) {
+            viewer::Vertex vertex; vertex.position = p; wall.vertices.push_back(vertex);
+        }
+        wall.indices = {0, 1, 2, 0, 2, 3};
+        model.primitives.push_back(wall); model.draws.push_back({});
+        const viewer::CollisionWorld world(model);
+        auto layer = singleZombie({0, 0, -1000});
+        // Body entry is z=-999.38: only the wall before that entry blocks the shot.
+        require(layer.shootWithOcclusion({0, .9f, 0}, {0, 0, -1}, 0, world) == (wallZ < -999.38f),
+                "Long-range wall checks must end at the sphere entry, not its center");
+    }
 }
 
 void preparedHeadMatchesFullScan() {
@@ -197,9 +265,8 @@ void indexedSelectionMatchesFullScan() {
     distant.instances.emplace_back();
     distant.instances[0].restRoot = distant.instances[0].transform = distant.instances[0].restTransform =
         translation({2, 0, -10000});
-    const auto expected = referenceTarget(distant, {0, 0.9f, 0}, {0, 0, -1}, 0);
-    require(distant.shoot({0, 0.9f, 0}, {0, 0, -1}) == (expected == 0),
-            "Broad phases must preserve legacy float sphere decisions at long ray distances");
+    require(!distant.shoot({0, 0.9f, 0}, {0, 0, -1}),
+            "A ray two meters beside a distant zombie must miss");
 }
 
 void largeCrowdSkipsDetailedPoses() {
@@ -233,6 +300,8 @@ void largeCrowdSkipsDetailedPoses() {
 }
 int main() {
     try {
+        longDistanceGeometry();
+        longDistanceOcclusion();
         preparedHeadMatchesFullScan();
         indexedSelectionMatchesFullScan();
         largeCrowdSkipsDetailedPoses();
