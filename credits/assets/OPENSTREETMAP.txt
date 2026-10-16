@@ -1,0 +1,24 @@
+OPENSTREETMAP
+
+Map data © OpenStreetMap contributors.
+Open Database License (ODbL) 1.0:
+https://www.openstreetmap.org/copyright
+https://opendatacommons.org/licenses/odbl/1-0/
+
+OpenStreetMap supplies building footprints, roads, railways, fences, mapped
+utility columns, guardrails and other mapped features. The project converts
+these into approximate geometry and placements, with inferred dimensions and
+local edits. These changes are by this project, not OpenStreetMap.
+
+Retain this notice with the geographic assets. Public presentations of the
+map/game must also make the OpenStreetMap credit reasonably visible; a file
+hidden in an archive is not a substitute for presenting attribution.
+https://osmfoundation.org/wiki/Licence/Attribution_Guidelines
+
+If you publicly use or distribute an adapted database, ODbL share-alike and
+access obligations can apply in addition to attribution. This notice does
+not itself supply such a database or satisfy an applicable source offer.
+https://osmfoundation.org/wiki/Licence/Community_Guidelines/Produced_Work_-_Guideline
+
+The license applies to the OpenStreetMap database and adaptations within its
+scope; it does not by itself license this game's code or unrelated assets.

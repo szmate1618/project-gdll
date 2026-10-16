@@ -1,5 +1,12 @@
 # Windows multiplayer client
 
+Asset and dataset credits are in `credits/assets/README.txt`; bundled software
+licenses are in `licenses/`. For the town: map data © OpenStreetMap contributors,
+ODbL 1.0, https://www.openstreetmap.org/copyright. Imagery and elevation use
+Copernicus Sentinel-2 and Copernicus DEM GLO-30. The town asset pack adds
+`credits/assets/MAP.txt` with the selected acquisition year and map fingerprint.
+Keep these notices with any redistributed package.
+
 This x64 client is built by the repository's **Build apps** GitHub workflow.
 It requires a graphics driver supporting OpenGL 3.3 and the Microsoft Visual C++
 2015–2022 x64 Redistributable:

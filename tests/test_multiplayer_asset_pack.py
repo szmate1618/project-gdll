@@ -2,6 +2,7 @@
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import struct
 import tempfile
 import unittest
@@ -9,6 +10,7 @@ from unittest.mock import patch
 import zipfile
 
 from tools.package_multiplayer_assets import package_assets
+from src.asset_credits import ASSET_CREDIT_FILES
 
 
 def glb(document):
@@ -22,7 +24,12 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
-        self.map = self.write("output/town.glb", glb({}))
+        self.map = self.write("output/town.glb", glb({"scenes": [{"extras": {
+            "sources": {"osm": {}, "copernicus_dem": {}, "sentinel": {
+                "datetime": "2021-08-13T09:47:43Z", "item_id": "selected-sentinel-item"}},
+            "attribution": "Additional notice from the map's author."}}]}))
+        shutil.copytree(Path(__file__).resolve().parents[1] / "credits", self.root / "credits")
+        self.write("output/ATTRIBUTION.md", b"STALE adjacent notice for 1999")
         self.output = self.root / "build/assets.zip"
         self.zombies = self.root / "assets/zombies/models"
         self.tree = self.write("assets/tree.glb", glb({"extras": {"tree": True}}))
@@ -74,17 +81,26 @@ class MultiplayerAssetPackTests(unittest.TestCase):
             self.assertEqual(count, len(manifest["files"]))
             self.assertEqual(size, sum(archive.getinfo(name).file_size for name in manifest["files"]))
         self.assertEqual(manifest["map"], "output/town.glb")
-        expected = {"output/town.glb", "output/trees.instances.json", "output/poles.instances.json", "output/guardrails.glb",
+        expected = {"output/town.glb", "output/ATTRIBUTION.md", "output/trees.instances.json", "output/poles.instances.json", "output/guardrails.glb",
                     "assets/tree.glb", "forest_patches.json", "assets/side.png", "assets/top.png", "inventory.toml",
                     "assets/zombies/models/Zombie.glb", "assets/zombies/models/lods.json"}
         expected.update(f"items/{name}.toml" for name in ("pistol", "submachine_gun", "sniper", "shotgun"))
         expected.update(f"assets/zombies/models/lod{level}/Zombie.glb" for level in range(1, 4))
+        expected.update(f"credits/assets/{name}" for name in (*ASSET_CREDIT_FILES, "MAP.txt"))
         self.assertEqual(set(manifest["files"]), expected)
         for name, digest in manifest["files"].items():
             self.assertNotIn("\\", name)
             self.assertFalse(Path(name).is_absolute())
-            self.assertEqual((destination / name).read_bytes(), (self.root / name).read_bytes())
+            if name != "credits/assets/MAP.txt":
+                self.assertEqual((destination / name).read_bytes(), (self.root / name).read_bytes())
             self.assertEqual(self.digest(destination / name), digest)
+        credit = (destination / "credits/assets/MAP.txt").read_text(encoding="utf-8")
+        self.assertIn("Contains modified Copernicus Sentinel data 2021", credit)
+        self.assertIn("Additional notice from the map's author.", credit)
+        self.assertIn("© OpenStreetMap contributors", credit)
+        self.assertIn("Copernicus DEM GLO-30", credit)
+        self.assertIn(self.digest(self.map), credit)
+        self.assertNotIn("1999", credit)
         tree = json.loads((destination / "output/trees.instances.json").read_text())
         tree_path = destination / "output" / tree["assets"]["tree"]["path"]
         self.assertEqual(self.digest(tree_path), tree["assets"]["tree"]["sha256"])
@@ -113,6 +129,14 @@ class MultiplayerAssetPackTests(unittest.TestCase):
                 self.package()
         self.assertEqual(self.output.read_bytes(), previous)
         self.assertEqual(list(self.output.parent.iterdir()), [self.output])
+
+    def test_missing_credit_preserves_previous_archive(self):
+        self.package()
+        previous = self.output.read_bytes()
+        (self.root / "credits/assets/SENTINEL.txt").unlink()
+        with self.assertRaisesRegex(ValueError, "Missing runtime asset"):
+            self.package()
+        self.assertEqual(self.output.read_bytes(), previous)
 
     def test_input_changed_during_zip_write_is_not_published(self):
         self.package()

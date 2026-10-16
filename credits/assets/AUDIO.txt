@@ -1,0 +1,40 @@
+SOUND CREDITS (APPLIES WHEN AUDIO IS INCLUDED)
+
+The current multiplayer client packages contain no audio recordings and do
+not play these sounds. These credits document the game's single-player audio
+and must accompany any future package that includes the referenced recordings.
+
+Chaingun, pistol, rifle, shotgun shots
+Michel Baradari (apollo-music.de), submitted by qubodup.
+https://opengameart.org/content/chaingun-pistol-rifle-shotgun-shots
+Creative Commons Attribution 3.0 Unported:
+https://creativecommons.org/licenses/by/3.0/
+https://creativecommons.org/licenses/by/3.0/legalcode
+Outputs: pistol.wav, smg.wav, sniper.wav, shotgun.wav.
+Changes: shortened excerpts, mono downmix, resampling to 48 kHz,
+peak normalization, and short boundary fades.
+
+The following recordings are CC0 1.0 Universal:
+https://creativecommons.org/publicdomain/zero/1.0/
+
+huh.wav — TripleDStudios8
+https://freesound.org/people/TripleDStudios8/sounds/194467/
+intrigued — andrutzab
+https://freesound.org/people/andrutzab/sounds/337615/
+Zombie moans — Darsycho
+https://opengameart.org/content/zombie-moans
+80 CC0 creature SFX — rubberduck (grunt_01.ogg and grunt_03.ogg)
+https://opengameart.org/content/80-cc0-creature-sfx
+Fantozzi's Footsteps (Grass/Sand & Stone) — Fantozzi, curated by qubodup
+https://opengameart.org/content/fantozzis-footsteps-grasssand-stone
+Door Open, Door Close Set — qubodup
+https://opengameart.org/content/door-open-door-close-set
+Gun reload sounds — SpringySpringo
+https://opengameart.org/content/gun-reload-sounds
+Gun reload, lock or click sound — pauliuw
+https://opengameart.org/content/gun-reload-lock-or-click-sound
+
+Local edits: selected/cropped takes, mono downmix, 48 kHz PCM16 resampling,
+normalization, and fades. The two Freesound inputs use high-quality MP3 previews.
+The game's synthesized landing, wind and rain sounds are project-generated.
+Attribution does not imply endorsement by any creator.

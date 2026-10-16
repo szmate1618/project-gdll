@@ -10,6 +10,25 @@ import tempfile
 import time
 
 
+def check_credits(package):
+    """Credits must survive relocation without referring back to the checkout."""
+    expected = {
+        "README.txt": "ASSET AND DATA CREDITS",
+        "OPENSTREETMAP.txt": "© OpenStreetMap contributors",
+        "SENTINEL.txt": "Contains modified Copernicus Sentinel data",
+        "COPERNICUS_DEM.txt": "do not incur any liability",
+        "WEAPONS.txt": "chilly_durango",
+        "ZOMBIES.txt": "Denys Almaral",
+        "AUDIO.txt": "Michel Baradari",
+    }
+    for name, credit in expected.items():
+        path = package / "credits/assets" / name
+        if credit not in path.read_text(encoding="utf-8"):
+            raise RuntimeError("Missing asset credit in " + str(path))
+    if "credits/assets/README.txt" not in (package / "README.md").read_text(encoding="utf-8"):
+        raise RuntimeError("Package README must point to asset credits")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("server", type=Path)
@@ -21,6 +40,7 @@ def main():
         with tarfile.open(args.archive) as archive:
             archive.extractall(destination, filter="data")
         package = destination / "godollo-client-linux-x86_64"
+        check_credits(package)
         client, asset = package / "run-client.sh", package / "assets/test.glb"
         environment = dict(os.environ)
         environment.pop("LD_LIBRARY_PATH", None)

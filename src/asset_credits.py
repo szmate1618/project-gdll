@@ -1,0 +1,43 @@
+"""Build a map's distribution notice from its published GLB metadata."""
+from __future__ import annotations
+
+import re
+
+ASSET_CREDIT_FILES = ("README.txt", "OPENSTREETMAP.txt", "SENTINEL.txt", "COPERNICUS_DEM.txt",
+                      "WEAPONS.txt", "ZOMBIES.txt", "AUDIO.txt")
+
+
+def map_credits(document: dict, name: str, digest: str) -> bytes:
+    """Use the selected scene, never an adjacent report or today's config/year."""
+    scenes = document.get("scenes", [])
+    metadata = scenes[document.get("scene", 0)].get("extras", {}) if scenes else {}
+    sources = metadata.get("sources", {})
+    lines = ["PACKAGED MAP — DATA ATTRIBUTION", "", f"Map: {name}", f"SHA-256: {digest}", ""]
+    if "osm" in sources or "fences" in sources:
+        lines.extend(["Map data © OpenStreetMap contributors (ODbL 1.0).",
+                      "https://www.openstreetmap.org/copyright", "See OPENSTREETMAP.txt.", ""])
+    if "sentinel" in sources:
+        sentinel = sources["sentinel"]
+        acquisition = sentinel.get("datetime") or sentinel.get("acquisition_datetime")
+        if not isinstance(acquisition, str) or not re.match(r"^[12]\d{3}-\d{2}-\d{2}(?:T|$)", acquisition):
+            raise ValueError("Sentinel source is missing its acquisition date; restore map provenance before packaging")
+        lines.extend([f"Contains modified Copernicus Sentinel data {acquisition[:4]}",
+                      f"Acquisition: {acquisition}", "See SENTINEL.txt for terms.", ""])
+        if sentinel.get("item_id"):
+            lines.extend([f"Sentinel item: {sentinel['item_id']}", ""])
+    if "copernicus_dem" in sources:
+        lines.extend(["Terrain elevation: Copernicus DEM GLO-30 / WorldDEM-30.",
+                      "See COPERNICUS_DEM.txt for the required acknowledgment, disclaimer and terms.", ""])
+    # Retain any additional source notices already published in the scene.
+    if metadata.get("attribution"):
+        lines.extend(["Original attribution embedded in the published map:", str(metadata["attribution"]), ""])
+    for key, source in sources.items():
+        if key not in {"osm", "fences", "sentinel", "copernicus_dem"}:
+            lines.extend([f"Additional dataset: {key}",
+                          str(source.get("attribution", "No attribution recorded; its license requires review."))
+                          if isinstance(source, dict) else str(source), ""])
+    if not sources and not metadata.get("attribution"):
+        lines.extend(["No geographic source attribution is recorded in this map.",
+                      "The project's generated sample needs no geographic data credit.",
+                      "For other maps, supply the original providers' notices and permissions.", ""])
+    return ("\n".join(lines).rstrip() + "\n").encode("utf-8")

@@ -13,6 +13,10 @@ import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.asset_credits import ASSET_CREDIT_FILES, map_credits
 
 
 def sha256(path):
@@ -28,6 +32,7 @@ class RuntimeAssets:
         self.root = root.resolve()
         self.files = {}
         self.names = {}
+        self.notices = {}
 
     def add(self, path, expected=None):
         path = path.resolve()
@@ -80,8 +85,10 @@ class RuntimeAssets:
 
 def collect_assets(root, map_path, zombies, *, trees=True, forests=True):
     assets = RuntimeAssets(root)
-    assets.model(map_path)
+    document = assets.model(map_path)
     map_hash = assets.files[map_path.resolve()]
+    assets.notices["credits/assets/MAP.txt"] = map_credits(
+        document, map_path.relative_to(root).as_posix(), map_hash)
     adjacent = map_path.parent
     for name in ("poles.instances.json", "trees.instances.json"):
         path = adjacent / name
@@ -134,6 +141,10 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True):
     for name in ("assets/README.md", "assets/zombies/README.md", "assets/zombies/sources.json", "assets/forests/README.md"):
         if (root / name).exists():
             assets.add(root / name)
+    for name in ASSET_CREDIT_FILES:
+        assets.add(root / "credits/assets" / name)
+    # Preserve supplied notices for custom maps as well as the authoritative
+    # metadata-derived MAP.txt. The sidecar never supplies its acquisition year.
     if (adjacent / "ATTRIBUTION.md").exists():
         assets.add(adjacent / "ATTRIBUTION.md")
     return assets
@@ -148,6 +159,7 @@ def package_assets(root, map_path, output, zombies, *, trees=True, forests=True)
     manifest = {"version": 1, "map": map_path.relative_to(root).as_posix(),
                 "trees": trees, "forests": trees and forests, "zombies": zombies.relative_to(root).as_posix() if zombies else None,
                 "files": {p.relative_to(root).as_posix(): digest for p, digest in sorted(assets.files.items())}}
+    manifest["files"].update({name: hashlib.sha256(data).hexdigest() for name, data in assets.notices.items()})
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(prefix=output.stem + "-", suffix=".zip", dir=output.parent, delete=False) as stream:
         temporary = Path(stream.name)
@@ -163,6 +175,9 @@ def package_assets(root, map_path, output, zombies, *, trees=True, forests=True)
                         total_size += len(chunk)
                 if digest.hexdigest() != expected:
                     raise ValueError(f"Asset changed during packaging: {path}")
+            for name, data in assets.notices.items():
+                archive.writestr(name, data)
+                total_size += len(data)
             archive.writestr("asset-pack.json", json.dumps(manifest, indent=2) + "\n")
         with zipfile.ZipFile(temporary) as archive:
             corrupt = archive.testzip()
@@ -171,7 +186,7 @@ def package_assets(root, map_path, output, zombies, *, trees=True, forests=True)
         os.replace(temporary, output)
     finally:
         temporary.unlink(missing_ok=True)
-    return len(assets.files), total_size
+    return len(manifest["files"]), total_size
 
 
 def main(argv=None):

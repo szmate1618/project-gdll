@@ -79,7 +79,7 @@ The same script works on Windows with `py tools/package_multiplayer_assets.py`.
 It writes `build/godollo-assets.zip`, shared by Windows and Linux. It includes
 the map and adjacent tree/pole/guardrail layers, referenced tree models and forest
 textures, zombie models and their referenced LoDs, weapon/inventory definitions,
-forest configuration, and available asset credits. It excludes executables,
+forest configuration, and the text notices in `credits/assets/`. It excludes executables,
 shaders, source models, generator datasets, caches, previews, and backups.
 
 Use `--map PATH`, `--zombies PATH`, or `--output PATH.zip` for other prepared
@@ -88,6 +88,25 @@ relative and use `/`, and model assets must be self-contained GLBs. The script
 preserves all file bytes so existing fingerprints remain valid. Missing files,
 stale provenance, and files changed during export prevent publication; a failed
 export preserves the previous ZIP. No downloads or map generation occur.
+
+Both client packages include the same `credits/assets/` folder and point to it
+from their root README. The asset ZIP adds `credits/assets/MAP.txt`, built from
+the published GLB's selected scene metadata and bound to its SHA-256. Sentinel
+credits use the recorded acquisition year; adjacent reports or attribution
+files may belong to another generation and are not used as the source of this
+notice. Missing credit files or a missing Sentinel acquisition date prevent
+publication. Existing attribution embedded in the map is retained in the notice.
+
+The notices cover OpenStreetMap, Sentinel-2, Copernicus DEM GLO-30, CC0 Durango
+weapons, and the conditional zombie/audio assets. They do not clear other
+licensing obligations. Before public distribution, present the OSM credit
+visibly in the game or its credits, and address any ODbL adapted-database
+share-alike/access obligations. The recorded zombie Standard license restricts
+standalone/extractable model redistribution: confirm the acquired license and
+permitted delivery method before sharing model-containing asset ZIPs, or use
+`--no-zombies` for sessions with `--zombie-count 0`. The orthophoto-derived tree
+and forest placement sources still need a separate license review before public
+distribution; that review is deferred while those assets are being replaced.
 
 For sessions with disabled layers, use `--no-trees` (also omits forests),
 `--no-forests`, and/or `--no-zombies`. The latter corresponds to the game's

@@ -2,6 +2,9 @@
 
 The generated scene combines the following independent datasets. These notices
 also accompany the GLB in `output/ATTRIBUTION.md` and in its scene metadata.
+Multiplayer client packages include plain-text notices in `credits/assets/`.
+The portable town asset pack adds `credits/assets/MAP.txt` using the published
+GLB's provenance, including its actual Sentinel acquisition year.
 
 * **OpenStreetMap:** © OpenStreetMap contributors, available under the
   [Open Database License (ODbL)](https://www.openstreetmap.org/copyright).

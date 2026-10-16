@@ -1,0 +1,25 @@
+POLYART ZOMBIES WITH ANIMATIONS FREE PACK
+
+Creator and copyright holder: Denys Almaral.
+Creator's showcase: https://denysalmaral.com/gamedev/free-zombies/
+Original listing:
+https://sketchfab.com/3d-models/polyart-zombies-with-animations-free-pack-d9bcfdd88f5348549bc947226af7c314
+Fab listing:
+https://www.fab.com/listings/2a85aa17-6eae-4c9d-b805-aeb1d722962f
+
+The repository's source record identifies the Sketchfab license as Free
+Standard, with a NoAI restriction. These are not CC0 or public-domain assets.
+https://sketchfab.com/licenses
+
+When installed, the runtime files contain ten male/female zombie characters,
+idle/walk/run animations and their palette textures. Local preparation embeds
+the textures, combines animation clips, converts centimeters to meters, and
+generates simplified levels of detail.
+
+All original rights remain with the creator. No permission to redistribute
+these as a standalone model collection or reusable asset library is granted
+by these credits. The Standard license restricts standalone/extractable asset
+redistribution. Distributors must establish the applicable acquired license
+and permitted game distribution method before sharing model-containing packs;
+the creator's publicly accessible showcase alone is not that permission.
+Preserve the NoAI restriction and the terms applicable to your acquisition.

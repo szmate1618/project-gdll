@@ -27,7 +27,7 @@ set(staging "${BUILD_DIR}/linux-client-${suffix}")
 set(package "${staging}/godollo-client-linux-x86_64")
 file(MAKE_DIRECTORY "${package}/assets" "${package}/multiplayer/client" "${package}/lib" "${package}/licenses")
 file(COPY "${client}" DESTINATION "${package}")
-file(COPY "${source_root}/shaders" "${source_root}/items" DESTINATION "${package}")
+file(COPY "${source_root}/shaders" "${source_root}/items" "${source_root}/credits" DESTINATION "${package}")
 file(COPY "${source_root}/inventory.toml" "${source_root}/forest_patches.json" DESTINATION "${package}")
 file(COPY "${source_root}/assets/test.glb" DESTINATION "${package}/assets")
 file(COPY "${source_root}/multiplayer/client/players.vert" "${source_root}/multiplayer/client/players.frag"

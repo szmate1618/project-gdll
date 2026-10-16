@@ -1,0 +1,16 @@
+LOW POLY GUN MODELS
+
+Creator: chilly_durango
+Source: https://chilly-durango.itch.io/low-poly-firearms
+License: CC0 1.0 Universal (public-domain dedication).
+https://creativecommons.org/publicdomain/zero/1.0/
+https://creativecommons.org/publicdomain/zero/1.0/legalcode
+
+Models used: 1911 pistol, UMP submachine gun, Stock Pump / TacticalPump
+shotgun, and M14 / Semi-Auto Rifle adapted into a scoped sniper rifle.
+Local changes: scale, orientation, flat colors, removal of a degenerate
+triangle, and extended barrel, barrel sleeve, mounts and scope on the sniper.
+The project's mesh modifications are also dedicated under CC0 1.0.
+
+Credit is retained voluntarily; CC0 does not require attribution.
+The creator does not endorse this game.
