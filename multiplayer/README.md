@@ -45,9 +45,13 @@ fallback. It needs an OpenGL 3.3 driver and the Visual C++ x64 Redistributable.
 See [package usage](windows/README.md) for commands and matching town assets.
 Git attributes preserve LF endings in fingerprinted configuration files so
 Windows checkout conversion does not create a content mismatch with Linux.
+Scene settings use fixed-width little-endian values in the fingerprint, independent
+of platform float formatting or locale. Both peers must use the updated format;
+older builds are rejected as a content mismatch.
 
-The Windows job builds only the multiplayer client and checks `--help` startup;
-it does not run graphics or gameplay tests. The original viewer, headless server,
+The Windows job builds the multiplayer client and checks `--help` startup and
+the scene fingerprint against cross-platform reference hashes.
+It does not run graphics or gameplay tests. The original viewer, headless server,
 and regression suites continue to be built/tested on Linux.
 
 ## Run

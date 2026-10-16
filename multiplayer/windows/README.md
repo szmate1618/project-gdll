@@ -29,8 +29,9 @@ the client; the Microsoft runtime is supplied by the Redistributable.
 The client still has the prototype limitations described in `multiplayer/README.md`
 in the source repository, including no audio playback.
 
-The workflow compiles only the client and checks `--help` startup. Windows
-graphics and cross-platform gameplay need a real Windows machine for validation.
+The workflow compiles the client, checks `--help` startup, and runs the
+cross-platform scene fingerprint regression. Windows graphics and cross-platform
+gameplay need a real Windows machine for validation.
 
 ## Dependency choices
 

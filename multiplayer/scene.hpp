@@ -28,6 +28,9 @@ struct Options {
     std::filesystem::path screenshot;
 };
 Options parseOptions(int argc, char** argv, bool server);
+// Count is the effective population after checking the map extent.
+std::string sceneFingerprint(const Options& options, std::size_t count, glm::vec3 spawnEye,
+                             const std::vector<std::filesystem::path>& content);
 // Identical CPU scene preparation on both peers. Only the server steps physics.
 struct Scene {
     explicit Scene(const Options& options);

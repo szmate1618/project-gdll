@@ -7,9 +7,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
-#include <iomanip>
+#include <cstring>
 #include <iostream>
-#include <sstream>
+#include <limits>
 #include <stdexcept>
 
 namespace multiplayer {
@@ -80,6 +80,41 @@ Options parseOptions(int argc, char** argv, bool server) {
     return o;
 }
 
+std::string sceneFingerprint(const Options& o, std::size_t count, glm::vec3 spawnEye,
+                             const std::vector<std::filesystem::path>& content) {
+    // Fixed-width little-endian settings avoid platform/locale-dependent float formatting.
+    static_assert(sizeof(float) == sizeof(std::uint32_t) && std::numeric_limits<float>::is_iec559);
+    std::string identity;
+    const auto integer = [&](std::uint32_t value) {
+        for (unsigned int shift = 0; shift < 32; shift += 8)
+            identity.push_back(static_cast<char>((value >> shift) & 255));
+    };
+    const auto number = [&](float value) {
+        if (value == 0) value = 0; // Canonicalize signed zero too.
+        std::uint32_t bits;
+        std::memcpy(&bits, &value, sizeof(bits));
+        integer(bits);
+    };
+    integer(protocolVersion);
+    integer(static_cast<std::uint32_t>(count));
+    number(o.zombieRadius);
+    number(spawnEye.x); number(spawnEye.y); number(spawnEye.z);
+    identity.push_back(o.trees ? '\1' : '\0');
+    identity.push_back(o.forests ? '\1' : '\0');
+    // File hashes are fixed-width hex strings; paths are deliberately excluded.
+    for (const auto& file : content) identity += viewer::fileSha256(file);
+    unsigned char digest[EVP_MAX_MD_SIZE]; unsigned int bytes = 0;
+    if (EVP_Digest(identity.data(), identity.size(), digest, &bytes, EVP_sha256(), nullptr) != 1)
+        throw std::runtime_error("Cannot hash multiplayer content");
+    constexpr char hex[] = "0123456789abcdef";
+    std::string result;
+    for (unsigned int i = 0; i < bytes; ++i) {
+        result.push_back(hex[digest[i] >> 4]);
+        result.push_back(hex[digest[i] & 15]);
+    }
+    return result;
+}
+
 Scene::Scene(const Options& o) : model(viewer::loadModel(o.map)), physics(std::make_shared<viewer::PhysicsWorld>()) {
     std::vector<std::filesystem::path> content{o.map};
     const auto adjacent = [&](const char* name) { return o.map.parent_path() / name; };
@@ -146,18 +181,7 @@ Scene::Scene(const Options& o) : model(viewer::loadModel(o.map)), physics(std::m
     std::sort(items.begin(), items.end());
     content.insert(content.end(), items.begin(), items.end());
     content.push_back(resourceRoot() / "inventory.toml");
-    // Hash content, not machine-specific paths. Loaders validate manifest provenance too.
-    std::ostringstream identity;
-    identity << protocolVersion << ':' << count << ':' << std::hexfloat << o.zombieRadius << ':'
-             << spawnEye.x << ':' << spawnEye.y << ':' << spawnEye.z << ':' << o.trees << ':' << o.forests;
-    for (const auto& file : content) identity << ':' << viewer::fileSha256(file);
-    const auto text = identity.str();
-    unsigned char digest[EVP_MAX_MD_SIZE]; unsigned int bytes = 0;
-    if (EVP_Digest(text.data(), text.size(), digest, &bytes, EVP_sha256(), nullptr) != 1)
-        throw std::runtime_error("Cannot hash multiplayer content");
-    std::ostringstream hex;
-    for (unsigned int i = 0; i < bytes; ++i) hex << std::hex << std::setw(2) << std::setfill('0') << unsigned(digest[i]);
-    fingerprint = hex.str();
+    fingerprint = sceneFingerprint(o, count, spawnEye, content);
     std::cout << "Scene ready: " << zombies.instances.size() << " zombies, fingerprint " << fingerprint << '\n';
 }
 } // namespace multiplayer

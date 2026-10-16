@@ -79,9 +79,11 @@ jobs:
           -DVCPKG_TARGET_TRIPLET=x64-windows-static-md
           -DVCPKG_HOST_TRIPLET=x64-windows-static-md
           -DOPENSSL_USE_STATIC_LIBS=ON -DProtobuf_USE_STATIC_LIBS=ON
-          -DGD_VIEWER=ON -DGD_MULTIPLAYER=ON -DBUILD_TESTING=OFF
+          -DGD_VIEWER=ON -DGD_MULTIPLAYER=ON -DBUILD_TESTING=ON
       - name: Build Windows client
-        run: cmake --build build --config Release --parallel 2 --target godollo_client viewer_test_asset
+        run: cmake --build build --config Release --parallel 2 --target godollo_client viewer_test_asset test_scene_fingerprint
+      - name: Check cross-platform scene fingerprint
+        run: ctest --test-dir build -C Release -R '^multiplayer_fingerprint$' --output-on-failure --no-tests=error
       - name: Check executable startup
         run: ./build/multiplayer/Release/godollo_client.exe --help
       - name: Package Windows client

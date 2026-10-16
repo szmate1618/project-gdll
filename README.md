@@ -163,7 +163,8 @@ and pinned vcpkg dependencies. Its `godollo-client-windows-x86_64` artifact
 includes shaders, weapon/inventory configuration, licenses, and the small test
 scene. Large map/tree/zombie assets must match the server and are not bundled.
 See [Windows client instructions](multiplayer/windows/README.md). Windows
-compilation and the executable startup check run on GitHub; interactive graphics
+compilation, the executable startup check, and the scene fingerprint regression
+run on GitHub; interactive graphics
 and Linux-server/Windows-client gameplay still need Windows hardware validation.
 
 ## Configuration and coordinates
