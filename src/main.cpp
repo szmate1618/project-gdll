@@ -917,7 +917,9 @@ int run(const Options& options) {
     viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr,
                               zombies ? &*zombies : nullptr, forests ? &*forests : nullptr);
     viewer::ReticleOverlay reticle(options.shaders);
-    viewer::WeaponOverlay weaponOverlay(options.shaders, VIEWER_WEAPON_ASSETS);
+    const auto& playerBody = app.rig.player().config();
+    viewer::WeaponOverlay weaponOverlay(options.shaders, VIEWER_WEAPON_ASSETS,
+                                       {playerBody.height, playerBody.eyeHeight});
     std::cout << "Weapons: 1 pistol, 2 SMG, 3 sniper, 4 shotgun; R reload\n" << app.weapons.status() << '\n';
     renderer.setTreeCulling(options.treeCulling);
     renderer.setZombieCulling(options.zombieCulling);

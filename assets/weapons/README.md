@@ -36,6 +36,30 @@ only the reticle and presentation follow it. It does not add collision or shadow
 Weapon firing, inventory, scope and instant reload behavior are unchanged;
 these meshes currently have static poses without arms or part animations.
 
+## Eye-height positioning
+
+`src/weapon_view_pose.cpp` derives rigid poses from the player's configured
+standing dimensions (normally 1.80 m tall with eyes at 1.70 m). Shoulder width
+is estimated at 0.255 times height, shoulder height at 0.82 times height, and
+shoulder-to-hand reach at 0.44 times height. These are tuning estimates for
+the game's adult character.
+For the default body this gives approximately 46 cm shoulder width, 79 cm reach,
+and shoulders 22 cm below the eyes.
+
+The pistol's palm anchor is just below/behind its trigger, held about 57 cm
+forward, 8 cm right and 20 cm below the eyes for a two-handed hold with bent
+elbows. Each stocked weapon's butt plate is seated in the right shoulder pocket,
+about 17.5 cm right, 22 cm down and 5 cm behind the eyes. A 25-degree bladed
+stance brings the support shoulder forward about 19 cm, keeping the shotgun
+pump within the left arm's reach. Positioning uses the
+actual stock and trigger meshes, so a longer barrel cannot push the hands away
+from the body. Weapon dimensions are preserved. The bores converge gently on
+the view center at 25 m; the visual pose does not change hitscan behavior.
+
+Poses are computed once at load time using the standing controller configuration.
+Crouching and prone move the camera without rescaling the upper body or weapon.
+The unscoped view represents a ready hold; scope mode keeps its existing overlay.
+
 To regenerate `models.json`, download the free source from the page above and
 save it at `data/assets/durango_firearms/Guns.blend`, then run Blender 3.6:
 
@@ -51,9 +75,10 @@ meshes. The unmodified download stays separate under ignored `data/`.
 Verify the CPU loader/coordinate checks and capture the four viewmodels:
 
 ```bash
-cmake --build build --target test_weapon_models test_weapon_overlay
+cmake --build build --target test_weapon_models test_weapon_view_pose test_weapon_overlay
 ctest --test-dir build -R '^viewer_weapon' --output-on-failure
 ./build/test_weapon_overlay build/weapon-overlay
+./build/test_weapon_overlay build/weapon-overlay-wide 1280 720
 ```
 
 The rendering check needs display/GPU access. Captures are numbered in slot order.

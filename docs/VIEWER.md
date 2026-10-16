@@ -906,6 +906,9 @@ weapon resets zoom. Combat normal view displays [low-poly firearm models](../ass
 a 1911 pistol, UMP SMG, a scoped and extended M14 sniper, and a stock pump shotgun.
 The models are hidden in scope and Interaction mode. They use static poses with
 simple material colors, without arms or firing/reload animations.
+Eye-relative positioning uses the configured standing body dimensions: a
+two-handed pistol hold and shoulder-seated stocks, with estimated shoulder
+width and arm reach. Crouching and prone preserve these upper-body proportions.
 The window title and console report the equipped weapon, magazine, and reserve.
 
 Each [weapon TOML](../items/) defines `name`, `ammo_type`,
@@ -1635,6 +1638,7 @@ items/*.toml               Four prototype weapon configurations
 inventory.toml             Starting weapons, loaded rounds, and ammo reserves
 src/weapons.{hpp,cpp}       TOML loading, trigger/cooldown state, ammo, and pellet rays
 src/weapon_overlay.{hpp,cpp} Batched camera-local firearm meshes
+src/weapon_view_pose.{hpp,cpp} Eye-relative hand and shoulder weapon placement
 assets/weapons/models.json  CC0 Durango mesh source and modified M14 sniper
 tools/build_weapon_assets.py Offline GLB builder for the four weapon slots
 tools/prepare_weapon_models.py Blender extraction and sniper modification

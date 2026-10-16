@@ -8,22 +8,25 @@
 #include <stdexcept>
 
 int main(int argc, char** argv) {
+    const int width = argc > 3 ? std::stoi(argv[2]) : 800;
+    const int height = argc > 3 ? std::stoi(argv[3]) : 600;
     if (!glfwInit()) return 77;
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    auto* window = glfwCreateWindow(800, 600, "weapon overlay check", nullptr, nullptr);
+    auto* window = glfwCreateWindow(width, height, "weapon overlay check", nullptr, nullptr);
     if (!window) { glfwTerminate(); return 77; }
     glfwMakeContextCurrent(window);
     int result = 0;
     try {
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << '\n';
         viewer::WeaponOverlay overlay(VIEWER_SHADER_DIR, VIEWER_WEAPON_ASSETS);
-        glViewport(0, 0, 800, 600);
+        glViewport(0, 0, width, height);
+        glPixelStorei(GL_PACK_ALIGNMENT, 1);
         glEnable(GL_DEPTH_TEST); glEnable(GL_BLEND); glEnable(GL_CULL_FACE); glDepthMask(GL_TRUE);
         glCullFace(GL_FRONT); glFrontFace(GL_CW);
         glUseProgram(0); glBindVertexArray(0);
-        std::vector<unsigned char> pixels(800 * 600 * 3);
+        std::vector<unsigned char> pixels(static_cast<std::size_t>(width) * height * 3);
         std::set<std::size_t> silhouetteCounts;
         for (std::size_t slot = 0; slot < 4; ++slot) {
             glClearColor(.1f, .2f, .3f, 1);
@@ -34,7 +37,7 @@ int main(int argc, char** argv) {
             glDepthFunc(GL_GREATER); glDepthMask(GL_FALSE);
             glDepthRange(.2, .8);
             glEnable(GL_SCISSOR_TEST); glScissor(0, 0, 1, 1);
-            overlay.draw(slot, 800, 600);
+            overlay.draw(slot, width, height);
             GLint program = -1, vao = -1, front = -1, cull = -1, depthFunction = 0;
             GLboolean depthWrite = GL_FALSE;
             GLdouble clearDepth = 1, depthRange[2]{};
@@ -49,22 +52,24 @@ int main(int argc, char** argv) {
                 std::abs(depthRange[0] - .2) > 1e-6 || std::abs(depthRange[1] - .8) > 1e-6)
                 throw std::runtime_error("Weapon draw must restore GL state");
             glDisable(GL_SCISSOR_TEST); glDepthMask(GL_TRUE);
-            glReadPixels(0, 0, 800, 600, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+            glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
             std::size_t foreground = 0;
+            double foregroundY = 0;
             std::set<unsigned> colors;
             for (std::size_t i = 0; i < pixels.size(); i += 3)
                 if (pixels[i] != pixels[0] || pixels[i+1] != pixels[1] || pixels[i+2] != pixels[2]) {
                     ++foreground;
+                    foregroundY += (i / 3) / static_cast<std::size_t>(width);
                     colors.insert((unsigned(pixels[i]) << 16) | (unsigned(pixels[i+1]) << 8) | pixels[i+2]);
                 }
-            if (foreground < 500 || foreground > 800 * 600 / 4 || colors.size() < 3 ||
-                !silhouetteCounts.insert(foreground).second)
-                throw std::runtime_error("Each weapon must render a distinct shaded mesh in a corner of the screen");
+            if (foreground < 500 || foreground > static_cast<std::size_t>(width) * height / 4 || colors.size() < 3 ||
+                !silhouetteCounts.insert(foreground).second || foregroundY / foreground >= height * .5)
+                throw std::runtime_error("Each weapon must render a distinct shaded mesh below the crosshair");
             if (argc > 1) {
                 std::ofstream capture(std::string(argv[1]) + "-" + std::to_string(slot + 1) + ".ppm", std::ios::binary);
-                capture << "P6\n800 600\n255\n";
-                for (int y = 599; y >= 0; --y)
-                    capture.write(reinterpret_cast<const char*>(pixels.data() + y * 800 * 3), 800 * 3);
+                capture << "P6\n" << width << ' ' << height << "\n255\n";
+                for (int y = height - 1; y >= 0; --y)
+                    capture.write(reinterpret_cast<const char*>(pixels.data() + y * width * 3), width * 3);
             }
         }
         viewer::Renderer::checkErrors("weapon overlays");

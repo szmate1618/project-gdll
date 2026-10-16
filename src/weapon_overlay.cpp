@@ -26,14 +26,17 @@ void appendModel(const Model& model, std::vector<OverlayVertex>& vertices) {
 }
 } // namespace
 
-WeaponOverlay::WeaponOverlay(const std::filesystem::path& shaders, const std::filesystem::path& models) {
+WeaponOverlay::WeaponOverlay(const std::filesystem::path& shaders, const std::filesystem::path& models,
+                             WeaponViewBody body) {
     // Load and flatten once, preserving part transforms and flat source normals.
     // One shared buffer and one draw per equipped weapon; no per-frame loading.
     std::vector<OverlayVertex> vertices;
     const std::array<const char*, 4> names{"pistol.glb", "submachine_gun.glb", "sniper.glb", "shotgun.glb"};
     for (std::size_t slot = 0; slot < names.size(); ++slot) {
         ranges_[slot].first = static_cast<GLint>(vertices.size());
-        appendModel(loadModel(models / names[slot]), vertices);
+        const auto model = loadModel(models / names[slot]);
+        poses_[slot] = weaponViewPose(model, slot == 0, body);
+        appendModel(model, vertices);
         ranges_[slot].count = static_cast<GLsizei>(vertices.size()) - ranges_[slot].first;
     }
     program_ = createShaderProgram(shaders / "weapon.vert", shaders / "weapon.frag");
@@ -77,12 +80,7 @@ void WeaponOverlay::draw(std::size_t slot, int width, int height) {
     glClearDepth(1); glClear(GL_DEPTH_BUFFER_BIT);
     glUseProgram(program_); glBindVertexArray(vao_);
     const auto projection = glm::perspective(glm::radians(60.0f), static_cast<float>(width) / height, .01f, 5.0f);
-    // Models use meters, Y up and muzzle -Z. The long guns sit farther forward
-    // so their stocks stay below the eye; yaw exposes their right-hand profiles.
-    const std::array<glm::vec3, 4> centers{{{.20f, -.18f, -.48f}, {.23f, -.22f, -.72f},
-                                          {.24f, -.25f, -.86f}, {.24f, -.22f, -.80f}}};
-    const auto rotation = glm::rotate(glm::mat4(1), glm::radians(8.0f), glm::vec3(0, 1, 0));
-    const auto transform = projection * glm::translate(glm::mat4(1), centers[slot]) * rotation;
+    const auto transform = projection * poses_[slot];
     glUniformMatrix4fv(transform_, 1, GL_FALSE, glm::value_ptr(transform));
     glDrawArrays(GL_TRIANGLES, ranges_[slot].first, ranges_[slot].count);
     glBindVertexArray(static_cast<GLuint>(previousVao)); glUseProgram(static_cast<GLuint>(previousProgram));

@@ -277,6 +277,10 @@ add_custom_command(
 )
 add_custom_target(viewer_weapon_assets DEPENDS ${VIEWER_WEAPON_MODELS})
 
+add_library(viewer_weapon_pose STATIC src/weapon_view_pose.cpp)
+target_link_libraries(viewer_weapon_pose PUBLIC viewer_model)
+viewer_warnings(viewer_weapon_pose)
+
 add_library(viewer_sun_lighting STATIC src/sun_lighting.cpp src/day_night.cpp src/flashlight.cpp)
 target_include_directories(viewer_sun_lighting PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(viewer_sun_lighting PUBLIC glm::glm viewer_camera)
@@ -290,7 +294,7 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
     src/zombie_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
-    viewer_model viewer_roof_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting OpenGL::GL)
+    viewer_model viewer_weapon_pose viewer_roof_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting OpenGL::GL)
 if(WIN32)
     target_link_libraries(viewer_renderer PUBLIC GLEW::GLEW)
 endif()
@@ -379,6 +383,13 @@ if(BUILD_TESTING AND GD_VIEWER)
     add_dependencies(test_weapon_models viewer_weapon_assets)
     viewer_warnings(test_weapon_models)
     add_test(NAME viewer_weapon_models COMMAND test_weapon_models)
+
+    add_executable(test_weapon_view_pose tests/test_weapon_view_pose.cpp)
+    target_link_libraries(test_weapon_view_pose PRIVATE viewer_weapon_pose)
+    target_compile_definitions(test_weapon_view_pose PRIVATE VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}")
+    add_dependencies(test_weapon_view_pose viewer_weapon_assets)
+    viewer_warnings(test_weapon_view_pose)
+    add_test(NAME viewer_weapon_view_pose COMMAND test_weapon_view_pose)
     add_executable(test_object_interaction tests/test_object_interaction.cpp)
     target_link_libraries(test_object_interaction PRIVATE viewer_interaction viewer_objects)
     viewer_warnings(test_object_interaction)
