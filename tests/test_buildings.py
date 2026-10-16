@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 from pyproj import Transformer
 from shapely import union_all
-from shapely.geometry import Polygon, box
+from shapely.geometry import MultiPolygon, Polygon, box
 import trimesh
 
 from src.buildings import _mesh_for_polygon, add_buildings, building_height, parse_length
@@ -135,6 +135,55 @@ class BuildingTests(unittest.TestCase):
                 coverage = union_all(projected)
                 self.assertLess(coverage.symmetric_difference(footprint).area, area_tolerance)
                 self.assertAlmostEqual(sum(face.area for face in projected), coverage.area, delta=area_tolerance)
+
+    def test_relation_preserves_courtyard_island_and_its_own_hole(self):
+        shell = box(0, 0, 10, 10)
+        courtyard = box(2, 2, 8, 8)
+        island = box(4, 4, 6, 6)
+        island_hole = box(4.5, 4.5, 5.5, 5.5)
+        transformer = Transformer.from_crs("EPSG:4326", "EPSG:4326", always_xy=True)
+        for nested_hole in (False, True):
+            rings = [(shell, "outer"), (courtyard, "inner"), (island, "outer")]
+            if nested_hole:
+                rings.append((island_hole, "inner"))
+            ways = [{"type": "way", "id": index, "tags": {"building": "yes"},
+                     "geometry": [{"lon": x, "lat": y} for x, y in ring.exterior.coords]}
+                    for index, (ring, _) in enumerate(rings, 1)]
+            members = [{"type": "way", "ref": source["id"], "role": role}
+                       for source, (_, role) in zip(ways, rings)]
+            expected = MultiPolygon([
+                Polygon(shell.exterior, [courtyard.exterior.coords]),
+                Polygon(island.exterior, [island_hole.exterior.coords] if nested_hole else []),
+            ])
+            for reverse in (False, True):
+                with self.subTest(nested_hole=nested_hole, reverse=reverse):
+                    relation = {"type": "relation", "id": 10,
+                                "tags": {"building": "yes", "type": "multipolygon"},
+                                "members": members[::-1] if reverse else members}
+                    buildings, roads = parse_osm({"elements": [*ways, relation]}, transformer,
+                                                 (0, 0), box(-1, -1, 11, 11))
+                    self.assertEqual([feature["id"] for feature in buildings], ["relation/10"])
+                    self.assertEqual(roads, [])
+                    footprint = buildings[0]["geometry"]
+                    self.assertTrue(footprint.is_valid)
+                    self.assertTrue(footprint.equals(expected))
+                    self.assertAlmostEqual(footprint.area, 67 if nested_hole else 68)
+                    self.assertEqual(len(footprint.geoms), 2)
+
+                    scene = trimesh.Scene()
+                    stats = add_buildings(scene, buildings, lambda x, y: np.zeros_like(x), {})
+                    self.assertEqual(stats["building_meshes"], 4)
+                    roof_triangles = []
+                    for name, roof in scene.geometry.items():
+                        if not name.endswith("_roof"):
+                            continue
+                        roof_triangles.extend(Polygon(triangle[:, :2]) for triangle in roof.triangles)
+                        wall = scene.geometry[name.removesuffix("_roof") + "_walls"]
+                        solid = trimesh.util.concatenate([wall, roof])
+                        solid.merge_vertices(merge_tex=True, merge_norm=True)
+                        self.assertTrue(solid.is_watertight)
+                        self.assertTrue(solid.is_winding_consistent)
+                    self.assertTrue(union_all(roof_triangles).equals(expected))
 
     def test_relation_stitching_holes_deduplication_and_road_clipping(self):
         def points(coords):

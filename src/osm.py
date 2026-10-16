@@ -60,6 +60,25 @@ def _clipped_line_features(way: dict, coords: list, clip: Polygon) -> list:
     ]
 
 
+def _building_relation_area(outer: list, inner: list):
+    """Stitch rings and attach each hole to its smallest containing shell."""
+    # Polygonize adds holes for nested rings even when both have role outer.
+    shells = sorted((Polygon(part.exterior) for part in polygonize(unary_union(outer))),
+                    key=lambda shell: shell.area)
+    holes = [[] for _ in shells]
+    for part in polygonize(unary_union(inner)):
+        hole = Polygon(part.exterior)
+        for index, shell in enumerate(shells):
+            if shell.covers(hole):
+                holes[index].append(hole)
+                break
+    # Complete each component before unioning, so courtyards retain outer islands.
+    return unary_union([
+        shell.difference(unary_union(component_holes)) if component_holes else shell
+        for shell, component_holes in zip(shells, holes)
+    ])
+
+
 def parse_osm(payload: dict, transformer, origin: tuple[float, float], clip: Polygon):
     """Return ``(buildings, roads)`` with projected, origin-relative geometries.
 
@@ -96,10 +115,7 @@ def parse_osm(payload: dict, transformer, origin: tuple[float, float], clip: Pol
         if not outer:
             continue
         try:
-            shell = unary_union(list(polygonize(unary_union(outer))))
-            if inner:
-                shell = shell.difference(unary_union(list(polygonize(unary_union(inner)))))
-            geometry = clipped_area(shell)
+            geometry = clipped_area(_building_relation_area(outer, inner))
         except (ValueError, TypeError, ShapelyError) as error:
             LOG.warning("Skipping malformed building relation %s: %s", relation.get("id"), error)
             continue
