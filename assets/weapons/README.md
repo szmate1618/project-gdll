@@ -1,6 +1,6 @@
 # Low-poly firearms
 
-The single-player viewer uses [chilly_durango's Low Poly Gun Models](https://chilly-durango.itch.io/low-poly-firearms),
+The single-player viewer and multiplayer client use [chilly_durango's Low Poly Gun Models](https://chilly-durango.itch.io/low-poly-firearms),
 released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 The original author permits modification and commercial use without attribution.
 The mesh source and our modified sniper are retained here under the same CC0 dedication.
@@ -59,6 +59,11 @@ the view center at 25 m; the visual pose does not change hitscan behavior.
 Poses are computed once at load time using the standing controller configuration.
 Crouching and prone move the camera without rescaling the upper body or weapon.
 The unscoped view represents a ready hold; scope mode keeps its existing overlay.
+
+The multiplayer first-person overlay uses the server-confirmed weapon slot and
+the same poses. Linux and Windows client packages bundle the generated GLBs and
+this attribution under `assets/weapons/`. Headless clients and servers do not
+load them. Remote player bodies currently do not carry visible weapon meshes.
 
 To regenerate `models.json`, download the free source from the page above and
 save it at `data/assets/durango_firearms/Guns.blend`, then run Blender 3.6:

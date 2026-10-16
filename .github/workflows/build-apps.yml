@@ -111,6 +111,8 @@ jobs:
           Copy-Item shaders, items, credits $package -Recurse
           Copy-Item inventory.toml, forest_patches.json $package
           Copy-Item assets/test.glb "$package/assets"
+          Copy-Item build/assets/weapons "$package/assets" -Recurse
+          Copy-Item assets/weapons/README.md "$package/assets/weapons"
           Copy-Item multiplayer/client/players.vert, multiplayer/client/players.frag "$package/multiplayer/client"
           Copy-Item multiplayer/windows/README.md "$package/README.md"
           Get-ChildItem build/vcpkg_installed/x64-windows-static-md/share/*/copyright | ForEach-Object {

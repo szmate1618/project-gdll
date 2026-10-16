@@ -30,6 +30,10 @@ file(COPY "${client}" DESTINATION "${package}")
 file(COPY "${source_root}/shaders" "${source_root}/items" "${source_root}/credits" DESTINATION "${package}")
 file(COPY "${source_root}/inventory.toml" "${source_root}/forest_patches.json" DESTINATION "${package}")
 file(COPY "${source_root}/assets/test.glb" DESTINATION "${package}/assets")
+foreach(weapon pistol submachine_gun sniper shotgun)
+    file(COPY "${BUILD_DIR}/assets/weapons/${weapon}.glb" DESTINATION "${package}/assets/weapons")
+endforeach()
+file(COPY "${source_root}/assets/weapons/README.md" DESTINATION "${package}/assets/weapons")
 file(COPY "${source_root}/multiplayer/client/players.vert" "${source_root}/multiplayer/client/players.frag"
     DESTINATION "${package}/multiplayer/client")
 file(COPY "${CMAKE_CURRENT_LIST_DIR}/run-client.sh" DESTINATION "${package}"

@@ -6,6 +6,7 @@
 #include "players.hpp"
 #include "renderer.hpp"
 #include "reticle_overlay.hpp"
+#include "weapon_overlay.hpp"
 #include <GLFW/glfw3.h>
 #else
 struct GLFWwindow;
@@ -22,6 +23,7 @@ struct Input {
     viewer::Camera camera;
     bool capture = true, firstMouse = true, interaction = false, prone = false, reload = false;
     bool leftPressed = false, rightPressed = false;
+    bool canScope = false;
     double lastX = 0, lastY = 0;
     glm::vec2 drag{0};
     std::uint8_t slot = 0;
@@ -56,7 +58,7 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
     if (!in.capture || action != GLFW_PRESS) return;
     if (buttonCode == GLFW_MOUSE_BUTTON_LEFT) in.leftPressed = true;
     if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT && in.interaction) in.rightPressed = true;
-    if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS && in.capture && !in.interaction) in.camera.cycleViewMode();
+    if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT && in.canScope && !in.interaction) in.camera.cycleViewMode();
 }
 void focus(GLFWwindow* window, int focused) {
     if (!focused) {
@@ -72,9 +74,10 @@ struct Graphics {
 #ifdef MP_GRAPHICS
     std::unique_ptr<viewer::Renderer> renderer;
     std::unique_ptr<viewer::ReticleOverlay> reticle;
+    std::unique_ptr<viewer::WeaponOverlay> weapon;
     std::unique_ptr<multiplayer::PlayerRenderer> players;
     ~Graphics() {
-        players.reset(); reticle.reset(); renderer.reset();
+        players.reset(); weapon.reset(); reticle.reset(); renderer.reset();
         if (window) glfwDestroyWindow(window);
         glfwTerminate();
     }
@@ -95,6 +98,9 @@ struct Graphics {
         renderer = std::make_unique<viewer::Renderer>(scene.model, shaders, scene.trees ? &*scene.trees : nullptr,
             &scene.zombies, scene.forests ? &*scene.forests : nullptr);
         reticle = std::make_unique<viewer::ReticleOverlay>(shaders);
+        const viewer::FPSConfig body;
+        weapon = std::make_unique<viewer::WeaponOverlay>(shaders, multiplayer::weaponModelDirectory(),
+            viewer::WeaponViewBody{body.height, body.eyeHeight});
         players = std::make_unique<multiplayer::PlayerRenderer>();
     }
 #else
@@ -148,6 +154,7 @@ int main(int argc, char** argv) {
         float remoteTravel = 0;
         glm::vec3 visualOffset(0);
         multiplayer::PlayerState ownState;
+        auto weaponDefinitions = scene.initialWeapons;
         while (!graphics.closed()) {
             const auto clockNow = Clock::now();
             const double now = std::chrono::duration<double>(clockNow - start).count();
@@ -180,6 +187,13 @@ int main(int argc, char** argv) {
                     bool found = false;
                     for (const auto& p : snapshot->players) if (p.id == self) {
                         const bool ready = prediction.ready(); const auto before = prediction.eye();
+                        if (!ready || p.slot != ownState.slot) {
+                            if (!weaponDefinitions.equip(p.slot))
+                                throw std::runtime_error("Server equipped an unavailable weapon");
+                            while (in.camera.viewMode() != viewer::Camera::ViewMode::original)
+                                in.camera.cycleViewMode();
+                        }
+                        in.canScope = weaponDefinitions.equipped().config.hasScope;
                         prediction.reconcile(p, *scene.collision); ownState = p; found = true;
                         if (!ready) in.slot = p.slot;
                         const auto correction = before - prediction.eye();
@@ -216,6 +230,9 @@ int main(int argc, char** argv) {
                     renderer.render(in.camera, snapshots.animationSeconds(), [&] {
                         graphics.players->draw(in.camera, snapshots.players(), self, width, height);
                     });
+                    if (prediction.ready() && !in.interaction &&
+                        in.camera.viewMode() == viewer::Camera::ViewMode::original)
+                        graphics.weapon->draw(ownState.slot, width, height);
                     graphics.reticle->draw(in.camera.viewMode(), width, height);
                     renderer.present(width, height); glfwSwapBuffers(graphics.window);
                     viewer::Renderer::checkErrors("multiplayer frame");

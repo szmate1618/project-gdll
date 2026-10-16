@@ -30,6 +30,7 @@ target_link_libraries(multiplayer_core PUBLIC viewer_fps viewer_zombies viewer_i
     viewer_objects viewer_forests viewer_poles viewer_guardrails viewer_weapons ${mp_transport})
 target_compile_definitions(multiplayer_core PUBLIC
     MP_ROOT="${PROJECT_SOURCE_DIR}")
+target_compile_definitions(multiplayer_core PRIVATE MP_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}")
 viewer_warnings(multiplayer_core)
 
 add_executable(godollo_server server/main.cpp)
@@ -42,6 +43,7 @@ if(GD_VIEWER)
     target_sources(godollo_client PRIVATE client/players.cpp "${PROJECT_SOURCE_DIR}/src/reticle_overlay.cpp")
     target_link_libraries(godollo_client PRIVATE viewer_renderer glfw)
     target_compile_definitions(godollo_client PRIVATE MP_GRAPHICS GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
+    add_dependencies(godollo_client viewer_weapon_assets)
 endif()
 viewer_warnings(godollo_client)
 
@@ -71,6 +73,17 @@ if(BUILD_TESTING)
         viewer_warnings(test_players_render)
         add_test(NAME multiplayer_players_render COMMAND test_players_render)
         set_tests_properties(multiplayer_players_render PROPERTIES SKIP_RETURN_CODE 77)
+
+        add_executable(test_client_weapons tests/test_client_weapons.cpp client/players.cpp
+            "${PROJECT_SOURCE_DIR}/src/reticle_overlay.cpp")
+        target_link_libraries(test_client_weapons PRIVATE multiplayer_core viewer_renderer glfw)
+        target_compile_definitions(test_client_weapons PRIVATE MP_GRAPHICS GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+            VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}")
+        add_dependencies(test_client_weapons viewer_weapon_assets viewer_test_asset)
+        viewer_warnings(test_client_weapons)
+        add_test(NAME multiplayer_client_weapons COMMAND test_client_weapons "${VIEWER_TEST_ASSET}"
+            "${CMAKE_CURRENT_BINARY_DIR}/client-weapon-fixture")
+        set_tests_properties(multiplayer_client_weapons PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 15)
     endif()
     add_executable(test_scene_fingerprint tests/test_scene_fingerprint.cpp)
     target_link_libraries(test_scene_fingerprint PRIVATE multiplayer_core)

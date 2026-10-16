@@ -169,6 +169,19 @@ the grip. Alt releases/recaptures the mouse; Escape exits. Losing focus releases
 controls. Ammo and mode appear in the window title. Remote players are simple
 colored bodies whose height follows their stance.
 
+Combat normal view shows the same camera-local 1911, UMP, scoped M14 sniper and
+pump shotgun as single-player, including the eye-height hand/shoulder poses.
+The displayed model follows the server-confirmed equipped slot; a pending or
+rejected selection keeps the current model. Scope and Interaction views hide
+the weapon. Only scoped weapons enable zoom, and a confirmed weapon change
+resets zoom. Remote players retain their simple body models.
+
+Graphical client builds generate the four small weapon GLBs offline from the
+tracked [CC0 mesh source](../assets/weapons/README.md). Linux and Windows client
+packages include these models and attribution under `assets/weapons/`; no
+separate weapon download is needed. Development clients use the build tree's
+generated assets. Headless clients and servers do not load weapon graphics.
+
 The existing single-player executable remains available:
 
 ```sh

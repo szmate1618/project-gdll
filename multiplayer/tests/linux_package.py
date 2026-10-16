@@ -41,6 +41,12 @@ def main():
             archive.extractall(destination, filter="data")
         package = destination / "godollo-client-linux-x86_64"
         check_credits(package)
+        for name in ("pistol", "submachine_gun", "sniper", "shotgun"):
+            model = package / "assets/weapons" / (name + ".glb")
+            if not model.is_file() or model.read_bytes()[:4] != b"glTF":
+                raise RuntimeError("Package is missing a generated weapon model: " + str(model))
+        if not (package / "assets/weapons/README.md").is_file():
+            raise RuntimeError("Package is missing weapon attribution")
         client, asset = package / "run-client.sh", package / "assets/test.glb"
         environment = dict(os.environ)
         environment.pop("LD_LIBRARY_PATH", None)
@@ -78,6 +84,18 @@ def main():
                                               cwd=destination, capture_output=True, text=True, timeout=30, env=environment)
                     if rendered.returncode or not screenshot.is_file() or "OpenGL renderer:" not in rendered.stdout:
                         raise RuntimeError("Packaged graphical client failed:\n" + rendered.stdout + rendered.stderr)
+                    # A broken relocated package must not silently load the
+                    # development checkout's copy of a missing weapon.
+                    weapon = package / "assets/weapons/pistol.glb"
+                    saved_weapon = weapon.with_suffix(".saved.glb")
+                    weapon.rename(saved_weapon)
+                    try:
+                        broken = subprocess.run([client, *common, "--hidden", "--seconds", ".2"],
+                                                cwd=destination, capture_output=True, text=True, timeout=30, env=environment)
+                        if broken.returncode == 0 or "pistol.glb" not in broken.stdout + broken.stderr:
+                            raise RuntimeError("Client ignored missing packaged weapon:\n" + broken.stdout + broken.stderr)
+                    finally:
+                        saved_weapon.rename(weapon)
             finally:
                 server.terminate()
                 try:

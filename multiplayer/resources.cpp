@@ -6,19 +6,32 @@
 #endif
 
 namespace multiplayer {
-const std::filesystem::path& resourceRoot() {
-    static const auto root = [] {
+namespace {
+const std::filesystem::path& executableDirectory() {
+    static const auto directory = [] {
 #ifdef _WIN32
         std::array<wchar_t, 32768> path{};
         const auto size = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
         if (!size || size == path.size()) throw std::runtime_error("Cannot locate client executable");
-        const auto directory = std::filesystem::path(path.data()).parent_path();
+        return std::filesystem::path(path.data()).parent_path();
 #else
-        const auto directory = std::filesystem::read_symlink("/proc/self/exe").parent_path();
+        return std::filesystem::read_symlink("/proc/self/exe").parent_path();
 #endif
+    }();
+    return directory;
+}
+} // namespace
+const std::filesystem::path& resourceRoot() {
+    static const auto root = [] {
+        const auto& directory = executableDirectory();
         if (std::filesystem::is_directory(directory / "items")) return directory;
         return std::filesystem::path(MP_ROOT);
     }();
     return root;
+}
+std::filesystem::path weaponModelDirectory() {
+    const auto& directory = executableDirectory();
+    if (std::filesystem::is_directory(directory / "items")) return directory / "assets/weapons";
+    return std::filesystem::path(MP_WEAPON_ASSETS);
 }
 }
