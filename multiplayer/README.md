@@ -54,6 +54,42 @@ the scene fingerprint against cross-platform reference hashes.
 It does not run graphics or gameplay tests. The original viewer, headless server,
 and regression suites continue to be built/tested on Linux.
 
+## Portable asset pack
+
+Package the already prepared town on the host machine, using Python's standard
+library only. On Linux:
+
+```sh
+.venv/bin/python tools/package_multiplayer_assets.py
+```
+
+The same script works on Windows with `py tools/package_multiplayer_assets.py`.
+It writes `build/godollo-assets.zip`, shared by Windows and Linux. It includes
+the map and adjacent tree/pole/guardrail layers, referenced tree models and forest
+textures, zombie models and their referenced LoDs, weapon/inventory definitions,
+forest configuration, and available asset credits. It excludes executables,
+shaders, source models, generator datasets, caches, previews, and backups.
+
+Use `--map PATH`, `--zombies PATH`, or `--output PATH.zip` for other prepared
+inputs/output. Input assets must stay within this checkout; runtime references must be
+relative and use `/`, and model assets must be self-contained GLBs. The script
+preserves all file bytes so existing fingerprints remain valid. Missing files,
+stale provenance, and files changed during export prevent publication; a failed
+export preserves the previous ZIP. No downloads or map generation occur.
+
+For sessions with disabled layers, use `--no-trees` (also omits forests),
+`--no-forests`, and/or `--no-zombies`. The latter corresponds to the game's
+`--zombie-count 0`. `asset-pack.json` inside the archive records the selected
+paths/options and SHA-256 of every included file. Spawn, zombie count/radius,
+and vegetation options still need to match between server and clients.
+
+Extract into a fresh destination for each pack version, keeping the archive's
+folder layout. On Windows, first extract the client ZIP there, then the asset
+ZIP beside `godollo_client.exe`. Linux source builds read resources from their
+checkout, so extract there before building/running. This script does not make the
+Linux CI executables relocatable; their separate resource lookup/packaging work
+is still needed. Windows compilation and runtime checks remain in GitHub CI.
+
 ## Run
 
 From the repository root, start the server, then clients in separate terminals:

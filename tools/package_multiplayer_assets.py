@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""Package prepared multiplayer assets into a portable ZIP, without generating data."""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path, PureWindowsPath
+import struct
+import sys
+import tempfile
+import zipfile
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+class RuntimeAssets:
+    def __init__(self, root):
+        self.root = root.resolve()
+        self.files = {}
+        self.names = {}
+
+    def add(self, path, expected=None):
+        path = path.resolve()
+        name = path.relative_to(self.root).as_posix()
+        if not path.is_file():
+            raise ValueError(f"Missing runtime asset: {path}")
+        if self.names.get(name.casefold(), name) != name:
+            raise ValueError(f"Asset names collide on Windows: {name}")
+        self.names[name.casefold()] = name
+        if path not in self.files:
+            self.files[path] = sha256(path)
+        if expected is not None and self.files[path] != expected:
+            raise ValueError(f"Stale fingerprint for {name}; restore or prepare matching assets")
+        return path
+
+    def reference(self, parent, value):
+        if not isinstance(value, str) or not value or "\\" in value or PureWindowsPath(value).drive or value.startswith("/"):
+            raise ValueError(f"Runtime references must be portable relative paths: {value!r}")
+        path = parent / value
+        # Resolving symlinks to a different archive name would break the reference.
+        if Path(os.path.abspath(path)) != path.resolve():
+            raise ValueError(f"Runtime asset reference uses a symlink: {value}")
+        path.resolve().relative_to(self.root)
+        return path
+
+    def document(self, path):
+        path = self.add(path)
+        with path.open(encoding="utf-8") as stream:
+            return json.load(stream)
+
+    def model(self, path, expected=None):
+        path = self.add(path, expected)
+        if path.suffix != ".glb":
+            raise ValueError(f"Expected a self-contained .glb asset: {path}")
+        with path.open("rb") as stream:
+            header = stream.read(20)
+            if len(header) != 20:
+                raise ValueError(f"Truncated GLB: {path}")
+            magic, version, size, length, kind = struct.unpack("<4sIII4s", header)
+            if magic != b"glTF" or version != 2 or size != path.stat().st_size or kind != b"JSON" or length > size - 20:
+                raise ValueError(f"Expected GLB 2.0 with a JSON chunk: {path}")
+            document = json.loads(stream.read(length))
+        for key in ("buffers", "images"):
+            for record in document.get(key, []):
+                uri = record.get("uri", "")
+                if uri and not uri.startswith("data:"):
+                    raise ValueError(f"Packager requires self-contained GLBs; external {key} reference in {path}: {uri}")
+        return document
+
+
+def collect_assets(root, map_path, zombies, *, trees=True, forests=True):
+    assets = RuntimeAssets(root)
+    assets.model(map_path)
+    map_hash = assets.files[map_path.resolve()]
+    adjacent = map_path.parent
+    for name in ("poles.instances.json", "trees.instances.json"):
+        path = adjacent / name
+        if not path.exists() or (name == "trees.instances.json" and not trees):
+            continue
+        document = assets.document(path)
+        if document["map"]["map_sha256"] != map_hash:
+            raise ValueError(f"Stale map fingerprint in {path}")
+        for record in document.get("assets", {}).values():
+            assets.model(assets.reference(path.parent, record["path"]), record["sha256"])
+    path = adjacent / "guardrails.glb"
+    if path.exists():
+        document = assets.model(path)
+        if document["scenes"][document.get("scene", 0)]["extras"]["map_sha256"] != map_hash:
+            raise ValueError(f"Stale map fingerprint in {path}")
+    path = root / "forest_patches.json"
+    if trees and forests and path.exists():
+        document = assets.document(path)
+        if document["source"]["map_sha256"] != map_hash:
+            raise ValueError(f"Stale map fingerprint in {path}")
+        settings = document.get("runtime", {})
+        assets.model(assets.reference(root, settings.get("tree_asset", "assets/tree_impostor.glb")))
+        for key, default in (("side_texture", "assets/forests/side.png"), ("top_texture", "assets/forests/top.png")):
+            assets.add(assets.reference(root, settings.get(key, default)))
+    if zombies is not None:
+        models = sorted(zombies.glob("*.glb")) if zombies.is_dir() else [zombies]
+        if not models or (zombies.is_dir() and list(zombies.glob("*.gltf"))):
+            raise ValueError(f"Expected prepared GLB zombie models in {zombies}")
+        manifest_path = (zombies if zombies.is_dir() else zombies.parent) / "lods.json"
+        manifest = assets.document(manifest_path) if manifest_path.exists() else None
+        if manifest is not None and manifest["version"] != 1:
+            raise ValueError(f"Unsupported zombie LoD manifest: {manifest_path}")
+        for model in models:
+            assets.model(model)
+            entry = manifest["models"].get(model.name) if manifest else None
+            if entry is None:
+                continue
+            assets.add(model, entry["source_sha256"])
+            if len(entry["levels"]) != 3:
+                raise ValueError(f"Expected three zombie LoDs for {model}")
+            for level in entry["levels"]:
+                lod = assets.reference(model.parent, level["path"])
+                lod.resolve().relative_to(model.parent.resolve())
+                assets.model(lod, level["sha256"])
+    items = sorted((root / "items").glob("*.toml"))
+    for name in ("pistol", "submachine_gun", "sniper", "shotgun"):
+        assets.add(root / "items" / f"{name}.toml")
+    for path in [*items, root / "inventory.toml"]:
+        assets.add(path)
+    for name in ("assets/README.md", "assets/zombies/README.md", "assets/zombies/sources.json", "assets/forests/README.md"):
+        if (root / name).exists():
+            assets.add(root / name)
+    if (adjacent / "ATTRIBUTION.md").exists():
+        assets.add(adjacent / "ATTRIBUTION.md")
+    return assets
+
+
+def package_assets(root, map_path, output, zombies, *, trees=True, forests=True):
+    root, map_path, output = root.resolve(), map_path.resolve(), output.resolve()
+    zombies = zombies.resolve() if zombies is not None else None
+    if output.suffix.lower() != ".zip":
+        raise ValueError("Output must be a .zip file")
+    assets = collect_assets(root, map_path, zombies, trees=trees, forests=forests)
+    manifest = {"version": 1, "map": map_path.relative_to(root).as_posix(),
+                "trees": trees, "forests": trees and forests, "zombies": zombies.relative_to(root).as_posix() if zombies else None,
+                "files": {p.relative_to(root).as_posix(): digest for p, digest in sorted(assets.files.items())}}
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(prefix=output.stem + "-", suffix=".zip", dir=output.parent, delete=False) as stream:
+        temporary = Path(stream.name)
+    try:
+        total_size = 0
+        with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
+            for path, expected in sorted(assets.files.items()):
+                digest = hashlib.sha256()
+                with path.open("rb") as source, archive.open(path.relative_to(root).as_posix(), "w", force_zip64=True) as target:
+                    while chunk := source.read(1024 * 1024):
+                        target.write(chunk)
+                        digest.update(chunk)
+                        total_size += len(chunk)
+                if digest.hexdigest() != expected:
+                    raise ValueError(f"Asset changed during packaging: {path}")
+            archive.writestr("asset-pack.json", json.dumps(manifest, indent=2) + "\n")
+        with zipfile.ZipFile(temporary) as archive:
+            corrupt = archive.testzip()
+            if corrupt:
+                raise ValueError(f"Archive verification failed: {corrupt}")
+        os.replace(temporary, output)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return len(assets.files), total_size
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--map", type=Path, default=ROOT / "output/godollo.glb")
+    parser.add_argument("-o", "--output", type=Path, default=ROOT / "build/godollo-assets.zip")
+    parser.add_argument("--zombies", type=Path, default=ROOT / "assets/zombies/models")
+    parser.add_argument("--no-zombies", action="store_true", help="For sessions using --zombie-count 0")
+    parser.add_argument("--no-trees", action="store_true", help="Omit detected trees and runtime forests")
+    parser.add_argument("--no-forests", action="store_true")
+    args = parser.parse_args(argv)
+    try:
+        count, size = package_assets(ROOT, args.map, args.output, None if args.no_zombies else args.zombies.resolve(),
+                                    trees=not args.no_trees, forests=not args.no_forests)
+    except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile) as error:
+        print(f"Asset packaging failed: {error}", file=sys.stderr)
+        return 1
+    print(f"Saved {count} runtime files: {size / 1e6:.1f} MB unpacked, {args.output.stat().st_size / 1e6:.1f} MB ZIP")
+    print(args.output.resolve())
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -13,11 +13,14 @@ connection check against a server using the same scene:
 .\godollo_client.exe assets/test.glb --connect SERVER_IP:27020 --no-trees --zombie-count 0
 ```
 
-For the actual town, copy the matching map and adjacent tree/pole/guardrail
-layers from the server into `output/`, and its zombie models into
-`assets/zombies/models/`. Tree and forest asset paths must also resolve to the
-same content. The workflow does not download or generate those large assets.
-Use the server's spawn, zombie-count/radius, and vegetation options:
+For the actual town, ask the host for an asset ZIP created from the prepared
+source checkout with `tools/package_multiplayer_assets.py`. Extract it into the
+same fresh folder as the client ZIP, preserving its `output/`, `assets/`, and
+`items/` directories and matching configuration files. The asset ZIP contains
+the map, companion layers, trees, forest textures, and zombie models; it is
+shared with Linux and contains no executables. The workflow does not download
+or generate those large assets. Use the server's spawn, zombie-count/radius,
+and vegetation options:
 
 ```powershell
 .\godollo_client.exe output/godollo.glb --connect SERVER_IP:27020
@@ -38,5 +41,5 @@ gameplay need a real Windows machine for validation.
 `vcpkg.json` pins the package registry and Protobuf 3.21.12 to match the older
 GameNetworkingSockets 1.4.1 build used on Linux. Both host and target use
 `x64-windows-static-md`: static third-party libraries with the dynamic Microsoft
-runtime. The build uses MSVC 2022 and CMake 3.31, and disables tests; Linux CI
-continues to run the full regression suites.
+runtime. The build uses MSVC 2022 and CMake 3.31, and runs the focused fingerprint
+test; Linux CI continues to run the full regression suites.
