@@ -111,6 +111,9 @@ struct ZombieLayer {
     void attachPhysics(std::shared_ptr<PhysicsWorld> world);
     void synchronizePhysics();
     void translateRagdoll(std::size_t zombie, glm::vec3 displacement);
+    bool knockDown(std::size_t zombie, glm::vec3 velocity, double animationSeconds);
+    // Scene/crowd-constrained push; updates all owning spatial/render state.
+    glm::vec3 pushLiving(std::size_t zombie, glm::vec3 displacement, const CollisionWorld& world);
     void applyRagdollImpulse(std::size_t zombie, RagdollPart part, glm::vec3 impulse);
     void removeRagdoll(std::size_t zombie);
     // Externally driven rigs/tests only; physics-owned palettes use the APIs above.
@@ -127,6 +130,7 @@ struct ZombieLayer {
     const ZombieRenderUpdates& renderUpdates() const { return renderUpdates_; }
 
 private:
+    bool activateRagdoll(std::size_t zombie, glm::vec3 velocity, std::vector<glm::mat4> pose);
     bool shootImpl(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                    const CollisionWorld* occlusion);
     void updateBehaviorImpl(float seconds, const ZombiePlayer& player, const CollisionWorld& world,

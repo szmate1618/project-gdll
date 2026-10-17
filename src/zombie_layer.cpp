@@ -4,6 +4,7 @@
 #include "zombie_placement.hpp"
 #include "zombie_animation.hpp"
 #include "zombie_lod.hpp"
+#include "zombie_movement.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -105,17 +106,48 @@ bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animat
     const auto selected = findShotTarget(origin, direction, animationSeconds, selectedPose, &distance);
     if (selected == instances.size()) return false;
     if (occlusion && !occlusion->lineOfSight(origin, origin + direction * distance)) return false;
+    return activateRagdoll(selected, direction * 4.0f, std::move(selectedPose));
+}
+
+bool ZombieLayer::knockDown(std::size_t id, glm::vec3 velocity, double seconds) {
+    ensureSpatialIndex();
+    if (id >= instances.size() || !finite(velocity)) return false;
+    const auto& instance = instances[id];
+    if (instance.ragdoll || instance.removed || instance.asset >= assets.size()) return false;
+    return activateRagdoll(id, velocity, sampleZombiePose(assets[instance.asset], instance, seconds));
+}
+
+glm::vec3 ZombieLayer::pushLiving(std::size_t id, glm::vec3 displacement, const CollisionWorld& world) {
+    ensureSpatialIndex();
+    if (id >= instances.size() || !finite(displacement)) return glm::vec3(0);
+    auto& instance = instances[id];
+    if (instance.ragdoll || instance.removed || instance.asset >= assets.size()) return glm::vec3(0);
+    const auto start = glm::vec3(instance.restRoot[3]);
+    const auto movement = moveZombieBody(start, start + displacement, world, &crowd_, id);
+    const auto delta = movement.feet - start;
+    if (glm::length(delta) > 0) {
+        const auto translate = glm::translate(glm::mat4(1), delta);
+        instance.restRoot = translate * instance.restRoot;
+        instance.restTransform = translate * instance.restTransform;
+        instance.transform = translate * instance.transform;
+        updateSpatialMembership(id);
+        markRenderChanged(id);
+    }
+    return delta;
+}
+
+bool ZombieLayer::activateRagdoll(std::size_t selected, glm::vec3 velocity, std::vector<glm::mat4> pose) {
     if (!physics_) physics_ = std::make_unique<Physics>();
     auto& instance = instances[selected];
     const auto feet = glm::vec3(instance.restRoot[3]);
     const float yaw = std::atan2(instance.restRoot[2][0], instance.restRoot[0][0]);
     const auto& asset = assets[instance.asset];
-    instance.activationPose = std::move(selectedPose);
+    instance.activationPose = std::move(pose);
     RagdollPose reference, current;
     if (makeZombieRagdollPoses(instance, asset, reference, current))
-        instance.ragdollHandle = physics_->world.create(feet, yaw, direction * 4.0f, reference, current);
+        instance.ragdollHandle = physics_->world.create(feet, yaw, velocity, reference, current);
     else
-        instance.ragdollHandle = physics_->world.create(feet, yaw, direction * 4.0f);
+        instance.ragdollHandle = physics_->world.create(feet, yaw, velocity);
     try {
         registerRagdoll(selected);
     } catch (...) {

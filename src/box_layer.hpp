@@ -14,6 +14,9 @@ struct BoxPose {
     glm::quat rotation;
     glm::mat4 transform() const;
 };
+// Capsule contacts against an oriented rigid box, in world meters.
+std::vector<Contact> boxContacts(const BoxPose& box, glm::vec3 feet, float radius, float height, float skin);
+
 struct BoxRayHit {
     std::size_t box;
     glm::vec3 point, localPoint; // World and body-local meters.

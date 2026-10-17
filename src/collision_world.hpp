@@ -11,6 +11,7 @@
 namespace viewer {
 class DoorLayer;
 class BoxLayer;
+class VehicleLayer;
 struct StaticCollisionFace {
     std::size_t index;
     std::array<glm::vec3, 3> vertices;
@@ -90,10 +91,14 @@ public:
     bool empty() const; // No static geometry, trunks, doors or boxes.
     // Borrowed dynamic props must outlive this world. Queries remain read-only.
     void setBoxes(BoxLayer* boxes);
+    void setVehicles(const VehicleLayer* vehicles);
     void pushBoxes(glm::vec3 feet, float radius, float height, glm::vec3 velocity, float dt) const;
     // BVH-selected static triangles, including the actual clipped doorways.
     // Stable indices let physics upload neighboring regions without duplicates.
     std::vector<StaticCollisionFace> staticFaces(glm::vec3 minimum, glm::vec3 maximum) const;
+
+    // Stable trunk IDs, selected through the trunk BVH.
+    std::vector<std::pair<std::size_t, TrunkCollider>> staticTrunks(glm::vec3 minimum, glm::vec3 maximum) const;
 
 private:
     std::optional<GroundHit> queryGround(float x, float z, float minY, float maxY,

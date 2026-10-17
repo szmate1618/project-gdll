@@ -217,7 +217,7 @@ add_custom_command(
 add_custom_target(viewer_audio_assets DEPENDS ${VIEWER_AUDIO_FILES})
 endif()
 
-add_library(viewer_physics STATIC src/physics_world.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp)
+add_library(viewer_physics STATIC src/physics_world.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_geometry.cpp)
 target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
@@ -251,6 +251,10 @@ viewer_warnings(viewer_weapons)
 add_library(viewer_objects STATIC src/interior_objects.cpp src/physics_scene.cpp)
 target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics)
 viewer_warnings(viewer_objects)
+
+add_library(viewer_vehicles STATIC src/vehicle_player.cpp src/vehicle_zombie_collision.cpp)
+target_link_libraries(viewer_vehicles PUBLIC viewer_objects viewer_fps viewer_zombies)
+viewer_warnings(viewer_vehicles)
 
 set(VIEWER_TEST_ASSET "${CMAKE_CURRENT_SOURCE_DIR}/assets/test.glb")
 add_custom_command(
@@ -291,7 +295,7 @@ viewer_warnings(viewer_sun_lighting)
 
 if(GD_VIEWER)
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
-    src/box_renderer.cpp
+    src/box_renderer.cpp src/vehicle_renderer.cpp
     src/weapon_overlay.cpp
     src/roof_renderer.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
@@ -318,7 +322,7 @@ viewer_warnings(viewer_scene_audio)
 add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp
     src/reticle_overlay.cpp src/gpu_timer.cpp)
 target_link_libraries(godollo_viewer PRIVATE viewer_vegetation
-    viewer_renderer viewer_fps viewer_interaction viewer_objects viewer_poles viewer_guardrails viewer_weapons viewer_scene_audio glfw
+    viewer_renderer viewer_fps viewer_interaction viewer_objects viewer_vehicles viewer_poles viewer_guardrails viewer_weapons viewer_scene_audio glfw
 )
 target_compile_definitions(godollo_viewer PRIVATE
     GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -401,6 +405,19 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_interior_objects PRIVATE viewer_objects viewer_interaction)
     viewer_warnings(test_interior_objects)
     add_test(NAME viewer_interior_objects COMMAND test_interior_objects)
+    add_executable(test_vehicle_renderer tests/test_vehicle_renderer.cpp)
+    target_link_libraries(test_vehicle_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_vehicle_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_vehicle_renderer)
+    add_test(NAME viewer_vehicle_renderer COMMAND test_vehicle_renderer)
+    set_tests_properties(viewer_vehicle_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
+    add_executable(test_vehicles tests/test_vehicles.cpp)
+    target_link_libraries(test_vehicles PRIVATE viewer_vehicles)
+    viewer_warnings(test_vehicles)
+    add_test(NAME viewer_vehicles COMMAND test_vehicles)
+
     add_executable(test_physics_boxes tests/test_physics_boxes.cpp)
     target_link_libraries(test_physics_boxes PRIVATE viewer_objects viewer_fps)
     viewer_warnings(test_physics_boxes)

@@ -2,6 +2,7 @@
 
 #include <box3d/id.h>
 #include <cstdint>
+#include <functional>
 #include <unordered_map>
 
 namespace viewer {
@@ -15,6 +16,7 @@ constexpr std::uint64_t interiorBoxCategory = 1ull << 10;
 constexpr std::uint64_t ragdollFloorCategory = 1ull << 11;
 constexpr std::uint64_t doorBodyCategory = 1ull << 12;
 constexpr std::uint64_t zombieDoorBlockerCategory = 1ull << 13;
+constexpr std::uint64_t vehicleBodyCategory = 1ull << 14;
 
 // Shared Box3D simulation in runtime meters (X east, Y up, Z south).
 // Owners of bodies/joints must retain this world and destroy their resources
@@ -25,7 +27,9 @@ public:
     ~PhysicsWorld();
     PhysicsWorld(const PhysicsWorld&) = delete;
     PhysicsWorld& operator=(const PhysicsWorld&) = delete;
-    void step(float seconds);
+    // Optional hooks run once per fixed step, outside Box3D callbacks.
+    void step(float seconds, const std::function<void(float)>& before = {},
+              const std::function<void(float)>& after = {});
     b3WorldId id() const { return world_; }
     int allocateCollisionGroup(); // Negative groups suppress ragdoll self-contact.
     // Owner revision must have a stable address until untrackBodyMotion().

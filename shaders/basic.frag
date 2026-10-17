@@ -30,6 +30,9 @@ uniform float uHazeStart;
 uniform vec4 uGroundFog; // Base Y, inverse layer height, base density, clear distance.
 uniform float uNightBlend;
 uniform vec3 uUnlitLight;
+uniform bool uHeadlights;
+uniform vec3 uHeadlightPosition[2];
+uniform vec3 uHeadlightDirection;
 uniform vec3 uFlashlightPosition;
 uniform vec3 uFlashlightDirection;
 uniform bool uFlashlightShadows;
@@ -124,6 +127,21 @@ vec3 flashlight(vec3 normal) {
     return uFlashlightColor * (uNightBlend * cone * rangeFade * falloff * facing * visibility);
 }
 
+vec3 headlights(vec3 normal) {
+    if (!uHeadlights || uNightBlend <= 0.0) return vec3(0.0);
+    vec3 light = vec3(0.0);
+    for (int i = 0; i < 2; ++i) {
+        vec3 offset = vWorldPosition - uHeadlightPosition[i];
+        float distance = length(offset);
+        vec3 ray = offset / max(distance, 0.001);
+        float cone = smoothstep(0.9063, 0.9781, dot(ray, uHeadlightDirection));
+        float facing = uUnlit ? 1.0 : max(dot(normal, -ray), 0.0);
+        float fade = 1.0 - smoothstep(45.0, 60.0, distance);
+        light += vec3(7.0, 6.7, 5.8) * (uNightBlend * cone * facing * fade / (1.0 + 0.012 * distance * distance));
+    }
+    return light;
+}
+
 float alphaMaskCutoff() {
     if (!uHasTexture || uMinifiedAlphaCutoff <= 0.0) return uAlphaCutoff;
     // Screen-space footprint also accounts for zoom and oblique views. Preserve
@@ -154,7 +172,7 @@ void main() {
     // add the flashlight afterwards so the beam can illuminate forest interiors.
     vec3 light = uUnlit ? uUnlitLight * mix(canopyLight, 1.0, uNightBlend)
                         : ambient + uSunColor * sunFacing * sunlightVisibility(sunFacing, distanceFromEye);
-    light += flashlight(normal);
+    light += flashlight(normal) + headlights(normal);
     vec3 linearColor = max(color.rgb * light, vec3(0.0));
     // Haze affects unlit tree cards too, after alpha discard and lighting but
     // before output encoding. Keep material alpha intact for blended surfaces.

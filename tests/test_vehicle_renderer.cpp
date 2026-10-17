@@ -1,0 +1,66 @@
+#include "renderer.hpp"
+#include "vehicle_layer.hpp"
+#include "physics_world.hpp"
+#include "interior_fixture.hpp"
+#include <GLFW/glfw3.h>
+#include <array>
+#include <iostream>
+#include <stdexcept>
+
+namespace {
+constexpr int width = 960, height = 640;
+void require(bool b, const char* message) { if (!b) throw std::runtime_error(message); }
+glm::vec3 pixel(const viewer::Camera& camera, glm::vec3 p) {
+    const auto clip = camera.projection(float(width) / height) * camera.view() * glm::vec4(p, 1);
+    const auto ndc = glm::vec3(clip) / clip.w;
+    require(clip.w > 0 && std::abs(ndc.x) < .95f && std::abs(ndc.y) < .95f, "Vehicle sample must be in frame");
+    std::array<unsigned char, 3> rgb{};
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    glReadPixels(int((ndc.x + 1) * width / 2), int((ndc.y + 1) * height / 2), 1, 1, GL_RGB, GL_UNSIGNED_BYTE, rgb.data());
+    return {rgb[0], rgb[1], rgb[2]};
+}
+void run() {
+    viewer::Model model; model.materials.push_back({});
+    interior_fixture::quad(model, {-50, 0, -50}, {-50, 0, 50}, {50, 0, 50}, {50, 0, -50}, "terrain");
+    interior_fixture::bounds(model);
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::VehicleLayer cars(physics); cars.add({0, .8f, 0});
+    viewer::Camera camera; camera.setPosition({5, 3.5f, 6}); camera.setOrientation(-130, -20);
+    viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
+    renderer.resize(width, height); renderer.setHaze(false); renderer.setGroundFog(false);
+    renderer.setShadows(false); renderer.render(camera);
+    const auto before = pixel(camera, {.7f, .8f, 1.7f});
+    renderer.updateVehicles(cars); renderer.render(camera);
+    const auto body = pixel(camera, {.7f, .8f, 1.7f});
+    const auto wheel = pixel(camera, {.96f, .48f, 1.15f});
+    require(glm::length(body - before) > 30 && body.b > body.r + 15, "Chassis must appear as a blue box");
+    require(glm::length(wheel) < glm::length(body) * .6f, "Visible tires must be dark solids beside the chassis");
+    renderer.setShadows(true); renderer.render(camera);
+    renderer.writeScreenshot("vehicle-day.ppm");
+    viewer::Renderer empty(model, VIEWER_SHADER_DIR);
+    empty.resize(width, height); empty.setNight(true); empty.setShadows(false); empty.setHaze(false); empty.setGroundFog(false);
+    // Keep the camera off to one side so its held flashlight cannot explain the
+    // light on the road ahead of the car. Occupied mode turns that light off.
+    camera.setPosition({8, 5, -5}); camera.setOrientation(-170, -25);
+    empty.render(camera); const auto dark = pixel(camera, {0, 0, -12});
+    renderer.setNight(true); renderer.updateVehicles(cars, 0); renderer.render(camera);
+    const auto beam = pixel(camera, {0, 0, -12});
+    std::cout << "night dark=" << glm::length(dark) << " beam=" << glm::length(beam) << '\n';
+    renderer.writeScreenshot("vehicle-night.ppm");
+    require(glm::length(beam) > glm::length(dark) + 30, "Downward headlights must illuminate the road ahead independently of camera aim");
+    renderer.setFlashlightShadows(true); renderer.render(camera);
+    GLboolean depth = GL_FALSE; glGetBooleanv(GL_DEPTH_WRITEMASK, &depth);
+    require(depth == GL_TRUE, "Vehicle rendering must restore opaque depth writes");
+    viewer::Renderer::checkErrors("vehicle box, tires, lights and shadow passes");
+}
+}
+int main() {
+    if (!glfwInit()) return 77;
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    auto* window = glfwCreateWindow(width, height, "Vehicle rendering", nullptr, nullptr);
+    if (!window) { glfwTerminate(); return 77; }
+    glfwMakeContextCurrent(window); viewer::initializeOpenGL();
+    int result = 0; try { run(); } catch (const std::exception& e) { std::cerr << e.what() << '\n'; result = 1; }
+    glfwDestroyWindow(window); glfwTerminate(); return result;
+}

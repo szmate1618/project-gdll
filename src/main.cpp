@@ -4,6 +4,7 @@
 #include "physics_world.hpp"
 #include "box_layer.hpp"
 #include "physics_scene.hpp"
+#include "vehicle_player.hpp"
 #include "interior_objects.hpp"
 #include "reticle_overlay.hpp"
 #include "weapons.hpp"
@@ -313,6 +314,8 @@ struct AppState {
     viewer::DoorLayer* doors = nullptr;
     viewer::BoxLayer* boxes = nullptr;
     viewer::PhysicsScene* physicsScene = nullptr;
+    viewer::VehicleLayer* cars = nullptr;
+    viewer::VehiclePlayer driver;
     viewer::InteriorObjects* interiors = nullptr;
     const viewer::CollisionWorld& world;
     viewer::ZombieLayer* zombies = nullptr;
@@ -347,6 +350,16 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     auto& app = state(window);
     if (key >= 0 && key <= GLFW_KEY_LAST) app.keys[static_cast<std::size_t>(key)] = action != GLFW_RELEASE;
     if (action != GLFW_PRESS) return;
+    if (key == GLFW_KEY_ENTER && app.cars) {
+        if (app.driver.toggle(*app.cars, app.rig, app.world)) {
+            app.weapons.cancelTrigger(); app.interaction.cancel(); app.proneToggleQueued = false;
+            while (app.rig.camera().viewMode() != viewer::Camera::ViewMode::original)
+                app.rig.camera().cycleViewMode();
+            std::cout << (app.driver.driving() ? "Driving: WASD, Space brake, Enter exit when stopped\n" : "Left driver seat\n");
+        } else std::cout << "Enter needs a nearby stopped car, or a clear exit beside a stopped car\n";
+        return;
+    }
+    if (app.driver.driving() && (key == GLFW_KEY_F || key == GLFW_KEY_F1 || key == GLFW_KEY_F2 || key == GLFW_KEY_TAB)) return;
     if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(window, GLFW_TRUE);
     else if (key == GLFW_KEY_TAB) {
         app.weapons.cancelTrigger();
@@ -403,7 +416,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
         app.interaction.release(button == GLFW_MOUSE_BUTTON_LEFT ? viewer::Hand::Left : viewer::Hand::Right, glfwGetTime());
         return;
     }
-    if (action != GLFW_PRESS || !app.capture) return;
+    if (action != GLFW_PRESS || !app.capture || app.driver.driving()) return;
     if (button == GLFW_MOUSE_BUTTON_RIGHT && app.interaction.mode() == viewer::ControlMode::Combat) {
         if (app.weapons.equipped().config.hasScope) app.rig.camera().cycleViewMode();
         return;
@@ -441,7 +454,7 @@ void focusCallback(GLFWwindow* window, int focused) {
 }
 
 void updateWeapons(AppState& app, double seconds) {
-    if (!app.capture || app.interaction.mode() != viewer::ControlMode::Combat) {
+    if (app.driver.driving() || !app.capture || app.interaction.mode() != viewer::ControlMode::Combat) {
         app.weapons.cancelTrigger();
         return;
     }
@@ -458,6 +471,10 @@ void updateWeapons(AppState& app, double seconds) {
 }
 
 void moveCamera(AppState& app, float dt) {
+    if (app.driver.driving()) {
+        app.driver.updateCamera(*app.cars, app.rig.camera());
+        return;
+    }
     const auto held = [&](int key) { return app.keys[static_cast<std::size_t>(key)] ? 1.0f : 0.0f; };
     app.rig.update(dt, held(GLFW_KEY_W) - held(GLFW_KEY_S), held(GLFW_KEY_D) - held(GLFW_KEY_A),
                    held(GLFW_KEY_E) - held(GLFW_KEY_Q),
@@ -898,6 +915,15 @@ int run(const Options& options) {
     if (options.zombieView && zombies)
         app.rig.camera().frame(zombies->boundsMin, zombies->boundsMax,
             static_cast<float>(std::max(app.width, 1)) / static_cast<float>(std::max(app.height, 1)));
+    viewer::VehicleLayer cars(physics);
+    const auto carOrigin = app.rig.walking() ? app.rig.camera().position() :
+        glm::vec3((model.boundsMin.x + model.boundsMax.x) * .5f, model.boundsMax.y + 2, (model.boundsMin.z + model.boundsMax.z) * .5f);
+    if (viewer::placeVehicleNear(cars, collision, carOrigin, model.boundsMin, model.boundsMax)) {
+        const auto p = cars.pose(0).chassis.center;
+        std::cout << "Car at (" << p.x << ", " << p.y << ", " << p.z << "); Enter beside driver side to drive\n";
+    } else std::cout << "No clear terrain footprint near spawn for the prototype car\n";
+    collision.setVehicles(&cars);
+    app.cars = &cars;
     app.zombies = zombies ? &*zombies : nullptr;
     app.doors = &doors;
     app.boxes = &boxes;
@@ -1009,7 +1035,24 @@ int run(const Options& options) {
                 doors.activateNear(glm::vec3(zombies->instances[id].transform[3]));
         physicsScene.prepare(boxes);
         if (zombies) zombieDoorCollision.prepare(doors, *zombies);
-        physics->step(dt);
+        if (app.driver.car()) {
+            cars.drive(*app.driver.car(), float(app.keys[GLFW_KEY_W]) - float(app.keys[GLFW_KEY_S]),
+                       float(app.keys[GLFW_KEY_D]) - float(app.keys[GLFW_KEY_A]), app.keys[GLFW_KEY_SPACE]);
+        }
+        std::vector<viewer::BoxPose> previousCars;
+        physics->step(dt, [&](float step) {
+            viewer::prepareVehicleScene(cars, physicsScene);
+            previousCars.clear();
+            for (std::size_t i = 0; i < cars.count(); ++i) {
+                previousCars.push_back(cars.pose(i).chassis);
+                doors.activateNear(previousCars.back().center, 10);
+            }
+            cars.beforeStep(step);
+        }, [&](float step) {
+            if (zombies) for (std::size_t i = 0; i < cars.count(); ++i)
+                viewer::collideVehicleZombies(cars, i, previousCars[i], *zombies, collision, step,
+                    options.animationTime.value_or(simulationClock.seconds()));
+        });
         if (zombies) zombies->synchronizePhysics();
         moveCamera(app, dt);
         anchorGroundFog();
@@ -1035,6 +1078,7 @@ int run(const Options& options) {
         intervalSimulationSeconds += preparationStart - simulationStart;
         renderer.updateDoors(doors);
         renderer.updateBoxes(boxes);
+        renderer.updateVehicles(cars, app.driver.car());
         renderer.resize(app.width, app.height);
         if (zombies) renderer.updateZombies(*zombies);
         std::vector<viewer::DebugVertex> overlay;
@@ -1048,7 +1092,7 @@ int run(const Options& options) {
         renderer.render(app.rig.camera(), app.displayedAnimationSeconds);
         if (app.collisionDebug)
             debug->draw(app.rig.camera(), overlay, app.width, app.height);
-        if (app.interaction.mode() == viewer::ControlMode::Combat &&
+        if (!app.driver.driving() && app.interaction.mode() == viewer::ControlMode::Combat &&
             app.rig.camera().viewMode() == viewer::Camera::ViewMode::original)
             weaponOverlay.draw(app.weapons.slot(), app.width, app.height);
         reticle.draw(app.rig.camera().viewMode(), app.width, app.height);
@@ -1096,9 +1140,10 @@ int run(const Options& options) {
                             << ':' << std::setw(2) << minutes % 60;
             }
             std::ostringstream speedStatus;
-            speedStatus << std::fixed << std::setprecision(2) << app.rig.speed(
+            const float speed = app.driver.car() ? glm::length(cars.velocity(*app.driver.car())) : app.rig.speed(
                 app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]);
-            const auto caption = title + " | " + app.rig.modeName() + " | " + app.interaction.modeName()
+            speedStatus << std::fixed << std::setprecision(2) << speed;
+            const auto caption = title + " | " + (app.driver.driving() ? "Driving" : app.rig.modeName()) + " | " + app.interaction.modeName()
                 + " | " + app.weapons.status()
                 + (app.interaction.grabbing() ? " (holding)" : "") + status + " | " + std::to_string(fps)
                 + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + " | CPU sim " + simulationTime + townStatus + treeStatus + zombieStatus + clockStatus.str() + " | " + speedStatus.str() + " m/s";

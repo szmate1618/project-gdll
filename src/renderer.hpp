@@ -30,6 +30,7 @@ namespace viewer {
 class RainRenderer;
 class DoorLayer;
 class BoxLayer;
+class VehicleLayer;
 
 struct TreeRenderStats {
     std::size_t total = 0, visible = 0, drawCalls = 0;
@@ -73,6 +74,7 @@ public:
     // Refresh cached poses after physics or spawning. The source must outlive
     // this renderer; unchanged revisions retain meshes and visibility bounds.
     void updateBoxes(const BoxLayer& boxes);
+    void updateVehicles(const VehicleLayer& vehicles, std::optional<std::size_t> driver = {});
     void present(int width, int height);
     void writeScreenshot(const std::filesystem::path& path) const;
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
@@ -185,6 +187,8 @@ private:
     void uploadMeshes(const std::vector<Primitive>& source, ModelGPU& destination);
     void uploadRoofBatches(const Model& source);
     void drawBoxes(const glm::mat4& projectionView);
+    void drawVehicles(const glm::mat4& projectionView);
+    void applyVehicleLights();
     // Returns false when a roof's spatial batch was already drawn in this pass.
     bool drawTownSource(std::size_t index);
     void uploadTrees(const TreeLayer& trees, const ForestLayer* forests);
@@ -229,6 +233,8 @@ private:
     GLint hazeColorLocation_, hazeDensityLocation_, hazeStartLocation_;
     GLint groundFogLocation_;
     GLint nightBlendLocation_, unlitLightLocation_;
+    GLint headlightsLocation_, headlightDirectionLocation_;
+    std::array<GLint, 2> headlightPositions_;
     GLint flashlightPositionLocation_, flashlightShadowsLocation_, flashlightShadowMapLocation_;
     GLint flashlightMatrixLocation_, flashlightShadowDistancesLocation_;
     GLint flashlightDirectionLocation_, flashlightColorLocation_, flashlightConeLocation_;
@@ -246,6 +252,9 @@ private:
     bool shadows_ = true;
     std::vector<std::size_t> shadowScene_;
     ModelGPU model_;
+    ModelGPU vehicleModel_;
+    const VehicleLayer* vehicleSource_ = nullptr;
+    std::optional<std::size_t> vehicleDriver_;
     ModelGPU boxModel_;
     GLuint boxInstanceBuffer_ = 0;
     std::vector<glm::mat4> boxTransforms_, visibleBoxTransforms_;

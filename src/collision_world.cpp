@@ -1,6 +1,7 @@
 #include "collision_world.hpp"
 #include "door_collision.hpp"
 #include "box_layer.hpp"
+#include "vehicle_layer.hpp"
 
 #include <algorithm>
 #include <array>
@@ -238,6 +239,7 @@ struct CollisionWorld::Impl {
     bool hasTerrain = false;
     const DoorLayer* doors = nullptr;
     BoxLayer* boxes = nullptr;
+    const VehicleLayer* vehicles = nullptr;
 
     void addTriangle(const CollisionFace& face, float winding, int group, bool terrain, bool roof,
                      bool wallBase, bool road) {
@@ -380,7 +382,7 @@ struct CollisionWorld::Impl {
             if (node.count) {
                 for (auto i = node.first; i < node.first + node.count; ++i) {
                     const auto& trunk = trunks[trunkOrder[i]];
-                    if (trunk.bounds.intersects(region)) callback(trunk.collider);
+                    if (trunk.bounds.intersects(region)) callback(trunk.collider, static_cast<std::size_t>(trunkOrder[i]));
                 }
             } else {
                 stack[count++] = node.left;
@@ -526,7 +528,7 @@ std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, floa
             (!t.road || glm::dot(groundNormal, feet - pair.triangle) >= -epsilon);
         result.push_back({normal, pair.triangle, triangleReach - distance, t.terrain, terrainSupport});
     });
-    impl_->queryTrunks(region, [&](const TrunkCollider& trunk) {
+    impl_->queryTrunks(region, [&](const TrunkCollider& trunk, std::size_t) {
         const float low = trunk.base.y + trunk.radius;
         const float high = trunk.base.y + trunk.height - trunk.radius;
         // Parallel vertical segments have a direct interval solution, avoiding
@@ -548,6 +550,7 @@ std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, floa
     });
     if (impl_->doors) appendDoorContacts(*impl_->doors, feet, radius, height, skin, result);
     if (impl_->boxes) impl_->boxes->appendContacts(feet, radius, height, skin, result);
+    if (impl_->vehicles) impl_->vehicles->appendContacts(feet, radius, height, skin, result);
     std::sort(result.begin(), result.end(), [](const Contact& a, const Contact& b) { return a.depth > b.depth; });
     return result;
 }
@@ -577,6 +580,10 @@ std::optional<GroundHit> CollisionWorld::queryGround(float x, float z, float min
     if (!terrainOnly && impl_->boxes) {
         const auto box = impl_->boxes->groundAt(x, z, minY, maxY);
         if (box && (!result || box->height > result->height)) result = box;
+    }
+    if (!terrainOnly && impl_->vehicles) {
+        const auto car = impl_->vehicles->groundAt(x, z, minY, maxY);
+        if (car && (!result || car->height > result->height)) result = car;
     }
     return result;
 }
@@ -667,7 +674,7 @@ std::vector<glm::vec3> CollisionWorld::debugLines(glm::vec3 near, float distance
     groups.erase(std::unique(groups.begin(), groups.end()), groups.end());
     for (const auto group : groups) appendBox(result, impl_->groups[static_cast<std::size_t>(group)].bounds);
     const auto trunkLimit = result.size() + 30000;
-    impl_->queryTrunks(region, [&](const TrunkCollider& trunk) {
+    impl_->queryTrunks(region, [&](const TrunkCollider& trunk, std::size_t) {
         if (result.size() < trunkLimit) appendTrunk(result, trunk);
     });
     if (impl_->doors) {
@@ -684,8 +691,10 @@ std::vector<glm::vec3> CollisionWorld::debugLines(glm::vec3 near, float distance
 const CollisionStats& CollisionWorld::stats() const { return impl_->stats; }
 bool CollisionWorld::empty() const {
     return impl_->triangles.empty() && impl_->trunks.empty() &&
-           (!impl_->doors || impl_->doors->count() == 0) && (!impl_->boxes || impl_->boxes->count() == 0);
+           (!impl_->doors || impl_->doors->count() == 0) && (!impl_->boxes || impl_->boxes->count() == 0) &&
+           (!impl_->vehicles || impl_->vehicles->count() == 0);
 }
+void CollisionWorld::setVehicles(const VehicleLayer* vehicles) { impl_->vehicles = vehicles; }
 void CollisionWorld::setBoxes(BoxLayer* boxes) { impl_->boxes = boxes; }
 void CollisionWorld::pushBoxes(glm::vec3 feet, float radius, float height, glm::vec3 velocity, float dt) const {
     if (impl_->boxes) impl_->boxes->push(feet, radius, height, velocity, dt);
@@ -696,6 +705,16 @@ std::vector<StaticCollisionFace> CollisionWorld::staticFaces(glm::vec3 minimum, 
     Bounds region; region.include(minimum); region.include(maximum);
     impl_->query(region, [&](const Triangle& t) {
         result.push_back({static_cast<std::size_t>(&t - impl_->triangles.data()), {t.a, t.b, t.c}});
+    });
+    return result;
+}
+
+std::vector<std::pair<std::size_t, TrunkCollider>> CollisionWorld::staticTrunks(glm::vec3 minimum, glm::vec3 maximum) const {
+    std::vector<std::pair<std::size_t, TrunkCollider>> result;
+    if (!finite(minimum) || !finite(maximum) || glm::any(glm::greaterThan(minimum, maximum))) return result;
+    Bounds region; region.include(minimum); region.include(maximum);
+    impl_->queryTrunks(region, [&](const TrunkCollider& trunk, std::size_t id) {
+        result.emplace_back(id, trunk);
     });
     return result;
 }

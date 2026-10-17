@@ -77,6 +77,10 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         groundFogLocation_ = glGetUniformLocation(program_, "uGroundFog");
         nightBlendLocation_ = glGetUniformLocation(program_, "uNightBlend");
         unlitLightLocation_ = glGetUniformLocation(program_, "uUnlitLight");
+        headlightsLocation_ = glGetUniformLocation(program_, "uHeadlights");
+        headlightDirectionLocation_ = glGetUniformLocation(program_, "uHeadlightDirection");
+        headlightPositions_[0] = glGetUniformLocation(program_, "uHeadlightPosition[0]");
+        headlightPositions_[1] = glGetUniformLocation(program_, "uHeadlightPosition[1]");
         flashlightPositionLocation_ = glGetUniformLocation(program_, "uFlashlightPosition");
         flashlightShadowsLocation_ = glGetUniformLocation(program_, "uFlashlightShadows");
         flashlightShadowMapLocation_ = glGetUniformLocation(program_, "uFlashlightShadowMap");
@@ -218,6 +222,7 @@ void Renderer::release() noexcept {
     releaseZombies();
     releaseModel(model_);
     releaseModel(boxModel_);
+    releaseModel(vehicleModel_);
     if (boxInstanceBuffer_) glDeleteBuffers(1, &boxInstanceBuffer_);
     boxInstanceBuffer_ = 0;
     releaseModel(roofModel_);
@@ -377,6 +382,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     drawForests(projection * view);
     drawZombies(animationSeconds);
     drawBoxes(projection * view);
+    drawVehicles(projection * view);
     if (drawOpaque) drawOpaque();
     if (!transparentScene_.empty()) {
         glEnable(GL_BLEND);
@@ -388,9 +394,12 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         }
         glDepthMask(GL_TRUE);
     }
-    if (rainEnabled_)
+    if (rainEnabled_) {
+        auto rainLighting = nightLighting_;
+        if (vehicleDriver_) rainLighting.flashlightColor = glm::vec3(0);
         rain_->draw(camera, static_cast<float>(width_) / static_cast<float>(height_),
-                    animationSeconds, lighting.nightBlend, nightLighting_);
+                    animationSeconds, lighting.nightBlend, rainLighting);
+    }
     glBindVertexArray(0);
 }
 

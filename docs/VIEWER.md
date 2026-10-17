@@ -810,12 +810,57 @@ idle cycles at a chosen elapsed time:
   --animation-time 0.5 --screenshot build/zombies-idle-1.ppm
 ```
 
+## Prototype vehicles
+
+The local `godollo_viewer` places one car on clear terrain near the initial FPS
+spawn, or near the map center when starting in free-fly. Its coordinates are
+printed at startup; placement is skipped if no supported, unobstructed footprint
+exists within 25 m. Use `--fps` or `--spawn X Z`, walk beside the driver's left
+side, and press **Enter**. **W/S** accelerate forward or brake into reverse,
+**A/D** steer, and **Space** brakes the wheels. Mouse look remains first person
+and follows chassis turns. Enter exits only below 1.5 m/s and only when a clear,
+supported standing position is available beside the car. Camera mode switching,
+weapon firing and grabbing are suspended while driving.
+
+Geometry is one blue box below the windows and four dark 12-sided tires, with no
+other car parts. Physics uses a 1,000 kg chassis and four 25 kg wheels with
+centered 24-sided convex cylinder colliders, independent damped suspension
+springs and travel limits. Each grounded wheel receives at most one quarter of
+the 6,400 N drive budget (converted to axle torque); airborne wheels contribute
+no drive. Grip limits, rolling wheel rotation and rigid-body momentum allow
+coasting and sideways drift. Steering lock decreases with speed. The car can
+pitch, roll and overturn; the driver camera retains world-up mouse look.
+
+Nearby published scene triangles and indexed tree-trunk capsules provide
+collision, independently of foliage visibility. Cars also contact doors, boxes
+and existing ragdolls in the shared physics world. Swept chassis contacts query
+the living zombie index: impacts below 5 m/s push living zombies through the
+scene/crowd collision solver, while faster approaching impacts hand the current
+animation pose to the existing ragdoll system and transfer momentum. These
+thresholds are meters per second, measured toward the contact normal.
+
+At night, two warm cones originate just ahead of the front of the box, aimed
+about three degrees downward and fading out at 60 m. They follow the chassis,
+including while parked, and fade with the day/night lighting. While driving they
+replace the camera flashlight. Headlights currently have no separate shadow
+maps or rain illumination; the usual sun and flashlight shadow passes include
+the car. Vehicle spawning and driver state are local-viewer features and are
+not replicated by the optional multiplayer client/server.
+
+The implementation separates rigid bodies (`vehicle_layer.*`), mesh generation
+(`vehicle_geometry.cpp`), placement and driver interaction (`vehicle_player.*`),
+zombie impact handling (`vehicle_zombie_collision.cpp`), and rendering
+(`vehicle_renderer.cpp`). `viewer_vehicles` checks driving, suspension, collision,
+entry/exit and zombie reactions without a GPU. `viewer_vehicle_renderer` checks
+the body, tires, headlights and GL state and writes day/night captures under the
+build directory when run by CTest.
+
 ## Camera and coordinates
 
 | Input | Action |
 | --- | --- |
-| W / S | Move forward / backward |
-| A / D | Strafe left / right |
+| W / S | Move forward / backward; driving: accelerate / brake into reverse |
+| A / D | Strafe left / right; driving: steer left / right |
 | Q / E | Move down / up along world Y in free-fly mode |
 | Mouse | Look around while captured; held boxes move sideways/up/down; held doors move sideways or push/pull |
 | Left mouse button | Combat: shoot; Interaction: left-hand box grab within 2 m or door grab within 1.5 m |
@@ -826,7 +871,8 @@ idle cycles at a chosen elapsed time:
 | Mouse wheel | Adjust free-fly movement speed |
 | F1 | Switch to free-fly mode |
 | F2 | Switch to walking mode at the camera position and fall onto the surface below; recover to safe ground if needed |
-| Space | Jump while grounded in walking mode; get up first when prone |
+| Space | Jump while grounded in walking mode; get up first when prone; driving: wheel brake |
+| Enter | Enter a nearby stopped car from walking mode; exit beside it when stopped and clear |
 | Ctrl (hold) | Crouch on the ground; tuck legs in the air without lowering the camera |
 | Physical key left of X: Z (QWERTY), Y (QWERTZ) | Toggle prone in walking mode; an airborne press waits for landing |
 | F3 | Toggle collision visualization |

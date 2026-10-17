@@ -26,7 +26,7 @@ struct PhysicsScene::Impl {
     const CollisionWorld* collision;
     glm::vec3 minimum, maximum;
     std::set<std::pair<int, int>> cells;
-    std::set<std::size_t> triangles;
+    std::set<std::size_t> triangles, trunks;
     std::vector<std::unique_ptr<MeshBody>> meshes;
 };
 PhysicsScene::PhysicsScene(std::shared_ptr<PhysicsWorld> simulation, const CollisionWorld& collision,
@@ -60,6 +60,22 @@ void PhysicsScene::ensureNear(glm::vec3 minimum, glm::vec3 maximum) {
                 vertices.push_back({local.x, local.y, local.z});
             }
         }
+        // Tree capsules stay independent of foliage and camera visibility.
+        for (const auto& item : impl_->collision->staticTrunks(
+                 {x * cellSize, impl_->minimum.y - 1, z * cellSize},
+                 {(x + 1) * cellSize, impl_->maximum.y + 20, (z + 1) * cellSize})) {
+            if (!impl_->trunks.insert(item.first).second) continue;
+            const auto& t = item.second;
+            auto trunk = std::make_unique<MeshBody>();
+            auto def = b3DefaultBodyDef(); def.position = {t.base.x, t.base.y, t.base.z};
+            trunk->body = b3CreateBody(impl_->simulation->id(), &def);
+            auto shape = b3DefaultShapeDef();
+            shape.filter.categoryBits = ordinaryBodyCategory;
+            shape.filter.maskBits = vehicleBodyCategory;
+            const b3Capsule capsule{{0, t.radius, 0}, {0, t.height - t.radius, 0}, t.radius};
+            b3CreateCapsuleShape(trunk->body, &shape, &capsule);
+            impl_->meshes.push_back(std::move(trunk));
+        }
         if (indices.empty()) continue;
         // Mesh contacts are one-sided. Two separately built windings preserve
         // both indoor and outdoor collision without changing the scene winding.
@@ -84,7 +100,7 @@ void PhysicsScene::ensureNear(glm::vec3 minimum, glm::vec3 maximum) {
             // Their existing hinge limits define the swing; importing the wall
             // as another door contact would jam them at the jamb. These meshes
             // support props, leaving door and ragdoll behavior unchanged.
-            shape.filter.maskBits = interiorBoxCategory;
+            shape.filter.maskBits = interiorBoxCategory | vehicleBodyCategory;
             b3CreateMeshShape(mesh->body, &shape, mesh->mesh, {1, 1, 1});
             impl_->meshes.push_back(std::move(mesh));
         }

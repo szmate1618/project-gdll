@@ -16,18 +16,21 @@ PhysicsWorld::PhysicsWorld() {
     if (!b3World_IsValid(world_)) throw std::runtime_error("Unable to create Box3D world");
 }
 PhysicsWorld::~PhysicsWorld() { b3DestroyWorld(world_); }
-void PhysicsWorld::step(float seconds) {
+void PhysicsWorld::step(float seconds, const std::function<void(float)>& before,
+                        const std::function<void(float)>& after) {
     if (!std::isfinite(seconds) || seconds <= 0) return;
     constexpr float fixedStep = 1.0f / 60.0f;
     accumulator_ = std::min(accumulator_ + seconds, 0.2f);
     int steps = 0;
     while (accumulator_ >= fixedStep && steps++ < 8) {
+        if (before) before(fixedStep);
         b3World_Step(world_, fixedStep, 4);
         const auto events = b3World_GetBodyEvents(world_);
         for (int i = 0; i < events.moveCount; ++i) {
             const auto found = motionOwners_.find(b3StoreBodyId(events.moveEvents[i].bodyId));
             if (found != motionOwners_.end()) ++*found->second;
         }
+        if (after) after(fixedStep);
         accumulator_ -= fixedStep;
     }
 }

@@ -15,6 +15,8 @@ b3Vec3 vector(glm::vec3 p) { return {p.x, p.y, p.z}; }
 glm::vec3 vector(b3Vec3 p) { return {p.x, p.y, p.z}; }
 bool finite(glm::vec3 p) { return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z); }
 
+} // namespace
+
 std::vector<Contact> boxContacts(const BoxPose& box, glm::vec3 feet, float radius, float height, float skin) {
     const auto inverse = glm::conjugate(box.rotation);
     const b3Capsule capsule{vector(inverse * (feet + glm::vec3(0, radius, 0) - box.center)),
@@ -33,7 +35,6 @@ std::vector<Contact> boxContacts(const BoxPose& box, glm::vec3 feet, float radiu
                                 box.center + box.rotation * vector(points[i].point), -points[i].separation});
     return contacts;
 }
-} // namespace
 
 glm::mat4 BoxPose::transform() const {
     return glm::translate(glm::mat4(1), center) * glm::mat4_cast(rotation) * glm::scale(glm::mat4(1), halfExtents * 2.0f);
