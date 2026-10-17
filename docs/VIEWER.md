@@ -841,13 +841,25 @@ radius); actual ground speed depends on grip, drag, terrain and load.
 
 Each wheel independently samples its rotating contact-point velocity relative
 to the supporting body. Longitudinal slip detects wheelspin or locked-wheel
-skids; lateral slip detects sideways sliding. Rolling tires use friction 3.0,
-sliding tires 2.0, both above the previous 0.85. Speed-relative thresholds and
-hysteresis stabilize the classification near the transition. These are the
-tire shape coefficients; the physics engine combines them with the contacted
-surface's friction. `VehicleLayer::wheelTraction()` exposes each wheel's latest
-fixed-step contact state and slip speeds in front-left, front-right, rear-left,
-rear-right order. Grip limits, rolling wheel rotation and rigid-body momentum
+skids; lateral slip detects sideways sliding. Along the rolling direction,
+tires use friction 3.0 while rolling and 2.0 during longitudinal wheelspin or a
+locked-wheel skid. Sideways friction is always 2.0. A lateral skid therefore
+retains the higher forward grip if the wheel is still rolling along its length.
+Both axes follow each wheel's actual axle, including front steering, camber and
+chassis rotation. Longitudinal and lateral slip have independent hysteresis.
+These are tire shape coefficients; the physics engine combines each with the
+ground material's friction. The solver limits their combined impulse with an
+ellipse, so diagonal motion shares the available grip budget.
+
+Box3D's pinned version has a local [directional-friction patch](../patches/README.md)
+for these independent contact limits, applied automatically by CMake to fresh
+and cached dependency sources. Its scalar and SIMD solvers both implement the
+same limits; ordinary shapes keep their existing isotropic friction. The
+upstream MIT license and notices are retained.
+
+`VehicleLayer::wheelTraction()` exposes each wheel's latest fixed-step contact
+state and slip speeds in front-left, front-right, rear-left, rear-right order.
+Grip limits, rolling wheel rotation and rigid-body momentum
 still allow coasting and sideways drift. Steering lock decreases with speed.
 The car can pitch, roll and overturn; the driver camera retains world-up mouse
 look.

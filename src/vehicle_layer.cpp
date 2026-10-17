@@ -147,8 +147,11 @@ void VehicleLayer::beforeStep(float seconds) {
             const auto j = c->joints[i];
             if (i < 2) b3WheelJoint_SetTargetSteeringAngle(j, angle);
             auto& traction = c->traction[i];
-            traction = sampleWheelTraction(c->wheels[i], traction.motion);
+            traction = sampleWheelTraction(c->wheels[i], traction);
             b3Shape_SetFriction(c->tireShapes[i], traction.friction);
+            // Cylinder-local Y is its axle. Spinning preserves this axis;
+            // steering and chassis tilt rotate it into the current contact frame.
+            b3Shape_SetFrictionAxle(c->tireShapes[i], {0, 1, 0}, traction.lateralFriction);
             const bool contact = traction.motion != WheelMotion::Airborne;
             // Equal independent torque budgets: airborne wheels supply no drive.
             const float torque = c->brake ? 1400.f : force * wheelRadius * .25f;

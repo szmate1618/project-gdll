@@ -9,7 +9,7 @@ namespace viewer {
 namespace {
 glm::vec3 vector(b3Vec3 v) { return {v.x, v.y, v.z}; }
 }
-WheelTraction sampleWheelTraction(b3BodyId wheel, WheelMotion previous) {
+WheelTraction sampleWheelTraction(b3BodyId wheel, const WheelTraction& previous) {
     WheelTraction result;
     const auto center = b3Body_GetWorldCenter(wheel);
     const auto axle = vector(b3Body_GetWorldVector(wheel, {0, 1, 0}));
@@ -49,14 +49,21 @@ WheelTraction sampleWheelTraction(b3BodyId wheel, WheelMotion previous) {
     result.forwardSpeed /= totalWeight;
     result.longitudinalSlip /= totalWeight;
     result.lateralSlip /= totalWeight;
-    const float slip = std::hypot(result.longitudinalSlip, result.lateralSlip);
-    // Absolute thresholds handle starting/stopping; a speed-relative threshold
-    // avoids interpreting small facet/contact noise at speed as a full skid.
-    const float threshold = previous == WheelMotion::Sliding ?
-        std::max(.3f, std::abs(result.forwardSpeed) * .08f) :
-        std::max(.8f, std::abs(result.forwardSpeed) * .18f);
-    result.motion = slip > threshold ? WheelMotion::Sliding : WheelMotion::Rolling;
-    result.friction = result.motion == WheelMotion::Sliding ? slidingTireFriction : rollingTireFriction;
+    // Longitudinal and lateral slip have separate hysteresis. In particular,
+    // sideways sliding must not switch off static grip along a rolling tire.
+    const auto threshold = [&](bool sliding) {
+        return sliding ? std::max(.3f, std::abs(result.forwardSpeed) * .08f) :
+                         std::max(.8f, std::abs(result.forwardSpeed) * .18f);
+    };
+    result.longitudinalSliding = std::abs(result.longitudinalSlip) > threshold(previous.longitudinalSliding);
+    result.lateralSliding = std::abs(result.lateralSlip) > threshold(previous.lateralSliding);
+    result.motion = result.longitudinalSliding || result.lateralSliding ? WheelMotion::Sliding : WheelMotion::Rolling;
+    result.friction = result.longitudinalSliding ? slidingTireFriction : rollingTireFriction;
     return result;
+}
+WheelTraction sampleWheelTraction(b3BodyId wheel, WheelMotion previous) {
+    WheelTraction history;
+    history.longitudinalSliding = history.lateralSliding = previous == WheelMotion::Sliding;
+    return sampleWheelTraction(wheel, history);
 }
 } // namespace viewer

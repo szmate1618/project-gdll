@@ -80,8 +80,10 @@ void accelerationAndGrip() {
         skid.tick(1);
         for (const auto& wheel : skid.cars.wheelTraction(0)) if (wheel.motion == viewer::WheelMotion::Sliding) {
             detected = true;
-            require(wheel.friction < viewer::rollingTireFriction && wheel.friction > .85f,
-                    "Skidding wheels must use lower, but increased, kinetic friction");
+            require(wheel.lateralFriction == viewer::slidingTireFriction && wheel.friction > .85f,
+                    "Sideways skids must use sliding friction independently of forward grip");
+            if (!wheel.longitudinalSliding)
+                require(wheel.friction == viewer::rollingTireFriction, "Lateral slip must retain forward rolling grip");
         }
     }
     require(detected, "A sideways impulse must produce an observable per-wheel skid");

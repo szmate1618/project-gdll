@@ -17,6 +17,8 @@ GLM 1.0.1 — G-Truc Creation and contributors; see GLM.txt (dual license).
   https://github.com/g-truc/glm/blob/1.0.1/copying.txt
 Box3D — Erin Catto; MIT, pinned commit f555ee42084e0b43cbffa863f40bff8117c08896.
   https://github.com/erincatto/box3d
+  Includes a local directional tire-friction extension; see
+  patches/box3d-directional-friction.patch and patches/box3d-LICENSE.txt.
 TinyGLTF 2.9.7 — Syoyo Fujita, Aurélien Chatelain and contributors; MIT.
   https://github.com/syoyo/tinygltf/tree/v2.9.7
 nlohmann JSON 3.10.4 — Niels Lohmann and contributors; MIT.

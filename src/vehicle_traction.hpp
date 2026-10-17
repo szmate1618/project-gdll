@@ -12,9 +12,14 @@ struct WheelTraction {
     // Signed speeds relative to the supporting body, in meters per second.
     float forwardSpeed = 0;
     float longitudinalSlip = 0, lateralSlip = 0;
+    // Independent axes: a sideways skid does not reduce rolling-direction grip.
+    bool longitudinalSliding = false, lateralSliding = false;
     float friction = rollingTireFriction;
+    float lateralFriction = slidingTireFriction;
 };
 // Samples support contacts, including wheel rotation and moving ground.
 // Hysteresis keeps rolling/sliding changes stable near the slip threshold.
+WheelTraction sampleWheelTraction(b3BodyId wheel, const WheelTraction& previous = {});
+// Compatibility for callers without per-axis history.
 WheelTraction sampleWheelTraction(b3BodyId wheel, WheelMotion previous);
 } // namespace viewer

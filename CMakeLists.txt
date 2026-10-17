@@ -108,6 +108,18 @@ FetchContent_Declare(openal_soft
     DOWNLOAD_NAME openal-soft-1.24.3.tar.gz
 )
 FetchContent_MakeAvailable(glm tinygltf box3d meshoptimizer tomlplusplus)
+# Box3D exposes scalar friction; tires need an independent sideways limit.
+# Apply on every configure, including already populated offline dependency trees.
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/patch_box3d_directional_friction.py"
+            "${box3d_SOURCE_DIR}"
+    RESULT_VARIABLE box3d_patch_result)
+if(NOT box3d_patch_result EQUAL 0)
+    message(FATAL_ERROR "Cannot apply the pinned Box3D directional-friction patch")
+endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/patches/box3d-directional-friction.patch"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/patch_box3d_directional_friction.py")
 if(GD_VIEWER)
     FetchContent_MakeAvailable(glfw openal_soft)
 endif()
