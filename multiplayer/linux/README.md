@@ -5,6 +5,9 @@ licenses are in `licenses/`. For the town: map data © OpenStreetMap contributor
 ODbL 1.0, https://www.openstreetmap.org/copyright. Imagery and elevation use
 Copernicus Sentinel-2 and Copernicus DEM GLO-30. The town asset pack adds
 `credits/assets/MAP.txt` with the selected acquisition year and map fingerprint.
+`credits/assets/VEGETATION.txt` separately identifies the selected forests and
+trees, including their reference imagery. `credits/software/` lists runtime
+and preparation software; client `licenses/` includes bundled JSON/stb notices.
 Keep these notices with any redistributed package.
 
 Download `godollo-client-linux-x86_64` from the **Build apps** workflow and

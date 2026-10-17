@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.asset_credits import ASSET_CREDIT_FILES, map_credits
+from src.asset_credits import ASSET_CREDIT_FILES, SOFTWARE_CREDIT_FILES, map_credits, vegetation_credits
 from src.vegetation_selection import VEGETATION_PRESETS, vegetation_paths
 
 
@@ -92,6 +92,7 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
         document, map_path.relative_to(root).as_posix(), map_hash)
     adjacent = map_path.parent
     tree_path, forest_path = vegetation_paths(root, map_path, vegetation)
+    vegetation_layers = []
     placements = [adjacent / "poles.instances.json"]
     if trees and tree_path is not None:
         placements.append(tree_path)
@@ -99,6 +100,8 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
         if path != tree_path and not path.exists():
             continue
         document = assets.document(path)
+        if path == tree_path:
+            vegetation_layers.append((path.relative_to(root).as_posix(), document, assets.files[path.resolve()]))
         if (path == tree_path and vegetation == "osm-tuned2"
                 and document.get("source", {}).get("default_preparation") != "osm-tuned2"):
             raise ValueError("Default trees are not the combined OSM+tuned2 layer; run tools/prepare_trees.py")
@@ -114,12 +117,15 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
     path = forest_path
     if trees and forests and path is not None:
         document = assets.document(path)
+        vegetation_layers.append((path.relative_to(root).as_posix(), document, assets.files[path.resolve()]))
         if document["source"]["map_sha256"] != map_hash:
             raise ValueError(f"Stale map fingerprint in {path}")
         settings = document.get("runtime", {})
         assets.model(assets.reference(path.parent, settings.get("tree_asset", "assets/tree_impostor.glb")))
         for key, default in (("side_texture", "assets/forests/side.png"), ("top_texture", "assets/forests/top.png")):
             assets.add(assets.reference(path.parent, settings.get(key, default)))
+    assets.notices["credits/assets/VEGETATION.txt"] = vegetation_credits(
+        vegetation if trees else "none", vegetation_layers)
     if zombies is not None:
         models = sorted(zombies.glob("*.glb")) if zombies.is_dir() else [zombies]
         if not models or (zombies.is_dir() and list(zombies.glob("*.gltf"))):
@@ -150,6 +156,8 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
             assets.add(root / name)
     for name in ASSET_CREDIT_FILES:
         assets.add(root / "credits/assets" / name)
+    for name in SOFTWARE_CREDIT_FILES:
+        assets.add(root / "credits/software" / name)
     # Preserve supplied notices for custom maps as well as the authoritative
     # metadata-derived MAP.txt. The sidecar never supplies its acquisition year.
     if (adjacent / "ATTRIBUTION.md").exists():

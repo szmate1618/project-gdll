@@ -106,6 +106,13 @@ files may belong to another generation and are not used as the source of this
 notice. Missing credit files or a missing Sentinel acquisition date prevent
 publication. Existing attribution embedded in the map is retained in the notice.
 
+The asset pack also generates `credits/assets/VEGETATION.txt` from its selected
+published tree/forest documents. It records their hashes, counts and Sentinel
+reference dates independently of the map texture. Generated-artwork provenance
+and a runtime/preparation software inventory accompany both archives under
+`credits/`; JSON/stb notices are also present in the client `licenses/` folder.
+The preparation programs themselves are not distributed in the town asset ZIP.
+
 The notices cover OpenStreetMap, Sentinel-2, Copernicus DEM GLO-30, CC0 Durango
 weapons, and the conditional zombie/audio assets. They do not clear other
 licensing obligations. Before public distribution, present the OSM credit

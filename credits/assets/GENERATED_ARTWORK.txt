@@ -1,0 +1,29 @@
+PROJECT-GENERATED ARTWORK AND GEOMETRY
+
+Tree and pine impostors:
+  assets/tree_impostor.glb and assets/pine_impostor.glb embed four foliage PNG
+  views each. The source images were generated with the built-in imagegen tool
+  and locally processed; prompts and calibration are documented in assets/README.md
+  and the tree/pine .prompt.txt files. They approximate foliage volume and are
+  not views of a measured or externally licensed tree model.
+
+Forest volume textures:
+  assets/forests/side.png and top.png were generated with imagegen. The saved
+  prompts and repetition scale are documented in assets/forests/README.md.
+
+Railway texture:
+  assets/railways/track.png is generated deterministically by this project's
+  Python script using Pillow/NumPy, then embedded in the town GLB. No source
+  photograph is used; see assets/railways/README.md.
+
+Sample scene, inferred town geometry, pole columns and guardrail geometry:
+  Geometry is built by the project. Mapped footprints, alignments and placements
+  retain OpenStreetMap attribution. Terrain imagery/elevation retain the separate
+  Sentinel and Copernicus DEM notices. Project-created geometry does not remove
+  rights or obligations attached to its source datasets.
+
+Weapon models and zombies have separate third-party provenance and terms;
+see WEAPONS.txt and ZOMBIES.txt. Audio is conditional; see AUDIO.txt.
+
+This file records provenance. It does not claim exclusivity in generated
+imagery, grant rights in unrelated material, or replace any provider's license.

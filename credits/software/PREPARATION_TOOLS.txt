@@ -1,0 +1,54 @@
+ASSET PREPARATION TOOLCHAIN
+
+Direct Python dependencies pinned in requirements.txt and used by map, tree,
+image, download or LoD preparation. Versions below match the audited environment;
+update this inventory when upgrading those dependencies.
+
+NumPy 2.2.6 — NumPy Developers; BSD-3-Clause plus bundled component notices.
+  Array processing, colour statistics, geometry and transforms.
+  https://numpy.org/doc/stable/license.html
+SciPy 1.15.3 — SciPy Developers and contributors; BSD-3-Clause plus bundled notices.
+  Spatial queries, image context filters, regression and terrain processing.
+  https://github.com/scipy/scipy/blob/v1.15.3/LICENSE.txt
+Rasterio 1.4.3 — Mapbox and contributors; BSD-3-Clause.
+  GeoTIFF reads, masks, raster transforms and reprojection through GDAL.
+  https://github.com/rasterio/rasterio/blob/1.4.3/LICENSE.txt
+pyproj 3.7.1 — pyproj contributors; MIT.
+  CRS definitions and coordinate conversion through PROJ.
+  https://github.com/pyproj4/pyproj/blob/3.7.1/LICENSE
+Shapely 2.1.1 — Shapely contributors; BSD-3-Clause.
+  Forest polygon operations and spatial predicates through GEOS.
+  https://github.com/shapely/shapely/blob/2.1.1/LICENSE.txt
+Trimesh 4.7.4 — Michael Dawson-Haggerty and contributors; MIT.
+  Mesh construction, scene processing and GLB export.
+  https://github.com/mikedh/trimesh/blob/4.7.4/LICENSE.md
+Pillow 11.2.1 — Pillow contributors; MIT-CMU, with bundled codec notices.
+  Texture processing and review imagery.
+  https://github.com/python-pillow/Pillow/blob/11.2.1/LICENSE
+Requests 2.32.4 — Kenneth Reitz and contributors; Apache-2.0.
+  HTTP source retrieval; dependent network packages retain their own notices.
+  https://github.com/psf/requests/blob/v2.32.4/LICENSE
+mapbox-earcut 1.0.3 — Samuel Kogler (Python bindings, ISC) and Mapbox
+  (earcut triangulator, ISC). Polygon triangulation.
+  https://github.com/skogler/mapbox_earcut_python
+  https://github.com/mapbox/earcut.hpp/blob/master/LICENSE
+
+The installed geospatial wheels additionally use GDAL, PROJ and GEOS:
+  GDAL — permissive MIT-style and third-party notices: https://gdal.org/license.html
+  PROJ — MIT and accompanying notices: https://proj.org/en/stable/about.html#license
+  GEOS — LGPL-2.1-or-later: https://libgeos.org/project/license/
+These components execute during asset preparation; their binaries and the
+Python environment are not distributed by the town asset ZIP. Redistributing
+the preparation environment itself would require its full dependency licenses,
+including bundled codecs, BLAS/LAPACK, GDAL/PROJ data and transitive libraries.
+
+CPython and its standard library perform local ZIP packaging and other scripts.
+The interpreter is not shipped by the asset ZIP.
+  https://docs.python.org/3/license.html
+CMake, the platform C++ compiler and meshoptimizer build the native tools.
+  https://cmake.org/licensing/
+
+Imagegen generated the foliage/forest source artwork (see GENERATED_ARTWORK.txt).
+GPT-6 Astra supplied the saved Sentinel canopy traces; the project code builds
+polygons from those traces. These services/models are preparation tools, not
+redistributed runtime libraries or geographic data providers.

@@ -2,6 +2,10 @@ COPERNICUS SENTINEL-2 IMAGERY
 
 The town's terrain imagery is derived from Copernicus Sentinel-2 Level-2A
 true-color imagery. It is cropped, resampled, and mapped onto terrain.
+Sentinel pixels also supply the Astra forest outlines and tuned2 individual-tree
+proposals. These derived vegetation data retain modified-Sentinel attribution.
+VEGETATION.txt records their reference acquisition independently of MAP.txt;
+their imagery can differ from the map terrain texture.
 MAP.txt in the matching asset pack supplies the required modified-data
 notice with the actual acquisition year from the published map metadata:
 

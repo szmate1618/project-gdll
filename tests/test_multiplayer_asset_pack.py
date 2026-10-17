@@ -10,7 +10,7 @@ from unittest.mock import patch
 import zipfile
 
 from tools.package_multiplayer_assets import package_assets
-from src.asset_credits import ASSET_CREDIT_FILES
+from src.asset_credits import ASSET_CREDIT_FILES, SOFTWARE_CREDIT_FILES
 
 
 def glb(document):
@@ -89,12 +89,13 @@ class MultiplayerAssetPackTests(unittest.TestCase):
                     "assets/zombies/models/Zombie.glb", "assets/zombies/models/lods.json"}
         expected.update(f"items/{name}.toml" for name in ("pistol", "submachine_gun", "sniper", "shotgun"))
         expected.update(f"assets/zombies/models/lod{level}/Zombie.glb" for level in range(1, 4))
-        expected.update(f"credits/assets/{name}" for name in (*ASSET_CREDIT_FILES, "MAP.txt"))
+        expected.update(f"credits/assets/{name}" for name in (*ASSET_CREDIT_FILES, "MAP.txt", "VEGETATION.txt"))
+        expected.update(f"credits/software/{name}" for name in SOFTWARE_CREDIT_FILES)
         self.assertEqual(set(manifest["files"]), expected)
         for name, digest in manifest["files"].items():
             self.assertNotIn("\\", name)
             self.assertFalse(Path(name).is_absolute())
-            if name != "credits/assets/MAP.txt":
+            if name not in ("credits/assets/MAP.txt", "credits/assets/VEGETATION.txt"):
                 self.assertEqual((destination / name).read_bytes(), (self.root / name).read_bytes())
             self.assertEqual(self.digest(destination / name), digest)
         credit = (destination / "credits/assets/MAP.txt").read_text(encoding="utf-8")
@@ -138,6 +139,14 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         previous = self.output.read_bytes()
         (self.root / "credits/assets/SENTINEL.txt").unlink()
         with self.assertRaisesRegex(ValueError, "Missing runtime asset"):
+            self.package()
+        self.assertEqual(self.output.read_bytes(), previous)
+
+    def test_missing_bundled_component_notice_preserves_previous_pack(self):
+        self.package()
+        previous = self.output.read_bytes()
+        (self.root/'credits/software/stb.txt').unlink()
+        with self.assertRaisesRegex(ValueError, 'Missing runtime asset'):
             self.package()
         self.assertEqual(self.output.read_bytes(), previous)
 

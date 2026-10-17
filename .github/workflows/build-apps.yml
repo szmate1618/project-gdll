@@ -124,6 +124,7 @@ jobs:
           Copy-Item build/_deps/box3d-src/LICENSE "$package/licenses/Box3D.txt"
           Copy-Item build/_deps/tinygltf-src/LICENSE "$package/licenses/tinygltf.txt"
           Copy-Item build/_deps/tomlplusplus-src/LICENSE "$package/licenses/tomlplusplus.txt"
+          Copy-Item credits/software/nlohmann-json.txt, credits/software/stb.txt "$package/licenses"
           Compress-Archive -Path "$package/*" -DestinationPath build/godollo-client-windows-x86_64.zip
       - name: Upload Windows client
         uses: actions/upload-artifact@v7

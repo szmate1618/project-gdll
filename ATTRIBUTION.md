@@ -4,7 +4,12 @@ The generated scene combines the following independent datasets. These notices
 also accompany the GLB in `output/ATTRIBUTION.md` and in its scene metadata.
 Multiplayer client packages include plain-text notices in `credits/assets/`.
 The portable town asset pack adds `credits/assets/MAP.txt` using the published
-GLB's provenance, including its actual Sentinel acquisition year.
+GLB's provenance, including its actual Sentinel acquisition year. It also adds
+`credits/assets/VEGETATION.txt` from the selected tree/forest manifests so their
+Sentinel acquisition dates and layer hashes remain separate from the town
+texture. OSM attribution includes mapped trees, sampled tree rows and forests.
+Generated artwork provenance and the preparation/runtime software inventory
+are recorded in `credits/assets/GENERATED_ARTWORK.txt` and `credits/software/`.
 
 * **OpenStreetMap:** © OpenStreetMap contributors, available under the
   [Open Database License (ODbL)](https://www.openstreetmap.org/copyright).

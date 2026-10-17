@@ -1,0 +1,38 @@
+VEGETATION DATA AND DERIVATION
+
+Default preset: osm-tuned2.
+
+OpenStreetMap contributors supply natural=tree nodes, natural=tree_row lines,
+natural=wood and landuse=forest polygons. Local preparation samples tree rows
+at up to 9 m intervals and supplies estimated dimensions where tags are absent.
+The combined default retains the mapped nodes/row samples and adds tuned2
+proposals, suppressing proposals within 6 m of those mapped positions.
+See OPENSTREETMAP.txt for ODbL and attribution information.
+
+Tuned2 uses native Sentinel-2 RGB pixels, Astra forest colour statistics and a
+saved colour/context classifier. OSM forest pixels are excluded from detection.
+The Astra forest alternative is traced from Sentinel imagery. Both are modified
+Sentinel-derived data. Their actual reference acquisition dates and layer hashes
+are recorded in the generated VEGETATION.txt notice; see SENTINEL.txt for terms.
+The raster, classification profiles and geographic input databases are not
+included merely because their provenance is recorded in a runtime JSON.
+
+Tree positions, row spacing, tree dimensions and forest boundaries are
+approximations, not surveyed trunk positions, measured crowns or current inventories.
+
+OPTIONAL ORTHOPHOTO PRESET / CALIBRATION PROVENANCE
+
+The orthophoto preset uses original tree-detector CSV positions from 2016
+orthophotos and manually reviewed dense-canopy cores, constrained by 2025
+satellite outlines. The local source records contain tile filenames, EOV CRS
+overrides and fingerprints, but do not establish a provider identity, license
+or permission to redistribute the resulting data. Do not interpret this notice
+as permission. Provider and applicable acquisition terms still require review.
+The default asset pack excludes these original placement files and polygons.
+
+The tuned2 recall/precision models were calibrated using colour statistics at
+missed original reference trees and reviewed negative regions. Inference uses
+Sentinel colour/context features rather than copying original coordinates or
+orthophoto pixels. The provenance of those calibration references should remain
+part of a distribution review; this notice does not make a legal determination
+about rights in learned statistics or their resulting predictions.

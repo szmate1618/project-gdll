@@ -1,7 +1,7 @@
 """Credits follow the selected published scene, including its acquisition year."""
 import unittest
 
-from src.asset_credits import map_credits
+from src.asset_credits import map_credits, vegetation_credits
 
 
 class MapCreditsTests(unittest.TestCase):
@@ -18,6 +18,35 @@ class MapCreditsTests(unittest.TestCase):
         for date in (None, "unknown date", 2025, "2025"):
             with self.subTest(date=date), self.assertRaisesRegex(ValueError, "acquisition date"):
                 map_credits({"scenes": [{"extras": {"sources": {"sentinel": {"datetime": date}}}}]}, "map.glb", "hash")
+
+
+    def test_vegetation_uses_its_own_nested_reference_acquisition(self):
+        source = {'method': 'osm_trees_and_rows_with_tuned2', 'layers': [{'source': {
+            'method': 'astra_recall_with_negative_colour_context_filter',
+            'satellite': {'acquisition_datetime': '2024-07-02T10:00:00Z'}}}]}
+        notice = vegetation_credits('osm-tuned2', [('output/trees.instances.json',
+            {'source': source, 'instances': [{}, {}]}, 'tree-hash')]).decode()
+        self.assertIn('Contains modified Copernicus Sentinel data 2024', notice)
+        self.assertIn('OpenStreetMap contributors', notice)
+        self.assertIn('tree-hash', notice)
+        self.assertIn('row samples): 2', notice)
+
+    def test_sentinel_vegetation_missing_acquisition_fails(self):
+        for value in (None, 'unknown', '2025'):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'acquisition date'):
+                vegetation_credits('osm-tuned2', [('trees.json', {'source': {
+                    'method': 'astra_recall_with_negative_colour_context_filter',
+                    'satellite': {'acquisition_datetime': value}}}, 'hash')])
+
+    def test_no_vegetation_and_orthophoto_provenance_are_explicit(self):
+        self.assertIn('No vegetation layer', vegetation_credits('none', []).decode())
+        notice = vegetation_credits('orthophoto', [('forest.json', {'source': {
+            'method': 'manual_conservative_orthophoto_review_with_satellite_intersection',
+            'imagery_date': '2025-08-13T09:47:43Z', 'orthophotos': {'imagery_year': 2016}},
+            'patches': [{}]}, 'forest-hash')]).decode()
+        self.assertIn('verification remains unresolved', notice)
+        self.assertIn('Forest patches: 1', notice)
+        self.assertIn('Copernicus Sentinel data 2025', notice)
 
     def test_sample_is_not_attributed_to_geographic_providers(self):
         notice = map_credits({}, "assets/test.glb", "hash").decode()

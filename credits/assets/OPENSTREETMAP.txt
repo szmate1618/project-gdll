@@ -6,7 +6,9 @@ https://www.openstreetmap.org/copyright
 https://opendatacommons.org/licenses/odbl/1-0/
 
 OpenStreetMap supplies building footprints, roads, railways, fences, mapped
-utility columns, guardrails and other mapped features. The project converts
+utility columns, guardrails, individual tree nodes, tree-row lines and forest
+polygons. Tree rows are sampled into approximate tree placements; the default
+OSM+tuned2 layer combines them with Sentinel-derived proposals. The project converts
 these into approximate geometry and placements, with inferred dimensions and
 local edits. These changes are by this project, not OpenStreetMap.
 

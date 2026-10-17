@@ -56,6 +56,9 @@ foreach(library IN LISTS libraries)
     configure_file("/usr/share/doc/${owner}/copyright" "${package}/licenses/${owner}.txt" COPYONLY)
 endforeach()
 
+file(COPY "${source_root}/credits/software/nlohmann-json.txt" "${source_root}/credits/software/stb.txt"
+    DESTINATION "${package}/licenses")
+
 set(projects GameNetworkingSockets GLFW glm box3d tinygltf tomlplusplus)
 set(license_names LICENSE LICENSE.md copying.txt LICENSE LICENSE LICENSE)
 foreach(project IN LISTS projects)

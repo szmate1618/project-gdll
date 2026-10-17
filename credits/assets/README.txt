@@ -1,7 +1,8 @@
 ASSET AND DATA CREDITS
 
 Keep this folder with the client and any separately distributed asset pack.
-Software dependency licenses are in the separate licenses/ folder.
+Software dependency licenses in client distributions are in licenses/.
+credits/software/ also records preparation tools and the bundled JSON/stb notices.
 
 WEAPONS.txt       Bundled chilly_durango firearm models (CC0).
 OPENSTREETMAP.txt OpenStreetMap map features (ODbL 1.0).
@@ -10,6 +11,10 @@ COPERNICUS_DEM.txt Copernicus GLO-30 terrain elevation and required disclaimer.
 ZOMBIES.txt       Denys Almaral's models, when installed from an asset pack.
 AUDIO.txt         Sound credits for versions that include audio; the current
                   multiplayer client does not bundle or play these sounds.
+VEGETATION_SOURCES.txt OSM/Astra/tuned2 vegetation and orthophoto provenance.
+GENERATED_ARTWORK.txt Tree/pine foliage, forest textures and procedural artwork.
+VEGETATION.txt    Added by the asset pack: selected vegetation layer hashes,
+                  tree/patch counts and independent Sentinel acquisition dates.
 MAP.txt           Added by the town asset pack: exact map SHA-256, source
                   notices and selected Sentinel acquisition year.
 

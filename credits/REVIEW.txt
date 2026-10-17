@@ -1,0 +1,123 @@
+CREDITS AUDIT
+2026-10-17
+
+Status: vegetation/packaging implementation committed as eb43423. The broader
+credits, notice-generation and software-license changes described below were
+accepted after review. The later package-scope cleanup was reverted. Nothing
+was uploaded or published.
+
+WHAT WAS CHECKED
+
+The selected runtime asset files, published map/tree/forest provenance,
+requirements.txt, CMake dependency pins, Linux client runtime dependencies,
+Linux/Windows packaging recipes, existing data notices, generated-artwork
+prompts and zombie source records were inspected. Provider/creator pages and
+the official OSM, Sentinel and software license sources were checked.
+
+DEFAULT ASSET CONTENT
+
+- Town GLB: OSM-derived structures/alignments, modified Sentinel imagery and
+  Copernicus DEM elevation; existing MAP.txt supplies the map hash and year.
+- Individual trees: 503 OSM node/row placements + 33,038 retained tuned2
+  positions = 33,541. OSM positions take priority within 6 m; 77 tuned2 points
+  are suppressed. The OSM source contains 94 nodes and 24 sampled tree rows.
+- Forests: 247 OSM patches. The original orthophoto forests/trees and Astra
+  alternative are excluded from the default archive, but selectable presets
+  can package those separate layers.
+- Foliage GLBs: project-generated tree/pine PNG artwork, embedded unchanged.
+- Forest PNGs: imagegen-created canopy/side artwork.
+- Railway tile: deterministic project-generated image embedded in the town.
+- Poles/guardrails: project-generated geometry using OSM placements/alignments.
+- Optional zombies: Denys Almaral's models, animations and generated LoDs.
+- Client distribution, rather than town data ZIP: chilly_durango CC0 weapons,
+  shaders and software libraries. Viewer audio is not bundled in multiplayer.
+
+CREDITS CHANGES
+
+1. OPENSTREETMAP.txt explicitly credits vegetation nodes, tree rows and forests.
+2. SENTINEL.txt covers derived forest outlines and tuned2 proposals, separately
+   from the map texture. New VEGETATION.txt is generated from actual selected
+   layer documents and hashes, including nested combined-layer provenance.
+3. Tree preparation records the reference acquisition date/scene in the native
+   image provenance. Vegetation notice generation rejects a known Sentinel
+   method with missing/invalid acquisition date, instead of guessing its year
+   from the map or configuration. Existing positions/model coefficients stay
+   unchanged.
+4. VEGETATION_SOURCES.txt describes OSM/Sentinel processing, optional orthophoto
+   provenance and the calibration-reference chain.
+5. GENERATED_ARTWORK.txt records foliage, forest, railway and sample geometry
+   provenance without claiming rights in unrelated images or source datasets.
+6. credits/software/ inventories runtime dependencies and preparation tools.
+   The full nlohmann JSON and stb licenses were missing as separate client
+   notices despite those sources being compiled through tinygltf. Their exact
+   bundled notices are now copied into credits/software/ and client licenses/.
+   Meshoptimizer's MIT notice is included for the offline zombie LoD tool.
+7. The preparation inventory covers NumPy, SciPy, Rasterio/GDAL, pyproj/PROJ,
+   Shapely/GEOS, Trimesh, Pillow, Requests and mapbox-earcut. These programs are
+   used to create data; their Python/native binaries are not inside the town ZIP.
+   Actual native versions inspected: GDAL 3.9.3, PROJ 9.5.1, GEOS 3.13.1.
+8. Both client recipes already copy licenses for their principal native
+   dependencies and platform libraries. The extra JSON/stb notices are now
+   copied explicitly. The Linux recipe requires the license for the Protobuf
+   actually used; this machine uses a local 3.21.12 installation, so verification
+   supplies its LICENSE through the existing PROTOBUF_LICENSE override rather
+   than the absent /usr/share/doc/libprotobuf-dev/copyright default.
+
+REMAINING SOURCE / DISTRIBUTION QUESTIONS
+
+- Zombie source metadata records Sketchfab Free Standard and NoAI. Existing
+  notices correctly do not grant standalone/extractable model redistribution.
+  Acquisition terms and an appropriate delivery method still need verification
+  before publicly sharing a model-containing asset pack. A no-zombie variant
+  remains available; neither a public showcase nor credits alone supplies rights.
+- Orthophoto source filenames/hashes and CRS overrides do not identify a provider
+  or redistribution license. The optional orthophoto preset requires that source
+  review. The default archive excludes the original files/polygons. Tuned2 used
+  original-tree colour samples during calibration; this provenance is disclosed,
+  without concluding what rights apply to learned statistics or predictions.
+- OSM attribution in files does not replace suitable user-visible attribution
+  for a publicly distributed game. Existing notices retain this requirement
+  and the separate ODbL adapted-database/access questions. This change adds
+  credits, not a determination that every distribution obligation is fulfilled.
+- Generated artwork prompts record tool use; no exclusive ownership or external
+  photographer attribution has been invented.
+- Windows notices were checked in the recipe. Windows binaries were not built
+  or executed in this Linux workspace. A separate standalone-viewer binary
+  would also need its OpenAL Soft/third-party redistribution provisions; the
+  multiplayer client inspected here does not link OpenAL.
+
+PRIMARY SOURCES
+
+https://www.openstreetmap.org/copyright
+https://osmfoundation.org/wiki/Licence/Attribution_Guidelines
+https://osmfoundation.org/wiki/Licence/Community_Guidelines/Produced_Work_-_Guideline
+https://cds.climate.copernicus.eu/licences/ec-sentinel
+https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM
+https://chilly-durango.itch.io/low-poly-firearms
+https://sketchfab.com/licenses
+https://github.com/nlohmann/json/blob/v3.10.4/LICENSE.MIT
+https://github.com/nothings/stb/blob/master/LICENSE
+
+The exact compiled JSON/stb notices were copied from the pinned local tinygltf
+headers, preserving their recorded copyright years rather than substituting
+newer upstream text. Additional software source/license URLs are listed in
+credits/software/README.txt and PREPARATION_TOOLS.txt.
+
+VERIFICATION
+
+- Functional commit: full native build; 44 focused Python checks; 10 focused
+  C++/multiplayer checks including UDP loopback/handshake. Hardware rendering
+  exercised the default OSM forests and combined trees on an AMD Radeon 660M.
+  A useful level-camera vegetation capture is build/vegetation-preview.png.
+- Credits draft: 28 focused credits/packaging/tree tests passed, including
+  missing-notice failure, per-layer year selection and backup preservation.
+- build/godollo-vegetation-assets-review.zip contains the default vegetation
+  plus available zombie models/LoDs and the draft credits. All 76 file hashes
+  in its asset-pack.json were checked against archive contents.
+- The Linux client archive was created using the actual Protobuf 3.21.12
+  license override. Its JSON/stb/Protobuf notices and preparation credits were
+  checked in the archive. Windows package recipe was inspected only.
+- The town GLB and original 43,841-tree backup remain byte-identical. Adding
+  vegetation acquisition provenance left all 33,541 combined instances intact.
+- Credits were accepted for commit after review. No push or public distribution
+  was requested.

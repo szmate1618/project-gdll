@@ -68,6 +68,11 @@ def prepare_tuned2_trees(forest_exclusions, *, config_path=ROOT/"config.json", m
         raise ValueError("Detection outputs must not overwrite an input or existing vegetation dataset")
     rgb,valid,forest_centres,excluded,training,coordinates,raster_info = read_satellite(
         image_path,frame,terrain.bounds,exclusion_geometry,settings,training_geometry=training_geometry)
+    reference_source = training_doc.get("source", {})
+    if reference_source.get("imagery_date"):
+        raster_info["acquisition_datetime"] = reference_source["imagery_date"]
+    if reference_source.get("satellite_scene"):
+        raster_info["scene"] = reference_source["satellite_scene"]
     model = learn_forest_color(rgb,training,settings.color_quantile)
     # Calibration binds to the colour-reference forest, never the selected exclusion mask.
     validate_recall_profile(recall,calibration_map,fingerprints[training_path],fingerprints[image_path],model)
