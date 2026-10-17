@@ -817,10 +817,14 @@ spawn, or near the map center when starting in free-fly. Its coordinates are
 printed at startup; placement is skipped if no supported, unobstructed footprint
 exists within 25 m. Use `--fps` or `--spawn X Z`, walk beside the driver's left
 side, and press **Enter**. **W/S** accelerate forward or brake into reverse,
-**A/D** steer, and **Space** brakes the wheels. Mouse look remains first person
-and follows chassis turns. Enter exits only below 1.5 m/s and only when a clear,
-supported standing position is available beside the car. Camera mode switching,
-weapon firing and grabbing are suspended while driving.
+**A/D** steer, and **Space** brakes the wheels. **Alt** toggles first/third person
+while driving; it has no camera effect on foot.
+Mouse look follows chassis turns. In third person it orbits the car from above,
+and the camera pulls closer when a wall, tree trunk or prop blocks the view.
+Returning to first person restores the seat view. Exiting resets to first person.
+Enter exits only below 1.5 m/s and only when a clear, supported standing position
+is available beside the car. Free-fly/walking mode switching, weapon firing and
+grabbing are suspended while driving.
 
 Geometry is one blue box below the windows and four dark 12-sided tires, with no
 other car parts. Physics uses a 1,000 kg chassis and four 25 kg wheels with
@@ -877,7 +881,8 @@ build directory when run by CTest.
 | Physical key left of X: Z (QWERTY), Y (QWERTZ) | Toggle prone in walking mode; an airborne press waits for landing |
 | F3 | Toggle collision visualization |
 | Tab | Switch between Combat (default) and Interaction controls |
-| Left Alt | Release / capture the mouse |
+| Alt | Toggle first/third person while driving a car |
+| F12 | Release / capture the mouse |
 | F | Frame the whole scene again in free-fly mode |
 | Escape | Close the viewer |
 

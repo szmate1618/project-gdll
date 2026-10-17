@@ -406,7 +406,7 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_interior_objects)
     add_test(NAME viewer_interior_objects COMMAND test_interior_objects)
     add_executable(test_vehicle_renderer tests/test_vehicle_renderer.cpp)
-    target_link_libraries(test_vehicle_renderer PRIVATE viewer_renderer glfw)
+    target_link_libraries(test_vehicle_renderer PRIVATE viewer_renderer viewer_vehicles glfw)
     target_compile_definitions(test_vehicle_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
         VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
     viewer_warnings(test_vehicle_renderer)

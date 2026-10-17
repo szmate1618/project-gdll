@@ -13,11 +13,16 @@ class VehiclePlayer {
 public:
     std::optional<std::size_t> car() const { return car_; }
     bool driving() const { return car_.has_value(); }
+    bool thirdPerson() const { return thirdPerson_; }
     bool toggle(VehicleLayer& cars, CameraRig& rig, const CollisionWorld& world);
-    void updateCamera(const VehicleLayer& cars, Camera& camera);
+    bool toggleThirdPerson(const VehicleLayer& cars, Camera& camera, const CollisionWorld& world);
+    void updateCamera(const VehicleLayer& cars, Camera& camera, const CollisionWorld& world);
+    glm::vec3 eyePosition(const VehicleLayer& cars) const; // Occupied seat, independent of camera mode.
 private:
     std::optional<std::size_t> car_;
     float lastYaw_ = 0;
+    bool thirdPerson_ = false;
+    float firstPersonPitch_ = 0;
 };
 // Sweeps the chassis between fixed-step poses, using the living zombie index.
 void collideVehicleZombies(VehicleLayer& cars, std::size_t car, const BoxPose& previous,

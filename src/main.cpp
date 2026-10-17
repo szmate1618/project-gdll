@@ -240,7 +240,7 @@ void printHelp() {
               << "Release to drop; swing and release to throw. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
               << "Combat: 1 pistol, 2 SMG, 3 sniper, 4 shotgun; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
-              << "Left Alt release/capture mouse, wheel change speed, F frame model, Escape quit\n\n"
+              << "F12 release/capture mouse, Alt toggle driving camera, wheel change speed, F frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
               << "  --fps               Start in walking mode\n"
               << "  --time-of-day H     Starting hour in [0, 24), default 12 (noon)\n"
@@ -374,7 +374,10 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     } else if (key == GLFW_KEY_R) {
         if (app.weapons.reload() > 0 && app.audio) app.audio->reload(app.weapons.slot());
         std::cout << app.weapons.status() << '\n';
-    } else if (key == GLFW_KEY_LEFT_ALT) captureMouse(window, !app.capture);
+    } else if (key == GLFW_KEY_LEFT_ALT || key == GLFW_KEY_RIGHT_ALT) {
+        if (app.cars && app.driver.toggleThirdPerson(*app.cars, app.rig.camera(), app.world))
+            std::cout << (app.driver.thirdPerson() ? "Driving camera: third person\n" : "Driving camera: first person\n");
+    } else if (key == GLFW_KEY_F12) captureMouse(window, !app.capture);
     else if (key == GLFW_KEY_F) {
         app.weapons.cancelTrigger();
         app.interaction.cancel();
@@ -472,7 +475,7 @@ void updateWeapons(AppState& app, double seconds) {
 
 void moveCamera(AppState& app, float dt) {
     if (app.driver.driving()) {
-        app.driver.updateCamera(*app.cars, app.rig.camera());
+        app.driver.updateCamera(*app.cars, app.rig.camera(), app.world);
         return;
     }
     const auto held = [&](int key) { return app.keys[static_cast<std::size_t>(key)] ? 1.0f : 0.0f; };
@@ -592,15 +595,23 @@ void inputSelfTest(GLFWwindow* window) {
     key(window, GLFW_KEY_TAB, 0, GLFW_RELEASE, 0);
     if (app.interaction.mode() != viewer::ControlMode::Combat)
         throw std::runtime_error("Tab failed to restore combat mode");
-    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_PRESS, 0);
+    const auto cameraBeforeAlt = app.rig.camera();
+    for (int alt : {GLFW_KEY_LEFT_ALT, GLFW_KEY_RIGHT_ALT}) {
+        key(window, alt, 0, GLFW_PRESS, 0);
+        key(window, alt, 0, GLFW_RELEASE, 0);
+    }
+    if (!app.capture || app.driver.thirdPerson() || app.rig.camera().position() != cameraBeforeAlt.position() ||
+        app.rig.camera().view() != cameraBeforeAlt.view())
+        throw std::runtime_error("Alt must leave the camera and cursor unchanged outside a car");
+    key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
     if (app.capture) throw std::runtime_error("Mouse release self-test failed");
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
     if (app.rig.camera().projection(1.0f) != originalProjection)
         throw std::runtime_error("Released cursor changed zoom");
-    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_RELEASE, 0);
-    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_PRESS, 0);
-    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_RELEASE, 0);
+    key(window, GLFW_KEY_F12, 0, GLFW_RELEASE, 0);
+    key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_F12, 0, GLFW_RELEASE, 0);
     resize(window, 800, 600);
     if (app.width != 800 || app.height != 600) throw std::runtime_error("Resize callback self-test failed");
     glfwSetWindowSize(window, 1280, 720);
@@ -946,7 +957,7 @@ int run(const Options& options) {
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
               << " m/s; F1 free-fly, F2 walk, F3 collisions, WASD move, Space jump, Ctrl hold crouch/airborne tuck, "
               << (proneKeyName ? proneKeyName : "Z")
-              << " toggle prone, mouse look, Tab Combat/Interaction, Left Alt cursor, Escape quit\n";
+              << " toggle prone, mouse look, Tab Combat/Interaction, Alt driving camera, F12 cursor, Escape quit\n";
     viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr,
                               zombies ? &*zombies : nullptr, forests ? &*forests : nullptr);
     viewer::ReticleOverlay reticle(options.shaders);
@@ -1063,8 +1074,8 @@ int run(const Options& options) {
             const auto& config = player.config();
             const float eyeHeight = app.rig.walking() ? player.eyeHeight() : config.eyeHeight;
             const float height = app.rig.walking() ? player.bodyHeight() : config.height;
-            const auto feet = app.rig.walking() ? player.feet() :
-                app.rig.camera().position() - glm::vec3(0, eyeHeight, 0);
+            const auto eye = app.driver.driving() ? app.driver.eyePosition(cars) : app.rig.camera().position();
+            const auto feet = app.rig.walking() ? player.feet() : eye - glm::vec3(0, eyeHeight, 0);
             zombies->updateBehavior(dt, {feet, eyeHeight, height}, collision,
                                     app.displayedAnimationSeconds);
             if (app.rig.walking())

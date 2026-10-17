@@ -38,7 +38,7 @@ void key(GLFWwindow* window, int code, int, int action, int) {
     if (code == GLFW_KEY_Z) in.prone = true;
     if (code == GLFW_KEY_R) in.reload = true;
     if (code >= GLFW_KEY_1 && code <= GLFW_KEY_4) in.slot = static_cast<std::uint8_t>(code - GLFW_KEY_1);
-    if (code == GLFW_KEY_LEFT_ALT) {
+    if (code == GLFW_KEY_F12) {
         in.capture = !in.capture; in.firstMouse = true; in.drag = {};
         in.leftPressed = in.rightPressed = false;
         glfwSetInputMode(window, GLFW_CURSOR, in.capture ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);

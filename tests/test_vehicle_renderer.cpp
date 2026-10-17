@@ -1,6 +1,7 @@
 #include "renderer.hpp"
 #include "vehicle_layer.hpp"
 #include "physics_world.hpp"
+#include "vehicle_player.hpp"
 #include "interior_fixture.hpp"
 #include <GLFW/glfw3.h>
 #include <array>
@@ -37,6 +38,17 @@ void run() {
     require(glm::length(wheel) < glm::length(body) * .6f, "Visible tires must be dark solids beside the chassis");
     renderer.setShadows(true); renderer.render(camera);
     renderer.writeScreenshot("vehicle-day.ppm");
+    viewer::CollisionWorld world(model);
+    world.setVehicles(&cars);
+    viewer::CameraRig rig(world, model.boundsMin, model.boundsMax, float(width) / height);
+    require(rig.enterWalking(glm::vec3(-1.8f, 1.7f, -.25f)), "Chase view fixture must start beside car");
+    viewer::VehiclePlayer driver;
+    require(driver.toggle(cars, rig, world) && driver.toggleThirdPerson(cars, rig.camera(), world),
+            "Chase view fixture must occupy the car in third person");
+    renderer.updateVehicles(cars, driver.car()); renderer.render(rig.camera());
+    const auto chaseBody = pixel(rig.camera(), {0, .8f, 1.8f});
+    require(chaseBody.b > chaseBody.r + 15, "Third person must frame the visible car body");
+    renderer.writeScreenshot("vehicle-third-person.ppm");
     viewer::Renderer empty(model, VIEWER_SHADER_DIR);
     empty.resize(width, height); empty.setNight(true); empty.setShadows(false); empty.setHaze(false); empty.setGroundFog(false);
     // Keep the camera off to one side so its held flashlight cannot explain the

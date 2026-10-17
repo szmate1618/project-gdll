@@ -59,6 +59,8 @@ bool VehiclePlayer::toggle(VehicleLayer& cars, CameraRig& rig, const CollisionWo
             for (const auto& c : world.contacts(feet, config.radius, config.height)) if (c.depth > .002f) clear = false;
             if (!clear || world.insideBuilding(feet, config.radius, config.height)) continue;
             if (rig.enterWalking(feet + glm::vec3(0, config.eyeHeight, 0))) {
+                if (thirdPerson_) rig.camera().setOrientation(rig.camera().yawDegrees(), firstPersonPitch_);
+                thirdPerson_ = false;
                 cars.drive(*car_, 0, 0, true); car_.reset(); return true;
             }
         }
@@ -77,17 +79,51 @@ bool VehiclePlayer::toggle(VehicleLayer& cars, CameraRig& rig, const CollisionWo
     }
     if (!nearest) return false;
     car_ = nearest;
+    thirdPerson_ = false;
     const auto box = cars.pose(*car_).chassis;
     lastYaw_ = yaw(box);
     rig.enterFreeFly();
     rig.camera().setPosition(seat(box)); rig.camera().setOrientation(lastYaw_, 0);
     return true;
 }
-void VehiclePlayer::updateCamera(const VehicleLayer& cars, Camera& camera) {
+bool VehiclePlayer::toggleThirdPerson(const VehicleLayer& cars, Camera& camera, const CollisionWorld& world) {
+    if (!car_) return false;
+    thirdPerson_ = !thirdPerson_;
+    if (thirdPerson_) {
+        firstPersonPitch_ = camera.pitchDegrees();
+        camera.setOrientation(camera.yawDegrees(), -18.f);
+    } else camera.setOrientation(camera.yawDegrees(), firstPersonPitch_);
+    updateCamera(cars, camera, world);
+    return true;
+}
+glm::vec3 VehiclePlayer::eyePosition(const VehicleLayer& cars) const {
+    return seat(cars.pose(car_.value()).chassis);
+}
+void VehiclePlayer::updateCamera(const VehicleLayer& cars, Camera& camera, const CollisionWorld& world) {
     if (!car_) return;
     const auto box = cars.pose(*car_).chassis;
     const float current = yaw(box);
     camera.setOrientation(camera.yawDegrees() + std::remainder(current - lastYaw_, 360.f), camera.pitchDegrees());
-    camera.setPosition(seat(box)); lastYaw_ = current;
+    lastYaw_ = current;
+    if (!thirdPerson_) {
+        camera.setPosition(seat(box));
+        return;
+    }
+    // Orbit above the car in world-up space; chassis yaw carries the view around
+    // turns, while mouse look changes the driver's relative viewing angle.
+    camera.setOrientation(camera.yawDegrees(), std::clamp(camera.pitchDegrees(), -65.f, -5.f));
+    const auto pivot = box.center + glm::vec3(0, .65f, 0);
+    const auto backward = -camera.direction();
+    float distance = 6.f;
+    if (!world.lineOfSight(pivot, pivot + backward * distance)) {
+        float clear = 0, blocked = distance;
+        for (int i = 0; i < 12; ++i) {
+            const float middle = (clear + blocked) * .5f;
+            if (world.lineOfSight(pivot, pivot + backward * middle)) clear = middle;
+            else blocked = middle;
+        }
+        distance = std::max(0.f, clear - .2f); // Keep the near plane away from the blocker.
+    }
+    camera.setPosition(pivot + backward * distance);
 }
 } // namespace viewer

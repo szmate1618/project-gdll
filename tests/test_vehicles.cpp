@@ -94,14 +94,47 @@ void player() {
     viewer::CameraRig rig(f.world, f.model.boundsMin, f.model.boundsMax, 1.5f);
     require(rig.enterWalking(glm::vec3(-1.8f, 1.7f, -.25f)), "Driver fixture must spawn beside car");
     viewer::VehiclePlayer driver;
+    const auto walkingEye = rig.camera().position();
+    require(!driver.toggleThirdPerson(f.cars, rig.camera(), f.world) && !driver.thirdPerson() &&
+            rig.camera().position() == walkingEye, "Third person must be unavailable outside a car");
     require(driver.toggle(f.cars, rig, f.world) && driver.driving(), "Enter must occupy nearby driver seat");
     const auto seat = rig.camera().position();
     rig.camera().look(100, 20); const float relativeYaw = rig.camera().yawDegrees();
-    driver.updateCamera(f.cars, rig.camera());
+    driver.updateCamera(f.cars, rig.camera(), f.world);
     require(glm::distance(seat, rig.camera().position()) < .001f && std::abs(relativeYaw - rig.camera().yawDegrees()) < .001f,
             "First person driver camera must retain mouse look");
-    require(driver.toggle(f.cars, rig, f.world) && !driver.driving() && rig.walking(), "Enter must find a clear walking exit");
+    const float firstPitch = rig.camera().pitchDegrees();
+    require(driver.toggleThirdPerson(f.cars, rig.camera(), f.world) && driver.thirdPerson(),
+            "Driving must allow toggling third person");
+    const auto pivot = f.cars.pose(0).chassis.center + glm::vec3(0, .65f, 0);
+    const auto chase = rig.camera().position();
+    require(chase.y > pivot.y + 1 && glm::distance(chase, pivot) > 5.5f &&
+            glm::dot(glm::normalize(pivot - chase), rig.camera().direction()) > .999f,
+            "Third person must show the car from above and behind the viewing direction");
+    require(glm::distance(driver.eyePosition(f.cars), seat) < .001f,
+            "Third person must not move the driver or zombie perception target");
+    rig.camera().look(160, 0); driver.updateCamera(f.cars, rig.camera(), f.world);
+    require(glm::distance(chase, rig.camera().position()) > .5f, "Mouse look must orbit the car in third person");
+    require(driver.toggleThirdPerson(f.cars, rig.camera(), f.world) && !driver.thirdPerson() &&
+            glm::distance(rig.camera().position(), seat) < .001f && rig.camera().pitchDegrees() == firstPitch,
+            "Toggling back must restore the seat and first person pitch");
+    driver.toggleThirdPerson(f.cars, rig.camera(), f.world);
+    require(driver.toggle(f.cars, rig, f.world) && !driver.driving() && !driver.thirdPerson() && rig.walking(), "Enter must find a clear walking exit");
     require(glm::distance(rig.player().feet(), f.cars.pose(0).chassis.center) > 1.2f, "Exit must place player outside the chassis");
+}
+void cameraObstacles() {
+    auto model = ground();
+    interior_fixture::quad(model, {-10, 0, 3}, {10, 0, 3}, {10, 5, 3}, {-10, 5, 3}, "camera_wall");
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::CollisionWorld world(model);
+    viewer::VehicleLayer cars(physics); cars.add({0, .8f, 0}); world.setVehicles(&cars);
+    viewer::CameraRig rig(world, model.boundsMin, model.boundsMax, 1.5f);
+    require(rig.enterWalking(glm::vec3(-1.8f, 1.7f, -.25f)), "Camera fixture must start beside car");
+    viewer::VehiclePlayer driver; require(driver.toggle(cars, rig, world), "Camera fixture must enter car");
+    driver.toggleThirdPerson(cars, rig.camera(), world);
+    const auto pivot = cars.pose(0).chassis.center + glm::vec3(0, .65f, 0);
+    require(rig.camera().position().z > 1 && rig.camera().position().z < 2.9f &&
+            world.lineOfSight(pivot, rig.camera().position()), "Chase camera must pull in before a wall behind the car");
 }
 void zombies() {
     for (float speed : {1.f, 9.f}) {
@@ -128,6 +161,6 @@ void zombies() {
 }
 }
 int main() {
-    try { suspensionAndDrive(); steeringAndAir(); frameRates(); obstacles(); player(); zombies(); }
+    try { suspensionAndDrive(); steeringAndAir(); frameRates(); obstacles(); player(); cameraObstacles(); zombies(); }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }
