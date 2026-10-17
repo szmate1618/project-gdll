@@ -13,28 +13,15 @@ glm::vec3 vector(b3Vec3 v) { return {v.x, v.y, v.z}; }
 b3Vec3 vector(glm::vec3 v) { return {v.x, v.y, v.z}; }
 glm::vec3 position(b3BodyId b) { const auto p = b3Body_GetPosition(b); return {p.x, p.y, p.z}; }
 glm::quat rotation(b3BodyId b) { const auto q = b3Body_GetRotation(b); return {q.s, q.v.x, q.v.y, q.v.z}; }
-bool grounded(b3BodyId wheel) {
-    std::vector<b3ContactData> contacts(b3Body_GetContactCapacity(wheel));
-    const int count = b3Body_GetContactData(wheel, contacts.data(), static_cast<int>(contacts.size()));
-    for (int i = 0; i < count; ++i) {
-        const auto& c = contacts[i];
-        const bool isB = B3_ID_EQUALS(b3Shape_GetBody(c.shapeIdB), wheel);
-        for (int j = 0; j < c.manifoldCount; ++j) {
-            const auto& m = c.manifolds[j];
-            if ((isB ? m.normal.y : -m.normal.y) < .45f) continue;
-            for (int k = 0; k < m.pointCount; ++k)
-                if (m.points[k].separation < .015f) return true;
-        }
-    }
-    return false;
-}
 }
 struct VehicleLayer::Impl {
     struct Car {
         b3BodyId body{};
         std::array<b3BodyId, 4> wheels{};
         std::array<b3JointId, 4> joints{};
-        float throttle = 0, steering = 0;
+        std::array<b3ShapeId, 4> tireShapes{};
+        std::array<WheelTraction, 4> traction{};
+        float throttle = 0, steering = 0, opposingImpulse = 0;
         bool brake = true;
         ~Car() {
             // Destroying bodies also destroys their joints.
@@ -82,7 +69,7 @@ std::size_t VehicleLayer::add(glm::vec3 center, float yaw) {
     mass.center.y = -.18f;
     b3Body_SetMassData(car->body, mass);
     shape.density = 25.0f / (3.14159265f * wheelRadius * wheelRadius * wheelWidth);
-    shape.baseMaterial.friction = .85f;
+    shape.baseMaterial.friction = rollingTireFriction;
     body.allowFastRotation = true;
     body.angularDamping = .015f;
     const auto axle = glm::angleAxis(-glm::half_pi<float>(), glm::vec3(0, 0, 1));
@@ -93,7 +80,7 @@ std::size_t VehicleLayer::add(glm::vec3 center, float yaw) {
         const auto p = center + q * anchor;
         body.position = {p.x, p.y, p.z};
         car->wheels[i] = b3CreateBody(impl_->world->id(), &body);
-        b3CreateHullShape(car->wheels[i], &shape, impl_->tire);
+        car->tireShapes[i] = b3CreateHullShape(car->wheels[i], &shape, impl_->tire);
         auto joint = b3DefaultWheelJointDef();
         joint.base.bodyIdA = car->body; joint.base.bodyIdB = car->wheels[i];
         joint.base.localFrameA.p = vector(anchor);
@@ -129,25 +116,42 @@ glm::vec3 VehicleLayer::pointVelocity(std::size_t index, glm::vec3 p) const {
     return vector(b3Body_GetWorldPointVelocity(impl_->cars.at(index)->body, {p.x, p.y, p.z}));
 }
 void VehicleLayer::applyImpulse(std::size_t index, glm::vec3 impulse, glm::vec3 p) {
-    b3Body_ApplyLinearImpulse(impl_->cars.at(index)->body, vector(impulse), {p.x, p.y, p.z}, true);
+    auto& car = *impl_->cars.at(index);
+    if (!car.brake && car.throttle != 0) {
+        const auto driveDirection = rotation(car.body) * glm::vec3(0, 0, car.throttle > 0 ? -1.f : 1.f);
+        car.opposingImpulse += std::max(0.f, -glm::dot(impulse, driveDirection));
+    }
+    b3Body_ApplyLinearImpulse(car.body, vector(impulse), {p.x, p.y, p.z}, true);
 }
 void VehicleLayer::drive(std::size_t index, float throttle, float steering, bool brake) {
     auto& c = *impl_->cars.at(index);
-    c.throttle = std::isfinite(throttle) ? std::clamp(throttle, -1.f, 1.f) : 0;
+    const float nextThrottle = std::isfinite(throttle) ? std::clamp(throttle, -1.f, 1.f) : 0;
+    if (brake || nextThrottle * c.throttle <= 0) c.opposingImpulse = 0;
+    c.throttle = nextThrottle;
     c.steering = std::isfinite(steering) ? std::clamp(steering, -1.f, 1.f) : 0;
     c.brake = brake;
 }
-void VehicleLayer::beforeStep(float /*seconds*/) {
+void VehicleLayer::beforeStep(float seconds) {
+    if (!std::isfinite(seconds) || seconds <= 0) return;
     for (const auto& c : impl_->cars) {
         const float speed = glm::length(vector(b3Body_GetLinearVelocity(c->body)));
         // Reduce steering lock at speed, without overwriting lateral momentum.
         const float angle = -c->steering * .48f / (1 + speed * .035f);
+        // Normal force is calibrated for the previous acceleration with the
+        // higher grip. Reserve torque compensates resistance from the last fixed
+        // step, rather than multiplying the unloaded throttle force as well.
+        const float throttle = std::abs(c->throttle);
+        const float force = std::min(fullThrust * throttle, normalThrust * throttle + c->opposingImpulse / seconds);
+        c->opposingImpulse = 0;
         for (int i = 0; i < 4; ++i) {
             const auto j = c->joints[i];
             if (i < 2) b3WheelJoint_SetTargetSteeringAngle(j, angle);
-            const bool contact = grounded(c->wheels[i]);
+            auto& traction = c->traction[i];
+            traction = sampleWheelTraction(c->wheels[i], traction.motion);
+            b3Shape_SetFriction(c->tireShapes[i], traction.friction);
+            const bool contact = traction.motion != WheelMotion::Airborne;
             // Equal independent torque budgets: airborne wheels supply no drive.
-            const float torque = c->brake ? 1400.f : fullThrust * wheelRadius * .25f * std::abs(c->throttle);
+            const float torque = c->brake ? 1400.f : force * wheelRadius * .25f;
             b3WheelJoint_SetMaxSpinTorque(j, contact ? torque : 0);
             b3WheelJoint_SetSpinMotorSpeed(j, c->brake ? 0 : -c->throttle * 85.f);
             if (std::abs(c->throttle) > 0 || std::abs(c->steering) > 0) {
@@ -157,8 +161,13 @@ void VehicleLayer::beforeStep(float /*seconds*/) {
         }
     }
 }
+std::array<WheelTraction, 4> VehicleLayer::wheelTraction(std::size_t index) const {
+    return impl_->cars.at(index)->traction;
+}
 int VehicleLayer::groundedWheels(std::size_t index) const {
-    int count = 0; for (auto w : impl_->cars.at(index)->wheels) if (grounded(w)) ++count;
+    int count = 0;
+    for (auto w : impl_->cars.at(index)->wheels)
+        if (sampleWheelTraction(w, WheelMotion::Rolling).motion != WheelMotion::Airborne) ++count;
     return count;
 }
 void VehicleLayer::appendContacts(glm::vec3 feet, float radius, float height, float skin, std::vector<Contact>& contacts) const {

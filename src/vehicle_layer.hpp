@@ -1,6 +1,7 @@
 #pragma once
 
 #include "box_layer.hpp"
+#include "vehicle_traction.hpp"
 #include <array>
 
 namespace viewer {
@@ -25,13 +26,15 @@ public:
     // W/S throttle (+forward/-reverse), D/A steering (+right), Space brake.
     void drive(std::size_t car, float throttle, float steering, bool brake);
     void beforeStep(float seconds); // Once before each shared fixed physics step.
+    std::array<WheelTraction, 4> wheelTraction(std::size_t car) const; // Last fixed-step sample, FL/FR/RL/RR.
     int groundedWheels(std::size_t car) const;
     void appendContacts(glm::vec3 feet, float radius, float height, float skin,
                         std::vector<Contact>& contacts) const;
     std::optional<GroundHit> groundAt(float x, float z, float minY, float maxY) const;
     static Model geometry(); // Exactly one box and one 12-sided tire mesh.
     static constexpr float wheelRadius = .36f, wheelWidth = .24f;
-    static constexpr float fullThrust = 6400; // N; each wheel gets 1/4 torque budget.
+    static constexpr float fullThrust = 19200; // N equivalent; each wheel gets 1/4 torque budget.
+    static constexpr float normalThrust = 5500; // N; calibrated for the previous acceleration with the increased grip.
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

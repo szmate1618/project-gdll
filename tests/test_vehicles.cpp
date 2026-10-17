@@ -55,6 +55,71 @@ void suspensionAndDrive() {
     f.cars.drive(0, -1, 0, false); f.tick(90);
     require(f.cars.velocity(0).z > 2, "S must reverse after stopping");
 }
+void accelerationAndGrip() {
+    Fixture f; f.tick(120);
+    for (const auto& wheel : f.cars.wheelTraction(0))
+        require(wheel.motion == viewer::WheelMotion::Rolling, "Each parked wheel must independently report rolling contact");
+    f.cars.drive(0, 1, 0, false);
+    // Measurements from the previous 6,400 N car on this same flat fixture,
+    // at .25, .5, 1 and 2 seconds after starting. Extra torque is load reserve,
+    // not permission to make the ordinary launch faster or substantially slower.
+    const std::array<float, 4> originalSpeeds{1.69314f, 3.32747f, 6.58299f, 12.3049f};
+    const std::array<int, 4> frames{15, 15, 30, 60};
+    for (std::size_t i = 0; i < frames.size(); ++i) {
+        f.tick(frames[i]);
+        const float speed = -f.cars.velocity(0).z;
+        std::cout << "launch " << i << " speed=" << speed << '\n';
+        require(speed <= originalSpeeds[i] + .1f && speed >= originalSpeeds[i] * .85f,
+                "Tripled torque reserve must preserve the previous normal acceleration envelope");
+    }
+    Fixture skid; skid.tick(120); skid.cars.drive(0, 0, 0, false);
+    const auto center = skid.cars.pose(0).chassis.center;
+    skid.cars.applyImpulse(0, {3300, 0, 0}, center);
+    bool detected = false;
+    for (int frame = 0; frame < 20; ++frame) {
+        skid.tick(1);
+        for (const auto& wheel : skid.cars.wheelTraction(0)) if (wheel.motion == viewer::WheelMotion::Sliding) {
+            detected = true;
+            require(wheel.friction < viewer::rollingTireFriction && wheel.friction > .85f,
+                    "Skidding wheels must use lower, but increased, kinetic friction");
+        }
+    }
+    require(detected, "A sideways impulse must produce an observable per-wheel skid");
+    skid.tick(120);
+    for (const auto& wheel : skid.cars.wheelTraction(0))
+        require(wheel.motion == viewer::WheelMotion::Rolling && wheel.friction == viewer::rollingTireFriction,
+                "Settled wheels must recover rolling grip");
+}
+void crowdedStart() {
+    Fixture f; f.tick(120);
+    viewer::ZombieLayer zombies; zombies.assets.emplace_back(); zombies.attachPhysics(f.physics);
+    for (int row = 0; row < 3; ++row) for (int column = -1; column <= 1; ++column) {
+        viewer::ZombieInstance z;
+        z.restRoot = z.restTransform = z.transform = glm::translate(glm::mat4(1), glm::vec3(column * .65f, 0, -2.09f - row * .61f));
+        zombies.instances.push_back(z);
+    }
+    zombies.rebuildSpatialIndex();
+    f.cars.drive(0, 1, 0, false);
+    for (int frame = 0; frame < 180; ++frame) {
+        const auto previous = f.cars.pose(0).chassis;
+        f.physics->step(1.f / 60, [&](float seconds) {
+            viewer::prepareVehicleScene(f.cars, f.scene); f.cars.beforeStep(seconds);
+        }, [&](float seconds) {
+            viewer::collideVehicleZombies(f.cars, 0, previous, zombies, f.world, seconds, 0);
+        });
+    }
+    std::cout << "crowded start z=" << f.cars.pose(0).chassis.center.z << '\n';
+    // The old car advanced only about 14 cm into this crowd in three seconds.
+    require(f.cars.pose(0).chassis.center.z < -.6f && zombies.ragdollCount() == 0,
+            "A dead-stop start must push through more of a standing crowd without ragdolling at low speed");
+    const float loadedSpeed = -f.cars.velocity(0).z;
+    for (auto& zombie : zombies.instances) zombie.removed = true;
+    zombies.rebuildSpatialIndex();
+    f.tick(60);
+    require(-f.cars.velocity(0).z - loadedSpeed < 6.7f,
+            "Clearing the crowd must not leave a sustained torque boost or accumulate a launch surge");
+}
+
 void steeringAndAir() {
     Fixture f; f.tick(120); f.cars.drive(0, 1, 0, false); f.tick(90);
     const auto before = f.cars.pose(0).chassis;
@@ -161,6 +226,6 @@ void zombies() {
 }
 }
 int main() {
-    try { suspensionAndDrive(); steeringAndAir(); frameRates(); obstacles(); player(); cameraObstacles(); zombies(); }
+    try { suspensionAndDrive(); accelerationAndGrip(); crowdedStart(); steeringAndAir(); frameRates(); obstacles(); player(); cameraObstacles(); zombies(); }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

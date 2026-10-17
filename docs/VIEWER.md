@@ -829,11 +829,28 @@ grabbing are suspended while driving.
 Geometry is one blue box below the windows and four dark 12-sided tires, with no
 other car parts. Physics uses a 1,000 kg chassis and four 25 kg wheels with
 centered 24-sided convex cylinder colliders, independent damped suspension
-springs and travel limits. Each grounded wheel receives at most one quarter of
-the 6,400 N drive budget (converted to axle torque); airborne wheels contribute
-no drive. Grip limits, rolling wheel rotation and rigid-body momentum allow
-coasting and sideways drift. Steering lock decreases with speed. The car can
-pitch, roll and overturn; the driver camera retains world-up mouse look.
+springs and travel limits. The maximum drive budget is 19,200 N equivalent at
+the tires, three times the original capacity: each grounded wheel can supply up
+to 1,728 N·m of axle torque. Ordinary throttle uses a calibrated 5,500 N budget to
+keep acceleration close to the earlier car despite the increased grip. Extra
+torque compensates opposing collision impulses from the previous fixed physics
+step, up to that maximum; it resets when resistance stops, throttle is released,
+direction changes or the brake is applied. Airborne wheels contribute no drive.
+The motor speed limit remains 85 rad/s (about 110 km/h at the nominal tire
+radius); actual ground speed depends on grip, drag, terrain and load.
+
+Each wheel independently samples its rotating contact-point velocity relative
+to the supporting body. Longitudinal slip detects wheelspin or locked-wheel
+skids; lateral slip detects sideways sliding. Rolling tires use friction 3.0,
+sliding tires 2.0, both above the previous 0.85. Speed-relative thresholds and
+hysteresis stabilize the classification near the transition. These are the
+tire shape coefficients; the physics engine combines them with the contacted
+surface's friction. `VehicleLayer::wheelTraction()` exposes each wheel's latest
+fixed-step contact state and slip speeds in front-left, front-right, rear-left,
+rear-right order. Grip limits, rolling wheel rotation and rigid-body momentum
+still allow coasting and sideways drift. Steering lock decreases with speed.
+The car can pitch, roll and overturn; the driver camera retains world-up mouse
+look.
 
 Nearby published scene triangles and indexed tree-trunk capsules provide
 collision, independently of foliage visibility. Cars also contact doors, boxes
@@ -852,10 +869,13 @@ the car. Vehicle spawning and driver state are local-viewer features and are
 not replicated by the optional multiplayer client/server.
 
 The implementation separates rigid bodies (`vehicle_layer.*`), mesh generation
-(`vehicle_geometry.cpp`), placement and driver interaction (`vehicle_player.*`),
+(`vehicle_geometry.cpp`), wheel contact/slip sampling (`vehicle_traction.*`),
+placement and driver interaction (`vehicle_player.*`),
 zombie impact handling (`vehicle_zombie_collision.cpp`), and rendering
 (`vehicle_renderer.cpp`). `viewer_vehicles` checks driving, suspension, collision,
-entry/exit and zombie reactions without a GPU. `viewer_vehicle_renderer` checks
+entry/exit and zombie reactions without a GPU. `viewer_vehicle_traction` checks
+rolling, wheelspin/skids, moving support bodies and airborne transitions.
+`viewer_vehicle_renderer` checks
 the body, tires, headlights and GL state and writes day/night captures under the
 build directory when run by CTest.
 

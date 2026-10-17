@@ -217,7 +217,7 @@ add_custom_command(
 add_custom_target(viewer_audio_assets DEPENDS ${VIEWER_AUDIO_FILES})
 endif()
 
-add_library(viewer_physics STATIC src/physics_world.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_geometry.cpp)
+add_library(viewer_physics STATIC src/physics_world.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp)
 target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
@@ -412,6 +412,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_vehicle_renderer)
     add_test(NAME viewer_vehicle_renderer COMMAND test_vehicle_renderer)
     set_tests_properties(viewer_vehicle_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
+    add_executable(test_vehicle_traction tests/test_vehicle_traction.cpp)
+    target_link_libraries(test_vehicle_traction PRIVATE viewer_physics)
+    viewer_warnings(test_vehicle_traction)
+    add_test(NAME viewer_vehicle_traction COMMAND test_vehicle_traction)
 
     add_executable(test_vehicles tests/test_vehicles.cpp)
     target_link_libraries(test_vehicles PRIVATE viewer_vehicles)
