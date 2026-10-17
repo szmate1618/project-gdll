@@ -11,6 +11,7 @@ from .config import ROOT
 from .forest_comparison import file_sha256
 from .osm_vegetation_placements import prepare_osm_vegetation
 from .satellite_tree_tuned2 import prepare_tuned2_trees
+from .tree_combination import combine_trees
 
 
 def publish_default_trees(placement_path, map_path):
@@ -40,7 +41,7 @@ def publish_default_trees(placement_path, map_path):
         fingerprints[path] = asset["sha256"]
         asset["path"] = os.path.relpath(path, target.parent)
     document["map"]["path"] = os.path.relpath(map_path, target.parent)
-    document["source"]["default_preparation"] = "tuned2"
+    document["source"].setdefault("default_preparation", "tuned2")
     encoded = (json.dumps(document, indent=2, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
     backup = None
     with tempfile.TemporaryDirectory(prefix=".default-trees-", dir=target.parent) as scratch:
@@ -71,7 +72,7 @@ def publish_default_trees(placement_path, map_path):
 
 def prepare_trees(*, map_path=ROOT / "output/godollo.glb", forest_exclusions=None,
                   output_dir=None, offline=True, refresh=False, **options):
-    """Default workflow: tuned2, OSM exclusion polygons, then publish beside map."""
+    """Default workflow: combine OSM trees/rows and tuned2 outside OSM forests."""
     map_path = Path(map_path).resolve()
     exclusions = (Path(forest_exclusions).resolve() if forest_exclusions is not None
                   else map_path.parent / "osm/forest_patches.json")
@@ -80,12 +81,16 @@ def prepare_trees(*, map_path=ROOT / "output/godollo.glb", forest_exclusions=Non
     if forest_exclusions is None:
         map_hash = file_sha256(map_path)
         forest = json.loads(exclusions.read_text()) if exclusions.exists() else {}
-        if refresh or forest.get("source", {}).get("map_sha256") != map_hash:
+        if (refresh or forest.get("source", {}).get("map_sha256") != map_hash
+                or not (map_path.parent / "osm/trees.instances.json").exists()):
             prepare_osm_vegetation(map_path=map_path, output_dir=exclusions.parent,
                                    config_path=options.get("config_path", ROOT / "config.json"),
                                    root=options.get("root", ROOT), offline=offline, refresh=refresh)
     result = prepare_tuned2_trees(exclusions, map_path=map_path, output_dir=output_dir,
                                  reuse_calibration=True, **options)
-    publication = publish_default_trees(output_dir / "trees.instances.json", map_path)
-    return {**result, "preparation_output": result["output"], **publication,
+    combination = combine_trees(map_path.parent / "osm/trees.instances.json",
+                                output_dir / "trees.instances.json", map_path,
+                                map_path.parent / "satellite_trees/osm-tuned2/trees.instances.json")
+    publication = publish_default_trees(combination["output"], map_path)
+    return {**result, "preparation_output": result["output"], **combination, **publication,
             "forest_exclusions": str(exclusions)}

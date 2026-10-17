@@ -111,7 +111,7 @@ incompatible, startup explains why it was skipped; an explicitly selected
 invalid layer is an error. Regenerate placements after changing the map or
 the shared GLBs.
 
-The default preparation workflow is now tuned2 with OSM forest exclusions:
+Default preparation combines OSM trees/rows with tuned2 outside OSM forests:
 `tools/prepare_trees.py` or `python -m src.generate --trees-only --offline`.
 Preparation updates this separate JSON without rebuilding the town. The first
 previous dataset is preserved as `trees.original.instances.json` beside the map
@@ -119,7 +119,7 @@ and can be selected with `--trees`.
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --trees output/trees.instances.json --fps
-./build/godollo_viewer output/godollo.glb --vegetation original --fps
+./build/godollo_viewer output/godollo.glb --vegetation orthophoto --fps
 ./build/godollo_viewer output/godollo.glb --vegetation osm --fps
 ./build/godollo_viewer output/godollo.glb --vegetation sentinel-astra --fps
 ./build/godollo_viewer output/godollo.glb --no-trees --fps
@@ -127,12 +127,13 @@ and can be selected with `--trees`.
 ./build/godollo_viewer output/godollo.glb --no-tree-collisions --fps
 ```
 
-`--vegetation original|osm|sentinel-astra` selects exactly one vegetation source.
-Original is the default forest mode and loads the prepared default individual
-trees (now tuned2). OSM loads only the prepared OSM forests and trees;
-Sentinel-Astra generates trees from its satellite polygons and excludes the
-original detector placements. Repeated selections and combinations with
-`--trees`/`--forests` overrides are errors. See
+`--vegetation osm-tuned2|orthophoto|osm|sentinel-astra|none` selects a complete
+vegetation preset. The default combines OSM forests, OSM trees and rows, and
+additional tuned2 trees, suppressing tuned2 centres within 6 m of OSM trees.
+Orthophoto mode uses the preserved CSV detections and original forest polygons.
+OSM mode uses only OSM data; Sentinel-Astra generates trees from its polygons.
+None disables both forest and individual vegetation. Repeated selections and
+combinations with `--trees` overrides are errors. `--forests` was removed. See
 [vegetation selection](FORESTS.md#select-one-vegetation-source) and
 [OSM preparation](FORESTS.md#optional-openstreetmap-vegetation).
 
@@ -172,7 +173,7 @@ Matching georeferenced maps also load [runtime forest polygons](FORESTS.md).
 Beyond 350 m, woodland patches use terrain-following boxes with repeating side
 and canopy textures. Nearby patches and both scope views show deterministic
 individual trees calculated during scene load. Detector trees inside those
-patches share their detail choice. `--forests FILE` selects the polygon config;
+patches share their detail choice. `--vegetation` selects the polygon source;
 `--no-forests` disables this layer while keeping detector trees. `--no-trees`
 disables both. Placement spacing, height, textures, seed, and switch distance
 are configurable in the JSON's `runtime` object.

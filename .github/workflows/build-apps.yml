@@ -109,7 +109,7 @@ jobs:
           New-Item -ItemType Directory -Force "$package/assets", "$package/multiplayer/client", "$package/licenses"
           Copy-Item build/multiplayer/Release/godollo_client.exe $package
           Copy-Item shaders, items, credits $package -Recurse
-          Copy-Item inventory.toml, forest_patches.json $package
+          Copy-Item inventory.toml $package
           Copy-Item assets/test.glb "$package/assets"
           Copy-Item build/assets/weapons "$package/assets" -Recurse
           Copy-Item assets/weapons/README.md "$package/assets/weapons"

@@ -42,11 +42,13 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         self.json("assets/zombies/models/lods.json", {"version": 1, "models": {
             "Zombie.glb": {"source_sha256": self.digest(self.zombie), "levels": levels}}})
         self.json("output/trees.instances.json", {"map": {"map_sha256": self.digest(self.map)}, "assets": {
-            "tree": {"path": "../assets/tree.glb", "sha256": self.digest(self.tree)}}, "instances": []})
+            "tree": {"path": "../assets/tree.glb", "sha256": self.digest(self.tree)}}, "instances": [], "source": {"default_preparation": "osm-tuned2"}})
         self.json("output/poles.instances.json", {"map": {"map_sha256": self.digest(self.map)}})
         self.write("output/guardrails.glb", glb({"scenes": [{"extras": {"map_sha256": self.digest(self.map)}}]}))
         self.json("forest_patches.json", {"source": {"map_sha256": self.digest(self.map)}, "runtime": {
             "tree_asset": "assets/tree.glb", "side_texture": "assets/side.png", "top_texture": "assets/top.png"}})
+        self.json("output/osm/forest_patches.json", {"source": {"map_sha256": self.digest(self.map)}, "runtime": {
+            "tree_asset": "../../assets/tree.glb", "side_texture": "../../assets/side.png", "top_texture": "../../assets/top.png"}})
         self.write("assets/side.png", b"side texture")
         self.write("assets/top.png", b"top texture")
         self.write("inventory.toml", b"inventory\n")
@@ -81,8 +83,9 @@ class MultiplayerAssetPackTests(unittest.TestCase):
             self.assertEqual(count, len(manifest["files"]))
             self.assertEqual(size, sum(archive.getinfo(name).file_size for name in manifest["files"]))
         self.assertEqual(manifest["map"], "output/town.glb")
+        self.assertEqual(manifest["vegetation"], "osm-tuned2")
         expected = {"output/town.glb", "output/ATTRIBUTION.md", "output/trees.instances.json", "output/poles.instances.json", "output/guardrails.glb",
-                    "assets/tree.glb", "forest_patches.json", "assets/side.png", "assets/top.png", "inventory.toml",
+                    "assets/tree.glb", "output/osm/forest_patches.json", "assets/side.png", "assets/top.png", "inventory.toml",
                     "assets/zombies/models/Zombie.glb", "assets/zombies/models/lods.json"}
         expected.update(f"items/{name}.toml" for name in ("pistol", "submachine_gun", "sniper", "shotgun"))
         expected.update(f"assets/zombies/models/lod{level}/Zombie.glb" for level in range(1, 4))
@@ -166,6 +169,45 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         self.write("output/town.glb", glb({"buffers": [{"uri": "external.bin"}]}))
         with self.assertRaisesRegex(ValueError, "self-contained"):
             self.package()
+
+
+    def test_default_rejects_standalone_tuned2_and_missing_osm_forests(self):
+        self.package()
+        previous = self.output.read_bytes()
+        path = self.root / "output/trees.instances.json"
+        document = json.loads(path.read_text())
+        document['source']['default_preparation'] = 'tuned2'
+        path.write_text(json.dumps(document))
+        with self.assertRaisesRegex(ValueError, 'combined OSM'):
+            self.package()
+        document['source']['default_preparation'] = 'osm-tuned2'
+        path.write_text(json.dumps(document))
+        (self.root/'output/osm/forest_patches.json').unlink()
+        with self.assertRaisesRegex(ValueError, 'Missing runtime asset'):
+            self.package()
+        self.assertEqual(previous, self.output.read_bytes())
+
+    def test_each_preset_packages_only_its_selected_layers(self):
+        import shutil
+        shutil.copy2(self.root/'output/trees.instances.json', self.root/'output/trees.original.instances.json')
+        osm = json.loads((self.root/'output/trees.instances.json').read_text())
+        osm['assets']['tree']['path'] = '../../assets/tree.glb'
+        self.json('output/osm/trees.instances.json', osm)
+        shutil.copy2(self.root/'forest_patches.json', self.root/'forest_patches_astra.json')
+        expectations = {
+            'orthophoto': ('output/trees.original.instances.json', 'forest_patches.json'),
+            'osm': ('output/osm/trees.instances.json', 'output/osm/forest_patches.json'),
+            'sentinel-astra': (None, 'forest_patches_astra.json'),
+            'none': (None, None)}
+        all_layers = {'output/trees.instances.json', 'output/trees.original.instances.json',
+                      'output/osm/trees.instances.json', 'forest_patches.json',
+                      'output/osm/forest_patches.json', 'forest_patches_astra.json'}
+        for preset, expected in expectations.items():
+            with self.subTest(preset=preset):
+                self.package(vegetation=preset)
+                with zipfile.ZipFile(self.output) as archive:
+                    self.assertEqual(set(archive.namelist()) & all_layers, {p for p in expected if p})
+                    self.assertEqual(json.loads(archive.read('asset-pack.json'))['vegetation'], preset)
 
     def test_disabled_layers_do_not_require_their_assets(self):
         (self.root / "assets/side.png").unlink()

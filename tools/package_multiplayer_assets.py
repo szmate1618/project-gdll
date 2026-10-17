@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.asset_credits import ASSET_CREDIT_FILES, map_credits
+from src.vegetation_selection import VEGETATION_PRESETS, vegetation_paths
 
 
 def sha256(path):
@@ -83,18 +84,24 @@ class RuntimeAssets:
         return document
 
 
-def collect_assets(root, map_path, zombies, *, trees=True, forests=True):
+def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetation="osm-tuned2"):
     assets = RuntimeAssets(root)
     document = assets.model(map_path)
     map_hash = assets.files[map_path.resolve()]
     assets.notices["credits/assets/MAP.txt"] = map_credits(
         document, map_path.relative_to(root).as_posix(), map_hash)
     adjacent = map_path.parent
-    for name in ("poles.instances.json", "trees.instances.json"):
-        path = adjacent / name
-        if not path.exists() or (name == "trees.instances.json" and not trees):
+    tree_path, forest_path = vegetation_paths(root, map_path, vegetation)
+    placements = [adjacent / "poles.instances.json"]
+    if trees and tree_path is not None:
+        placements.append(tree_path)
+    for path in placements:
+        if path != tree_path and not path.exists():
             continue
         document = assets.document(path)
+        if (path == tree_path and vegetation == "osm-tuned2"
+                and document.get("source", {}).get("default_preparation") != "osm-tuned2"):
+            raise ValueError("Default trees are not the combined OSM+tuned2 layer; run tools/prepare_trees.py")
         if document["map"]["map_sha256"] != map_hash:
             raise ValueError(f"Stale map fingerprint in {path}")
         for record in document.get("assets", {}).values():
@@ -104,15 +111,15 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True):
         document = assets.model(path)
         if document["scenes"][document.get("scene", 0)]["extras"]["map_sha256"] != map_hash:
             raise ValueError(f"Stale map fingerprint in {path}")
-    path = root / "forest_patches.json"
-    if trees and forests and path.exists():
+    path = forest_path
+    if trees and forests and path is not None:
         document = assets.document(path)
         if document["source"]["map_sha256"] != map_hash:
             raise ValueError(f"Stale map fingerprint in {path}")
         settings = document.get("runtime", {})
-        assets.model(assets.reference(root, settings.get("tree_asset", "assets/tree_impostor.glb")))
+        assets.model(assets.reference(path.parent, settings.get("tree_asset", "assets/tree_impostor.glb")))
         for key, default in (("side_texture", "assets/forests/side.png"), ("top_texture", "assets/forests/top.png")):
-            assets.add(assets.reference(root, settings.get(key, default)))
+            assets.add(assets.reference(path.parent, settings.get(key, default)))
     if zombies is not None:
         models = sorted(zombies.glob("*.glb")) if zombies.is_dir() else [zombies]
         if not models or (zombies.is_dir() and list(zombies.glob("*.gltf"))):
@@ -150,14 +157,16 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True):
     return assets
 
 
-def package_assets(root, map_path, output, zombies, *, trees=True, forests=True):
+def package_assets(root, map_path, output, zombies, *, trees=True, forests=True, vegetation="osm-tuned2"):
     root, map_path, output = root.resolve(), map_path.resolve(), output.resolve()
     zombies = zombies.resolve() if zombies is not None else None
     if output.suffix.lower() != ".zip":
         raise ValueError("Output must be a .zip file")
-    assets = collect_assets(root, map_path, zombies, trees=trees, forests=forests)
+    assets = collect_assets(root, map_path, zombies, trees=trees, forests=forests, vegetation=vegetation)
     manifest = {"version": 1, "map": map_path.relative_to(root).as_posix(),
-                "trees": trees, "forests": trees and forests, "zombies": zombies.relative_to(root).as_posix() if zombies else None,
+                "vegetation": vegetation if trees else "none",
+                "trees": trees and vegetation not in ("none", "sentinel-astra"),
+                "forests": trees and forests and vegetation != "none", "zombies": zombies.relative_to(root).as_posix() if zombies else None,
                 "files": {p.relative_to(root).as_posix(): digest for p, digest in sorted(assets.files.items())}}
     manifest["files"].update({name: hashlib.sha256(data).hexdigest() for name, data in assets.notices.items()})
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -195,12 +204,14 @@ def main(argv=None):
     parser.add_argument("-o", "--output", type=Path, default=ROOT / "build/godollo-assets.zip")
     parser.add_argument("--zombies", type=Path, default=ROOT / "assets/zombies/models")
     parser.add_argument("--no-zombies", action="store_true", help="For sessions using --zombie-count 0")
+    parser.add_argument("--vegetation", choices=VEGETATION_PRESETS, default="osm-tuned2",
+                        help="Preset to package; default: OSM forests, trees/rows and tuned2")
     parser.add_argument("--no-trees", action="store_true", help="Omit detected trees and runtime forests")
     parser.add_argument("--no-forests", action="store_true")
     args = parser.parse_args(argv)
     try:
         count, size = package_assets(ROOT, args.map, args.output, None if args.no_zombies else args.zombies.resolve(),
-                                    trees=not args.no_trees, forests=not args.no_forests)
+                                    trees=not args.no_trees, forests=not args.no_forests, vegetation=args.vegetation)
     except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile) as error:
         print(f"Asset packaging failed: {error}", file=sys.stderr)
         return 1

@@ -26,12 +26,15 @@ is preserved verbatim as `output/trees.original.instances.json`. Later changed
 defaults receive `trees.previous.<sha256>.instances.json` backups beside the
 map; repeated publication of identical placements needs no new backup.
 
-Run the viewer normally to use the new default. Existing runtime forest choices
-are independent of the individual-tree detection exclusion mask. To display
-the same OSM polygons, pass `--forests output/osm/forest_patches.json` without
-`--vegetation osm`, which selects OSM individual trees too. To inspect the
-preserved original placements, pass `--trees output/trees.original.instances.json`.
-The original CSV preparation script remains `tools/prepare_tree_instances.py`.
+Default preparation combines the retained OSM trees and row samples with
+additional tuned2 trees. Mapped OSM positions take priority: tuned2 centres at
+most 6 m away are suppressed. The combined artifact is also kept under
+`output/satellite_trees/osm-tuned2/` with counts and input fingerprints.
+
+Run the viewer normally or use `--vegetation osm-tuned2` for the combined
+individual trees and OSM forests. Use `--vegetation orthophoto` for the preserved
+orthophoto trees and forest polygons. The separate `--forests` override was
+removed. The original CSV preparation script remains `tools/prepare_tree_instances.py`.
 
 ## Separate detector output
 
@@ -93,12 +96,11 @@ failure restores the last good set. Input fingerprints are checked again
 before replacing outputs. `--config`, `--map`, `--image`, `--tree-asset`,
 `--recall-profile` and `--precision-profile` select other matching local inputs.
 
-Preview with the same exclusion forests, using explicit viewer file overrides:
+Preview separate detector output with the default OSM forests:
 
 ```bash
 ./build/godollo_viewer output/godollo.glb \
-  --trees output/satellite_trees/sentinel-astra-tuned2/trees.instances.json \
-  --forests forest_patches_astra.json
+  --trees output/satellite_trees/sentinel-astra-tuned2/trees.instances.json
 ```
 
 The research detectors, comparison UI, negative examples and calibration/audit

@@ -47,7 +47,10 @@ Options parseOptions(int argc, char** argv, bool server) {
             const auto n = number(i);
             if (n < 5 || n > 1000) throw std::runtime_error("Invalid zombie radius");
             o.zombieRadius = static_cast<float>(n);
-        } else if (arg == "--no-trees") o.trees = o.forests = false;
+        } else if (arg == "--vegetation") o.vegetation.select(next(i));
+        else if (arg == "--forests" || arg == "--forest")
+            throw std::runtime_error("--forests was removed; use --vegetation");
+        else if (arg == "--no-trees") o.trees = o.forests = false;
         else if (arg == "--no-forests") o.forests = false;
         else if (arg == "--seconds") {
             o.seconds = number(i);
@@ -73,6 +76,7 @@ Options parseOptions(int argc, char** argv, bool server) {
             std::cout << (server ? "godollo_server" : "godollo_client") << " [map.glb] "
                 << (server ? "[--port 27020]" : "[--connect 127.0.0.1:27020] [--headless] [--hidden] [--bot] [--look YAW PITCH] [--screenshot FILE]")
                 << "\nShared: --spawn X Z --zombies PATH --zombie-count N --zombie-radius METERS\n"
+                   "        --vegetation osm-tuned2|orthophoto|osm|sentinel-astra|none\n"
                    "        --no-trees --no-forests --seconds N --lag-ms N --loss-percent N\n";
             std::exit(0);
         } else if (!arg.empty() && arg[0] != '-' && !map) { o.map = arg; map = true; }
@@ -101,8 +105,8 @@ std::string sceneFingerprint(const Options& o, std::size_t count, glm::vec3 spaw
     integer(static_cast<std::uint32_t>(count));
     number(o.zombieRadius);
     number(spawnEye.x); number(spawnEye.y); number(spawnEye.z);
-    identity.push_back(o.trees ? '\1' : '\0');
-    identity.push_back(o.forests ? '\1' : '\0');
+    identity.push_back(o.trees && o.vegetation.source != viewer::VegetationSource::None ? '\1' : '\0');
+    identity.push_back(o.forests && o.vegetation.source != viewer::VegetationSource::None ? '\1' : '\0');
     // File hashes are fixed-width hex strings; paths are deliberately excluded.
     for (const auto& file : content) identity += viewer::fileSha256(file);
     unsigned char digest[EVP_MAX_MD_SIZE]; unsigned int bytes = 0;
@@ -137,12 +141,15 @@ Scene::Scene(const Options& o) : model(loadSessionMap(o.map)), physics(std::make
     }
     doors = std::make_unique<viewer::DoorLayer>(viewer::prepareDoorPanels(model), physics);
     boxes = std::make_unique<viewer::BoxLayer>(physics);
-    if (o.trees && std::filesystem::exists(adjacent("trees.instances.json"))) {
-        trees = viewer::loadTreeLayer(adjacent("trees.instances.json"), o.map);
-        content.push_back(adjacent("trees.instances.json"));
+    const auto vegetation = viewer::vegetationPaths(o.vegetation, o.map, resourceRoot() / "forest_patches.json");
+    if (o.trees && !vegetation.trees.empty() &&
+            (vegetation.requireTrees || std::filesystem::exists(vegetation.trees))) {
+        trees = viewer::loadTreeLayer(vegetation.trees, o.map);
+        content.push_back(vegetation.trees);
     }
-    const auto forestConfig = resourceRoot() / "forest_patches.json";
-    if (o.forests && model.geographicFrame && std::filesystem::exists(forestConfig)) {
+    const auto& forestConfig = vegetation.forests;
+    if (o.trees && o.forests && !forestConfig.empty() &&
+            (vegetation.requireForests || (model.geographicFrame && std::filesystem::exists(forestConfig)))) {
         if (!trees) trees.emplace();
         viewer::CollisionWorld placement(model, {}, doors.get());
         forests = viewer::loadForestLayer(forestConfig, o.map, model, placement, *trees);

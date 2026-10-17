@@ -68,6 +68,15 @@ and regression suites continue to be built/tested on Linux.
 
 ## Portable asset pack
 
+The default preset is `osm-tuned2` in the viewer, client, server and asset
+packager: OSM forest polygons plus a combined OSM tree/row and tuned2 layer.
+Prepare it with `tools/prepare_trees.py` before packaging. The package includes
+`output/trees.instances.json`, `output/osm/forest_patches.json`, and their shared
+runtime assets. Separate raw tree inputs and orthophoto backups are excluded.
+`--vegetation orthophoto|osm|sentinel-astra|none` selects another preset in both
+the packager and client/server. Use the same preset on both peers;
+`asset-pack.json` records the packaged choice.
+
 Package the already prepared town on the host machine, using Python's standard
 library only. On Linux:
 

@@ -52,8 +52,8 @@ configuration struct is in `src/fps_controller.hpp`. See the
 step, spawn, collision, and debugging behavior. No separate collision file is
 required.
 
-Individual trees default to the tuned2 Sentinel detector with OSM forest
-exclusions. Run `.venv/bin/python tools/prepare_trees.py` to refresh only trees;
+Vegetation defaults to OSM forest polygons plus mapped OSM trees/rows and
+additional tuned2 Sentinel detections outside forests (6 m deduplication). Run `.venv/bin/python tools/prepare_trees.py` to refresh only trees;
 full map generation also prepares them automatically. The original CSV-based
 generator remains available. See [tree data preparation](docs/TREES.md) for both
 workflows and backups of previous placements. Both publish the separate layer

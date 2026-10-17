@@ -46,7 +46,6 @@ struct Options {
     std::filesystem::path trees;
     std::filesystem::path poles;
     std::filesystem::path guardrails;
-    std::filesystem::path forests;
     std::filesystem::path zombies;
     int frames = 0;
     bool hidden = false, allowSoftware = false, selfTest = false, help = false;
@@ -142,7 +141,8 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--guardrails") options.guardrails = value();
         else if (argument == "--no-guardrails") options.noGuardrails = true;
         else if (argument == "--no-poles") options.noPoles = true;
-        else if (argument == "--forests") options.forests = value();
+        else if (argument == "--forests" || argument == "--forest")
+            throw std::runtime_error("--forests was removed; choose --vegetation osm-tuned2, orthophoto, osm, sentinel-astra or none");
         else if (argument == "--vegetation") options.vegetation.select(value());
         else if (argument == "--osm-vegetation")
             throw std::runtime_error("--osm-vegetation was replaced by --vegetation osm");
@@ -216,13 +216,11 @@ Options parseOptions(int argc, char** argv) {
     if (options.noTrees && !options.trees.empty())
         throw std::runtime_error("Use either --trees FILE or --no-trees");
     (void)viewer::vegetationPaths(options.vegetation, options.model, VIEWER_FOREST_CONFIG,
-                                  options.trees, options.forests);
+                                  options.trees);
     if (options.noPoles && !options.poles.empty())
         throw std::runtime_error("Use either --poles FILE or --no-poles");
     if (options.noGuardrails && !options.guardrails.empty())
         throw std::runtime_error("Use either --guardrails FILE or --no-guardrails");
-    if (!options.forests.empty() && (options.noForests || options.noTrees))
-        throw std::runtime_error("Use --forests FILE without --no-forests/--no-trees");
     if (options.noZombies && options.explicitZombies)
         throw std::runtime_error("Use zombie options or --no-zombies, not both");
     if (options.zombieView && options.fps)
@@ -260,8 +258,7 @@ void printHelp() {
               << "  --collision-debug   Show colliders and ground normal (F3)\n"
               << "  --trees FILE        Load a tree instance JSON explicitly\n"
               << "  --no-trees          Disable individual trees and runtime forests\n"
-              << "  --forests FILE      Load runtime woodland polygons explicitly\n"
-              << "  --vegetation MODE  Select original (default), osm or sentinel-astra; one source only\n"
+              << "  --vegetation MODE  Select osm-tuned2 (default), orthophoto, osm, sentinel-astra or none\n"
               << "  --no-forests        Disable runtime forests, keep individual trees\n"
               << "  --no-fences         Disable fence panels, shadows and collisions\n"
               << "  --poles FILE        Load a mapped pole column JSON explicitly\n"
@@ -784,7 +781,7 @@ int run(const Options& options) {
     for (const auto& warning : model.warnings) std::cerr << "Model warning: " << warning << '\n';
     std::optional<viewer::TreeLayer> trees;
     const auto vegetation = viewer::vegetationPaths(options.vegetation, options.model,
-        VIEWER_FOREST_CONFIG, options.trees, options.forests);
+        VIEWER_FOREST_CONFIG, options.trees);
     if (!options.noTrees && !vegetation.trees.empty()) {
         const bool explicitTrees = vegetation.requireTrees;
         const auto& path = vegetation.trees;
@@ -805,7 +802,7 @@ int run(const Options& options) {
         }
     }
     std::optional<viewer::ForestLayer> forests;
-    if (!options.noTrees && !options.noForests) {
+    if (!options.noTrees && !options.noForests && !vegetation.forests.empty()) {
         const bool explicitForests = vegetation.requireForests;
         const auto& path = vegetation.forests;
         if (explicitForests || (model.geographicFrame && std::filesystem::exists(path))) {

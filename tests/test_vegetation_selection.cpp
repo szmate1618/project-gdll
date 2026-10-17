@@ -1,48 +1,52 @@
 #include "vegetation_selection.hpp"
-
 #include <iostream>
 #include <stdexcept>
 
 namespace {
-void require(bool value, const char* message) {
-    if (!value) throw std::runtime_error(message);
-}
+void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
 template<class Function> void rejects(Function function) {
     bool rejected = false;
     try { function(); } catch (const std::runtime_error&) { rejected = true; }
     require(rejected, "Invalid vegetation selection was accepted");
 }
 }
-
 int main() {
     try {
-        viewer::VegetationSelection original;
-        auto paths = viewer::vegetationPaths(original, "maps/town.glb", "assets/forest_patches.json");
-        require(paths.trees == "maps/trees.instances.json" && paths.forests == "assets/forest_patches.json",
-                "Default vegetation paths changed");
-        require(!paths.requireTrees && !paths.requireForests, "Implicit defaults must retain optional loading");
-        for (const auto* mode : {"original", "osm", "sentinel-astra"}) {
+        viewer::VegetationSelection defaults;
+        auto paths = viewer::vegetationPaths(defaults, "maps/town.glb", "assets/forest_patches.json");
+        require(paths.trees == "maps/trees.instances.json" && paths.forests == "maps/osm/forest_patches.json",
+                "Default must combine trees and use OSM forests");
+        require(!paths.requireTrees && !paths.requireForests, "Sample maps retain optional automatic loading");
+        for (const auto* mode : {"osm-tuned2", "orthophoto", "osm", "sentinel-astra", "none"}) {
             viewer::VegetationSelection selected;
             selected.select(mode);
             paths = viewer::vegetationPaths(selected, "maps/town.glb", "assets/forest_patches.json");
-            require(paths.requireForests, "Explicit source must not silently skip stale or missing forests");
-            if (selected.source == viewer::VegetationSource::Osm) {
-                require(paths.trees == "maps/osm/trees.instances.json" && paths.forests == "maps/osm/forest_patches.json",
-                        "OSM vegetation mixed with original paths");
-                require(paths.requireTrees, "Missing OSM trees must be reported");
-            } else if (selected.source == viewer::VegetationSource::SentinelAstra) {
-                require(paths.trees.empty() && !paths.requireTrees, "Astra must not load original detected trees");
-                require(paths.forests == "assets/forest_patches_astra.json", "Incorrect Astra forest configuration");
-            } else require(paths.requireTrees, "Explicit original must require its tree dataset");
-            for (const auto* other : {"original", "osm", "sentinel-astra"})
+            if (selected.source == viewer::VegetationSource::None) {
+                require(paths.trees.empty() && paths.forests.empty(), "None must disable all vegetation");
+            } else {
+                require(paths.requireForests, "Explicit source must require its forests");
+                if (selected.source == viewer::VegetationSource::SentinelAstra) {
+                    require(paths.trees.empty() && !paths.requireTrees, "Astra trees come only from polygons");
+                    require(paths.forests == "assets/forest_patches_astra.json", "Wrong Astra forests");
+                } else {
+                    require(paths.requireTrees, "Explicit preset must require its tree layer");
+                    if (selected.source == viewer::VegetationSource::Orthophoto)
+                        require(paths.trees == "maps/trees.original.instances.json" && paths.forests == "assets/forest_patches.json",
+                                "Orthophoto must select preserved detections and original polygons");
+                    else if (selected.source == viewer::VegetationSource::Osm)
+                        require(paths.trees == "maps/osm/trees.instances.json", "Wrong OSM tree file");
+                    else require(paths.trees == "maps/trees.instances.json", "Wrong combined tree file");
+                }
+            }
+            for (const auto* other : {"osm-tuned2", "orthophoto", "osm", "sentinel-astra", "none"})
                 rejects([&] { selected.select(other); });
-            rejects([&] { viewer::vegetationPaths(selected, "map.glb", "forest.json", "custom-trees.json"); });
-            rejects([&] { viewer::vegetationPaths(selected, "map.glb", "forest.json", {}, "custom-forests.json"); });
+            rejects([&] { viewer::vegetationPaths(selected, "map.glb", "forest.json", "custom.json"); });
         }
-        rejects([] { viewer::VegetationSelection selection; selection.select("unknown"); });
-        paths = viewer::vegetationPaths(original, "map.glb", "forest.json", "trees.json", "custom.json");
-        require(paths.trees == "trees.json" && paths.forests == "custom.json" && paths.requireTrees && paths.requireForests,
-                "Legacy explicit file selection changed");
-        std::cout << "Vegetation source selection, exclusivity and path checks passed\n";
+        for (const auto* invalid : {"original", "unknown"})
+            rejects([&] { viewer::VegetationSelection selected; selected.select(invalid); });
+        paths = viewer::vegetationPaths(defaults, "maps/map.glb", "forest.json", "custom-trees.json");
+        require(paths.trees == "custom-trees.json" && paths.forests == "maps/osm/forest_patches.json" && paths.requireTrees,
+                "Tree override must retain the default forest preset");
+        std::cout << "Vegetation preset paths and exclusivity checks passed\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

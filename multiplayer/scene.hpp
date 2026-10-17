@@ -9,6 +9,7 @@
 #include "tree_layer.hpp"
 #include "zombie_layer.hpp"
 #include "weapons.hpp"
+#include "vegetation_selection.hpp"
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -20,6 +21,7 @@ struct Options {
     std::string address = "127.0.0.1:27020";
     std::uint16_t port = 27020;
     std::optional<glm::vec2> spawn;
+    viewer::VegetationSelection vegetation;
     std::size_t zombieCount = 100;
     float zombieRadius = 100;
     bool trees = true, forests = true, headless = false, hidden = false, bot = false;

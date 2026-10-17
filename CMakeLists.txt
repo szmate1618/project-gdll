@@ -152,6 +152,9 @@ target_include_directories(viewer_fingerprints PUBLIC "${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(viewer_fingerprints PRIVATE OpenSSL::Crypto)
 viewer_warnings(viewer_fingerprints)
 
+add_library(viewer_vegetation STATIC src/vegetation_selection.cpp)
+viewer_warnings(viewer_vegetation)
+
 add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp src/tree_color.cpp src/tree_canopy.cpp)
 target_link_libraries(viewer_trees PUBLIC viewer_model viewer_visibility viewer_fingerprints)
 target_include_directories(viewer_trees SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
@@ -312,9 +315,9 @@ add_library(viewer_scene_audio STATIC src/scene_audio.cpp)
 target_link_libraries(viewer_scene_audio PUBLIC viewer_audio viewer_audio_cues viewer_fps viewer_zombies)
 viewer_warnings(viewer_scene_audio)
 
-add_executable(godollo_viewer src/main.cpp src/vegetation_selection.cpp src/collision_debug.cpp
+add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp
     src/reticle_overlay.cpp src/gpu_timer.cpp)
-target_link_libraries(godollo_viewer PRIVATE
+target_link_libraries(godollo_viewer PRIVATE viewer_vegetation
     viewer_renderer viewer_fps viewer_interaction viewer_objects viewer_poles viewer_guardrails viewer_weapons viewer_scene_audio glfw
 )
 target_compile_definitions(godollo_viewer PRIVATE
@@ -484,7 +487,8 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_forests)
     add_test(NAME viewer_forests COMMAND test_forests)
 
-    add_executable(test_vegetation_selection tests/test_vegetation_selection.cpp src/vegetation_selection.cpp)
+    add_executable(test_vegetation_selection tests/test_vegetation_selection.cpp)
+    target_link_libraries(test_vegetation_selection PRIVATE viewer_vegetation)
     target_include_directories(test_vegetation_selection PRIVATE src)
     viewer_warnings(test_vegetation_selection)
     add_test(NAME viewer_vegetation_selection COMMAND test_vegetation_selection)

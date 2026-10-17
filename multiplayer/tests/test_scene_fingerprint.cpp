@@ -24,6 +24,16 @@ int main(int argc, char** argv) {
             file << "abc";
             if (!file) throw std::runtime_error("Cannot write fingerprint fixture");
         }
+        for (const auto* mode : {"osm-tuned2", "orthophoto", "osm", "sentinel-astra", "none"}) {
+            const char* args[] = {"client", "--vegetation", mode};
+            const auto selected = multiplayer::parseOptions(3, const_cast<char**>(args), false);
+            require(selected.vegetation.explicitSelection, "Multiplayer ignored vegetation selection");
+            const char* repeated[] = {"server", "--vegetation", mode, "--vegetation", "osm"};
+            bool rejected = false;
+            try { (void)multiplayer::parseOptions(5, const_cast<char**>(repeated), true); }
+            catch (const std::runtime_error&) { rejected = true; }
+            require(rejected, "Multiplayer accepted conflicting vegetation presets");
+        }
         multiplayer::Options options;
         options.forests = false;
         const glm::vec3 spawn{1.5f, -2.25f, 0};
@@ -48,6 +58,13 @@ int main(int argc, char** argv) {
         require(multiplayer::sceneFingerprint(changed, 7, spawn, {first}) != fingerprint, "Tree setting was not fingerprinted");
         changed = options; changed.forests = true;
         require(multiplayer::sceneFingerprint(changed, 7, spawn, {first}) != fingerprint, "Forest setting was not fingerprinted");
+        changed = options;
+        changed.vegetation.select("none");
+        auto disabled = options;
+        disabled.trees = disabled.forests = false;
+        require(multiplayer::sceneFingerprint(changed, 7, spawn, {first}) ==
+                multiplayer::sceneFingerprint(disabled, 7, spawn, {first}),
+                "None preset must fingerprint the effective disabled vegetation");
         options.zombieRadius = 999.25f; options.trees = false; options.forests = true;
         require(multiplayer::sceneFingerprint(options, 1024, {0, .1f, -123.5f}, {first}) ==
                 "38d30825cba2c434c1e0c1ad76bd793238dfa006b0bf3ccc02b1bea52d5df2ac",

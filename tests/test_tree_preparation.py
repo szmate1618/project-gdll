@@ -19,6 +19,7 @@ class DefaultTreePreparationTests(SatelliteTreeFixture, unittest.TestCase):
         exclusions = self.root / "osm/forest_patches.json"
         exclusions.parent.mkdir()
         exclusions.write_text(json.dumps({"source": {"map_sha256": hashlib.sha256(self.map_path.read_bytes()).hexdigest()}}))
+        self.write_layer(exclusions.parent)
 
     def write_layer(self, directory):
         directory.mkdir(parents=True, exist_ok=True)
@@ -26,11 +27,13 @@ class DefaultTreePreparationTests(SatelliteTreeFixture, unittest.TestCase):
         import os
         document = {"schema": "godollo.tree-instances", "version": 1,
                     "map": {"path": os.path.relpath(self.map_path, directory),
-                            "map_sha256": digest(self.map_path)},
+                            "map_sha256": digest(self.map_path), "crs": self.frame["crs"],
+                            "origin_projected_m": list(self.frame["origin"]), "units": "meters"},
                     "assets": {"tree": {"path": os.path.relpath(self.asset, directory),
                                         "sha256": digest(self.asset)}},
                     "source": {"method": "astra_recall_with_negative_colour_context_filter"},
-                    "instances": []}
+                    "instances": [], "transforms": {"matrix_authoritative": True, "units": "meters",
+                        "matrix_layout": "column-major", "axes": {"X": "east", "Y": "up", "Z": "south"}}}
         path = directory / "trees.instances.json"
         path.write_text(json.dumps(document))
         return path
@@ -46,7 +49,7 @@ class DefaultTreePreparationTests(SatelliteTreeFixture, unittest.TestCase):
         document = json.loads(self.target.read_text())
         self.assertEqual(document["map"]["path"], "map.glb")
         self.assertEqual(document["assets"]["tree"]["path"], "tree.glb")
-        self.assertEqual(document["source"]["default_preparation"], "tuned2")
+        self.assertEqual(document["source"]["default_preparation"], "osm-tuned2")
         self.assertEqual(self.target.with_name("trees.original.instances.json").read_bytes(), self.original)
         self.assertTrue((self.root / "satellite_trees/tuned2-osm/trees.instances.json").exists())
 

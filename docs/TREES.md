@@ -1,7 +1,7 @@
 # Preparing individual tree placements
 
-The default individual-tree generator is tuned2 using native Sentinel RGB pixels
-and OSM forest exclusion polygons. It uses the fixed Astra colour/context model
+Default preparation combines mapped OSM trees and row samples with tuned2
+proposals from native Sentinel RGB pixels outside OSM forest polygons. Tuned2 uses the fixed Astra colour/context model
 with a 0.40 keep threshold. Prepare trees for the existing town with:
 
 ```bash
@@ -10,7 +10,8 @@ with a 0.40 keep threshold. Prepare trees for the existing town with:
 .venv/bin/python -m src.generate --trees-only --offline
 ```
 
-Both publish `output/trees.instances.json`, which the viewer and multiplayer
+OSM trees take priority over tuned2 points within 6 m. Both commands publish
+the combined `output/trees.instances.json`, which the viewer and multiplayer
 load by default. The first previous dataset is preserved byte-for-byte as
 `output/trees.original.instances.json`; later differing defaults get uniquely
 named `trees.previous.<sha256>.instances.json` backups beside the map. The

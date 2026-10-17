@@ -36,35 +36,40 @@ The prior configuration is preserved locally at
 
 ## Select one vegetation source
 
-Use `--vegetation` once, with exactly one of these values:
+Use `--vegetation` once to select forests and individual trees together:
 
-| Value | Forests | Individual trees |
-| --- | --- | --- |
-| `original` (default) | `forest_patches.json` | Default placements beside the map (now tuned2 with OSM exclusions) |
-| `osm` | `osm/forest_patches.json` beside the map | `osm/trees.instances.json` beside the map |
-| `sentinel-astra` | `forest_patches_astra.json` beside the original forest config | Generated only from the Astra polygons |
+| Value | Loads forests? | Forest polygons | Individual trees |
+| --- | --- | --- | --- |
+| `osm-tuned2` (default) | Yes | OSM | OSM trees and row samples + tuned2, deduplicated |
+| `orthophoto` | Yes | Original orthophoto-reviewed polygons | Preserved orthophoto CSV detections |
+| `osm` | Yes | OSM | OSM trees and row samples |
+| `sentinel-astra` | Yes | Astra | Generated inside its forest polygons; no separate point dataset |
+| `none` | No | None | None |
 
 ```bash
-./build/godollo_viewer output/godollo.glb --vegetation original
+./build/godollo_viewer output/godollo.glb --vegetation osm-tuned2
+./build/godollo_viewer output/godollo.glb --vegetation orthophoto
 ./build/godollo_viewer output/godollo.glb --vegetation osm
 ./build/godollo_viewer output/godollo.glb --vegetation sentinel-astra
+./build/godollo_viewer output/godollo.glb --vegetation none
 ```
 
-Modes are exclusive. Repeating `--vegetation`, even with the same value, is an
-error. Explicit modes reject `--trees` and `--forests` file overrides and report
-missing or stale selected files; no other source is substituted. Omitting the
-flag retains the original automatic loading behavior and permits those manual
-file overrides. `--no-trees` disables all vegetation. `--no-forests` disables
-forest polygons and their generated trees, retaining any separate tree instances
-in the selected mode; Sentinel-Astra has no separate tree-instance file.
-The former `--osm-vegetation` flag is replaced by `--vegetation osm`.
+The multiplayer client and server use the same presets. Repeating the flag is
+an error, including repeated identical values. Explicit presets reject the
+advanced `--trees FILE` override available in the viewer and require matching
+files rather than substituting another dataset. The old `original` value is
+renamed `orthophoto`. The forest-file override `--forests` has been removed;
+forest selection comes from the preset.
 
-The `original` mode name retains the original runtime forest selection; its
-individual-tree file is the prepared default `output/trees.instances.json`.
-Use `tools/prepare_trees.py` to produce tuned2 placements with OSM exclusion
-polygons. This exclusion choice does not change the runtime forest selection.
-To view preserved CSV placements instead, omit `--vegetation` and pass
-`--trees output/trees.original.instances.json`.
+`--no-forests` is a rendering toggle: it disables forest volumes and their
+generated trees while keeping individual tree instances. `--no-trees` disables
+all vegetation; `--vegetation none` is the corresponding source preset.
+
+Default preparation uses `tools/prepare_trees.py`. It retains every OSM mapped
+tree and tree-row sample, suppresses tuned2 points within 6 m of them, and
+publishes the combined result to `output/trees.instances.json`. The separate
+OSM and tuned2 inputs are preserved. Orthophoto mode reads
+`output/trees.original.instances.json` and root `forest_patches.json`.
 
 ## Optional OpenStreetMap vegetation
 
@@ -78,9 +83,9 @@ Prepare an independent OSM vegetation layer for the published map:
 `--vegetation osm` selects **only** `output/osm/trees.instances.json` and
 `output/osm/forest_patches.json` (the `osm/` directory beside the selected map).
 It does not mix in the default trees or forests. Missing, stale or invalid OSM
-files are errors. Select `--vegetation original` to return to the existing data. `--no-forests`
+files are errors. Select `--vegetation orthophoto` to return to the existing data. `--no-forests`
 retains just the OSM individual trees; `--no-trees` disables all vegetation.
-Explicit `--trees`/`--forests` overrides cannot be combined with this flag.
+Explicit `--trees` overrides cannot be combined with this flag.
 
 Preparation downloads a separate cached Overpass query. Use `--offline` for a
 cached extract, `--refresh` to update it, or `--input FILE.json` for a local OSM
@@ -117,8 +122,8 @@ preparation against the new published GLB; fingerprint validation stays enabled.
 [`forest_patches_astra.json`](../forest_patches_astra.json) is an alternative
 configuration traced by GPT-6 Astra from the cached Sentinel-2 satellite RGB
 imagery only. It does not use the orthophotos or intersect with the existing
-conservative cores. The original `forest_patches.json` remains the runtime
-default, and the earlier satellite configuration is retained in its location
+conservative cores. The original `forest_patches.json` remains the orthophoto
+configuration, and the earlier satellite configuration is retained in its location
 above. The alternative uses the same published map frame, fingerprint checks,
 runtime assets and at-most-500 m subdivisions.
 
@@ -178,7 +183,7 @@ clearings, narrow roads and individual crowns cannot be reliably resolved.
 ```bash
 ./build/godollo_viewer output/godollo.glb
 # Select another configuration, or disable only the runtime forests:
-./build/godollo_viewer output/godollo.glb --forests forest_patches.json
+./build/godollo_viewer output/godollo.glb --vegetation orthophoto
 ./build/godollo_viewer output/godollo.glb --no-forests
 ```
 
@@ -267,7 +272,7 @@ Asset paths are relative to the configuration file. `--no-trees` disables both
 detected trees and runtime forests; `--no-forests` retains detected trees.
 `--no-tree-culling`, `--no-tree-collisions`, and `--no-tree-shadows` apply to both
 tree sources. Automatic loading logs and skips incompatible configuration;
-explicit `--forests FILE` reports it as an error. The map checksum and frame
+an explicit `--vegetation` preset reports it as an error. The map checksum and frame
 must match the recorded provenance. Forests are generated from approximate
 canopy polygons and can still cross narrow roads or small unmapped clearings.
 
