@@ -1,0 +1,173 @@
+{
+  "schema": "godollo.satellite_tree_precision_model",
+  "version": 1,
+  "model": {
+    "feature_names": [
+      "red",
+      "green",
+      "blue",
+      "greenness",
+      "mean3_red",
+      "mean3_green",
+      "mean3_blue",
+      "std3_brightness",
+      "mean3_greenness",
+      "max3_greenness",
+      "std3_greenness",
+      "mean5_greenness",
+      "std5_brightness",
+      "brightness_minus_mean3"
+    ],
+    "feature_mean": [
+      84.005203810883,
+      80.00005146862905,
+      52.7826283698244,
+      0.1643750057570262,
+      85.61657465175361,
+      81.15981125719445,
+      54.042969608881045,
+      11.963898244283332,
+      0.16409403957053817,
+      0.2551471311603672,
+      0.054384555473853693,
+      0.16145051470870048,
+      16.545039425606276,
+      -1.3438239561645065
+    ],
+    "feature_scale": [
+      42.90056628031841,
+      28.62902043768648,
+      26.442588266700085,
+      0.15781575227352837,
+      41.47908011670659,
+      27.710170343598598,
+      25.55960818734942,
+      10.318681954243205,
+      0.1488668751243317,
+      0.15799674025351093,
+      0.02946491078051567,
+      0.14223412031707475,
+      12.899674103838347,
+      8.057149796423564
+    ],
+    "coefficients": [
+      -0.43496079019350103,
+      -0.6677803224394732,
+      0.11564532260337446,
+      -0.42773821883562385,
+      -0.5011615581922372,
+      -0.7355737723924537,
+      0.09231670293132,
+      0.5987540149450231,
+      -0.39399181760858054,
+      -0.44134875554095465,
+      -0.2206171983625582,
+      -0.05160153534481955,
+      0.07023280930899413,
+      0.16924887545622158,
+      0.03718817071345579,
+      0.16800797020014924,
+      0.029224643343232506,
+      0.1160677569152526,
+      0.17679419328589724,
+      0.15149803713997237,
+      0.039784853558622595,
+      0.014285034632235984,
+      0.32820925562708686,
+      -0.41347308482592915,
+      0.07540914157337121,
+      0.7608308804272639,
+      -0.17144846026710323,
+      0.08402375770224446
+    ],
+    "intercept": -1.2413474425810325,
+    "regularization": 0.03,
+    "feature_expansion": "standardized_linear_and_squares_clipped_8",
+    "minimum_score": 0.4
+  },
+  "map_sha256": "a98d8bd007c07260533749aefff16cb00de54cf104dd4cf38438dcc4bf3992c5",
+  "forest_sha256": "e551ff205966041f8bc71570d41751e6593d8fc4942208ab57d815fb7afb0b1c",
+  "satellite_sha256": "84ccd98ca110f886e33da37a9b2e2d580e9aee2eb85384083cbe3845bcf17911",
+  "recall_profile_sha256": "557ea8d28f9c7f88da2cc68c8b1c4fe1b5318910f34c0f5bf551a6257e82a389",
+  "calibration": {
+    "unique_rectangles": 11,
+    "negative_samples": 3783,
+    "positive_reference_training_samples": 6837,
+    "forest_training_samples": 4000,
+    "positive_reference_mean_rgb": [
+      111.57693787556171,
+      96.06770738978744,
+      70.78828210638724
+    ],
+    "negative_mean_rgb": [
+      93.05019755826177,
+      86.76862579526602,
+      56.18970849087472
+    ],
+    "leave_one_rectangle_out_rejected_fraction": 0.7343378271213322,
+    "leave_one_rectangle_out_mean_rectangle_rejected_fraction": 0.6036308775054704,
+    "positive_training_kept_fraction": 0.7462337282433816,
+    "forest_training_kept_fraction": 0.97425,
+    "fingerprints": {
+      "assets/satellite_trees/astra_negative_rectangles.json": "cec4e893963d04d4d2203e0baebd37344ea977bac50520acd029b0ff234ff333",
+      "assets/satellite_trees/astra_recall_model.json": "557ea8d28f9c7f88da2cc68c8b1c4fe1b5318910f34c0f5bf551a6257e82a389",
+      "forest_patches_astra.json": "e551ff205966041f8bc71570d41751e6593d8fc4942208ab57d815fb7afb0b1c",
+      "data/raw/sentinel/sentinel_rgb_1634a030a25fb17e.tif": "84ccd98ca110f886e33da37a9b2e2d580e9aee2eb85384083cbe3845bcf17911",
+      "output/godollo.glb": "a98d8bd007c07260533749aefff16cb00de54cf104dd4cf38438dcc4bf3992c5",
+      "output/trees.instances.json": "01a8e44fdca7a1673b04e14550a176432d62c50abc1b2a0bcbb6acdb2d6ac92e",
+      "output/satellite_trees/sentinel-astra-tuned/trees.instances.json": "8a3adbe0bc9751cf1aeed2187b54cc391176d5e432b60ce3dcd7865a8e66d88e"
+    },
+    "sampling": "5 m stratified cell centres, four-neighbour bilinear colours and context",
+    "note": "Equal total negative weight per rectangle; positives split equally between forest and older missed references. Scores are not calibrated probabilities.",
+    "operating_point": {
+      "previous": {
+        "minimum_score": 0.5,
+        "candidates": 29196,
+        "validation_matches": 1629,
+        "validation_references": 3182,
+        "validation_coverage": 0.5119421747328724,
+        "reviewed_rectangle_candidates": 14
+      },
+      "chosen": {
+        "minimum_score": 0.4,
+        "candidates": 38968,
+        "validation_matches": 2096,
+        "validation_references": 3182,
+        "validation_coverage": 0.6587052168447517,
+        "reviewed_rectangle_candidates": 40
+      },
+      "target_validation_coverage": 0.655,
+      "strictest_unrounded_threshold": 0.40288376300873685,
+      "curve": [
+        {
+          "minimum_score": 0.5,
+          "candidates": 29196,
+          "validation_matches": 1629,
+          "validation_references": 3182,
+          "validation_coverage": 0.5119421747328724,
+          "reviewed_rectangle_candidates": 14
+        },
+        {
+          "minimum_score": 0.45,
+          "candidates": 34283,
+          "validation_matches": 1886,
+          "validation_references": 3182,
+          "validation_coverage": 0.5927089880578252,
+          "reviewed_rectangle_candidates": 28
+        },
+        {
+          "minimum_score": 0.4,
+          "candidates": 38968,
+          "validation_matches": 2096,
+          "validation_references": 3182,
+          "validation_coverage": 0.6587052168447517,
+          "reviewed_rectangle_candidates": 40
+        }
+      ],
+      "reference_definition": "Previously missed original placements in reserved tiles, outside 20 m negative buffers; candidate within 20 m.",
+      "interpretation": "Threshold selected using these references; resulting coverage is validation coverage, not an independent held-out test.",
+      "coefficient_fitting_unchanged": true,
+      "tuned_instances_sha256": "8a3adbe0bc9751cf1aeed2187b54cc391176d5e432b60ce3dcd7865a8e66d88e"
+    }
+  }
+}

@@ -1,0 +1,131 @@
+{
+  "schema": "godollo.satellite_tree_recall_model",
+  "version": 1,
+  "map_sha256": "a98d8bd007c07260533749aefff16cb00de54cf104dd4cf38438dcc4bf3992c5",
+  "forest_sha256": "e551ff205966041f8bc71570d41751e6593d8fc4942208ab57d815fb7afb0b1c",
+  "satellite_sha256": "84ccd98ca110f886e33da37a9b2e2d580e9aee2eb85384083cbe3845bcf17911",
+  "baseline_color_model": {
+    "mean_rgb": [
+      34.91451035859888,
+      47.87708350667,
+      26.570277615996893
+    ],
+    "covariance_rgb": [
+      [
+        500.61072145605885,
+        304.9794519686965,
+        258.506091294255
+      ],
+      [
+        304.9794519686965,
+        244.63715929448406,
+        177.80834164142675
+      ],
+      [
+        258.506091294255,
+        177.80834164142675,
+        180.43569582519285
+      ]
+    ],
+    "inverse_covariance_rgb": [
+      [
+        0.010649826400819896,
+        -0.007707243490508998,
+        -0.007662745477500921
+      ],
+      [
+        -0.007707243490508999,
+        0.019983209503583017,
+        -0.008650239333090982
+      ],
+      [
+        -0.00766274547750092,
+        -0.008650239333090984,
+        0.025044662431805222
+      ]
+    ],
+    "distance_squared_limit": 1.769961929327404,
+    "minimum_greenness": 0.1111111111111111,
+    "training_pixels": 72114,
+    "color_quantile": 0.9,
+    "reference_rgb_noise_floor": 5.0
+  },
+  "model": {
+    "mean_rgb": [
+      111.52283317087642,
+      96.02761588770403,
+      70.72522350557954
+    ],
+    "covariance_rgb": [
+      [
+        1207.607595506591,
+        880.3922102664365,
+        823.5120662105677
+      ],
+      [
+        880.3922102664365,
+        819.7360710939168,
+        754.3596595932383
+      ],
+      [
+        823.5120662105677,
+        754.3596595932383,
+        797.891395244871
+      ]
+    ],
+    "inverse_covariance_rgb": [
+      [
+        0.0038408880615644226,
+        -0.0036705924897545966,
+        -0.0004938902273343936
+      ],
+      [
+        -0.0036705924897546018,
+        0.01289459943050317,
+        -0.008402632828836522
+      ],
+      [
+        -0.000493890227334388,
+        -0.008402632828836529,
+        0.009707250696273541
+      ]
+    ],
+    "distance_squared_limit": 3.331853593109077,
+    "minimum_greenness": 0.017817690759214314,
+    "minimum_neighbourhood_greenness": 0.1111111111111111,
+    "reference_canopy_minimum_greenness": 0.1111111111111111,
+    "training_samples": 6873,
+    "color_quantile": 0.85,
+    "greenness_quantile": 0.35,
+    "neighbourhood_greenness_quantile": 0.25,
+    "neighbourhood_size_pixels": 3,
+    "reference_rgb_noise_floor": 5.0
+  },
+  "calibration": {
+    "missed_distance_m": 20.0,
+    "matching_radius_m": 20.0,
+    "interpolation": "four-neighbour bilinear RGB, inverse pixel-edge affine minus 0.5",
+    "training_samples": 6873,
+    "held_out_samples": 3211,
+    "tile_size_m": 250.0,
+    "training_tile_boundary_buffer_m": 20.0,
+    "split": "250 m spatial tiles; ((tile_east*73856093 XOR tile_north*19349663) % 4) == 0 held out; training stays >20 m from every tile edge",
+    "reference_year": 2016,
+    "sentinel_scene": "S2A_34TCT_20250813_0_L2A",
+    "fingerprints": {
+      "forest_patches_astra.json": "e551ff205966041f8bc71570d41751e6593d8fc4942208ab57d815fb7afb0b1c",
+      "output/trees.instances.json": "01a8e44fdca7a1673b04e14550a176432d62c50abc1b2a0bcbb6acdb2d6ac92e",
+      "output/satellite_trees/sentinel-astra/trees.instances.json": "f716729a802b5a215735fb3df8b0f568e5d050603f3c313a0d8f5742b35b0fe1",
+      "output/godollo.glb": "a98d8bd007c07260533749aefff16cb00de54cf104dd4cf38438dcc4bf3992c5",
+      "config.json": "66d9fb49f37b1176eceb746e091b3ab547d33be61723cb8b119808f6a9b51f3f",
+      "data/raw/sentinel/sentinel_rgb_1634a030a25fb17e.tif": "84ccd98ca110f886e33da37a9b2e2d580e9aee2eb85384083cbe3845bcf17911"
+    },
+    "audit_statistics_sha256": "ddadf3e30d5a4cd5bb0129e3f1500aeb4e2b90529d3cdc4101a0bc240c613c12",
+    "recipe": "Preserve baseline; add 85% colour ellipsoid, 35th-percentile centre greenness, 25th-percentile 3x3 peak greenness bounded below by forest greenness floor; retain 12 m spacing.",
+    "limitations": [
+      "Positive-only older detections, not ground truth.",
+      "No original coordinates are copied into proposals; only global colour/context statistics are fitted.",
+      "No held-out samples used to fit the model or select thresholds."
+    ]
+  }
+}

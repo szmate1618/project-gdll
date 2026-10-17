@@ -18,6 +18,23 @@ This preserves the detector placements and selects only mapped OSM trees,
 approximated tree rows and OSM forests. See
 [OSM vegetation preparation and controls](FORESTS.md#optional-openstreetmap-vegetation).
 
+## Tuned2 Sentinel alternative
+
+The tuned2 detector proposes individual trees from native Sentinel RGB pixels,
+using a saved colour/context model and an explicitly supplied forest exclusion
+file. It keeps its placements separate from the original detections:
+
+```bash
+.venv/bin/python tools/detect_tuned2_trees.py \
+  --forest-exclusions forest_patches_astra.json
+```
+
+The exclusion file may instead contain OSM or other forests matching the
+published map. The Astra colour-reference data and calibrated model stay fixed.
+See [tuned2 preparation](TUNED2_TREES.md) for input requirements, output files,
+viewer commands and limitations. The full experiment and interactive comparison
+sources are preserved on the local `experiments/satellite-tree-detection` branch.
+
 ## Run the local example
 
 Use the existing Python environment from the [project setup](../README.md#setup-and-run-on-linux),
