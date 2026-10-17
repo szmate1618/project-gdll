@@ -108,6 +108,31 @@ class Tuned2PreparationTests(SatelliteTreeFixture,unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'separate output'):
             prepare_tuned2_trees(self.forest_path,**{**self.arguments,'output_dir':self.map_path.parent})
 
+    def test_rebuilt_map_reuses_calibration_only_with_exact_reference_and_image(self):
+        prepare_tuned2_trees(self.forest_path, **self.arguments)
+        before = json.loads((self.output/'trees.instances.json').read_text())
+        from src.glb import read_glb, pack_glb
+        document, binary = read_glb(self.map_path.read_bytes())
+        document['scenes'][document.get('scene', 0)]['extras']['geometry_revision'] = 2
+        self.map_path.write_bytes(pack_glb(document, binary))
+        exclusions = json.loads(self.forest_path.read_text())
+        exclusions['source']['map_sha256'] = hashlib.sha256(self.map_path.read_bytes()).hexdigest()
+        path = self.root/'rebuilt-map-exclusions.json'
+        path.write_text(json.dumps(exclusions))
+        with self.assertRaisesRegex(ValueError, 'training data does not match'):
+            prepare_tuned2_trees(path, **self.arguments)
+        prepare_tuned2_trees(path, reuse_calibration=True, **self.arguments)
+        after = json.loads((self.output/'trees.instances.json').read_text())
+        self.assertEqual(after['instances'], before['instances'])
+        self.assertEqual(after['map']['map_sha256'], exclusions['source']['map_sha256'])
+        self.assertEqual(after['source']['calibration_map_sha256'], before['map']['map_sha256'])
+        self.assertEqual(after['source']['precision_model'], before['source']['precision_model'])
+        reference = json.loads(self.forest_path.read_text())
+        reference['description'] = 'a different calibration reference'
+        self.forest_path.write_text(json.dumps(reference))
+        with self.assertRaisesRegex(ValueError, 'Recall profile does not match'):
+            prepare_tuned2_trees(path, reuse_calibration=True, **self.arguments)
+
 
 if __name__=='__main__':
     unittest.main()

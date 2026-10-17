@@ -12,6 +12,11 @@ colour-reference forests by SHA-256. The precision profile also binds the recall
 profile. The caller's forest exclusion file is a separate input; changing it
 does not alter the learned colour model.
 
+The default `tools/prepare_trees.py` workflow uses OSM exclusions and can reuse
+the calibration after a town rebuild with unchanged imagery and geographic
+frame. The exact reference file, image and base-colour model remain checked;
+the calibration map provenance is distinct from the current runtime map hash.
+
 Inference reads image features and these saved statistics. It does not read
 orthophotos, original tree positions or reviewed rectangle coordinates. The
 scores are not calibrated probabilities, and positions are native pixel-centre

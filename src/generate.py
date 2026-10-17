@@ -32,9 +32,17 @@ from .railways import add_railways
 from .railway_texture import configure_track_sampler
 from .roads import add_roads
 from .terrain import build_terrain
+from .tree_preparation import prepare_trees
 from .verify import inspect_glb
 
 LOG = logging.getLogger("godollo")
+
+
+def _prepare_default_trees(config, map_path, image_path=None):
+    LOG.info("Preparing tuned2 individual trees with OSM forest exclusions")
+    return prepare_trees(map_path=map_path, config_path=Path(config.get("_config_path", ROOT / "config.json")),
+                         root=ROOT, image_path=image_path,
+                         offline=config.get("offline", False), refresh=config.get("refresh", False))
 
 
 def run(config: dict) -> dict:
@@ -43,6 +51,10 @@ def run(config: dict) -> dict:
         (ROOT / directory).mkdir(parents=True, exist_ok=True)
     frame = coordinate_frame(config)
     LOG.info("Gödöllő bbox %s; projected coordinates %s", config["bbox"], config["crs"])
+    if config.get("trees_only"):
+        result = _prepare_default_trees(config, ROOT / "output/godollo.glb")
+        print(json.dumps(result, indent=2))
+        return result
     if config.get("fences_only") and not (ROOT / "output/godollo.glb").is_file():
         raise ValueError("--fences-only requires an existing output/godollo.glb; run the full builder first.")
     if config.get("fences_only"):
@@ -106,6 +118,9 @@ def run(config: dict) -> dict:
               "verification": verification}
     (ROOT / "output" / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     (ROOT / "output" / "ATTRIBUTION.md").write_text(attribution, encoding="utf-8")
+    if not config.get("no_tree_preparation"):
+        report["trees"] = _prepare_default_trees(config, out, image_path=sources.get("sentinel"))
+        (ROOT / "output" / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     LOG.info("Saved %s (%.2f MiB)", out, verification["glb_bytes"] / 1024 ** 2)
     _print_summary(report, out)
     return report
@@ -113,6 +128,7 @@ def run(config: dict) -> dict:
 
 def _print_summary(report: dict, out: Path) -> None:
     print(json.dumps({"output": str(out), "buildings": report["buildings"]["buildings"],
+                      **({"tree_instances": report["trees"]["instances"]} if "trees" in report else {}),
                       "road_segments": report["roads"]["road_segments"],
                       "railway_segments": report["railways"]["railway_segments"],
                       "fence_ways": report["fences"]["fence_ways"],
@@ -127,8 +143,13 @@ def main() -> int:
     mode.add_argument("--offline", action="store_true", help="Use cached inputs only, with no network requests")
     mode.add_argument("--refresh", action="store_true", help="Refresh source searches and downloads")
     parser.add_argument("--verbose", action="store_true", help="Include debug messages and error traceback")
-    parser.add_argument("--fences-only", action="store_true", help="Update fences in the published map, reusing town geometry and terrain")
+    layers = parser.add_mutually_exclusive_group()
+    layers.add_argument("--fences-only", action="store_true", help="Update fences in the published map, reusing town geometry and terrain")
+    layers.add_argument("--trees-only", action="store_true", help="Regenerate default tuned2 trees with OSM exclusions, reusing the town")
+    parser.add_argument("--no-tree-preparation", action="store_true", help="Build town geometry without preparing tuned2 trees")
     args = parser.parse_args()
+    if args.trees_only and args.no_tree_preparation:
+        parser.error("Use --trees-only without --no-tree-preparation")
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
     for noisy in ("rasterio", "PIL", "urllib3", "trimesh"):
@@ -136,6 +157,8 @@ def main() -> int:
     try:
         config = load_config(args.config)
         config["fences_only"] = args.fences_only
+        config.update(trees_only=args.trees_only, no_tree_preparation=args.no_tree_preparation,
+                      _config_path=str(args.config.resolve()))
         if args.offline or args.refresh:
             config.update(offline=args.offline, refresh=args.refresh)
         run(config)

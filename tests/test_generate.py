@@ -51,6 +51,7 @@ class GenerateTests(unittest.TestCase):
             patch.object(generate, "download_sources", return_value=self.sources),
             patch.object(generate, "download_osm", return_value=(self.osm_path, self.sources["provenance"]["osm"])),
             patch.object(generate, "build_terrain", return_value=(self.terrain, mesh, stats)),
+            patch.object(generate, "prepare_trees", return_value={"instances": 17, "method": "tuned2"}),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -86,6 +87,46 @@ class GenerateTests(unittest.TestCase):
         with redirect_stdout(stdout):
             report = generate.run(self.config)
         return report, json.loads(stdout.getvalue())
+
+    def test_full_generation_prepares_default_trees_for_verified_map(self):
+        self.config.update(offline=True, _config_path=str(self.root/'area.json'))
+        self.sources['sentinel'] = self.root/'current-sentinel.tif'
+        def prepare(**options):
+            self.assertTrue(options['map_path'].is_file())
+            self.assertEqual(options['config_path'], self.root/'area.json')
+            self.assertTrue(options['offline'])
+            self.assertEqual(options['root'], self.root)
+            self.assertEqual(options['image_path'], self.sources['sentinel'])
+            return {'instances': 23}
+        with patch.object(generate, 'prepare_trees', side_effect=prepare) as preparation:
+            report, summary = self.run_generator()
+        self.assertEqual(preparation.call_count, 1)
+        self.assertEqual(report['trees']['instances'], 23)
+        self.assertEqual(summary['tree_instances'], 23)
+
+    def test_trees_only_reuses_map_without_building_or_downloading_town(self):
+        self.run_generator()
+        path = self.root/'output/godollo.glb'
+        original = path.read_bytes()
+        self.config['trees_only'] = True
+        with patch.object(generate, 'download_sources', side_effect=AssertionError('No town downloads')), \
+             patch.object(generate, 'build_terrain', side_effect=AssertionError('Reuse terrain')), \
+             patch.object(generate, 'add_buildings', side_effect=AssertionError('Reuse buildings')):
+            report, _ = self.run_generator()
+        self.assertEqual(report['instances'], 17)
+        self.assertEqual(path.read_bytes(), original)
+
+    def test_tree_preparation_error_is_not_a_successful_regeneration(self):
+        with patch.object(generate, 'prepare_trees', side_effect=ValueError('incompatible Sentinel calibration')):
+            with self.assertRaisesRegex(ValueError, 'incompatible Sentinel calibration'):
+                self.run_generator()
+
+    def test_explicit_geometry_only_generation_skips_tree_preparation(self):
+        self.config['no_tree_preparation'] = True
+        with patch.object(generate, 'prepare_trees', side_effect=AssertionError('Explicit geometry only')):
+            report, summary = self.run_generator()
+        self.assertNotIn('trees', report)
+        self.assertNotIn('tree_instances', summary)
 
     def test_railways_reach_verified_glb_report_and_console(self):
         report, summary = self.run_generator()

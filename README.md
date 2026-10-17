@@ -52,9 +52,11 @@ configuration struct is in `src/fps_controller.hpp`. See the
 step, spawn, collision, and debugging behavior. No separate collision file is
 required.
 
-Tree detector CSVs can also be converted into a separate placement layer using
-the shared tree and pine assets. See [tree data preparation](docs/TREES.md) for
-merging CSVs, matching source GeoTIFFs, coordinate conversion, and producing
+Individual trees default to the tuned2 Sentinel detector with OSM forest
+exclusions. Run `.venv/bin/python tools/prepare_trees.py` to refresh only trees;
+full map generation also prepares them automatically. The original CSV-based
+generator remains available. See [tree data preparation](docs/TREES.md) for both
+workflows and backups of previous placements. Both publish the separate layer
 `output/trees.instances.json`. The viewer automatically loads a matching layer
 beside the map, renders shared assets with GPU instancing and frustum culling,
 and uses simple trunk colliders for walking. See [tree rendering controls](docs/VIEWER.md#trees).
@@ -103,7 +105,12 @@ python3 -m venv .venv
 The one generation command downloads missing inputs, processes the rasters,
 builds geometry, exports the GLB, reloads it for verification, and writes
 `output/report.json` with counts, bounds, source provenance, and validation
-results. It exits with a nonzero status and an explanatory message on failure.
+results. It then prepares OSM exclusions and tuned2 individual trees for the
+verified map, publishes `output/trees.instances.json`, and records tree counts.
+It exits with a nonzero status and an explanatory message on failure. The saved
+tree calibration requires its recorded Sentinel image, Astra reference and
+geographic frame; use `--no-tree-preparation` for geometry-only generation with
+other imagery or an uncalibrated area.
 
 Subsequent runs reuse cached source data. No credentials are needed for any of
 the three public endpoints used by the prototype. The initial run needs HTTPS
@@ -119,6 +126,9 @@ runs can use `--offline` again.
 ```bash
 # Rebuild strictly from local files, with no network requests:
 .venv/bin/python -m src.generate --offline
+
+# Regenerate only the default trees, reusing the town map:
+.venv/bin/python -m src.generate --trees-only --offline
 
 # Add or update only fences, reusing the published town and terrain:
 .venv/bin/python -m src.generate --fences-only

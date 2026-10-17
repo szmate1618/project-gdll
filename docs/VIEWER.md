@@ -111,6 +111,12 @@ incompatible, startup explains why it was skipped; an explicitly selected
 invalid layer is an error. Regenerate placements after changing the map or
 the shared GLBs.
 
+The default preparation workflow is now tuned2 with OSM forest exclusions:
+`tools/prepare_trees.py` or `python -m src.generate --trees-only --offline`.
+Preparation updates this separate JSON without rebuilding the town. The first
+previous dataset is preserved as `trees.original.instances.json` beside the map
+and can be selected with `--trees`.
+
 ```bash
 ./build/godollo_viewer output/godollo.glb --trees output/trees.instances.json --fps
 ./build/godollo_viewer output/godollo.glb --vegetation original --fps
@@ -122,7 +128,8 @@ the shared GLBs.
 ```
 
 `--vegetation original|osm|sentinel-astra` selects exactly one vegetation source.
-Original is the default. OSM loads only the prepared OSM forests and trees;
+Original is the default forest mode and loads the prepared default individual
+trees (now tuned2). OSM loads only the prepared OSM forests and trees;
 Sentinel-Astra generates trees from its satellite polygons and excludes the
 original detector placements. Repeated selections and combinations with
 `--trees`/`--forests` overrides are errors. See

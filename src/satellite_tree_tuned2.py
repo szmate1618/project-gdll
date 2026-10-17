@@ -29,7 +29,8 @@ from .tree_map import load_tree_map
 
 def prepare_tuned2_trees(forest_exclusions, *, config_path=ROOT/"config.json", map_path=ROOT/"output/godollo.glb",
                          training_forest_path=None, image_path=None, output_dir=None, asset_path=None,
-                         settings=None, root=ROOT, recall_profile_path=None, precision_profile_path=None):
+                         settings=None, root=ROOT, recall_profile_path=None, precision_profile_path=None,
+                         reuse_calibration=False):
     """Run the fixed colour/context model outside a caller-selected forest file."""
     root, map_path, config_path = Path(root).resolve(), Path(map_path).resolve(), Path(config_path).resolve()
     exclusion_path = Path(forest_exclusions).resolve()
@@ -53,7 +54,11 @@ def prepare_tuned2_trees(forest_exclusions, *, config_path=ROOT/"config.json", m
     fingerprints.update({path:file_sha256(path) for path in (image_path,asset_path)})
     terrain,frame,map_info = load_tree_map(map_path,load_config(config_path))
     validate_forest_frame(exclusion_doc,frame,terrain,map_info,"exclusion")
-    validate_forest_frame(training_doc,frame,terrain,map_info,"training")
+    # Rebuilt buildings/roads need not invalidate an image-based colour model.
+    # Reuse still requires the exact reference file, native image, pixel-trained
+    # base model and geographic frame. Runtime exclusions always bind to this map.
+    calibration_map = training_doc["source"]["map_sha256"] if reuse_calibration else map_info["map_sha256"]
+    validate_forest_frame(training_doc,frame,terrain,{**map_info,"map_sha256":calibration_map},"training")
     fingerprints[map_path] = map_info["map_sha256"]
     names = ("trees.instances.json","candidates.geojson","report.json","review.png")
     protected = {*fingerprints,root/"forest_patches.json",root/"forest_patches_astra.json",
@@ -65,8 +70,8 @@ def prepare_tuned2_trees(forest_exclusions, *, config_path=ROOT/"config.json", m
         image_path,frame,terrain.bounds,exclusion_geometry,settings,training_geometry=training_geometry)
     model = learn_forest_color(rgb,training,settings.color_quantile)
     # Calibration binds to the colour-reference forest, never the selected exclusion mask.
-    validate_recall_profile(recall,map_info["map_sha256"],fingerprints[training_path],fingerprints[image_path],model)
-    validate_precision_profile(precision,map_info["map_sha256"],fingerprints[training_path],
+    validate_recall_profile(recall,calibration_map,fingerprints[training_path],fingerprints[image_path],model)
+    validate_precision_profile(precision,calibration_map,fingerprints[training_path],
                                fingerprints[image_path],fingerprints[recall_path])
     all_matches,matches,scores = classify_tree_color(rgb,valid,excluded,model)
     candidates = select_candidates(matches,scores,coordinates,settings.min_spacing_m)
@@ -94,6 +99,7 @@ def prepare_tuned2_trees(forest_exclusions, *, config_path=ROOT/"config.json", m
     instances = [make_instance(c,rgb,asset,terrain,offset) for c in candidates]
     source = {"method":"astra_recall_with_negative_colour_context_filter","forest_source":"sentinel-astra-tuned2",
               "training_forest_source":"sentinel-astra","exclusion_forest_source":"configured",
+              "calibration_map_sha256":calibration_map,
               "forest":{"path":str(exclusion_path),"sha256":fingerprints[exclusion_path]},
               "training_forest":{"path":str(training_path),"sha256":fingerprints[training_path]},
               "satellite":{**raster_info,"sha256":fingerprints[image_path]},"settings":asdict(settings),

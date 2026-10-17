@@ -1,10 +1,21 @@
-# Preparing tree placements from detector CSVs
+# Preparing individual tree placements
 
-Tree placement is a separate local-data workflow. Merge detector exports, then
-convert their coordinates and pixel bounding boxes into instances of the shared
-[tree or pine impostor assets](../assets/README.md#tree-and-pine-impostors).
-The result is `output/trees.instances.json`; changing tree detections does not
-require rebuilding the town GLB.
+The default individual-tree generator is tuned2 using native Sentinel RGB pixels
+and OSM forest exclusion polygons. It uses the fixed Astra colour/context model
+with a 0.40 keep threshold. Prepare trees for the existing town with:
+
+```bash
+.venv/bin/python tools/prepare_trees.py
+# Equivalent through the map generator:
+.venv/bin/python -m src.generate --trees-only --offline
+```
+
+Both publish `output/trees.instances.json`, which the viewer and multiplayer
+load by default. The first previous dataset is preserved byte-for-byte as
+`output/trees.original.instances.json`; later differing defaults get uniquely
+named `trees.previous.<sha256>.instances.json` backups beside the map. The
+original CSV generator remains available as `tools/prepare_tree_instances.py`.
+Changing tree detections does not require rebuilding the town GLB.
 
 The desktop viewer loads this JSON beside the map and renders the shared assets
 with GPU instancing and frustum culling. Run
@@ -18,11 +29,10 @@ This preserves the detector placements and selects only mapped OSM trees,
 approximated tree rows and OSM forests. See
 [OSM vegetation preparation and controls](FORESTS.md#optional-openstreetmap-vegetation).
 
-## Tuned2 Sentinel alternative
+## Tuned2 configuration
 
-The tuned2 detector proposes individual trees from native Sentinel RGB pixels,
-using a saved colour/context model and an explicitly supplied forest exclusion
-file. It keeps its placements separate from the original detections:
+The default command accepts `--forest-exclusions` to choose another mask. For a
+separate result without changing the default, use the lower-level detector:
 
 ```bash
 .venv/bin/python tools/detect_tuned2_trees.py \
@@ -35,7 +45,7 @@ See [tuned2 preparation](TUNED2_TREES.md) for input requirements, output files,
 viewer commands and limitations. The full experiment and interactive comparison
 sources are preserved on the local `experiments/satellite-tree-detection` branch.
 
-## Run the local example
+## Original CSV generator example
 
 Use the existing Python environment from the [project setup](../README.md#setup-and-run-on-linux),
 the generated `output/godollo.glb`, and the corresponding `config.json`.
@@ -56,7 +66,8 @@ Then prepare the instances:
 ```bash
 .venv/bin/python tools/prepare_tree_instances.py \
   --image-root /home/mateszabo/Downloads \
-  --source-crs EPSG:23700
+  --source-crs EPSG:23700 \
+  --output output/trees.original.instances.json
 ```
 
 The examined local dataset contains nine detector CSVs with corresponding

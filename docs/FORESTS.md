@@ -40,7 +40,7 @@ Use `--vegetation` once, with exactly one of these values:
 
 | Value | Forests | Individual trees |
 | --- | --- | --- |
-| `original` (default) | `forest_patches.json` | Detector placements beside the map |
+| `original` (default) | `forest_patches.json` | Default placements beside the map (now tuned2 with OSM exclusions) |
 | `osm` | `osm/forest_patches.json` beside the map | `osm/trees.instances.json` beside the map |
 | `sentinel-astra` | `forest_patches_astra.json` beside the original forest config | Generated only from the Astra polygons |
 
@@ -58,6 +58,13 @@ file overrides. `--no-trees` disables all vegetation. `--no-forests` disables
 forest polygons and their generated trees, retaining any separate tree instances
 in the selected mode; Sentinel-Astra has no separate tree-instance file.
 The former `--osm-vegetation` flag is replaced by `--vegetation osm`.
+
+The `original` mode name retains the original runtime forest selection; its
+individual-tree file is the prepared default `output/trees.instances.json`.
+Use `tools/prepare_trees.py` to produce tuned2 placements with OSM exclusion
+polygons. This exclusion choice does not change the runtime forest selection.
+To view preserved CSV placements instead, omit `--vegetation` and pass
+`--trees output/trees.original.instances.json`.
 
 ## Optional OpenStreetMap vegetation
 
