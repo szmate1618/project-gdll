@@ -142,7 +142,7 @@ void checkBushes() {
         const auto p=mesh.vertices[i].position;
         if (i<4) require(p.z==0, "First bush upright is not in XY");
         else if (i<8) require(p.x==0, "Second bush upright is not perpendicular");
-        else require(p.y==.5f, "Horizontal bush card is not at 50% height");
+        else require(p.y==.25f, "Horizontal bush card is not at 25% height");
     }
     require(bush.boundsMax-bush.boundsMin==glm::vec3(4,1,4), "Bush height must be one quarter of its width");
     for (std::size_t i=0;i<mesh.vertices.size();i+=4) {

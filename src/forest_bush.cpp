@@ -61,7 +61,7 @@ Model forestBushModel(ImageData atlas) {
     Primitive mesh; mesh.material=0;
     card(mesh,{{{-2,1,0},{-2,0,0},{2,0,0},{2,1,0}}},{0,0,1},side,atlas.width,atlas.height);
     card(mesh,{{{0,1,2},{0,0,2},{0,0,-2},{0,1,-2}}},{1,0,0},side,atlas.width,atlas.height);
-    card(mesh,{{{-2,.5f,-2},{-2,.5f,2},{2,.5f,2},{2,.5f,-2}}},{0,1,0},top,atlas.width,atlas.height);
+    card(mesh,{{{-2,.25f,-2},{-2,.25f,2},{2,.25f,2},{2,.25f,-2}}},{0,1,0},top,atlas.width,atlas.height);
     model.primitives.push_back(std::move(mesh));
     model.draws.push_back({0,glm::mat4(1),"forest_bush"});
     model.boundsMin={-2,0,-2}; model.boundsMax={2,1,2};

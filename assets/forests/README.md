@@ -2,7 +2,7 @@
 
 `bush.png` is a transparent imagegen-generated summer woodland bush atlas. Its
 left view supplies both perpendicular upright cards; its right view supplies
-one horizontal card at half height. The loader measures each alpha silhouette
+one horizontal card at quarter height. The loader measures each alpha silhouette
 separately, finding the transparent divider near the image center, so source
 padding does not affect the visible 4:1 width/height ratio. The native model is
 4 m wide and 1 m tall and is randomly scaled to 6–14 m wide and 1.5–3.5 m tall

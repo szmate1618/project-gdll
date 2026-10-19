@@ -276,7 +276,7 @@ own deterministic rotation about Y and random width of 6–14 m, with visible
 height one quarter of its width (1.5–3.5 m). Candidates outside the old forest,
 in holes, in buildings or without terrain support are omitted.
 
-Bushes use two perpendicular upright cards and one horizontal card at 50% of
+Bushes use two perpendicular upright cards and one horizontal card at 25% of
 their height. One shared [side/top atlas](../assets/forests/bush.png) supplies
 unlit, double-sided alpha masks with normal opaque-texel depth writes. Bushes
 share the forest's instancing, culling, detail selection and shading. They have
