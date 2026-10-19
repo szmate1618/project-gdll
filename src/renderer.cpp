@@ -350,11 +350,13 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     glUseProgram(program_);
     glActiveTexture(GL_TEXTURE0);
     glUniform1i(textureLocation_, 0);
-    forestViewRange_ = camera.viewMode() == Camera::ViewMode::original
+    forestViewRange_ = oldForestDistance_ > 0 && camera.viewMode() == Camera::ViewMode::original
         ? oldForestVisibility_.rangeAt(camera.position()) : std::nullopt;
-    if (forestViewRange_)
+    if (forestViewRange_) {
+        forestViewRange_->radius = oldForestDistance_;
         glUniform3f(forestVisibilityLocation_, forestViewRange_->center.x,
                     forestViewRange_->center.y, forestViewRange_->radius);
+    }
     else glUniform3f(forestVisibilityLocation_, 0, 0, 0);
     // Assign all active sampler types distinct units in both passes, including
     // empty scenes. Units 3/4 belong to the sun/flashlight depth comparisons.

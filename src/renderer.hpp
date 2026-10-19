@@ -97,6 +97,8 @@ public:
     void setTreeCanopyShading(bool enabled) { treeCanopyShading_ = enabled; }
     // Three-dimensional root distance in meters; zero keeps authored cards.
     void setTreeBillboardDistance(float meters);
+    // Horizontal radius inside old forest only; zero disables the cutoff.
+    void setOldForestDistance(float meters);
     void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
     void setNight(bool enabled) { night_ = enabled; dayNight_.reset(); }
     // Overrides the fixed lighting palette until the next setNight call.
@@ -329,6 +331,7 @@ private:
     std::vector<ForestVolumeBatchGPU> forestBatches_;
     std::vector<ForestPatch> forestPatches_;
     OldForestVisibility oldForestVisibility_;
+    float oldForestDistance_ = OldForestVisibility::distance;
     std::optional<HorizontalVisibilityRange> forestViewRange_;
     GLint forestVisibilityLocation_ = -1;
     std::vector<std::size_t> visibleForests_;

@@ -6,6 +6,15 @@ import sys
 
 def main():
     executable = str(Path(sys.argv[1]).resolve())
+    for flag in ("--tree-billboard-distance", "--old-forest-distance"):
+        for value in ("0", "100", "75.5"):
+            result = subprocess.run([executable, flag, value, "--help"], capture_output=True, text=True)
+            assert result.returncode == 0 and flag in result.stdout, result.stderr
+        for value in ("-1", "nan", "inf", "100junk", "1e1000"):
+            result = subprocess.run([executable, flag, value, "--help"], capture_output=True, text=True)
+            assert result.returncode != 0 and "requires nonnegative meters" in result.stderr, result.stderr
+        result = subprocess.run([executable, flag], capture_output=True, text=True)
+        assert result.returncode != 0 and "Missing value" in result.stderr, result.stderr
     for mode in ("osm-tuned2", "orthophoto", "osm", "sentinel-astra", "none"):
         result = subprocess.run([executable, "--vegetation", mode, "--help"], capture_output=True, text=True)
         assert result.returncode == 0, result.stderr

@@ -178,8 +178,12 @@ A/B comparison from the same camera position; it does not alter collision or
 shadow caster culling. Use `--no-tree-shadows` to compare tree casting costs.
 
 Inside an old-forest region, the normal view uses a sharp **100 m horizontal
-cutoff** for vegetation, town geometry and shadow casters. Leaving the region
-restores normal range. Both scope views bypass this cutoff; returning to normal
+cutoff** by default for vegetation, town geometry and shadow casters.
+`--old-forest-distance M` changes that horizontal radius; `0` disables the cutoff.
+For example, `--old-forest-distance 75` selects 75 m, and omitting the flag retains
+100 m. This setting is independent of `--tree-billboard-distance` and ordinary
+frustum culling. Leaving the region restores normal range.
+Both scope views bypass this cutoff; returning to normal
 view reapplies it. No surrounding/new forest is required. Camera membership is
 spatially indexed and shared by all passes; it does not scan tree instances.
 See the [old-forest visibility contract](FORESTS.md#old-forest-visibility-contract)

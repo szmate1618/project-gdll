@@ -3,9 +3,17 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <algorithm>
 #include <cstdint>
+#include <cmath>
 #include <numeric>
+#include <stdexcept>
 
 namespace viewer {
+void Renderer::setOldForestDistance(float meters) {
+    if (!std::isfinite(meters) || meters < 0)
+        throw std::invalid_argument("Old-forest distance must be finite and nonnegative");
+    oldForestDistance_ = meters;
+}
+
 void Renderer::uploadForests(const ForestLayer& forests) {
     forestPatches_=forests.patches;
     oldForestVisibility_=OldForestVisibility(forestPatches_);

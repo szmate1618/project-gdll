@@ -363,9 +363,11 @@ stop inside the terrain boundary.
 ### Old-forest visibility contract
 
 In the normal, unscoped view, a camera inside a stored `ForestPatch::oldForest`
-region enables a **sharp 100 m horizontal visibility radius** centered on the
-camera. The polygon alone determines horizontal membership: no containment in,
-adjacency to, or surrounding buffer of another/new forest is required. Exact
+region enables a **sharp horizontal visibility radius**, **100 m by default**,
+centered on the camera. `--old-forest-distance M` changes the radius in meters;
+`0` disables the cutoff and its membership query. Tree billboard LoD remains an
+independent setting. The polygon alone determines horizontal membership: no
+containment in, adjacency to, or surrounding buffer of another/new forest is required. Exact
 polygon tests respect concavities, holes and excluded borders. The patch's
 vertical bounds restrict activation so flying above or below the stand does not
 enable it. Leaving the old region immediately restores normal visibility.
@@ -374,22 +376,22 @@ normal view restores it if the camera remains inside an old region.
 
 The radius applies to individual trees, shrubs, forest volumes, town geometry,
 and sun/flashlight shadow casters. Bounds crossing the radius remain eligible;
-the shared scene shader clips their actual pixels at 100 m, including large
-terrain/building meshes and batched roofs. Height does not reduce the horizontal
-range. Nearby offscreen casters still use the light's own visibility query.
+the shared scene shader clips their actual pixels at the selected radius,
+including large terrain/building meshes and batched roofs/walls. Height does not
+reduce the horizontal range. Nearby offscreen casters still use the light's own visibility query.
 Frustum-culling debug switches do not bypass this range policy. The shared
 renderer also clips its boxes, zombies and grenades; simulation, collision,
 perception, damage and source placements keep their full ranges. Local and
 multiplayer renderers apply the same camera-local rule without network changes.
 
 `forest_visibility.hpp/.cpp` builds a polygon-bound spatial index once. Each
-unscoped frame performs one point query and exact membership tests only for
-candidate old regions. The resulting range is shared by color and shadow
+unscoped frame with a positive cutoff performs one point query and exact
+membership tests only for candidate old regions. The resulting range is shared by color and shadow
 queries; `visibility.hpp/.cpp` prunes distant BVH nodes before selecting draws.
 
 **Authoring requirement:** old-forest regions explicitly opt into restricted
-visibility. Construct them for dense stands where a 100 m cutoff is acceptable;
-keep intended clearings and long sightlines outside those regions, using holes
+visibility. Construct them for dense stands where the default 100 m cutoff is
+acceptable; keep intended clearings and long sightlines outside those regions, using holes
 in the old-region polygon where needed. Do not infer visibility safety from a
 relationship with another forest region. Current vegetation placement still
 clips the derived core against the source footprint, while visibility tests the

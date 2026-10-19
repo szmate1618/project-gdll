@@ -69,6 +69,17 @@ void cutoffAndTransitions() {
     require(pixel(camera,{140,0,-230})==background,"Large terrain mesh leaked pixels beyond 100 m");
     require(pixel(camera,{115,0,-125})!=background,"Cutoff discarded nearby geometry");
     const auto inside=pixels();
+    renderer.setOldForestDistance(200);renderer.render(camera);
+    require(renderer.treeStats().visible==3&&renderer.sceneStats().visible==3&&
+            pixel(camera,{140,0,-230})!=background,"Larger forest distance did not restore geometry and pixels");
+    renderer.setOldForestDistance(50);renderer.render(camera);
+    require(renderer.treeStats().visible==1&&renderer.sceneStats().visible==1,
+            "Smaller forest distance did not restrict both tree and town selection");
+    renderer.setOldForestDistance(0);renderer.render(camera);
+    require(renderer.treeStats().visible==3&&renderer.sceneStats().visible==3&&
+            pixel(camera,{140,0,-230})!=background,"Zero forest distance did not disable selection and fragment clipping");
+    renderer.setOldForestDistance(100);renderer.render(camera);
+    require(pixels()==inside,"Re-enabling forest distance left stale clipping state");
     renderer.setTreeCulling(false);renderer.setSceneCulling(false);renderer.render(camera);
     require(renderer.treeStats().visible==2&&renderer.sceneStats().visible==2&&pixels()==inside,
             "Debug frustum bypass disabled the forest cutoff");
@@ -109,6 +120,12 @@ void shadowRange() {
     auto unrestricted=areas;unrestricted.patches[0].oldForest={};
     viewer::Renderer baseline(scene,VIEWER_SHADER_DIR,&vegetation,nullptr,&unrestricted);setup(baseline);baseline.render(camera);
     const auto withFar=pixel(camera,{50,0,-152});
+    const auto unrestrictedPixels=pixels();
+    actual.setOldForestDistance(0);actual.render(camera);
+    require(pixels()==unrestrictedPixels,"Disabling forest distance did not restore unrestricted sun shadows");
+    actual.setOldForestDistance(150);actual.render(camera);
+    require(pixel(camera,{50,0,-152})==withFar,"Custom radius did not restore a caster within that radius");
+    actual.setOldForestDistance(100);
     auto unrestrictedOne=unrestricted;unrestrictedOne.patches[0].treeCount=2;
     viewer::Renderer noFar(scene,VIEWER_SHADER_DIR,&nearOnly,nullptr,&unrestrictedOne);setup(noFar);noFar.render(camera);
     require(pixel(camera,{50,0,-152})!=withFar,"Shadow fixture did not expose an outside-radius caster");
