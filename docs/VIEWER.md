@@ -152,6 +152,17 @@ this is calculated once at load and preserves instancing. See
 [forest canopy shading](FORESTS.md) for the approximation and costs.
 `--no-tree-canopy-shading` disables this daytime effect for comparison.
 
+Visible trees are ordered near-to-far in stable **8 m camera-depth bands** before
+being split into species and LoD batches. Depth is measured along the camera's
+view direction using each instance's conservative bounds center, including for
+aerial views. Trees at 1,016 m or farther share the last band. This can reduce
+alpha-mask overdraw while keeping the same geometry and draw-call count.
+Ordering only visits the visibility-query candidates and reuses scratch buffers;
+it adds linear CPU work and approximately 9 bytes of scratch storage per selected
+instance. Order within each band stays stable. Shadows retain their light-query
+order, and collision/placement data remain unchanged. Use
+`--no-tree-depth-ordering` to compare CPU and GPU time with ordering disabled.
+
 At **100 m** from the tree root to the camera in three dimensions, normal
 broadleaf and pine trees switch to a **single-sided, camera-facing card**.
 At elevation angles up to 45° in either direction, the front card rotates around

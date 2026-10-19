@@ -28,6 +28,7 @@
 #include "day_night.hpp"
 #include "tree_canopy.hpp"
 #include "tree_billboard.hpp"
+#include "tree_depth_order.hpp"
 #include "building_batch.hpp"
 #include "vegetation_blast.hpp"
 
@@ -97,6 +98,7 @@ public:
     void setTreeCanopyShading(bool enabled) { treeCanopyShading_ = enabled; }
     // Three-dimensional root distance in meters; zero keeps authored cards.
     void setTreeBillboardDistance(float meters);
+    void setTreeDepthOrdering(bool enabled) { treeDepthOrdering_ = enabled; }
     // Horizontal radius inside old forest only; zero disables the cutoff.
     void setOldForestDistance(float meters);
     void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
@@ -162,7 +164,6 @@ private:
     struct InstanceGPU {
         std::size_t asset;
         TreeGPUInstance data;
-        VisibilityBounds authoredBounds;
     };
     struct ForestVolumeBatchGPU {
         std::vector<ForestVolumeRange> ranges;
@@ -314,12 +315,16 @@ private:
     bool sceneCulling_ = true;
     std::vector<TreeBatch> treeBatches_;
     std::vector<InstanceGPU> treeInstances_;
+    std::vector<VisibilityBounds> treeAuthoredBounds_;
+    TreeDepthOrder treeDepthOrder_;
+    bool treeDepthOrdering_ = true;
     VegetationBlastMotion vegetationBlastMotion_;
     std::vector<VegetationBend> vegetationBends_;
     std::vector<std::size_t> visibleTrees_, shadowTrees_;
     ForestTreeVisibility treeVisibility_;
     ForestTreeVisibility treeAuthoredVisibility_;
     glm::vec3 treeViewEye_{0};
+    glm::vec3 treeViewForward_{0,0,-1};
     bool treeBillboardsForFrame_ = true;
     float treeBillboardDistance_ = 100;
     GLint treeBillboardModeLocation_ = -1, treeBillboardPivotLocation_ = -1;

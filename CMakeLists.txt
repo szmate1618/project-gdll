@@ -156,7 +156,7 @@ add_library(viewer_vegetation STATIC src/vegetation_selection.cpp)
 viewer_warnings(viewer_vegetation)
 
 add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp src/tree_color.cpp src/tree_canopy.cpp
-    src/vegetation_blast.cpp src/tree_billboard.cpp)
+    src/vegetation_blast.cpp src/tree_billboard.cpp src/tree_depth_order.cpp)
 target_link_libraries(viewer_trees PUBLIC viewer_model viewer_visibility viewer_fingerprints)
 target_include_directories(viewer_trees SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_trees)
@@ -565,6 +565,19 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_tree_billboard_renderer)
     add_test(NAME viewer_tree_billboard_renderer COMMAND test_tree_billboard_renderer)
     set_tests_properties(viewer_tree_billboard_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
+    add_executable(test_tree_depth_order tests/test_tree_depth_order.cpp)
+    target_link_libraries(test_tree_depth_order PRIVATE viewer_trees)
+    viewer_warnings(test_tree_depth_order)
+    add_test(NAME viewer_tree_depth_order COMMAND test_tree_depth_order)
+
+    add_executable(test_tree_depth_renderer tests/test_tree_depth_renderer.cpp)
+    target_link_libraries(test_tree_depth_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_tree_depth_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_tree_depth_renderer)
+    add_test(NAME viewer_tree_depth_renderer COMMAND test_tree_depth_renderer)
+    set_tests_properties(viewer_tree_depth_renderer PROPERTIES SKIP_RETURN_CODE 77)
 
     add_executable(test_vegetation_blast tests/test_vegetation_blast.cpp)
     target_link_libraries(test_vegetation_blast PRIVATE viewer_forests)

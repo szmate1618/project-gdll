@@ -19,6 +19,7 @@ std::vector<VisibilityBounds> Renderer::uploadTrees(const TreeLayer& trees, cons
     if (trees.instances.size() > static_cast<std::size_t>(std::numeric_limits<GLsizei>::max()))
         throw std::runtime_error("Too many tree instances for an OpenGL instanced draw");
     treeInstances_.reserve(trees.instances.size());
+    treeAuthoredBounds_.reserve(trees.instances.size());
     visibleTrees_.reserve(trees.instances.size());
     shadowTrees_.reserve(trees.instances.size());
     std::vector<std::size_t> counts(trees.assets.size(), 0);
@@ -26,7 +27,8 @@ std::vector<VisibilityBounds> Renderer::uploadTrees(const TreeLayer& trees, cons
     for (std::size_t i = 0; i < trees.instances.size(); ++i) {
         const auto& instance = trees.instances[i];
         if (instance.asset >= trees.assets.size()) throw std::runtime_error("Tree instance references an unknown asset");
-        treeInstances_.push_back({instance.asset, {instance.transform, canopy[i]}, vegetationBlastBounds(instance)});
+        treeInstances_.push_back({instance.asset, {instance.transform, canopy[i]}});
+        treeAuthoredBounds_.push_back(vegetationBlastBounds(instance));
         ++counts[instance.asset];
     }
     // Allocate ownership slots before making any GL objects, so constructor
@@ -109,6 +111,10 @@ void Renderer::drawTrees(const glm::mat4& projectionView, bool shadowPass) {
     const auto* range = forestVisibilityRange();
     const auto visibility = visibilityIndex.query(projectionView, forestDetail_,
                                                  shadowPass || treeCulling_, selected, range);
+    // Stable depth bands survive the later species/LoD split, without changing
+    // source selection or adding draws. Shadows retain their light-query order.
+    if (!shadowPass && treeDepthOrdering_)
+        treeDepthOrder_.sort(selected, treeAuthoredBounds_, treeViewEye_, treeViewForward_);
     if (!shadowPass) treeStats_.queriedForestPatches = visibility.queriedPatches;
     for (auto& batch : treeBatches_) {
         batch.visibleInstances.clear(); batch.sideInstances.clear(); batch.topInstances.clear();
@@ -124,7 +130,7 @@ void Renderer::drawTrees(const glm::mat4& projectionView, bool shadowPass) {
         // The broad query covers every rotated pose. A nearby tree still uses
         // its authored bounds, avoiding extra full-card draws at the view edge.
         if (billboards && batch.billboard && mode == TreeBillboardMode::Full) {
-            const auto& bounds = instance.authoredBounds;
+            const auto& bounds = treeAuthoredBounds_[index];
             if ((treeCulling_ && !frustum.intersects(bounds.minimum, bounds.maximum)) ||
                 (range && !range->intersects(bounds))) continue;
         }

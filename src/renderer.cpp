@@ -346,6 +346,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     sceneStats_ = {sceneDraws_.size(), 0, 0};
     if (width_ <= 0 || height_ <= 0) return;
     treeViewEye_ = camera.position();
+    treeViewForward_ = camera.direction();
     treeBillboardsForFrame_ = camera.viewMode() == Camera::ViewMode::original && treeBillboardDistance_ > 0;
     glUseProgram(program_);
     glActiveTexture(GL_TEXTURE0);

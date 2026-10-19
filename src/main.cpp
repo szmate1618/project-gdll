@@ -53,6 +53,7 @@ struct Options {
     bool shadows = true;
     bool treeShadows = true;
     bool treeCanopyShading = true;
+    bool treeDepthOrdering = true;
     float treeBillboardDistance = 100;
     float oldForestDistance = viewer::OldForestVisibility::distance;
     bool night = false;
@@ -163,6 +164,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--no-wall-batching") options.wallBatching = false;
         else if (argument == "--no-trees") options.noTrees = true;
         else if (argument == "--no-tree-culling") options.treeCulling = false;
+        else if (argument == "--no-tree-depth-ordering") options.treeDepthOrdering = false;
         else if (argument == "--no-zombie-culling") options.zombieCulling = false;
         else if (argument == "--no-zombie-staggering") options.zombiePerceptionStaggering = false;
         else if (argument == "--no-town-culling") options.sceneCulling = false;
@@ -264,6 +266,7 @@ void printHelp() {
               << "  --no-shadows        Disable sun and flashlight shadows for comparison\n"
               << "  --no-tree-shadows   Disable tree casting for both lights\n"
               << "  --no-tree-canopy-shading Disable approximate daytime canopy shade\n"
+              << "  --no-tree-depth-ordering Keep tree visibility-query order for comparison\n"
               << "  --tree-billboard-distance M Single-card tree LoD beyond M meters (100; 0 disables)\n"
               << "  --old-forest-distance M Visibility radius inside old forests (100; 0 disables)\n"
               << "  --no-haze           Disable atmospheric distance haze for comparison\n"
@@ -1014,6 +1017,7 @@ int run(const Options& options) {
     renderer.setFlashlightShadows(options.flashlightShadows);
     renderer.setTreeShadows(options.treeShadows);
     renderer.setTreeCanopyShading(options.treeCanopyShading);
+    renderer.setTreeDepthOrdering(options.treeDepthOrdering);
     renderer.setTreeBillboardDistance(options.treeBillboardDistance);
     renderer.setOldForestDistance(options.oldForestDistance);
     renderer.setNight(options.night);
