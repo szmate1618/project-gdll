@@ -1,0 +1,11 @@
+{
+  "front": {
+    "file": "front.png",
+    "rootPixels": [963.5, 1211],
+    "branchJoinPixels": [589, 501]
+  },
+  "branches": {
+    "file": "branches.png",
+    "joinPixels": [721, 1090]
+  }
+}

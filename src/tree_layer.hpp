@@ -12,6 +12,7 @@ struct TreeAsset {
     std::string id;
     std::filesystem::path path;
     Model model;
+    bool matchCanopyColor = true; // Bare wood keeps its bark color under forest tinting.
 };
 
 struct TreeInstance {

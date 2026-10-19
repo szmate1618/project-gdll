@@ -253,7 +253,7 @@ terrain triangles, without a second datum subtraction. Shared tree assets and
 textures are reused and individual trees are GPU instanced. Estimated trunk
 capsules participate in walking and sight queries at every detail level.
 
-### Old forests and bush understory
+### Old forests, bush understory and dry trees
 
 Loading any forest configuration also derives an old-forest polygon for each
 patch. Its center is the arithmetic mean of the exterior border vertices,
@@ -284,6 +284,39 @@ no collision in either single-player or multiplayer. All placements are made
 once during loading, independent of camera movement and patch order; no map or
 placement-file regeneration is required.
 
+Each patch also adds small [dry trees](../assets/dry_tree/README.md) inside its
+old-forest area. The primary count is 9% of the healthy trees actually present
+there, rounded to the nearest whole tree (halves round up). This includes mapped
+or detected trees and both accepted generated-tree lattices; bushes, dry trees
+and companions do not enter that count. Existing trees and bushes keep their
+placements. For example, 100 healthy old-forest trees receive 9 additional dry
+trees, before companions.
+
+Each primary has a 10% chance of one companion 1.5–5 m away, sampled uniformly
+over that annulus. Companions cannot spawn more trees. Both populations have
+independent uniform 3.5–6 m visible heights and rotations through 360 degrees,
+with uniform scaling preserving the asset's lean. They do not receive the 20%
+old-growth enlargement or spawn bushes. Stable hashes of patch ID, seed and
+primary index fix placements, heights, rotations and companion choices.
+
+Primary positions are sampled within the contracted core and original polygon,
+respecting holes, buildings, terrain support and the 3 m detected-tree exclusion.
+Rejected positions are retried deterministically, up to 4,096 times per primary;
+an unfillable quota rejects the load before publishing any changes. A companion
+with no valid nearby position after 64 tries is omitted. Dry trees share the
+forest's instancing, bounds-based culling, detail selection, lighting and
+approximate root-centered trunk capsules. Bark keeps its source color rather
+than receiving the green canopy tint; distant forest volumes stay unchanged.
+
+Build the shared dry-tree asset once before loading forests on a fresh checkout:
+
+```bash
+.venv/bin/python tools/create_dry_tree_impostor.py
+```
+
+The multiplayer asset pack includes this embedded-texture GLB and the session
+fingerprint covers it alongside the other shared tree assets.
+
 The optional `runtime` object contains:
 
 | Field | Default | Meaning |
@@ -292,6 +325,7 @@ The optional `runtime` object contains:
 | `side_texture` | `assets/forests/side.png` | Repeating wall image |
 | `top_texture` | `assets/forests/top.png` | Repeating canopy image |
 | `bush_texture` | `bush.png` beside the resolved side texture | Side/top alpha-mask atlas for old-forest bushes |
+| `dry_tree_asset` | `dry_tree_impostor.glb` beside the resolved tree asset | Small leaning dry-tree GLB |
 | `seed` | `20261011` | Unsigned 32-bit placement seed |
 | `tree_spacing_m` | `9` | Lattice spacing before jitter and exclusions |
 | `min_tree_height_m` | `12` | Minimum visible tree height |

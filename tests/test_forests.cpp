@@ -161,6 +161,54 @@ void checkBushes() {
     require(shifted.primitives[0].vertices[8].uv.x==10.f/16,
             "Bush atlas divider mixed side pixels into top view");
 }
+void checkDryTrees() {
+    const viewer::ForestPolygon polygon{{{0,0},{500,0},{500,500},{0,500},{0,0}},
+        {{{200,200},{200,300},{300,300},{300,200},{200,200}}}};
+    const auto core=viewer::oldForestPolygon(polygon);
+    const auto usable=[](const viewer::ForestDryTreeCandidate& tree) {return tree.eastNorth.x>160;};
+    const auto first=viewer::forestDryTreeCandidates(polygon,core,"dry-test",123,10000,usable);
+    const auto repeat=viewer::forestDryTreeCandidates(polygon,core,"dry-test",123,10000,usable);
+    require(first.size()==repeat.size(), "Dry tree count is not deterministic");
+    std::size_t primaries=0,companions=0;
+    for (std::size_t i=0;i<first.size();++i) {
+        const auto& tree=first[i]; const auto& other=repeat[i];
+        require(tree.eastNorth==other.eastNorth&&tree.height==other.height&&tree.yaw==other.yaw&&
+                tree.primaryIndex==other.primaryIndex&&tree.companion==other.companion,
+                "Dry trees changed between identical runs");
+        require(viewer::forestContains(polygon,tree.eastNorth)&&viewer::forestContains(core,tree.eastNorth)&&usable(tree),
+                "Dry tree escaped forest/hole/exclusion constraints");
+        require(tree.height>=3.5f&&tree.height<=6&&tree.yaw>=0&&tree.yaw<6.283186f,
+                "Dry tree height or rotation outside requested range");
+        if (!tree.companion) {
+            require(tree.primaryIndex==primaries++, "Dry tree primary indices are unstable");
+        } else {
+            ++companions;
+            require(i>0&&!first[i-1].companion&&first[i-1].primaryIndex==tree.primaryIndex,
+                    "Dry companions recursed or lack a primary");
+            const auto& parent=first[i-1];
+            const auto distance=glm::length(parent.eastNorth-tree.eastNorth);
+            require(distance>=1.5&&distance<=5, "Companion is outside the nearby 1.5..5 m annulus");
+            require(parent.yaw!=tree.yaw&&parent.height!=tree.height, "Companion reused its parent's size or rotation");
+        }
+    }
+    require(primaries==900, "Dry primary count must be 9% of existing old trees");
+    require(companions>60&&companions<120, "Dry companion chance is not 10%");
+    for (const auto count:{0u,5u,6u,50u,100u}) {
+        const auto trees=viewer::forestDryTreeCandidates(polygon,core,"rounding",123,count,usable);
+        std::size_t primary=0;
+        for (const auto& tree:trees) primary+=!tree.companion;
+        const std::size_t expected=count==6?1:count==50?5:count==100?9:0;
+        require(primary==expected, "Dry tree quota was not rounded to nearest integer");
+    }
+    const auto other=viewer::forestDryTreeCandidates(polygon,core,"other-patch",123,10000,usable);
+    require(first.front().eastNorth!=other.front().eastNorth, "Dry trees ignore patch identity");
+    bool rejected=false;
+    try {
+        (void)viewer::forestDryTreeCandidates(polygon,core,"blocked",123,100,
+            [](const viewer::ForestDryTreeCandidate&) {return false;});
+    } catch (const std::runtime_error&) {rejected=true;}
+    require(rejected, "An impossible dry-tree quota must fail within bounded work");
+}
 void append32(std::vector<unsigned char>& bytes, std::uint32_t value) {
     for (int i=0;i<4;++i) bytes.push_back(static_cast<unsigned char>(value>>(i*8)));
 }
@@ -202,6 +250,8 @@ struct Fixtures {
         glb.insert(glb.end(),binary.begin(),binary.end());
         std::ofstream tree(directory/"tree.glb",std::ios::binary);
         tree.write(reinterpret_cast<const char*>(glb.data()),glb.size());
+        std::ofstream dry(directory/"dry_tree_impostor.glb",std::ios::binary);
+        dry.write(reinterpret_cast<const char*>(glb.data()),glb.size());
     }
     ~Fixtures() {std::error_code error; std::filesystem::remove_all(directory,error);}
     Json document() const {
@@ -231,7 +281,7 @@ void checkLoader() {
     const auto scene=terrainScene(); const viewer::CollisionWorld world(scene);
     viewer::TreeLayer trees;
     const auto layer=viewer::loadForestLayer(files.config,files.map,scene,world,trees);
-    require(layer.patches.size()==2 && trees.assets.size()==2 && !trees.instances.empty(), "Runtime layer is empty");
+    require(layer.patches.size()==2 && trees.assets.size()==3 && !trees.instances.empty(), "Runtime layer is empty");
     std::size_t bushCount=0;
     for (const auto& tree:trees.instances) {
         const auto feet=glm::vec3(tree.transform[3]);
@@ -247,6 +297,24 @@ void checkLoader() {
         }
     }
     require(bushCount>0, "Loader did not spawn any non-colliding bushes");
+    std::size_t dryCount=0;
+    for (const auto& patch:layer.patches) {
+        std::size_t healthy=0,primary=0;
+        for (std::size_t i=patch.firstTree;i<patch.firstTree+patch.treeCount;++i) {
+            const auto& tree=trees.instances[i];
+            const glm::dvec2 p(tree.transform[3].x,-tree.transform[3].z);
+            if (tree.id.rfind("dry:",0)==0) {
+                ++dryCount;
+                if (tree.id.find(":companion")==std::string::npos) ++primary;
+                require(tree.asset==2&&!trees.assets[tree.asset].matchCanopyColor,
+                        "Dry tree uses the wrong asset or receives a green canopy tint");
+                require(tree.dimensions.y>=3.5f&&tree.dimensions.y<=6&&viewer::forestContains(patch.oldForest,p),
+                        "Dry tree received old-growth enlargement or escaped the old core");
+            } else if (tree.collidable&&viewer::forestContains(patch.oldForest,p)) ++healthy;
+        }
+        require(primary==(healthy*9+50)/100, "Loaded dry-tree count includes bushes or dry trees in its denominator");
+    }
+    require(dryCount>0, "Loader did not add the dry-tree population");
     std::map<std::string,glm::mat4> positions;
     for (const auto& tree:trees.instances) positions[tree.id]=tree.transform;
     std::swap(doc["patches"][0],doc["patches"][1]); files.write(doc);
@@ -257,7 +325,7 @@ void checkLoader() {
     doc["source"]["map_sha256"]=std::string(64,'0'); files.write(doc);
     bool rejected=false;
     try {(void)viewer::loadForestLayer(files.config,files.map,scene,world,trees);} catch (const std::runtime_error&) {rejected=true;}
-    require(rejected && trees.instances.size()==positions.size() && trees.assets.size()==2, "Stale config accepted or mutated trees");
+    require(rejected && trees.instances.size()==positions.size() && trees.assets.size()==3, "Stale config accepted or mutated trees");
     doc=files.document(); doc["patches"][1]["id"]="A"; files.write(doc);
     rejected=false;
     try {(void)viewer::loadForestLayer(files.config,files.map,scene,world,trees);} catch (const std::runtime_error&) {rejected=true;}
@@ -271,7 +339,7 @@ void checkLoader() {
     withDetected.assets=trees.assets;
     withDetected.instances.push_back(trees.instances.front());
     const auto withDetection=viewer::loadForestLayer(files.config,files.map,scene,world,withDetected);
-    require(withDetected.assets.size()==2, "Shared vegetation asset uploaded twice");
+    require(withDetected.assets.size()==3, "Shared vegetation asset uploaded twice");
     require(withDetection.patches.front().detectedTrees==std::vector<std::size_t>{0}, "Detected tree not associated with its forest LoD");
     const auto existing=glm::vec3(withDetected.instances.front().transform[3]);
     for (std::size_t i=1;i<withDetected.instances.size();++i)
@@ -309,8 +377,54 @@ void checkDetectedOldTrees() {
     for (const auto& tree:trees.instances) if (tree.id.rfind("bush:",0)==0)
         require(!tree.collidable, "Generated bush acquired a trunk collider");
 }
+void checkDryTreeDenominator() {
+    const Fixtures files; auto doc=files.document();
+    doc["patches"]=Json::array({{{"id","core"},{"polygon",{{0,0},{60,0},{60,60},{0,60},{0,0}}},
+                                  {"holes",Json::array()}}});
+    files.write(doc);
+    const auto scene=terrainScene(); const viewer::CollisionWorld world(scene);
+    viewer::TreeLayer trees;
+    trees.assets.push_back({"tree",files.directory/"tree.glb",viewer::loadModel(files.directory/"tree.glb")});
+    // Co-located synthetic inputs make the denominator distinguish mapped
+    // trees, bushes and the newly generated population without filling the core.
+    for (int i=0;i<150;++i) {
+        viewer::TreeInstance tree;
+        tree.id="input-"+std::to_string(i); tree.collidable=i<100;
+        tree.transform[3]={30,9,-30,1}; tree.dimensions={4,10,4};
+        tree.boundsMin={28,9,-32}; tree.boundsMax={32,19,-28};
+        trees.instances.push_back(tree);
+    }
+    const auto forest=viewer::loadForestLayer(files.config,files.map,scene,world,trees);
+    const auto& patch=forest.patches.front();
+    std::size_t healthy=100,primary=0;
+    for (std::size_t i=patch.firstTree;i<patch.firstTree+patch.treeCount;++i) {
+        const auto& tree=trees.instances[i];
+        const glm::dvec2 p(tree.transform[3].x,-tree.transform[3].z);
+        if (tree.id.rfind("dry:",0)==0) {
+            if (tree.id.find(":companion")==std::string::npos) ++primary;
+        } else if (tree.collidable&&viewer::forestContains(patch.oldForest,p)) ++healthy;
+    }
+    require(primary==(healthy*9+50)/100, "Dry quota must include mapped trees but exclude existing and generated bushes");
+    require(primary>=9, "Mapped trees did not contribute to the dry-tree quota");
+    require(trees.instances[0].dimensions.y==12&&trees.instances[149].dimensions.y==10,
+            "Dry integration changed healthy enlargement or enlarged an existing bush");
+    // Prove that failed placement also preserves the already-loaded tree layer.
+    doc=files.document(); doc["patches"]=Json::array({doc["patches"][0]}); files.write(doc);
+    viewer::TreeLayer blocked; blocked.assets.push_back(trees.assets.front());
+    for (int x=5;x<=15;x+=2) for (int n=5;n<=15;n+=2) {
+        auto tree=trees.instances.front(); tree.id="blocked-"+std::to_string(x)+":"+std::to_string(n);
+        tree.transform[3]={x,x*.1f+n*.2f,-n,1}; blocked.instances.push_back(tree);
+    }
+    const auto before=blocked.instances;
+    bool rejected=false;
+    try {(void)viewer::loadForestLayer(files.config,files.map,scene,world,blocked);}
+    catch (const std::runtime_error& error) {rejected=std::string(error.what()).find("Cannot place requested dry trees")!=std::string::npos;}
+    require(rejected&&blocked.assets.size()==1&&blocked.instances.size()==before.size()&&
+            blocked.instances.front().transform==before.front().transform,
+            "Failed dry quota partially published vegetation or enlarged mapped trees");
+}
 }
 int main() {
-    try {checkGeometry(); checkPlacement(); checkOldForest(); checkBushes(); checkLoader(); checkDetectedOldTrees(); std::cout<<"Forest geometry, old growth, bushes, placement and loader tests passed\n";}
+    try {checkGeometry(); checkPlacement(); checkOldForest(); checkBushes(); checkDryTrees(); checkLoader(); checkDetectedOldTrees(); checkDryTreeDenominator(); std::cout<<"Forest geometry, old growth, bushes, dry trees, placement and loader tests passed\n";}
     catch (const std::exception& e) {std::cerr<<e.what()<<'\n'; return 1;}
 }

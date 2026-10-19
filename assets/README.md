@@ -73,6 +73,10 @@ not enter that collision world. When a tree GLB is opened as the standalone
 main scene instead, the generic scene collision loader still treats its quads
 as surfaces; preview standalone assets in free-fly mode.
 
+The smaller [asymmetric dry tree](dry_tree/README.md) uses a leaning trunk card
+and a perpendicular upper-branch card offset to meet its bend. Build its 5 m
+standalone GLB with `.venv/bin/python tools/create_dry_tree_impostor.py`.
+
 ## Runtime forests
 
 The runtime woodland layer also uses [generated repeating forest textures](forests/README.md)

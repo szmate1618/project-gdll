@@ -33,6 +33,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         self.output = self.root / "build/assets.zip"
         self.zombies = self.root / "assets/zombies/models"
         self.tree = self.write("assets/tree.glb", glb({"extras": {"tree": True}}))
+        self.write("assets/dry_tree_impostor.glb", glb({"extras": {"dry_tree": True}}))
         self.zombie = self.write("assets/zombies/models/Zombie.glb", glb({}))
         self.write("assets/zombies/models/unused-old-lod.glb.bak", b"not runtime")
         levels = []
@@ -86,7 +87,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         self.assertEqual(manifest["map"], "output/town.glb")
         self.assertEqual(manifest["vegetation"], "osm-tuned2")
         expected = {"output/town.glb", "output/ATTRIBUTION.md", "output/trees.instances.json", "output/poles.instances.json", "output/guardrails.glb",
-                    "assets/tree.glb", "output/osm/forest_patches.json", "assets/side.png", "assets/top.png", "assets/bush.png", "inventory.toml",
+                    "assets/tree.glb", "assets/dry_tree_impostor.glb", "output/osm/forest_patches.json", "assets/side.png", "assets/top.png", "assets/bush.png", "inventory.toml",
                     "assets/zombies/models/Zombie.glb", "assets/zombies/models/lods.json"}
         expected.update(f"items/{name}.toml" for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"))
         expected.update(f"assets/zombies/models/lod{level}/Zombie.glb" for level in range(1, 4))
@@ -151,6 +152,23 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         with zipfile.ZipFile(self.output) as archive:
             self.assertEqual(archive.read("assets/understory.png"), b"custom bush atlas")
             self.assertNotIn("assets/bush.png", archive.namelist())
+
+    def test_missing_dry_tree_preserves_archive_and_override_is_packaged(self):
+        self.package()
+        previous = self.output.read_bytes()
+        (self.root / "assets/dry_tree_impostor.glb").unlink()
+        with self.assertRaisesRegex(ValueError, "Missing runtime asset"):
+            self.package()
+        self.assertEqual(self.output.read_bytes(), previous)
+        path = self.root / "output/osm/forest_patches.json"
+        document = json.loads(path.read_text())
+        document["runtime"]["dry_tree_asset"] = "../../assets/custom_dry.glb"
+        self.json("output/osm/forest_patches.json", document)
+        self.write("assets/custom_dry.glb", glb({"extras": {"custom_dry_tree": True}}))
+        self.package()
+        with zipfile.ZipFile(self.output) as archive:
+            self.assertIn("assets/custom_dry.glb", archive.namelist())
+            self.assertNotIn("assets/dry_tree_impostor.glb", archive.namelist())
 
     def test_missing_credit_preserves_previous_archive(self):
         self.package()

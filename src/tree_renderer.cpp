@@ -34,7 +34,8 @@ void Renderer::uploadTrees(const TreeLayer& trees, const ForestLayer* forests) {
         const auto& source = trees.assets[index].model;
         auto& batch = treeBatches_[index];
         uploadModel(source, batch.model);
-        if (canopyColor) batch.model.materials = matchTreeTextureColors(source, *canopyColor);
+        if (canopyColor && trees.assets[index].matchCanopyColor)
+            batch.model.materials = matchTreeTextureColors(source, *canopyColor);
         batch.visibleInstances.reserve(counts[index]);
         glGenBuffers(1, &batch.instanceBuffer);
         glBindBuffer(GL_ARRAY_BUFFER, batch.instanceBuffer);

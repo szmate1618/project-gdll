@@ -83,4 +83,49 @@ std::vector<ForestBushCandidate> forestBushCandidates(glm::dvec2 tree,
     }
     return result;
 }
+
+std::vector<ForestDryTreeCandidate> forestDryTreeCandidates(const ForestPolygon& polygon,
+    const ForestPolygon& oldForest, const std::string& patchId, std::uint32_t seed,
+    std::size_t oldTreeCount,
+    const std::function<bool(const ForestDryTreeCandidate&)>& usable) {
+    // Integer rounding avoids platform-dependent floating point at half counts.
+    const auto count=(oldTreeCount/100)*9+((oldTreeCount%100)*9+50)/100;
+    if (!count) return {};
+    auto lo=oldForest.exterior.front(),hi=lo;
+    for (const auto p:oldForest.exterior) {lo=glm::min(lo,p);hi=glm::max(hi,p);}
+    const auto base=mix(hashId(patchId)^seed^0xb9d41e37u);
+    const auto inside=[&](const ForestDryTreeCandidate& tree) {
+        return forestContains(polygon,tree.eastNorth)&&forestContains(oldForest,tree.eastNorth)&&usable(tree);
+    };
+    std::vector<ForestDryTreeCandidate> result;
+    result.reserve(count+count/10);
+    for (std::size_t i=0;i<count;++i) {
+        const auto key=mix(base^mix(static_cast<std::uint32_t>(i)));
+        ForestDryTreeCandidate primary;
+        primary.primaryIndex=i;
+        primary.height=3.5f+2.5f*unit(key^0x653e93a9u);
+        primary.yaw=unit(key^0x467cf03du)*6.28318530718f;
+        bool placed=false;
+        for (std::uint32_t attempt=0;attempt<4096&&!placed;++attempt) {
+            const auto sample=mix(key^mix(attempt^0xe8d1386fu));
+            primary.eastNorth=lo+(hi-lo)*glm::dvec2(unit(sample),unit(sample^0xaec3c02bu));
+            placed=inside(primary);
+        }
+        if (!placed) throw std::runtime_error("Cannot place requested dry trees in old forest: "+patchId);
+        result.push_back(primary);
+        if (unit(key^0x32b6a417u)>=.1f) continue;
+        ForestDryTreeCandidate companion;
+        companion.primaryIndex=i; companion.companion=true;
+        companion.height=3.5f+2.5f*unit(key^0x68236f21u);
+        companion.yaw=unit(key^0xf18c43d9u)*6.28318530718f;
+        for (std::uint32_t attempt=0;attempt<64;++attempt) {
+            const auto sample=mix(key^mix(attempt^0x7cd1b835u));
+            const auto angle=unit(sample)*6.28318530718;
+            const auto radius=std::sqrt(1.5*1.5+(5*5-1.5*1.5)*unit(sample^0xd97a652bu));
+            companion.eastNorth=primary.eastNorth+radius*glm::dvec2(std::cos(angle),std::sin(angle));
+            if (inside(companion)) {result.push_back(companion);break;}
+        }
+    }
+    return result;
+}
 } // namespace viewer

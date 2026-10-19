@@ -75,6 +75,17 @@ float assetHeight(const std::filesystem::path& path) {
     if (height<=0||height>100) throw std::runtime_error("Invalid calibrated tree height");
     return static_cast<float>(height);
 }
+void validateTreeMaterials(const Model& model) {
+    if (model.draws.empty()) throw std::runtime_error("Forest tree asset has no geometry");
+    for (const auto& draw:model.draws) {
+        const auto material=model.primitives.at(draw.primitive).material;
+        if (material<0||static_cast<std::size_t>(material)>=model.materials.size())
+            throw std::runtime_error("Forest tree asset needs explicit masked materials");
+        const auto& m=model.materials[material];
+        if (!m.unlit||!m.doubleSided||m.alphaMode!="MASK")
+            throw std::runtime_error("Forest trees must be unlit double-sided alpha masks");
+    }
+}
 void include(VisibilityBounds& bounds,glm::vec3 p) {
     bounds.minimum=glm::min(bounds.minimum,p); bounds.maximum=glm::max(bounds.maximum,p);
 }
@@ -144,15 +155,7 @@ ForestLayer loadForestLayer(const std::filesystem::path& path,const std::filesys
         if (asset==trees.assets.size()) newAsset=TreeAsset{"forest_tree",treePath,loadModel(treePath)};
         const Model& treeModel=newAsset?newAsset->model:trees.assets[asset].model;
         const float nativeHeight=assetHeight(treePath);
-        if (treeModel.draws.empty()) throw std::runtime_error("Forest tree asset has no geometry");
-        for (const auto& draw:treeModel.draws) {
-            const auto material=treeModel.primitives.at(draw.primitive).material;
-            if (material<0||static_cast<std::size_t>(material)>=treeModel.materials.size())
-                throw std::runtime_error("Forest tree asset needs explicit masked materials");
-            const auto& m=treeModel.materials[material];
-            if (!m.unlit||!m.doubleSided||m.alphaMode!="MASK")
-                throw std::runtime_error("Forest trees must be unlit double-sided alpha masks");
-        }
+        validateTreeMaterials(treeModel);
         const auto sidePath=assetPath(settings,"side_texture","assets/forests/side.png",parent);
         // Default alongside the side texture so existing nested OSM configs
         // resolve the same shared atlas without rewriting published inputs.
@@ -165,6 +168,17 @@ ForestLayer loadForestLayer(const std::filesystem::path& path,const std::filesys
         if (bushAsset>=trees.assets.size())
             newBushAsset=TreeAsset{"forest_bush",bushPath,forestBushModel(image(bushPath))};
         const Model& bushModel=newBushAsset?newBushAsset->model:trees.assets[bushAsset].model;
+        const auto defaultDryPath=(treePath.parent_path()/"dry_tree_impostor.glb").u8string();
+        const auto dryPath=assetPath(settings,"dry_tree_asset",defaultDryPath.c_str(),parent);
+        std::size_t dryAsset=trees.assets.size()+(newAsset?1:0)+(newBushAsset?1:0);
+        std::optional<TreeAsset> newDryAsset;
+        for (std::size_t i=0;i<trees.assets.size();++i)
+            if (std::filesystem::weakly_canonical(trees.assets[i].path)==dryPath) {dryAsset=i;break;}
+        if (dryAsset>=trees.assets.size())
+            newDryAsset=TreeAsset{"forest_dry_tree",dryPath,loadModel(dryPath),false};
+        const Model& dryModel=newDryAsset?newDryAsset->model:trees.assets[dryAsset].model;
+        const float dryNativeHeight=assetHeight(dryPath);
+        validateTreeMaterials(dryModel);
         for (const auto& texturePath:{sidePath,
                                     assetPath(settings,"top_texture","assets/forests/top.png",parent)}) {
             layer.volumes.images.push_back(image(texturePath));
@@ -199,9 +213,19 @@ ForestLayer loadForestLayer(const std::filesystem::path& path,const std::filesys
         // Avoid adding a second tree next to existing detector placements.
         std::map<std::pair<int,int>,std::vector<glm::vec2>> detected;
         for (const auto& t:trees.instances) {
+            if (!t.collidable) continue;
             const glm::vec2 p(t.transform[3].x,t.transform[3].z);
             detected[{static_cast<int>(std::floor(p.x/3)),static_cast<int>(std::floor(p.y/3))}].push_back(p);
         }
+        const auto nearDetected=[&](glm::vec3 feet) {
+            const glm::vec2 p(feet.x,feet.z);
+            const int x=static_cast<int>(std::floor(p.x/3)),z=static_cast<int>(std::floor(p.y/3));
+            for (int i=x-1;i<=x+1;++i) for (int j=z-1;j<=z+1;++j) {
+                const auto entry=detected.find({i,j});
+                if (entry!=detected.end()) for (const auto q:entry->second) if (glm::length(p-q)<3) return true;
+            }
+            return false;
+        };
         std::vector<TreeInstance> generated;
         std::size_t generatedTreeCount=0;
         std::map<std::size_t,TreeInstance> enlargedDetected;
@@ -240,6 +264,7 @@ ForestLayer loadForestLayer(const std::filesystem::path& path,const std::filesys
                     append(std::move(instance));
                 }
             };
+            std::size_t oldTreeCount=0;
             for (std::size_t i = 0; i < trees.instances.size(); ++i) {
                 const auto& tree = trees.instances[i];
                 const glm::dvec2 p(tree.transform[3].x, -tree.transform[3].z);
@@ -249,7 +274,7 @@ ForestLayer loadForestLayer(const std::filesystem::path& path,const std::filesys
                 const auto& adjusted=old?enlargedDetected.emplace(i,enlargedTree(tree)).first->second:tree;
                 include(patch.bounds, adjusted.boundsMin);
                 include(patch.bounds, adjusted.boundsMax);
-                if (old) bushes(p,tree.id);
+                if (old) {++oldTreeCount;bushes(p,tree.id);}
             }
             auto volume=forestVolume(polygon,ground,volumeHeight,tile);
             patch.firstDraw=layer.volumes.draws.size(); patch.drawCount=2;
@@ -266,27 +291,35 @@ ForestLayer loadForestLayer(const std::filesystem::path& path,const std::filesys
                 if (!y) throw std::runtime_error("Forest tree candidate has no terrain support");
                 const glm::vec3 feet(candidate.eastNorth.x,*y,-candidate.eastNorth.y);
                 if (placementWorld.insideBuilding(feet+glm::vec3(0,.05f,0),.4f,candidate.height)) continue;
-                const glm::vec2 p(feet.x,feet.z);
-                const int x=static_cast<int>(std::floor(p.x/3)),z=static_cast<int>(std::floor(p.y/3));
-                bool occupied=false;
-                for (int i=x-1;i<=x+1;++i) for (int j=z-1;j<=z+1;++j) {
-                    const auto entry=detected.find({i,j});
-                    if (entry!=detected.end()) for (const auto q:entry->second) if (glm::length(p-q)<3) occupied=true;
-                }
-                if (occupied) continue;
+                if (nearDetected(feet)) continue;
                 if (++generatedTreeCount>2000000) throw std::runtime_error("Forest tree count exceeds load-time limit");
                 const auto id="forest:"+patch.id+":"+std::to_string(candidateIndex);
                 append(placedInstance(id,asset,treeModel,feet,candidate.height/nativeHeight,candidate.yaw,candidate.height));
-                if (candidate.oldForest) bushes(candidate.eastNorth,id);
+                if (candidate.oldForest) {++oldTreeCount;bushes(candidate.eastNorth,id);}
+            }
+            const auto dryCandidates=forestDryTreeCandidates(polygon,patch.oldForest,patch.id,seed,oldTreeCount,
+                [&](const ForestDryTreeCandidate& tree) {
+                    const auto y=ground(tree.eastNorth);
+                    if (!y) return false;
+                    const glm::vec3 feet(tree.eastNorth.x,*y,-tree.eastNorth.y);
+                    return !nearDetected(feet)&&
+                        !placementWorld.insideBuilding(feet+glm::vec3(0,.05f,0),.4f,tree.height);
+                });
+            for (const auto& tree:dryCandidates) {
+                if (++generatedTreeCount>2000000) throw std::runtime_error("Forest tree count exceeds load-time limit");
+                const auto id="dry:"+patch.id+":"+std::to_string(tree.primaryIndex)+(tree.companion?":companion":"");
+                const glm::vec3 feet(tree.eastNorth.x,*ground(tree.eastNorth),-tree.eastNorth.y);
+                append(placedInstance(id,dryAsset,dryModel,feet,tree.height/dryNativeHeight,tree.yaw,tree.height));
             }
             patch.treeCount=trees.instances.size()+generated.size()-patch.firstTree;
             layer.patches.push_back(std::move(patch));
         }
         // Publish only after the complete config, geometry and placements pass.
         trees.instances.reserve(trees.instances.size()+generated.size());
-        trees.assets.reserve(trees.assets.size()+(newAsset?1:0)+(newBushAsset?1:0));
+        trees.assets.reserve(trees.assets.size()+(newAsset?1:0)+(newBushAsset?1:0)+(newDryAsset?1:0));
         if (newAsset) trees.assets.push_back(std::move(*newAsset));
         if (newBushAsset) trees.assets.push_back(std::move(*newBushAsset));
+        if (newDryAsset) trees.assets.push_back(std::move(*newDryAsset));
         trees.instances.insert(trees.instances.end(),std::make_move_iterator(generated.begin()),std::make_move_iterator(generated.end()));
         for (auto& entry:enlargedDetected) trees.instances[entry.first]=std::move(entry.second);
         return layer;

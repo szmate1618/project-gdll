@@ -23,8 +23,9 @@ std::array<unsigned char,3> center() {
     std::array<unsigned char,3> pixels{}; glReadBuffer(GL_COLOR_ATTACHMENT0);
     glReadPixels(320,240,1,1,GL_RGB,GL_UNSIGNED_BYTE,pixels.data()); return pixels;
 }
-void checkSwitching(bool textured = false) {
+void checkSwitching(bool textured = false, bool matchCanopy = true) {
     viewer::TreeLayer trees; trees.assets.push_back({"tree",{},treeAsset()});
+    trees.assets[0].matchCanopyColor=matchCanopy;
     viewer::TreeInstance instance; instance.transform=glm::translate(glm::mat4(1),{0,0,-110});
     instance.boundsMin={-5,0,-110.01f}; instance.boundsMax={5,10,-109.99f}; trees.instances.push_back(instance);
     auto detected = instance;
@@ -64,8 +65,9 @@ void checkSwitching(bool textured = false) {
         const auto pixel=center();
         if (textured) {
             for (std::size_t channel=0;channel<3;++channel)
-                require(std::abs(static_cast<int>(pixel[channel])-matchedColor[channel])<=1,
-                        "Textured billboards and canopy did not match across LoD/scope switches");
+                require(std::abs(static_cast<int>(pixel[channel])-
+                            (detailed&&!matchCanopy?std::array<unsigned char,3>{180,220,110}[channel]:matchedColor[channel]))<=1,
+                        "Textured billboards lost canopy matching or bare-wood color across LoD/scope switches");
         } else {
             require(detailed ? pixel[1]>250 && pixel[0]<2 : pixel[0]>250 && pixel[1]<2,
                     "LoD rendered the wrong geometry at the camera centre");
@@ -158,7 +160,7 @@ int main() {
     if (!window) {glfwTerminate(); return 77;}
     glfwMakeContextCurrent(window);
     int code=0;
-    try {checkSwitching(); checkSwitching(true); checkMultipleVolumes(); std::cout<<"Forest GPU LoD, color matching and batching regressions passed\n";}
+    try {checkSwitching(); checkSwitching(true); checkSwitching(true,false); checkMultipleVolumes(); std::cout<<"Forest GPU LoD, color matching, bare-wood color and batching regressions passed\n";}
     catch (const std::exception& e) {std::cerr<<e.what()<<'\n'; code=1;}
     glfwDestroyWindow(window); glfwTerminate(); return code;
 }

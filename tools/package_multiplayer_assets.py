@@ -121,7 +121,11 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
         if document["source"]["map_sha256"] != map_hash:
             raise ValueError(f"Stale map fingerprint in {path}")
         settings = document.get("runtime", {})
-        assets.model(assets.reference(path.parent, settings.get("tree_asset", "assets/tree_impostor.glb")))
+        tree_asset = assets.reference(path.parent, settings.get("tree_asset", "assets/tree_impostor.glb"))
+        assets.model(tree_asset)
+        dry_tree = (assets.reference(path.parent, settings["dry_tree_asset"])
+                    if "dry_tree_asset" in settings else tree_asset.parent / "dry_tree_impostor.glb")
+        assets.model(dry_tree)
         for key, default in (("side_texture", "assets/forests/side.png"), ("top_texture", "assets/forests/top.png")):
             assets.add(assets.reference(path.parent, settings.get(key, default)))
         side = assets.reference(path.parent, settings.get("side_texture", "assets/forests/side.png"))
