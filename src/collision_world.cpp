@@ -379,8 +379,9 @@ struct CollisionWorld::Impl {
             if (!node.bounds.intersects(region)) continue;
             if (node.count) {
                 for (auto i = node.first; i < node.first + node.count; ++i) {
-                    const auto& trunk = trunks[trunkOrder[i]];
-                    if (trunk.bounds.intersects(region)) callback(trunk.collider);
+                    const auto index = trunkOrder[i];
+                    const auto& trunk = trunks[index];
+                    if (trunk.bounds.intersects(region)) callback(index, trunk.collider);
                 }
             } else {
                 stack[count++] = node.left;
@@ -526,7 +527,7 @@ std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, floa
             (!t.road || glm::dot(groundNormal, feet - pair.triangle) >= -epsilon);
         result.push_back({normal, pair.triangle, triangleReach - distance, t.terrain, terrainSupport});
     });
-    impl_->queryTrunks(region, [&](const TrunkCollider& trunk) {
+    impl_->queryTrunks(region, [&](std::size_t, const TrunkCollider& trunk) {
         const float low = trunk.base.y + trunk.radius;
         const float high = trunk.base.y + trunk.height - trunk.radius;
         // Parallel vertical segments have a direct interval solution, avoiding
@@ -667,7 +668,7 @@ std::vector<glm::vec3> CollisionWorld::debugLines(glm::vec3 near, float distance
     groups.erase(std::unique(groups.begin(), groups.end()), groups.end());
     for (const auto group : groups) appendBox(result, impl_->groups[static_cast<std::size_t>(group)].bounds);
     const auto trunkLimit = result.size() + 30000;
-    impl_->queryTrunks(region, [&](const TrunkCollider& trunk) {
+    impl_->queryTrunks(region, [&](std::size_t, const TrunkCollider& trunk) {
         if (result.size() < trunkLimit) appendTrunk(result, trunk);
     });
     if (impl_->doors) {
@@ -696,6 +697,16 @@ std::vector<StaticCollisionFace> CollisionWorld::staticFaces(glm::vec3 minimum, 
     Bounds region; region.include(minimum); region.include(maximum);
     impl_->query(region, [&](const Triangle& t) {
         result.push_back({static_cast<std::size_t>(&t - impl_->triangles.data()), {t.a, t.b, t.c}});
+    });
+    return result;
+}
+
+std::vector<StaticTrunkCollider> CollisionWorld::staticTrunks(glm::vec3 minimum, glm::vec3 maximum) const {
+    std::vector<StaticTrunkCollider> result;
+    if (!finite(minimum) || !finite(maximum) || glm::any(glm::greaterThan(minimum, maximum))) return result;
+    Bounds region; region.include(minimum); region.include(maximum);
+    impl_->queryTrunks(region, [&](std::size_t index, const TrunkCollider& trunk) {
+        result.push_back({index, trunk});
     });
     return result;
 }

@@ -38,6 +38,10 @@ struct TrunkCollider {
     float radius = 0.15f;
     float height = 5.0f;
 };
+struct StaticTrunkCollider {
+    std::size_t index; // Stable for this CollisionWorld's lifetime.
+    TrunkCollider collider;
+};
 
 struct CollisionStats {
     std::size_t triangles = 0;
@@ -94,6 +98,8 @@ public:
     // BVH-selected static triangles, including the actual clipped doorways.
     // Stable indices let physics upload neighboring regions without duplicates.
     std::vector<StaticCollisionFace> staticFaces(glm::vec3 minimum, glm::vec3 maximum) const;
+    // BVH-selected authoritative trunk capsules, independent of render visibility.
+    std::vector<StaticTrunkCollider> staticTrunks(glm::vec3 minimum, glm::vec3 maximum) const;
 
 private:
     std::optional<GroundHit> queryGround(float x, float z, float minY, float maxY,

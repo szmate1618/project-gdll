@@ -135,6 +135,15 @@ void testForestIndexAndInvalidInputs() {
     const auto isolated = forest.contacts({0.4f, 0, 0}, 0.3f, 1.8f);
     require(isolated.size() == 1 && isolated[0].normal.x > 0.999f,
             "Unrelated distant trees must not affect a local collision query");
+    const auto nearby = forest.staticTrunks({-.5f, 1, -.5f}, {.5f, 5, .5f});
+    require(nearby.size() == 1 && nearby[0].index == 0 && nearby[0].collider.radius == .2f,
+            "Physics queries must select the nearby authoritative trunk from the forest BVH");
+    const auto remote = forest.staticTrunks({99.5f, 1, 99.5f}, {100.5f, 5, 100.5f});
+    require(remote.size() == 1 && remote[0].index == 1 && remote[0].collider.base.x == 100,
+            "Trunk IDs must stay stable across different spatial queries");
+    require(forest.staticTrunks({-1, 7, -1}, {1, 8, 1}).empty() &&
+            forest.staticTrunks({1, 0, 1}, {-1, 2, -1}).empty(),
+            "Trunk queries must respect capsule height and reject invalid bounds");
     for (int i = 0; i < 20000; ++i) {
         const float x = 100.4f + 4 * (i % 220), z = 100.0f + 4 * ((i / 220) % 200);
         const auto hit = forest.contacts({x, 0, z}, 0.3f, 1.8f);

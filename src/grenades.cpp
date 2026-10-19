@@ -117,8 +117,10 @@ void Grenades::prepare(PhysicsScene& scene, DoorLayer& doors) {
         const auto p = b3Body_GetPosition(g.body);
         const glm::vec3 center(p.x, p.y, p.z);
         const auto travel = vec(b3Body_GetLinearVelocity(g.body)) * .2f;
-        scene.ensureNear(center + glm::min(travel, glm::vec3(0)) - glm::vec3(2),
-                         center + glm::max(travel, glm::vec3(0)) + glm::vec3(2));
+        const auto minimum = center + glm::min(travel, glm::vec3(0)) - glm::vec3(2);
+        const auto maximum = center + glm::max(travel, glm::vec3(0)) + glm::vec3(2);
+        scene.ensureNear(minimum, maximum);
+        scene.ensureTrunksNear(minimum, maximum);
         doors.activateNear(center, glm::length(travel) + 3);
     }
 }

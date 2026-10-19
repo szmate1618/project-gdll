@@ -12,10 +12,10 @@
 namespace viewer {
 namespace {
 constexpr float cellSize = 16;
-struct MeshBody {
+struct StaticBody {
     b3BodyId body{};
     b3MeshData* mesh = nullptr;
-    ~MeshBody() {
+    ~StaticBody() {
         if (b3Body_IsValid(body)) b3DestroyBody(body);
         if (mesh) b3DestroyMesh(mesh);
     }
@@ -27,7 +27,8 @@ struct PhysicsScene::Impl {
     glm::vec3 minimum, maximum;
     std::set<std::pair<int, int>> cells;
     std::set<std::size_t> triangles;
-    std::vector<std::unique_ptr<MeshBody>> meshes;
+    std::set<std::size_t> trunks;
+    std::vector<std::unique_ptr<StaticBody>> bodies;
 };
 PhysicsScene::PhysicsScene(std::shared_ptr<PhysicsWorld> simulation, const CollisionWorld& collision,
                            glm::vec3 minimum, glm::vec3 maximum) : impl_(std::make_unique<Impl>()) {
@@ -65,7 +66,7 @@ void PhysicsScene::ensureNear(glm::vec3 minimum, glm::vec3 maximum) {
         // both indoor and outdoor collision without changing the scene winding.
         for (int side = 0; side < 2; ++side) {
             if (side) for (std::size_t i = 0; i < indices.size(); i += 3) std::swap(indices[i + 1], indices[i + 2]);
-            auto mesh = std::make_unique<MeshBody>();
+            auto mesh = std::make_unique<StaticBody>();
             b3MeshDef definition{};
             definition.vertices = vertices.data(); definition.indices = indices.data();
             definition.vertexCount = static_cast<int>(vertices.size());
@@ -86,8 +87,27 @@ void PhysicsScene::ensureNear(glm::vec3 minimum, glm::vec3 maximum) {
             // support props, leaving door and ragdoll behavior unchanged.
             shape.filter.maskBits = interiorBoxCategory | grenadeBodyCategory;
             b3CreateMeshShape(mesh->body, &shape, mesh->mesh, {1, 1, 1});
-            impl_->meshes.push_back(std::move(mesh));
+            impl_->bodies.push_back(std::move(mesh));
         }
+    }
+}
+void PhysicsScene::ensureTrunksNear(glm::vec3 minimum, glm::vec3 maximum) {
+    // Query the trunk BVH directly: tree crowns can extend above the town's
+    // mesh bounds, and neighboring streamed regions can share the same trunk.
+    for (const auto& source : impl_->collision->staticTrunks(minimum, maximum)) {
+        if (!impl_->trunks.insert(source.index).second) continue;
+        const auto& trunk = source.collider;
+        auto body = std::make_unique<StaticBody>();
+        auto definition = b3DefaultBodyDef();
+        definition.position = {trunk.base.x, trunk.base.y, trunk.base.z};
+        body->body = b3CreateBody(impl_->simulation->id(), &definition);
+        const b3Capsule capsule{{0, trunk.radius, 0}, {0, trunk.height - trunk.radius, 0}, trunk.radius};
+        auto shape = b3DefaultShapeDef();
+        shape.filter.categoryBits = ordinaryBodyCategory;
+        shape.filter.maskBits = grenadeBodyCategory;
+        shape.baseMaterial.friction = .6f;
+        b3CreateCapsuleShape(body->body, &shape, &capsule);
+        impl_->bodies.push_back(std::move(body));
     }
 }
 void PhysicsScene::prepare(const BoxLayer& boxes) {

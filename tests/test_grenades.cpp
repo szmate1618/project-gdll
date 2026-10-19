@@ -6,6 +6,7 @@
 #include "collision_world.hpp"
 #include "zombie_layer.hpp"
 #include "interior_fixture.hpp"
+#include <box3d/box3d.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 #include <stdexcept>
@@ -79,6 +80,39 @@ void propCollisionAndBlast() {
     require(glm::length(blast.boxes.velocity(shielded)) < .001f, "A wall must shield props from blast impulses");
 }
 
+void treeRebounds() {
+    for (const float speed : {14.0f, 30.0f}) for (const float height : {1.3f, 8.0f}) {
+        auto model = room();
+        auto physics = std::make_shared<viewer::PhysicsWorld>();
+        viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics);
+        viewer::CollisionWorld world(model, {{{0, 0, -1.5f}, .25f, 12}, {{50, 0, 50}, .3f, 10}});
+        viewer::PhysicsScene scene(physics, world, model.boundsMin, model.boundsMax);
+        viewer::Grenades grenade(physics);
+        require(grenade.throwFrom({0, height, 0}, {0, 0, -1}, {0, 0, 0}, 0, {3, 8, speed}, world), "Throw toward trunk");
+        const auto before = b3World_GetCounters(physics->id()).bodyCount;
+        scene.ensureTrunksNear({-2, height - 2, -3}, {2, height + 2, 2});
+        require(b3World_GetCounters(physics->id()).bodyCount == before + 1, "Only the nearby trunk must receive a physics body");
+        scene.ensureTrunksNear({-1, height - 1, -2}, {1, height + 1, 1});
+        require(b3World_GetCounters(physics->id()).bodyCount == before + 1, "Overlapping queries must not duplicate a trunk collider");
+        float previousZ = 0;
+        bool bounced = false;
+        for (int i = 1; i <= 30; ++i) {
+            grenade.prepare(scene, doors); physics->step(1.0f / 60);
+            const auto p = grenade.poses().at(0).center;
+            require(p.z > -1.5f, "Fast grenade must not tunnel through the trunk");
+            if (speed == 14) require(p.z > -1.25f, "Normal-speed throw must remain outside the trunk");
+            bounced |= previousZ < -.8f && p.z > previousZ;
+            previousZ = p.z;
+        }
+        require(bounced, "Grenade must rebound from the trunk's rounded collider");
+
+        viewer::Grenades miss(physics);
+        require(miss.throwFrom({1, height, 0}, {0, 0, -1}, {0, 0, 0}, 0, {3, 8, 14}, world), "Throw beside trunk");
+        for (int i = 0; i < 9; ++i) { miss.prepare(scene, doors); physics->step(1.0f / 60); }
+        require(miss.poses().at(0).center.z < -1.6f, "A throw beside the trunk must stay clear of the rendering-only canopy");
+    }
+}
+
 void zombieBlast() {
     Fixture f;
     viewer::ZombieLayer zombies;
@@ -98,7 +132,7 @@ void zombieBlast() {
 }
 int main() {
     try {
-        collisionAndFuse(); propCollisionAndBlast(); zombieBlast();
-        std::cout << "Grenade CCD, wall/floor/prop collision, fuse, blast cover and light tests passed\n";
+        collisionAndFuse(); propCollisionAndBlast(); treeRebounds(); zombieBlast();
+        std::cout << "Grenade CCD, wall/floor/prop/trunk collision, fuse, blast cover and light tests passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

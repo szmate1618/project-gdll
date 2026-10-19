@@ -939,6 +939,9 @@ not bypass the cooldown. Multiplayer follows the server-confirmed readiness.
 The original mesh is a medium grey octagonal column with red stripes near both
 ends, shared between the held and thrown model. Grenades use the same Box3D
 world, streamed town colliders, and live doors/boxes/ragdolls as interior props.
+They also rebound from the existing solid tree trunk capsules. Nearby trunks
+are uploaded through the trunk BVH once, independent of camera visibility;
+foliage cards remain rendering geometry.
 Their 450 g bodies have octagonal convex colliders and continuous collision
 detection. Throws inherit walking velocity and add a small upward arc.
 
