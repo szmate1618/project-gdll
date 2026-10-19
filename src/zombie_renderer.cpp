@@ -331,6 +331,7 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
         const auto local = zombieBatchLocals_[visible.instance];
         auto instance = batch.staging[local];
         const auto& bounds = batch.instanceBounds[local];
+        if (forestViewRange_ && !forestViewRange_->intersects(bounds)) continue;
         const float distance = glm::length((bounds.minimum + bounds.maximum) * .5f - camera.position());
         const auto detail = zombieCameraDetail(distance, projection[1][1], zombieDistanceDetail_, zombieDrawDistance_);
         const bool cameraVisible = visible.camera && detail.visible;

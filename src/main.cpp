@@ -1107,6 +1107,7 @@ int run(const Options& options) {
         renderer.updateDoors(doors);
         renderer.updateBoxes(boxes);
         renderer.updateGrenades(grenades.poses());
+        renderer.updateVegetationBlasts(grenades.explosions(simulationClock.seconds()));
         renderer.setExplosionLights(grenades.lights(simulationClock.seconds()));
         renderer.resize(app.width, app.height);
         if (zombies) renderer.updateZombies(*zombies);

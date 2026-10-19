@@ -12,10 +12,12 @@ from .forest_comparison import file_sha256
 from .osm_vegetation_placements import prepare_osm_vegetation
 from .satellite_tree_tuned2 import prepare_tuned2_trees
 from .tree_combination import combine_trees
+from .tree_assets import load_impostor
+from .tree_species import assign_pine_clusters
 
 
 def publish_default_trees(placement_path, map_path):
-    """Rebase runtime references, preserve the old layer and atomically replace it.
+    """Assign pine neighborhoods, rebase references and atomically publish trees.
 
     Backups stay beside the map so their relative map/asset references still work.
     Publication checks the generated layer, map, assets and previous default again
@@ -23,8 +25,6 @@ def publish_default_trees(placement_path, map_path):
     """
     placement_path, map_path = Path(placement_path).resolve(), Path(map_path).resolve()
     target = map_path.parent / "trees.instances.json"
-    if placement_path == target:
-        raise ValueError("Prepare tuned2 in a separate directory before publishing the default")
     previous = target.read_bytes() if target.exists() else None
     fingerprints = {placement_path: file_sha256(placement_path), map_path: file_sha256(map_path)}
     document = json.loads(placement_path.read_text(encoding="utf-8"))
@@ -42,6 +42,17 @@ def publish_default_trees(placement_path, map_path):
         asset["path"] = os.path.relpath(path, target.parent)
     document["map"]["path"] = os.path.relpath(map_path, target.parent)
     document["source"].setdefault("default_preparation", "tuned2")
+    pine_counts = {"pine_cluster_centers": 0, "pine_cluster_trees": 0, "new_pines": 0}
+    if document["instances"]:
+        pine_record = document["assets"].get("pine")
+        pine_path = ((target.parent / pine_record["path"]).resolve() if pine_record is not None
+                     else ROOT / "assets/pine_impostor.glb")
+        pine_asset = load_impostor(pine_path)
+        if pine_path in fingerprints and pine_asset["sha256"] != fingerprints[pine_path]:
+            raise ValueError(f"Tree publication input changed: {pine_path}")
+        fingerprints[pine_path] = pine_asset["sha256"]
+        pine_asset["path"] = os.path.relpath(pine_path, target.parent)
+        pine_counts = assign_pine_clusters(document, pine_asset)
     encoded = (json.dumps(document, indent=2, ensure_ascii=False, allow_nan=False) + "\n").encode("utf-8")
     backup = None
     with tempfile.TemporaryDirectory(prefix=".default-trees-", dir=target.parent) as scratch:
@@ -67,7 +78,7 @@ def publish_default_trees(placement_path, map_path):
             raise ValueError("Default trees changed during publication; retry")
         os.replace(staged, target)
     return {"output": str(target), "backup": str(backup) if backup else None,
-            "instances": len(document["instances"])}
+            "instances": len(document["instances"]), **pine_counts}
 
 
 def prepare_trees(*, map_path=ROOT / "output/godollo.glb", forest_exclusions=None,

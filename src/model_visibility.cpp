@@ -90,8 +90,9 @@ ModelVisibility::ModelVisibility(const Model& model) {
     }
 }
 
-VisibilityStats ModelVisibility::query(const glm::mat4& projectionView, std::vector<std::size_t>& visible) const {
-    return index_.query(projectionView, visible);
+VisibilityStats ModelVisibility::query(const glm::mat4& projectionView, std::vector<std::size_t>& visible,
+    const HorizontalVisibilityRange* range, bool frustumCulling) const {
+    return index_.query(projectionView, visible, range, frustumCulling);
 }
 
 void ModelVisibility::filterDetails(const glm::vec3& eye, const glm::mat4& projection,

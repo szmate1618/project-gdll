@@ -8,6 +8,7 @@
 
 namespace viewer {
 void Renderer::uploadTrees(const TreeLayer& trees, const ForestLayer* forests) {
+    vegetationBlastMotion_ = VegetationBlastMotion(trees.instances);
     std::optional<glm::vec3> canopyColor;
     if (forests && forests->volumes.materials.size() > ForestLayer::canopyMaterialIndex)
         canopyColor = visibleTextureColor(forests->volumes,
@@ -68,6 +69,14 @@ void Renderer::uploadTrees(const TreeLayer& trees, const ForestLayer* forests) {
     treeStats_.total = treeInstances_.size();
 }
 
+void Renderer::updateVegetationBlasts(const std::vector<GrenadeExplosion>& explosions) {
+    for (const auto& bend : vegetationBends_)
+        treeInstances_[bend.instance].data.transform = bend.rest;
+    vegetationBends_ = vegetationBlastMotion_.sample(explosions);
+    for (const auto& bend : vegetationBends_)
+        treeInstances_[bend.instance].data.transform = bend.transform;
+}
+
 void Renderer::drawTrees(const glm::mat4& projectionView, bool shadowPass) {
     if (!shadowPass) {
         treeStats_.visible = 0;
@@ -79,7 +88,7 @@ void Renderer::drawTrees(const glm::mat4& projectionView, bool shadowPass) {
     // Casters use the light volume independently of color visibility and the
     // --no-tree-culling flag. Always keep caster selection spatially bounded.
     const auto visibility = treeVisibility_.query(projectionView, forestDetail_,
-                                                 shadowPass || treeCulling_, selected);
+                                                 shadowPass || treeCulling_, selected, forestVisibilityRange());
     if (!shadowPass) treeStats_.queriedForestPatches = visibility.queriedPatches;
     for (auto& batch : treeBatches_) batch.visibleInstances.clear();
     std::size_t drawn = 0;

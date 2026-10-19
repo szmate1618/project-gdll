@@ -432,6 +432,9 @@ void serverGrenades(const std::filesystem::path& asset) {
     Snapshots snapshots;
     Snapshot event; event.tick = 1; event.explosions.push_back({1, {2, 3, 4}, .05f});
     snapshots.push(event, 10);
+    require(std::abs(snapshots.explosions(10.4).at(0).age - .45f) < .0001f &&
+            snapshots.explosions(11).at(0).age > .9f,
+            "Client shrub motion must age confirmed events and settle during snapshot starvation");
     require(!snapshots.explosionLights(10).empty() && snapshots.explosionLights(10.2).empty(),
             "Client explosion lights must respect event age and expire during snapshot starvation");
     Snapshots delayed;

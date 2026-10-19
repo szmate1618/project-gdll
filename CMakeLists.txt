@@ -155,7 +155,8 @@ viewer_warnings(viewer_fingerprints)
 add_library(viewer_vegetation STATIC src/vegetation_selection.cpp)
 viewer_warnings(viewer_vegetation)
 
-add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp src/tree_color.cpp src/tree_canopy.cpp)
+add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp src/tree_color.cpp src/tree_canopy.cpp
+    src/vegetation_blast.cpp)
 target_link_libraries(viewer_trees PUBLIC viewer_model viewer_visibility viewer_fingerprints)
 target_include_directories(viewer_trees SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_trees)
@@ -223,7 +224,7 @@ viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
 
 add_library(viewer_forests STATIC src/forest_layer.cpp src/forest_geometry.cpp src/forest_placement.cpp
-    src/forest_bush.cpp src/forest_tree_visibility.cpp src/forest_volume_batch.cpp)
+    src/forest_bush.cpp src/forest_tree_visibility.cpp src/forest_volume_batch.cpp src/forest_visibility.cpp)
 target_link_libraries(viewer_forests PUBLIC viewer_trees viewer_collision)
 target_include_directories(viewer_forests SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_forests)
@@ -534,6 +535,16 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_forest_render_data)
     add_test(NAME viewer_forest_render_data COMMAND test_forest_render_data)
 
+    add_executable(test_forest_visibility tests/test_forest_visibility.cpp)
+    target_link_libraries(test_forest_visibility PRIVATE viewer_forests)
+    viewer_warnings(test_forest_visibility)
+    add_test(NAME viewer_forest_visibility COMMAND test_forest_visibility)
+
+    add_executable(test_vegetation_blast tests/test_vegetation_blast.cpp)
+    target_link_libraries(test_vegetation_blast PRIVATE viewer_forests)
+    viewer_warnings(test_vegetation_blast)
+    add_test(NAME viewer_vegetation_blast COMMAND test_vegetation_blast)
+
     add_executable(test_forest_renderer tests/test_forest_renderer.cpp)
     target_link_libraries(test_forest_renderer PRIVATE viewer_renderer glfw)
     target_compile_definitions(test_forest_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -541,6 +552,14 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_forest_renderer)
     add_test(NAME viewer_forest_renderer COMMAND test_forest_renderer)
     set_tests_properties(viewer_forest_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
+    add_executable(test_forest_visibility_renderer tests/test_forest_visibility_renderer.cpp)
+    target_link_libraries(test_forest_visibility_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_forest_visibility_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_forest_visibility_renderer)
+    add_test(NAME viewer_forest_visibility_renderer COMMAND test_forest_visibility_renderer)
+    set_tests_properties(viewer_forest_visibility_renderer PROPERTIES SKIP_RETURN_CODE 77)
 
     add_executable(test_doors tests/test_doors.cpp)
     target_link_libraries(test_doors PRIVATE viewer_physics viewer_visibility viewer_zombies)

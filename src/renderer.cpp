@@ -65,6 +65,7 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         shadowMapLocation_ = glGetUniformLocation(program_, "uShadowMap");
         sunMatrixLocation_ = glGetUniformLocation(program_, "uSunMatrix");
         eyeLocation_ = glGetUniformLocation(program_, "uEye");
+        forestVisibilityLocation_ = glGetUniformLocation(program_, "uForestVisibility");
         sunDirectionLocation_ = glGetUniformLocation(program_, "uSunDirection");
         sunColorLocation_ = glGetUniformLocation(program_, "uSunColor");
         skyAmbientLocation_ = glGetUniformLocation(program_, "uSkyAmbient");
@@ -302,7 +303,8 @@ void Renderer::draw(const DrawGPU& draw) {
 
 void Renderer::gatherVisibleSceneDraws(const glm::mat4& projectionView, const glm::vec3& eye,
                                       const glm::mat4& projection) {
-    if (sceneCulling_) sceneVisibility_.query(projectionView, visibleScene_);
+    if (sceneCulling_ || forestViewRange_)
+        sceneVisibility_.query(projectionView, visibleScene_, forestVisibilityRange(), sceneCulling_);
     else {
         visibleScene_.resize(sceneDraws_.size());
         std::iota(visibleScene_.begin(), visibleScene_.end(), std::size_t{0});
@@ -340,6 +342,12 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     glUseProgram(program_);
     glActiveTexture(GL_TEXTURE0);
     glUniform1i(textureLocation_, 0);
+    forestViewRange_ = camera.viewMode() == Camera::ViewMode::original
+        ? oldForestVisibility_.rangeAt(camera.position()) : std::nullopt;
+    if (forestViewRange_)
+        glUniform3f(forestVisibilityLocation_, forestViewRange_->center.x,
+                    forestViewRange_->center.y, forestViewRange_->radius);
+    else glUniform3f(forestVisibilityLocation_, 0, 0, 0);
     // Assign all active sampler types distinct units in both passes, including
     // empty scenes. Units 3/4 belong to the sun/flashlight depth comparisons.
     glUniform1i(animationLocation_, 1);

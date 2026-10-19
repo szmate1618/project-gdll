@@ -1,4 +1,5 @@
 #include "forest_tree_visibility.hpp"
+#include "vegetation_blast.hpp"
 
 #include <limits>
 #include <stdexcept>
@@ -34,9 +35,10 @@ ForestTreeVisibility::ForestTreeVisibility(const std::vector<TreeInstance>& tree
         group.bounds = {glm::vec3(std::numeric_limits<float>::max()),
                         glm::vec3(std::numeric_limits<float>::lowest())};
         for (const auto tree : group.trees) {
-            bounds.push_back({trees[tree].boundsMin, trees[tree].boundsMax});
-            group.bounds.minimum = glm::min(group.bounds.minimum, trees[tree].boundsMin);
-            group.bounds.maximum = glm::max(group.bounds.maximum, trees[tree].boundsMax);
+            const auto animated = vegetationBlastBounds(trees[tree]);
+            bounds.push_back(animated);
+            group.bounds.minimum = glm::min(group.bounds.minimum, animated.minimum);
+            group.bounds.maximum = glm::max(group.bounds.maximum, animated.maximum);
         }
         group.index = VisibilityIndex(bounds);
     }
@@ -44,7 +46,7 @@ ForestTreeVisibility::ForestTreeVisibility(const std::vector<TreeInstance>& tree
 
 ForestTreeVisibilityStats ForestTreeVisibility::query(const glm::mat4& projectionView,
     const std::vector<bool>& detailedPatches, bool culling,
-    std::vector<std::size_t>& visible) const {
+    std::vector<std::size_t>& visible, const HorizontalVisibilityRange* range) const {
     visible.clear();
     ForestTreeVisibilityStats stats;
     if (groups_.empty()) return stats;
@@ -55,14 +57,15 @@ ForestTreeVisibilityStats ForestTreeVisibility::query(const glm::mat4& projectio
         if (i && !detailedPatches[i - 1]) continue;
         const auto& group = groups_[i];
         if (group.trees.empty()) continue;
+        if (range && !range->intersects(group.bounds)) continue;
         if (culling && !frustum.intersects(group.bounds.minimum, group.bounds.maximum)) continue;
         if (i) ++stats.queriedPatches;
-        if (!culling) {
+        if (!culling && !range) {
             visible.insert(visible.end(), group.trees.begin(), group.trees.end());
             continue;
         }
         const auto first = visible.size();
-        const auto tested = group.index.appendQuery(projectionView, visible);
+        const auto tested = group.index.appendQuery(projectionView, visible, range, culling);
         stats.testedNodes += tested.testedNodes;
         stats.testedInstances += tested.testedInstances;
         for (std::size_t tree = first; tree < visible.size(); ++tree)

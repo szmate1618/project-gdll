@@ -236,6 +236,7 @@ int main(int argc, char** argv) {
                     auto& renderer = *graphics.renderer;
                     renderer.setFlashlight(in.flashlight);
                     renderer.updateGrenades(snapshots.grenades());
+                    renderer.updateVegetationBlasts(snapshots.explosions(now));
                     renderer.setExplosionLights(snapshots.explosionLights(now));
                     const auto flash = graphics.muzzleFlash.light(now);
                     renderer.setMuzzleFlash(flash.transformed(glm::inverse(in.camera.view())));

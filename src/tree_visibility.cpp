@@ -1,4 +1,5 @@
 #include "tree_visibility.hpp"
+#include "vegetation_blast.hpp"
 
 #include <vector>
 
@@ -7,7 +8,7 @@ namespace viewer {
 TreeVisibility::TreeVisibility(const std::vector<TreeInstance>& instances) {
     std::vector<VisibilityBounds> bounds;
     bounds.reserve(instances.size());
-    for (const auto& instance : instances) bounds.push_back({instance.boundsMin, instance.boundsMax});
+    for (const auto& instance : instances) bounds.push_back(vegetationBlastBounds(instance));
     index_ = VisibilityIndex(bounds);
 }
 

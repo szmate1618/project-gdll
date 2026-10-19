@@ -42,7 +42,7 @@ void Renderer::updateBoxes(const BoxLayer& boxes) {
 }
 void Renderer::drawBoxes(const glm::mat4& projectionView) {
     if (boxTransforms_.empty()) return;
-    boxVisibility_.query(projectionView, visibleBoxes_);
+    boxVisibility_.query(projectionView, visibleBoxes_, forestVisibilityRange());
     if (visibleBoxes_.empty()) return;
     visibleBoxTransforms_.clear();
     for (const auto i : visibleBoxes_) visibleBoxTransforms_.push_back(boxTransforms_[i]);

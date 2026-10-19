@@ -21,11 +21,18 @@ void Snapshots::pushPose(const Scene& scene, const CorpsePose& pose) {
     auto& cached = poses_.at(pose.id);
     if (!cached || cached->version < pose.version) cached = pose;
 }
-std::vector<viewer::MuzzleFlashLight> Snapshots::explosionLights(double now) const {
-    std::vector<viewer::MuzzleFlashLight> result;
+std::vector<viewer::GrenadeExplosion> Snapshots::explosions(double now) const {
+    std::vector<viewer::GrenadeExplosion> result;
     if (frames_.empty()) return result;
     for (auto explosion : frames_.back().explosions) {
         explosion.age += static_cast<float>(std::max(0.0, now - received_));
+        result.push_back(explosion);
+    }
+    return result;
+}
+std::vector<viewer::MuzzleFlashLight> Snapshots::explosionLights(double now) const {
+    std::vector<viewer::MuzzleFlashLight> result;
+    for (const auto& explosion : explosions(now)) {
         const auto light = viewer::grenadeExplosionLight(explosion);
         if (light.color.r > 0) result.push_back(light);
     }

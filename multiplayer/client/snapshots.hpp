@@ -14,6 +14,7 @@ public:
     const std::vector<PlayerState>& players() const { return players_; }
     const std::vector<viewer::GrenadePose>& grenades() const { return grenades_; }
     std::vector<viewer::MuzzleFlashLight> explosionLights(double now) const;
+    std::vector<viewer::GrenadeExplosion> explosions(double now) const;
     double animationSeconds() const { return renderTick_ / 60; }
 private:
     std::deque<Snapshot> frames_;

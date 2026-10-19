@@ -19,7 +19,7 @@ public:
     // tree index. A shadow caller supplies its own light projection/view.
     ForestTreeVisibilityStats query(const glm::mat4& projectionView,
         const std::vector<bool>& detailedPatches, bool culling,
-        std::vector<std::size_t>& visible) const;
+        std::vector<std::size_t>& visible, const HorizontalVisibilityRange* range = nullptr) const;
 
 private:
     struct Group {

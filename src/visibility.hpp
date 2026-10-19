@@ -14,6 +14,15 @@ struct VisibilityBounds {
     glm::vec3 maximum{0.0f};
 };
 
+// World X/Z meters, unlimited vertically. Bounds tests retain intersecting
+// geometry, including crowns rooted outside the circle.
+struct HorizontalVisibilityRange {
+    glm::vec2 center{0};
+    float radius = 50;
+    bool intersects(const VisibilityBounds& bounds) const;
+    bool contains(const VisibilityBounds& bounds) const;
+};
+
 class Frustum {
 public:
     enum class Relation { Outside, Intersecting, Inside };
@@ -39,15 +48,20 @@ class VisibilityIndex {
 public:
     VisibilityIndex() = default;
     explicit VisibilityIndex(const std::vector<VisibilityBounds>& bounds);
+    // Optional horizontal range is enforced even when frustum culling is off.
     VisibilityStats query(const glm::mat4& projectionView,
-                          std::vector<std::size_t>& visible) const;
+                          std::vector<std::size_t>& visible,
+                          const HorizontalVisibilityRange* range = nullptr,
+                          bool frustumCulling = true) const;
     // Exact AABB overlap, including touching boundaries and point queries.
     VisibilityStats query(const VisibilityBounds& region,
                           std::vector<std::size_t>& visible) const;
     // Append without allocating a temporary result, for queries over disjoint
     // indexes. Appended indices still refer to this index's source bounds.
     VisibilityStats appendQuery(const glm::mat4& projectionView,
-                                std::vector<std::size_t>& visible) const;
+                                std::vector<std::size_t>& visible,
+                                const HorizontalVisibilityRange* range = nullptr,
+                                bool frustumCulling = true) const;
 
 private:
     struct Node {
@@ -55,7 +69,7 @@ private:
         std::size_t first = 0, count = 0, left = 0, right = 0;
     };
     std::size_t build(std::size_t first, std::size_t count);
-    void visit(std::size_t index, const Frustum& frustum,
+    void visit(std::size_t index, const Frustum* frustum, const HorizontalVisibilityRange* range,
                std::vector<std::size_t>& visible, VisibilityStats& stats) const;
     void visit(std::size_t index, const VisibilityBounds& region,
                std::vector<std::size_t>& visible, VisibilityStats& stats) const;

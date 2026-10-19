@@ -8,6 +8,7 @@
 namespace viewer {
 void Renderer::uploadForests(const ForestLayer& forests) {
     forestPatches_=forests.patches;
+    oldForestVisibility_=OldForestVisibility(forestPatches_);
     forestDetailDistance_=forests.detailDistance;
     auto batched = batchForestVolumes(forests);
     uploadModel(batched.model, forestModel_);
@@ -40,7 +41,8 @@ void Renderer::prepareForestView(const Camera& camera) {
 
 void Renderer::drawForests(const glm::mat4& projectionView,bool shadowPass) {
     if (forestPatches_.empty()) return;
-    if (shadowPass||treeCulling_) forestVisibility_.query(projectionView,visibleForests_);
+    if (shadowPass||treeCulling_||forestViewRange_)
+        forestVisibility_.query(projectionView,visibleForests_,forestVisibilityRange(),shadowPass||treeCulling_);
     else {
         visibleForests_.resize(forestPatches_.size());
         std::iota(visibleForests_.begin(),visibleForests_.end(),std::size_t{0});

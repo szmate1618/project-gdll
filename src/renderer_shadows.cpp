@@ -42,7 +42,7 @@ void Renderer::drawShadowCasters(const glm::mat4& view, const glm::mat4& project
     // Query the light volume independently of camera visibility. The existing
     // BVH conservatively includes full transformed geometry bounds.
     const auto projectionView = projection * view;
-    sceneVisibility_.query(projectionView, shadowScene_);
+    sceneVisibility_.query(projectionView, shadowScene_, forestVisibilityRange());
     if (detailedBuildings) sceneVisibility_.filterDetails(detailEye, projection, shadowScene_);
     std::fill(roofBatchDrawn_.begin(), roofBatchDrawn_.end(), false);
     for (const auto index : shadowScene_) {

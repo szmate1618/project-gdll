@@ -1,6 +1,7 @@
 #include "forest_layer.hpp"
 #include "forest_placement.hpp"
 #include "forest_bush.hpp"
+#include "vegetation_blast.hpp"
 #include "collision_world.hpp"
 #include "file_fingerprint.hpp"
 
@@ -246,7 +247,8 @@ ForestLayer loadForestLayer(const std::filesystem::path& path,const std::filesys
             patch.bounds={glm::vec3(std::numeric_limits<float>::max()),glm::vec3(std::numeric_limits<float>::lowest())};
             patch.firstTree=trees.instances.size()+generated.size();
             const auto append=[&](TreeInstance instance) {
-                include(patch.bounds,instance.boundsMin); include(patch.bounds,instance.boundsMax);
+                const auto animated=vegetationBlastBounds(instance);
+                include(patch.bounds,animated.minimum); include(patch.bounds,animated.maximum);
                 generated.push_back(std::move(instance));
                 if (generated.size()>4000000) throw std::runtime_error("Forest vegetation count exceeds load-time limit");
             };
@@ -261,6 +263,7 @@ ForestLayer loadForestLayer(const std::filesystem::path& path,const std::filesys
                     if (placementWorld.insideBuilding(feet+glm::vec3(0,.05f,0),.4f,bush.height)) continue;
                     auto instance=placedInstance(id,bushAsset,bushModel,feet,bush.height,bush.yaw,bush.height);
                     instance.collidable=false;
+                    instance.blastResponsive=true;
                     append(std::move(instance));
                 }
             };

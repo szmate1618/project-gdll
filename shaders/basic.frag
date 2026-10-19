@@ -4,6 +4,7 @@ in vec2 vUV;
 in vec4 vColor;
 in vec3 vWorldPosition;
 in float vCanopyHeight;
+uniform vec3 uForestVisibility; // World X/Z center, horizontal radius; zero disables.
 flat in vec2 vCanopyLight;
 
 uniform vec4 uBaseColor;
@@ -154,6 +155,10 @@ float alphaMaskCutoff() {
 }
 
 void main() {
+    if (uForestVisibility.z > 0.0) {
+        vec2 offset = vWorldPosition.xz - uForestVisibility.xy;
+        if (dot(offset, offset) > uForestVisibility.z * uForestVisibility.z) discard;
+    }
     vec4 color = uBaseColor * vColor;
     if (uHasTexture && (!uShadowPass || uAlphaMode == 1)) color *= texture(uBaseTexture, vUV);
     if (uAlphaMode == 1 && color.a < alphaMaskCutoff()) discard;

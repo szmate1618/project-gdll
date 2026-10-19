@@ -158,6 +158,14 @@ drawing, and exclude VSync presentation. `--no-tree-culling` is useful for an
 A/B comparison from the same camera position; it does not alter collision or
 shadow caster culling. Use `--no-tree-shadows` to compare tree casting costs.
 
+Inside an old-forest region, the normal view uses a sharp **100 m horizontal
+cutoff** for vegetation, town geometry and shadow casters. Leaving the region
+restores normal range. Both scope views bypass this cutoff; returning to normal
+view reapplies it. No surrounding/new forest is required. Camera membership is
+spatially indexed and shared by all passes; it does not scan tree instances.
+See the [old-forest visibility contract](FORESTS.md#old-forest-visibility-contract)
+for geometry clipping, vertical bounds and region-authoring requirements.
+
 Walking uses separate vertical capsule colliders for trunks, indexed
 independently of camera visibility. Their height is the placement's visible
 tree height. Radius is estimated as 3.5% of the smaller crown dimension,
@@ -955,6 +963,9 @@ geometry, closed doors, and props can shield targets. The existing prototype has
 no player health/damage system. A warm explosion point light uses the same pulse
 code as gun muzzles, with a 12 m range and 180 ms quadratic fade. Up to eight
 explosion lights can coexist with the gun muzzle light, including with **F** off.
+Nearby old-forest shrubs bend outward and settle with a short rebound within
+0.9 seconds, using their existing cards and matching shadow poses. The visual
+response fades over 12 m and creates no particles or extra mesh vertices.
 Multiplayer throws, collisions, fuses and blasts run on the server; clients
 interpolate the replicated bodies and fade explosion events by their age.
 

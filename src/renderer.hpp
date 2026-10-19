@@ -14,6 +14,7 @@
 #include "forest_tree_visibility.hpp"
 #include "forest_volume_batch.hpp"
 #include "forest_layer.hpp"
+#include "forest_visibility.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_palette_cache.hpp"
 #include "zombie_visibility.hpp"
@@ -26,6 +27,7 @@
 #include "night_lighting.hpp"
 #include "day_night.hpp"
 #include "tree_canopy.hpp"
+#include "vegetation_blast.hpp"
 
 namespace viewer {
 
@@ -77,6 +79,7 @@ public:
     void updateBoxes(const BoxLayer& boxes);
     void loadGrenadeModel(const std::filesystem::path& path);
     void updateGrenades(const std::vector<GrenadePose>& poses) { grenadePoses_ = poses; }
+    void updateVegetationBlasts(const std::vector<GrenadeExplosion>& explosions);
     void setExplosionLights(const std::vector<MuzzleFlashLight>& lights);
     void present(int width, int height);
     void writeScreenshot(const std::filesystem::path& path) const;
@@ -114,6 +117,9 @@ public:
     static void checkErrors(const char* stage);
 
 private:
+    const HorizontalVisibilityRange* forestVisibilityRange() const {
+        return forestViewRange_ ? &*forestViewRange_ : nullptr;
+    }
     struct MeshGPU {
         GLuint vao = 0, vbo = 0, ebo = 0;
         GLsizei count = 0;
@@ -283,6 +289,8 @@ private:
     bool sceneCulling_ = true;
     std::vector<TreeBatch> treeBatches_;
     std::vector<InstanceGPU> treeInstances_;
+    VegetationBlastMotion vegetationBlastMotion_;
+    std::vector<VegetationBend> vegetationBends_;
     std::vector<std::size_t> visibleTrees_, shadowTrees_;
     ForestTreeVisibility treeVisibility_;
     TreeRenderStats treeStats_;
@@ -292,6 +300,9 @@ private:
     ModelGPU forestModel_;
     std::vector<ForestVolumeBatchGPU> forestBatches_;
     std::vector<ForestPatch> forestPatches_;
+    OldForestVisibility oldForestVisibility_;
+    std::optional<HorizontalVisibilityRange> forestViewRange_;
+    GLint forestVisibilityLocation_ = -1;
     std::vector<std::size_t> visibleForests_;
     std::vector<bool> forestDetail_, forestVolumeVisible_;
     VisibilityIndex forestVisibility_;

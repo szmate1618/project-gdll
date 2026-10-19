@@ -258,9 +258,11 @@ capsules participate in walking and sight queries at every detail level.
 Loading any forest configuration also derives an old-forest polygon for each
 patch. Its center is the arithmetic mean of the exterior border vertices,
 excluding the repeated closing vertex. Each exterior vertex moves halfway
-toward that center. Old forest is the intersection of this contracted polygon
-with the original forest footprint: original holes and concave exclusions stay
-clear even when contraction reaches outside the original boundary.
+toward that center. This contracted polygon is stored as the old-forest region.
+Vegetation placement intersects it with the original forest footprint: original
+holes and concave exclusions stay clear even when contraction reaches outside
+the original boundary. The visibility policy below uses the stored old region
+as its independent membership boundary.
 
 Trees in this area are 20% larger in all dimensions, including existing mapped
 or detected trees; their bases stay on the terrain. The original generated-tree
@@ -283,6 +285,16 @@ share the forest's instancing, culling, detail selection and shading. They have
 no collision in either single-player or multiplayer. All placements are made
 once during loading, independent of camera movement and patch order; no map or
 placement-file regeneration is required.
+
+Grenade explosions push shrubs away from the blast within a 12 m sphere around
+each shrub's mid-height. The response fades with distance, rebounds gently and
+settles within 0.9 seconds. `vegetation_blast.hpp/.cpp` queries a shrub-only
+spatial index and shears existing instance matrices around their roots. Upright
+and horizontal cards, including sun/flashlight shadows, use the same pose;
+vertices, indices and draw batches are unchanged. Culling bounds include the
+maximum displacement, including overlapping blasts. Source placements and
+collision remain unchanged. This cosmetic effect uses event ages in both the
+local viewer and multiplayer client and creates no particles.
 
 Each patch also adds small [dry trees](../assets/dry_tree/README.md) inside its
 old-forest area. The primary count is 9% of the healthy trees actually present
@@ -347,6 +359,47 @@ complete tree inventory. Obvious fields, yards, buildings and clearings were
 removed during orthophoto review; very small gaps or paths covered by canopy
 can remain. Region confidence is a qualitative visual judgement. Edge regions
 stop inside the terrain boundary.
+
+### Old-forest visibility contract
+
+In the normal, unscoped view, a camera inside a stored `ForestPatch::oldForest`
+region enables a **sharp 100 m horizontal visibility radius** centered on the
+camera. The polygon alone determines horizontal membership: no containment in,
+adjacency to, or surrounding buffer of another/new forest is required. Exact
+polygon tests respect concavities, holes and excluded borders. The patch's
+vertical bounds restrict activation so flying above or below the stand does not
+enable it. Leaving the old region immediately restores normal visibility.
+Both scope views bypass the cutoff, including for shadow casters; returning to
+normal view restores it if the camera remains inside an old region.
+
+The radius applies to individual trees, shrubs, forest volumes, town geometry,
+and sun/flashlight shadow casters. Bounds crossing the radius remain eligible;
+the shared scene shader clips their actual pixels at 100 m, including large
+terrain/building meshes and batched roofs. Height does not reduce the horizontal
+range. Nearby offscreen casters still use the light's own visibility query.
+Frustum-culling debug switches do not bypass this range policy. The shared
+renderer also clips its boxes, zombies and grenades; simulation, collision,
+perception, damage and source placements keep their full ranges. Local and
+multiplayer renderers apply the same camera-local rule without network changes.
+
+`forest_visibility.hpp/.cpp` builds a polygon-bound spatial index once. Each
+unscoped frame performs one point query and exact membership tests only for
+candidate old regions. The resulting range is shared by color and shadow
+queries; `visibility.hpp/.cpp` prunes distant BVH nodes before selecting draws.
+
+**Authoring requirement:** old-forest regions explicitly opt into restricted
+visibility. Construct them for dense stands where a 100 m cutoff is acceptable;
+keep intended clearings and long sightlines outside those regions, using holes
+in the old-region polygon where needed. Do not infer visibility safety from a
+relationship with another forest region. Current vegetation placement still
+clips the derived core against the source footprint, while visibility tests the
+stored old-region polygon itself. New region construction must preserve this
+distinction and supply the intended old-region boundaries/exclusions. Cutoff
+popping and the immediate change at old-region edges are intentional; there is
+no fade or automatic density/occlusion test. Clipped terrain and distant foliage
+can expose the scene background through gaps between nearby trees; suitable old
+region construction must account for those sightlines.
+
 
 ## Reading the file
 

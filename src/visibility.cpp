@@ -8,6 +8,19 @@
 
 namespace viewer {
 
+bool HorizontalVisibilityRange::intersects(const VisibilityBounds& bounds) const {
+    const auto nearest = glm::clamp(center, glm::vec2(bounds.minimum.x, bounds.minimum.z),
+                                   glm::vec2(bounds.maximum.x, bounds.maximum.z));
+    const auto offset = nearest - center;
+    return glm::dot(offset, offset) <= radius * radius;
+}
+
+bool HorizontalVisibilityRange::contains(const VisibilityBounds& bounds) const {
+    const auto offset = glm::max(glm::abs(glm::vec2(bounds.minimum.x, bounds.minimum.z) - center),
+                                 glm::abs(glm::vec2(bounds.maximum.x, bounds.maximum.z) - center));
+    return glm::dot(offset, offset) <= radius * radius;
+}
+
 Frustum::Frustum(const glm::mat4& projectionView) {
     const auto rows = glm::transpose(projectionView);
     planes_ = {rows[3] + rows[0], rows[3] - rows[0], rows[3] + rows[1], rows[3] - rows[1],
@@ -74,28 +87,32 @@ std::size_t VisibilityIndex::build(std::size_t first, std::size_t count) {
     return index;
 }
 
-void VisibilityIndex::visit(std::size_t index, const Frustum& frustum,
+void VisibilityIndex::visit(std::size_t index, const Frustum* frustum, const HorizontalVisibilityRange* range,
                             std::vector<std::size_t>& visible, VisibilityStats& stats) const {
     const auto& node = nodes_[index];
     ++stats.testedNodes;
-    const auto relation = frustum.classify(node.bounds.minimum, node.bounds.maximum);
+    if (range && !range->intersects(node.bounds)) return;
+    const auto relation = frustum ? frustum->classify(node.bounds.minimum, node.bounds.maximum) : Frustum::Relation::Inside;
     if (relation == Frustum::Relation::Outside) return;
-    if (relation == Frustum::Relation::Inside) {
+    if (relation == Frustum::Relation::Inside && (!range || range->contains(node.bounds))) {
         visible.insert(visible.end(), order_.begin() + node.first, order_.begin() + node.first + node.count);
     } else if (node.left != 0) {
-        visit(node.left, frustum, visible, stats);
-        visit(node.right, frustum, visible, stats);
+        visit(node.left, frustum, range, visible, stats);
+        visit(node.right, frustum, range, visible, stats);
     } else for (std::size_t offset = node.first; offset < node.first + node.count; ++offset) {
         const auto instance = order_[offset];
         ++stats.testedInstances;
-        if (frustum.intersects(bounds_[instance].minimum, bounds_[instance].maximum)) visible.push_back(instance);
+        if ((!range || range->intersects(bounds_[instance])) &&
+            (!frustum || frustum->intersects(bounds_[instance].minimum, bounds_[instance].maximum)))
+            visible.push_back(instance);
     }
 }
 
 VisibilityStats VisibilityIndex::query(const glm::mat4& projectionView,
-                                        std::vector<std::size_t>& visible) const {
+                                        std::vector<std::size_t>& visible,
+                                        const HorizontalVisibilityRange* range, bool frustumCulling) const {
     visible.clear();
-    return appendQuery(projectionView, visible);
+    return appendQuery(projectionView, visible, range, frustumCulling);
 }
 
 void VisibilityIndex::visit(std::size_t index, const VisibilityBounds& region,
@@ -126,9 +143,11 @@ VisibilityStats VisibilityIndex::query(const VisibilityBounds& region,
 }
 
 VisibilityStats VisibilityIndex::appendQuery(const glm::mat4& projectionView,
-                                            std::vector<std::size_t>& visible) const {
+                                            std::vector<std::size_t>& visible,
+                                            const HorizontalVisibilityRange* range, bool frustumCulling) const {
     VisibilityStats stats;
-    if (!nodes_.empty()) visit(0, Frustum(projectionView), visible, stats);
+    const Frustum frustum(projectionView);
+    if (!nodes_.empty()) visit(0, frustumCulling ? &frustum : nullptr, range, visible, stats);
     return stats;
 }
 

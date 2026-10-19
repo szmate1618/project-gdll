@@ -1,4 +1,5 @@
 #include "renderer.hpp"
+#include "forest_bush.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <array>
@@ -151,6 +152,80 @@ void checkMultipleVolumes() {
             "Shadow multi-draw corrupted color batches or their counters");
     viewer::Renderer::checkErrors("batched forest volumes");
 }
+
+void checkBlastMotion() {
+    viewer::TreeLayer trees;
+    trees.assets.push_back({"bush", {}, viewer::forestBushModel({2, 1, {40,180,30,255,40,180,30,255}})});
+    viewer::TreeInstance bush;
+    bush.transform = glm::scale(glm::mat4(1), glm::vec3(3));
+    bush.boundsMin = {-6,0,-6}; bush.boundsMax = {6,3,6}; bush.dimensions = {12,3,12};
+    bush.collidable = false; bush.blastResponsive = true;
+    trees.instances.push_back(bush);
+    viewer::Model ground;
+    ground.materials.push_back({});
+    viewer::Primitive mesh; mesh.material = 0;
+    for (auto p : {glm::vec3(-30,-.01f,-30), glm::vec3(-30,-.01f,30),
+                   glm::vec3(30,-.01f,30), glm::vec3(30,-.01f,-30)}) {
+        viewer::Vertex vertex; vertex.position = p; vertex.normal = {0,1,0};
+        mesh.vertices.push_back(vertex);
+    }
+    mesh.indices = {0,1,2,0,2,3}; ground.primitives.push_back(mesh);
+    ground.draws.push_back({0,glm::mat4(1),"ground"});
+    viewer::Camera camera; camera.setPosition({9,7,12}); camera.setOrientation(-126.87f,-21.8f);
+    const auto setup = [](viewer::Renderer& renderer) {
+        renderer.setHaze(false); renderer.setGroundFog(false);
+        renderer.setTreeCanopyShading(false); renderer.resize(640,480);
+    };
+    const auto pixels = [] {
+        std::vector<unsigned char> result(640*480*3);
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+        glReadPixels(0,0,640,480,GL_RGB,GL_UNSIGNED_BYTE,result.data());
+        return result;
+    };
+    viewer::Renderer animated(ground, VIEWER_SHADER_DIR, &trees); setup(animated);
+    animated.render(camera); const auto rest = pixels();
+    const std::vector<viewer::GrenadeExplosion> events{{1,{-2,1,0},.1f}};
+    animated.updateVegetationBlasts(events); animated.render(camera); const auto moved = pixels();
+    require(rest != moved, "Blast did not move rendered vegetation");
+    auto reference = trees;
+    // Render the same pose as a static instance to check color and shadow passes.
+    const auto bend = viewer::VegetationBlastMotion(trees.instances).sample(events).at(0);
+    reference.instances[0].transform = bend.transform;
+    viewer::Renderer expected(ground, VIEWER_SHADER_DIR, &reference); setup(expected);
+    expected.render(camera);
+    require(pixels() == moved, "Animated cards or sun shadows differ from the shared transformed geometry");
+    animated.updateVegetationBlasts(events); animated.render(camera);
+    require(pixels() == moved, "Repeated event accumulated deformation on the GPU");
+    animated.setTreeShadows(false); animated.render(camera);
+    require(pixels() != moved, "Shadow test fixture has no visible vegetation shadow");
+    animated.setTreeShadows(true);
+    animated.updateVegetationBlasts({{1,{-2,1,0},.9f}}); animated.render(camera);
+    require(pixels() == rest, "Expired events left a shrub deformed");
+    animated.updateVegetationBlasts(events); animated.updateVegetationBlasts({}); animated.render(camera);
+    require(pixels() == rest, "Missing events left a shrub deformed");
+    // Count the submitted triangles with no shadow pass: animation must not add
+    // geometry or change batching, including when it restores the rest pose.
+    animated.setShadows(false);
+    GLuint query = 0; glGenQueries(1, &query);
+    const auto triangles = [&] {
+        glBeginQuery(GL_PRIMITIVES_GENERATED, query); animated.render(camera); glEndQuery(GL_PRIMITIVES_GENERATED);
+        GLuint count = 0; glGetQueryObjectuiv(query, GL_QUERY_RESULT, &count); return count;
+    };
+    const auto before = triangles(); const auto calls = animated.treeStats().drawCalls;
+    animated.updateVegetationBlasts(events);
+    require(triangles() == before && animated.treeStats().drawCalls == calls && calls == 1,
+            "Blast animation added triangles or tree draw calls");
+    glDeleteQueries(1, &query);
+    require(trees.instances[0].transform == bush.transform &&
+            trees.assets[0].model.primitives[0].vertices.size() == 12 &&
+            trees.assets[0].model.primitives[0].indices.size() == 18,
+            "Animation mutated source placements or mesh topology");
+    animated.setFlashlight(true); animated.setFlashlightShadows(true);
+    expected.setFlashlight(true); expected.setFlashlightShadows(true); expected.setShadows(false);
+    animated.render(camera); const auto flashlight = pixels(); expected.render(camera);
+    require(pixels() == flashlight, "Flashlight shadows did not share the animated shrub pose");
+    viewer::Renderer::checkErrors("vegetation blast cards and shadows");
+}
 }
 int main() {
     if (!glfwInit()) return 77;
@@ -160,7 +235,7 @@ int main() {
     if (!window) {glfwTerminate(); return 77;}
     glfwMakeContextCurrent(window);
     int code=0;
-    try {checkSwitching(); checkSwitching(true); checkSwitching(true,false); checkMultipleVolumes(); std::cout<<"Forest GPU LoD, color matching, bare-wood color and batching regressions passed\n";}
+    try {checkSwitching(); checkSwitching(true); checkSwitching(true,false); checkMultipleVolumes(); checkBlastMotion(); std::cout<<"Forest GPU LoD, color matching, batching and vegetation blast regressions passed\n";}
     catch (const std::exception& e) {std::cerr<<e.what()<<'\n'; code=1;}
     glfwDestroyWindow(window); glfwTerminate(); return code;
 }

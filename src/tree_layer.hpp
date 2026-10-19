@@ -22,6 +22,7 @@ struct TreeInstance {
     glm::vec3 boundsMin{0.0f}, boundsMax{0.0f};
     glm::vec3 dimensions{1.0f}; // Crown width, visible height, crown depth (meters).
     bool collidable = true; // Bush billboards share rendering, but have no trunk.
+    bool blastResponsive = false; // Runtime shrubs only; visual deformation.
 };
 
 struct TreeLayer {

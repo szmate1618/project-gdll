@@ -18,6 +18,33 @@ named `trees.previous.<sha256>.instances.json` backups beside the map. The
 original CSV generator remains available as `tools/prepare_tree_instances.py`.
 Changing tree detections does not require rebuilding the town GLB.
 
+Default publication also selects **10% of individual trees** as pine-cluster
+centers, rounded to the nearest whole tree (halves round up). Each center and
+every individual tree within 15 m of it becomes a pine. Distance is horizontal,
+between trunk positions;
+converted neighbors do not spread the conversion farther. The selection uses
+stable ID hashes with seed `20261019`, so reordering inputs or restarting the
+viewer does not change the centers. Existing pines are retained. The conversion
+runs after OSM/tuned2 deduplication, before atomic default publication, and does
+not affect the trees generated inside runtime forest polygons.
+
+The existing [pine cards](../assets/README.md#tree-and-pine-impostors) supply
+the shared mesh. Converted trees retain their positions, existing visible sizes,
+rotation, reflection and shear; column scales and complete geometry bounds are
+recalibrated for the pine asset. The published manifest records center IDs,
+radius, center percentage and seed in `source.pine_clusters`, plus the pine
+asset fingerprint.
+
+Apply this to the current default without repeating detection or rebuilding the
+town (the previous default is backed up using the same publication rules):
+
+```bash
+.venv/bin/python tools/apply_pine_clusters.py
+```
+
+This updates the default `osm-tuned2` layer. Separate OSM, orthophoto and detector
+source manifests retain their original species assignments.
+
 The desktop viewer loads this JSON beside the map and renders the shared assets
 with GPU instancing and frustum culling. Run
 `./build/godollo_viewer output/godollo.glb --fps` after preparation; see

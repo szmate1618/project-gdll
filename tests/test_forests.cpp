@@ -1,6 +1,7 @@
 #include "forest_layer.hpp"
 #include "forest_placement.hpp"
 #include "forest_bush.hpp"
+#include "vegetation_blast.hpp"
 #include "collision_world.hpp"
 #include "file_fingerprint.hpp"
 #include <json.hpp>
@@ -288,15 +289,23 @@ void checkLoader() {
         require(feet.z<0 && std::abs(feet.y-(feet.x*.1f-feet.z*.2f))<.002f, "Tree frame or terrain elevation is wrong");
         if (!tree.collidable) {
             ++bushCount;
+            require(tree.blastResponsive, "Generated bush is missing explosion response");
             require(tree.asset==1&&tree.dimensions.x==4*tree.dimensions.y&&tree.dimensions.z==tree.dimensions.x&&
                     tree.dimensions.x>=6.f&&tree.dimensions.x<=14.f, "Bush uses wrong asset, size or quarter-height proportions");
             bool inCore=false;
             for (const auto& patch:layer.patches)
                 inCore=inCore||viewer::forestContains(patch.oldForest,{feet.x,-feet.z});
             require(inCore, "Bush escaped old forest");
-        }
+        } else require(!tree.blastResponsive, "Trunk trees unexpectedly acquired shrub deformation");
     }
     require(bushCount>0, "Loader did not spawn any non-colliding bushes");
+    for (const auto& patch:layer.patches)
+        for (auto i=patch.firstTree;i<patch.firstTree+patch.treeCount;++i) {
+            const auto bounds=viewer::vegetationBlastBounds(trees.instances[i]);
+            require(glm::all(glm::greaterThanEqual(bounds.minimum,patch.bounds.minimum))&&
+                    glm::all(glm::lessThanEqual(bounds.maximum,patch.bounds.maximum)),
+                    "Patch bounds omit a generated shrub's blast motion");
+        }
     std::size_t dryCount=0;
     for (const auto& patch:layer.patches) {
         std::size_t healthy=0,primary=0;
