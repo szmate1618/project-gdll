@@ -1121,8 +1121,10 @@ int run(const Options& options) {
         renderer.render(app.rig.camera(), app.displayedAnimationSeconds);
         if (app.collisionDebug)
             debug->draw(app.rig.camera(), overlay, app.width, app.height);
+        const auto& heldWeapon = app.weapons.equipped();
         if (app.interaction.mode() == viewer::ControlMode::Combat &&
-            app.rig.camera().viewMode() == viewer::Camera::ViewMode::original)
+            app.rig.camera().viewMode() == viewer::Camera::ViewMode::original &&
+            viewer::weaponViewVisible(heldWeapon.config, heldWeapon.loaded, simulationClock.seconds() < heldWeapon.readyAt))
             weaponOverlay.draw(app.weapons.slot(), app.width, app.height, flash);
         reticle.draw(app.rig.camera().viewMode(), app.width, app.height);
         intervalRenderSeconds += glfwGetTime() - renderStart;

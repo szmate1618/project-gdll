@@ -13,7 +13,7 @@ constexpr float tickSeconds = 1.0f / 60;
 constexpr std::size_t maxPlayers = 8, maxZombies = 1024, maxVisibleZombies = 256;
 constexpr std::size_t maxBoxes = 512, maxDoors = 4096, maxBones = 128;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 4; // Adds thrown grenades and detonation events.
+constexpr std::uint32_t protocolVersion = 5; // Replicates equipped-weapon cooldown for held grenade visibility.
 
 struct Hello { std::string fingerprint; };
 struct Welcome { std::uint32_t player = 0; };
@@ -45,6 +45,7 @@ struct PlayerState {
     std::uint8_t slot = 0;
     std::uint32_t loaded = 0, reserve = 0;
     std::uint64_t shots = 0;
+    bool weaponCoolingDown = false;
 };
 struct ZombieState {
     std::uint32_t id = 0, asset = 0;

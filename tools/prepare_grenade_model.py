@@ -22,7 +22,7 @@ def grenade_model():
         if band == 4:
             triangles += [[8, side + 9, side + 8] for side in range(1, 7)]
         parts.append(dict(name=f"HE_Grenade_Band_{band}", positions=positions, triangles=triangles,
-                          color=[.75, .025, .02] if band in (1, 3) else [.72, .74, .76]))
+                          color=[.75, .025, .02] if band in (1, 3) else [.48, .48, .48]))
     return dict(id="he_grenade", copyright="Original project asset, CC0 1.0", parts=parts)
 
 

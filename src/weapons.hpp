@@ -6,6 +6,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include <optional>
+#include <cstdint>
 #include "grenades.hpp"
 
 namespace viewer {
@@ -54,4 +55,7 @@ private:
 // Deterministic cone pattern, including a centered pellet. Each direction uses
 // the existing zombie hit query; geometry/physics stay outside this module.
 std::vector<glm::vec3> weaponShotDirections(const WeaponConfig& config, glm::vec3 forward);
+// Thrown grenades leave the hand until another grenade is loaded and ready.
+// Firearms retain their held model during cooldown and when empty.
+bool weaponViewVisible(const WeaponConfig& config, std::uint32_t loaded, bool coolingDown);
 } // namespace viewer

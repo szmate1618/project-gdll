@@ -933,7 +933,10 @@ The window title and console report the equipped weapon, magazine, and reserve.
 
 **5** equips an HE grenade; **left click** throws one in Combat mode. Holding
 the button throws only once. The starting inventory supplies six grenades.
-The original mesh is a light grey octagonal column with red stripes near both
+After a throw, the held model disappears until the configured cooldown ends;
+an empty inventory keeps the hand empty. Switching weapons or reloading does
+not bypass the cooldown. Multiplayer follows the server-confirmed readiness.
+The original mesh is a medium grey octagonal column with red stripes near both
 ends, shared between the held and thrown model. Grenades use the same Box3D
 world, streamed town colliders, and live doors/boxes/ragdolls as interior props.
 Their 450 g bodies have octagonal convex colliders and continuous collision

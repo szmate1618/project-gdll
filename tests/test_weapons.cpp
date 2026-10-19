@@ -164,11 +164,27 @@ int main() {
         firingAndReload(); pelletPattern(); dryFire();
         viewer::Weapons grenades(VIEWER_ITEMS, VIEWER_INVENTORY);
         require(grenades.equip(4) && grenades.equipped().config.grenade.has_value(), "Key 5 must equip HE grenades");
+        const auto visibleAt = [&](double seconds) {
+            const auto& held = grenades.equipped();
+            return viewer::weaponViewVisible(held.config, held.loaded, seconds < held.readyAt);
+        };
+        require(visibleAt(0), "A loaded, ready grenade must appear in the hand");
         const auto rounds = grenades.equipped().loaded;
         click(grenades);
         require(grenades.fire(0) && grenades.equipped().loaded == rounds - 1, "Throw consumes exactly one grenade");
+        const auto readyAt = grenades.equipped().readyAt;
+        require(!visibleAt(0) && !visibleAt(readyAt - .001), "The held grenade must remain hidden throughout cooldown");
+        grenades.equip(0);
+        require(viewer::weaponViewVisible(grenades.equipped().config, 0, true), "Firearm models remain visible while cooling down or empty");
+        grenades.equip(4); grenades.reload();
+        require(!visibleAt(.1) && visibleAt(readyAt), "Switching/reloading cannot bypass cooldown; its exact end restores the grenade");
         require(!grenades.fire(10) && viewer::weaponShotDirections(grenades.equipped().config, {0, 0, -1}).empty(),
                 "Holding throw cannot repeat or create hitscan bullets");
+        for (int i = 1; i < rounds; ++i) {
+            click(grenades);
+            require(grenades.fire(10 + i), "A new click after cooldown throws another grenade");
+        }
+        require(!visibleAt(100), "After the last grenade, the hand must stay empty beyond cooldown");
         fixtures(std::filesystem::current_path() / "weapon-test-fixtures");
         std::cout << "Weapon configuration, inventory, firing, reload, and pellet tests passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

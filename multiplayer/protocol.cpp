@@ -110,6 +110,7 @@ void payload(Wire& w, Snapshot& s) {
     w.list(s.players, maxPlayers, [&](PlayerState& p) {
         w.integer(p.id); w.integer(p.resolved); movement(w, p.movement);
         w.number(p.yaw); w.number(p.pitch); w.integer(p.slot); w.integer(p.loaded); w.integer(p.reserve); w.integer(p.shots);
+        w.flag(p.weaponCoolingDown);
         if (!p.id || p.slot >= viewer::weaponIds.size() || std::abs(p.yaw) > 180 || std::abs(p.pitch) > 89)
             throw std::runtime_error("Invalid player snapshot");
     });

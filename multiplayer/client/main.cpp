@@ -245,7 +245,8 @@ int main(int argc, char** argv) {
                         graphics.players->draw(in.camera, snapshots.players(), self, width, height);
                     });
                     if (prediction.ready() && !in.interaction &&
-                        in.camera.viewMode() == viewer::Camera::ViewMode::original)
+                        in.camera.viewMode() == viewer::Camera::ViewMode::original &&
+                        viewer::weaponViewVisible(weaponDefinitions.equipped().config, ownState.loaded, ownState.weaponCoolingDown))
                         graphics.weapon->draw(ownState.slot, width, height, flash);
                     graphics.reticle->draw(in.camera.viewMode(), width, height);
                     renderer.present(width, height); glfwSwapBuffers(graphics.window);

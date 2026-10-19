@@ -74,7 +74,8 @@ int main() {
                 "Grenade model dimensions must match its octagonal rigid body");
         require(grenade.materials.size() == 5 && grenade.images.empty(), "Grenade must retain its five colored bands without textures");
         require(grenade.materials[1].baseColor.r > .7f && grenade.materials[1].baseColor.g < .05f &&
-                grenade.materials[3].baseColor.r > .7f && grenade.materials[0].baseColor.g > .7f,
+                grenade.materials[3].baseColor.r > .7f &&
+                glm::distance(glm::vec3(grenade.materials[0].baseColor), glm::vec3(.48f)) < 1e-6f,
                 "Grey grenade needs red stripes near the top and bottom");
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
     return 0;

@@ -33,13 +33,14 @@ void protocol() {
     using namespace multiplayer;
     Snapshot s; s.tick = 123;
     PlayerState player; player.id = 42; player.movement.feet = {12, 3, -4}; player.resolved = 99;
+    player.weaponCoolingDown = true;
     s.players.push_back(player);
     s.zombies.push_back({}); s.doors.push_back({3, .5f}); s.boxes.push_back({});
     s.grenades.push_back({7, {1, 2, 3}, {1, 0, 0, 0}});
     s.explosions.push_back({6, {4, 5, 6}, .08f});
     const auto bytes = encode(s);
     const auto copy = std::get<Snapshot>(decode(bytes.data(), bytes.size()));
-    require(copy.tick == 123 && copy.players[0].id == 42 && copy.players[0].movement.feet.x == 12,
+    require(copy.tick == 123 && copy.players[0].id == 42 && copy.players[0].movement.feet.x == 12 && copy.players[0].weaponCoolingDown,
         "Snapshot round trip lost state");
     require(copy.grenades.at(0).id == 7 && copy.grenades[0].center.y == 2 &&
             copy.explosions.at(0).id == 6 && copy.explosions[0].age == .08f,
@@ -419,14 +420,14 @@ void serverGrenades(const std::filesystem::path& asset) {
     world.submit(id, Commands{{throwInput}});
     for (int i = 0; i < 5; ++i) world.step();
     auto state = world.snapshot(id);
-    require(state.grenades.size() == 1 && state.players[0].loaded == 5 && world.players().at(id).shots == 1,
+    require(state.grenades.size() == 1 && state.players[0].loaded == 5 && state.players[0].weaponCoolingDown && world.players().at(id).shots == 1,
             "Server must turn one accepted grenade click into one replicated body and one consumed grenade");
     bool exploded = false;
     for (int i = 0; i < 200; ++i) {
         world.step(); state = world.snapshot(id);
         exploded |= !state.explosions.empty();
     }
-    require(exploded && state.grenades.empty() && world.players().at(id).shots == 1,
+    require(exploded && state.grenades.empty() && !state.players[0].weaponCoolingDown && world.players().at(id).shots == 1,
             "Server must detonate the grenade once without repeating a held throw");
     Snapshots snapshots;
     Snapshot event; event.tick = 1; event.explosions.push_back({1, {2, 3, 4}, .05f});

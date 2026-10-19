@@ -96,6 +96,32 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             in.capture = true;
             button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
             require(in.camera.viewMode() == viewer::Camera::ViewMode::original, "Pistol entered scope view");
+            authoritative.slot = 4; authoritative.loaded = 2;
+            break;
+        case 13:
+            require(differences(0, 12) > 500, "Ready grenade did not appear in the hand");
+            capture("he_grenade");
+            authoritative.loaded = 1; authoritative.weaponCoolingDown = true; ++authoritative.shots;
+            break;
+        case 14:
+            require(differences(0, 13) < 100, "Thrown grenade remained in the hand during cooldown");
+            capture("grenade-cooldown");
+            authoritative.slot = 0;
+            break;
+        case 15:
+            require(differences(1, 14) < 100, "Grenade cooldown hid the pistol after switching weapons");
+            authoritative.slot = 4;
+            break;
+        case 16:
+            require(differences(0, 15) < 100, "Re-equipping a cooling grenade restored its held model too soon");
+            authoritative.weaponCoolingDown = false;
+            break;
+        case 17:
+            require(differences(12, 16) < 100, "Grenade did not return when the server confirmed cooldown expiry");
+            authoritative.loaded = 0;
+            break;
+        case 18:
+            require(differences(0, 17) < 100, "Empty grenade inventory must leave the hand empty");
             glfwSetWindowShouldClose(window, true);
             break;
     }
@@ -122,7 +148,7 @@ int main(int argc, char** argv) {
             std::filesystem::copy_file(source / "multiplayer/client" / shader, fixture / "multiplayer/client" / shader,
                                        std::filesystem::copy_options::overwrite_existing);
         std::ofstream(fixture / "inventory.toml") <<
-            "equipped='pistol'\n[weapons]\npistol=0\nsubmachine_gun=0\nsniper=0\nshotgun=0\n"
+            "equipped='pistol'\n[weapons]\npistol=0\nsubmachine_gun=0\nsniper=0\nshotgun=0\nhe_grenade=2\n"
             "[ammo]\npistol_rounds=0\nsmg_rounds=0\nsniper_rounds=0\nshotgun_shells=0\nhe_grenades=0\n";
         multiplayer::Options options; options.map = argv[1];
         options.trees = options.forests = false; options.zombieCount = 0;
@@ -133,8 +159,8 @@ int main(int argc, char** argv) {
         char program[] = "client", noTrees[] = "--no-trees", count[] = "--zombie-count", zero[] = "0";
         char hidden[] = "--hidden", seconds[] = "--seconds", duration[] = "5";
         char* args[] = {program, argv[1], noTrees, count, zero, hidden, seconds, duration};
-        require(clientMain(8, args) == 0 && frame == 13, "Graphical client did not finish all weapon states");
-        const std::array<std::size_t, 4> weaponFrames{1, 3, 4, 5};
+        require(clientMain(8, args) == 0 && frame == 19, "Graphical client did not finish all weapon states");
+        const std::array<std::size_t, 5> weaponFrames{1, 3, 4, 5, 12};
         for (std::size_t a = 0; a < weaponFrames.size(); ++a)
             for (std::size_t b = a+1; b < weaponFrames.size(); ++b)
                 require(differences(weaponFrames[a], weaponFrames[b]) > 500,

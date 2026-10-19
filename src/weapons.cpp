@@ -140,6 +140,10 @@ std::string Weapons::status() const {
         std::to_string(weapon.config.magazineCapacity) + " | reserve " + std::to_string(weapon.reserve);
 }
 
+bool weaponViewVisible(const WeaponConfig& config, std::uint32_t loaded, bool coolingDown) {
+    return !config.grenade || (!coolingDown && loaded >= static_cast<std::uint32_t>(config.ammoPerShot));
+}
+
 std::vector<glm::vec3> weaponShotDirections(const WeaponConfig& config, glm::vec3 forward) {
     if (config.grenade) return {};
     forward = glm::normalize(forward);

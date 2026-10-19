@@ -159,7 +159,8 @@ Snapshot World::snapshot(std::uint32_t id) {
         const auto& weapon = player.weapons.equipped();
         s.players.push_back({playerId, player.resolved, player.controller.movementState(),
             player.camera.yawDegrees(), player.camera.pitchDegrees(), static_cast<std::uint8_t>(player.weapons.slot()),
-            static_cast<std::uint32_t>(weapon.loaded), static_cast<std::uint32_t>(weapon.reserve), player.shots});
+            static_cast<std::uint32_t>(weapon.loaded), static_cast<std::uint32_t>(weapon.reserve), player.shots,
+            viewer::SimulationClock::instance().seconds() < weapon.readyAt});
     }
     return observer.replication.snapshot(scene_, observer.controller.feet(), std::move(s));
 }

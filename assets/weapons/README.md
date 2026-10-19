@@ -87,7 +87,7 @@ load them. Remote player bodies currently do not carry visible weapon meshes.
 
 `he_grenade.json` is an original project mesh released under CC0 1.0, separate
 from the firearm source. It is a closed octagonal column, 9 cm across and 15 cm
-tall, with light grey caps/body and red side stripes near both ends. The same
+tall, with medium grey caps/body and red side stripes near both ends. The same
 GLB is used for slot 5 and for the thrown rigid body. The collision hull has
 the same sixteen corner points. To regenerate the editable source:
 
