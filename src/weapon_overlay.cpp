@@ -41,6 +41,10 @@ WeaponOverlay::WeaponOverlay(const std::filesystem::path& shaders, const std::fi
     }
     program_ = createShaderProgram(shaders / "weapon.vert", shaders / "weapon.frag");
     transform_ = glGetUniformLocation(program_, "uTransform");
+    pose_ = glGetUniformLocation(program_, "uPose");
+    flashPosition_ = glGetUniformLocation(program_, "uMuzzleFlashPosition");
+    flashColor_ = glGetUniformLocation(program_, "uMuzzleFlashColor");
+    flashRange_ = glGetUniformLocation(program_, "uMuzzleFlashRange");
     GLint previousVao = 0, previousBuffer = 0;
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previousVao);
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &previousBuffer);
@@ -59,7 +63,11 @@ WeaponOverlay::~WeaponOverlay() {
     glDeleteBuffers(1, &buffer_); glDeleteVertexArrays(1, &vao_); glDeleteProgram(program_);
 }
 
-void WeaponOverlay::draw(std::size_t slot, int width, int height) {
+glm::vec3 WeaponOverlay::muzzlePosition(std::size_t slot, glm::vec3 modelMuzzle) const {
+    return glm::vec3(poses_.at(slot) * glm::vec4(modelMuzzle, 1));
+}
+
+void WeaponOverlay::draw(std::size_t slot, int width, int height, const MuzzleFlashLight& flash) {
     if (slot >= ranges_.size() || width <= 0 || height <= 0) return;
     GLint previousProgram = 0, previousVao = 0, previousFront = 0, previousCullMode = 0, previousDepthFunction = 0;
     glGetIntegerv(GL_CURRENT_PROGRAM, &previousProgram);
@@ -82,6 +90,10 @@ void WeaponOverlay::draw(std::size_t slot, int width, int height) {
     const auto projection = glm::perspective(glm::radians(60.0f), static_cast<float>(width) / height, .01f, 5.0f);
     const auto transform = projection * poses_[slot];
     glUniformMatrix4fv(transform_, 1, GL_FALSE, glm::value_ptr(transform));
+    glUniformMatrix4fv(pose_, 1, GL_FALSE, glm::value_ptr(poses_[slot]));
+    glUniform3fv(flashPosition_, 1, glm::value_ptr(flash.position));
+    glUniform3fv(flashColor_, 1, glm::value_ptr(flash.color));
+    glUniform1f(flashRange_, flash.range);
     glDrawArrays(GL_TRIANGLES, ranges_[slot].first, ranges_[slot].count);
     glBindVertexArray(static_cast<GLuint>(previousVao)); glUseProgram(static_cast<GLuint>(previousProgram));
     if (depth) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);

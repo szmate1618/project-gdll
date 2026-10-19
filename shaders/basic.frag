@@ -38,6 +38,9 @@ uniform mat4 uFlashlightMatrix;
 uniform vec3 uFlashlightShadowDistances; // Near plane, fade start, shadow distance, in meters.
 uniform vec3 uFlashlightColor;
 uniform vec3 uFlashlightCone; // Range in meters, cosine of inner/outer half angles.
+uniform vec3 uMuzzleFlashPosition;
+uniform vec3 uMuzzleFlashColor;
+uniform float uMuzzleFlashRange;
 
 out vec4 fragColor;
 
@@ -124,6 +127,16 @@ vec3 flashlight(vec3 normal) {
     return uFlashlightColor * (uNightBlend * cone * rangeFade * falloff * facing * visibility);
 }
 
+vec3 muzzleFlash(vec3 normal) {
+    if (all(equal(uMuzzleFlashColor, vec3(0.0)))) return vec3(0.0);
+    vec3 toLight = uMuzzleFlashPosition - vWorldPosition;
+    float distanceFromLight = length(toLight);
+    if (distanceFromLight >= uMuzzleFlashRange) return vec3(0.0);
+    float rangeFade = 1.0 - smoothstep(uMuzzleFlashRange * 0.75, uMuzzleFlashRange, distanceFromLight);
+    float facing = uUnlit ? 1.0 : max(dot(normal, toLight / max(distanceFromLight, 0.001)), 0.0);
+    return uMuzzleFlashColor * (rangeFade * facing / (1.0 + distanceFromLight * distanceFromLight));
+}
+
 float alphaMaskCutoff() {
     if (!uHasTexture || uMinifiedAlphaCutoff <= 0.0) return uAlphaCutoff;
     // Screen-space footprint also accounts for zoom and oblique views. Preserve
@@ -155,6 +168,7 @@ void main() {
     vec3 light = uUnlit ? uUnlitLight * mix(canopyLight, 1.0, uNightBlend)
                         : ambient + uSunColor * sunFacing * sunlightVisibility(sunFacing, distanceFromEye);
     light += flashlight(normal);
+    light += muzzleFlash(normal);
     vec3 linearColor = max(color.rgb * light, vec3(0.0));
     // Haze affects unlit tree cards too, after alpha discard and lighting but
     // before output encoding. Keep material alpha intact for blended surfaces.

@@ -284,7 +284,7 @@ add_library(viewer_weapon_pose STATIC src/weapon_view_pose.cpp)
 target_link_libraries(viewer_weapon_pose PUBLIC viewer_model)
 viewer_warnings(viewer_weapon_pose)
 
-add_library(viewer_sun_lighting STATIC src/sun_lighting.cpp src/day_night.cpp src/flashlight.cpp)
+add_library(viewer_sun_lighting STATIC src/sun_lighting.cpp src/day_night.cpp src/flashlight.cpp src/muzzle_flash.cpp)
 target_include_directories(viewer_sun_lighting PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(viewer_sun_lighting PUBLIC glm::glm viewer_camera)
 viewer_warnings(viewer_sun_lighting)
@@ -370,6 +370,22 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_weapons)
     add_test(NAME viewer_weapons COMMAND test_weapons)
 
+    add_executable(test_muzzle_flash tests/test_muzzle_flash.cpp)
+    target_link_libraries(test_muzzle_flash PRIVATE viewer_sun_lighting)
+    viewer_warnings(test_muzzle_flash)
+    add_test(NAME viewer_muzzle_flash COMMAND test_muzzle_flash)
+
+    add_executable(test_muzzle_flash_render tests/test_muzzle_flash_render.cpp)
+    target_link_libraries(test_muzzle_flash_render PRIVATE viewer_renderer viewer_weapons glfw)
+    target_compile_definitions(test_muzzle_flash_render PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
+        VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}"
+        VIEWER_ITEMS="${CMAKE_CURRENT_SOURCE_DIR}/items" VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml")
+    add_dependencies(test_muzzle_flash_render viewer_weapon_assets)
+    viewer_warnings(test_muzzle_flash_render)
+    add_test(NAME viewer_muzzle_flash_render COMMAND test_muzzle_flash_render)
+    set_tests_properties(viewer_muzzle_flash_render PROPERTIES SKIP_RETURN_CODE 77)
+
     add_executable(test_weapon_overlay tests/test_weapon_overlay.cpp)
     target_link_libraries(test_weapon_overlay PRIVATE viewer_renderer glfw)
     target_compile_definitions(test_weapon_overlay PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -381,8 +397,9 @@ if(BUILD_TESTING AND GD_VIEWER)
     set_tests_properties(viewer_weapon_overlay PROPERTIES SKIP_RETURN_CODE 77)
 
     add_executable(test_weapon_models tests/test_weapon_models.cpp)
-    target_link_libraries(test_weapon_models PRIVATE viewer_model)
-    target_compile_definitions(test_weapon_models PRIVATE VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}")
+    target_link_libraries(test_weapon_models PRIVATE viewer_model viewer_weapons)
+    target_compile_definitions(test_weapon_models PRIVATE VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}"
+        VIEWER_ITEMS="${CMAKE_CURRENT_SOURCE_DIR}/items" VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml")
     add_dependencies(test_weapon_models viewer_weapon_assets)
     viewer_warnings(test_weapon_models)
     add_test(NAME viewer_weapon_models COMMAND test_weapon_models)

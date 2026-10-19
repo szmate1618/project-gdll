@@ -75,6 +75,7 @@ struct Graphics {
     std::unique_ptr<viewer::Renderer> renderer;
     std::unique_ptr<viewer::ReticleOverlay> reticle;
     std::unique_ptr<viewer::WeaponOverlay> weapon;
+    viewer::MuzzleFlash muzzleFlash;
     std::unique_ptr<multiplayer::PlayerRenderer> players;
     ~Graphics() {
         players.reset(); weapon.reset(); reticle.reset(); renderer.reset();
@@ -194,6 +195,11 @@ int main(int argc, char** argv) {
                                 in.camera.cycleViewMode();
                         }
                         in.canScope = weaponDefinitions.equipped().config.hasScope;
+#ifdef MP_GRAPHICS
+                        if (graphics.weapon && ready && p.shots > ownState.shots)
+                            graphics.muzzleFlash.fire(now, graphics.weapon->muzzlePosition(
+                                p.slot, weaponDefinitions.equipped().config.muzzlePosition));
+#endif
                         prediction.reconcile(p, *scene.collision); ownState = p; found = true;
                         if (!ready) in.slot = p.slot;
                         const auto correction = before - prediction.eye();
@@ -225,6 +231,8 @@ int main(int argc, char** argv) {
                 int width = 0, height = 0; glfwGetFramebufferSize(graphics.window, &width, &height);
                 if (width > 0 && height > 0) {
                     auto& renderer = *graphics.renderer;
+                    const auto flash = graphics.muzzleFlash.light(now);
+                    renderer.setMuzzleFlash(flash.transformed(glm::inverse(in.camera.view())));
                     renderer.resize(width, height); renderer.updateDoors(*scene.doors); renderer.updateBoxes(*scene.boxes);
                     renderer.updateZombies(scene.zombies);
                     renderer.render(in.camera, snapshots.animationSeconds(), [&] {
@@ -232,7 +240,7 @@ int main(int argc, char** argv) {
                     });
                     if (prediction.ready() && !in.interaction &&
                         in.camera.viewMode() == viewer::Camera::ViewMode::original)
-                        graphics.weapon->draw(ownState.slot, width, height);
+                        graphics.weapon->draw(ownState.slot, width, height, flash);
                     graphics.reticle->draw(in.camera.viewMode(), width, height);
                     renderer.present(width, height); glfwSwapBuffers(graphics.window);
                     viewer::Renderer::checkErrors("multiplayer frame");

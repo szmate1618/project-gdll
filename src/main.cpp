@@ -440,14 +440,14 @@ void focusCallback(GLFWwindow* window, int focused) {
     }
 }
 
-void updateWeapons(AppState& app, double seconds) {
+bool updateWeapons(AppState& app, double seconds) {
     if (!app.capture || app.interaction.mode() != viewer::ControlMode::Combat) {
         app.weapons.cancelTrigger();
-        return;
+        return false;
     }
     const auto result = app.weapons.fireAttempt(seconds);
     if (result == viewer::WeaponFireResult::empty && app.audio) app.audio->emptyClick();
-    if (result != viewer::WeaponFireResult::fired) return;
+    if (result != viewer::WeaponFireResult::fired) return false;
     if (app.audio) app.audio->shot(app.weapons.slot());
     if (app.zombies) {
         for (const auto direction : viewer::weaponShotDirections(app.weapons.equipped().config, app.rig.camera().direction()))
@@ -455,6 +455,7 @@ void updateWeapons(AppState& app, double seconds) {
                                             app.displayedAnimationSeconds, app.world);
     }
     std::cout << app.weapons.status() << '\n';
+    return true;
 }
 
 void moveCamera(AppState& app, float dt) {
@@ -928,6 +929,7 @@ int run(const Options& options) {
     const auto& playerBody = app.rig.player().config();
     viewer::WeaponOverlay weaponOverlay(options.shaders, VIEWER_WEAPON_ASSETS,
                                        {playerBody.height, playerBody.eyeHeight});
+    viewer::MuzzleFlash muzzleFlash;
     std::cout << "Weapons: 1 pistol, 2 SMG, 3 sniper, 4 shotgun; R reload\n" << app.weapons.status() << '\n';
     renderer.setTreeCulling(options.treeCulling);
     renderer.setZombieCulling(options.zombieCulling);
@@ -1029,7 +1031,11 @@ int run(const Options& options) {
                 for (const auto& noise : app.rig.player().noises())
                     zombies->makeNoise(noise.position, noise.decibels);
         }
-        updateWeapons(app, simulationClock.seconds());
+        if (updateWeapons(app, simulationClock.seconds()))
+            muzzleFlash.fire(simulationClock.seconds(), weaponOverlay.muzzlePosition(
+                app.weapons.slot(), app.weapons.equipped().config.muzzlePosition));
+        const auto flash = muzzleFlash.light(simulationClock.seconds());
+        renderer.setMuzzleFlash(flash.transformed(glm::inverse(app.rig.camera().view())));
         audio.update(app.rig, zombies ? &*zombies : nullptr, dt, &doors);
         const double preparationStart = glfwGetTime();
         intervalBehaviorSeconds += preparationStart - behaviorStart;
@@ -1051,7 +1057,7 @@ int run(const Options& options) {
             debug->draw(app.rig.camera(), overlay, app.width, app.height);
         if (app.interaction.mode() == viewer::ControlMode::Combat &&
             app.rig.camera().viewMode() == viewer::Camera::ViewMode::original)
-            weaponOverlay.draw(app.weapons.slot(), app.width, app.height);
+            weaponOverlay.draw(app.weapons.slot(), app.width, app.height, flash);
         reticle.draw(app.rig.camera().viewMode(), app.width, app.height);
         intervalRenderSeconds += glfwGetTime() - renderStart;
         gpuTimer.end();

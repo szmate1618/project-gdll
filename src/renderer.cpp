@@ -85,6 +85,9 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         flashlightDirectionLocation_ = glGetUniformLocation(program_, "uFlashlightDirection");
         flashlightColorLocation_ = glGetUniformLocation(program_, "uFlashlightColor");
         flashlightConeLocation_ = glGetUniformLocation(program_, "uFlashlightCone");
+        muzzleFlashPositionLocation_ = glGetUniformLocation(program_, "uMuzzleFlashPosition");
+        muzzleFlashColorLocation_ = glGetUniformLocation(program_, "uMuzzleFlashColor");
+        muzzleFlashRangeLocation_ = glGetUniformLocation(program_, "uMuzzleFlashRange");
         fallback_.baseColor = glm::vec4(0.65f, 0.68f, 0.72f, 1.0f);
         uploadModel(model, model_);
         uploadRoofBatches(model);

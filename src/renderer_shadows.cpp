@@ -101,6 +101,9 @@ void Renderer::applyLighting(const Camera& camera, const SunShadowView& shadowVi
     const auto flashlightMatrix = flashlight.projectionView();
     glUniformMatrix4fv(flashlightMatrixLocation_, 1, GL_FALSE, glm::value_ptr(flashlightMatrix));
     glUniform3fv(flashlightPositionLocation_, 1, glm::value_ptr(flashlight.position));
+    glUniform3fv(muzzleFlashPositionLocation_, 1, glm::value_ptr(muzzleFlash_.position));
+    glUniform3fv(muzzleFlashColorLocation_, 1, glm::value_ptr(muzzleFlash_.color));
+    glUniform1f(muzzleFlashRangeLocation_, muzzleFlash_.range);
     glUniform3f(flashlightShadowDistancesLocation_, NightLighting::flashlightShadowNear,
                 NightLighting::flashlightShadowFadeStart, NightLighting::flashlightShadowDistance);
     const auto direction = flashlight.direction;

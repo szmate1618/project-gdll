@@ -15,6 +15,7 @@ struct WeaponConfig {
     bool automatic = false, hasScope = false;
     int pellets = 1, magazineCapacity = 1, ammoPerShot = 1;
     float spreadDegrees = 0; // Cone half-angle about the camera's forward ray.
+    glm::vec3 muzzlePosition{0}; // Model-local meters: X right, Y up, muzzle -Z.
 };
 struct WeaponState {
     WeaponConfig config;

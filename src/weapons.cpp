@@ -37,6 +37,15 @@ WeaponConfig loadConfig(const std::filesystem::path& path, const std::string& id
     config.magazineCapacity = count(table, "magazine_capacity", path);
     config.ammoPerShot = count(table, "ammo_per_shot", path);
     const auto spread = required<double>(table, "spread_degrees", path);
+    const auto* muzzle = table["muzzle_position"].as_array();
+    if (!muzzle || muzzle->size() != 3)
+        throw std::runtime_error(path.string() + ": muzzle_position must contain three finite meter coordinates");
+    for (int axis = 0; axis < 3; ++axis) {
+        const auto coordinate = (*muzzle)[static_cast<std::size_t>(axis)].value<double>();
+        if (!coordinate || !std::isfinite(*coordinate) || std::abs(*coordinate) > std::numeric_limits<float>::max())
+            throw std::runtime_error(path.string() + ": invalid muzzle_position coordinate");
+        config.muzzlePosition[axis] = static_cast<float>(*coordinate);
+    }
     if (config.name.empty() || config.ammoType.empty() ||
         !std::isfinite(config.shotIntervalSeconds) || config.shotIntervalSeconds <= 0 ||
         config.pellets < 1 || config.pellets > 64 || config.ammoPerShot < 1 ||

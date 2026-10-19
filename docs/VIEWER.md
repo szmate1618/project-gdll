@@ -932,12 +932,24 @@ The window title and console report the equipped weapon, magazine, and reserve.
 
 Each [weapon TOML](../items/) defines `name`, `ammo_type`,
 `shot_interval_seconds`, `automatic`, `has_scope`, `pellets`, `spread_degrees`
-(cone half-angle), `magazine_capacity`, and `ammo_per_shot`. Counts use rounds
+(cone half-angle), `magazine_capacity`, `ammo_per_shot`, and `muzzle_position`.
+The muzzle is a required three-number array in the prepared model's local meters:
+X right, Y up, forward -Z. Its position is the center of the barrel's front cap,
+before applying the eye-relative weapon pose and camera-to-world transform.
+Counts use rounds
 or shells, rather than pellets. `pellets` supports 1–64; `ammo_per_shot` must be
 positive and fit the magazine; cooldown must be positive and spread in [0°, 90°).
 The viewer uses [toml++](https://github.com/marzer/tomlplusplus), pinned to 3.4.0
 through CMake's dependency cache. Invalid or missing required values fail startup
 with a configuration error.
+
+Each successful shot briefly activates a warm point light at that muzzle. It
+illuminates nearby scene and weapon surfaces in daylight and at night, has an
+8 m range with distance falloff, and fades quadratically to zero over 75 ms.
+Automatic fire restarts the pulse per shot; shotguns pulse once per shell and
+empty clicks produce no flash. Scope mode hides the mesh but keeps the muzzle
+light. The multiplayer client pulses on server-confirmed local shots. This
+short-lived point light does not render additional shadow maps.
 
 [inventory.toml](../inventory.toml) chooses the initially `equipped` weapon.
 Its `[weapons]` table lists owned weapon IDs and their starting loaded rounds;

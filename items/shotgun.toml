@@ -7,3 +7,5 @@ has_scope = false
 spread_degrees = 4.0
 magazine_capacity = 6
 ammo_per_shot = 1
+# Center of the barrel's front cap, in model-local meters (X right, Y up, -Z forward).
+muzzle_position = [0.0, -0.0045398, -0.475]

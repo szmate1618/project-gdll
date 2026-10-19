@@ -112,9 +112,11 @@ void fixtures(const std::filesystem::path& scratch) {
     const std::string customConfig =
         "name = 'Test pistol'\nammo_type = 'pistol_rounds'\nshot_interval_seconds = 2\n"
         "automatic = false\nhas_scope = false\npellets = 1\nspread_degrees = 0\n"
-        "magazine_capacity = 7\nammo_per_shot = 2\n";
+        "magazine_capacity = 7\nammo_per_shot = 2\nmuzzle_position = [0.01, 0.02, -0.3]\n";
     std::ofstream(scratch / "items/pistol.toml") << customConfig;
     viewer::Weapons doubleShot(scratch / "items", inventory);
+    require(glm::distance(doubleShot.equipped().config.muzzlePosition, glm::vec3(.01f, .02f, -.3f)) < 1e-6f,
+            "TOML muzzle coordinates must preserve all three model-local axes");
     click(doubleShot);
     require(doubleShot.fire(0) && doubleShot.equipped().loaded == 1, "TOML ammo_per_shot must control consumption");
     click(doubleShot);
@@ -143,6 +145,12 @@ void fixtures(const std::filesystem::path& scratch) {
              {"magazine_capacity = 7", "magazine_capacity = 1"},
              {"ammo_per_shot = 2", "ammo_per_shot = 0"},
              {"automatic = false", "automatic = 'false'"},
+             {"muzzle_position = [0.01, 0.02, -0.3]\n", ""},
+             {"muzzle_position = [0.01, 0.02, -0.3]", "muzzle_position = [0, 0]"},
+             {"muzzle_position = [0.01, 0.02, -0.3]", "muzzle_position = [0, 0, 0, 0]"},
+             {"muzzle_position = [0.01, 0.02, -0.3]", "muzzle_position = [0, nan, 0]"},
+             {"muzzle_position = [0.01, 0.02, -0.3]", "muzzle_position = [0, 1e99, 0]"},
+             {"muzzle_position = [0.01, 0.02, -0.3]", "muzzle_position = [0, 'zero', 0]"},
              {"has_scope = false\n", ""}}) {
         auto badConfig = customConfig;
         badConfig.replace(badConfig.find(change.first), change.first.size(), change.second);

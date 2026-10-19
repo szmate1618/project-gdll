@@ -60,6 +60,23 @@ Poses are computed once at load time using the standing controller configuration
 Crouching and prone move the camera without rescaling the upper body or weapon.
 The unscoped view represents a ready hold; scope mode keeps its existing overlay.
 
+Each weapon's [item TOML](../../items/) records `muzzle_position` in these
+model-local meters, at the center of the original barrel's front cap (the M14
+body cap for the sniper, rather than the decorative heavy-barrel sleeve).
+The measured positions are:
+
+| Weapon | X | Y | Z |
+| --- | ---: | ---: | ---: |
+| Pistol | 0 | 0.0267731 | -0.11 |
+| SMG | -0.0113252 | 0.0081202 | -0.325 |
+| Sniper | 0 | 0.0205822 | -0.66 |
+| Shotgun | 0 | -0.0045398 | -0.475 |
+
+The overlay applies its cached rigid pose to this position; the scene light also
+applies the inverse camera view. Successful shots trigger a warm point light
+with an 8 m range and a 75 ms quadratic fade, including in scope mode. The light
+affects both the scene and the weapon, without adding a shadow-map pass.
+
 The multiplayer first-person overlay uses the server-confirmed weapon slot and
 the same poses. Linux and Windows client packages bundle the generated GLBs and
 this attribution under `assets/weapons/`. Headless clients and servers do not

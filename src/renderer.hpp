@@ -20,6 +20,7 @@
 #include "sun_lighting.hpp"
 #include "shadow_map.hpp"
 #include "flashlight.hpp"
+#include "muzzle_flash.hpp"
 #include "atmosphere.hpp"
 #include "night_lighting.hpp"
 #include "day_night.hpp"
@@ -79,6 +80,7 @@ public:
     void setRoofBatching(bool enabled) { roofBatching_ = enabled; }
     void setShadows(bool enabled) { shadows_ = enabled; }
     void setFlashlightShadows(bool enabled) { flashlightShadows_ = enabled; }
+    void setMuzzleFlash(const MuzzleFlashLight& light) { muzzleFlash_ = light; }
     void setTreeShadows(bool enabled) { treeShadows_ = enabled; }
     void setTreeCanopyShading(bool enabled) { treeCanopyShading_ = enabled; }
     void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
@@ -232,6 +234,8 @@ private:
     GLint flashlightPositionLocation_, flashlightShadowsLocation_, flashlightShadowMapLocation_;
     GLint flashlightMatrixLocation_, flashlightShadowDistancesLocation_;
     GLint flashlightDirectionLocation_, flashlightColorLocation_, flashlightConeLocation_;
+    GLint muzzleFlashPositionLocation_, muzzleFlashColorLocation_, muzzleFlashRangeLocation_;
+    MuzzleFlashLight muzzleFlash_;
     Atmosphere atmosphere_;
     bool haze_ = true;
     bool groundFog_ = true;
