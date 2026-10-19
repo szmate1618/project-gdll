@@ -108,7 +108,8 @@ void Renderer::applyLighting(const Camera& camera, const SunShadowView& shadowVi
                 NightLighting::flashlightShadowFadeStart, NightLighting::flashlightShadowDistance);
     const auto direction = flashlight.direction;
     glUniform3fv(flashlightDirectionLocation_, 1, glm::value_ptr(direction));
-    glUniform3fv(flashlightColorLocation_, 1, glm::value_ptr(nightLighting_.flashlightColor));
+    const auto flashlightColor = flashlightEnabled_ ? nightLighting_.flashlightColor : glm::vec3(0);
+    glUniform3fv(flashlightColorLocation_, 1, glm::value_ptr(flashlightColor));
     glUniform3f(flashlightConeLocation_, nightLighting_.flashlightRange,
                 std::cos(glm::radians(nightLighting_.innerAngle)),
                 std::cos(glm::radians(nightLighting_.outerAngle)));

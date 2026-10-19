@@ -239,7 +239,7 @@ void printHelp() {
               << "Release to drop; swing and release to throw. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
               << "Combat: 1 pistol, 2 SMG, 3 sniper, 4 shotgun; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
-              << "Left Alt release/capture mouse, wheel change speed, F frame model, Escape quit\n\n"
+              << "Left Alt release/capture mouse, wheel change speed, F toggle flashlight, Home frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
               << "  --fps               Start in walking mode\n"
               << "  --time-of-day H     Starting hour in [0, 24), default 12 (noon)\n"
@@ -324,6 +324,7 @@ struct AppState {
     int width = 1280, height = 720;
     bool capture = true, firstMouse = true, hidden = false;
     bool collisionDebug = false;
+    bool flashlight = true;
     double lastX = 0, lastY = 0;
 };
 
@@ -363,6 +364,9 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         std::cout << app.weapons.status() << '\n';
     } else if (key == GLFW_KEY_LEFT_ALT) captureMouse(window, !app.capture);
     else if (key == GLFW_KEY_F) {
+        app.flashlight = !app.flashlight;
+        std::cout << "Flashlight: " << (app.flashlight ? "on" : "off") << '\n';
+    } else if (key == GLFW_KEY_HOME) {
         app.weapons.cancelTrigger();
         app.interaction.cancel();
         app.rig.frame(static_cast<float>(std::max(app.width, 1)) / static_cast<float>(std::max(app.height, 1)));
@@ -479,6 +483,17 @@ void inputSelfTest(GLFWwindow* window) {
     if (!key || !cursor || !mouse || !resize) throw std::runtime_error("Input callbacks were not registered");
     const auto original = app.rig.camera();
     const auto originalWeapons = app.weapons;
+    const bool originalFlashlight = app.flashlight;
+    const auto viewBeforeFlashlight = app.rig.camera().view();
+    key(window, GLFW_KEY_F, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_F, 0, GLFW_REPEAT, 0);
+    key(window, GLFW_KEY_F, 0, GLFW_RELEASE, 0);
+    if (app.flashlight == originalFlashlight || app.rig.camera().view() != viewBeforeFlashlight)
+        throw std::runtime_error("F must toggle the flashlight once without reframing the camera");
+    key(window, GLFW_KEY_F, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_F, 0, GLFW_RELEASE, 0);
+    if (app.flashlight != originalFlashlight)
+        throw std::runtime_error("A second F press must restore the flashlight");
     const bool wasWalking = app.rig.walking();
     app.rig.enterFreeFly();
     for (int code : {GLFW_KEY_W, GLFW_KEY_S, GLFW_KEY_A, GLFW_KEY_D, GLFW_KEY_Q, GLFW_KEY_E}) {
@@ -598,7 +613,7 @@ void inputSelfTest(GLFWwindow* window) {
     app.weapons = originalWeapons;
     if (wasWalking && !app.rig.enterWalking()) throw std::runtime_error("Failed to restore walking mode after input test");
     app.firstMouse = true;
-    std::cout << "Input self-test passed: movement, mouse capture, control modes, weapon selection/fire/reload, shot occlusion, scope, resize, Escape\n";
+    std::cout << "Input self-test passed: movement, mouse capture, control modes, flashlight toggle, weapon selection/fire/reload, shot occlusion, scope, resize, Escape\n";
 }
 
 void fpsInputSelfTest(GLFWwindow* window) {
@@ -922,7 +937,7 @@ int run(const Options& options) {
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
               << " m/s; F1 free-fly, F2 walk, F3 collisions, WASD move, Space jump, Ctrl hold crouch/airborne tuck, "
               << (proneKeyName ? proneKeyName : "Z")
-              << " toggle prone, mouse look, Tab Combat/Interaction, Left Alt cursor, Escape quit\n";
+              << " toggle prone, mouse look, Tab Combat/Interaction, F flashlight, Home frame scene, Left Alt cursor, Escape quit\n";
     viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr,
                               zombies ? &*zombies : nullptr, forests ? &*forests : nullptr);
     viewer::ReticleOverlay reticle(options.shaders);
@@ -985,6 +1000,7 @@ int run(const Options& options) {
     int frameCount = 0, intervalFrames = 0;
     while (!glfwWindowShouldClose(window.get())) {
         glfwPollEvents();
+        renderer.setFlashlight(app.flashlight);
         const double now = glfwGetTime();
         const float dt = static_cast<float>(std::clamp(now - previous, 0.0, 0.1));
         previous = now;

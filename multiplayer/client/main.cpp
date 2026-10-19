@@ -24,6 +24,7 @@ struct Input {
     bool capture = true, firstMouse = true, interaction = false, prone = false, reload = false;
     bool leftPressed = false, rightPressed = false;
     bool canScope = false;
+    bool flashlight = true;
     double lastX = 0, lastY = 0;
     glm::vec2 drag{0};
     std::uint8_t slot = 0;
@@ -37,6 +38,7 @@ void key(GLFWwindow* window, int code, int, int action, int) {
     if (code == GLFW_KEY_TAB) in.interaction = !in.interaction;
     if (code == GLFW_KEY_Z) in.prone = true;
     if (code == GLFW_KEY_R) in.reload = true;
+    if (code == GLFW_KEY_F) in.flashlight = !in.flashlight;
     if (code >= GLFW_KEY_1 && code <= GLFW_KEY_4) in.slot = static_cast<std::uint8_t>(code - GLFW_KEY_1);
     if (code == GLFW_KEY_LEFT_ALT) {
         in.capture = !in.capture; in.firstMouse = true; in.drag = {};
@@ -231,6 +233,7 @@ int main(int argc, char** argv) {
                 int width = 0, height = 0; glfwGetFramebufferSize(graphics.window, &width, &height);
                 if (width > 0 && height > 0) {
                     auto& renderer = *graphics.renderer;
+                    renderer.setFlashlight(in.flashlight);
                     const auto flash = graphics.muzzleFlash.light(now);
                     renderer.setMuzzleFlash(flash.transformed(glm::inverse(in.camera.view())));
                     renderer.resize(width, height); renderer.updateDoors(*scene.doors); renderer.updateBoxes(*scene.boxes);

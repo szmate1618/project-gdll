@@ -79,6 +79,7 @@ public:
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
     void setRoofBatching(bool enabled) { roofBatching_ = enabled; }
     void setShadows(bool enabled) { shadows_ = enabled; }
+    void setFlashlight(bool enabled) { flashlightEnabled_ = enabled; }
     void setFlashlightShadows(bool enabled) { flashlightShadows_ = enabled; }
     void setMuzzleFlash(const MuzzleFlashLight& light) { muzzleFlash_ = light; }
     void setTreeShadows(bool enabled) { treeShadows_ = enabled; }
@@ -242,6 +243,7 @@ private:
     glm::vec3 backgroundSrgb_{0.10f, 0.14f, 0.20f};
     SunLighting lighting_;
     NightLighting nightLighting_;
+    bool flashlightEnabled_ = true;
     bool night_ = false;
     std::optional<DayNightLighting> dayNight_;
     ShadowMap shadowMap_{SunLighting::shadowResolution};

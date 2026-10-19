@@ -347,7 +347,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     if (sunlight) shadowView = sunShadowView(camera.position(), lighting.sun.direction);
     const bool castShadows = sunlight && shadows_ && shadowPassLocation_ >= 0;
     const auto flashlight = flashlightView(camera, nightLighting_);
-    const bool flashlightCasting = lighting.nightBlend > 0 && shadows_ && flashlightShadows_ &&
+    const bool flashlightCasting = flashlightEnabled_ && lighting.nightBlend > 0 && shadows_ && flashlightShadows_ &&
         shadowPassLocation_ >= 0 && flashlightShadowsLocation_ >= 0;
     const Frustum flashlightFrustum(flashlight.projectionView());
     const Frustum lightFrustum(shadowView.projectionView());
@@ -391,9 +391,12 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         }
         glDepthMask(GL_TRUE);
     }
-    if (rainEnabled_)
+    if (rainEnabled_) {
+        auto rainLighting = nightLighting_;
+        if (!flashlightEnabled_) rainLighting.flashlightColor = glm::vec3(0);
         rain_->draw(camera, static_cast<float>(width_) / static_cast<float>(height_),
-                    animationSeconds, lighting.nightBlend, nightLighting_);
+                    animationSeconds, lighting.nightBlend, rainLighting);
+    }
     glBindVertexArray(0);
 }
 

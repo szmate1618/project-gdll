@@ -435,6 +435,15 @@ void checkFlashlight(FlashlightCaster kind, bool unlit = false, const std::strin
                             "Transparent mask texels must leave flashlight shadows open");
         else require(clearHole - brightness(camera, hole) > 25, "Opaque caster must shadow both halves");
     }
+    renderer.setFlashlight(false);
+    renderer.render(camera);
+    if (!capture.empty()) renderer.writeScreenshot(capture + ".disabled.ppm");
+    require(clear - brightness(camera, opaque) > 45 && renderer.zombieRenderStats().flashlightTriangles == 0,
+            "Flashlight off must remove both beam illumination and flashlight shadow draws");
+    renderer.setFlashlight(true);
+    renderer.render(camera);
+    require(std::abs(shadow - brightness(camera, opaque)) < 3,
+            "Re-enabling the flashlight must restore its shadowed illumination");
     if (zombie) {
         require(renderer.zombiePaletteStats().needed == 1 && renderer.zombiePaletteStats().uploaded == 0,
                 "Camera and flashlight must share one retained ragdoll palette");

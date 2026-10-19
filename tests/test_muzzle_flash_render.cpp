@@ -56,11 +56,11 @@ void check(const std::filesystem::path& captures) {
     viewer::Camera camera;
     camera.setPosition({0, 0, 0}); camera.setOrientation(-90, 0);
     if (!captures.empty()) std::filesystem::create_directories(captures);
-    // Sample beside the night flashlight's cone: its center saturates the
-    // framebuffer, hiding any additional light even when the muzzle is active.
+    // Sample a wall patch clear of the weapon silhouettes.
     const auto wallSample = (static_cast<std::size_t>(height / 2) * width + width / 5) * 3;
     for (const bool night : {false, true}) {
         renderer.setNight(night);
+        renderer.setFlashlight(false); // Muzzle illumination is independent of the held flashlight.
         for (std::size_t slot = 0; slot < 4; ++slot) {
             weapons.equip(slot);
             viewer::MuzzleFlash pulse;

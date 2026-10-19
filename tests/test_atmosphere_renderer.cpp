@@ -341,6 +341,21 @@ void checkNightCone() {
         require(center.r > shoulder.r + 10 && shoulder.r > outside.r + 20,
                 "The flashlight must have a bright center and soft cone edges");
         require(center.r > outside.r + 100, "Surfaces outside the cone must remain dark");
+        renderer.setFlashlight(false);
+        renderer.render(view);
+        require(glm::length(pixel(width / 2, height / 2) - outside) < 2,
+                "Turning the flashlight off must leave only the night ambient light");
+        renderer.setDayNightLighting(viewer::dayNightLighting(12));
+        renderer.render(view);
+        renderer.setDayNightLighting(viewer::dayNightLighting(0));
+        renderer.render(view);
+        require(glm::length(pixel(width / 2, height / 2) - outside) < 2,
+                "Day/night transitions must preserve the flashlight's off setting");
+        renderer.setNight(true);
+        renderer.setFlashlight(true);
+        renderer.render(view);
+        require(glm::length(pixel(width / 2, height / 2) - center) < 2,
+                "Turning the flashlight back on must restore the beam");
         view.setPosition({15, 1.7f, 0});
         view.look(300, 0);
         renderer.render(view);

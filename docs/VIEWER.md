@@ -832,7 +832,8 @@ idle cycles at a chosen elapsed time:
 | F3 | Toggle collision visualization |
 | Tab | Switch between Combat (default) and Interaction controls |
 | Left Alt | Release / capture the mouse |
-| F | Frame the whole scene again in free-fly mode |
+| F | Toggle the flashlight on/off |
+| Home | Frame the whole scene again in free-fly mode |
 | Escape | Close the viewer |
 
 The mouse is captured when the window opens. Movement uses elapsed frame time
@@ -1327,6 +1328,12 @@ Its bright core extends 12 degrees from the viewing axis, fading to zero at
 40 meters. It illuminates terrain, buildings, zombies, and visible tree texels.
 Tree cards retain their alpha masks and bypass normal-based shading, but receive
 night dimming and the flashlight's cone/distance attenuation.
+
+Press **F** to toggle the flashlight in either control mode. It starts enabled;
+turning it off removes the beam, its optional shadows, and its illumination of
+rain, while preserving the night palette and weapon muzzle flashes. The setting
+persists through the day/night cycle; daylight still fades the beam out normally.
+**Home** frames the whole scene (previously **F**).
 
 Flashlight shadows are disabled by default. Enable them with
 `--flashlight-shadows`, for example:

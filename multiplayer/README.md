@@ -178,7 +178,7 @@ Scene options:
   GameNetworkingSockets. These testing options may differ between peers.
 
 Client controls: WASD, mouse look, Shift run, Space jump, Ctrl crouch, Z prone,
-1–4 weapon selection, R reload, left click fire, right click cycle scope.
+1–4 weapon selection, R reload, F toggle flashlight, left click fire, right click cycle scope.
 Tab switches Combat/Interaction. In Interaction, hold either mouse button to
 grab a nearby prop; left mouse also grabs doors. Mouse motion and walking move
 the grip. Alt releases/recaptures the mouse; Escape exits. Losing focus releases

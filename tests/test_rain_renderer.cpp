@@ -77,6 +77,15 @@ void checkRain() {
     const auto outside = addedBrightness(nightRain, nightSky, 0, 100, 0, height);
     require(core > outside * 1.5 && core > 0.2,
             "Night rain must brighten inside the camera flashlight cone");
+    renderer.setFlashlight(false);
+    renderer.render(view);
+    const auto unlitRain = pixels();
+    const auto unlitCore = addedBrightness(unlitRain, nightSky, 260, 380, 180, 300);
+    require(unlitCore < core * .5 && changed(unlitRain, nightSky) > 300,
+            "Flashlight off must remove beam illumination while keeping night rain visible");
+    renderer.setFlashlight(true);
+    renderer.render(view);
+    require(pixels() == nightRain, "Re-enabling the flashlight must restore its rain illumination");
     renderer.setDayNightLighting(viewer::dayNightLighting(17.7));
     renderer.render(view, 0.25);
     const auto dusk = pixels();
