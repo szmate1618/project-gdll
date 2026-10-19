@@ -14,7 +14,8 @@ class ForestTreeVisibility {
 public:
     ForestTreeVisibility() = default;
     ForestTreeVisibility(const std::vector<TreeInstance>& trees,
-                         const std::vector<ForestPatch>& patches);
+                         const std::vector<ForestPatch>& patches,
+                         const std::vector<VisibilityBounds>& renderingBounds = {});
     // Returns original TreeLayer indices. Volume-only patches never enter a
     // tree index. A shadow caller supplies its own light projection/view.
     ForestTreeVisibilityStats query(const glm::mat4& projectionView,

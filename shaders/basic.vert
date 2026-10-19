@@ -24,6 +24,9 @@ uniform bool uUnlit;
 uniform bool uShadowPass;
 uniform bool uAnimated;
 uniform bool uTreeCanopyShading;
+uniform int uTreeBillboardMode; // 0 authored, 1 root-yaw side card, 2 eye-facing top card.
+uniform vec3 uTreeBillboardPivot;
+uniform vec3 uEye;
 uniform samplerBuffer uAnimation;
 uniform float uAnimationFrame;
 uniform int uAnimationCount;
@@ -38,6 +41,16 @@ out vec4 vColor;
 out vec3 vWorldPosition;
 out float vCanopyHeight;
 flat out vec2 vCanopyLight;
+
+vec3 turnToward(vec3 point, vec3 from, vec3 toward) {
+    float cosine = clamp(dot(from, toward), -1.0, 1.0);
+    if (cosine < -0.9999) {
+        vec3 axis = normalize(cross(from, abs(from.x) < 0.9 ? vec3(1,0,0) : vec3(0,0,1)));
+        return 2.0 * axis * dot(axis, point) - point;
+    }
+    vec3 axis = cross(from, toward);
+    return point + cross(axis, point) + cross(axis, cross(axis, point)) / (1.0 + cosine);
+}
 
 void main() {
     vec3 position = aPosition;
@@ -80,6 +93,25 @@ void main() {
     }
     mat4 model = uInstanced ? aInstanceModel * uModel : uModel;
     vec4 worldPosition = model * vec4(position, 1.0);
+    if (uInstanced && uTreeBillboardMode == 1) {
+        vec3 root = aInstanceModel[3].xyz;
+        vec3 front = cross(model[0].xyz, model[1].xyz);
+        vec2 from = front.xz;
+        vec2 toward = uEye.xz - root.xz;
+        if (dot(from,from) > 1e-12 && dot(toward,toward) > 1e-12) {
+            from = normalize(from); toward = normalize(toward);
+            float cosine = dot(from, toward);
+            float sine = from.y * toward.x - from.x * toward.y;
+            vec2 p = worldPosition.xz - root.xz;
+            worldPosition.xz = root.xz + vec2(cosine*p.x+sine*p.y, -sine*p.x+cosine*p.y);
+        }
+    } else if (uInstanced && uTreeBillboardMode == 2) {
+        vec3 pivot = (model * vec4(uTreeBillboardPivot, 1.0)).xyz;
+        vec3 from = cross(model[2].xyz, model[0].xyz);
+        vec3 toward = uEye - pivot;
+        if (dot(from,from) > 1e-12 && dot(toward,toward) > 1e-12)
+            worldPosition.xyz = pivot + turnToward(worldPosition.xyz-pivot, normalize(from), normalize(toward));
+    }
     gl_Position = uProjection * uView * worldPosition;
     vWorldPosition = worldPosition.xyz;
     vCanopyHeight = uTreeCanopyShading ? (worldPosition.y - aInstanceInfo.x) * aInstanceInfo.y : 0.0;

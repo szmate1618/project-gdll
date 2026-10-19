@@ -53,6 +53,7 @@ struct Options {
     bool shadows = true;
     bool treeShadows = true;
     bool treeCanopyShading = true;
+    float treeBillboardDistance = 100;
     bool night = false;
     viewer::DayNightCycle dayNight;
     bool explicitDayNight = false;
@@ -90,6 +91,13 @@ Options parseOptions(int argc, char** argv) {
         };
         if (argument == "--help" || argument == "-h") options.help = true;
         else if (argument == "--profile") options.profile = true;
+        else if (argument == "--tree-billboard-distance") {
+            const auto text = value(); std::size_t used = 0;
+            try { options.treeBillboardDistance = std::stof(text, &used); }
+            catch (const std::exception&) { throw std::runtime_error("--tree-billboard-distance requires nonnegative meters (0 disables)"); }
+            if (used != text.size() || !std::isfinite(options.treeBillboardDistance) || options.treeBillboardDistance < 0)
+                throw std::runtime_error("--tree-billboard-distance requires nonnegative meters (0 disables)");
+        }
         else if (argument == "--no-zombie-lod") options.zombieDistanceDetail = false;
         else if (argument == "--flashlight-shadows") options.flashlightShadows = true;
         else if (argument == "--no-flashlight-shadows") options.flashlightShadows = false;
@@ -252,6 +260,7 @@ void printHelp() {
               << "  --no-shadows        Disable sun and flashlight shadows for comparison\n"
               << "  --no-tree-shadows   Disable tree casting for both lights\n"
               << "  --no-tree-canopy-shading Disable approximate daytime canopy shade\n"
+              << "  --tree-billboard-distance M Single-card tree LoD beyond M meters (100; 0 disables)\n"
               << "  --no-haze           Disable atmospheric distance haze for comparison\n"
               << "  --no-ground-fog     Disable the analytical ground mist layer\n"
               << "  --spawn X Z         Start walking near world X/Z in meters\n"
@@ -998,6 +1007,7 @@ int run(const Options& options) {
     renderer.setFlashlightShadows(options.flashlightShadows);
     renderer.setTreeShadows(options.treeShadows);
     renderer.setTreeCanopyShading(options.treeCanopyShading);
+    renderer.setTreeBillboardDistance(options.treeBillboardDistance);
     renderer.setNight(options.night);
     renderer.setRain(options.rain);
     renderer.setHaze(options.haze);

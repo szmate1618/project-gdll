@@ -25,7 +25,7 @@ Use this guide as a navigation aid; read the relevant code for current behavior.
 | Railway texture and existing-map update | [assets/railways/README.md](assets/railways/README.md), `src/railway_texture.py`, `src/railway_texture_apply.py`, `tools/apply_railway_texture.py` |
 | Tree assets and preprocessing | [docs/TREES.md](docs/TREES.md), [assets/README.md](assets/README.md), `tools/*tree*.py`, `tools/apply_pine_clusters.py`, `src/tree_*.py`, `src/satellite_tree_*.py` |
 | Runtime forest polygons, placement and LoD | [docs/FORESTS.md](docs/FORESTS.md), `forest_patches.json`, `forest_patches_astra.json`, `src/osm_vegetation*.py`, `tools/prepare_osm_vegetation.py`, `src/forest_review.py`, `src/forest_comparison*.py`, `tools/compare_forests.py`, `tools/build_astra_forests.py`, `src/forest_layer.hpp/.cpp`, `src/forest_geometry.hpp/.cpp`, `src/forest_placement.hpp/.cpp`, `src/forest_bush.hpp/.cpp`, `src/forest_visibility.hpp/.cpp`, `src/forest_tree_visibility.hpp/.cpp`, `src/forest_volume_batch.hpp/.cpp`, `src/forest_renderer.cpp` |
-| Scene and tree loading, canopy shading, blast response | `src/model.hpp/.cpp`, `src/model_merge.hpp/.cpp`, `src/tree_layer.hpp/.cpp`, `src/tree_canopy.hpp/.cpp`, `src/vegetation_blast.hpp/.cpp`, `src/tree_renderer.cpp`, `src/file_fingerprint.hpp/.cpp` |
+| Scene and tree loading, canopy shading, single-card LoD, blast response | `src/model.hpp/.cpp`, `src/model_merge.hpp/.cpp`, `src/tree_layer.hpp/.cpp`, `src/tree_canopy.hpp/.cpp`, `src/tree_billboard.hpp/.cpp`, `src/vegetation_blast.hpp/.cpp`, `src/tree_renderer.cpp`, `src/file_fingerprint.hpp/.cpp` |
 | Mapped utility columns and approximate HÉV masts | `tools/prepare_pole_instances.py`, `src/pole_placements.py`, `src/hev_pole_placements.py`, `src/pole_layer.hpp/.cpp`, [docs/VIEWER.md](docs/VIEWER.md#mapped-pole-columns) |
 | Mapped roadside guardrails | `tools/prepare_guardrails.py`, `src/guardrails.py`, `src/guardrail_scene.py`, `src/guardrail_layer.hpp/.cpp`, [assets/guardrails/README.md](assets/guardrails/README.md), [docs/VIEWER.md](docs/VIEWER.md#mapped-guardrails) |
 | Animated zombie crowd, perception, and shooting | [assets/zombies/README.md](assets/zombies/README.md), `src/animated_model.hpp/.cpp`, `src/zombie_animation.hpp/.cpp`, `src/zombie_lod.hpp/.cpp`, `src/zombie_lod_assets.cpp`, `src/zombie_lod.py`, `tools/prepare_zombie_lods.py`, `src/zombie_layer.hpp/.cpp`, `src/zombie_behavior.hpp/.cpp`, `src/zombie_attack.hpp/.cpp`, `src/zombie_perception.hpp/.cpp`, `src/zombie_spatial_index.hpp/.cpp`, `src/zombie_crowd.hpp/.cpp`, `src/zombie_movement.hpp/.cpp`, `src/zombie_door_collision.hpp/.cpp`, `src/noise.hpp/.cpp`, `src/simulation_clock.hpp`, `src/zombie_hit.hpp/.cpp`, `src/zombie_shooting.cpp`, `src/zombie_chase.hpp/.cpp`, `src/zombie_placement.hpp/.cpp`, `src/zombie_park.hpp/.cpp`, `src/zombie_renderer.cpp`, `src/zombie_render_updates.hpp/.cpp`, `src/zombie_palette_cache.hpp/.cpp`, `src/zombie_visibility.hpp/.cpp` |
@@ -94,7 +94,8 @@ Use this guide as a navigation aid; read the relevant code for current behavior.
 - Share tree meshes/textures and batch instances. Cull using full transformed
   geometry bounds, including transparent padding. Visible canopy dimensions
   have a different purpose from conservative rendering bounds.
-- Impostors use double-sided, unlit alpha masks. Keep opaque texel depth writes,
+- Authored impostors use double-sided, unlit alpha masks; camera-facing distant
+  cards are single-sided. Keep opaque texel depth writes,
   discard transparent texels, and restore GL state between tree and town draws.
   Instance matrix attributes 4–7 belong to tree VAOs, with divisor 1.
 - Canopy cards are rendering geometry. Walking receives separate trunk capsules

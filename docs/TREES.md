@@ -312,6 +312,7 @@ assets; a separate GLB export can be added when a portable combined scene is nee
   may also already appear in the town's ground-color texture.
 - The Copernicus terrain is an approximate surface model. Tree bases match
   the exported terrain, which is not surveyed bare-earth ground.
-- Impostors use intersecting alpha-masked cards. The viewer currently has no
-  distance-based LOD or occlusion culling. Runtime trunk sizes are estimates
-  derived from crown size and configured tree height.
+- Nearby impostors use intersecting alpha-masked cards. Supported broadleaf and
+  pine assets switch to a single camera-facing card at distance; see
+  [viewer tree rendering](VIEWER.md). There is no occlusion culling. Runtime
+  trunk sizes are estimates derived from crown size and configured tree height.

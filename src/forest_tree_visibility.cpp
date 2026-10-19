@@ -7,7 +7,10 @@
 namespace viewer {
 
 ForestTreeVisibility::ForestTreeVisibility(const std::vector<TreeInstance>& trees,
-                                         const std::vector<ForestPatch>& patches) {
+                                         const std::vector<ForestPatch>& patches,
+                                         const std::vector<VisibilityBounds>& renderingBounds) {
+    if (!renderingBounds.empty() && renderingBounds.size() != trees.size())
+        throw std::runtime_error("Tree rendering bounds do not match the instance population");
     groups_.resize(patches.size() + 1);
     std::vector<bool> assigned(trees.size(), false);
     const auto assign = [&](std::size_t tree, Group& group) {
@@ -35,7 +38,7 @@ ForestTreeVisibility::ForestTreeVisibility(const std::vector<TreeInstance>& tree
         group.bounds = {glm::vec3(std::numeric_limits<float>::max()),
                         glm::vec3(std::numeric_limits<float>::lowest())};
         for (const auto tree : group.trees) {
-            const auto animated = vegetationBlastBounds(trees[tree]);
+            const auto animated = renderingBounds.empty() ? vegetationBlastBounds(trees[tree]) : renderingBounds[tree];
             bounds.push_back(animated);
             group.bounds.minimum = glm::min(group.bounds.minimum, animated.minimum);
             group.bounds.maximum = glm::max(group.bounds.maximum, animated.maximum);

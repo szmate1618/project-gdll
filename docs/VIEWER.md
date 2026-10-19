@@ -137,11 +137,11 @@ combinations with `--trees` overrides are errors. `--forests` was removed. See
 [vegetation selection](FORESTS.md#select-one-vegetation-source) and
 [OSM preparation](FORESTS.md#optional-openstreetmap-vegetation).
 
-Trees use GPU instancing: visible instances share geometry, textures, and four
-draw calls per species for the current four-card assets. A static spatial index
-and per-instance bounds cull trees outside the camera frustum. Bounds include
+Trees use GPU instancing: visible instances share geometry and textures. Nearby
+trees use four draw calls per species for the current four-card assets. A static
+spatial index and per-instance bounds cull trees outside the camera frustum. Bounds include
 the complete transformed cards, so a tree can remain visible when its trunk is
-outside the view. Materials remain alpha-masked, unlit, and double-sided; opaque
+outside the view. Materials remain alpha-masked and unlit; opaque
 parts write depth while transparent texels do not block the background.
 Distance haze and ground fog apply to their visible texels, so cards blend with
 the rest of the scene. Trees also cast alpha-masked sun shadows into the local
@@ -151,6 +151,25 @@ cover darkens lower foliage in dense stands while leaving exposed tops brighter;
 this is calculated once at load and preserves instancing. See
 [forest canopy shading](FORESTS.md) for the approximation and costs.
 `--no-tree-canopy-shading` disables this daytime effect for comparison.
+
+At **100 m** from the tree root to the camera in three dimensions, normal
+broadleaf and pine trees switch to a **single-sided, camera-facing card**.
+At elevation angles up to 45° in either direction, the front card rotates around
+the world vertical axis at the root. Above 45°, the lower horizontal canopy card
+rotates around its center so its normal faces the camera. Looking from below
+also uses this canopy texture. Distance and angle transitions are sharp.
+Shrubs and asymmetric dry trees retain their authored cards. Both scope views
+and all shadow passes retain the original double-sided geometry; collisions
+and placement matrices are unchanged. Forest patches still switch to their
+volume representation at the existing distance.
+
+`--tree-billboard-distance M` changes the transition distance; `0` disables it
+for comparisons. The GPU rotates the existing vertices, with at most two extra
+instanced draws per species (side and top) alongside the nearby cards. Camera
+culling bounds cover every rotated orientation, with nearby full-card trees
+checked against their original bounds. Shadow and full-detail scope queries
+retain the original bounds. No new meshes, textures or vertices are
+allocated for the distant representation.
 
 The title shows visible/total tree counts alongside the existing FPS, GPU time,
 and CPU render time. These render timings include tree culling/submission and

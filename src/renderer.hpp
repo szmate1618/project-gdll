@@ -27,6 +27,7 @@
 #include "night_lighting.hpp"
 #include "day_night.hpp"
 #include "tree_canopy.hpp"
+#include "tree_billboard.hpp"
 #include "vegetation_blast.hpp"
 
 namespace viewer {
@@ -38,6 +39,7 @@ class BoxLayer;
 struct TreeRenderStats {
     std::size_t total = 0, visible = 0, drawCalls = 0;
     std::size_t queriedForestPatches = 0;
+    std::size_t fullDetail = 0, sideBillboards = 0, topBillboards = 0, triangles = 0;
 };
 
 struct ZombieRenderStats {
@@ -91,6 +93,8 @@ public:
     void setMuzzleFlash(const MuzzleFlashLight& light) { muzzleFlash_ = light; }
     void setTreeShadows(bool enabled) { treeShadows_ = enabled; }
     void setTreeCanopyShading(bool enabled) { treeCanopyShading_ = enabled; }
+    // Three-dimensional root distance in meters; zero keeps authored cards.
+    void setTreeBillboardDistance(float meters);
     void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
     void setNight(bool enabled) { night_ = enabled; dayNight_.reset(); }
     // Overrides the fixed lighting palette until the next setNight call.
@@ -148,8 +152,14 @@ private:
         std::vector<DrawGPU> draws;
         GLuint instanceBuffer = 0;
         std::vector<TreeGPUInstance> visibleInstances;
+        std::vector<TreeGPUInstance> sideInstances, topInstances;
+        std::optional<TreeBillboardLayout> billboard;
     };
-    struct InstanceGPU { std::size_t asset; TreeGPUInstance data; };
+    struct InstanceGPU {
+        std::size_t asset;
+        TreeGPUInstance data;
+        VisibilityBounds authoredBounds;
+    };
     struct ForestVolumeBatchGPU {
         std::vector<ForestVolumeRange> ranges;
         std::vector<GLsizei> counts;
@@ -200,7 +210,7 @@ private:
     void drawBoxes(const glm::mat4& projectionView);
     // Returns false when a roof's spatial batch was already drawn in this pass.
     bool drawTownSource(std::size_t index);
-    void uploadTrees(const TreeLayer& trees, const ForestLayer* forests);
+    std::vector<VisibilityBounds> uploadTrees(const TreeLayer& trees, const ForestLayer* forests);
     void drawTrees(const glm::mat4& projectionView, bool shadowPass = false);
     void uploadForests(const ForestLayer& forests);
     void prepareForestView(const Camera& camera);
@@ -293,6 +303,11 @@ private:
     std::vector<VegetationBend> vegetationBends_;
     std::vector<std::size_t> visibleTrees_, shadowTrees_;
     ForestTreeVisibility treeVisibility_;
+    ForestTreeVisibility treeAuthoredVisibility_;
+    glm::vec3 treeViewEye_{0};
+    bool treeBillboardsForFrame_ = true;
+    float treeBillboardDistance_ = 100;
+    GLint treeBillboardModeLocation_ = -1, treeBillboardPivotLocation_ = -1;
     TreeRenderStats treeStats_;
     bool treeCulling_ = true;
     bool treeShadows_ = true;

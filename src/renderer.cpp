@@ -52,6 +52,8 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         minifiedCutoffLocation_ = glGetUniformLocation(program_, "uMinifiedAlphaCutoff");
         instancedLocation_ = glGetUniformLocation(program_, "uInstanced");
         treeCanopyLocation_ = glGetUniformLocation(program_, "uTreeCanopyShading");
+        treeBillboardModeLocation_ = glGetUniformLocation(program_, "uTreeBillboardMode");
+        treeBillboardPivotLocation_ = glGetUniformLocation(program_, "uTreeBillboardPivot");
         animatedLocation_ = glGetUniformLocation(program_, "uAnimated");
         animationLocation_ = glGetUniformLocation(program_, "uAnimation");
         animationFrameLocation_ = glGetUniformLocation(program_, "uAnimationFrame");
@@ -110,11 +112,13 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         opaqueScene_.reserve(sceneDraws_.size());
         transparentScene_.reserve(sceneDraws_.size());
         sceneStats_.total = sceneDraws_.size();
-        if (trees) uploadTrees(*trees, forests);
+        std::vector<VisibilityBounds> treeBounds;
+        if (trees) treeBounds = uploadTrees(*trees, forests);
         if (forests) uploadForests(*forests);
         if (trees || forests) {
             const std::vector<TreeInstance> empty;
-            treeVisibility_ = ForestTreeVisibility(trees ? trees->instances : empty, forestPatches_);
+            treeVisibility_ = ForestTreeVisibility(trees ? trees->instances : empty, forestPatches_, treeBounds);
+            treeAuthoredVisibility_ = ForestTreeVisibility(trees ? trees->instances : empty, forestPatches_);
         }
         if (zombies) uploadZombies(*zombies);
         glBindVertexArray(0);
@@ -339,6 +343,8 @@ void Renderer::setRain(bool enabled) {
 void Renderer::render(const Camera& camera, double animationSeconds, const std::function<void()>& drawOpaque) {
     sceneStats_ = {sceneDraws_.size(), 0, 0};
     if (width_ <= 0 || height_ <= 0) return;
+    treeViewEye_ = camera.position();
+    treeBillboardsForFrame_ = camera.viewMode() == Camera::ViewMode::original && treeBillboardDistance_ > 0;
     glUseProgram(program_);
     glActiveTexture(GL_TEXTURE0);
     glUniform1i(textureLocation_, 0);
