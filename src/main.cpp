@@ -813,7 +813,7 @@ int run(const Options& options) {
                 std::cout << "Loading runtime forests: " << path << '\n';
                 forests = viewer::loadForestLayer(path, options.model, model, placementWorld, *trees);
                 std::cout << "Forests: " << forests->patches.size() << " patches, "
-                          << trees->instances.size()-before << " deterministic trees; individual trees within "
+                          << trees->instances.size()-before << " deterministic trees/bushes; individual vegetation within "
                           << forests->detailDistance << " m or through either scope\n";
             } catch (const std::exception& error) {
                 if (explicitForests) throw;
@@ -825,6 +825,7 @@ int run(const Options& options) {
     if (trees && options.treeCollisions) {
         trunks.reserve(trees->instances.size());
         for (const auto& tree : trees->instances) {
+            if (!tree.collidable) continue;
             const auto height = tree.dimensions.y;
             const auto radius = std::min(height * .5f,
                 glm::clamp(.035f * std::min(tree.dimensions.x, tree.dimensions.z), .10f, .50f));

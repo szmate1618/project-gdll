@@ -11,6 +11,7 @@ struct ForestPatch {
     std::size_t firstTree = 0, treeCount = 0; // Indices in combined TreeLayer.
     std::size_t firstDraw = 0, drawCount = 0; // Indices in volumes.draws.
     std::vector<std::size_t> detectedTrees; // Existing trees within this footprint.
+    ForestPolygon oldForest{}; // Contracted exterior; intersect with original footprint.
 };
 struct ForestLayer {
     // Volume material order: side walls, then the horizontal canopy.

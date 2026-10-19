@@ -95,6 +95,16 @@ double forestArea(const ForestPolygon& polygon) {
     return result;
 }
 
+ForestPolygon oldForestPolygon(const ForestPolygon& polygon) {
+    validateForestPolygon(polygon);
+    glm::dvec2 center(0);
+    for (std::size_t i=0;i+1<polygon.exterior.size();++i) center+=polygon.exterior[i];
+    center/=static_cast<double>(polygon.exterior.size()-1);
+    ForestPolygon result;
+    for (const auto p:polygon.exterior) result.exterior.push_back(center+(p-center)*.5);
+    return result;
+}
+
 std::pair<Primitive, Primitive> forestVolume(const ForestPolygon& polygon,
     const ForestGround& ground, float height, float tileMeters) {
     validateForestPolygon(polygon);

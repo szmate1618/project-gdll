@@ -10,6 +10,9 @@ Tree and pine impostors:
 Forest volume textures:
   assets/forests/side.png and top.png were generated with imagegen. The saved
   prompts and repetition scale are documented in assets/forests/README.md.
+  assets/forests/bush.png is an imagegen-generated transparent side/top atlas
+  for runtime old-forest bushes. Its generation and layout-edit prompts are
+  saved in assets/forests/bush.prompt.txt.
 
 Railway texture:
   assets/railways/track.png is generated deterministically by this project's

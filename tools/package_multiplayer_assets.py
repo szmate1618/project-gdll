@@ -124,6 +124,10 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
         assets.model(assets.reference(path.parent, settings.get("tree_asset", "assets/tree_impostor.glb")))
         for key, default in (("side_texture", "assets/forests/side.png"), ("top_texture", "assets/forests/top.png")):
             assets.add(assets.reference(path.parent, settings.get(key, default)))
+        side = assets.reference(path.parent, settings.get("side_texture", "assets/forests/side.png"))
+        bush = (assets.reference(path.parent, settings["bush_texture"])
+                if "bush_texture" in settings else side.parent / "bush.png")
+        assets.add(bush)
     assets.notices["credits/assets/VEGETATION.txt"] = vegetation_credits(
         vegetation if trees else "none", vegetation_layers)
     if zombies is not None:

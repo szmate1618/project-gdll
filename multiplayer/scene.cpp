@@ -160,6 +160,7 @@ Scene::Scene(const Options& o) : model(loadSessionMap(o.map)), physics(std::make
         for (const auto& asset : trees->assets) content.push_back(asset.path);
         trunks.reserve(trees->instances.size());
         for (const auto& tree : trees->instances) {
+            if (!tree.collidable) continue;
             const float h = tree.dimensions.y;
             const float radius = std::min(h * .5f, glm::clamp(.035f * std::min(tree.dimensions.x, tree.dimensions.z), .10f, .50f));
             trunks.push_back({glm::vec3(tree.transform[3]), radius, h});

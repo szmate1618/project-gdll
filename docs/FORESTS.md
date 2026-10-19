@@ -253,6 +253,37 @@ terrain triangles, without a second datum subtraction. Shared tree assets and
 textures are reused and individual trees are GPU instanced. Estimated trunk
 capsules participate in walking and sight queries at every detail level.
 
+### Old forests and bush understory
+
+Loading any forest configuration also derives an old-forest polygon for each
+patch. Its center is the arithmetic mean of the exterior border vertices,
+excluding the repeated closing vertex. Each exterior vertex moves halfway
+toward that center. Old forest is the intersection of this contracted polygon
+with the original forest footprint: original holes and concave exclusions stay
+clear even when contraction reaches outside the original boundary.
+
+Trees in this area are 20% larger in all dimensions, including existing mapped
+or detected trees; their bases stay on the terrain. The original generated-tree
+lattice remains unchanged outside the old forest. A second deterministic lattice
+adds 20% of the original tree density inside it, before the usual building and
+detected-tree exclusions. Actual counts vary with patch shape and exclusions.
+The distant volume representation retains its configured height and textures.
+
+Each old-forest tree has a 60% chance of a bush at its base. Each of those bushes
+has a 20% chance of two additional bushes sampled uniformly within a 5 m radius
+disk. These additional bushes do not spawn further bushes. Every bush has its
+own deterministic rotation about Y and random width of 6–14 m, with visible
+height one quarter of its width (1.5–3.5 m). Candidates outside the old forest,
+in holes, in buildings or without terrain support are omitted.
+
+Bushes use two perpendicular upright cards and one horizontal card at 50% of
+their height. One shared [side/top atlas](../assets/forests/bush.png) supplies
+unlit, double-sided alpha masks with normal opaque-texel depth writes. Bushes
+share the forest's instancing, culling, detail selection and shading. They have
+no collision in either single-player or multiplayer. All placements are made
+once during loading, independent of camera movement and patch order; no map or
+placement-file regeneration is required.
+
 The optional `runtime` object contains:
 
 | Field | Default | Meaning |
@@ -260,6 +291,7 @@ The optional `runtime` object contains:
 | `tree_asset` | `assets/tree_impostor.glb` | Calibrated, unlit, masked tree GLB |
 | `side_texture` | `assets/forests/side.png` | Repeating wall image |
 | `top_texture` | `assets/forests/top.png` | Repeating canopy image |
+| `bush_texture` | `bush.png` beside the resolved side texture | Side/top alpha-mask atlas for old-forest bushes |
 | `seed` | `20261011` | Unsigned 32-bit placement seed |
 | `tree_spacing_m` | `9` | Lattice spacing before jitter and exclusions |
 | `min_tree_height_m` | `12` | Minimum visible tree height |

@@ -1,4 +1,15 @@
-# Distant forest textures
+# Forest textures and bush billboard
+
+`bush.png` is a transparent imagegen-generated summer woodland bush atlas. Its
+left view supplies both perpendicular upright cards; its right view supplies
+one horizontal card at half height. The loader measures each alpha silhouette
+separately, finding the transparent divider near the image center, so source
+padding does not affect the visible 4:1 width/height ratio. The native model is
+4 m wide and 1 m tall and is randomly scaled to 6–14 m wide and 1.5–3.5 m tall
+at placement time. The source texture is unchanged. All three cards
+share a single mesh/material and have no collision. The final image was produced
+with the built-in imagegen tool and a layout edit; both exact prompts are saved
+in [bush.prompt.txt](bush.prompt.txt). See [old forest behavior](../../docs/FORESTS.md#old-forests-and-bush-understory).
 
 `conservative_canopy_traces.json` contains the manually reviewed forest cores,
 clearings and selected tracks in local east/north metres, plus the inset and
