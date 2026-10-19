@@ -50,7 +50,7 @@ void firingAndReload() {
 
 void pelletPattern() {
     viewer::Weapons weapons(VIEWER_ITEMS, VIEWER_INVENTORY);
-    weapons.equip(3); click(weapons);
+    weapons.equip(2); click(weapons);
     const int shells = weapons.equipped().loaded;
     require(weapons.fire(0) && weapons.equipped().loaded == shells - 1, "Shotgun must consume one shell, not eight rounds");
     for (const auto forward : {glm::vec3(0,0,-1), glm::vec3(0,1,0), glm::vec3(1,0,0)}) {
@@ -64,7 +64,7 @@ void pelletPattern() {
                     "Pellets must use distinct directions");
         }
     }
-    weapons.equip(2);
+    weapons.equip(3);
     require(weapons.equipped().config.hasScope &&
             viewer::weaponShotDirections(weapons.equipped().config, {0,0,-1}).size() == 1,
             "Sniper must have scope and single ray");

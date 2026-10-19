@@ -11,13 +11,13 @@
 namespace viewer {
 void SceneAudio::shot(std::size_t weaponSlot) {
     constexpr std::array<AudioEffect, 4> effects{
-        AudioEffect::pistol, AudioEffect::smg, AudioEffect::sniper, AudioEffect::shotgun};
+        AudioEffect::pistol, AudioEffect::smg, AudioEffect::shotgun, AudioEffect::sniper};
     if (weaponSlot < effects.size()) audio_.playLocal(effects[weaponSlot], 0.8f);
 }
 
 void SceneAudio::reload(std::size_t weaponSlot) {
-    const auto effect = weaponSlot == 3 ? AudioEffect::reloadShotgun :
-                        weaponSlot == 1 || weaponSlot == 2 ? AudioEffect::reloadRifle : AudioEffect::reload;
+    const auto effect = weaponSlot == 2 ? AudioEffect::reloadShotgun :
+                        weaponSlot == 1 || weaponSlot == 3 ? AudioEffect::reloadRifle : AudioEffect::reload;
     audio_.playLocal(effect, .5f);
 }
 

@@ -17,14 +17,14 @@ glm::vec3 point(const glm::mat4& transform, glm::vec3 p) {
 
 int main() {
     try {
-        const std::array<const char*, 4> names{"pistol", "submachine_gun", "sniper", "shotgun"};
+        const std::array<const char*, 4> names{"pistol", "submachine_gun", "shotgun", "sniper"};
         // Measured contact landmarks on the prepared assets, in source meters.
         // These are independent of the body's estimated target positions.
         const std::array<glm::vec3, 4> butts{{{0, -.08869f, .11f}, {-.010056f, -.004321f, .325f},
-                                            {0, -.082334f, .5f}, {0, -.111084f, .475f}}};
+                                            {0, -.111084f, .475f}, {0, -.082334f, .5f}}};
         const std::array<glm::vec3, 4> triggerCenters{{{-.000682f, -.013693f, .012113f},
-            {-.010823f, -.040339f, .012254f}, {-.001254f, -.054477f, .159822f},
-            {-.001044f, -.076077f, .157418f}}};
+            {-.010823f, -.040339f, .012254f}, {-.001044f, -.076077f, .157418f},
+            {-.001254f, -.054477f, .159822f}}};
         const glm::vec3 rightShoulder(.23f, -.224f, .054f);
         for (std::size_t slot = 0; slot < names.size(); ++slot) {
             auto model = viewer::loadModel(std::filesystem::path(VIEWER_WEAPON_ASSETS) /
@@ -47,7 +47,7 @@ int main() {
                 require(stock.x > .16f && stock.x < .23f && stock.y > -.26f && stock.y < -.19f &&
                         stock.z > 0 && stock.z < .08f, "Long-gun butt must sit in the right shoulder pocket");
                 require(hand.z > -.40f && hand.z < -.20f, "Long-gun trigger must stay within a bent arm's reach");
-                if (slot == 3) {
+                if (slot == 2) {
                     // Rear half of the pump is available to the support hand.
                     const auto support = point(transform, {0, -.045f, -.29f});
                     // Left shoulder is forward in the stocked-weapon stance;

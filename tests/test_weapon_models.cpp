@@ -14,9 +14,9 @@ void require(bool condition, const char* message) {
 
 int main() {
     try {
-        const std::array<const char*, 4> names{"pistol", "submachine_gun", "sniper", "shotgun"};
-        const std::array<const char*, 4> bodies{"1911_Body", "UMP_Body", "M14_Body", "TacticalPump_Body"};
-        const std::array<float, 4> lengths{.22f, .65f, 1.16f, .95f};
+        const std::array<const char*, 4> names{"pistol", "submachine_gun", "shotgun", "sniper"};
+        const std::array<const char*, 4> bodies{"1911_Body", "UMP_Body", "TacticalPump_Body", "M14_Body"};
+        const std::array<float, 4> lengths{.22f, .65f, .95f, 1.16f};
         viewer::Weapons weapons(VIEWER_ITEMS, VIEWER_INVENTORY);
         for (std::size_t slot = 0; slot < names.size(); ++slot) {
             const auto model = viewer::loadModel(std::filesystem::path(VIEWER_WEAPON_ASSETS) /
@@ -63,7 +63,7 @@ int main() {
                 }
             }
             require(body && triangles > 100 && triangles < 400, "Expected complete Durango weapon below 400 triangles");
-            if (slot == 2) {
+            if (slot == 3) {
                 require(scope && barrel, "Sniper must include the M14, scope and extended barrel");
                 require(model.boundsMin.z < -.65f, "Sniper muzzle must extend toward camera-local -Z");
             }

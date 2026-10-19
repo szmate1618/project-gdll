@@ -9,8 +9,8 @@ The mesh source and our modified sniper are retained here under the same CC0 ded
 | --- | --- | ---: |
 | 1 — pistol | 1911 | 139 |
 | 2 — SMG | UMP | 233 |
-| 3 — sniper | Modified M14 | 354 |
-| 4 — shotgun | TacticalPump (stock pump) | 151 |
+| 3 — shotgun | TacticalPump (stock pump) | 151 |
+| 4 — sniper | Modified M14 | 354 |
 
 The sniper retains the M14 stock, receiver, trigger, magazine and slide. Its
 fore-end/barrel is extended, with a heavy barrel sleeve, two scope mounts, and

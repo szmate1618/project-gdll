@@ -10,7 +10,7 @@
 
 namespace viewer {
 namespace {
-constexpr std::array<const char*, 4> ids{"pistol", "submachine_gun", "sniper", "shotgun"};
+constexpr std::array<const char*, 4> ids{"pistol", "submachine_gun", "shotgun", "sniper"};
 
 template<class T>
 T required(const toml::table& table, const std::string& key, const std::filesystem::path& path) {

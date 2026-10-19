@@ -31,7 +31,7 @@ WeaponOverlay::WeaponOverlay(const std::filesystem::path& shaders, const std::fi
     // Load and flatten once, preserving part transforms and flat source normals.
     // One shared buffer and one draw per equipped weapon; no per-frame loading.
     std::vector<OverlayVertex> vertices;
-    const std::array<const char*, 4> names{"pistol.glb", "submachine_gun.glb", "sniper.glb", "shotgun.glb"};
+    const std::array<const char*, 4> names{"pistol.glb", "submachine_gun.glb", "shotgun.glb", "sniper.glb"};
     for (std::size_t slot = 0; slot < names.size(); ++slot) {
         ranges_[slot].first = static_cast<GLint>(vertices.size());
         const auto model = loadModel(models / names[slot]);

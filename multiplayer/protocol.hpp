@@ -12,7 +12,7 @@ constexpr float tickSeconds = 1.0f / 60;
 constexpr std::size_t maxPlayers = 8, maxZombies = 1024, maxVisibleZombies = 256;
 constexpr std::size_t maxBoxes = 512, maxDoors = 4096, maxBones = 128;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 2;
+constexpr std::uint32_t protocolVersion = 3; // Slots 3/4 are shotgun/sniper.
 
 struct Hello { std::string fingerprint; };
 struct Welcome { std::uint32_t player = 0; };

@@ -237,7 +237,7 @@ void printHelp() {
               << "Tab switch Combat/Interaction; left mouse shoot in Combat, grab a door (1.5 m) or box (2 m) in Interaction\n"
               << "Interaction: left/right mouse hold boxes with separate hands; mouse sideways/up/down moves boxes; WASD moves grips\n"
               << "Release to drop; swing and release to throw. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
-              << "Combat: 1 pistol, 2 SMG, 3 sniper, 4 shotgun; R reload; hold left mouse for automatic fire\n"
+              << "Combat: 1 pistol, 2 SMG, 3 shotgun, 4 sniper; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
               << "Left Alt release/capture mouse, wheel change speed, F toggle flashlight, Home frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
@@ -515,8 +515,8 @@ void inputSelfTest(GLFWwindow* window) {
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
     if (app.rig.camera().projection(1.0f) != originalProjection)
         throw std::runtime_error("Unscoped pistol changed the view mode");
-    key(window, GLFW_KEY_3, 0, GLFW_PRESS, 0);
-    key(window, GLFW_KEY_3, 0, GLFW_RELEASE, 0);
+    key(window, GLFW_KEY_4, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_4, 0, GLFW_RELEASE, 0);
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
     const auto tenDegreeProjection = app.rig.camera().projection(1.0f);
     const float tenDegrees = glm::degrees(2.0f * std::atan(1.0f / tenDegreeProjection[1][1]));
@@ -945,7 +945,7 @@ int run(const Options& options) {
     viewer::WeaponOverlay weaponOverlay(options.shaders, VIEWER_WEAPON_ASSETS,
                                        {playerBody.height, playerBody.eyeHeight});
     viewer::MuzzleFlash muzzleFlash;
-    std::cout << "Weapons: 1 pistol, 2 SMG, 3 sniper, 4 shotgun; R reload\n" << app.weapons.status() << '\n';
+    std::cout << "Weapons: 1 pistol, 2 SMG, 3 shotgun, 4 sniper; R reload\n" << app.weapons.status() << '\n';
     renderer.setTreeCulling(options.treeCulling);
     renderer.setZombieCulling(options.zombieCulling);
     renderer.setZombieDistanceDetail(options.zombieDistanceDetail);

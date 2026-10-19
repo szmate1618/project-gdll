@@ -68,15 +68,15 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             authoritative.slot = 1;
             break;
         case 4: capture("submachine_gun"); authoritative.slot = 2; break;
-        case 5: capture("sniper"); authoritative.slot = 3; break;
-        case 6: capture("shotgun"); in.interaction = true; break;
+        case 5: capture("shotgun"); authoritative.slot = 3; break;
+        case 6: capture("sniper"); in.interaction = true; break;
         case 7:
             require(differences(0, 6) < 100, "Weapon remained visible in Interaction mode");
             in.interaction = false;
             break;
         case 8:
-            require(differences(5, 7) < 100, "Returning to Combat did not restore the equipped shotgun");
-            authoritative.slot = 2;
+            require(differences(5, 7) < 100, "Returning to Combat did not restore the equipped sniper");
+            authoritative.slot = 3;
             break;
         case 9:
             require(in.canScope, "Confirmed sniper did not enable scope");

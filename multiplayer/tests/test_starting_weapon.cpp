@@ -36,7 +36,7 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
 bool Network::send(HSteamNetConnection, const Message& message, bool) {
     if (const auto* batch = std::get_if<Commands>(&message)) {
         for (const auto& command : batch->commands) {
-            require(command.slot == 2, "Client replaced the authoritative starting sniper with slot zero");
+            require(command.slot == 3, "Client replaced the authoritative starting sniper with slot zero");
             ++commands;
         }
         world->submit(player, *batch);
@@ -66,22 +66,22 @@ int main(int argc, char** argv) {
         multiplayer::World server(scene);
         world = &server;
         player = world->join();
-        require(world->players().at(player).weapons.slot() == 2, "Fixture did not equip the configured sniper");
+        require(world->players().at(player).weapons.slot() == 3, "Fixture did not equip the configured sniper");
         for (int tick = 0; tick < 20; ++tick) {
             world->step();
-            require(world->snapshot(player).players.front().slot == 2,
+            require(world->snapshot(player).players.front().slot == 3,
                     "Server replaced the starting weapon before receiving input");
         }
         char program[] = "godollo_client", noTrees[] = "--no-trees", count[] = "--zombie-count", zero[] = "0";
         char headless[] = "--headless", seconds[] = "--seconds", duration[] = "0.5";
         char* args[] = {program, argv[1], noTrees, count, zero, headless, seconds, duration};
         require(clientMain(8, args) == 0 && commands > 1, "Client did not preserve its initial authoritative selection");
-        require(world->players().at(player).weapons.slot() == 2, "Client commands replaced the configured starting weapon");
+        require(world->players().at(player).weapons.slot() == 3, "Client commands replaced the configured starting weapon");
         // A later join must use the session's fingerprinted starting definitions,
         // even if the source inventory is edited while the server is running.
         { std::ofstream inventory(resources / "inventory.toml"); inventory << "invalid inventory\n"; }
         const auto late = world->join();
-        require(world->players().at(late).weapons.slot() == 2 &&
+        require(world->players().at(late).weapons.slot() == 3 &&
                 world->players().at(late).weapons.equipped().loaded == 5,
                 "Late join reread resources or inherited another player's ammo");
         std::cout << "Starting weapon checks passed\n";

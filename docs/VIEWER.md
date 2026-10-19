@@ -820,7 +820,7 @@ idle cycles at a chosen elapsed time:
 | Mouse | Look around while captured; held boxes move sideways/up/down; held doors move sideways or push/pull |
 | Left mouse button | Combat: shoot; Interaction: left-hand box grab within 2 m or door grab within 1.5 m |
 | Right mouse button | Combat with a scoped weapon: cycle normal, 10°, and 1° fields of view; Interaction: right-hand box grab within 2 m |
-| 1 / 2 / 3 / 4 | Equip pistol / submachine gun / sniper / shotgun |
+| 1 / 2 / 3 / 4 | Equip pistol / submachine gun / shotgun / sniper |
 | R | Reload equipped weapon from its matching reserve ammo |
 | Shift | Free-fly: move four times faster; standing: run at 6 m/s |
 | Mouse wheel | Adjust free-fly movement speed |
@@ -915,7 +915,7 @@ Framebuffer resize updates the viewport and projection aspect ratio.
 
 ## Prototype weapons and inventory
 
-Keys **1–4** equip the pistol, submachine gun, sniper, and shotgun. The pistol,
+Keys **1–4** equip the pistol, submachine gun, shotgun, and sniper. The pistol,
 sniper, and shotgun fire once per click; the SMG repeats while left mouse is
 held. Every shot respects its configured cooldown and consumes magazine ammo,
 including misses and shots in scenes without zombies. Empty weapons stop firing.
