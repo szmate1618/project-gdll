@@ -28,6 +28,7 @@
 #include "day_night.hpp"
 #include "tree_canopy.hpp"
 #include "tree_billboard.hpp"
+#include "building_batch.hpp"
 #include "vegetation_blast.hpp"
 
 namespace viewer {
@@ -87,6 +88,7 @@ public:
     void writeScreenshot(const std::filesystem::path& path) const;
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
     void setRoofBatching(bool enabled) { roofBatching_ = enabled; }
+    void setWallBatching(bool enabled) { wallBatching_ = enabled; }
     void setShadows(bool enabled) { shadows_ = enabled; }
     void setFlashlight(bool enabled) { flashlightEnabled_ = enabled; }
     void setFlashlightShadows(bool enabled) { flashlightShadows_ = enabled; }
@@ -207,8 +209,11 @@ private:
     void uploadModel(const Model& source, ModelGPU& destination);
     void uploadMeshes(const std::vector<Primitive>& source, ModelGPU& destination);
     void uploadRoofBatches(const Model& source);
+    void uploadWallBatches(const Model& source);
+    void beginTownPass(glm::vec3 eye, const glm::mat4& projection, bool sunShadow = false);
+    void drawBuildingBatch(const ModelGPU& model, std::size_t batch);
     void drawBoxes(const glm::mat4& projectionView);
-    // Returns false when a roof's spatial batch was already drawn in this pass.
+    // Returns false when a building's spatial batch was already drawn in this pass.
     bool drawTownSource(std::size_t index);
     std::vector<VisibilityBounds> uploadTrees(const TreeLayer& trees, const ForestLayer* forests);
     void drawTrees(const glm::mat4& projectionView, bool shadowPass = false);
@@ -292,6 +297,14 @@ private:
     std::vector<std::size_t> roofBatchForDraw_;
     std::vector<bool> roofBatchDrawn_;
     bool roofBatching_ = true;
+    ModelGPU wallModel_;
+    std::vector<std::size_t> wallBatchForDraw_;
+    std::vector<BuildingBatchDetail> wallBatchDetails_;
+    enum class WallBatchState { Unchecked, Individual, Ready, Drawn };
+    std::vector<WallBatchState> wallBatchStates_;
+    bool wallBatching_ = true, wallBatchSunShadow_ = false;
+    glm::vec3 wallBatchEye_{0};
+    glm::mat4 wallBatchProjection_{1};
     std::vector<DrawGPU> sceneDraws_;
     std::vector<std::size_t> visibleScene_, opaqueScene_, transparentScene_;
     ModelVisibility sceneVisibility_;

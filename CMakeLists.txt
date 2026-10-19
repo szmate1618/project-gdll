@@ -143,9 +143,9 @@ add_library(viewer_zombie_visibility STATIC src/zombie_visibility.cpp)
 target_link_libraries(viewer_zombie_visibility PUBLIC viewer_visibility)
 viewer_warnings(viewer_zombie_visibility)
 
-add_library(viewer_roof_batches STATIC src/roof_batch.cpp)
-target_link_libraries(viewer_roof_batches PUBLIC viewer_model)
-viewer_warnings(viewer_roof_batches)
+add_library(viewer_building_batches STATIC src/building_batch.cpp)
+target_link_libraries(viewer_building_batches PUBLIC viewer_visibility)
+viewer_warnings(viewer_building_batches)
 
 add_library(viewer_fingerprints STATIC src/file_fingerprint.cpp)
 target_include_directories(viewer_fingerprints PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -300,11 +300,11 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/box_renderer.cpp
     src/grenade_renderer.cpp
     src/weapon_overlay.cpp
-    src/roof_renderer.cpp
+    src/building_renderer.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
     src/zombie_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
-    viewer_model viewer_weapon_pose viewer_roof_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting viewer_grenades OpenGL::GL)
+    viewer_model viewer_weapon_pose viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting viewer_grenades OpenGL::GL)
 if(WIN32)
     target_link_libraries(viewer_renderer PUBLIC GLEW::GLEW)
 endif()
@@ -479,7 +479,7 @@ if(BUILD_TESTING AND GD_VIEWER)
     set_tests_properties(viewer_pole_renderer PROPERTIES SKIP_RETURN_CODE 77)
 
     add_executable(test_roof_batch tests/test_roof_batch.cpp)
-    target_link_libraries(test_roof_batch PRIVATE viewer_roof_batches)
+    target_link_libraries(test_roof_batch PRIVATE viewer_building_batches)
     viewer_warnings(test_roof_batch)
     add_test(NAME viewer_roof_batch COMMAND test_roof_batch)
 
@@ -491,6 +491,19 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_roof_renderer)
     add_test(NAME viewer_roof_renderer COMMAND test_roof_renderer)
     set_tests_properties(viewer_roof_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
+    add_executable(test_wall_batch tests/test_wall_batch.cpp)
+    target_link_libraries(test_wall_batch PRIVATE viewer_building_batches)
+    viewer_warnings(test_wall_batch)
+    add_test(NAME viewer_wall_batch COMMAND test_wall_batch)
+
+    add_executable(test_wall_renderer tests/test_wall_renderer.cpp)
+    target_link_libraries(test_wall_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_wall_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_wall_renderer)
+    add_test(NAME viewer_wall_renderer COMMAND test_wall_renderer)
+    set_tests_properties(viewer_wall_renderer PROPERTIES SKIP_RETURN_CODE 77)
 
     add_executable(test_tree_color tests/test_tree_color.cpp)
     target_link_libraries(test_tree_color PRIVATE viewer_trees)

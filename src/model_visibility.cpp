@@ -95,19 +95,24 @@ VisibilityStats ModelVisibility::query(const glm::mat4& projectionView, std::vec
     return index_.query(projectionView, visible, range, frustumCulling);
 }
 
-void ModelVisibility::filterDetails(const glm::vec3& eye, const glm::mat4& projection,
-                                    std::vector<std::size_t>& visible) const {
+bool buildingDetailsNear(const VisibilityBounds& bounds, float range,
+                         glm::vec3 eye, const glm::mat4& projection) {
+    if (range == 0) return false;
     // Perspective vertical scale is cot(FOV/2). Normal view uses 60 degrees;
     // 10° and 1° scopes therefore extend the range by about 6.6x and 66x.
     const float magnification = std::max(1.0f, projection[1][1] / std::sqrt(3.0f));
+    const auto nearest = glm::clamp(eye, bounds.minimum, bounds.maximum);
+    const auto delta = nearest - eye;
+    const float effectiveRange = range * magnification;
+    return glm::dot(delta, delta) <= effectiveRange * effectiveRange;
+}
+
+void ModelVisibility::filterDetails(const glm::vec3& eye, const glm::mat4& projection,
+                                    std::vector<std::size_t>& visible) const {
     visible.erase(std::remove_if(visible.begin(), visible.end(), [&](std::size_t index) {
         const float range = detailDistances_.at(index);
         if (range == 0.0f) return false;
-        const auto& bounds = detailBounds_[index];
-        const auto nearest = glm::clamp(eye, bounds.minimum, bounds.maximum);
-        const auto delta = nearest - eye;
-        const float effectiveRange = range * magnification;
-        const bool near = glm::dot(delta, delta) <= effectiveRange * effectiveRange;
+        const bool near = buildingDetailsNear(detailBounds_[index], range, eye, projection);
         return lowDetails_[index] ? near : !near;
     }), visible.end());
 }

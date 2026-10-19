@@ -44,7 +44,7 @@ void Renderer::drawShadowCasters(const glm::mat4& view, const glm::mat4& project
     const auto projectionView = projection * view;
     sceneVisibility_.query(projectionView, shadowScene_, forestVisibilityRange());
     if (detailedBuildings) sceneVisibility_.filterDetails(detailEye, projection, shadowScene_);
-    std::fill(roofBatchDrawn_.begin(), roofBatchDrawn_.end(), false);
+    beginTownPass(detailEye, projection, !detailedBuildings);
     for (const auto index : shadowScene_) {
         const auto& caster = sceneDraws_[index];
         const auto& mesh = model_.meshes[caster.primitive];

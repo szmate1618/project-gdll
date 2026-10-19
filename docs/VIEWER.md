@@ -304,8 +304,8 @@ The viewer also culls town draw instances outside the camera frustum by default.
 It indexes conservative full transformed bounds for terrain, roads, walls, and
 roofs; the `Town V/T` title values are visible and total draw instances, not a
 count of physical buildings. Use `--no-town-culling` for a same-camera draw
-comparison. This does not affect collision, and there is no occlusion culling
-or distance LOD.
+comparison. This does not affect collision. Buildings retain their facade detail
+LoD; there is no town occlusion culling.
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --fps --no-town-culling
@@ -322,11 +322,30 @@ are baked once.
 Doors, facade detail alternatives, transparent surfaces, and collision keep
 their original geometry and behavior. No map regeneration is needed.
 
+Simple static opaque building walls also merge by material and 128 m cell.
+For camera and flashlight passes, a cell uses its merged mesh only when every
+building in that batch is beyond its facade detail distance. This conservative
+check uses the union of the complete alternative-group bounds (including moving
+door padding), the largest member distance, and the current projection's scope
+magnification. Cells containing nearby buildings use the individual source
+draws, so simple walls cannot fill detailed door or window openings, even when
+the nearby member is offscreen. Sun shadows retain their existing simple-shell
+policy and may batch these walls at any distance.
+
+Eligibility is checked once per selected cell per pass; no town population scan
+or geometry upload is needed each frame. Camera, sun and flashlight reset their
+batch selections independently. The spatial BVH and old-forest range clipping
+still use the original sources. As with roofs, drawing a complete cell may submit
+some extra geometry outside the view, and merged GPU meshes require extra storage.
+
 Use `--no-roof-batching` to compare the same view with individual roof draws:
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --no-roof-batching
 ```
+
+Use `--no-wall-batching` for the corresponding wall comparison. The two switches
+are independent; source-object visibility and collision remain unchanged.
 
 ## Zombie crowd
 

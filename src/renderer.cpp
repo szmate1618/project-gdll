@@ -101,6 +101,7 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         fallback_.baseColor = glm::vec4(0.65f, 0.68f, 0.72f, 1.0f);
         uploadModel(model, model_);
         uploadRoofBatches(model);
+        uploadWallBatches(model);
         for (const auto& source : model.draws) {
             const auto& mesh = model_.meshes.at(source.primitive);
             DrawGPU draw{source.primitive, source.transform, glm::inverseTranspose(glm::mat3(source.transform)),
@@ -237,6 +238,7 @@ void Renderer::release() noexcept {
     if (boxInstanceBuffer_) glDeleteBuffers(1, &boxInstanceBuffer_);
     boxInstanceBuffer_ = 0;
     releaseModel(roofModel_);
+    releaseModel(wallModel_);
     releaseModel(forestModel_);
     for (auto& batch : treeBatches_) {
         releaseModel(batch.model);
@@ -394,7 +396,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     glUniform1i(instancedLocation_, GL_FALSE);
     glUniform1i(animatedLocation_, GL_FALSE);
     gatherVisibleSceneDraws(projection * view, camera.position(), projection);
-    std::fill(roofBatchDrawn_.begin(), roofBatchDrawn_.end(), false);
+    beginTownPass(camera.position(), projection);
     for (const auto index : opaqueScene_) {
         if (drawTownSource(index)) ++sceneStats_.drawCalls;
     }

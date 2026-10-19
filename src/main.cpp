@@ -65,6 +65,7 @@ struct Options {
     bool noPoles = false;
     bool noGuardrails = false;
     bool roofBatching = true;
+    bool wallBatching = true;
     bool haze = true;
     bool groundFog = true;
     bool noTrees = false, treeCulling = true, treeCollisions = true, sceneCulling = true;
@@ -157,6 +158,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--no-forests") options.noForests = true;
         else if (argument == "--no-fences") options.noFences = true;
         else if (argument == "--no-roof-batching") options.roofBatching = false;
+        else if (argument == "--no-wall-batching") options.wallBatching = false;
         else if (argument == "--no-trees") options.noTrees = true;
         else if (argument == "--no-tree-culling") options.treeCulling = false;
         else if (argument == "--no-zombie-culling") options.zombieCulling = false;
@@ -275,6 +277,7 @@ void printHelp() {
               << "  --guardrails FILE   Load a mapped guardrail GLB layer explicitly\n"
               << "  --no-guardrails     Disable guardrail strips, shadows and collisions\n"
               << "  --no-roof-batching  Draw static roofs individually for comparison\n"
+              << "  --no-wall-batching  Draw simple building walls individually for comparison\n"
               << "  --no-tree-culling   Render all tree instances for comparison\n"
               << "  --no-zombie-lod     Disable zombie mesh LOD, distance cutoff and stepped animation\n"
               << "  --zombie-draw-distance M Camera cutoff at normal FOV (180 m; overview unlimited; 0 disables)\n"
@@ -1003,6 +1006,7 @@ int run(const Options& options) {
     renderer.setZombieShadows(options.zombieShadows);
     renderer.setSceneCulling(options.sceneCulling);
     renderer.setRoofBatching(options.roofBatching);
+    renderer.setWallBatching(options.wallBatching);
     renderer.setShadows(options.shadows);
     renderer.setFlashlightShadows(options.flashlightShadows);
     renderer.setTreeShadows(options.treeShadows);

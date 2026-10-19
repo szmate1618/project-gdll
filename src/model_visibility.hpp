@@ -5,6 +5,11 @@
 
 namespace viewer {
 
+// Shared by per-building LoD selection and conservative whole-cell batching.
+// A zero range has no detail alternative. Projection includes scope magnification.
+bool buildingDetailsNear(const VisibilityBounds& bounds, float range,
+                         glm::vec3 eye, const glm::mat4& projection);
+
 // Caches full transformed source-draw bounds at construction. Each draw
 // transform is applied to its primitive bounds exactly once; query results are
 // original Model::draws indices for direct GPU-draw lookup.
@@ -20,6 +25,7 @@ public:
     // perspective magnification. Also used when frustum culling is disabled.
     void filterDetails(const glm::vec3& eye, const glm::mat4& projection,
                        std::vector<std::size_t>& visible) const;
+    const VisibilityBounds& detailBounds(std::size_t draw) const { return detailBounds_.at(draw); }
 
 private:
     VisibilityIndex index_;

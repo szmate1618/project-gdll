@@ -1,4 +1,4 @@
-#include "roof_batch.hpp"
+#include "building_batch.hpp"
 
 #include <cmath>
 #include <iostream>
@@ -61,7 +61,7 @@ void groupingAndEligibility() {
     require(batches.meshes[0].indices == std::vector<std::uint32_t>({0, 1, 2, 3, 4, 5}),
             "Concatenated roof indices do not reference the appended vertices");
     for (std::size_t i = firstExcluded; i < model.draws.size(); ++i)
-        require(batches.batchForDraw[i] == viewer::noRoofBatch, "Non-static or non-opaque draw was batched");
+        require(batches.batchForDraw[i] == viewer::noBuildingBatch, "Non-static or non-opaque draw was batched");
     require(model.draws.size() == batches.batchForDraw.size() && model.primitives[0].vertices.size() == 3,
             "Batch preparation modified the source model");
     require(viewer::buildRoofBatches(viewer::Model{}).meshes.empty(), "Empty model produced batches");
