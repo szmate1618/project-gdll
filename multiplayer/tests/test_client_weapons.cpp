@@ -83,6 +83,15 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             in.capture = true;
             button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
             require(in.camera.viewMode() == viewer::Camera::ViewMode::zoom10, "Sniper scope did not activate");
+            {
+                // The sent aim and the rendered camera must share the sway;
+                // the mouse orientation must retain its original values.
+                const auto aim = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, 1, true);
+                const auto outgoing = command(in, window, false, 1);
+                require(outgoing.pitch == aim.pitchDegrees() && outgoing.movement.yawDegrees == aim.yawDegrees(),
+                        "Multiplayer sent a different aim direction from the scoped view");
+                require(aim.view() != in.camera.view(), "Multiplayer scope has no sway");
+            }
             in.interaction = true; // Capture scoped world/reticle without the weapon.
             break;
         case 10: in.interaction = false; break;
@@ -122,6 +131,20 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             break;
         case 18:
             require(differences(0, 17) < 100, "Empty grenade inventory must leave the hand empty");
+            authoritative.slot = 1;
+            break;
+        case 19:
+            capture("smg-before-shot");
+            ++authoritative.shots;
+            break;
+        case 20:
+            require(differences(18,19) > 500, "Confirmed shot did not animate the held weapon");
+            capture("smg-recoil");
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            break;
+        case 22:
+            require(differences(18,21) < 100, "Unchanged shot snapshots retriggered recoil or prevented recovery");
+            capture("smg-recovered");
             glfwSetWindowShouldClose(window, true);
             break;
     }
@@ -159,7 +182,7 @@ int main(int argc, char** argv) {
         char program[] = "client", noTrees[] = "--no-trees", count[] = "--zombie-count", zero[] = "0";
         char hidden[] = "--hidden", seconds[] = "--seconds", duration[] = "5";
         char* args[] = {program, argv[1], noTrees, count, zero, hidden, seconds, duration};
-        require(clientMain(8, args) == 0 && frame == 19, "Graphical client did not finish all weapon states");
+        require(clientMain(8, args) == 0 && frame == 23, "Graphical client did not finish all weapon states");
         const std::array<std::size_t, 5> weaponFrames{1, 3, 4, 5, 12};
         for (std::size_t a = 0; a < weaponFrames.size(); ++a)
             for (std::size_t b = a+1; b < weaponFrames.size(); ++b)

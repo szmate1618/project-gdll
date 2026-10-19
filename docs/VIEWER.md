@@ -985,8 +985,26 @@ consuming one shell. Firearms use the existing zombie hit/ragdoll behavior.
 The sniper alone enables the existing right-click scope cycle. Equipping a
 weapon resets zoom. Combat normal view displays [low-poly firearm models](../assets/weapons/README.md):
 a 1911 pistol, UMP SMG, a scoped and extended M14 sniper, and a stock pump shotgun.
-The models are hidden in scope and Interaction mode. They use static poses with
-simple material colors, without arms or firing/reload animations.
+The models are hidden in scope and Interaction mode. Each firearm kicks upward
+and rearward after a successful shot and recovers to its ready pose: a sharp
+pistol flip, small fast SMG pulses, a heavy shotgun kick, and slower sniper
+recovery. Automatic fire adds a bounded amount of residual recoil. The shotgun's
+separate fore-end pulls back and returns between 0.12 and 0.66 seconds after
+each shell. Empty clicks and grenade throws do not trigger firearm motion.
+Models keep their existing vertices and one draw per held weapon; part motion
+uses a pump mask and a translation in the vertex shader. Reload remains instant.
+
+Scoped sniper views have pronounced breathing sway and a short upward firing kick,
+scaled with zoom for comparable screen motion at both magnifications. Breathing
+reaches roughly 20 pixels from center at 720p.
+The reticle stays centered:
+the rendered camera and shot direction share the same temporary scope offset.
+Hip-fire aim stays unchanged. Motion uses elapsed seconds rather than frame
+integration and never accumulates into the mouse/controller camera. Single
+player uses the simulation clock. Multiplayer recoil starts on confirmed shots;
+sway is computed locally and the resulting aim uses the existing command angles,
+without extra animation messages. The muzzle light follows the animated barrel.
+Presentation profiles are in `src/weapon_motion.cpp`; there are no new item fields.
 Eye-relative positioning uses the configured standing body dimensions: a
 two-handed pistol hold and shoulder-seated stocks, with estimated shoulder
 width and arm reach. Crouching and prone preserve these upper-body proportions.

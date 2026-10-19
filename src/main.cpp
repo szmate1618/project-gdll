@@ -328,6 +328,7 @@ struct AppState {
     viewer::CameraRig rig;
     viewer::PlayerInteraction interaction;
     viewer::Weapons weapons{VIEWER_ITEMS, VIEWER_INVENTORY};
+    viewer::WeaponMotion weaponMotion;
     viewer::DoorLayer* doors = nullptr;
     viewer::BoxLayer* boxes = nullptr;
     viewer::PhysicsScene* physicsScene = nullptr;
@@ -478,16 +479,18 @@ bool updateWeapons(AppState& app, double seconds) {
     const auto result = app.weapons.fireAttempt(seconds);
     if (result == viewer::WeaponFireResult::empty && app.audio) app.audio->emptyClick();
     if (result != viewer::WeaponFireResult::fired) return false;
+    const auto aim = app.weaponMotion.aimCamera(app.rig.camera(), app.weapons.slot(), seconds, true);
     if (config.grenade) {
         if (!app.grenades->throwFrom(app.rig.camera().position(), app.rig.camera().direction(),
                 app.playerVelocity, seconds, *config.grenade, app.world))
             throw std::logic_error("Accepted grenade throw failed");
     } else if (app.audio) app.audio->shot(app.weapons.slot());
     if (app.zombies && !config.grenade) {
-        for (const auto direction : viewer::weaponShotDirections(app.weapons.equipped().config, app.rig.camera().direction()))
+        for (const auto direction : viewer::weaponShotDirections(app.weapons.equipped().config, aim.direction()))
             app.zombies->shootWithOcclusion(app.rig.camera().position(), direction,
                                             app.displayedAnimationSeconds, app.world);
     }
+    if (!config.grenade) app.weaponMotion.fire(app.weapons.slot(), seconds);
     std::cout << app.weapons.status() << '\n';
     return !config.grenade;
 }
@@ -1002,6 +1005,8 @@ int run(const Options& options) {
     viewer::WeaponOverlay weaponOverlay(options.shaders, VIEWER_WEAPON_ASSETS,
                                        {playerBody.height, playerBody.eyeHeight});
     viewer::MuzzleFlash muzzleFlash;
+    std::size_t muzzleSlot = 0;
+    glm::vec3 muzzleModelPosition{0};
     renderer.loadGrenadeModel(std::filesystem::path(VIEWER_WEAPON_ASSETS) / "he_grenade.glb");
     std::uint32_t lastExplosion = 0;
     std::cout << "Weapons: 1 pistol, 2 SMG, 3 shotgun, 4 sniper, 5 HE grenade; R reload\n" << app.weapons.status() << '\n';
@@ -1117,11 +1122,17 @@ int run(const Options& options) {
                 for (const auto& noise : app.rig.player().noises())
                     zombies->makeNoise(noise.position, noise.decibels);
         }
-        if (updateWeapons(app, simulationClock.seconds()))
-            muzzleFlash.fire(simulationClock.seconds(), weaponOverlay.muzzlePosition(
-                app.weapons.slot(), app.weapons.equipped().config.muzzlePosition));
-        const auto flash = muzzleFlash.light(simulationClock.seconds());
-        renderer.setMuzzleFlash(flash.transformed(glm::inverse(app.rig.camera().view())));
+        if (updateWeapons(app, simulationClock.seconds())) {
+            muzzleSlot = app.weapons.slot();
+            muzzleModelPosition = app.weapons.equipped().config.muzzlePosition;
+            muzzleFlash.fire(simulationClock.seconds(), {});
+        }
+        const auto viewCamera = app.weaponMotion.aimCamera(app.rig.camera(), app.weapons.slot(),
+            simulationClock.seconds(), app.interaction.mode() == viewer::ControlMode::Combat);
+        auto flash = muzzleFlash.light(simulationClock.seconds());
+        flash.position = weaponOverlay.muzzlePosition(muzzleSlot, muzzleModelPosition,
+            app.weaponMotion.pose(muzzleSlot, simulationClock.seconds()));
+        renderer.setMuzzleFlash(flash.transformed(glm::inverse(viewCamera.view())));
         audio.update(app.rig, zombies ? &*zombies : nullptr, dt, &doors);
         const double preparationStart = glfwGetTime();
         intervalBehaviorSeconds += preparationStart - behaviorStart;
@@ -1141,14 +1152,15 @@ int run(const Options& options) {
         intervalPreparationSeconds += glfwGetTime() - preparationStart;
         gpuTimer.begin();
         const double renderStart = glfwGetTime();
-        renderer.render(app.rig.camera(), app.displayedAnimationSeconds);
+        renderer.render(viewCamera, app.displayedAnimationSeconds);
         if (app.collisionDebug)
-            debug->draw(app.rig.camera(), overlay, app.width, app.height);
+            debug->draw(viewCamera, overlay, app.width, app.height);
         const auto& heldWeapon = app.weapons.equipped();
         if (app.interaction.mode() == viewer::ControlMode::Combat &&
             app.rig.camera().viewMode() == viewer::Camera::ViewMode::original &&
             viewer::weaponViewVisible(heldWeapon.config, heldWeapon.loaded, simulationClock.seconds() < heldWeapon.readyAt))
-            weaponOverlay.draw(app.weapons.slot(), app.width, app.height, flash);
+            weaponOverlay.draw(app.weapons.slot(), app.width, app.height, flash,
+                               app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds()));
         reticle.draw(app.rig.camera().viewMode(), app.width, app.height);
         intervalRenderSeconds += glfwGetTime() - renderStart;
         gpuTimer.end();

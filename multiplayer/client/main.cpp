@@ -2,6 +2,7 @@
 #include "prediction.hpp"
 #include "snapshots.hpp"
 #include "camera.hpp"
+#include "weapon_motion.hpp"
 #ifdef MP_GRAPHICS
 #include "players.hpp"
 #include "renderer.hpp"
@@ -21,6 +22,8 @@ struct GLFWwindow;
 namespace {
 struct Input {
     viewer::Camera camera;
+    viewer::WeaponMotion weaponMotion;
+    std::size_t equippedSlot = 0; // Authoritative slot, independent of requested slot.
     bool capture = true, firstMouse = true, interaction = false, prone = false, reload = false;
     bool leftPressed = false, rightPressed = false;
     bool canScope = false;
@@ -78,6 +81,8 @@ struct Graphics {
     std::unique_ptr<viewer::ReticleOverlay> reticle;
     std::unique_ptr<viewer::WeaponOverlay> weapon;
     viewer::MuzzleFlash muzzleFlash;
+    std::size_t muzzleSlot = 0;
+    glm::vec3 muzzleModelPosition{0};
     std::unique_ptr<multiplayer::PlayerRenderer> players;
     ~Graphics() {
         players.reset(); weapon.reset(); reticle.reset(); renderer.reset();
@@ -118,9 +123,10 @@ struct Graphics {
 #endif
     }
 };
-multiplayer::Command command(Input& in, GLFWwindow* window, bool bot) {
+multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double seconds) {
     multiplayer::Command c;
-    c.movement.yawDegrees = in.camera.yawDegrees(); c.pitch = in.camera.pitchDegrees(); c.slot = in.slot;
+    const auto aim = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, seconds, !in.interaction);
+    c.movement.yawDegrees = aim.yawDegrees(); c.pitch = aim.pitchDegrees(); c.slot = in.slot;
     c.interaction = in.interaction;
     if (bot) { c.movement.forward = 1; c.movement.yawDegrees = 0; c.pitch = 0; return c; }
     if (!window || !in.capture) return c;
@@ -198,10 +204,14 @@ int main(int argc, char** argv) {
                                 in.camera.cycleViewMode();
                         }
                         in.canScope = weaponDefinitions.equipped().config.hasScope;
+                        in.equippedSlot = p.slot;
 #ifdef MP_GRAPHICS
-                        if (graphics.weapon && ready && p.shots > ownState.shots && !weaponDefinitions.equipped().config.grenade)
-                            graphics.muzzleFlash.fire(now, graphics.weapon->muzzlePosition(
-                                p.slot, weaponDefinitions.equipped().config.muzzlePosition));
+                        if (graphics.weapon && ready && p.shots > ownState.shots && !weaponDefinitions.equipped().config.grenade) {
+                            in.weaponMotion.fire(p.slot, now);
+                            graphics.muzzleSlot = p.slot;
+                            graphics.muzzleModelPosition = weaponDefinitions.equipped().config.muzzlePosition;
+                            graphics.muzzleFlash.fire(now, {});
+                        }
 #endif
                         prediction.reconcile(p, *scene.collision); ownState = p; found = true;
                         if (!ready) in.slot = p.slot;
@@ -219,7 +229,7 @@ int main(int argc, char** argv) {
             if (prediction.ready()) {
                 accumulator += dt;
                 while (accumulator >= 1.0 / 60) {
-                    prediction.advance(command(in, graphics.window, options.bot), *scene.collision);
+                    prediction.advance(command(in, graphics.window, options.bot, now), *scene.collision);
                     auto outgoing = prediction.commandsToSend(); outgoing.snapshotTick = snapshots.latest().tick;
                     network.send(connection, outgoing, false);
                     accumulator -= 1.0 / 60;
@@ -238,17 +248,21 @@ int main(int argc, char** argv) {
                     renderer.updateGrenades(snapshots.grenades());
                     renderer.updateVegetationBlasts(snapshots.explosions(now));
                     renderer.setExplosionLights(snapshots.explosionLights(now));
-                    const auto flash = graphics.muzzleFlash.light(now);
-                    renderer.setMuzzleFlash(flash.transformed(glm::inverse(in.camera.view())));
+                    const auto viewCamera = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, now, !in.interaction);
+                    auto flash = graphics.muzzleFlash.light(now);
+                    flash.position = graphics.weapon->muzzlePosition(graphics.muzzleSlot, graphics.muzzleModelPosition,
+                        in.weaponMotion.pose(graphics.muzzleSlot, now));
+                    renderer.setMuzzleFlash(flash.transformed(glm::inverse(viewCamera.view())));
                     renderer.resize(width, height); renderer.updateDoors(*scene.doors); renderer.updateBoxes(*scene.boxes);
                     renderer.updateZombies(scene.zombies);
-                    renderer.render(in.camera, snapshots.animationSeconds(), [&] {
-                        graphics.players->draw(in.camera, snapshots.players(), self, width, height);
+                    renderer.render(viewCamera, snapshots.animationSeconds(), [&] {
+                        graphics.players->draw(viewCamera, snapshots.players(), self, width, height);
                     });
                     if (prediction.ready() && !in.interaction &&
                         in.camera.viewMode() == viewer::Camera::ViewMode::original &&
                         viewer::weaponViewVisible(weaponDefinitions.equipped().config, ownState.loaded, ownState.weaponCoolingDown))
-                        graphics.weapon->draw(ownState.slot, width, height, flash);
+                        graphics.weapon->draw(ownState.slot, width, height, flash,
+                                              in.weaponMotion.pose(ownState.slot, now));
                     graphics.reticle->draw(in.camera.viewMode(), width, height);
                     renderer.present(width, height); glfwSwapBuffers(graphics.window);
                     viewer::Renderer::checkErrors("multiplayer frame");

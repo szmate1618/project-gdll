@@ -19,6 +19,7 @@ int main(int argc, char** argv) {
     glfwMakeContextCurrent(window);
     int result = 0;
     try {
+        viewer::initializeOpenGL();
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << '\n';
         viewer::WeaponOverlay overlay(VIEWER_SHADER_DIR, VIEWER_WEAPON_ASSETS);
         glViewport(0, 0, width, height);
@@ -72,6 +73,49 @@ int main(int argc, char** argv) {
                     capture.write(reinterpret_cast<const char*>(pixels.data() + y * width * 3), width * 3);
             }
         }
+        // Exercise the same motion payload as the game, retaining one draw and
+        // the same submitted triangle count at every animation phase.
+        viewer::WeaponMotion motion;
+        GLuint query; glGenQueries(1, &query);
+        const auto render = [&](std::size_t slot, const viewer::WeaponMotionPose& pose, const std::string& phase) {
+            glClearDepth(1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glBeginQuery(GL_PRIMITIVES_GENERATED, query);
+            overlay.draw(slot, width, height, {}, pose);
+            glEndQuery(GL_PRIMITIVES_GENERATED);
+            GLuint triangles = 0; glGetQueryObjectuiv(query, GL_QUERY_RESULT, &triangles);
+            std::vector<unsigned char> result(pixels.size());
+            glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,result.data());
+            if (argc > 1) {
+                std::ofstream capture(std::string(argv[1])+"-"+std::to_string(slot+1)+"-"+phase+".ppm", std::ios::binary);
+                capture << "P6\n" << width << ' ' << height << "\n255\n";
+                for (int y=height-1;y>=0;--y)
+                    capture.write(reinterpret_cast<const char*>(result.data()+y*width*3),width*3);
+            }
+            return std::make_pair(result,triangles);
+        };
+        for (std::size_t slot=0;slot<4;++slot) {
+            const auto rest = render(slot, {}, "rest");
+            motion.fire(slot,10);
+            const auto kicked = render(slot, motion.pose(slot,10), "kick");
+            if (rest.first == kicked.first || rest.second != kicked.second || rest != render(slot,motion.pose(slot,11),"recovered"))
+                throw std::runtime_error("Firearm must recoil and recover without changing geometry");
+            const glm::vec3 muzzle{0,.02f,-.4f};
+            if (glm::distance(overlay.muzzlePosition(slot,muzzle),overlay.muzzlePosition(slot,muzzle,motion.pose(slot,10))) < .01f)
+                throw std::runtime_error("Muzzle light must follow animated barrel");
+            // Isolate the pump: the receiver and other weapons must stay fixed.
+            viewer::WeaponMotionPose pump;
+            pump.pumpTravel = motion.pose(2,10.36).pumpTravel;
+            const auto pumped = render(slot,pump,"pump-only");
+            std::size_t changed = 0;
+            for (std::size_t p=0;p<rest.first.size();p+=3)
+                if (rest.first[p]!=pumped.first[p] || rest.first[p+1]!=pumped.first[p+1] || rest.first[p+2]!=pumped.first[p+2]) ++changed;
+            if (pumped.second != rest.second || (slot == 2 ? changed < 20 || changed > 3000 : changed != 0))
+                throw std::runtime_error("Pump motion must affect only the separate shotgun fore-end");
+            if (slot == 2)
+                for (const double elapsed : {.12,.24,.36,.50,.66})
+                    render(slot,motion.pose(slot,10+elapsed),std::to_string(elapsed));
+        }
+        glDeleteQueries(1, &query);
         viewer::Renderer::checkErrors("weapon overlays");
         std::cout << "All five weapon silhouettes and GL state checks passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; result = 1; }

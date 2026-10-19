@@ -244,9 +244,9 @@ add_library(viewer_interaction STATIC src/door_interaction.cpp src/object_intera
 target_link_libraries(viewer_interaction PUBLIC viewer_camera viewer_collision viewer_physics)
 viewer_warnings(viewer_interaction)
 
-add_library(viewer_weapons STATIC src/weapons.cpp)
+add_library(viewer_weapons STATIC src/weapons.cpp src/weapon_motion.cpp)
 target_include_directories(viewer_weapons PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
-target_link_libraries(viewer_weapons PUBLIC glm::glm PRIVATE tomlplusplus::tomlplusplus)
+target_link_libraries(viewer_weapons PUBLIC glm::glm viewer_camera PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_weapons)
 
 add_library(viewer_objects STATIC src/interior_objects.cpp src/physics_scene.cpp)
@@ -304,7 +304,7 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
     src/zombie_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
-    viewer_model viewer_weapon_pose viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting viewer_grenades OpenGL::GL)
+    viewer_model viewer_weapon_pose viewer_weapons viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting viewer_grenades OpenGL::GL)
 if(WIN32)
     target_link_libraries(viewer_renderer PUBLIC GLEW::GLEW)
 endif()
@@ -376,6 +376,11 @@ if(BUILD_TESTING AND GD_VIEWER)
         VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml")
     viewer_warnings(test_weapons)
     add_test(NAME viewer_weapons COMMAND test_weapons)
+
+    add_executable(test_weapon_motion tests/test_weapon_motion.cpp)
+    target_link_libraries(test_weapon_motion PRIVATE viewer_weapons)
+    viewer_warnings(test_weapon_motion)
+    add_test(NAME viewer_weapon_motion COMMAND test_weapon_motion)
 
     add_executable(test_muzzle_flash tests/test_muzzle_flash.cpp)
     target_link_libraries(test_muzzle_flash PRIVATE viewer_sun_lighting)

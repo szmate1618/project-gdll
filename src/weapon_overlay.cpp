@@ -9,18 +9,19 @@
 
 namespace viewer {
 namespace {
-struct OverlayVertex { glm::vec3 position, normal, color; };
+struct OverlayVertex { glm::vec3 position, normal, color; float pump; };
 
-void appendModel(const Model& model, std::vector<OverlayVertex>& vertices) {
+void appendModel(const Model& model, bool shotgun, std::vector<OverlayVertex>& vertices) {
     for (const auto& draw : model.draws) {
         const auto& primitive = model.primitives.at(draw.primitive);
         const auto color = primitive.material < 0 ? glm::vec3(.25f) :
             glm::vec3(model.materials.at(static_cast<std::size_t>(primitive.material)).baseColor);
         const auto normals = glm::transpose(glm::inverse(glm::mat3(draw.transform)));
+        const float pump = shotgun && draw.name == "TacticalPump_Pump" ? 1.0f : 0.0f;
         for (const auto index : primitive.indices) {
             const auto& vertex = primitive.vertices.at(index);
             vertices.push_back({glm::vec3(draw.transform * glm::vec4(vertex.position, 1)),
-                                glm::normalize(normals * vertex.normal), color * glm::vec3(vertex.color)});
+                                glm::normalize(normals * vertex.normal), color * glm::vec3(vertex.color), pump});
         }
     }
 }
@@ -37,12 +38,13 @@ WeaponOverlay::WeaponOverlay(const std::filesystem::path& shaders, const std::fi
         poses_[slot] = slot == 4 ? glm::rotate(glm::translate(glm::mat4(1), {.17f, -.17f, -.5f}),
                                              glm::radians(-15.0f), glm::vec3(0, 0, 1)) :
                                   weaponViewPose(model, slot == 0, body);
-        appendModel(model, vertices);
+        appendModel(model, slot == 2, vertices);
         ranges_[slot].count = static_cast<GLsizei>(vertices.size()) - ranges_[slot].first;
     }
     program_ = createShaderProgram(shaders / "weapon.vert", shaders / "weapon.frag");
     transform_ = glGetUniformLocation(program_, "uTransform");
     pose_ = glGetUniformLocation(program_, "uPose");
+    pumpTravel_ = glGetUniformLocation(program_, "uPumpTravel");
     flashPosition_ = glGetUniformLocation(program_, "uMuzzleFlashPosition");
     flashColor_ = glGetUniformLocation(program_, "uMuzzleFlashColor");
     flashRange_ = glGetUniformLocation(program_, "uMuzzleFlashRange");
@@ -52,10 +54,11 @@ WeaponOverlay::WeaponOverlay(const std::filesystem::path& shaders, const std::fi
     glGenVertexArrays(1, &vao_); glGenBuffers(1, &buffer_);
     glBindVertexArray(vao_); glBindBuffer(GL_ARRAY_BUFFER, buffer_);
     glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(vertices.size() * sizeof(OverlayVertex)), vertices.data(), GL_STATIC_DRAW);
-    for (GLuint attribute = 0; attribute < 3; ++attribute) glEnableVertexAttribArray(attribute);
+    for (GLuint attribute = 0; attribute < 4; ++attribute) glEnableVertexAttribArray(attribute);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(OverlayVertex), nullptr);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(OverlayVertex), reinterpret_cast<void*>(offsetof(OverlayVertex, normal)));
     glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(OverlayVertex), reinterpret_cast<void*>(offsetof(OverlayVertex, color)));
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(OverlayVertex), reinterpret_cast<void*>(offsetof(OverlayVertex, pump)));
     glBindVertexArray(static_cast<GLuint>(previousVao));
     glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(previousBuffer));
 }
@@ -64,11 +67,12 @@ WeaponOverlay::~WeaponOverlay() {
     glDeleteBuffers(1, &buffer_); glDeleteVertexArrays(1, &vao_); glDeleteProgram(program_);
 }
 
-glm::vec3 WeaponOverlay::muzzlePosition(std::size_t slot, glm::vec3 modelMuzzle) const {
-    return glm::vec3(poses_.at(slot) * glm::vec4(modelMuzzle, 1));
+glm::vec3 WeaponOverlay::muzzlePosition(std::size_t slot, glm::vec3 modelMuzzle, const WeaponMotionPose& motion) const {
+    return glm::vec3(animatedWeaponPose(poses_.at(slot), motion) * glm::vec4(modelMuzzle, 1));
 }
 
-void WeaponOverlay::draw(std::size_t slot, int width, int height, const MuzzleFlashLight& flash) {
+void WeaponOverlay::draw(std::size_t slot, int width, int height, const MuzzleFlashLight& flash,
+                         const WeaponMotionPose& motion) {
     if (slot >= ranges_.size() || width <= 0 || height <= 0) return;
     GLint previousProgram = 0, previousVao = 0, previousFront = 0, previousCullMode = 0, previousDepthFunction = 0;
     glGetIntegerv(GL_CURRENT_PROGRAM, &previousProgram);
@@ -89,9 +93,11 @@ void WeaponOverlay::draw(std::size_t slot, int width, int height, const MuzzleFl
     glClearDepth(1); glClear(GL_DEPTH_BUFFER_BIT);
     glUseProgram(program_); glBindVertexArray(vao_);
     const auto projection = glm::perspective(glm::radians(60.0f), static_cast<float>(width) / height, .01f, 5.0f);
-    const auto transform = projection * poses_[slot];
+    const auto pose = animatedWeaponPose(poses_[slot], motion);
+    const auto transform = projection * pose;
     glUniformMatrix4fv(transform_, 1, GL_FALSE, glm::value_ptr(transform));
-    glUniformMatrix4fv(pose_, 1, GL_FALSE, glm::value_ptr(poses_[slot]));
+    glUniformMatrix4fv(pose_, 1, GL_FALSE, glm::value_ptr(pose));
+    glUniform1f(pumpTravel_, motion.pumpTravel);
     glUniform3fv(flashPosition_, 1, glm::value_ptr(flash.position));
     glUniform3fv(flashColor_, 1, glm::value_ptr(flash.color));
     glUniform1f(flashRange_, flash.range);

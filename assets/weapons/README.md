@@ -34,8 +34,11 @@ outputs. The existing glTF loader reads them once at startup; the overlay batche
 all parts into one draw per equipped weapon and uses depth testing for correct
 self-occlusion. It renders after scene/debug geometry and clears scene depth;
 only the reticle and presentation follow it. It does not add collision or shadows.
-Weapon firing, inventory, scope and instant reload behavior are unchanged;
-these meshes currently have static poses without arms or part animations.
+The held meshes have per-firearm recoil and recovery. The shotgun's named
+`TacticalPump_Pump` fore-end slides along model-local +Z and returns after each
+shot; a per-vertex part mask keeps this in the same draw, with no extra vertices
+or dynamic vertex uploads. Grenades retain their ready pose and throw visibility.
+There are no arms; reload remains instant.
 
 ## Eye-height positioning
 
@@ -57,9 +60,18 @@ actual stock and trigger meshes, so a longer barrel cannot push the hands away
 from the body. Weapon dimensions are preserved. The bores converge gently on
 the view center at 25 m; the visual pose does not change hitscan behavior.
 
-Poses are computed once at load time using the standing controller configuration.
+Ready poses are computed once at load time using the standing controller configuration.
 Crouching and prone move the camera without rescaling the upper body or weapon.
-The unscoped view represents a ready hold; scope mode keeps its existing overlay.
+`src/weapon_motion.cpp` adds rigid kick and recovery about the model's receiver
+origin, plus eye-local rearward translation. The pistol, SMG, shotgun and sniper
+recover in 0.26, 0.14, 0.55 and 0.70 seconds respectively. The shotgun pump starts
+at 0.12 s, reaches 9.5 cm rearward travel at 0.36 s, and returns by 0.66 s.
+Motion samples absolute time and bounds automatic-fire accumulation. Scoped
+sniper views hide the model and apply pronounced breathing and a firing kick to a
+temporary aim camera, shared by rendering and shot queries. Angular amplitude
+scales with FOV so both zoom levels have comparable screen motion. At 10° FOV,
+breathing is bounded by 0.27° yaw and 0.168° pitch (up to about 20 pixels from
+center at 720p). The 1° FOV reduces those angular amplitudes by about ten times.
 
 Each weapon's [item TOML](../../items/) records `muzzle_position` in these
 model-local meters, at the center of the original barrel's front cap (the M14
@@ -73,13 +85,15 @@ The measured positions are:
 | Sniper | 0 | 0.0205822 | -0.66 |
 | Shotgun | 0 | -0.0045398 | -0.475 |
 
-The overlay applies its cached rigid pose to this position; the scene light also
+The overlay applies its animated rigid pose to this position each frame; the scene light also
 applies the inverse camera view. Successful shots trigger a warm point light
 with an 8 m range and a 75 ms quadratic fade, including in scope mode. The light
 affects both the scene and the weapon, without adding a shadow-map pass.
 
 The multiplayer first-person overlay uses the server-confirmed weapon slot and
-the same poses. Linux and Windows client packages bundle the generated GLBs and
+shot counter with the same motion profiles. Scope sway and model deformation run
+locally; aim angles use existing input commands, with no animation replication.
+Linux and Windows client packages bundle the generated GLBs and
 this attribution under `assets/weapons/`. Headless clients and servers do not
 load them. Remote player bodies currently do not carry visible weapon meshes.
 
