@@ -43,7 +43,8 @@ public:
     bool throwFrom(glm::vec3 eyes, glm::vec3 direction, glm::vec3 playerVelocity,
                    double seconds, const GrenadeConfig& config, const CollisionWorld& world);
     void prepare(PhysicsScene& scene, DoorLayer& doors); // Before the shared step.
-    // After physics: remove expired bodies, apply blast effects, publish events.
+    // After physics: resolve approximate sphere/trunk overlaps, remove expired
+    // bodies, apply blast effects and publish events. Fast throws can miss trunks.
     void update(double seconds, const CollisionWorld& world, ZombieLayer* zombies = nullptr,
                 double animationSeconds = 0);
     std::vector<GrenadePose> poses() const;

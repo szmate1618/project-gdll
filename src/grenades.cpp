@@ -14,9 +14,34 @@
 
 namespace viewer {
 namespace {
+constexpr float collisionRadius = .09f, restitution = .35f;
 b3Vec3 vec(glm::vec3 p) { return {p.x, p.y, p.z}; }
 glm::vec3 vec(b3Vec3 p) { return {p.x, p.y, p.z}; }
 bool finite(glm::vec3 p) { return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z); }
+
+void reboundFromTrunks(b3BodyId body, const CollisionWorld& world) {
+    auto position = vec(b3Body_GetPosition(body));
+    auto contact = world.trunkContact(position, collisionRadius);
+    if (!contact) return;
+    auto velocity = vec(b3Body_GetLinearVelocity(body));
+    bool bounced = false;
+    // A conservative 9 cm sphere covers the rotating grenade. Resolve only
+    // current overlaps, with a bounded retry for neighboring trunks. This is
+    // deliberately cheaper than continuous collision and can miss fast throws.
+    for (int attempt = 0; contact && attempt < 4; ++attempt) {
+        position += contact->normal * (contact->depth + .001f);
+        const float incoming = glm::dot(velocity, contact->normal);
+        if (incoming < 0) {
+            // Trunk sides have a horizontal normal, preserving vertical and
+            // tangent velocity. Rounded endcaps use the full 3D normal.
+            velocity -= (1 + restitution) * incoming * contact->normal;
+            bounced = true;
+        }
+        contact = world.trunkContact(position, collisionRadius);
+    }
+    b3Body_SetTransform(body, vec(position), b3Body_GetRotation(body));
+    if (bounced) b3Body_SetLinearVelocity(body, vec(velocity));
+}
 
 void blastBodies(PhysicsWorld& physics, const CollisionWorld& world, glm::vec3 center, float radius) {
     struct Blast {
@@ -82,9 +107,8 @@ Grenades::~Grenades() = default;
 
 bool Grenades::canThrow(glm::vec3 eyes, const CollisionWorld& world) const {
     // A conservative sphere fits every orientation of the 9 x 15 cm cylinder.
-    constexpr float clearance = .09f;
     return finite(eyes) && impl_->active.size() < maxActive && impl_->nextId != 0 &&
-        world.contacts(eyes - glm::vec3(0, clearance, 0), clearance, clearance * 2).empty();
+        world.contacts(eyes - glm::vec3(0, collisionRadius, 0), collisionRadius, collisionRadius * 2).empty();
 }
 bool Grenades::throwFrom(glm::vec3 eyes, glm::vec3 direction, glm::vec3 playerVelocity,
                          double seconds, const GrenadeConfig& config, const CollisionWorld& world) {
@@ -104,7 +128,7 @@ bool Grenades::throwFrom(glm::vec3 eyes, glm::vec3 direction, glm::vec3 playerVe
     auto shape = b3DefaultShapeDef();
     shape.density = .45f / (8 * .5f * radius * radius * std::sin(glm::radians(45.0f)) * halfHeight * 2);
     shape.baseMaterial.friction = .5f;
-    shape.baseMaterial.restitution = .35f;
+    shape.baseMaterial.restitution = restitution;
     shape.filter.categoryBits = grenadeBodyCategory;
     shape.filter.maskBits &= ~ragdollFloorCategory;
     b3CreateHullShape(body, &shape, impl_->hull);
@@ -120,7 +144,6 @@ void Grenades::prepare(PhysicsScene& scene, DoorLayer& doors) {
         const auto minimum = center + glm::min(travel, glm::vec3(0)) - glm::vec3(2);
         const auto maximum = center + glm::max(travel, glm::vec3(0)) + glm::vec3(2);
         scene.ensureNear(minimum, maximum);
-        scene.ensureTrunksNear(minimum, maximum);
         doors.activateNear(center, glm::length(travel) + 3);
     }
 }
@@ -130,6 +153,7 @@ void Grenades::update(double seconds, const CollisionWorld& world, ZombieLayer* 
     events.erase(std::remove_if(events.begin(), events.end(), [&](const auto& e) { return seconds - e.seconds > 1; }), events.end());
     auto& active = impl_->active;
     for (auto it = active.begin(); it != active.end();) {
+        if (world.stats().trunks) reboundFromTrunks(it->body, world);
         if (seconds < it->explodeAt) { ++it; continue; }
         const auto p = b3Body_GetPosition(it->body);
         const glm::vec3 position(p.x, p.y, p.z);

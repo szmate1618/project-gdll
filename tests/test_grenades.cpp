@@ -8,6 +8,7 @@
 #include "interior_fixture.hpp"
 #include <box3d/box3d.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <cmath>
 #include <iostream>
 #include <stdexcept>
 
@@ -89,15 +90,13 @@ void treeRebounds() {
         viewer::PhysicsScene scene(physics, world, model.boundsMin, model.boundsMax);
         viewer::Grenades grenade(physics);
         require(grenade.throwFrom({0, height, 0}, {0, 0, -1}, {0, 0, 0}, 0, {3, 8, speed}, world), "Throw toward trunk");
+        scene.ensureNear(model.boundsMin, model.boundsMax);
         const auto before = b3World_GetCounters(physics->id()).bodyCount;
-        scene.ensureTrunksNear({-2, height - 2, -3}, {2, height + 2, 2});
-        require(b3World_GetCounters(physics->id()).bodyCount == before + 1, "Only the nearby trunk must receive a physics body");
-        scene.ensureTrunksNear({-1, height - 1, -2}, {1, height + 1, 1});
-        require(b3World_GetCounters(physics->id()).bodyCount == before + 1, "Overlapping queries must not duplicate a trunk collider");
         float previousZ = 0;
         bool bounced = false;
         for (int i = 1; i <= 30; ++i) {
             grenade.prepare(scene, doors); physics->step(1.0f / 60);
+            grenade.update(i / 60.0, world);
             const auto p = grenade.poses().at(0).center;
             require(p.z > -1.5f, "Fast grenade must not tunnel through the trunk");
             if (speed == 14) require(p.z > -1.25f, "Normal-speed throw must remain outside the trunk");
@@ -105,12 +104,48 @@ void treeRebounds() {
             previousZ = p.z;
         }
         require(bounced, "Grenade must rebound from the trunk's rounded collider");
+        require(b3World_GetCounters(physics->id()).bodyCount == before, "Tree rebounds must not create any Box3D trunk bodies");
 
         viewer::Grenades miss(physics);
         require(miss.throwFrom({1, height, 0}, {0, 0, -1}, {0, 0, 0}, 0, {3, 8, 14}, world), "Throw beside trunk");
-        for (int i = 0; i < 9; ++i) { miss.prepare(scene, doors); physics->step(1.0f / 60); }
+        for (int i = 0; i < 9; ++i) {
+            miss.prepare(scene, doors); physics->step(1.0f / 60);
+            miss.update((i + 31) / 60.0, world);
+        }
         require(miss.poses().at(0).center.z < -1.6f, "A throw beside the trunk must stay clear of the rendering-only canopy");
     }
+}
+
+void treeReflection() {
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    const viewer::CollisionWorld world({}, {{{0, 0, 0}, .25f, 12}});
+    viewer::Grenades grenade(physics);
+    require(grenade.throwFrom({.5f, 1.3f, 0}, {-1, 0, 0}, {}, 0, {3, 8, 14}, world), "Set up reflection fixture");
+    b3BodyId body{};
+    auto filter = b3DefaultQueryFilter(); filter.maskBits = viewer::grenadeBodyCategory;
+    b3World_OverlapAABB(physics->id(), {{-1, 0, -1}, {1, 2, 1}}, filter,
+        [](b3ShapeId shape, void* context) {
+            *static_cast<b3BodyId*>(context) = b3Shape_GetBody(shape); return false;
+        }, &body);
+    require(b3Body_IsValid(body), "Reflection fixture must find the live grenade body");
+    b3Body_SetTransform(body, {.3f, 1.3f, 0}, b3Quat_identity);
+    b3Body_SetLinearVelocity(body, {-10, 3, 7});
+    grenade.update(.1, world);
+    auto velocity = b3Body_GetLinearVelocity(body);
+    require(std::abs(velocity.x - 3.5f) < 1e-5f && velocity.y == 3 && velocity.z == 7,
+            "A side impact must reverse/dampen inward speed while preserving vertical and tangent speed");
+    require(b3Body_GetPosition(body).x > .34f, "Reflection must separate the grenade from the trunk");
+    // Already separating overlaps must be moved out without reversing again.
+    b3Body_SetTransform(body, {.3f, 1.3f, 0}, b3Quat_identity);
+    grenade.update(.2, world);
+    require(b3Body_GetLinearVelocity(body).x == velocity.x, "Separating grenades must not rebound back into the trunk");
+    b3Body_SetTransform(body, {0, 12.05f, 0}, b3Quat_identity);
+    b3Body_SetLinearVelocity(body, {2, -10, 3});
+    grenade.update(.3, world);
+    velocity = b3Body_GetLinearVelocity(body);
+    require(velocity.x == 2 && std::abs(velocity.y - 3.5f) < 1e-5f && velocity.z == 3,
+            "A rounded trunk cap must rebound vertically with tangent speed preserved");
+    require(b3Body_GetPosition(body).y > 12.09f, "Endcap reflection must clear the rounded trunk top");
 }
 
 void zombieBlast() {
@@ -132,7 +167,7 @@ void zombieBlast() {
 }
 int main() {
     try {
-        collisionAndFuse(); propCollisionAndBlast(); treeRebounds(); zombieBlast();
+        collisionAndFuse(); propCollisionAndBlast(); treeRebounds(); treeReflection(); zombieBlast();
         std::cout << "Grenade CCD, wall/floor/prop/trunk collision, fuse, blast cover and light tests passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

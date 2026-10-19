@@ -939,9 +939,12 @@ not bypass the cooldown. Multiplayer follows the server-confirmed readiness.
 The original mesh is a medium grey octagonal column with red stripes near both
 ends, shared between the held and thrown model. Grenades use the same Box3D
 world, streamed town colliders, and live doors/boxes/ragdolls as interior props.
-They also rebound from the existing solid tree trunk capsules. Nearby trunks
-are uploaded through the trunk BVH once, independent of camera visibility;
-foliage cards remain rendering geometry.
+Tree rebounds instead query the existing trunk BVH after physics, using a
+conservative 9 cm grenade sphere and mathematical velocity reflection. No tree
+bodies are added to Box3D. Trunk sides preserve vertical and tangent velocity;
+rounded ends use a 3D normal. These are overlap checks, so fast throws can pass
+through thin trunks, especially at low frame rates. Tree hits preserve the
+grenade's spin and do not apply tangent friction. Foliage remains rendering geometry.
 Their 450 g bodies have octagonal convex colliders and continuous collision
 detection. Throws inherit walking velocity and add a small upward arc.
 
@@ -959,6 +962,43 @@ interpolate the replicated bodies and fade explosion events by their age.
 `fuse_seconds` (0–30, exclusive of zero), `blast_radius` (0–50 m), and
 `throw_speed` (0–30 m/s). All three must be finite and positive. Grenade inventory
 counts are whole grenades; `muzzle_position` is unused for throws.
+
+The optional [grenade tree CPU benchmark](../tests/benchmark_grenade_trees.cpp)
+runs without a display, using 40,401 synthetic trunks (4 m spacing, 25 cm radius,
+12 m height), flat ground, 14 m/s throws and a 60 Hz simulation. It measures scene
+preparation, shared physics and grenade updates; rendering and initial terrain/BVH
+construction are excluded. Full throws visit new regions in twelve measured
+waves after two warmup waves. Repeated impacts reset position, orientation and
+velocity outside the timer, then measure two simulation steps per approach.
+One- and sixteen-grenade batches have matching open-ground controls, followed
+by idle measurements after the full throws. Build and run explicitly:
+
+```bash
+cmake --build build --target benchmark_grenade_trees -j4
+./build/benchmark_grenade_trees
+```
+
+Comparison on 2026-10-19 used the previous Box3D-trunk implementation at
+`1fecfd4`, saved before replacement, and this overlap implementation. GCC 14.2,
+Release (`-O3 -DNDEBUG`), Ryzen 5 7535HS, one CPU core; seven paired runs with
+alternating version order. Values below are medians of each run's mean elapsed
+time per simulation tick, including all three measured stages:
+
+| Forest workload | Box3D trunks | Sphere overlaps | Time reduction |
+| --- | ---: | ---: | ---: |
+| Repeated impacts, 1 grenade | 74.506 µs | 70.455 µs | 5.4% |
+| Repeated impacts, 16 grenades | 175.971 µs | 119.605 µs | 32.0% |
+| Full throws, 1 grenade | 64.887 µs | 51.906 µs | 20.0% |
+| Full throws, 16 grenades | 127.820 µs | 96.027 µs | 24.9% |
+| Idle after sixteen-grenade waves | 15.846 µs | 15.874 µs | Unchanged |
+
+Open-ground controls differed by less than 0.5% in their median means. Full-throw
+results include changed bounce trajectories, ground contacts and sleep; repeated
+impacts give the closer comparison of collision handling. The old version retained
+42/672 tree bodies after the one-/sixteen-grenade tours; the new version retains
+zero. Idle timings show that those static bodies were not a significant cost in
+this fixture. These are small absolute CPU savings, not an end-to-end forest FPS
+measurement or a promise of a similar percentage gain in rendered frame rate.
 
 Each [weapon TOML](../items/) defines `name`, `ammo_type`,
 `shot_interval_seconds`, `automatic`, `has_scope`, `pellets`, `spread_degrees`

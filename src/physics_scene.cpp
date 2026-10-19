@@ -27,7 +27,6 @@ struct PhysicsScene::Impl {
     glm::vec3 minimum, maximum;
     std::set<std::pair<int, int>> cells;
     std::set<std::size_t> triangles;
-    std::set<std::size_t> trunks;
     std::vector<std::unique_ptr<StaticBody>> bodies;
 };
 PhysicsScene::PhysicsScene(std::shared_ptr<PhysicsWorld> simulation, const CollisionWorld& collision,
@@ -89,25 +88,6 @@ void PhysicsScene::ensureNear(glm::vec3 minimum, glm::vec3 maximum) {
             b3CreateMeshShape(mesh->body, &shape, mesh->mesh, {1, 1, 1});
             impl_->bodies.push_back(std::move(mesh));
         }
-    }
-}
-void PhysicsScene::ensureTrunksNear(glm::vec3 minimum, glm::vec3 maximum) {
-    // Query the trunk BVH directly: tree crowns can extend above the town's
-    // mesh bounds, and neighboring streamed regions can share the same trunk.
-    for (const auto& source : impl_->collision->staticTrunks(minimum, maximum)) {
-        if (!impl_->trunks.insert(source.index).second) continue;
-        const auto& trunk = source.collider;
-        auto body = std::make_unique<StaticBody>();
-        auto definition = b3DefaultBodyDef();
-        definition.position = {trunk.base.x, trunk.base.y, trunk.base.z};
-        body->body = b3CreateBody(impl_->simulation->id(), &definition);
-        const b3Capsule capsule{{0, trunk.radius, 0}, {0, trunk.height - trunk.radius, 0}, trunk.radius};
-        auto shape = b3DefaultShapeDef();
-        shape.filter.categoryBits = ordinaryBodyCategory;
-        shape.filter.maskBits = grenadeBodyCategory;
-        shape.baseMaterial.friction = .6f;
-        b3CreateCapsuleShape(body->body, &shape, &capsule);
-        impl_->bodies.push_back(std::move(body));
     }
 }
 void PhysicsScene::prepare(const BoxLayer& boxes) {

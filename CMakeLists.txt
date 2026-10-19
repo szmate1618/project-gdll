@@ -386,6 +386,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_grenades)
     add_test(NAME viewer_grenades COMMAND test_grenades)
 
+    # Opt-in CPU benchmark; timing assertions do not belong in CTest.
+    add_executable(benchmark_grenade_trees EXCLUDE_FROM_ALL tests/benchmark_grenade_trees.cpp)
+    target_link_libraries(benchmark_grenade_trees PRIVATE viewer_grenades)
+    viewer_warnings(benchmark_grenade_trees)
+
     add_executable(test_muzzle_flash_render tests/test_muzzle_flash_render.cpp)
     target_link_libraries(test_muzzle_flash_render PRIVATE viewer_renderer viewer_weapons glfw)
     target_compile_definitions(test_muzzle_flash_render PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
