@@ -1,4 +1,5 @@
 #include "protocol.hpp"
+#include "weapons.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -66,7 +67,7 @@ void command(Wire& w, Command& c) {
     w.flag(c.movement.run); w.flag(c.movement.jump); w.flag(c.movement.crouch); w.flag(c.movement.toggleProne);
     w.flag(c.interaction); w.flag(c.left); w.flag(c.right); w.flag(c.reload); w.integer(c.slot);
     if (c.sequence == 0 || std::abs(c.movement.forward) > 1 || std::abs(c.movement.right) > 1 ||
-        std::abs(c.movement.yawDegrees) > 180 || std::abs(c.pitch) > 89 || c.slot > 3 ||
+        std::abs(c.movement.yawDegrees) > 180 || std::abs(c.pitch) > 89 || c.slot >= viewer::weaponIds.size() ||
         std::abs(c.drag.x) > 2000 || std::abs(c.drag.y) > 2000)
         throw std::runtime_error("Invalid multiplayer command");
 }
@@ -109,7 +110,7 @@ void payload(Wire& w, Snapshot& s) {
     w.list(s.players, maxPlayers, [&](PlayerState& p) {
         w.integer(p.id); w.integer(p.resolved); movement(w, p.movement);
         w.number(p.yaw); w.number(p.pitch); w.integer(p.slot); w.integer(p.loaded); w.integer(p.reserve); w.integer(p.shots);
-        if (!p.id || p.slot > 3 || std::abs(p.yaw) > 180 || std::abs(p.pitch) > 89)
+        if (!p.id || p.slot >= viewer::weaponIds.size() || std::abs(p.yaw) > 180 || std::abs(p.pitch) > 89)
             throw std::runtime_error("Invalid player snapshot");
     });
     w.list(s.zombies, maxVisibleZombies, [&](ZombieState& z) {
@@ -129,7 +130,17 @@ void payload(Wire& w, Snapshot& s) {
             glm::any(glm::greaterThan(b.halfExtents, glm::vec3(2))) || std::abs(glm::length(b.rotation) - 1) > .001f)
             throw std::runtime_error("Invalid box snapshot");
     });
+    w.list(s.grenades, viewer::Grenades::maxActive, [&](viewer::GrenadePose& g) {
+        w.integer(g.id); w.vector(g.center);
+        w.number(g.rotation.w); w.number(g.rotation.x); w.number(g.rotation.y); w.number(g.rotation.z);
+        if (!g.id || std::abs(glm::length(g.rotation) - 1) > .001f) throw std::runtime_error("Invalid grenade snapshot");
+    });
+    w.list(s.explosions, viewer::Grenades::maxEvents, [&](viewer::GrenadeExplosion& e) {
+        w.integer(e.id); w.vector(e.position); w.number(e.age);
+        if (!e.id || e.age < 0 || e.age > 2) throw std::runtime_error("Invalid explosion event");
+    });
     uniqueIds(s.players); uniqueIds(s.zombies); uniqueIds(s.doors); uniqueIds(s.boxes);
+    uniqueIds(s.grenades); uniqueIds(s.explosions);
 }
 void payload(Wire& w, CorpsePose& pose) {
     w.integer(pose.id); w.integer(pose.asset); w.integer(pose.version);

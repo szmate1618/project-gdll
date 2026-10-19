@@ -192,7 +192,7 @@ viewer_warnings(viewer_audio)
 
 set(VIEWER_AUDIO_DIR "${CMAKE_CURRENT_BINARY_DIR}/audio")
 set(VIEWER_AUDIO_FILES)
-foreach(sound landing wind rain)
+foreach(sound landing wind rain explosion)
     list(APPEND VIEWER_AUDIO_FILES "${VIEWER_AUDIO_DIR}/${sound}.wav")
 endforeach()
 file(GLOB VIEWER_RECORDED_AUDIO CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/assets/audio/*.wav")
@@ -266,15 +266,16 @@ add_custom_target(viewer_test_asset DEPENDS "${VIEWER_TEST_ASSET}")
 
 set(VIEWER_WEAPON_ASSETS "${CMAKE_CURRENT_BINARY_DIR}/assets/weapons")
 set(VIEWER_WEAPON_MODELS)
-foreach(weapon pistol submachine_gun sniper shotgun)
+foreach(weapon pistol submachine_gun shotgun sniper he_grenade)
     list(APPEND VIEWER_WEAPON_MODELS "${VIEWER_WEAPON_ASSETS}/${weapon}.glb")
 endforeach()
 add_custom_command(
     OUTPUT ${VIEWER_WEAPON_MODELS}
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/build_weapon_assets.py"
         --source "${CMAKE_CURRENT_SOURCE_DIR}/assets/weapons/models.json"
+        --grenade-source "${CMAKE_CURRENT_SOURCE_DIR}/assets/weapons/he_grenade.json"
         --output-dir "${VIEWER_WEAPON_ASSETS}"
-    DEPENDS tools/build_weapon_assets.py assets/weapons/models.json
+    DEPENDS tools/build_weapon_assets.py assets/weapons/models.json assets/weapons/he_grenade.json
     COMMENT "Building the low-poly Durango weapon models (offline)"
     VERBATIM
 )
@@ -289,15 +290,20 @@ target_include_directories(viewer_sun_lighting PUBLIC "${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(viewer_sun_lighting PUBLIC glm::glm viewer_camera)
 viewer_warnings(viewer_sun_lighting)
 
+add_library(viewer_grenades STATIC src/grenades.cpp)
+target_link_libraries(viewer_grenades PUBLIC viewer_physics viewer_zombies viewer_objects viewer_sun_lighting)
+viewer_warnings(viewer_grenades)
+
 if(GD_VIEWER)
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/box_renderer.cpp
+    src/grenade_renderer.cpp
     src/weapon_overlay.cpp
     src/roof_renderer.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
     src/zombie_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
-    viewer_model viewer_weapon_pose viewer_roof_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting OpenGL::GL)
+    viewer_model viewer_weapon_pose viewer_roof_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting viewer_grenades OpenGL::GL)
 if(WIN32)
     target_link_libraries(viewer_renderer PUBLIC GLEW::GLEW)
 endif()
@@ -374,6 +380,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_muzzle_flash PRIVATE viewer_sun_lighting)
     viewer_warnings(test_muzzle_flash)
     add_test(NAME viewer_muzzle_flash COMMAND test_muzzle_flash)
+
+    add_executable(test_grenades tests/test_grenades.cpp)
+    target_link_libraries(test_grenades PRIVATE viewer_grenades)
+    viewer_warnings(test_grenades)
+    add_test(NAME viewer_grenades COMMAND test_grenades)
 
     add_executable(test_muzzle_flash_render tests/test_muzzle_flash_render.cpp)
     target_link_libraries(test_muzzle_flash_render PRIVATE viewer_renderer viewer_weapons glfw)

@@ -820,7 +820,7 @@ idle cycles at a chosen elapsed time:
 | Mouse | Look around while captured; held boxes move sideways/up/down; held doors move sideways or push/pull |
 | Left mouse button | Combat: shoot; Interaction: left-hand box grab within 2 m or door grab within 1.5 m |
 | Right mouse button | Combat with a scoped weapon: cycle normal, 10°, and 1° fields of view; Interaction: right-hand box grab within 2 m |
-| 1 / 2 / 3 / 4 | Equip pistol / submachine gun / shotgun / sniper |
+| 1 / 2 / 3 / 4 / 5 | Equip pistol / submachine gun / shotgun / sniper / HE grenade |
 | R | Reload equipped weapon from its matching reserve ammo |
 | Shift | Free-fly: move four times faster; standing: run at 6 m/s |
 | Mouse wheel | Adjust free-fly movement speed |
@@ -920,7 +920,7 @@ sniper, and shotgun fire once per click; the SMG repeats while left mouse is
 held. Every shot respects its configured cooldown and consumes magazine ammo,
 including misses and shots in scenes without zombies. Empty weapons stop firing.
 The shotgun casts eight rays (one centered and seven around a 4° cone) while
-consuming one shell. All weapons use the existing zombie hit/ragdoll behavior.
+consuming one shell. Firearms use the existing zombie hit/ragdoll behavior.
 The sniper alone enables the existing right-click scope cycle. Equipping a
 weapon resets zoom. Combat normal view displays [low-poly firearm models](../assets/weapons/README.md):
 a 1911 pistol, UMP SMG, a scoped and extended M14 sniper, and a stock pump shotgun.
@@ -930,6 +930,29 @@ Eye-relative positioning uses the configured standing body dimensions: a
 two-handed pistol hold and shoulder-seated stocks, with estimated shoulder
 width and arm reach. Crouching and prone preserve these upper-body proportions.
 The window title and console report the equipped weapon, magazine, and reserve.
+
+**5** equips an HE grenade; **left click** throws one in Combat mode. Holding
+the button throws only once. The starting inventory supplies six grenades.
+The original mesh is a light grey octagonal column with red stripes near both
+ends, shared between the held and thrown model. Grenades use the same Box3D
+world, streamed town colliders, and live doors/boxes/ragdolls as interior props.
+Their 450 g bodies have octagonal convex colliders and continuous collision
+detection. Throws inherit walking velocity and add a small upward arc.
+
+The 3-second fuse starts on the throw. Detonation removes the body, kills exposed
+zombies within 8 m into ragdolls, pushes exposed dynamic objects outward, emits
+AI noise, and plays a synthesized explosion sound in single player. Solid scene
+geometry, closed doors, and props can shield targets. The existing prototype has
+no player health/damage system. A warm explosion point light uses the same pulse
+code as gun muzzles, with a 12 m range and 180 ms quadratic fade. Up to eight
+explosion lights can coexist with the gun muzzle light, including with **F** off.
+Multiplayer throws, collisions, fuses and blasts run on the server; clients
+interpolate the replicated bodies and fade explosion events by their age.
+
+[he_grenade.toml](../items/he_grenade.toml) uses `kind = "he_grenade"` and adds
+`fuse_seconds` (0–30, exclusive of zero), `blast_radius` (0–50 m), and
+`throw_speed` (0–30 m/s). All three must be finite and positive. Grenade inventory
+counts are whole grenades; `muzzle_position` is unused for throws.
 
 Each [weapon TOML](../items/) defines `name`, `ammo_type`,
 `shot_interval_seconds`, `automatic`, `has_scope`, `pellets`, `spread_degrees`
@@ -944,7 +967,7 @@ The viewer uses [toml++](https://github.com/marzer/tomlplusplus), pinned to 3.4.
 through CMake's dependency cache. Invalid or missing required values fail startup
 with a configuration error.
 
-Each successful shot briefly activates a warm point light at that muzzle. It
+Each successful firearm shot briefly activates a warm point light at that muzzle. It
 illuminates nearby scene and weapon surfaces in daylight and at night, has an
 8 m range with distance falloff, and fades quadratically to zero over 75 ms.
 Automatic fire restarts the pulse per shot; shotguns pulse once per shell and
@@ -955,7 +978,7 @@ short-lived point light does not render additional shadow maps.
 [inventory.toml](../inventory.toml) chooses the initially `equipped` weapon.
 Its `[weapons]` table lists owned weapon IDs and their starting loaded rounds;
 omit a weapon to remove ownership. `[ammo]` holds additional reserves for the
-four separate `ammo_type` values, including zero reserves. **R** instantly
+five separate `ammo_type` values, including zero reserves. **R** instantly
 transfers matching reserve rounds into the equipped magazine, allowing partial
 reloads when the reserve is low. Firing, switching, and reloading preserve each
 weapon's own cooldown. Reloading and equipping require a fresh trigger press;
@@ -1678,7 +1701,7 @@ src/weapons.{hpp,cpp}       TOML loading, trigger/cooldown state, ammo, and pell
 src/weapon_overlay.{hpp,cpp} Batched camera-local firearm meshes
 src/weapon_view_pose.{hpp,cpp} Eye-relative hand and shoulder weapon placement
 assets/weapons/models.json  CC0 Durango mesh source and modified M14 sniper
-tools/build_weapon_assets.py Offline GLB builder for the four weapon slots
+tools/build_weapon_assets.py Offline GLB builder for firearms and the HE grenade
 tools/prepare_weapon_models.py Blender extraction and sniper modification
 src/renderer.{hpp,cpp}      OpenGL resources, shaders, drawing
 src/renderer_shadows.cpp   Sun caster pass and lighting uniforms

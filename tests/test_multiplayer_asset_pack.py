@@ -53,7 +53,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         self.write("assets/top.png", b"top texture")
         self.write("assets/bush.png", b"bush atlas")
         self.write("inventory.toml", b"inventory\n")
-        for name in ("pistol", "submachine_gun", "sniper", "shotgun"):
+        for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"):
             self.write(f"items/{name}.toml", b"weapon\n")
         self.write("data/raw/input.bin", b"private preparation input")
         self.write("output/backups/town.glb", b"old town")
@@ -88,7 +88,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         expected = {"output/town.glb", "output/ATTRIBUTION.md", "output/trees.instances.json", "output/poles.instances.json", "output/guardrails.glb",
                     "assets/tree.glb", "output/osm/forest_patches.json", "assets/side.png", "assets/top.png", "assets/bush.png", "inventory.toml",
                     "assets/zombies/models/Zombie.glb", "assets/zombies/models/lods.json"}
-        expected.update(f"items/{name}.toml" for name in ("pistol", "submachine_gun", "sniper", "shotgun"))
+        expected.update(f"items/{name}.toml" for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"))
         expected.update(f"assets/zombies/models/lod{level}/Zombie.glb" for level in range(1, 4))
         expected.update(f"credits/assets/{name}" for name in (*ASSET_CREDIT_FILES, "MAP.txt", "VEGETATION.txt"))
         expected.update(f"credits/software/{name}" for name in SOFTWARE_CREDIT_FILES)

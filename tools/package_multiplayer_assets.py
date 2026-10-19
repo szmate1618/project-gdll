@@ -151,7 +151,7 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
                 lod.resolve().relative_to(model.parent.resolve())
                 assets.model(lod, level["sha256"])
     items = sorted((root / "items").glob("*.toml"))
-    for name in ("pistol", "submachine_gun", "sniper", "shotgun"):
+    for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"):
         assets.add(root / "items" / f"{name}.toml")
     for path in [*items, root / "inventory.toml"]:
         assets.add(path)

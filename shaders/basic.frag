@@ -41,6 +41,10 @@ uniform vec3 uFlashlightCone; // Range in meters, cosine of inner/outer half ang
 uniform vec3 uMuzzleFlashPosition;
 uniform vec3 uMuzzleFlashColor;
 uniform float uMuzzleFlashRange;
+uniform int uExplosionCount;
+uniform vec3 uExplosionPositions[8];
+uniform vec3 uExplosionColors[8];
+uniform float uExplosionRanges[8];
 
 out vec4 fragColor;
 
@@ -127,14 +131,14 @@ vec3 flashlight(vec3 normal) {
     return uFlashlightColor * (uNightBlend * cone * rangeFade * falloff * facing * visibility);
 }
 
-vec3 muzzleFlash(vec3 normal) {
-    if (all(equal(uMuzzleFlashColor, vec3(0.0)))) return vec3(0.0);
-    vec3 toLight = uMuzzleFlashPosition - vWorldPosition;
+vec3 pointLight(vec3 normal, vec3 position, vec3 color, float range) {
+    if (all(equal(color, vec3(0.0)))) return vec3(0.0);
+    vec3 toLight = position - vWorldPosition;
     float distanceFromLight = length(toLight);
-    if (distanceFromLight >= uMuzzleFlashRange) return vec3(0.0);
-    float rangeFade = 1.0 - smoothstep(uMuzzleFlashRange * 0.75, uMuzzleFlashRange, distanceFromLight);
+    if (distanceFromLight >= range) return vec3(0.0);
+    float rangeFade = 1.0 - smoothstep(range * 0.75, range, distanceFromLight);
     float facing = uUnlit ? 1.0 : max(dot(normal, toLight / max(distanceFromLight, 0.001)), 0.0);
-    return uMuzzleFlashColor * (rangeFade * facing / (1.0 + distanceFromLight * distanceFromLight));
+    return color * (rangeFade * facing / (1.0 + distanceFromLight * distanceFromLight));
 }
 
 float alphaMaskCutoff() {
@@ -168,7 +172,9 @@ void main() {
     vec3 light = uUnlit ? uUnlitLight * mix(canopyLight, 1.0, uNightBlend)
                         : ambient + uSunColor * sunFacing * sunlightVisibility(sunFacing, distanceFromEye);
     light += flashlight(normal);
-    light += muzzleFlash(normal);
+    light += pointLight(normal, uMuzzleFlashPosition, uMuzzleFlashColor, uMuzzleFlashRange);
+    for (int i = 0; i < uExplosionCount; ++i)
+        light += pointLight(normal, uExplosionPositions[i], uExplosionColors[i], uExplosionRanges[i]);
     vec3 linearColor = max(color.rgb * light, vec3(0.0));
     // Haze affects unlit tree cards too, after alpha discard and lighting but
     // before output encoding. Keep material alpha intact for blended surfaces.

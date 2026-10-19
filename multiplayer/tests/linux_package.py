@@ -41,7 +41,7 @@ def main():
             archive.extractall(destination, filter="data")
         package = destination / "godollo-client-linux-x86_64"
         check_credits(package)
-        for name in ("pistol", "submachine_gun", "sniper", "shotgun"):
+        for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"):
             model = package / "assets/weapons" / (name + ".glb")
             if not model.is_file() or model.read_bytes()[:4] != b"glTF":
                 raise RuntimeError("Package is missing a generated weapon model: " + str(model))

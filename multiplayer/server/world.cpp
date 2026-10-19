@@ -72,7 +72,9 @@ void World::step() {
                 command.left = command.right = command.reload = false;
                 player.interaction.cancel();
             }
+            const auto previousFeet = player.controller.feet();
             player.controller.update(tickSeconds / inputs, command.movement, *scene_.collision);
+            const auto playerVelocity = (player.controller.feet() - previousFeet) / (tickSeconds / inputs);
             noises.insert(noises.end(), player.controller.noises().begin(), player.controller.noises().end());
             player.camera.setPosition(player.controller.eyePosition());
             player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
@@ -112,10 +114,18 @@ void World::step() {
             if ((switchedWeapon || command.reload) && command.left && player.held.left) player.triggerNeedsRelease = true;
             player.weapons.trigger(command.left && !command.interaction && !player.triggerNeedsRelease);
             // Accept before the next input can reload/switch weapons or change aim.
-            if (player.weapons.fireAttempt(now) == viewer::WeaponFireResult::fired) {
+            const auto& config = player.weapons.equipped().config;
+            const bool canThrow = !config.grenade || scene_.grenades->canThrow(player.camera.position(), *scene_.collision);
+            if (!canThrow) {
+                player.weapons.cancelTrigger();
+                player.triggerNeedsRelease |= command.left;
+            }
+            if (canThrow && player.weapons.fireAttempt(now) == viewer::WeaponFireResult::fired) {
                 ++player.shots;
-                shots.push_back({player.camera.position(), viewer::weaponShotDirections(
-                    player.weapons.equipped().config, player.camera.direction())});
+                if (config.grenade) {
+                    if (!scene_.grenades->throwFrom(player.camera.position(), player.camera.direction(), playerVelocity,
+                            now, *config.grenade, *scene_.collision)) throw std::logic_error("Accepted grenade throw failed");
+                } else shots.push_back({player.camera.position(), viewer::weaponShotDirections(config, player.camera.direction())});
             }
             player.held = command;
         }
@@ -123,10 +133,12 @@ void World::step() {
         targets.push_back({player.controller.feet(), player.controller.eyeHeight(), player.controller.bodyHeight(), id});
     }
     physicsScene_.prepare(*scene_.boxes);
+    scene_.grenades->prepare(physicsScene_, *scene_.doors);
     for (std::size_t i = 0; i < scene_.boxes->count(); ++i) scene_.doors->activateNear(scene_.boxes->pose(i).center, 8);
     for (const auto id : scene_.zombies.ragdollIds()) scene_.doors->activateNear(glm::vec3(scene_.zombies.instances[id].transform[3]));
     zombieDoors_.prepare(*scene_.doors, scene_.zombies);
     scene_.physics->step(tickSeconds);
+    scene_.grenades->update(now, *scene_.collision, &scene_.zombies, now);
     scene_.zombies.synchronizePhysics();
     scene_.zombies.updateBehaviorForPlayers(tickSeconds, targets, *scene_.collision, now);
     for (const auto& noise : noises) scene_.zombies.makeNoise(noise.position, noise.decibels);
@@ -141,6 +153,8 @@ void World::step() {
 Snapshot World::snapshot(std::uint32_t id) {
     auto& observer = players_.at(id);
     Snapshot s; s.tick = tick_;
+    s.grenades = scene_.grenades->poses();
+    s.explosions = scene_.grenades->explosions(viewer::SimulationClock::instance().seconds());
     for (const auto& [playerId, player] : players_) {
         const auto& weapon = player.weapons.equipped();
         s.players.push_back({playerId, player.resolved, player.controller.movementState(),

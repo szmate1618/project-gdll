@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
         {
             std::ofstream inventory(resources / "inventory.toml");
             inventory << "equipped = 'sniper'\n[weapons]\npistol = 12\nsniper = 5\n"
-                         "[ammo]\npistol_rounds = 120\nsmg_rounds = 300\nsniper_rounds = 30\nshotgun_shells = 48\n";
+                         "[ammo]\npistol_rounds = 120\nsmg_rounds = 300\nsniper_rounds = 30\nshotgun_shells = 48\nhe_grenades = 0\n";
             require(bool(inventory), "Could not write starting weapon fixture");
         }
         multiplayer::Options options; options.map = argv[1];

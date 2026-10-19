@@ -69,6 +69,13 @@ int main() {
             }
             std::cout << names[slot] << ": " << triangles << " triangles\n";
         }
+        const auto grenade = viewer::loadModel(std::filesystem::path(VIEWER_WEAPON_ASSETS) / "he_grenade.glb");
+        require(glm::distance(grenade.boundsMax - grenade.boundsMin, glm::vec3(.09f, .15f, .09f)) < 1e-6f,
+                "Grenade model dimensions must match its octagonal rigid body");
+        require(grenade.materials.size() == 5 && grenade.images.empty(), "Grenade must retain its five colored bands without textures");
+        require(grenade.materials[1].baseColor.r > .7f && grenade.materials[1].baseColor.g < .05f &&
+                grenade.materials[3].baseColor.r > .7f && grenade.materials[0].baseColor.g > .7f,
+                "Grey grenade needs red stripes near the top and bottom");
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
     return 0;
 }

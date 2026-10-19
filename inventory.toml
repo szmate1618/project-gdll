@@ -7,9 +7,11 @@ pistol = 12
 submachine_gun = 30
 sniper = 5
 shotgun = 6
+he_grenade = 6
 
 [ammo]
 pistol_rounds = 120
 smg_rounds = 300
 sniper_rounds = 30
 shotgun_shells = 48
+he_grenades = 0

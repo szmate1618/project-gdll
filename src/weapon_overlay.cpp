@@ -31,11 +31,12 @@ WeaponOverlay::WeaponOverlay(const std::filesystem::path& shaders, const std::fi
     // Load and flatten once, preserving part transforms and flat source normals.
     // One shared buffer and one draw per equipped weapon; no per-frame loading.
     std::vector<OverlayVertex> vertices;
-    const std::array<const char*, 4> names{"pistol.glb", "submachine_gun.glb", "shotgun.glb", "sniper.glb"};
-    for (std::size_t slot = 0; slot < names.size(); ++slot) {
+    for (std::size_t slot = 0; slot < weaponIds.size(); ++slot) {
         ranges_[slot].first = static_cast<GLint>(vertices.size());
-        const auto model = loadModel(models / names[slot]);
-        poses_[slot] = weaponViewPose(model, slot == 0, body);
+        const auto model = loadModel(models / (std::string(weaponIds[slot]) + ".glb"));
+        poses_[slot] = slot == 4 ? glm::rotate(glm::translate(glm::mat4(1), {.17f, -.17f, -.5f}),
+                                             glm::radians(-15.0f), glm::vec3(0, 0, 1)) :
+                                  weaponViewPose(model, slot == 0, body);
         appendModel(model, vertices);
         ranges_[slot].count = static_cast<GLsizei>(vertices.size()) - ranges_[slot].first;
     }

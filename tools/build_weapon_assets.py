@@ -53,7 +53,7 @@ def build_model(weapon):
         meshes.append(dict(name=part["name"], primitives=[dict(attributes=attributes, material=material)]))
     if not meshes:
         raise ValueError("Weapon has no meshes")
-    document = dict(asset=dict(version="2.0", generator="GDL Durango weapon builder", copyright="chilly_durango, CC0 1.0"),
+    document = dict(asset=dict(version="2.0", generator="GDL weapon builder", copyright=weapon.get("copyright", "chilly_durango, CC0 1.0")),
                     scene=0, scenes=[dict(nodes=list(range(len(nodes))))], nodes=nodes, meshes=meshes,
                     materials=materials, buffers=[dict(byteLength=len(binary))],
                     bufferViews=views, accessors=accessors)
@@ -69,6 +69,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--grenade-source", type=Path)
     args = parser.parse_args()
     document = json.loads(args.source.read_text())
     if document["version"] != 1 or document["units"] != "meters" or document["axes"] != "X right, Y up, muzzle -Z":
@@ -77,6 +78,11 @@ def main():
         raise ValueError("Weapon slot order must be pistol, SMG, sniper, shotgun")
     # Validate and build all four before publishing any outputs.
     outputs = {w["id"]: build_model(w) for w in document["weapons"]}
+    if args.grenade_source:
+        grenade = json.loads(args.grenade_source.read_text())
+        if grenade["id"] != "he_grenade":
+            raise ValueError("Expected an HE grenade mesh")
+        outputs["he_grenade"] = build_model(grenade)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for name, data in outputs.items():
         target = args.output_dir / (name + ".glb")

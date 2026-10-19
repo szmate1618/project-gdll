@@ -57,6 +57,7 @@ void Renderer::drawShadowCasters(const glm::mat4& view, const glm::mat4& project
     }
     drawZombies(seconds, pass);
     drawBoxes(projectionView);
+    drawGrenades(projectionView);
     glUniform1i(shadowPassLocation_, GL_FALSE);
     glDisable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(0, 0);
@@ -104,6 +105,13 @@ void Renderer::applyLighting(const Camera& camera, const SunShadowView& shadowVi
     glUniform3fv(muzzleFlashPositionLocation_, 1, glm::value_ptr(muzzleFlash_.position));
     glUniform3fv(muzzleFlashColorLocation_, 1, glm::value_ptr(muzzleFlash_.color));
     glUniform1f(muzzleFlashRangeLocation_, muzzleFlash_.range);
+    glUniform1i(explosionCountLocation_, static_cast<GLint>(explosionLightCount_));
+    for (std::size_t i = 0; i < explosionLightCount_; ++i) {
+        const auto& light = explosionLights_[i];
+        glUniform3fv(explosionPositionLocations_[i], 1, glm::value_ptr(light.position));
+        glUniform3fv(explosionColorLocations_[i], 1, glm::value_ptr(light.color));
+        glUniform1f(explosionRangeLocations_[i], light.range);
+    }
     glUniform3f(flashlightShadowDistancesLocation_, NightLighting::flashlightShadowNear,
                 NightLighting::flashlightShadowFadeStart, NightLighting::flashlightShadowDistance);
     const auto direction = flashlight.direction;

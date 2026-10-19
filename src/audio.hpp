@@ -13,7 +13,7 @@ enum class AudioEffect {
     footstep, landing, pistol, smg, sniper, shotgun, reload, zombie,
     footstep2, footstep3, footstep4, zombie2, zombie3,
     huh, intrigued, chase, chase2, doorLatch, doorSlam, emptyClick,
-    reloadRifle, reloadShotgun, count
+    reloadRifle, reloadShotgun, explosion, count
 };
 
 struct AudioOptions {

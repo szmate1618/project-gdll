@@ -15,12 +15,15 @@ struct MuzzleFlashLight {
 class MuzzleFlash {
 public:
     static constexpr double duration = .075;
+    explicit MuzzleFlash(double seconds = duration, glm::vec3 color = {7, 3, .7f}, float range = 8);
     // Retrigger on an actual shot, once per shell rather than per pellet.
-    // Store the fired weapon's eye-local muzzle so a slot change cannot move it.
-    void fire(double seconds, glm::vec3 eyeMuzzle);
+    // Positions stay in the caller's frame: eye-local muzzles or world explosions.
+    void fire(double seconds, glm::vec3 position);
     MuzzleFlashLight light(double seconds) const;
 private:
     double firedAt_ = -std::numeric_limits<double>::infinity();
-    glm::vec3 eyeMuzzle_{0};
+    glm::vec3 position_{0}, color_;
+    double duration_;
+    float range_;
 };
 } // namespace viewer

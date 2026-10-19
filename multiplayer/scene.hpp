@@ -41,6 +41,7 @@ struct Scene {
     std::shared_ptr<viewer::PhysicsWorld> physics;
     std::unique_ptr<viewer::DoorLayer> doors;
     std::unique_ptr<viewer::BoxLayer> boxes;
+    std::unique_ptr<viewer::Grenades> grenades;
     std::optional<viewer::TreeLayer> trees;
     std::optional<viewer::ForestLayer> forests;
     std::unique_ptr<viewer::CollisionWorld> collision;

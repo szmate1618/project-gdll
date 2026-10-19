@@ -10,7 +10,7 @@
 
 namespace viewer {
 namespace {
-constexpr std::array<const char*, 4> ids{"pistol", "submachine_gun", "shotgun", "sniper"};
+constexpr auto ids = weaponIds;
 
 template<class T>
 T required(const toml::table& table, const std::string& key, const std::filesystem::path& path) {
@@ -52,6 +52,18 @@ WeaponConfig loadConfig(const std::filesystem::path& path, const std::string& id
         config.magazineCapacity < config.ammoPerShot || !std::isfinite(spread) || spread < 0 || spread >= 90)
         throw std::runtime_error(path.string() + ": invalid weapon configuration (check counts, interval, and spread)");
     config.spreadDegrees = static_cast<float>(spread);
+    const auto kind = table.contains("kind") ? required<std::string>(table, "kind", path) : "firearm";
+    if (kind == "he_grenade") {
+        const auto positive = [&](const char* key, double maximum) {
+            const auto value = required<double>(table, key, path);
+            if (!std::isfinite(value) || value <= 0 || value > maximum)
+                throw std::runtime_error(path.string() + ": invalid " + key);
+            return static_cast<float>(value);
+        };
+        config.grenade = GrenadeConfig{positive("fuse_seconds", 30), positive("blast_radius", 50), positive("throw_speed", 30)};
+        if (config.automatic || config.pellets != 1 || config.hasScope)
+            throw std::runtime_error(path.string() + ": grenades must be single-click, unscoped throws");
+    } else if (kind != "firearm") throw std::runtime_error(path.string() + ": unknown weapon kind");
     return config;
 }
 } // namespace
@@ -129,6 +141,7 @@ std::string Weapons::status() const {
 }
 
 std::vector<glm::vec3> weaponShotDirections(const WeaponConfig& config, glm::vec3 forward) {
+    if (config.grenade) return {};
     forward = glm::normalize(forward);
     std::vector<glm::vec3> result{forward};
     const auto reference = std::abs(forward.y) > .99f ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);

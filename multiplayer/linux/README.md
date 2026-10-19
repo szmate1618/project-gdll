@@ -27,7 +27,7 @@ Start with the launcher so the included libraries are found:
 ```
 
 The server must use the same scene and options. The package contains the client,
-shaders, the four first-person weapon models and their attribution,
+shaders, the five first-person weapon models and their attribution,
 weapon/inventory configuration, forest configuration, a small sample
 scene, and third-party library notices. It includes the client libraries found
 at build time, except glibc, the C++ runtime, and the OpenGL dispatch/driver stack; those come from

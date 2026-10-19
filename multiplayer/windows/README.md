@@ -36,7 +36,7 @@ and vegetation options:
 .\godollo_client.exe output/godollo.glb --connect SERVER_IP:27020
 ```
 
-Shaders, player shaders, the four first-person weapon models with attribution,
+Shaders, player shaders, the five first-person weapon models with attribution,
 weapon definitions, inventory, and forest configuration
 are included. GLEW, OpenSSL, Protobuf and GameNetworkingSockets are linked into
 the client; the Microsoft runtime is supplied by the Redistributable.

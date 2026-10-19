@@ -21,6 +21,7 @@
 #include "shadow_map.hpp"
 #include "flashlight.hpp"
 #include "muzzle_flash.hpp"
+#include "grenades.hpp"
 #include "atmosphere.hpp"
 #include "night_lighting.hpp"
 #include "day_night.hpp"
@@ -74,6 +75,9 @@ public:
     // Refresh cached poses after physics or spawning. The source must outlive
     // this renderer; unchanged revisions retain meshes and visibility bounds.
     void updateBoxes(const BoxLayer& boxes);
+    void loadGrenadeModel(const std::filesystem::path& path);
+    void updateGrenades(const std::vector<GrenadePose>& poses) { grenadePoses_ = poses; }
+    void setExplosionLights(const std::vector<MuzzleFlashLight>& lights);
     void present(int width, int height);
     void writeScreenshot(const std::filesystem::path& path) const;
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
@@ -212,6 +216,7 @@ private:
     void releaseZombies() noexcept;
     void applyMaterial(const ModelGPU& model, int index, bool mirrored);
     void draw(const DrawGPU& draw);
+    void drawGrenades(const glm::mat4& projectionView);
     void gatherVisibleSceneDraws(const glm::mat4& projectionView, const glm::vec3& eye,
                                 const glm::mat4& projection);
     const Material& material(const ModelGPU& model, int index) const;
@@ -237,6 +242,11 @@ private:
     GLint flashlightDirectionLocation_, flashlightColorLocation_, flashlightConeLocation_;
     GLint muzzleFlashPositionLocation_, muzzleFlashColorLocation_, muzzleFlashRangeLocation_;
     MuzzleFlashLight muzzleFlash_;
+    static constexpr std::size_t maxExplosionLights = 8; // Matches basic.frag.
+    std::array<MuzzleFlashLight, maxExplosionLights> explosionLights_{};
+    std::size_t explosionLightCount_ = 0;
+    GLint explosionCountLocation_ = -1;
+    std::array<GLint, maxExplosionLights> explosionPositionLocations_{}, explosionColorLocations_{}, explosionRangeLocations_{};
     Atmosphere atmosphere_;
     bool haze_ = true;
     bool groundFog_ = true;
@@ -253,6 +263,9 @@ private:
     std::vector<std::size_t> shadowScene_;
     ModelGPU model_;
     ModelGPU boxModel_;
+    ModelGPU grenadeModel_;
+    std::vector<DrawInstance> grenadeDraws_;
+    std::vector<GrenadePose> grenadePoses_;
     GLuint boxInstanceBuffer_ = 0;
     std::vector<glm::mat4> boxTransforms_, visibleBoxTransforms_;
     std::vector<std::size_t> visibleBoxes_;

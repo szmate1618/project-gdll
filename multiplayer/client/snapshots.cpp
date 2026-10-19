@@ -21,6 +21,16 @@ void Snapshots::pushPose(const Scene& scene, const CorpsePose& pose) {
     auto& cached = poses_.at(pose.id);
     if (!cached || cached->version < pose.version) cached = pose;
 }
+std::vector<viewer::MuzzleFlashLight> Snapshots::explosionLights(double now) const {
+    std::vector<viewer::MuzzleFlashLight> result;
+    if (frames_.empty()) return result;
+    for (auto explosion : frames_.back().explosions) {
+        explosion.age += static_cast<float>(std::max(0.0, now - received_));
+        const auto light = viewer::grenadeExplosionLight(explosion);
+        if (light.color.r > 0) result.push_back(light);
+    }
+    return result;
+}
 void Snapshots::apply(Scene& scene, double now) {
     if (frames_.empty()) return;
     const double latestTick = static_cast<double>(frames_.back().tick);
@@ -32,6 +42,18 @@ void Snapshots::apply(Scene& scene, double now) {
     const auto& b = frames_.size() > 1 ? frames_[1] : a;
     const float t = b.tick == a.tick ? 1.0f : static_cast<float>(std::clamp(
         (renderTick_ - static_cast<double>(a.tick)) / static_cast<double>(b.tick - a.tick), 0.0, 1.0));
+    grenades_ = b.grenades;
+    for (auto& grenade : grenades_) for (const auto& previous : a.grenades) if (previous.id == grenade.id) {
+        grenade.center = glm::mix(previous.center, grenade.center, t);
+        grenade.rotation = glm::slerp(previous.rotation, grenade.rotation, t);
+        break;
+    }
+    // Explosion lights use the latest confirmed event. Remove its body on the
+    // same frame even if pose interpolation is still behind the detonation.
+    const auto& explosions = frames_.back().explosions;
+    grenades_.erase(std::remove_if(grenades_.begin(), grenades_.end(), [&](const auto& grenade) {
+        return std::any_of(explosions.begin(), explosions.end(), [&](const auto& e) { return e.id == grenade.id; });
+    }), grenades_.end());
     players_ = b.players;
     for (auto& p : players_) for (const auto& before : a.players) if (before.id == p.id) {
         p.movement.feet = glm::mix(before.movement.feet, p.movement.feet, t); break;

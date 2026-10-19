@@ -95,6 +95,38 @@ void check(const std::filesystem::path& captures) {
                       << int(faded.first[wallSample]) << ", " << brightenedWeapon << " weapon pixels lit\n";
         }
     }
+    renderer.loadGrenadeModel(std::filesystem::path(VIEWER_WEAPON_ASSETS) / "he_grenade.glb");
+    renderer.setNight(true);
+    renderer.setFlashlight(false);
+    renderer.setMuzzleFlash({});
+    renderer.render(camera);
+    const auto empty = read();
+    renderer.updateGrenades({{1, {0, -.05f, -.45f}, glm::angleAxis(glm::radians(20.f), glm::vec3(1, 0, 0))}});
+    renderer.render(camera);
+    const auto grenade = read();
+    std::size_t changed = 0;
+    for (std::size_t i = 0; i < grenade.size(); ++i) changed += grenade[i] != empty[i];
+    if (changed < 1000) throw std::runtime_error("Thrown grenade mesh must render visibly in the world");
+    if (!captures.empty()) renderer.writeScreenshot(captures / "grenade-world.ppm");
+    renderer.updateGrenades({});
+    const viewer::GrenadeExplosion event{1, {0, 0, -1.5f}, 0};
+    renderer.setExplosionLights({viewer::grenadeExplosionLight(event)});
+    renderer.render(camera);
+    const auto explosion = read();
+    require(explosion[wallSample] > empty[wallSample] + 50, "Grenade explosion must illuminate the scene with the flashlight off");
+    if (!captures.empty()) renderer.writeScreenshot(captures / "grenade-explosion.ppm");
+    renderer.setExplosionLights({viewer::grenadeExplosionLight({1, event.position, .09f})});
+    renderer.render(camera);
+    const auto fadingExplosion = read();
+    require(fadingExplosion[wallSample] < explosion[wallSample] && fadingExplosion[wallSample] > empty[wallSample],
+            "Explosion illumination must fade between its peak and expiry");
+    renderer.setMuzzleFlash({{.1f, -.2f, -.7f}, {7, 3, .7f}, 8});
+    renderer.render(camera);
+    require(read()[wallSample] > fadingExplosion[wallSample], "Gun muzzle and explosion lights must work simultaneously");
+    renderer.setMuzzleFlash({});
+    renderer.setExplosionLights({viewer::grenadeExplosionLight({1, event.position, .2f})});
+    renderer.render(camera);
+    require(read() == empty, "Detonation removes the grenade mesh and its expired light completely");
     viewer::Renderer::checkErrors("muzzle flash scene and weapon");
 }
 }

@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
                                        std::filesystem::copy_options::overwrite_existing);
         std::ofstream(fixture / "inventory.toml") <<
             "equipped='pistol'\n[weapons]\npistol=0\nsubmachine_gun=0\nsniper=0\nshotgun=0\n"
-            "[ammo]\npistol_rounds=0\nsmg_rounds=0\nsniper_rounds=0\nshotgun_shells=0\n";
+            "[ammo]\npistol_rounds=0\nsmg_rounds=0\nsniper_rounds=0\nshotgun_shells=0\nhe_grenades=0\n";
         multiplayer::Options options; options.map = argv[1];
         options.trees = options.forests = false; options.zombieCount = 0;
         multiplayer::Scene scene(options);

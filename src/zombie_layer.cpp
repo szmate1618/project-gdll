@@ -105,6 +105,29 @@ bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animat
     const auto selected = findShotTarget(origin, direction, animationSeconds, selectedPose, &distance);
     if (selected == instances.size()) return false;
     if (occlusion && !occlusion->lineOfSight(origin, origin + direction * distance)) return false;
+    activateRagdoll(selected, std::move(selectedPose), direction * 4.0f);
+    return true;
+}
+std::size_t ZombieLayer::explode(glm::vec3 origin, float radius, double animationSeconds, const CollisionWorld& world) {
+    if (!finite(origin) || !std::isfinite(radius) || radius <= 0) return 0;
+    std::vector<std::size_t> ids;
+    queryLivingNear(origin, radius + 2, ids);
+    std::size_t killed = 0;
+    for (const auto id : ids) {
+        const auto& instance = instances[id];
+        const auto center = glm::vec3(instance.restRoot * glm::vec4(0, .9f, 0, 1));
+        const auto offset = center - origin;
+        const float distance = glm::length(offset);
+        if (distance >= radius || !world.lineOfSight(origin, center)) continue;
+        auto pose = sampleZombiePose(assets.at(instance.asset), instance, animationSeconds);
+        const auto outward = offset + glm::vec3(0, .5f, 0);
+        const auto direction = glm::length(outward) > .001f ? glm::normalize(outward) : glm::vec3(0, 1, 0);
+        activateRagdoll(id, std::move(pose), direction * (8.0f * (1 - distance / radius)));
+        ++killed;
+    }
+    return killed;
+}
+void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> selectedPose, glm::vec3 velocity) {
     if (!physics_) physics_ = std::make_unique<Physics>();
     auto& instance = instances[selected];
     const auto feet = glm::vec3(instance.restRoot[3]);
@@ -113,9 +136,9 @@ bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animat
     instance.activationPose = std::move(selectedPose);
     RagdollPose reference, current;
     if (makeZombieRagdollPoses(instance, asset, reference, current))
-        instance.ragdollHandle = physics_->world.create(feet, yaw, direction * 4.0f, reference, current);
+        instance.ragdollHandle = physics_->world.create(feet, yaw, velocity, reference, current);
     else
-        instance.ragdollHandle = physics_->world.create(feet, yaw, direction * 4.0f);
+        instance.ragdollHandle = physics_->world.create(feet, yaw, velocity);
     try {
         registerRagdoll(selected);
     } catch (...) {
@@ -134,7 +157,6 @@ bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animat
     instance.physicsPoseRevision = physics_->world.poseRevision(instance.ragdollHandle);
     ++instance.ragdollPoseVersion;
     markRenderChanged(selected);
-    return true;
 }
 
 void ZombieLayer::attachPhysics(std::shared_ptr<PhysicsWorld> world) {

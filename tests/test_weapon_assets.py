@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 from src.glb import read_glb
 from tools.build_weapon_assets import WEAPON_IDS, build_model, main
+from tools.prepare_grenade_model import grenade_model
+from collections import Counter
 
 
 def weapon(name="pistol"):
@@ -18,6 +20,20 @@ def weapon(name="pistol"):
 
 
 class WeaponAssetTests(unittest.TestCase):
+    def test_octagonal_grenade_source_is_closed_and_reproducible(self):
+        model = grenade_model()
+        source = Path(__file__).resolve().parents[1] / "assets/weapons/he_grenade.json"
+        self.assertEqual(json.loads(source.read_text()), model)
+        edges = Counter()
+        for part in model["parts"]:
+            points = part["positions"]
+            self.assertEqual(len({(p[0], p[2]) for p in points}), 8)
+            for triangle in part["triangles"]:
+                for a, b in zip(triangle, triangle[1:] + triangle[:1]):
+                    edges[tuple(sorted((tuple(points[a]), tuple(points[b]))))] += 1
+        self.assertTrue(all(count == 2 for count in edges.values()), "Grenade shell must have no open seams")
+        document, _ = read_glb(build_model(model))
+        self.assertEqual(len(document["materials"]), 5)
     def test_self_contained_glb_with_source_bounds_and_material(self):
         document, binary = read_glb(build_model(weapon()))
         self.assertEqual(document["buffers"], [{"byteLength": len(binary)}])

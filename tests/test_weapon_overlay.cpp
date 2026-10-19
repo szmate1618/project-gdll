@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
         glUseProgram(0); glBindVertexArray(0);
         std::vector<unsigned char> pixels(static_cast<std::size_t>(width) * height * 3);
         std::set<std::size_t> silhouetteCounts;
-        for (std::size_t slot = 0; slot < 4; ++slot) {
+        for (std::size_t slot = 0; slot < viewer::weaponIds.size(); ++slot) {
             glClearColor(.1f, .2f, .3f, 1);
             // Simulate a wall pressed against the camera. Weapons must use a
             // fresh depth layer while retaining self-occlusion between parts.
@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
             }
         }
         viewer::Renderer::checkErrors("weapon overlays");
-        std::cout << "All four weapon silhouettes and GL state checks passed\n";
+        std::cout << "All five weapon silhouettes and GL state checks passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; result = 1; }
     glfwDestroyWindow(window); glfwTerminate();
     return result;

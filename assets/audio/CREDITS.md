@@ -86,6 +86,6 @@ versions may produce slightly different samples when rebuilding from scratch.
 Review edits and refresh the recorded output metadata when intentionally changing
 the preparation recipe.
 
-The existing synthesized landing sound, wind, and rain are still created by
+The synthesized landing and explosion sounds, wind, and rain are created by
 `tools/create_audio_assets.py` in the build directory; they are original project
 placeholders and contain no downloaded samples.

@@ -88,6 +88,13 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         muzzleFlashPositionLocation_ = glGetUniformLocation(program_, "uMuzzleFlashPosition");
         muzzleFlashColorLocation_ = glGetUniformLocation(program_, "uMuzzleFlashColor");
         muzzleFlashRangeLocation_ = glGetUniformLocation(program_, "uMuzzleFlashRange");
+        explosionCountLocation_ = glGetUniformLocation(program_, "uExplosionCount");
+        for (std::size_t i = 0; i < maxExplosionLights; ++i) {
+            const auto index = "[" + std::to_string(i) + "]";
+            explosionPositionLocations_[i] = glGetUniformLocation(program_, ("uExplosionPositions" + index).c_str());
+            explosionColorLocations_[i] = glGetUniformLocation(program_, ("uExplosionColors" + index).c_str());
+            explosionRangeLocations_[i] = glGetUniformLocation(program_, ("uExplosionRanges" + index).c_str());
+        }
         fallback_.baseColor = glm::vec4(0.65f, 0.68f, 0.72f, 1.0f);
         uploadModel(model, model_);
         uploadRoofBatches(model);
@@ -221,6 +228,7 @@ void Renderer::release() noexcept {
     releaseZombies();
     releaseModel(model_);
     releaseModel(boxModel_);
+    releaseModel(grenadeModel_);
     if (boxInstanceBuffer_) glDeleteBuffers(1, &boxInstanceBuffer_);
     boxInstanceBuffer_ = 0;
     releaseModel(roofModel_);
@@ -380,6 +388,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     drawForests(projection * view);
     drawZombies(animationSeconds);
     drawBoxes(projection * view);
+    drawGrenades(projection * view);
     if (drawOpaque) drawOpaque();
     if (!transparentScene_.empty()) {
         glEnable(GL_BLEND);

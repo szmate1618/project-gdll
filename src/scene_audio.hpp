@@ -15,6 +15,7 @@ public:
     explicit SceneAudio(const AudioOptions& options) : audio_(options) {}
     void update(const CameraRig& rig, ZombieLayer* zombies, float seconds, const DoorLayer* doors = nullptr);
     void shot(std::size_t weaponSlot);
+    void explosion(glm::vec3 position) { audio_.play(AudioEffect::explosion, position, 1.0f); }
     void reload(std::size_t weaponSlot = 0);
     void emptyClick() { audio_.playLocal(AudioEffect::emptyClick, .5f); }
     void grabDoor(const DoorLayer& doors, std::size_t id);

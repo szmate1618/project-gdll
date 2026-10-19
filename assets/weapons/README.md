@@ -11,6 +11,7 @@ The mesh source and our modified sniper are retained here under the same CC0 ded
 | 2 — SMG | UMP | 233 |
 | 3 — shotgun | TacticalPump (stock pump) | 151 |
 | 4 — sniper | Modified M14 | 354 |
+| 5 — HE grenade | Original project mesh | 92 |
 
 The sniper retains the M14 stock, receiver, trigger, magazine and slide. Its
 fore-end/barrel is extended, with a heavy barrel sleeve, two scope mounts, and
@@ -27,7 +28,7 @@ in the file. The original download is `Guns.blend` (1,383,776 bytes), SHA256
 `f12a0cbdb38568908d9dba3ed4529de6257d6ba2739026fc16de15195533e93f`.
 
 Normal CMake builds run `tools/build_weapon_assets.py` with standard-library
-Python to validate the source and create four GLBs in `build/assets/weapons/`.
+Python to validate the source and create five GLBs in `build/assets/weapons/`.
 They need neither Blender nor network access. The GLBs remain ignored generated
 outputs. The existing glTF loader reads them once at startup; the overlay batches
 all parts into one draw per equipped weapon and uses depth testing for correct
@@ -81,6 +82,23 @@ The multiplayer first-person overlay uses the server-confirmed weapon slot and
 the same poses. Linux and Windows client packages bundle the generated GLBs and
 this attribution under `assets/weapons/`. Headless clients and servers do not
 load them. Remote player bodies currently do not carry visible weapon meshes.
+
+## HE grenade
+
+`he_grenade.json` is an original project mesh released under CC0 1.0, separate
+from the firearm source. It is a closed octagonal column, 9 cm across and 15 cm
+tall, with light grey caps/body and red side stripes near both ends. The same
+GLB is used for slot 5 and for the thrown rigid body. The collision hull has
+the same sixteen corner points. To regenerate the editable source:
+
+```bash
+python3 tools/prepare_grenade_model.py --output assets/weapons/he_grenade.json
+cmake --build build --target viewer_weapon_assets
+```
+
+The grenade's fuse, radius and launch speed are configured in
+`items/he_grenade.toml`; throwing and blast behavior are described in
+[the viewer guide](../../docs/VIEWER.md#prototype-weapons-and-inventory).
 
 To regenerate `models.json`, download the free source from the page above and
 save it at `data/assets/durango_firearms/Guns.blend`, then run Blender 3.6:

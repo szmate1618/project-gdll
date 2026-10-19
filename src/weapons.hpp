@@ -5,9 +5,12 @@
 #include <string>
 #include <vector>
 #include <glm/glm.hpp>
+#include <optional>
+#include "grenades.hpp"
 
 namespace viewer {
-// Slots 0..3 correspond to keys 1..4. Ammo counts use rounds (shotgun shells),
+inline constexpr std::array<const char*, 5> weaponIds{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"};
+// Slots 0..4 correspond to keys 1..5. Ammo counts use rounds (shotgun shells),
 // not pellets. Configuration and starting inventory are read once at startup.
 struct WeaponConfig {
     std::string id, name, ammoType;
@@ -16,6 +19,7 @@ struct WeaponConfig {
     int pellets = 1, magazineCapacity = 1, ammoPerShot = 1;
     float spreadDegrees = 0; // Cone half-angle about the camera's forward ray.
     glm::vec3 muzzlePosition{0}; // Model-local meters: X right, Y up, muzzle -Z.
+    std::optional<GrenadeConfig> grenade; // A thrown body instead of hitscan.
 };
 struct WeaponState {
     WeaponConfig config;
@@ -41,7 +45,7 @@ public:
     int reload(); // Instant for the prototype; returns transferred rounds.
     std::string status() const;
 private:
-    std::array<WeaponState, 4> weapons_;
+    std::array<WeaponState, weaponIds.size()> weapons_;
     std::size_t slot_ = 0;
     bool held_ = false, pressed_ = false;
     bool emptyClicked_ = false;

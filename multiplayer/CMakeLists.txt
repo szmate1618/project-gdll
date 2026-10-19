@@ -27,7 +27,7 @@ add_library(multiplayer_core STATIC protocol.cpp scene.cpp resources.cpp asset_v
 target_include_directories(multiplayer_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(multiplayer_core SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 target_link_libraries(multiplayer_core PUBLIC viewer_fps viewer_zombies viewer_interaction
-    viewer_objects viewer_forests viewer_vegetation viewer_poles viewer_guardrails viewer_weapons ${mp_transport})
+    viewer_objects viewer_forests viewer_vegetation viewer_poles viewer_guardrails viewer_weapons viewer_grenades ${mp_transport})
 target_compile_definitions(multiplayer_core PUBLIC
     MP_ROOT="${PROJECT_SOURCE_DIR}")
 target_compile_definitions(multiplayer_core PRIVATE MP_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}")

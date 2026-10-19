@@ -79,6 +79,7 @@ struct ZombieLayer {
     bool shoot(glm::vec3 origin, glm::vec3 direction, double animationSeconds = 0.0);
     bool shootWithOcclusion(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                             const CollisionWorld& world);
+    std::size_t explode(glm::vec3 origin, float radius, double animationSeconds, const CollisionWorld& world);
     const ZombieShootingStats& shootingStats() const { return shootingStats_; }
     // Silent noise at a world position, with a source level in dB at one meter.
     // Only idle, living zombies already in the behavior pool can hear it.
@@ -127,6 +128,7 @@ struct ZombieLayer {
     const ZombieRenderUpdates& renderUpdates() const { return renderUpdates_; }
 
 private:
+    void activateRagdoll(std::size_t zombie, std::vector<glm::mat4> pose, glm::vec3 velocity);
     bool shootImpl(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                    const CollisionWorld* occlusion);
     void updateBehaviorImpl(float seconds, const ZombiePlayer& player, const CollisionWorld& world,

@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
         const std::vector<std::int16_t> samples(48000, 300); // One-second mono fixtures.
         for (const auto* name : {"footstep", "landing", "pistol", "smg", "sniper", "shotgun", "reload", "zombie",
                                 "footstep2", "footstep3", "footstep4", "zombie2", "zombie3", "huh", "intrigued",
-                                "chase", "chase2", "door_latch", "door_slam", "empty_click", "reload_rifle", "reload_shotgun"})
+                                "chase", "chase2", "door_latch", "door_slam", "empty_click", "reload_rifle", "reload_shotgun", "explosion"})
             writeAudioFixture(options.directory / (std::string(name) + ".wav"), 1, samples);
         writeAudioFixture(options.directory / "wind.wav", 2, std::vector<std::int16_t>(96000, 100));
         writeAudioFixture(options.directory / "rain.wav", 2, {100, -100, 200, -200});

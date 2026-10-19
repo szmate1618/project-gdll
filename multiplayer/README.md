@@ -178,7 +178,7 @@ Scene options:
   GameNetworkingSockets. These testing options may differ between peers.
 
 Client controls: WASD, mouse look, Shift run, Space jump, Ctrl crouch, Z prone,
-1–4 weapon selection, R reload, F toggle flashlight, left click fire, right click cycle scope.
+1–5 weapon selection, R reload, F toggle flashlight, left click fire/throw, right click cycle scope.
 Tab switches Combat/Interaction. In Interaction, hold either mouse button to
 grab a nearby prop; left mouse also grabs doors. Mouse motion and walking move
 the grip. Alt releases/recaptures the mouse; Escape exits. Losing focus releases
@@ -192,7 +192,13 @@ rejected selection keeps the current model. Scope and Interaction views hide
 the weapon. Only scoped weapons enable zoom, and a confirmed weapon change
 resets zoom. Remote players retain their simple body models.
 
-Graphical client builds generate the four small weapon GLBs offline from the
+Slot 5 throws a grey/red octagonal HE grenade on left click. The server owns
+its 3-second fuse, shared prop physics, 8 m occluded blast, and outward impulses.
+Clients interpolate thrown bodies and show the short explosion point light;
+the flashlight toggle does not disable that light. Grenade settings and starting
+counts are in `items/he_grenade.toml` and `inventory.toml`.
+
+Graphical client builds generate the five small weapon GLBs offline from the
 tracked [CC0 mesh source](../assets/weapons/README.md). Linux and Windows client
 packages include these models and attribution under `assets/weapons/`; no
 separate weapon download is needed. Development clients use the build tree's

@@ -20,7 +20,7 @@ TAU = 2 * math.pi
 
 def create_audio_assets(directory: Path) -> None:
     directory.mkdir(parents=True, exist_ok=True)
-    effects = {"landing": (0.4, 1), "wind": (30.0, 8), "rain": (30.0, 9)}
+    effects = {"landing": (0.4, 1), "wind": (30.0, 8), "rain": (30.0, 9), "explosion": (1.2, 12)}
     for name, (duration, seed) in effects.items():
         rng = random.Random(seed)
         channels = 2 if name in ("wind", "rain") else 1
@@ -34,6 +34,8 @@ def create_audio_assets(directory: Path) -> None:
                 low[channel] = 0.94 * low[channel] + 0.06 * noise
                 if name == "landing":
                     value = (0.8 * low[channel] + 0.3 * math.sin(TAU * 55 * t)) * math.exp(-13 * t)
+                elif name == "explosion":
+                    value = (2.4 * low[channel] + .35 * noise + .6 * math.sin(TAU * 45 * t)) * math.exp(-6 * t)
                 elif name == "wind":
                     value = low[channel] * (0.45 + 0.25 * math.sin(TAU * t / 10 + channel))
                     fade = min(1.0, t * 4, (duration - t) * 4)

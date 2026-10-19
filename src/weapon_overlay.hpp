@@ -4,6 +4,7 @@
 #include "opengl.hpp"
 #include "weapon_view_pose.hpp"
 #include "muzzle_flash.hpp"
+#include "weapons.hpp"
 
 namespace viewer {
 // Camera-local meshes, without collision or shadow casters. Draw after scene and
@@ -20,8 +21,8 @@ public:
     void draw(std::size_t slot, int width, int height, const MuzzleFlashLight& flash = {});
 private:
     struct Range { GLint first = 0; GLsizei count = 0; };
-    std::array<Range, 4> ranges_{};
-    std::array<glm::mat4, 4> poses_{};
+    std::array<Range, weaponIds.size()> ranges_{};
+    std::array<glm::mat4, weaponIds.size()> poses_{};
     GLuint program_ = 0, vao_ = 0, buffer_ = 0;
     GLint transform_ = -1;
     GLint pose_ = -1, flashPosition_ = -1, flashColor_ = -1, flashRange_ = -1;

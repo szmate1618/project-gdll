@@ -237,7 +237,7 @@ void printHelp() {
               << "Tab switch Combat/Interaction; left mouse shoot in Combat, grab a door (1.5 m) or box (2 m) in Interaction\n"
               << "Interaction: left/right mouse hold boxes with separate hands; mouse sideways/up/down moves boxes; WASD moves grips\n"
               << "Release to drop; swing and release to throw. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
-              << "Combat: 1 pistol, 2 SMG, 3 shotgun, 4 sniper; R reload; hold left mouse for automatic fire\n"
+              << "Combat: 1 pistol, 2 SMG, 3 shotgun, 4 sniper, 5 HE grenade; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
               << "Left Alt release/capture mouse, wheel change speed, F toggle flashlight, Home frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
@@ -317,6 +317,7 @@ struct AppState {
     const viewer::CollisionWorld& world;
     viewer::ZombieLayer* zombies = nullptr;
     viewer::SceneAudio* audio = nullptr;
+    viewer::Grenades* grenades = nullptr;
     double displayedAnimationSeconds = 0.0;
     glm::vec3 boundsMin, boundsMax;
     std::array<bool, GLFW_KEY_LAST + 1> keys{};
@@ -325,6 +326,7 @@ struct AppState {
     bool capture = true, firstMouse = true, hidden = false;
     bool collisionDebug = false;
     bool flashlight = true;
+    glm::vec3 playerVelocity{0};
     double lastX = 0, lastY = 0;
 };
 
@@ -353,7 +355,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         app.weapons.cancelTrigger();
         app.interaction.toggleMode();
         std::cout << "Control mode: " << app.interaction.modeName() << '\n';
-    } else if (key >= GLFW_KEY_1 && key <= GLFW_KEY_4) {
+    } else if (key >= GLFW_KEY_1 && key <= GLFW_KEY_5) {
         if (app.weapons.equip(static_cast<std::size_t>(key - GLFW_KEY_1))) {
             while (app.rig.camera().viewMode() != viewer::Camera::ViewMode::original)
                 app.rig.camera().cycleViewMode();
@@ -444,30 +446,53 @@ void focusCallback(GLFWwindow* window, int focused) {
     }
 }
 
+// True only for a firearm shot that should pulse the held muzzle light.
 bool updateWeapons(AppState& app, double seconds) {
     if (!app.capture || app.interaction.mode() != viewer::ControlMode::Combat) {
+        app.weapons.cancelTrigger();
+        return false;
+    }
+    const auto& config = app.weapons.equipped().config;
+    if (config.grenade && (!app.grenades || !app.grenades->canThrow(app.rig.camera().position(), app.world))) {
         app.weapons.cancelTrigger();
         return false;
     }
     const auto result = app.weapons.fireAttempt(seconds);
     if (result == viewer::WeaponFireResult::empty && app.audio) app.audio->emptyClick();
     if (result != viewer::WeaponFireResult::fired) return false;
-    if (app.audio) app.audio->shot(app.weapons.slot());
-    if (app.zombies) {
+    if (config.grenade) {
+        if (!app.grenades->throwFrom(app.rig.camera().position(), app.rig.camera().direction(),
+                app.playerVelocity, seconds, *config.grenade, app.world))
+            throw std::logic_error("Accepted grenade throw failed");
+    } else if (app.audio) app.audio->shot(app.weapons.slot());
+    if (app.zombies && !config.grenade) {
         for (const auto direction : viewer::weaponShotDirections(app.weapons.equipped().config, app.rig.camera().direction()))
             app.zombies->shootWithOcclusion(app.rig.camera().position(), direction,
                                             app.displayedAnimationSeconds, app.world);
     }
     std::cout << app.weapons.status() << '\n';
-    return true;
+    return !config.grenade;
 }
 
 void moveCamera(AppState& app, float dt) {
+    const auto previousFeet = app.rig.player().feet();
     const auto held = [&](int key) { return app.keys[static_cast<std::size_t>(key)] ? 1.0f : 0.0f; };
     app.rig.update(dt, held(GLFW_KEY_W) - held(GLFW_KEY_S), held(GLFW_KEY_D) - held(GLFW_KEY_A),
                    held(GLFW_KEY_E) - held(GLFW_KEY_Q),
                    app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT], app.keys[GLFW_KEY_SPACE],
                    app.keys[GLFW_KEY_LEFT_CONTROL] || app.keys[GLFW_KEY_RIGHT_CONTROL], app.proneToggleQueued);
+    app.playerVelocity = app.rig.walking() && dt > 0 ? (app.rig.player().feet() - previousFeet) / dt : glm::vec3(0);
+    if (app.rig.walking()) {
+        // Fixed player steps can span several short render frames. Bound the
+        // measured horizontal speed and use the actual airborne velocity.
+        const float horizontal = glm::length(glm::vec2(app.playerVelocity.x, app.playerVelocity.z));
+        const float speed = app.rig.player().movementSpeed(app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]);
+        if (horizontal > speed) {
+            app.playerVelocity.x *= speed / horizontal;
+            app.playerVelocity.z *= speed / horizontal;
+        }
+        app.playerVelocity.y = app.rig.player().verticalVelocity();
+    }
     if (dt > 0) app.proneToggleQueued = false;
     app.interaction.update(app.rig.camera(), dt);
 }
@@ -535,12 +560,14 @@ void inputSelfTest(GLFWwindow* window) {
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
     if (app.rig.camera().projection(1.0f) != originalProjection)
         throw std::runtime_error("Right-click did not restore the original field of view");
-    for (int slot = 0; slot < 4; ++slot) {
+    for (int slot = 0; slot < static_cast<int>(viewer::weaponIds.size()); ++slot) {
         key(window, GLFW_KEY_1 + slot, 0, GLFW_PRESS, 0);
         key(window, GLFW_KEY_1 + slot, 0, GLFW_RELEASE, 0);
         if (app.weapons.slot() != static_cast<std::size_t>(slot))
             throw std::runtime_error("Weapon selection callback failed");
     }
+    key(window, GLFW_KEY_3, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_3, 0, GLFW_RELEASE, 0);
     const auto loaded = app.weapons.equipped().loaded;
     mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
     updateWeapons(app, 0);
@@ -575,6 +602,16 @@ void inputSelfTest(GLFWwindow* window) {
         updateWeapons(shot, 0);
         if (zombie.ragdoll == blocked || shot.weapons.equipped().loaded != rounds - 1)
             throw std::runtime_error("Single-player shooting occlusion/ammo self-test failed");
+        auto grenadePhysics = std::make_shared<viewer::PhysicsWorld>();
+        viewer::Grenades thrown(grenadePhysics);
+        shot.grenades = &thrown;
+        shot.weapons.equip(4);
+        const auto grenadeCount = shot.weapons.equipped().loaded;
+        shot.weapons.trigger(true);
+        if (updateWeapons(shot, 0) || thrown.poses().size() != 1 || shot.weapons.equipped().loaded != grenadeCount - 1)
+            throw std::runtime_error("Grenade click must spawn a body and consume one grenade without a muzzle flash");
+        updateWeapons(shot, 10);
+        if (thrown.poses().size() != 1) throw std::runtime_error("Holding left click repeated a grenade throw");
     }
     key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
     if (!app.capture || app.interaction.mode() != viewer::ControlMode::Interaction)
@@ -851,6 +888,7 @@ int run(const Options& options) {
     // Town geometry, trunks and live props participate in walking collision.
     // Shared impostor cards stay exclusively in the rendering layer.
     viewer::BoxLayer boxes(physics);
+    viewer::Grenades grenades(physics);
     viewer::CollisionWorld collision(model, trunks, &doors);
     collision.setBoxes(&boxes);
     viewer::PhysicsScene physicsScene(physics, collision, model.boundsMin, model.boundsMax);
@@ -924,6 +962,7 @@ int run(const Options& options) {
     audioOptions.rain = options.rain;
     viewer::SceneAudio audio(audioOptions);
     app.audio = &audio;
+    app.grenades = &grenades;
     glfwSetWindowUserPointer(window.get(), &app);
     glfwSetFramebufferSizeCallback(window.get(), framebufferCallback);
     glfwSetKeyCallback(window.get(), keyCallback);
@@ -945,7 +984,9 @@ int run(const Options& options) {
     viewer::WeaponOverlay weaponOverlay(options.shaders, VIEWER_WEAPON_ASSETS,
                                        {playerBody.height, playerBody.eyeHeight});
     viewer::MuzzleFlash muzzleFlash;
-    std::cout << "Weapons: 1 pistol, 2 SMG, 3 shotgun, 4 sniper; R reload\n" << app.weapons.status() << '\n';
+    renderer.loadGrenadeModel(std::filesystem::path(VIEWER_WEAPON_ASSETS) / "he_grenade.glb");
+    std::uint32_t lastExplosion = 0;
+    std::cout << "Weapons: 1 pistol, 2 SMG, 3 shotgun, 4 sniper, 5 HE grenade; R reload\n" << app.weapons.status() << '\n';
     renderer.setTreeCulling(options.treeCulling);
     renderer.setZombieCulling(options.zombieCulling);
     renderer.setZombieDistanceDetail(options.zombieDistanceDetail);
@@ -1027,8 +1068,15 @@ int run(const Options& options) {
             for (const auto id : zombies->ragdollIds())
                 doors.activateNear(glm::vec3(zombies->instances[id].transform[3]));
         physicsScene.prepare(boxes);
+        grenades.prepare(physicsScene, doors);
         if (zombies) zombieDoorCollision.prepare(doors, *zombies);
         physics->step(dt);
+        grenades.update(simulationClock.seconds(), collision, zombies ? &*zombies : nullptr, app.displayedAnimationSeconds);
+        for (const auto& explosion : grenades.explosions(simulationClock.seconds())) {
+            if (explosion.id <= lastExplosion) continue;
+            audio.explosion(explosion.position);
+            lastExplosion = explosion.id;
+        }
         if (zombies) zombies->synchronizePhysics();
         moveCamera(app, dt);
         anchorGroundFog();
@@ -1058,6 +1106,8 @@ int run(const Options& options) {
         intervalSimulationSeconds += preparationStart - simulationStart;
         renderer.updateDoors(doors);
         renderer.updateBoxes(boxes);
+        renderer.updateGrenades(grenades.poses());
+        renderer.setExplosionLights(grenades.lights(simulationClock.seconds()));
         renderer.resize(app.width, app.height);
         if (zombies) renderer.updateZombies(*zombies);
         std::vector<viewer::DebugVertex> overlay;

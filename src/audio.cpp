@@ -19,7 +19,7 @@ constexpr std::array<const char*, effectCount> effectFiles{
     "footstep.wav", "landing.wav", "pistol.wav", "smg.wav", "sniper.wav",
     "shotgun.wav", "reload.wav", "zombie.wav", "footstep2.wav", "footstep3.wav", "footstep4.wav",
     "zombie2.wav", "zombie3.wav", "huh.wav", "intrigued.wav", "chase.wav", "chase2.wav",
-    "door_latch.wav", "door_slam.wav", "empty_click.wav", "reload_rifle.wav", "reload_shotgun.wav"};
+    "door_latch.wav", "door_slam.wav", "empty_click.wav", "reload_rifle.wav", "reload_shotgun.wav", "explosion.wav"};
 constexpr std::size_t streamBufferCount = 4, streamBufferFrames = 4096;
 
 void checkAudio(const char* operation) {

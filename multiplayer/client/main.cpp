@@ -39,7 +39,7 @@ void key(GLFWwindow* window, int code, int, int action, int) {
     if (code == GLFW_KEY_Z) in.prone = true;
     if (code == GLFW_KEY_R) in.reload = true;
     if (code == GLFW_KEY_F) in.flashlight = !in.flashlight;
-    if (code >= GLFW_KEY_1 && code <= GLFW_KEY_4) in.slot = static_cast<std::uint8_t>(code - GLFW_KEY_1);
+    if (code >= GLFW_KEY_1 && code <= GLFW_KEY_5) in.slot = static_cast<std::uint8_t>(code - GLFW_KEY_1);
     if (code == GLFW_KEY_LEFT_ALT) {
         in.capture = !in.capture; in.firstMouse = true; in.drag = {};
         in.leftPressed = in.rightPressed = false;
@@ -104,6 +104,7 @@ struct Graphics {
         const viewer::FPSConfig body;
         weapon = std::make_unique<viewer::WeaponOverlay>(shaders, multiplayer::weaponModelDirectory(),
             viewer::WeaponViewBody{body.height, body.eyeHeight});
+        renderer->loadGrenadeModel(multiplayer::weaponModelDirectory() / "he_grenade.glb");
         players = std::make_unique<multiplayer::PlayerRenderer>();
     }
 #else
@@ -198,7 +199,7 @@ int main(int argc, char** argv) {
                         }
                         in.canScope = weaponDefinitions.equipped().config.hasScope;
 #ifdef MP_GRAPHICS
-                        if (graphics.weapon && ready && p.shots > ownState.shots)
+                        if (graphics.weapon && ready && p.shots > ownState.shots && !weaponDefinitions.equipped().config.grenade)
                             graphics.muzzleFlash.fire(now, graphics.weapon->muzzlePosition(
                                 p.slot, weaponDefinitions.equipped().config.muzzlePosition));
 #endif
@@ -234,6 +235,8 @@ int main(int argc, char** argv) {
                 if (width > 0 && height > 0) {
                     auto& renderer = *graphics.renderer;
                     renderer.setFlashlight(in.flashlight);
+                    renderer.updateGrenades(snapshots.grenades());
+                    renderer.setExplosionLights(snapshots.explosionLights(now));
                     const auto flash = graphics.muzzleFlash.light(now);
                     renderer.setMuzzleFlash(flash.transformed(glm::inverse(in.camera.view())));
                     renderer.resize(width, height); renderer.updateDoors(*scene.doors); renderer.updateBoxes(*scene.boxes);

@@ -141,6 +141,7 @@ Scene::Scene(const Options& o) : model(loadSessionMap(o.map)), physics(std::make
     }
     doors = std::make_unique<viewer::DoorLayer>(viewer::prepareDoorPanels(model), physics);
     boxes = std::make_unique<viewer::BoxLayer>(physics);
+    grenades = std::make_unique<viewer::Grenades>(physics);
     const auto vegetation = viewer::vegetationPaths(o.vegetation, o.map, resourceRoot() / "forest_patches.json");
     if (o.trees && !vegetation.trees.empty() &&
             (vegetation.requireTrees || std::filesystem::exists(vegetation.trees))) {

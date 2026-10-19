@@ -35,19 +35,32 @@ void protocol() {
     PlayerState player; player.id = 42; player.movement.feet = {12, 3, -4}; player.resolved = 99;
     s.players.push_back(player);
     s.zombies.push_back({}); s.doors.push_back({3, .5f}); s.boxes.push_back({});
+    s.grenades.push_back({7, {1, 2, 3}, {1, 0, 0, 0}});
+    s.explosions.push_back({6, {4, 5, 6}, .08f});
     const auto bytes = encode(s);
     const auto copy = std::get<Snapshot>(decode(bytes.data(), bytes.size()));
     require(copy.tick == 123 && copy.players[0].id == 42 && copy.players[0].movement.feet.x == 12,
         "Snapshot round trip lost state");
+    require(copy.grenades.at(0).id == 7 && copy.grenades[0].center.y == 2 &&
+            copy.explosions.at(0).id == 6 && copy.explosions[0].age == .08f,
+            "Snapshot must preserve grenade poses and explosion ages");
+    auto invalidGrenade = s;
+    invalidGrenade.grenades[0].rotation = {0, 0, 0, 0};
+    rejects([&] { encode(invalidGrenade); }, "Invalid grenade rotation accepted");
+    invalidGrenade = s; invalidGrenade.explosions[0].age = -1;
+    rejects([&] { encode(invalidGrenade); }, "Negative explosion age accepted");
     for (std::size_t n = 0; n < bytes.size(); ++n)
         rejects([&] { decode(bytes.data(), n); }, "Truncated message accepted");
     auto trailing = bytes; trailing.push_back(0);
     rejects([&] { decode(trailing.data(), trailing.size()); }, "Trailing data accepted");
     auto version = bytes; version[4] = 255;
     rejects([&] { decode(version.data(), version.size()); }, "Unknown protocol accepted");
-    Command c; c.sequence = 1;
+    Command c; c.sequence = 1; c.slot = 4;
     auto commands = encode(Commands{{c}});
-    require(std::get<Commands>(decode(commands.data(), commands.size())).commands[0].sequence == 1, "Command round trip failed");
+    require(std::get<Commands>(decode(commands.data(), commands.size())).commands[0].slot == 4, "Grenade slot command round trip failed");
+    c.slot = 5;
+    rejects([&] { encode(Commands{{c}}); }, "Unavailable weapon slot accepted");
+    c.slot = 4;
     c.movement.forward = std::numeric_limits<float>::quiet_NaN();
     rejects([&] { encode(Commands{{c}}); }, "Non-finite input accepted");
     c.movement.forward = 2;
@@ -394,6 +407,42 @@ void queuedInputTimeout(const std::filesystem::path& asset) {
             glm::distance(stopped, player.controller.feet()) < .001f && player.held.movement.forward == 0,
         "Missing input did not neutralize held movement or skipped an unresolved action");
 }
+void serverGrenades(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
+    Scene scene(options); scene.model = ground();
+    scene.collision = std::make_unique<viewer::CollisionWorld>(scene.model);
+    scene.spawnEye = {0, 1.7f, 0};
+    World world(scene);
+    const auto id = world.join();
+    Command throwInput; throwInput.sequence = 1; throwInput.slot = 4; throwInput.left = true;
+    world.submit(id, Commands{{throwInput}});
+    for (int i = 0; i < 5; ++i) world.step();
+    auto state = world.snapshot(id);
+    require(state.grenades.size() == 1 && state.players[0].loaded == 5 && world.players().at(id).shots == 1,
+            "Server must turn one accepted grenade click into one replicated body and one consumed grenade");
+    bool exploded = false;
+    for (int i = 0; i < 200; ++i) {
+        world.step(); state = world.snapshot(id);
+        exploded |= !state.explosions.empty();
+    }
+    require(exploded && state.grenades.empty() && world.players().at(id).shots == 1,
+            "Server must detonate the grenade once without repeating a held throw");
+    Snapshots snapshots;
+    Snapshot event; event.tick = 1; event.explosions.push_back({1, {2, 3, 4}, .05f});
+    snapshots.push(event, 10);
+    require(!snapshots.explosionLights(10).empty() && snapshots.explosionLights(10.2).empty(),
+            "Client explosion lights must respect event age and expire during snapshot starvation");
+    Snapshots delayed;
+    Snapshot moving; moving.tick = 10; moving.grenades.push_back({1, {0, 1, 0}, {1, 0, 0, 0}});
+    delayed.push(moving, 20);
+    moving.tick = 11; delayed.push(moving, 20);
+    Snapshot detonated; detonated.tick = 12; detonated.explosions.push_back({1, {0, 1, 0}, 0});
+    delayed.push(detonated, 20);
+    delayed.apply(scene, 20);
+    require(delayed.grenades().empty() && !delayed.explosionLights(20).empty(),
+            "An interpolated grenade must disappear on the same frame as its confirmed explosion light");
+}
 void inputRecovery(const std::filesystem::path& asset) {
     using namespace multiplayer;
     Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
@@ -465,7 +514,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); fragments(); prediction(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        triggerResets(argv[1]); serverCommands(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]);
+        triggerResets(argv[1]); serverCommands(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverGrenades(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

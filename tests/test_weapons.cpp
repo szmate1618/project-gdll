@@ -24,7 +24,7 @@ void firingAndReload() {
     require(weapons.reload() == 2 && weapons.equipped().loaded == loaded &&
             weapons.equipped().reserve == reserve - 2, "Reload must transfer only missing rounds");
     require(weapons.reload() == 0, "Full magazine must not waste ammo");
-    require(!weapons.equip(4), "Invalid slot must not equip");
+    require(!weapons.equip(5), "Invalid slot must not equip");
 
     weapons.equip(1); click(weapons);
     require(weapons.fire(1), "SMG must fire on press");
@@ -101,7 +101,7 @@ void fixtures(const std::filesystem::path& scratch) {
     const auto inventory = scratch / "inventory.toml";
     const auto write = [&](const std::string& text) { std::ofstream(inventory) << text; };
     const std::string base = "equipped = 'pistol'\n[weapons]\npistol = 3\n[ammo]\n"
-                             "pistol_rounds = 1\nsmg_rounds = 0\nsniper_rounds = 0\nshotgun_shells = 0\n";
+                             "pistol_rounds = 1\nsmg_rounds = 0\nsniper_rounds = 0\nshotgun_shells = 0\nhe_grenades = 0\n";
     write(base);
     viewer::Weapons partial(scratch / "items", inventory);
     require(!partial.equip(1), "Inventory omission must remove ownership");
@@ -162,6 +162,13 @@ void fixtures(const std::filesystem::path& scratch) {
 int main() {
     try {
         firingAndReload(); pelletPattern(); dryFire();
+        viewer::Weapons grenades(VIEWER_ITEMS, VIEWER_INVENTORY);
+        require(grenades.equip(4) && grenades.equipped().config.grenade.has_value(), "Key 5 must equip HE grenades");
+        const auto rounds = grenades.equipped().loaded;
+        click(grenades);
+        require(grenades.fire(0) && grenades.equipped().loaded == rounds - 1, "Throw consumes exactly one grenade");
+        require(!grenades.fire(10) && viewer::weaponShotDirections(grenades.equipped().config, {0, 0, -1}).empty(),
+                "Holding throw cannot repeat or create hitscan bullets");
         fixtures(std::filesystem::current_path() / "weapon-test-fixtures");
         std::cout << "Weapon configuration, inventory, firing, reload, and pellet tests passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
