@@ -1,6 +1,6 @@
 #include "forest_layer.hpp"
 #include "forest_placement.hpp"
-#include "forest_bush.hpp"
+#include "forest_shrub.hpp"
 #include "vegetation_blast.hpp"
 #include "collision_world.hpp"
 #include "file_fingerprint.hpp"
@@ -160,18 +160,26 @@ ForestLayer loadForestLayer(const std::filesystem::path& path,const std::filesys
         const auto sidePath=assetPath(settings,"side_texture","assets/forests/side.png",parent);
         // Default alongside the side texture so existing nested OSM configs
         // resolve the same shared atlas without rewriting published inputs.
-        const auto defaultBushPath=(sidePath.parent_path()/"bush.png").u8string();
-        const auto bushPath=assetPath(settings,"bush_texture",defaultBushPath.c_str(),parent);
-        std::size_t bushAsset=trees.assets.size()+(newAsset?1:0);
-        std::optional<TreeAsset> newBushAsset;
+        const auto defaultShrubPath=(sidePath.parent_path()/"shrub.png").u8string();
+        const auto shrubKey=settings.contains("shrub_texture")?"shrub_texture":"bush_texture";
+        auto shrubPath=assetPath(settings,shrubKey,defaultShrubPath.c_str(),parent);
+        // Keep previously published configs/packs usable across the asset rename.
+        if (!std::filesystem::exists(shrubPath)) {
+            const auto alternate=shrubPath.filename()=="shrub.png"?"bush.png":
+                                 shrubPath.filename()=="bush.png"?"shrub.png":nullptr;
+            if (alternate && std::filesystem::exists(shrubPath.parent_path()/alternate))
+                shrubPath=shrubPath.parent_path()/alternate;
+        }
+        std::size_t shrubAsset=trees.assets.size()+(newAsset?1:0);
+        std::optional<TreeAsset> newShrubAsset;
         for (std::size_t i=0;i<trees.assets.size();++i)
-            if (std::filesystem::weakly_canonical(trees.assets[i].path)==bushPath) {bushAsset=i;break;}
-        if (bushAsset>=trees.assets.size())
-            newBushAsset=TreeAsset{"forest_bush",bushPath,forestBushModel(image(bushPath))};
-        const Model& bushModel=newBushAsset?newBushAsset->model:trees.assets[bushAsset].model;
+            if (std::filesystem::weakly_canonical(trees.assets[i].path)==shrubPath) {shrubAsset=i;break;}
+        if (shrubAsset>=trees.assets.size())
+            newShrubAsset=TreeAsset{"forest_shrub",shrubPath,forestShrubModel(image(shrubPath))};
+        const Model& shrubModel=newShrubAsset?newShrubAsset->model:trees.assets[shrubAsset].model;
         const auto defaultDryPath=(treePath.parent_path()/"dry_tree_impostor.glb").u8string();
         const auto dryPath=assetPath(settings,"dry_tree_asset",defaultDryPath.c_str(),parent);
-        std::size_t dryAsset=trees.assets.size()+(newAsset?1:0)+(newBushAsset?1:0);
+        std::size_t dryAsset=trees.assets.size()+(newAsset?1:0)+(newShrubAsset?1:0);
         std::optional<TreeAsset> newDryAsset;
         for (std::size_t i=0;i<trees.assets.size();++i)
             if (std::filesystem::weakly_canonical(trees.assets[i].path)==dryPath) {dryAsset=i;break;}
@@ -252,19 +260,19 @@ ForestLayer loadForestLayer(const std::filesystem::path& path,const std::filesys
                 generated.push_back(std::move(instance));
                 if (generated.size()>4000000) throw std::runtime_error("Forest vegetation count exceeds load-time limit");
             };
-            const auto bushes=[&](glm::dvec2 tree,const std::string& treeId) {
+            const auto shrubs=[&](glm::dvec2 tree,const std::string& treeId) {
                 std::size_t index=0;
-                for (const auto& bush:forestBushCandidates(tree,treeId,seed)) {
-                    const auto id="bush:"+patch.id+":"+treeId+":"+std::to_string(index++);
-                    if (!forestContains(polygon,bush.eastNorth)||!forestContains(patch.oldForest,bush.eastNorth)) continue;
-                    const auto y=ground(bush.eastNorth);
+                for (const auto& shrub:forestShrubCandidates(tree,treeId,seed)) {
+                    const auto id="shrub:"+patch.id+":"+treeId+":"+std::to_string(index++);
+                    if (!forestContains(polygon,shrub.eastNorth)||!forestContains(patch.oldForest,shrub.eastNorth)) continue;
+                    const auto y=ground(shrub.eastNorth);
                     if (!y) continue;
-                    const glm::vec3 feet(bush.eastNorth.x,*y,-bush.eastNorth.y);
-                    if (placementWorld.insideBuilding(feet+glm::vec3(0,.05f,0),.4f,bush.height)) continue;
-                    auto instance=placedInstance(id,bushAsset,bushModel,feet,bush.height,bush.yaw,bush.height);
+                    const glm::vec3 feet(shrub.eastNorth.x,*y,-shrub.eastNorth.y);
+                    if (placementWorld.insideBuilding(feet+glm::vec3(0,.05f,0),.4f,shrub.height)) continue;
+                    auto instance=placedInstance(id,shrubAsset,shrubModel,feet,shrub.height,shrub.yaw,shrub.height);
                     instance.collidable=false;
                     instance.blastResponsive=true;
-                    instance.undergrowth=bush.dry?UndergrowthKind::dry:UndergrowthKind::leafy;
+                    instance.undergrowth=shrub.dry?UndergrowthKind::dry:UndergrowthKind::leafy;
                     append(std::move(instance));
                 }
             };
@@ -278,7 +286,7 @@ ForestLayer loadForestLayer(const std::filesystem::path& path,const std::filesys
                 const auto& adjusted=old?enlargedDetected.emplace(i,enlargedTree(tree)).first->second:tree;
                 include(patch.bounds, adjusted.boundsMin);
                 include(patch.bounds, adjusted.boundsMax);
-                if (old) {++oldTreeCount;bushes(p,tree.id);}
+                if (old) {++oldTreeCount;shrubs(p,tree.id);}
             }
             auto volume=forestVolume(polygon,ground,volumeHeight,tile);
             patch.firstDraw=layer.volumes.draws.size(); patch.drawCount=2;
@@ -299,7 +307,7 @@ ForestLayer loadForestLayer(const std::filesystem::path& path,const std::filesys
                 if (++generatedTreeCount>2000000) throw std::runtime_error("Forest tree count exceeds load-time limit");
                 const auto id="forest:"+patch.id+":"+std::to_string(candidateIndex);
                 append(placedInstance(id,asset,treeModel,feet,candidate.height/nativeHeight,candidate.yaw,candidate.height));
-                if (candidate.oldForest) {++oldTreeCount;bushes(candidate.eastNorth,id);}
+                if (candidate.oldForest) {++oldTreeCount;shrubs(candidate.eastNorth,id);}
             }
             const auto dryCandidates=forestDryTreeCandidates(polygon,patch.oldForest,patch.id,seed,oldTreeCount,
                 [&](const ForestDryTreeCandidate& tree) {
@@ -320,9 +328,9 @@ ForestLayer loadForestLayer(const std::filesystem::path& path,const std::filesys
         }
         // Publish only after the complete config, geometry and placements pass.
         trees.instances.reserve(trees.instances.size()+generated.size());
-        trees.assets.reserve(trees.assets.size()+(newAsset?1:0)+(newBushAsset?1:0)+(newDryAsset?1:0));
+        trees.assets.reserve(trees.assets.size()+(newAsset?1:0)+(newShrubAsset?1:0)+(newDryAsset?1:0));
         if (newAsset) trees.assets.push_back(std::move(*newAsset));
-        if (newBushAsset) trees.assets.push_back(std::move(*newBushAsset));
+        if (newShrubAsset) trees.assets.push_back(std::move(*newShrubAsset));
         if (newDryAsset) trees.assets.push_back(std::move(*newDryAsset));
         trees.instances.insert(trees.instances.end(),std::make_move_iterator(generated.begin()),std::make_move_iterator(generated.end()));
         for (auto& entry:enlargedDetected) trees.instances[entry.first]=std::move(entry.second);

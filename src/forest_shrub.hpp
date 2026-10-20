@@ -7,5 +7,5 @@ namespace viewer {
 // horizontal card at quarter height. Atlas halves are side (left), top (right).
 // Native visible size is 4 x 1 x 4 metres, with the base at the origin;
 // placement scales uniformly to the selected height.
-Model forestBushModel(ImageData atlas);
+Model forestShrubModel(ImageData atlas);
 } // namespace viewer

@@ -65,7 +65,7 @@ void cadence() {
     auto overlap=source;
     for (int i=0;i<20;++i) overlap.instances.push_back(source.instances[0]);
     require(walk(viewer::UndergrowthIndex(overlap),true).size()==walk(index,true).size(),
-            "Overlapping bushes multiplied sound events");
+            "Overlapping shrubs multiplied sound events");
     viewer::UndergrowthEmitter emitter;
     auto before=motion({0,0,0}),after=motion({0,0,0});
     for (int i=0;i<30;++i) require(!emitter.update(.05f,before,after,index),"Standing inside foliage made noise");

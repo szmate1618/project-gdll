@@ -416,8 +416,8 @@ void serverUndergrowth(const std::filesystem::path& asset) {
         scene.collision=std::make_unique<viewer::CollisionWorld>(scene.model,std::vector<viewer::TrunkCollider>{},scene.doors.get());
         scene.collision->setBoxes(scene.boxes.get()); scene.spawnEye={0,1.7f,0};
         viewer::TreeLayer trees;
-        viewer::TreeAsset bush; bush.model.boundsMin={-2,0,-2}; bush.model.boundsMax={2,1,2};
-        trees.assets.push_back(bush);
+        viewer::TreeAsset shrub; shrub.model.boundsMin={-2,0,-2}; shrub.model.boundsMax={2,1,2};
+        trees.assets.push_back(shrub);
         if(shrubs) {
             viewer::TreeInstance instance; instance.undergrowth=viewer::UndergrowthKind::dry;
             trees.instances.push_back(instance);

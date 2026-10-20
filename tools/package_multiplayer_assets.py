@@ -129,9 +129,14 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
         for key, default in (("side_texture", "assets/forests/side.png"), ("top_texture", "assets/forests/top.png")):
             assets.add(assets.reference(path.parent, settings.get(key, default)))
         side = assets.reference(path.parent, settings.get("side_texture", "assets/forests/side.png"))
-        bush = (assets.reference(path.parent, settings["bush_texture"])
-                if "bush_texture" in settings else side.parent / "bush.png")
-        assets.add(bush)
+        shrub_key = "shrub_texture" if "shrub_texture" in settings else "bush_texture"
+        shrub = (assets.reference(path.parent, settings[shrub_key])
+                 if shrub_key in settings else side.parent / "shrub.png")
+        # Mirror the loader's legacy atlas-name fallback without rewriting config bytes.
+        alternate = {"shrub.png": "bush.png", "bush.png": "shrub.png"}.get(shrub.name)
+        if not shrub.exists() and alternate and shrub.with_name(alternate).is_file():
+            shrub = shrub.with_name(alternate)
+        assets.add(shrub)
     assets.notices["credits/assets/VEGETATION.txt"] = vegetation_credits(
         vegetation if trees else "none", vegetation_layers)
     if zombies is not None:

@@ -8,7 +8,7 @@ inline viewer::TreeLayer trees(bool dry=false,int count=1) {
     viewer::TreeAsset asset; asset.model.boundsMin={-2,0,-2}; asset.model.boundsMax={2,1,2};
     trees.assets.push_back(asset);
     for (int i=0;i<count;++i) {
-        viewer::TreeInstance shrub; shrub.id="bush-"+std::to_string(i);
+        viewer::TreeInstance shrub; shrub.id="shrub-"+std::to_string(i);
         shrub.undergrowth=dry?viewer::UndergrowthKind::dry:viewer::UndergrowthKind::leafy;
         shrub.collidable=false; shrub.transform=glm::translate(glm::mat4(1),{i*10.f,0,0});
         trees.instances.push_back(shrub);

@@ -74,12 +74,12 @@ void World::step() {
                 player.interaction.cancel();
             }
             const auto previousFeet = player.controller.feet();
-            const viewer::UndergrowthMotion bushBefore{previousFeet, player.controller.bodyHeight(),
+            const viewer::UndergrowthMotion shrubBefore{previousFeet, player.controller.bodyHeight(),
                 player.controller.config().radius, player.controller.grounded(), false};
             player.controller.update(tickSeconds / inputs, command.movement, *scene_.collision);
             const auto& controller = player.controller;
             const bool running = command.movement.run && controller.stance() == viewer::PlayerStance::Standing;
-            if (const auto event = player.undergrowth.update(tickSeconds / inputs, bushBefore,
+            if (const auto event = player.undergrowth.update(tickSeconds / inputs, shrubBefore,
                     {controller.feet(), controller.bodyHeight(), controller.config().radius, controller.grounded(), running},
                     scene_.undergrowth))
                 noises.push_back(event->noise);

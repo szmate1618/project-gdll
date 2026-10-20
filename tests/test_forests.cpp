@@ -1,6 +1,6 @@
 #include "forest_layer.hpp"
 #include "forest_placement.hpp"
-#include "forest_bush.hpp"
+#include "forest_shrub.hpp"
 #include "vegetation_blast.hpp"
 #include "collision_world.hpp"
 #include "file_fingerprint.hpp"
@@ -111,58 +111,58 @@ void checkOldForest() {
     require(viewer::oldForestPolygon(uneven).exterior.front()==glm::dvec2(10,8),
             "Old forest center must average border vertices, not use the area centroid");
 }
-void checkBushes() {
+void checkShrubs() {
     std::size_t primary=0, clusters=0, dry=0, total=0;
     for (int i=0;i<10000;++i) {
         const auto id="tree-"+std::to_string(i);
-        const auto bushes=viewer::forestBushCandidates({40,-30},id,123);
-        const auto repeat=viewer::forestBushCandidates({40,-30},id,123);
-        require(bushes.size()==repeat.size(), "Bush counts are not deterministic");
-        if (bushes.empty()) continue;
+        const auto shrubs=viewer::forestShrubCandidates({40,-30},id,123);
+        const auto repeat=viewer::forestShrubCandidates({40,-30},id,123);
+        require(shrubs.size()==repeat.size(), "Shrub counts are not deterministic");
+        if (shrubs.empty()) continue;
         ++primary;
-        if (bushes.size()==3) ++clusters;
-        require(bushes.size()==1||bushes.size()==3, "Bush clusters recursed or have the wrong count");
-        require(bushes.front().eastNorth==glm::dvec2(40,-30), "Primary bush is not at its tree");
-        for (std::size_t j=0;j<bushes.size();++j) {
-            const auto& bush=bushes[j];
-            require(bush.eastNorth==repeat[j].eastNorth && bush.height==repeat[j].height && bush.yaw==repeat[j].yaw && bush.dry==repeat[j].dry,
-                    "Bush placement changed between runs");
-            require(glm::length(bush.eastNorth-glm::dvec2(40,-30))<=5.00001, "Bush neighbor is outside 5 m radius");
-            require(bush.height>=1.5f&&bush.height<=3.5f&&bush.yaw>=0&&bush.yaw<6.283186f, "Bush size or yaw is outside limits");
-            if (j) require(bush.yaw!=bushes.front().yaw, "Bush neighbors reused the primary rotation");
-            ++total; if(bush.dry) ++dry;
+        if (shrubs.size()==3) ++clusters;
+        require(shrubs.size()==1||shrubs.size()==3, "Shrub clusters recursed or have the wrong count");
+        require(shrubs.front().eastNorth==glm::dvec2(40,-30), "Primary shrub is not at its tree");
+        for (std::size_t j=0;j<shrubs.size();++j) {
+            const auto& shrub=shrubs[j];
+            require(shrub.eastNorth==repeat[j].eastNorth && shrub.height==repeat[j].height && shrub.yaw==repeat[j].yaw && shrub.dry==repeat[j].dry,
+                    "Shrub placement changed between runs");
+            require(glm::length(shrub.eastNorth-glm::dvec2(40,-30))<=5.00001, "Shrub neighbor is outside 5 m radius");
+            require(shrub.height>=1.5f&&shrub.height<=3.5f&&shrub.yaw>=0&&shrub.yaw<6.283186f, "Shrub size or yaw is outside limits");
+            if (j) require(shrub.yaw!=shrubs.front().yaw, "Shrub neighbors reused the primary rotation");
+            ++total; if(shrub.dry) ++dry;
         }
     }
-    require(primary>5700&&primary<6300, "Primary bush chance is not 60%");
+    require(primary>5700&&primary<6300, "Primary shrub chance is not 60%");
     const double chance=static_cast<double>(clusters)/primary;
-    require(chance>.17&&chance<.23, "Bush neighbor chance is not 20% conditional on a primary");
+    require(chance>.17&&chance<.23, "Shrub neighbor chance is not 20% conditional on a primary");
     require(dry>total*.22&&dry<total*.28,"Dry shrub subset is not approximately 25%");
-    const auto bush=viewer::forestBushModel({2,2,std::vector<std::uint8_t>(16,255)});
-    require(bush.draws.size()==1&&bush.primitives.size()==1, "Bush must use a single shared mesh");
-    const auto& mesh=bush.primitives[0];
-    require(mesh.vertices.size()==12&&mesh.indices.size()==18, "Bush must have exactly three cards");
+    const auto shrub=viewer::forestShrubModel({2,2,std::vector<std::uint8_t>(16,255)});
+    require(shrub.draws.size()==1&&shrub.primitives.size()==1, "Shrub must use a single shared mesh");
+    const auto& mesh=shrub.primitives[0];
+    require(mesh.vertices.size()==12&&mesh.indices.size()==18, "Shrub must have exactly three cards");
     for (std::size_t i=0;i<mesh.vertices.size();++i) {
         const auto p=mesh.vertices[i].position;
-        if (i<4) require(p.z==0, "First bush upright is not in XY");
-        else if (i<8) require(p.x==0, "Second bush upright is not perpendicular");
-        else require(p.y==.25f, "Horizontal bush card is not at 25% height");
+        if (i<4) require(p.z==0, "First shrub upright is not in XY");
+        else if (i<8) require(p.x==0, "Second shrub upright is not perpendicular");
+        else require(p.y==.25f, "Horizontal shrub card is not at 25% height");
     }
-    require(bush.boundsMax-bush.boundsMin==glm::vec3(4,1,4), "Bush height must be one quarter of its width");
+    require(shrub.boundsMax-shrub.boundsMin==glm::vec3(4,1,4), "Shrub height must be one quarter of its width");
     for (std::size_t i=0;i<mesh.vertices.size();i+=4) {
         const auto a=mesh.vertices[i+1].position-mesh.vertices[i].position;
         const auto b=mesh.vertices[i+2].position-mesh.vertices[i+1].position;
         require(glm::length(a)==(i<8?1.f:4.f)&&glm::length(b)==4&&glm::dot(a,b)==0,
-                "Bush upright cards must be 4:1 and the horizontal card square");
+                "Shrub upright cards must be 4:1 and the horizontal card square");
     }
-    require(bush.materials[0].unlit&&bush.materials[0].doubleSided&&bush.materials[0].alphaMode=="MASK",
-            "Bush lost unlit double-sided alpha masking");
+    require(shrub.materials[0].unlit&&shrub.materials[0].doubleSided&&shrub.materials[0].alphaMode=="MASK",
+            "Shrub lost unlit double-sided alpha masking");
     // A shifted divider must not leak a strip of the side view onto the top.
     viewer::ImageData atlas{16,2,std::vector<std::uint8_t>(128,0)};
     for (int y=0;y<2;++y) for (int x=1;x<15;++x)
         if (x!=9) atlas.rgba[(y*16+x)*4+3]=255;
-    const auto shifted=viewer::forestBushModel(atlas);
+    const auto shifted=viewer::forestShrubModel(atlas);
     require(shifted.primitives[0].vertices[8].uv.x==10.f/16,
-            "Bush atlas divider mixed side pixels into top view");
+            "Shrub atlas divider mixed side pixels into top view");
 }
 void checkDryTrees() {
     const viewer::ForestPolygon polygon{{{0,0},{500,0},{500,500},{0,500},{0,0}},
@@ -261,7 +261,7 @@ struct Fixtures {
         return {{"schema","godollo.forest_patches"},{"version",1},
             {"source",{{"map_sha256",viewer::fileSha256(map)}}},
             {"coordinate_frame",{{"units","meters"},{"coordinate_order",{"east","north"}},{"crs","EPSG:32634"},{"origin_projected_m",{100000,200000}}}},
-            {"runtime",{{"tree_asset","tree.glb"},{"side_texture","tile.png"},{"top_texture","tile.png"},{"bush_texture","tile.png"},{"tree_spacing_m",5}}},
+            {"runtime",{{"tree_asset","tree.glb"},{"side_texture","tile.png"},{"top_texture","tile.png"},{"shrub_texture","tile.png"},{"tree_spacing_m",5}}},
             {"patches",Json::array({{{"id","A"},{"polygon",{{0,0},{20,0},{20,20},{0,20},{0,0}}},{"holes",Json::array()}},
                                    {{"id","B"},{"polygon",{{30,30},{60,30},{60,60},{30,60},{30,30}}},{"holes",Json::array()}}})}};
     }
@@ -279,29 +279,65 @@ viewer::Model terrainScene() {
     model.draws.push_back({0,root,"terrain"});
     return model;
 }
+void checkShrubConfigurationCompatibility() {
+    const Fixtures files;
+    const auto scene=terrainScene(); const viewer::CollisionWorld world(scene);
+    viewer::TreeLayer baseline;
+    files.write(files.document());
+    (void)viewer::loadForestLayer(files.config,files.map,scene,world,baseline);
+    const auto check=[&](const Json& document,const char* expectedAtlas) {
+        files.write(document);
+        viewer::TreeLayer trees;
+        (void)viewer::loadForestLayer(files.config,files.map,scene,world,trees);
+        require(trees.assets[1].path.filename()==expectedAtlas,"Shrub atlas compatibility chose the wrong file");
+        require(trees.instances.size()==baseline.instances.size(),"Shrub configuration changed placement counts");
+        for (std::size_t i=0;i<trees.instances.size();++i)
+            require(trees.instances[i].id==baseline.instances[i].id &&
+                    trees.instances[i].transform==baseline.instances[i].transform &&
+                    trees.instances[i].undergrowth==baseline.instances[i].undergrowth,
+                    "Shrub configuration compatibility changed deterministic placement");
+    };
+    auto document=files.document();
+    document["runtime"].erase("shrub_texture");
+    document["runtime"]["bush_texture"]="tile.png";
+    check(document,"tile.png");
+    document["runtime"]["shrub_texture"]="tile.png";
+    document["runtime"]["bush_texture"]="missing.png";
+    check(document,"tile.png");
+    std::filesystem::copy_file(files.directory/"tile.png",files.directory/"shrub.png");
+    document["runtime"].erase("shrub_texture"); document["runtime"].erase("bush_texture");
+    check(document,"shrub.png");
+    document["runtime"]["bush_texture"]="bush.png";
+    check(document,"shrub.png");
+    document["runtime"].erase("bush_texture");
+    std::filesystem::rename(files.directory/"shrub.png",files.directory/"bush.png");
+    check(document,"bush.png");
+    document["runtime"]["shrub_texture"]="shrub.png";
+    check(document,"bush.png");
+}
 void checkLoader() {
     const Fixtures files; auto doc=files.document(); files.write(doc);
     const auto scene=terrainScene(); const viewer::CollisionWorld world(scene);
     viewer::TreeLayer trees;
     const auto layer=viewer::loadForestLayer(files.config,files.map,scene,world,trees);
     require(layer.patches.size()==2 && trees.assets.size()==3 && !trees.instances.empty(), "Runtime layer is empty");
-    std::size_t bushCount=0;
+    std::size_t shrubCount=0;
     for (const auto& tree:trees.instances) {
         const auto feet=glm::vec3(tree.transform[3]);
         require(feet.z<0 && std::abs(feet.y-(feet.x*.1f-feet.z*.2f))<.002f, "Tree frame or terrain elevation is wrong");
         if (!tree.collidable) {
-            ++bushCount;
-            require(tree.blastResponsive, "Generated bush is missing explosion response");
+            ++shrubCount;
+            require(tree.blastResponsive, "Generated shrub is missing explosion response");
             require(tree.undergrowth!=viewer::UndergrowthKind::none,"Generated shrub is missing contact metadata");
             require(tree.asset==1&&tree.dimensions.x==4*tree.dimensions.y&&tree.dimensions.z==tree.dimensions.x&&
-                    tree.dimensions.x>=6.f&&tree.dimensions.x<=14.f, "Bush uses wrong asset, size or quarter-height proportions");
+                    tree.dimensions.x>=6.f&&tree.dimensions.x<=14.f, "Shrub uses wrong asset, size or quarter-height proportions");
             bool inCore=false;
             for (const auto& patch:layer.patches)
                 inCore=inCore||viewer::forestContains(patch.oldForest,{feet.x,-feet.z});
-            require(inCore, "Bush escaped old forest");
+            require(inCore, "Shrub escaped old forest");
         } else require(!tree.blastResponsive, "Trunk trees unexpectedly acquired shrub deformation");
     }
-    require(bushCount>0, "Loader did not spawn any non-colliding bushes");
+    require(shrubCount>0, "Loader did not spawn any non-colliding shrubs");
     for (const auto& patch:layer.patches)
         for (auto i=patch.firstTree;i<patch.firstTree+patch.treeCount;++i) {
             const auto bounds=viewer::vegetationBlastBounds(trees.instances[i]);
@@ -324,7 +360,7 @@ void checkLoader() {
                         "Dry tree received old-growth enlargement or escaped the old core");
             } else if (tree.collidable&&viewer::forestContains(patch.oldForest,p)) ++healthy;
         }
-        require(primary==(healthy*9+50)/100, "Loaded dry-tree count includes bushes or dry trees in its denominator");
+        require(primary==(healthy*9+50)/100, "Loaded dry-tree count includes shrubs or dry trees in its denominator");
     }
     require(dryCount>0, "Loader did not add the dry-tree population");
     std::map<std::string,glm::mat4> positions;
@@ -374,7 +410,7 @@ void checkDetectedOldTrees() {
     bool rejected=false;
     try {(void)viewer::loadForestLayer(files.config,files.map,scene,world,trees);} catch (const std::runtime_error&) {rejected=true;}
     require(rejected&&trees.instances.size()==2&&trees.assets.size()==1&&trees.instances[0].transform==inner.transform,
-            "Failed load partially enlarged detected trees or published bushes");
+            "Failed load partially enlarged detected trees or published shrubs");
     doc=files.document(); files.write(doc);
     const auto forest=viewer::loadForestLayer(files.config,files.map,scene,world,trees);
     const auto& enlarged=trees.instances[0];
@@ -386,8 +422,8 @@ void checkDetectedOldTrees() {
             trees.instances[1].boundsMax==outer.boundsMax&&trees.instances[1].dimensions==outer.dimensions,
             "Detected tree outside the old forest changed");
     require(forest.patches[0].detectedTrees==std::vector<std::size_t>({0,1}), "Detected trees lost forest LoD membership");
-    for (const auto& tree:trees.instances) if (tree.id.rfind("bush:",0)==0)
-        require(!tree.collidable, "Generated bush acquired a trunk collider");
+    for (const auto& tree:trees.instances) if (tree.id.rfind("shrub:",0)==0)
+        require(!tree.collidable, "Generated shrub acquired a trunk collider");
 }
 void checkDryTreeDenominator() {
     const Fixtures files; auto doc=files.document();
@@ -398,7 +434,7 @@ void checkDryTreeDenominator() {
     viewer::TreeLayer trees;
     trees.assets.push_back({"tree",files.directory/"tree.glb",viewer::loadModel(files.directory/"tree.glb")});
     // Co-located synthetic inputs make the denominator distinguish mapped
-    // trees, bushes and the newly generated population without filling the core.
+    // trees, shrubs and the newly generated population without filling the core.
     for (int i=0;i<150;++i) {
         viewer::TreeInstance tree;
         tree.id="input-"+std::to_string(i); tree.collidable=i<100;
@@ -416,10 +452,10 @@ void checkDryTreeDenominator() {
             if (tree.id.find(":companion")==std::string::npos) ++primary;
         } else if (tree.collidable&&viewer::forestContains(patch.oldForest,p)) ++healthy;
     }
-    require(primary==(healthy*9+50)/100, "Dry quota must include mapped trees but exclude existing and generated bushes");
+    require(primary==(healthy*9+50)/100, "Dry quota must include mapped trees but exclude existing and generated shrubs");
     require(primary>=9, "Mapped trees did not contribute to the dry-tree quota");
     require(trees.instances[0].dimensions.y==12&&trees.instances[149].dimensions.y==10,
-            "Dry integration changed healthy enlargement or enlarged an existing bush");
+            "Dry integration changed healthy enlargement or enlarged an existing shrub");
     // Prove that failed placement also preserves the already-loaded tree layer.
     doc=files.document(); doc["patches"]=Json::array({doc["patches"][0]}); files.write(doc);
     viewer::TreeLayer blocked; blocked.assets.push_back(trees.assets.front());
@@ -437,6 +473,6 @@ void checkDryTreeDenominator() {
 }
 }
 int main() {
-    try {checkGeometry(); checkPlacement(); checkOldForest(); checkBushes(); checkDryTrees(); checkLoader(); checkDetectedOldTrees(); checkDryTreeDenominator(); std::cout<<"Forest geometry, old growth, bushes, dry trees, placement and loader tests passed\n";}
+    try {checkGeometry(); checkPlacement(); checkOldForest(); checkShrubs(); checkDryTrees(); checkShrubConfigurationCompatibility(); checkLoader(); checkDetectedOldTrees(); checkDryTreeDenominator(); std::cout<<"Forest geometry, old growth, shrubs, dry trees, placement and loader tests passed\n";}
     catch (const std::exception& e) {std::cerr<<e.what()<<'\n'; return 1;}
 }

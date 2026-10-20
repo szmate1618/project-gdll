@@ -159,7 +159,7 @@
       "used": false,
       "note": "Downloaded for consideration; no clips used because members do not identify injury versus ordinary vocalizations. Only explicit moans/grunts from other sources are shipped."
     },
-    "bush_rustle": {
+    "shrub_rustle": {
       "title": "Rustling leaves",
       "author": "Kinoton",
       "page": "https://freesound.org/people/Kinoton/sounds/347557/",
@@ -463,7 +463,7 @@
     },
     {
       "file": "rustle.wav",
-      "source": "bush_rustle",
+      "source": "shrub_rustle",
       "start": 1.1,
       "duration": 0.38,
       "peak": 0.65,
@@ -472,7 +472,7 @@
     },
     {
       "file": "rustle2.wav",
-      "source": "bush_rustle",
+      "source": "shrub_rustle",
       "start": 3.5,
       "duration": 0.4,
       "peak": 0.65,
@@ -481,7 +481,7 @@
     },
     {
       "file": "rustle3.wav",
-      "source": "bush_rustle",
+      "source": "shrub_rustle",
       "start": 6.0,
       "duration": 0.42,
       "peak": 0.65,
@@ -490,7 +490,7 @@
     },
     {
       "file": "dry_rustle.wav",
-      "source": "bush_rustle",
+      "source": "shrub_rustle",
       "start": 9.0,
       "duration": 0.34,
       "peak": 0.75,
@@ -499,7 +499,7 @@
     },
     {
       "file": "dry_rustle2.wav",
-      "source": "bush_rustle",
+      "source": "shrub_rustle",
       "start": 12.0,
       "duration": 0.36,
       "peak": 0.75,

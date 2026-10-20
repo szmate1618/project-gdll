@@ -243,7 +243,7 @@ int main(int argc, char** argv) {
                     const auto nextCommand = command(in, graphics.window, options.bot, now);
 #ifdef MP_GRAPHICS
                     const auto& controller = prediction.controller();
-                    const viewer::UndergrowthMotion bushBefore{controller.feet(), controller.bodyHeight(),
+                    const viewer::UndergrowthMotion shrubBefore{controller.feet(), controller.bodyHeight(),
                         controller.config().radius, controller.grounded(), false};
 #endif
                     prediction.advance(nextCommand, *scene.collision);
@@ -251,7 +251,7 @@ int main(int argc, char** argv) {
                     // Fresh prediction only: reconciliation replays must stay silent.
                     if (graphics.audio) {
                         const bool running = nextCommand.movement.run && controller.stance() == viewer::PlayerStance::Standing;
-                        if (const auto event = graphics.undergrowth.update(multiplayer::tickSeconds, bushBefore,
+                        if (const auto event = graphics.undergrowth.update(multiplayer::tickSeconds, shrubBefore,
                                 {controller.feet(), controller.bodyHeight(), controller.config().radius, controller.grounded(), running},
                                 scene.undergrowth))
                             viewer::playUndergrowth(*graphics.audio, *event);

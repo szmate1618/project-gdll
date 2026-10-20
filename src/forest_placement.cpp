@@ -63,12 +63,12 @@ std::vector<ForestTreeCandidate> oldForestTreeCandidates(const ForestPolygon& po
     return result;
 }
 
-std::vector<ForestBushCandidate> forestBushCandidates(glm::dvec2 tree,
+std::vector<ForestShrubCandidate> forestShrubCandidates(glm::dvec2 tree,
     const std::string& treeId, std::uint32_t seed) {
     const auto hash=mix(hashId(treeId)^seed^0xe37c492du);
     if (unit(hash)>=.6f) return {};
     const int count=unit(hash^0x36b8e27fu)<.2f?3:1;
-    std::vector<ForestBushCandidate> result;
+    std::vector<ForestShrubCandidate> result;
     for (int i=0;i<count;++i) {
         const auto key=mix(hash^mix(static_cast<std::uint32_t>(i)+0x721da3b5u));
         auto position=tree;

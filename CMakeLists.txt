@@ -232,7 +232,7 @@ viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
 
 add_library(viewer_forests STATIC src/forest_layer.cpp src/forest_geometry.cpp src/forest_placement.cpp
-    src/forest_bush.cpp src/forest_tree_visibility.cpp src/forest_volume_batch.cpp src/forest_visibility.cpp)
+    src/forest_shrub.cpp src/forest_tree_visibility.cpp src/forest_volume_batch.cpp src/forest_visibility.cpp)
 target_link_libraries(viewer_forests PUBLIC viewer_trees viewer_collision)
 target_include_directories(viewer_forests SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_forests)

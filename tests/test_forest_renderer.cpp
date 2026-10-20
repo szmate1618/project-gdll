@@ -1,5 +1,5 @@
 #include "renderer.hpp"
-#include "forest_bush.hpp"
+#include "forest_shrub.hpp"
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <array>
@@ -155,12 +155,12 @@ void checkMultipleVolumes() {
 
 void checkBlastMotion() {
     viewer::TreeLayer trees;
-    trees.assets.push_back({"bush", {}, viewer::forestBushModel({2, 1, {40,180,30,255,40,180,30,255}})});
-    viewer::TreeInstance bush;
-    bush.transform = glm::scale(glm::mat4(1), glm::vec3(3));
-    bush.boundsMin = {-6,0,-6}; bush.boundsMax = {6,3,6}; bush.dimensions = {12,3,12};
-    bush.collidable = false; bush.blastResponsive = true;
-    trees.instances.push_back(bush);
+    trees.assets.push_back({"shrub", {}, viewer::forestShrubModel({2, 1, {40,180,30,255,40,180,30,255}})});
+    viewer::TreeInstance shrub;
+    shrub.transform = glm::scale(glm::mat4(1), glm::vec3(3));
+    shrub.boundsMin = {-6,0,-6}; shrub.boundsMax = {6,3,6}; shrub.dimensions = {12,3,12};
+    shrub.collidable = false; shrub.blastResponsive = true;
+    trees.instances.push_back(shrub);
     viewer::Model ground;
     ground.materials.push_back({});
     viewer::Primitive mesh; mesh.material = 0;
@@ -216,7 +216,7 @@ void checkBlastMotion() {
     require(triangles() == before && animated.treeStats().drawCalls == calls && calls == 1,
             "Blast animation added triangles or tree draw calls");
     glDeleteQueries(1, &query);
-    require(trees.instances[0].transform == bush.transform &&
+    require(trees.instances[0].transform == shrub.transform &&
             trees.assets[0].model.primitives[0].vertices.size() == 12 &&
             trees.assets[0].model.primitives[0].indices.size() == 18,
             "Animation mutated source placements or mesh topology");

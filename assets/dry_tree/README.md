@@ -31,7 +31,7 @@ The views are visually matched generated images, not projections of a shared
 3D model. At exactly 90 degrees to the main card the lower trunk becomes
 edge-on and disappears; the branch card supplies crown depth only. There are no
 horizontal canopy cards.
-The runtime [old-forest layer](../../docs/FORESTS.md#old-forests-bush-understory-and-dry-trees)
+The runtime [old-forest layer](../../docs/FORESTS.md#old-forests-shrub-understory-and-dry-trees)
 adds instances at 3.5–6 m height, preserving the bark color and using separate
 approximate trunk colliders. The four-card `tree`/`pine` placement calibrator
 does not accept this asset's separate `godollo.dry-tree-impostor` metadata.

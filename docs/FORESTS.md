@@ -253,7 +253,7 @@ terrain triangles, without a second datum subtraction. Shared tree assets and
 textures are reused and individual trees are GPU instanced. Estimated trunk
 capsules participate in walking and sight queries at every detail level.
 
-### Old forests, bush understory and dry trees
+### Old forests, shrub understory and dry trees
 
 Loading any forest configuration also derives an old-forest polygon for each
 patch. Its center is the arithmetic mean of the exterior border vertices,
@@ -271,16 +271,16 @@ adds 20% of the original tree density inside it, before the usual building and
 detected-tree exclusions. Actual counts vary with patch shape and exclusions.
 The distant volume representation retains its configured height and textures.
 
-Each old-forest tree has a 60% chance of a bush at its base. Each of those bushes
-has a 20% chance of two additional bushes sampled uniformly within a 5 m radius
-disk. These additional bushes do not spawn further bushes. Every bush has its
+Each old-forest tree has a 60% chance of a shrub at its base. Each of those shrubs
+has a 20% chance of two additional shrubs sampled uniformly within a 5 m radius
+disk. These additional shrubs do not spawn further shrubs. Every shrub has its
 own deterministic rotation about Y and random width of 6–14 m, with visible
 height one quarter of its width (1.5–3.5 m). Candidates outside the old forest,
 in holes, in buildings or without terrain support are omitted.
 
-Bushes use two perpendicular upright cards and one horizontal card at 25% of
-their height. One shared [side/top atlas](../assets/forests/bush.png) supplies
-unlit, double-sided alpha masks with normal opaque-texel depth writes. Bushes
+Shrubs use two perpendicular upright cards and one horizontal card at 25% of
+their height. One shared [side/top atlas](../assets/forests/shrub.png) supplies
+unlit, double-sided alpha masks with normal opaque-texel depth writes. Shrubs
 share the forest's instancing, culling, detail selection and shading. They have
 no blocking collision in either single-player or multiplayer. All placements are made
 once during loading, independent of camera movement and patch order; no map or
@@ -306,8 +306,8 @@ local viewer and multiplayer client and creates no particles.
 Each patch also adds small [dry trees](../assets/dry_tree/README.md) inside its
 old-forest area. The primary count is 9% of the healthy trees actually present
 there, rounded to the nearest whole tree (halves round up). This includes mapped
-or detected trees and both accepted generated-tree lattices; bushes, dry trees
-and companions do not enter that count. Existing trees and bushes keep their
+or detected trees and both accepted generated-tree lattices; shrubs, dry trees
+and companions do not enter that count. Existing trees and shrubs keep their
 placements. For example, 100 healthy old-forest trees receive 9 additional dry
 trees, before companions.
 
@@ -315,7 +315,7 @@ Each primary has a 10% chance of one companion 1.5–5 m away, sampled uniformly
 over that annulus. Companions cannot spawn more trees. Both populations have
 independent uniform 3.5–6 m visible heights and rotations through 360 degrees,
 with uniform scaling preserving the asset's lean. They do not receive the 20%
-old-growth enlargement or spawn bushes. Stable hashes of patch ID, seed and
+old-growth enlargement or spawn shrubs. Stable hashes of patch ID, seed and
 primary index fix placements, heights, rotations and companion choices.
 
 Primary positions are sampled within the contracted core and original polygon,
@@ -343,7 +343,7 @@ The optional `runtime` object contains:
 | `tree_asset` | `assets/tree_impostor.glb` | Calibrated, unlit, masked tree GLB |
 | `side_texture` | `assets/forests/side.png` | Repeating wall image |
 | `top_texture` | `assets/forests/top.png` | Repeating canopy image |
-| `bush_texture` | `bush.png` beside the resolved side texture | Side/top alpha-mask atlas for old-forest bushes |
+| `shrub_texture` | `shrub.png` beside the resolved side texture | Side/top alpha-mask atlas for old-forest shrubs |
 | `dry_tree_asset` | `dry_tree_impostor.glb` beside the resolved tree asset | Small leaning dry-tree GLB |
 | `seed` | `20261011` | Unsigned 32-bit placement seed |
 | `tree_spacing_m` | `9` | Lattice spacing before jitter and exclusions |
@@ -352,6 +352,13 @@ The optional `runtime` object contains:
 | `volume_height_m` | `16` | Canopy box height above sampled terrain |
 | `texture_tile_m` | `32` | Horizontal wall/top texture repetition length |
 | `detail_distance_m` | `350` | Normal-view switch distance from patch bounds |
+
+`shrub_texture` supersedes the legacy `bush_texture` key and takes precedence
+when both are present. The loader and multiplayer packager accept the legacy
+key and fall back between `shrub.png` and the old `bush.png` filename when only
+one exists. Existing configuration files keep their original bytes and resource
+fingerprints. Historical image-generation prompts and audio-cache filenames
+retain their original wording for provenance.
 
 Asset paths are relative to the configuration file. `--no-trees` disables both
 detected trees and runtime forests; `--no-forests` retains detected trees.

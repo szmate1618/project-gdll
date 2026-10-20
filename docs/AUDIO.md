@@ -150,7 +150,7 @@ them. Standing still and free-fly movement stay silent.
 The three leafy and two dry recordings last 0.34–0.42 s; a separate twig snap
 lasts 0.16 s. Selection and small pitch changes use the event counter. Stopping
 or leaving schedules no new sounds; the current one-shot finishes naturally.
-No per-bush loop or per-contact file decoding is created. Existing fixed effect
+No per-shrub loop or per-contact file decoding is created. Existing fixed effect
 voice limits apply.
 
 A stable 25% subset of generated shrubs is tagged dry independently of position,

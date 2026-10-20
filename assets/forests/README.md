@@ -1,6 +1,6 @@
-# Forest textures and bush billboard
+# Forest textures and shrub billboard
 
-`bush.png` is a transparent imagegen-generated summer woodland bush atlas. Its
+`shrub.png` is a transparent imagegen-generated summer woodland shrub atlas. Its
 left view supplies both perpendicular upright cards; its right view supplies
 one horizontal card at quarter height. The loader measures each alpha silhouette
 separately, finding the transparent divider near the image center, so source
@@ -9,7 +9,7 @@ padding does not affect the visible 4:1 width/height ratio. The native model is
 at placement time. The source texture is unchanged. All three cards
 share a single mesh/material and have no collision. The final image was produced
 with the built-in imagegen tool and a layout edit; both exact prompts are saved
-in [bush.prompt.txt](bush.prompt.txt). See [old forest behavior](../../docs/FORESTS.md#old-forests-bush-understory-and-dry-trees).
+in [shrub.prompt.txt](shrub.prompt.txt). See [old forest behavior](../../docs/FORESTS.md#old-forests-shrub-understory-and-dry-trees).
 
 `conservative_canopy_traces.json` contains the manually reviewed forest cores,
 clearings and selected tracks in local east/north metres, plus the inset and

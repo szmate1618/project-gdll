@@ -1,4 +1,4 @@
-#include "forest_bush.hpp"
+#include "forest_shrub.hpp"
 
 #include <algorithm>
 #include <array>
@@ -28,7 +28,7 @@ PixelBounds silhouette(const ImageData& image,int first,int last) {
         bounds.top=std::min(bounds.top,y); bounds.bottom=std::max(bounds.bottom,y+1);
     }
     if (bounds.left>=bounds.right||bounds.top>=bounds.bottom)
-        throw std::runtime_error("Bush atlas requires visible side and top silhouettes");
+        throw std::runtime_error("Shrub atlas requires visible side and top silhouettes");
     return bounds;
 }
 void card(Primitive& mesh,const std::array<glm::vec3,4>& positions,
@@ -45,10 +45,10 @@ void card(Primitive& mesh,const std::array<glm::vec3,4>& positions,
 }
 }
 
-Model forestBushModel(ImageData atlas) {
+Model forestShrubModel(ImageData atlas) {
     if (atlas.width<2||atlas.width%2||atlas.height<1||
         atlas.rgba.size()!=static_cast<std::size_t>(atlas.width)*atlas.height*4)
-        throw std::runtime_error("Bush atlas must contain two equal-width RGBA cells");
+        throw std::runtime_error("Shrub atlas must contain two equal-width RGBA cells");
     const auto split=atlasSplit(atlas);
     const auto side=silhouette(atlas,0,split);
     const auto top=silhouette(atlas,split,atlas.width);
@@ -63,7 +63,7 @@ Model forestBushModel(ImageData atlas) {
     card(mesh,{{{0,1,2},{0,0,2},{0,0,-2},{0,1,-2}}},{1,0,0},side,atlas.width,atlas.height);
     card(mesh,{{{-2,.25f,-2},{-2,.25f,2},{2,.25f,2},{2,.25f,-2}}},{0,1,0},top,atlas.width,atlas.height);
     model.primitives.push_back(std::move(mesh));
-    model.draws.push_back({0,glm::mat4(1),"forest_bush"});
+    model.draws.push_back({0,glm::mat4(1),"forest_shrub"});
     model.boundsMin={-2,0,-2}; model.boundsMax={2,1,2};
     model.images.push_back(std::move(atlas));
     return model;

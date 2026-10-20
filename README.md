@@ -63,7 +63,7 @@ and uses simple trunk colliders for walking. See [tree rendering controls](docs/
 
 Old forest interiors also add small dry trees at runtime. Build their shared
 asset once with `.venv/bin/python tools/create_dry_tree_impostor.py`; see
-[old-forest placement rules](docs/FORESTS.md#old-forests-bush-understory-and-dry-trees).
+[old-forest placement rules](docs/FORESTS.md#old-forests-shrub-understory-and-dry-trees).
 
 Mapped streetlights, utility poles and electricity pylons can be added to an
 existing map as grey rectangular columns, batched by spatial cell:
