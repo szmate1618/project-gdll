@@ -1616,6 +1616,9 @@ Disable just the mist, or both atmospheric effects, for comparisons:
 
 ## Verification and diagnostics
 
+See [standard benchmarks](BENCHMARKS.md) for tracked source, reproducible commands,
+timing reports and the required 100,000-zombie open-area rendering case.
+
 The window title updates about once per second with
 `FPS | GPU <average> ms | CPU render <average> ms | CPU sim <average> ms`.
 FPS uses the actual frame

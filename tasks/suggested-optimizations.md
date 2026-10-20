@@ -98,6 +98,8 @@ update counts. Extend that evidence to the remaining work:
   large settled corpse populations.
 - Compare the same camera, assets, shadow settings, and simulation workload.
   Preserve asynchronous GPU timing and keep presentation/VSync outside it.
+- Include the [standard 100,000-zombie open-area rendering case](../docs/BENCHMARKS.md)
+  in rendering comparisons, alongside the relevant map views.
 - Verify output and gameplay results as well as timings. Use synthetic fixtures
   for correctness and native GPU runs for end-to-end performance.
 

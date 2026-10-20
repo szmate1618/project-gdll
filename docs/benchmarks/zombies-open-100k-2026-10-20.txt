@@ -1,0 +1,105 @@
+Recorded 2026-10-20 on experiment/opengl33-tree-hiz.
+Scenario: zombies-open-100k-v1, all 100,000 submitted, ten real character variants.
+Baseline/tree-hiz is a control: this case contains no vegetation and neither mode builds a pyramid. Differences are run variability, not demonstrated occlusion effects.
+Both captured images were pixel-identical.
+
+Rendering benchmark summary (milliseconds; lower is better)
+GPU, CPU render and CPU non-render are separate; GPU and CPU overlap.
+Values: median of round means; p95 is across individual measured frames.
+CPU render includes driver stalls. See metadata.txt for the actual simulation workload.
+
+Variant | frames | GPU | GPU p95 | CPU render | CPU render p95 | CPU non-render
+baseline | 384 | 22.843 | 39.692 | 27.294 | 35.380 | 0.051
+tree-hiz | 384 | 23.083 | 41.804 | 29.134 | 39.522 | 0.054
+
+Scenario metadata:
+scenario=zombies-open-100k-v1
+resolution=1280x720
+field_m=1200x1200
+placement_radius_m=500
+population=100000
+assets=10
+rounds=6
+frames_per_round=64
+rendered=100000
+draw_calls=10
+triangles=12580000
+camera_lod_counts=0 0 0 100000
+shadow_lod_counts=0 0 0 0
+eye=907.057 681.195 907.066
+yaw=-135
+pitch=-27.9384
+animation=deterministic 60 Hz timeline with stable individual phases
+distance_culling=disabled
+mesh_lod=normal distance policy, three prepared levels required
+shadows=normal enabled policy; camera/light visibility independent
+fog=disabled
+cpu_simulation=idle zombie behavior update; observer outside activation range
+no_audio_player_or_dynamic_physics=true
+vegetation=none
+hiz_note=vegetation-only prototype skips pyramid construction without trees
+gpu=AMD Radeon 660M (radeonsi, rembrandt, LLVM 19.1.1, DRM 3.61, 6.11.0-29-generic)
+OpenGL=4.6 (Core Profile) Mesa 24.2.8-1ubuntu1~24.10.1
+sha256 ZombieFemale_A.glb 11c27208a81f7488b2dd7ef333d24b99a4231602593f12e60cec1af0ab177f54
+sha256 ZombieFemale_B.glb bbc9d90f4e2d526de6b90a94bd786872e70a9f68ee0908d21fc77c351ebf2fe1
+sha256 ZombieFemale_C.glb 7b064bfd83805d36d86478c224776d0366b2e1a5d6779d6cea34f0f52f2db202
+sha256 ZombieFemale_D.glb 9f4c49c9b211fa27d6985c04595e3d6864e6981cbeee91f34c0ed32e6663425e
+sha256 ZombieFemale_E.glb 9bbfc581d4e42a9bde55ec61bfc2b4f6841e084d10583487a27fe2a8ec20d111
+sha256 ZombieMale_A.glb 105af7f7e7322ee909f787d218a628146ff018b9efe23c32a17e417bf4ba12fe
+sha256 ZombieMale_B.glb 214213b42a32f08775e6ed048a005205b6c7ff7acb8cf2a6dbd5b6639db62722
+sha256 ZombieMale_C.glb 7e0d1a569ae23f32935cbf3545ef6ed9e55a7def284a6e3307c78b851eae0ef1
+sha256 ZombieMale_D.glb 04e972a26594f049b1e439cc29ac5cbfb5f139a74a038c541028d72bf7f69b3f
+sha256 ZombieMale_E.glb 1e1502d40a1d38fe9df98592b187ac36a791310476d99dc8d32ed7fd7a931b8c
+sha256 lods.json 06038de5f87a1e95e69ab8e6d795a37e09f4857c20421cb4c05213db298cabfe
+
+Original branch verification (implement-muzzle-flash, no Hi-Z renderer changes).
+Same scenario, asset fingerprints, camera and counts. This is a separate run, not a clock-controlled binary A/B comparison.
+
+Rendering benchmark summary (milliseconds; lower is better)
+GPU, CPU render and CPU non-render are separate; GPU and CPU overlap.
+Values: median of round means; p95 is across individual measured frames.
+CPU render includes driver stalls. See metadata.txt for the actual simulation workload.
+
+Variant | frames | GPU | GPU p95 | CPU render | CPU render p95 | CPU non-render
+baseline | 384 | 14.548 | 23.817 | 18.350 | 28.333 | 0.041
+
+Scenario metadata:
+scenario=zombies-open-100k-v1
+resolution=1280x720
+field_m=1200x1200
+placement_radius_m=500
+population=100000
+assets=10
+rounds=6
+frames_per_round=64
+comparison_variants=1
+rendered=100000
+draw_calls=10
+triangles=12580000
+camera_lod_counts=0 0 0 100000
+shadow_lod_counts=0 0 0 0
+eye=907.057 681.195 907.066
+yaw=-135
+pitch=-27.9384
+animation=deterministic 60 Hz timeline with stable individual phases
+distance_culling=disabled
+mesh_lod=normal distance policy, three prepared levels required
+shadows=normal enabled policy; camera/light visibility independent
+fog=disabled
+cpu_simulation=idle zombie behavior update; observer outside activation range
+no_audio_player_or_dynamic_physics=true
+vegetation=none
+hiz_note=no Hi-Z prototype in this renderer
+gpu=AMD Radeon 660M (radeonsi, rembrandt, LLVM 19.1.1, DRM 3.61, 6.11.0-29-generic)
+OpenGL=4.6 (Core Profile) Mesa 24.2.8-1ubuntu1~24.10.1
+sha256 ZombieFemale_A.glb 11c27208a81f7488b2dd7ef333d24b99a4231602593f12e60cec1af0ab177f54
+sha256 ZombieFemale_B.glb bbc9d90f4e2d526de6b90a94bd786872e70a9f68ee0908d21fc77c351ebf2fe1
+sha256 ZombieFemale_C.glb 7b064bfd83805d36d86478c224776d0366b2e1a5d6779d6cea34f0f52f2db202
+sha256 ZombieFemale_D.glb 9f4c49c9b211fa27d6985c04595e3d6864e6981cbeee91f34c0ed32e6663425e
+sha256 ZombieFemale_E.glb 9bbfc581d4e42a9bde55ec61bfc2b4f6841e084d10583487a27fe2a8ec20d111
+sha256 ZombieMale_A.glb 105af7f7e7322ee909f787d218a628146ff018b9efe23c32a17e417bf4ba12fe
+sha256 ZombieMale_B.glb 214213b42a32f08775e6ed048a005205b6c7ff7acb8cf2a6dbd5b6639db62722
+sha256 ZombieMale_C.glb 7e0d1a569ae23f32935cbf3545ef6ed9e55a7def284a6e3307c78b851eae0ef1
+sha256 ZombieMale_D.glb 04e972a26594f049b1e439cc29ac5cbfb5f139a74a038c541028d72bf7f69b3f
+sha256 ZombieMale_E.glb 1e1502d40a1d38fe9df98592b187ac36a791310476d99dc8d32ed7fd7a931b8c
+sha256 lods.json 06038de5f87a1e95e69ab8e6d795a37e09f4857c20421cb4c05213db298cabfe

@@ -414,6 +414,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(benchmark_grenade_trees PRIVATE viewer_grenades)
     viewer_warnings(benchmark_grenade_trees)
 
+    add_executable(benchmark_zombie_crowd EXCLUDE_FROM_ALL tests/benchmark_zombie_crowd.cpp src/frame_profile.cpp)
+    target_link_libraries(benchmark_zombie_crowd PRIVATE viewer_renderer glfw)
+    target_compile_definitions(benchmark_zombie_crowd PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
+    viewer_warnings(benchmark_zombie_crowd)
+
     add_executable(test_muzzle_flash_render tests/test_muzzle_flash_render.cpp)
     target_link_libraries(test_muzzle_flash_render PRIVATE viewer_renderer viewer_weapons glfw)
     target_compile_definitions(test_muzzle_flash_render PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -757,6 +762,12 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_compile_definitions(test_gpu_timer PRIVATE GL_GLEXT_PROTOTYPES)
     viewer_warnings(test_gpu_timer)
     add_test(NAME viewer_gpu_timer COMMAND test_gpu_timer)
+
+    add_executable(test_frame_profile tests/test_frame_profile.cpp src/frame_profile.cpp)
+    target_include_directories(test_frame_profile PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${OPENGL_INCLUDE_DIR}")
+    target_compile_definitions(test_frame_profile PRIVATE GL_GLEXT_PROTOTYPES)
+    viewer_warnings(test_frame_profile)
+    add_test(NAME viewer_frame_profile COMMAND test_frame_profile)
 
     add_executable(test_model tests/test_model.cpp)
     target_link_libraries(test_model PRIVATE viewer_model)
