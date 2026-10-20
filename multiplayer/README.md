@@ -296,7 +296,10 @@ exercises late join, and checks content mismatch rejection.
 
 This is a first playable networking foundation, with eight-player admission and
 512 interior boxes per session. Capacity/performance at those limits is not a
-benchmark claim. Historical shot lag compensation, audio playback, player-player
+benchmark claim. Local predicted shrub rustles play through OpenAL (`--no-audio`
+disables playback); shrub noise for zombie hearing is calculated on the server.
+Remote shrub sounds and other multiplayer audio are not implemented yet.
+Historical shot lag compensation, player-player
 collision, dynamic-prop prediction, general state delta compression, persistence and public
 server authentication are not implemented. Shots use the current server pose
 and respect map/door/prop occlusion. Dynamic objects remain server-owned, so

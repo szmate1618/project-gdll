@@ -911,6 +911,8 @@ int run(const Options& options) {
     viewer::BoxLayer boxes(physics);
     viewer::Grenades grenades(physics);
     viewer::CollisionWorld collision(model, trunks, &doors);
+    const auto undergrowth = trees ? viewer::UndergrowthIndex(*trees) : viewer::UndergrowthIndex{};
+    viewer::UndergrowthEmitter undergrowthEmitter;
     collision.setBoxes(&boxes);
     viewer::PhysicsScene physicsScene(physics, collision, model.boundsMin, model.boundsMax);
     viewer::InteriorObjects interiors(model, doors, std::random_device{}());
@@ -1105,7 +1107,18 @@ int run(const Options& options) {
             lastExplosion = explosion.id;
         }
         if (zombies) zombies->synchronizePhysics();
+        const auto& movingPlayer = app.rig.player();
+        const viewer::UndergrowthMotion bushBefore{movingPlayer.feet(), movingPlayer.bodyHeight(),
+            movingPlayer.config().radius, movingPlayer.grounded(), false};
         moveCamera(app, dt);
+        std::optional<viewer::UndergrowthEvent> bushEvent;
+        if (app.rig.walking()) {
+            const bool running = movingPlayer.stance() == viewer::PlayerStance::Standing &&
+                (app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]);
+            bushEvent = undergrowthEmitter.update(dt, bushBefore,
+                {movingPlayer.feet(), movingPlayer.bodyHeight(), movingPlayer.config().radius, movingPlayer.grounded(), running},
+                undergrowth);
+        } else undergrowthEmitter.reset();
         anchorGroundFog();
         app.displayedAnimationSeconds = options.animationTime.value_or(simulationClock.seconds());
         const double behaviorStart = glfwGetTime();
@@ -1133,6 +1146,10 @@ int run(const Options& options) {
         flash.position = weaponOverlay.muzzlePosition(muzzleSlot, muzzleModelPosition,
             app.weaponMotion.pose(muzzleSlot, simulationClock.seconds()));
         renderer.setMuzzleFlash(flash.transformed(glm::inverse(viewCamera.view())));
+        if (bushEvent) {
+            if (zombies) zombies->makeNoise(bushEvent->noise.position, bushEvent->noise.decibels);
+            audio.rustle(*bushEvent);
+        }
         audio.update(app.rig, zombies ? &*zombies : nullptr, dt, &doors);
         const double preparationStart = glfwGetTime();
         intervalBehaviorSeconds += preparationStart - behaviorStart;

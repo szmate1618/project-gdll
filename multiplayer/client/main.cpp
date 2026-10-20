@@ -8,6 +8,7 @@
 #include "renderer.hpp"
 #include "reticle_overlay.hpp"
 #include "weapon_overlay.hpp"
+#include "undergrowth_audio.hpp"
 #include <GLFW/glfw3.h>
 #else
 struct GLFWwindow;
@@ -80,16 +81,18 @@ struct Graphics {
     std::unique_ptr<viewer::Renderer> renderer;
     std::unique_ptr<viewer::ReticleOverlay> reticle;
     std::unique_ptr<viewer::WeaponOverlay> weapon;
+    std::unique_ptr<viewer::AudioSystem> audio;
+    viewer::UndergrowthEmitter undergrowth;
     viewer::MuzzleFlash muzzleFlash;
     std::size_t muzzleSlot = 0;
     glm::vec3 muzzleModelPosition{0};
     std::unique_ptr<multiplayer::PlayerRenderer> players;
     ~Graphics() {
-        players.reset(); weapon.reset(); reticle.reset(); renderer.reset();
+        audio.reset(); players.reset(); weapon.reset(); reticle.reset(); renderer.reset();
         if (window) glfwDestroyWindow(window);
         glfwTerminate();
     }
-    void initialize(multiplayer::Scene& scene, Input& in, bool hidden) {
+    void initialize(multiplayer::Scene& scene, Input& in, bool hidden, bool sound) {
         if (!glfwInit()) throw std::runtime_error("Cannot initialize GLFW; --headless is available for network checks");
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -111,9 +114,14 @@ struct Graphics {
             viewer::WeaponViewBody{body.height, body.eyeHeight});
         renderer->loadGrenadeModel(multiplayer::weaponModelDirectory() / "he_grenade.glb");
         players = std::make_unique<multiplayer::PlayerRenderer>();
+        viewer::AudioOptions audioOptions;
+        audioOptions.directory = multiplayer::audioDirectory();
+        audioOptions.enabled = sound;
+        audioOptions.ambience = false;
+        audio = std::make_unique<viewer::AudioSystem>(audioOptions);
     }
 #else
-    void initialize(multiplayer::Scene&, Input&, bool) { throw std::runtime_error("This build supports --headless clients only"); }
+    void initialize(multiplayer::Scene&, Input&, bool, bool) { throw std::runtime_error("This build supports --headless clients only"); }
 #endif
     bool closed() const {
 #ifdef MP_GRAPHICS
@@ -152,7 +160,7 @@ int main(int argc, char** argv) {
         multiplayer::Snapshots snapshots;
         Input in; in.camera.setPosition(scene.spawnEye); in.camera.setOrientation(options.look.x, options.look.y);
         Graphics graphics;
-        if (!options.headless) graphics.initialize(scene, in, options.hidden);
+        if (!options.headless) graphics.initialize(scene, in, options.hidden, options.audio);
         multiplayer::Network network(options.fakeLagMs, options.fakeLossPercent);
         const auto connection = network.connect(options.address);
         using Clock = std::chrono::steady_clock;
@@ -185,6 +193,9 @@ int main(int argc, char** argv) {
                 if (const auto* welcome = std::get_if<multiplayer::Welcome>(&message)) {
                     if (self) throw std::runtime_error("Duplicate welcome");
                     self = welcome->player;
+#ifdef MP_GRAPHICS
+                    graphics.undergrowth = viewer::UndergrowthEmitter(self);
+#endif
                     std::cout << "Connected as player " << self << std::endl;
                 } else if (const auto* snapshot = std::get_if<multiplayer::Snapshot>(&message)) {
                     if (!self || !snapshots.push(*snapshot, now)) continue;
@@ -229,7 +240,23 @@ int main(int argc, char** argv) {
             if (prediction.ready()) {
                 accumulator += dt;
                 while (accumulator >= 1.0 / 60) {
-                    prediction.advance(command(in, graphics.window, options.bot, now), *scene.collision);
+                    const auto nextCommand = command(in, graphics.window, options.bot, now);
+#ifdef MP_GRAPHICS
+                    const auto& controller = prediction.controller();
+                    const viewer::UndergrowthMotion bushBefore{controller.feet(), controller.bodyHeight(),
+                        controller.config().radius, controller.grounded(), false};
+#endif
+                    prediction.advance(nextCommand, *scene.collision);
+#ifdef MP_GRAPHICS
+                    // Fresh prediction only: reconciliation replays must stay silent.
+                    if (graphics.audio) {
+                        const bool running = nextCommand.movement.run && controller.stance() == viewer::PlayerStance::Standing;
+                        if (const auto event = graphics.undergrowth.update(multiplayer::tickSeconds, bushBefore,
+                                {controller.feet(), controller.bodyHeight(), controller.config().radius, controller.grounded(), running},
+                                scene.undergrowth))
+                            viewer::playUndergrowth(*graphics.audio, *event);
+                    }
+#endif
                     auto outgoing = prediction.commandsToSend(); outgoing.snapshotTick = snapshots.latest().tick;
                     network.send(connection, outgoing, false);
                     accumulator -= 1.0 / 60;
@@ -241,6 +268,8 @@ int main(int argc, char** argv) {
             if (options.bot) in.camera.setOrientation(0, 0);
 #ifdef MP_GRAPHICS
             if (graphics.window) {
+                graphics.audio->setListener(in.camera.position(), in.camera.direction());
+                graphics.audio->update();
                 int width = 0, height = 0; glfwGetFramebufferSize(graphics.window, &width, &height);
                 if (width > 0 && height > 0) {
                     auto& renderer = *graphics.renderer;

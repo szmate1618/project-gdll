@@ -34,4 +34,13 @@ std::filesystem::path weaponModelDirectory() {
     if (std::filesystem::is_directory(directory / "items")) return directory / "assets/weapons";
     return std::filesystem::path(MP_WEAPON_ASSETS);
 }
+std::filesystem::path audioDirectory() {
+    const auto& directory = executableDirectory();
+    if (std::filesystem::is_directory(directory / "items")) return directory / "assets/audio";
+#ifdef MP_AUDIO_DIR
+    return std::filesystem::path(MP_AUDIO_DIR);
+#else
+    return resourceRoot() / "assets/audio";
+#endif
+}
 }

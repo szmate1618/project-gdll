@@ -27,7 +27,7 @@ through its own configuration.
 
 ## Sounds and replacement files
 
-The build copies 21 curated recordings from `assets/audio/` into `build/audio/`.
+The build copies 27 curated recordings from `assets/audio/` into `build/audio/`.
 Their [credits and licenses](../assets/audio/CREDITS.md) and
 [provenance manifest](../assets/audio/sources.json) record every download,
 creator, source license, input/output hash, and edit. Most recordings are CC0;
@@ -55,6 +55,8 @@ Use `--audio-dir DIR` to replace the sound directory. Supply these names:
 | `zombie.wav`, `zombie2.wav`, `zombie3.wav` | Intermittent nearby zombie moans |
 | `door_latch.wav` | Successful grab of a fully closed door |
 | `door_slam.wav` | Fast closure of a previously opened door |
+| `rustle.wav`, `rustle2.wav`, `rustle3.wav` | Movement through leafy shrubs |
+| `dry_rustle.wav`, `dry_rustle2.wav`, `twig_snap.wav` | Dry shrub movement and occasional running cracks |
 | `wind.wav` | Continuous background ambience |
 | `rain.wav` | Additional continuous ambience with `--rain` |
 
@@ -124,6 +126,69 @@ angular speed also counts because the hinge solver can clamp the final sample.
 
 ## Gameplay hearing stays independent
 
+### Undergrowth contact
+
+Only walking-mode players produce shrub contact events. The immutable
+`UndergrowthIndex` builds once from explicitly marked shrubs; trees and bare
+dry-tree assets are excluded. Gameplay contact uses an ellipse occupying 85%
+of the local card width/depth and the shrub's vertical extent, transformed into
+world space. The player radius and stance height expand contact conservatively.
+This approximate foliage volume ignores billboard padding, rendering LoD,
+visibility cutoffs and cosmetic blast deformation. It adds no rigid bodies,
+mesh triangles or GPU queries.
+
+Each player's emitter batches actual swept movement at 20 Hz. Straight segments
+coalesce; turns retain their separate sweeps so a shortcut cannot cut a corner
+through foliage. BVH queries visit only nearby volumes. Overlapping shrubs share
+one cadence, with at least 0.65 m of foliage travel between continuing bursts
+and at least 0.25 s between any bursts. Initial contact requires 5 cm of travel.
+There are no catch-up bursts: jumps, teleports, discontinuous corrections and
+stalls over 0.2 s clear pending contact. Brief stationary samples between physics
+steps preserve paths for high-refresh rendering; 80 ms without movement clears
+them. Standing still and free-fly movement stay silent.
+
+The three leafy and two dry recordings last 0.34–0.42 s; a separate twig snap
+lasts 0.16 s. Selection and small pitch changes use the event counter. Stopping
+or leaving schedules no new sounds; the current one-shot finishes naturally.
+No per-bush loop or per-contact file decoding is created. Existing fixed effect
+voice limits apply.
+
+A stable 25% subset of generated shrubs is tagged dry independently of position,
+size or forest visibility. Leafy walk/run noise is 45/52 dB at one meter; dry
+walk/run rustle is 47/55 dB. Every third running dry contact, offset by player ID
+in multiplayer, produces a 58 dB twig snap. Crouching reduces noise by 6 dB and
+prone movement by 10 dB. These are game tuning values, separate from audio gain.
+
+Single player routes each event independently to playback and zombie hearing.
+Multiplayer servers calculate contact and AI noise from authoritative movement.
+Graphical clients play their own predicted movement contacts; reconciliation
+replays are silent and never submit noise to the server. Remote-player shrub
+audio is not replicated yet. `--no-audio` disables client playback without
+changing hearing. Multiplayer packages include the runtime WAVs, their credits,
+and the dynamically linked OpenAL library; other multiplayer sounds remain
+outside this initial audio integration.
+
+Build `benchmark_undergrowth` explicitly to measure the CPU detector without
+audio mixing, AI hearing, physics or rendering. With no arguments it uses
+40,000 synthetic shrubs. Optional arguments are a map GLB, its tree-instance
+manifest and a runtime forest configuration; those are loaded read-only.
+
+```bash
+cmake --build build --target benchmark_undergrowth -j4
+./build/benchmark_undergrowth
+```
+
+On 2026-10-19, a Release build on Ryzen 5 7535HS measured the current map's
+26,099-shrub index at 8.2 ms to build. Seven paired runs, each with 600 warmup
+and 12,000 measured 60 Hz ticks, compared an empty index with contact enabled.
+Moving paths sampled eight shrub locations; medians of run means added about
+0.21 microseconds/tick for one player and 1.6 microseconds/tick for eight players.
+Idle overhead was about 0.006/0.02 microseconds respectively. These are detector
+costs, excluding AI hearing, OpenAL mixing, physics, scene loading and rendering;
+they are not a whole-game FPS benchmark.
+
+## Simulation and playback separation
+
 `NoiseEvent` retains simulation position and game-tuned decibels. Footstep and
 landing events also identify their action, so presentation can select a sound
 without interpreting AI hearing levels. The existing AI handler receives the same
@@ -159,6 +224,8 @@ or asset quality.
 - `src/scene_audio.hpp/.cpp`: Camera/gameplay routing and indexed zombie selection.
 - `src/zombie_audio.hpp/.cpp`: Deterministic reaction, moan, and footstep scheduling.
 - `src/door_audio.hpp/.cpp`: Presentation-only slam detection.
+- `src/undergrowth.hpp/.cpp`: Indexed contact volumes, swept movement and AI noise events.
+- `src/undergrowth_audio.hpp/.cpp`: Recorded shrub effect selection and playback.
 - `tools/create_audio_assets.py`: Original synthesized landing and ambience.
 - `tools/prepare_audio_assets.py`: Hash-checked recording preparation.
 - `assets/audio/`: Curated WAVs, credits, and provenance manifest.

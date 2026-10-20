@@ -282,9 +282,16 @@ Bushes use two perpendicular upright cards and one horizontal card at 25% of
 their height. One shared [side/top atlas](../assets/forests/bush.png) supplies
 unlit, double-sided alpha masks with normal opaque-texel depth writes. Bushes
 share the forest's instancing, culling, detail selection and shading. They have
-no collision in either single-player or multiplayer. All placements are made
+no blocking collision in either single-player or multiplayer. All placements are made
 once during loading, independent of camera movement and patch order; no map or
 placement-file regeneration is required.
+
+Shrubs also carry gameplay-only contact metadata. A stable 25% subset is dry;
+tagging does not alter placement or rendering. Moving through their indexed
+contact volumes produces rustles and AI hearing events, with louder dry-running
+cracks and quieter crouched/prone movement. Standing still is silent. Contact
+does not depend on render culling or grenade bending, and adds no physics bodies.
+See [undergrowth audio](AUDIO.md#undergrowth-contact) for timing, sounds and cost.
 
 Grenade explosions push shrubs away from the blast within a 12 m sphere around
 each shrub's mid-height. The response fades with distance, rebounds gently and

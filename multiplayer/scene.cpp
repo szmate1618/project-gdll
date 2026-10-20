@@ -64,6 +64,7 @@ Options parseOptions(int argc, char** argv, bool server) {
             if (n < 0 || n > 50) throw std::runtime_error("Invalid artificial loss");
             o.fakeLossPercent = static_cast<float>(n);
         } else if (arg == "--headless" && !server) o.headless = true;
+        else if (arg == "--no-audio" && !server) o.audio = false;
         else if (arg == "--hidden" && !server) o.hidden = true;
         else if (arg == "--look" && !server) {
             const auto yaw = number(i), pitch = number(i);
@@ -74,7 +75,7 @@ Options parseOptions(int argc, char** argv, bool server) {
         else if (arg == "--screenshot" && !server) o.screenshot = next(i);
         else if (arg == "--help") {
             std::cout << (server ? "godollo_server" : "godollo_client") << " [map.glb] "
-                << (server ? "[--port 27020]" : "[--connect 127.0.0.1:27020] [--headless] [--hidden] [--bot] [--look YAW PITCH] [--screenshot FILE]")
+                << (server ? "[--port 27020]" : "[--connect 127.0.0.1:27020] [--headless] [--hidden] [--bot] [--no-audio] [--look YAW PITCH] [--screenshot FILE]")
                 << "\nShared: --spawn X Z --zombies PATH --zombie-count N --zombie-radius METERS\n"
                    "        --vegetation osm-tuned2|orthophoto|osm|sentinel-astra|none\n"
                    "        --no-trees --no-forests --seconds N --lag-ms N --loss-percent N\n";
@@ -167,6 +168,7 @@ Scene::Scene(const Options& o) : model(loadSessionMap(o.map)), physics(std::make
             trunks.push_back({glm::vec3(tree.transform[3]), radius, h});
         }
     }
+    if (trees) undergrowth = viewer::UndergrowthIndex(*trees);
     collision = std::make_unique<viewer::CollisionWorld>(model, trunks, doors.get());
     collision->setBoxes(boxes.get());
     const auto center = (model.boundsMin + model.boundsMax) * .5f;

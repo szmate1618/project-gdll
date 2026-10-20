@@ -113,6 +113,10 @@ jobs:
           Copy-Item assets/test.glb "$package/assets"
           Copy-Item build/assets/weapons "$package/assets" -Recurse
           Copy-Item assets/weapons/README.md "$package/assets/weapons"
+          Copy-Item build/audio "$package/assets" -Recurse
+          $openal = Get-ChildItem build/_deps/openal_soft-build -Recurse -Filter OpenAL32.dll | Select-Object -First 1
+          if (-not $openal) { throw 'Missing OpenAL32.dll' }
+          Copy-Item $openal.FullName $package
           Copy-Item multiplayer/client/players.vert, multiplayer/client/players.frag "$package/multiplayer/client"
           Copy-Item multiplayer/windows/README.md "$package/README.md"
           Get-ChildItem build/vcpkg_installed/x64-windows-static-md/share/*/copyright | ForEach-Object {
@@ -124,6 +128,9 @@ jobs:
           Copy-Item build/_deps/box3d-src/LICENSE "$package/licenses/Box3D.txt"
           Copy-Item build/_deps/tinygltf-src/LICENSE "$package/licenses/tinygltf.txt"
           Copy-Item build/_deps/tomlplusplus-src/LICENSE "$package/licenses/tomlplusplus.txt"
+          Copy-Item build/_deps/openal_soft-src/COPYING "$package/licenses/OpenAL.txt"
+          Copy-Item build/_deps/openal_soft-src/LICENSE-pffft "$package/licenses/OpenAL-pffft.txt"
+          Copy-Item build/_deps/openal_soft-src/fmt-11.1.1/LICENSE "$package/licenses/OpenAL-fmt.txt"
           Copy-Item credits/software/nlohmann-json.txt, credits/software/stb.txt "$package/licenses"
           Compress-Archive -Path "$package/*" -DestinationPath build/godollo-client-windows-x86_64.zip
       - name: Upload Windows client

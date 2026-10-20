@@ -112,7 +112,7 @@ void checkOldForest() {
             "Old forest center must average border vertices, not use the area centroid");
 }
 void checkBushes() {
-    std::size_t primary=0, clusters=0;
+    std::size_t primary=0, clusters=0, dry=0, total=0;
     for (int i=0;i<10000;++i) {
         const auto id="tree-"+std::to_string(i);
         const auto bushes=viewer::forestBushCandidates({40,-30},id,123);
@@ -125,16 +125,18 @@ void checkBushes() {
         require(bushes.front().eastNorth==glm::dvec2(40,-30), "Primary bush is not at its tree");
         for (std::size_t j=0;j<bushes.size();++j) {
             const auto& bush=bushes[j];
-            require(bush.eastNorth==repeat[j].eastNorth && bush.height==repeat[j].height && bush.yaw==repeat[j].yaw,
+            require(bush.eastNorth==repeat[j].eastNorth && bush.height==repeat[j].height && bush.yaw==repeat[j].yaw && bush.dry==repeat[j].dry,
                     "Bush placement changed between runs");
             require(glm::length(bush.eastNorth-glm::dvec2(40,-30))<=5.00001, "Bush neighbor is outside 5 m radius");
             require(bush.height>=1.5f&&bush.height<=3.5f&&bush.yaw>=0&&bush.yaw<6.283186f, "Bush size or yaw is outside limits");
             if (j) require(bush.yaw!=bushes.front().yaw, "Bush neighbors reused the primary rotation");
+            ++total; if(bush.dry) ++dry;
         }
     }
     require(primary>5700&&primary<6300, "Primary bush chance is not 60%");
     const double chance=static_cast<double>(clusters)/primary;
     require(chance>.17&&chance<.23, "Bush neighbor chance is not 20% conditional on a primary");
+    require(dry>total*.22&&dry<total*.28,"Dry shrub subset is not approximately 25%");
     const auto bush=viewer::forestBushModel({2,2,std::vector<std::uint8_t>(16,255)});
     require(bush.draws.size()==1&&bush.primitives.size()==1, "Bush must use a single shared mesh");
     const auto& mesh=bush.primitives[0];
@@ -290,6 +292,7 @@ void checkLoader() {
         if (!tree.collidable) {
             ++bushCount;
             require(tree.blastResponsive, "Generated bush is missing explosion response");
+            require(tree.undergrowth!=viewer::UndergrowthKind::none,"Generated shrub is missing contact metadata");
             require(tree.asset==1&&tree.dimensions.x==4*tree.dimensions.y&&tree.dimensions.z==tree.dimensions.x&&
                     tree.dimensions.x>=6.f&&tree.dimensions.x<=14.f, "Bush uses wrong asset, size or quarter-height proportions");
             bool inCore=false;

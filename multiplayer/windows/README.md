@@ -41,7 +41,8 @@ weapon definitions, inventory, and forest configuration
 are included. GLEW, OpenSSL, Protobuf and GameNetworkingSockets are linked into
 the client; the Microsoft runtime is supplied by the Redistributable.
 The client still has the prototype limitations described in `multiplayer/README.md`
-in the source repository, including no audio playback.
+in the source repository. Local shrub rustles play through the bundled OpenAL
+library (`--no-audio` to mute); other multiplayer audio remains unimplemented.
 
 The workflow compiles the client, checks `--help` startup, and runs the
 cross-platform scene fingerprint regression. Windows graphics and cross-platform

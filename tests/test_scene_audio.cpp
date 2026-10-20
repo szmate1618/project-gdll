@@ -3,6 +3,7 @@
 #include "noise.hpp"
 #include "zombie_layer.hpp"
 #include "simulation_clock.hpp"
+#include "undergrowth_fixture.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -84,6 +85,23 @@ int main(int argc, char** argv) {
             audio.update(rig, &zombies, 0.21f);
             if (enabled) require(audio.stats().zombieEmitters == std::vector<std::size_t>{2},
                                  "Grid refresh discovers a new neighborhood after moving the camera");
+        }
+        // The same shrub contact drives independent presentation and AI routes.
+        for (const bool enabled : {true, false}) {
+            viewer::AudioOptions options; options.directory=argv[1]; options.enabled=enabled;
+            viewer::SceneAudio audio(options);
+            const viewer::UndergrowthIndex index(undergrowth_fixture::trees(true));
+            viewer::UndergrowthEmitter emitter;
+            auto before=undergrowth_fixture::motion({0,0,0},true),after=before;
+            after.feet.x=.3f;
+            const auto event=emitter.update(.05f,before,after,index);
+            require(event&&event->noise.kind==viewer::NoiseEvent::Kind::twigSnap,"Dry running contact must produce a crack event");
+            auto zombies=crowd(); zombies.behaviors.create(0,0);
+            audio.rustle(*event);
+            require(zombies.behaviors.find(0)->state==viewer::ZombieState::idle,"Shrub playback emitted gameplay noise");
+            zombies.makeNoise(event->noise.position,event->noise.decibels);
+            require(zombies.behaviors.find(0)->state==viewer::ZombieState::looking,"Muted shrub contact lost AI hearing");
+            if (enabled) require(audio.stats().effects>0,"Prepared twig recording did not play");
         }
         // Route real fixed-step movement actions independently of zombie presence.
         viewer::AudioOptions options; options.directory = argv[1];

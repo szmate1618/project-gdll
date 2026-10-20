@@ -1,9 +1,10 @@
 # Sound effect credits and licenses
 
-These 21 edited recordings are repository inputs. Keep this file with the sounds
+These 27 edited recordings are repository inputs. Keep this file with the sounds
 when distributing them. The weapon shots require attribution under CC-BY 3.0;
-the other selected recordings are CC0. All source licenses were checked on
-2026-10-15. Source URLs, download URLs, original SHA-256 hashes, crop parameters,
+the other selected recordings are CC0. Original source licenses were checked on
+2026-10-15; the shrub and twig recordings were checked on 2026-10-19.
+Source URLs, download URLs, original SHA-256 hashes, crop parameters,
 and final WAV hashes are recorded in [sources.json](sources.json).
 
 ## Required attribution: weapon shots
@@ -39,12 +40,16 @@ Credits are retained for provenance even where attribution is not required.
 | `door_latch.wav`, `door_slam.wav` | **Door Open, Door Close Set — qubodup**, `DoorOpen01` and `DoorClose01` | [OpenGameArt](https://opengameart.org/content/door-open-door-close-set) |
 | `reload.wav`, `reload_rifle.wav`, `reload_shotgun.wav` | **Gun reload sounds — SpringySpringo** | [OpenGameArt](https://opengameart.org/content/gun-reload-sounds) |
 | `empty_click.wav` | **Gun reload, lock or click sound — pauliuw** | [OpenGameArt](https://opengameart.org/content/gun-reload-lock-or-click-sound) |
+| `rustle.wav`, `rustle2.wav`, `rustle3.wav`, `dry_rustle.wav`, `dry_rustle2.wav` | **Rustling leaves — Kinoton**, reed-mat foliage foley | [Freesound 347557](https://freesound.org/people/Kinoton/sounds/347557/) |
+| `twig_snap.wav` | **Twig Snap — Allan Legemaate (alegemaate)** | [Freesound 364699](https://freesound.org/people/alegemaate/sounds/364699/) |
 
-The two Freesound inputs are the public **high-quality MP3 previews**, not the
-login-only original WAV downloads. Both pages explicitly label the sounds
+The Freesound inputs are the public **high-quality MP3 previews**, not the
+login-only original WAV downloads. Their pages explicitly label the sounds
 Creative Commons 0. The local ignored source cache retains the license-page HTML
 snapshots; their hashes are included in the manifest. `intrigued` contains many
 takes across about 19 seconds; only the first isolated reaction is used.
+The foliage foley supplies five short 0.34–0.42-second bursts, with crisper
+excerpts used for dry undergrowth; the twig snap is a separate 0.16-second clip.
 
 All selected clips were decoded, downmixed to mono, resampled to 48 kHz PCM16,
 cropped as listed in the manifest, peak-normalized, and given a 5 ms fade-in and

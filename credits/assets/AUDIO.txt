@@ -1,8 +1,8 @@
 SOUND CREDITS (APPLIES WHEN AUDIO IS INCLUDED)
 
-The current multiplayer client packages contain no audio recordings and do
-not play these sounds. These credits document the game's single-player audio
-and must accompany any future package that includes the referenced recordings.
+The standalone viewer and multiplayer client packages include the audio files
+and their detailed credits/provenance under assets/audio/ (build/audio/ during
+standalone development). Multiplayer currently plays local shrub contact sounds.
 
 Chaingun, pistol, rifle, shotgun shots
 Michel Baradari (apollo-music.de), submitted by qubodup.
@@ -16,6 +16,15 @@ peak normalization, and short boundary fades.
 
 The following recordings are CC0 1.0 Universal:
 https://creativecommons.org/publicdomain/zero/1.0/
+
+Rustling leaves — Kinoton
+https://freesound.org/people/Kinoton/sounds/347557/
+Outputs: rustle.wav, rustle2.wav, rustle3.wav, dry_rustle.wav, dry_rustle2.wav.
+Twig Snap — Allan Legemaate (alegemaate)
+https://freesound.org/people/alegemaate/sounds/364699/
+Output: twig_snap.wav.
+Changes: excerpts from public HQ previews, mono PCM16 conversion, 48 kHz,
+peak normalization and boundary fades; see assets/audio/sources.json.
 
 huh.wav — TripleDStudios8
 https://freesound.org/people/TripleDStudios8/sounds/194467/

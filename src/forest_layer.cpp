@@ -264,6 +264,7 @@ ForestLayer loadForestLayer(const std::filesystem::path& path,const std::filesys
                     auto instance=placedInstance(id,bushAsset,bushModel,feet,bush.height,bush.yaw,bush.height);
                     instance.collidable=false;
                     instance.blastResponsive=true;
+                    instance.undergrowth=bush.dry?UndergrowthKind::dry:UndergrowthKind::leafy;
                     append(std::move(instance));
                 }
             };

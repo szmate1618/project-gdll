@@ -44,8 +44,8 @@ preserved in meshoptimizer.txt.
   https://github.com/zeux/meshoptimizer/tree/v1.3
 
 OpenAL Soft 1.24.3 (LGPL-2.0-or-later and accompanying third-party notices) is
-used by the standalone viewer. The current multiplayer client does not link
-it or play the viewer's audio. Distributing a viewer binary needs its separate
+used by the standalone viewer and graphical multiplayer client.
+Distributing these binaries needs the separate
 OpenAL and bundled third-party notices and applicable source/relinking terms.
   https://github.com/kcat/openal-soft/tree/1.24.3
 

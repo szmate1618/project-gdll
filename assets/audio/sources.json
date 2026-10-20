@@ -158,6 +158,42 @@
       "sha256": "8096ceeb4dac35d9eef9bfe0cc6649778d1eebf141b208d394ac338b9e5be314",
       "used": false,
       "note": "Downloaded for consideration; no clips used because members do not identify injury versus ordinary vocalizations. Only explicit moans/grunts from other sources are shipped."
+    },
+    "bush_rustle": {
+      "title": "Rustling leaves",
+      "author": "Kinoton",
+      "page": "https://freesound.org/people/Kinoton/sounds/347557/",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "verified_on": "2026-10-19",
+      "cache_file": "bush_rustle.mp3",
+      "download_url": "https://cdn.freesound.org/previews/347/347557_2247456-hq.mp3",
+      "sha256": "d2a9153de04d462b05e58268f9fd41b6dcd44af64ccc5e46350293fdc484b656",
+      "used": true,
+      "license_evidence": {
+        "page_snapshot": "bush_rustle-page.html",
+        "sha256": "0637106e23e4e2711287bafdff65c1708b0633c61a780d68bcf3d9f0d75e6c7d",
+        "label": "Creative Commons 0",
+        "delivery": "Public high-quality MP3 preview; original WAV download requires a Freesound login."
+      }
+    },
+    "twig_snap": {
+      "title": "Twig Snap",
+      "author": "alegemaate",
+      "page": "https://freesound.org/people/alegemaate/sounds/364699/",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "verified_on": "2026-10-19",
+      "cache_file": "twig_snap.mp3",
+      "download_url": "https://cdn.freesound.org/previews/364/364699_2531187-hq.mp3",
+      "sha256": "62a3ba0e77add03f4387ffe64eb808e3303c5483e0435f00619d9eeb02f7959c",
+      "used": true,
+      "license_evidence": {
+        "page_snapshot": "twig_snap-page.html",
+        "sha256": "883c99fc46b7052eb15382274f59aad853c39bf927ae5c5988bc69616c5f321d",
+        "label": "Creative Commons 0",
+        "delivery": "Public high-quality MP3 preview; original WAV download requires a Freesound login."
+      }
     }
   },
   "assets": [
@@ -424,6 +460,60 @@
       "frames": 12000,
       "sample_rate": 48000,
       "channels": 1
+    },
+    {
+      "file": "rustle.wav",
+      "source": "bush_rustle",
+      "start": 1.1,
+      "duration": 0.38,
+      "peak": 0.65,
+      "sha256": "d6cf9438f7926e3b723fea44d38f6284395259d57740c4c45ec4bfb519e3da06",
+      "frames": 18240
+    },
+    {
+      "file": "rustle2.wav",
+      "source": "bush_rustle",
+      "start": 3.5,
+      "duration": 0.4,
+      "peak": 0.65,
+      "sha256": "ae57326e6453c43815d4bc06d5b615ff65b0a2da08306f2e7b08f252e6544c42",
+      "frames": 19200
+    },
+    {
+      "file": "rustle3.wav",
+      "source": "bush_rustle",
+      "start": 6.0,
+      "duration": 0.42,
+      "peak": 0.65,
+      "sha256": "5b61553cd305b9638b7d552bdb421df9408aebc25663bda19a8f8bda450d544c",
+      "frames": 20160
+    },
+    {
+      "file": "dry_rustle.wav",
+      "source": "bush_rustle",
+      "start": 9.0,
+      "duration": 0.34,
+      "peak": 0.75,
+      "sha256": "4332bbad554c598b96e9b8acd27cac62d7833e49b7512fd93392e3f88eba7fee",
+      "frames": 16320
+    },
+    {
+      "file": "dry_rustle2.wav",
+      "source": "bush_rustle",
+      "start": 12.0,
+      "duration": 0.36,
+      "peak": 0.75,
+      "sha256": "4d3daaa442abb418ee8fc7c9163a01bbb4df4b00ac428509a9db66ab202f810f",
+      "frames": 17280
+    },
+    {
+      "file": "twig_snap.wav",
+      "source": "twig_snap",
+      "start": 0,
+      "duration": 0.16,
+      "peak": 0.8,
+      "sha256": "3c5f4e2343e3d3bf1ab396ebb29a8067b75ff9f239c8d4c2f6ec8959f6354303",
+      "frames": 7680
     }
   ]
 }

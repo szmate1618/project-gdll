@@ -19,6 +19,7 @@ std::uint32_t World::join() {
     if (players_.size() >= maxPlayers || nextPlayer_ == 0) throw std::runtime_error("Server full");
     const auto id = nextPlayer_++;
     auto& player = players_.try_emplace(id, scene_.initialWeapons).first->second;
+    player.undergrowth = viewer::UndergrowthEmitter(id);
     auto spawn = scene_.spawnEye;
     spawn.x += static_cast<float>((id - 1) % maxPlayers) * 1.0f;
     if (!player.controller.spawn(spawn, *scene_.collision)) { players_.erase(id); throw std::runtime_error("No safe player spawn"); }
@@ -73,7 +74,15 @@ void World::step() {
                 player.interaction.cancel();
             }
             const auto previousFeet = player.controller.feet();
+            const viewer::UndergrowthMotion bushBefore{previousFeet, player.controller.bodyHeight(),
+                player.controller.config().radius, player.controller.grounded(), false};
             player.controller.update(tickSeconds / inputs, command.movement, *scene_.collision);
+            const auto& controller = player.controller;
+            const bool running = command.movement.run && controller.stance() == viewer::PlayerStance::Standing;
+            if (const auto event = player.undergrowth.update(tickSeconds / inputs, bushBefore,
+                    {controller.feet(), controller.bodyHeight(), controller.config().radius, controller.grounded(), running},
+                    scene_.undergrowth))
+                noises.push_back(event->noise);
             const auto playerVelocity = (player.controller.feet() - previousFeet) / (tickSeconds / inputs);
             noises.insert(noises.end(), player.controller.noises().begin(), player.controller.noises().end());
             player.camera.setPosition(player.controller.eyePosition());

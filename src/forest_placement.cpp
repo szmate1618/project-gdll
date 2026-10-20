@@ -79,7 +79,7 @@ std::vector<ForestBushCandidate> forestBushCandidates(glm::dvec2 tree,
         }
         // Quarter-height cards retain the enlarged 6..14 m width.
         result.push_back({position,1.5f+2.f*unit(key^0x0b2136e9u),
-            unit(key^0x967a889bu)*6.28318530718f});
+            unit(key^0x967a889bu)*6.28318530718f, unit(key^0x19ae456bu)<.25f});
     }
     return result;
 }

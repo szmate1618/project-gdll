@@ -19,7 +19,8 @@ constexpr std::array<const char*, effectCount> effectFiles{
     "footstep.wav", "landing.wav", "pistol.wav", "smg.wav", "sniper.wav",
     "shotgun.wav", "reload.wav", "zombie.wav", "footstep2.wav", "footstep3.wav", "footstep4.wav",
     "zombie2.wav", "zombie3.wav", "huh.wav", "intrigued.wav", "chase.wav", "chase2.wav",
-    "door_latch.wav", "door_slam.wav", "empty_click.wav", "reload_rifle.wav", "reload_shotgun.wav", "explosion.wav"};
+    "door_latch.wav", "door_slam.wav", "empty_click.wav", "reload_rifle.wav", "reload_shotgun.wav", "explosion.wav",
+    "rustle.wav", "rustle2.wav", "rustle3.wav", "dry_rustle.wav", "dry_rustle2.wav", "twig_snap.wav"};
 constexpr std::size_t streamBufferCount = 4, streamBufferFrames = 4096;
 
 void checkAudio(const char* operation) {
@@ -183,8 +184,10 @@ struct AudioSystem::Impl {
                 alSourcef(voice.source, AL_MAX_DISTANCE, 40);
             }
         }
-        addStream(options.directory / "wind.wav", 0.25f);
-        if (options.rain) addStream(options.directory / "rain.wav", 0.4f);
+        if (options.ambience) {
+            addStream(options.directory / "wind.wav", 0.25f);
+            if (options.rain) addStream(options.directory / "rain.wav", 0.4f);
+        }
         checkAudio("Initialize audio");
         ready = true;
         std::cout << "Audio: " << reinterpret_cast<const char*>(alGetString(AL_RENDERER))

@@ -408,6 +408,38 @@ void queuedInputTimeout(const std::filesystem::path& asset) {
             glm::distance(stopped, player.controller.feet()) < .001f && player.held.movement.forward == 0,
         "Missing input did not neutralize held movement or skipped an unresolved action");
 }
+void serverUndergrowth(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    for(const bool shrubs:{false,true}) {
+        Options options; options.map=asset; options.trees=options.forests=false; options.zombieCount=0;
+        Scene scene(options); scene.model=ground();
+        scene.collision=std::make_unique<viewer::CollisionWorld>(scene.model,std::vector<viewer::TrunkCollider>{},scene.doors.get());
+        scene.collision->setBoxes(scene.boxes.get()); scene.spawnEye={0,1.7f,0};
+        viewer::TreeLayer trees;
+        viewer::TreeAsset bush; bush.model.boundsMin={-2,0,-2}; bush.model.boundsMax={2,1,2};
+        trees.assets.push_back(bush);
+        if(shrubs) {
+            viewer::TreeInstance instance; instance.undergrowth=viewer::UndergrowthKind::dry;
+            trees.instances.push_back(instance);
+        }
+        scene.undergrowth=viewer::UndergrowthIndex(trees);
+        scene.zombies=crowd(); scene.zombies.instances.resize(1);
+        auto& model=scene.zombies.assets.front();
+        model.skeleton.resize(1); model.boneFrames={glm::mat4(1),glm::mat4(1)}; model.frameCount=2; model.duration=1;
+        auto& zombie=scene.zombies.instances.front();
+        // Beyond ordinary running hearing, perpendicular to the zombie's view.
+        zombie.transform=zombie.restTransform=zombie.restRoot=glm::translate(glm::mat4(1),glm::vec3(40,0,0));
+        scene.zombies.rebuildSpatialIndex();
+        World world(scene); const auto id=world.join();
+        for(std::uint64_t tick=1;tick<=20;++tick) {
+            Command command; command.sequence=tick; command.movement.forward=1;
+            command.movement.run=true; command.movement.yawDegrees=-90;
+            world.submit(id,Commands{{command}}); world.step();
+        }
+        require((zombie.heardNoiseRevision>0)==shrubs,
+                "Server hearing must come from authoritative shrub contact, independent of client audio");
+    }
+}
 void serverGrenades(const std::filesystem::path& asset) {
     using namespace multiplayer;
     Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
@@ -518,7 +550,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); fragments(); prediction(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        triggerResets(argv[1]); serverCommands(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverGrenades(argv[1]);
+        triggerResets(argv[1]); serverCommands(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

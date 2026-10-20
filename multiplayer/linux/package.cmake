@@ -34,6 +34,7 @@ foreach(weapon pistol submachine_gun shotgun sniper he_grenade)
     file(COPY "${BUILD_DIR}/assets/weapons/${weapon}.glb" DESTINATION "${package}/assets/weapons")
 endforeach()
 file(COPY "${source_root}/assets/weapons/README.md" DESTINATION "${package}/assets/weapons")
+file(COPY "${BUILD_DIR}/audio/" DESTINATION "${package}/assets/audio")
 file(COPY "${source_root}/multiplayer/client/players.vert" "${source_root}/multiplayer/client/players.frag"
     DESTINATION "${package}/multiplayer/client")
 file(COPY "${CMAKE_CURRENT_LIST_DIR}/run-client.sh" DESTINATION "${package}"
@@ -43,6 +44,10 @@ configure_file("${CMAKE_CURRENT_LIST_DIR}/README.md" "${package}/README.md" COPY
 foreach(library IN LISTS libraries)
     file(COPY "${library}" DESTINATION "${package}/lib" FOLLOW_SYMLINK_CHAIN)
     get_filename_component(real_library "${library}" REALPATH)
+    if(real_library MATCHES "/libopenal[.]")
+        # This is the pinned build-tree OpenAL, not a Debian-owned library.
+        continue()
+    endif()
     execute_process(COMMAND dpkg-query -S "${real_library}" RESULT_VARIABLE result
         OUTPUT_VARIABLE owner ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT result EQUAL 0)
@@ -59,11 +64,13 @@ endforeach()
 file(COPY "${source_root}/credits/software/nlohmann-json.txt" "${source_root}/credits/software/stb.txt"
     DESTINATION "${package}/licenses")
 
-set(projects GameNetworkingSockets GLFW glm box3d tinygltf tomlplusplus)
-set(license_names LICENSE LICENSE.md copying.txt LICENSE LICENSE LICENSE)
+set(projects GameNetworkingSockets GLFW glm box3d tinygltf tomlplusplus OpenAL)
+set(license_names LICENSE LICENSE.md copying.txt LICENSE LICENSE LICENSE COPYING)
 foreach(project IN LISTS projects)
     load_cache("${BUILD_DIR}" READ_WITH_PREFIX dependency_ "${project}_SOURCE_DIR")
 endforeach()
+configure_file("${dependency_OpenAL_SOURCE_DIR}/LICENSE-pffft" "${package}/licenses/OpenAL-pffft.txt" COPYONLY)
+configure_file("${dependency_OpenAL_SOURCE_DIR}/fmt-11.1.1/LICENSE" "${package}/licenses/OpenAL-fmt.txt" COPYONLY)
 foreach(project license IN ZIP_LISTS projects license_names)
     configure_file("${dependency_${project}_SOURCE_DIR}/${license}" "${package}/licenses/${project}.txt" COPYONLY)
 endforeach()

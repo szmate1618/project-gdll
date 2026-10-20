@@ -37,6 +37,7 @@ void capture(const char* name) {
 namespace multiplayer {
 const std::filesystem::path& resourceRoot() { return fixture; }
 std::filesystem::path weaponModelDirectory() { return VIEWER_WEAPON_ASSETS; }
+std::filesystem::path audioDirectory() { return VIEWER_AUDIO_DIR; }
 Network::Network(float, float) {}
 Network::~Network() = default;
 HSteamNetConnection Network::connect(const std::string&) { return testConnection; }

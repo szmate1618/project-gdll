@@ -7,6 +7,7 @@
 #include "forest_layer.hpp"
 #include "physics_world.hpp"
 #include "tree_layer.hpp"
+#include "undergrowth.hpp"
 #include "zombie_layer.hpp"
 #include "weapons.hpp"
 #include "vegetation_selection.hpp"
@@ -25,6 +26,7 @@ struct Options {
     std::size_t zombieCount = 100;
     float zombieRadius = 100;
     bool trees = true, forests = true, headless = false, hidden = false, bot = false;
+    bool audio = true;
     glm::vec2 look{-90, 0}; // Client yaw/pitch in degrees; independent of world identity.
     double seconds = 0;
     float fakeLagMs = 0, fakeLossPercent = 0;
@@ -44,6 +46,7 @@ struct Scene {
     std::unique_ptr<viewer::Grenades> grenades;
     std::optional<viewer::TreeLayer> trees;
     std::optional<viewer::ForestLayer> forests;
+    viewer::UndergrowthIndex undergrowth;
     std::unique_ptr<viewer::CollisionWorld> collision;
     viewer::ZombieLayer zombies;
     glm::vec3 spawnEye{0};

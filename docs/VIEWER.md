@@ -208,6 +208,14 @@ since the detector does not measure trunks. The textured canopy cards never
 enter the town collision world, and trees add no walkable canopy surfaces.
 F3 displays nearby trunk colliders; `--no-tree-collisions` disables them.
 
+Walking through runtime forest shrubs produces short recorded rustles. Running
+is louder; a stable dry subset can also crack twigs and alert nearby zombies.
+Crouching and prone movement are quieter. Stopping or leaving stops new bursts;
+the current short sound finishes. These are nonblocking contact volumes, separate
+from walking collision, tree rendering and explosion animation. Detection uses
+a spatial index rather than scanning the forest; muting does not suppress AI
+hearing. See [undergrowth audio](AUDIO.md#undergrowth-contact) for timing and tuning.
+
 The tree layer supports static instances of the supplied double-sided,
 alpha-masked impostors. There is no tree animation or occlusion culling.
 

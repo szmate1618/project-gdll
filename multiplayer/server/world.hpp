@@ -16,6 +16,7 @@ struct ServerPlayer {
     viewer::Camera camera;
     viewer::Weapons weapons;
     viewer::PlayerInteraction interaction;
+    viewer::UndergrowthEmitter undergrowth;
     std::map<std::uint64_t, Command> pending;
     Command held;
     std::uint64_t resolved = 0, lastPacketTick = 0, shots = 0;

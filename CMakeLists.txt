@@ -185,11 +185,19 @@ target_include_directories(viewer_noise PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src"
 target_link_libraries(viewer_noise PUBLIC glm::glm)
 viewer_warnings(viewer_noise)
 
+add_library(viewer_undergrowth STATIC src/undergrowth.cpp)
+target_link_libraries(viewer_undergrowth PUBLIC viewer_trees viewer_noise viewer_visibility)
+viewer_warnings(viewer_undergrowth)
+
 if(GD_VIEWER)
 add_library(viewer_audio STATIC src/audio.cpp src/audio_wave.cpp)
 target_include_directories(viewer_audio PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(viewer_audio PUBLIC glm::glm PRIVATE OpenAL::OpenAL)
 viewer_warnings(viewer_audio)
+
+add_library(viewer_undergrowth_audio STATIC src/undergrowth_audio.cpp)
+target_link_libraries(viewer_undergrowth_audio PUBLIC viewer_audio viewer_undergrowth)
+viewer_warnings(viewer_undergrowth_audio)
 
 set(VIEWER_AUDIO_DIR "${CMAKE_CURRENT_BINARY_DIR}/audio")
 set(VIEWER_AUDIO_FILES)
@@ -319,7 +327,7 @@ viewer_warnings(viewer_audio_cues)
 
 if(GD_VIEWER)
 add_library(viewer_scene_audio STATIC src/scene_audio.cpp)
-target_link_libraries(viewer_scene_audio PUBLIC viewer_audio viewer_audio_cues viewer_fps viewer_zombies)
+target_link_libraries(viewer_scene_audio PUBLIC viewer_audio viewer_audio_cues viewer_fps viewer_zombies viewer_undergrowth_audio)
 viewer_warnings(viewer_scene_audio)
 
 add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp
@@ -344,6 +352,15 @@ viewer_warnings(godollo_viewer)
 endif()
 
 if(BUILD_TESTING AND GD_VIEWER)
+    add_executable(test_undergrowth tests/test_undergrowth.cpp)
+    target_link_libraries(test_undergrowth PRIVATE viewer_undergrowth)
+    viewer_warnings(test_undergrowth)
+    add_test(NAME viewer_undergrowth COMMAND test_undergrowth)
+
+    add_executable(benchmark_undergrowth EXCLUDE_FROM_ALL tests/benchmark_undergrowth.cpp)
+    target_link_libraries(benchmark_undergrowth PRIVATE viewer_undergrowth viewer_forests)
+    viewer_warnings(benchmark_undergrowth)
+
     add_executable(test_audio_cues tests/test_audio_cues.cpp)
     target_link_libraries(test_audio_cues PRIVATE viewer_audio_cues)
     viewer_warnings(test_audio_cues)

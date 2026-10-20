@@ -7,6 +7,7 @@
 #include <vector>
 
 namespace viewer {
+enum class UndergrowthKind { none, leafy, dry };
 
 struct TreeAsset {
     std::string id;
@@ -23,6 +24,7 @@ struct TreeInstance {
     glm::vec3 dimensions{1.0f}; // Crown width, visible height, crown depth (meters).
     bool collidable = true; // Bush billboards share rendering, but have no trunk.
     bool blastResponsive = false; // Runtime shrubs only; visual deformation.
+    UndergrowthKind undergrowth = UndergrowthKind::none; // Nonblocking gameplay contact.
 };
 
 struct TreeLayer {

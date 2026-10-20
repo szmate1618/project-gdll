@@ -13,13 +13,14 @@ enum class AudioEffect {
     footstep, landing, pistol, smg, sniper, shotgun, reload, zombie,
     footstep2, footstep3, footstep4, zombie2, zombie3,
     huh, intrigued, chase, chase2, doorLatch, doorSlam, emptyClick,
-    reloadRifle, reloadShotgun, explosion, count
+    reloadRifle, reloadShotgun, explosion, rustle, rustle2, rustle3, dryRustle, dryRustle2, twigSnap, count
 };
 
 struct AudioOptions {
     std::filesystem::path directory;
     bool enabled = true;
     bool rain = false;
+    bool ambience = true; // Multiplayer currently uses only local shrub effects.
     bool hrtf = true;
     float gain = 0.6f;
     std::size_t effectVoices = 24, zombieVoices = 8;

@@ -24,6 +24,7 @@ std::vector<ForestTreeCandidate> oldForestTreeCandidates(const ForestPolygon& po
 struct ForestBushCandidate {
     glm::dvec2 eastNorth;
     float height = 0, yaw = 0; // Height 1.5..3.5 m; width/depth are four times height.
+    bool dry = false; // Stable 25% subset; independent of positions and sizes.
 };
 // 60% primary chance; conditional 20% chance of two non-recursive neighbors
 // uniform in a 5 m radius disk. Callers apply polygon/building/ground exclusions.

@@ -1,5 +1,7 @@
 """Check a relocated Linux client package using real networking and optional graphics."""
 import argparse
+import hashlib
+import json
 import os
 from pathlib import Path
 import socket
@@ -41,6 +43,14 @@ def main():
             archive.extractall(destination, filter="data")
         package = destination / "godollo-client-linux-x86_64"
         check_credits(package)
+        audio = package / "assets/audio"
+        manifest = json.loads((audio / "sources.json").read_text())
+        for name in ("rustle.wav", "rustle2.wav", "rustle3.wav", "dry_rustle.wav", "dry_rustle2.wav", "twig_snap.wav"):
+            entry = next(asset for asset in manifest["assets"] if asset["file"] == name)
+            if hashlib.sha256((audio / name).read_bytes()).hexdigest() != entry["sha256"]:
+                raise RuntimeError("Packaged undergrowth recording differs from its provenance: " + name)
+        if not list((package / "lib").glob("libopenal.so*")):
+            raise RuntimeError("Package lacks the shared OpenAL audio library")
         for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"):
             model = package / "assets/weapons" / (name + ".glb")
             if not model.is_file() or model.read_bytes()[:4] != b"glTF":
