@@ -156,7 +156,7 @@ add_library(viewer_vegetation STATIC src/vegetation_selection.cpp)
 viewer_warnings(viewer_vegetation)
 
 add_library(viewer_trees STATIC src/tree_layer.cpp src/tree_visibility.cpp src/tree_color.cpp src/tree_canopy.cpp
-    src/vegetation_blast.cpp src/tree_billboard.cpp src/tree_depth_order.cpp)
+    src/vegetation_blast.cpp src/tree_billboard.cpp src/tree_depth_order.cpp src/tree_card_split.cpp)
 target_link_libraries(viewer_trees PUBLIC viewer_model viewer_visibility viewer_fingerprints)
 target_include_directories(viewer_trees SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_trees)
@@ -419,6 +419,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_compile_definitions(benchmark_zombie_crowd PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
     viewer_warnings(benchmark_zombie_crowd)
 
+    add_executable(benchmark_tree_card_split EXCLUDE_FROM_ALL tests/benchmark_tree_card_split.cpp src/frame_profile.cpp)
+    target_link_libraries(benchmark_tree_card_split PRIVATE viewer_renderer viewer_fps viewer_undergrowth glfw)
+    target_compile_definitions(benchmark_tree_card_split PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
+    viewer_warnings(benchmark_tree_card_split)
+
     add_executable(test_muzzle_flash_render tests/test_muzzle_flash_render.cpp)
     target_link_libraries(test_muzzle_flash_render PRIVATE viewer_renderer viewer_weapons glfw)
     target_compile_definitions(test_muzzle_flash_render PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -584,6 +589,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_tree_billboard PRIVATE viewer_forests)
     viewer_warnings(test_tree_billboard)
     add_test(NAME viewer_tree_billboard COMMAND test_tree_billboard)
+
+    add_executable(test_tree_card_split tests/test_tree_card_split.cpp)
+    target_link_libraries(test_tree_card_split PRIVATE viewer_trees)
+    viewer_warnings(test_tree_card_split)
+    add_test(NAME viewer_tree_card_split COMMAND test_tree_card_split)
 
     add_executable(test_tree_billboard_renderer tests/test_tree_billboard_renderer.cpp)
     target_link_libraries(test_tree_billboard_renderer PRIVATE viewer_renderer glfw)

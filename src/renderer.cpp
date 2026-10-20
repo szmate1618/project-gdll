@@ -139,7 +139,7 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
     }
 }
 
-void Renderer::uploadModel(const Model& model, ModelGPU& destination) {
+void Renderer::uploadModel(const Model& model, ModelGPU& destination, const std::vector<Primitive>* geometry) {
     destination.materials = model.materials;
     GLint maximumTexture = 0;
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maximumTexture);
@@ -185,7 +185,7 @@ void Renderer::uploadModel(const Model& model, ModelGPU& destination) {
             glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, anisotropy);
         glGenerateMipmap(GL_TEXTURE_2D);
     }
-    uploadMeshes(model.primitives, destination);
+    uploadMeshes(geometry ? *geometry : model.primitives, destination);
 }
 
 void Renderer::uploadMeshes(const std::vector<Primitive>& source, ModelGPU& destination) {

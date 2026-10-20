@@ -99,6 +99,8 @@ public:
     // Three-dimensional root distance in meters; zero keeps authored cards.
     void setTreeBillboardDistance(float meters);
     void setTreeDepthOrdering(bool enabled) { treeDepthOrdering_ = enabled; }
+    // Switch preuploaded index ranges; no image scan or buffer upload per frame.
+    void setTreeCardSplitting(bool enabled) { treeCardSplitting_ = enabled; }
     // Horizontal radius inside old forest only; zero disables the cutoff.
     void setOldForestDistance(float meters);
     void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
@@ -133,6 +135,7 @@ private:
     struct MeshGPU {
         GLuint vao = 0, vbo = 0, ebo = 0;
         GLsizei count = 0;
+        GLsizei splitCount = 0; // Replacement follows count original indices.
         int material = -1;
         glm::vec3 center{0};
     };
@@ -209,7 +212,8 @@ private:
     };
     void release() noexcept;
     static void releaseModel(ModelGPU& model) noexcept;
-    void uploadModel(const Model& source, ModelGPU& destination);
+    void uploadModel(const Model& source, ModelGPU& destination,
+                     const std::vector<Primitive>* geometry = nullptr);
     void uploadMeshes(const std::vector<Primitive>& source, ModelGPU& destination);
     void uploadRoofBatches(const Model& source);
     void uploadWallBatches(const Model& source);
@@ -318,6 +322,7 @@ private:
     std::vector<VisibilityBounds> treeAuthoredBounds_;
     TreeDepthOrder treeDepthOrder_;
     bool treeDepthOrdering_ = true;
+    bool treeCardSplitting_ = true;
     VegetationBlastMotion vegetationBlastMotion_;
     std::vector<VegetationBend> vegetationBends_;
     std::vector<std::size_t> visibleTrees_, shadowTrees_;

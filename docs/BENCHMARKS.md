@@ -89,9 +89,31 @@ This is a dated example, not a performance threshold for other machines.
 | --- | --- | --- |
 | Map vegetation Hi-Z A/B/C, experimental branch | `tests/benchmark_tree_hiz.cpp` / `benchmark_tree_hiz` | Per-frame CSVs and captures; common summarizer supports its round files |
 | Undergrowth contact detection | `tests/benchmark_undergrowth.cpp` / `benchmark_undergrowth` | CSV timings on stdout; microseconds per update |
+| Healthy tree trunk/canopy geometry A/B | `tests/benchmark_tree_card_split.cpp` / `benchmark_tree_card_split` | Alternating original/split rounds, geometry counts, asset split metrics and captures |
 | Grenades with/without tree contacts | `tests/benchmark_grenade_trees.cpp` / `benchmark_grenade_trees` | CSV stage timings on stdout; microseconds per update |
 
 The map Hi-Z case takes `MAP TREES FORESTS CAMERA_FILE OUTPUT_DIRECTORY`.
 Camera-file lines are `INDEX NAME eye X Y Z yaw DEGREES pitch DEGREES` in runtime
 meters. Keep the matching camera file with a run's results: those coordinates
 belong to that map/frame, and must not be reused blindly for another dataset.
+
+The tree-card split case uses the same five arguments as the map Hi-Z case:
+
+```bash
+cmake --build build --target benchmark_tree_card_split -j4
+./build/benchmark_tree_card_split output/godollo.glb output/trees.instances.json \
+  output/osm/forest_patches.json build/forest_perf/billboard-views.txt \
+  build/benchmarks/tree-card-split
+.venv/bin/python tools/summarize_render_benchmark.py build/benchmarks/tree-card-split
+```
+
+Supply a camera file for your map (the example refers to an existing local
+capture). The harness adds grounded old-forest views with/without the 100 m limit
+and a town view derived from scene geometry. It requests OpenGL 3.3, alternates
+six rounds of 64 frames per mode, and bounds outstanding GPU queries outside CPU
+timers. Mode 0 uses original cards; mode 1 uses the preuploaded split index range.
+CPU simulation measures a fixed collision/undergrowth route; no AI, audio or
+dynamic physics runs. Image analysis and all asset preparation are outside frame
+timers. Run the standard zombie case as a separate regression control.
+
+Recorded example: [tree-card split on Radeon 660M, 2026-10-20](benchmarks/tree-card-split-2026-10-20.txt).

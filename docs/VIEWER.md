@@ -163,6 +163,22 @@ instance. Order within each band stays stable. Shadows retain their light-query
 order, and collision/placement data remain unchanged. Use
 `--no-tree-depth-ordering` to compare CPU and GPU time with ordering disabled.
 
+Healthy broadleaf and pine upright cards are analyzed once during upload. A
+strong-green foliage test and row-width test locate the start of the narrow
+lower trunk region; four source texels of padding protect the split. The upper
+quad keeps its full width, while the lower quad encloses the trunk/root texels,
+with four texels of horizontal padding. Isolated alpha below 16/255 is ignored
+(or a lower threshold if required by the material cutoff). This is a heuristic for
+the calibrated green assets, not general image segmentation: unsupported UVs,
+non-affine attributes, absent foliage or negligible savings retain the original.
+Shrubs, asymmetric dry trees and horizontal cards are excluded. UVs, textures,
+placement/collision bounds and instancing remain unchanged. Both replacement
+quads share the existing draw, adding two triangles per affected upright card;
+the same split is used for side billboards and shadows. Toggle back to original
+cards with `--no-tree-card-splitting`. Coarse mip filtering can extend faint
+coverage outside the cropped source silhouette, so captures must be compared
+alongside timings; the four-texel guard does not cover every mip footprint.
+
 At **100 m** from the tree root to the camera in three dimensions, normal
 broadleaf and pine trees switch to a **single-sided, camera-facing card**.
 At elevation angles up to 45° in either direction, the front card rotates around
@@ -170,7 +186,7 @@ the world vertical axis at the root. Above 45°, the lower horizontal canopy car
 rotates around its center so its normal faces the camera. Looking from below
 also uses this canopy texture. Distance and angle transitions are sharp.
 Shrubs and asymmetric dry trees retain their authored cards. Both scope views
-and all shadow passes retain the original double-sided geometry; collisions
+and all shadow passes retain authored card orientations with double-sided rendering; collisions
 and placement matrices are unchanged. Forest patches still switch to their
 volume representation at the existing distance.
 

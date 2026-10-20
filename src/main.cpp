@@ -54,6 +54,7 @@ struct Options {
     bool treeShadows = true;
     bool treeCanopyShading = true;
     bool treeDepthOrdering = true;
+    bool treeCardSplitting = true;
     float treeBillboardDistance = 100;
     float oldForestDistance = viewer::OldForestVisibility::distance;
     bool night = false;
@@ -165,6 +166,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--no-trees") options.noTrees = true;
         else if (argument == "--no-tree-culling") options.treeCulling = false;
         else if (argument == "--no-tree-depth-ordering") options.treeDepthOrdering = false;
+        else if (argument == "--no-tree-card-splitting") options.treeCardSplitting = false;
         else if (argument == "--no-zombie-culling") options.zombieCulling = false;
         else if (argument == "--no-zombie-staggering") options.zombiePerceptionStaggering = false;
         else if (argument == "--no-town-culling") options.sceneCulling = false;
@@ -285,6 +287,7 @@ void printHelp() {
               << "  --no-roof-batching  Draw static roofs individually for comparison\n"
               << "  --no-wall-batching  Draw simple building walls individually for comparison\n"
               << "  --no-tree-culling   Render all tree instances for comparison\n"
+              << "  --no-tree-card-splitting Keep full-width healthy tree cards for comparison\n"
               << "  --no-zombie-lod     Disable zombie mesh LOD, distance cutoff and stepped animation\n"
               << "  --zombie-draw-distance M Camera cutoff at normal FOV (180 m; overview unlimited; 0 disables)\n"
               << "  --flashlight-shadows Enable nearby flashlight shadows (default off)\n"
@@ -1025,6 +1028,7 @@ int run(const Options& options) {
     renderer.setTreeShadows(options.treeShadows);
     renderer.setTreeCanopyShading(options.treeCanopyShading);
     renderer.setTreeDepthOrdering(options.treeDepthOrdering);
+    renderer.setTreeCardSplitting(options.treeCardSplitting);
     renderer.setTreeBillboardDistance(options.treeBillboardDistance);
     renderer.setOldForestDistance(options.oldForestDistance);
     renderer.setNight(options.night);

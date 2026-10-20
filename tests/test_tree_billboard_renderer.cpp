@@ -66,9 +66,46 @@ void nearBounds() {
     require(renderer.treeStats().sideBillboards==1,"Far billboard lost conservative rotated bounds");
     viewer::Renderer::checkErrors("tree billboard nearby bounds");
 }
+void splitCards(bool reflected) {
+    auto model=billboard_test::asset();
+    viewer::ImageData image;image.width=image.height=128;image.rgba.resize(128*128*4);
+    for(int y=4;y<124;++y)for(int x=0;x<128;++x) {
+        const bool canopy=y<80 && x>=8 && x<120;
+        const bool trunk=y>=80 && x>=60 && x<68;
+        if(!canopy && !trunk)continue;
+        const auto i=(y*128+x)*4;image.rgba[i]=canopy?40:90;
+        image.rgba[i+1]=canopy?120:75;image.rgba[i+2]=40;image.rgba[i+3]=255;
+    }
+    model.images.push_back(image);viewer::Texture texture;texture.image=0;texture.minFilter=texture.magFilter=9728;
+    model.textures.push_back(texture);
+    for(std::size_t i=0;i<2;++i) {
+        model.materials[i].baseColor=glm::vec4(1);model.materials[i].baseColorTexture=0;
+        const std::array<glm::vec2,4> uv{{{0,0},{0,1},{1,1},{1,0}}};
+        for(std::size_t j=0;j<4;++j)model.primitives[i].vertices[j].uv=uv[j];
+    }
+    viewer::TreeLayer trees;trees.assets.push_back({"tree",{},model});
+    const auto node=glm::scale(glm::mat4(1),{reflected?-1.f:1.f,1,1});
+    for(auto& draw:trees.assets[0].model.draws)draw.transform=node;
+    trees.instances.push_back(billboard_test::instance(trees.assets[0].model,glm::scale(glm::mat4(1),glm::vec3(5))));
+    viewer::Renderer renderer({},VIEWER_SHADER_DIR,&trees);renderer.resize(320,240);
+    renderer.setShadows(false);renderer.setHaze(false);renderer.setGroundFog(false);renderer.setTreeCanopyShading(false);
+    for(const auto eye:{glm::vec3(.7f,8,30),glm::vec3(0,10,180),glm::vec3(0,180,0)}) {
+        const auto view=camera(eye,{0,10,0});
+        std::vector<unsigned char> before(320*240*4),after(before.size());
+        renderer.setTreeCardSplitting(false);renderer.render(view);
+        const auto original=renderer.treeStats();glReadPixels(0,0,320,240,GL_RGBA,GL_UNSIGNED_BYTE,before.data());
+        renderer.setTreeCardSplitting(true);renderer.render(view);
+        glReadPixels(0,0,320,240,GL_RGBA,GL_UNSIGNED_BYTE,after.data());
+        require(before==after,"Trunk split changed nearest-filtered fixture coverage or color");
+        require(renderer.treeStats().drawCalls==original.drawCalls,"Trunk split added a draw call");
+        require(renderer.treeStats().triangles==original.triangles+(original.topBillboards?0:original.sideBillboards?2:4),
+                "Split index range or single-card LoD triangle count incorrect");
+    }
+    viewer::Renderer::checkErrors("split tree cards");
+}
 }
 int main(){if(!glfwInit())return 77;glfwWindowHint(GLFW_VISIBLE,GLFW_FALSE);glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3);
 glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,3);glfwWindowHint(GLFW_OPENGL_PROFILE,GLFW_OPENGL_CORE_PROFILE);
 auto* window=glfwCreateWindow(320,240,"tree billboard regression",nullptr,nullptr);if(!window){glfwTerminate();return 77;}
-glfwMakeContextCurrent(window);int code=0;try{viewer::initializeOpenGL();check(false);check(true);nearBounds();std::cout<<"Single-sided tree billboard GPU regressions passed\n";}
+glfwMakeContextCurrent(window);int code=0;try{viewer::initializeOpenGL();check(false);check(true);nearBounds();splitCards(false);splitCards(true);std::cout<<"Single-sided tree billboard GPU regressions passed\n";}
 catch(const std::exception& e){std::cerr<<e.what()<<'\n';code=1;}glfwDestroyWindow(window);glfwTerminate();return code;}

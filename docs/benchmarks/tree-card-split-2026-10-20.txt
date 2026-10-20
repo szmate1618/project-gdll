@@ -1,0 +1,85 @@
+Tree trunk/canopy split benchmark — 2026-10-20
+
+Branch: implement-muzzle-flash; benchmark recorded from working changes atop 51fa9c8.
+OpenGL 3.3 requested; Radeon 660M integrated GPU, Mesa 24.2.8.
+1280x720; six alternating rounds of 64 frames per mode per view.
+5,376/5,376 finite GPU timestamp samples in the final map run.
+Values below are medians of six round averages, milliseconds. Lower is better.
+GPU and CPU overlap; do not add their times or interpret these as FPS.
+CPU render includes driver stalls; query draining and presentation are outside timers.
+Fixed player collision/undergrowth route; no active AI, audio or dynamic physics.
+Clocks/temperature are not locked. Idle GPU was 0% before/after the workload;
+small differences and frame spikes remain subject to system variability.
+
+View | GPU original -> split | CPU render original -> split | CPU non-render original -> split
+Forest A | 11.915 -> 11.653 | 10.164 -> 10.026 | 0.051 -> 0.051
+Forest B | 11.942 -> 11.580 | 5.072 -> 4.993 | 0.036 -> 0.035
+Aerial | 6.748 -> 6.763 | 0.758 -> 0.685 | 0.033 -> 0.032
+Clearing | 6.666 -> 6.831 | 7.320 -> 7.072 | 0.030 -> 0.031
+Old forest, 100 m | 9.785 -> 9.019 | 0.636 -> 0.559 | 0.040 -> 0.036
+Old forest, unrestricted | 13.781 -> 13.951 | 10.671 -> 10.725 | 0.048 -> 0.046
+Town | 4.907 -> 4.956 | 5.503 -> 5.773 | 0.041 -> 0.044
+
+Geometry and preparation
+- Healthy four-card broadleaf and pine assets only. Shrubs, dry trees and top
+  cards retain authored geometry. Classification happens once at GPU upload.
+- Source foliage green and row width estimate the trunk/canopy boundary.
+  Alpha below 16/255 is ignored, reduced if needed for a lower material cutoff.
+  Four texels of padding surround the trunk crop; roots remain included.
+- Unsupported geometry/UV/attributes and negligible savings keep the original.
+- Original indices are retained for --no-tree-card-splitting; both replacement
+  quads share one instanced draw. No per-frame scan or extra draw calls.
+- Each changed upright card goes from 2 to 4 triangles. Full healthy assets go
+  from 8 to 12 triangles; distant side billboards go from 2 to 4. Top LoD stays 2.
+- Camera and shadow tree draws use the same toggle. Bounds, placement matrices,
+  collision capsules, textures and existing culling/batching are unchanged.
+
+Asset / primitive | split V from top | trunk U interval | card area removed
+pine / 0 | 0.8428 | 0.4551..0.5469 | 14.28%
+pine / 1 | 0.8408 | 0.4521..0.5488 | 14.38%
+tree / 0 | 0.8047 | 0.4014..0.6162 | 15.34%
+tree / 1 | 0.8125 | 0.4033..0.6094 | 14.89%
+
+All seven views retain identical tree counts and tree/town draw-call counts.
+Forest A: 24,423 trees, 9 tree draws, 1,523 town draws. Camera triangles change
+52,914 -> 100,496, illustrating the extra vertex work despite reduced card area.
+
+Image checks
+- Synthetic nearest-filtered GPU captures are pixel-identical before/after,
+  including reflected asset nodes, near four-card and distant side/top LoDs.
+- Actual map captures were compared and visually inspected with a 32x diff.
+  Mean absolute channel differences range from 0.000030 to 0.005485 on 0..255.
+  At most nine pixels per view change by more than 16 in any channel.
+- No visible trunk clipping or split seam in the inspected views. Captures are
+  not pixel-identical: retriangulation/filtering and depth rounding can differ.
+  Four texels cannot conservatively cover all coarse mip footprints.
+
+Standard zombies-open-100k-v1 regression control
+GPU 14.704 ms; CPU render 18.370 ms; CPU non-render 0.040 ms.
+384/384 finite GPU samples. All 100,000 zombies submitted in every measured
+frame: all normal LOD3, 10 draws, 12,580,000 camera triangles, no in-range sun
+shadow casters. This scene has no tree cards; it is a regression control only.
+No claim of a paired zombie speedup is made.
+
+Verification
+- Full build and 98/98 CTests passed.
+- Final faint-alpha correction passed focused CPU regressions and hardware GPU
+  regression with explicit OpenGL 3.3 / GLSL 330 overrides.
+- No new build warning; pre-existing unused debugMessage warning remains.
+- git diff --check and documentation path checks passed.
+
+Assessment
+The clearest win is the 100 m forest view: GPU 9.79 -> 9.02 ms (~7.8%), with
+all six paired round averages faster. Forest A and B improve about 2.2% and
+3.0%; other views are nearly flat or slightly slower. This is a small, local
+fill-rate optimization rather than a general renderer speedup. Extra triangles
+can offset the reduced transparent area. Enabled for trying in the built game;
+use --no-tree-card-splitting for the original geometry.
+
+Raw final data / metadata / source hashes / captures / comparison / layout:
+build/benchmarks/tree-card-split-final-2026-10-20/
+Zombie control:
+build/benchmarks/zombies-open-100k-tree-card-split-2026-10-20/
+Initial run retained separately (broadleaf front card skipped due to faint paint
+residue; not the final implementation): build/benchmarks/tree-card-split-2026-10-20/
+Commands and harness details: docs/BENCHMARKS.md; tests/benchmark_tree_card_split.cpp.

@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 #include "tree_color.hpp"
+#include "tree_card_split.hpp"
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <cstddef>
@@ -39,7 +40,18 @@ std::vector<VisibilityBounds> Renderer::uploadTrees(const TreeLayer& trees, cons
         auto& batch = treeBatches_[index];
         if (treeBillboardModeLocation_ >= 0 && treeBillboardPivotLocation_ >= 0)
             batch.billboard = treeBillboardLayout(source);
-        uploadModel(source, batch.model);
+        auto geometry=source.primitives;
+        // Only the calibrated healthy four-card layouts qualify. Shrubs and
+        // asymmetric bare-tree assets retain their authored meshes.
+        if (trees.assets[index].matchCanopyColor && treeBillboardLayout(source))
+            for (std::size_t p=0;p<geometry.size();++p)
+                if (auto split=splitTreeCard(source,source.primitives[p])) geometry[p]=std::move(split->mesh);
+        uploadModel(source, batch.model, &geometry);
+        for (std::size_t p=0;p<geometry.size();++p) {
+            auto& mesh=batch.model.meshes[p];
+            mesh.splitCount=static_cast<GLsizei>(geometry[p].indices.size()-source.primitives[p].indices.size());
+            mesh.count=static_cast<GLsizei>(source.primitives[p].indices.size());
+        }
         if (canopyColor && trees.assets[index].matchCanopyColor)
             batch.model.materials = matchTreeTextureColors(source, *canopyColor);
         batch.visibleInstances.reserve(counts[index]);
@@ -168,9 +180,12 @@ void Renderer::drawTrees(const glm::mat4& projectionView, bool shadowPass) {
                 }
                 glUniformMatrix4fv(modelLocation_, 1, GL_FALSE, glm::value_ptr(draw.transform));
                 glBindVertexArray(mesh.vao);
-                glDrawElementsInstanced(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, nullptr,
+                const bool split=treeCardSplitting_ && mesh.splitCount;
+                const auto count=split ? mesh.splitCount : mesh.count;
+                const auto offset=split ? static_cast<std::size_t>(mesh.count)*sizeof(std::uint32_t) : 0;
+                glDrawElementsInstanced(GL_TRIANGLES, count, GL_UNSIGNED_INT, reinterpret_cast<const void*>(offset),
                                        static_cast<GLsizei>(instances.size()));
-                if (!shadowPass) { ++treeStats_.drawCalls; treeStats_.triangles += mesh.count/3 * instances.size(); }
+                if (!shadowPass) { ++treeStats_.drawCalls; treeStats_.triangles += count/3 * instances.size(); }
             };
             if (single) drawCard(*single);
             else for (const auto& draw : batch.draws) drawCard(draw);
