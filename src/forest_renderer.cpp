@@ -47,10 +47,10 @@ void Renderer::prepareForestView(const Camera& camera) {
     }
 }
 
-void Renderer::drawForests(const glm::mat4& projectionView,bool shadowPass) {
+void Renderer::drawForests(const glm::mat4& projectionView,bool shadowPass, VisibilityQueryState& temporal) {
     if (forestPatches_.empty()) return;
     if (shadowPass||treeCulling_||forestViewRange_)
-        forestVisibility_.query(projectionView,visibleForests_,forestVisibilityRange(),shadowPass||treeCulling_);
+        forestVisibility_.query(projectionView,visibleForests_,forestVisibilityRange(),shadowPass||treeCulling_,&temporal);
     else {
         visibleForests_.resize(forestPatches_.size());
         std::iota(visibleForests_.begin(),visibleForests_.end(),std::size_t{0});

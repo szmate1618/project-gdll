@@ -180,6 +180,11 @@ private:
         std::size_t asset;
         TreeGPUInstance data;
     };
+    struct VisibilityPassState {
+        VisibilityQueryState scene;
+        ForestTreeVisibilityQueryState billboardTrees, authoredTrees;
+        VisibilityQueryState forests;
+    };
     struct ForestVolumeBatchGPU {
         std::vector<ForestVolumeRange> ranges;
         std::vector<GLsizei> counts;
@@ -235,10 +240,10 @@ private:
     // Returns false when a building's spatial batch was already drawn in this pass.
     bool drawTownSource(std::size_t index);
     std::vector<VisibilityBounds> uploadTrees(const TreeLayer& trees, const ForestLayer* forests);
-    void drawTrees(const glm::mat4& projectionView, bool shadowPass = false);
+    void drawTrees(const glm::mat4& projectionView, bool shadowPass, VisibilityPassState& temporal);
     void uploadForests(const ForestLayer& forests);
     void prepareForestView(const Camera& camera);
-    void drawForests(const glm::mat4& projectionView, bool shadowPass = false);
+    void drawForests(const glm::mat4& projectionView, bool shadowPass, VisibilityQueryState& temporal);
     void uploadZombies(const ZombieLayer& zombies);
     void updateZombieInstance(std::size_t id, bool bounds, bool full);
     void uploadZombieGeometry(const AnimatedModel& source, ZombieGeometry& geometry, std::size_t capacity, GLint maximumTexels);
@@ -329,6 +334,9 @@ private:
     std::vector<DrawGPU> sceneDraws_;
     std::vector<std::size_t> visibleScene_, opaqueScene_, transparentScene_;
     ModelVisibility sceneVisibility_;
+    // Plane-order hints belong to each view; alternating camera/light volumes
+    // and billboard/authored bounds must not overwrite one another's history.
+    VisibilityPassState cameraVisibility_, sunShadowVisibility_, flashlightVisibility_;
     SceneRenderStats sceneStats_;
     bool sceneCulling_ = true;
     std::vector<TreeBatch> treeBatches_;

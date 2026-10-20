@@ -126,7 +126,7 @@ void Renderer::updateVegetationBlasts(const std::vector<GrenadeExplosion>& explo
         treeInstances_[bend.instance].data.transform = bend.transform;
 }
 
-void Renderer::drawTrees(const glm::mat4& projectionView, bool shadowPass) {
+void Renderer::drawTrees(const glm::mat4& projectionView, bool shadowPass, VisibilityPassState& temporal) {
     if (!shadowPass) {
         treeStats_.visible = 0;
         treeStats_.drawCalls = 0;
@@ -139,9 +139,10 @@ void Renderer::drawTrees(const glm::mat4& projectionView, bool shadowPass) {
     // --no-tree-culling flag. Always keep caster selection spatially bounded.
     const bool billboards = !shadowPass && treeBillboardsForFrame_;
     const auto& visibilityIndex = billboards ? treeVisibility_ : treeAuthoredVisibility_;
+    auto& treeTemporal = billboards ? temporal.billboardTrees : temporal.authoredTrees;
     const auto* range = forestVisibilityRange();
     const auto visibility = visibilityIndex.query(projectionView, forestDetail_,
-                                                 shadowPass || treeCulling_, selected, range);
+                                                 shadowPass || treeCulling_, selected, range, &treeTemporal);
     // Stable depth bands survive the later species/LoD split, without changing
     // source selection or adding draws. Shadows retain their light-query order.
     if (!shadowPass && treeDepthOrdering_)

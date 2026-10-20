@@ -13,8 +13,9 @@ TreeVisibility::TreeVisibility(const std::vector<TreeInstance>& instances) {
 }
 
 TreeVisibilityStats TreeVisibility::query(const glm::mat4& projectionView,
-                                         std::vector<std::size_t>& visible) const {
-    return index_.query(projectionView, visible);
+                                         std::vector<std::size_t>& visible,
+                                         VisibilityQueryState* temporal) const {
+    return index_.query(projectionView, visible, nullptr, true, temporal);
 }
 
 } // namespace viewer

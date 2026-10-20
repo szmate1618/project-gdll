@@ -17,7 +17,8 @@ public:
     TreeVisibility() = default;
     explicit TreeVisibility(const std::vector<TreeInstance>& instances);
     TreeVisibilityStats query(const glm::mat4& projectionView,
-                              std::vector<std::size_t>& visible) const;
+                              std::vector<std::size_t>& visible,
+                              VisibilityQueryState* temporal = nullptr) const;
 
 private:
     VisibilityIndex index_;

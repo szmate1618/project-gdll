@@ -91,8 +91,8 @@ ModelVisibility::ModelVisibility(const Model& model) {
 }
 
 VisibilityStats ModelVisibility::query(const glm::mat4& projectionView, std::vector<std::size_t>& visible,
-    const HorizontalVisibilityRange* range, bool frustumCulling) const {
-    return index_.query(projectionView, visible, range, frustumCulling);
+    const HorizontalVisibilityRange* range, bool frustumCulling, VisibilityQueryState* temporal) const {
+    return index_.query(projectionView, visible, range, frustumCulling, temporal);
 }
 
 bool buildingDetailsNear(const VisibilityBounds& bounds, float range,

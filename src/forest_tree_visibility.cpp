@@ -49,12 +49,14 @@ ForestTreeVisibility::ForestTreeVisibility(const std::vector<TreeInstance>& tree
 
 ForestTreeVisibilityStats ForestTreeVisibility::query(const glm::mat4& projectionView,
     const std::vector<bool>& detailedPatches, bool culling,
-    std::vector<std::size_t>& visible, const HorizontalVisibilityRange* range) const {
+    std::vector<std::size_t>& visible, const HorizontalVisibilityRange* range,
+    ForestTreeVisibilityQueryState* temporal) const {
     visible.clear();
     ForestTreeVisibilityStats stats;
     if (groups_.empty()) return stats;
     if (detailedPatches.size() + 1 != groups_.size())
         throw std::runtime_error("Forest detail selection does not match visibility groups");
+    if (culling && temporal) temporal->groups.resize(groups_.size());
     const Frustum frustum(projectionView);
     for (std::size_t i = 0; i < groups_.size(); ++i) {
         if (i && !detailedPatches[i - 1]) continue;
@@ -68,9 +70,12 @@ ForestTreeVisibilityStats ForestTreeVisibility::query(const glm::mat4& projectio
             continue;
         }
         const auto first = visible.size();
-        const auto tested = group.index.appendQuery(projectionView, visible, range, culling);
+        const auto tested = group.index.appendQuery(projectionView, visible, range, culling,
+            culling && temporal ? &temporal->groups[i] : nullptr);
         stats.testedNodes += tested.testedNodes;
         stats.testedInstances += tested.testedInstances;
+        stats.testedPlanes += tested.testedPlanes;
+        stats.temporalRejects += tested.temporalRejects;
         for (std::size_t tree = first; tree < visible.size(); ++tree)
             visible[tree] = group.trees[visible[tree]];
     }

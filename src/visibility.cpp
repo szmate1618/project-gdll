@@ -33,18 +33,41 @@ Frustum::Frustum(const glm::mat4& projectionView) {
 }
 
 Frustum::Relation Frustum::classify(const glm::vec3& minimum, const glm::vec3& maximum) const {
+    std::size_t testedPlanes = 0, temporalRejects = 0;
+    return classify<false>(minimum, maximum, nullptr, testedPlanes, temporalRejects);
+}
+
+template<bool Temporal>
+Frustum::Relation Frustum::classify(const glm::vec3& minimum, const glm::vec3& maximum,
+                                   std::uint8_t* lastRejectingPlane, std::size_t& testedPlanes,
+                                   std::size_t& temporalRejects) const {
     const auto center = (minimum + maximum) * 0.5f;
     const auto halfSize = (maximum - minimum) * 0.5f;
     // Prevent float32 bounds from popping at clip planes; 1 cm is negligible at town scale.
     constexpr float tolerance = 0.01f;
     bool inside = true;
-    for (const auto& plane : planes_) {
+    // Swap the previous rejecting plane to the front. Every plane is still
+    // evaluated at most once; accepted hints never skip the remaining planes.
+    unsigned preferred = 0;
+    if constexpr (Temporal) preferred = *lastRejectingPlane;
+    for (unsigned test = 0; test < planes_.size(); ++test) {
+        unsigned planeIndex = test;
+        if constexpr (Temporal) planeIndex = test == 0 ? preferred : (test == preferred ? 0 : test);
+        const auto& plane = planes_[planeIndex];
         const auto normal = glm::vec3(plane);
         const float distance = glm::dot(normal, center) + plane.w;
         const float radius = glm::dot(glm::abs(normal), halfSize);
-        if (distance + radius < -tolerance) return Relation::Outside;
+        if (distance + radius < -tolerance) {
+            testedPlanes += test + 1;
+            if constexpr (Temporal) {
+                if (test == 0) ++temporalRejects;
+                *lastRejectingPlane = static_cast<std::uint8_t>(planeIndex);
+            }
+            return Relation::Outside;
+        }
         if (distance - radius < tolerance) inside = false;
     }
+    testedPlanes += planes_.size();
     return inside ? Relation::Inside : Relation::Intersecting;
 }
 
@@ -87,32 +110,41 @@ std::size_t VisibilityIndex::build(std::size_t first, std::size_t count) {
     return index;
 }
 
+template<bool PlaneHints>
 void VisibilityIndex::visit(std::size_t index, const Frustum* frustum, const HorizontalVisibilityRange* range,
-                            std::vector<std::size_t>& visible, VisibilityStats& stats) const {
+                            std::vector<std::size_t>& visible, VisibilityStats& stats,
+                            VisibilityQueryState* temporal) const {
     const auto& node = nodes_[index];
     ++stats.testedNodes;
     if (range && !range->intersects(node.bounds)) return;
-    const auto relation = frustum ? frustum->classify(node.bounds.minimum, node.bounds.maximum) : Frustum::Relation::Inside;
+    std::uint8_t* nodePlane = nullptr;
+    if constexpr (PlaneHints) nodePlane = &temporal->nodePlanes_[index];
+    const auto relation = frustum ? frustum->classify<PlaneHints>(node.bounds.minimum, node.bounds.maximum,
+        nodePlane, stats.testedPlanes, stats.temporalRejects) : Frustum::Relation::Inside;
     if (relation == Frustum::Relation::Outside) return;
     if (relation == Frustum::Relation::Inside && (!range || range->contains(node.bounds))) {
         visible.insert(visible.end(), order_.begin() + node.first, order_.begin() + node.first + node.count);
     } else if (node.left != 0) {
-        visit(node.left, frustum, range, visible, stats);
-        visit(node.right, frustum, range, visible, stats);
+        visit<PlaneHints>(node.left, frustum, range, visible, stats, temporal);
+        visit<PlaneHints>(node.right, frustum, range, visible, stats, temporal);
     } else for (std::size_t offset = node.first; offset < node.first + node.count; ++offset) {
         const auto instance = order_[offset];
         ++stats.testedInstances;
-        if ((!range || range->intersects(bounds_[instance])) &&
-            (!frustum || frustum->intersects(bounds_[instance].minimum, bounds_[instance].maximum)))
+        if (range && !range->intersects(bounds_[instance])) continue;
+        std::uint8_t* instancePlane = nullptr;
+        if constexpr (PlaneHints) instancePlane = &temporal->instancePlanes_[instance];
+        if (!frustum || frustum->classify<PlaneHints>(bounds_[instance].minimum, bounds_[instance].maximum,
+                instancePlane, stats.testedPlanes, stats.temporalRejects) != Frustum::Relation::Outside)
             visible.push_back(instance);
     }
 }
 
 VisibilityStats VisibilityIndex::query(const glm::mat4& projectionView,
                                         std::vector<std::size_t>& visible,
-                                        const HorizontalVisibilityRange* range, bool frustumCulling) const {
+                                        const HorizontalVisibilityRange* range, bool frustumCulling,
+                                        VisibilityQueryState* temporal) const {
     visible.clear();
-    return appendQuery(projectionView, visible, range, frustumCulling);
+    return appendQuery(projectionView, visible, range, frustumCulling, temporal);
 }
 
 void VisibilityIndex::visit(std::size_t index, const VisibilityBounds& region,
@@ -144,10 +176,46 @@ VisibilityStats VisibilityIndex::query(const VisibilityBounds& region,
 
 VisibilityStats VisibilityIndex::appendQuery(const glm::mat4& projectionView,
                                             std::vector<std::size_t>& visible,
-                                            const HorizontalVisibilityRange* range, bool frustumCulling) const {
+                                            const HorizontalVisibilityRange* range, bool frustumCulling,
+                                            VisibilityQueryState* temporal) const {
     VisibilityStats stats;
+    if (nodes_.empty()) return stats;
+    if (!frustumCulling) {
+        visit<false>(0, nullptr, range, visible, stats, nullptr);
+        return stats;
+    }
     const Frustum frustum(projectionView);
-    if (!nodes_.empty()) visit(0, frustumCulling ? &frustum : nullptr, range, visible, stats);
+    if (!temporal) {
+        visit<false>(0, &frustum, range, visible, stats, nullptr);
+        return stats;
+    }
+    bool coherent = true;
+    if (temporal->initialized_) {
+        // World-space planes are normalized, so offsets are in meters.
+        // Cuts, teleports and large projection changes use cheaper fixed order.
+        constexpr float minimumNormalDot = 0.98480775f; // cos(10 degrees)
+        constexpr float maximumOffsetChange = 25.0f;
+        for (std::size_t i = 0; i < frustum.planes_.size(); ++i) {
+            const auto& current = frustum.planes_[i];
+            const auto& previous = temporal->previousPlanes_[i];
+            // Also handles unchanged degenerate planes (e.g. infinite far).
+            if (current == previous) continue;
+            if (glm::dot(glm::vec3(current), glm::vec3(previous)) < minimumNormalDot ||
+                std::abs(current.w - previous.w) > maximumOffsetChange) {
+                coherent = false;
+                break;
+            }
+        }
+    }
+    temporal->previousPlanes_ = frustum.planes_;
+    temporal->initialized_ = true;
+    if (!coherent) {
+        visit<false>(0, &frustum, range, visible, stats, nullptr);
+        return stats;
+    }
+    temporal->nodePlanes_.resize(nodes_.size(), 0);
+    temporal->instancePlanes_.resize(bounds_.size(), 0);
+    visit<true>(0, &frustum, range, visible, stats, temporal);
     return stats;
 }
 

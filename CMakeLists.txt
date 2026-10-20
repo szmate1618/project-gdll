@@ -353,6 +353,15 @@ viewer_warnings(godollo_viewer)
 endif()
 
 if(BUILD_TESTING AND GD_VIEWER)
+    add_executable(benchmark_visibility EXCLUDE_FROM_ALL tests/benchmark_visibility.cpp)
+    target_link_libraries(benchmark_visibility PRIVATE viewer_visibility)
+    viewer_warnings(benchmark_visibility)
+
+    add_executable(test_visibility tests/test_visibility.cpp)
+    target_link_libraries(test_visibility PRIVATE viewer_visibility)
+    viewer_warnings(test_visibility)
+    add_test(NAME viewer_visibility COMMAND test_visibility)
+
     add_executable(test_undergrowth tests/test_undergrowth.cpp)
     target_link_libraries(test_undergrowth PRIVATE viewer_undergrowth)
     viewer_warnings(test_undergrowth)

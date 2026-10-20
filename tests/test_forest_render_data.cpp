@@ -73,6 +73,83 @@ void checkTreeSelection() {
     require(rejected, "Overlapping tree ownership was accepted");
 }
 
+void checkTemporalTreeSelection() {
+    std::vector<viewer::TreeInstance> trees;
+    for (const float z : {-100.0f, 100.0f})
+        for (int i = 0; i < 256; ++i)
+            trees.push_back(tree({(i % 32 - 15.5f) * 2, (i / 32 - 3.5f) * 2, z}));
+    trees.push_back(tree({0, 0, -25}));
+    const std::vector<viewer::ForestPatch> patches{
+        {"front", {}, 0, 256, 0, 0, {}}, {"back", {}, 256, 256, 0, 0, {}}};
+    const viewer::ForestTreeVisibility index(trees, patches);
+    viewer::ForestTreeVisibilityQueryState camera, light, billboard;
+    const auto projection = glm::perspective(glm::radians(60.0f), 1.0f, 1.0f, 200.0f);
+    const auto scoped = glm::perspective(glm::radians(1.0f), 1.0f, 1.0f, 200.0f);
+    const auto backwards = projection * glm::lookAt(glm::vec3(0), glm::vec3(0, 0, 1), glm::vec3(0, 1, 0));
+    const viewer::HorizontalVisibilityRange frontRange{{0, -100}, 8};
+    const viewer::HorizontalVisibilityRange backRange{{0, 100}, 8};
+    const auto compare = [&](const viewer::ForestTreeVisibility& visibility, const glm::mat4& matrix,
+                             const std::vector<bool>& detail, bool culling,
+                             viewer::ForestTreeVisibilityQueryState& temporal,
+                             const viewer::HorizontalVisibilityRange* range = nullptr) {
+        std::vector<std::size_t> expected, actual{99999};
+        const auto baseline = visibility.query(matrix, detail, culling, expected, range);
+        const auto cached = visibility.query(matrix, detail, culling, actual, range, &temporal);
+        require(actual == expected, "Temporal forest visibility reused stale tree selection");
+        require(cached.testedNodes == baseline.testedNodes &&
+                cached.testedInstances == baseline.testedInstances &&
+                cached.queriedPatches == baseline.queriedPatches,
+                "Temporal forest visibility changed spatial traversal");
+        if (!culling) require(cached.testedPlanes == 0 && cached.temporalRejects == 0,
+                              "Culling bypass still tested cached planes");
+        return cached;
+    };
+    std::vector<std::size_t> visible;
+    const auto baseline = index.query(scoped, {true, true}, true, visible);
+    compare(index, scoped, {true, true}, true, camera);
+    const auto repeated = compare(index, scoped, {true, true}, true, camera);
+    require(repeated.temporalRejects > 0 && repeated.testedPlanes < baseline.testedPlanes,
+            "Forest groups did not retain or aggregate rejecting-plane hints");
+
+    // Range cutoffs remain active during a frustum bypass and must not read or
+    // update plane hints. Only the front patch intersects this short range.
+    index.query(backwards, {true, true}, false, visible, &frontRange, &camera);
+    require(!visible.empty() && visible.size() < 256 &&
+            std::all_of(visible.begin(), visible.end(), [](std::size_t i) { return i < 256; }),
+            "Temporal frustum bypass lost the horizontal range cutoff");
+
+    std::vector<viewer::VisibilityBounds> billboardBounds;
+    for (const auto& instance : trees)
+        billboardBounds.push_back({instance.boundsMin - glm::vec3(3, 0, 3),
+                                   instance.boundsMax + glm::vec3(3, 0, 3)});
+    const viewer::ForestTreeVisibility billboardIndex(trees, patches, billboardBounds);
+    // Repeated scopes, camera turns, detail switches, independent light and
+    // billboard indexes, range changes and bypasses all use current visibility.
+    for (int frame = 0; frame < 16; ++frame) {
+        const std::vector<bool> detail{(frame & 1) != 0, (frame & 2) != 0};
+        const auto& matrix = frame % 3 == 0 ? scoped : (frame % 3 == 1 ? backwards : projection);
+        const auto* range = frame % 3 == 0 ? nullptr : (frame % 3 == 1 ? &frontRange : &backRange);
+        compare(index, matrix, detail, frame % 4 != 0, camera, range);
+        compare(index, backwards, detail, true, light, range);
+        compare(billboardIndex, matrix, detail, true, billboard, range);
+    }
+
+    // Replacements can grow and shrink both the group list and each group's
+    // index; previous plane choices are ordering hints, never visibility data.
+    auto expandedTrees = trees;
+    expandedTrees.push_back(tree({0, 0, -50}));
+    auto expandedPatches = patches;
+    expandedPatches.push_back({"added", {}, 513, 1, 0, 0, {}});
+    const viewer::ForestTreeVisibility expanded(expandedTrees, expandedPatches);
+    compare(expanded, projection, {true, true, true}, true, camera);
+    const viewer::ForestTreeVisibility ordinary(trees, {});
+    compare(ordinary, scoped, {}, true, camera);
+    compare(index, backwards, {true, true}, true, camera);
+    const viewer::ForestTreeVisibility empty;
+    compare(empty, projection, {}, true, camera);
+    compare(index, projection, {true, false}, true, camera);
+}
+
 void checkVolumeBatching() {
     viewer::ForestLayer forest;
     viewer::Primitive triangle;
@@ -139,6 +216,7 @@ void checkVolumeBatching() {
 int main() {
     try {
         checkTreeSelection();
+        checkTemporalTreeSelection();
         checkVolumeBatching();
         std::cout << "Forest visibility and volume batching tests passed\n";
     } catch (const std::exception& error) {

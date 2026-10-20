@@ -8,6 +8,12 @@ struct ForestTreeVisibilityStats : VisibilityStats {
     std::size_t queriedPatches = 0;
 };
 
+// Keep one history per viewing volume and bounds index. Groups can disappear
+// from queries as forest detail selection changes without invalidating hints.
+struct ForestTreeVisibilityQueryState {
+    std::vector<VisibilityQueryState> groups;
+};
+
 // Immutable indexes over ordinary trees and each patch's generated/detected
 // trees. Bounds include the complete transformed asset, including padding.
 class ForestTreeVisibility {
@@ -20,7 +26,8 @@ public:
     // tree index. A shadow caller supplies its own light projection/view.
     ForestTreeVisibilityStats query(const glm::mat4& projectionView,
         const std::vector<bool>& detailedPatches, bool culling,
-        std::vector<std::size_t>& visible, const HorizontalVisibilityRange* range = nullptr) const;
+        std::vector<std::size_t>& visible, const HorizontalVisibilityRange* range = nullptr,
+        ForestTreeVisibilityQueryState* temporal = nullptr) const;
 
 private:
     struct Group {

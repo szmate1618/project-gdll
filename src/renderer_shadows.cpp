@@ -56,7 +56,8 @@ void Renderer::drawShadowCasters(const glm::mat4& view, const glm::mat4& project
     // Query the light volume independently of camera visibility. The existing
     // BVH conservatively includes full transformed geometry bounds.
     const auto projectionView = projection * view;
-    sceneVisibility_.query(projectionView, shadowScene_, forestVisibilityRange());
+    auto& temporal = pass == ZombiePass::SunShadow ? sunShadowVisibility_ : flashlightVisibility_;
+    sceneVisibility_.query(projectionView, shadowScene_, forestVisibilityRange(), true, &temporal.scene);
     if (detailedBuildings) sceneVisibility_.filterDetails(detailEye, projection, shadowScene_);
     beginTownPass(detailEye, projection, !detailedBuildings);
     for (const auto index : shadowScene_) {
@@ -66,8 +67,8 @@ void Renderer::drawShadowCasters(const glm::mat4& view, const glm::mat4& project
         if ((detailedBuildings || !caster.buildingDetail) && material(model_, mesh.material).alphaMode != "BLEND") drawTownSource(index);
     }
     if (treeShadows_) {
-        drawTrees(projectionView, true);
-        drawForests(projectionView, true);
+        drawTrees(projectionView, true, temporal);
+        drawForests(projectionView, true, temporal.forests);
     }
     drawZombies(seconds, pass);
     drawBoxes(projectionView);

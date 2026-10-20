@@ -310,7 +310,8 @@ void Renderer::draw(const DrawGPU& draw) {
 void Renderer::gatherVisibleSceneDraws(const glm::mat4& projectionView, const glm::vec3& eye,
                                       const glm::mat4& projection) {
     if (sceneCulling_ || forestViewRange_)
-        sceneVisibility_.query(projectionView, visibleScene_, forestVisibilityRange(), sceneCulling_);
+        sceneVisibility_.query(projectionView, visibleScene_, forestVisibilityRange(), sceneCulling_,
+                               &cameraVisibility_.scene);
     else {
         visibleScene_.resize(sceneDraws_.size());
         std::iota(visibleScene_.begin(), visibleScene_.end(), std::size_t{0});
@@ -404,8 +405,8 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     for (const auto index : opaqueScene_) {
         if (drawTownSource(index)) ++sceneStats_.drawCalls;
     }
-    drawTrees(projection * view);
-    drawForests(projection * view);
+    drawTrees(projection * view, false, cameraVisibility_);
+    drawForests(projection * view, false, cameraVisibility_.forests);
     drawZombies(animationSeconds);
     drawBoxes(projection * view);
     drawGrenades(projection * view);

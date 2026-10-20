@@ -20,7 +20,8 @@ public:
     VisibilityStats query(const glm::mat4& projectionView,
                           std::vector<std::size_t>& visible,
                           const HorizontalVisibilityRange* range = nullptr,
-                          bool frustumCulling = true) const;
+                          bool frustumCulling = true,
+                          VisibilityQueryState* temporal = nullptr) const;
     // Filter existing BVH results by nearest transformed bounds, accounting for
     // perspective magnification. Also used when frustum culling is disabled.
     void filterDetails(const glm::vec3& eye, const glm::mat4& projection,

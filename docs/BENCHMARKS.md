@@ -94,6 +94,7 @@ This is a dated example, not a performance threshold for other machines.
 | Case | Source / target | Output |
 | --- | --- | --- |
 | Map vegetation Hi-Z A/B/C, experimental branch | `tests/benchmark_tree_hiz.cpp` / `benchmark_tree_hiz` | Per-frame CSVs and captures; common summarizer supports its round files |
+| Frustum rejecting-plane hints | `tests/benchmark_visibility.cpp` / `benchmark_visibility` | [Five scenes, three camera motions, optional horizontal range](VISIBILITY_BENCHMARK.md); CPU query timings and exact ordered visibility checks |
 | Undergrowth contact detection | `tests/benchmark_undergrowth.cpp` / `benchmark_undergrowth` | CSV timings on stdout; microseconds per update |
 | Healthy tree trunk/canopy geometry A/B | `tests/benchmark_tree_card_split.cpp` / `benchmark_tree_card_split` | Alternating original/split rounds, geometry counts, asset split metrics and captures |
 | Sun shadow-map resolution A/B | `tests/benchmark_shadow_resolution.cpp` / `benchmark_shadow_resolution` | 2048² versus 1024²; total-frame and full sunlight-shadow GPU/CPU timings, captures |

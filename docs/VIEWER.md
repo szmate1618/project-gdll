@@ -1678,6 +1678,10 @@ Run the viewer checks:
 ctest --test-dir build --output-on-failure
 ```
 
+The CPU-only [frustum visibility benchmark](VISIBILITY_BENCHMARK.md) compares
+fixed plane order with temporal plane hints across synthetic scenes and a loaded
+map. It also covers the horizontal range limit used inside old forests.
+
 `viewer_day_night` checks clock wrapping/freezing, east-to-west sun movement,
 day/night endpoints, horizon light fading, and continuity across the full day.
 `viewer_sun_lighting` checks local receiver coverage, upstream caster coverage,
