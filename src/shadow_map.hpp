@@ -15,6 +15,7 @@ public:
     ShadowMap& operator=(const ShadowMap&) = delete;
     void begin() const;
     void bind(GLenum textureUnit) const;
+    int resolution() const { return resolution_; }
 
 private:
     int resolution_;

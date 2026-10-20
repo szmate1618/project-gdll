@@ -1,12 +1,22 @@
 #include "renderer.hpp"
+#include "gpu_timer.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <glm/gtc/type_ptr.hpp>
 
 namespace viewer {
 
+void Renderer::setSunShadowResolution(int resolution) {
+    if (resolution==shadowMap_->resolution()) return;
+    // Construct before replacing, preserving the current target on failure.
+    shadowMap_=std::make_unique<ShadowMap>(resolution);
+}
+
 void Renderer::drawSunShadows(const SunShadowView& shadowView, double seconds) {
+    const auto started=sunShadowTimer_ ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+    if (sunShadowTimer_) sunShadowTimer_->begin();
     // Unbind before attaching for drawing: the depth target is only sampled
     // during the subsequent color pass.
     glActiveTexture(GL_TEXTURE3);
@@ -14,8 +24,12 @@ void Renderer::drawSunShadows(const SunShadowView& shadowView, double seconds) {
     glActiveTexture(GL_TEXTURE4);
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
-    shadowMap_.begin();
+    shadowMap_->begin();
     drawShadowCasters(shadowView.view, shadowView.projection, seconds, ZombiePass::SunShadow, {});
+    if (sunShadowTimer_) {
+        sunShadowTimer_->end();
+        sunShadowCpuMs_=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count();
+    }
 }
 
 void Renderer::drawFlashlightShadows(const FlashlightView& view, double seconds) {
@@ -129,11 +143,11 @@ void Renderer::applyLighting(const Camera& camera, const SunShadowView& shadowVi
     const auto& fog = atmosphere_.groundFog;
     glUniform4f(groundFogLocation_, fog.baseHeight, 1.0f / glm::max(fog.height, 0.001f),
                 groundFog_ ? fog.density : 0.0f, fog.startDistance);
-    shadowMap_.bind(GL_TEXTURE3);
+    shadowMap_->bind(GL_TEXTURE3);
     // Keep all active shadow samplers bound to complete comparison textures,
     // even before the lazy flashlight target has been needed for the first time.
     if (flashlightShadowMap_) flashlightShadowMap_->bind(GL_TEXTURE4);
-    else shadowMap_.bind(GL_TEXTURE4);
+    else shadowMap_->bind(GL_TEXTURE4);
     glActiveTexture(GL_TEXTURE0);
 }
 

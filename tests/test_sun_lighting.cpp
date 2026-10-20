@@ -10,8 +10,8 @@ void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
 
-void checkCoverage(glm::vec3 eye, glm::vec3 sun) {
-    const auto view = viewer::sunShadowView(eye, sun);
+void checkCoverage(glm::vec3 eye, glm::vec3 sun,int resolution) {
+    const auto view = viewer::sunShadowView(eye, sun,resolution);
     const auto matrix = view.projectionView();
     // Sample the whole receiver sphere, rather than repeating the fit formula.
     for (int latitude = -90; latitude <= 90; latitude += 15)
@@ -36,11 +36,19 @@ void checkCoverage(glm::vec3 eye, glm::vec3 sun) {
 
 int main() {
     try {
-        checkCoverage({0, 1.7f, 0}, {-0.4f, 0.85f, 0.3f});
-        checkCoverage({1234, 75, -2345}, {-0.4f, 0.85f, 0.3f});
-        checkCoverage({0, 1.7f, 0}, {0, 1, 0});
-        checkCoverage({1234, 75, -2345}, {1, 0.07f, 0.02f});
-        checkCoverage({1234, 75, -2345}, {-1, 0.07f, 0.02f});
+        for(const auto resolution:{1024,2048}) {
+            checkCoverage({0, 1.7f, 0}, {-0.4f, 0.85f, 0.3f},resolution);
+            checkCoverage({1234, 75, -2345}, {-0.4f, 0.85f, 0.3f},resolution);
+            checkCoverage({0, 1.7f, 0}, {0, 1, 0},resolution);
+            checkCoverage({1234, 75, -2345}, {1, 0.07f, 0.02f},resolution);
+            checkCoverage({1234, 75, -2345}, {-1, 0.07f, 0.02f},resolution);
+            // This displacement advances exactly one texel in either grid.
+            // Checking normalized image movement detects a stale resolution.
+            const auto a=viewer::sunShadowView({0,0,0},{0,1,0},resolution).projectionView()*glm::vec4(0,0,0,1);
+            const auto b=viewer::sunShadowView({.16f,0,0},{0,1,0},resolution).projectionView()*glm::vec4(0,0,0,1);
+            require(std::abs(glm::length(glm::vec2(b-a))*resolution*.5f-1)<.0001f,
+                    "Shadow snapping does not follow selected pixel resolution");
+        }
         const auto initial = viewer::sunShadowView({0, 0, 0}, {-0.4f, 0.85f, 0.3f}).projectionView();
         const auto moved = viewer::sunShadowView({0.001f, 0, 0}, {-0.4f, 0.85f, 0.3f}).projectionView();
         const auto point = glm::vec4(17, 0, -23, 1);
@@ -50,6 +58,8 @@ int main() {
         try { viewer::sunShadowView({0, 0, 0}, {0, 0, 0}); }
         catch (const std::invalid_argument&) { rejected = true; }
         require(rejected, "Zero sun direction must be rejected");
+        rejected=false;try{viewer::sunShadowView({0,0,0},{0,1,0},0);}catch(const std::invalid_argument&){rejected=true;}
+        require(rejected,"Invalid shadow resolution accepted");
         std::cout << "Sun lighting tests passed\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

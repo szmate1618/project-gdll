@@ -35,6 +35,7 @@
 namespace viewer {
 
 class RainRenderer;
+class GpuTimer;
 class DoorLayer;
 class BoxLayer;
 
@@ -91,6 +92,13 @@ public:
     void setRoofBatching(bool enabled) { roofBatching_ = enabled; }
     void setWallBatching(bool enabled) { wallBatching_ = enabled; }
     void setShadows(bool enabled) { shadows_ = enabled; }
+    // Reallocates the sunlight map between frames. Light coverage is unchanged;
+    // projection snapping and PCF texels follow the actual map resolution.
+    void setSunShadowResolution(int resolution);
+    int sunShadowResolution() const { return shadowMap_->resolution(); }
+    // Optional borrowed, non-overlapping GL_TIME_ELAPSED timer. Caller owns it.
+    void setSunShadowTimer(GpuTimer* timer) { sunShadowTimer_ = timer; }
+    double sunShadowCpuMilliseconds() const { return sunShadowCpuMs_; }
     void setFlashlight(bool enabled) { flashlightEnabled_ = enabled; }
     void setFlashlightShadows(bool enabled) { flashlightShadows_ = enabled; }
     void setMuzzleFlash(const MuzzleFlashLight& light) { muzzleFlash_ = light; }
@@ -284,7 +292,9 @@ private:
     bool flashlightEnabled_ = true;
     bool night_ = false;
     std::optional<DayNightLighting> dayNight_;
-    ShadowMap shadowMap_{SunLighting::shadowResolution};
+    std::unique_ptr<ShadowMap> shadowMap_ = std::make_unique<ShadowMap>(SunLighting::shadowResolution);
+    GpuTimer* sunShadowTimer_ = nullptr;
+    double sunShadowCpuMs_ = 0;
     std::unique_ptr<ShadowMap> flashlightShadowMap_;
     bool flashlightShadows_ = false;
     bool shadows_ = true;

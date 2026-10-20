@@ -305,6 +305,7 @@ viewer_warnings(viewer_grenades)
 
 if(GD_VIEWER)
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
+    src/gpu_timer.cpp
     src/box_renderer.cpp
     src/grenade_renderer.cpp
     src/weapon_overlay.cpp
@@ -331,7 +332,7 @@ target_link_libraries(viewer_scene_audio PUBLIC viewer_audio viewer_audio_cues v
 viewer_warnings(viewer_scene_audio)
 
 add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp
-    src/reticle_overlay.cpp src/gpu_timer.cpp)
+    src/reticle_overlay.cpp)
 target_link_libraries(godollo_viewer PRIVATE viewer_vegetation
     viewer_renderer viewer_fps viewer_interaction viewer_objects viewer_poles viewer_guardrails viewer_weapons viewer_scene_audio glfw
 )
@@ -423,6 +424,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(benchmark_tree_card_split PRIVATE viewer_renderer viewer_fps viewer_undergrowth glfw)
     target_compile_definitions(benchmark_tree_card_split PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
     viewer_warnings(benchmark_tree_card_split)
+
+    add_executable(benchmark_shadow_resolution EXCLUDE_FROM_ALL tests/benchmark_shadow_resolution.cpp src/frame_profile.cpp)
+    target_link_libraries(benchmark_shadow_resolution PRIVATE viewer_renderer viewer_fps viewer_undergrowth glfw)
+    target_compile_definitions(benchmark_shadow_resolution PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
+    viewer_warnings(benchmark_shadow_resolution)
 
     add_executable(test_muzzle_flash_render tests/test_muzzle_flash_render.cpp)
     target_link_libraries(test_muzzle_flash_render PRIVATE viewer_renderer viewer_weapons glfw)

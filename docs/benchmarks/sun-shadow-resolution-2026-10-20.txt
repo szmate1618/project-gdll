@@ -1,0 +1,116 @@
+Sunlight shadow map 2048 vs 1024 — 2026-10-20
+
+Branch implement-muzzle-flash; working changes atop ab96e67.
+Previous nearest-filtering and shadow-mip work stashed as:
+68137e3247e50ce0f8e139e52cdf5ecd619ac062
+Vegetation nearest-filtering and shadow-mip experiments before shadow-map resolution test
+The stashed features are not active in this run. Committed trunk/card splitting
+remains enabled. Hardware: AMD Radeon 660M integrated GPU, Mesa 24.2.8.
+OpenGL 3.3 requested; 1280x720; six alternating rounds x 64 frames per mode/view.
+9 views x 2 modes x 384 frames = 6,912/6,912 finite total-frame GPU samples.
+7 daytime views: 5,376/5,376 sunlight-pass samples. 1,536 night control frames
+have no sunlight query because the pass is inactive, not because samples failed.
+Capture warmup 48 frames; 12 frames after switching. Allocation, GPU warmup
+fences and asynchronous query draining are outside render timers; at most four
+full-frame profiles in flight. No VSync/presentation in render cost. CPU timing
+includes driver stalls and shadow-query bookkeeping. GPU/CPU overlap: do not
+add these values or interpret them as FPS.
+CPU non-render: fixed collision/undergrowth route; no active AI/audio/rigid-body
+physics. Clocks/temperature not locked; idle GPU read 0% before/after workload.
+Small differences in controls demonstrate ordinary timing variability.
+
+Experiment / implementation
+- Mode 0: original 2048 x 2048 sunlight depth target.
+- Mode 1: 1024 x 1024 sunlight depth target, now the game default for trying.
+- Applies to ALL sunlight casters, including town, vegetation, zombies/objects.
+- Flashlight target remains 1024 in both modes; night views are controls.
+- 75% fewer sunlight depth pixels, approximately quarter map storage; actual
+  driver allocation/alignment varies. Geometry and 120 m receiver range unchanged.
+- Projection texel-snapping uses the selected resolution. PCF already derives
+  its offsets from textureSize. Small boundary caster changes are possible as
+  the snapped light volume shifts; this is part of the real resolution change.
+- Texture filtering/mipmap policy, alpha cutoff, card splitting, culling,
+  batching and fixed sunlight lighting otherwise match. Original asset textures
+  remain resident at full resolution and are not resized.
+- Complete target replacement between frames is exception-safe; invalid sizes
+  leave the current map available. No target allocations in timed frames.
+- --sun-shadow-resolution 2048 restores the old size; 1024 is built default.
+
+Total-frame GPU / CPU render, ms; median of six round averages
+View | 2048 | 1024
+Forest A | 11.753 / 10.843 | 8.421 / 8.138
+Forest B | 11.432 / 5.301 | 7.590 / 5.175
+Aerial | 6.033 / 0.436 | 6.029 / 0.466
+Clearing | 5.896 / 6.462 | 5.142 / 5.468
+Old forest 100 m | 8.690 / 0.547 | 6.349 / 0.588
+Old forest unrestricted | 13.369 / 11.094 | 9.756 / 9.557
+Town | 5.021 / 5.628 | 4.732 / 5.497
+Flashlight forest A (control) | 7.382 / 7.256 | 7.084 / 6.935
+Flashlight forest B (control) | 6.031 / 4.382 | 6.071 / 4.405
+
+Whole sunlight pass GPU / CPU, ms; median of six round averages
+Timing covers clearing and every caster category, not only tree cards.
+View | 2048 | 1024
+Forest A | 6.536 / 0.456 | 2.499 / 0.348
+Forest B | 6.453 / 0.469 | 2.561 / 0.423
+Aerial | 0.828 / 0.094 | 0.819 / 0.097
+Clearing | 2.297 / 0.195 | 1.274 / 0.169
+Old forest 100 m | 4.215 / 0.295 | 1.866 / 0.320
+Old forest unrestricted | 7.381 / 0.551 | 2.768 / 0.421
+Town | 1.753 / 0.348 | 1.213 / 0.332
+Flashlight forest A (control) | 0.000 / 0.000 | 0.000 / 0.000
+Flashlight forest B (control) | 0.000 / 0.000 | 0.000 / 0.000
+
+Assessment
+Forest A/B total GPU reductions: about 28% and 34%; 100 m and unrestricted old
+forest reductions about 27% each. These four forest views improved in all six
+paired round averages. Clearing improved about 13%, also all six pairs. Town
+has a smaller median gain and one slower pair; aerial essentially unchanged.
+The full sunlight pass in Forest A changes 6.54 -> 2.50 ms; Forest B
+6.45 -> 2.56 ms. Unlike the previous mip floor, this is a useful measured
+reduction in the tested forest workload. CPU render may benefit from reduced
+GPU backpressure; no CPU visibility algorithm was replaced.
+Scope: static cameras, fixed daytime sun direction, current map/hardware.
+Full gameplay AI/physics, moving shadow stability and other sun angles not
+benchmarked. Some geometry is unlit or distant/fogged, limiting visible shadow
+differences in these views. Do not infer globally unchanged shadow quality.
+
+Captures / invariants
+- Main camera tree counts, tree calls, tree camera triangles and town calls are
+  identical between variants in all nine views. Light boundary membership can
+  shift with the coarser stabilization grid, as noted above.
+- Forest A, aerial, both old-forest interiors and both flashlight controls:
+  pixel-identical captures. Forest B: 1,176 changed pixels; clearing: 612.
+- Town: 20,733 pixels differ; only 67 differ by more than 16 in any RGB channel.
+  Mean absolute RGB difference is 0.053 on the 0..255 scale.
+- Before/after forest and town images and 1:1 crops visually inspected. Static
+  quality differences are small in these views. Shadows are coarser by design;
+  moving-camera quality and more exposed lit receivers need gameplay inspection.
+
+Verification
+- Full build and 98/98 CTests passed on hardware, no skips.
+- Pure sun tests cover receiver/caster coverage at both sizes, sub-texel
+  stability, resolution-specific snapping and invalid resolution rejection.
+- Graphics regression checks actual depth texture width/height, shadow presence
+  at both resolutions, exact 2048 -> 1024 -> 2048 capture restoration, and
+  retention of the valid target after an invalid resize.
+- Existing shadow/light, tree, shader/state and multiplayer tests pass.
+- Existing unused debugMessage warning only; no new GL errors.
+- git diff --check and documentation link/path checks passed.
+
+Standard zombies-open-100k-v1 control (new default sun map 1024)
+GPU 14.040 ms; CPU render 18.065 ms; CPU non-render 0.045 ms.
+384/384 finite GPU samples. All 100,000 submitted each measured frame, normal
+LOD3: 10 draws, 12,580,000 camera triangles; no in-range sun shadow casters.
+Baseline-only standard regression control, not a paired zombie speedup claim.
+Sun resolution is recorded in its metadata.
+
+Artifacts / reproduction
+build/benchmarks/sun-shadow-resolution-2026-10-20/
+forest-a-before-after.png, forest-b-before-after.png, forest-100m-before-after.png,
+town-before-after.png: 2048 left / 1024 right, full view and 1:1 crop.
+*-difference.png: original / new / amplified 8x difference.
+Raw PPMs, per-frame CSVs, sun-shadows.csv, summary.csv/report.txt, geometry.csv,
+views.csv, input cameras, image-differences.json and measured-source hashes.
+build/benchmarks/zombies-open-100k-shadow-resolution-2026-10-20/
+Harness: tests/benchmark_shadow_resolution.cpp; commands: docs/BENCHMARKS.md.

@@ -6,6 +6,8 @@ namespace viewer {
 
 ShadowMap::ShadowMap(int resolution) : resolution_(resolution) {
     if (resolution <= 0) throw std::invalid_argument("Shadow resolution must be positive");
+    GLint maximum=0;glGetIntegerv(GL_MAX_TEXTURE_SIZE,&maximum);
+    if (resolution>maximum) throw std::invalid_argument("Shadow resolution exceeds the GPU texture limit");
     glActiveTexture(GL_TEXTURE0);
     glGenTextures(1, &depth_);
     glBindTexture(GL_TEXTURE_2D, depth_);

@@ -86,6 +86,7 @@ void metadata(const std::filesystem::path& output, const std::filesystem::path& 
     std::ofstream file(output / "metadata.txt");
     if (!file) throw std::runtime_error("Cannot write benchmark metadata");
     file << "scenario=zombies-open-100k-v1\nresolution=" << width << 'x' << height
+         << "\nsun_shadow_resolution=" << renderer.sunShadowResolution()
          << "\nfield_m=1200x1200\nplacement_radius_m=" << radius << "\npopulation=" << population
          << "\nassets=" << zombies.assets.size() << "\nrounds=" << rounds << "\nframes_per_round=" << frames
          << "\ncomparison_variants=" << variants

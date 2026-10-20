@@ -51,6 +51,7 @@ struct Options {
     bool hidden = false, allowSoftware = false, selfTest = false, help = false;
     bool fps = false, collisionDebug = false, selfTestFPS = false;
     bool shadows = true;
+    int sunShadowResolution = viewer::SunLighting::shadowResolution;
     bool treeShadows = true;
     bool treeCanopyShading = true;
     bool treeDepthOrdering = true;
@@ -95,6 +96,13 @@ Options parseOptions(int argc, char** argv) {
         };
         if (argument == "--help" || argument == "-h") options.help = true;
         else if (argument == "--profile") options.profile = true;
+        else if (argument == "--sun-shadow-resolution") {
+            const auto text=value();std::size_t used=0;
+            try { options.sunShadowResolution=std::stoi(text,&used); }
+            catch(const std::exception&) { throw std::runtime_error(argument+" requires integer pixels (256..8192)"); }
+            if(used!=text.size() || options.sunShadowResolution<256 || options.sunShadowResolution>8192)
+                throw std::runtime_error(argument+" requires integer pixels (256..8192)");
+        }
         else if (argument == "--tree-billboard-distance" || argument == "--old-forest-distance") {
             auto& meters = argument == "--tree-billboard-distance" ? options.treeBillboardDistance : options.oldForestDistance;
             const auto text = value(); std::size_t used = 0;
@@ -266,6 +274,7 @@ void printHelp() {
               << "  --no-hrtf           Use ordinary positional audio\n"
               << "  --audio-dir DIR     Load PCM16 WAV effects and ambience from DIR\n"
               << "  --no-shadows        Disable sun and flashlight shadows for comparison\n"
+              << "  --sun-shadow-resolution N Sunlight shadow-map width/height (1024; 256..8192)\n"
               << "  --no-tree-shadows   Disable tree casting for both lights\n"
               << "  --no-tree-canopy-shading Disable approximate daytime canopy shade\n"
               << "  --no-tree-depth-ordering Keep tree visibility-query order for comparison\n"
@@ -1029,6 +1038,7 @@ int run(const Options& options) {
     renderer.setTreeCanopyShading(options.treeCanopyShading);
     renderer.setTreeDepthOrdering(options.treeDepthOrdering);
     renderer.setTreeCardSplitting(options.treeCardSplitting);
+    renderer.setSunShadowResolution(options.sunShadowResolution);
     renderer.setTreeBillboardDistance(options.treeBillboardDistance);
     renderer.setOldForestDistance(options.oldForestDistance);
     renderer.setNight(options.night);

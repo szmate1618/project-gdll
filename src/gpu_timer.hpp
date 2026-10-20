@@ -22,6 +22,8 @@ public:
     void end();
     void collect();
     std::optional<double> takeAverageMilliseconds();
+    // Collected samples since the last takeAverageMilliseconds(); collect first.
+    std::size_t samples() const { return samples_; }
 
 private:
     static constexpr std::size_t queryCount = 8;

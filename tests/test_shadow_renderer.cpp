@@ -127,6 +127,32 @@ void checkMovingSun() {
     viewer::Renderer::checkErrors("moving sun regression");
 }
 
+void checkResolutionSwitch() {
+    viewer::Renderer renderer(scene(false),VIEWER_SHADER_DIR);renderer.resize(width,height);
+    renderer.setLighting(lighting());renderer.setHaze(false);renderer.setGroundFog(false);
+    require(renderer.sunShadowResolution()==1024,"Sunlight map default is not 1024");
+    const auto camera=cameraAt({0,4,2});
+    std::vector<unsigned char> original(width*height*4),restored(original.size());
+    bool captured=false;
+    for(const auto resolution:{2048,1024,2048}) {
+        renderer.setSunShadowResolution(resolution);renderer.render(camera);
+        require(renderer.sunShadowResolution()==resolution,"Selected resolution was not retained");
+        GLint active=0,w=0,h=0;glGetIntegerv(GL_ACTIVE_TEXTURE,&active);glActiveTexture(GL_TEXTURE3);
+        glGetTexLevelParameteriv(GL_TEXTURE_2D,0,GL_TEXTURE_WIDTH,&w);
+        glGetTexLevelParameteriv(GL_TEXTURE_2D,0,GL_TEXTURE_HEIGHT,&h);glActiveTexture(static_cast<GLenum>(active));
+        require(w==resolution && h==resolution,"Actual sunlight depth target has the wrong dimensions");
+        require(brightness(camera,{3,0,0})-brightness(camera,{1,0,0})>50,"Resolution change lost caster shadow");
+        if(resolution==2048) {
+            glReadPixels(0,0,width,height,GL_RGBA,GL_UNSIGNED_BYTE,restored.data());
+            if(!captured) {original=restored;captured=true;}
+            else require(original==restored,"Resolution round trip did not restore original capture");
+        }
+    }
+    bool rejected=false;try{renderer.setSunShadowResolution(0);}catch(const std::invalid_argument&){rejected=true;}
+    require(rejected && renderer.sunShadowResolution()==2048,"Invalid resize replaced the working map");
+    viewer::Renderer::checkErrors("shadow resolution switch");
+}
+
 void checkScene(bool masked, bool unlit, bool blended = false) {
     auto model = scene(masked, unlit);
     if (blended) model.materials[1].alphaMode = "BLEND";
@@ -555,6 +581,7 @@ int main(int argc, char** argv) {
         checkTreeCaster();
         checkAnimatedCaster();
         checkMovingSun();
+        checkResolutionSwitch();
         checkFlashlight(FlashlightCaster::Opaque, false, argc > 1 ? argv[1] : "");
         checkFlashlight(FlashlightCaster::Masked);
         checkFlashlight(FlashlightCaster::Opaque, true);

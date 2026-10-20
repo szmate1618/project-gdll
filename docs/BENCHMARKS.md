@@ -90,6 +90,7 @@ This is a dated example, not a performance threshold for other machines.
 | Map vegetation Hi-Z A/B/C, experimental branch | `tests/benchmark_tree_hiz.cpp` / `benchmark_tree_hiz` | Per-frame CSVs and captures; common summarizer supports its round files |
 | Undergrowth contact detection | `tests/benchmark_undergrowth.cpp` / `benchmark_undergrowth` | CSV timings on stdout; microseconds per update |
 | Healthy tree trunk/canopy geometry A/B | `tests/benchmark_tree_card_split.cpp` / `benchmark_tree_card_split` | Alternating original/split rounds, geometry counts, asset split metrics and captures |
+| Sun shadow-map resolution A/B | `tests/benchmark_shadow_resolution.cpp` / `benchmark_shadow_resolution` | 2048² versus 1024²; total-frame and full sunlight-shadow GPU/CPU timings, captures |
 | Grenades with/without tree contacts | `tests/benchmark_grenade_trees.cpp` / `benchmark_grenade_trees` | CSV stage timings on stdout; microseconds per update |
 
 The map Hi-Z case takes `MAP TREES FORESTS CAMERA_FILE OUTPUT_DIRECTORY`.
@@ -117,3 +118,29 @@ dynamic physics runs. Image analysis and all asset preparation are outside frame
 timers. Run the standard zombie case as a separate regression control.
 
 Recorded example: [tree-card split on Radeon 660M, 2026-10-20](benchmarks/tree-card-split-2026-10-20.txt).
+
+The sunlight shadow-resolution case uses the same five map/camera arguments:
+
+```bash
+cmake --build build --target benchmark_shadow_resolution -j4
+./build/benchmark_shadow_resolution output/godollo.glb output/trees.instances.json \
+  output/osm/forest_patches.json build/forest_perf/billboard-views.txt \
+  build/benchmarks/shadow-resolution
+.venv/bin/python tools/summarize_render_benchmark.py build/benchmarks/shadow-resolution
+```
+
+Mode 0 is the original 2048-square sunlight map; mode 1 is 1024-square. The
+sunlight projection snaps to each target's actual texel grid. Authored texture
+filtering, card splitting, shadow distance, coverage, geometry and simulation
+are held fixed. It uses the seven daytime map views and adds two flashlight
+controls where sunlight is inactive and the flashlight target remains 1024.
+Six alternating rounds of 64 frames follow capture/switch warmups. Target
+allocation and warmup fences run outside timers. Full-frame GPU timestamps and
+the full sunlight-pass elapsed queries are asynchronous; waits/presentation
+are outside render timers. `sun-shadows.csv` reports per-round average GPU/CPU
+time for map clearing and every sunlight caster category, plus sample counts.
+Night controls have zero sunlight-pass samples because that pass does not run;
+their total-frame timestamps must still all be present. CPU shadow timing
+includes query bookkeeping. Run the standard 100,000-zombie control separately.
+
+Recorded example: [sunlight map resolution on Radeon 660M, 2026-10-20](benchmarks/sun-shadow-resolution-2026-10-20.txt).

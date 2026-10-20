@@ -1441,11 +1441,18 @@ Clock and lighting calculations are in `src/day_night.hpp/.cpp`.
 
 ### Local sun shadows
 
-One 2048 × 2048 depth map follows the camera. Shadows fade smoothly between
+One 1024 × 1024 depth map follows the camera. Use `--sun-shadow-resolution 2048`
+to compare the previous resolution; the option accepts 256–8192 pixels per side,
+subject to the GPU texture-size limit. This changes sunlight shadows for all
+casters. Flashlight shadows keep their separate 1024 × 1024 target. Shadows fade smoothly between
 90 and 120 meters from the eyes; ordinary shading continues beyond that range.
 Coverage is independent of view direction and zoom. The light-space origin is
 snapped to texels to reduce swimming during movement; four filtered depth
 comparisons soften edges, with slope-aware bias to reduce self-shadow artifacts.
+The texel-snapping grid and depth-comparison footprint follow the selected map
+resolution. Halving each dimension reduces map pixels/storage to one quarter;
+caster geometry and world-space coverage stay the same. Boundary caster
+selection can shift slightly because the light-space snapping grid changes.
 This is a local shadow map, with no cascades for distant overview cameras.
 
 Opaque and alpha-masked town geometry, zombies, and tree cards cast shadows.

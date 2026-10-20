@@ -6,7 +6,8 @@
 
 namespace viewer {
 
-SunShadowView sunShadowView(glm::vec3 eye, glm::vec3 sunDirection) {
+SunShadowView sunShadowView(glm::vec3 eye, glm::vec3 sunDirection, int resolution) {
+    if (resolution<=0) throw std::invalid_argument("Sun shadow resolution must be positive");
     for (int axis = 0; axis < 3; ++axis)
         if (!std::isfinite(eye[axis]) || !std::isfinite(sunDirection[axis]))
             throw std::invalid_argument("Sun shadow view requires finite coordinates");
@@ -19,7 +20,7 @@ SunShadowView sunShadowView(glm::vec3 eye, glm::vec3 sunDirection) {
     // Padding protects the fading receiver boundary and PCF footprint.
     constexpr float extent = SunLighting::shadowDistance + 2.0f;
     constexpr float casterReach = 150.0f;
-    constexpr float texel = 2.0f * extent / SunLighting::shadowResolution;
+    const float texel = 2.0f * extent / static_cast<float>(resolution);
     auto center = glm::vec3(rotation * glm::vec4(eye, 1));
     center.x = std::round(center.x / texel) * texel;
     center.y = std::round(center.y / texel) * texel;

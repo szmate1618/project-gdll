@@ -343,6 +343,7 @@ void Renderer::setRain(bool enabled) {
 }
 
 void Renderer::render(const Camera& camera, double animationSeconds, const std::function<void()>& drawOpaque) {
+    sunShadowCpuMs_ = 0;
     sceneStats_ = {sceneDraws_.size(), 0, 0};
     if (width_ <= 0 || height_ <= 0) return;
     treeViewEye_ = camera.position();
@@ -371,7 +372,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     const auto projection = camera.projection(static_cast<float>(width_) / static_cast<float>(height_));
     prepareForestView(camera);
     const bool sunlight = glm::any(glm::greaterThan(lighting.sun.color, glm::vec3(0)));
-    if (sunlight) shadowView = sunShadowView(camera.position(), lighting.sun.direction);
+    if (sunlight) shadowView = sunShadowView(camera.position(), lighting.sun.direction,shadowMap_->resolution());
     const bool castShadows = sunlight && shadows_ && shadowPassLocation_ >= 0;
     const auto flashlight = flashlightView(camera, nightLighting_);
     const bool flashlightCasting = flashlightEnabled_ && lighting.nightBlend > 0 && shadows_ && flashlightShadows_ &&
