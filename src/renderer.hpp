@@ -109,6 +109,9 @@ public:
     void setTreeDepthOrdering(bool enabled) { treeDepthOrdering_ = enabled; }
     // Switch preuploaded index ranges; no image scan or buffer upload per frame.
     void setTreeCardSplitting(bool enabled) { treeCardSplitting_ = enabled; }
+    // Nearest texels/mips by default, in both camera and shadow passes.
+    // Disabling restores each vegetation asset's authored texture filters.
+    void setTreeNearestFiltering(bool enabled);
     // Horizontal radius inside old forest only; zero disables the cutoff.
     void setOldForestDistance(float meters);
     void setLighting(const SunLighting& lighting) { lighting_ = lighting; }
@@ -166,6 +169,7 @@ private:
     };
     struct TreeBatch {
         ModelGPU model;
+        std::vector<std::array<GLint, 2>> textureFilters;
         std::vector<DrawGPU> draws;
         GLuint instanceBuffer = 0;
         std::vector<TreeGPUInstance> visibleInstances;

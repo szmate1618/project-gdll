@@ -47,6 +47,8 @@ std::vector<VisibilityBounds> Renderer::uploadTrees(const TreeLayer& trees, cons
             for (std::size_t p=0;p<geometry.size();++p)
                 if (auto split=splitTreeCard(source,source.primitives[p])) geometry[p]=std::move(split->mesh);
         uploadModel(source, batch.model, &geometry);
+        for (const auto& texture : source.textures)
+            batch.textureFilters.push_back({texture.minFilter, texture.magFilter});
         for (std::size_t p=0;p<geometry.size();++p) {
             auto& mesh=batch.model.meshes[p];
             mesh.splitCount=static_cast<GLsizei>(geometry[p].indices.size()-source.primitives[p].indices.size());
@@ -83,6 +85,7 @@ std::vector<VisibilityBounds> Renderer::uploadTrees(const TreeLayer& trees, cons
                                    glm::determinant(glm::mat3(draw.transform)) < 0});
         }
     }
+    setTreeNearestFiltering(true);
     treeStats_.total = treeInstances_.size();
     std::vector<VisibilityBounds> bounds;
     bounds.reserve(trees.instances.size());
@@ -97,6 +100,22 @@ std::vector<VisibilityBounds> Renderer::uploadTrees(const TreeLayer& trees, cons
 void Renderer::setTreeBillboardDistance(float meters) {
     if (!std::isfinite(meters) || meters < 0) throw std::invalid_argument("Tree billboard distance must be finite and nonnegative");
     treeBillboardDistance_ = meters;
+}
+
+void Renderer::setTreeNearestFiltering(bool enabled) {
+    GLint previous = 0;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previous);
+    for (const auto& batch : treeBatches_)
+        for (std::size_t i = 0; i < batch.model.textures.size(); ++i) {
+            const auto texture = batch.model.textures[i];
+            if (!texture) continue;
+            glBindTexture(GL_TEXTURE_2D, texture);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                            enabled ? GL_NEAREST_MIPMAP_NEAREST : batch.textureFilters[i][0]);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
+                            enabled ? GL_NEAREST : batch.textureFilters[i][1]);
+        }
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previous));
 }
 
 void Renderer::updateVegetationBlasts(const std::vector<GrenadeExplosion>& explosions) {

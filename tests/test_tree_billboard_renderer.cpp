@@ -103,9 +103,57 @@ void splitCards(bool reflected) {
     }
     viewer::Renderer::checkErrors("split tree cards");
 }
+void filtering() {
+    auto model=billboard_test::asset();
+    viewer::ImageData image;image.width=image.height=64;image.rgba.resize(64*64*4);
+    for(int y=0;y<64;++y)for(int x=0;x<64;++x) {
+        const auto i=(y*64+x)*4;
+        image.rgba[i]=(x+y)%2?255:0;image.rgba[i+1]=0;image.rgba[i+2]=(x+y)%2?0:255;image.rgba[i+3]=255;
+    }
+    model.images.push_back(image);viewer::Texture texture;texture.image=0;
+    texture.wrapS=33071;texture.wrapT=33648;model.textures.push_back(texture);
+    for(std::size_t p=0;p<model.primitives.size();++p) {
+        model.materials[p].baseColor=glm::vec4(1);model.materials[p].baseColorTexture=0;
+        const std::array<glm::vec2,4> uv{{{0,0},{0,1},{1,1},{1,0}}};
+        for(std::size_t j=0;j<4;++j)model.primitives[p].vertices[j].uv=uv[j];
+    }
+    viewer::TreeLayer trees;trees.assets.push_back({"tree",{},model});
+    trees.instances.push_back(billboard_test::instance(model,glm::scale(glm::mat4(1),glm::vec3(5))));
+    viewer::Renderer renderer({},VIEWER_SHADER_DIR,&trees);renderer.resize(320,240);
+    renderer.setShadows(false);renderer.setHaze(false);renderer.setGroundFog(false);renderer.setTreeCanopyShading(false);
+    const auto view=camera({.7f,8,30},{0,10,0});renderer.render(view);
+    GLint treeTexture=0;glGetIntegerv(GL_TEXTURE_BINDING_2D,&treeTexture);
+    require(treeTexture!=0,"Textured tree fixture did not bind its texture");
+    const auto parameter=[](GLenum name){GLint value=0;glGetTexParameteriv(GL_TEXTURE_2D,name,&value);return value;};
+    require(parameter(GL_TEXTURE_MIN_FILTER)==GL_NEAREST_MIPMAP_NEAREST && parameter(GL_TEXTURE_MAG_FILTER)==GL_NEAREST,
+            "Vegetation must default to nearest texels and mip levels");
+    std::vector<unsigned char> before(320*240*4),authored(before.size()),restored(before.size());
+    glReadPixels(0,0,320,240,GL_RGBA,GL_UNSIGNED_BYTE,before.data());
+    GLuint sentinel=0;glGenTextures(1,&sentinel);glActiveTexture(GL_TEXTURE5);glBindTexture(GL_TEXTURE_2D,sentinel);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+    renderer.setTreeNearestFiltering(false);renderer.setTreeNearestFiltering(false);
+    GLint active=0,binding=0;glGetIntegerv(GL_ACTIVE_TEXTURE,&active);glGetIntegerv(GL_TEXTURE_BINDING_2D,&binding);
+    require(active==GL_TEXTURE5 && binding==static_cast<GLint>(sentinel),"Filtering switch leaked active texture/binding");
+    require(parameter(GL_TEXTURE_MIN_FILTER)==GL_LINEAR,"Filtering switch modified an unrelated texture");
+    glBindTexture(GL_TEXTURE_2D,static_cast<GLuint>(treeTexture));
+    require(parameter(GL_TEXTURE_MIN_FILTER)==GL_LINEAR_MIPMAP_LINEAR && parameter(GL_TEXTURE_MAG_FILTER)==GL_LINEAR,
+            "Disabling nearest did not restore authored filtering");
+    require(parameter(GL_TEXTURE_WRAP_S)==33071 && parameter(GL_TEXTURE_WRAP_T)==33648,"Filtering switch changed wrapping");
+    GLint mipWidth=0;glGetTexLevelParameteriv(GL_TEXTURE_2D,6,GL_TEXTURE_WIDTH,&mipWidth);
+    require(mipWidth==1,"Filtering switch lost the mipmap chain");
+    glActiveTexture(GL_TEXTURE0);renderer.render(view);
+    glReadPixels(0,0,320,240,GL_RGBA,GL_UNSIGNED_BYTE,authored.data());
+    require(authored!=before,"Nearest fixture produced no observable filtering change");
+    renderer.setTreeNearestFiltering(true);renderer.render(view);
+    require(parameter(GL_TEXTURE_MIN_FILTER)==GL_NEAREST_MIPMAP_NEAREST && parameter(GL_TEXTURE_MAG_FILTER)==GL_NEAREST,
+            "Re-enabling nearest did not restore nearest sampling");
+    glReadPixels(0,0,320,240,GL_RGBA,GL_UNSIGNED_BYTE,restored.data());
+    require(restored==before,"Returning to nearest filtering changed the original capture");
+    glDeleteTextures(1,&sentinel);viewer::Renderer::checkErrors("tree filtering regression");
+}
 }
 int main(){if(!glfwInit())return 77;glfwWindowHint(GLFW_VISIBLE,GLFW_FALSE);glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3);
 glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,3);glfwWindowHint(GLFW_OPENGL_PROFILE,GLFW_OPENGL_CORE_PROFILE);
 auto* window=glfwCreateWindow(320,240,"tree billboard regression",nullptr,nullptr);if(!window){glfwTerminate();return 77;}
-glfwMakeContextCurrent(window);int code=0;try{viewer::initializeOpenGL();check(false);check(true);nearBounds();splitCards(false);splitCards(true);std::cout<<"Single-sided tree billboard GPU regressions passed\n";}
+glfwMakeContextCurrent(window);int code=0;try{viewer::initializeOpenGL();check(false);check(true);nearBounds();splitCards(false);splitCards(true);filtering();std::cout<<"Tree billboard, split and filtering GPU regressions passed\n";}
 catch(const std::exception& e){std::cerr<<e.what()<<'\n';code=1;}glfwDestroyWindow(window);glfwTerminate();return code;}

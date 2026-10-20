@@ -179,6 +179,15 @@ cards with `--no-tree-card-splitting`. Coarse mip filtering can extend faint
 coverage outside the cropped source silhouette, so captures must be compared
 alongside timings; the four-texel guard does not cover every mip footprint.
 
+Tree, shrub and dry-tree cards use **nearest filtering by default**: nearest
+texels and nearest mip levels, retaining the existing mipmap chain. This applies
+to visible cards and their sunlight/flashlight shadow alpha masks. Use
+`--no-tree-nearest-filtering` to restore each asset's authored filters (normally
+trilinear minification and bilinear magnification on generated cards). Wrapping,
+alpha cutoffs and geometry stay the same. Town and forest volume textures retain
+their authored filters. Nearest sampling can produce jagged edges and shimmer
+during camera or shadow movement.
+
 At **100 m** from the tree root to the camera in three dimensions, normal
 broadleaf and pine trees switch to a **single-sided, camera-facing card**.
 At elevation angles up to 45° in either direction, the front card rotates around

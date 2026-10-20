@@ -6,6 +6,12 @@ dependency-free CSV report generator. Run commands from the repository root.
 These programs are opt-in experiments, not timing assertions in CTest.
 The CMake targets require `GD_VIEWER` and `BUILD_TESTING` (enabled by default).
 
+Vegetation now defaults to nearest texels and nearest mip levels, including
+shadow alpha masks. Record the filtering mode when comparing new runs with
+historical results. For authored filtering, benchmark harnesses can call
+`Renderer::setTreeNearestFiltering(false)`; the game uses
+`--no-tree-nearest-filtering`.
+
 Raw timings, screenshots and generated reports belong under
 `build/benchmarks/<case-or-run-name>/`, which is ignored by Git. Older local
 results remain in `build/forest_perf/`, `build/hiz_perf_final/` and

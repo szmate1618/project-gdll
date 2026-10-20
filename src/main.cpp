@@ -56,6 +56,7 @@ struct Options {
     bool treeCanopyShading = true;
     bool treeDepthOrdering = true;
     bool treeCardSplitting = true;
+    bool treeNearestFiltering = true;
     float treeBillboardDistance = 100;
     float oldForestDistance = viewer::OldForestVisibility::distance;
     bool night = false;
@@ -175,6 +176,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--no-tree-culling") options.treeCulling = false;
         else if (argument == "--no-tree-depth-ordering") options.treeDepthOrdering = false;
         else if (argument == "--no-tree-card-splitting") options.treeCardSplitting = false;
+        else if (argument == "--no-tree-nearest-filtering") options.treeNearestFiltering = false;
         else if (argument == "--no-zombie-culling") options.zombieCulling = false;
         else if (argument == "--no-zombie-staggering") options.zombiePerceptionStaggering = false;
         else if (argument == "--no-town-culling") options.sceneCulling = false;
@@ -297,6 +299,7 @@ void printHelp() {
               << "  --no-wall-batching  Draw simple building walls individually for comparison\n"
               << "  --no-tree-culling   Render all tree instances for comparison\n"
               << "  --no-tree-card-splitting Keep full-width healthy tree cards for comparison\n"
+              << "  --no-tree-nearest-filtering Restore authored vegetation filtering (usually trilinear)\n"
               << "  --no-zombie-lod     Disable zombie mesh LOD, distance cutoff and stepped animation\n"
               << "  --zombie-draw-distance M Camera cutoff at normal FOV (180 m; overview unlimited; 0 disables)\n"
               << "  --flashlight-shadows Enable nearby flashlight shadows (default off)\n"
@@ -1038,6 +1041,7 @@ int run(const Options& options) {
     renderer.setTreeCanopyShading(options.treeCanopyShading);
     renderer.setTreeDepthOrdering(options.treeDepthOrdering);
     renderer.setTreeCardSplitting(options.treeCardSplitting);
+    renderer.setTreeNearestFiltering(options.treeNearestFiltering);
     renderer.setSunShadowResolution(options.sunShadowResolution);
     renderer.setTreeBillboardDistance(options.treeBillboardDistance);
     renderer.setOldForestDistance(options.oldForestDistance);
