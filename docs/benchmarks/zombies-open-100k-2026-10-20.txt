@@ -1,3 +1,29 @@
+100,000-zombie open-area rendering benchmark, 2026-10-20
+Scenario: zombies-open-100k-v1; 1280x720; Radeon 660M; all 100,000 submitted.
+Ten real character variants; normal LOD3; 10 draws; 12,580,000 camera triangles.
+Observer outside activation range; no active pursuers, audio, player movement or dynamic physics.
+All four repeat captures are pixel-identical.
+
+Preferred measurements: quieter sequential original / experimental / original repeat.
+Background workload was reported finished and GPU activity measured 0% in three pre-run samples.
+Saved binaries used their own matching shaders. No compilation ran concurrently.
+Six rounds x 64 frames per variant; GPU timestamps asynchronous, waits outside CPU timers.
+Values are medians of round averages in milliseconds. GPU and CPU overlap; do not add.
+Original renderer: 6f0045c (benchmark-only additions); experimental renderer: 5a62e27.
+
+Run | variant | GPU | GPU p95 | CPU render | CPU render p95 | CPU non-render
+original-before | baseline | 14.190 | 21.112 | 17.662 | 26.772 | 0.040
+experimental | baseline | 14.776 | 24.569 | 17.915 | 27.564 | 0.048
+experimental | tree-hiz | 14.482 | 20.404 | 18.356 | 28.652 | 0.043
+original-after | baseline | 15.457 | 24.252 | 18.468 | 29.511 | 0.044
+
+Hi-Z is vegetation-only and this case has no vegetation: neither experimental variant builds a pyramid or culls zombies.
+The original-renderer before/after drift exceeds the experimental on/off difference; this is not evidence of a Hi-Z speedup or regression.
+GPU clocks, temperature and all system activity remain uncontrolled; treat these as workload-specific measurements, not hardware performance guarantees.
+
+Historical initial runs below: INCONCLUSIVE for cross-branch comparison.
+Heavy background work was reported, and 95% GPU activity was observed while no benchmark was running. Retained only for provenance.
+
 Recorded 2026-10-20 on experiment/opengl33-tree-hiz.
 Scenario: zombies-open-100k-v1, all 100,000 submitted, ten real character variants.
 Baseline/tree-hiz is a control: this case contains no vegetation and neither mode builds a pyramid. Differences are run variability, not demonstrated occlusion effects.
