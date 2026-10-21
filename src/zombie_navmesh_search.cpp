@@ -50,7 +50,7 @@ struct Search::Impl {
     const Mesh& mesh;
     const std::uint32_t limit;
     const double weight;
-    const bool reopen;
+    const bool reopen, pureGreedy;
     std::vector<Record> records;
     std::vector<Slot> slots;
     std::vector<std::uint32_t> heap, corridor;
@@ -59,8 +59,10 @@ struct Search::Impl {
     std::size_t outputSize = 0;
     Stats stats{};
 
-    Impl(const Mesh& meshIn, std::uint32_t nodeLimit, double heuristicWeight, bool reopenClosed)
-        : mesh(meshIn), limit(nodeLimit), weight(heuristicWeight), reopen(reopenClosed) {
+    Impl(const Mesh& meshIn, std::uint32_t nodeLimit, double heuristicWeight, bool reopenClosed,
+         bool greedy)
+        : mesh(meshIn), limit(nodeLimit), weight(heuristicWeight), reopen(reopenClosed),
+          pureGreedy(greedy) {
         if (limit == 0 || limit > Search::defaultNodeLimit)
             throw std::invalid_argument("navmesh node limit must be between 1 and 50000");
         const double diameter = std::hypot(mesh.maximumX() - mesh.minimumX(),
@@ -117,14 +119,30 @@ struct Search::Impl {
         }
     }
 
-    void enqueue(std::uint32_t index) {
+    void downward(std::uint32_t position) {
+        while (position * 2 + 1 < heapSize) {
+            auto child = position * 2 + 1;
+            if (child + 1 < heapSize && precedes(heap[child + 1], heap[child])) ++child;
+            if (!precedes(heap[child], heap[position])) break;
+            swapHeap(position, child);
+            position = child;
+        }
+    }
+
+    void enqueue(std::uint32_t index, bool keyWorsened = false) {
         auto& record = records[index];
         if (record.heapIndex == noPolygon) {
             record.heapIndex = heapSize;
             heap[heapSize++] = index;
             stats.peakQueue = std::max(stats.peakQueue, heapSize);
+            upward(record.heapIndex);
+        } else if (keyWorsened) {
+            // At equal priority, lower g loses the larger-g tie break. This is
+            // normal for pure greedy and possible when weighted f rounds equal.
+            downward(record.heapIndex);
+        } else {
+            upward(record.heapIndex);
         }
-        upward(record.heapIndex);
     }
 
     std::uint32_t pop() {
@@ -133,16 +151,14 @@ struct Search::Impl {
         if (--heapSize) {
             heap[0] = heap[heapSize];
             records[heap[0]].heapIndex = 0;
-            std::uint32_t position = 0;
-            while (position * 2 + 1 < heapSize) {
-                auto child = position * 2 + 1;
-                if (child + 1 < heapSize && precedes(heap[child + 1], heap[child])) ++child;
-                if (!precedes(heap[child], heap[position])) break;
-                swapHeap(position, child);
-                position = child;
-            }
+            downward(0);
         }
         return index;
+    }
+
+    double priority(double g, Point center, Point goalCenter) const {
+        const auto h = distance(center, goalCenter);
+        return pureGreedy ? h : g + weight * h;
     }
 
     bool append(Point point) {
@@ -271,7 +287,7 @@ struct Search::Impl {
         const auto goalCenter = mesh.centroid(goalPolygon);
         auto& firstSlot = slots[firstPolygon];
         firstSlot = {0, generation};
-        records[0] = {0, weight * distance(mesh.centroid(firstPolygon), goalCenter),
+        records[0] = {0, priority(0, mesh.centroid(firstPolygon), goalCenter),
                       firstPolygon, noPolygon, noPolygon};
         stored = 1;
         enqueue(0);
@@ -295,38 +311,43 @@ struct Search::Impl {
                 const auto nextCenter = mesh.centroid(neighbor);
                 const double nextG = current.g + mesh.neighborDistance(current.polygon, edge);
                 std::uint32_t nextIndex;
+                bool keyWorsened = false;
                 if (slot.generation != generation) {
                     if (stored == limit) return result(Status::searchLimit);
                     nextIndex = stored++;
                     slot = {nextIndex, generation};
                     records[nextIndex] = {nextG,
-                        nextG + weight * distance(nextCenter, goalCenter),
+                        priority(nextG, nextCenter, goalCenter),
                         neighbor, currentIndex, noPolygon};
                 } else {
                     nextIndex = slot.record;
                     auto& next = records[nextIndex];
                     if (nextG >= next.g) continue;
+                    const auto nextPriority = priority(nextG, nextCenter, goalCenter);
+                    keyWorsened = nextPriority == next.priority;
                     next.g = nextG;
-                    next.priority = nextG + weight * distance(nextCenter, goalCenter);
+                    next.priority = nextPriority;
                     next.parent = currentIndex;
                 }
                 // Default approximate searches expand each polygon once. The
                 // optional reference mode reopens a closed record on improvement.
-                // Open records decrease their key without duplicate heap entries.
-                enqueue(nextIndex);
+                // Open records repair their key without duplicate heap entries.
+                enqueue(nextIndex, keyWorsened);
             }
         }
         return result(Status::noPath);
     }
 };
 
-Search::Search(const Mesh& mesh, std::uint32_t nodeLimit, double heuristicWeight, bool reopenClosed)
-    : impl_(std::make_unique<Impl>(mesh, nodeLimit, heuristicWeight, reopenClosed)) {}
+Search::Search(const Mesh& mesh, std::uint32_t nodeLimit, double heuristicWeight, bool reopenClosed,
+               bool greedy)
+    : impl_(std::make_unique<Impl>(mesh, nodeLimit, heuristicWeight, reopenClosed, greedy)) {}
 Search::~Search() = default;
 Result Search::find(Point start, Point goal) { return impl_->find(start, goal); }
 std::size_t Search::workspaceBytes() const { return impl_->workspaceBytes(); }
 std::uint32_t Search::nodeLimit() const { return impl_->limit; }
 double Search::heuristicWeight() const { return impl_->weight; }
 bool Search::reopenClosed() const { return impl_->reopen; }
+bool Search::greedy() const { return impl_->pureGreedy; }
 
 } // namespace viewer::navmesh_path

@@ -50,6 +50,7 @@ def render(source, destination):
     destination.mkdir(parents=True, exist_ok=True)
     thumbnails = []
     relative_goals = document.get("goal_layout") == "relative_offsets"
+    random_pairs = document.get("goal_layout") == "random_pairs"
     weight = document.get("heuristic_weight", 1)
     mesh = document["navmesh"]
     polygon_count = mesh.get("polygons", mesh.get("triangles", 0))
@@ -87,13 +88,14 @@ def render(source, destination):
         # Full map and three square close-ups preserve north-up geometry while
         # making thin right-edge routes readable at full-town scale.
         panel_width = 560
-        header, footer = (214 if relative_goals else 187), 86
+        header, footer = (214 if relative_goals or random_pairs else 187), 86
         canvas = Image.new("RGB", (map_width + panel_width + 50, map_height + header + footer), "#f6f7f8")
         canvas.paste(overlay, (20, header))
         annotation = ImageDraw.Draw(canvas)
         count, failures = batch["zombies"], batch["failed"]
         subject = "zombie" if count == 1 else "zombies"
-        algorithm = f"Navmesh + weighted A* (g + {weight:g}h) + funnel"
+        algorithm = ("Navmesh + pure greedy (h) + funnel" if document.get("greedy") else
+                     f"Navmesh + weighted A* (g + {weight:g}h) + funnel")
         annotation.text((25, 18), f"{algorithm} routes · {count:,} {subject}", font=font(30, True), fill="#152936")
         annotation.text((25, 65),
                         f"{len(successful):,} found  /  {failures:,} failed  ·  "
@@ -110,7 +112,11 @@ def render(source, destination):
                             + ("closed polygons reopened" if document.get("reopen_closed")
                                else "each polygon expanded at most once"),
                             font=font(18), fill="#536773")
-        annotation.text((25, 166 if relative_goals else 134),
+        if random_pairs:
+            annotation.text((25, 134),
+                            f"Independent searches · random walkable starts and goals · seed {document['seed']}",
+                            font=font(18), fill="#536773")
+        annotation.text((25, 166 if relative_goals or random_pairs else 134),
                         f"{polygon_count:,} polygons · "
                         f"{document['search_node_limit']:,} stored search-polygon limit · "
                         f"{batch['status_counts'].get('blocked_endpoint', 0):,} blocked endpoints / "
@@ -131,6 +137,10 @@ def render(source, destination):
                                    max(point[axis] for point in endpoints)) / 2
                                   for axis in range(2)]
             labels[0] = "Destinations · preserved offsets"
+        if random_pairs:
+            centers[0], centers[2] = reference["goal"], reference["start"]
+            labels = ["Random route · destination", "Random route · middle bend",
+                      "Random route · start"]
         detail_size = min(panel_width - 20, (map_height - 140) // 3)
         for panel_index, (center, label) in enumerate(zip(centers, labels)):
             x, y = project(center)

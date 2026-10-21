@@ -163,7 +163,7 @@ target_include_directories(benchmark_zombie_navmesh SYSTEM PRIVATE "${tinygltf_S
 target_link_libraries(benchmark_zombie_navmesh PRIVATE viewer_zombie_navmesh viewer_fingerprints)
 viewer_warnings(benchmark_zombie_navmesh)
 if(BUILD_TESTING)
-    foreach(suite zombie_navmesh zombie_navmesh_search zombie_navmesh_paths)
+    foreach(suite zombie_navmesh zombie_navmesh_search zombie_navmesh_paths zombie_navmesh_benchmark_inputs)
         add_executable(test_${suite} tests/test_${suite}.cpp)
         target_link_libraries(test_${suite} PRIVATE viewer_zombie_navmesh)
         viewer_warnings(test_${suite})

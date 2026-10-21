@@ -23,11 +23,13 @@ struct Result {
 // corridor/funnel scratch are allocated once. find() must not allocate.
 // Default weighted searches expand each polygon once for fast approximate
 // routes. The reference option permits reopening closed polygons on improvement.
+// Pure greedy mode prioritizes only distance to the goal, retaining g and
+// parent relaxations for route reconstruction; heuristicWeight is then unused.
 class Search {
 public:
     static constexpr std::uint32_t defaultNodeLimit = 50'000;
     explicit Search(const Mesh& mesh, std::uint32_t nodeLimit = defaultNodeLimit,
-                    double heuristicWeight = 2.0, bool reopenClosed = false);
+                    double heuristicWeight = 2.0, bool reopenClosed = false, bool greedy = false);
     ~Search();
     Search(const Search&) = delete;
     Search& operator=(const Search&) = delete;
@@ -36,6 +38,7 @@ public:
     std::uint32_t nodeLimit() const;
     double heuristicWeight() const;
     bool reopenClosed() const;
+    bool greedy() const;
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

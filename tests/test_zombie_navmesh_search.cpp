@@ -193,6 +193,62 @@ double dijkstra(const Mesh& mesh, Point start, Point goal) {
     return std::numeric_limits<double>::infinity();
 }
 
+struct GreedyReference {
+    Status status = Status::noPath;
+    std::uint32_t expandedNodes = 0, storedNodes = 1, openImprovements = 0;
+    double graphCost = 0;
+};
+
+// Independent priority oracle: scan the entire open set for its best entry,
+// rather than maintaining a heap. This catches repairs in either heap direction.
+GreedyReference linearGreedy(const Mesh& mesh, Point start, Point goal) {
+    const auto first = mesh.locate(start), last = mesh.locate(goal);
+    const auto count = mesh.polygons().size();
+    std::vector<double> costs(count, std::numeric_limits<double>::infinity());
+    std::vector<double> heuristic(count);
+    std::vector<unsigned char> state(count, 0); // unseen / open / closed
+    const auto target = mesh.centroid(last);
+    for (std::size_t index = 0; index < count; ++index) {
+        const auto center = mesh.centroid(std::uint32_t(index));
+        heuristic[index] = std::hypot(center.x - target.x, center.z - target.z);
+    }
+    costs[first] = 0;
+    state[first] = 1;
+    GreedyReference result;
+    while (true) {
+        auto current = noPolygon;
+        for (std::uint32_t index = 0; index < count; ++index) {
+            if (state[index] != 1) continue;
+            if (current == noPolygon || heuristic[index] < heuristic[current] ||
+                (heuristic[index] == heuristic[current] &&
+                 (costs[index] > costs[current] ||
+                  (costs[index] == costs[current] && index < current)))) current = index;
+        }
+        if (current == noPolygon) return result;
+        state[current] = 2;
+        ++result.expandedNodes;
+        if (current == last) {
+            result.status = Status::found;
+            result.graphCost = costs[current];
+            return result;
+        }
+        const auto center = mesh.centroid(current);
+        const auto& polygon = mesh.polygons()[current];
+        for (unsigned edge = 0; edge < polygon.edgeCount; ++edge) {
+            const auto next = mesh.edges()[polygon.firstEdge + edge].neighbor;
+            if (next == noPolygon || state[next] == 2) continue;
+            const auto neighbor = mesh.centroid(next);
+            const auto cost = costs[current] + std::hypot(center.x - neighbor.x,
+                                                          center.z - neighbor.z);
+            if (cost >= costs[next]) continue;
+            if (state[next] == 1) ++result.openImprovements;
+            else ++result.storedNodes;
+            costs[next] = cost;
+            state[next] = 1;
+        }
+    }
+}
+
 void straightAndCorners() {
     Fixture empty{{".....", ".....", ".....", "....."},
         connectedMesh({{0, 0}, {5, 0}, {5, 4}, {0, 4}}, {{{0, 1, 2}}, {{0, 2, 3}}})};
@@ -386,6 +442,62 @@ void shortestGraphAndWeighted() {
     require(observedReopening, "reference fixture did not exercise closed-triangle reopening");
 }
 
+void greedyQueriesAndHeapRepair() {
+    // A shorter route to an already-open record leaves h unchanged but lowers
+    // g, which loses its larger-g tie against another equal-h frontier entry.
+    // Sifting only upward expands an extra polygon here. A linear open-set scan
+    // supplies the expected ordering without reproducing the indexed heap.
+    const auto fixture = gridMesh({
+        ".##...##", "#...#...", "..#.....", ".....#..",
+        ".#......", ".#.#....", ".##.##..", ".#......"});
+    const auto start = fixture.mesh.centroid(22), goal = fixture.mesh.centroid(87);
+    const auto oracle = linearGreedy(fixture.mesh, start, goal);
+    require(oracle.status == Status::found && oracle.openImprovements > 0,
+            "greedy fixture did not exercise an open-record parent improvement");
+    Search greedy(fixture.mesh, Search::defaultNodeLimit, 2, false, true);
+    Search greedyOtherWeight(fixture.mesh, Search::defaultNodeLimit, 32, false, true);
+    Search reopening(fixture.mesh, Search::defaultNodeLimit, 2, true, true);
+    Search weighted(fixture.mesh);
+    require(greedy.greedy() && greedyOtherWeight.greedy() && reopening.greedy() &&
+            !weighted.greedy(), "greedy option was not retained");
+    for (auto* solver : {&greedy, &greedyOtherWeight}) {
+        const auto result = solver->find(start, goal);
+        checkPath(fixture, result, start, goal);
+        require(result.stats.expandedNodes == oracle.expandedNodes &&
+                result.stats.storedNodes == oracle.storedNodes,
+                "greedy heap ordering differs from the linear-frontier oracle");
+        require(std::abs(result.stats.graphCost - oracle.graphCost) < 1e-11,
+                "greedy search lost its improved parent or graph cost");
+        require(result.stats.expandedNodes <= result.stats.storedNodes,
+                "default greedy search reopened a closed record");
+    }
+    checkPath(fixture, reopening.find(start, goal), start, goal);
+
+    const auto disconnected = gridMesh({"..#..", "..#..", "..#.."});
+    Search failed(disconnected.mesh, Search::defaultNodeLimit, 2, false, true);
+    Search capped(fixture.mesh, 1, 2, false, true);
+    allocations = 0;
+    countAllocations = true;
+    for (unsigned request = 0; request < 50; ++request) {
+        for (auto* solver : {&greedy, &reopening}) {
+            const auto result = solver->find(start, goal);
+            require(result.status == Status::found && result.size >= 2 &&
+                    result.points[0] == start && result.points[result.size - 1] == goal,
+                    "repeated greedy route failed or retained stale endpoints");
+        }
+        require(failed.find({.2, .2}, {4.8, 2.8}).status == Status::noPath,
+                "greedy search joined disconnected components");
+        require(failed.find({2.5, 1.5}, {.2, .2}).status == Status::blockedEndpoint,
+                "greedy search accepted a blocked endpoint");
+        require(capped.find(start, goal).status == Status::searchLimit,
+                "greedy search bypassed the distinct-record limit");
+        require(capped.find(start, start).status == Status::found,
+                "greedy search did not reset after a limited request");
+    }
+    countAllocations = false;
+    require(allocations == 0, "greedy queries allocated heap memory");
+}
+
 void failuresAndReset() {
     const auto disconnected = gridMesh({"..#..", "..#..", "..#.."});
     Search search(disconnected.mesh);
@@ -491,6 +603,7 @@ int main() {
         convexPolygonCorridors();
         splitCollinearPortals();
         shortestGraphAndWeighted();
+        greedyQueriesAndHeapRepair();
         failuresAndReset();
         largeMeshWithSmallBudget();
         allocationFreeRequests();

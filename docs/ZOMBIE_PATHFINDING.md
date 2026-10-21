@@ -21,6 +21,15 @@ The [query optimization benchmark](ZOMBIE_PATHFINDING_OPTIMIZATIONS.md),
 [original report with trees](ZOMBIE_PATHFINDING_NAVMESH_EXPERIMENT.md) retain their
 historical measurements, which are separate from the fresh merging comparison.
 
+The [priority sweep and random-destination benchmark](ZOMBIE_PATHFINDING_WEIGHT_SWEEP.md)
+compares weights 2, 4, 8, 16, 32 and pure greedy on the four-vertex tree-free mesh.
+Fresh medians are **61.150 ms** for weight 8 on the existing formation and
+**481.114 ms** for weight 4 on 1,000 mapwide random pairs. All settings find
+999 formation paths and all 960 reachable random paths; the other 40 random
+pairs span disconnected regions. Timing ranges overlap, so these results do
+not establish a universal best weight. Increasing greediness gives no reliable
+further gain here.
+
 The implementation is a headless library and benchmark. The viewer's existing
 live crowd behavior is unchanged; runtime crowd integration is subsequent work.
 
@@ -91,7 +100,13 @@ if (id != invalidPath) {
 The benchmark additionally reads `batches[].routes[]` with `start` and `goal`
 X/Z pairs from the largest recorded batch, and `raster.file` for its aerial
 background relative to the replay file. Existing requests retain their runtime
-float32 endpoints, promoted to doubles. It never snaps blocked endpoints.
+float32 endpoints, promoted to doubles. It never snaps blocked endpoints. With
+`--random-seed UINT32`, the benchmark instead generates independent, mapwide,
+walkable start/goal pairs after verifying the original geometry replay hash.
+Seed zero is valid. Disconnected pairs are retained, and generation is untimed.
+`--greedy` selects pure `h` priority and cannot be combined with an explicit
+`--heuristic-weight`. Exact endpoints and sampling metadata are saved in the
+result. See the sweep report for the complete comparison command.
 
 The loader accepts the original triangle `GDNAV01` and variable-edge polygon
 `GDNAV02` formats. The versioned binary records clearance settings and the

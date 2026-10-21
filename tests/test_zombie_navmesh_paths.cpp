@@ -25,8 +25,12 @@ int main() try {
     using namespace viewer::navmesh_path;
     const auto mesh=test_navmesh::squares(8,8,{{3,3},{3,4},{3,5}});
     PathManager manager(mesh,2), one(mesh,1), limited(mesh,2,1);
-    require(manager.capacityBytes()==10'000'000 && manager.nodeLimit()==50'000 && manager.heuristicWeight()==2,
+    PathManager greedy(mesh,2,Search::defaultNodeLimit,32,true,true);
+    PathManager greedyLimited(mesh,2,1,2,false,true);
+    require(manager.capacityBytes()==10'000'000 && manager.nodeLimit()==50'000 && manager.heuristicWeight()==2 && !manager.greedy(),
             "manager construction contracts");
+    require(greedy.greedy() && greedy.reopenClosed() && greedy.heuristicWeight()==32 &&
+            greedyLimited.greedy(), "manager greedy option forwarding");
     const auto before=allocations.load();
     const auto first=manager.request(0,{1,4.5},{7,4.5});
     require(first && manager.pathFor(0)==first, "zombie ID zero mapping");
@@ -51,6 +55,19 @@ int main() try {
     require(!manager.usedBytes() && !manager.pathFor(0) && !manager.view(replacement).size, "clear ownership and arena");
     const auto after=manager.request(0,{1,1},{2,1});
     require(after && after!=replacement && manager.usedBytes()==manager.view(after).size*sizeof(Point), "clear never aliases handles");
+    const auto greedyPath=greedy.request(42,{1,4.5},{7,4.5});
+    require(greedyPath && greedy.pathFor(42)==greedyPath, "greedy manager zombie mapping");
+    const auto greedyView=greedy.view(greedyPath);
+    require(greedyView.size>2 && greedyView[0]==Point{1,4.5} &&
+            greedyView[greedyView.size-1]==Point{7,4.5}, "greedy manager exact endpoints");
+    for (std::size_t i=1;i<greedyView.size;++i)
+        require(mesh.segmentClear(greedyView[i-1],greedyView[i]), "invalid greedy manager route");
+    require(!greedy.request(42,{1,1},{3.5,3.5}) && greedy.pathFor(42)==greedyPath,
+            "failed greedy replacement lost its existing path");
+    require(!greedyLimited.request(42,{1,1},{7,7}) &&
+            greedyLimited.lastStatus()==Status::searchLimit, "greedy manager search cap");
+    require(greedy.releaseZombie(42) && !greedy.usedBytes(), "greedy manager arena release");
+    greedy.clear();
     require(allocations.load()==before, "manager requests, releases and clears must not allocate");
     std::cout<<"Navmesh path-manager ownership, arena and allocation tests passed\n";
     return 0;

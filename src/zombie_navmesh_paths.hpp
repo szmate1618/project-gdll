@@ -23,7 +23,7 @@ public:
     static constexpr std::size_t bufferBytes = 10'000'000;
     explicit PathManager(const Mesh& mesh, std::uint32_t maxPaths = 4096,
                          std::uint32_t nodeLimit = Search::defaultNodeLimit,
-                         double heuristicWeight = 2.0, bool reopenClosed = false);
+                         double heuristicWeight = 2.0, bool reopenClosed = false, bool greedy = false);
     ~PathManager();
     PathManager(const PathManager&) = delete;
     PathManager& operator=(const PathManager&) = delete;
@@ -42,6 +42,7 @@ public:
     std::uint32_t nodeLimit() const;
     double heuristicWeight() const;
     bool reopenClosed() const;
+    bool greedy() const;
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

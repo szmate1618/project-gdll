@@ -36,8 +36,8 @@ struct PathManager::Impl {
     std::unique_ptr<Span[]> spans;
 
     Impl(const Mesh& mesh, std::uint32_t capacity, std::uint32_t nodeLimit, double heuristicWeight,
-         bool reopenClosed)
-        : search(mesh, nodeLimit, heuristicWeight, reopenClosed), maxPaths(capacity) {
+         bool reopenClosed, bool greedy)
+        : search(mesh, nodeLimit, heuristicWeight, reopenClosed, greedy), maxPaths(capacity) {
         if (!capacity || capacity > 1'000'000)
             throw std::invalid_argument("Path capacity must be in [1, 1000000]");
         while (hashCapacity < capacity * 2) hashCapacity *= 2;
@@ -149,8 +149,8 @@ struct PathManager::Impl {
 };
 
 PathManager::PathManager(const Mesh& mesh, std::uint32_t maxPaths, std::uint32_t nodeLimit,
-                         double heuristicWeight, bool reopenClosed)
-    : impl_(std::make_unique<Impl>(mesh, maxPaths, nodeLimit, heuristicWeight, reopenClosed)) {}
+                         double heuristicWeight, bool reopenClosed, bool greedy)
+    : impl_(std::make_unique<Impl>(mesh, maxPaths, nodeLimit, heuristicWeight, reopenClosed, greedy)) {}
 PathManager::~PathManager() = default;
 
 PathId PathManager::request(ZombieId zombie, Point start, Point goal) {
@@ -229,5 +229,6 @@ std::size_t PathManager::metadataBytes() const {
 std::uint32_t PathManager::nodeLimit() const { return impl_->search.nodeLimit(); }
 double PathManager::heuristicWeight() const { return impl_->search.heuristicWeight(); }
 bool PathManager::reopenClosed() const { return impl_->search.reopenClosed(); }
+bool PathManager::greedy() const { return impl_->search.greedy(); }
 
 } // namespace viewer::navmesh_path

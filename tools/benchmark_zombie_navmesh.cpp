@@ -1,5 +1,6 @@
 #include "file_fingerprint.hpp"
 #include "zombie_navmesh_paths.hpp"
+#include "zombie_navmesh_benchmark_inputs.hpp"
 
 #include <json.hpp>
 
@@ -14,21 +15,25 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
 using Json = nlohmann::json;
 using Clock = std::chrono::steady_clock;
 using namespace viewer::navmesh_path;
+using viewer::navmesh_benchmark::Input;
 
 struct Options {
     std::filesystem::path navmesh, replay, output = "build/navmesh/results";
     std::vector<std::size_t> batches{1, 10, 100, 1000};
     std::size_t repeats = 5;
     double heuristicWeight = 2;
-    bool reopenClosed = false;
+    bool reopenClosed = false, greedy = false, explicitHeuristicWeight = false;
+    std::optional<std::uint32_t> randomSeed;
 };
 
 std::size_t positiveCount(const std::string& text, const std::string& argument, std::size_t maximum) {
@@ -47,6 +52,14 @@ double heuristicWeight(const std::string& text) {
     return value;
 }
 
+std::uint32_t randomSeed(const std::string& text) {
+    std::size_t end=0;
+    const auto value=std::stoull(text,&end);
+    if (text.empty() || text.front()=='-' || end!=text.size() || value>std::numeric_limits<std::uint32_t>::max())
+        throw std::runtime_error("--random-seed must be an integer between 0 and 4294967295");
+    return static_cast<std::uint32_t>(value);
+}
+
 Options parseOptions(int argc, char** argv) {
     Options result;
     for (int i = 1; i < argc; ++i) {
@@ -59,7 +72,11 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--replay") result.replay = value();
         else if (argument == "--output") result.output = value();
         else if (argument == "--repeats") result.repeats = positiveCount(value(), argument, 100);
-        else if (argument == "--heuristic-weight") result.heuristicWeight = heuristicWeight(value());
+        else if (argument == "--heuristic-weight") {
+            result.heuristicWeight = heuristicWeight(value());
+            result.explicitHeuristicWeight = true;
+        } else if (argument == "--greedy") result.greedy = true;
+        else if (argument == "--random-seed") result.randomSeed = randomSeed(value());
         else if (argument == "--reopen-closed") result.reopenClosed = true;
         else if (argument == "--batches") {
             const auto list = value();
@@ -74,12 +91,17 @@ Options parseOptions(int argc, char** argv) {
             std::cout << "benchmark_zombie_navmesh --navmesh world.navmesh --replay paths.json\n"
                          "  [--batches 1,10,100,1000] [--repeats 5] [--output DIR]\n"
                          "  [--heuristic-weight 2]  Priority = g + weight * h; finite weight >= 1.\n"
+                         "  [--greedy]  Priority = h; cannot be combined with --heuristic-weight.\n"
+                         "  [--random-seed UINT32]  Independent mapwide walkable random starts/goals.\n"
                          "  [--reopen-closed]  Re-expand improved closed polygons; disabled by default.\n"
-                         "Reuses recorded endpoints exactly; all searches run independently and serially.\n"
+                         "Reuses recorded endpoints unless --random-seed is given; --replay always supplies geometry provenance.\n"
+                         "All searches run independently and serially.\n"
                          "Each batch gets one warm-up followed by the requested measured repeats.\n";
             std::exit(0);
         } else throw std::runtime_error("Unknown argument: " + argument);
     }
+    if (result.greedy && result.explicitHeuristicWeight)
+        throw std::runtime_error("--greedy cannot be combined with --heuristic-weight");
     if (result.navmesh.empty() || result.replay.empty())
         throw std::runtime_error("Both --navmesh and --replay are required");
     return result;
@@ -93,7 +115,6 @@ Point point(const Json& value) {
     return result;
 }
 Json pointJson(Point point) { return {point.x, point.z}; }
-struct Input { Point start, goal; };
 std::vector<Input> readInputs(const Json& document) {
     const auto& batches = document.at("batches");
     if (batches.empty()) throw std::runtime_error("No recorded batches");
@@ -379,17 +400,39 @@ int main(int argc, char** argv) {
         std::ifstream recorded(config.replay);
         recorded.exceptions(std::ios::badbit | std::ios::failbit);
         Json document = Json::parse(recorded);
-        const auto inputs = readInputs(document);
         const auto maximumBatch = *std::max_element(config.batches.begin(), config.batches.end());
-        if (maximumBatch > inputs.size()) throw std::runtime_error("Requested batch exceeds recorded input count");
         const auto loadBegin = Clock::now();
         auto mesh = Mesh::load(config.navmesh.string());
         const double meshLoadMs = std::chrono::duration<double, std::milli>(Clock::now()-loadBegin).count();
         const auto fingerprint = viewer::fileSha256(config.replay);
         if (fingerprint != mesh.sourceSha256()) throw std::runtime_error("Navmesh provenance differs from replay source SHA-256");
+        // Preserve the original replay hash as geometry provenance. Random request
+        // generation is outside timed search and only follows this verification.
+        std::vector<Input> inputs;
+        if (config.randomSeed) {
+            auto generated=viewer::navmesh_benchmark::randomInputs(mesh,maximumBatch,*config.randomSeed);
+            inputs=std::move(generated.inputs);
+            document["goal_layout"]="random_pairs";
+            document.erase("goal_transform");
+            document["random_seed"]=*config.randomSeed;
+            document["seed"]=*config.randomSeed;
+            if (document.contains("scenario") && document["scenario"].is_object())
+                document["scenario"]["endpoint_policy"]="Independent mapwide walkable random start/goal pairs; disconnected pairs retained";
+            document["random_sampling"]={
+                {"policy", "Independent uniform map-bounds rejection sampling; round each coordinate to float32 before bounds and navmesh walkability tests; no snapping or component filtering"},
+                {"rng", "MT19937; each [0,1) coordinate uses 53 bits from two successive uint32 draws"},
+                {"seed",*config.randomSeed},
+                {"requests", maximumBatch}, {"start_attempts",generated.startAttempts},
+                {"goal_attempts",generated.goalAttempts}, {"total_attempts",generated.startAttempts+generated.goalAttempts},
+                {"rejected_candidates",generated.startAttempts+generated.goalAttempts-2*maximumBatch},
+                {"maximum_attempts_per_endpoint",viewer::navmesh_benchmark::maximumEndpointAttempts}};
+        } else {
+            inputs=readInputs(document);
+            if (maximumBatch > inputs.size()) throw std::runtime_error("Requested batch exceeds recorded input count");
+        }
         const auto setupBegin = Clock::now();
         PathManager manager(mesh, static_cast<std::uint32_t>(std::max<std::size_t>(1000, maximumBatch)),
-                            Search::defaultNodeLimit, config.heuristicWeight, config.reopenClosed);
+                            Search::defaultNodeLimit, config.heuristicWeight, config.reopenClosed, config.greedy);
         const double setupMs = std::chrono::duration<double, std::milli>(Clock::now()-setupBegin).count();
         GeometryValidator geometry(document, mesh);
         std::filesystem::create_directories(config.output);
@@ -397,13 +440,16 @@ int main(int argc, char** argv) {
         std::filesystem::copy_file(config.replay.parent_path()/raster.at("file").get<std::string>(),
                                   config.output/"aerial.ppm", std::filesystem::copy_options::overwrite_existing);
         raster["file"] = "aerial.ppm";
-        document["algorithm"] = "Navmesh convex polygon centroid graph weighted A* followed by portal funnel";
-        document["heuristic_weight"] = manager.heuristicWeight();
+        document["algorithm"] = manager.greedy()
+            ? "Navmesh convex polygon centroid graph greedy best-first search followed by portal funnel"
+            : "Navmesh convex polygon centroid graph weighted A* followed by portal funnel";
+        document["greedy"] = manager.greedy();
+        document["heuristic_weight"] = manager.greedy() ? Json(nullptr) : Json(manager.heuristicWeight());
         document["reopen_closed"] = manager.reopenClosed();
         document["closed_polygon_policy"] = manager.reopenClosed()
             ? "Reopen expanded polygons when a lower g is found"
             : "Expand each polygon at most once; ignore later improvements to closed polygons";
-        document["priority_formula"] = "g + heuristic_weight * h";
+        document["priority_formula"] = manager.greedy() ? "h" : "g + heuristic_weight * h";
         document["heuristic"] = "Euclidean distance between the current and goal polygon centroids, ignoring obstacles";
         document["replay_source"] = config.replay.string();
         document["replay_sha256"] = fingerprint;
@@ -438,8 +484,10 @@ int main(int argc, char** argv) {
         std::ofstream csv(config.output/"measurements.csv");
         csv.exceptions(std::ios::badbit | std::ios::failbit);
         csv << header << '\n'; std::cout << header << '\n';
-        std::cerr << "Search priority: g + " << manager.heuristicWeight()
-                  << " * h (Euclidean centroid distance); " << manager.nodeLimit() << " stored-polygon limit; "
+        std::cerr << "Search priority: ";
+        if (manager.greedy()) std::cerr << "h";
+        else std::cerr << "g + " << manager.heuristicWeight() << " * h";
+        std::cerr << " (Euclidean centroid distance); " << manager.nodeLimit() << " stored-polygon limit; "
                   << (manager.reopenClosed() ? "reopen closed polygons" : "single expansion per polygon") << '\n';
         for (const auto count : config.batches) {
             std::cerr << "Measuring " << count << " zombies (one warm-up + " << config.repeats << " repeats)\n";
