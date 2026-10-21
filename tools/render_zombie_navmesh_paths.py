@@ -51,6 +51,8 @@ def render(source, destination):
     thumbnails = []
     relative_goals = document.get("goal_layout") == "relative_offsets"
     weight = document.get("heuristic_weight", 1)
+    mesh = document["navmesh"]
+    polygon_count = mesh.get("polygons", mesh.get("triangles", 0))
     for batch in document["batches"]:
         route_layer = Image.new("RGBA", background.size)
         draw = ImageDraw.Draw(route_layer)
@@ -105,12 +107,12 @@ def render(source, destination):
         if relative_goals:
             annotation.text((25, 134),
                             "Independent searches · destination offsets match starting offsets · "
-                            + ("closed triangles reopened" if document.get("reopen_closed")
-                               else "each triangle expanded at most once"),
+                            + ("closed polygons reopened" if document.get("reopen_closed")
+                               else "each polygon expanded at most once"),
                             font=font(18), fill="#536773")
         annotation.text((25, 166 if relative_goals else 134),
-                        f"{document['navmesh']['triangles']:,} triangles · "
-                        f"{document['search_node_limit']:,} stored search-triangle limit · "
+                        f"{polygon_count:,} polygons · "
+                        f"{document['search_node_limit']:,} stored search-polygon limit · "
                         f"{batch['status_counts'].get('blocked_endpoint', 0):,} blocked endpoints / "
                         f"{batch['status_counts'].get('search_limit', 0):,} search limits",
                         font=font(18), fill="#536773")
@@ -152,8 +154,9 @@ def render(source, destination):
                         f"Routes: colored lines   Starts: green dots   {goal_legend}   Failures: red ×",
                         font=font(18), fill="#263f4d")
         annotation.text((25, legend_y+29),
-                        "Obstacle boxes: buildings red · trunks green (min. 1 px) · fences orange. "
-                        "Insets show 700 m squares.", font=font(16), fill="#536773")
+                        ("Obstacle boxes: buildings red · trunks green · fences orange. Insets show 700 m squares."
+                         if any(obstacle[0] == 1 for obstacle in document["obstacles"]) else
+                         "Trees ignored for navigation; aerial vegetation is context. Buildings red · fences orange."), font=font(16), fill="#536773")
         path = destination / f"zombie_paths_{count:04d}.png"
         canvas.save(path)
         print(path)

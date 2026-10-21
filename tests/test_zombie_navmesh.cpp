@@ -22,20 +22,24 @@ void real(std::vector<unsigned char>& bytes, std::size_t at, double value) {
 // This is the previous on-demand graph geometry, retained as a compatibility
 // oracle. Exact equality detects arithmetic changes that can reorder A* ties.
 Point uncachedCentroid(const Mesh& mesh, std::uint32_t index) {
-    const auto& triangle = mesh.triangles()[index];
-    const auto a = mesh.vertices()[triangle.vertex[0]], b = mesh.vertices()[triangle.vertex[1]], c = mesh.vertices()[triangle.vertex[2]];
+    const auto polygon = mesh.polygons()[index];
+    const auto a = mesh.vertices()[mesh.edges()[polygon.firstEdge].vertex];
+    const auto b = mesh.vertices()[mesh.edges()[polygon.firstEdge+1].vertex];
+    const auto c = mesh.vertices()[mesh.edges()[polygon.firstEdge+2].vertex];
     return {a.x+(b.x-a.x)/3+(c.x-a.x)/3, a.z+(b.z-a.z)/3+(c.z-a.z)/3};
 }
 void verifyGeometryCache(const Mesh& mesh) {
-    require(mesh.geometryCacheBytes()==mesh.triangles().size()*40, "shared geometry cache memory accounting");
-    for (std::uint32_t index=0; index<mesh.triangles().size(); ++index) {
-        const auto center = uncachedCentroid(mesh,index);
-        require(mesh.centroid(index)==center, "cached centroid changed graph geometry");
-        for (unsigned edge=0; edge!=3; ++edge) {
-            const auto neighbor = mesh.triangles()[index].neighbor[edge];
+    require(mesh.geometryCacheBytes()==mesh.polygons().size()*16+mesh.edges().size()*8, "shared geometry cache memory accounting");
+    for (std::uint32_t index=0; index<mesh.polygons().size(); ++index) {
+        const auto polygon = mesh.polygons()[index];
+        const auto center = mesh.centroid(index);
+        if (polygon.edgeCount==3)
+            require(center==uncachedCentroid(mesh,index), "cached centroid changed legacy graph geometry");
+        for (unsigned edge=0; edge!=polygon.edgeCount; ++edge) {
+            const auto neighbor = mesh.edges()[polygon.firstEdge+edge].neighbor;
             double expected=0;
             if (neighbor!=noTriangle) {
-                const auto next = uncachedCentroid(mesh,neighbor);
+                const auto next = mesh.centroid(neighbor);
                 expected=std::hypot(center.x-next.x,center.z-next.z);
             }
             require(mesh.neighborDistance(index,edge)==expected, "cached neighbor cost changed graph geometry");
@@ -91,12 +95,12 @@ void binary() {
     try {
         write(valid);
         const auto mesh = Mesh::load(path.string());
-        require(mesh.vertices().size()==4 && mesh.triangles().size()==2, "binary mesh counts");
+        require(mesh.vertices().size()==4 && mesh.polygons().size()==2, "binary mesh counts");
         verifyGeometryCache(mesh);
         require(mesh.locate({.25,.5})!=noTriangle && mesh.locate({2,2})==noTriangle, "binary mesh location");
         require(mesh.segmentClear({0,0},{1,1}) && mesh.segmentClear({.2,.8},{.8,.2}), "binary mesh segment");
         require(mesh.sourceSha256()==std::string(64,'0') && mesh.numericMargin()==.005, "binary provenance");
-        require(mesh.meshBytes()==112 && mesh.indexBytes()>0, "mesh/index memory accounting");
+        require(mesh.meshBytes()==128 && mesh.indexBytes()>0, "mesh/index memory accounting");
         auto changed = valid; changed[0]=0; rejects(changed);
         changed=valid; changed.resize(127); rejects(changed);
         changed=valid; changed.pop_back(); rejects(changed);
@@ -111,6 +115,95 @@ void binary() {
         changed=valid; integer(changed,192+4,2,4); rejects(changed);
     } catch (...) { std::filesystem::remove(path); throw; }
     std::filesystem::remove(path);
+}
+// A separately encoded v2 square exercises the variable-size disk records.
+void binaryPolygons() {
+    const auto path = std::filesystem::temp_directory_path() /
+        ("navmesh-polygons-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::vector<unsigned char> valid(128+64+36);
+    std::memcpy(valid.data(),"GDNAV02\0",8);
+    integer(valid,8,4,4); integer(valid,12,1,4);
+    real(valid,32,1); real(valid,40,1);
+    real(valid,48,.3); real(valid,56,.002); real(valid,64,.05); real(valid,72,.005);
+    integer(valid,80,64); integer(valid,88,36);
+    const double coordinates[]{0,0,1,0,1,1,0,1};
+    for (unsigned i=0;i!=8;++i) real(valid,128+8*i,coordinates[i]);
+    integer(valid,192,4,4);
+    for (unsigned edge=0;edge!=4;++edge) {
+        integer(valid,196+4*edge,edge,4);
+        integer(valid,212+4*edge,noPolygon,4);
+    }
+    const auto write = [&](const auto& bytes) {
+        std::ofstream file(path,std::ios::binary|std::ios::trunc);
+        file.write(reinterpret_cast<const char*>(bytes.data()),bytes.size());
+    };
+    const auto rejects = [&](const auto& bytes) {
+        write(bytes);
+        try { (void)Mesh::load(path.string()); }
+        catch (const std::exception&) { return; }
+        throw std::runtime_error("malformed polygon navmesh accepted");
+    };
+    try {
+        write(valid);
+        const auto mesh = Mesh::load(path.string());
+        require(mesh.polygons().size()==1 && mesh.edges().size()==4 && mesh.polygons()[0].edgeCount==4,
+                "v2 polygon counts");
+        require(mesh.centroid(0)==Point{.5,.5} && mesh.locate({.5,.5})==0 && mesh.locate({1.1,.5})==noPolygon,
+                "v2 polygon center and location");
+        require(mesh.segmentClear({0,1},{1,0}) && mesh.segmentClear({0,.5},{1,.5}), "v2 square coverage");
+        require(mesh.meshBytes()==104 && mesh.geometryCacheBytes()==48, "v2 compact memory accounting");
+        verifyGeometryCache(mesh);
+        auto changed=valid; changed.pop_back(); rejects(changed);
+        changed=valid; changed.push_back(0); rejects(changed);
+        changed=valid; integer(changed,88,35); rejects(changed);
+        changed=valid; integer(changed,192,2,4); rejects(changed);
+        changed=valid; integer(changed,192,7,4); rejects(changed);
+        changed=valid; integer(changed,196,9,4); rejects(changed);
+        changed=valid; integer(changed,200,3,4); integer(changed,208,1,4); rejects(changed); // CW
+        changed=valid; integer(changed,200,0,4); rejects(changed); // duplicate ID
+        changed=valid; real(changed,144,0); real(changed,152,0); rejects(changed); // duplicate location
+        changed=valid; real(changed,160,.2); real(changed,168,.2); rejects(changed); // concave
+        changed=valid; integer(changed,212,0,4); rejects(changed); // self neighbor
+        changed=valid; integer(changed,212,1,4); rejects(changed); // outside neighbor
+        changed=valid; real(changed,128,std::numeric_limits<double>::infinity()); rejects(changed);
+    } catch (...) { std::filesystem::remove(path); throw; }
+    std::filesystem::remove(path);
+}
+void convexValidation() {
+    const std::vector<Point> points{{0,0},{1,0},{2,0},{2,1},{1,2},{0,1}};
+    std::vector<Edge> edges;
+    for (std::uint32_t index=0;index<points.size();++index) edges.push_back({index,noPolygon});
+    const Mesh hexagon(points, {{0,6}}, edges);
+    require(hexagon.locate({1,1})==0 && hexagon.locate({.1,1.8})==noPolygon,
+            "six-edge polygon location");
+    require(hexagon.segmentClear({.1,.1},{1,1.9}), "six-edge polygon interval");
+    require(!hexagon.segmentClear({.1,.1},{.1,1.8}), "six-edge polygon excludes outside endpoint");
+    const Mesh pentagon({{0,0},{2,0},{3,1},{1,3},{0,1}}, {{0,5}},
+                        {{0,noPolygon},{1,noPolygon},{2,noPolygon},{3,noPolygon},{4,noPolygon}});
+    require(pentagon.locate({1,1})==0 && pentagon.segmentClear({1,.1},{1,2.9}),
+            "five-edge polygon coverage");
+    const auto rejects = [&](auto polygons, auto malformedEdges) {
+        try { (void)Mesh(points, std::move(polygons), std::move(malformedEdges)); }
+        catch (const std::exception&) { return; }
+        throw std::runtime_error("invalid polygon constructor accepted");
+    };
+    rejects(std::vector<Polygon>{{1,6}},edges);
+    rejects(std::vector<Polygon>{{0,5}},edges); // unused edge
+    auto changed=edges; std::swap(changed[1],changed[3]); // self-crossing
+    rejects(std::vector<Polygon>{{0,6}},changed);
+    changed=edges; std::swap(changed[1],changed[2]); // backwards collinear edge
+    rejects(std::vector<Polygon>{{0,6}},changed);
+    const auto adjacent = test_navmesh::convexSquares(2,1);
+    require(adjacent.polygons().size()==2 && adjacent.edges().size()==8 &&
+            adjacent.segmentClear({.1,.5},{1.9,.5}), "reciprocal quadrilateral portal");
+    auto malformed=adjacent.edges();
+    const auto polygon=adjacent.polygons()[1];
+    for (unsigned edge=0;edge<polygon.edgeCount;++edge)
+        if (malformed[polygon.firstEdge+edge].neighbor==0) malformed[polygon.firstEdge+edge].neighbor=noPolygon;
+    bool rejected=false;
+    try { (void)Mesh(adjacent.vertices(),adjacent.polygons(),std::move(malformed)); }
+    catch (const std::exception&) { rejected=true; }
+    require(rejected,"one-way polygon portal accepted");
 }
 bool crossesBox(Point a, Point b, unsigned x, unsigned z) {
     double low=0, high=1;
@@ -128,9 +221,9 @@ bool crossesBox(Point a, Point b, unsigned x, unsigned z) {
     }
     return true;
 }
-void queries() {
+void queries(bool convexPolygons = false) {
     const std::set<std::pair<unsigned,unsigned>> holes{{2,2},{3,2},{4,4},{5,4},{6,4},{1,6}};
-    const auto mesh = test_navmesh::squares(8,8,holes);
+    const auto mesh = convexPolygons ? test_navmesh::convexSquares(8,8,holes) : test_navmesh::squares(8,8,holes);
     verifyGeometryCache(mesh);
     require(mesh.locate({2.5,2.5})==noTriangle && mesh.locate({-1,1})==noTriangle, "hole/outside location");
     require(mesh.locate({NAN,1})==noTriangle, "nonfinite location");
@@ -151,7 +244,7 @@ void queries() {
 }
 }
 int main() try {
-    cachedGeometry(); binary(); queries();
+    cachedGeometry(); binary(); binaryPolygons(); convexValidation(); queries(); queries(true);
     std::cout<<"Navmesh loading, point location and segment coverage tests passed\n";
     return 0;
 } catch (const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }

@@ -74,7 +74,7 @@ Options parseOptions(int argc, char** argv) {
             std::cout << "benchmark_zombie_navmesh --navmesh world.navmesh --replay paths.json\n"
                          "  [--batches 1,10,100,1000] [--repeats 5] [--output DIR]\n"
                          "  [--heuristic-weight 2]  Priority = g + weight * h; finite weight >= 1.\n"
-                         "  [--reopen-closed]  Re-expand improved closed triangles; disabled by default.\n"
+                         "  [--reopen-closed]  Re-expand improved closed polygons; disabled by default.\n"
                          "Reuses recorded endpoints exactly; all searches run independently and serially.\n"
                          "Each batch gets one warm-up followed by the requested measured repeats.\n";
             std::exit(0);
@@ -214,7 +214,7 @@ public:
 
 Json statsJson(const Stats& stats) {
     return {{"stored_nodes", stats.storedNodes}, {"expanded_nodes", stats.expandedNodes},
-            {"peak_queue", stats.peakQueue}, {"corridor_triangles", stats.corridorTriangles},
+            {"peak_queue", stats.peakQueue}, {"corridor_polygons", stats.corridorPolygons},
             {"neighbor_tests", stats.neighborTests}, {"funnel_tests", stats.funnelTests},
             {"location_tests", stats.locationTests}, {"graph_cost_m", stats.graphCost}};
 }
@@ -289,7 +289,7 @@ Batch measure(PathManager& manager, const Mesh& mesh, GeometryValidator& geometr
         const auto& stats = result.stats[zombie];
         result.totals.stored += stats.storedNodes;
         result.totals.expanded += stats.expandedNodes;
-        result.totals.corridor += stats.corridorTriangles;
+        result.totals.corridor += stats.corridorPolygons;
         result.totals.neighbors += stats.neighborTests;
         result.totals.funnel += stats.funnelTests;
         result.totals.location += stats.locationTests;
@@ -341,7 +341,7 @@ Json batchJson(const Batch& batch, const PathManager& manager, const Mesh& mesh,
             {"physical_blocked_endpoint_requests", physicallyBlockedRequests},
             {"numeric_margin_blocked_endpoint_requests", conservativeMeshBlockedRequests},
             {"stats", {{"stored_nodes", batch.totals.stored}, {"expanded_nodes", batch.totals.expanded},
-                       {"corridor_triangles", batch.totals.corridor}, {"neighbor_tests", batch.totals.neighbors},
+                       {"corridor_polygons", batch.totals.corridor}, {"neighbor_tests", batch.totals.neighbors},
                        {"funnel_tests", batch.totals.funnel}, {"location_tests", batch.totals.location},
                        {"peak_queue", batch.totals.peakQueue}}}, {"routes", std::move(routes)}};
 }
@@ -397,14 +397,14 @@ int main(int argc, char** argv) {
         std::filesystem::copy_file(config.replay.parent_path()/raster.at("file").get<std::string>(),
                                   config.output/"aerial.ppm", std::filesystem::copy_options::overwrite_existing);
         raster["file"] = "aerial.ppm";
-        document["algorithm"] = "Navmesh triangle centroid graph weighted A* followed by portal funnel";
+        document["algorithm"] = "Navmesh convex polygon centroid graph weighted A* followed by portal funnel";
         document["heuristic_weight"] = manager.heuristicWeight();
         document["reopen_closed"] = manager.reopenClosed();
-        document["closed_triangle_policy"] = manager.reopenClosed()
-            ? "Reopen expanded triangles when a lower g is found"
-            : "Expand each triangle at most once; ignore later improvements to closed triangles";
+        document["closed_polygon_policy"] = manager.reopenClosed()
+            ? "Reopen expanded polygons when a lower g is found"
+            : "Expand each polygon at most once; ignore later improvements to closed polygons";
         document["priority_formula"] = "g + heuristic_weight * h";
-        document["heuristic"] = "Euclidean distance between the current and goal triangle centroids, ignoring obstacles";
+        document["heuristic"] = "Euclidean distance between the current and goal polygon centroids, ignoring obstacles";
         document["replay_source"] = config.replay.string();
         document["replay_sha256"] = fingerprint;
         document["navmesh_source"] = config.navmesh.string();
@@ -413,9 +413,9 @@ int main(int argc, char** argv) {
         document["setup_ms"] = setupMs;
         document["navmesh_load_ms"] = meshLoadMs;
         document["search_node_limit"] = manager.nodeLimit();
-        document["search_limit_definition"] = "Maximum distinct stored navmesh triangles per independent request";
+        document["search_limit_definition"] = "Maximum distinct stored navmesh polygons per independent request";
         document["arena_capacity_bytes"] = manager.capacityBytes();
-        document["navmesh"] = {{"vertices", mesh.vertices().size()}, {"triangles", mesh.triangles().size()},
+        document["navmesh"] = {{"vertices", mesh.vertices().size()}, {"polygons", mesh.polygons().size()}, {"directed_edges", mesh.edges().size()},
                               {"minimum", {mesh.minimumX(), mesh.minimumZ()}},
                               {"maximum", {mesh.maximumX(), mesh.maximumZ()}},
                               {"file_bytes", std::filesystem::file_size(config.navmesh)}, {"radius_m", mesh.radius()},
@@ -433,14 +433,14 @@ int main(int argc, char** argv) {
                                   {"source_obb_validation_excludes_bake_numeric_margin", true}};
         document["batches"] = Json::array();
         const std::string header = "zombies,failed,median_ms,min_ms,max_ms,microseconds_per_zombie,waypoints,arena_bytes,"
-            "arena_capacity_bytes,stored_nodes,expanded_nodes,corridor_triangles,neighbor_tests,funnel_tests,location_tests,peak_queue,"
+            "arena_capacity_bytes,stored_nodes,expanded_nodes,corridor_polygons,neighbor_tests,funnel_tests,location_tests,peak_queue,"
             "found,invalid_input,blocked_endpoint,no_path,search_limit,buffer_full";
         std::ofstream csv(config.output/"measurements.csv");
         csv.exceptions(std::ios::badbit | std::ios::failbit);
         csv << header << '\n'; std::cout << header << '\n';
         std::cerr << "Search priority: g + " << manager.heuristicWeight()
-                  << " * h (Euclidean centroid distance); " << manager.nodeLimit() << " stored-triangle limit; "
-                  << (manager.reopenClosed() ? "reopen closed triangles" : "single expansion per triangle") << '\n';
+                  << " * h (Euclidean centroid distance); " << manager.nodeLimit() << " stored-polygon limit; "
+                  << (manager.reopenClosed() ? "reopen closed polygons" : "single expansion per polygon") << '\n';
         for (const auto count : config.batches) {
             std::cerr << "Measuring " << count << " zombies (one warm-up + " << config.repeats << " repeats)\n";
             const auto batch = measure(manager, mesh, geometry, inputs, count, config.repeats);

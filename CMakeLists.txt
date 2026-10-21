@@ -172,6 +172,9 @@ if(BUILD_TESTING)
     add_test(NAME viewer_zombie_navmesh_bake
         COMMAND "${Python3_EXECUTABLE}" -m unittest discover -s tests -p test_zombie_navmesh_bake.py -v)
     set_tests_properties(viewer_zombie_navmesh_bake PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME viewer_zombie_navmesh_merge
+        COMMAND "${Python3_EXECUTABLE}" -m unittest discover -s tests -p test_zombie_navmesh_merge.py -v)
+    set_tests_properties(viewer_zombie_navmesh_merge PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
 add_library(viewer_vegetation STATIC src/vegetation_selection.cpp)

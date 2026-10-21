@@ -8,7 +8,7 @@ namespace viewer::navmesh_path {
 enum class Status { found, invalidInput, blockedEndpoint, noPath, searchLimit, bufferFull };
 const char* statusName(Status status);
 struct Stats {
-    std::uint32_t storedNodes = 0, expandedNodes = 0, peakQueue = 0, corridorTriangles = 0;
+    std::uint32_t storedNodes = 0, expandedNodes = 0, peakQueue = 0, corridorPolygons = 0;
     std::uint64_t neighborTests = 0, funnelTests = 0, locationTests = 0;
     double graphCost = 0; // Actual centroid-graph cost in meters, not priority.
 };
@@ -19,10 +19,10 @@ struct Result {
     Stats stats{};
 };
 // Independent synchronous requests. The mesh must outlive this object.
-// Search records, generation-stamped triangle lookup, indexed heap and
+// Search records, generation-stamped polygon lookup, indexed heap and
 // corridor/funnel scratch are allocated once. find() must not allocate.
-// Default weighted searches expand each triangle once for fast approximate
-// routes. The reference option permits reopening closed triangles on improvement.
+// Default weighted searches expand each polygon once for fast approximate
+// routes. The reference option permits reopening closed polygons on improvement.
 class Search {
 public:
     static constexpr std::uint32_t defaultNodeLimit = 50'000;

@@ -62,6 +62,32 @@ Mesh connectedMesh(std::vector<Point> vertices, std::vector<Triangle> triangles)
     return Mesh(std::move(vertices), std::move(triangles));
 }
 
+Mesh connectedPolygonMesh(std::vector<Point> vertices,
+                          const std::vector<std::vector<std::uint32_t>>& rings) {
+    using EdgeKey = std::pair<std::uint32_t, std::uint32_t>;
+    std::map<EdgeKey, std::pair<std::uint32_t, std::uint32_t>> shared;
+    std::vector<Polygon> polygons;
+    std::vector<Edge> edges;
+    for (std::uint32_t polygonId = 0; polygonId < rings.size(); ++polygonId) {
+        const auto& ring = rings[polygonId];
+        polygons.push_back({std::uint32_t(edges.size()), std::uint32_t(ring.size())});
+        for (std::uint32_t edge = 0; edge < ring.size(); ++edge) {
+            const auto a = ring[edge], b = ring[(edge + 1) % ring.size()];
+            const auto edgeId = std::uint32_t(edges.size());
+            edges.push_back({a, noTriangle});
+            const EdgeKey key{std::min(a, b), std::max(a, b)};
+            const auto old = shared.find(key);
+            if (old == shared.end()) shared.emplace(key, std::make_pair(polygonId, edgeId));
+            else {
+                edges[edgeId].neighbor = old->second.first;
+                edges[old->second.second].neighbor = polygonId;
+                shared.erase(old);
+            }
+        }
+    }
+    return Mesh(std::move(vertices), std::move(polygons), std::move(edges));
+}
+
 Fixture gridMesh(std::vector<std::string> cells) {
     const auto height = std::uint32_t(cells.size());
     const auto width = std::uint32_t(cells.front().size());
@@ -141,18 +167,20 @@ double pathLength(const Result& result) {
 
 double dijkstra(const Mesh& mesh, Point start, Point goal) {
     const auto first = mesh.locate(start), last = mesh.locate(goal);
-    std::vector<double> distances(mesh.triangles().size(), std::numeric_limits<double>::infinity());
+    std::vector<double> distances(mesh.polygons().size(), std::numeric_limits<double>::infinity());
     using Entry = std::pair<double, std::uint32_t>;
     std::priority_queue<Entry, std::vector<Entry>, std::greater<Entry>> open;
     distances[first] = 0;
     open.emplace(0, first);
     while (!open.empty()) {
-        const auto [cost, triangle] = open.top();
+        const auto [cost, polygonId] = open.top();
         open.pop();
-        if (cost != distances[triangle]) continue;
-        if (triangle == last) return cost;
-        const auto center = mesh.centroid(triangle);
-        for (const auto neighbor : mesh.triangles()[triangle].neighbor) {
+        if (cost != distances[polygonId]) continue;
+        if (polygonId == last) return cost;
+        const auto center = mesh.centroid(polygonId);
+        const auto& polygon = mesh.polygons()[polygonId];
+        for (unsigned edge = 0; edge < polygon.edgeCount; ++edge) {
+            const auto neighbor = mesh.edges()[polygon.firstEdge + edge].neighbor;
             if (neighbor == noTriangle) continue;
             const auto next = mesh.centroid(neighbor);
             const auto distance = cost + std::hypot(center.x - next.x, center.z - next.z);
@@ -204,6 +232,124 @@ void straightAndCorners() {
             "reopening search reported the wrong reconstructed graph cost");
 }
 
+void convexPolygonCorridors() {
+    Fixture empty{{".....", ".....", ".....", "....."},
+        connectedPolygonMesh({{0, 0}, {5, 0}, {5, 4}, {0, 4}}, {{0, 1, 2, 3}})};
+    Search single(empty.mesh, 1, 8);
+    const Point start{.13, .27}, goal{4.81, 3.76};
+    const auto direct = single.find(start, goal);
+    checkPath(empty, direct, start, goal);
+    require(direct.size == 2 && direct.stats.storedNodes == 1 &&
+            direct.stats.corridorPolygons == 1 && direct.stats.graphCost == 0,
+            "one convex polygon did not yield a direct route with one record");
+
+    // The same L-shaped free space as the triangle regression, partitioned into
+    // two convex quadrilaterals. The reverse search crosses the fourth edge.
+    Fixture bend{{"..###", "..###", "..###", ".....", "....."},
+        connectedPolygonMesh({{0, 0}, {2, 0}, {2, 3}, {5, 3}, {5, 5}, {0, 5}},
+                             {{0, 1, 2, 5}, {2, 3, 4, 5}})};
+    const Point a{.2, .2}, b{4.8, 4.2};
+    const auto expected = std::hypot(2 - a.x, 3 - a.z) + std::hypot(b.x - 2, b.z - 3);
+    const auto graphLength = dijkstra(bend.mesh, a, b);
+    Search search(bend.mesh, 2, 8), reference(bend.mesh, 2, 8, true);
+    Search capped(bend.mesh, 1, 8), cappedReference(bend.mesh, 1, 8, true);
+    for (auto* solver : {&search, &reference}) {
+        for (unsigned direction = 0; direction < 2; ++direction) {
+            const auto from = direction ? b : a, to = direction ? a : b;
+            const auto result = solver->find(from, to);
+            checkPath(bend, result, from, to);
+            require(result.size == 3 && result.points[1] == Point{2, 3} &&
+                    result.stats.corridorPolygons == 2,
+                    "quadrilateral corridor omitted its exact inner corner");
+            require(std::abs(pathLength(result) - expected) < 1e-11 &&
+                    std::abs(result.stats.graphCost - graphLength) < 1e-11,
+                    "quadrilateral route has the wrong geometric or graph cost");
+        }
+    }
+
+    // A central hexagon and four corner triangles exactly tile this rectangle.
+    // Both endpoints are in corner triangles; their only graph route crosses
+    // the hexagon's fifth and sixth edges, beyond the old triangle loop bound.
+    Fixture hexagon{{"....", "...."},
+        connectedPolygonMesh({{1, 0}, {3, 0}, {4, 1}, {3, 2}, {1, 2}, {0, 1},
+                              {0, 0}, {4, 0}, {4, 2}, {0, 2}},
+                             {{0, 1, 2, 3, 4, 5}, {6, 0, 5}, {1, 7, 2},
+                              {2, 8, 3}, {5, 4, 9}})};
+    Search hexSearch(hexagon.mesh, 5, 1);
+    for (unsigned direction = 0; direction < 2; ++direction) {
+        const Point low{.1, .1}, high{.1, 1.9};
+        const auto from = direction ? high : low, to = direction ? low : high;
+        const auto result = hexSearch.find(from, to);
+        checkPath(hexagon, result, from, to);
+        require(result.size == 2 && result.stats.corridorPolygons == 3,
+                "hexagon's fifth or sixth edge was not traversed and pulled straight");
+        require(std::abs(result.stats.graphCost - dijkstra(hexagon.mesh, from, to)) < 1e-11,
+                "hexagon graph route differs from independent Dijkstra");
+    }
+
+    allocations = 0;
+    countAllocations = true;
+    for (unsigned request = 0; request < 100; ++request) {
+        const auto from = request % 2 ? a : b, to = request % 2 ? b : a;
+        for (auto* solver : {&search, &reference}) {
+            const auto result = solver->find(from, to);
+            require(result.status == Status::found && result.size == 3 &&
+                    result.stats.storedNodes == 2,
+                    "repeated polygon request retained stale state");
+        }
+        for (auto* solver : {&capped, &cappedReference}) {
+            const auto result = solver->find(from, to);
+            require(result.status == Status::searchLimit && result.stats.storedNodes == 1,
+                    "polygon request bypassed the distinct-node budget");
+            require(solver->find(from, from).status == Status::found,
+                    "same-polygon request failed after a capped request");
+        }
+        require(hexSearch.find({.1, .1}, {.1, 1.9}).status == Status::found,
+                "repeated hexagon request failed");
+    }
+    countAllocations = false;
+    require(allocations == 0, "convex-polygon requests allocated heap memory");
+}
+
+void splitCollinearPortals() {
+    // A quadrilateral (a triangle with a split side) and a pentagon share both
+    // halves of x=2. Treating only the first subedge as their portal introduces
+    // a needless bend at (2,1). Rotate both rings to exercise wrapped spans.
+    const std::vector<Point> vertices{{0, 0}, {2, 0}, {2, 1}, {2, 2}, {4, 0}, {4, 2}};
+    const std::vector<std::uint32_t> quad{0, 1, 2, 3}, pentagon{1, 4, 5, 3, 2};
+    for (unsigned quadRotation = 0; quadRotation < quad.size(); ++quadRotation) {
+        for (unsigned pentagonRotation = 0; pentagonRotation < pentagon.size();
+             ++pentagonRotation) {
+            auto left = quad, right = pentagon;
+            std::rotate(left.begin(), left.begin() + quadRotation, left.end());
+            std::rotate(right.begin(), right.begin() + pentagonRotation, right.end());
+            const auto mesh = connectedPolygonMesh(vertices, {left, right});
+            Search search(mesh, 2, 8), reference(mesh, 2, 8, true);
+            allocations = 0;
+            countAllocations = true;
+            for (const double z : {.4, 1.6}) {
+                const Point a{1.8, z}, b{3.8, z};
+                // Analytically the full horizontal line is in the left
+                // triangle z<=x and the right rectangle 2<=x<=4.
+                for (auto* solver : {&search, &reference}) {
+                    for (unsigned direction = 0; direction < 2; ++direction) {
+                        const auto from = direction ? b : a, to = direction ? a : b;
+                        const auto result = solver->find(from, to);
+                        require(result.status == Status::found && result.size == 2 &&
+                                result.points[0] == from && result.points[1] == to &&
+                                result.stats.corridorPolygons == 2,
+                                "split collinear portal introduced a needless bend");
+                        require(mesh.segmentClear(result.points[0], result.points[1]),
+                                "full shared portal crossed the walkable boundary");
+                    }
+                }
+            }
+            countAllocations = false;
+            require(allocations == 0, "split-portal requests allocated heap memory");
+        }
+    }
+}
+
 void shortestGraphAndWeighted() {
     const auto fixture = gridMesh({
         "..........", ".####..##.", "....#.....", "##..#.###.", "....#.....",
@@ -216,9 +362,9 @@ void shortestGraphAndWeighted() {
     std::uint32_t random = 0xa571e962U;
     for (unsigned request = 0; request < 100; ++request) {
         random = random * 1664525U + 1013904223U;
-        const auto first = random % fixture.mesh.triangles().size();
+        const auto first = random % fixture.mesh.polygons().size();
         random = random * 1664525U + 1013904223U;
-        const auto last = random % fixture.mesh.triangles().size();
+        const auto last = random % fixture.mesh.polygons().size();
         const auto start = fixture.mesh.centroid(first), goal = fixture.mesh.centroid(last);
         const auto reference = dijkstra(fixture.mesh, start, goal);
         const auto result = optimal.find(start, goal);
@@ -282,7 +428,7 @@ void largeMeshWithSmallBudget() {
     // The last square's triangle IDs exceed the largest permitted record
     // budget. IDs identify mesh geometry; they are not search-record indices.
     const auto fixture = gridMesh({std::string(25'002, '.')});
-    const auto triangleCount = std::uint32_t(fixture.mesh.triangles().size());
+    const auto triangleCount = std::uint32_t(fixture.mesh.polygons().size());
     require(triangleCount > Search::defaultNodeLimit, "large mesh fixture is too small");
     const Point first = fixture.mesh.centroid(0), second = fixture.mesh.centroid(1);
     const Point last = fixture.mesh.centroid(triangleCount - 1);
@@ -342,6 +488,8 @@ void allocationFreeRequests() {
 int main() {
     try {
         straightAndCorners();
+        convexPolygonCorridors();
+        splitCollinearPortals();
         shortestGraphAndWeighted();
         failuresAndReset();
         largeMeshWithSmallBudget();

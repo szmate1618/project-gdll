@@ -14,7 +14,7 @@ double distance(Point a, Point b) {
 }
 
 // Evaluate turns with extra precision: corridors can contain very short edges
-// next to kilometer-long triangles. Portal vertices themselves remain doubles.
+// next to kilometer-long polygons. Portal vertices themselves remain doubles.
 long double turn(Point a, Point b, Point c) {
     const auto bx = static_cast<long double>(b.x) - a.x;
     const auto bz = static_cast<long double>(b.z) - a.z;
@@ -40,11 +40,11 @@ const char* statusName(Status status) {
 struct Search::Impl {
     struct Record {
         double g = 0, priority = 0;
-        std::uint32_t triangle = noTriangle, parent = noTriangle;
-        std::uint32_t heapIndex = noTriangle;
+        std::uint32_t polygon = noPolygon, parent = noPolygon;
+        std::uint32_t heapIndex = noPolygon;
     };
     struct Slot {
-        std::uint32_t record = noTriangle, generation = 0;
+        std::uint32_t record = noPolygon, generation = 0;
     };
 
     const Mesh& mesh;
@@ -69,9 +69,9 @@ struct Search::Impl {
             !std::isfinite(diameter * (weight + double(limit))))
             throw std::invalid_argument("invalid navmesh heuristic weight");
         records.resize(limit);
-        // Triangle IDs are dense. Only this lookup spans the mesh; search
+        // Polygon IDs are dense. Only this lookup spans the mesh; search
         // records and queue storage remain bounded by the per-request limit.
-        slots.resize(mesh.triangles().size());
+        slots.resize(mesh.polygons().size());
         heap.resize(limit);
         corridor.resize(limit);
         output.resize(std::size_t(limit) + 2);
@@ -99,7 +99,7 @@ struct Search::Impl {
         const auto& second = records[b];
         if (first.priority != second.priority) return first.priority < second.priority;
         if (first.g != second.g) return first.g > second.g;
-        return first.triangle < second.triangle;
+        return first.polygon < second.polygon;
     }
 
     void swapHeap(std::uint32_t a, std::uint32_t b) {
@@ -119,7 +119,7 @@ struct Search::Impl {
 
     void enqueue(std::uint32_t index) {
         auto& record = records[index];
-        if (record.heapIndex == noTriangle) {
+        if (record.heapIndex == noPolygon) {
             record.heapIndex = heapSize;
             heap[heapSize++] = index;
             stats.peakQueue = std::max(stats.peakQueue, heapSize);
@@ -129,7 +129,7 @@ struct Search::Impl {
 
     std::uint32_t pop() {
         const auto index = heap[0];
-        records[index].heapIndex = noTriangle;
+        records[index].heapIndex = noPolygon;
         if (--heapSize) {
             heap[0] = heap[heapSize];
             records[heap[0]].heapIndex = 0;
@@ -153,13 +153,42 @@ struct Search::Impl {
     }
 
     bool portal(std::uint32_t from, std::uint32_t to, Point& left, Point& right) const {
-        const auto& triangle = mesh.triangles()[from];
-        for (unsigned edge = 0; edge < 3; ++edge) {
-            if (triangle.neighbor[edge] != to) continue;
-            // A CCW triangle lies left of its edge. Crossing that edge puts its
+        const auto& polygon = mesh.polygons()[from];
+        for (unsigned edge = 0; edge < polygon.edgeCount; ++edge) {
+            const auto& current = mesh.edges()[polygon.firstEdge + edge];
+            if (current.neighbor != to) continue;
+            // A CCW polygon lies left of its edge. Crossing that edge puts its
             // destination vertex on the traveler's left, its origin on right.
-            left = mesh.vertices()[triangle.vertex[(edge + 1) % 3]];
-            right = mesh.vertices()[triangle.vertex[edge]];
+            const auto next = polygon.firstEdge + (edge + 1) % polygon.edgeCount;
+            left = mesh.vertices()[mesh.edges()[next].vertex];
+            right = mesh.vertices()[current.vertex];
+            if (polygon.edgeCount == 3) return true;
+
+            // Merging retains collinear boundary vertices for conforming
+            // adjacency. Several consecutive edges can therefore cross to the
+            // same polygon: the funnel needs their complete shared span.
+            unsigned first = edge, last = edge;
+            for (unsigned count = 1; count < polygon.edgeCount; ++count) {
+                const auto following = (last + 1) % polygon.edgeCount;
+                const auto& entry = mesh.edges()[polygon.firstEdge + following];
+                if (following == first || entry.neighbor != to) break;
+                const auto endpoint = polygon.firstEdge + (following + 1) % polygon.edgeCount;
+                const auto candidate = mesh.vertices()[mesh.edges()[endpoint].vertex];
+                // A non-collinear chain cannot be replaced by a straight
+                // portal without changing the walkable boundary.
+                if (turn(right, left, candidate) != 0) break;
+                left = candidate;
+                last = following;
+            }
+            for (unsigned count = 1; count < polygon.edgeCount; ++count) {
+                const auto preceding = (first + polygon.edgeCount - 1) % polygon.edgeCount;
+                const auto& entry = mesh.edges()[polygon.firstEdge + preceding];
+                if (preceding == last || entry.neighbor != to) break;
+                const auto candidate = mesh.vertices()[entry.vertex];
+                if (turn(right, left, candidate) != 0) break;
+                right = candidate;
+                first = preceding;
+            }
             return true;
         }
         return false;
@@ -167,12 +196,12 @@ struct Search::Impl {
 
     bool funnel(std::uint32_t goalRecord, Point start, Point goal) {
         std::uint32_t corridorSize = 0;
-        for (auto index = goalRecord; index != noTriangle; index = records[index].parent) {
+        for (auto index = goalRecord; index != noPolygon; index = records[index].parent) {
             if (corridorSize == limit) return false;
-            corridor[corridorSize++] = records[index].triangle;
+            corridor[corridorSize++] = records[index].polygon;
         }
         std::reverse(corridor.begin(), corridor.begin() + corridorSize);
-        stats.corridorTriangles = corridorSize;
+        stats.corridorPolygons = corridorSize;
         // Closed ancestors stay fixed in the default search, so the goal's g
         // already measures this corridor. Reopening can improve an ancestor
         // after a descendant's g was updated; then recompute the actual route.
@@ -235,15 +264,15 @@ struct Search::Impl {
         if (!std::isfinite(start.x) || !std::isfinite(start.z) ||
             !std::isfinite(goal.x) || !std::isfinite(goal.z))
             return result(Status::invalidInput);
-        const auto firstTriangle = mesh.locate(start, &stats.locationTests);
-        const auto goalTriangle = mesh.locate(goal, &stats.locationTests);
-        if (firstTriangle == noTriangle || goalTriangle == noTriangle)
+        const auto firstPolygon = mesh.locate(start, &stats.locationTests);
+        const auto goalPolygon = mesh.locate(goal, &stats.locationTests);
+        if (firstPolygon == noPolygon || goalPolygon == noPolygon)
             return result(Status::blockedEndpoint);
-        const auto goalCenter = mesh.centroid(goalTriangle);
-        auto& firstSlot = slots[firstTriangle];
+        const auto goalCenter = mesh.centroid(goalPolygon);
+        auto& firstSlot = slots[firstPolygon];
         firstSlot = {0, generation};
-        records[0] = {0, weight * distance(mesh.centroid(firstTriangle), goalCenter),
-                      firstTriangle, noTriangle, noTriangle};
+        records[0] = {0, weight * distance(mesh.centroid(firstPolygon), goalCenter),
+                      firstPolygon, noPolygon, noPolygon};
         stored = 1;
         enqueue(0);
 
@@ -251,20 +280,20 @@ struct Search::Impl {
             const auto currentIndex = pop();
             const auto current = records[currentIndex];
             ++stats.expandedNodes;
-            if (current.triangle == goalTriangle) {
+            if (current.polygon == goalPolygon) {
                 if (!funnel(currentIndex, start, goal)) return result(Status::noPath);
                 return result(Status::found);
             }
-            const auto& neighbors = mesh.triangles()[current.triangle].neighbor;
-            for (unsigned edge = 0; edge < 3; ++edge) {
+            const auto& polygon = mesh.polygons()[current.polygon];
+            for (unsigned edge = 0; edge < polygon.edgeCount; ++edge) {
                 ++stats.neighborTests;
-                const auto neighbor = neighbors[edge];
-                if (neighbor == noTriangle) continue;
+                const auto neighbor = mesh.edges()[polygon.firstEdge + edge].neighbor;
+                if (neighbor == noPolygon) continue;
                 auto& slot = slots[neighbor];
                 if (!reopen && slot.generation == generation &&
-                    records[slot.record].heapIndex == noTriangle) continue;
+                    records[slot.record].heapIndex == noPolygon) continue;
                 const auto nextCenter = mesh.centroid(neighbor);
-                const double nextG = current.g + mesh.neighborDistance(current.triangle, edge);
+                const double nextG = current.g + mesh.neighborDistance(current.polygon, edge);
                 std::uint32_t nextIndex;
                 if (slot.generation != generation) {
                     if (stored == limit) return result(Status::searchLimit);
@@ -272,7 +301,7 @@ struct Search::Impl {
                     slot = {nextIndex, generation};
                     records[nextIndex] = {nextG,
                         nextG + weight * distance(nextCenter, goalCenter),
-                        neighbor, currentIndex, noTriangle};
+                        neighbor, currentIndex, noPolygon};
                 } else {
                     nextIndex = slot.record;
                     auto& next = records[nextIndex];
@@ -281,7 +310,7 @@ struct Search::Impl {
                     next.priority = nextG + weight * distance(nextCenter, goalCenter);
                     next.parent = currentIndex;
                 }
-                // Default approximate searches expand each triangle once. The
+                // Default approximate searches expand each polygon once. The
                 // optional reference mode reopens a closed record on improvement.
                 // Open records decrease their key without duplicate heap entries.
                 enqueue(nextIndex);
