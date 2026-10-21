@@ -50,6 +50,13 @@ Detour avoidance reaches 998 destinations and the analytical gradient reaches
 shared collision guard, timings, failures and trajectory images. This is a
 headless experiment; it does not change live crowd behavior.
 
+The fourth original experiment workspace, `project-gdll-potential-surface`,
+tests **Potential Surface Steering without a guiding path** on the actual map.
+With all buildings, fences and trees included, 56 of 1,000 random agents arrive
+and 944 stall. Its standalone update loop uses 1.225 ms CPU per tick with 1,000
+active agents. See the [goal-directed surface experiment](POTENTIAL_SURFACE_NAVIGATION.md)
+for geometry, stopping rules, timing scope and aerial trajectory images.
+
 ## Query behavior and ownership
 
 The offline baker subtracts expanded, oriented obstacle rectangles from the
