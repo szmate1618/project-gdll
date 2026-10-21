@@ -152,6 +152,28 @@ target_include_directories(viewer_fingerprints PUBLIC "${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(viewer_fingerprints PRIVATE OpenSSL::Crypto)
 viewer_warnings(viewer_fingerprints)
 
+# Experimental headless navigation mesh; offline baking uses the generator's
+# existing Python geometry environment, while runtime queries are pure C++.
+add_library(viewer_zombie_navmesh STATIC
+    src/zombie_navmesh.cpp src/zombie_navmesh_search.cpp src/zombie_navmesh_paths.cpp)
+target_include_directories(viewer_zombie_navmesh PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+viewer_warnings(viewer_zombie_navmesh)
+add_executable(benchmark_zombie_navmesh tools/benchmark_zombie_navmesh.cpp)
+target_include_directories(benchmark_zombie_navmesh SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+target_link_libraries(benchmark_zombie_navmesh PRIVATE viewer_zombie_navmesh viewer_fingerprints)
+viewer_warnings(benchmark_zombie_navmesh)
+if(BUILD_TESTING)
+    foreach(suite zombie_navmesh zombie_navmesh_search zombie_navmesh_paths)
+        add_executable(test_${suite} tests/test_${suite}.cpp)
+        target_link_libraries(test_${suite} PRIVATE viewer_zombie_navmesh)
+        viewer_warnings(test_${suite})
+        add_test(NAME viewer_${suite} COMMAND test_${suite})
+    endforeach()
+    add_test(NAME viewer_zombie_navmesh_bake
+        COMMAND "${Python3_EXECUTABLE}" -m unittest discover -s tests -p test_zombie_navmesh_bake.py -v)
+    set_tests_properties(viewer_zombie_navmesh_bake PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
+
 add_library(viewer_vegetation STATIC src/vegetation_selection.cpp)
 viewer_warnings(viewer_vegetation)
 

@@ -1,0 +1,2 @@
+zombies,failed,median_ms,min_ms,max_ms,microseconds_per_zombie,waypoints,arena_bytes,arena_capacity_bytes,stored_nodes,expanded_nodes,corridor_triangles,neighbor_tests,funnel_tests,location_tests,peak_queue,found,invalid_input,blocked_endpoint,no_path,search_limit,buffer_full
+1000,22,26305.955131,26305.955131,26305.955131,26305.955131,154910,2478560,10000000,10862427,75336718,1747081,226007220,3510358,65445,1811,978,0,22,0,0,0
