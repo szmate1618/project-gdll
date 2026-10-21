@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -37,6 +38,12 @@ struct TrunkCollider {
     glm::vec3 base{0.0f};
     float radius = 0.15f;
     float height = 5.0f;
+};
+
+// Stable original construction index and a copy of the physical trunk capsule.
+struct NearbyTrunk {
+    std::uint32_t id = 0;
+    TrunkCollider collider;
 };
 
 struct CollisionStats {
@@ -97,6 +104,15 @@ public:
     // Deepest sphere/trunk overlap through the trunk BVH, ignoring scene meshes
     // and foliage. Center and radius are world meters; no velocity sweep.
     std::optional<Contact> trunkContact(glm::vec3 center, float radius) const;
+    // Allocation-free trunk BVH query. range is horizontal distance from feet
+    // to the trunk's cylindrical surface, in meters; the body's vertical span
+    // must overlap the trunk's full vertical extent. Both boundaries are closed.
+    // Copies up to capacity entries in deterministic BVH traversal order; these
+    // are not necessarily the nearest entries. overflow reports omitted matches.
+    // A null output is equivalent to zero capacity. Invalid input returns zero.
+    std::size_t nearbyTrunks(glm::vec3 feet, float agentHeight, float range,
+                             NearbyTrunk* output, std::size_t capacity,
+                             bool& overflow) const;
 
 private:
     std::optional<GroundHit> queryGround(float x, float z, float minY, float maxY,

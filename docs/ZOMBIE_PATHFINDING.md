@@ -43,6 +43,13 @@ still finds the same 999 paths, with its one blocked destination unchanged.
 The implementation is a headless library and benchmark. The viewer's existing
 live crowd behavior is unchanged; runtime crowd integration is subsequent work.
 
+The child branch `experiment-zombie-local-steering` compares five ways to follow
+these tree-free paths around trunks. In its synthetic 1,000-NPC woodland test,
+Detour avoidance reaches 998 destinations and the analytical gradient reaches
+994. See the [local steering experiment](ZOMBIE_STEERING_EXPERIMENT.md) for the
+shared collision guard, timings, failures and trajectory images. This is a
+headless experiment; it does not change live crowd behavior.
+
 ## Query behavior and ownership
 
 The offline baker subtracts expanded, oriented obstacle rectangles from the

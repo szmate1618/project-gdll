@@ -19,6 +19,7 @@ include(FetchContent)
 include(CTest)
 option(GD_MULTIPLAYER "Build the experimental multiplayer client and server" OFF)
 option(GD_VIEWER "Build OpenGL clients and the original single-player viewer" ON)
+option(GD_STEERING_EXPERIMENT "Build the headless five-way local steering experiment" OFF)
 if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW)
 endif()
@@ -268,6 +269,53 @@ add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cp
 target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise viewer_physics viewer_fingerprints)
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_zombies)
+
+# Isolated experimental steering; the production crowd does not link this target.
+if(GD_STEERING_EXPERIMENT)
+    add_library(experimental_detour_avoidance STATIC
+        third_party/recastnavigation/DetourCrowd/Source/DetourObstacleAvoidance.cpp
+        third_party/recastnavigation/Detour/Source/DetourCommon.cpp
+        third_party/recastnavigation/Detour/Source/DetourAlloc.cpp
+        third_party/recastnavigation/Detour/Source/DetourAssert.cpp)
+    target_include_directories(experimental_detour_avoidance SYSTEM PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/recastnavigation/Detour/Include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/recastnavigation/DetourCrowd/Include")
+    add_library(viewer_zombie_steering_experiment STATIC
+        src/zombie_steering.cpp src/zombie_path_follow.cpp
+        src/zombie_movement.cpp src/zombie_crowd.cpp)
+    target_include_directories(viewer_zombie_steering_experiment PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(viewer_zombie_steering_experiment PUBLIC
+        viewer_collision viewer_zombie_navmesh experimental_detour_avoidance)
+    viewer_warnings(viewer_zombie_steering_experiment)
+    add_library(viewer_zombie_steering_simulation STATIC
+        tools/zombie_steering_scenarios.cpp tools/zombie_steering_simulation.cpp
+        tools/zombie_steering_safety.cpp)
+    target_include_directories(viewer_zombie_steering_simulation PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/tools")
+    target_link_libraries(viewer_zombie_steering_simulation PUBLIC viewer_zombie_steering_experiment)
+    viewer_warnings(viewer_zombie_steering_simulation)
+    add_executable(benchmark_zombie_steering tools/benchmark_zombie_steering.cpp)
+    target_include_directories(benchmark_zombie_steering SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+    target_link_libraries(benchmark_zombie_steering PRIVATE viewer_zombie_steering_simulation)
+    viewer_warnings(benchmark_zombie_steering)
+    if(BUILD_TESTING)
+        foreach(suite zombie_steering zombie_path_follow zombie_steering_simulation)
+            add_executable(test_${suite} tests/test_${suite}.cpp)
+            target_link_libraries(test_${suite} PRIVATE viewer_zombie_steering_simulation)
+            viewer_warnings(test_${suite})
+            add_test(NAME viewer_${suite} COMMAND test_${suite})
+        endforeach()
+        if(NOT GD_VIEWER)
+            add_executable(test_collision tests/test_collision.cpp)
+            target_link_libraries(test_collision PRIVATE viewer_collision)
+            viewer_warnings(test_collision)
+            add_test(NAME viewer_collision COMMAND test_collision)
+            add_executable(test_tree_collision tests/test_tree_collision.cpp)
+            target_link_libraries(test_tree_collision PRIVATE viewer_fps)
+            viewer_warnings(test_tree_collision)
+            add_test(NAME viewer_tree_collision COMMAND test_tree_collision)
+        endif()
+    endif()
+endif()
 
 add_library(viewer_fps STATIC src/fps_controller.cpp src/player_stance.cpp src/camera_rig.cpp)
 target_link_libraries(viewer_fps PUBLIC viewer_collision viewer_camera viewer_noise)
