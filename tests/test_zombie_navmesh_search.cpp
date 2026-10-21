@@ -498,6 +498,52 @@ void greedyQueriesAndHeapRepair() {
     require(allocations == 0, "greedy queries allocated heap memory");
 }
 
+void componentRejectionBeforeSearch() {
+    const auto fixture = gridMesh({"..#..", "..#..", "..#.."});
+    Search weighted(fixture.mesh), reopening(fixture.mesh, Search::defaultNodeLimit, 8, true);
+    Search greedy(fixture.mesh, Search::defaultNodeLimit, 2, false, true);
+    Search greedyReopening(fixture.mesh, Search::defaultNodeLimit, 2, true, true);
+    Search capped(fixture.mesh, 1, 8), cappedGreedy(fixture.mesh, 1, 2, true, true);
+    auto checkRejected = [](const Result& result) {
+        require(result.status == Status::noPath && !result.points && result.size == 0,
+                "disconnected components did not reject with an empty no-path result");
+        const auto& stats = result.stats;
+        require(stats.storedNodes == 0 && stats.expandedNodes == 0 && stats.peakQueue == 0 &&
+                stats.corridorPolygons == 0 && stats.neighborTests == 0 && stats.funnelTests == 0 &&
+                stats.graphCost == 0 && stats.locationTests > 0,
+                "disconnected query entered search or retained previous-query statistics");
+    };
+    const Point left{.2, .1}, samePolygon{.3, .1}, right{4.8, 2.8}, blocked{2.5, 1.5};
+    const auto nonfinite = std::numeric_limits<double>::quiet_NaN();
+    allocations = 0;
+    countAllocations = true;
+    for (unsigned request = 0; request < 25; ++request) {
+        for (auto* solver : {&weighted, &reopening, &greedy, &greedyReopening, &capped, &cappedGreedy}) {
+            const auto prime = solver->find(left, samePolygon);
+            require(prime.status == Status::found && prime.stats.storedNodes > 0 &&
+                    prime.stats.expandedNodes > 0 && prime.stats.funnelTests > 0,
+                    "same-polygon query failed before component rejection");
+            checkRejected(solver->find(left, right));
+            checkRejected(solver->find(right, left));
+            require(solver->find(blocked, right).status == Status::blockedEndpoint &&
+                    solver->find(left, blocked).status == Status::blockedEndpoint,
+                    "component rejection overrode blocked-endpoint status");
+            require(solver->find({nonfinite, 0}, blocked).status == Status::invalidInput,
+                    "component rejection overrode nonfinite-input status");
+            require(solver->find(left, samePolygon).status == Status::found,
+                    "component rejection left stale search state");
+        }
+        for (auto* solver : {&capped, &cappedGreedy}) {
+            const auto limited = solver->find(left, {1.8, 2.8});
+            require(limited.status == Status::searchLimit && limited.stats.storedNodes == 1,
+                    "connectivity precheck bypassed the same-component node budget");
+            checkRejected(solver->find(left, right));
+        }
+    }
+    countAllocations = false;
+    require(allocations == 0, "component precheck or recovery queries allocated heap memory");
+}
+
 void failuresAndReset() {
     const auto disconnected = gridMesh({"..#..", "..#..", "..#.."});
     Search search(disconnected.mesh);
@@ -604,6 +650,7 @@ int main() {
         splitCollinearPortals();
         shortestGraphAndWeighted();
         greedyQueriesAndHeapRepair();
+        componentRejectionBeforeSearch();
         failuresAndReset();
         largeMeshWithSmallBudget();
         allocationFreeRequests();

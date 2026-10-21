@@ -8,7 +8,7 @@ merging is now implemented and benchmarked. The selected setting merges up to
 **four vertices per region**, now the merger default, while preserving the
 original walkable space.
 
-The tree-free case finds **999 of 1,000 paths in 55.847 ms**, versus **110.839 ms**
+The earlier merging comparison finds **999 of 1,000 paths in 55.847 ms**, versus **110.839 ms**
 for the freshly rerun committed triangle baseline: **1.985× faster**. Navigation
 allocations fall from **26.282 MB to 23.039 MB**, including the full 10 MB path
 arena. The same one destination remains blocked by a fence. These are medians
@@ -23,12 +23,22 @@ historical measurements, which are separate from the fresh merging comparison.
 
 The [priority sweep and random-destination benchmark](ZOMBIE_PATHFINDING_WEIGHT_SWEEP.md)
 compares weights 2, 4, 8, 16, 32 and pure greedy on the four-vertex tree-free mesh.
-Fresh medians are **61.150 ms** for weight 8 on the existing formation and
+That sweep measured **61.150 ms** for weight 8 on the existing formation and
 **481.114 ms** for weight 4 on 1,000 mapwide random pairs. All settings find
 999 formation paths and all 960 reachable random paths; the other 40 random
 pairs span disconnected regions. Timing ranges overlap, so these results do
 not establish a universal best weight. Increasing greediness gives no reliable
 further gain here.
+
+The selected priority remains **`g + 8h`**. A new
+[connectivity precheck](ZOMBIE_PATHFINDING_CONNECTIVITY.md) rejects requests
+between disconnected mesh regions before starting search. On the same random
+workload, fresh medians fall from **539.152 ms to 208.297 ms**
+(**2.588× faster**), preserving every successful route exactly. All 40
+impossible requests now return `no_path` with zero search records/expansions;
+there are no random search-limit failures. Shared labels add **321,108 B**,
+bringing current navigation buffers to **23,359,648 B (23.360 MB)**. The formation
+still finds the same 999 paths, with its one blocked destination unchanged.
 
 The implementation is a headless library and benchmark. The viewer's existing
 live crowd behavior is unchanged; runtime crowd integration is subsequent work.
@@ -57,9 +67,18 @@ requests. The **50,000-node cap** counts distinct stored polygons per request,
 including queued polygons. Normal requests allocate no memory and do not reuse
 another zombie's route.
 
+At mesh load/construction, an iterative traversal labels every polygon's
+connected component from validated reciprocal portals. After locating valid
+endpoints, the search compares their labels and returns `noPath` immediately
+if they differ. Equal labels proceed through normal independent search and
+retain the same node cap. Labels describe the static baked graph and rebuild
+when a new mesh loads; changes to connectivity require recomputing them.
+There is no new cache format or rebake requirement for this optimization.
+
 The immutable mesh caches double-precision polygon centers and neighbor graph
 distances once at load/construction: 16 bytes per polygon plus eight per directed
-edge, shared by all searches. The direct lookup uses eight bytes per mesh polygon
+edge, shared by all searches. Component labels use another four bytes per polygon,
+also shared. The direct lookup uses eight bytes per mesh polygon
 per search workspace; its size follows the mesh, independently of the
 50,000-record cap.
 Default searches use the goal record's existing graph cost. The reopening

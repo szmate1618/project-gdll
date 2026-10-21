@@ -248,6 +248,9 @@ void Mesh::validateAndIndex() {
             if (!reciprocal) throw std::invalid_argument("navmesh portal adjacency is not reciprocal");
         }
     }
+    // Adjacency has passed strict reciprocal-portal validation. Connectivity
+    // depends only on those portals, never geometric vertex contact.
+    buildConnectivity();
     centers_.resize(polygons_.size());
     neighborDistances_.assign(edges_.size(), 0);
     for (std::size_t index = 0; index < polygons_.size(); ++index) {
@@ -288,6 +291,30 @@ void Mesh::validateAndIndex() {
     while (leafCapacity < (polygons_.size()+15)/16) leafCapacity *= 2;
     nodes_.reserve(leafCapacity*2-1);
     build(0, static_cast<std::uint32_t>(polygons_.size()));
+}
+
+void Mesh::buildConnectivity() {
+    components_.assign(polygons_.size(), noPolygon);
+    componentCount_ = 0;
+    // This temporary stack is confined to mesh initialization. Marking before
+    // pushing visits every polygon once and avoids recursion or a search budget.
+    std::vector<std::uint32_t> pending;
+    for (std::uint32_t seed = 0; seed < polygons_.size(); ++seed) {
+        if (components_[seed] != noPolygon) continue;
+        const auto label = componentCount_++;
+        components_[seed] = label;
+        pending.push_back(seed);
+        while (!pending.empty()) {
+            const auto polygon = polygons_[pending.back()];
+            pending.pop_back();
+            for (unsigned edge = 0; edge < polygon.edgeCount; ++edge) {
+                const auto neighbor = edges_[polygon.firstEdge+edge].neighbor;
+                if (neighbor == noPolygon || components_[neighbor] != noPolygon) continue;
+                components_[neighbor] = label;
+                pending.push_back(neighbor);
+            }
+        }
+    }
 }
 
 std::uint32_t Mesh::build(std::uint32_t first, std::uint32_t count) {
@@ -370,6 +397,7 @@ std::size_t Mesh::meshBytes() const {
 std::size_t Mesh::geometryCacheBytes() const {
     return centers_.capacity()*sizeof(Point)+neighborDistances_.capacity()*sizeof(double);
 }
+std::size_t Mesh::connectivityBytes() const { return components_.capacity()*sizeof(std::uint32_t); }
 std::size_t Mesh::indexBytes() const { return order_.capacity()*sizeof(std::uint32_t)+nodes_.capacity()*sizeof(Node); }
 
 } // namespace viewer::navmesh_path

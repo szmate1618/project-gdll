@@ -327,6 +327,7 @@ Json batchJson(const Batch& batch, const PathManager& manager, const Mesh& mesh,
         counts[statusName(static_cast<Status>(status))] = batch.totals.statuses[status];
     Json routes = Json::array();
     std::size_t physicallyBlockedRequests = 0, conservativeMeshBlockedRequests = 0;
+    std::size_t connectivityRejectedRequests = 0;
     for (std::size_t i = 0; i < batch.count; ++i) {
         Json route{{"zombie_id", i+1}, {"path_id", batch.ids[i]}, {"status", statusName(batch.statuses[i])},
                    {"start", pointJson(inputs[i].start)}, {"goal", pointJson(inputs[i].goal)},
@@ -352,6 +353,8 @@ Json batchJson(const Batch& batch, const PathManager& manager, const Mesh& mesh,
             if (startPhysicalBlocked || goalPhysicalBlocked) ++physicallyBlockedRequests;
             else ++conservativeMeshBlockedRequests;
         }
+        if (batch.statuses[i] == Status::noPath && batch.stats[i].storedNodes == 0)
+            ++connectivityRejectedRequests;
         routes.push_back(std::move(route));
     }
     return {{"zombies", batch.count}, {"failed", batch.failed}, {"waypoints", batch.waypoints},
@@ -359,6 +362,7 @@ Json batchJson(const Batch& batch, const PathManager& manager, const Mesh& mesh,
             {"min_ms", *std::min_element(batch.milliseconds.begin(), batch.milliseconds.end())},
             {"max_ms", *std::max_element(batch.milliseconds.begin(), batch.milliseconds.end())},
             {"samples_ms", batch.milliseconds}, {"status_counts", std::move(counts)},
+            {"connectivity_rejected_requests", connectivityRejectedRequests},
             {"physical_blocked_endpoint_requests", physicallyBlockedRequests},
             {"numeric_margin_blocked_endpoint_requests", conservativeMeshBlockedRequests},
             {"stats", {{"stored_nodes", batch.totals.stored}, {"expanded_nodes", batch.totals.expanded},
@@ -458,10 +462,13 @@ int main(int argc, char** argv) {
         document["warmup_repeats"] = 1;
         document["setup_ms"] = setupMs;
         document["navmesh_load_ms"] = meshLoadMs;
+        document["connectivity_precheck"] = {{"enabled", true}, {"components", mesh.componentCount()},
+            {"label_type", "uint32"}, {"construction", "Once at mesh load/construction after adjacency validation"},
+            {"query", "Compare component labels after locating valid endpoints, before storing any search nodes"}};
         document["search_node_limit"] = manager.nodeLimit();
         document["search_limit_definition"] = "Maximum distinct stored navmesh polygons per independent request";
         document["arena_capacity_bytes"] = manager.capacityBytes();
-        document["navmesh"] = {{"vertices", mesh.vertices().size()}, {"polygons", mesh.polygons().size()}, {"directed_edges", mesh.edges().size()},
+        document["navmesh"] = {{"vertices", mesh.vertices().size()}, {"polygons", mesh.polygons().size()}, {"directed_edges", mesh.edges().size()}, {"components", mesh.componentCount()},
                               {"minimum", {mesh.minimumX(), mesh.minimumZ()}},
                               {"maximum", {mesh.maximumX(), mesh.maximumZ()}},
                               {"file_bytes", std::filesystem::file_size(config.navmesh)}, {"radius_m", mesh.radius()},
@@ -469,9 +476,10 @@ int main(int argc, char** argv) {
                               {"numeric_margin_m", mesh.numericMargin()}};
         document["memory"] = {{"mesh_bytes", mesh.meshBytes()}, {"spatial_index_bytes", mesh.indexBytes()},
                               {"geometry_cache_bytes", mesh.geometryCacheBytes()},
+                              {"connectivity_bytes", mesh.connectivityBytes()},
                               {"search_workspace_bytes", manager.workspaceBytes()},
                               {"path_arena_capacity_bytes", manager.capacityBytes()}, {"manager_metadata_bytes", manager.metadataBytes()},
-                              {"core_payload_bytes", mesh.meshBytes()+mesh.indexBytes()+mesh.geometryCacheBytes()+manager.workspaceBytes()+manager.capacityBytes()+manager.metadataBytes()},
+                              {"core_payload_bytes", mesh.meshBytes()+mesh.indexBytes()+mesh.geometryCacheBytes()+mesh.connectivityBytes()+manager.workspaceBytes()+manager.capacityBytes()+manager.metadataBytes()},
                               {"scope", "Allocated navigation buffers; excludes process/benchmark JSON, source geometry validation and aerial raster"}};
         document["timing_scope"] = "Independent serial requests including path allocation, zombie-ID mapping and status/stat collection; includes search-state resets; excludes batch clearing, input loading, validation, JSON and images";
         document["validation"] = {{"navmesh_segments_every_repeat", true}, {"exact_padded_source_geometry_last_repeat", true},

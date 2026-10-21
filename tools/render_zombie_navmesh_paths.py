@@ -116,11 +116,13 @@ def render(source, destination):
             annotation.text((25, 134),
                             f"Independent searches · random walkable starts and goals · seed {document['seed']}",
                             font=font(18), fill="#536773")
+        connectivity = (f"{batch['connectivity_rejected_requests']:,} disconnected / "
+                        if document.get("connectivity_precheck", {}).get("enabled") else "")
         annotation.text((25, 166 if relative_goals or random_pairs else 134),
                         f"{polygon_count:,} polygons · "
                         f"{document['search_node_limit']:,} stored search-polygon limit · "
                         f"{batch['status_counts'].get('blocked_endpoint', 0):,} blocked endpoints / "
-                        f"{batch['status_counts'].get('search_limit', 0):,} search limits",
+                        + connectivity + f"{batch['status_counts'].get('search_limit', 0):,} search limits",
                         font=font(18), fill="#536773")
         annotation.text((map_width - 80, header + 30), "N ↑", font=font(24, True), fill="#102e46")
 

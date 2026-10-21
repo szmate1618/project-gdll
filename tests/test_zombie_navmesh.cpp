@@ -66,6 +66,7 @@ void cachedGeometry() {
             static_cast<float>(tiny.centroid(0).z)==static_cast<float>(tiny.centroid(1).z),
             "tiny geometry fixture must require double precision");
     const Mesh empty;
+    require(empty.componentCount()==0 && empty.connectivityBytes()==0, "default empty mesh connectivity");
     require(empty.geometryCacheBytes()==0 && empty.locate({0,0})==noTriangle,
             "default empty mesh cache");
 }
@@ -101,6 +102,21 @@ void binary() {
         require(mesh.segmentClear({0,0},{1,1}) && mesh.segmentClear({.2,.8},{.8,.2}), "binary mesh segment");
         require(mesh.sourceSha256()==std::string(64,'0') && mesh.numericMargin()==.005, "binary provenance");
         require(mesh.meshBytes()==128 && mesh.indexBytes()>0, "mesh/index memory accounting");
+        require(mesh.componentCount()==1 && mesh.component(0)==mesh.component(1) && mesh.connectivityBytes()==8,
+                "loaded v1 reciprocal triangles must share a component");
+        auto polygonVersion=valid;
+        polygonVersion.resize(valid.size()+8);
+        std::memcpy(polygonVersion.data(),"GDNAV02\0",8);
+        integer(polygonVersion,88,56);
+        integer(polygonVersion,192,3,4);
+        std::memcpy(polygonVersion.data()+196,valid.data()+192,24);
+        integer(polygonVersion,220,3,4);
+        std::memcpy(polygonVersion.data()+224,valid.data()+216,24);
+        write(polygonVersion);
+        const auto v2=Mesh::load(path.string());
+        require(v2.componentCount()==mesh.componentCount() && v2.connectivityBytes()==8 &&
+                v2.component(0)==mesh.component(0) && v2.component(1)==mesh.component(1),
+                "same portal graph loaded as v1 and v2 must have consistent component labels");
         auto changed = valid; changed[0]=0; rejects(changed);
         changed=valid; changed.resize(127); rejects(changed);
         changed=valid; changed.pop_back(); rejects(changed);
@@ -153,6 +169,8 @@ void binaryPolygons() {
         require(mesh.segmentClear({0,1},{1,0}) && mesh.segmentClear({0,.5},{1,.5}), "v2 square coverage");
         require(mesh.meshBytes()==104 && mesh.geometryCacheBytes()==48, "v2 compact memory accounting");
         verifyGeometryCache(mesh);
+        require(mesh.componentCount()==1 && mesh.component(0)==0 && mesh.connectivityBytes()==4,
+                "loaded v2 quadrilateral component label");
         auto changed=valid; changed.pop_back(); rejects(changed);
         changed=valid; changed.push_back(0); rejects(changed);
         changed=valid; integer(changed,88,35); rejects(changed);
@@ -205,6 +223,39 @@ void convexValidation() {
     catch (const std::exception&) { rejected=true; }
     require(rejected,"one-way polygon portal accepted");
 }
+void connectivity() {
+    const auto connected=test_navmesh::convexSquares(3,2);
+    require(connected.componentCount()==1 && connected.connectivityBytes()==24,
+            "connected polygon graph component count or memory");
+    for (std::uint32_t polygon=1;polygon<connected.polygons().size();++polygon)
+        require(connected.component(polygon)==connected.component(0), "portal-connected polygons separated");
+    const auto isolated=test_navmesh::convexSquares(3,1,{{1,0}});
+    require(isolated.componentCount()==2 && isolated.component(0)!=isolated.component(1),
+            "isolated polygons must be different components");
+    const auto touching=test_navmesh::convexSquares(2,2,{{1,0},{0,1}});
+    require(touching.componentCount()==2 && touching.component(0)!=touching.component(1),
+            "vertex-only contact must not connect polygon components");
+    const auto triangleGraph=test_navmesh::squares(3,1,{{1,0}});
+    require(triangleGraph.componentCount()==2 && triangleGraph.component(0)==triangleGraph.component(1) &&
+            triangleGraph.component(2)==triangleGraph.component(3) && triangleGraph.component(0)!=triangleGraph.component(2),
+            "legacy triangle constructor connectivity");
+    // A 50,001-triangle fan forms a single long portal chain. Mesh connectivity
+    // must cover it completely, independent of the per-request 50k search cap.
+    constexpr std::uint32_t count=50'001;
+    std::vector<Point> vertices;
+    vertices.reserve(count+2);
+    vertices.push_back({0,0});
+    for (std::uint32_t vertex=0;vertex<=count;++vertex) vertices.push_back({double(vertex),1});
+    std::vector<Triangle> triangles;
+    triangles.reserve(count);
+    for (std::uint32_t index=0;index<count;++index)
+        triangles.push_back({{0,index+2,index+1},
+            {index+1<count ? index+1 : noTriangle,noTriangle,index ? index-1 : noTriangle}});
+    const Mesh longGraph(std::move(vertices),std::move(triangles));
+    require(longGraph.polygons().size()>50'000 && longGraph.componentCount()==1 &&
+            longGraph.component(0)==longGraph.component(count-1) && longGraph.connectivityBytes()==count*4,
+            "component preprocessing must cover graphs larger than the search budget");
+}
 bool crossesBox(Point a, Point b, unsigned x, unsigned z) {
     double low=0, high=1;
     const double starts[]{a.x,a.z}, delta[]{b.x-a.x,b.z-a.z};
@@ -244,7 +295,7 @@ void queries(bool convexPolygons = false) {
 }
 }
 int main() try {
-    cachedGeometry(); binary(); binaryPolygons(); convexValidation(); queries(); queries(true);
+    cachedGeometry(); binary(); binaryPolygons(); convexValidation(); connectivity(); queries(); queries(true);
     std::cout<<"Navmesh loading, point location and segment coverage tests passed\n";
     return 0;
 } catch (const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }

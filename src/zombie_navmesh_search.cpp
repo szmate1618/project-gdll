@@ -284,6 +284,10 @@ struct Search::Impl {
         const auto goalPolygon = mesh.locate(goal, &stats.locationTests);
         if (firstPolygon == noPolygon || goalPolygon == noPolygon)
             return result(Status::blockedEndpoint);
+        // Immutable reciprocal adjacency determines reachability independently
+        // of priority and search budget. Reject before storing any records.
+        if (mesh.component(firstPolygon) != mesh.component(goalPolygon))
+            return result(Status::noPath);
         const auto goalCenter = mesh.centroid(goalPolygon);
         auto& firstSlot = slots[firstPolygon];
         firstSlot = {0, generation};

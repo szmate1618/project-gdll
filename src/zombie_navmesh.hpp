@@ -40,6 +40,11 @@ public:
     double neighborDistance(std::uint32_t polygon, unsigned edge) const {
         return neighborDistances_[polygons_[polygon].firstEdge+edge];
     }
+    // Portal-graph connected components are labeled once when the mesh loads.
+    // Vertex-only contact does not connect polygons. component() requires a valid ID.
+    std::uint32_t component(std::uint32_t polygon) const { return components_[polygon]; }
+    std::uint32_t componentCount() const { return componentCount_; }
+    std::size_t connectivityBytes() const;
     std::uint32_t locate(Point point, std::uint64_t* polygonTests = nullptr) const;
     // Closed polygon coverage. Queries allocate no memory. The bake adds a
     // small numerical margin beyond body clearance, so boundary turns are safe.
@@ -63,6 +68,8 @@ private:
     std::vector<Edge> edges_;
     std::vector<Point> centers_;
     std::vector<double> neighborDistances_;
+    std::vector<std::uint32_t> components_;
+    std::uint32_t componentCount_ = 0;
     std::vector<std::uint32_t> order_;
     std::vector<Node> nodes_;
     double minimumX_ = 0, minimumZ_ = 0, maximumX_ = 0, maximumZ_ = 0;
@@ -70,6 +77,7 @@ private:
     std::string sourceSha256_;
     void deriveBounds();
     void validateAndIndex();
+    void buildConnectivity();
     std::uint32_t build(std::uint32_t first, std::uint32_t count);
 };
 

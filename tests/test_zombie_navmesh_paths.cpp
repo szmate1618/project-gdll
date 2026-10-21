@@ -27,6 +27,8 @@ int main() try {
     PathManager manager(mesh,2), one(mesh,1), limited(mesh,2,1);
     PathManager greedy(mesh,2,Search::defaultNodeLimit,32,true,true);
     PathManager greedyLimited(mesh,2,1,2,false,true);
+    const auto disconnected=test_navmesh::convexSquares(5,3,{{2,0},{2,1},{2,2}});
+    PathManager components(disconnected,1,1,8);
     require(manager.capacityBytes()==10'000'000 && manager.nodeLimit()==50'000 && manager.heuristicWeight()==2 && !manager.greedy(),
             "manager construction contracts");
     require(greedy.greedy() && greedy.reopenClosed() && greedy.heuristicWeight()==32 &&
@@ -68,6 +70,28 @@ int main() try {
             greedyLimited.lastStatus()==Status::searchLimit, "greedy manager search cap");
     require(greedy.releaseZombie(42) && !greedy.usedBytes(), "greedy manager arena release");
     greedy.clear();
+    const auto retained=components.request(7,{.2,.2},{.8,.8});
+    require(retained && components.pathFor(7)==retained, "component manager initial path");
+    const auto retainedView=components.view(retained);
+    const auto retainedBytes=components.usedBytes();
+    require(!components.request(7,{.2,.2},{4.8,2.8}) && components.lastStatus()==Status::noPath,
+            "disconnected replacement did not reject before its one-node cap");
+    require(components.lastStats().storedNodes==0 && components.lastStats().expandedNodes==0 &&
+            components.lastStats().neighborTests==0 && components.lastStats().funnelTests==0 &&
+            components.lastStats().locationTests>0, "disconnected replacement entered search");
+    require(components.pathFor(7)==retained && components.view(retained).points==retainedView.points &&
+            components.usedBytes()==retainedBytes, "disconnected replacement lost the existing path");
+    require(!components.request(7,{.2,.2},{1.8,2.8}) &&
+            components.lastStatus()==Status::searchLimit && components.pathFor(7)==retained,
+            "same-component replacement bypassed the node cap or lost its existing path");
+    require(!components.request(7,{.2,.2},{2.5,1.5}) &&
+            components.lastStatus()==Status::blockedEndpoint && components.pathFor(7)==retained,
+            "blocked replacement changed status precedence or lost its existing path");
+    const auto recovered=components.request(7,{.2,.2},{.8,.8});
+    require(recovered && recovered!=retained && !components.view(retained).size &&
+            components.pathFor(7)==recovered, "component manager failed to recover after rejection");
+    components.clear();
+    require(!components.usedBytes() && !components.pathFor(7), "component manager clear");
     require(allocations.load()==before, "manager requests, releases and clears must not allocate");
     std::cout<<"Navmesh path-manager ownership, arena and allocation tests passed\n";
     return 0;
