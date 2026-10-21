@@ -92,6 +92,81 @@ void derivativesAndShapes() {
                 "Finite-weight filter reversed goal progress or increased speed");
     }
 }
+long double exactBoxPotential(Point p,const Obstacle& o,const Config& c) {
+    const long double norm=std::hypotl(o.axis.x,o.axis.z),ux=o.axis.x/norm,uz=o.axis.z/norm;
+    const long double x=(p.x-o.center.x)*ux+(p.z-o.center.z)*uz;
+    const long double z=-(p.x-o.center.x)*uz+(p.z-o.center.z)*ux;
+    const long double pad=c.radius+c.skin+c.buildingExtra;
+    const long double halfX=o.halfX+pad,halfZ=o.halfZ+pad;
+    long double distance;
+    if (std::abs(x)<=halfX && std::abs(z)<=halfZ)
+        distance=-std::min(halfX-std::abs(x),halfZ-std::abs(z));
+    else distance=std::hypotl(x-std::clamp(x,-halfX,halfX),z-std::clamp(z,-halfZ,halfZ));
+    if (distance<0) return 1-distance/c.lengthScale;
+    if (distance>=c.support) return 0;
+    return 2*std::pow(1-std::pow(distance/c.support,2),3)/
+        (1+std::pow(1+distance/c.lengthScale,2));
+}
+void exactBuildings() {
+    Config exact;exact.exactBuildings=true;
+    constexpr double step=1e-5;
+    for (double angle:{0.,.37,1.2,2.8}) {
+        const Obstacle o{0,{3000,-2000},{std::cos(angle),std::sin(angle)},2,.5};
+        const Point second{-o.axis.z,o.axis.x};
+        for (Point local: {Point{2.8,.2},Point{2.9,1.3},Point{-3,-1.1},Point{2.1,.1},Point{0,.6},Point{6,0}}) {
+            const auto p=o.center+o.axis*local.x+second*local.z;
+            const auto actual=obstacleField(p,o,exact);
+            const auto dx=(exactBoxPotential({p.x+step,p.z},o,exact)-exactBoxPotential({p.x-step,p.z},o,exact))/(2*step);
+            const auto dz=(exactBoxPotential({p.x,p.z+step},o,exact)-exactBoxPotential({p.x,p.z-step},o,exact))/(2*step);
+            require(near(actual.potential,double(exactBoxPotential(p,o,exact)),1e-10) &&
+                    near(actual.gradient.x,double(dx),3e-7) && near(actual.gradient.z,double(dz),3e-7),
+                    "Rotated exact building gradient differs from independent signed-distance derivative");
+        }
+    }
+    const Obstacle square{0,{0,0},{1,0},2,2};
+    const auto center=obstacleField({0,0},square,exact);
+    const auto repeat=obstacleField({0,0},square,exact);
+    require(center.gradient.x==-1/exact.lengthScale && center.gradient.z==0 &&
+            repeat.gradient.x==center.gradient.x,"Interior medial-axis tie must use deterministic positive X face");
+    const auto face=obstacleField({2+exact.radius+exact.skin+exact.buildingExtra,0},square,exact);
+    require(near(face.potential,1) && near(face.gradient.x,-1/exact.lengthScale) && face.gradient.z==0,
+            "Exact building surface does not match padded physical face");
+    const Obstacle large{0,{0,0},{std::sqrt(.5),std::sqrt(.5)},5,5};
+    const double pad=exact.radius+exact.skin+exact.buildingExtra;
+    const Point beyondOldBounds{std::sqrt(2.)*(5+pad)+exact.support-.03,0};
+    const World indexed({large},{-30,-30,30,30},exact);
+    QueryStats stats;
+    const auto direct=obstacleField(beyondOldBounds,large,exact);
+    const auto throughIndex=indexed.field(beyondOldBounds,stats);
+    require(beyondOldBounds.x>std::sqrt(50.)+pad+exact.support && direct.potential>0 &&
+            throughIndex.potential==direct.potential && throughIndex.gradient.x==direct.gradient.x,
+            "Exact padded OBB corner support was missed by the field BVH");
+    const Obstacle longBuilding{0,{0,0},{1,0},10,1};
+    Config circles=exact;circles.exactBuildings=false;
+    const World rectangleWorld({longBuilding},{-30,-30,30,30},exact);
+    const World circleWorld({longBuilding},{-30,-30,30,30},circles);
+    const Point corridor{5,5};
+    const auto oldField=circleWorld.field(corridor,stats),newField=rectangleWorld.field(corridor,stats);
+    require(rectangleWorld.segmentClear(corridor,{-5,5}) && circleWorld.segmentClear(corridor,{-5,5}) &&
+            oldField.potential>1 && newField.potential==0,
+            "Exact OBB field failed to remove spurious circular cost from a physically clear corridor");
+    const auto oldVelocity=filterVelocity({-1,0},oldField.gradient,exact.weight);
+    const auto newVelocity=filterVelocity({-1,0},newField.gradient,exact.weight);
+    require(oldVelocity.x>-1 && oldVelocity.z>0 && newVelocity.x==-1 && newVelocity.z==0,
+            "Exact OBB field changed free parallel motion or circular-field control did not expose false avoidance");
+    for (Point start:{Point{-15,0},Point{0,5},Point{15,5}}) for (Point end:{Point{15,0},Point{0,-5},Point{-15,5}}) {
+        QueryStats a,b;
+        const auto original=circleWorld.move(start,end,a),changed=rectangleWorld.move(start,end,b);
+        require(original.position.x==changed.position.x && original.position.z==changed.position.z &&
+                original.constrained==changed.constrained && original.invalidStart==changed.invalidStart,
+                "Opt-in building field altered physical movement or collision geometry");
+    }
+    for (const Obstacle other:{Obstacle{1,{0,0},{1,0},.3,.4},Obstacle{2,{0,0},{.6,.8},2,.1}}) {
+        const auto a=obstacleField({1,2},other,circles),b=obstacleField({1,2},other,exact);
+        require(a.potential==b.potential && a.gradient.x==b.gradient.x && a.gradient.z==b.gradient.z,
+                "Exact building option changed tree or fence field");
+    }
+}
 // Independent long-double segment/shape oracle. Bounds are center-inset by the
 // same declared physical radius, rather than inferred from the field shape.
 bool blocked(Point a,Point b,const Obstacle& o,const Config& c) {
@@ -128,6 +203,10 @@ void collisionAndBounds() {
     QueryStats stats;
     require(!circle.segmentClear({-2,1},{2,1}),"Closed circle tangent must count as contact");
     require(circle.segmentClear({-2,1.00001},{2,1.00001}),"Near tangent clear segment was blocked");
+    QueryStats probeStats;
+    require(!circle.segmentClear({-4,0},{4,0},probeStats) &&
+            probeStats.collisionNodes>0 && probeStats.collisionCandidates>0,
+            "Local segment probe must report its indexed collision work");
     const auto hit=circle.move({-4,0},{4,0},stats);
     require(hit.constrained && !hit.invalidStart && hit.position.x<-1 && hit.position.x>-1.001 &&
             circle.segmentClear({-4,0},hit.position),"High speed circle move crossed its first entry");
@@ -155,8 +234,8 @@ void collisionAndBounds() {
     const auto earliest=two.move({-8,0},{8,0},stats);
     require(earliest.position.x<-3 && earliest.position.x>-3.001,"Movement did not choose closest collision");
 }
-void indexesAndAllocations() {
-    Config c;
+void indexesAndAllocations(bool exact=false) {
+    Config c;c.exactBuildings=exact;
     std::vector<Obstacle> obstacles;
     for (int x=-15;x<=15;++x) for (int z=-15;z<=15;++z) {
         const double angle=.07*(x+2*z);
@@ -206,7 +285,7 @@ void operator delete[](void* memory) noexcept { std::free(memory); }
 void operator delete(void* memory,std::size_t) noexcept { std::free(memory); }
 void operator delete[](void* memory,std::size_t) noexcept { std::free(memory); }
 int main() try {
-    derivativesAndShapes();collisionAndBounds();indexesAndAllocations();
+    derivativesAndShapes();exactBuildings();collisionAndBounds();indexesAndAllocations();indexesAndAllocations(true);
     std::cout<<"Potential field derivatives, circle/capsule shapes, independent physical guards, BVH and allocation tests passed\n";
     return 0;
 } catch (const std::exception& error) {

@@ -1,13 +1,17 @@
 #pragma once
-#include "potential_surface.hpp"
+#include "potential_surface_steering.hpp"
 #include <cstdint>
 #include <iosfwd>
 #include <vector>
 
 namespace viewer::potential_surface_benchmark {
 using potential_surface::Point;
+using potential_surface::SteeringMode;
 struct Request { std::uint32_t id=0;Point start,goal; };
-struct Config { double timestep=.05,speed=2,traceInterval=1; };
+struct Config {
+    double timestep=.05,speed=2,traceInterval=1;
+    SteeringMode steering=SteeringMode::filtered;
+};
 enum class Status { active,arrived,stalled,timeout,invalidEndpoint };
 const char* statusName(Status);
 struct AgentResult {
@@ -16,6 +20,7 @@ struct AgentResult {
     Status status=Status::active;
     double arrivalSeconds=-1,travel=0,initialDistance=0,budgetSeconds=0,headingRadians=0,elapsedSeconds=0;
     std::uint64_t updates=0,clippedMoves=0,invalidMoves=0;
+    std::uint64_t tangentActivations=0,tangentUpdates=0,tangentReleases=0,retreatUpdates=0;
     std::vector<Point> trace;
 };
 struct StepResult {

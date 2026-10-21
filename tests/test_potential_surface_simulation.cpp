@@ -42,6 +42,8 @@ void unobstructedAndAuditStream() {
             agent.headingRadians==again.headingRadians && agent.trace.size()==again.trace.size(),"Repeated simulation changed deterministic movement");
         require(agent.budgetSeconds==120,"Minimum per-agent time budget changed");
         require(agent.invalidMoves==0,"Clear direct motion produced an invalid collision start");
+        require(agent.tangentActivations==0 && agent.tangentUpdates==0 && agent.tangentReleases==0 &&
+                agent.retreatUpdates==0,"Default mode acquired tangent recovery diagnostics");
     }
 }
 void blockedMotionAndInvalidEndpoints() {
@@ -75,9 +77,55 @@ void configurationAndBudgetChecks() {
     require(result.agents[0].budgetSeconds==360,"Distance-dependent time budget formula changed");
     require(result.agents[0].status==Status::arrived,"Long open route should arrive within its individual budget");
 }
+void normalizedAndTangentAblation() {
+    const World world({Obstacle{1,{0,0},{1,0},.35,.35}}, {-10,-10,10,10});
+    const std::vector<Request> requests={{55,{-4,0},{4,0}}};
+    Config normalized;normalized.steering=SteeringMode::normalized;
+    Config tangent;tangent.steering=SteeringMode::tangent;
+    const auto straight=simulate(world,requests,normalized);
+    const auto around=simulate(world,requests,tangent);
+    const auto repeated=simulate(world,requests,tangent);
+    require(straight.agents[0].status==Status::stalled && straight.agents[0].position.z==0 &&
+            straight.agents[0].tangentActivations==0 && straight.agents[0].retreatUpdates==0,
+            "Normalized-only mode quietly added a side or recovery behavior");
+    const auto& agent=around.agents[0];
+    require(agent.status==Status::arrived && agent.tangentActivations>0 && agent.tangentUpdates>0 &&
+            agent.tangentReleases>0 && agent.retreatUpdates>0,
+            "Persistent tangent mode did not arrive with auditable temporary retreat");
+    require(around.validationViolations==0 && around.validationSegments==around.updates && agent.invalidMoves==0,
+            "Tangent simulation weakened the complete physical validation contract");
+    require(agent.position.x==repeated.agents[0].position.x && agent.position.z==repeated.agents[0].position.z &&
+            agent.tangentActivations==repeated.agents[0].tangentActivations &&
+            agent.tangentUpdates==repeated.agents[0].tangentUpdates &&
+            agent.retreatUpdates==repeated.agents[0].retreatUpdates && around.updates==repeated.updates,
+            "Tangent simulation changed deterministic episode outcomes");
+}
+void rotatedExactBuildingBypass() {
+    viewer::potential_surface::Config field;
+    field.weight=1448.1546878700494;field.lengthScale=2;field.support=12;
+    field.exactBuildings=true;
+    const World world({Obstacle{0,{0,0},{.6,.8},1,2}}, {-20,-20,20,20},field);
+    const std::vector<Request> requests={{92,{-3,-4},{3,4}}};
+    Config normalized;normalized.steering=SteeringMode::normalized;
+    Config tangent;tangent.steering=SteeringMode::tangent;
+    const auto blocked=simulate(world,requests,normalized);
+    const auto bypass=simulate(world,requests,tangent);
+    require(blocked.agents[0].status==Status::stalled && blocked.agents[0].tangentActivations==0,
+            "Normalized exact-OBB head-on motion must expose the centered physical wall");
+    const auto& agent=bypass.agents[0];
+    require(agent.status==Status::arrived && agent.tangentActivations>0 && agent.tangentReleases>0 &&
+            agent.retreatUpdates>0,"Tangent mode did not safely bypass a rotated exact building field");
+    require(bypass.validationSegments==bypass.updates && bypass.validationViolations==0 &&
+            agent.invalidMoves==0 && world.clear(agent.position),
+            "Rotated exact-building tangent integration weakened strict physical validation");
+    require(agent.budgetSeconds==120 && agent.arrivalSeconds<agent.budgetSeconds,
+            "Exact-building tangent bypass changed the shared time budget");
+}
 }
 int main() try {
     unobstructedAndAuditStream();blockedMotionAndInvalidEndpoints();configurationAndBudgetChecks();
+    normalizedAndTangentAblation();
+    rotatedExactBuildingBypass();
     std::cout<<"Standalone potential-surface simulation and complete movement audit tests passed\n";
     return 0;
 } catch (const std::exception& error) { std::cerr<<error.what()<<'\n';return 1; }

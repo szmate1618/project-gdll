@@ -61,7 +61,7 @@ Bounds outward(Bounds b) {
     return {std::nextafter(b.minX,-infinity),std::nextafter(b.minZ,-infinity),
             std::nextafter(b.maxX,infinity),std::nextafter(b.maxZ,infinity)};
 }
-Bounds fieldBounds(const Primitive& p,const Config& c) {
+Bounds primitiveBounds(const Primitive& p,const Config& c) {
     const double r=p.radius+c.support;
     return outward({std::min(p.a.x,p.b.x)-r,std::min(p.a.z,p.b.z)-r,
                     std::max(p.a.x,p.b.x)+r,std::max(p.a.z,p.b.z)+r});
@@ -76,13 +76,14 @@ Bounds physicalBounds(const Obstacle& o,const Config& c) {
     const double extentZ=std::abs(o.axis.z)*x+std::abs(o.axis.x)*z;
     return outward({o.center.x-extentX,o.center.z-extentZ,o.center.x+extentX,o.center.z+extentZ});
 }
-FieldValue evaluate(Point position,const Primitive& p,const Config& c) {
-    const auto axis=p.b-p.a;
-    const double length2=dot(axis,axis);
-    const double t=length2>0?std::clamp(dot(position-p.a,axis)/length2,0.0,1.0):0;
-    const auto offset=position-(p.a+axis*t);
-    const double distance=std::hypot(offset.x,offset.z),clearance=distance-p.radius;
-    if (clearance>=c.support) return {};
+Bounds fieldBounds(const Primitive& p,const Obstacle& o,const Config& c) {
+    if (!c.exactBuildings || o.kind!=0) return primitiveBounds(p,c);
+    const auto bounds=physicalBounds(o,c);
+    return outward({bounds.minX-c.support,bounds.minZ-c.support,
+                    bounds.maxX+c.support,bounds.maxZ+c.support});
+}
+struct Profile { double value,derivative; };
+Profile profile(double clearance,const Config& c) {
     double value,derivative;
     if (clearance<0) {
         value=1-clearance/c.lengthScale;
@@ -96,9 +97,46 @@ FieldValue evaluate(Point position,const Primitive& p,const Config& c) {
         value=2*taper3/denominator;
         derivative=2*(taperDerivative/denominator-taper3*(2*q/c.lengthScale)/(denominator*denominator));
     }
+    return {value,derivative};
+}
+FieldValue evaluate(Point position,const Primitive& p,const Config& c) {
+    const auto axis=p.b-p.a;
+    const double length2=dot(axis,axis);
+    const double t=length2>0?std::clamp(dot(position-p.a,axis)/length2,0.0,1.0):0;
+    const auto offset=position-(p.a+axis*t);
+    const double distance=std::hypot(offset.x,offset.z),clearance=distance-p.radius;
+    if (clearance>=c.support) return {};
+    const auto result=profile(clearance,c);
     // At the center/centerline the radial direction is undefined. Symmetry
     // supplies zero; valid physical starts cannot lie on these centerlines.
-    return {value,distance>0?offset*(derivative/distance):Point{}};
+    return {result.value,distance>0?offset*(result.derivative/distance):Point{}};
+}
+FieldValue exactBuildingField(Point position,const Obstacle& o,const Config& c) {
+    const auto offset=position-o.center,second=perpendicular(o.axis);
+    const Point local{dot(offset,o.axis),dot(offset,second)};
+    const double x=std::abs(local.x)-(o.halfX+padding(o,c));
+    const double z=std::abs(local.z)-(o.halfZ+padding(o,c));
+    const double outsideX=std::max(x,0.0),outsideZ=std::max(z,0.0);
+    const double distance=std::hypot(outsideX,outsideZ);
+    double clearance;
+    Point normal;
+    if (distance>0) {
+        clearance=distance;
+        normal=(o.axis*((local.x<0?-1.0:1.0)*outsideX)+
+                second*((local.z<0?-1.0:1.0)*outsideZ))/distance;
+    } else {
+        clearance=std::max(x,z);
+        // Signed distance is nondifferentiable on the interior medial axis.
+        // Choose the X face, then its positive side, for exact ties. Such
+        // points are physically blocked; the field remains deterministic.
+        normal=x>=z?o.axis*(local.x<0?-1.0:1.0):second*(local.z<0?-1.0:1.0);
+    }
+    if (clearance>=c.support) return {};
+    const auto result=profile(clearance,c);
+    return {result.value,normal*result.derivative};
+}
+FieldValue evaluate(Point position,const Primitive& p,const Obstacle& o,const Config& c) {
+    return c.exactBuildings && o.kind==0?exactBuildingField(position,o,c):evaluate(position,p,c);
 }
 
 // The indexes stream every leaf candidate directly to the caller. Balanced
@@ -203,7 +241,8 @@ bool collisionEntry(Point start,Point end,const Obstacle& o,const Config& c,doub
 FieldValue obstacleField(Point position,const Obstacle& obstacle,const Config& config) {
     validateConfig(config);
     if (!finite(position)) throw std::invalid_argument("Nonfinite potential query position");
-    return evaluate(position,primitive(normalized(obstacle),config),config);
+    const auto prepared=normalized(obstacle);
+    return evaluate(position,primitive(prepared,config),prepared,config);
 }
 Point filterVelocity(Point desired,Point gradient,double weight) {
     if (!finite(desired) || !finite(gradient) || !std::isfinite(weight) || weight<0)
@@ -224,7 +263,7 @@ struct World::Impl {
             throw std::invalid_argument("Invalid potential world bounds or obstacle count");
         for (auto& o:source) {
             o=normalized(o);
-            if (!finite(fieldBounds(primitive(o,config),config)) || !finite(physicalBounds(o,config)))
+            if (!finite(fieldBounds(primitive(o,config),o,config)) || !finite(physicalBounds(o,config)))
                 throw std::invalid_argument("Potential obstacle extent overflow");
         }
         return source;
@@ -239,7 +278,7 @@ struct World::Impl {
          allowed{bounds.minX+settings.radius+settings.skin,bounds.minZ+settings.radius+settings.skin,
                  bounds.maxX-settings.radius-settings.skin,bounds.maxZ-settings.radius-settings.skin},
          config(settings),primitives(preparePrimitives(obstacles,config)),
-         fields(obstacles,[&](std::uint32_t id){return fieldBounds(primitives[id],config);}),
+         fields(obstacles,[&](std::uint32_t id){return fieldBounds(primitives[id],obstacles[id],config);}),
          physical(obstacles,[&](std::uint32_t id){return physicalBounds(obstacles[id],config);}) {}
     bool segmentClear(Point start,Point end,QueryStats& stats) const {
         if (!finite(start) || !finite(end) || !contains(allowed,start) || !contains(allowed,end)) return false;
@@ -255,7 +294,7 @@ FieldValue World::field(Point position,QueryStats& stats) const {
     FieldValue result;
     impl_->fields.query({position.x,position.z,position.x,position.z},stats.fieldNodes,stats.fieldCandidates,
         [&](std::uint32_t id) {
-            const auto value=evaluate(position,impl_->primitives[id],impl_->config);
+            const auto value=evaluate(position,impl_->primitives[id],impl_->obstacles[id],impl_->config);
             result.potential+=value.potential;result.gradient=result.gradient+value.gradient;
             if (value.potential>0) ++stats.fieldContributors;
             return true;
@@ -264,6 +303,7 @@ FieldValue World::field(Point position,QueryStats& stats) const {
 }
 bool World::clear(Point position) const { QueryStats stats;return impl_->segmentClear(position,position,stats); }
 bool World::segmentClear(Point start,Point end) const { QueryStats stats;return impl_->segmentClear(start,end,stats); }
+bool World::segmentClear(Point start,Point end,QueryStats& stats) const { return impl_->segmentClear(start,end,stats); }
 MoveResult World::move(Point start,Point proposed,QueryStats& stats) const {
     if (!impl_->segmentClear(start,start,stats)) return {start,true,true};
     if (!finite(proposed)) return {start,true,true};

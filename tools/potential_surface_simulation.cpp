@@ -15,7 +15,11 @@ using Clock=std::chrono::steady_clock;
 using potential_surface::Point;
 double length(Point point) { return std::hypot(point.x,point.z); }
 bool same(Point a,Point b) { return a.x==b.x && a.z==b.z; }
-struct State { Point anchor,lastHeading;double anchorTime=0,nextTrace=1; };
+struct State {
+    Point anchor,lastHeading;
+    double anchorTime=0,nextTrace=1;
+    potential_surface::SteeringState steering;
+};
 struct Segment { std::uint32_t id=0;Point a,b; };
 void encode(std::vector<char>& bytes,std::size_t& offset,std::uint64_t value,unsigned count) {
     for (unsigned byte=0;byte<count;++byte) bytes[offset++]=char((value>>(byte*8))&255);
@@ -98,14 +102,19 @@ Result simulate(const potential_surface::World& world,const std::vector<Request>
             const auto offset=agent.goal-old;
             const double distance=length(offset);
             const auto desired=distance>0?offset*(std::min(config.speed,distance/config.timestep)/distance):Point{};
-            const auto field=world.field(old,result.queries);
-            const auto velocity=potential_surface::filterVelocity(desired,field.gradient,world.config().weight);
-            const auto moved=world.move(old,old+velocity*config.timestep,result.queries);
+            const auto steering=potential_surface::steerVelocity(config.steering,world,old,agent.goal,
+                desired,config.timestep,state.steering,result.queries);
+            const auto moved=world.move(old,old+steering.velocity*config.timestep,result.queries);
+            agent.tangentActivations+=steering.activated;
+            agent.tangentUpdates+=steering.tangentUpdate;
+            agent.tangentReleases+=steering.released;
             agent.position=moved.position;
             ++agent.updates;++result.updates;
             if (moved.constrained) ++agent.clippedMoves;
             if (moved.invalidStart) ++agent.invalidMoves;
             const auto delta=agent.position-old;
+            if (config.steering==SteeringMode::tangent && potential_surface::dot(delta,offset)<0)
+                ++agent.retreatUpdates;
             const double travel=length(delta);
             agent.travel+=travel;agent.elapsedSeconds=now;
             if (travel>0) {

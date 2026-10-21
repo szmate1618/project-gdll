@@ -3,7 +3,7 @@
 The fourth experimental workspace is `gdll3/project-gdll-potential-surface`,
 branch `experiment-zombie-potential-surface`, based on steering commit `9ea92a2`.
 It sits beside the original continuous, grid/JPS and navmesh workspaces.
-The standalone C++ prototype has **no path, waypoints, navmesh, route search,
+The initial standalone C++ prototype has **no path, waypoints, navmesh, route search,
 passing-side state or recovery**: each update aims at the destination, evaluates
 nearby obstacle potentials, filters the desired velocity, and clips unsafe moves.
 
@@ -12,6 +12,16 @@ recorded display traces and query counts repeat exactly across the warmup and al
 measured passes. The update work is inexpensive, but this version does not
 replace global pathfinding on the tested map. Every stalled agent experienced
 collision clipping and finished at a padded physical obstacle boundary.
+
+A later [parameter-tuning study](POTENTIAL_SURFACE_TUNING.md) tests 86 settings.
+It improves original-trip arrivals from 56 to 108 and independent-seed arrivals
+from 62 to 117, with higher CPU costs and new slow off-contact stalls. The
+original default parameters and historical measurements below are preserved.
+
+A subsequent [shape and recovery experiment](POTENTIAL_SURFACE_RECOVERY.md)
+tests building rectangles, speed normalization and persistent tangent steering
+separately. The combined controller reaches 599/1,000 original destinations and
+600/1,000 second-seed destinations, with unchanged strict collision checks.
 
 ## Actual-map workload
 

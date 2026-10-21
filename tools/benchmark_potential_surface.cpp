@@ -22,6 +22,8 @@ struct Options {
     fs::path scene,requests,output;
     unsigned repeats=3,warmups=1;
     Config simulation;
+    viewer::potential_surface::Config field;
+    bool recordMoves=true,copyAerial=true;
 };
 Options parse(int argc,char** argv) {
     Options result;
@@ -29,29 +31,54 @@ Options parse(int argc,char** argv) {
         const std::string flag=argv[index];
         if (flag=="--help") {
             std::cout<<"benchmark_potential_surface --scene paths.json --requests requests.json --output NEWDIR "
-                "[--repeats 3] [--warmups 1] [--timestep .05] [--speed 2]\n";
+                "[--repeats 3] [--warmups 1] [--timestep .05] [--speed 2] "
+                "[--weight 16] [--support 3] [--length-scale 1] [--exact-buildings] "
+                "[--steering filtered|normalized|tangent] [--no-move-log] [--no-aerial]\n";
             std::exit(0);
         }
+        if (flag=="--exact-buildings") { result.field.exactBuildings=true;continue; }
+        if (flag=="--no-move-log") { result.recordMoves=false;continue; }
+        if (flag=="--no-aerial") { result.copyAerial=false;continue; }
         if (++index==argc) throw std::invalid_argument("Missing value for "+flag);
         const std::string value=argv[index];
         if (flag=="--scene") result.scene=value;
         else if (flag=="--requests") result.requests=value;
         else if (flag=="--output") result.output=value;
+        else if (flag=="--steering") {
+            if (value=="filtered") result.simulation.steering=SteeringMode::filtered;
+            else if (value=="normalized") result.simulation.steering=SteeringMode::normalized;
+            else if (value=="tangent") result.simulation.steering=SteeringMode::tangent;
+            else throw std::invalid_argument("Unknown steering mode "+value);
+        }
         else if (flag=="--repeats" || flag=="--warmups") {
             std::size_t used=0;
             if (value.empty() || value.front()=='-') throw std::invalid_argument("Invalid "+flag);
             const auto count=std::stoull(value,&used);
             if (used!=value.size() || count>20 || (flag=="--repeats" && !count)) throw std::invalid_argument("Invalid "+flag);
             if (flag=="--repeats") result.repeats=unsigned(count); else result.warmups=unsigned(count);
-        } else if (flag=="--timestep" || flag=="--speed") {
+        } else if (flag=="--timestep" || flag=="--speed" || flag=="--weight" ||
+                   flag=="--support" || flag=="--length-scale") {
             std::size_t used=0;const double number=std::stod(value,&used);
-            if (used!=value.size() || !std::isfinite(number) || number<=0) throw std::invalid_argument("Invalid "+flag);
-            if (flag=="--timestep") result.simulation.timestep=number; else result.simulation.speed=number;
+            if (used!=value.size() || !std::isfinite(number) || (flag=="--weight"?number<0:number<=0))
+                throw std::invalid_argument("Invalid "+flag);
+            if (flag=="--timestep") result.simulation.timestep=number;
+            else if (flag=="--speed") result.simulation.speed=number;
+            else if (flag=="--weight") result.field.weight=number;
+            else if (flag=="--support") result.field.support=number;
+            else result.field.lengthScale=number;
         } else throw std::invalid_argument("Unknown option "+flag);
     }
     if (result.scene.empty() || result.requests.empty() || result.output.empty())
         throw std::invalid_argument("--scene, --requests and --output are required");
     return result;
+}
+const char* steeringName(SteeringMode mode) {
+    switch (mode) {
+        case SteeringMode::filtered:return "filtered";
+        case SteeringMode::normalized:return "normalized";
+        case SteeringMode::tangent:return "tangent";
+    }
+    throw std::invalid_argument("Invalid steering mode");
 }
 json read(const fs::path& path) {
     std::ifstream stream(path);
@@ -83,7 +110,9 @@ json agentJson(const AgentResult& agent,bool trace) {
         {"arrival_seconds",agent.arrivalSeconds},{"elapsed_seconds",agent.elapsedSeconds},
         {"travel_m",agent.travel},{"initial_distance_m",agent.initialDistance},{"budget_seconds",agent.budgetSeconds},
         {"updates",agent.updates},{"heading_radians",agent.headingRadians},{"clipped_moves",agent.clippedMoves},
-        {"invalid_moves",agent.invalidMoves}};
+        {"invalid_moves",agent.invalidMoves},{"steering_stats",{{"tangent_activations",agent.tangentActivations},
+            {"tangent_updates",agent.tangentUpdates},{"tangent_releases",agent.tangentReleases},
+            {"retreat_updates",agent.retreatUpdates}}}};
     if (trace) {
         result["trace"]=json::array();
         for (auto position:agent.trace) result["trace"].push_back({position.x,position.z});
@@ -93,12 +122,14 @@ json agentJson(const AgentResult& agent,bool trace) {
 json summary(const Result& result,const Config& config,std::size_t worldBytes) {
     json statuses={{"arrived",0},{"stalled",0},{"timeout",0},{"invalid_endpoint",0}};
     std::vector<double> arrivedTimes,travel,arrivedRatios,elapsed,stepWall,stepCpu,fixedWall,fixedCpu,earlyWall,earlyCpu,earlyActive;
-    std::uint64_t clipped=0,invalid=0;
+    std::uint64_t clipped=0,invalid=0,tangentActivations=0,tangentUpdates=0,tangentReleases=0,retreatUpdates=0;
     double totalTravel=0,totalHeading=0;
     for (const auto& agent:result.agents) {
         const auto status=statusName(agent.status);
         statuses[status]=statuses.value(status,0)+1;
         clipped+=agent.clippedMoves;invalid+=agent.invalidMoves;
+        tangentActivations+=agent.tangentActivations;tangentUpdates+=agent.tangentUpdates;
+        tangentReleases+=agent.tangentReleases;retreatUpdates+=agent.retreatUpdates;
         totalTravel+=agent.travel;totalHeading+=agent.headingRadians;
         travel.push_back(agent.travel);elapsed.push_back(agent.elapsedSeconds);
         if (agent.status==Status::arrived) {
@@ -130,6 +161,8 @@ json summary(const Result& result,const Config& config,std::size_t worldBytes) {
         {"elapsed_seconds",distribution(elapsed)},{"arrived_detour_ratio",distribution(arrivedRatios)},
         {"heading_degrees_per_meter",totalTravel?totalHeading*180/3.141592653589793/totalTravel:0},
         {"clipped_moves",clipped},{"invalid_moves",invalid},{"moved_segments",result.movedSegments},
+        {"steering_stats",{{"tangent_activations",tangentActivations},{"tangent_updates",tangentUpdates},
+            {"tangent_releases",tangentReleases},{"retreat_updates",retreatUpdates}}},
         {"validation_segments",result.validationSegments},{"validation_violations",result.validationViolations},
         {"query_stats",{{"field_nodes",result.queries.fieldNodes},{"field_candidates",result.queries.fieldCandidates},
             {"field_contributors",result.queries.fieldContributors},{"collision_nodes",result.queries.collisionNodes},
@@ -168,7 +201,7 @@ int main(int argc,char** argv) try {
         obstacles.push_back({kind,{item[1].get<double>(),item[2].get<double>()},
             {item[3].get<double>(),item[4].get<double>()},item[5].get<double>(),item[6].get<double>()});++kinds[kind];
     }
-    viewer::potential_surface::Config fieldConfig;
+    const auto& fieldConfig=options.field;
     for (const auto& entry:std::initializer_list<std::pair<const char*,double>>{
             {"radius",fieldConfig.radius},{"skin",fieldConfig.skin},{"building_extra",fieldConfig.buildingExtra}})
         if (requestDocument.contains(entry.first) && requestDocument.at(entry.first).get<double>()!=entry.second)
@@ -184,7 +217,7 @@ int main(int argc,char** argv) try {
     fs::create_directories(options.output);
     json raster=scene.at("raster");
     const auto aerial=options.scene.parent_path()/raster.at("file").get<std::string>();
-    if (fs::exists(aerial)) { fs::copy_file(aerial,options.output/"aerial.ppm");raster["file"]="aerial.ppm"; }
+    if (options.copyAerial && fs::exists(aerial)) { fs::copy_file(aerial,options.output/"aerial.ppm");raster["file"]="aerial.ppm"; }
     else raster["file"]=fs::absolute(aerial).string();
     json document={{"schema",1},{"source",fs::absolute(options.scene).string()},{"source_sha256",sceneSha},
         {"requests_file",fs::absolute(options.requests).string()},{"requests_sha256",viewer::fileSha256(options.requests)},
@@ -193,22 +226,25 @@ int main(int argc,char** argv) try {
             {"timestep_seconds",options.simulation.timestep},{"speed_m_per_second",options.simulation.speed},
             {"radius_m",fieldConfig.radius},{"skin_m",fieldConfig.skin},{"building_extra_m",fieldConfig.buildingExtra},
             {"support_m",fieldConfig.support},{"length_scale_m",fieldConfig.lengthScale},{"weight",fieldConfig.weight},
+            {"exact_buildings",fieldConfig.exactBuildings},{"steering_mode",steeringName(options.simulation.steering)},
             {"arrival_radius_m",.15},{"stall_window_seconds",10},{"stall_anchor_displacement_m",.05},
             {"time_budget","max(120 seconds, 3 * initial_distance / speed + 60 seconds) per agent"},
             {"trace_interval_seconds",options.simulation.traceInterval},{"warmups",options.warmups},{"repeats",options.repeats},
             {"global_paths",false},{"navmesh",false},{"agent_agent_collisions",false},
-            {"timing_scope","Only agent update batches: direct goal velocity, analytical potential/filter, strict clipped movement and outcome bookkeeping. Two wall and two process CPU probes per timestep; no per-agent probes. Setup, native checks, traces, stream I/O and reporting excluded."},
+            {"record_moves",options.recordMoves},{"copy_aerial",options.copyAerial},
+            {"timing_scope","Only agent update batches: direct goal velocity, analytical potential and selected steering mode, strict clipped movement and outcome bookkeeping. Two wall and two process CPU probes per timestep; no per-agent probes. Setup, native checks, traces, stream I/O and reporting excluded."},
             {"moves_format","PSSMOV01 magic8 then packed little-endian records uint32 id,double ax,az,bx,bz; 36 bytes per actual moved segment"}}},
-        {"samples",json::array()},{"moves_file","moves.bin"}};
+        {"samples",json::array()},{"moves_file",options.recordMoves?json("moves.bin"):json(nullptr)}};
     std::ofstream steps(options.output/"steps.csv");if (!steps) throw std::runtime_error("Cannot create steps.csv");
     steps<<"repeat,step,active,total_ms,cpu_ms\n"<<std::setprecision(12);
     json reference;bool valid=true,deterministic=true;
     for (unsigned run=0;run<options.warmups+options.repeats;++run) {
         const bool finalRun=run+1==options.warmups+options.repeats;
         std::ofstream moves;
-        if (finalRun) { moves.open(options.output/"moves.bin",std::ios::binary);moves.write("PSSMOV01",8); }
-        auto result=simulate(world,requests,options.simulation,finalRun?&moves:nullptr);
-        if (finalRun) { moves.flush();if (!moves) throw std::runtime_error("Cannot finish moves.bin"); }
+        const bool logMoves=finalRun && options.recordMoves;
+        if (logMoves) { moves.open(options.output/"moves.bin",std::ios::binary);moves.write("PSSMOV01",8); }
+        auto result=simulate(world,requests,options.simulation,logMoves?&moves:nullptr);
+        if (logMoves) { moves.flush();if (!moves) throw std::runtime_error("Cannot finish moves.bin"); }
         auto outcomes=signature(result);
         if (run==0) reference=std::move(outcomes);else deterministic&=outcomes==reference;
         valid&=result.validationViolations==0;

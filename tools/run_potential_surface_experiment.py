@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -17,6 +18,20 @@ def sha(path):
         for chunk in iter(lambda: stream.read(1024 * 1024), b''):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def nonnegative_float(text):
+    value = float(text)
+    if not math.isfinite(value) or value < 0:
+        raise argparse.ArgumentTypeError('must be finite and nonnegative')
+    return value
+
+
+def positive_float(text):
+    value = nonnegative_float(text)
+    if value == 0:
+        raise argparse.ArgumentTypeError('must be strictly positive')
+    return value
 
 
 def run(args):
@@ -45,22 +60,55 @@ def run(args):
         'scene': str(scene), 'scene_sha256': sha(scene), 'aerial_sha256': sha(aerial),
         'binary_sha256': sha(binary), 'cpu_affinity': args.cpu,
         'population': args.population, 'seed': args.seed, 'repeats': args.repeats,
-        'warmups': args.warmups, 'compiler': subprocess.check_output(['c++', '--version'], text=True).splitlines()[0],
+        'warmups': args.warmups, 'field_parameters': {
+            'weight': args.weight, 'support_m': args.support, 'length_scale_m': args.length_scale,
+            'exact_buildings': args.exact_buildings},
+        'steering_mode': args.steering,
+        'record_moves': not args.no_move_log, 'copy_aerial': not args.no_aerial,
+        'compiler': subprocess.check_output(['c++', '--version'], text=True).splitlines()[0],
         'build': 'Release -O3 -DNDEBUG', 'created_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
     }
     (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     (output / 'source.diff').write_bytes(subprocess.check_output(['git', 'diff', 'HEAD', '--binary'], cwd=root))
     environment = {**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'}
     requests = output / 'requests.json'
-    subprocess.run([sys.executable, str(root / 'tools/prepare_potential_surface_requests.py'),
-                    '--scene', str(scene), '--output', str(requests),
-                    '--population', str(args.population), '--seed', str(args.seed)],
-                   cwd=root, env=environment, check=True)
+    original_requests = args.requests.resolve() if args.requests else None
+    if original_requests is not None:
+        original_requests_sha = sha(original_requests)
+        prepared = json.loads(original_requests.read_text())
+        if not isinstance(prepared.get('source'), str) or not prepared['source']:
+            raise ValueError('Existing requests must record their source scene')
+        if prepared.get('source_sha256') != manifest['scene_sha256']:
+            raise ValueError('Existing requests were prepared against different scene bytes')
+        if not isinstance(prepared.get('requests'), list) or len(prepared['requests']) != args.population:
+            raise ValueError('Existing request population differs from --population')
+        if sha(original_requests) != original_requests_sha:
+            raise RuntimeError('Existing requests changed while being inspected')
+        shutil.copy2(original_requests, requests)
+        if sha(requests) != original_requests_sha:
+            raise RuntimeError('Existing requests were not copied byte for byte')
+        manifest.update(requests_reused=True, requests_original=str(original_requests),
+                        requests_original_sha256=original_requests_sha,
+                        requests_recorded_source=prepared['source'], seed=prepared.get('seed'))
+    else:
+        subprocess.run([sys.executable, str(root / 'tools/prepare_potential_surface_requests.py'),
+                        '--scene', str(scene), '--output', str(requests),
+                        '--population', str(args.population), '--seed', str(args.seed)],
+                       cwd=root, env=environment, check=True)
+        manifest['requests_reused'] = False
     manifest['requests_sha256'] = sha(requests)
     command = ['taskset', '-c', str(args.cpu), str(binary), '--scene', str(scene),
                '--requests', str(requests), '--output', str(output / 'simulation'),
                '--repeats', str(args.repeats), '--warmups', str(args.warmups),
-               '--timestep', '.05', '--speed', '2']
+               '--timestep', '.05', '--speed', '2',
+               '--weight', str(args.weight), '--support', str(args.support),
+               '--length-scale', str(args.length_scale), '--steering', args.steering]
+    if args.exact_buildings:
+        command.append('--exact-buildings')
+    if args.no_move_log:
+        command.append('--no-move-log')
+    if args.no_aerial:
+        command.append('--no-aerial')
     manifest['command'] = command
     (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     print('Running frozen goal-directed steering benchmark...', flush=True)
@@ -73,6 +121,8 @@ def run(args):
     assert sha(binary) == manifest['binary_sha256']
     assert sha(scene) == manifest['scene_sha256'] and sha(aerial) == manifest['aerial_sha256']
     assert sha(requests) == manifest['requests_sha256']
+    if original_requests is not None:
+        assert sha(original_requests) == manifest['requests_original_sha256']
     summary = output / 'simulation/summary.json'
     result = json.loads(summary.read_text())
     assert result['native_validation_passed'] and result['deterministic']
@@ -80,10 +130,24 @@ def run(args):
     assert result['summary']['population'] == args.population
     assert len(result['samples']) == args.repeats
     assert not result['configuration']['navmesh'] and not result['configuration']['global_paths']
-    print('Simulation complete; independently auditing every recorded movement...', flush=True)
-    subprocess.run([sys.executable, str(root / 'tools/audit_potential_surface.py'),
-                    '--scene', str(scene), '--summary', str(summary),
-                    '--output', str(output / 'audit.json')], cwd=root, env=environment, check=True)
+    assert result['configuration']['exact_buildings'] == args.exact_buildings
+    assert result['configuration']['steering_mode'] == args.steering
+    assert result['configuration']['weight'] == args.weight
+    assert result['configuration']['support_m'] == args.support
+    assert result['configuration']['length_scale_m'] == args.length_scale
+    assert result['configuration']['record_moves'] == (not args.no_move_log)
+    assert result['configuration']['copy_aerial'] == (not args.no_aerial)
+    if args.no_move_log:
+        assert result['moves_file'] is None
+        (output / 'audit.json').write_text(json.dumps({
+            'skipped': True, 'reason': 'Full movement logging disabled for parameter screening; '
+            'native geometry validation still ran for every update.'}, indent=2) + '\n')
+        print('Simulation complete; full movement audit skipped because recording was disabled.', flush=True)
+    else:
+        print('Simulation complete; independently auditing every recorded movement...', flush=True)
+        subprocess.run([sys.executable, str(root / 'tools/audit_potential_surface.py'),
+                        '--scene', str(scene), '--summary', str(summary),
+                        '--output', str(output / 'audit.json')], cwd=root, env=environment, check=True)
     subprocess.run([sys.executable, str(root / 'tools/render_potential_surface.py'),
                     '--summary', str(summary), '--output', str(output / 'potential-surface-paths.png')],
                    cwd=root, env=environment, check=True)
@@ -96,10 +160,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', type=Path, required=True)
     parser.add_argument('--scene', type=Path, required=True)
+    parser.add_argument('--requests', type=Path, help='Reuse these exact prepared request bytes instead of sampling again')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--population', type=int, default=1000)
     parser.add_argument('--seed', type=int, default=1515146562)
     parser.add_argument('--repeats', type=int, default=3)
     parser.add_argument('--warmups', type=int, default=1)
     parser.add_argument('--cpu', type=int, default=2)
+    parser.add_argument('--weight', type=nonnegative_float, default=16.)
+    parser.add_argument('--support', type=positive_float, default=3.)
+    parser.add_argument('--length-scale', type=positive_float, default=1.)
+    parser.add_argument('--exact-buildings', action='store_true', help='Use oriented building rectangle fields instead of circumscribed circles')
+    parser.add_argument('--steering', choices=('filtered', 'normalized', 'tangent'), default='filtered')
+    parser.add_argument('--no-move-log', action='store_true', help='Skip full movement stream and independent stream audit for screening')
+    parser.add_argument('--no-aerial', action='store_true', help='Use the source aerial without copying it into the simulation directory')
     run(parser.parse_args())

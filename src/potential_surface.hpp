@@ -26,6 +26,7 @@ struct Bounds { double minX=0,minZ=0,maxX=0,maxZ=0; };
 struct Config {
     double radius=.3,skin=.002,buildingExtra=.05;
     double support=3,lengthScale=1,weight=16;
+    bool exactBuildings=false; // Opt in to signed distance from the padded OBB.
 };
 struct QueryStats {
     std::uint64_t fieldNodes=0,fieldCandidates=0,fieldContributors=0;
@@ -34,8 +35,9 @@ struct QueryStats {
 struct FieldValue { double potential=0;Point gradient; };
 struct MoveResult { Point position;bool constrained=false,invalidStart=false; };
 
-// Building fields are circumscribed circles; fences are capsules along their
-// long axis. Trees are circles. The clearance profile has inverse-quadratic
+// Building fields default to circumscribed circles; exactBuildings selects the
+// signed distance of their padded OBBs. Fences use capsules along their long
+// axis, and trees use circles. The clearance profile has inverse-quadratic
 // decay and a compact taper outside the obstacle; it is linear inside a field
 // approximation so large buildings retain a useful, finite surface gradient.
 FieldValue obstacleField(Point position,const Obstacle&,const Config&);
@@ -52,6 +54,7 @@ public:
     bool clear(Point) const;
     // Strict segment check, with tangency to padded OBBs treated as contact.
     bool segmentClear(Point start,Point end) const;
+    bool segmentClear(Point start,Point end,QueryStats&) const;
     // Clip at earliest collision with original inflated OBBs/tree circles or
     // map boundary. No sliding, tangent force, route search or recovery.
     MoveResult move(Point start,Point proposed,QueryStats&) const;

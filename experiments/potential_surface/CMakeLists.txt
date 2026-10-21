@@ -15,7 +15,9 @@ if(NOT PSS_JSON_INCLUDE_DIR)
     message(FATAL_ERROR "Set PSS_JSON_INCLUDE_DIR to the existing tinygltf/json.hpp dependency directory")
 endif()
 
-add_library(potential_surface STATIC "${PSS_ROOT}/src/potential_surface.cpp")
+add_library(potential_surface STATIC
+    "${PSS_ROOT}/src/potential_surface.cpp"
+    "${PSS_ROOT}/src/potential_surface_steering.cpp")
 target_include_directories(potential_surface PUBLIC "${PSS_ROOT}/src")
 target_compile_options(potential_surface PRIVATE -Wall -Wextra -Wpedantic)
 add_library(potential_surface_simulation STATIC
@@ -31,7 +33,7 @@ target_link_libraries(benchmark_potential_surface PRIVATE potential_surface_simu
 target_compile_options(benchmark_potential_surface PRIVATE -Wall -Wextra -Wpedantic)
 
 if(BUILD_TESTING)
-    foreach(suite potential_surface potential_surface_simulation)
+    foreach(suite potential_surface potential_surface_steering potential_surface_simulation)
         add_executable(test_${suite} "${PSS_ROOT}/tests/test_${suite}.cpp")
         target_link_libraries(test_${suite} PRIVATE potential_surface_simulation)
         target_compile_options(test_${suite} PRIVATE -Wall -Wextra -Wpedantic)

@@ -133,20 +133,31 @@ def render(summary, output):
         symbol(draw,project(agent['goal']),'goal','#b62d9c',2)
         symbol(draw,project(agent['final']),'end',COLORS.get(agent['status'],'#8753a7'),2)
     overview = Image.alpha_composite(overview,layer)
-    header,footer,panel = 244,105,590
+    header,footer,panel = 278,105,590
     canvas = Image.new('RGBA',(background.width+panel+60,background.height+header+footer),'#f6f7f8')
     canvas.paste(overview,(20,header));draw=ImageDraw.Draw(canvas)
     summary_metrics = document['summary']
     statuses = summary_metrics['statuses']
     total_values = [s['total_ms'] for s in document['samples']]
     cpu_values = [s['cpu_ms'] for s in document['samples']]
+    configuration = document.get('configuration', {})
+    steering = configuration.get('steering_mode', 'filtered')
+    steering_label = {
+        'filtered': 'analytical uphill filter',
+        'normalized': 'uphill filter + walking-speed normalization',
+        'tangent': 'normalized filter + persistent tangent steering',
+    }.get(steering, steering)
+    building_field = ('exact oriented rectangles' if configuration.get('exact_buildings', False)
+                      else 'circumscribed circles')
+    tangent_enabled = steering == 'tangent'
     draw.text((25,17),f"Potential-surface motion · {len(agents):,} independent NPCs",font=font(31,True),fill='#173440')
-    draw.text((25,64),'Direct goal attraction + analytical uphill filter · no paths, waypoint follower, navigation mesh or search',font=font(20),fill='#3d5965')
+    draw.text((25,64),f'Direct goals · {steering_label} · no navigation mesh, paths or search',font=font(20),fill='#3d5965')
     draw.text((25,102),' · '.join(f'{statuses.get(k,0):,} {k.replace("_"," ")}' for k in COLORS),font=font(22,True),fill='#233e4b')
     draw.text((25,140),f"Median update-loop elapsed {statistics.median(total_values)/1000:.3f} s · CPU {statistics.median(cpu_values)/1000:.3f} s · {len(total_values)} measured repeats",font=font(19),fill='#536773')
     counts = scene['obstacle_counts']
     draw.text((25,175),f"Actual map · {counts[0]:,} building boxes · {counts[1]:,} trunks · {counts[2]:,} fence boxes · X east / Z south",font=font(19),fill='#536773')
-    draw.text((25,208),'Color: green reached · red stalled · amber timeout · blue start dot · purple destination diamond · × final position',font=font(18),fill='#536773')
+    draw.text((25,208),f'Building potential fields: {building_field} · persistent tangent recovery: {"enabled" if tangent_enabled else "disabled"}',font=font(19),fill='#536773')
+    draw.text((25,242),'Color: green reached · red stalled · amber timeout · blue start dot · purple destination diamond · × final position',font=font(18),fill='#536773')
     draw.text((background.width-65,header+20),'N ↑',font=font(25,True),fill='#173440')
     reached = [a for a in agents if a['status']=='arrived']
     stalled = [a for a in agents if a['status']=='stalled']
@@ -165,9 +176,13 @@ def render(summary, output):
         canvas.paste(image,(background.width+45,header+index*655))
     draw=ImageDraw.Draw(canvas)
     y=header+background.height+18
-    draw.text((25,y),'Map raster and original physical obstacle geometry; buildings are NOT replaced by circles in collision checks.',font=font(18),fill='#536773')
-    draw.text((25,y+30),'Display trajectories are decimated; independent safety auditing reads every actual movement from the binary stream.',font=font(18),fill='#536773')
-    draw.text((25,y+60),'Local planar experiment: no NPC-to-NPC avoidance, global connectivity test, route search or automatic trap recovery.',font=font(18),fill='#536773')
+    draw.text((25,y),'Hard physical clipping uses original building/fence rectangles and circular trunks; field approximations do not change collision geometry.',font=font(18),fill='#536773')
+    audit_label = ('Full movement stream records every accepted step for independent safety auditing.'
+                   if document.get('moves_file') else
+                   'Full movement logging disabled; native geometry checks still cover every timestep.')
+    draw.text((25,y+30),'Display trajectories are decimated. ' + audit_label,font=font(18),fill='#536773')
+    recovery_label = ('Persistent tangent recovery enabled.' if tangent_enabled else 'Tangent recovery disabled.')
+    draw.text((25,y+60),recovery_label + ' No NPC-to-NPC avoidance, global connectivity test or route search.',font=font(18),fill='#536773')
     output.parent.mkdir(parents=True,exist_ok=True)
     canvas.convert('RGB').save(output)
     print(output)

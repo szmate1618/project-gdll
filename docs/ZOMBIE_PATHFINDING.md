@@ -57,6 +57,16 @@ and 944 stall. Its standalone update loop uses 1.225 ms CPU per tick with 1,000
 active agents. See the [goal-directed surface experiment](POTENTIAL_SURFACE_NAVIGATION.md)
 for geometry, stopping rules, timing scope and aerial trajectory images.
 
+A [surface-parameter sweep](POTENTIAL_SURFACE_TUNING.md) improves arrivals to
+108/1,000 on those trips and 117/1,000 on an untouched seed, versus baselines
+of 56 and 62. Most trips still fail; no standalone surface-navigation integration
+has been selected.
+
+The [building-shape and local-recovery comparison](POTENTIAL_SURFACE_RECOVERY.md)
+raises standalone completion to 599/1,000 and 600/1,000 by adding rectangle fields,
+normalization and persistent tangent steering. It remains experimental: roughly
+40% do not arrive, and no integration into the navigation system is selected.
+
 ## Query behavior and ownership
 
 The offline baker subtracts expanded, oriented obstacle rectangles from the
