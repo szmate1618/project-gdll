@@ -23,14 +23,6 @@ long double turn(Point a, Point b, Point c) {
     return bx * cz - bz * cx;
 }
 
-std::uint32_t hashTriangle(std::uint32_t value) {
-    value ^= value >> 16;
-    value *= 0x7feb352dU;
-    value ^= value >> 15;
-    value *= 0x846ca68bU;
-    return value ^ (value >> 16);
-}
-
 } // namespace
 
 const char* statusName(Status status) {
@@ -52,7 +44,7 @@ struct Search::Impl {
         std::uint32_t heapIndex = noTriangle;
     };
     struct Slot {
-        std::uint32_t triangle = noTriangle, record = noTriangle, generation = 0;
+        std::uint32_t record = noTriangle, generation = 0;
     };
 
     const Mesh& mesh;
@@ -76,10 +68,10 @@ struct Search::Impl {
         if (!std::isfinite(weight) || weight < 1 ||
             !std::isfinite(diameter * (weight + double(limit))))
             throw std::invalid_argument("invalid navmesh heuristic weight");
-        std::size_t slotCount = 2;
-        while (slotCount < std::size_t(limit) * 2) slotCount *= 2;
         records.resize(limit);
-        slots.resize(slotCount);
+        // Triangle IDs are dense. Only this lookup spans the mesh; search
+        // records and queue storage remain bounded by the per-request limit.
+        slots.resize(mesh.triangles().size());
         heap.resize(limit);
         corridor.resize(limit);
         output.resize(std::size_t(limit) + 2);
@@ -100,13 +92,6 @@ struct Search::Impl {
         heapSize = 0;
         outputSize = 0;
         stats = {};
-    }
-
-    Slot& slotFor(std::uint32_t triangle) {
-        auto index = std::size_t(hashTriangle(triangle)) & (slots.size() - 1);
-        while (slots[index].generation == generation && slots[index].triangle != triangle)
-            index = (index + 1) & (slots.size() - 1);
-        return slots[index];
     }
 
     bool precedes(std::uint32_t a, std::uint32_t b) const {
@@ -188,12 +173,16 @@ struct Search::Impl {
         }
         std::reverse(corridor.begin(), corridor.begin() + corridorSize);
         stats.corridorTriangles = corridorSize;
-        // Reopened records can improve an ancestor after a descendant's g was
-        // last updated. Report the actual reconstructed graph route's cost.
-        stats.graphCost = 0;
-        for (std::uint32_t index = 1; index < corridorSize; ++index)
-            stats.graphCost += distance(mesh.centroid(corridor[index - 1]),
-                                        mesh.centroid(corridor[index]));
+        // Closed ancestors stay fixed in the default search, so the goal's g
+        // already measures this corridor. Reopening can improve an ancestor
+        // after a descendant's g was updated; then recompute the actual route.
+        stats.graphCost = records[goalRecord].g;
+        if (reopen) {
+            stats.graphCost = 0;
+            for (std::uint32_t index = 1; index < corridorSize; ++index)
+                stats.graphCost += distance(mesh.centroid(corridor[index - 1]),
+                                            mesh.centroid(corridor[index]));
+        }
         if (!append(start)) return false;
 
         Point apex = start, left = start, right = start;
@@ -251,8 +240,8 @@ struct Search::Impl {
         if (firstTriangle == noTriangle || goalTriangle == noTriangle)
             return result(Status::blockedEndpoint);
         const auto goalCenter = mesh.centroid(goalTriangle);
-        auto& firstSlot = slotFor(firstTriangle);
-        firstSlot = {firstTriangle, 0, generation};
+        auto& firstSlot = slots[firstTriangle];
+        firstSlot = {0, generation};
         records[0] = {0, weight * distance(mesh.centroid(firstTriangle), goalCenter),
                       firstTriangle, noTriangle, noTriangle};
         stored = 1;
@@ -266,20 +255,21 @@ struct Search::Impl {
                 if (!funnel(currentIndex, start, goal)) return result(Status::noPath);
                 return result(Status::found);
             }
-            const auto center = mesh.centroid(current.triangle);
-            for (const auto neighbor : mesh.triangles()[current.triangle].neighbor) {
+            const auto& neighbors = mesh.triangles()[current.triangle].neighbor;
+            for (unsigned edge = 0; edge < 3; ++edge) {
                 ++stats.neighborTests;
+                const auto neighbor = neighbors[edge];
                 if (neighbor == noTriangle) continue;
-                auto& slot = slotFor(neighbor);
+                auto& slot = slots[neighbor];
                 if (!reopen && slot.generation == generation &&
                     records[slot.record].heapIndex == noTriangle) continue;
                 const auto nextCenter = mesh.centroid(neighbor);
-                const double nextG = current.g + distance(center, nextCenter);
+                const double nextG = current.g + mesh.neighborDistance(current.triangle, edge);
                 std::uint32_t nextIndex;
                 if (slot.generation != generation) {
                     if (stored == limit) return result(Status::searchLimit);
                     nextIndex = stored++;
-                    slot = {neighbor, nextIndex, generation};
+                    slot = {nextIndex, generation};
                     records[nextIndex] = {nextG,
                         nextG + weight * distance(nextCenter, goalCenter),
                         neighbor, currentIndex, noTriangle};

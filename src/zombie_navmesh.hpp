@@ -26,12 +26,18 @@ public:
     static Mesh load(const std::string& filename);
     const std::vector<Point>& vertices() const { return vertices_; }
     const std::vector<Triangle>& triangles() const { return triangles_; }
-    Point centroid(std::uint32_t triangle) const;
+    Point centroid(std::uint32_t triangle) const { return geometry_[triangle].center; }
+    // Centroid-to-centroid graph cost across this edge; boundary edges return 0
+    // and must not be traversed. Both accessors require valid triangle/edge IDs.
+    double neighborDistance(std::uint32_t triangle, unsigned edge) const {
+        return geometry_[triangle].neighborDistances[edge];
+    }
     std::uint32_t locate(Point point, std::uint64_t* triangleTests = nullptr) const;
     // Closed triangle coverage. Queries allocate no memory. The bake adds a
     // small numerical margin beyond body clearance, so boundary turns are safe.
     bool segmentClear(Point a, Point b, std::uint64_t* triangleTests = nullptr) const;
     std::size_t meshBytes() const;
+    std::size_t geometryCacheBytes() const;
     std::size_t indexBytes() const;
     double minimumX() const { return minimumX_; }
     double minimumZ() const { return minimumZ_; }
@@ -44,8 +50,13 @@ public:
     const std::string& sourceSha256() const { return sourceSha256_; }
 private:
     struct Node { Point minimum{}, maximum{}; std::uint32_t first = 0, count = 0, left = 0, right = 0; };
+    struct Geometry {
+        Point center{};
+        std::array<double, 3> neighborDistances{};
+    };
     std::vector<Point> vertices_;
     std::vector<Triangle> triangles_;
+    std::vector<Geometry> geometry_;
     std::vector<std::uint32_t> order_;
     std::vector<Node> nodes_;
     double minimumX_ = 0, minimumZ_ = 0, maximumX_ = 0, maximumZ_ = 0;

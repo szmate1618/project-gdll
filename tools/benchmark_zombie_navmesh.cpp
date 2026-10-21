@@ -422,9 +422,10 @@ int main(int argc, char** argv) {
                               {"clearance_m", mesh.clearance()}, {"building_extra_m", mesh.buildingExtra()},
                               {"numeric_margin_m", mesh.numericMargin()}};
         document["memory"] = {{"mesh_bytes", mesh.meshBytes()}, {"spatial_index_bytes", mesh.indexBytes()},
+                              {"geometry_cache_bytes", mesh.geometryCacheBytes()},
                               {"search_workspace_bytes", manager.workspaceBytes()},
                               {"path_arena_capacity_bytes", manager.capacityBytes()}, {"manager_metadata_bytes", manager.metadataBytes()},
-                              {"core_payload_bytes", mesh.meshBytes()+mesh.indexBytes()+manager.workspaceBytes()+manager.capacityBytes()+manager.metadataBytes()},
+                              {"core_payload_bytes", mesh.meshBytes()+mesh.indexBytes()+mesh.geometryCacheBytes()+manager.workspaceBytes()+manager.capacityBytes()+manager.metadataBytes()},
                               {"scope", "Allocated navigation buffers; excludes process/benchmark JSON, source geometry validation and aerial raster"}};
         document["timing_scope"] = "Independent serial requests including path allocation, zombie-ID mapping and status/stat collection; includes search-state resets; excludes batch clearing, input loading, validation, JSON and images";
         document["validation"] = {{"navmesh_segments_every_repeat", true}, {"exact_padded_source_geometry_last_repeat", true},

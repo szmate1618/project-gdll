@@ -190,6 +190,18 @@ void straightAndCorners() {
     checkPath(bend, reverse, b, a);
     require(std::abs(pathLength(reverse) - expected) < 1e-11,
             "reverse portal orientation changed the L route");
+
+    // This corridor has a single four-triangle graph route. Its three edge
+    // lengths are sqrt(29)/3, 5*sqrt(2)/3, sqrt(29)/3 in either direction.
+    const double graphLength = (2 * std::sqrt(29.0) + 5 * std::sqrt(2.0)) / 3;
+    require(std::abs(corner.stats.graphCost - graphLength) < 1e-11 &&
+            std::abs(reverse.stats.graphCost - graphLength) < 1e-11,
+            "default search reported the wrong reconstructed graph cost");
+    Search cornerReference(bend.mesh, Search::defaultNodeLimit, 2, true);
+    const auto reference = cornerReference.find(a, b);
+    checkPath(bend, reference, a, b);
+    require(std::abs(reference.stats.graphCost - graphLength) < 1e-11,
+            "reopening search reported the wrong reconstructed graph cost");
 }
 
 void shortestGraphAndWeighted() {
@@ -266,6 +278,44 @@ void failuresAndReset() {
     }
 }
 
+void largeMeshWithSmallBudget() {
+    // The last square's triangle IDs exceed the largest permitted record
+    // budget. IDs identify mesh geometry; they are not search-record indices.
+    const auto fixture = gridMesh({std::string(25'002, '.')});
+    const auto triangleCount = std::uint32_t(fixture.mesh.triangles().size());
+    require(triangleCount > Search::defaultNodeLimit, "large mesh fixture is too small");
+    const Point first = fixture.mesh.centroid(0), second = fixture.mesh.centroid(1);
+    const Point last = fixture.mesh.centroid(triangleCount - 1);
+    const Point beforeLast = fixture.mesh.centroid(triangleCount - 2);
+    Search search(fixture.mesh, 4);
+    auto checkLocal = [&](Point start, Point goal) {
+        const auto result = search.find(start, goal);
+        require(result.status == Status::found && result.size == 2 &&
+                result.points[0] == start && result.points[1] == goal,
+                "local route failed with mesh IDs larger than the record budget");
+        require(result.stats.storedNodes <= search.nodeLimit(),
+                "local route exceeded its record budget");
+        require(std::abs(result.stats.graphCost -
+                         std::hypot(goal.x - start.x, goal.z - start.z)) < 1e-10,
+                "local route retained stale graph cost");
+    };
+
+    allocations = 0;
+    countAllocations = true;
+    for (unsigned request = 0; request < 16; ++request) {
+        checkLocal(beforeLast, last);
+        const auto capped = search.find(first, last);
+        require(capped.status == Status::searchLimit && capped.stats.storedNodes == 4,
+                "large mesh bypassed the per-request record limit");
+        require(search.find({-1, 0}, last).status == Status::blockedEndpoint,
+                "large mesh accepted an outside endpoint");
+        checkLocal(second, first);
+        checkLocal(last, beforeLast);
+    }
+    countAllocations = false;
+    require(allocations == 0, "large-mesh requests allocated heap memory");
+}
+
 void allocationFreeRequests() {
     const auto fixture = gridMesh({"......", ".###..", "...#..", "......"});
     Search search(fixture.mesh);
@@ -294,6 +344,7 @@ int main() {
         straightAndCorners();
         shortestGraphAndWeighted();
         failuresAndReset();
+        largeMeshWithSmallBudget();
         allocationFreeRequests();
     } catch (const std::exception& error) {
         countAllocations = false;

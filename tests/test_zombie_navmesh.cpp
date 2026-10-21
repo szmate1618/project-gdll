@@ -19,6 +19,52 @@ void real(std::vector<unsigned char>& bytes, std::size_t at, double value) {
     std::memcpy(&bits,&value,8);
     integer(bytes,at,bits);
 }
+// This is the previous on-demand graph geometry, retained as a compatibility
+// oracle. Exact equality detects arithmetic changes that can reorder A* ties.
+Point uncachedCentroid(const Mesh& mesh, std::uint32_t index) {
+    const auto& triangle = mesh.triangles()[index];
+    const auto a = mesh.vertices()[triangle.vertex[0]], b = mesh.vertices()[triangle.vertex[1]], c = mesh.vertices()[triangle.vertex[2]];
+    return {a.x+(b.x-a.x)/3+(c.x-a.x)/3, a.z+(b.z-a.z)/3+(c.z-a.z)/3};
+}
+void verifyGeometryCache(const Mesh& mesh) {
+    require(mesh.geometryCacheBytes()==mesh.triangles().size()*40, "shared geometry cache memory accounting");
+    for (std::uint32_t index=0; index<mesh.triangles().size(); ++index) {
+        const auto center = uncachedCentroid(mesh,index);
+        require(mesh.centroid(index)==center, "cached centroid changed graph geometry");
+        for (unsigned edge=0; edge!=3; ++edge) {
+            const auto neighbor = mesh.triangles()[index].neighbor[edge];
+            double expected=0;
+            if (neighbor!=noTriangle) {
+                const auto next = uncachedCentroid(mesh,neighbor);
+                expected=std::hypot(center.x-next.x,center.z-next.z);
+            }
+            require(mesh.neighborDistance(index,edge)==expected, "cached neighbor cost changed graph geometry");
+        }
+    }
+}
+void cachedGeometry() {
+    const std::vector<Triangle> triangles{
+        {{0,1,2},{noTriangle,noTriangle,1}},
+        {{0,2,3},{0,noTriangle,noTriangle}}};
+    const Mesh irregular({{-6,-3},{0,-3},{0,6},{-9,3}},triangles);
+    require(irregular.centroid(0)==Point{-2,0} && irregular.centroid(1)==Point{-5,2},
+            "irregular negative-coordinate triangle centers");
+    require(irregular.neighborDistance(0,2)==std::hypot(3.,-2.) &&
+            irregular.neighborDistance(1,0)==irregular.neighborDistance(0,2),
+            "irregular triangle adjacency costs");
+    verifyGeometryCache(irregular);
+    const Mesh tiny({{-3000,-2000},{-3000+3e-9,-2000},
+                     {-3000+3e-9,-2000+6e-9},{-3000,-2000+3e-9}},triangles);
+    verifyGeometryCache(tiny);
+    require(!(tiny.centroid(0)==tiny.centroid(1)) && tiny.neighborDistance(0,2)>0,
+            "tiny triangle centers or costs collapsed");
+    require(static_cast<float>(tiny.centroid(0).x)==static_cast<float>(tiny.centroid(1).x) &&
+            static_cast<float>(tiny.centroid(0).z)==static_cast<float>(tiny.centroid(1).z),
+            "tiny geometry fixture must require double precision");
+    const Mesh empty;
+    require(empty.geometryCacheBytes()==0 && empty.locate({0,0})==noTriangle,
+            "default empty mesh cache");
+}
 void binary() {
     const auto path = std::filesystem::temp_directory_path() /
         ("navmesh-test-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
@@ -46,6 +92,7 @@ void binary() {
         write(valid);
         const auto mesh = Mesh::load(path.string());
         require(mesh.vertices().size()==4 && mesh.triangles().size()==2, "binary mesh counts");
+        verifyGeometryCache(mesh);
         require(mesh.locate({.25,.5})!=noTriangle && mesh.locate({2,2})==noTriangle, "binary mesh location");
         require(mesh.segmentClear({0,0},{1,1}) && mesh.segmentClear({.2,.8},{.8,.2}), "binary mesh segment");
         require(mesh.sourceSha256()==std::string(64,'0') && mesh.numericMargin()==.005, "binary provenance");
@@ -84,6 +131,7 @@ bool crossesBox(Point a, Point b, unsigned x, unsigned z) {
 void queries() {
     const std::set<std::pair<unsigned,unsigned>> holes{{2,2},{3,2},{4,4},{5,4},{6,4},{1,6}};
     const auto mesh = test_navmesh::squares(8,8,holes);
+    verifyGeometryCache(mesh);
     require(mesh.locate({2.5,2.5})==noTriangle && mesh.locate({-1,1})==noTriangle, "hole/outside location");
     require(mesh.locate({NAN,1})==noTriangle, "nonfinite location");
     require(mesh.segmentClear({0,0},{8,0}), "closed mesh boundary should be walkable");
@@ -103,7 +151,7 @@ void queries() {
 }
 }
 int main() try {
-    binary(); queries();
+    cachedGeometry(); binary(); queries();
     std::cout<<"Navmesh loading, point location and segment coverage tests passed\n";
     return 0;
 } catch (const std::exception& error) { std::cerr<<error.what()<<'\n'; return 1; }

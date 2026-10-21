@@ -2,17 +2,22 @@
 
 Navigation development now lives in this repository on branch
 `implement-zombie-navmesh-navigation`, created from master `4080057`.
-This ports the existing navmesh solution from experimental commit `338a293`;
-search behavior and storage are preserved. The proposed further optimizations
-are separate future work.
+The navmesh solution was ported from experimental commit `338a293` in commit
+`6dc4588`. The first three query optimizations now cache graph geometry, use
+direct triangle lookup and avoid redundant route-cost calculation. Routes,
+search decisions, clearance and collision checks are preserved.
 
-The latest tree-free experiment found **999 of 1,000 paths in 162.026 ms**
-(median of five measured batches after one warm-up). Its only rejection was a
-destination inside a padded fence. Navigation allocations totaled **21.522 MB**,
-including the full 10 MB path arena. These are historical measurements from the
-[matched comparison](ZOMBIE_PATHFINDING_NO_TREES.md), rather than new timings for
-this port. The [original navmesh report](ZOMBIE_PATHFINDING_NAVMESH_EXPERIMENT.md)
-preserves the earlier experiment with tree obstacles included.
+The optimized tree-free case finds **999 of 1,000 paths in 127.528 ms**, versus
+**186.772 ms** for a freshly rerun baseline: **31.72% less time, or 1.465× faster**.
+These are medians of ten measured crowd passes per variant. The only rejection
+is still a destination inside a padded fence. Navigation allocations total
+**26.282 MB**, including the full 10 MB path arena. See the
+[optimization benchmark](ZOMBIE_PATHFINDING_OPTIMIZATIONS.md) for timings, memory
+and exact route comparisons.
+
+The earlier [three-method comparison](ZOMBIE_PATHFINDING_NO_TREES.md) and
+[original report with trees](ZOMBIE_PATHFINDING_NAVMESH_EXPERIMENT.md) retain their
+historical measurements; their wall times are separate from this fresh comparison.
 
 The implementation is a headless library and benchmark. The viewer's existing
 live crowd behavior is unchanged; runtime crowd integration is subsequent work.
@@ -33,11 +38,20 @@ navigation. Obstacles are expanded by a 0.300 m zombie radius, 0.002 m clearance
 ordinary free space. Terrain slope, bridges, moving obstacles and changing doors
 are not represented. Trees are ignored by omitting kind `1` from the bake input.
 
-Each zombie searches independently. A preallocated generation-stamped hash
-table, indexed priority queue, records, corridor and funnel scratch are reused
-between synchronous requests. The **50,000-node cap** counts distinct stored
-triangles per request, including queued triangles. Normal requests allocate no
-memory and do not reuse another zombie's route.
+Each zombie searches independently. A preallocated generation-stamped array
+indexes search records directly by triangle ID. The lookup, indexed priority
+queue, records, corridor and funnel scratch are reused between synchronous
+requests. The **50,000-node cap** counts distinct stored triangles per request,
+including queued triangles. Normal requests allocate no memory and do not reuse
+another zombie's route.
+
+The immutable mesh caches double-precision triangle centers and neighbor graph
+distances once at load/construction, using 40 bytes per triangle shared by all
+searches. The direct lookup uses eight bytes per mesh triangle per search
+workspace; its size follows the mesh, independently of the 50,000-record cap.
+Default searches use the goal record's existing graph cost. The reopening
+reference mode still sums the reconstructed corridor because ancestor costs
+can change after descendants were processed.
 
 `PathManager` owns the zombie-ID → path-ID mapping and an exactly
 **10,000,000-byte waypoint arena**, sufficient for 625,000 double X/Z points.
@@ -132,17 +146,18 @@ Every successful path is checked against mesh coverage on every pass and padded
 source obstacles on the last pass. Tests cover geometry, binary validation,
 search/funnel behavior, bounded zero-allocation queries and arena ownership.
 
-## Port verification
+## Historical port verification (`6dc4588`)
 
-All 1,000 complete route records (including waypoint coordinates), status counts,
-search counters and memory totals exactly match the retained reference. The 14
-implementation, tool and test files are byte-identical to source commit `338a293`.
+Before the query optimizations, all 1,000 complete route records (including
+waypoint coordinates), status counts, search counters and memory totals exactly
+matched the retained reference. At port commit `6dc4588`, the 14 implementation,
+tool and test files were byte-identical to source commit `338a293`.
 
 All four focused CTest suites passed in the new checkout. Replaying the same
 1,000 requests with weight 8 produced **999 found / 1 blocked**, with a median
 batch time of **193.808 ms** across five passes (183.208–213.407 ms). The new
 run retained 696,737 stored nodes, 519,578 expansions, 379,265 corridor triangles
-and 38,629 waypoints. These match the historical search totals. The port changes
+and 38,629 waypoints. These match the historical search totals. That port changed
 no search algorithm; elapsed timings from separate runs do not establish an
 optimization speedup or regression.
 

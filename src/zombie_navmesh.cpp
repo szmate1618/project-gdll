@@ -164,6 +164,25 @@ void Mesh::validateAndIndex() {
             if (!reciprocal) throw std::invalid_argument("navmesh portal adjacency is not reciprocal");
         }
     }
+    // Keep the original double arithmetic so graph priorities and BVH ordering
+    // remain identical, including triangles much smaller than a float ULP.
+    geometry_.resize(triangles_.size());
+    for (std::size_t index = 0; index < triangles_.size(); ++index) {
+        const auto& triangle = triangles_[index];
+        const auto a = vertices_[triangle.vertex[0]], b = vertices_[triangle.vertex[1]], c = vertices_[triangle.vertex[2]];
+        geometry_[index].center = {a.x+(b.x-a.x)/3+(c.x-a.x)/3,
+                                   a.z+(b.z-a.z)/3+(c.z-a.z)/3};
+    }
+    // Every neighbor centroid must be initialized before calculating costs.
+    for (std::size_t index = 0; index < triangles_.size(); ++index) {
+        const auto center = geometry_[index].center;
+        for (unsigned edge = 0; edge != 3; ++edge) {
+            const auto neighbor = triangles_[index].neighbor[edge];
+            if (neighbor == noTriangle) continue;
+            const auto next = geometry_[neighbor].center;
+            geometry_[index].neighborDistances[edge] = std::hypot(center.x-next.x, center.z-next.z);
+        }
+    }
     order_.resize(triangles_.size());
     std::iota(order_.begin(), order_.end(), 0u);
     nodes_.clear();
@@ -173,12 +192,6 @@ void Mesh::validateAndIndex() {
     while (leafCapacity < (triangles_.size()+15)/16) leafCapacity *= 2;
     nodes_.reserve(leafCapacity*2-1);
     build(0, static_cast<std::uint32_t>(triangles_.size()));
-}
-
-Point Mesh::centroid(std::uint32_t index) const {
-    const auto& triangle = triangles_[index];
-    const auto a = vertices_[triangle.vertex[0]], b = vertices_[triangle.vertex[1]], c = vertices_[triangle.vertex[2]];
-    return {a.x+(b.x-a.x)/3+(c.x-a.x)/3, a.z+(b.z-a.z)/3+(c.z-a.z)/3};
 }
 
 std::uint32_t Mesh::build(std::uint32_t first, std::uint32_t count) {
@@ -253,6 +266,7 @@ bool Mesh::segmentClear(Point a, Point b, std::uint64_t* tests) const {
 }
 
 std::size_t Mesh::meshBytes() const { return vertices_.capacity()*sizeof(Point)+triangles_.capacity()*sizeof(Triangle); }
+std::size_t Mesh::geometryCacheBytes() const { return geometry_.capacity()*sizeof(Geometry); }
 std::size_t Mesh::indexBytes() const { return order_.capacity()*sizeof(std::uint32_t)+nodes_.capacity()*sizeof(Node); }
 
 } // namespace viewer::navmesh_path

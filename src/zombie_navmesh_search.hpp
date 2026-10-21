@@ -19,8 +19,8 @@ struct Result {
     Stats stats{};
 };
 // Independent synchronous requests. The mesh must outlive this object.
-// Search records, generation hash, indexed heap, corridor and funnel output
-// scratch are allocated once. find() must not allocate dynamically.
+// Search records, generation-stamped triangle lookup, indexed heap and
+// corridor/funnel scratch are allocated once. find() must not allocate.
 // Default weighted searches expand each triangle once for fast approximate
 // routes. The reference option permits reopening closed triangles on improvement.
 class Search {
