@@ -89,6 +89,24 @@ GPU clock, temperature and background load can still introduce variation.
 Recorded example: [Radeon 660M, 2026-10-20](benchmarks/zombies-open-100k-2026-10-20.txt).
 This is a dated example, not a performance threshold for other machines.
 
+## Interpreting GPU time under CPU load
+
+On the tested Radeon 660M integrated GPU, heavy CPU simulation increased GPU
+elapsed time for unchanged rendering. A matched 1,600-zombie scenario measured
+4.16 ms with movement frozen and 14.58 ms with movement running; final captures
+were pixel-identical. Artificial CPU computation reproduced much of the increase,
+while an equal-length sleep had a substantially smaller effect. Independent GPU
+timestamps confirmed it. See the [controlled results and diagnostic protocol](benchmarks/cpu-gpu-overlap-2026-10-22.txt).
+
+For gameplay comparisons, keep CPU workload and CPU/GPU overlap comparable as
+well as camera, geometry and render settings. GPU elapsed time includes stalls
+and reflects clock/scheduling conditions; it does not establish increased shader
+or animation work. A CPU optimization can change GPU timings indirectly. This
+effect was measured on one hardware/driver combination; shared power/clock
+behavior is a hypothesis, not an isolated root cause or a universal GPU rule.
+Use asynchronous timing in production. Completion waits and frozen simulation
+are diagnostic controls that change the workload, not proposed performance fixes.
+
 ## Other tracked benchmark programs
 
 | Case | Source / target | Output |

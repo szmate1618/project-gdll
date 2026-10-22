@@ -18,7 +18,7 @@ Use this guide as a navigation aid; read the relevant code for current behavior.
 | Work area | Start here |
 | --- | --- |
 | Suggested optimization backlog | [tasks/suggested-optimizations.md](tasks/suggested-optimizations.md) |
-| Standard benchmarks and reports | [docs/BENCHMARKS.md](docs/BENCHMARKS.md), `tests/benchmark_*.cpp`, `src/frame_profile.hpp/.cpp`, `tools/summarize_render_benchmark.py`; rendering comparisons include the 100,000-zombie open-area case |
+| Standard benchmarks and reports | [docs/BENCHMARKS.md](docs/BENCHMARKS.md), [CPU-load-dependent GPU timing on integrated hardware](docs/benchmarks/cpu-gpu-overlap-2026-10-22.txt), `tests/benchmark_*.cpp`, `src/frame_profile.hpp/.cpp`, `tools/summarize_render_benchmark.py`; rendering comparisons include the 100,000-zombie open-area case |
 | Known correctness tasks | [tasks/review-follow-ups.md](tasks/review-follow-ups.md) |
 | Setup, generator usage, geography | [README.md](README.md), `config.json`, `src/config.py` |
 | Downloads and map publication | `src/data.py`, `src/generate.py`, `src/fence_scene_update.py`, `src/glb.py`, `src/verify.py` |

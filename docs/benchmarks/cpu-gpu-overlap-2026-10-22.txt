@@ -1,0 +1,159 @@
+CPU-load-dependent GPU elapsed time: controlled scenario investigation
+Recorded 2026-10-22; measured source revision bb0f7fb.
+
+Finding and scope
+Heavy CPU work increased GPU elapsed time for the same rendered scene on an AMD
+Radeon 660M integrated GPU. Independent GPU timestamps confirmed the effect;
+unchanged draw counts and pixel-identical final captures excluded additional
+visible geometry as the explanation for these controlled runs. Freezing scenario
+movement removed most of the increase. Artificial CPU computation reproduced
+much of it with movement still frozen; sleeping for the same duration did not.
+
+This establishes a CPU-load-dependent rendering slowdown on the tested system.
+It does not isolate a driver defect or prove a specific power-management cause.
+Shared CPU/GPU power and clock behavior is a likely contributor; effects from
+driver scheduling and shared memory were not separated. Do not generalize these
+numbers to all integrated GPUs, discrete GPUs, drivers or power profiles.
+
+Hardware and method
+- AMD Radeon 660M, radeonsi/rembrandt, LLVM 19.1.1, DRM 3.61.
+- Mesa 24.2.8-1ubuntu1~24.10.1, OpenGL 4.6 Core, Linux 6.11.0-29-generic.
+- Existing local map/assets and scenarios/test-horde/scenario.toml: 1,600 actors.
+- Hardware rendering, sequential runs, hidden 1280x720 window, audio disabled.
+- Frozen lighting at hour 12.3; normal render settings and zombie LOD retained.
+- Fixed street camera for this map only: spawn X=-526.465, Z=296.095 meters;
+  yaw=-90, pitch=0. Do not reuse these coordinates blindly for another map/frame.
+- Each case: 480 frames, discard the first 60; report the remaining 420 frames.
+- Whole-frame GL_TIME_ELAPSED plus independent GL_TIMESTAMP pairs and per-pass
+  timestamps, collected asynchronously. End-of-run draining outside measurements.
+- One run per control, not repeated alternating rounds or a portable threshold.
+- GPU clock states sampled read-only every 100 ms. Hardware settings unchanged.
+
+Whole-frame results
+Values in ms; GPU and CPU columns overlap and must not be added together.
+Case                       GPU median  GPU p95  CPU render median  CPU sim median
+Scenario movement frozen        4.163    5.268              4.583           0.044
+Scenario moving normally       14.579   28.647              4.129          21.257
+Moving, GPU completion wait      7.291   15.846              4.325          21.807
+Frozen, 25 ms CPU computation   10.368   28.258              4.178          25.091
+Frozen, 25 ms sleep              5.262    6.657              6.421          25.273
+
+The completion-wait control calls glFinish after the measured render interval
+and before the following simulation step. Its wait is outside the reported CPU
+columns; these columns do not describe total frame cost or an FPS improvement.
+Both the artificial computation and sleep run before rendering, outside its
+timers, and are included in CPU simulation time. The computation repeatedly
+updates a volatile scalar; it does not perform scenario navigation or animation.
+
+Per-pass GPU medians, ms
+Case                         Sun shadow     Town  Vegetation  Zombie camera
+Scenario movement frozen          1.013    2.323       0.563          0.000
+Scenario moving normally          3.006    8.397       2.048          0.000
+Moving, GPU completion wait       1.845    4.349       0.696          0.000
+Frozen, 25 ms CPU computation     2.095    6.223       1.238          0.000
+Frozen, 25 ms sleep               1.703    2.585       0.579          0.000
+
+Phase medians need not sum to the whole-frame median; setup, overlays and other
+draws are omitted from this compact table. Zero at displayed precision does not
+mean an API call or empty pass has literally no cost.
+
+All five cases had identical final screenshots and these same rendering counts:
+- Town: 9,185/59,640 instances, 1,007 calls.
+- Trees: 11,246/181,924 instances; 51 forest volumes.
+- Zombies: zero camera-visible instances, 110 sun-shadow triangles,
+  zero flashlight triangles. Small shadow animation work remains present.
+Final capture equality is not a claim that every intermediate frame or unseen
+zombie pose was identical.
+
+An earlier uninstrumented viewer comparison reproduced about 4.5 ms without a
+scenario and intervals near 18-19 ms with a scenario at a separate fixed camera.
+Do not compare those interval averages directly with the street-camera medians.
+The controlled street view above was visually inspected and shows the town,
+trees and fences, rather than only a foreground wall.
+
+Interpretation for future agents
+1. GPU elapsed queries measure time between command-completion points, including
+   intervening stalls. They are not active-GPU-utilization or instruction counts.
+   The observed increase is real elapsed time; agreement between independent
+   query methods does not identify its hardware cause.
+2. The increase spans town, vegetation and shadow passes. It cannot be assigned
+   to zombie vertex animation from the population count or GPU headline alone.
+3. Frequent sampled clock states of 200-533 MHz accompanied scenario/CPU-load
+   runs; the frozen fast-rendering control reached 1,899 MHz more frequently.
+   Samples include idle periods and cannot establish clocks during each draw,
+   prove thermal throttling, or isolate shared power limits.
+4. Freezing movement preserves population/assets but changes the CPU workload.
+   Rendering-only benchmarks cannot predict full gameplay cost on this system.
+   Conversely, reducing CPU work can improve GPU timings indirectly without a
+   shader or geometry change. Hold simulation workload and overlap comparable.
+5. Do not subtract CPU simulation time from the GPU query result, sum CPU and
+   GPU times for frame duration, or add production glFinish calls as a remedy.
+   Serialization changes overlap, scheduling and clocks; its faster GPU number
+   alone does not establish better end-to-end FPS.
+6. Investigate GPU regressions with matched camera, lighting, render counts,
+   simulation workload and hardware state, then compare frozen, CPU-busy, sleep
+   and serialized controls if needed. Repeat paired rounds for optimization
+   claims; retain normal-overlap end-to-end frame/FPS measurements separately.
+
+Animation and profiler semantics
+Normal clips use pre-baked per-frame vertex positions/normals in GPU texture
+buffers. shaders/basic.vert selects/interpolates them during camera/shadow draws.
+Actors culled from all passes incur no vertex animation. Ragdolls have a separate
+live-skinning path. CPU movement, collision, clip selection and animation clocks
+remain CPU work; GPU animation does not imply GPU navigation or behavior.
+
+The behavior timer includes scenario travel. The old "active zombies" counter
+counted nearby behavior-pool entries, not route followers; the current label is
+"behavior pool entries". Scenario routes continue outside activation range and
+camera visibility. "Incremental" render preparation can still update nearly all
+actors. Initial paths are preplanned at scenario load in this source revision;
+their per-frame following and movement checks still cost CPU time.
+
+Reproduction and retained local evidence
+The investigation used scratch copies of viewer sources linked against existing
+CMake libraries; it did not change production code or replace godollo_viewer.
+These diagnostic executables, environment switches and scripts are NOT tracked
+benchmark APIs and may be absent in another checkout. The tables and protocol
+in this report remain usable when those ignored artifacts are unavailable.
+
+Local artifacts under build/:
+- gpu-investigation.txt: original summary.
+- run_gpu_diagnostics.py: case runner and clock sampler.
+- gpu_diagnostic_main*.cpp, gpu_diagnostic_renderer.cpp, gpu_pass_probe.hpp:
+  copied-source instrumentation and GPU phase timestamps.
+- gpu_timing_probe.cpp: separate minimal clear-only elapsed/timestamp control.
+- gpu-diagnostic-CASE.log, .csv, .csv.passes.csv, -clocks.csv, .ppm and .png:
+  raw results and captures for the case names below.
+
+Case names:
+scenario-freeze-open-passes
+scenario-open-passes
+scenario-open-passes-serial
+scenario-freeze-busy-open-passes
+scenario-freeze-delay-open-passes
+
+When local scratch executables exist:
+  .venv/bin/python build/run_gpu_diagnostics.py CASE
+
+To recreate the experiment on another checkout, instrument a focused harness:
+- Load one identical scenario, scene and fixed camera for all cases. Freeze only
+  updateBehavior for frozen controls, retaining assets, normal rendering and
+  physical scene setup. Record actual draw/triangle counts and captures.
+- Compare normal updates, frozen updates, frozen plus 25 ms scalar computation,
+  frozen plus 25 ms sleep, and normal updates plus completion after rendering.
+- Place artificial work outside render timers. Retain asynchronous whole-frame
+  and per-pass GPU timestamps; record CPU render/simulation separately. Keep the
+  optional completion wait outside timed rendering and report its FPS impact.
+- Use 480 frames per case, discard 60, compare the remaining 420. Save GPU/driver,
+  assets/settings, camera, power state and source revision with each new run.
+- Select the actual GPU device for optional read-only clock monitoring; do not
+  assume the original machine's sysfs card number exists on another system.
+- Preserve the configured map, assets and hardware settings. Keep raw output in
+  ignored build/benchmarks/ directories. Use useful captures and repeat rounds
+  before making an optimization claim.
+
+Primary references
+OpenGL query semantics:
+https://github.com/KhronosGroup/OpenGL-Registry/blob/main/extensions/ARB/ARB_timer_query.txt
+AMD GPU power/clock monitoring:
+https://kernel.org/doc/html/latest/gpu/amdgpu/thermal.html

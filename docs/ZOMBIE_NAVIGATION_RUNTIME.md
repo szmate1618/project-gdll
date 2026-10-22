@@ -196,6 +196,13 @@ navigation work rather than additional Detour sampler settings.
 
 ## Validation
 
+When profiling scenarios, distinguish nearby behavior-pool entries from actors
+following scenario routes: travel continues outside player activation range and
+camera visibility. On tested integrated hardware, its CPU load also increased GPU
+elapsed time for unchanged rendering. Read the [GPU timing caveat](BENCHMARKS.md#interpreting-gpu-time-under-cpu-load)
+and linked controlled report before attributing that increase to GPU animation,
+additional geometry or per-frame path searches.
+
 Focused tests cover config validation, meter/WGS84 axes, safe random spawning,
 preplanned route storage, autonomous following without runtime searches,
 one-way perception takeover and ordinary behavior isolation. Existing movement,
