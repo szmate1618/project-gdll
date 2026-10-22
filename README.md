@@ -135,8 +135,9 @@ error whenever the authoritative navigation subsystem is initialized.
 ```
 
 Ordinary zombies use navigation for chase and investigation goals. To create
-1,000 zombies with random spawns and destinations and calculate their paths
-before simulation starts, load the included TOML scenario:
+1,000 zombies with mapwide random spawns and destinations plus a 600-zombie
+horde traveling from the southeast corner to the northwest, load the included
+TOML scenario. All 1,600 paths are calculated before simulation starts:
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --scenario scenarios/test-horde/scenario.toml

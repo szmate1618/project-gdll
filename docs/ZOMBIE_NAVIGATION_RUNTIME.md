@@ -44,14 +44,18 @@ multiple named hordes:
 version = 2
 seed = 42
 
+[zombies.roamers]
+count = 1000
+
 [zombies.crossing_horde]
 count = 600
-spawn = [-500.0, -300.0, -100.0, 300.0]
-destination = [100.0, -300.0, 500.0, 300.0]
-
-[zombies.roamers]
-count = 400
+spawn = [2400.0, 2400.0, 2900.0, 2900.0]
+destination = [-2900.0, -2900.0, -2400.0, -2400.0]
 ```
+
+This example has 1,000 zombies with mapwide random spawns and destinations,
+plus 600 traveling from the lower-right (southeast) corner to the upper-left
+(northwest) corner of the current roughly 6 km map, for 1,600 zombies total.
 
 Each `[zombies.NAME]` table requires its own `count`. Spawn and destination are
 independently optional flat rectangle arrays. Omitting either allows random
@@ -116,7 +120,7 @@ ordinary terrain, door, tree and crowd constraints. Global connectivity does not
 passage through dense trees or steep terrain, which remain outside the mesh.
 
 The multiplayer client uses ordinary matching scene settings, including
-`--zombie-count 1000` for this example (the sum of all horde counts); only the
+`--zombie-count 1600` for this example (the sum of all horde counts); only the
 server receives `--scenario`. The server sends
 positions through existing snapshots. Client sources and the protocol are
 unchanged. Small synthetic maps under 100 meters retain the client's existing
