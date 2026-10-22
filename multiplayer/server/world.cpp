@@ -9,13 +9,19 @@ namespace multiplayer {
 ServerPlayer::ServerPlayer(const viewer::Weapons& initialWeapons) : weapons(initialWeapons) {
     held.slot = static_cast<std::uint8_t>(weapons.slot());
 }
-World::World(Scene& scene) : World(scene, {}) {}
+namespace {
+std::filesystem::path adjacentNavmesh(const Scene& scene) {
+    auto path = scene.mapPath;
+    return path.replace_extension(".navmesh");
+}
+}
+World::World(Scene& scene) : World(scene, adjacentNavmesh(scene)) {}
 World::World(Scene& scene, const std::filesystem::path& navmesh) : scene_(scene),
     physicsScene_(scene.physics, *scene.collision, scene.model.boundsMin, scene.model.boundsMax),
     interiors_(scene.model, *scene.doors, 1), zombieDoors_(scene.physics) {
     viewer::SimulationClock::instance().reset();
     scene.zombies.attachPhysics(scene.physics);
-    if (!navmesh.empty()) scene.zombies.enableNavigation(navmesh);
+    if (!scene.zombies.navigation()) scene.zombies.enableNavigation(navmesh);
 }
 std::uint32_t World::join() {
     if (players_.size() >= maxPlayers || nextPlayer_ == 0) throw std::runtime_error("Server full");

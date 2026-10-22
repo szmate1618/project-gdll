@@ -15,6 +15,7 @@ output/**
 
 # Large binary assets, including copies outside data/ and output/
 *.glb
+/assets/test.navmesh
 *.bin
 *.blend
 *.blend1

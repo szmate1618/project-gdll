@@ -16,7 +16,7 @@ struct ZombieNavigationStats {
     std::uint64_t trunkOverflows = 0, meshRejectedCandidates = 0, blockedUpdates = 0;
 };
 
-// Optional authoritative runtime navigation. Construction allocates the mesh,
+// Authoritative runtime navigation. Construction allocates the mesh,
 // one independent-search workspace, exactly10MB of path points and per-ID state.
 // Configure only in standalone/server owners; replicated clients never enable it.
 // All IDs are original ZombieLayer instance indices. The layer/population must
@@ -30,6 +30,9 @@ public:
     ZombieNavigation(const ZombieNavigation&) = delete;
     ZombieNavigation& operator=(const ZombieNavigation&) = delete;
 
+    // Calculate and retain an actual route now, without waiting for the first
+    // simulation step. Returns false for invalid endpoints or a failed search.
+    bool plan(std::size_t id, glm::vec3 feet, glm::vec3 goal);
     // Does not move a body. Invalid/uncovered/disconnected endpoints, failed
     // searches and overflowing local trunk queries stop instead of direct chase.
     glm::vec2 desiredVelocity(std::size_t id, glm::vec3 feet, glm::vec3 goal,

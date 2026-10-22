@@ -29,7 +29,8 @@ file(MAKE_DIRECTORY "${package}/assets" "${package}/multiplayer/client" "${packa
 file(COPY "${client}" DESTINATION "${package}")
 file(COPY "${source_root}/shaders" "${source_root}/items" "${source_root}/credits" DESTINATION "${package}")
 file(COPY "${source_root}/inventory.toml" DESTINATION "${package}")
-file(COPY "${source_root}/assets/test.glb" DESTINATION "${package}/assets")
+file(COPY "${source_root}/assets/test.glb" "${source_root}/assets/test.navmesh"
+    DESTINATION "${package}/assets")
 foreach(weapon pistol submachine_gun shotgun sniper he_grenade)
     file(COPY "${BUILD_DIR}/assets/weapons/${weapon}.glb" DESTINATION "${package}/assets/weapons")
 endforeach()

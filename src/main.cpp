@@ -19,6 +19,7 @@
 #include "vegetation_selection.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_navigation.hpp"
+#include "zombie_scenario.hpp"
 #include "zombie_door_collision.hpp"
 #include "zombie_park.hpp"
 #include "simulation_clock.hpp"
@@ -48,7 +49,7 @@ struct Options {
     std::filesystem::path poles;
     std::filesystem::path guardrails;
     std::filesystem::path zombies;
-    std::filesystem::path zombieNavmesh;
+    std::filesystem::path scenario;
     int frames = 0;
     bool hidden = false, allowSoftware = false, selfTest = false, help = false;
     bool fps = false, collisionDebug = false, selfTestFPS = false;
@@ -184,7 +185,12 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--no-town-culling") options.sceneCulling = false;
         else if (argument == "--no-tree-collisions") options.treeCollisions = false;
         else if (argument == "--zombies") { options.zombies = value(); options.explicitZombies = true; }
-        else if (argument == "--zombie-navmesh") options.zombieNavmesh = value();
+        else if (argument == "--scenario") {
+            if (!options.scenario.empty()) throw std::runtime_error("Repeated --scenario option");
+            options.scenario = value();
+            if (options.scenario.empty() || options.scenario.string().rfind("--", 0) == 0)
+                throw std::runtime_error("--scenario requires a scenario filename");
+        }
         else if (argument == "--no-zombies") options.noZombies = true;
         else if (argument == "--zombie-view") { options.zombieView = true; options.explicitZombies = true; }
         else if (argument == "--zombie-count") {
@@ -252,6 +258,8 @@ Options parseOptions(int argc, char** argv) {
         throw std::runtime_error("Use either --guardrails FILE or --no-guardrails");
     if (options.noZombies && options.explicitZombies)
         throw std::runtime_error("Use zombie options or --no-zombies, not both");
+    if (options.noZombies && !options.scenario.empty())
+        throw std::runtime_error("--scenario requires zombies; omit --no-zombies");
     if (options.zombieView && options.fps)
         throw std::runtime_error("--zombie-view uses a free-fly overview; omit --fps/--spawn");
     if (options.night && options.explicitDayNight)
@@ -314,7 +322,7 @@ void printHelp() {
               << "  --no-town-culling   Render all town draw instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
               << "  --zombies PATH      Load individual animated GLB/glTF files from PATH\n"
-              << "  --zombie-navmesh FILE Enable custom navmesh paths and basic Detour trunk avoidance\n"
+              << "  --scenario FILE     Load zombie spawns and preplanned destinations from TOML\n"
               << "  --zombie-count N    Number of zombies (default 300 in palace gardens, otherwise 1000)\n"
               << "  --zombie-radius M   Use radial placement near spawn/map center (default 100 m)\n"
               << "  --zombie-view       Start with the camera framing the crowd\n"
@@ -940,9 +948,17 @@ int run(const Options& options) {
               << collisionStats.buildings << " buildings, " << collisionStats.bvhNodes << " BVH nodes, "
               << collisionStats.trunks << " tree trunks\n";
     std::optional<viewer::ZombieLayer> zombies;
+    auto navmesh = options.model;
+    navmesh.replace_extension(".navmesh");
     const auto extent = model.boundsMax - model.boundsMin;
     const bool townSizedTerrain = collisionStats.terrainTriangles != 0 && extent.x >= 100 && extent.z >= 100;
-    if (!options.noZombies && (options.explicitZombies || townSizedTerrain)) {
+    if (!options.scenario.empty()) {
+        const auto scenario = viewer::loadZombieScenarioConfig(options.scenario);
+        const auto path = options.zombies.empty() ? std::filesystem::path(VIEWER_ZOMBIE_ASSETS) : options.zombies;
+        zombies = viewer::loadZombieScenario(path, collision, model, navmesh, scenario);
+        std::cout << "Scenario: " << options.scenario << "; " << zombies->instances.size()
+                  << " zombies with preplanned random destinations\n";
+    } else if (!options.noZombies && (options.explicitZombies || townSizedTerrain)) {
         const auto path = options.zombies.empty() ? std::filesystem::path(VIEWER_ZOMBIE_ASSETS) : options.zombies;
         if (options.explicitZombies || viewer::hasZombieModels(path)) {
             const auto middle = (model.boundsMin + model.boundsMax) * .5f;
@@ -960,17 +976,13 @@ int run(const Options& options) {
     if (zombies) {
         zombies->attachPhysics(physics);
         zombies->setPerceptionStaggering(options.zombiePerceptionStaggering);
-        if (!options.zombieNavmesh.empty()) {
-            zombies->enableNavigation(options.zombieNavmesh);
-            const auto& navigation = *zombies->navigation();
-            std::cout << "Zombie navigation: " << options.zombieNavmesh
-                      << "; g+8h, 50000 nodes, " << navigation.pathArenaBytes() << " path bytes"
-                      << "; cache SHA256 " << navigation.meshSha256()
-                      << "; embedded replay SHA256 " << navigation.sourceSha256() << '\n';
-        }
+        if (!zombies->navigation()) zombies->enableNavigation(navmesh);
+        const auto& navigation = *zombies->navigation();
+        std::cout << "Zombie navigation: " << navmesh
+                  << "; g+8h, 50000 nodes, " << navigation.pathArenaBytes() << " path bytes"
+                  << "; cache SHA256 " << navigation.meshSha256()
+                  << "; embedded replay SHA256 " << navigation.sourceSha256() << '\n';
     }
-    if (!options.zombieNavmesh.empty() && !zombies)
-        throw std::runtime_error("--zombie-navmesh requires a loaded zombie population");
     GLFWLifetime lifetime;
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);

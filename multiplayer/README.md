@@ -11,7 +11,7 @@ Use the existing viewer dependencies, plus protobuf headers and its compiler.
 On Debian/Ubuntu:
 
 ```sh
-sudo apt install libssl-dev libprotobuf-dev protobuf-compiler
+sudo apt install libssl-dev libproj-dev libprotobuf-dev protobuf-compiler
 cmake -S . -B build -DGD_MULTIPLAYER=ON
 cmake --build build -j4
 ```
@@ -29,6 +29,19 @@ cmake --build build-server -j4
 
 This also builds a headless client for network checks. Existing viewer graphics
 tests are excluded in this configuration; multiplayer tests still run.
+
+The server always loads the `.navmesh` beside its `.glb` map. For the included
+horde scenario:
+
+```sh
+./build/multiplayer/godollo_server output/godollo.glb --scenario scenarios/test-horde/scenario.toml
+./build/multiplayer/godollo_client output/godollo.glb --zombie-count 1000
+```
+
+The server calculates all scenario routes during startup and advances them even
+without connected players. Clients receive positions through existing snapshots
+and do not need a navmesh or scenario file. See the [scenario configuration](../docs/ZOMBIE_NAVIGATION_RUNTIME.md#test-horde-scenario)
+for meter/WGS84 rectangles and destination behavior.
 
 ## Linux client package
 

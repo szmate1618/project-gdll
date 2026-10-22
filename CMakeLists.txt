@@ -29,6 +29,7 @@ if(GD_VIEWER)
     endif()
 endif()
 find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+find_package(PROJ CONFIG REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # X11 also works in Wayland sessions through XWayland. Native Wayland support
@@ -134,6 +135,11 @@ target_include_directories(viewer_model PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src"
 target_include_directories(viewer_model SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 target_link_libraries(viewer_model PUBLIC glm::glm)
 viewer_warnings(viewer_model)
+
+add_library(viewer_scenario_config STATIC src/zombie_scenario_config.cpp src/scenario_coordinates.cpp)
+target_include_directories(viewer_scenario_config PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(viewer_scenario_config PUBLIC glm::glm PRIVATE tomlplusplus::tomlplusplus PROJ::proj)
+viewer_warnings(viewer_scenario_config)
 
 add_library(viewer_visibility STATIC src/visibility.cpp src/model_visibility.cpp)
 target_link_libraries(viewer_visibility PUBLIC viewer_model)
@@ -281,9 +287,9 @@ viewer_warnings(viewer_forests)
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp
     src/zombie_layer.cpp src/zombie_lod.cpp src/zombie_lod_assets.cpp src/zombie_hit.cpp src/zombie_shooting.cpp src/zombie_chase.cpp src/zombie_attack.cpp src/zombie_behavior.cpp src/zombie_animation.cpp
     src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp src/zombie_spatial_index.cpp src/zombie_crowd.cpp src/zombie_movement.cpp src/zombie_door_collision.cpp src/zombie_perception.cpp src/zombie_render_updates.cpp
-    src/zombie_navigation.cpp)
+    src/zombie_navigation.cpp src/zombie_scenario.cpp)
 target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise viewer_physics viewer_fingerprints
-    viewer_zombie_steering)
+    viewer_zombie_steering viewer_scenario_config)
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_zombies)
 
@@ -305,8 +311,9 @@ target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics)
 viewer_warnings(viewer_objects)
 
 set(VIEWER_TEST_ASSET "${CMAKE_CURRENT_SOURCE_DIR}/assets/test.glb")
+set(VIEWER_TEST_NAVMESH "${CMAKE_CURRENT_SOURCE_DIR}/assets/test.navmesh")
 add_custom_command(
-    OUTPUT "${VIEWER_TEST_ASSET}"
+    OUTPUT "${VIEWER_TEST_ASSET}" "${VIEWER_TEST_NAVMESH}"
     COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/tools/create_test_asset.py"
         --output "${VIEWER_TEST_ASSET}"
@@ -314,7 +321,7 @@ add_custom_command(
     COMMENT "Generating the small textured GLB test scene"
     VERBATIM
 )
-add_custom_target(viewer_test_asset DEPENDS "${VIEWER_TEST_ASSET}")
+add_custom_target(viewer_test_asset DEPENDS "${VIEWER_TEST_ASSET}" "${VIEWER_TEST_NAVMESH}")
 
 set(VIEWER_WEAPON_ASSETS "${CMAKE_CURRENT_BINARY_DIR}/assets/weapons")
 set(VIEWER_WEAPON_MODELS)
@@ -412,6 +419,14 @@ if(BUILD_TESTING)
     target_link_libraries(test_zombie_navigation PRIVATE viewer_zombies)
     viewer_warnings(test_zombie_navigation)
     add_test(NAME viewer_zombie_navigation COMMAND test_zombie_navigation)
+    add_executable(test_zombie_scenario_config tests/test_zombie_scenario_config.cpp)
+    target_link_libraries(test_zombie_scenario_config PRIVATE viewer_scenario_config)
+    viewer_warnings(test_zombie_scenario_config)
+    add_test(NAME viewer_zombie_scenario_config COMMAND test_zombie_scenario_config)
+    add_executable(test_zombie_scenario tests/test_zombie_scenario.cpp)
+    target_link_libraries(test_zombie_scenario PRIVATE viewer_zombies)
+    viewer_warnings(test_zombie_scenario)
+    add_test(NAME viewer_zombie_scenario COMMAND test_zombie_scenario)
 endif()
 
 if(BUILD_TESTING AND GD_VIEWER)

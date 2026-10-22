@@ -4,11 +4,11 @@
 
 namespace multiplayer {
 
-// Server-owned navigation is deliberately absent from the shared scene options
-// and content handshake. Clients receive authoritative poses, never routes.
+// Scenario loading is authoritative. Clients receive poses, never scenario
+// definitions or navigation routes.
 struct ServerOptions {
     Options scene;
-    std::filesystem::path navmesh;
+    std::filesystem::path scenario;
 };
 
 ServerOptions parseServerOptions(int argc, char** argv);

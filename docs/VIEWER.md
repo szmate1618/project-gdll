@@ -17,7 +17,7 @@ disable playback while retaining simulation hearing.
 ## Linux dependencies
 
 Install a C++17 compiler, CMake 3.20 or newer, Python 3, OpenGL development
-headers/libraries, OpenSSL development headers, and X11 development packages. A GPU driver supporting OpenGL
+headers/libraries, OpenSSL and PROJ development headers, and X11 development packages. A GPU driver supporting OpenGL
 3.3 and a working desktop display are required for normal interactive use.
 Python is used only to generate the tiny test asset; no Python packages or
 generator dependencies are needed to build the viewer.
@@ -26,14 +26,14 @@ Ubuntu / Debian:
 
 ```bash
 sudo apt install build-essential cmake python3 pkg-config libgl1-mesa-dev \
-  libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libssl-dev
+  libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libssl-dev libproj-dev
 ```
 
 Fedora:
 
 ```bash
 sudo dnf install gcc-c++ cmake python3 pkgconf-pkg-config mesa-libGL-devel \
-  libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel openssl-devel
+  libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel openssl-devel proj-devel
 ```
 
 CMake downloads pinned versions of [GLFW 3.4](https://github.com/glfw/glfw/releases/tag/3.4),

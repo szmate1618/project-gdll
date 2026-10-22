@@ -70,6 +70,37 @@ ZombieNavigation::ZombieNavigation(const std::filesystem::path& path,std::size_t
 }
 ZombieNavigation::~ZombieNavigation()=default;
 
+bool ZombieNavigation::plan(std::size_t id,glm::vec3 feet,glm::vec3 target) {
+    auto& p=*impl_;
+    if (id>=p.states.size()) throw std::out_of_range("Invalid zombie navigation ID");
+    auto& s=p.states[id];
+    s.attempted=true;s.sincePlan=0;s.stuck=0;s.follow={};
+    if (!finite(feet) || !finite(target)) {
+        p.release(id);
+        p.status=navmesh_path::Status::blockedEndpoint;
+        return false;
+    }
+    const auto position=horizontal(feet),goal=horizontal(target);
+    s.plannedGoal=goal;s.anchor=position;s.lastPosition=position;s.recorded=true;
+    const auto startPolygon=p.mesh.locate(point(position)),goalPolygon=p.mesh.locate(point(goal));
+    if (startPolygon==navmesh_path::noPolygon || goalPolygon==navmesh_path::noPolygon) {
+        p.release(id);
+        p.status=navmesh_path::Status::blockedEndpoint;
+        return false;
+    }
+    if (p.mesh.component(startPolygon)!=p.mesh.component(goalPolygon)) {
+        p.release(id);
+        p.status=navmesh_path::Status::noPath;
+        return false;
+    }
+    ++p.stats.requests;
+    s.hasPlan=p.paths.request(id,point(position),point(goal))!=navmesh_path::invalidPath;
+    p.status=p.paths.lastStatus();
+    if (s.hasPlan) ++p.stats.foundPaths;
+    else { ++p.stats.failedPaths;p.release(id); }
+    return s.hasPlan;
+}
+
 glm::vec2 ZombieNavigation::desiredVelocity(std::size_t id,glm::vec3 feet,glm::vec3 target,
                                            float speed,float dt,const CollisionWorld& world) {
     auto& p=*impl_;
@@ -95,13 +126,7 @@ glm::vec2 ZombieNavigation::desiredVelocity(std::size_t id,glm::vec3 feet,glm::v
     const bool changed=glm::length(goal-s.plannedGoal)>=1.f;
     if (!s.attempted || (s.hasPlan && ((changed && s.sincePlan>=.5f) || s.stuck>=1.f)) ||
         (!s.hasPlan && s.sincePlan>=1.f)) {
-        ++p.stats.requests;
-        const auto result=p.paths.request(id,point(position),point(goal));
-        p.status=p.paths.lastStatus();
-        s.attempted=true;s.sincePlan=0;s.stuck=0;s.plannedGoal=goal;s.anchor=position;s.follow={};
-        s.hasPlan=result!=navmesh_path::invalidPath;
-        if (s.hasPlan) ++p.stats.foundPaths;
-        else { ++p.stats.failedPaths;p.release(id); }
+        plan(id,feet,target);
     }
     if (!s.hasPlan) return {0,0};
     const auto path=p.paths.view(p.paths.pathFor(id));

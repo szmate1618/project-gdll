@@ -128,7 +128,8 @@ viewer::Model loadSessionMap(const std::filesystem::path& path) {
     return viewer::loadModel(path);
 }
 }
-Scene::Scene(const Options& o) : model(loadSessionMap(o.map)), physics(std::make_shared<viewer::PhysicsWorld>()),
+Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader) :
+    mapPath(o.map), model(loadSessionMap(o.map)), physics(std::make_shared<viewer::PhysicsWorld>()),
     initialWeapons(resourceRoot() / "items", resourceRoot() / "inventory.toml") {
     std::vector<std::filesystem::path> content{o.map};
     const auto adjacent = [&](const char* name) { return o.map.parent_path() / name; };
@@ -178,12 +179,15 @@ Scene::Scene(const Options& o) : model(loadSessionMap(o.map)), physics(std::make
         throw std::runtime_error("No safe spawn near requested location");
     spawnEye = player.eyePosition();
     const auto extent = model.boundsMax - model.boundsMin;
-    const std::size_t count = extent.x >= 100 && extent.z >= 100 ? o.zombieCount : 0;
+    const std::size_t count = populationLoader || (extent.x >= 100 && extent.z >= 100) ? o.zombieCount : 0;
     if (count) {
         if (std::filesystem::is_directory(o.zombieAssets))
             for (const auto& entry : std::filesystem::directory_iterator(o.zombieAssets))
                 if (entry.path().extension() == ".gltf") throw std::runtime_error("Multiplayer requires self-contained GLB zombie assets");
-        zombies = viewer::loadZombieLayer(o.zombieAssets, *collision, model, spawn, count, o.zombieRadius);
+        zombies = populationLoader ? populationLoader(o.zombieAssets, *collision, model) :
+            viewer::loadZombieLayer(o.zombieAssets, *collision, model, spawn, count, o.zombieRadius);
+        if (populationLoader && zombies.instances.size() != count)
+            throw std::runtime_error("Scenario population does not match the requested zombie count");
         validateSessionZombies(zombies);
         if (std::filesystem::is_directory(o.zombieAssets)) {
             std::vector<std::filesystem::path> assets;

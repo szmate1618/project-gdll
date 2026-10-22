@@ -125,16 +125,28 @@ preserves the previous outputs. `--fences-only` rebuilds navigation too;
 `--trees-only` leaves it unchanged because trunks are handled locally at runtime.
 `--no-tree-preparation` still builds navigation.
 
-Use the generated cache in either the standalone viewer or authoritative server:
+The standalone viewer and authoritative server automatically load the `.navmesh`
+beside the selected `.glb` map. Missing or invalid navigation data is a startup
+error whenever the authoritative navigation subsystem is initialized.
 
 ```bash
-./build/godollo_viewer output/godollo.glb --fps --zombie-navmesh output/godollo.navmesh
-./build/multiplayer/godollo_server output/godollo.glb --zombie-navmesh output/godollo.navmesh
+./build/godollo_viewer output/godollo.glb --fps
+./build/multiplayer/godollo_server output/godollo.glb
 ```
 
-The option loads pathfinding and local tree avoidance for existing chase and
-investigation goals. Idle zombies do not choose random destinations. See
-[runtime navigation](docs/ZOMBIE_NAVIGATION_RUNTIME.md) for ownership and limits.
+Ordinary zombies use navigation for chase and investigation goals. To create
+1,000 zombies with random spawns and destinations and calculate their paths
+before simulation starts, load the included TOML scenario:
+
+```bash
+./build/godollo_viewer output/godollo.glb --scenario scenarios/test-horde/scenario.toml
+```
+
+The scenario restricts spawning to a rectangle in meters from the map center;
+`spawn_rectangle_wgs84` supports a longitude/latitude rectangle instead.
+Scenario zombies follow their destinations independently of player proximity,
+then stop. See [runtime navigation](docs/ZOMBIE_NAVIGATION_RUNTIME.md) for the
+configuration, server usage, and limits.
 
 Subsequent runs reuse cached source data. No credentials are needed for any of
 the three public endpoints used by the prototype. The initial run needs HTTPS

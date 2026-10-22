@@ -38,7 +38,45 @@ ZombieLayer& ZombieLayer::operator=(ZombieLayer&&) noexcept = default;
 
 void ZombieLayer::enableNavigation(const std::filesystem::path& navmeshPath) {
     auto navigation = std::make_unique<ZombieNavigation>(navmeshPath, instances.size());
+    enableNavigation(std::move(navigation));
+}
+
+void ZombieLayer::enableNavigation(std::unique_ptr<ZombieNavigation> navigation) {
+    if (!navigation || navigation->capacity() != instances.size())
+        throw std::invalid_argument("Zombie navigation must match the layer population");
     navigation_ = std::move(navigation);
+}
+
+void ZombieLayer::setScenarioDestinations(const std::vector<glm::vec3>& destinations) {
+    if (!navigation_ || destinations.size() != instances.size())
+        throw std::invalid_argument("Scenario destinations require navigation and one destination per zombie");
+    ensureSpatialIndex();
+    std::vector<ScenarioRoute> routes;
+    routes.reserve(destinations.size());
+    for (std::size_t id = 0; id < destinations.size(); ++id) {
+        auto& instance = instances[id];
+        if (instance.removed || instance.ragdoll || instance.asset >= assets.size() ||
+            !navigation_->plan(id, glm::vec3(instance.restRoot[3]), destinations[id])) {
+            for (std::size_t planned = 0; planned <= id; ++planned) navigation_->reset(planned);
+            throw std::runtime_error("Cannot preplan scenario route for zombie " + std::to_string(id));
+        }
+        routes.push_back({destinations[id], false});
+    }
+    for (std::size_t id = 0; id < instances.size(); ++id) {
+        auto& instance = instances[id];
+        instance.chaseNormalization = glm::inverse(instance.restRoot) * instance.restTransform;
+        behaviors.remove(id);
+    }
+    scenarioRoutes_ = std::move(routes);
+}
+
+const glm::vec3* ZombieLayer::scenarioDestination(std::size_t id) const {
+    return scenarioRoutes_.size() == instances.size() && id < scenarioRoutes_.size() && !scenarioRoutes_[id].overridden
+        ? &scenarioRoutes_[id].destination : nullptr;
+}
+
+bool ZombieLayer::scenarioFinished(std::size_t id) const {
+    return scenarioDestination(id) && scenarioRoutes_[id].finished;
 }
 
 void ZombieLayer::queryLivingNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids) {
@@ -258,7 +296,16 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
                            const CollisionWorld& world, const Model& scene,
                            glm::vec2 center, std::size_t count, float radius,
                            const std::vector<glm::vec2>& boundary) {
+    if (count == 0) return {};
+    const auto placements = boundary.empty() ? placeZombies(world, scene, center, count, radius) :
+        placeZombiesInRegion(world, scene, boundary, count);
+    return loadZombieLayer(source, placements);
+}
+
+ZombieLayer loadZombieLayer(const std::filesystem::path& source,
+                           const std::vector<glm::mat4>& placements) {
     ZombieLayer result;
+    const auto count = placements.size();
     if (count == 0) return result;
     std::vector<std::filesystem::path> paths;
     if (std::filesystem::is_directory(source)) {
@@ -269,8 +316,6 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
     } else if (std::filesystem::is_regular_file(source)) paths.push_back(source);
     if (paths.empty()) throw std::runtime_error("No zombie GLB/glTF files found in " + source.string());
 
-    const auto placements = boundary.empty() ? placeZombies(world, scene, center, count, radius) :
-        placeZombiesInRegion(world, scene, boundary, count);
     std::vector<glm::mat4> normalization;
     // There is no reason to upload character variants that receive no instances.
     paths.resize(std::min(paths.size(), count));

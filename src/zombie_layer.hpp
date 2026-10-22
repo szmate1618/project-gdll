@@ -92,10 +92,16 @@ struct ZombieLayer {
     void setPerceptionStaggering(bool enabled);
     const ZombieBehaviorStats& behaviorStats() const { return behaviorStats_; }
     const ZombieCrowdStats& crowdStats() const { return crowd_.stats(); }
-    // Opt-in for authoritative standalone/server owners only. Replicated clients
+    // Authoritative standalone/server owners load navigation. Replicated clients
     // construct this shared type without enabling navigation or loading a mesh.
     void enableNavigation(const std::filesystem::path& navmeshPath);
+    void enableNavigation(std::unique_ptr<ZombieNavigation> navigation);
     const ZombieNavigation* navigation() const { return navigation_.get(); }
+    // Cold scenario setup: preplan one initial destination per living instance.
+    // Travel runs without nearby players; ordinary AI can replace the initial goal.
+    void setScenarioDestinations(const std::vector<glm::vec3>& destinations);
+    const glm::vec3* scenarioDestination(std::size_t id) const;
+    bool scenarioFinished(std::size_t id) const;
     // Rebuild after external edits to instance feet or replacing a population
     // with the same size, or edits to asset rigs/clips or instance normalization.
     // Rebuilds hit geometry/corpse membership and resets enabled routes. Call after
@@ -142,6 +148,10 @@ private:
     struct Physics;
     std::unique_ptr<Physics> physics_;
     std::unique_ptr<ZombieNavigation> navigation_;
+    struct ScenarioRoute { glm::vec3 destination{0}; bool finished = false, overridden = false; };
+    std::vector<ScenarioRoute> scenarioRoutes_;
+    void updateScenarioRoutes(float seconds, const CollisionWorld& world, double animationSeconds,
+                              bool advanceLooking = false);
     ZombieRenderUpdates renderUpdates_;
     void registerRagdoll(std::size_t zombie);
     void unregisterRagdoll(std::size_t zombie);
@@ -173,5 +183,9 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
                            glm::vec2 center, std::size_t count = 1000,
                            float radius = 100.0f,
                            const std::vector<glm::vec2>& boundary = {});
+
+// Explicit safe placements, used by scenario generation before asset loading.
+ZombieLayer loadZombieLayer(const std::filesystem::path& source,
+                           const std::vector<glm::mat4>& placements);
 
 } // namespace viewer

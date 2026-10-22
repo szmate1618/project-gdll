@@ -12,6 +12,7 @@
 #include "weapons.hpp"
 #include "vegetation_selection.hpp"
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -36,9 +37,13 @@ Options parseOptions(int argc, char** argv, bool server);
 // Count is the effective population after checking the map extent.
 std::string sceneFingerprint(const Options& options, std::size_t count, glm::vec3 spawnEye,
                              const std::vector<std::filesystem::path>& content);
-// Identical CPU scene preparation on both peers. Only the server steps physics.
+using ZombiePopulationLoader = std::function<viewer::ZombieLayer(
+    const std::filesystem::path&, const viewer::CollisionWorld&, const viewer::Model&)>;
+// Shared CPU scene preparation. The server may supply authoritative population
+// placement; clients construct the default population and consume snapshot poses.
 struct Scene {
-    explicit Scene(const Options& options);
+    explicit Scene(const Options& options, const ZombiePopulationLoader& populationLoader = {});
+    std::filesystem::path mapPath;
     viewer::Model model;
     std::shared_ptr<viewer::PhysicsWorld> physics;
     std::unique_ptr<viewer::DoorLayer> doors;

@@ -82,11 +82,12 @@ bool attackEligible(ZombieBehavior& behavior, const ZombieInstance& instance, co
     return behavior.attackVisible;
 }
 
-void stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const AnimatedModel& asset,
+bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const AnimatedModel& asset,
                   ZombiePlayer player, const CollisionWorld& world,
                   float seconds, double now, double animationSeconds,
                   bool staggerPerception, ZombieBehaviorStats& stats, ZombieCrowd& crowd,
-                  const std::vector<ZombiePlayer>* players, ZombieNavigation* navigation) {
+                  const std::vector<ZombiePlayer>* players, ZombieNavigation* navigation,
+                  bool scenarioFallback) {
     if (behavior.state == ZombieState::looking && turnZombieToward(instance, behavior.lookDirection, seconds))
         changeState(behavior, ZombieState::idle, now);
     const auto offset = player.feet - glm::vec3(instance.restRoot[3]);
@@ -135,17 +136,21 @@ void stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
             changeState(behavior, ZombieState::investigating, now);
     }
     if (behavior.state == ZombieState::idle || behavior.state == ZombieState::looking) {
+        // An idle observation does not own a movement target. Keep an initial
+        // scenario route resident until perception supplies a gameplay goal.
+        if (scenarioFallback) return false;
         if (navigation) navigation->reset(behavior.zombie);
         stopZombieLocomotion(instance);
-        return;
+        return false;
     }
+    if (scenarioFallback && navigation) navigation->reset(behavior.zombie);
 
     auto feet = glm::vec3(instance.restRoot[3]);
     if (attackEligible(behavior, instance, player, world, now, stats)) {
         if (navigation) navigation->reset(behavior.zombie);
         changeState(behavior, ZombieState::attacking, now);
         stopZombieLocomotion(instance);
-        return;
+        return true;
     }
     if (behavior.state == ZombieState::attacking)
         changeState(behavior, behavior.sight == ZombieSight::full ? ZombieState::chasing : ZombieState::investigating, now);
@@ -164,6 +169,7 @@ void stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
         if (navigation) navigation->reset(behavior.zombie);
         stopZombieLocomotion(instance);
     }
+    return true;
 }
 
 }
@@ -259,13 +265,51 @@ void ZombieLayer::makeNoise(glm::vec3 position, float decibels) {
     }
 }
 
+void ZombieLayer::updateScenarioRoutes(float seconds, const CollisionWorld& world, double animationSeconds,
+                                      bool advanceLooking) {
+    if (scenarioRoutes_.size() != instances.size()) {
+        scenarioRoutes_.clear(); // Bulk population replacement invalidates scenario IDs.
+        return;
+    }
+    for (std::size_t id = 0; id < scenarioRoutes_.size(); ++id) {
+        auto& route = scenarioRoutes_[id];
+        auto& instance = instances[id];
+        if (route.finished || route.overridden) continue;
+        const auto beforeTransform = instance.transform;
+        const auto beforeSeconds = instance.walkSeconds;
+        const bool wasWalking = instance.walking, wasRunning = instance.running;
+        if (instance.removed || instance.ragdoll || instance.asset >= assets.size()) {
+            route.finished = true;
+            if (navigation_) navigation_->reset(id);
+            stopZombieLocomotion(instance);
+        } else {
+            auto* behavior = behaviors.find(id);
+            if (behavior && behavior->state == ZombieState::looking && advanceLooking &&
+                turnZombieToward(instance, behavior->lookDirection, seconds))
+                changeState(*behavior, ZombieState::idle, SimulationClock::instance().seconds());
+            const bool looking = behavior && behavior->state == ZombieState::looking;
+            if (!looking && moveZombieToward(instance, assets[instance.asset], route.destination,
+                                   walkSpeed, seconds, world, animationSeconds,
+                                   &crowd_, id, navigation_.get())) {
+                route.finished = true;
+                if (navigation_) navigation_->reset(id);
+                stopZombieLocomotion(instance);
+            }
+        }
+        const bool moved = beforeTransform != instance.transform;
+        if (moved || wasWalking != instance.walking || wasRunning != instance.running || beforeSeconds != instance.walkSeconds)
+            markRenderChanged(id, moved);
+        updateSpatialMembership(id);
+    }
+}
+
 void ZombieLayer::updateBehavior(float seconds, const ZombiePlayer& player,
                                 const CollisionWorld& world, double animationSeconds) {
     updateBehaviorImpl(seconds, player, world, animationSeconds, nullptr);
 }
 void ZombieLayer::updateBehaviorForPlayers(float seconds, const std::vector<ZombiePlayer>& players,
                                          const CollisionWorld& world, double animationSeconds) {
-    if (!players.empty()) updateBehaviorImpl(seconds, players.front(), world, animationSeconds, &players);
+    updateBehaviorImpl(seconds, players.empty() ? ZombiePlayer{} : players.front(), world, animationSeconds, &players);
 }
 void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
                                     const CollisionWorld& world, double animationSeconds,
@@ -274,7 +318,6 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
         !std::isfinite(player.eyeHeight) || !std::isfinite(player.height) ||
         player.eyeHeight <= 0 || player.height < player.eyeHeight) return;
     if (players) {
-        if (players->empty()) return;
         for (const auto& p : *players)
             if (!finite(p.feet) || !std::isfinite(p.eyeHeight) || !std::isfinite(p.height) ||
                 p.eyeHeight <= 0 || p.height < p.eyeHeight) return;
@@ -284,6 +327,10 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
     ensureSpatialIndex();
     if (navigation_ && navigation_->capacity()!=instances.size()) navigation_->resetPopulation(instances.size());
     crowd_.beginStep();
+    if (players && players->empty()) {
+        updateScenarioRoutes(seconds, world, animationSeconds, true);
+        return;
+    }
     // The small expansion keeps the broad phase conservative around float
     // distance rounding. Activation still uses the original exact predicate.
     spatialIndex_.query(player.feet, activationDistance + 0.0001, spatialCandidates_);
@@ -319,12 +366,15 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
     std::sort(behaviorOrder_.begin(), behaviorOrder_.end());
     for (const auto id : behaviorOrder_) {
         auto& behavior = *behaviors.find(id);
+        const bool scenarioFallback = scenarioDestination(id) && !scenarioRoutes_[id].finished;
         const bool wasWalking = id < instances.size() && instances[id].walking;
         if (id >= instances.size() || instances[id].removed || instances[id].ragdoll || instances[id].asset >= assets.size() ||
             (behavior.state == ZombieState::idle && now - behavior.idleSinceSeconds >= idleLifetime)) {
-            if (navigation_) navigation_->reset(id);
-            if (id < instances.size()) stopZombieLocomotion(instances[id]);
-            if (wasWalking) markRenderChanged(id, false);
+            if (!scenarioFallback) {
+                if (navigation_) navigation_->reset(id);
+                if (id < instances.size()) stopZombieLocomotion(instances[id]);
+                if (wasWalking) markRenderChanged(id, false);
+            }
             behaviors.remove(id);
             continue;
         }
@@ -342,17 +392,21 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
             if (!retained) { selectedPlayer = rangePlayer; behavior.perception = {}; behavior.attackClock = {}; behavior.sight = ZombieSight::none; }
         }
         if (distantIdle(behavior, instance, rangePlayer)) {
-            if (navigation_) navigation_->reset(id);
-            stopZombieLocomotion(instance);
-            if (wasWalking) markRenderChanged(id, false);
+            if (!scenarioFallback) {
+                if (navigation_) navigation_->reset(id);
+                stopZombieLocomotion(instance);
+                if (wasWalking) markRenderChanged(id, false);
+            }
             behaviors.remove(id);
             continue;
         }
         const auto beforeTransform = instance.transform;
         const auto beforeSeconds = instance.walkSeconds;
         const bool wasRunning = instance.running;
-        stepBehavior(behavior, instance, assets[instance.asset], selectedPlayer, world,
-                     seconds, now, animationSeconds, staggerPerception_, behaviorStats_, crowd_, players, navigation_.get());
+        const bool claimed = stepBehavior(behavior, instance, assets[instance.asset], selectedPlayer, world,
+                     seconds, now, animationSeconds, staggerPerception_, behaviorStats_, crowd_, players,
+                     navigation_.get(), scenarioFallback);
+        if (scenarioFallback && claimed) scenarioRoutes_[id].overridden = true;
         const bool moved = beforeTransform != instance.transform;
         if (moved || wasWalking != instance.walking || wasRunning != instance.running || beforeSeconds != instance.walkSeconds)
             markRenderChanged(id, moved);
@@ -360,11 +414,12 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
         // Arrival or a completed looking turn can become idle in this step.
         // Keep the living zombie indexed for later activation and shooting.
         if (distantIdle(behavior, instance, rangePlayer)) {
-            if (navigation_) navigation_->reset(id);
+            if (navigation_ && (!scenarioFallback || claimed)) navigation_->reset(id);
             behaviors.remove(id);
             continue;
         }
     }
+    updateScenarioRoutes(seconds, world, animationSeconds);
 }
 
 } // namespace viewer

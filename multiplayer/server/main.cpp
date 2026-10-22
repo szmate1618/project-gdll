@@ -2,6 +2,7 @@
 #include "options.hpp"
 #include "world.hpp"
 #include "zombie_navigation.hpp"
+#include "zombie_scenario.hpp"
 #include <chrono>
 #include <csignal>
 #include <iostream>
@@ -13,12 +14,24 @@ void stop(int) { running = 0; }
 }
 int main(int argc, char** argv) {
     try {
-        const auto serverOptions = multiplayer::parseServerOptions(argc, argv);
-        const auto& options = serverOptions.scene;
-        multiplayer::Scene scene(options);
-        multiplayer::World world(scene, serverOptions.navmesh);
+        auto serverOptions = multiplayer::parseServerOptions(argc, argv);
+        auto& options = serverOptions.scene;
+        auto navmesh = options.map;
+        navmesh.replace_extension(".navmesh");
+        multiplayer::ZombiePopulationLoader populationLoader;
+        if (!serverOptions.scenario.empty()) {
+            const auto scenario = viewer::loadZombieScenarioConfig(serverOptions.scenario);
+            if (scenario.count > multiplayer::maxZombies)
+                throw std::runtime_error("Scenario exceeds the multiplayer zombie limit");
+            options.zombieCount = scenario.count;
+            populationLoader = [scenario, navmesh](const auto& source, const auto& collision, const auto& model) {
+                return viewer::loadZombieScenario(source, collision, model, navmesh, scenario);
+            };
+        }
+        multiplayer::Scene scene(options, populationLoader);
+        multiplayer::World world(scene);
         if (const auto* navigation = scene.zombies.navigation()) {
-            std::cout << "Server zombie navigation: " << serverOptions.navmesh
+            std::cout << "Server zombie navigation: " << navmesh
                       << "; g+8h, 50000 nodes, " << navigation->pathArenaBytes() << " path bytes"
                       << "; cache SHA256 " << navigation->meshSha256()
                       << "; embedded replay SHA256 " << navigation->sourceSha256() << '\n';

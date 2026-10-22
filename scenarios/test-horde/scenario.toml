@@ -1,0 +1,8 @@
+seed = 42
+
+[zombies]
+count = 1000
+spawn = "random"
+# [west, south, east, north], in meters from the map center.
+spawn_rectangle_m = [-500.0, -300.0, 500.0, 300.0]
+destination = "random"

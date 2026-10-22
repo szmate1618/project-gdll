@@ -110,7 +110,7 @@ if(BUILD_TESTING)
     add_dependencies(test_starting_weapon viewer_test_asset)
     add_test(NAME multiplayer_starting_weapon COMMAND test_starting_weapon
         "${VIEWER_TEST_ASSET}" "${CMAKE_CURRENT_BINARY_DIR}/starting-weapon-fixture")
-    add_executable(test_server_handshake tests/test_server_handshake.cpp)
+    add_executable(test_server_handshake tests/test_server_handshake.cpp server/options.cpp)
     target_link_libraries(test_server_handshake PRIVATE multiplayer_core)
     viewer_warnings(test_server_handshake)
     add_dependencies(test_server_handshake viewer_test_asset)

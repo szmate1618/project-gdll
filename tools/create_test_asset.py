@@ -2,6 +2,7 @@
 """Generate a small, self-contained glTF 2.0 binary using only Python's stdlib."""
 
 import argparse
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -160,7 +161,19 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     data = build_glb()
     args.output.write_bytes(data)
+    # CPU multiplayer fixtures replace the tiny scene with synthetic ground in
+    # [-100,100]. A broad, open test mesh serves those fixtures too; collision
+    # validation still decides which movements are physically allowed.
+    navigation = args.output.with_suffix(".navmesh")
+    header = bytearray(128)
+    struct.pack_into("<8sII8dQQ", header, 0, b"GDNAV02\0", 4, 1,
+                     -200, -200, 200, 200, .30, .002, .05, .005, 64, 36)
+    header[96:] = hashlib.sha256(b"GDL synthetic open-ground navigation fixture").digest()
+    vertices = struct.pack("<8d", -200, -200, 200, -200, 200, 200, -200, 200)
+    polygon = struct.pack("<9I", 4, 0, 1, 2, 3, *([0xFFFFFFFF] * 4))
+    navigation.write_bytes(header + vertices + polygon)
     print(f"Generated {args.output} ({len(data):,} bytes)")
+    print(f"Generated {navigation} (synthetic open-ground navigation)")
 
 
 if __name__ == "__main__":
