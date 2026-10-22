@@ -131,7 +131,7 @@ jobs:
           Copy-Item build/_deps/openal_soft-src/COPYING "$package/licenses/OpenAL.txt"
           Copy-Item build/_deps/openal_soft-src/LICENSE-pffft "$package/licenses/OpenAL-pffft.txt"
           Copy-Item build/_deps/openal_soft-src/fmt-11.1.1/LICENSE "$package/licenses/OpenAL-fmt.txt"
-          Copy-Item credits/software/nlohmann-json.txt, credits/software/stb.txt "$package/licenses"
+          Copy-Item credits/software/nlohmann-json.txt, credits/software/stb.txt, credits/software/recastnavigation.txt, credits/software/proj.txt "$package/licenses"
           Compress-Archive -Path "$package/*" -DestinationPath build/godollo-client-windows-x86_64.zip
       - name: Upload Windows client
         uses: actions/upload-artifact@v7

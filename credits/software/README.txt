@@ -1,11 +1,11 @@
-SOFTWARE USED BY THE CLIENT AND ASSET PREPARATION
+SOFTWARE USED BY THE VIEWER, SERVER, CLIENT AND ASSET PREPARATION
 
 The town asset ZIP contains generated data/models and notices, not the Python
 interpreter or these libraries' binaries. The separately distributed client
 includes compiled library code; its licenses/ folder carries the bundled
 software's full license texts and platform-specific dependency notices.
 
-Client dependencies inspected in the pinned build configuration:
+Runtime dependencies (versions are pinned unless described as platform-selected):
 
 GameNetworkingSockets 1.4.1 — Valve and contributors; BSD-3-Clause.
   https://github.com/ValveSoftware/GameNetworkingSockets
@@ -27,6 +27,26 @@ stb_image / stb_image_write — Sean Barrett and contributors; MIT or Unlicense.
   https://github.com/nothings/stb
 toml++ 3.4.0 — Mark Gillard; MIT.
   https://github.com/marzer/tomlplusplus/tree/v3.4.0
+Recast Navigation / Detour 1.6.0 — Mikko Mononen and contributors; zlib license.
+  Pinned commit 6dc1667f580357e8a2154c28b7867bea7e8ad3a7. The unmodified
+  DetourObstacleAvoidance sampler and supporting math/allocation/assert sources
+  are compiled for local zombie tree avoidance. Global route search uses this
+  project's own navmesh code, not Recast's navmesh builder or DetourCrowd.
+  Full upstream notice is preserved in recastnavigation.txt and in
+  third_party/recastnavigation/License.txt.
+  https://github.com/recastnavigation/recastnavigation/tree/6dc1667f580357e8a2154c28b7867bea7e8ad3a7
+PROJ — Frank Warmerdam, Gerald Evenden, PROJ contributors; MIT-style license
+  and accompanying component/data notices. Platform-selected by CMake or vcpkg,
+  independently of the PROJ version bundled in the Python pyproj wheel.
+  The standalone viewer and authoritative server use native PROJ to convert
+  WGS84 scenario rectangles through the map's recorded CRS and origin.
+  The main upstream notice is preserved in proj.txt; it does not replace the
+  complete notices for the actual PROJ build, its data or its dependencies.
+  Linux packages copy Debian copyright files for bundled shared libraries;
+  Windows packages copy vcpkg copyright files, including PROJ's components.
+  Preserve the applicable notices when distributing PROJ data such as proj.db
+  or transformation grids; projection networking is disabled by the loader.
+  https://proj.org/en/stable/about.html#license
 OpenSSL — OpenSSL Project and contributors; see platform's OpenSSL notice.
   https://www.openssl.org/source/license.html
 GLEW — Windows OpenGL loader; see vcpkg's bundled copyright/license notice.

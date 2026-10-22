@@ -121,3 +121,22 @@ VERIFICATION
   vegetation acquisition provenance left all 33,541 combined instances intact.
 - Credits were accepted for commit after review. No push or public distribution
   was requested.
+
+RUNTIME NAVIGATION CREDIT UPDATE — 2026-10-22
+
+- Added Recast Navigation / Detour 1.6.0 at pinned commit
+  6dc1667f580357e8a2154c28b7867bea7e8ad3a7 to the software inventory and root
+  attribution. recastnavigation.txt preserves the vendored License.txt text
+  with LF line endings and no trailing blank line.
+- Added native PROJ for WGS84 scenario loading in the viewer/server, separately
+  from pyproj's preparation dependency. proj.txt preserves the main upstream
+  notice from the installed pyproj 3.7.1 LICENSE_proj; native PROJ is selected
+  by the platform build. This main notice supplements the platform package's
+  complete component/data notices rather than replacing them.
+- Both notices are included by the asset ZIP's explicit credit inventory and
+  by Linux/Windows client license-copy recipes. Existing Linux dependency
+  copyright collection and Windows vcpkg notices remain in place.
+- Updated the existing NumPy/SciPy/Shapely preparation entries to cover navmesh
+  baking and constrained triangulation. No new Python dependency was added.
+- These are source and packaging-notice updates, not a new review of unrelated
+  asset rights or a claim that Windows binaries were built locally.

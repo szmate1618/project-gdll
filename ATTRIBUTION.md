@@ -34,3 +34,24 @@ Data providers do not endorse this prototype. Geometry, resampling, coloring,
 and inferred building/road dimensions are approximations produced by this code.
 The software and third-party data have separate licensing; this project does
 not relicense downloaded data.
+
+## Software attribution
+
+The viewer and authoritative server use **Recast Navigation / Detour 1.6.0**
+by Mikko Mononen and contributors for local zombie obstacle avoidance. The
+vendored source subset is pinned to commit
+`6dc1667f580357e8a2154c28b7867bea7e8ad3a7` and uses the zlib license. Its
+complete notice is in [recastnavigation.txt](credits/software/recastnavigation.txt).
+The global navmesh baker and route search are this project's code.
+
+**PROJ**, by Frank Warmerdam, Gerald Evenden and PROJ contributors, converts
+WGS 84 scenario coordinates at runtime using the map's recorded CRS and origin.
+Its main MIT-style notice is in [proj.txt](credits/software/proj.txt). Native
+PROJ is selected by the platform build, independently of Python pyproj's bundled
+version. Retain the complete notices for the actual PROJ build, bundled data
+and transitive dependencies when distributing them.
+
+The [software inventory](credits/software/README.txt) lists the other runtime
+libraries and links to the preparation toolchain credits. Asset ZIPs carry
+these credits; Linux and Windows client bundles also copy the Detour and PROJ
+notices into `licenses/`, alongside platform dependency notices.

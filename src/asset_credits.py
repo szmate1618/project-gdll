@@ -7,7 +7,7 @@ ASSET_CREDIT_FILES = ("README.txt", "OPENSTREETMAP.txt", "SENTINEL.txt", "COPERN
                       "WEAPONS.txt", "ZOMBIES.txt", "AUDIO.txt",
                       "VEGETATION_SOURCES.txt", "GENERATED_ARTWORK.txt")
 SOFTWARE_CREDIT_FILES = ("README.txt", "nlohmann-json.txt", "stb.txt", "meshoptimizer.txt",
-                         "PREPARATION_TOOLS.txt")
+                         "PREPARATION_TOOLS.txt", "recastnavigation.txt", "proj.txt")
 
 
 def map_credits(document: dict, name: str, digest: str) -> bytes:

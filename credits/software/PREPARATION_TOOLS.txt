@@ -5,10 +5,10 @@ image, download or LoD preparation. Versions below match the audited environment
 update this inventory when upgrading those dependencies.
 
 NumPy 2.2.6 — NumPy Developers; BSD-3-Clause plus bundled component notices.
-  Array processing, colour statistics, geometry and transforms.
+  Array processing, colour statistics, geometry, transforms and navmesh baking.
   https://numpy.org/doc/stable/license.html
 SciPy 1.15.3 — SciPy Developers and contributors; BSD-3-Clause plus bundled notices.
-  Spatial queries, image context filters, regression and terrain processing.
+  Spatial queries, image context filters, regression, terrain and navmesh processing.
   https://github.com/scipy/scipy/blob/v1.15.3/LICENSE.txt
 Rasterio 1.4.3 — Mapbox and contributors; BSD-3-Clause.
   GeoTIFF reads, masks, raster transforms and reprojection through GDAL.
@@ -17,7 +17,8 @@ pyproj 3.7.1 — pyproj contributors; MIT.
   CRS definitions and coordinate conversion through PROJ.
   https://github.com/pyproj4/pyproj/blob/3.7.1/LICENSE
 Shapely 2.1.1 — Shapely contributors; BSD-3-Clause.
-  Forest polygon operations and spatial predicates through GEOS.
+  Forest/building polygons, navmesh free-space operations and constrained
+  Delaunay triangulation through GEOS.
   https://github.com/shapely/shapely/blob/2.1.1/LICENSE.txt
 Trimesh 4.7.4 — Michael Dawson-Haggerty and contributors; MIT.
   Mesh construction, scene processing and GLB export.
@@ -41,6 +42,12 @@ These components execute during asset preparation; their binaries and the
 Python environment are not distributed by the town asset ZIP. Redistributing
 the preparation environment itself would require its full dependency licenses,
 including bundled codecs, BLAS/LAPACK, GDAL/PROJ data and transitive libraries.
+
+Native PROJ is also a runtime dependency of WGS84 scenario loading in the
+standalone viewer and authoritative server; see README.txt and proj.txt.
+That platform-selected C++ library is separate from pyproj's bundled PROJ.
+Recast Navigation's Detour subset is runtime local avoidance code, not the
+Python navmesh baker; see README.txt and recastnavigation.txt.
 
 CPython and its standard library perform local ZIP packaging and other scripts.
 The interpreter is not shipped by the asset ZIP.
