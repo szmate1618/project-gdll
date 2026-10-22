@@ -30,16 +30,19 @@ cmake --build build-server -j4
 This also builds a headless client for network checks. Existing viewer graphics
 tests are excluded in this configuration; multiplayer tests still run.
 
-The server always loads the `.navmesh` beside its `.glb` map. For the included
-horde scenario:
+Only scenario loading requires the `.navmesh` beside its `.glb` map. For the
+included horde scenario:
 
 ```sh
 ./build/multiplayer/godollo_server output/godollo.glb --scenario scenarios/test-horde/scenario.toml
-./build/multiplayer/godollo_client output/godollo.glb --zombie-count 1000
+./build/multiplayer/godollo_client output/godollo.glb --zombie-count 1600
 ```
 
 The server calculates all scenario routes during startup and advances them even
-without connected players. Clients receive positions through existing snapshots
+without connected players. Ordinary zombies never request navmesh paths or
+require a cache. Player perception can hand a scenario actor to original direct
+behavior movement permanently; it releases the route and never searches again.
+Clients receive positions through existing snapshots
 and do not need a navmesh or scenario file. See the [scenario configuration](../docs/ZOMBIE_NAVIGATION_RUNTIME.md#test-horde-scenario)
 for meter/WGS84 rectangles and destination behavior.
 

@@ -125,17 +125,17 @@ preserves the previous outputs. `--fences-only` rebuilds navigation too;
 `--trees-only` leaves it unchanged because trunks are handled locally at runtime.
 `--no-tree-preparation` still builds navigation.
 
-The standalone viewer and authoritative server automatically load the `.navmesh`
-beside the selected `.glb` map. Missing or invalid navigation data is a startup
-error whenever the authoritative navigation subsystem is initialized.
+Scenario loading in the standalone viewer and authoritative server loads one
+shared `.navmesh` beside the selected `.glb` map. Missing or invalid navigation
+data stops scenario startup. Ordinary zombie populations do not require a mesh.
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --fps
 ./build/multiplayer/godollo_server output/godollo.glb
 ```
 
-Ordinary zombies use navigation for chase and investigation goals. To create
-1,000 zombies with mapwide random spawns and destinations plus a 600-zombie
+Ordinary zombies retain direct chase/investigation movement without navmesh
+searches. To create 1,000 zombies with mapwide random spawns and destinations plus a 600-zombie
 horde traveling from the southeast corner to the northwest, load the included
 TOML scenario. All 1,600 paths are calculated before simulation starts:
 
@@ -147,9 +147,11 @@ The scenario defines named hordes with optional flat `spawn` and `destination`
 rectangles. Bounds default to world X/Z meters; `coordinates = "wgs84"` selects
 longitude/latitude degrees per horde. Omitted bounds allow random valid positions
 across the map.
-Scenario zombies follow their destinations independently of player proximity,
-then stop. See [runtime navigation](docs/ZOMBIE_NAVIGATION_RUNTIME.md) for the
-configuration, server usage, and limits.
+Scenario zombies follow their preloaded paths independently of player proximity,
+then stop. They do not search again when blocked. Player perception can hand an
+actor to original behavior movement permanently, releasing its scenario path.
+See [runtime navigation](docs/ZOMBIE_NAVIGATION_RUNTIME.md) for the configuration,
+server usage, and limits.
 
 Subsequent runs reuse cached source data. No credentials are needed for any of
 the three public endpoints used by the prototype. The initial run needs HTTPS

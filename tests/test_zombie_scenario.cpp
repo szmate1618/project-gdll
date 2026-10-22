@@ -358,12 +358,14 @@ void autonomousMovementAndStop() {
     require(layer.instances[0].restRoot[3].x > final.x && layer.behaviors.find(0) &&
             layer.behaviors.find(0)->state == viewer::ZombieState::chasing,
             "An arrived scenario zombie no longer reacts to normal player sight");
+    require(!layer.scenarioDestination(0) && !layer.navigation()->pathFor(0) &&
+                layer.navigation()->stats().requests == 1,
+            "An arrived actor requested a path when perception took over");
 }
 
 void gameplayOverridesInitialTravel() {
     const viewer::CollisionWorld world(terrain());
     auto layer = scripted({{-20,5,0}}, {{20,5,0}});
-    const auto planned = layer.navigation()->pathFor(0);
     const auto before = glm::vec3(layer.instances[0].restRoot[3]);
     layer.updateBehavior(.1f, viewer::ZombiePlayer{{-20,5,10}}, world);
     const auto after = glm::vec3(layer.instances[0].restRoot[3]);
@@ -371,9 +373,18 @@ void gameplayOverridesInitialTravel() {
             layer.behaviors.find(0)->state == viewer::ZombieState::chasing &&
             layer.behaviors.find(0)->target == glm::vec3(-20,5,10),
             "Normal player sight did not replace the initial scenario destination");
-    require(layer.navigation()->pathFor(0) != planned && layer.navigation()->stats().requests == 2 &&
+    require(!layer.navigation()->pathFor(0) && layer.navigation()->stats().requests == 1 &&
             std::abs(glm::distance(before, after) - .3f) < .0001f && after.z > .29f,
             "Gameplay takeover used the old route or advanced both routes in one step");
+
+    // The actor remains ordinary even after its behavior expires and is
+    // recreated by sight; a moving player must never request another route.
+    layer.behaviors.remove(0);
+    for (int frame = 0; frame < 40; ++frame)
+        layer.updateBehavior(.1f, viewer::ZombiePlayer{{-20,5,10 + frame * .1f}}, world);
+    require(!layer.scenarioDestination(0) && !layer.navigation()->pathFor(0) &&
+                layer.navigation()->stats().requests == 1,
+            "A converted behavior actor reacquired scenario navigation");
 
     auto investigate = scripted({{-20,5,0}}, {{20,5,0}});
     auto& behavior = investigate.behaviors.create(0, 0);
@@ -408,7 +419,8 @@ void teleportDeathAndCrowd() {
     instance.transform = instance.restTransform = instance.restRoot = glm::translate(glm::mat4(1), glm::vec3(-40,5,0));
     layer.rebuildSpatialIndex();
     layer.updateBehaviorForPlayers(.1f, {}, world, 0);
-    require(instance.restRoot[3].x > -40 && layer.navigation()->pathFor(0), "A teleported scenario zombie did not rebuild its route");
+    require(instance.restRoot[3].x == -40 && !layer.navigation()->pathFor(0) &&
+                layer.navigation()->stats().requests == 1, "A teleport automatically searched for a replacement route");
     layer.setRagdollPalette(0, {});
     const auto deadPosition = glm::vec3(instance.restRoot[3]);
     layer.updateBehaviorForPlayers(1, {}, world, 0);

@@ -92,13 +92,14 @@ struct ZombieLayer {
     void setPerceptionStaggering(bool enabled);
     const ZombieBehaviorStats& behaviorStats() const { return behaviorStats_; }
     const ZombieCrowdStats& crowdStats() const { return crowd_.stats(); }
-    // Authoritative standalone/server owners load navigation. Replicated clients
-    // construct this shared type without enabling navigation or loading a mesh.
+    // Only cold scenario loading enables navigation. Ordinary zombies and
+    // replicated clients never load a mesh or request routes.
     void enableNavigation(const std::filesystem::path& navmeshPath);
     void enableNavigation(std::unique_ptr<ZombieNavigation> navigation);
     const ZombieNavigation* navigation() const { return navigation_.get(); }
     // Cold scenario setup: preplan one initial destination per living instance.
-    // Travel runs without nearby players; ordinary AI can replace the initial goal.
+    // Travel runs without nearby players. Perception can permanently hand an
+    // actor to original behavior movement, releasing its route without a search.
     void setScenarioDestinations(const std::vector<glm::vec3>& destinations);
     const glm::vec3* scenarioDestination(std::size_t id) const;
     bool scenarioFinished(std::size_t id) const;
@@ -150,8 +151,8 @@ private:
     std::unique_ptr<ZombieNavigation> navigation_;
     struct ScenarioRoute { glm::vec3 destination{0}; bool finished = false, overridden = false; };
     std::vector<ScenarioRoute> scenarioRoutes_;
-    void updateScenarioRoutes(float seconds, const CollisionWorld& world, double animationSeconds,
-                              bool advanceLooking = false);
+    void updateScenarioRoutes(float seconds, const CollisionWorld& world, bool advanceLooking = false);
+    void abandonScenarioRoute(std::size_t id);
     ZombieRenderUpdates renderUpdates_;
     void registerRagdoll(std::size_t zombie);
     void unregisterRagdoll(std::size_t zombie);

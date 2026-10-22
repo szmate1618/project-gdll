@@ -1,7 +1,6 @@
 #include "zombie_chase.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_movement.hpp"
-#include "zombie_navigation.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -34,38 +33,15 @@ bool turnZombieToward(ZombieInstance& instance, glm::vec2 direction, float secon
     return aligned;
 }
 
-bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& /*asset*/,
-                      glm::vec3 target, float speed, float seconds,
-                      const CollisionWorld& world, double /*animationSeconds*/,
-                      ZombieCrowd* crowd, std::size_t id, ZombieNavigation* navigation) {
-    auto feet = glm::vec3(instance.restRoot[3]);
-    const auto start = feet;
-    const glm::vec2 horizontal(target.x - feet.x, target.z - feet.z);
-    const float distance = glm::length(horizontal);
-    if (distance <= 1e-4f) {
-        if (navigation) navigation->reset(id);
-        stopZombieLocomotion(instance);
-        return true;
-    }
-    auto direction = horizontal / distance;
-    float step = std::min(speed * seconds, distance);
-    if (navigation) {
-        const auto velocity = navigation->desiredVelocity(id, feet, target, speed, seconds, world);
-        const float magnitude = glm::length(velocity);
-        step = magnitude * seconds;
-        if (magnitude > 1e-8f) direction = velocity / magnitude;
-    }
-    auto movement = moveZombieBody(start,
-        feet + glm::vec3(direction.x * step, 0, direction.y * step), world, crowd, id);
-    // Crowd/scene resolution may change the proposed segment. Keep that actual
-    // result inside the baked walkable space before publishing any transform.
-    if (navigation && !navigation->segmentClear(start, movement.feet)) movement = {start};
-    if (navigation) navigation->recordMovement(id, start, movement.feet, seconds);
-    feet = movement.feet;
-
+void applyZombieLocomotion(ZombieInstance& instance, glm::vec2 desiredVelocity,
+                           const ZombieMovement& movement, float speed, float seconds) {
+    const auto start = glm::vec3(instance.restRoot[3]);
+    const auto feet = movement.feet;
+    const float magnitude = glm::length(desiredVelocity);
+    const auto direction = magnitude > 1e-8f ? desiredVelocity / magnitude : glm::vec2(0);
+    const float step = magnitude * seconds;
     const auto travelled = glm::vec2(feet.x - start.x, feet.z - start.z);
     const float travel = glm::length(travelled);
-    const bool arrived = glm::length(glm::vec2(target.x - feet.x, target.z - feet.z)) <= 1e-4f;
     const float threshold = instance.walking ? stopAnimationSpeed : startAnimationSpeed;
     const bool locomotion = travel >= threshold * seconds && glm::dot(travelled, direction) > 0;
     instance.animationRestartSeconds = std::max(0.f, instance.animationRestartSeconds - seconds);
@@ -98,7 +74,25 @@ bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& /*asset*/,
     // Advance the selected authored clip by actual travel time, excluding any
     // leftover step after arrival. No per-character skeleton is evaluated here.
     if (speed > 0 && instance.walking && locomotion) instance.walkSeconds += movement.travel / speed;
-    return arrived;
+}
+
+bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& /*asset*/,
+                      glm::vec3 target, float speed, float seconds,
+                      const CollisionWorld& world, double /*animationSeconds*/,
+                      ZombieCrowd* crowd, std::size_t id) {
+    const auto start = glm::vec3(instance.restRoot[3]);
+    const glm::vec2 horizontal(target.x - start.x, target.z - start.z);
+    const float distance = glm::length(horizontal);
+    if (distance <= 1e-4f) {
+        stopZombieLocomotion(instance);
+        return true;
+    }
+    const auto direction = horizontal / distance;
+    const float step = std::min(speed * seconds, distance);
+    const auto movement = moveZombieBody(start,
+        start + glm::vec3(direction.x * step, 0, direction.y * step), world, crowd, id);
+    applyZombieLocomotion(instance, direction * (seconds > 0 ? step / seconds : 0.f), movement, speed, seconds);
+    return glm::length(glm::vec2(target.x - movement.feet.x, target.z - movement.feet.z)) <= 1e-4f;
 }
 
 } // namespace viewer

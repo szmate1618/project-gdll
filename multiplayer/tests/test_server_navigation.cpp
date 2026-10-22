@@ -134,29 +134,33 @@ double segmentDistance(glm::vec3 a, glm::vec3 b, glm::vec3 center) {
     return std::hypot(double(a.x) + t * x - center.x, double(a.z) + t * z - center.z);
 }
 
-glm::vec3 authoritativeTreeMotion(const std::filesystem::path& asset) {
+glm::vec3 scenarioTreeMotion(const std::filesystem::path& asset) {
     const viewer::TrunkCollider trunk{{8, 0, 8}, .6f, 5};
     auto scene = sceneFixture(asset, {trunk});
     const auto fingerprint = scene->fingerprint;
+    auto cache = asset;
+    cache.replace_extension(".navmesh");
+    scene->zombies.enableNavigation(cache);
+    scene->zombies.setScenarioDestinations({{13,0,8}});
     multiplayer::World world(*scene);
-    const auto player = world.join();
-    require(scene->zombies.navigation(), "Server did not automatically load the adjacent navigation mesh");
+    require(scene->zombies.navigation(), "Server discarded the prepared scenario navigation");
     require(scene->fingerprint == fingerprint, "Server navigation changed the client content handshake");
     double minimum = 1000;
     float sideways = 0;
-    for (int step = 0; step < 400; ++step) {
+    for (int step = 0; step < 1000; ++step) {
         const glm::vec3 before(scene->zombies.instances[0].restRoot[3]);
         world.step();
         const glm::vec3 after(scene->zombies.instances[0].restRoot[3]);
         minimum = std::min(minimum, segmentDistance(before, after, trunk.base));
         sideways = std::max(sideways, std::abs(after.z - 8));
-        require(glm::distance(before, after) <= 3 * multiplayer::tickSeconds + .0001f,
+        require(glm::distance(before, after) <= 1.2f * multiplayer::tickSeconds + .0001f,
             "Authoritative navigation advanced more than once per tick");
         require(scene->zombies.navigation()->segmentClear(before, after),
             "Accepted server motion escaped the navmesh corridor");
     }
     require(minimum >= double(viewer::ZombieCrowd::bodyRadius) + trunk.radius,
         "Accepted authoritative swept movement intersected a trunk");
+    const auto player = world.join();
     const auto snapshot = world.snapshot(player);
     require(snapshot.zombies.size() == 1 && snapshot.zombies[0].id == 0 &&
         snapshot.zombies[0].root == scene->zombies.instances[0].restRoot &&
@@ -169,7 +173,8 @@ glm::vec3 authoritativeTreeMotion(const std::filesystem::path& asset) {
             "Authoritative motion did not exercise independent paths and actual Detour tree sampling");
         require(navigation->stats().steeringCalls <= world.tick() && navigation->pathArenaBytes() == 10'000'000,
             "Server navigation duplicated updates or lost its fixed path arena");
-        require(sideways > .6f, "Automatic steering did not pass around the head-on trunk");
+        require(navigation->stats().requests == 1, "Scenario movement started another path search");
+        require(sideways > .6f, "Scenario steering did not pass around the head-on trunk");
     }
     return glm::vec3(scene->zombies.instances[0].restRoot[3]);
 }
@@ -227,39 +232,54 @@ void scenarioPopulation(const std::filesystem::path& asset, const std::filesyste
     require(behavior && behavior->state == viewer::ZombieState::chasing && behavior->targetPlayer == player &&
         glm::vec3(scene.zombies.instances[0].restRoot[3]).z > 8.1f,
         "Authoritative player perception did not override the scenario's initial destination");
+    require(!scene.zombies.navigation()->pathFor(0) && scene.zombies.navigation()->stats().requests == 1,
+        "Authoritative behavior takeover requested another path or retained scenario ownership");
 }
 
 void failures(const std::filesystem::path& asset, const std::filesystem::path& directory,
               const std::filesystem::path& cache) {
     auto scene = sceneFixture(asset, {});
     scene->mapPath = directory / "missing.glb";
-    rejects([&] { multiplayer::World world(*scene); },
-        "Missing automatically selected navigation mesh was silently ignored");
-    rejects([&] { multiplayer::World world(*scene, directory / "missing.bin"); },
-        "Missing server navigation mesh was silently ignored");
-    require(scene->zombies.navigation() == nullptr, "Failed navigation loading enabled a partial controller");
+    {
+        multiplayer::World world(*scene);
+        const auto player = world.join();
+        for (int step = 0; step < 20; ++step) world.step();
+        require(scene->zombies.navigation() == nullptr &&
+                    scene->zombies.instances[0].restRoot[3].x > 3 && world.snapshot(player).zombies.size() == 1,
+                "Ordinary behavior required a navmesh or stopped original direct movement");
+    }
+    // Even an allocated navigation object must never be used by ordinary AI.
+    scene->zombies.enableNavigation(cache);
+    {
+        multiplayer::World world(*scene);
+        (void)world.join();
+        for (int step = 0; step < 20; ++step) world.step();
+        require(scene->zombies.navigation()->stats().requests == 0,
+                "An ordinary behavior actor requested a navmesh path");
+    }
     const auto mesh = test_navmesh::convexSquares(16, 16);
     const auto invalid = directory / "unsafe-padding.bin";
     writeMesh(invalid, mesh, .1);
-    rejects([&] { multiplayer::World world(*scene, invalid); }, "Unsafe body-clearance cache was accepted");
-    require(scene->zombies.navigation() == nullptr, "Unsafe cache loading left partially enabled navigation");
+    rejects([&] { viewer::ZombieNavigation unsafe(invalid, 1); }, "Unsafe body-clearance cache was accepted");
     writeMesh(invalid, mesh, .3, .0001);
-    rejects([&] { multiplayer::World world(*scene, invalid); }, "Unsafe skin-clearance cache was accepted");
+    rejects([&] { viewer::ZombieNavigation unsafe(invalid, 1); }, "Unsafe skin-clearance cache was accepted");
 
     const viewer::CollisionWorld collision(ground());
     viewer::ZombieNavigation navigation(cache, 1);
     const glm::vec3 start{3, 0, 8};
-    const auto velocity = navigation.desiredVelocity(0, start, {13, 0, 8}, 3, multiplayer::tickSeconds, collision);
+    require(navigation.plan(0, start, {13, 0, 8}), "Cold route fixture did not plan");
+    const auto velocity = navigation.follow(0, start, 3, multiplayer::tickSeconds, collision);
     require(glm::length(velocity) > 0 && navigation.pathFor(0) != 0, "Valid server route fixture did not plan");
-    require(navigation.desiredVelocity(0, start, {50, 0, 8}, 3, multiplayer::tickSeconds, collision) == glm::vec2(0) &&
+    require(!navigation.plan(0, start, {50, 0, 8}) &&
         navigation.pathFor(0) == 0 && navigation.lastStatus() == viewer::navmesh_path::Status::blockedEndpoint,
         "Uncovered new goal reused the previous route or fell back to direct pursuit");
     std::set<std::pair<unsigned, unsigned>> holes;
     for (unsigned z = 0; z < 16; ++z) holes.insert({8, z});
     viewer::ZombieNavigation separated(test_navmesh::convexSquares(16, 16, holes), 1);
-    require(glm::length(separated.desiredVelocity(0, start, {6, 0, 8}, 3, multiplayer::tickSeconds, collision)) > 0 &&
+    require(separated.plan(0, start, {6, 0, 8}) &&
+        glm::length(separated.follow(0, start, 3, multiplayer::tickSeconds, collision)) > 0 &&
         separated.pathFor(0) != 0, "Same-component route fixture did not plan");
-    require(separated.desiredVelocity(0, start, {13, 0, 8}, 3, multiplayer::tickSeconds, collision) == glm::vec2(0) &&
+    require(!separated.plan(0, start, {13, 0, 8}) &&
         separated.pathFor(0) == 0 && separated.lastStatus() == viewer::navmesh_path::Status::noPath,
         "Disconnected new goal retained an obsolete route or bypassed the navmesh");
 }
@@ -279,8 +299,8 @@ int main(int argc, char** argv) try {
     const auto fixture = directory / "map.glb";
     std::filesystem::copy_file(argv[1], fixture);
     writeMesh(directory / "map.navmesh", test_navmesh::convexSquares(16, 16));
-    const auto navigated = authoritativeTreeMotion(fixture);
-    require(navigated.x > 10, "Automatic server navigation did not resolve the head-on trunk blockage");
-    std::cout << "Server-only scenario options, automatic navigation, failure safety, Detour tree bypass and authoritative snapshots passed\n";
+    const auto navigated = scenarioTreeMotion(fixture);
+    require(navigated.x > 10, "Scenario server navigation did not resolve the head-on trunk blockage");
+    std::cout << "Scenario-only navigation, ordinary behavior isolation, failure safety, Detour tree bypass and authoritative snapshots passed\n";
     return 0;
 } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

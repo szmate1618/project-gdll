@@ -484,7 +484,9 @@ selection, animation stepping and the distance cutoff for comparison.
 second, including during hidden runs. The title also reports `CPU sim` for
 physics, camera movement and zombie behavior before rendering. Console profiling
 separates behavior time and renderer preparation (door/instance/bounds updates),
-and reports active behavior count and the last step's perception/sight-ray counts.
+and reports the behavior-pool entry count and the last step's perception/sight-ray
+counts. Pool entries track perception/behavior activity, not the total number of
+scenario travelers.
 CPU render time covers submission; hidden-run FPS omits presentation/VSync waits. Shutdown
 also reports camera LOD counts, submitted camera/shadow triangles and the number
 of frustum-visible zombies rejected by distance.

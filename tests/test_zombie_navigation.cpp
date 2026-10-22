@@ -64,9 +64,10 @@ void routeAroundWall(bool mapCoordinates=false) {
     const viewer::CollisionWorld world(terrain);
     glm::vec3 position{float(offsetX+1.5*scale),0,float(offsetZ+1.5*scale)},
               goal{float(offsetX+8.5*scale),0,float(offsetZ+1.5*scale)};
+    require(navigation.plan(0,position,goal),"cold route planning failed");
     float maximumZ=position.z;
     for(int frame=0;frame<800 && glm::length(position-goal)>1e-4f;++frame) {
-        const auto velocity=navigation.desiredVelocity(0,position,goal,2,.05f,world);
+        const auto velocity=navigation.follow(0,position,2,.05f,world);
         const auto next=viewer::moveZombieBody(position,position+glm::vec3(velocity.x*.05f,0,velocity.y*.05f),world).feet;
         require(navigation.segmentClear(position,next),"wall route left the walkable mesh");
         navigation.recordMovement(0,position,next,.05f);position=next;maximumZ=std::max(maximumZ,position.z);
@@ -81,42 +82,48 @@ void routeAroundWall(bool mapCoordinates=false) {
     require(navigation.capacity()==3 && navigation.pathUsedBytes()==0,"population replacement retained stale paths");
 }
 
-void movingAndBlockedGoal() {
+void followNeverSearches() {
     viewer::ZombieNavigation navigation(grid(std::vector<std::string>(10,"..........")),2);
     const viewer::CollisionWorld world(viewer::Model{});
-    glm::vec3 p{1,0,1},goal{8,0,1};
-    auto advance=[&](glm::vec3 target) {
-        const auto v=navigation.desiredVelocity(0,p,target,2,.1f,world);
-        const auto next=p+glm::vec3(v.x*.1f,0,v.y*.1f);
-        navigation.recordMovement(0,p,next,.1f);p=next;
-    };
-    advance(goal);
-    const auto old=navigation.pathFor(0);
-    goal.z=3;
-    for(int i=0;i<4;++i) advance(goal);
-    require(navigation.stats().requests==1,"moving goal ignored the replan cooldown");
-    advance(goal);
-    require(navigation.stats().requests==2 && navigation.pathFor(0)!=old,"moving goal did not replace its route");
-    const auto velocity=navigation.desiredVelocity(0,p,{-1,0,1},2,.1f,world);
-    require(glm::length(velocity)==0 && !navigation.pathFor(0),"blocked changed goal retained a stale route");
-    require(navigation.lastStatus()==viewer::navmesh_path::Status::blockedEndpoint,"blocked endpoint status lost");
-    require(navigation.pathUsedBytes()==0,"failed goal leaked old path storage");
+    const glm::vec3 position{1,0,1},goal{8,0,1};
+    require(navigation.follow(0,position,2,.1f,world)==glm::vec2(0) && navigation.stats().requests==0,
+            "Following an unplanned actor started a search");
+    require(navigation.plan(0,position,goal),"Cold route planning failed");
+    const auto route=navigation.pathFor(0);
+    // A physical obstruction can reject every step for several seconds.
+    for (int frame=0;frame<100;++frame) {
+        (void)navigation.follow(0,position,2,.1f,world);
+        navigation.recordMovement(0,position,position,.1f);
+    }
+    require(navigation.stats().requests==1 && navigation.pathFor(0)==route,
+            "A stalled scenario actor searched for a replacement path");
+    require(navigation.follow(0,{-1,0,1},2,.1f,world)==glm::vec2(0) && !navigation.pathFor(0),
+            "An uncovered position retained a stale path");
+    for (int frame=0;frame<30;++frame) (void)navigation.follow(0,position,2,.1f,world);
+    require(navigation.stats().requests==1 && navigation.pathUsedBytes()==0,
+            "An invalidated path was automatically recreated");
+    require(navigation.plan(1,position,goal),"Second cold route planning failed");
+    require(navigation.follow(1,{2,0,1},2,.1f,world)==glm::vec2(0) && !navigation.pathFor(1) &&
+                navigation.stats().requests==2,
+            "A teleport triggered a runtime search instead of invalidating the route");
 }
 
 void disconnectedAndOverflow() {
     const viewer::CollisionWorld empty(viewer::Model{});
     viewer::ZombieNavigation disconnected(grid({"...#...","...#...","...#..."}),1);
-    require(glm::length(disconnected.desiredVelocity(0,{1,0,1},{5,0,1},2,.05f,empty))==0,
+    require(!disconnected.plan(0,{1,0,1},{5,0,1}) &&
+            disconnected.follow(0,{1,0,1},2,.05f,empty)==glm::vec2(0),
             "disconnected target produced motion");
     require(disconnected.lastStatus()==viewer::navmesh_path::Status::noPath && disconnected.stats().requests==0,
             "component precheck started a search");
     const std::vector<viewer::TrunkCollider> trunks{{{2,0,2},.15f,5},{{2,0,3},.15f,5},{{2,0,4},.15f,5}};
     const viewer::CollisionWorld forest(viewer::Model{},trunks);
     viewer::ZombieNavigation bounded(grid(std::vector<std::string>(10,"..........")),1,2);
-    const auto velocity=bounded.desiredVelocity(0,{1,0,1},{8,0,1},2,.05f,forest);
+    require(bounded.plan(0,{1,0,1},{8,0,1}),"Overflow fixture cold plan failed");
+    const auto velocity=bounded.follow(0,{1,0,1},2,.05f,forest);
     require(glm::length(velocity)==0 && bounded.stats().trunkOverflows==1,"overflow silently dropped local trunks");
     viewer::ZombieNavigation nobody(grid({"..",".."}),0);
-    require(nobody.capacity()==0 && glm::length(nobody.desiredVelocity(0,{0,0,0},{1,0,1},2,.05f,empty))==0,
+    require(nobody.capacity()==0 && glm::length(nobody.follow(0,{0,0,0},2,.05f,empty))==0,
             "empty population navigation is unsafe");
 }
 
@@ -125,9 +132,10 @@ void treeBypass() {
     const viewer::CollisionWorld world(viewer::Model{},{{{center.x,0,center.y},.6f,5}});
     viewer::ZombieNavigation navigation(grid(std::vector<std::string>(10,"....................")),1);
     glm::vec3 position{1,0,5},goal{18,0,5};
+    require(navigation.plan(0,position,goal),"cold tree route planning failed");
     float excursion=0;
     for(int frame=0;frame<1200 && glm::length(position-goal)>1e-4f;++frame) {
-        const auto v=navigation.desiredVelocity(0,position,goal,2,.05f,world);
+        const auto v=navigation.follow(0,position,2,.05f,world);
         const auto next=viewer::moveZombieBody(position,position+glm::vec3(v.x*.05f,0,v.y*.05f),world).feet;
         const glm::vec2 a{position.x,position.z},b{next.x,next.z},d=b-a;
         const float t=glm::dot(d,d)>0?std::clamp(glm::dot(center-a,d)/glm::dot(d,d),0.f,1.f):0;
@@ -142,7 +150,7 @@ void treeBypass() {
 }
 
 int main() {
-    try {routeAroundWall();routeAroundWall(true);movingAndBlockedGoal();disconnectedAndOverflow();treeBypass();
-        std::cout<<"navigation route/replan/disconnection/overflow/trunk tests passed\n";return 0;
+    try {routeAroundWall();routeAroundWall(true);followNeverSearches();disconnectedAndOverflow();treeBypass();
+        std::cout<<"scenario route/no-runtime-search/disconnection/overflow/trunk tests passed\n";return 0;
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}
 }

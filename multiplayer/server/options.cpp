@@ -30,7 +30,7 @@ ServerOptions parseServerOptions(int argc, char** argv) {
     sharedArguments.reserve(arguments.size());
     for (auto& argument : arguments) sharedArguments.push_back(argument.data());
     if (help) std::cout << "Server: --scenario FILE loads zombie spawns and preplanned destinations from TOML.\n"
-                          "Navigation always loads from the .navmesh beside the selected map.\n";
+                          "Only scenarios load the .navmesh beside the selected map; ordinary AI never requests paths.\n";
     result.scene = parseOptions(static_cast<int>(sharedArguments.size()), sharedArguments.data(), true);
     return result;
 }

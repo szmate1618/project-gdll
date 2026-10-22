@@ -976,12 +976,12 @@ int run(const Options& options) {
     if (zombies) {
         zombies->attachPhysics(physics);
         zombies->setPerceptionStaggering(options.zombiePerceptionStaggering);
-        if (!zombies->navigation()) zombies->enableNavigation(navmesh);
-        const auto& navigation = *zombies->navigation();
-        std::cout << "Zombie navigation: " << navmesh
-                  << "; g+8h, 50000 nodes, " << navigation.pathArenaBytes() << " path bytes"
-                  << "; cache SHA256 " << navigation.meshSha256()
-                  << "; embedded replay SHA256 " << navigation.sourceSha256() << '\n';
+        if (const auto* navigation = zombies->navigation()) {
+            std::cout << "Scenario navigation: " << navmesh
+                      << "; g+8h, 50000 nodes, " << navigation->pathArenaBytes() << " path bytes"
+                      << "; cache SHA256 " << navigation->meshSha256()
+                      << "; embedded replay SHA256 " << navigation->sourceSha256() << '\n';
+        }
     }
     GLFWLifetime lifetime;
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -1280,7 +1280,7 @@ int run(const Options& options) {
                           << "; preparation " << milliseconds(intervalPreparationSeconds * frameScale);
                 if (zombies) {
                     const auto& stats = zombies->behaviorStats();
-                    std::cout << "; active zombies " << zombies->behaviors.entries().size()
+                    std::cout << "; behavior pool entries " << zombies->behaviors.entries().size()
                               << "; last step " << stats.perceptionChecks << " perception checks, "
                               << stats.sightRays << " sight rays";
                     const auto& crowdStats = zombies->crowdStats();

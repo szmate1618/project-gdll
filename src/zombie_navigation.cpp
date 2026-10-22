@@ -34,9 +34,8 @@ void validateMesh(const navmesh_path::Mesh& mesh) {
 struct ZombieNavigation::Impl {
     struct State {
         steering::FollowState follow;
-        glm::vec2 velocity{0}, plannedGoal{0}, anchor{0}, lastPosition{0};
-        float sincePlan=0, stuck=0;
-        bool attempted=false, hasPlan=false, recorded=false;
+        glm::vec2 velocity{0}, plannedGoal{0}, lastPosition{0};
+        bool hasPlan=false, recorded=false;
     };
     navmesh_path::Mesh mesh;
     navmesh_path::PathManager paths;
@@ -74,14 +73,14 @@ bool ZombieNavigation::plan(std::size_t id,glm::vec3 feet,glm::vec3 target) {
     auto& p=*impl_;
     if (id>=p.states.size()) throw std::out_of_range("Invalid zombie navigation ID");
     auto& s=p.states[id];
-    s.attempted=true;s.sincePlan=0;s.stuck=0;s.follow={};
+    s.follow={};
     if (!finite(feet) || !finite(target)) {
         p.release(id);
         p.status=navmesh_path::Status::blockedEndpoint;
         return false;
     }
     const auto position=horizontal(feet),goal=horizontal(target);
-    s.plannedGoal=goal;s.anchor=position;s.lastPosition=position;s.recorded=true;
+    s.plannedGoal=goal;s.lastPosition=position;s.recorded=true;
     const auto startPolygon=p.mesh.locate(point(position)),goalPolygon=p.mesh.locate(point(goal));
     if (startPolygon==navmesh_path::noPolygon || goalPolygon==navmesh_path::noPolygon) {
         p.release(id);
@@ -101,19 +100,20 @@ bool ZombieNavigation::plan(std::size_t id,glm::vec3 feet,glm::vec3 target) {
     return s.hasPlan;
 }
 
-glm::vec2 ZombieNavigation::desiredVelocity(std::size_t id,glm::vec3 feet,glm::vec3 target,
-                                           float speed,float dt,const CollisionWorld& world) {
+glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
+                                    float speed,float dt,const CollisionWorld& world) {
     auto& p=*impl_;
-    if (id>=p.states.size() || !finite(feet) || !finite(target) || !std::isfinite(speed) ||
+    if (id>=p.states.size() || !finite(feet) || !std::isfinite(speed) ||
         speed<=0 || !std::isfinite(dt) || dt<=0) return {0,0};
     auto& s=p.states[id];
-    const auto position=horizontal(feet),goal=horizontal(target);
+    if (!s.hasPlan) return {0,0};
+    const auto position=horizontal(feet),goal=s.plannedGoal;
     // External placement/teleport invalidates both route progress and sampled
     // velocity. Ordinary accepted movement is recorded after the physical guard.
     if (s.recorded && glm::length(position-s.lastPosition)>.5f) {
         reset(id);
+        return {0,0};
     }
-    s.sincePlan+=dt;
     const auto startPolygon=p.mesh.locate(point(position)),goalPolygon=p.mesh.locate(point(goal));
     if (startPolygon==navmesh_path::noPolygon || goalPolygon==navmesh_path::noPolygon ||
         p.mesh.component(startPolygon)!=p.mesh.component(goalPolygon)) {
@@ -123,12 +123,6 @@ glm::vec2 ZombieNavigation::desiredVelocity(std::size_t id,glm::vec3 feet,glm::v
         ++p.stats.blockedUpdates;
         return {0,0};
     }
-    const bool changed=glm::length(goal-s.plannedGoal)>=1.f;
-    if (!s.attempted || (s.hasPlan && ((changed && s.sincePlan>=.5f) || s.stuck>=1.f)) ||
-        (!s.hasPlan && s.sincePlan>=1.f)) {
-        plan(id,feet,target);
-    }
-    if (!s.hasPlan) return {0,0};
     const auto path=p.paths.view(p.paths.pathFor(id));
     auto desired=steering::followPath(path.points,path.size,position,speed,dt,s.follow,&p.mesh);
     // A final step toward a double portal corner can round a float body outside
@@ -168,7 +162,7 @@ glm::vec2 ZombieNavigation::desiredVelocity(std::size_t id,glm::vec3 feet,glm::v
     const float remaining=glm::length(goal-position);
     if (s.follow.arrived && remaining>1e-4f) {
         if (!p.mesh.segmentClear(point(position),point(goal))) {
-            p.release(id);s.sincePlan=1;return {0,0};
+            p.release(id);return {0,0};
         }
         desired=(goal-position)*(std::min(speed,remaining/dt)/remaining);
     }
@@ -199,8 +193,6 @@ void ZombieNavigation::recordMovement(std::size_t id,glm::vec3 before,glm::vec3 
     s.velocity=(horizontal(after)-horizontal(before))/dt;
     if (!finite(s.velocity)) s.velocity={0,0};
     s.lastPosition=horizontal(after);s.recorded=true;
-    s.stuck+=dt;
-    if (glm::length(s.lastPosition-s.anchor)>.05f) {s.anchor=s.lastPosition;s.stuck=0;}
 }
 void ZombieNavigation::reset(std::size_t id) {
     if (id>=impl_->states.size()) return;

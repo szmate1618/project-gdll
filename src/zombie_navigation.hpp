@@ -16,7 +16,7 @@ struct ZombieNavigationStats {
     std::uint64_t trunkOverflows = 0, meshRejectedCandidates = 0, blockedUpdates = 0;
 };
 
-// Authoritative runtime navigation. Construction allocates the mesh,
+// Scenario route navigation. Construction allocates the mesh,
 // one independent-search workspace, exactly10MB of path points and per-ID state.
 // Configure only in standalone/server owners; replicated clients never enable it.
 // All IDs are original ZombieLayer instance indices. The layer/population must
@@ -30,18 +30,18 @@ public:
     ZombieNavigation(const ZombieNavigation&) = delete;
     ZombieNavigation& operator=(const ZombieNavigation&) = delete;
 
-    // Calculate and retain an actual route now, without waiting for the first
-    // simulation step. Returns false for invalid endpoints or a failed search.
+    // Cold scenario setup only: calculate and retain the initial route now.
+    // Returns false for invalid endpoints or a failed search.
     bool plan(std::size_t id, glm::vec3 feet, glm::vec3 goal);
-    // Does not move a body. Invalid/uncovered/disconnected endpoints, failed
-    // searches and overflowing local trunk queries stop instead of direct chase.
-    glm::vec2 desiredVelocity(std::size_t id, glm::vec3 feet, glm::vec3 goal,
-                              float speed, float seconds, const CollisionWorld& world);
+    // Follow only the stored route and goal; never start or retry a search.
+    // Invalidated routes and overflowing local trunk queries stop safely.
+    glm::vec2 follow(std::size_t id, glm::vec3 feet,
+                     float speed, float seconds, const CollisionWorld& world);
     // Supply actual guarded motion, including crowd/terrain constraints.
     void recordMovement(std::size_t id, glm::vec3 before, glm::vec3 after, float seconds);
     void reset(std::size_t id);
     // Cold population replacement only: reset all routes and size fixed ID/path
-    // storage. Allocations occur here, never in ordinary desiredVelocity calls.
+    // storage. Allocations occur here, never in ordinary follow calls.
     void resetPopulation(std::size_t population);
     bool segmentClear(glm::vec3 a, glm::vec3 b) const;
     const ZombieNavigationStats& stats() const;
