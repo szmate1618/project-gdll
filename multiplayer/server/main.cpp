@@ -1,5 +1,7 @@
 #include "network.hpp"
+#include "options.hpp"
 #include "world.hpp"
+#include "zombie_navigation.hpp"
 #include <chrono>
 #include <csignal>
 #include <iostream>
@@ -11,9 +13,16 @@ void stop(int) { running = 0; }
 }
 int main(int argc, char** argv) {
     try {
-        const auto options = multiplayer::parseOptions(argc, argv, true);
+        const auto serverOptions = multiplayer::parseServerOptions(argc, argv);
+        const auto& options = serverOptions.scene;
         multiplayer::Scene scene(options);
-        multiplayer::World world(scene);
+        multiplayer::World world(scene, serverOptions.navmesh);
+        if (const auto* navigation = scene.zombies.navigation()) {
+            std::cout << "Server zombie navigation: " << serverOptions.navmesh
+                      << "; g+8h, 50000 nodes, " << navigation->pathArenaBytes() << " path bytes"
+                      << "; cache SHA256 " << navigation->meshSha256()
+                      << "; embedded replay SHA256 " << navigation->sourceSha256() << '\n';
+        }
         multiplayer::Network network(options.fakeLagMs, options.fakeLossPercent);
         network.listen(options.port);
         std::signal(SIGINT, stop); std::signal(SIGTERM, stop);

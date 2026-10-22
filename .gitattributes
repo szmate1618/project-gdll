@@ -6,3 +6,6 @@
 /forest_patches_astra.json text eol=lf
 # Unix launchers need LF for the interpreter shebang.
 /multiplayer/linux/run-client.sh text eol=lf
+
+# Preserve the pinned upstream source and license bytes, including whitespace.
+third_party/recastnavigation/** -text -whitespace

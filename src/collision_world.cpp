@@ -370,7 +370,7 @@ struct CollisionWorld::Impl {
         return index;
     }
 
-    template <class Callback> void queryTrunks(const Bounds& region, Callback callback) const {
+    template <class Callback> void queryTrunksIndexed(const Bounds& region, Callback callback) const {
         if (trunkNodes.empty()) return;
         std::array<std::uint32_t, 64> stack{};
         std::size_t count = 1;
@@ -380,13 +380,19 @@ struct CollisionWorld::Impl {
             if (node.count) {
                 for (auto i = node.first; i < node.first + node.count; ++i) {
                     const auto& trunk = trunks[trunkOrder[i]];
-                    if (trunk.bounds.intersects(region)) callback(trunk.collider);
+                    if (trunk.bounds.intersects(region)) callback(trunkOrder[i], trunk.collider);
                 }
             } else {
                 stack[count++] = node.left;
                 stack[count++] = node.right;
             }
         }
+    }
+
+    template <class Callback> void queryTrunks(const Bounds& region, Callback callback) const {
+        queryTrunksIndexed(region, [&](std::uint32_t, const TrunkCollider& trunk) {
+            callback(trunk);
+        });
     }
 };
 
@@ -718,6 +724,32 @@ std::optional<Contact> CollisionWorld::trunkContact(glm::vec3 center, float radi
         result = Contact{normal, axis + normal * trunk.radius, depth};
     });
     return result;
+}
+
+std::size_t CollisionWorld::nearbyTrunks(glm::vec3 feet, float agentHeight, float range,
+                                        NearbyTrunk* output, std::size_t capacity,
+                                        bool& overflow) const {
+    overflow = false;
+    if (!finite(feet) || !std::isfinite(agentHeight) || agentHeight <= 0 ||
+        !std::isfinite(range) || range < 0) return 0;
+    const auto minimum = feet - glm::vec3(range, 0, range);
+    const auto maximum = feet + glm::vec3(range, agentHeight, range);
+    if (!finite(minimum) || !finite(maximum)) return 0;
+    if (!output) capacity = 0;
+    Bounds region;
+    region.include(minimum);
+    region.include(maximum);
+    std::size_t written = 0;
+    impl_->queryTrunksIndexed(region, [&](std::uint32_t id, const TrunkCollider& trunk) {
+        // Double precision keeps range tests finite even for large valid floats.
+        const double dx = double(feet.x) - trunk.base.x;
+        const double dz = double(feet.z) - trunk.base.z;
+        const double reach = double(range) + trunk.radius;
+        if (dx * dx + dz * dz > reach * reach) return;
+        if (written < capacity) output[written++] = NearbyTrunk{id, trunk};
+        else overflow = true;
+    });
+    return written;
 }
 
 }  // namespace viewer

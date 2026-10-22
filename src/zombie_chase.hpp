@@ -7,6 +7,7 @@ namespace viewer {
 struct ZombieInstance;
 class CollisionWorld;
 class ZombieCrowd;
+class ZombieNavigation;
 
 // Explicit idle/attack/looking transitions stop immediately, bypassing the
 // short animation hold used for intermittent locomotion obstruction.
@@ -23,6 +24,7 @@ bool turnZombieToward(ZombieInstance& instance, glm::vec2 direction, float secon
 bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& asset,
                       glm::vec3 target, float speed, float seconds,
                       const CollisionWorld& world, double animationSeconds,
-                      ZombieCrowd* crowd = nullptr, std::size_t id = 0);
+                      ZombieCrowd* crowd = nullptr, std::size_t id = 0,
+                      ZombieNavigation* navigation = nullptr);
 
 } // namespace viewer

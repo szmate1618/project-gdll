@@ -4,6 +4,7 @@
 #include "zombie_placement.hpp"
 #include "zombie_animation.hpp"
 #include "zombie_lod.hpp"
+#include "zombie_navigation.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -34,6 +35,11 @@ ZombieLayer::ZombieLayer() = default;
 ZombieLayer::~ZombieLayer() = default;
 ZombieLayer::ZombieLayer(ZombieLayer&&) noexcept = default;
 ZombieLayer& ZombieLayer::operator=(ZombieLayer&&) noexcept = default;
+
+void ZombieLayer::enableNavigation(const std::filesystem::path& navmeshPath) {
+    auto navigation = std::make_unique<ZombieNavigation>(navmeshPath, instances.size());
+    navigation_ = std::move(navigation);
+}
 
 void ZombieLayer::queryLivingNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids) {
     ids.clear();
@@ -130,6 +136,7 @@ std::size_t ZombieLayer::explode(glm::vec3 origin, float radius, double animatio
 void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> selectedPose, glm::vec3 velocity) {
     if (!physics_) physics_ = std::make_unique<Physics>();
     auto& instance = instances[selected];
+    if (navigation_) navigation_->reset(selected);
     const auto feet = glm::vec3(instance.restRoot[3]);
     const float yaw = std::atan2(instance.restRoot[2][0], instance.restRoot[0][0]);
     const auto& asset = assets[instance.asset];
@@ -202,6 +209,7 @@ void ZombieLayer::applyRagdollImpulse(std::size_t zombie, RagdollPart part, glm:
 void ZombieLayer::removeRagdoll(std::size_t zombie) {
     auto& instance = instances.at(zombie);
     if (!instance.ragdoll || instance.removed) return;
+    if (navigation_) navigation_->reset(zombie);
     if (instance.physicsRagdoll && physics_) physics_->world.destroy(instance.ragdollHandle);
     unregisterRagdoll(zombie);
     instance.removed = true;
@@ -223,6 +231,7 @@ void ZombieLayer::setRagdollPalette(std::size_t zombie, std::vector<glm::mat4> p
             for (int row = 0; row < 4; ++row)
                 if (!std::isfinite(matrix[column][row])) throw std::invalid_argument("Palette must be finite");
     registerRagdoll(zombie);
+    if (navigation_) navigation_->reset(zombie);
     instance.ragdollBones = std::move(palette);
     instance.ragdoll = true;
     instance.walking = false;

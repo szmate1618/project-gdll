@@ -1,7 +1,7 @@
 # Zombie navmesh navigation
 
-Navigation development now lives in this repository on branch
-`implement-zombie-navmesh-navigation`, created from master `4080057`.
+The navmesh work was developed on `implement-zombie-navmesh-navigation`,
+created from master `4080057`, and merged into local master at `dda2085`.
 The navmesh solution was ported from experimental commit `338a293` in commit
 `6dc4588`, with query optimizations 1–3 committed as `3188642`. Convex polygon
 merging is now implemented and benchmarked. The selected setting merges up to
@@ -40,8 +40,10 @@ there are no random search-limit failures. Shared labels add **321,108 B**,
 bringing current navigation buffers to **23,359,648 B (23.360 MB)**. The formation
 still finds the same 999 paths, with its one blocked destination unchanged.
 
-The implementation is a headless library and benchmark. The viewer's existing
-live crowd behavior is unchanged; runtime crowd integration is subsequent work.
+The original implementation is a headless library and benchmark. The subsequent
+[runtime integration](ZOMBIE_NAVIGATION_RUNTIME.md) adds opt-in navmesh path
+following and Detour tree steering to the standalone viewer and authoritative
+server; multiplayer clients continue to use replicated NPC transforms.
 
 ## Query behavior and ownership
 

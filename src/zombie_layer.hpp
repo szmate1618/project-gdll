@@ -15,6 +15,7 @@
 namespace viewer {
 
 class PhysicsWorld;
+class ZombieNavigation;
 
 struct ZombieInstance {
     std::size_t asset = 0;
@@ -91,9 +92,13 @@ struct ZombieLayer {
     void setPerceptionStaggering(bool enabled);
     const ZombieBehaviorStats& behaviorStats() const { return behaviorStats_; }
     const ZombieCrowdStats& crowdStats() const { return crowd_.stats(); }
+    // Opt-in for authoritative standalone/server owners only. Replicated clients
+    // construct this shared type without enabling navigation or loading a mesh.
+    void enableNavigation(const std::filesystem::path& navmeshPath);
+    const ZombieNavigation* navigation() const { return navigation_.get(); }
     // Rebuild after external edits to instance feet or replacing a population
     // with the same size, or edits to asset rigs/clips or instance normalization.
-    // Rebuilds prepared hit geometry and corpse membership too. Call after
+    // Rebuilds hit geometry/corpse membership and resets enabled routes. Call after
     // initial fixture/bulk edits to ragdoll/removed flags. Ordinary locomotion
     // and the corpse owning APIs maintain these indices incrementally.
     void rebuildSpatialIndex();
@@ -136,6 +141,7 @@ private:
     friend class ZombieDoorCollision; // Reuse the living-body spatial index for door-local physics proxies.
     struct Physics;
     std::unique_ptr<Physics> physics_;
+    std::unique_ptr<ZombieNavigation> navigation_;
     ZombieRenderUpdates renderUpdates_;
     void registerRagdoll(std::size_t zombie);
     void unregisterRagdoll(std::size_t zombie);

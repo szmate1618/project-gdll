@@ -18,6 +18,7 @@
 #include "forest_layer.hpp"
 #include "vegetation_selection.hpp"
 #include "zombie_layer.hpp"
+#include "zombie_navigation.hpp"
 #include "zombie_door_collision.hpp"
 #include "zombie_park.hpp"
 #include "simulation_clock.hpp"
@@ -47,6 +48,7 @@ struct Options {
     std::filesystem::path poles;
     std::filesystem::path guardrails;
     std::filesystem::path zombies;
+    std::filesystem::path zombieNavmesh;
     int frames = 0;
     bool hidden = false, allowSoftware = false, selfTest = false, help = false;
     bool fps = false, collisionDebug = false, selfTestFPS = false;
@@ -182,6 +184,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--no-town-culling") options.sceneCulling = false;
         else if (argument == "--no-tree-collisions") options.treeCollisions = false;
         else if (argument == "--zombies") { options.zombies = value(); options.explicitZombies = true; }
+        else if (argument == "--zombie-navmesh") options.zombieNavmesh = value();
         else if (argument == "--no-zombies") options.noZombies = true;
         else if (argument == "--zombie-view") { options.zombieView = true; options.explicitZombies = true; }
         else if (argument == "--zombie-count") {
@@ -311,6 +314,7 @@ void printHelp() {
               << "  --no-town-culling   Render all town draw instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
               << "  --zombies PATH      Load individual animated GLB/glTF files from PATH\n"
+              << "  --zombie-navmesh FILE Enable custom navmesh paths and basic Detour trunk avoidance\n"
               << "  --zombie-count N    Number of zombies (default 300 in palace gardens, otherwise 1000)\n"
               << "  --zombie-radius M   Use radial placement near spawn/map center (default 100 m)\n"
               << "  --zombie-view       Start with the camera framing the crowd\n"
@@ -956,7 +960,17 @@ int run(const Options& options) {
     if (zombies) {
         zombies->attachPhysics(physics);
         zombies->setPerceptionStaggering(options.zombiePerceptionStaggering);
+        if (!options.zombieNavmesh.empty()) {
+            zombies->enableNavigation(options.zombieNavmesh);
+            const auto& navigation = *zombies->navigation();
+            std::cout << "Zombie navigation: " << options.zombieNavmesh
+                      << "; g+8h, 50000 nodes, " << navigation.pathArenaBytes() << " path bytes"
+                      << "; cache SHA256 " << navigation.meshSha256()
+                      << "; embedded replay SHA256 " << navigation.sourceSha256() << '\n';
+        }
     }
+    if (!options.zombieNavmesh.empty() && !zombies)
+        throw std::runtime_error("--zombie-navmesh requires a loaded zombie population");
     GLFWLifetime lifetime;
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);

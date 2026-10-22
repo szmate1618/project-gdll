@@ -26,6 +26,7 @@ struct ServerPlayer {
 class World {
 public:
     explicit World(Scene& scene);
+    World(Scene& scene, const std::filesystem::path& navmesh);
     std::uint32_t join();
     void leave(std::uint32_t id);
     void submit(std::uint32_t id, const Commands& commands);

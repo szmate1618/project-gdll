@@ -1,6 +1,7 @@
 #include "zombie_chase.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_movement.hpp"
+#include "zombie_navigation.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -36,19 +37,30 @@ bool turnZombieToward(ZombieInstance& instance, glm::vec2 direction, float secon
 bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& /*asset*/,
                       glm::vec3 target, float speed, float seconds,
                       const CollisionWorld& world, double /*animationSeconds*/,
-                      ZombieCrowd* crowd, std::size_t id) {
+                      ZombieCrowd* crowd, std::size_t id, ZombieNavigation* navigation) {
     auto feet = glm::vec3(instance.restRoot[3]);
     const auto start = feet;
     const glm::vec2 horizontal(target.x - feet.x, target.z - feet.z);
     const float distance = glm::length(horizontal);
     if (distance <= 1e-4f) {
+        if (navigation) navigation->reset(id);
         stopZombieLocomotion(instance);
         return true;
     }
-    const auto direction = horizontal / distance;
-    const float step = std::min(speed * seconds, distance);
-    const auto movement = moveZombieBody(start,
+    auto direction = horizontal / distance;
+    float step = std::min(speed * seconds, distance);
+    if (navigation) {
+        const auto velocity = navigation->desiredVelocity(id, feet, target, speed, seconds, world);
+        const float magnitude = glm::length(velocity);
+        step = magnitude * seconds;
+        if (magnitude > 1e-8f) direction = velocity / magnitude;
+    }
+    auto movement = moveZombieBody(start,
         feet + glm::vec3(direction.x * step, 0, direction.y * step), world, crowd, id);
+    // Crowd/scene resolution may change the proposed segment. Keep that actual
+    // result inside the baked walkable space before publishing any transform.
+    if (navigation && !navigation->segmentClear(start, movement.feet)) movement = {start};
+    if (navigation) navigation->recordMovement(id, start, movement.feet, seconds);
     feet = movement.feet;
 
     const auto travelled = glm::vec2(feet.x - start.x, feet.z - start.z);

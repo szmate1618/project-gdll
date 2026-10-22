@@ -152,12 +152,28 @@ target_include_directories(viewer_fingerprints PUBLIC "${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(viewer_fingerprints PRIVATE OpenSSL::Crypto)
 viewer_warnings(viewer_fingerprints)
 
-# Experimental headless navigation mesh; offline baking uses the generator's
-# existing Python geometry environment, while runtime queries are pure C++.
+# Navigation mesh; offline baking uses the generator's geometry environment,
+# while runtime path queries are pure C++.
 add_library(viewer_zombie_navmesh STATIC
     src/zombie_navmesh.cpp src/zombie_navmesh_search.cpp src/zombie_navmesh_paths.cpp)
 target_include_directories(viewer_zombie_navmesh PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 viewer_warnings(viewer_zombie_navmesh)
+
+# The pinned Detour velocity sampler is independent of Detour's navmesh format.
+# Keep our existing planner and the scene's authoritative physical movement.
+add_library(viewer_detour_avoidance STATIC
+    third_party/recastnavigation/DetourCrowd/Source/DetourObstacleAvoidance.cpp
+    third_party/recastnavigation/Detour/Source/DetourCommon.cpp
+    third_party/recastnavigation/Detour/Source/DetourAlloc.cpp
+    third_party/recastnavigation/Detour/Source/DetourAssert.cpp)
+target_include_directories(viewer_detour_avoidance SYSTEM PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/recastnavigation/Detour/Include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/recastnavigation/DetourCrowd/Include")
+add_library(viewer_zombie_steering STATIC src/zombie_steering.cpp src/zombie_path_follow.cpp)
+target_link_libraries(viewer_zombie_steering PUBLIC viewer_zombie_navmesh glm::glm
+    PRIVATE viewer_detour_avoidance)
+target_include_directories(viewer_zombie_steering PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+viewer_warnings(viewer_zombie_steering)
 add_executable(benchmark_zombie_navmesh tools/benchmark_zombie_navmesh.cpp)
 target_include_directories(benchmark_zombie_navmesh SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 target_link_libraries(benchmark_zombie_navmesh PRIVATE viewer_zombie_navmesh viewer_fingerprints)
@@ -264,8 +280,10 @@ viewer_warnings(viewer_forests)
 
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp
     src/zombie_layer.cpp src/zombie_lod.cpp src/zombie_lod_assets.cpp src/zombie_hit.cpp src/zombie_shooting.cpp src/zombie_chase.cpp src/zombie_attack.cpp src/zombie_behavior.cpp src/zombie_animation.cpp
-    src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp src/zombie_spatial_index.cpp src/zombie_crowd.cpp src/zombie_movement.cpp src/zombie_door_collision.cpp src/zombie_perception.cpp src/zombie_render_updates.cpp)
-target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise viewer_physics viewer_fingerprints)
+    src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp src/zombie_spatial_index.cpp src/zombie_crowd.cpp src/zombie_movement.cpp src/zombie_door_collision.cpp src/zombie_perception.cpp src/zombie_render_updates.cpp
+    src/zombie_navigation.cpp)
+target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise viewer_physics viewer_fingerprints
+    viewer_zombie_steering)
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_zombies)
 
@@ -375,6 +393,25 @@ target_compile_definitions(godollo_viewer PRIVATE
 )
 add_dependencies(godollo_viewer viewer_test_asset viewer_audio_assets viewer_weapon_assets)
 viewer_warnings(godollo_viewer)
+endif()
+
+if(BUILD_TESTING)
+    add_executable(test_zombie_steering tests/test_zombie_steering.cpp)
+    target_link_libraries(test_zombie_steering PRIVATE viewer_zombie_steering viewer_detour_avoidance)
+    viewer_warnings(test_zombie_steering)
+    add_test(NAME viewer_zombie_steering COMMAND test_zombie_steering)
+    add_executable(test_zombie_path_follow tests/test_zombie_path_follow.cpp)
+    target_link_libraries(test_zombie_path_follow PRIVATE viewer_zombie_steering)
+    viewer_warnings(test_zombie_path_follow)
+    add_test(NAME viewer_zombie_path_follow COMMAND test_zombie_path_follow)
+    add_executable(test_collision_nearby_trunks tests/test_collision_nearby_trunks.cpp)
+    target_link_libraries(test_collision_nearby_trunks PRIVATE viewer_collision)
+    viewer_warnings(test_collision_nearby_trunks)
+    add_test(NAME viewer_collision_nearby_trunks COMMAND test_collision_nearby_trunks)
+    add_executable(test_zombie_navigation tests/test_zombie_navigation.cpp)
+    target_link_libraries(test_zombie_navigation PRIVATE viewer_zombies)
+    viewer_warnings(test_zombie_navigation)
+    add_test(NAME viewer_zombie_navigation COMMAND test_zombie_navigation)
 endif()
 
 if(BUILD_TESTING AND GD_VIEWER)
