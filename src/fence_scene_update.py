@@ -14,6 +14,8 @@ import trimesh
 
 from .fences import add_fences
 from .glb import pack_glb, read_glb
+from .map_publication import publish_files
+from .navmesh_preparation import prepare_navmesh
 from .osm import parse_fences
 from .tree_map import load_tree_map
 from .verify import inspect_glb
@@ -103,6 +105,7 @@ def update_fences(map_path: Path, config: dict, osm_path: Path, provenance: dict
 
     Validate the candidate GLB and unchanged terrain before publication. Keep
     original map/report backups and roll back if companion publication fails.
+    Bake matching navigation before replacing the map or its companions.
     Tree and forest manifests remain separate and need refreshing afterwards.
     """
     started = time.monotonic()
@@ -122,6 +125,7 @@ def update_fences(map_path: Path, config: dict, osm_path: Path, provenance: dict
     report = json.loads(report_original) if report_original is not None else dict(metadata)
     report.update(fences=stats, sources=metadata["sources"])
     pending = {}
+    navigation_staging = tempfile.TemporaryDirectory(prefix=".fences-nav-", dir=map_path.parent)
 
     def stage(path, data):
         with tempfile.NamedTemporaryFile(prefix=".fences-", suffix=path.suffix,
@@ -139,6 +143,10 @@ def update_fences(map_path: Path, config: dict, osm_path: Path, provenance: dict
                 or not np.array_equal(terrain.y_axis, updated_terrain.y_axis)
                 or terrain.datum != updated_terrain.datum):
             raise ValueError("Fence update changed the published terrain; refusing to publish")
+        LOG.info("Rebuilding zombie navigation for the updated fences")
+        navigation_directory = Path(navigation_staging.name)
+        report["navigation"] = prepare_navmesh(pending[map_path], navigation_directory / map_path.with_suffix(".navmesh").name)
+        pending.update({map_path.parent / path.name: path for path in navigation_directory.iterdir()})
         report.update(verification=verification, created_utc=datetime.now(timezone.utc).isoformat(),
                       elapsed_seconds=round(time.monotonic() - started, 2), update="fences_only")
         pending[report_path] = stage(report_path, (json.dumps(report, indent=2, ensure_ascii=False) + "\n").encode())
@@ -155,20 +163,9 @@ def update_fences(map_path: Path, config: dict, osm_path: Path, provenance: dict
                 raise ValueError("An existing fence backup differs; refusing to overwrite it")
             if not saved.exists():
                 shutil.copy2(path, saved)
-        published = []
-        try:
-            for path, temporary in pending.items():
-                temporary.replace(path)
-                published.append(path)
-        except Exception:
-            for path in reversed(published):
-                data = original if path == map_path else report_original
-                if data is None:
-                    path.unlink(missing_ok=True)
-                else:
-                    stage(path, data).replace(path)
-            raise
+        publish_files(pending)
     finally:
         for temporary in pending.values():
             temporary.unlink(missing_ok=True)
+        navigation_staging.cleanup()
     return report

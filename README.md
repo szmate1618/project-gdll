@@ -107,7 +107,8 @@ python3 -m venv .venv
 ```
 
 The one generation command downloads missing inputs, processes the rasters,
-builds geometry, exports the GLB, reloads it for verification, and writes
+builds geometry, exports the GLB, reloads it for verification, bakes zombie
+navigation, and writes
 `output/report.json` with counts, bounds, source provenance, and validation
 results. It then prepares OSM exclusions and tuned2 individual trees for the
 verified map, publishes `output/trees.instances.json`, and records tree counts.
@@ -115,6 +116,25 @@ It exits with a nonzero status and an explanatory message on failure. The saved
 tree calibration requires its recorded Sentinel image, Astra reference and
 geographic frame; use `--no-tree-preparation` for geometry-only generation with
 other imagery or an uncalibrated area.
+
+Every full map build also produces `output/godollo.navmesh` (four-vertex convex
+regions), `output/godollo.navigation.json` (building/fence bake input), and
+`output/godollo.navmesh.json` (validation and map/source fingerprints). The
+verified map and navigation are staged before publication; a bake failure
+preserves the previous outputs. `--fences-only` rebuilds navigation too;
+`--trees-only` leaves it unchanged because trunks are handled locally at runtime.
+`--no-tree-preparation` still builds navigation.
+
+Use the generated cache in either the standalone viewer or authoritative server:
+
+```bash
+./build/godollo_viewer output/godollo.glb --fps --zombie-navmesh output/godollo.navmesh
+./build/multiplayer/godollo_server output/godollo.glb --zombie-navmesh output/godollo.navmesh
+```
+
+The option loads pathfinding and local tree avoidance for existing chase and
+investigation goals. Idle zombies do not choose random destinations. See
+[runtime navigation](docs/ZOMBIE_NAVIGATION_RUNTIME.md) for ownership and limits.
 
 Subsequent runs reuse cached source data. No credentials are needed for any of
 the three public endpoints used by the prototype. The initial run needs HTTPS

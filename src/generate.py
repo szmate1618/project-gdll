@@ -27,6 +27,8 @@ from .config import coordinate_frame, load_config
 from .data import download_osm, download_sources
 from .fences import add_fences
 from .fence_scene_update import update_fences
+from .map_publication import publish_files
+from .navmesh_preparation import prepare_navmesh
 from .osm import parse_fences, parse_osm, parse_railways
 from .railways import add_railways
 from .railway_texture import configure_track_sampler
@@ -104,20 +106,20 @@ def run(config: dict) -> dict:
     }
     scene.metadata.update(metadata)
     out = ROOT / "output" / "godollo.glb"
-    pending = out.with_suffix(".pending.glb")
     LOG.info("Exporting self-contained GLB with embedded Sentinel texture")
-    pending.write_bytes(scene.export(file_type="glb", tree_postprocessor=configure_track_sampler))
-    try:
+    with tempfile.TemporaryDirectory(prefix=".map-", dir=out.parent) as scratch:
+        staging = Path(scratch)
+        pending = staging / out.name
+        pending.write_bytes(scene.export(file_type="glb", tree_postprocessor=configure_track_sampler))
         verification = inspect_glb(pending)
-    except Exception:
-        pending.unlink(missing_ok=True)
-        raise
-    pending.replace(out)
-    report = {**metadata, "created_utc": datetime.now(timezone.utc).isoformat(),
-              "output": "output/godollo.glb", "elapsed_seconds": round(time.monotonic() - started, 2),
-              "verification": verification}
-    (ROOT / "output" / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    (ROOT / "output" / "ATTRIBUTION.md").write_text(attribution, encoding="utf-8")
+        LOG.info("Baking tree-free zombie navigation from the verified map")
+        navigation = prepare_navmesh(pending, staging / "godollo.navmesh")
+        report = {**metadata, "created_utc": datetime.now(timezone.utc).isoformat(),
+                  "output": "output/godollo.glb", "elapsed_seconds": round(time.monotonic() - started, 2),
+                  "verification": verification, "navigation": navigation}
+        (staging / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        (staging / "ATTRIBUTION.md").write_text(attribution, encoding="utf-8")
+        publish_files({out.parent / path.name: path for path in staging.iterdir()})
     if not config.get("no_tree_preparation"):
         report["trees"] = _prepare_default_trees(config, out, image_path=sources.get("sentinel"))
         (ROOT / "output" / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -128,6 +130,7 @@ def run(config: dict) -> dict:
 
 def _print_summary(report: dict, out: Path) -> None:
     print(json.dumps({"output": str(out), "buildings": report["buildings"]["buildings"],
+                      "navmesh": str(out.with_suffix(".navmesh")),
                       **({"tree_instances": report["trees"]["instances"]} if "trees" in report else {}),
                       "road_segments": report["roads"]["road_segments"],
                       "railway_segments": report["railways"]["railway_segments"],

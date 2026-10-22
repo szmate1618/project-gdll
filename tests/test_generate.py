@@ -1,6 +1,7 @@
 """Isolated generator publication checks with small synthetic geodata."""
 
 from contextlib import redirect_stdout
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -88,6 +89,50 @@ class GenerateTests(unittest.TestCase):
             report = generate.run(self.config)
         return report, json.loads(stdout.getvalue())
 
+    def published_navigation(self):
+        output = self.root / "output"
+        return {name: (output / name).read_bytes() for name in (
+            "godollo.glb", "report.json", "godollo.navmesh", "godollo.navmesh.json",
+            "godollo.navigation.json")}
+
+    def test_full_generation_publishes_matching_convex_navmesh(self):
+        report, summary = self.run_generator()
+        files = self.published_navigation()
+        self.assertEqual(files["godollo.navmesh"][:8], b"GDNAV02\0")
+        navigation = report["navigation"]
+        self.assertEqual(navigation["map_sha256"], hashlib.sha256(files["godollo.glb"]).hexdigest())
+        self.assertEqual(navigation["source_sha256"], hashlib.sha256(files["godollo.navigation.json"]).hexdigest())
+        # Both versions keep the input replay hash in the last header field.
+        self.assertEqual(files["godollo.navmesh"][96:128].hex(), navigation["source_sha256"])
+        self.assertEqual(summary["navmesh"], str(self.root / "output/godollo.navmesh"))
+        self.assertEqual(json.loads(files["report.json"])["navigation"], navigation)
+
+    def test_failed_navmesh_bake_preserves_previous_outputs(self):
+        self.run_generator()
+        original = self.published_navigation()
+        with patch.object(generate, "prepare_navmesh", side_effect=ValueError("invalid navigation")):
+            with self.assertRaisesRegex(ValueError, "invalid navigation"):
+                self.run_generator()
+        self.assertEqual(self.published_navigation(), original)
+        self.assertFalse(list((self.root / "output").glob(".map-*")))
+
+    def test_full_publication_failure_restores_map_and_navigation(self):
+        self.run_generator()
+        original = self.published_navigation()
+        self.config["roads"]["offset_m"] = .5
+        target = self.root / "output/godollo.navmesh"
+        replace = Path.replace
+
+        def fail_navmesh(path, destination):
+            if destination == target:
+                raise OSError("navmesh publication failed")
+            return replace(path, destination)
+
+        with patch.object(Path, "replace", fail_navmesh):
+            with self.assertRaisesRegex(OSError, "navmesh publication failed"):
+                self.run_generator()
+        self.assertEqual(self.published_navigation(), original)
+
     def test_full_generation_prepares_default_trees_for_verified_map(self):
         self.config.update(offline=True, _config_path=str(self.root/'area.json'))
         self.sources['sentinel'] = self.root/'current-sentinel.tif'
@@ -106,6 +151,7 @@ class GenerateTests(unittest.TestCase):
 
     def test_trees_only_reuses_map_without_building_or_downloading_town(self):
         self.run_generator()
+        navigation = self.published_navigation()
         path = self.root/'output/godollo.glb'
         original = path.read_bytes()
         self.config['trees_only'] = True
@@ -115,6 +161,7 @@ class GenerateTests(unittest.TestCase):
             report, _ = self.run_generator()
         self.assertEqual(report['instances'], 17)
         self.assertEqual(path.read_bytes(), original)
+        self.assertEqual(self.published_navigation(), navigation)
 
     def test_tree_preparation_error_is_not_a_successful_regeneration(self):
         with patch.object(generate, 'prepare_trees', side_effect=ValueError('incompatible Sentinel calibration')):
@@ -127,6 +174,7 @@ class GenerateTests(unittest.TestCase):
             report, summary = self.run_generator()
         self.assertNotIn('trees', report)
         self.assertNotIn('tree_instances', summary)
+        self.assertTrue((self.root / "output/godollo.navmesh").is_file())
 
     def test_railways_reach_verified_glb_report_and_console(self):
         report, summary = self.run_generator()
@@ -198,6 +246,7 @@ class GenerateTests(unittest.TestCase):
 
     def test_fences_only_preserves_town_geometry_and_replaces_existing_fences(self):
         original_report, _ = self.run_generator()
+        original_navigation = (self.root / "output/godollo.navmesh").read_bytes()
         output = self.root / "output/godollo.glb"
         original = trimesh.load_scene(output, process=False)
         _, original_binary = read_glb(output.read_bytes())
@@ -210,6 +259,8 @@ class GenerateTests(unittest.TestCase):
             # Repeating the update must replace, rather than duplicate, fences.
             repeated, _ = self.run_generator()
         self.assertEqual(report["fences"], repeated["fences"])
+        self.assertNotEqual((self.root / "output/godollo.navmesh").read_bytes(), original_navigation)
+        self.assertEqual(repeated["navigation"]["map_sha256"], hashlib.sha256(output.read_bytes()).hexdigest())
         self.assertEqual(report["buildings"], original_report["buildings"])
         self.assertEqual(report["sources"]["osm"], original_report["sources"]["osm"])
         self.assertEqual(report["sources"]["fences"], self.sources["provenance"]["osm"])
@@ -270,8 +321,20 @@ class GenerateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "requires an existing"):
             self.run_generator()
 
+    def test_failed_fence_navmesh_bake_preserves_map_and_navigation(self):
+        self.run_generator()
+        original = self.published_navigation()
+        self.write_osm(include_fences=True)
+        self.config["fences_only"] = True
+        with patch.object(fence_scene_update, "prepare_navmesh", side_effect=ValueError("invalid navigation")):
+            with self.assertRaisesRegex(ValueError, "invalid navigation"):
+                self.run_generator()
+        self.assertEqual(self.published_navigation(), original)
+        self.assertFalse(list((self.root / "output").glob(".fences-*")))
+
     def test_fences_only_report_publication_failure_rolls_back_map(self):
         self.run_generator()
+        original_outputs = self.published_navigation()
         output = self.root / "output/godollo.glb"
         report_path = self.root / "output/report.json"
         original, original_report = output.read_bytes(), report_path.read_bytes()
@@ -289,6 +352,7 @@ class GenerateTests(unittest.TestCase):
                 self.run_generator()
         self.assertEqual(output.read_bytes(), original)
         self.assertEqual(report_path.read_bytes(), original_report)
+        self.assertEqual(self.published_navigation(), original_outputs)
         self.assertFalse(list(output.parent.glob(".fences-*")))
 
     def test_failed_validation_preserves_published_map_and_report(self):
