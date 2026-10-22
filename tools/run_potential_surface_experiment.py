@@ -11,6 +11,8 @@ import subprocess
 import sys
 import time
 
+from agent_benchmark_process import benchmark_executable
+
 
 def sha(path):
     digest = hashlib.sha256()
@@ -42,6 +44,7 @@ def run(args):
     binary.parent.mkdir()
     shutil.copy2(args.binary.resolve(), binary)
     sources = ['experiments/potential_surface/CMakeLists.txt',
+               'tools/agent_benchmark_process.py', 'tests/test_agent_benchmark_process.py',
                'src/file_fingerprint.cpp', 'src/file_fingerprint.hpp']
     for directory, pattern in [('src', 'potential_surface*'), ('tools', '*potential_surface*'),
                                ('tests', 'test_potential_surface*')]:
@@ -64,6 +67,7 @@ def run(args):
             'weight': args.weight, 'support_m': args.support, 'length_scale_m': args.length_scale,
             'exact_buildings': args.exact_buildings},
         'steering_mode': args.steering,
+        'guidance_mode': args.guidance_mode,
         'record_moves': not args.no_move_log, 'copy_aerial': not args.no_aerial,
         'compiler': subprocess.check_output(['c++', '--version'], text=True).splitlines()[0],
         'build': 'Release -O3 -DNDEBUG', 'created_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
@@ -105,17 +109,40 @@ def run(args):
                '--length-scale', str(args.length_scale), '--steering', args.steering]
     if args.exact_buildings:
         command.append('--exact-buildings')
+    if args.guidance_mode != 'none':
+        if args.guidance is None:
+            raise ValueError('--guidance is required for an enabled guidance mode')
+        guidance_source = args.guidance.resolve()
+        guidance_copy = output / 'guidance.json'
+        shutil.copy2(guidance_source, guidance_copy)
+        manifest['guidance_original'] = str(guidance_source)
+        manifest['guidance_sha256'] = sha(guidance_copy)
+        command += ['--guidance', str(guidance_copy), '--guidance-mode', args.guidance_mode]
+    elif args.guidance is not None:
+        raise ValueError('--guidance requires an enabled --guidance-mode')
     if args.no_move_log:
         command.append('--no-move-log')
     if args.no_aerial:
         command.append('--no-aerial')
-    manifest['command'] = command
-    (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     print('Running frozen goal-directed steering benchmark...', flush=True)
-    with (output / 'simulation.log').open('w') as log:
-        subprocess.run(['/usr/bin/time', '-o', str(output / 'process.json'), '-f',
-                        '{"wall_seconds":%e,"user_seconds":%U,"system_seconds":%S,"peak_rss_kib":%M}',
-                        *command], cwd=root, env=environment, stdout=log, stderr=subprocess.STDOUT, check=True)
+    try:
+        with benchmark_executable(binary) as running_binary:
+            command[command.index(str(binary))] = str(running_binary)
+            manifest['command'] = command
+            manifest['benchmark_executable'] = {'original': str(binary),
+                'during_run': str(running_binary), 'restored_after_run': False}
+            (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+            with (output / 'simulation.log').open('w') as log:
+                subprocess.run(['/usr/bin/time', '-o', str(output / 'process.json'), '-f',
+                                '{"wall_seconds":%e,"user_seconds":%U,"system_seconds":%S,"peak_rss_kib":%M}',
+                                *command], cwd=root, env=environment, stdout=log, stderr=subprocess.STDOUT, check=True)
+    finally:
+        if 'benchmark_executable' in manifest:
+            temporary = Path(manifest['benchmark_executable']['during_run'])
+            manifest['benchmark_executable']['restored_after_run'] = (
+                binary.is_file() and sha(binary) == manifest['binary_sha256']
+                and not temporary.exists() and not temporary.is_symlink())
+            (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     for name, digest in manifest['source_sha256'].items():
         assert sha(root / name) == digest, ('Source changed during measurement', name)
     assert sha(binary) == manifest['binary_sha256']
@@ -132,6 +159,9 @@ def run(args):
     assert not result['configuration']['navmesh'] and not result['configuration']['global_paths']
     assert result['configuration']['exact_buildings'] == args.exact_buildings
     assert result['configuration']['steering_mode'] == args.steering
+    assert result['configuration']['guidance_mode'] == args.guidance_mode
+    if args.guidance_mode != 'none':
+        assert result['guidance']['sha256'] == manifest['guidance_sha256'] == sha(guidance_source)
     assert result['configuration']['weight'] == args.weight
     assert result['configuration']['support_m'] == args.support
     assert result['configuration']['length_scale_m'] == args.length_scale
@@ -172,6 +202,8 @@ if __name__ == '__main__':
     parser.add_argument('--length-scale', type=positive_float, default=1.)
     parser.add_argument('--exact-buildings', action='store_true', help='Use oriented building rectangle fields instead of circumscribed circles')
     parser.add_argument('--steering', choices=('filtered', 'normalized', 'tangent'), default='filtered')
+    parser.add_argument('--guidance', type=Path, help='Sparse analytical bump and pocket geometry')
+    parser.add_argument('--guidance-mode', choices=('none', 'hierarchy', 'pockets', 'combined'), default='none')
     parser.add_argument('--no-move-log', action='store_true', help='Skip full movement stream and independent stream audit for screening')
     parser.add_argument('--no-aerial', action='store_true', help='Use the source aerial without copying it into the simulation directory')
     run(parser.parse_args())

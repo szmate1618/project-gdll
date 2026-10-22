@@ -1,5 +1,6 @@
 #pragma once
 #include "potential_surface.hpp"
+#include "potential_surface_guidance.hpp"
 
 namespace viewer::potential_surface {
 
@@ -16,6 +17,7 @@ struct SteeringState {
 struct SteeringDecision {
     Point velocity;
     bool activated=false, released=false, tangentUpdate=false;
+    bool guidanceActivated=false,guidanceReleased=false,guidanceUpdate=false;
 };
 
 // Desired velocity already respects speed and distance-to-goal/timestep caps.
@@ -24,6 +26,8 @@ struct SteeringDecision {
 // tangent adds fixed local probes <=1.5 m and persistent contour following.
 // All modes return velocity only; World::move remains the strict physical guard.
 SteeringDecision steerVelocity(SteeringMode mode,const World&,Point position,Point goal,
-                               Point desired,double dt,SteeringState&,QueryStats&);
+                               Point desired,double dt,SteeringState&,QueryStats&,
+                               const Guidance* guidance=nullptr,GuidanceMode guidanceMode=GuidanceMode::none,
+                               GuidanceState* guidanceState=nullptr,GuidanceStats* guidanceStats=nullptr);
 
 } // namespace viewer::potential_surface

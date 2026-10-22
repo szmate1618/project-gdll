@@ -19,6 +19,8 @@ struct State {
     Point anchor,lastHeading;
     double anchorTime=0,nextTrace=1;
     potential_surface::SteeringState steering;
+    potential_surface::GuidanceState guidance;
+    potential_surface::GuidanceStats guidanceStats;
 };
 struct Segment { std::uint32_t id=0;Point a,b; };
 void encode(std::vector<char>& bytes,std::size_t& offset,std::uint64_t value,unsigned count) {
@@ -103,7 +105,8 @@ Result simulate(const potential_surface::World& world,const std::vector<Request>
             const double distance=length(offset);
             const auto desired=distance>0?offset*(std::min(config.speed,distance/config.timestep)/distance):Point{};
             const auto steering=potential_surface::steerVelocity(config.steering,world,old,agent.goal,
-                desired,config.timestep,state.steering,result.queries);
+                desired,config.timestep,state.steering,result.queries,config.guidance,config.guidanceMode,
+                &state.guidance,&state.guidanceStats);
             const auto moved=world.move(old,old+steering.velocity*config.timestep,result.queries);
             agent.tangentActivations+=steering.activated;
             agent.tangentUpdates+=steering.tangentUpdate;
@@ -159,7 +162,17 @@ Result simulate(const potential_surface::World& world,const std::vector<Request>
             }
         }
     }
-    for (auto& agent:result.agents) {
+    for (std::size_t i=0;i<result.agents.size();++i) {
+        auto& agent=result.agents[i];
+        agent.guidanceStats=states[i].guidanceStats;
+        const auto& stats=agent.guidanceStats;
+        auto& total=result.guidanceStats;
+        total.queries+=stats.queries;total.nodes+=stats.nodes;total.candidates+=stats.candidates;
+        total.bumpContributors+=stats.bumpContributors;total.pocketChecks+=stats.pocketChecks;
+        total.pocketContributors+=stats.pocketContributors;total.virtualProbes+=stats.virtualProbes;
+        total.escapeActivations+=stats.escapeActivations;total.escapeUpdates+=stats.escapeUpdates;
+        total.targetSwitches+=stats.targetSwitches;total.escapeReleases+=stats.escapeReleases;
+        total.blockedTargets+=stats.blockedTargets;
         if (agent.status==Status::active) agent.status=Status::timeout;
         if (!same(agent.trace.back(),agent.position)) agent.trace.push_back(agent.position);
     }

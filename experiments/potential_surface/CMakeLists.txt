@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(potential_surface_experiment LANGUAGES CXX)
 
-# Standalone build: no viewer, navmesh, Detour, downloads or asset generation.
+# Standalone motion build: no viewer, Detour, downloads or asset generation.
+# An opt-in offline diagnostic can compare retained results with a navmesh.
 include(CTest)
 find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 set(CMAKE_CXX_STANDARD 17)
@@ -17,6 +18,7 @@ endif()
 
 add_library(potential_surface STATIC
     "${PSS_ROOT}/src/potential_surface.cpp"
+    "${PSS_ROOT}/src/potential_surface_guidance.cpp"
     "${PSS_ROOT}/src/potential_surface_steering.cpp")
 target_include_directories(potential_surface PUBLIC "${PSS_ROOT}/src")
 target_compile_options(potential_surface PRIVATE -Wall -Wextra -Wpedantic)
@@ -27,13 +29,26 @@ target_link_libraries(potential_surface_simulation PUBLIC potential_surface)
 target_compile_options(potential_surface_simulation PRIVATE -Wall -Wextra -Wpedantic)
 add_executable(benchmark_potential_surface
     "${PSS_ROOT}/tools/benchmark_potential_surface.cpp"
+    "${PSS_ROOT}/tools/potential_surface_guidance_io.cpp"
     "${PSS_ROOT}/src/file_fingerprint.cpp")
 target_include_directories(benchmark_potential_surface SYSTEM PRIVATE "${PSS_JSON_INCLUDE_DIR}")
 target_link_libraries(benchmark_potential_surface PRIVATE potential_surface_simulation OpenSSL::Crypto)
 target_compile_options(benchmark_potential_surface PRIVATE -Wall -Wextra -Wpedantic)
 
+option(PSS_BUILD_REACHABILITY_CHECK "Build the offline navmesh reachability diagnostic" OFF)
+if(PSS_BUILD_REACHABILITY_CHECK)
+    add_executable(check_potential_surface_reachability
+        "${PSS_ROOT}/tools/check_potential_surface_reachability.cpp"
+        "${PSS_ROOT}/src/zombie_navmesh.cpp"
+        "${PSS_ROOT}/src/zombie_navmesh_search.cpp"
+        "${PSS_ROOT}/src/file_fingerprint.cpp")
+    target_include_directories(check_potential_surface_reachability SYSTEM PRIVATE "${PSS_JSON_INCLUDE_DIR}")
+    target_link_libraries(check_potential_surface_reachability PRIVATE potential_surface OpenSSL::Crypto)
+    target_compile_options(check_potential_surface_reachability PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
 if(BUILD_TESTING)
-    foreach(suite potential_surface potential_surface_steering potential_surface_simulation)
+    foreach(suite potential_surface potential_surface_steering potential_surface_simulation potential_surface_guidance)
         add_executable(test_${suite} "${PSS_ROOT}/tests/test_${suite}.cpp")
         target_link_libraries(test_${suite} PRIVATE potential_surface_simulation)
         target_compile_options(test_${suite} PRIVATE -Wall -Wextra -Wpedantic)

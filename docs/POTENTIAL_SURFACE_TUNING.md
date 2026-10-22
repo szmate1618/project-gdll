@@ -12,6 +12,13 @@ The later [shape and local-recovery experiment](POTENTIAL_SURFACE_RECOVERY.md)
 changes those structural rules; the measurements below describe parameter tuning
 of the original controller only.
 
+The subsequent [current-controller retuning](POTENTIAL_SURFACE_RETUNING.md)
+preserves exact building fields and tangent recovery, selecting weight 512,
+length 1 m and support 6 m. Arrivals improve from 599 to 857 on the original
+trips, 600 to 855 on the reused second seed, and 607 to 842 on a new holdout,
+each out of 1,000. The historical tables below retain the original-controller
+measurements.
+
 **Parameter tuning improves completion on both trip sets, but does not make this
 a reliable standalone navigator.** Original trips improve from 56 to 108 arrivals;
 the untouched seed improves from 62 to 117. That is still only 10.8–11.7%

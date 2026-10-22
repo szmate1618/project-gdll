@@ -13,6 +13,21 @@ All variants use the previously selected weight 1448.1546878700494, 2 m length
 scale and 12 m field support. Geometry and steering are not retuned against the
 benchmark trips. The original circle/filter defaults remain available.
 
+The follow-up [hierarchy and pocket experiment](POTENTIAL_SURFACE_HIERARCHY.md)
+retains this tangent controller as the stronger baseline. Across the same two
+workloads it reaches 1,199/2,000 destinations, versus 801 with structural hierarchy
+bumps, 1,179 with verified pocket guidance and 803 with both. Those fixed
+guidance settings do not improve overall completion; the follow-up report also
+contains ten native 3D views of earlier timeout locations.
+
+The later [current-controller retuning](POTENTIAL_SURFACE_RETUNING.md) keeps this
+exact-building tangent controller and disables structural guidance. Its selected
+weight 512, length 1 m and support 6 m raise arrivals from 599 to 857 on the
+original trips, 600 to 855 on the reused second seed, and 607 to 842 on a fresh
+holdout, each out of 1,000. Those parameters become the baseline for subsequent
+standalone experiments; the controlled comparison below retains its original
+parameters and measurements.
+
 ## Controlled comparison
 
 Each variant receives exactly the same 1,000 physically clear start/goal pairs
@@ -144,8 +159,14 @@ perpendicular step can increase Euclidean goal distance without being counted.
 The remaining tangent stalls have median straight-line goal distances of
 **1.861 / 1.839 km**. Timeout medians are **43.70 / 66.21 m**. Stalls and timeouts
 are separate outcomes; more movement can mean circling or unsuccessful local
-recovery. Global reachability is not classified, so these totals do not prove
-that every failed request had a physically possible route.
+recovery. That benchmark did not classify global reachability, so these totals
+alone do not prove that every failed request had a physically possible route.
+
+A subsequent [navmesh and physical reachability cross-check](POTENTIAL_SURFACE_REACHABILITY.md)
+classifies these same retained tangent trips: 71 of 801 failures are impossible
+from buildings/fences, 726 have collision-checked routes within their original
+budgets, and four remain unresolved. The results above retain their original
+unfiltered denominators.
 
 Independent endpoint diagnostics classify the remaining tangent failures:
 

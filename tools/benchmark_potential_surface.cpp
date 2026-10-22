@@ -1,8 +1,10 @@
 #include "potential_surface_simulation.hpp"
+#include "potential_surface_guidance_io.hpp"
 #include "file_fingerprint.hpp"
 #include "json.hpp"
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdlib>
 #include <cmath>
 #include <filesystem>
@@ -19,7 +21,7 @@ using json=nlohmann::json;
 using namespace viewer::potential_surface_benchmark;
 using viewer::potential_surface::Point;
 struct Options {
-    fs::path scene,requests,output;
+    fs::path scene,requests,output,guidance;
     unsigned repeats=3,warmups=1;
     Config simulation;
     viewer::potential_surface::Config field;
@@ -33,7 +35,8 @@ Options parse(int argc,char** argv) {
             std::cout<<"benchmark_potential_surface --scene paths.json --requests requests.json --output NEWDIR "
                 "[--repeats 3] [--warmups 1] [--timestep .05] [--speed 2] "
                 "[--weight 16] [--support 3] [--length-scale 1] [--exact-buildings] "
-                "[--steering filtered|normalized|tangent] [--no-move-log] [--no-aerial]\n";
+                "[--steering filtered|normalized|tangent] [--guidance FILE] "
+                "[--guidance-mode none|hierarchy|pockets|combined] [--no-move-log] [--no-aerial]\n";
             std::exit(0);
         }
         if (flag=="--exact-buildings") { result.field.exactBuildings=true;continue; }
@@ -44,6 +47,15 @@ Options parse(int argc,char** argv) {
         if (flag=="--scene") result.scene=value;
         else if (flag=="--requests") result.requests=value;
         else if (flag=="--output") result.output=value;
+        else if (flag=="--guidance") result.guidance=value;
+        else if (flag=="--guidance-mode") {
+            using viewer::potential_surface::GuidanceMode;
+            if (value=="none") result.simulation.guidanceMode=GuidanceMode::none;
+            else if (value=="hierarchy") result.simulation.guidanceMode=GuidanceMode::hierarchy;
+            else if (value=="pockets") result.simulation.guidanceMode=GuidanceMode::pockets;
+            else if (value=="combined") result.simulation.guidanceMode=GuidanceMode::combined;
+            else throw std::invalid_argument("Unknown guidance mode "+value);
+        }
         else if (flag=="--steering") {
             if (value=="filtered") result.simulation.steering=SteeringMode::filtered;
             else if (value=="normalized") result.simulation.steering=SteeringMode::normalized;
@@ -70,6 +82,8 @@ Options parse(int argc,char** argv) {
     }
     if (result.scene.empty() || result.requests.empty() || result.output.empty())
         throw std::invalid_argument("--scene, --requests and --output are required");
+    if (result.guidance.empty()!=(result.simulation.guidanceMode==viewer::potential_surface::GuidanceMode::none))
+        throw std::invalid_argument("--guidance and an enabled --guidance-mode must be supplied together");
     return result;
 }
 const char* steeringName(SteeringMode mode) {
@@ -104,6 +118,14 @@ json distribution(const std::vector<double>& values) {
         {"p95",percentile(values,.95)},{"max",*std::max_element(values.begin(),values.end())},
         {"mean",std::accumulate(values.begin(),values.end(),0.0)/values.size()}};
 }
+json guidanceStats(const viewer::potential_surface::GuidanceStats& stats) {
+    return {{"queries",stats.queries},{"nodes",stats.nodes},{"candidates",stats.candidates},
+        {"bump_contributors",stats.bumpContributors},{"pocket_checks",stats.pocketChecks},
+        {"pocket_contributors",stats.pocketContributors},{"virtual_probes",stats.virtualProbes},
+        {"escape_activations",stats.escapeActivations},{"escape_updates",stats.escapeUpdates},
+        {"target_switches",stats.targetSwitches},{"escape_releases",stats.escapeReleases},
+        {"blocked_targets",stats.blockedTargets}};
+}
 json agentJson(const AgentResult& agent,bool trace) {
     json result={{"id",agent.id},{"start",{agent.start.x,agent.start.z}},{"goal",{agent.goal.x,agent.goal.z}},
         {"status",statusName(agent.status)},{"final",{agent.position.x,agent.position.z}},
@@ -113,13 +135,14 @@ json agentJson(const AgentResult& agent,bool trace) {
         {"invalid_moves",agent.invalidMoves},{"steering_stats",{{"tangent_activations",agent.tangentActivations},
             {"tangent_updates",agent.tangentUpdates},{"tangent_releases",agent.tangentReleases},
             {"retreat_updates",agent.retreatUpdates}}}};
+    result["guidance_stats"]=guidanceStats(agent.guidanceStats);
     if (trace) {
         result["trace"]=json::array();
         for (auto position:agent.trace) result["trace"].push_back({position.x,position.z});
     }
     return result;
 }
-json summary(const Result& result,const Config& config,std::size_t worldBytes) {
+json summary(const Result& result,const Config& config,std::size_t worldBytes,std::size_t guidanceBytes) {
     json statuses={{"arrived",0},{"stalled",0},{"timeout",0},{"invalid_endpoint",0}};
     std::vector<double> arrivedTimes,travel,arrivedRatios,elapsed,stepWall,stepCpu,fixedWall,fixedCpu,earlyWall,earlyCpu,earlyActive;
     std::uint64_t clipped=0,invalid=0,tangentActivations=0,tangentUpdates=0,tangentReleases=0,retreatUpdates=0;
@@ -167,7 +190,8 @@ json summary(const Result& result,const Config& config,std::size_t worldBytes) {
         {"query_stats",{{"field_nodes",result.queries.fieldNodes},{"field_candidates",result.queries.fieldCandidates},
             {"field_contributors",result.queries.fieldContributors},{"collision_nodes",result.queries.collisionNodes},
             {"collision_candidates",result.queries.collisionCandidates}}},
-        {"world_bytes",worldBytes},{"simulation_scratch_bytes",result.scratchBytes}};
+        {"world_bytes",worldBytes},{"guidance_bytes",guidanceBytes},
+        {"guidance_stats",guidanceStats(result.guidanceStats)},{"simulation_scratch_bytes",result.scratchBytes}};
 }
 json signature(const Result& result) {
     json agents=json::array();for (const auto& agent:result.agents) agents.push_back(agentJson(agent,true));
@@ -184,7 +208,7 @@ void publish(const fs::path& output,const json& document) {
 }
 }
 int main(int argc,char** argv) try {
-    const auto options=parse(argc,argv);
+    auto options=parse(argc,argv);
     for (const auto* name:{"summary.json","steps.csv","moves.bin"})
         if (fs::exists(options.output/name)) throw std::invalid_argument("Choose a fresh output directory");
     const auto scene=read(options.scene),requestDocument=read(options.requests);
@@ -206,8 +230,16 @@ int main(int argc,char** argv) try {
             {"radius",fieldConfig.radius},{"skin",fieldConfig.skin},{"building_extra",fieldConfig.buildingExtra}})
         if (requestDocument.contains(entry.first) && requestDocument.at(entry.first).get<double>()!=entry.second)
             throw std::invalid_argument(std::string("Endpoint preparation physical ")+entry.first+" differs from runtime");
+    const auto setupBegin=std::chrono::steady_clock::now();
     const viewer::potential_surface::World world(std::move(obstacles),
         {minimum.x,minimum.z,maximum.x,maximum.z},fieldConfig);
+    const double worldSetupMilliseconds=std::chrono::duration<double,std::milli>(
+        std::chrono::steady_clock::now()-setupBegin).count();
+    LoadedGuidance guidance;
+    if (!options.guidance.empty()) {
+        guidance=loadGuidance(options.guidance,sceneSha,fieldConfig,options.simulation.guidanceMode);
+        options.simulation.guidance=guidance.field.get();
+    }
     std::vector<Request> requests;
     for (const auto& item:requestDocument.at("requests")) {
         const auto id=item.at("id").get<std::uint64_t>();if (id>UINT32_MAX) throw std::invalid_argument("Agent ID exceeds uint32");
@@ -222,11 +254,20 @@ int main(int argc,char** argv) try {
     json document={{"schema",1},{"source",fs::absolute(options.scene).string()},{"source_sha256",sceneSha},
         {"requests_file",fs::absolute(options.requests).string()},{"requests_sha256",viewer::fileSha256(options.requests)},
         {"raster",std::move(raster)},{"obstacle_counts",kinds},{"requests",requestDocument.at("requests")},
+        {"setup_world_ms",worldSetupMilliseconds},
+        {"guidance",{{"file",options.guidance.empty()?json(nullptr):json(fs::absolute(options.guidance).string())},
+            {"sha256",guidance.sha256},{"mode",guidanceName(options.simulation.guidanceMode)},
+            {"bumps",guidance.field?guidance.field->bumpCount():0},
+            {"pockets",guidance.field?guidance.field->pocketCount():0},
+            {"memory_bytes",guidance.field?guidance.field->memoryBytes():0},
+            {"load_wall_ms",guidance.loadMilliseconds}}},
         {"configuration",{{"seed",requestDocument.value("seed",std::uint64_t(0))},
             {"timestep_seconds",options.simulation.timestep},{"speed_m_per_second",options.simulation.speed},
             {"radius_m",fieldConfig.radius},{"skin_m",fieldConfig.skin},{"building_extra_m",fieldConfig.buildingExtra},
             {"support_m",fieldConfig.support},{"length_scale_m",fieldConfig.lengthScale},{"weight",fieldConfig.weight},
             {"exact_buildings",fieldConfig.exactBuildings},{"steering_mode",steeringName(options.simulation.steering)},
+            {"guidance_mode",guidanceName(options.simulation.guidanceMode)},
+            {"guidance_representation","Sparse analytical bump parameters and verified polygon pockets with exit attractors; no raster or global runtime path search."},
             {"arrival_radius_m",.15},{"stall_window_seconds",10},{"stall_anchor_displacement_m",.05},
             {"time_budget","max(120 seconds, 3 * initial_distance / speed + 60 seconds) per agent"},
             {"trace_interval_seconds",options.simulation.traceInterval},{"warmups",options.warmups},{"repeats",options.repeats},
@@ -251,7 +292,8 @@ int main(int argc,char** argv) try {
         for (const auto& agent:result.agents) valid&=agent.invalidMoves==0 && agent.status!=Status::invalidEndpoint;
         if (run<options.warmups) continue;
         const auto repeat=run-options.warmups;
-        auto measured=summary(result,options.simulation,world.memoryBytes());measured["repeat"]=repeat;
+        auto measured=summary(result,options.simulation,world.memoryBytes(),guidance.field?guidance.field->memoryBytes():0);
+        measured["repeat"]=repeat;
         document["samples"].push_back(measured);document["summary"]=std::move(measured);
         for (const auto& step:result.steps)
             steps<<repeat<<','<<step.step<<','<<step.active<<','<<step.milliseconds<<','<<step.cpuMilliseconds<<'\n';

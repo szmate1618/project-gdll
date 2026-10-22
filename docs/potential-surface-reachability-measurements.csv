@@ -1,0 +1,7 @@
+trips,steering_status,agents,unreachable_buildings_fences,reachable_navmesh_witness,reachable_recorded_arrival,unresolved,witnesses_fit_budget,witnesses_exceed_budget,median_witness_m,median_actual_travel_m_for_witness_agents
+training,arrived,599,0,599,0,0,599,0,3448.2308957349464,3616.8999999990074
+training,stalled,279,13,264,0,2,264,0,4313.378839015206,1864.2154240171094
+training,timeout,122,17,103,0,2,103,0,3260.6194200896257,8520.800000011364
+second-seed,arrived,600,0,599,1,0,599,0,3401.264731431499,3567.899999998684
+second-seed,timeout,118,26,92,0,0,92,0,3509.1705829859366,8992.050000015344
+second-seed,stalled,282,15,267,0,0,267,0,4695.61355157063,2441.2441028795906

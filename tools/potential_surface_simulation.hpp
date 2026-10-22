@@ -1,5 +1,6 @@
 #pragma once
 #include "potential_surface_steering.hpp"
+#include "potential_surface_guidance.hpp"
 #include <cstdint>
 #include <iosfwd>
 #include <vector>
@@ -11,6 +12,8 @@ struct Request { std::uint32_t id=0;Point start,goal; };
 struct Config {
     double timestep=.05,speed=2,traceInterval=1;
     SteeringMode steering=SteeringMode::filtered;
+    const potential_surface::Guidance* guidance=nullptr;
+    potential_surface::GuidanceMode guidanceMode=potential_surface::GuidanceMode::none;
 };
 enum class Status { active,arrived,stalled,timeout,invalidEndpoint };
 const char* statusName(Status);
@@ -21,6 +24,7 @@ struct AgentResult {
     double arrivalSeconds=-1,travel=0,initialDistance=0,budgetSeconds=0,headingRadians=0,elapsedSeconds=0;
     std::uint64_t updates=0,clippedMoves=0,invalidMoves=0;
     std::uint64_t tangentActivations=0,tangentUpdates=0,tangentReleases=0,retreatUpdates=0;
+    potential_surface::GuidanceStats guidanceStats;
     std::vector<Point> trace;
 };
 struct StepResult {
@@ -32,6 +36,7 @@ struct Result {
     std::vector<AgentResult> agents;
     std::vector<StepResult> steps;
     potential_surface::QueryStats queries;
+    potential_surface::GuidanceStats guidanceStats;
     std::uint64_t updates=0,movedSegments=0,validationSegments=0,validationViolations=0;
     double milliseconds=0,cpuMilliseconds=0;
     std::size_t scratchBytes=0;

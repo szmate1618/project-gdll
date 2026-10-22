@@ -1,0 +1,13 @@
+trips,variant,status,agents,building,tree,fence,map_boundary,off_contact,with_clipped_moves,zero_clipped_moves
+training,baseline,stalled,279,111,8,160,0,0,279,0
+training,baseline,timeout,122,0,0,0,0,122,0,122
+training,tuned,stalled,4,0,0,4,0,0,4,0
+training,tuned,timeout,139,0,0,0,0,139,0,139
+second-seed,baseline,stalled,282,120,13,149,0,0,282,0
+second-seed,baseline,timeout,118,0,0,0,0,118,0,118
+second-seed,tuned,stalled,7,0,0,7,0,0,7,0
+second-seed,tuned,timeout,138,0,0,0,0,138,0,138
+holdout,baseline,stalled,272,130,14,128,0,0,272,0
+holdout,baseline,timeout,121,0,0,0,0,121,0,121
+holdout,tuned,stalled,8,1,0,7,0,0,8,0
+holdout,tuned,timeout,150,0,0,0,0,150,0,150

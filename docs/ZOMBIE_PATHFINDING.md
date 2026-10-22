@@ -67,6 +67,26 @@ raises standalone completion to 599/1,000 and 600/1,000 by adding rectangle fiel
 normalization and persistent tangent steering. It remains experimental: roughly
 40% do not arrive, and no integration into the navigation system is selected.
 
+The follow-up [reachability cross-check](POTENTIAL_SURFACE_REACHABILITY.md) finds
+71 of those 801 failures are physically disconnected by buildings/fences, while
+726 have validated routes with trees included and within their original time
+budgets. Four remain unresolved by the cached mesh.
+
+The [hierarchy and pocket experiment](POTENTIAL_SURFACE_HIERARCHY.md) keeps
+guidance as sparse equations and polygons, with no raster or runtime path search.
+At its fixed settings, baseline tangent steering remains preferable: it reaches
+1,199/2,000 destinations versus 801 with hierarchy, 1,179 with pockets and 803
+combined. All eight movement audits pass. A new audited arrival establishes
+reachability for original-set agent 118; three previously unresolved trips remain.
+
+The latest [potential-surface retuning](POTENTIAL_SURFACE_RETUNING.md) selects
+weight 512, length 1 m and support 6 m for the exact-building tangent controller,
+with structural guidance disabled. This experimental baseline reaches 857/1,000
+original destinations, 855/1,000 on the reused second seed and 842/1,000 on a
+fresh holdout, versus respective inherited baselines of 599, 600 and 607.
+All six movement audits pass. These are standalone steering experiments;
+live crowd integration remains separate.
+
 ## Query behavior and ownership
 
 The offline baker subtracts expanded, oriented obstacle rectangles from the

@@ -21,20 +21,60 @@ constexpr double minimumContourPotential=.02, contourFraction=.9, maximumRadialB
 }
 
 SteeringDecision steerVelocity(SteeringMode mode,const World& world,Point position,Point goal,
-                               Point desired,double dt,SteeringState& state,QueryStats& stats) {
+                               Point desired,double dt,SteeringState& state,QueryStats& stats,
+                               const Guidance* guidance,GuidanceMode guidanceMode,
+                               GuidanceState* guidanceState,GuidanceStats* guidanceStats) {
     if (!finite(position) || !finite(goal) || !finite(desired) || !std::isfinite(dt) || dt<=0)
         throw std::invalid_argument("Invalid local steering input");
-    const auto field=world.field(position,stats);
-    const auto filtered=filterVelocity(desired,field.gradient,world.config().weight);
-    if (mode==SteeringMode::filtered) return {filtered};
-    const double speed=length(desired);
-    if (speed==0) return {};
-    const auto goalDirection=desired/speed;
+    GuidanceTarget target{goal};
+    Point intended=desired;
+    GuidanceStats unusedStats;
+    auto& guidanceWork=guidanceStats?*guidanceStats:unusedStats;
+    const bool hierarchy=guidanceMode==GuidanceMode::hierarchy || guidanceMode==GuidanceMode::combined;
+    const bool pockets=guidanceMode==GuidanceMode::pockets || guidanceMode==GuidanceMode::combined;
+    if (guidanceMode!=GuidanceMode::none) {
+        if (!guidance || (!hierarchy && !pockets)) throw std::invalid_argument("Missing or invalid guidance configuration");
+        if (pockets) {
+            if (!guidanceState) throw std::invalid_argument("Pocket guidance requires persistent per-agent state");
+            target=guidance->selectTarget(position,goal,world,*guidanceState,guidanceWork,stats);
+            if (target.changed) state=SteeringState{};
+            if (target.active) {
+                const auto offset=target.position-position;
+                const double distance=length(offset),speed=length(desired);
+                intended=distance>0?offset*(std::min(speed,distance/dt)/distance):Point{};
+            }
+        }
+    }
+    const auto ignorePocket=guidanceState?guidanceState->activePocket:UINT32_MAX;
+    const auto probeClear=[&](Point end) {
+        return world.segmentClear(position,end,stats) &&
+            (!pockets || guidance->pocketSegmentClear(position,end,goal,ignorePocket,guidanceWork));
+    };
+    const auto finish=[&](SteeringDecision decision) {
+        decision.guidanceActivated=target.activated;
+        decision.guidanceReleased=target.released;
+        decision.guidanceUpdate=target.active;
+        return decision;
+    };
+    auto field=world.field(position,stats);
+    if (hierarchy) {
+        const auto coarse=guidance->field(position,goal,guidanceWork);
+        field.potential+=coarse.potential;field.gradient=field.gradient+coarse.gradient;
+    }
+    if (pockets) {
+        const auto virtualField=guidance->pocketField(position,goal,ignorePocket,guidanceWork);
+        field.potential+=virtualField.potential;field.gradient=field.gradient+virtualField.gradient;
+    }
+    const auto filtered=filterVelocity(intended,field.gradient,world.config().weight);
+    if (mode==SteeringMode::filtered) return finish({filtered});
+    const double speed=length(intended);
+    if (speed==0) return finish({});
+    const auto goalDirection=intended/speed;
     const auto normalized=unit(filtered,goalDirection)*speed;
-    if (mode==SteeringMode::normalized) return {normalized};
+    if (mode==SteeringMode::normalized) return finish({normalized});
     if (mode!=SteeringMode::tangent) throw std::invalid_argument("Unknown local steering mode");
 
-    const double distance=length(goal-position);
+    const double distance=length(target.position-position);
     if (state.initialized) {
         if (state.previousDistance-distance<slowProgressFraction*speed*dt)
             state.slowSeconds+=dt;
@@ -43,7 +83,7 @@ SteeringDecision steerVelocity(SteeringMode mode,const World& world,Point positi
     state.initialized=true;
     state.previousDistance=distance;
     const double probe=std::min(probeLength,distance);
-    const bool goalClear=world.segmentClear(position,position+goalDirection*probe,stats);
+    const bool goalClear=probeClear(position+goalDirection*probe);
     const auto gradientDirection=unit(field.gradient,{});
     const bool hasGradient=length(gradientDirection)>0;
     if (hasGradient) state.outward=gradientDirection*(-1);
@@ -51,23 +91,23 @@ SteeringDecision steerVelocity(SteeringMode mode,const World& world,Point positi
 
     SteeringDecision result;
     if (state.active && distance<=state.entryDistance-releaseImprovement && goalClear &&
-        world.segmentClear(position,position+normalized*(probe/speed),stats)) {
+        probeClear(position+normalized*(probe/speed))) {
         state.active=false;
         state.side=0;
         state.slowSeconds=0;
         result.velocity=normalized;
         result.released=true;
-        return result;
+        return finish(result);
     }
     if (!state.active) {
-        const bool filteredClear=world.segmentClear(position,position+normalized*(probe/speed),stats);
+        const bool filteredClear=probeClear(position+normalized*(probe/speed));
         if (goalClear && filteredClear && state.slowSeconds<slowProgressSeconds)
-            return {normalized};
+            return finish({normalized});
         const auto tangent=left(state.outward)*(-1);
         const auto plus=unit(tangent+state.outward*.1,tangent);
         const auto minus=unit(tangent*(-1)+state.outward*.1,tangent*(-1));
-        const bool plusClear=world.segmentClear(position,position+plus*probe,stats);
-        const bool minusClear=world.segmentClear(position,position+minus*probe,stats);
+        const bool plusClear=probeClear(position+plus*probe);
+        const bool minusClear=probeClear(position+minus*probe);
         state.side=plusClear!=minusClear?(plusClear?1:-1):
             (dot(plus,goalDirection)>=dot(minus,goalDirection)?1:-1);
         state.active=true;
@@ -84,7 +124,7 @@ SteeringDecision steerVelocity(SteeringMode mode,const World& world,Point positi
     const auto tangent=left(state.outward)*(-double(state.side));
     result.velocity=unit(tangent+state.outward*radial,tangent)*speed;
     result.tangentUpdate=true;
-    return result;
+    return finish(result);
 }
 
 } // namespace viewer::potential_surface
