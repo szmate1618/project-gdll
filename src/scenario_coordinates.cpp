@@ -25,8 +25,7 @@ bool finite(glm::dvec2 point) {
 } // namespace
 
 struct ScenarioCoordinates::Impl {
-    ZombieScenarioConfig config;
-    glm::dvec2 center{0}; // Runtime X/Z center for meter offsets.
+    ZombieHordeConfig::Rectangle bounds;
     glm::dvec2 projectedOrigin{0}; // Projected east/north meters.
     PJ_CONTEXT* context = nullptr;
     PJ* projection = nullptr;
@@ -46,23 +45,16 @@ struct ScenarioCoordinates::Impl {
     }
 };
 
-ScenarioCoordinates::ScenarioCoordinates(const ZombieScenarioConfig& config, const Model& scene)
+ScenarioCoordinates::ScenarioCoordinates(ZombieHordeConfig::CoordinateSystem coordinates,
+    const ZombieHordeConfig::Rectangle& bounds, const Model& scene)
     : impl_(std::make_unique<Impl>()) {
-    impl_->config = config;
-    const auto& bounds = config.spawnRectangle;
+    impl_->bounds = bounds;
     for (const auto coordinate : bounds)
         if (!std::isfinite(coordinate)) invalid("rectangle coordinates must be finite");
     if (bounds[0] >= bounds[2] || bounds[1] >= bounds[3])
-        invalid("rectangle requires west < east and south < north");
+        invalid("rectangle requires minimum bounds smaller than maximum bounds");
 
-    if (config.coordinateSystem == ZombieScenarioConfig::CoordinateSystem::Meters) {
-        if (!scene.geographicFrame) {
-            impl_->center = (glm::dvec2(scene.boundsMin.x, scene.boundsMin.z) +
-                             glm::dvec2(scene.boundsMax.x, scene.boundsMax.z)) * 0.5;
-            if (!finite(impl_->center)) invalid("scene bounds must be finite");
-        }
-        return;
-    }
+    if (coordinates == ZombieHordeConfig::CoordinateSystem::World) return;
     if (bounds[0] < -180 || bounds[2] > 180 || bounds[1] < -90 || bounds[3] > 90)
         invalid("WGS84 rectangle must contain longitude/latitude degrees");
     if (!scene.geographicFrame || scene.geographicFrame->crs.empty() ||
@@ -87,19 +79,19 @@ ScenarioCoordinates::ScenarioCoordinates(const ZombieScenarioConfig& config, con
 
 ScenarioCoordinates::~ScenarioCoordinates() = default;
 
-glm::vec2 ScenarioCoordinates::sample(double unitEast, double unitNorth) const {
-    if (!std::isfinite(unitEast) || !std::isfinite(unitNorth) ||
-        unitEast < 0 || unitEast > 1 || unitNorth < 0 || unitNorth > 1)
+glm::vec2 ScenarioCoordinates::sample(double unitX, double unitY) const {
+    if (!std::isfinite(unitX) || !std::isfinite(unitY) ||
+        unitX < 0 || unitX > 1 || unitY < 0 || unitY > 1)
         invalid("sample inputs must be between zero and one");
-    const auto& bounds = impl_->config.spawnRectangle;
-    const glm::dvec2 point(bounds[0] + (bounds[2] - bounds[0]) * unitEast,
-                           bounds[1] + (bounds[3] - bounds[1]) * unitNorth);
+    const auto& bounds = impl_->bounds;
+    const glm::dvec2 point(bounds[0] + (bounds[2] - bounds[0]) * unitX,
+                           bounds[1] + (bounds[3] - bounds[1]) * unitY);
     glm::dvec2 runtime;
     if (impl_->projection) {
         const auto projected = impl_->transform(point, PJ_FWD) - impl_->projectedOrigin;
         runtime = {projected.x, -projected.y};
     } else {
-        runtime = impl_->center + glm::dvec2(point.x, -point.y);
+        runtime = point;
     }
     if (!finite(runtime) || std::abs(runtime.x) > std::numeric_limits<float>::max() ||
         std::abs(runtime.y) > std::numeric_limits<float>::max())
@@ -116,11 +108,10 @@ bool ScenarioCoordinates::contains(glm::vec2 runtimeXZ) const {
         // Accommodate float runtime placement rounding, about a millimeter.
         tolerance = 1e-8;
     } else {
-        const auto offset = glm::dvec2(runtimeXZ) - impl_->center;
-        point = {offset.x, -offset.y};
+        point = glm::dvec2(runtimeXZ);
         tolerance = 0.001;
     }
-    const auto& bounds = impl_->config.spawnRectangle;
+    const auto& bounds = impl_->bounds;
     return point.x >= bounds[0] - tolerance && point.x <= bounds[2] + tolerance &&
            point.y >= bounds[1] - tolerance && point.y <= bounds[3] + tolerance;
 }

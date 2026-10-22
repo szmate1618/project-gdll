@@ -41,9 +41,11 @@ viewer::navmesh_path::Mesh mesh() {
 
 viewer::ZombieScenarioConfig config(std::size_t count = 1000) {
     viewer::ZombieScenarioConfig result;
-    result.count = count;
+    result.hordes.emplace_back();
+    result.hordes.front().name = "test_horde";
+    result.hordes.front().count = count;
     result.seed = 42;
-    result.spawnRectangle = {-60,-60,60,60};
+    result.hordes.front().spawn = {{-60,-60,60,60}};
     return result;
 }
 
@@ -151,6 +153,82 @@ void randomPopulationAndColdLoad() {
     }
 }
 
+void multipleHordesAndOptionalRegions() {
+    const auto scene = terrain();
+    const viewer::CollisionWorld world(scene);
+    const auto navmesh = mesh();
+    const Files files;
+    const auto path = files.directory / "scenario.toml";
+    std::ofstream(path) << R"(seed = 42
+[zombies.crossing]
+count = 80
+spawn = [-80, -70, -40, -20]
+destination = [40, 20, 80, 70]
+[zombies.destination_only]
+count = 80
+destination = [-80, 20, -40, 70]
+[zombies.mapwide]
+count = 80
+[zombies.spawn_only]
+count = 80
+spawn = [-80, -70, -40, -20]
+)";
+    const auto settings = viewer::loadZombieScenarioConfig(path);
+    const auto population = viewer::generateZombieScenario(world, scene, navmesh, settings);
+    require(population.placements.size() == 320 && population.destinations.size() == 320,
+            "Named horde populations were not combined");
+    std::size_t id = 0, unrestrictedSpawns = 0, unrestrictedDestinations = 0;
+    for (const auto& horde : settings.hordes) {
+        for (std::size_t member = 0; member < horde.count; ++member, ++id) {
+            const auto p = glm::vec3(population.placements[id][3]);
+            const auto goal = population.destinations[id];
+            if (horde.spawn)
+                require(p.x >= -80 && p.x <= -40 && p.z >= -70 && p.z <= -20,
+                        "Horde spawn escaped its asymmetric world X/Z rectangle");
+            else if (p.x > 0) ++unrestrictedSpawns;
+            if (horde.name == "crossing")
+                require(goal.x >= 40 && goal.x <= 80 && goal.z >= 20 && goal.z <= 70,
+                        "Horde destination escaped its independent rectangle");
+            else if (horde.name == "destination_only")
+                require(goal.x >= -80 && goal.x <= -40 && goal.z >= 20 && goal.z <= 70,
+                        "Destination-only bounds were ignored");
+            else if (goal.x > 0) ++unrestrictedDestinations;
+            for (std::size_t other = 0; other < id; ++other) {
+                const auto q = glm::vec3(population.placements[other][3]);
+                require(glm::length(glm::vec2(p.x - q.x, p.z - q.z)) >= .6f,
+                        "Bodies from separate hordes overlap");
+            }
+        }
+    }
+    require(unrestrictedSpawns > 20 && unrestrictedDestinations > 20,
+            "Omitted rectangles did not allow positions across the map");
+    const auto layer = viewer::loadZombieScenario(files.asset(), world, scene, files.navmesh(), settings);
+    require(layer.instances.size() == 320 && layer.navigation()->stats().foundPaths == 320,
+            "Cold loader did not preplan every named horde");
+    for (std::size_t member = 0; member < 320; ++member)
+        require(*layer.scenarioDestination(member) == population.destinations[member],
+                "Cold loading changed a named horde's seeded destinations");
+}
+
+void geographicRegions() {
+    auto scene = terrain();
+    // Independent pyproj reference places 19.35E, 47.60N at the runtime origin.
+    scene.geographicFrame = viewer::Model::GeographicFrame{"EPSG:32634", {375970.52835, 5273162.42161}};
+    const viewer::CollisionWorld world(scene);
+    auto settings = config(40);
+    auto& horde = settings.hordes.front();
+    horde.coordinateSystem = viewer::ZombieHordeConfig::CoordinateSystem::Wgs84;
+    horde.spawn = {{19.3492,47.5994,19.3496,47.5998}};
+    horde.destination = {{19.3504,47.6002,19.3508,47.6006}};
+    const auto population = viewer::generateZombieScenario(world, scene, mesh(), settings);
+    for (std::size_t id = 0; id < horde.count; ++id) {
+        const auto p = glm::vec3(population.placements[id][3]);
+        const auto goal = population.destinations[id];
+        require(p.x < -20 && p.z > 20 && goal.x > 20 && goal.z < -20,
+                "WGS84 endpoint rectangles lost longitude/latitude axes or north-to-Z inversion");
+    }
+}
+
 void disconnectedDestinationsAndBoundedFailure() {
     using namespace viewer::navmesh_path;
     const auto scene = terrain();
@@ -164,26 +242,66 @@ void disconnectedDestinationsAndBoundedFailure() {
                  {{0,4},{4,4}}, {{0,noPolygon},{1,noPolygon},{2,noPolygon},{3,noPolygon},
                                  {4,noPolygon},{5,noPolygon},{6,noPolygon},{7,noPolygon}});
     auto settings = config(30);
-    settings.spawnRectangle = {-60,-60,-20,60};
+    settings.hordes.front().spawn = viewer::ZombieHordeConfig::Rectangle{-60,-60,-20,60};
     const auto population = viewer::generateZombieScenario(world, scene, islands, settings);
     for (const auto target : population.destinations)
         require(target.x <= -2, "A scenario zombie received a destination on another island");
+    settings = config(100);
+    settings.hordes.front().spawn.reset();
+    const auto mapwide = viewer::generateZombieScenario(world, scene, islands, settings);
+    std::size_t left = 0, right = 0;
+    for (std::size_t id = 0; id < mapwide.placements.size(); ++id) {
+        const auto p = glm::vec3(mapwide.placements[id][3]);
+        const auto goal = mapwide.destinations[id];
+        const auto startPolygon = islands.locate({p.x, p.z});
+        const auto goalPolygon = islands.locate({goal.x, goal.z});
+        require(startPolygon != noPolygon && goalPolygon != noPolygon &&
+                    islands.component(startPolygon) == islands.component(goalPolygon),
+                "Mapwide spawning assigned a disconnected destination");
+        if (p.x < 0) ++left; else ++right;
+    }
+    require(left > 20 && right > 20, "Unbounded spawning did not cover all navmesh components");
     settings = config(1);
-    settings.spawnRectangle = {-1,-1,1,1};
+    settings.hordes.front().spawn = viewer::ZombieHordeConfig::Rectangle{-1,-1,1,1};
     const viewer::CollisionWorld blocked(scene, {{{0,0,0}, 4, 15}});
     const auto fails = [&](const viewer::CollisionWorld& collision, const viewer::ZombieScenarioConfig& input) {
         try { (void)viewer::generateZombieScenario(collision, scene, islands, input); }
         catch (const std::runtime_error& error) {
-            require(std::string(error.what()).find("spawn rectangle") != std::string::npos,
+            require(std::string(error.what()).find("spawn region") != std::string::npos,
                     "Impossible rectangle did not report a useful bounded-placement error");
             return;
         }
         throw std::runtime_error("An impossible scenario rectangle was accepted");
     };
     fails(blocked, settings);
-    settings.count = 2;
-    settings.spawnRectangle = {-20.01,-.01,-19.99,.01};
+    settings.hordes.front().count = 2;
+    settings.hordes.front().spawn = viewer::ZombieHordeConfig::Rectangle{-20.01,-.01,-19.99,.01};
     fails(world, settings); // One safe point fits, but two bodies cannot fit.
+    settings = config(1);
+    settings.hordes.front().spawn = {{-60,-60,-20,60}};
+    const auto destinationFails = [&](const viewer::CollisionWorld& collision) {
+        try { (void)viewer::generateZombieScenario(collision, scene, islands, settings); }
+        catch (const std::runtime_error& error) {
+            const std::string message(error.what());
+            require(message.find("destination region") != std::string::npos &&
+                        message.find("test_horde") != std::string::npos,
+                    "Impossible destinations must identify the failing region and horde");
+            return;
+        }
+        throw std::runtime_error("An impossible destination rectangle was accepted");
+    };
+    settings.hordes.front().destination = {{20,-60,60,60}};
+    destinationFails(world); // Safe ground, but a disconnected island.
+    settings.hordes.front().destination = {{-50,-5,-40,5}};
+    const viewer::CollisionWorld blockedTarget(scene, {{{-45,0,0}, 15, 40}});
+    destinationFails(blockedTarget); // Connected ground entirely blocked by a trunk.
+    settings.hordes.front().destination = {{200,200,300,300}};
+    destinationFails(world); // Entirely outside the map.
+    settings = config(60000);
+    settings.hordes.push_back(settings.hordes.front());
+    try { (void)viewer::generateZombieScenario(world, scene, islands, settings); }
+    catch (const std::invalid_argument&) { return; }
+    throw std::runtime_error("A direct multi-horde population exceeded the aggregate count limit");
 }
 
 viewer::ZombieLayer scripted(const std::vector<glm::vec3>& starts, const std::vector<glm::vec3>& goals) {
@@ -309,6 +427,8 @@ void teleportDeathAndCrowd() {
 int main() {
     try {
         randomPopulationAndColdLoad();
+        multipleHordesAndOptionalRegions();
+        geographicRegions();
         disconnectedDestinationsAndBoundedFailure();
         autonomousMovementAndStop();
         gameplayOverridesInitialTravel();

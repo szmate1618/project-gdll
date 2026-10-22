@@ -37,32 +37,58 @@ investigating a last observed player position. Idle zombies remain idle.
 
 ## Test-horde scenario
 
-The directory `scenarios/test-horde/` contains one configuration file:
+The directory `scenarios/test-horde/` contains one configuration file with
+multiple named hordes:
 
 ```toml
+version = 2
 seed = 42
 
-[zombies]
-count = 1000
-spawn = "random"
-spawn_rectangle_m = [-500.0, -300.0, 500.0, 300.0]
-destination = "random"
+[zombies.crossing_horde]
+count = 600
+spawn = [-500.0, -300.0, -100.0, 300.0]
+destination = [100.0, -300.0, 500.0, 300.0]
+
+[zombies.roamers]
+count = 400
 ```
 
-Rectangle bounds are `[west, south, east, north]` in meters from the map's
-recorded center, with east and north positive. Unreferenced scenes use the
-center of their horizontal scene bounds. For geographic bounds, replace
-`spawn_rectangle_m` with:
+Each `[zombies.NAME]` table requires its own `count`. Spawn and destination are
+independently optional flat rectangle arrays. Omitting either allows random
+valid positions across the map for that endpoint; a supplied rectangle limits
+random positions to its bounds. There is no `"random"` specifier. Counts must
+be positive integers, with at most 100,000 zombies across all hordes.
+
+`coordinates` defaults to `"world"`: rectangles use
+`[min_x, min_z, max_x, max_z]` in absolute runtime meters, X east and Z south.
+They are independent of the scene bounds center. For geographic bounds, use
+`coordinates = "wgs84"` on the horde:
 
 ```toml
-spawn_rectangle_wgs84 = [19.35, 47.58, 19.37, 47.60]
+[zombies.geographic_horde]
+count = 200
+coordinates = "wgs84"
+spawn = [19.35, 47.58, 19.36, 47.59]
+destination = [19.36, 47.59, 19.37, 47.60]
 ```
 
-WGS84 bounds use `[west_longitude, south_latitude, east_longitude, north_latitude]`
-in degrees. Exactly one rectangle is required. PROJ converts samples through
-the loaded map's recorded CRS and origin; geographic bounds need that metadata.
-Projection uses local coordinate data, with network access disabled. The seed
-is optional; omitting it produces a new random layout each load.
+WGS84 rectangles use `[west_longitude, south_latitude, east_longitude,
+north_latitude]` in degrees. The coordinate setting applies to both rectangles
+within that horde; other hordes can use a different setting. PROJ converts
+samples through the loaded map's recorded CRS and origin; supplied geographic
+bounds need that metadata. Projection uses local coordinate data, with network
+access disabled. The seed is optional; omitting it produces a new random layout
+each load. Seeded loads use a stable horde-name order.
+
+This is scenario format version 2; `version` may be omitted and defaults to 2.
+The old flat `[zombies]` format is rejected. To migrate, change it to
+`[zombies.NAME]`, remove `spawn = "random"` and `destination = "random"`, and
+replace the old spawn rectangle key with `spawn`. Old `spawn_rectangle_m`
+bounds used east/north offsets: for a georeferenced map convert
+`[west, south, east, north]` to world `[west, -north, east, -south]`.
+For unreferenced maps, also add the old scene-bounds center to X/Z.
+Old `spawn_rectangle_wgs84` bounds keep their order and need
+`coordinates = "wgs84"`.
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --scenario scenarios/test-horde/scenario.toml
@@ -70,10 +96,14 @@ is optional; omitting it produces a new random layout each load.
 ```
 
 The scenario supplies the population instead of the ordinary park/radial
-placement. Spawns must be on safe, nonoverlapping terrain inside the authored
-rectangle and mesh. Each destination is a random safe point across the spawn's
-entire connected navmesh component. Sampling has bounded retries; insufficient
-space, failed path searches or exhausted route storage stop loading with an error.
+placement. Spawns must be on safe terrain inside the mesh and any authored
+spawn rectangle, with no body overlap even between hordes. Unbounded spawns
+sample navmesh area across all components. Destinations must be safe points in
+the spawn's connected navmesh component and inside any authored destination
+rectangle. Unbounded destinations sample that entire component by area.
+Sampling has bounded retries; insufficient space, an unreachable destination
+region, failed path searches or exhausted route storage stop loading with an
+error identifying the affected horde when endpoint sampling fails.
 All paths are calculated before the population begins simulation.
 
 Scenario zombies follow their initial routes regardless of player distance or
@@ -86,7 +116,8 @@ ordinary terrain, door, tree and crowd constraints. Global connectivity does not
 passage through dense trees or steep terrain, which remain outside the mesh.
 
 The multiplayer client uses ordinary matching scene settings, including
-`--zombie-count 1000`; only the server receives `--scenario`. The server sends
+`--zombie-count 1000` for this example (the sum of all horde counts); only the
+server receives `--scenario`. The server sends
 positions through existing snapshots. Client sources and the protocol are
 unchanged. Small synthetic maps under 100 meters retain the client's existing
 zero-population rule; use town-sized maps for multiplayer scenarios.

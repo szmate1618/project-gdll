@@ -21,9 +21,9 @@ int main(int argc, char** argv) {
         multiplayer::ZombiePopulationLoader populationLoader;
         if (!serverOptions.scenario.empty()) {
             const auto scenario = viewer::loadZombieScenarioConfig(serverOptions.scenario);
-            if (scenario.count > multiplayer::maxZombies)
+            if (scenario.count() > multiplayer::maxZombies)
                 throw std::runtime_error("Scenario exceeds the multiplayer zombie limit");
-            options.zombieCount = scenario.count;
+            options.zombieCount = scenario.count();
             populationLoader = [scenario, navmesh](const auto& source, const auto& collision, const auto& model) {
                 return viewer::loadZombieScenario(source, collision, model, navmesh, scenario);
             };

@@ -142,8 +142,10 @@ before simulation starts, load the included TOML scenario:
 ./build/godollo_viewer output/godollo.glb --scenario scenarios/test-horde/scenario.toml
 ```
 
-The scenario restricts spawning to a rectangle in meters from the map center;
-`spawn_rectangle_wgs84` supports a longitude/latitude rectangle instead.
+The scenario defines named hordes with optional flat `spawn` and `destination`
+rectangles. Bounds default to world X/Z meters; `coordinates = "wgs84"` selects
+longitude/latitude degrees per horde. Omitted bounds allow random valid positions
+across the map.
 Scenario zombies follow their destinations independently of player proximity,
 then stop. See [runtime navigation](docs/ZOMBIE_NAVIGATION_RUNTIME.md) for the
 configuration, server usage, and limits.

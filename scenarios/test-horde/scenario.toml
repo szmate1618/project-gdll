@@ -1,8 +1,12 @@
+version = 2
 seed = 42
 
-[zombies]
-count = 1000
-spawn = "random"
-# [west, south, east, north], in meters from the map center.
-spawn_rectangle_m = [-500.0, -300.0, 500.0, 300.0]
-destination = "random"
+[zombies.crossing_horde]
+count = 600
+# World X/Z meters: [min_x, min_z, max_x, max_z].
+spawn = [-500.0, -300.0, -100.0, 300.0]
+destination = [100.0, -300.0, 500.0, 300.0]
+
+[zombies.roamers]
+count = 400
+# Omitted spawn and destination bounds allow valid positions across the map.

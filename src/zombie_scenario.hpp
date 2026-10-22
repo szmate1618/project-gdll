@@ -11,9 +11,10 @@ struct ZombieScenarioPopulation {
     std::vector<glm::vec3> destinations;
 };
 
-// Samples safe feet in the configured rectangle, with nonoverlapping bodies.
-// Destinations are area-uniform samples across the spawn's entire connected
-// navmesh component, independent of the spawn rectangle. Sampling is bounded.
+// Samples each named horde's optional spawn/destination rectangles. Omitted
+// bounds use the entire navmesh, with destinations in the spawn's component.
+// Bodies cannot overlap across hordes; all endpoints must be safe ground.
+// Sampling is bounded and destinations must be reachable from their spawns.
 ZombieScenarioPopulation generateZombieScenario(const CollisionWorld& world, const Model& scene,
                                                const navmesh_path::Mesh& mesh,
                                                const ZombieScenarioConfig& config);
