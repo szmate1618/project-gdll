@@ -1,7 +1,7 @@
 #include "protocol.hpp"
 #include "weapons.hpp"
 #include "zombie_skeleton.hpp"
-#include "zombie_torso_physics.hpp"
+#include "zombie_cavity_physics.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -119,7 +119,7 @@ void payload(Wire& w, Snapshot& s) {
     w.list(s.zombies, maxVisibleZombies, [&](ZombieState& z) {
         w.integer(z.id); w.integer(z.asset); w.matrix(z.transform); w.matrix(z.root);
         w.number(z.phase); w.number(z.walkSeconds); w.flag(z.walking); w.flag(z.running); w.flag(z.dead);
-        w.list(z.torsoHoles, 1024, [&](std::uint8_t& value) { w.integer(value); });
+        w.list(z.woundMask, 1024, [&](std::uint8_t& value) { w.integer(value); });
         if (z.id >= maxZombies || z.asset >= maxZombies || z.phase < 0 || z.phase >= 1 || z.walkSeconds < 0)
             throw std::runtime_error("Invalid zombie snapshot");
     });
@@ -145,7 +145,7 @@ void payload(Wire& w, Snapshot& s) {
     });
     uniqueIds(s.players); uniqueIds(s.zombies); uniqueIds(s.doors); uniqueIds(s.boxes);
     uniqueIds(s.grenades); uniqueIds(s.explosions);
-    w.list(s.torsoContents, maxZombies*viewer::ZombieTorsoPhysics::objectCount, [&](glm::mat4& transform) { w.matrix(transform); });
+    w.list(s.woundContents, maxZombies*viewer::ZombieCavityPhysics::maxObjectCount, [&](glm::mat4& transform) { w.matrix(transform); });
     w.list(s.bloodMist, viewer::BloodMist::capacity, [&](viewer::BloodMistBurst& burst) {
         w.integer(burst.id); w.vector(burst.position); w.number(burst.age);
         auto size = static_cast<std::uint8_t>(burst.size);

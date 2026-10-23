@@ -936,6 +936,17 @@ and hit an intact back surface. Other body regions retain their capsule tests,
 and joint-hit precedence remains unchanged. Corpses retain their existing
 non-targetable shooting behavior.
 
+Head surfaces use the same 10 cm vertex-distance opening rule, triggered only
+by **high-caliber rounds**. Low-caliber bullets and shotgun pellets still deal
+normal doubled headshot damage, without opening or enlarging the head mesh.
+The first head opening creates **one** loose dark red box inside its own hollow
+head collider; later wounds preserve that same object. Torso openings retain
+their six objects. Neck joint hits retain dismemberment precedence. Head and
+torso cavities follow their respective bones during animation and ragdoll motion,
+share one persistent wound mask, and use the same dark red interior closures.
+Their contents support the normal prop grab controls. Shadow geometry remains
+unchanged for both regions.
+
 Wound state is separate from health and survives ragdoll activation. The camera
 fragment shader discards those exact original triangle IDs, including their
 depth writes. Wounded camera instances use the original mesh so LOD changes

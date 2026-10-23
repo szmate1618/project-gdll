@@ -163,15 +163,15 @@ void main() {
     if (!uShadowPass && vWoundBase > 0)
         wound = texelFetch(uZombieWounds, vWoundBase - 1 + uZombieTriangleOffset + gl_PrimitiveID).r;
     if ((wound & 1u) != 0u) discard;
-    bool torsoInterior = !gl_FrontFacing && (wound & 2u) != 0u;
-    if (!gl_FrontFacing && uZombieCullBackfaces && !torsoInterior) discard;
+    bool cavityInterior = !gl_FrontFacing && (wound & 2u) != 0u;
+    if (!gl_FrontFacing && uZombieCullBackfaces && !cavityInterior) discard;
     if (uForestVisibility.z > 0.0) {
         vec2 offset = vWorldPosition.xz - uForestVisibility.xy;
         if (dot(offset, offset) > uForestVisibility.z * uForestVisibility.z) discard;
     }
     vec4 color = uBaseColor * vColor;
     if (uHasTexture && (!uShadowPass || uAlphaMode == 1)) color *= texture(uBaseTexture, vUV);
-    if (torsoInterior) color = vec4(0.231, 0.00792, 0.0132, 1.0);
+    if (cavityInterior) color = vec4(0.231, 0.00792, 0.0132, 1.0);
     if (uAlphaMode == 1 && color.a < alphaMaskCutoff()) discard;
     if (uShadowPass) {
         fragColor = vec4(0.0);

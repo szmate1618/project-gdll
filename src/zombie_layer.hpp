@@ -104,10 +104,10 @@ struct ZombieLayer {
         bloodMist_.replace(bursts,snapshotSeconds);
     }
     // Sparse wounded actors only. Call before advancing the shared physics world.
-    void prepareTorsoPhysics(float seconds, double animationSeconds, PhysicsScene* scene = nullptr);
-    std::vector<glm::mat4> torsoContents() const;
-    void setTorsoWoundMask(std::size_t zombie, const std::vector<std::uint8_t>& mask);
-    void setReplicatedTorsoContents(std::vector<glm::mat4> transforms);
+    void prepareWoundPhysics(float seconds, double animationSeconds, PhysicsScene* scene = nullptr);
+    std::vector<glm::mat4> woundContents() const;
+    void setWoundMask(std::size_t zombie, const std::vector<std::uint8_t>& mask);
+    void setReplicatedWoundContents(std::vector<glm::mat4> transforms);
     std::size_t explode(glm::vec3 origin, float radius, double animationSeconds, const CollisionWorld& world);
     const ZombieShootingStats& shootingStats() const { return shootingStats_; }
     // Silent noise at a world position, with a source level in dB at one meter.
@@ -181,8 +181,8 @@ private:
     ZombieWounds wounds_;
     BloodMist bloodMist_;
     BloodParticles bloodParticles_;
-    std::vector<ZombieTorsoGeometry> torsoGeometry_;
-    std::optional<std::vector<glm::mat4>> replicatedTorsoContents_;
+    std::vector<ZombieWoundRegions> woundGeometry_;
+    std::optional<std::vector<glm::mat4>> replicatedWoundContents_;
     void updateBehaviorImpl(float seconds, const ZombiePlayer& player, const CollisionWorld& world,
                             double animationSeconds, const std::vector<ZombiePlayer>* players);
     friend class ZombieDoorCollision; // Reuse the living-body spatial index for door-local physics proxies.

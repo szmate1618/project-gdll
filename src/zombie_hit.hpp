@@ -2,9 +2,11 @@
 
 #include "zombie_dismemberment.hpp"
 #include "zombie_hit_capsules.hpp"
+#include "zombie_wounds.hpp"
 
 #include <glm/glm.hpp>
 #include <cstddef>
+#include <optional>
 #include <vector>
 
 namespace viewer {
@@ -22,7 +24,7 @@ struct ZombieShotHit {
     float distance; // World meters along the normalized shot ray.
     bool headshot;
     int joint = -1;
-    bool torso = false;
+    std::optional<ZombieWoundRegion> woundRegion;
 };
 
 struct ZombieHitBounds { glm::vec3 minimum{0}, maximum{0}; };

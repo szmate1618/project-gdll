@@ -100,10 +100,10 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
         if (source.skeleton.size() > static_cast<std::size_t>(std::numeric_limits<GLint>::max()))
             throw std::runtime_error("Zombie skeleton has too many bones");
         batch.skinningBoneCount = static_cast<GLint>(source.skeleton.size());
-        batch.woundSurfaces.push_back(prepareZombieTorso(source));
+        batch.woundSurfaces.push_back(prepareZombieWoundSurface(source));
         if (i < zombies.dismembermentAssets.size())
             for (const auto& mesh : zombies.dismembermentAssets[i].meshes)
-                batch.woundSurfaces.push_back(prepareZombieTorso(mesh));
+                batch.woundSurfaces.push_back(prepareZombieWoundSurface(mesh));
         batch.closures.resize(batch.woundSurfaces.size());
         for (std::size_t variant=0; variant<batch.woundSurfaces.size(); ++variant) {
             const auto& asset = variant == 0 ? source : zombies.dismembermentAssets[i].meshes[variant-1];

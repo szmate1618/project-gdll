@@ -1,4 +1,4 @@
-#include "zombie_torso_surface.hpp"
+#include "zombie_wound_surface.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -6,10 +6,10 @@
 
 namespace viewer {
 namespace {
-using Source = ZombieTorsoGeometry::Vertex;
+using Source = ZombieWoundGeometry::Vertex;
 // Ear clipping in the loop's dominant plane also handles concave clothing rims.
 void triangulate(std::vector<int> loop, const std::vector<glm::vec3>& points,
-                 const std::vector<Source>& sources, ZombieTorsoGeometry& geometry) {
+                 const std::vector<Source>& sources, ZombieWoundGeometry& geometry) {
     glm::vec3 normal(0);
     for (std::size_t i=0; i<loop.size(); ++i)
         normal += glm::cross(points[loop[i]], points[loop[(i+1)%loop.size()]]);
@@ -48,7 +48,7 @@ void triangulate(std::vector<int> loop, const std::vector<glm::vec3>& points,
     }
 }
 }
-void closeZombieTorso(const AnimatedModel& asset, ZombieTorsoGeometry& geometry) {
+void closeZombieWoundSurface(const AnimatedModel& asset, ZombieWoundGeometry& geometry) {
     geometry.closures.clear();
     if (geometry.bone < 0) return;
     using Key = std::pair<std::array<long,3>,std::array<long,16>>;
@@ -61,7 +61,7 @@ void closeZombieTorso(const AnimatedModel& asset, ZombieTorsoGeometry& geometry)
     for (std::size_t p=0; p<asset.model.primitives.size(); ++p) {
         const auto& primitive = asset.model.primitives[p];
         for (std::size_t t=0; t<primitive.indices.size(); t+=3) {
-            if (!geometry.torsoTriangles[geometry.triangleOffsets[p]+t/3]) continue;
+            if (!geometry.regionTriangles[geometry.triangleOffsets[p]+t/3]) continue;
             std::array<int,3> ids{};
             for (int i=0; i<3; ++i) {
                 const auto v = primitive.indices[t+i];
@@ -106,12 +106,12 @@ void closeZombieTorso(const AnimatedModel& asset, ZombieTorsoGeometry& geometry)
         if (current==start && loop.size()>=3) triangulate(std::move(loop),points,sources,geometry);
     }
 }
-bool zombieTorsoClosureRemoved(const std::array<Source,3>& triangle, const ZombieTorsoWound& wound) {
+bool zombieWoundClosureRemoved(const std::array<Source,3>& triangle, const ZombieWound& wound) {
     return std::any_of(triangle.begin(),triangle.end(),[&](const auto& source) {
         return source.bit/8 < wound.vertexMask.size() && (wound.vertexMask[source.bit/8] & (1u << (source.bit%8)));
     });
 }
-AnimatedModel zombieTorsoClosureModel(const AnimatedModel& asset, const ZombieTorsoGeometry& geometry) {
+AnimatedModel zombieWoundClosureModel(const AnimatedModel& asset, const ZombieWoundGeometry& geometry) {
     AnimatedModel result;
     if (geometry.closures.empty()) return result;
     result.skeleton = asset.skeleton;

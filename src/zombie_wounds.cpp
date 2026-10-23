@@ -1,6 +1,6 @@
 #include "zombie_wounds.hpp"
 #include "zombie_layer.hpp"
-#include "zombie_torso_surface.hpp"
+#include "zombie_wound_surface.hpp"
 #include <algorithm>
 #include <cctype>
 #include <limits>
@@ -40,16 +40,25 @@ bool rayTriangle(glm::dvec3 origin, glm::dvec3 direction, glm::dvec3 a, glm::dve
     return true;
 }
 }
-bool zombieTorsoBone(const AnimatedModel& asset, int bone) {
+bool zombieWoundBone(const AnimatedModel& asset, int bone, ZombieWoundRegion region) {
     if (bone < 0 || std::size_t(bone) >= asset.skeleton.size()) return false;
+    if (region == ZombieWoundRegion::head) {
+        const auto head = asset.ragdollBones[std::size_t(RagdollPart::head)];
+        for (std::size_t depth=0; bone>=0 && depth<asset.skeleton.size(); ++depth) {
+            if (bone == head) return true;
+            bone = asset.skeleton.at(std::size_t(bone)).parent;
+        }
+        return false;
+    }
     auto name = asset.skeleton[std::size_t(bone)].name;
     std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return std::tolower(c); });
     return name.find("spine") != std::string::npos || name.find("chest") != std::string::npos ||
         name.find("torso") != std::string::npos || name.find("pelvis") != std::string::npos;
 }
-ZombieTorsoGeometry prepareZombieTorso(const AnimatedModel& asset) {
-    ZombieTorsoGeometry result;
-    result.bone = asset.ragdollBones[std::size_t(RagdollPart::torso)];
+ZombieWoundGeometry prepareZombieWoundRegion(const AnimatedModel& asset, ZombieWoundRegion region) {
+    ZombieWoundGeometry result;
+    result.region = region;
+    result.bone = asset.ragdollBones[std::size_t(region == ZombieWoundRegion::head ? RagdollPart::head : RagdollPart::torso)];
     if (result.bone < 0) return result;
     const auto pose = referencePose(asset);
     const auto& frame = pose.at(std::size_t(result.bone));
@@ -60,37 +69,50 @@ ZombieTorsoGeometry prepareZombieTorso(const AnimatedModel& asset) {
         const auto& primitive = asset.model.primitives[p];
         result.triangleOffsets.push_back(result.triangleCount);
         result.referenceVertices.emplace_back();
-        result.torsoVertices.emplace_back();
+        result.regionVertices.emplace_back();
         for (std::size_t v=0; v<primitive.vertices.size(); ++v) {
             const auto point = posedVertex(asset,p,v,pose);
             float weight = 0;
             if (p < asset.animation.size() && !asset.animation[p].skinning.empty()) {
                 const auto& skin = asset.animation[p].skinning[v];
                 for (std::size_t i=0; i<skin.weights.size(); ++i)
-                    if (zombieTorsoBone(asset, int(skin.joints[i]))) weight += skin.weights[i];
+                    if (zombieWoundBone(asset, int(skin.joints[i]),region)) weight += skin.weights[i];
             }
-            const bool torso = weight >= .5f;
+            const bool selected = weight >= .5f;
             result.referenceVertices.back().push_back(point);
-            result.torsoVertices.back().push_back(torso);
-            if (torso) { low = glm::min(low,point); high = glm::max(high,point); }
+            result.regionVertices.back().push_back(selected);
+            if (selected) { low = glm::min(low,point); high = glm::max(high,point); }
         }
         for (std::size_t t=0; t<primitive.indices.size(); t+=3) {
-            const auto& selected = result.torsoVertices.back();
-            result.torsoTriangles.push_back(selected[primitive.indices[t]] && selected[primitive.indices[t+1]] && selected[primitive.indices[t+2]]);
+            const auto& selected = result.regionVertices.back();
+            result.regionTriangles.push_back(selected[primitive.indices[t]] && selected[primitive.indices[t+1]] && selected[primitive.indices[t+2]]);
             ++result.triangleCount;
         }
     }
     result.center = low.x <= high.x ? (low+high)*.5f : glm::vec3(frame[3]);
-    if (std::none_of(result.torsoTriangles.begin(), result.torsoTriangles.end(), [](bool value) { return value; })) result.bone = -1;
-    closeZombieTorso(asset,result);
+    if (std::none_of(result.regionTriangles.begin(), result.regionTriangles.end(), [](bool value) { return value; })) result.bone = -1;
+    closeZombieWoundSurface(asset,result);
     return result;
 }
-const ZombieTorsoWound* ZombieWounds::find(std::size_t id) const {
+ZombieWoundGeometry prepareZombieWoundSurface(const AnimatedModel& asset) {
+    auto result = prepareZombieWoundRegion(asset,ZombieWoundRegion::torso);
+    auto head = prepareZombieWoundRegion(asset,ZombieWoundRegion::head);
+    if (result.bone < 0) return head;
+    if (head.bone < 0) return result;
+    for (std::size_t p=0; p<result.regionVertices.size(); ++p)
+        for (std::size_t v=0; v<result.regionVertices[p].size(); ++v)
+            result.regionVertices[p][v] = result.regionVertices[p][v] || head.regionVertices[p][v];
+    for (std::size_t t=0; t<result.regionTriangles.size(); ++t)
+        result.regionTriangles[t] = result.regionTriangles[t] || head.regionTriangles[t];
+    result.closures.insert(result.closures.end(),head.closures.begin(),head.closures.end());
+    return result;
+}
+const ZombieWound* ZombieWounds::find(std::size_t id) const {
     const auto found = entries_.find(id);
     return found == entries_.end() ? nullptr : &found->second;
 }
-bool zombieTorsoRay(const AnimatedModel& asset, const ZombieTorsoGeometry& geometry,
-                    const ZombieTorsoWound* wound, const ZombieInstance& instance,
+bool zombieWoundRay(const AnimatedModel& asset, const ZombieWoundGeometry& geometry,
+                    const ZombieWound* wound, const ZombieInstance& instance,
                     const std::vector<glm::mat4>& pose, glm::vec3 origin, glm::vec3 direction, float& distance) {
     if (geometry.bone < 0) return false;
     // Work close to the actor to avoid precision loss at large map coordinates.
@@ -102,10 +124,11 @@ bool zombieTorsoRay(const AnimatedModel& asset, const ZombieTorsoGeometry& geome
     for (std::size_t p=0; p<asset.model.primitives.size(); ++p) {
         const auto& primitive = asset.model.primitives[p];
         std::vector<glm::vec3> points(primitive.vertices.size());
-        for (std::size_t v=0; v<points.size(); ++v) points[v] = posedVertex(asset,p,v,pose);
+        for (std::size_t v=0; v<points.size(); ++v)
+            if (geometry.regionVertices[p][v]) points[v] = posedVertex(asset,p,v,pose);
         for (std::size_t t=0; t<primitive.indices.size(); t+=3) {
             const auto id = geometry.triangleOffsets[p]+t/3;
-            if (!geometry.torsoTriangles[id] || (wound && wound->removedTriangles[id])) continue;
+            if (!geometry.regionTriangles[id] || (wound && wound->removedTriangles[id])) continue;
             float hit = 0;
             if (rayTriangle(o,d,points[primitive.indices[t]],points[primitive.indices[t+1]],points[primitive.indices[t+2]],hit) && hit < distance) {
                 distance = hit; found = true;
@@ -113,7 +136,7 @@ bool zombieTorsoRay(const AnimatedModel& asset, const ZombieTorsoGeometry& geome
         }
     }
     for (const auto& triangle : geometry.closures) {
-        if (wound && zombieTorsoClosureRemoved(triangle,*wound)) continue;
+        if (wound && zombieWoundClosureRemoved(triangle,*wound)) continue;
         std::array<glm::vec3,3> points;
         for (int i=0; i<3; ++i) points[i] = posedVertex(asset,triangle[i].primitive,triangle[i].vertex,pose);
         float hit = 0;
@@ -123,7 +146,7 @@ bool zombieTorsoRay(const AnimatedModel& asset, const ZombieTorsoGeometry& geome
     }
     return found;
 }
-bool ZombieWounds::hit(std::size_t id, const AnimatedModel& asset, const ZombieTorsoGeometry& geometry,
+bool ZombieWounds::hit(std::size_t id, const AnimatedModel& asset, const ZombieWoundGeometry& geometry,
                        const ZombieInstance& instance, const std::vector<glm::mat4>& pose, glm::vec3 point) {
     if (geometry.bone < 0) return false;
     auto& wound = entries_[id];
@@ -140,7 +163,7 @@ bool ZombieWounds::hit(std::size_t id, const AnimatedModel& asset, const ZombieT
         const auto& primitive = asset.model.primitives[p];
         std::vector<bool> close(primitive.vertices.size());
         for (std::size_t v=0; v<close.size(); ++v) {
-            if (!geometry.torsoVertices[p][v]) continue;
+            if (!geometry.regionVertices[p][v]) continue;
             const auto delta = metric * (glm::dvec3(posedVertex(asset,p,v,pose))-localHit);
             close[v] = glm::dot(delta,delta) <= .1*.1 + 1e-9;
             const auto bit = vertexOffset + v;
@@ -163,7 +186,7 @@ bool ZombieWounds::hit(std::size_t id, const AnimatedModel& asset, const ZombieT
     if (!wound.revision) entries_.erase(id);
     return changed;
 }
-bool ZombieWounds::applyMask(std::size_t id, const AnimatedModel& asset, const ZombieTorsoGeometry& geometry,
+bool ZombieWounds::applyMask(std::size_t id, const AnimatedModel& asset, const ZombieWoundGeometry& geometry,
                             const std::vector<std::uint8_t>& mask) {
     if (mask.empty()) {
         return entries_.erase(id) != 0;
@@ -174,7 +197,7 @@ bool ZombieWounds::applyMask(std::size_t id, const AnimatedModel& asset, const Z
         throw std::runtime_error("Replicated zombie wound does not match its asset");
     const auto* previous = find(id);
     if (previous && previous->vertexMask == mask) return false;
-    ZombieTorsoWound wound;
+    ZombieWound wound;
     wound.revision = previous ? previous->revision+1 : 1;
     wound.vertexMask = mask;
     std::size_t offset = 0;
@@ -190,7 +213,7 @@ bool ZombieWounds::applyMask(std::size_t id, const AnimatedModel& asset, const Z
     entries_[id] = std::move(wound);
     return true;
 }
-std::vector<std::uint8_t> ZombieWounds::mask(const AnimatedModel& asset, const ZombieTorsoWound& wound) {
+std::vector<std::uint8_t> ZombieWounds::mask(const AnimatedModel& asset, const ZombieWound& wound) {
     const auto pose = referencePose(asset);
     std::vector<std::uint8_t> mask;
     for (std::size_t p=0; p<asset.model.primitives.size(); ++p) {
@@ -207,12 +230,12 @@ std::vector<std::uint8_t> ZombieWounds::mask(const AnimatedModel& asset, const Z
     return mask;
 }
 std::vector<std::uint8_t> ZombieWounds::surfaceMask(const AnimatedModel& asset,
-        const ZombieTorsoGeometry& geometry, const ZombieTorsoWound& wound, bool original) {
+        const ZombieWoundGeometry& geometry, const ZombieWound& wound, bool original) {
     auto result = original ? wound.removedTriangles : mask(asset,wound);
-    for (std::size_t i=0; i<std::min(result.size(),geometry.torsoTriangles.size()); ++i)
-        if (geometry.torsoTriangles[i]) result[i] |= 2;
+    for (std::size_t i=0; i<std::min(result.size(),geometry.regionTriangles.size()); ++i)
+        if (geometry.regionTriangles[i]) result[i] |= 2;
     for (const auto& triangle : geometry.closures) {
-        bool removed = original && zombieTorsoClosureRemoved(triangle,wound);
+        bool removed = original && zombieWoundClosureRemoved(triangle,wound);
         if (!original)
             for (const auto& source : triangle) {
                 const auto point = geometry.referenceVertices[source.primitive][source.vertex];

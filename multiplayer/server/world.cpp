@@ -148,7 +148,7 @@ void World::step() {
     for (std::size_t i = 0; i < scene_.boxes->count(); ++i) scene_.doors->activateNear(scene_.boxes->pose(i).center, 8);
     for (const auto id : scene_.zombies.ragdollIds()) scene_.doors->activateNear(glm::vec3(scene_.zombies.instances[id].transform[3]));
     zombieDoors_.prepare(*scene_.doors, scene_.zombies);
-    scene_.zombies.prepareTorsoPhysics(tickSeconds, now, &physicsScene_);
+    scene_.zombies.prepareWoundPhysics(tickSeconds, now, &physicsScene_);
     scene_.physics->step(tickSeconds);
     scene_.grenades->update(now, *scene_.collision, &scene_.zombies, now);
     scene_.zombies.synchronizePhysics();

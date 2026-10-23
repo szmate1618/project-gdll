@@ -14,7 +14,7 @@ constexpr float tickSeconds = 1.0f / 60;
 constexpr std::size_t maxPlayers = 8, maxZombies = 1024, maxVisibleZombies = 256;
 constexpr std::size_t maxBoxes = 512, maxDoors = 4096, maxBones = 128;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 9; // Allow six loose torso contents per zombie.
+constexpr std::uint32_t protocolVersion = 10; // Shared head/torso wounds and up to seven cavity contents.
 
 struct Hello { std::string fingerprint; };
 struct Welcome { std::uint32_t player = 0; };
@@ -53,7 +53,7 @@ struct ZombieState {
     glm::mat4 transform{1}, root{1};
     float phase = 0, walkSeconds = 0;
     bool walking = false, running = false, dead = false;
-    std::vector<std::uint8_t> torsoHoles{};
+    std::vector<std::uint8_t> woundMask{};
 };
 // A complete, coherent corpse pose, delivered independently of essential state.
 // Versions increase for each zombie; an acknowledgement releases a bounded
@@ -81,7 +81,7 @@ struct Snapshot {
     std::vector<BoxState> boxes;
     std::vector<viewer::GrenadePose> grenades;
     std::vector<viewer::GrenadeExplosion> explosions;
-    std::vector<glm::mat4> torsoContents;
+    std::vector<glm::mat4> woundContents;
     std::vector<viewer::BloodMistBurst> bloodMist{};
 };
 using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment, CorpsePose, PoseAck>;

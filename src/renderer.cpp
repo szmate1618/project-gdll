@@ -241,7 +241,7 @@ void Renderer::release() noexcept {
     releaseModel(model_);
     releaseModel(boxModel_);
     releaseModel(grenadeModel_);
-    releaseTorsoContents();
+    releaseWoundContents();
     if (boxInstanceBuffer_) glDeleteBuffers(1, &boxInstanceBuffer_);
     boxInstanceBuffer_ = 0;
     releaseModel(roofModel_);
@@ -418,7 +418,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     drawZombies(animationSeconds);
     drawBoxes(projection * view);
     drawDroppedWeapons(projection * view);
-    drawTorsoContents(projection * view);
+    drawWoundContents(projection * view);
     drawGrenades(projection * view);
     if (drawOpaque) drawOpaque();
     if (zombieSource_) {

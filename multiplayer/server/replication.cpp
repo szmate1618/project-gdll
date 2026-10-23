@@ -32,11 +32,11 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s) {
         s.zombies.push_back({static_cast<std::uint32_t>(z), static_cast<std::uint32_t>(instance.asset),
             instance.transform, instance.restRoot, instance.phase, static_cast<float>(instance.walkSeconds),
             instance.walking, instance.running, instance.ragdoll});
-        if (const auto* wound = scene.zombies.wounds().find(z)) s.zombies.back().torsoHoles = wound->vertexMask;
+        if (const auto* wound = scene.zombies.wounds().find(z)) s.zombies.back().woundMask = wound->vertexMask;
         interested.insert(z);
     }
     interested_ = std::move(interested);
-    s.torsoContents = scene.zombies.torsoContents();
+    s.woundContents = scene.zombies.woundContents();
     return s;
 }
 std::optional<CorpsePose> Replication::nextPose(const Scene& scene) const {

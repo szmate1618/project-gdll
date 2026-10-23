@@ -5,7 +5,7 @@
 #include "zombie_animation.hpp"
 #include "zombie_lod.hpp"
 #include "zombie_navigation.hpp"
-#include "zombie_torso_physics.hpp"
+#include "zombie_cavity_physics.hpp"
 #include "physics_world.hpp"
 #include "simulation_clock.hpp"
 
@@ -30,10 +30,10 @@ bool finite(glm::vec3 value) {
 
 struct ZombieLayer::Physics {
     Physics() : Physics(std::make_shared<PhysicsWorld>()) {}
-    explicit Physics(std::shared_ptr<PhysicsWorld> shared) : simulation(std::move(shared)), world(simulation), torsos(simulation) {}
+    explicit Physics(std::shared_ptr<PhysicsWorld> shared) : simulation(std::move(shared)), world(simulation), cavities(simulation) {}
     std::shared_ptr<PhysicsWorld> simulation;
     ZombieRagdollWorld world;
-    ZombieTorsoPhysics torsos;
+    ZombieCavityPhysics cavities;
 };
 
 ZombieLayer::ZombieLayer() = default;
@@ -155,17 +155,20 @@ bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animat
     const auto hit = findShotTarget(origin, direction, animationSeconds, selectedPose);
     if (!hit) return false;
     if (occlusion && !occlusion->lineOfSight(origin, origin + direction * hit->distance)) return false;
-    bool openedTorso = false;
-    if (hit->torso) {
+    bool openedWound = false;
+    if (hit->woundRegion && (*hit->woundRegion != ZombieWoundRegion::head || caliber == ShotCaliber::high)) {
         const auto& instance = instances[hit->zombie];
         const auto& asset = assets[instance.asset];
-        const auto& geometry = torsoGeometry_[instance.asset];
+        const auto& geometry = woundGeometry_[instance.asset][std::size_t(*hit->woundRegion)];
         if (wounds_.hit(hit->zombie, asset, geometry, instance, selectedPose, origin + direction * hit->distance)) {
-            openedTorso = true;
+            openedWound = true;
             if (!physics_) physics_ = std::make_unique<Physics>();
-            const auto frame = instance.transform * selectedPose[geometry.bone] *
-                glm::inverse(asset.skeleton[geometry.bone].referenceWorld) * geometry.referenceFrame;
-            physics_->torsos.wound(hit->zombie, asset, geometry, *wounds_.find(hit->zombie), frame, instance.locomotionVelocity);
+            for (const auto& region : woundGeometry_[instance.asset]) {
+                if (region.region != geometry.region && !physics_->cavities.has(hit->zombie,region.region)) continue;
+                const auto frame = instance.transform * selectedPose[region.bone] *
+                    glm::inverse(asset.skeleton[region.bone].referenceWorld) * region.referenceFrame;
+                physics_->cavities.wound(hit->zombie, asset, region, *wounds_.find(hit->zombie), frame, instance.locomotionVelocity);
+            }
             markRenderChanged(hit->zombie, false);
         }
     }
@@ -174,7 +177,7 @@ bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animat
                         hit->joint, caliber);
     else if (damage_.hit(hit->zombie, caliber, hit->headshot) == 0)
         activateRagdoll(hit->zombie, std::move(selectedPose), direction * 4.0f, animationSeconds);
-    const auto mistSize = openedTorso ? BloodMistSize::large : hit->joint >= 0 ? BloodMistSize::medium : BloodMistSize::small;
+    const auto mistSize = openedWound ? BloodMistSize::large : hit->joint >= 0 ? BloodMistSize::medium : BloodMistSize::small;
     // Offset slightly toward the incoming bullet so the billboard clears the surface.
     bloodMist_.emit(origin+direction*std::max(0.0f,hit->distance-.025f),mistSize,animationSeconds);
     emitBloodParticles(*hit,origin+direction*hit->distance,direction,animationSeconds,occlusion);
@@ -260,39 +263,41 @@ void ZombieLayer::attachPhysics(std::shared_ptr<PhysicsWorld> world) {
 
 void ZombieLayer::update(float seconds) {
     if (!physics_ || !std::isfinite(seconds) || seconds <= 0.0f) return;
-    prepareTorsoPhysics(seconds, SimulationClock::instance().seconds());
+    prepareWoundPhysics(seconds, SimulationClock::instance().seconds());
     physics_->world.step(seconds);
     synchronizePhysics();
 }
 
-void ZombieLayer::prepareTorsoPhysics(float seconds, double animationSeconds, PhysicsScene* scene) {
+void ZombieLayer::prepareWoundPhysics(float seconds, double animationSeconds, PhysicsScene* scene) {
     if (!physics_) return;
-    for (const auto id : physics_->torsos.ids()) {
+    for (const auto& [id,region] : physics_->cavities.ids()) {
         const auto& instance = instances.at(id);
         if (instance.removed) continue;
         const auto& asset = assets.at(instance.asset);
-        const auto& geometry = torsoGeometry_.at(instance.asset);
+        const auto& geometry = woundGeometry_.at(instance.asset)[std::size_t(region)];
         const auto bone = std::size_t(geometry.bone);
         const auto pose = instance.ragdoll ? instance.ragdollBones[bone] * asset.skeleton[bone].referenceWorld :
             sampleZombiePose(asset, instance, animationSeconds)[bone];
         const auto frame = instance.transform * pose * glm::inverse(asset.skeleton[bone].referenceWorld) * geometry.referenceFrame;
-        physics_->torsos.move(id, frame, seconds);
+        physics_->cavities.move(id, region, frame, seconds);
     }
-    physics_->torsos.prepare(scene);
+    physics_->cavities.prepare(scene);
 }
 
-std::vector<glm::mat4> ZombieLayer::torsoContents() const {
-    if (replicatedTorsoContents_) return *replicatedTorsoContents_;
-    return physics_ ? physics_->torsos.contents() : std::vector<glm::mat4>{};
+std::vector<glm::mat4> ZombieLayer::woundContents() const {
+    if (replicatedWoundContents_) return *replicatedWoundContents_;
+    return physics_ ? physics_->cavities.contents() : std::vector<glm::mat4>{};
 }
 
-void ZombieLayer::setTorsoWoundMask(std::size_t id, const std::vector<std::uint8_t>& mask) {
+void ZombieLayer::setWoundMask(std::size_t id, const std::vector<std::uint8_t>& mask) {
     ensureSpatialIndex();
     const auto asset = instances.at(id).asset;
-    if (wounds_.applyMask(id, assets.at(asset), torsoGeometry_.at(asset), mask)) markRenderChanged(id, false);
+    const auto& regions = woundGeometry_.at(asset);
+    const auto& geometry = regions[0].referenceVertices.empty() ? regions[1] : regions[0];
+    if (wounds_.applyMask(id,assets.at(asset),geometry,mask)) markRenderChanged(id,false);
 }
-void ZombieLayer::setReplicatedTorsoContents(std::vector<glm::mat4> transforms) {
-    replicatedTorsoContents_ = std::move(transforms);
+void ZombieLayer::setReplicatedWoundContents(std::vector<glm::mat4> transforms) {
+    replicatedWoundContents_ = std::move(transforms);
 }
 
 void ZombieLayer::synchronizePhysics() {
@@ -329,7 +334,7 @@ void ZombieLayer::removeRagdoll(std::size_t zombie) {
     if (!instance.ragdoll || instance.removed) return;
     if (navigation_) navigation_->reset(zombie);
     if (instance.physicsRagdoll && physics_) physics_->world.destroy(instance.ragdollHandle);
-    if (physics_) physics_->torsos.remove(zombie);
+    if (physics_) physics_->cavities.remove(zombie);
     wounds_.remove(zombie);
     unregisterRagdoll(zombie);
     instance.removed = true;

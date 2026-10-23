@@ -1,6 +1,6 @@
 #include "renderer.hpp"
 #include "box_layer.hpp"
-#include "zombie_torso_surface.hpp"
+#include "zombie_wound_surface.hpp"
 
 #include <algorithm>
 #include <stdexcept>
@@ -30,7 +30,7 @@ void Renderer::updateZombieWound(std::size_t id, ZombieBatch& batch, ZombieGPUIn
     const auto& surface = batch.woundSurfaces.at(variant);
     const auto mask = ZombieWounds::surfaceMask(asset,surface,*wound,source.severedJoint < 0);
     if (!surface.closures.empty() && batch.closures[variant].model.meshes.empty())
-        uploadZombieGeometry(zombieTorsoClosureModel(asset,surface),batch.closures[variant],batch.staging.size(),
+        uploadZombieGeometry(zombieWoundClosureModel(asset,surface),batch.closures[variant],batch.staging.size(),
                              static_cast<GLint>(batch.woundLimit));
     if (mask.size() > batch.woundStride || batch.woundStride == 0)
         throw std::runtime_error("Zombie wound mask does not match its geometry");
@@ -70,24 +70,25 @@ void Renderer::updateZombieWound(std::size_t id, ZombieBatch& batch, ZombieGPUIn
     instance.woundBase = float(offset + 1);
 }
 
-void Renderer::drawTorsoContents(const glm::mat4& projectionView) {
+void Renderer::drawWoundContents(const glm::mat4& projectionView) {
     if (!zombieSource_) return;
-    const auto objects = zombieSource_->torsoContents();
+    const auto objects = zombieSource_->woundContents();
     if (objects.empty()) return;
     const Frustum frustum(projectionView);
     std::vector<glm::mat4> visible;
     for (const auto& matrix : objects) {
         const auto center = glm::vec3(matrix[3]);
-        if (frustum.intersects(center - glm::vec3(.06f), center + glm::vec3(.06f))) visible.push_back(matrix);
+        const auto extent = (glm::abs(glm::vec3(matrix[0]))+glm::abs(glm::vec3(matrix[1]))+glm::abs(glm::vec3(matrix[2])))*.5f;
+        if (frustum.intersects(center-extent,center+extent)) visible.push_back(matrix);
     }
     if (visible.empty()) return;
-    if (torsoContentsModel_.meshes.empty()) {
+    if (woundContentsModel_.meshes.empty()) {
         auto model = BoxLayer::unitCube();
         model.materials.front().baseColor = {.5f, .025f, .035f, 1};
-        uploadModel(model, torsoContentsModel_);
-        glGenBuffers(1, &torsoContentsBuffer_);
-        glBindBuffer(GL_ARRAY_BUFFER, torsoContentsBuffer_);
-        glBindVertexArray(torsoContentsModel_.meshes.front().vao);
+        uploadModel(model, woundContentsModel_);
+        glGenBuffers(1, &woundContentsBuffer_);
+        glBindBuffer(GL_ARRAY_BUFFER, woundContentsBuffer_);
+        glBindVertexArray(woundContentsModel_.meshes.front().vao);
         for (GLuint column = 0; column < 4; ++column) {
             glEnableVertexAttribArray(4 + column);
             glVertexAttribPointer(4 + column, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4),
@@ -95,10 +96,10 @@ void Renderer::drawTorsoContents(const glm::mat4& projectionView) {
             glVertexAttribDivisor(4 + column, 1);
         }
     }
-    glBindBuffer(GL_ARRAY_BUFFER, torsoContentsBuffer_);
+    glBindBuffer(GL_ARRAY_BUFFER, woundContentsBuffer_);
     glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(visible.size() * sizeof(glm::mat4)), visible.data(), GL_STREAM_DRAW);
-    const auto& mesh = torsoContentsModel_.meshes.front();
-    applyMaterial(torsoContentsModel_, mesh.material, false);
+    const auto& mesh = woundContentsModel_.meshes.front();
+    applyMaterial(woundContentsModel_, mesh.material, false);
     const glm::mat4 identity(1);
     glUniformMatrix4fv(modelLocation_, 1, GL_FALSE, glm::value_ptr(identity));
     glUniform1i(instancedLocation_, GL_TRUE);
@@ -110,9 +111,9 @@ void Renderer::drawTorsoContents(const glm::mat4& projectionView) {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glFrontFace(GL_CCW);
 }
-void Renderer::releaseTorsoContents() noexcept {
-    releaseModel(torsoContentsModel_);
-    glDeleteBuffers(1, &torsoContentsBuffer_);
-    torsoContentsBuffer_ = 0;
+void Renderer::releaseWoundContents() noexcept {
+    releaseModel(woundContentsModel_);
+    glDeleteBuffers(1, &woundContentsBuffer_);
+    woundContentsBuffer_ = 0;
 }
 } // namespace viewer

@@ -92,7 +92,7 @@ void Snapshots::apply(Scene& scene, double now) {
     std::array<const ZombieState*, maxZombies> previous{}, current{};
     for (const auto& z : a.zombies) previous.at(z.id) = &z;
     for (const auto& z : b.zombies) current.at(z.id) = &z;
-    scene.zombies.setReplicatedTorsoContents(b.torsoContents);
+    scene.zombies.setReplicatedWoundContents(b.woundContents);
     scene.zombies.setReplicatedBloodMist(b.bloodMist,double(b.tick)/60);
     for (std::size_t id = 0; id < scene.zombies.instances.size(); ++id) {
         auto& instance = scene.zombies.instances[id];
@@ -103,7 +103,7 @@ void Snapshots::apply(Scene& scene, double now) {
         }
         if (z->asset != instance.asset || z->asset >= scene.zombies.assets.size()) throw std::runtime_error("Zombie asset mismatch");
         instance.removed = false;
-        scene.zombies.setTorsoWoundMask(id, z->torsoHoles);
+        scene.zombies.setWoundMask(id, z->woundMask);
         instance.transform = z->transform; instance.restRoot = z->root;
         instance.phase = z->phase; instance.walkSeconds = z->walkSeconds;
         instance.walking = z->walking; instance.running = z->running; instance.ragdoll = z->dead;

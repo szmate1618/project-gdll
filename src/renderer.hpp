@@ -231,7 +231,7 @@ private:
         std::vector<ZombieGeometry> lods;
         std::vector<ZombieGeometry> severed;
         // Original and severed anatomical caps are camera-only, uploaded on demand.
-        std::vector<ZombieTorsoGeometry> woundSurfaces;
+        std::vector<ZombieWoundGeometry> woundSurfaces;
         std::vector<ZombieGeometry> closures;
         std::vector<std::size_t> sourceIndices;
         std::vector<ZombieGPUInstance> staging;
@@ -266,8 +266,8 @@ private:
     void uploadZombies(const ZombieLayer& zombies);
     void updateZombieInstance(std::size_t id, bool bounds, bool full);
     void updateZombieWound(std::size_t id, ZombieBatch& batch, ZombieGPUInstance& instance);
-    void drawTorsoContents(const glm::mat4& projectionView);
-    void releaseTorsoContents() noexcept;
+    void drawWoundContents(const glm::mat4& projectionView);
+    void releaseWoundContents() noexcept;
     void uploadZombieGeometry(const AnimatedModel& source, ZombieGeometry& geometry, std::size_t capacity, GLint maximumTexels);
     void prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* lightFrustum,
                             const Camera& camera, const glm::mat4& projection, double seconds, const Frustum* flashlightFrustum);
@@ -335,8 +335,8 @@ private:
     ModelGPU model_;
     ModelGPU boxModel_;
     ModelGPU grenadeModel_;
-    ModelGPU torsoContentsModel_;
-    GLuint torsoContentsBuffer_ = 0;
+    ModelGPU woundContentsModel_;
+    GLuint woundContentsBuffer_ = 0;
     std::vector<DrawInstance> grenadeDraws_;
     std::vector<GrenadePose> grenadePoses_;
     GLuint boxInstanceBuffer_ = 0;
