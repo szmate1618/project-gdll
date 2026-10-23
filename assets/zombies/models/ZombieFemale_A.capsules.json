@@ -1,0 +1,600 @@
+{
+  "schema": "godollo.zombie_bone_capsules",
+  "version": 1,
+  "units": "meters",
+  "space": "bone_reference_meters",
+  "source_sha256": "11c27208a81f7488b2dd7ef333d24b99a4231602593f12e60cec1af0ab177f54",
+  "description": "Prepared once from skin influences; robust near-full surface fit. Helper bones without attached surface are disabled. Female A/E skirt regions use estimated pelvis/thigh anatomy.",
+  "bones": [
+    {
+      "bone": "body_noesis_meshnode_0000",
+      "enabled": false,
+      "reason": "No attached surface vertices; nondeforming helper or unused bone."
+    },
+    {
+      "bone": "bip",
+      "enabled": false,
+      "reason": "No attached surface vertices; nondeforming helper or unused bone."
+    },
+    {
+      "bone": "bip Pelvis",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        -2e-07,
+        2e-07,
+        0.1113729
+      ],
+      "b": [
+        2e-07,
+        -1e-07,
+        -0.1113729
+      ],
+      "radius": 0.085,
+      "fit": "estimated_anatomy_under_skirt",
+      "surface_coverage": 0.2286,
+      "surface_points": 35
+    },
+    {
+      "bone": "bip Spine",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.1070577,
+        0.0443356,
+        -0.0083972
+      ],
+      "b": [
+        0.1070577,
+        0.0443356,
+        -0.0083972
+      ],
+      "radius": 0.2042795,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 0.9753,
+      "surface_points": 81
+    },
+    {
+      "bone": "bip Spine1",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.194513,
+        0.0176445,
+        0.0026762
+      ],
+      "b": [
+        0.0839709,
+        0.0554026,
+        -0.0003151
+      ],
+      "radius": 0.1946928,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 0.9798,
+      "surface_points": 99
+    },
+    {
+      "bone": "bip Neck",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0221339,
+        -0.0058877,
+        -0.0083968
+      ],
+      "b": [
+        0.0220834,
+        -0.0017585,
+        0.0081157
+      ],
+      "radius": 0.0570219,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 1.0,
+      "surface_points": 23
+    },
+    {
+      "bone": "bip Head",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0749075,
+        0.0441914,
+        -0.0001314
+      ],
+      "b": [
+        0.0920159,
+        -0.0244086,
+        0.0006621
+      ],
+      "radius": 0.1234036,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 0.9849,
+      "surface_points": 265
+    },
+    {
+      "bone": "bip jaw",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0458686,
+        0.0233254,
+        -0.0103483
+      ],
+      "b": [
+        0.0615428,
+        0.007874,
+        -0.0074777
+      ],
+      "radius": 0.0360037,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 1.0,
+      "surface_points": 22
+    },
+    {
+      "bone": "bip L Clavicle",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0876212,
+        0.0002034,
+        0.026087
+      ],
+      "b": [
+        0.1361956,
+        0.0082882,
+        -0.0154824
+      ],
+      "radius": 0.0828343,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 1.0,
+      "surface_points": 22
+    },
+    {
+      "bone": "bip L UpperArm",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0562074,
+        0.0131966,
+        -0.008175
+      ],
+      "b": [
+        0.2262593,
+        0.0188523,
+        -0.0018827
+      ],
+      "radius": 0.054058,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 0.9796,
+      "surface_points": 49
+    },
+    {
+      "bone": "bip L Forearm",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        -0.0125132,
+        0.0107489,
+        -0.0021995
+      ],
+      "b": [
+        0.2025934,
+        -0.0007671,
+        -0.0005559
+      ],
+      "radius": 0.0371346,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 1.0,
+      "surface_points": 49
+    },
+    {
+      "bone": "bip L Hand",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0035238,
+        0.0046632,
+        -0.0056329
+      ],
+      "b": [
+        0.0585314,
+        -0.0035348,
+        0.0026896
+      ],
+      "radius": 0.0464076,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 0.9677,
+      "surface_points": 31
+    },
+    {
+      "bone": "bip L Finger0",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        -0.0048291,
+        -0.0018087,
+        0.0056837
+      ],
+      "b": [
+        0.0137092,
+        -0.0011333,
+        0.0055236
+      ],
+      "radius": 0.0276041,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 1.0,
+      "surface_points": 7
+    },
+    {
+      "bone": "bip L Finger01",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0229773,
+        0.0059056,
+        0.0015237
+      ],
+      "b": [
+        0.03478,
+        0.0061159,
+        0.00229
+      ],
+      "radius": 0.0201976,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 1.0,
+      "surface_points": 8
+    },
+    {
+      "bone": "bip L Finger1",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0374804,
+        0.001826,
+        0.0342833
+      ],
+      "b": [
+        0.0600817,
+        0.0010512,
+        -0.0036026
+      ],
+      "radius": 0.0427305,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 0.9412,
+      "surface_points": 17
+    },
+    {
+      "bone": "bip L Finger11",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        -0.001718,
+        0.0002965,
+        -0.0069434
+      ],
+      "b": [
+        0.0103224,
+        -0.0004603,
+        0.0052147
+      ],
+      "radius": 0.0399173,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 1.0,
+      "surface_points": 17
+    },
+    {
+      "bone": "bip R Clavicle",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.1141694,
+        0.0078269,
+        -0.0108092
+      ],
+      "b": [
+        0.1005684,
+        0.0042709,
+        -0.0222278
+      ],
+      "radius": 0.0940196,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 0.9706,
+      "surface_points": 34
+    },
+    {
+      "bone": "bip R UpperArm",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.2006695,
+        0.0176276,
+        0.0001859
+      ],
+      "b": [
+        0.0604172,
+        0.0147816,
+        -0.0014036
+      ],
+      "radius": 0.0655321,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 0.9773,
+      "surface_points": 44
+    },
+    {
+      "bone": "bip R Forearm",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.1948939,
+        0.0006304,
+        0.0012237
+      ],
+      "b": [
+        -0.0176876,
+        0.0108451,
+        0.0006955
+      ],
+      "radius": 0.0505203,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 1.0,
+      "surface_points": 54
+    },
+    {
+      "bone": "bip R Hand",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0585309,
+        -0.0035343,
+        -0.0026913
+      ],
+      "b": [
+        0.0035233,
+        0.0046634,
+        0.0056314
+      ],
+      "radius": 0.0464076,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 0.9677,
+      "surface_points": 31
+    },
+    {
+      "bone": "bip R Finger0",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0137085,
+        -0.0011316,
+        -0.0055236
+      ],
+      "b": [
+        -0.0048298,
+        -0.001807,
+        -0.0056838
+      ],
+      "radius": 0.0276041,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 1.0,
+      "surface_points": 7
+    },
+    {
+      "bone": "bip R Finger01",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0347793,
+        0.0061177,
+        -0.0022901
+      ],
+      "b": [
+        0.0229766,
+        0.0059074,
+        -0.0015238
+      ],
+      "radius": 0.0201975,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 1.0,
+      "surface_points": 8
+    },
+    {
+      "bone": "bip R Finger1",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0600814,
+        0.0010517,
+        0.0036006
+      ],
+      "b": [
+        0.03748,
+        0.0018266,
+        -0.0342852
+      ],
+      "radius": 0.0427306,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 0.9412,
+      "surface_points": 17
+    },
+    {
+      "bone": "bip R Finger11",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0103218,
+        -0.0004597,
+        -0.0052166
+      ],
+      "b": [
+        -0.0017185,
+        0.0002971,
+        0.0069415
+      ],
+      "radius": 0.0399174,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 1.0,
+      "surface_points": 17
+    },
+    {
+      "bone": "bip L Thigh",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.075,
+        -0.0,
+        -0.0
+      ],
+      "b": [
+        0.3130697,
+        -0.0,
+        -0.0
+      ],
+      "radius": 0.075,
+      "fit": "estimated_anatomy_under_skirt",
+      "surface_coverage": 0.1091,
+      "surface_points": 55
+    },
+    {
+      "bone": "bip L Calf",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0511757,
+        -0.0483372,
+        0.0011801
+      ],
+      "b": [
+        0.3537711,
+        -0.0278586,
+        -0.0015176
+      ],
+      "radius": 0.0819932,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 0.9706,
+      "surface_points": 34
+    },
+    {
+      "bone": "bip L Foot",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0630147,
+        0.1005236,
+        0.0054206
+      ],
+      "b": [
+        0.0473284,
+        0.0234801,
+        0.0054047
+      ],
+      "radius": 0.0849441,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 0.98,
+      "surface_points": 50
+    },
+    {
+      "bone": "bip L Toe0",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0105757,
+        0.0200461,
+        -0.0030617
+      ],
+      "b": [
+        0.0105757,
+        0.0200461,
+        -0.0030617
+      ],
+      "radius": 0.0611853,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 1.0,
+      "surface_points": 22
+    },
+    {
+      "bone": "bip R Thigh",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.075,
+        -0.0,
+        -0.0
+      ],
+      "b": [
+        0.3130698,
+        -0.0,
+        -0.0
+      ],
+      "radius": 0.075,
+      "fit": "estimated_anatomy_under_skirt",
+      "surface_coverage": 0.1017,
+      "surface_points": 59
+    },
+    {
+      "bone": "bip R Calf",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.3582495,
+        -0.026085,
+        -0.0025478
+      ],
+      "b": [
+        0.0538013,
+        -0.0322921,
+        -0.0003086
+      ],
+      "radius": 0.0724147,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 0.9767,
+      "surface_points": 43
+    },
+    {
+      "bone": "bip R Foot",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0765027,
+        0.1370228,
+        -0.0113475
+      ],
+      "b": [
+        0.0447458,
+        -0.0221744,
+        -0.0111237
+      ],
+      "radius": 0.073634,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 0.9762,
+      "surface_points": 42
+    },
+    {
+      "bone": "bip R Toe0",
+      "enabled": true,
+      "shape": "capsule",
+      "a": [
+        0.0170321,
+        0.0127888,
+        -0.0043536
+      ],
+      "b": [
+        0.0170321,
+        0.0127888,
+        -0.0043536
+      ],
+      "radius": 0.0608176,
+      "fit": "98_percent_surface_fit",
+      "surface_coverage": 1.0,
+      "surface_points": 15
+    },
+    {
+      "bone": "rig_CharRoot",
+      "enabled": false,
+      "reason": "No attached surface vertices; nondeforming helper or unused bone."
+    },
+    {
+      "bone": "centimeters_to_meters",
+      "enabled": false,
+      "reason": "No attached surface vertices; nondeforming helper or unused bone."
+    }
+  ]
+}

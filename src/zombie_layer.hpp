@@ -77,6 +77,7 @@ struct ZombieLayer {
 
     std::vector<AnimatedModel> assets;
     std::vector<ZombieDismembermentAsset> dismembermentAssets;
+    std::vector<ZombieCapsuleAsset> capsuleAssets;
     // Per original asset, ordered LOD1..3; originals own gameplay/rig identity.
     std::vector<std::vector<AnimatedModel>> lodAssets;
     std::vector<ZombieInstance> instances;

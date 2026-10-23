@@ -195,6 +195,8 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
         validateSessionZombies(zombies);
         for (const auto& prepared : zombies.dismembermentAssets)
             content.insert(content.end(), prepared.resources.begin(), prepared.resources.end());
+        for (const auto& prepared : zombies.capsuleAssets)
+            content.insert(content.end(), prepared.resources.begin(), prepared.resources.end());
         if (std::filesystem::is_directory(o.zombieAssets)) {
             std::vector<std::filesystem::path> assets;
             for (const auto& entry : std::filesystem::directory_iterator(o.zombieAssets))

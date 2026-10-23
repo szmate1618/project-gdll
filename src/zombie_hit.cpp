@@ -35,9 +35,12 @@ ZombieHitBounds transformed(const ZombieHitBounds& bounds, const glm::mat4& matr
 }
 }
 
-ZombieHitGeometry prepareZombieHitGeometry(const AnimatedModel& asset, const std::vector<ZombieJointCollider>& joints) {
+ZombieHitGeometry prepareZombieHitGeometry(const AnimatedModel& asset, const std::vector<ZombieJointCollider>& joints,
+                                          const std::vector<ZombieBoneCapsule>& capsules) {
     ZombieHitGeometry geometry;
     geometry.joints = joints;
+    geometry.capsules = capsules;
+    geometry.capsulePoints = emptyBounds();
     geometry.jointPoints = emptyBounds();
     geometry.head = asset.ragdollBones[static_cast<std::size_t>(RagdollPart::head)];
     if (geometry.head < 0 || static_cast<std::size_t>(geometry.head) >= asset.skeleton.size()) {
@@ -53,7 +56,7 @@ ZombieHitGeometry prepareZombieHitGeometry(const AnimatedModel& asset, const std
             ancestor = asset.skeleton[static_cast<std::size_t>(ancestor)].parent;
         }
     }
-    for (std::size_t p = 0; p < asset.animation.size(); ++p) {
+    for (std::size_t p = 0; capsules.empty() && p < asset.animation.size(); ++p) {
         const auto& skinning = asset.animation[p].skinning;
         if (p >= asset.model.primitives.size() || skinning.size() > asset.model.primitives[p].vertices.size())
             throw std::invalid_argument("Invalid zombie hit geometry topology");
@@ -69,9 +72,22 @@ ZombieHitGeometry prepareZombieHitGeometry(const AnimatedModel& asset, const std
     }
     geometry.headPoints = emptyBounds();
     const auto sample = [&](const glm::mat4* pose) {
-        if (geometry.head >= 0 && geometry.headVertices.empty()) include(geometry.headPoints, glm::vec3(pose[geometry.head][3]));
+        if (capsules.empty() && geometry.head >= 0 && geometry.headVertices.empty())
+            include(geometry.headPoints, glm::vec3(pose[geometry.head][3]));
         else for (const auto vertex : geometry.headVertices)
             include(geometry.headPoints, glm::vec3(headVertexPosition(asset, vertex, pose)));
+        for (const auto& capsule : capsules) {
+            if (capsule.bone < 0 || std::size_t(capsule.bone) >= asset.skeleton.size())
+                throw std::invalid_argument("Invalid shot capsule bone");
+            const auto matrix = pose[capsule.bone] * capsule.boneFromMeters;
+            const auto extent = capsule.radius * (glm::abs(glm::vec3(matrix[0])) +
+                glm::abs(glm::vec3(matrix[1])) + glm::abs(glm::vec3(matrix[2])));
+            for (const auto endpoint : {capsule.a, capsule.b}) {
+                const auto center = glm::vec3(matrix * glm::vec4(endpoint, 1));
+                include(geometry.capsulePoints, center - extent);
+                include(geometry.capsulePoints, center + extent);
+            }
+        }
         for (const auto& joint : joints) {
             if (joint.bone < 0 || std::size_t(joint.bone) >= asset.skeleton.size())
                 throw std::invalid_argument("Invalid zombie joint collider bone");
@@ -104,7 +120,9 @@ ZombieHitBounds zombieShotBounds(const ZombieInstance& instance, const ZombieHit
     const auto body = glm::vec3(instance.restRoot * glm::vec4(0, 0.9f, 0, 1));
     ZombieHitBounds result{body - glm::vec3(0.62f), body + glm::vec3(0.62f)};
     ZombieHitBounds head;
-    if (geometry.head < 0) {
+    if (!geometry.capsules.empty()) {
+        head = transformed(geometry.capsulePoints, instance.transform);
+    } else if (geometry.head < 0) {
         const auto center = glm::vec3(instance.restRoot * glm::vec4(0, 1.65f, 0, 1));
         head = {center - glm::vec3(0.23f), center + glm::vec3(0.23f)};
     } else {
@@ -127,7 +145,7 @@ ZombieHitBounds zombieShotBounds(const ZombieInstance& instance, const ZombieHit
         include(result, joints.minimum); include(result, joints.maximum);
     }
     // Outward tolerance covers affine/frame interpolation rounding. Broad-phase
-    // bounds may overinclude; the sphere tests make the final decision.
+    // bounds may overinclude; the detailed colliders make the final decision.
     const auto padding = glm::vec3(0.001f) +
         glm::max(glm::abs(result.minimum), glm::abs(result.maximum)) * (8 * std::numeric_limits<float>::epsilon());
     return {result.minimum - padding, result.maximum + padding};

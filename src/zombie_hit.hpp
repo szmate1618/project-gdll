@@ -1,6 +1,7 @@
 #pragma once
 
 #include "zombie_dismemberment.hpp"
+#include "zombie_hit_capsules.hpp"
 
 #include <glm/glm.hpp>
 #include <cstddef>
@@ -33,8 +34,11 @@ struct ZombieHitGeometry {
     ZombieHitBounds headPoints;
     ZombieHitBounds jointPoints;
     std::vector<ZombieJointCollider> joints;
+    ZombieHitBounds capsulePoints;
+    std::vector<ZombieBoneCapsule> capsules;
 };
-ZombieHitGeometry prepareZombieHitGeometry(const AnimatedModel& asset, const std::vector<ZombieJointCollider>& joints = {});
+ZombieHitGeometry prepareZombieHitGeometry(const AnimatedModel& asset, const std::vector<ZombieJointCollider>& joints = {},
+                                          const std::vector<ZombieBoneCapsule>& capsules = {});
 ZombieHitBounds zombieShotBounds(const ZombieInstance& instance, const ZombieHitGeometry& geometry);
 // Conservative forward-ray broad phase; direction need not be normalized.
 bool zombieRayIntersectsBounds(glm::vec3 origin, glm::vec3 direction, const ZombieHitBounds& bounds);

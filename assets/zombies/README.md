@@ -58,6 +58,28 @@ contains 300 zombies spread across safe ground inside this outline. See
 
 ## Joint hits and prepared severed meshes
 
+Each character also has `models/NAME.capsules.json` for ordinary shot collision.
+These are prepared asset data, not fitted again at startup. Every skeleton node
+has a named record; bones with attached surface geometry have a capsule, while
+unused bones and nondeforming helper nodes are disabled. Endpoints and radius
+use meters in the reference bone's orientation, following the animated bone
+with its original scale compensated. The loader checks the source GLB SHA-256.
+
+Capsules fit the skin-influenced reference surface with a robust near-full
+coverage fit (about the 98th percentile plus 2 mm), avoiding large inflation
+from a few protruding vertices. Female A and E have skirts: their pelvis/thigh
+capsules instead follow estimated underlying anatomy, leaving empty skirt fabric
+outside the damage volume. The fit method and surface coverage are recorded in
+each capsule entry. No preparation tool or generation workflow is required.
+
+Shooting retains the spatial grid and initial conservative bounding box, then
+tests the posed capsules instead of the oversized torso/head spheres. Head and
+descendant capsules count as headshots; nearest capsule entry chooses ordinary
+damage and occlusion distance. Separate joint spheres below retain precedence
+on the same actor. Assets without capsule definitions keep their original
+body/head proxy fallback. The capsule files are included in multiplayer asset
+packs and content fingerprints, with LF line endings.
+
 Each original character has a companion `models/NAME.hitboxes.json`. These
 definitions contain ten spherical joint regions: waist, neck, and left/right
 shoulder, elbow, hip and knee. Centers and radii use meters in the reference

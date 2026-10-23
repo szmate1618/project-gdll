@@ -149,6 +149,12 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
             raise ValueError(f"Unsupported zombie LoD manifest: {manifest_path}")
         for model in models:
             assets.model(model)
+            capsules = model.with_suffix(".capsules.json")
+            if capsules.exists():
+                body_hits = assets.document(capsules)
+                if body_hits.get("schema") != "godollo.zombie_bone_capsules" or body_hits.get("version") != 1:
+                    raise ValueError(f"Unsupported zombie capsule manifest: {capsules}")
+                assets.add(model, body_hits["source_sha256"])
             hitboxes = model.with_suffix(".hitboxes.json")
             if hitboxes.exists():
                 hits = assets.document(hitboxes)

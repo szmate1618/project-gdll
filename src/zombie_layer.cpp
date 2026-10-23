@@ -347,6 +347,7 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
     for (const auto& path : paths) {
         auto asset = loadZombieModel(path);
         result.dismembermentAssets.push_back(loadZombieDismemberment(path, asset));
+        result.capsuleAssets.push_back(loadZombieHitCapsules(path, asset));
         const auto low = asset.model.boundsMin, high = asset.model.boundsMax;
         const float height = high.y - low.y;
         if (!std::isfinite(height) || height <= 0)

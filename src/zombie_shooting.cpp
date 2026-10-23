@@ -37,7 +37,8 @@ void ZombieLayer::rebuildSpatialIndex() {
     hitGeometry_.reserve(assets.size());
     for (std::size_t a = 0; a < assets.size(); ++a)
         hitGeometry_.push_back(prepareZombieHitGeometry(assets[a], a < dismembermentAssets.size() ?
-            dismembermentAssets[a].joints : std::vector<ZombieJointCollider>{}));
+            dismembermentAssets[a].joints : std::vector<ZombieJointCollider>{},
+            a < capsuleAssets.size() ? capsuleAssets[a].capsules : std::vector<ZombieBoneCapsule>{}));
     shotBounds_.resize(instances.size());
     shotPadding_ = 0;
     for (std::size_t id = 0; id < instances.size(); ++id) updateSpatialMembership(id);
@@ -80,18 +81,29 @@ std::optional<ZombieShotHit> ZombieLayer::findShotTarget(glm::vec3 origin, glm::
             !zombieRayIntersectsBounds(origin, direction, shotBounds_[id])) continue;
         const auto& asset = assets[instance.asset];
         const auto& geometry = hitGeometry_[instance.asset];
-        const auto center = glm::vec3(instance.restRoot * glm::vec4(0, 0.9f, 0, 1));
         float distance = std::numeric_limits<float>::max();
-        const bool bodyHit = raySphere(origin, direction, center, 0.62f, distance);
         auto pose = sampleZombiePose(asset, instance, animationSeconds);
         ++shootingStats_.poseSamples;
-        shootingStats_.headVertices += geometry.headVertices.size();
-        const auto head = zombieHeadHitSphere(asset, instance, pose, geometry);
-        float headDistance = 0;
-        const bool headHit = raySphere(origin, direction, head.center, head.radius, headDistance);
-        // The first region entered determines damage, including overlapping spheres.
-        const bool headshot = headHit && (!bodyHit || headDistance <= distance);
-        if (headHit) distance = bodyHit ? std::min(distance, headDistance) : headDistance;
+        bool surfaceHit = false, headshot = false;
+        if (!geometry.capsules.empty()) {
+            for (const auto& capsule : geometry.capsules) {
+                float d = 0;
+                if (zombieCapsuleRay(origin, direction, instance.transform, capsule, pose, d) && d < distance) {
+                    surfaceHit = true; distance = d; headshot = capsule.headshot;
+                }
+            }
+        } else {
+            // Legacy/custom models without prepared capsules retain their original proxies.
+            const auto center = glm::vec3(instance.restRoot * glm::vec4(0, .9f, 0, 1));
+            const bool bodyHit = raySphere(origin, direction, center, .62f, distance);
+            shootingStats_.headVertices += geometry.headVertices.size();
+            const auto head = zombieHeadHitSphere(asset, instance, pose, geometry);
+            float headDistance = 0;
+            const bool headHit = raySphere(origin, direction, head.center, head.radius, headDistance);
+            headshot = headHit && (!bodyHit || headDistance <= distance);
+            if (headHit) distance = bodyHit ? std::min(distance, headDistance) : headDistance;
+            surfaceHit = bodyHit || headHit;
+        }
         int jointHit = -1;
         float jointDistance = std::numeric_limits<float>::max();
         for (std::size_t j = 0; j < geometry.joints.size(); ++j) {
@@ -100,10 +112,10 @@ std::optional<ZombieShotHit> ZombieLayer::findShotTarget(glm::vec3 origin, glm::
                 jointHit = static_cast<int>(j); jointDistance = d;
             }
         }
-        // Joint regions override the coarse body/head damage proxies on this
-        // actor. Occlusion must end at the actual joint collider, not a proxy.
+        // Joint regions retain precedence on this actor. Occlusion must end at
+        // the actual joint collider, including when the surface is entered first.
         if (jointHit >= 0) distance = jointDistance;
-        if ((bodyHit || headHit || jointHit >= 0) && distance < nearest) {
+        if ((surfaceHit || jointHit >= 0) && distance < nearest) {
             nearest = distance;
             selected = ZombieShotHit{id, distance, headshot, jointHit};
             selectedPose = std::move(pose);

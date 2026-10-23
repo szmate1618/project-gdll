@@ -859,20 +859,27 @@ still have no occlusion culling.
 
 In Combat mode while the mouse is captured, a weapon shot casts one ray per
 pellet from the camera center and damages the nearest living zombie along
-each ray under a conservative body or head sphere. The head sphere encloses
-the displayed skinned head geometry,
-including hair and child joints, and follows the displayed idle, walk, or run pose.
+each ray. Prepared characters use `NAME.capsules.json` beside the original GLB:
+bone-attached capsules fitted once to the reference mesh, with a robust near-full
+surface fit that avoids inflating for a few protruding vertices. Skirted Female A/E
+use estimated underlying pelvis/thigh anatomy. Unused helper bones have disabled
+records. The loader validates source fingerprints; the capsules follow the
+displayed idle, walk or run pose, with head descendants classified as headshots.
 Shooting first queries the same spatial grid along the forward ray. The query
 tests occupied X/Z cells expanded by the maximum hit-region reach, avoiding
 arbitrarily long walks through empty space. It then rejects candidates with
-cheap 3D bounds covering both body and head spheres through every animation
+cheap 3D bounds covering all hit regions through every animation
 sample and interpolated frame, including wrap. Only remaining candidates sample
-their skeleton and evaluate the posed head region. Queries have no shooting
+their skeleton and intersect the posed bone capsules, including limbs, fingers
+and feet. The nearest surface determines ordinary damage and world occlusion.
+Queries have no shooting
 distance limit or camera-visibility dependency; equal-distance hits retain
 original instance-ID order. Conservative roundoff padding preserves the existing
-float sphere decisions on long rays.
+hit decisions on long rays. Capsule rays preserve world distances through
+instance/bone scale, reflection and shear; rays starting inside return zero.
 
-Head vertex membership is prepared once per asset at grid initialization:
+Custom assets without capsule definitions retain their original body/head
+sphere fallback. For this fallback, head vertex membership is prepared once per asset at grid initialization:
 vertices with at least 50% combined weight on the head or descendant bones are
 retained, including hair and all eight skin influences. Detailed head queries
 pose only those vertices using their complete weights. The original body/head
@@ -882,10 +889,10 @@ sampling a skeleton. `ZombieLayer::shootingStats()` reports candidate count,
 sampled poses, and posed head vertices for the last shot. Everything runs on the
 existing simulation thread.
 
-Unmapped rigs use a standard head region. Each zombie starts at 10 HP. The
+Unmapped fallback rigs use a standard head region. Each zombie starts at 10 HP. The
 `ZombieDamage` class stores a record by stable zombie ID only after a confirmed,
 unblocked hit. Low-caliber bullets/pellets deal 1 damage; high caliber deals 2.
-Headshots double those values. If both spheres intersect the ray, the first
+Headshots double those values. If multiple damage volumes intersect the ray, the first
 surface entered determines the region. Each shotgun pellet applies damage
 separately, including repeated hits on the same zombie. Surviving zombies retain
 their behavior, navigation and living collision membership. At zero HP the layer
@@ -893,7 +900,7 @@ activates the ragdoll and erases its injury record. Grenade deaths also erase
 existing injury records; their blast behavior is unchanged.
 Prepared characters also load `NAME.hitboxes.json` beside their original GLB.
 These spherical colliders follow the authored waist, neck, shoulders, elbows,
-hips and knees. A joint hit overrides the coarse body/head damage proxies on
+hips and knees. A joint hit overrides the ordinary damage volumes on
 that actor and checks world occlusion to the joint collider. It immediately
 kills regardless of HP, removes the health injury record, selects a precomputed
 separation mesh with dark red caps, and releases the matching ragdoll constraint.
@@ -1943,7 +1950,8 @@ src/shadow_map.{hpp,cpp}  Depth-only shadow framebuffer and texture ownership
 src/flashlight.{hpp,cpp}   Held-light pose and short-range perspective shadow volume
 src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin data
 src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting
-src/zombie_hit.{hpp,cpp}    Head hit regions from the displayed skinning pose
+src/zombie_hit.{hpp,cpp}    Conservative shot bounds and fallback head regions
+src/zombie_hit_capsules.{hpp,cpp} Prepared bone-capsule loading and affine ray tests
 src/zombie_damage.{hpp,cpp} Sparse injury records and health reduction; no geometry or physics
 src/zombie_dismemberment.{hpp,cpp} Joint-hit definitions, prepared mesh loading and affine joint tests
 src/zombie_shooting.cpp    Prepared hit geometry, spatial bounds, and shot selection

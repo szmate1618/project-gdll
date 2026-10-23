@@ -90,6 +90,17 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Stale fingerprint"):
             self.package()
 
+    def test_bone_capsule_resources_and_fingerprints(self):
+        path = self.json("assets/zombies/models/Zombie.capsules.json", {
+            "schema": "godollo.zombie_bone_capsules", "version": 1,
+            "source_sha256": self.digest(self.zombie), "bones": []})
+        self.package()
+        with zipfile.ZipFile(self.output) as archive:
+            self.assertEqual(archive.read("assets/zombies/models/Zombie.capsules.json"), path.read_bytes())
+        self.zombie.write_bytes(glb({"extras": {"changed": True}}))
+        with self.assertRaisesRegex(ValueError, "Stale fingerprint"):
+            self.package()
+
     def test_relocated_pack_keeps_referenced_bytes_and_only_runtime_files(self):
         count, size = self.package()
         destination = self.root / "extracted"

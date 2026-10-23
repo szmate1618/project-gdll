@@ -1,3 +1,4 @@
 /source/
 /models/*
 !/models/*.hitboxes.json
+!/models/*.capsules.json
