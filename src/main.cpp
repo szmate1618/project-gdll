@@ -52,6 +52,8 @@ struct Options {
     std::filesystem::path zombies;
     std::filesystem::path scenario;
     int frames = 0;
+    int width = 1280, height = 720;
+    bool fullscreen = false;
     bool hidden = false, allowSoftware = false, selfTest = false, help = false;
     bool fps = false, collisionDebug = false, selfTestFPS = false;
     bool shadows = true;
@@ -132,6 +134,14 @@ Options parseOptions(int argc, char** argv) {
             options.zombieDrawDistance = meters;
         }
         else if (argument == "--hidden") options.hidden = true;
+        else if (argument == "--fullscreen") options.fullscreen = true;
+        else if (argument == "--resolution") {
+            const auto size = value();
+            if (size == "960x540") { options.width = 960; options.height = 540; }
+            else if (size == "1280x720") { options.width = 1280; options.height = 720; }
+            else if (size == "1920x1080") { options.width = 1920; options.height = 1080; }
+            else throw std::runtime_error("--resolution requires 960x540, 1280x720 or 1920x1080");
+        }
         else if (argument == "--allow-software") options.allowSoftware = true;
         else if (argument == "--self-test-input") options.selfTest = true;
         else if (argument == "--fps") options.fps = true;
@@ -282,6 +292,8 @@ void printHelp() {
               << "Left Alt release/capture mouse, wheel change speed, G discard weapon, F pick up weapon, L toggle flashlight, Home frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
               << "  --fps               Start in walking mode\n"
+              << "  --fullscreen        Fill the primary monitor at the selected render resolution\n"
+              << "  --resolution WxH    960x540, 1280x720 (default) or 1920x1080\n"
               << "  --time-of-day H     Starting hour in [0, 24), default 12 (noon)\n"
               << "  --day-length S      Seconds per full day, default 1200; 0 freezes the hour\n"
               << "  --night             Fixed night with a camera flashlight\n"
@@ -561,6 +573,8 @@ void moveCamera(AppState& app, float dt) {
 }
 
 void inputSelfTest(GLFWwindow* window) {
+    int originalWidth, originalHeight;
+    glfwGetWindowSize(window,&originalWidth,&originalHeight);
     auto& app = state(window);
     // Retrieve the installed callbacks, so this tests the same input path as
     // GLFW events, rather than separate synthetic camera movement code.
@@ -721,7 +735,7 @@ void inputSelfTest(GLFWwindow* window) {
     key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_RELEASE, 0);
     resize(window, 800, 600);
     if (app.width != 800 || app.height != 600) throw std::runtime_error("Resize callback self-test failed");
-    glfwSetWindowSize(window, 1280, 720);
+    glfwSetWindowSize(window, originalWidth, originalHeight);
     glfwPollEvents();
     glfwGetFramebufferSize(window, &app.width, &app.height);
     key(window, GLFW_KEY_ESCAPE, 0, GLFW_PRESS, 0);
@@ -1030,9 +1044,23 @@ int run(const Options& options) {
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 #endif
     if (options.hidden) glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    // Keep the desktop video mode, with a separate fixed-size render target.
+    // Hidden captures use a regular hidden window and never occupy the monitor.
+    GLFWmonitor* monitor = nullptr;
+    int windowWidth = options.width, windowHeight = options.height;
+    if (options.fullscreen && !options.hidden) {
+        monitor = glfwGetPrimaryMonitor();
+        const auto* mode = monitor ? glfwGetVideoMode(monitor) : nullptr;
+        if (!mode) throw std::runtime_error("Cannot find a monitor for fullscreen mode");
+        windowWidth = mode->width; windowHeight = mode->height;
+        glfwWindowHint(GLFW_RED_BITS,mode->redBits);
+        glfwWindowHint(GLFW_GREEN_BITS,mode->greenBits);
+        glfwWindowHint(GLFW_BLUE_BITS,mode->blueBits);
+        glfwWindowHint(GLFW_REFRESH_RATE,mode->refreshRate);
+    }
     const auto title = "Gödöllő Viewer — " + options.model.filename().string();
     std::unique_ptr<GLFWwindow, decltype(&glfwDestroyWindow)> window(
-        glfwCreateWindow(1280, 720, title.c_str(), nullptr, nullptr), glfwDestroyWindow);
+        glfwCreateWindow(windowWidth, windowHeight, title.c_str(), monitor, nullptr), glfwDestroyWindow);
     if (!window) throw std::runtime_error("Cannot create an OpenGL 3.3 Core window. Check display access and the graphics driver.");
     glfwMakeContextCurrent(window.get());
     viewer::initializeOpenGL();
@@ -1044,7 +1072,12 @@ int run(const Options& options) {
     app.hidden = options.hidden;
     app.collisionDebug = options.collisionDebug;
     glfwGetFramebufferSize(window.get(), &app.width, &app.height);
-    app.rig.frame(static_cast<float>(std::max(app.width, 1)) / static_cast<float>(std::max(app.height, 1)));
+    const auto renderAspect = options.fullscreen ? float(options.width)/options.height :
+        static_cast<float>(std::max(app.width, 1))/static_cast<float>(std::max(app.height, 1));
+    app.rig.frame(renderAspect);
+    std::cout << (options.fullscreen ? "Fullscreen" : "Windowed") << "; render resolution "
+              << (options.fullscreen ? options.width : app.width) << 'x'
+              << (options.fullscreen ? options.height : app.height) << '\n';
     if (options.fps || scenarioPlayer) {
         auto preferred = (model.boundsMin + model.boundsMax) * 0.5f;
         preferred.y = model.boundsMax.y + 5.0f;
@@ -1055,8 +1088,7 @@ int run(const Options& options) {
             app.rig.camera().setOrientation(scenarioPlayer->orientation[0], scenarioPlayer->orientation[1]);
     }
     if (options.zombieView && zombies)
-        app.rig.camera().frame(zombies->boundsMin, zombies->boundsMax,
-            static_cast<float>(std::max(app.width, 1)) / static_cast<float>(std::max(app.height, 1)));
+        app.rig.camera().frame(zombies->boundsMin, zombies->boundsMax, renderAspect);
     app.zombies = zombies ? &*zombies : nullptr;
     app.doors = &doors;
     app.boxes = &boxes;
@@ -1148,7 +1180,7 @@ int run(const Options& options) {
             reticle.draw(mode, 800, 600);
         viewer::Renderer::checkErrors("resized render target and reticle modes");
     }
-    renderer.resize(app.width, app.height);
+    renderer.resize(options.fullscreen ? options.width : app.width, options.fullscreen ? options.height : app.height);
     viewer::GpuTimer gpuTimer;
     double previous = glfwGetTime(), titleTime = previous;
     auto& simulationClock = viewer::SimulationClock::instance();
@@ -1257,7 +1289,9 @@ int run(const Options& options) {
         renderer.updateGrenades(grenades.poses());
         renderer.updateVegetationBlasts(grenades.explosions(simulationClock.seconds()));
         renderer.setExplosionLights(grenades.lights(simulationClock.seconds()));
-        renderer.resize(app.width, app.height);
+        const int renderWidth = options.fullscreen ? options.width : app.width;
+        const int renderHeight = options.fullscreen ? options.height : app.height;
+        renderer.resize(renderWidth, renderHeight);
         if (zombies) renderer.updateZombies(*zombies);
         std::vector<viewer::DebugVertex> overlay;
         if (app.collisionDebug) {
@@ -1269,14 +1303,14 @@ int run(const Options& options) {
         const double renderStart = glfwGetTime();
         renderer.render(viewCamera, app.displayedAnimationSeconds);
         if (app.collisionDebug)
-            debug->draw(viewCamera, overlay, app.width, app.height);
+            debug->draw(viewCamera, overlay, renderWidth, renderHeight);
         const auto& heldWeapon = app.weapons.equipped();
         if (heldWeapon.owned && app.interaction.mode() == viewer::ControlMode::Combat &&
             app.rig.camera().viewMode() == viewer::Camera::ViewMode::original &&
             viewer::weaponViewVisible(heldWeapon.config, heldWeapon.loaded, simulationClock.seconds() < heldWeapon.readyAt))
-            weaponOverlay.draw(app.weapons.slot(), app.width, app.height, flash,
+            weaponOverlay.draw(app.weapons.slot(), renderWidth, renderHeight, flash,
                                app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds()));
-        reticle.draw(app.rig.camera().viewMode(), app.width, app.height);
+        reticle.draw(app.rig.camera().viewMode(), renderWidth, renderHeight);
         intervalRenderSeconds += glfwGetTime() - renderStart;
         gpuTimer.end();
         // Presentation can wait for VSync, so keep it outside both render timers.

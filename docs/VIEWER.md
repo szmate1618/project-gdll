@@ -9,6 +9,20 @@ the scene with a perspective free-fly or first-person walking camera and directi
 prints the OpenGL version, renderer, vendor, and GLSL version. The Python scene
 generator remains a separate program.
 
+Use `--fullscreen` to fill the primary monitor and `--resolution` to select
+`960x540`, `1280x720` (default), or `1920x1080`:
+
+```bash
+./build/godollo_viewer output/godollo.glb --fullscreen --resolution 960x540
+```
+
+Fullscreen retains the desktop display mode and renders the scene, held weapon
+and reticle at the selected resolution before scaling to the monitor. Black bars
+preserve 16:9 on other screen shapes. Screenshots use the selected render size.
+Without `--fullscreen`, `--resolution` sets the initial window size; normal
+window resizing still adjusts the render target. `--hidden --fullscreen` renders
+at the selected size in a hidden window without covering the monitor.
+
 The viewer also plays positional sound through OpenAL Soft, with a camera
 listener, preloaded effects, streamed ambience, and a bounded nearby-zombie voice
 pool. See [audio setup and replacement sounds](AUDIO.md). Use `--no-audio` to

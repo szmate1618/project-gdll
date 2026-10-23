@@ -449,9 +449,18 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
 }
 
 void Renderer::present(int width, int height) {
+    if (width<=0 || height<=0 || width_<=0 || height_<=0) return;
     glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer_);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    glBlitFramebuffer(0, 0, width_, height_, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    const double scale = std::min(double(width)/width_,double(height)/height_);
+    const int fittedWidth = std::max(1,int(std::lround(width_*scale)));
+    const int fittedHeight = std::max(1,int(std::lround(height_*scale)));
+    const int x = (width-fittedWidth)/2, y = (height-fittedHeight)/2;
+    if (fittedWidth!=width || fittedHeight!=height) {
+        constexpr GLfloat black[]{0,0,0,1};
+        glClearBufferfv(GL_COLOR,0,black);
+    }
+    glBlitFramebuffer(0, 0, width_, height_, x, y, x+fittedWidth, y+fittedHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 }
 
 void Renderer::writeScreenshot(const std::filesystem::path& path) const {
