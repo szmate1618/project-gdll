@@ -62,6 +62,8 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         skinningLocation_ = glGetUniformLocation(program_, "uSkinningEnabled");
         skinningBonesLocation_ = glGetUniformLocation(program_, "uSkinningBones");
         skinningBoneCountLocation_ = glGetUniformLocation(program_, "uSkinningBoneCount");
+        zombieWoundsLocation_ = glGetUniformLocation(program_, "uZombieWounds");
+        zombieTriangleOffsetLocation_ = glGetUniformLocation(program_, "uZombieTriangleOffset");
         shadowPassLocation_ = glGetUniformLocation(program_, "uShadowPass");
         shadowsLocation_ = glGetUniformLocation(program_, "uShadows");
         shadowMapLocation_ = glGetUniformLocation(program_, "uShadowMap");
@@ -235,6 +237,7 @@ void Renderer::release() noexcept {
     releaseModel(model_);
     releaseModel(boxModel_);
     releaseModel(grenadeModel_);
+    releaseTorsoContents();
     if (boxInstanceBuffer_) glDeleteBuffers(1, &boxInstanceBuffer_);
     boxInstanceBuffer_ = 0;
     releaseModel(roofModel_);
@@ -367,6 +370,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     glUniform1i(skinningBonesLocation_, 2);
     glUniform1i(shadowMapLocation_, 3);
     glUniform1i(flashlightShadowMapLocation_, 4);
+    glUniform1i(zombieWoundsLocation_, 5);
     SunShadowView shadowView;
     const auto lighting = lightingForFrame();
     const auto view = camera.view();
@@ -409,6 +413,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     drawForests(projection * view, false, cameraVisibility_.forests);
     drawZombies(animationSeconds);
     drawBoxes(projection * view);
+    drawTorsoContents(projection * view);
     drawGrenades(projection * view);
     if (drawOpaque) drawOpaque();
     if (!transparentScene_.empty()) {

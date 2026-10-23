@@ -195,6 +195,7 @@ private:
         float phase;
         float clipFirstFrame;
         float clipFrameCount; // Zero selects the uniform idle frame count.
+        float woundBase = 0; // Triangle-mask texel offset + 1; zero is intact.
         float animationFrame;
         float liveSkinning;
         float animationStep; // Nonzero bypasses interpolation and second-pose fetches.
@@ -216,6 +217,12 @@ private:
         std::vector<ZombieGPUInstance> cameraInstances, shadowInstances, flashlightInstances;
     };
     struct ZombieBatch : ZombieGeometry {
+        struct WoundRow { std::size_t offset; std::uint64_t revision; int severedJoint; };
+        GLuint woundBuffer = 0, woundTexture = 0;
+        std::size_t woundStride = 0, woundLimit = 0;
+        std::vector<std::uint8_t> woundBytes;
+        std::unordered_map<std::size_t, WoundRow> woundRows;
+        std::vector<std::size_t> freeWoundRows;
         std::vector<ZombieGeometry> lods;
         std::vector<ZombieGeometry> severed;
         std::vector<std::size_t> sourceIndices;
@@ -247,6 +254,9 @@ private:
     void drawForests(const glm::mat4& projectionView, bool shadowPass, VisibilityQueryState& temporal);
     void uploadZombies(const ZombieLayer& zombies);
     void updateZombieInstance(std::size_t id, bool bounds, bool full);
+    void updateZombieWound(std::size_t id, ZombieBatch& batch, ZombieGPUInstance& instance);
+    void drawTorsoContents(const glm::mat4& projectionView);
+    void releaseTorsoContents() noexcept;
     void uploadZombieGeometry(const AnimatedModel& source, ZombieGeometry& geometry, std::size_t capacity, GLint maximumTexels);
     void prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* lightFrustum,
                             const Camera& camera, const glm::mat4& projection, double seconds, const Frustum* flashlightFrustum);
@@ -277,6 +287,7 @@ private:
     GLint animatedLocation_, animationLocation_, animationFrameLocation_;
     GLint animationCountLocation_, animationVerticesLocation_;
     GLint skinningLocation_, skinningBonesLocation_, skinningBoneCountLocation_;
+    GLint zombieWoundsLocation_ = -1, zombieTriangleOffsetLocation_ = -1;
     GLint shadowPassLocation_, shadowsLocation_, shadowMapLocation_, sunMatrixLocation_;
     GLint eyeLocation_, sunDirectionLocation_, sunColorLocation_, skyAmbientLocation_, groundAmbientLocation_;
     GLint shadowDistanceLocation_, shadowFadeLocation_;
@@ -312,6 +323,8 @@ private:
     ModelGPU model_;
     ModelGPU boxModel_;
     ModelGPU grenadeModel_;
+    ModelGPU torsoContentsModel_;
+    GLuint torsoContentsBuffer_ = 0;
     std::vector<DrawInstance> grenadeDraws_;
     std::vector<GrenadePose> grenadePoses_;
     GLuint boxInstanceBuffer_ = 0;

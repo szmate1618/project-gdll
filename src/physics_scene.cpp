@@ -84,7 +84,7 @@ void PhysicsScene::ensureNear(glm::vec3 minimum, glm::vec3 maximum) {
             // Their existing hinge limits define the swing; importing the wall
             // as another door contact would jam them at the jamb. These meshes
             // support props, leaving door and ragdoll behavior unchanged.
-            shape.filter.maskBits = interiorBoxCategory | grenadeBodyCategory;
+            shape.filter.maskBits = interiorBoxCategory | grenadeBodyCategory | zombieContentsCategory;
             b3CreateMeshShape(mesh->body, &shape, mesh->mesh, {1, 1, 1});
             impl_->bodies.push_back(std::move(mesh));
         }

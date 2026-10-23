@@ -1157,6 +1157,7 @@ int run(const Options& options) {
         physicsScene.prepare(boxes);
         grenades.prepare(physicsScene, doors);
         if (zombies) zombieDoorCollision.prepare(doors, *zombies);
+        if (zombies) zombies->prepareTorsoPhysics(dt, app.displayedAnimationSeconds, &physicsScene);
         physics->step(dt);
         grenades.update(simulationClock.seconds(), collision, zombies ? &*zombies : nullptr, app.displayedAnimationSeconds);
         for (const auto& explosion : grenades.explosions(simulationClock.seconds())) {

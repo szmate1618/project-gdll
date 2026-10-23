@@ -6,6 +6,9 @@ in vec3 vWorldPosition;
 in float vCanopyHeight;
 uniform vec3 uForestVisibility; // World X/Z center, horizontal radius; zero disables.
 flat in vec2 vCanopyLight;
+flat in int vWoundBase;
+uniform usamplerBuffer uZombieWounds;
+uniform int uZombieTriangleOffset;
 
 uniform vec4 uBaseColor;
 uniform sampler2D uBaseTexture;
@@ -155,6 +158,7 @@ float alphaMaskCutoff() {
 }
 
 void main() {
+    if (!uShadowPass && vWoundBase > 0 && texelFetch(uZombieWounds, vWoundBase - 1 + uZombieTriangleOffset + gl_PrimitiveID).r != 0u) discard;
     if (uForestVisibility.z > 0.0) {
         vec2 offset = vWorldPosition.xz - uForestVisibility.xy;
         if (dot(offset, offset) > uForestVisibility.z * uForestVisibility.z) discard;

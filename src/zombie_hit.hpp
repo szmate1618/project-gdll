@@ -22,6 +22,7 @@ struct ZombieShotHit {
     float distance; // World meters along the normalized shot ray.
     bool headshot;
     int joint = -1;
+    bool torso = false;
 };
 
 struct ZombieHitBounds { glm::vec3 minimum{0}, maximum{0}; };

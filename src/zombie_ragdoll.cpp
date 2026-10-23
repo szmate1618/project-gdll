@@ -284,7 +284,7 @@ private:
         bodyDef.angularDamping = 0.045f;
         const auto body = b3CreateBody(world_, &bodyDef);
         auto shapeDef = b3DefaultShapeDef();
-        shapeDef.filter.categoryBits = ordinaryBodyCategory;
+        shapeDef.filter.categoryBits = ragdollBodyCategory;
         shapeDef.density = mass / (pi * radius * radius * (2 * halfLength) + (4.0f / 3.0f) * pi * radius * radius * radius);
         shapeDef.baseMaterial.friction = 0.6f;
         // Sliding friction alone cannot stop spheres/capsules rolling. Apply

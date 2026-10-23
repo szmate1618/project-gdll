@@ -14,6 +14,10 @@ bool allowShapeContact(b3ShapeId shapeA, b3ShapeId shapeB, void*) {
     // group so the usual group rule does not reject its owner's contacts.
     const auto a = b3Shape_GetFilter(shapeA);
     const auto b = b3Shape_GetFilter(shapeB);
+    if (a.categoryBits == zombieCavityCategory)
+        return a.groupIndex < 0 && b.groupIndex == -a.groupIndex && b.categoryBits == zombieContentsCategory;
+    if (b.categoryBits == zombieCavityCategory)
+        return b.groupIndex < 0 && a.groupIndex == -b.groupIndex && a.categoryBits == zombieContentsCategory;
     if ((a.categoryBits & ragdollFloorCategory) != 0)
         return a.groupIndex > 0 && b.groupIndex == -a.groupIndex;
     if ((b.categoryBits & ragdollFloorCategory) != 0)

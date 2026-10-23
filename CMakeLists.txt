@@ -287,8 +287,9 @@ viewer_warnings(viewer_forests)
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp
     src/zombie_layer.cpp src/zombie_lod.cpp src/zombie_lod_assets.cpp src/zombie_hit.cpp src/zombie_damage.cpp src/zombie_dismemberment.cpp src/zombie_shooting.cpp src/zombie_chase.cpp src/zombie_attack.cpp src/zombie_behavior.cpp src/zombie_animation.cpp
     src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp src/zombie_spatial_index.cpp src/zombie_crowd.cpp src/zombie_movement.cpp src/zombie_door_collision.cpp src/zombie_perception.cpp src/zombie_render_updates.cpp
-    src/zombie_navigation.cpp src/zombie_scenario.cpp src/zombie_scenario_routes.cpp src/zombie_hit_capsules.cpp)
-target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise viewer_physics viewer_fingerprints
+    src/zombie_navigation.cpp src/zombie_scenario.cpp src/zombie_scenario_routes.cpp src/zombie_hit_capsules.cpp
+    src/zombie_wounds.cpp src/zombie_torso_physics.cpp)
+target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise viewer_physics viewer_objects viewer_fingerprints
     viewer_zombie_steering viewer_scenario_config)
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_zombies)
@@ -361,7 +362,7 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/weapon_overlay.cpp
     src/building_renderer.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
-    src/zombie_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
+    src/zombie_renderer.cpp src/zombie_wound_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
     viewer_model viewer_weapon_pose viewer_weapons viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting viewer_grenades OpenGL::GL)
 if(WIN32)

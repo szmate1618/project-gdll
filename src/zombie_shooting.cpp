@@ -35,6 +35,8 @@ void ZombieLayer::rebuildSpatialIndex() {
     crowd_.reset(instances.size());
     hitGeometry_.clear();
     hitGeometry_.reserve(assets.size());
+    torsoGeometry_.clear();
+    for (const auto& asset : assets) torsoGeometry_.push_back(prepareZombieTorso(asset));
     for (std::size_t a = 0; a < assets.size(); ++a)
         hitGeometry_.push_back(prepareZombieHitGeometry(assets[a], a < dismembermentAssets.size() ?
             dismembermentAssets[a].joints : std::vector<ZombieJointCollider>{},
@@ -84,12 +86,25 @@ std::optional<ZombieShotHit> ZombieLayer::findShotTarget(glm::vec3 origin, glm::
         float distance = std::numeric_limits<float>::max();
         auto pose = sampleZombiePose(asset, instance, animationSeconds);
         ++shootingStats_.poseSamples;
-        bool surfaceHit = false, headshot = false;
+        bool surfaceHit = false, headshot = false, torsoHit = false;
+        bool torsoTested = false, torsoSurface = false;
+        float torsoDistance = 0;
         if (!geometry.capsules.empty()) {
             for (const auto& capsule : geometry.capsules) {
                 float d = 0;
+                if (zombieTorsoBone(asset, capsule.bone) && torsoGeometry_[instance.asset].bone >= 0) {
+                    if (!torsoTested) {
+                        torsoSurface = zombieTorsoRay(asset, torsoGeometry_[instance.asset], wounds_.find(id),
+                            instance, pose, origin, direction, torsoDistance);
+                        torsoTested = true;
+                    }
+                    if (torsoSurface && torsoDistance < distance) {
+                        surfaceHit = true; distance = torsoDistance; headshot = false; torsoHit = true;
+                    }
+                    continue;
+                }
                 if (zombieCapsuleRay(origin, direction, instance.transform, capsule, pose, d) && d < distance) {
-                    surfaceHit = true; distance = d; headshot = capsule.headshot;
+                    surfaceHit = true; distance = d; headshot = capsule.headshot; torsoHit = false;
                 }
             }
         } else {
@@ -117,7 +132,7 @@ std::optional<ZombieShotHit> ZombieLayer::findShotTarget(glm::vec3 origin, glm::
         if (jointHit >= 0) distance = jointDistance;
         if ((surfaceHit || jointHit >= 0) && distance < nearest) {
             nearest = distance;
-            selected = ZombieShotHit{id, distance, headshot, jointHit};
+            selected = ZombieShotHit{id, distance, headshot, jointHit, torsoHit && jointHit < 0};
             selectedPose = std::move(pose);
         }
     }

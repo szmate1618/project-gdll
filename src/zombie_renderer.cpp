@@ -48,6 +48,7 @@ Renderer::ZombieGPUInstance Renderer::zombieGPUInstance(const AnimatedModel& ass
     return {instance.transform, instance.phase,
             clip ? static_cast<float>(clip->firstFrame) : 0.0f,
             clip ? static_cast<float>(clip->frameCount) : 0.0f,
+            0.0f,
             clip ? animatedFrame(clip->duration, clip->frameCount, instance.walkSeconds, instance.phase) :
                    (instance.ragdoll ? 0.0f : -1.0f),
             instance.ragdoll ? 1.0f : 0.0f, 0.0f, boneBase};
@@ -98,6 +99,16 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
         if (source.skeleton.size() > static_cast<std::size_t>(std::numeric_limits<GLint>::max()))
             throw std::runtime_error("Zombie skeleton has too many bones");
         batch.skinningBoneCount = static_cast<GLint>(source.skeleton.size());
+        const auto triangleCount = [](const AnimatedModel& model) {
+            std::size_t count = 0;
+            for (const auto& primitive : model.model.primitives) count += primitive.indices.size()/3;
+            return count;
+        };
+        batch.woundStride = triangleCount(source);
+        if (i < zombies.dismembermentAssets.size())
+            for (const auto& mesh : zombies.dismembermentAssets[i].meshes)
+                batch.woundStride = std::max(batch.woundStride, triangleCount(mesh));
+        batch.woundLimit = std::min(std::size_t(maximumTexels), std::size_t(1 << 24));
         batch.animationBounds = emptyBounds();
         batch.bindBounds = emptyBounds();
         for (const auto& primitive : source.model.primitives)
@@ -192,7 +203,7 @@ void Renderer::uploadZombieGeometry(const AnimatedModel& source, ZombieGeometry&
             glVertexAttribDivisor(4 + column, 1);
         }
         glEnableVertexAttribArray(8);
-        glVertexAttribPointer(8, 3, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
+        glVertexAttribPointer(8, 4, GL_FLOAT, GL_FALSE, sizeof(ZombieGPUInstance),
                               reinterpret_cast<const void*>(offsetof(ZombieGPUInstance, phase)));
         glVertexAttribDivisor(8, 1);
         glEnableVertexAttribArray(9);
@@ -284,6 +295,7 @@ void Renderer::updateZombieInstance(std::size_t id, bool boundsChanged, bool ful
     if (source.asset != asset) throw std::runtime_error("Zombie asset changed after renderer upload");
     ++zombieUpdateStats_.instances;
     if (source.removed) {
+        updateZombieWound(id, batch, batch.staging[local]);
         if (!batch.removedPoses[local]) --zombieCount_;
         batch.removedPoses[local] = true;
         zombieVisibility_.erase(id);
@@ -297,6 +309,7 @@ void Renderer::updateZombieInstance(std::size_t id, bool boundsChanged, bool ful
     if (live && source.ragdollBones.size() != static_cast<std::size_t>(batch.skinningBoneCount))
         throw std::runtime_error("Live skeleton data does not match zombie asset");
     batch.staging[local] = zombieGPUInstance(zombieSource_->assets[asset], source);
+    updateZombieWound(id, batch, batch.staging[local]);
     const bool poseChanged = full || live != batch.livePoses[local] ||
         (live && source.ragdollPoseVersion != batch.poseVersions[local]);
     if (poseChanged) {
@@ -384,7 +397,7 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
             displayedZombieSources_.push_back(visible.instance);
             source.displayedAnimationFrame = cameraInstance.animationFrame;
             source.displayedAnimationClip = clip == (asset.runClip ? &*asset.runClip : nullptr) && clip ? 2 : clip ? 1 : 0;
-            const auto level = std::min(detail.level, batch.lods.size());
+            const auto level = cameraInstance.woundBase > 0 ? 0 : std::min(detail.level, batch.lods.size());
             auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
             geometry.cameraInstances.push_back(cameraInstance);
             ++zombieRenderStats_.cameraLevels[level];
@@ -437,6 +450,9 @@ void Renderer::drawZombies(double seconds, ZombiePass pass) {
     const glm::mat4 identity(1);
     glUniformMatrix4fv(modelLocation_, 1, GL_FALSE, glm::value_ptr(identity));
     for (auto& batch : zombieBatches_) {
+        glActiveTexture(GL_TEXTURE5);
+        glBindTexture(GL_TEXTURE_BUFFER, batch.woundTexture);
+        glActiveTexture(GL_TEXTURE0);
         for (std::size_t level = 0; level <= batch.lods.size() + batch.severed.size(); ++level) {
             auto& geometry = level == 0 ? static_cast<ZombieGeometry&>(batch) : level <= batch.lods.size() ?
                 batch.lods[level - 1] : batch.severed[level - batch.lods.size() - 1];
@@ -458,8 +474,11 @@ void Renderer::drawZombies(double seconds, ZombiePass pass) {
             const float frame = static_cast<float>(std::fmod(seconds, geometry.duration) / geometry.duration * geometry.frameCount);
             glUniform1f(animationFrameLocation_, frame);
             glUniform1i(animationCountLocation_, geometry.frameCount);
+            GLint triangleOffset = 0;
             for (std::size_t p = 0; p < geometry.model.meshes.size(); ++p) {
                 const auto& mesh = geometry.model.meshes[p];
+                glUniform1i(zombieTriangleOffsetLocation_, triangleOffset);
+                triangleOffset += mesh.count/3;
                 applyMaterial(geometry.model, mesh.material, false);
                 glActiveTexture(GL_TEXTURE1);
                 glBindTexture(GL_TEXTURE_BUFFER, geometry.animationTextures[p]);
@@ -483,6 +502,8 @@ void Renderer::drawZombies(double seconds, ZombiePass pass) {
     glBindTexture(GL_TEXTURE_BUFFER, 0);
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_BUFFER, 0);
+    glActiveTexture(GL_TEXTURE5);
+    glBindTexture(GL_TEXTURE_BUFFER, 0);
     glActiveTexture(GL_TEXTURE0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glUniform1i(animatedLocation_, GL_FALSE);
@@ -492,6 +513,8 @@ void Renderer::drawZombies(double seconds, ZombiePass pass) {
 
 void Renderer::releaseZombies() noexcept {
     for (auto& batch : zombieBatches_) {
+        glDeleteBuffers(1, &batch.woundBuffer);
+        glDeleteTextures(1, &batch.woundTexture);
         for (std::size_t level = 0; level <= batch.lods.size() + batch.severed.size(); ++level) {
             auto& geometry = level == 0 ? static_cast<ZombieGeometry&>(batch) : level <= batch.lods.size() ?
                 batch.lods[level - 1] : batch.severed[level - batch.lods.size() - 1];

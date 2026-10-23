@@ -118,6 +118,7 @@ void payload(Wire& w, Snapshot& s) {
     w.list(s.zombies, maxVisibleZombies, [&](ZombieState& z) {
         w.integer(z.id); w.integer(z.asset); w.matrix(z.transform); w.matrix(z.root);
         w.number(z.phase); w.number(z.walkSeconds); w.flag(z.walking); w.flag(z.running); w.flag(z.dead);
+        w.list(z.torsoHoles, 1024, [&](std::uint8_t& value) { w.integer(value); });
         if (z.id >= maxZombies || z.asset >= maxZombies || z.phase < 0 || z.phase >= 1 || z.walkSeconds < 0)
             throw std::runtime_error("Invalid zombie snapshot");
     });
@@ -143,6 +144,7 @@ void payload(Wire& w, Snapshot& s) {
     });
     uniqueIds(s.players); uniqueIds(s.zombies); uniqueIds(s.doors); uniqueIds(s.boxes);
     uniqueIds(s.grenades); uniqueIds(s.explosions);
+    w.list(s.torsoContents, maxZombies*3, [&](glm::mat4& transform) { w.matrix(transform); });
 }
 void payload(Wire& w, CorpsePose& pose) {
     w.integer(pose.id); w.integer(pose.asset); w.integer(pose.version);

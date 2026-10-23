@@ -10,6 +10,7 @@
 #include "zombie_damage.hpp"
 #include "zombie_dismemberment.hpp"
 #include "zombie_render_updates.hpp"
+#include "zombie_wounds.hpp"
 
 #include <memory>
 #include <optional>
@@ -19,6 +20,7 @@ namespace viewer {
 
 class PhysicsWorld;
 class ZombieNavigation;
+class PhysicsScene;
 
 struct ZombieInstance {
     std::size_t asset = 0;
@@ -92,6 +94,12 @@ struct ZombieLayer {
     bool shootWithOcclusion(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                             const CollisionWorld& world, ShotCaliber caliber = ShotCaliber::low);
     const ZombieDamage& damage() const { return damage_; }
+    const ZombieWounds& wounds() const { return wounds_; }
+    // Sparse wounded actors only. Call before advancing the shared physics world.
+    void prepareTorsoPhysics(float seconds, double animationSeconds, PhysicsScene* scene = nullptr);
+    std::vector<glm::mat4> torsoContents() const;
+    void setTorsoWoundMask(std::size_t zombie, const std::vector<std::uint8_t>& mask);
+    void setReplicatedTorsoContents(std::vector<glm::mat4> transforms);
     std::size_t explode(glm::vec3 origin, float radius, double animationSeconds, const CollisionWorld& world);
     const ZombieShootingStats& shootingStats() const { return shootingStats_; }
     // Silent noise at a world position, with a source level in dB at one meter.
@@ -160,6 +168,9 @@ private:
     bool shootImpl(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                    const CollisionWorld* occlusion, ShotCaliber caliber);
     ZombieDamage damage_;
+    ZombieWounds wounds_;
+    std::vector<ZombieTorsoGeometry> torsoGeometry_;
+    std::optional<std::vector<glm::mat4>> replicatedTorsoContents_;
     void updateBehaviorImpl(float seconds, const ZombiePlayer& player, const CollisionWorld& world,
                             double animationSeconds, const std::vector<ZombiePlayer>* players);
     friend class ZombieDoorCollision; // Reuse the living-body spatial index for door-local physics proxies.
