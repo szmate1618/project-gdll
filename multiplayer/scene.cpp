@@ -39,6 +39,7 @@ Options parseOptions(int argc, char** argv, bool server) {
             if (std::abs(x) > 1e7 || std::abs(z) > 1e7) throw std::runtime_error("Spawn outside local frame");
             o.spawn = glm::vec2(x, z);
         } else if (arg == "--zombies") o.zombieAssets = next(i);
+        else if (arg == "--no-zombie-perception" && server) o.zombiePerception = false;
         else if (arg == "--zombie-count") {
             const auto n = number(i);
             if (n < 0 || n > maxZombies || std::floor(n) != n) throw std::runtime_error("Invalid zombie count");
@@ -76,7 +77,7 @@ Options parseOptions(int argc, char** argv, bool server) {
         else if (arg == "--screenshot" && !server) o.screenshot = next(i);
         else if (arg == "--help") {
             std::cout << (server ? "godollo_server" : "godollo_client") << " [map.glb] "
-                << (server ? "[--port 27020]" : "[--connect 127.0.0.1:27020] [--headless] [--hidden] [--bot] [--no-audio] [--look YAW PITCH] [--screenshot FILE]")
+                << (server ? "[--port 27020] [--no-zombie-perception]" : "[--connect 127.0.0.1:27020] [--headless] [--hidden] [--bot] [--no-audio] [--look YAW PITCH] [--screenshot FILE]")
                 << "\nShared: --spawn X Z --zombies PATH --zombie-count N --zombie-radius METERS\n"
                    "        --vegetation osm-tuned2|orthophoto|osm|sentinel-astra|none\n"
                    "        --no-trees --no-forests --seconds N --lag-ms N --loss-percent N\n";
@@ -193,6 +194,7 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
         if (populationLoader && zombies.instances.size() != count)
             throw std::runtime_error("Scenario population does not match the requested zombie count");
         validateSessionZombies(zombies);
+        zombies.setPerceptionEnabled(o.zombiePerception);
         for (const auto& prepared : zombies.dismembermentAssets)
             content.insert(content.end(), prepared.resources.begin(), prepared.resources.end());
         for (const auto& prepared : zombies.capsuleAssets)

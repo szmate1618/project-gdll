@@ -363,6 +363,23 @@ void autonomousMovementAndStop() {
             "An arrived actor requested a path when perception took over");
 }
 
+void perceptionDisabledKeepsRoutes() {
+    const viewer::CollisionWorld world(terrain());
+    auto layer = scripted({{-40, 5, -20}}, {{40, 5, -20}});
+    const auto route = layer.navigation()->pathFor(0);
+    layer.setPerceptionEnabled(false);
+    for (int step = 0; step < 20; ++step) {
+        layer.updateBehaviorForPlayers(.1f, {{{-40, 5, -10}}}, world, step*.1);
+        layer.makeNoise({-30, 5, -20}, 100);
+        require(layer.behaviors.entries().empty() && layer.behaviorStats().activationCandidates == 0 &&
+                layer.behaviorStats().hearingCandidates == 0,
+                "Disabled perception must not activate scenario zombies for nearby players or noise");
+    }
+    require(layer.instances[0].restRoot[3].x > -38 && layer.instances[0].walking &&
+            layer.navigation()->pathFor(0) == route && layer.navigation()->stats().requests == 1,
+            "Disabling perception must preserve autonomous movement on its preplanned route");
+}
+
 void gameplayOverridesInitialTravel() {
     const viewer::CollisionWorld world(terrain());
     auto layer = scripted({{-20,5,0}}, {{20,5,0}});
@@ -443,6 +460,7 @@ int main() {
         geographicRegions();
         disconnectedDestinationsAndBoundedFailure();
         autonomousMovementAndStop();
+        perceptionDisabledKeepsRoutes();
         gameplayOverridesInitialTravel();
         teleportDeathAndCrowd();
         std::cout << "scenario seeded placement/cold routes/autonomous stop/collision tests passed\n";

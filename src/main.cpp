@@ -80,6 +80,7 @@ struct Options {
     bool noTrees = false, treeCulling = true, treeCollisions = true, sceneCulling = true;
     bool noZombies = false, zombieView = false, explicitZombies = false, zombieCulling = true;
     bool zombiePerceptionStaggering = true;
+    bool zombiePerception = true;
     bool zombieDistanceDetail = true, zombieShadows = true, profile = false;
     bool flashlightShadows = false;
     std::optional<float> zombieDrawDistance;
@@ -183,6 +184,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--no-tree-nearest-filtering") options.treeNearestFiltering = false;
         else if (argument == "--no-zombie-culling") options.zombieCulling = false;
         else if (argument == "--no-zombie-staggering") options.zombiePerceptionStaggering = false;
+        else if (argument == "--no-zombie-perception") options.zombiePerception = false;
         else if (argument == "--no-town-culling") options.sceneCulling = false;
         else if (argument == "--no-tree-collisions") options.treeCollisions = false;
         else if (argument == "--zombies") { options.zombies = value(); options.explicitZombies = true; }
@@ -320,6 +322,7 @@ void printHelp() {
               << "  --profile           Print frame/GPU/CPU simulation and render timings\n"
               << "  --no-zombie-culling Disable zombie camera-frustum culling for comparison\n"
               << "  --no-zombie-staggering Check zombie sight every simulation step\n"
+              << "  --no-zombie-perception Skip activation scans, behaviors, sight and hearing\n"
               << "  --no-town-culling   Render all town draw instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
               << "  --zombies PATH      Load individual animated GLB/glTF files from PATH\n"
@@ -981,6 +984,7 @@ int run(const Options& options) {
     if (zombies) {
         zombies->attachPhysics(physics);
         zombies->setPerceptionStaggering(options.zombiePerceptionStaggering);
+        zombies->setPerceptionEnabled(options.zombiePerception);
         if (const auto* navigation = zombies->navigation()) {
             std::cout << "Scenario navigation: " << navmesh
                       << "; g+8h, 50000 nodes, " << navigation->pathArenaBytes() << " path bytes"

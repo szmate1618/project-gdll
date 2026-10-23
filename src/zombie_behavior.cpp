@@ -230,8 +230,24 @@ void ZombieLayer::setPerceptionStaggering(bool enabled) {
     for (const auto& entry : behaviors.entries()) behaviors.find(entry.zombie)->perception = {};
 }
 
+void ZombieLayer::setPerceptionEnabled(bool enabled) {
+    if (perceptionEnabled_ == enabled) return;
+    perceptionEnabled_ = enabled;
+    behaviorStats_ = {};
+    if (enabled) return;
+    for (const auto& entry : behaviors.entries()) {
+        if (entry.zombie >= instances.size()) continue;
+        auto& instance = instances[entry.zombie];
+        if (instance.removed || instance.ragdoll) continue;
+        if (instance.walking) markRenderChanged(entry.zombie, false);
+        stopZombieLocomotion(instance);
+    }
+    behaviors = ZombieBehaviorPool{};
+    behaviorOrder_.clear();
+}
+
 void ZombieLayer::makeNoise(glm::vec3 position, float decibels) {
-    if (!finite(position) || !std::isfinite(decibels)) return;
+    if (!perceptionEnabled_ || !finite(position) || !std::isfinite(decibels)) return;
     const double now = SimulationClock::instance().seconds();
     if (decibels < zombieHearingThresholdDecibels) return;
     ensureSpatialIndex();
@@ -271,7 +287,17 @@ void ZombieLayer::updateBehaviorForPlayers(float seconds, const std::vector<Zomb
 void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
                                     const CollisionWorld& world, double animationSeconds,
                                     const std::vector<ZombiePlayer>* players) {
-    if (!std::isfinite(seconds) || seconds <= 0 || !finite(player.feet) ||
+    if (!std::isfinite(seconds) || seconds <= 0) return;
+    if (!perceptionEnabled_) {
+        behaviorStats_ = {};
+        if (!scenarioRoutes_.empty()) {
+            ensureSpatialIndex();
+            crowd_.beginStep();
+            updateScenarioRoutes(seconds, world);
+        }
+        return; // No nearby-player queries or behavior creation in this mode.
+    }
+    if (!finite(player.feet) ||
         !std::isfinite(player.eyeHeight) || !std::isfinite(player.height) ||
         player.eyeHeight <= 0 || player.height < player.eyeHeight) return;
     if (players) {

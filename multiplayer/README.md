@@ -189,6 +189,9 @@ Scene options:
   horizontal dimension have no zombies. Maximum population is 1,024.
 - `--no-trees`: omit detected trees and runtime forests on both peers.
 - `--no-forests`: omit runtime forest generation on both peers.
+- Server-only `--no-zombie-perception`: skip zombie activation scans, behavior
+  creation, sight/hearing and attacks. Authored scenario routes, shooting and
+  ragdolls remain active. Clients need no matching flag.
 - `--seconds N`: end a session after N seconds, useful for checks.
 - `--lag-ms N --loss-percent N`: simulate outgoing packet delay and loss through
   GameNetworkingSockets. These testing options may differ between peers.

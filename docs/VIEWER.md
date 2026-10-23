@@ -689,6 +689,18 @@ glimpses between checks may be missed. `--no-zombie-staggering` restores
 every-step sight checks for comparison. Rays stop once partial visibility is
 known; every-step chasing can stop at the first clear ray.
 
+`--no-zombie-perception` disables the perception-driven behavior system entirely:
+no nearby activation scans, behavior entries, sight/hearing queries, pursuit or
+attacks. Ordinary zombies remain idle and still render, take damage and enter
+ragdoll physics. Authored scenario routes continue independently, including
+their movement/crowd collision work. The disabled ordinary-population update
+returns before spatial activation queries or behavior-pool traversal; noise
+events also return before any spatial query. The owning API is
+`ZombieLayer::setPerceptionEnabled(false)`, which also clears existing behaviors
+and stops their pursuit if changed after startup. Reenabling allows fresh
+activation. The same flag is available on the multiplayer server; clients follow
+the server's simulation.
+
 `ZombieLayer::makeNoise(position, decibels)` creates a silent simulation noise
 at an X/Y/Z position. Source levels are dB at **one meter**. Perceived level is
 `source dB - 20 * log10(max(distance in meters, 1))`, using 3D distance. This is

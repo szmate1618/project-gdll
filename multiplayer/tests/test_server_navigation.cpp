@@ -29,13 +29,13 @@ template<class Function> void rejects(Function function, const char* message) {
 
 void options() {
     std::vector<std::string> arguments{"server", "map.glb", "--spawn", "13", "8",
-        "--scenario", "horde scenario.toml", "--port", "27021", "--no-trees"};
+        "--scenario", "horde scenario.toml", "--port", "27021", "--no-trees", "--no-zombie-perception"};
     const auto original = arguments;
     std::vector<char*> pointers;
     for (auto& argument : arguments) pointers.push_back(argument.data());
     const auto parsed = multiplayer::parseServerOptions(static_cast<int>(pointers.size()), pointers.data());
     require(parsed.scenario == "horde scenario.toml" && parsed.scene.map == "map.glb" &&
-        parsed.scene.port == 27021 && parsed.scene.spawn == glm::vec2(13, 8) && !parsed.scene.trees,
+        parsed.scene.port == 27021 && parsed.scene.spawn == glm::vec2(13, 8) && !parsed.scene.trees && !parsed.scene.zombiePerception,
         "Server-only scenario option changed shared command arguments");
     require(arguments == original, "Server option parsing mutated caller arguments");
     rejects([&] { multiplayer::parseOptions(static_cast<int>(pointers.size()), pointers.data(), false); },

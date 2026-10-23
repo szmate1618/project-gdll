@@ -594,11 +594,41 @@ void lookingPerceptionAndShortestTurn() {
         require(glm::length(once.instances[0].transform[column] - split.instances[0].transform[column]) < 2e-4f,
                 "Looking rotation is independent of frame rate");
 }
+void perceptionDisabled() {
+    auto& clock = viewer::SimulationClock::instance();
+    clock.reset();
+    const viewer::CollisionWorld world(viewer::Model{});
+    auto layer = crowd({{0, 0, 0}, {2, 0, 0}});
+    layer.setPerceptionEnabled(false);
+    for (int step = 0; step < 20; ++step) {
+        clock.advance(.1);
+        layer.chase(.1f, {0, 0, 10}, world);
+        layer.makeNoise({-4, 0, 2}, 100);
+        layer.updateBehaviorForPlayers(.1f, {{{0, 0, 10}}, {{0, 0, -10}}}, world, clock.seconds());
+        const auto& stats = layer.behaviorStats();
+        require(layer.behaviors.entries().empty() && stats.activationCandidates == 0 && stats.perceptionChecks == 0 &&
+                stats.sightRays == 0 && stats.hearingCandidates == 0 && stats.attackChecks == 0,
+                "Disabled perception must bypass activation, sight, hearing and attack work");
+    }
+    for (const auto& instance : layer.instances)
+        require(!instance.walking && instance.restRoot[3].z == 0 && instance.heardNoiseRevision == 0 && instance.chaseRevision == 0,
+                "Disabled perception must leave ordinary zombies idle without reaction notifications");
+    require(layer.shoot({0, .9f, 3}, {0, 0, -1}) && layer.damage().injury(0)->health == 9,
+            "Disabling perception must not disable shooting or damage");
+    layer.setPerceptionEnabled(true);
+    layer.chase(.1f, {0, 0, 10}, world);
+    require(state(layer) == ZombieState::chasing && layer.instances[0].walking,
+            "Reenabling perception must allow fresh nearby activation");
+    layer.setPerceptionEnabled(false);
+    require(layer.behaviors.entries().empty() && !layer.instances[0].walking && layer.instances[0].locomotionVelocity == glm::vec3(0),
+            "Disabling an active pool must discard its behaviors and stop pursuit");
+}
 }
 
 int main() {
     try {
         clockAndPool();
+        perceptionDisabled();
         fovAndActivation();
         perceptionAndStates();
         targetMemoryAndEveryIdleTimeout();

@@ -102,6 +102,9 @@ struct ZombieLayer {
     void queryLivingNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids);
     // Disable only for comparison/tests of the original every-step perception.
     void setPerceptionStaggering(bool enabled);
+    // Disabling clears active behaviors and bypasses activation/sight/hearing
+    // scans. Authored scenario routes, shooting and physics remain independent.
+    void setPerceptionEnabled(bool enabled);
     const ZombieBehaviorStats& behaviorStats() const { return behaviorStats_; }
     const ZombieCrowdStats& crowdStats() const { return crowd_.stats(); }
     // Only cold scenario loading enables navigation. Ordinary zombies and
@@ -190,6 +193,7 @@ private:
     ZombieShootingStats shootingStats_;
     std::vector<std::size_t> spatialCandidates_;
     bool staggerPerception_ = true;
+    bool perceptionEnabled_ = true;
     ZombieBehaviorStats behaviorStats_;
 };
 
