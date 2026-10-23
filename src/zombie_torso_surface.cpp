@@ -124,7 +124,7 @@ AnimatedModel zombieTorsoClosureModel(const AnimatedModel& asset, const ZombieTo
     result.walkClip = clip(asset.walkClip);
     result.runClip = clip(asset.runClip);
     Material material;
-    material.baseColor = {.35f,.012f,.02f,1};
+    material.baseColor = {.231f,.00792f,.0132f,1};
     material.doubleSided = true;
     result.model.materials.push_back(material);
     Primitive primitive;

@@ -171,7 +171,7 @@ void main() {
     }
     vec4 color = uBaseColor * vColor;
     if (uHasTexture && (!uShadowPass || uAlphaMode == 1)) color *= texture(uBaseTexture, vUV);
-    if (torsoInterior) color = vec4(0.35, 0.012, 0.02, 1.0);
+    if (torsoInterior) color = vec4(0.231, 0.00792, 0.0132, 1.0);
     if (uAlphaMode == 1 && color.a < alphaMaskCutoff()) discard;
     if (uShadowPass) {
         fragColor = vec4(0.0);

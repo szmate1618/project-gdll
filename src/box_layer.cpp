@@ -63,7 +63,7 @@ std::size_t BoxLayer::add(glm::vec3 center, glm::vec3 size, const BoxSpawnMotion
     if (!finite(center) || !finite(size) || glm::any(glm::lessThan(size, glm::vec3(.01f))) ||
         glm::any(glm::greaterThan(size, glm::vec3(4))) || !finite(motion.velocity) || !finite(motion.angularVelocity) ||
         !std::isfinite(glm::length(motion.rotation)) || std::abs(glm::length(motion.rotation)-1)>.001f ||
-        !std::isfinite(motion.mass) || motion.mass<0)
+        !std::isfinite(motion.mass) || motion.mass<0 || !std::isfinite(motion.friction) || motion.friction<0)
         throw std::invalid_argument("Invalid box dimensions, position or motion");
     const auto index = count();
     if (index==impl_->entries.capacity()) impl_->entries.reserve(std::max(std::size_t(8),index*2));
@@ -85,7 +85,7 @@ std::size_t BoxLayer::add(glm::vec3 center, glm::vec3 size, const BoxSpawnMotion
     // Hollow crates/cabinets: 8–55 kg, rather than solid timber density.
     const float volume = size.x*size.y*size.z;
     shape.density = (motion.mass>0 ? motion.mass : glm::clamp(volume*70.0f,8.0f,55.0f))/volume;
-    shape.baseMaterial.friction = .55f;
+    shape.baseMaterial.friction = motion.friction;
     shape.filter.categoryBits = interiorBoxCategory;
     shape.filter.maskBits &= ~ragdollFloorCategory;
     shape.userData = entry.get();
@@ -133,6 +133,31 @@ BoxPointState BoxLayer::pointState(std::size_t index, glm::vec3 localPoint) cons
 void BoxLayer::applyImpulse(std::size_t index, glm::vec3 impulse, glm::vec3 point) {
     if (!finite(impulse) || !finite(point)) throw std::invalid_argument("Box impulse and point must be finite");
     b3Body_ApplyLinearImpulse(impl_->entries.at(index)->body, vector(impulse), {point.x, point.y, point.z}, true);
+}
+void BoxLayer::dampAfterGroundContact(float linearDamping, float angularDamping) {
+    std::vector<b3ContactData> contacts;
+    for (const auto& entry : impl_->entries) {
+        const auto body = entry->body;
+        if (!b3Body_IsAwake(body)) continue;
+        contacts.resize(b3Body_GetContactCapacity(body));
+        const int count = b3Body_GetContactData(body, contacts.data(), static_cast<int>(contacts.size()));
+        bool supported = false;
+        for (int i=0; i<count && !supported; ++i) {
+            const auto& contact = contacts[i];
+            const float sign = B3_ID_EQUALS(b3Shape_GetBody(contact.shapeIdB), body) ? 1.0f : -1.0f;
+            for (int j=0; j<contact.manifoldCount && !supported; ++j) {
+                const auto& manifold = contact.manifolds[j];
+                if (sign*manifold.normal.y < .5f) continue;
+                for (int k=0; k<manifold.pointCount; ++k)
+                    if (manifold.points[k].totalNormalImpulse > 0 || manifold.points[k].separation <= .005f)
+                        supported = true;
+            }
+        }
+        if (supported) {
+            b3Body_SetLinearDamping(body, linearDamping);
+            b3Body_SetAngularDamping(body, angularDamping);
+        }
+    }
 }
 std::optional<BoxRayHit> BoxLayer::raycast(glm::vec3 origin, glm::vec3 direction, float reach) const {
     const float length = glm::length(direction);

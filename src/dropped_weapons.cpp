@@ -32,6 +32,7 @@ bool DroppedWeapons::discard(Weapons& inventory, const Camera& camera, const Col
     motion.angularVelocity = {0,spinSpeed,0};
     constexpr std::array<float,weaponIds.size()> masses{1,3,3.5f,5,.4f};
     motion.mass = masses[slot];
+    motion.friction = 1.0f;
     motion.continuous = true;
     const auto index = bodies_.add(center,sizes_[slot],motion);
     try { items_.push_back({slot,weapon.loaded,weapon.readyAt}); }
@@ -47,8 +48,9 @@ bool DroppedWeapons::pickUp(Weapons& inventory, const Camera& camera, const Coll
     items_.pop_back();
     return true;
 }
-void DroppedWeapons::prepare(PhysicsScene& scene, DoorLayer& doors) const {
+void DroppedWeapons::prepare(PhysicsScene& scene, DoorLayer& doors) {
     scene.prepare(bodies_);
+    bodies_.dampAfterGroundContact(12.0f, 14.0f);
     for (std::size_t i=0; i<bodies_.count(); ++i) doors.activateNear(bodies_.pose(i).center,8);
 }
 std::vector<DroppedWeaponPose> DroppedWeapons::poses() const {

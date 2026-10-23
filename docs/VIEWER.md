@@ -1312,11 +1312,13 @@ read once at startup; gameplay changes live in memory and restart from the file.
 
 ### Discarding and picking up weapons
 
-In the standalone viewer, **G** discards the equipped weapon with a 25 m/s
+In the standalone viewer, **G** discards the equipped weapon with a 12.5 m/s
 forward launch, a small upward velocity, and a 14 rad/s spin about world Y.
 Actual player travel adds to the launch. The dropped item renders its weapon
 model and uses a box collider fitted to the model bounds, with continuous
 collision detection and the same streamed terrain/building physics as crates.
+After the first ground contact, strong linear and angular damping brakes the
+weapon through sliding and bounces, targeting roughly two metres to settle.
 Doors and other physics props can also stop it. A blocked spawn leaves the
 weapon in the inventory. Discarding an HE grenade creates an unprimed pickup.
 

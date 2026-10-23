@@ -25,6 +25,7 @@ struct BoxSpawnMotion {
     glm::vec3 velocity{0}, angularVelocity{0}; // World m/s and rad/s.
     float mass = 0; // kg; zero retains the crate mass estimate.
     bool continuous = false;
+    float friction = .55f; // Coulomb coefficient at surface contacts.
 };
 
 // Owns dynamic untextured props in the shared Y-up, meter-based simulation.
@@ -48,6 +49,8 @@ public:
     float mass(std::size_t index) const; // Kilograms.
     BoxPointState pointState(std::size_t index, glm::vec3 localPoint) const;
     void applyImpulse(std::size_t index, glm::vec3 impulse, glm::vec3 point); // N*s, world meters.
+    // Enable persistent damping on first support contact, including subsequent bounces.
+    void dampAfterGroundContact(float linearDamping, float angularDamping);
     std::optional<BoxRayHit> raycast(glm::vec3 origin, glm::vec3 direction, float reach) const;
     std::vector<BoxPose> query(glm::vec3 minimum, glm::vec3 maximum) const;
     void appendContacts(glm::vec3 feet, float radius, float height, float skin,
