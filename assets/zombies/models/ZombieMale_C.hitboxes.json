@@ -15,7 +15,7 @@
         0,
         0
       ],
-      "radius": 0.105,
+      "radius": 0.0735,
       "mesh": "severed/ZombieMale_C-waist-17516a0be83a.glb",
       "mesh_sha256": "17516a0be83a078c4d14b41d2048b391b02740df8557377a4c9eed1139a93708"
     },
@@ -29,7 +29,7 @@
         0,
         0
       ],
-      "radius": 0.085,
+      "radius": 0.0425,
       "mesh": "severed/ZombieMale_C-neck-1aa47d983abe.glb",
       "mesh_sha256": "1aa47d983abe34922c6e6973723719b151c77c34a6c63e8b4193f287e6510f83"
     },
@@ -43,7 +43,7 @@
         0,
         0
       ],
-      "radius": 0.095,
+      "radius": 0.0665,
       "mesh": "severed/ZombieMale_C-left_shoulder-725036b22145.glb",
       "mesh_sha256": "725036b2214561b117f4afdda0a322bd6d7d76a942ae31506b8b6d3f5df2e331"
     },
@@ -57,7 +57,7 @@
         0,
         0
       ],
-      "radius": 0.075,
+      "radius": 0.0525,
       "mesh": "severed/ZombieMale_C-left_elbow-55c9428c4713.glb",
       "mesh_sha256": "55c9428c47135f81dda41e69c2da5b6feae39efa86a19de835ae05052ef5dcfd"
     },
@@ -71,7 +71,7 @@
         0,
         0
       ],
-      "radius": 0.095,
+      "radius": 0.0665,
       "mesh": "severed/ZombieMale_C-right_shoulder-8e2c5b232cd3.glb",
       "mesh_sha256": "8e2c5b232cd3d46d1bf0ae81976975459905fe96e326a85fe6b72ed96b288e76"
     },
@@ -85,7 +85,7 @@
         0,
         0
       ],
-      "radius": 0.075,
+      "radius": 0.0525,
       "mesh": "severed/ZombieMale_C-right_elbow-ed9eeb0a2923.glb",
       "mesh_sha256": "ed9eeb0a292373d6a3dffe7e4ad799c5dcf6bc3b2af3eb5c2e537356f1009258"
     },
@@ -99,7 +99,7 @@
         0,
         0
       ],
-      "radius": 0.105,
+      "radius": 0.0735,
       "mesh": "severed/ZombieMale_C-left_hip-71b5eaf6bc0d.glb",
       "mesh_sha256": "71b5eaf6bc0d1906806cd958140f4cbf1d89124b95ff6405452a68ec3c800c8d"
     },
@@ -113,7 +113,7 @@
         0,
         0
       ],
-      "radius": 0.085,
+      "radius": 0.0595,
       "mesh": "severed/ZombieMale_C-left_knee-d2e1e9d4a642.glb",
       "mesh_sha256": "d2e1e9d4a642e0ea7d17117dd4e21249bea622e9b7e55253eee4a2802df1aa19"
     },
@@ -127,7 +127,7 @@
         0,
         0
       ],
-      "radius": 0.105,
+      "radius": 0.0735,
       "mesh": "severed/ZombieMale_C-right_hip-4c609e7dd185.glb",
       "mesh_sha256": "4c609e7dd185ea9edb5026dbbf47c7fb4211710f6b2b9d978221e56988fe1d7b"
     },
@@ -141,7 +141,7 @@
         0,
         0
       ],
-      "radius": 0.085,
+      "radius": 0.0595,
       "mesh": "severed/ZombieMale_C-right_knee-91a02aa21745.glb",
       "mesh_sha256": "91a02aa217456eff93420a2b217f41d2af718765d730dc71a1795101e7555a31"
     }
