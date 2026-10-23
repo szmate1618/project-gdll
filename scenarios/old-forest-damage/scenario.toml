@@ -12,6 +12,7 @@ orientation = [-90.0, 0.0]
 
 [zombies.damage_targets]
 count = 100
-# About 10..25 m ahead, close enough to see through the original forest foliage.
+# Start 10..25 m ahead, then walk south toward and past the player's spawn.
+# Destinations 50..70 m behind the player give roughly 60..100 m walks.
 spawn = [688.0, -2625.0, 712.0, -2610.0]
-destination = [688.0, -2645.0, 712.0, -2626.0]
+destination = [688.0, -2550.0, 712.0, -2530.0]

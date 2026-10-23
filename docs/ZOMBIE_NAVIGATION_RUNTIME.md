@@ -106,8 +106,10 @@ preset as the server for the existing shared-content fingerprint.
 
 The [old-forest damage scenario](../scenarios/old-forest-damage/scenario.toml)
 contains 100 zombies, initially 10–25 m ahead of the player in the original
-orthophoto forest patch `northeast_north_e+01_n+05_01`. Its positions are authored
-constants selected from `forest_patches.json`; no forest detection runs at load.
+orthophoto forest patch `northeast_north_e+01_n+05_01`. They walk south toward
+and past the player's starting position, continuing to destinations 50–70 m
+behind it for roughly 60–100 m routes. Its positions are authored constants
+selected from `forest_patches.json`; no forest detection runs at load.
 Use the original vegetation preset:
 
 ```bash
