@@ -18,8 +18,8 @@ struct BloodMistBurst {
 class BloodMist {
 public:
     static constexpr std::size_t capacity = 128;
-    static constexpr float duration = .2f;
-    static constexpr float historySeconds = 1.0f; // Retain events across snapshot interpolation/loss.
+    static constexpr float duration = 1.0f;
+    static constexpr float historySeconds = duration+.8f; // Retain past the fade for snapshot interpolation/loss.
     void emit(glm::vec3 point, BloodMistSize size, double seconds);
     std::vector<BloodMistBurst> sample(double seconds) const;
     std::vector<BloodMistBurst> recent(double seconds) const;

@@ -969,14 +969,14 @@ create these extra physics bodies. Multiplayer snapshots carry packed vertex
 masks and authoritative placeholder poses; clients do not simulate the contents.
 
 Accepted bullet hits emit one camera-facing blood-mist quad: ordinary hits use
-an 18 cm burst, dismemberment uses 35 cm, and shots that open more torso geometry
-use 55 cm. The quad expands slightly and fades over 0.2 seconds. All sizes share
+a 36 cm burst, dismemberment uses 70 cm, and shots that open more torso geometry
+use 110 cm. The quad expands slightly and fades over one second. All sizes share
 one small cloud-mask texture generated at first use, with per-hit rotation and
 an ambient-tinted dark red color. A bounded 128-event history feeds one sorted,
 instanced draw with depth testing, alpha blending and no depth writes. There is
 no particle physics, shadow casting or per-burst lighting pass. Misses and
 occluded shots emit nothing; shotgun pellets retain separate hit bursts.
-Multiplayer carries event IDs, positions, sizes and ages, retaining one second
+Multiplayer carries event IDs, positions, sizes and ages, retaining 1.8 seconds
 of history to cover interpolation and packet loss without restarting the fade.
 
 The standalone viewer also emits ten small ballistic blood droplets per hit.

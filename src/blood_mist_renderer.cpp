@@ -106,7 +106,7 @@ void BloodMistRenderer::draw(const Camera& camera, float aspect, const std::vect
     for (const auto& burst : bursts) {
         if (burst.age<0 || burst.age>=BloodMist::duration) continue;
         const float t=burst.age/BloodMist::duration;
-        const float width=burst.size==BloodMistSize::small ? .18f : burst.size==BloodMistSize::medium ? .35f : .55f;
+        const float width=burst.size==BloodMistSize::small ? .36f : burst.size==BloodMistSize::medium ? .70f : 1.10f;
         const float size=width*(.7f+.45f*t);
         const float angle=float((burst.id*2654435761u)%65536)*(6.28318530718f/65536);
         append(burst.position,size,{angle,.85f*(1-t)*(1-t)},glm::vec4(0),glm::vec4(0),burst.position);
