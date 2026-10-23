@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <array>
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
@@ -99,15 +100,17 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
         if (source.skeleton.size() > static_cast<std::size_t>(std::numeric_limits<GLint>::max()))
             throw std::runtime_error("Zombie skeleton has too many bones");
         batch.skinningBoneCount = static_cast<GLint>(source.skeleton.size());
-        const auto triangleCount = [](const AnimatedModel& model) {
-            std::size_t count = 0;
-            for (const auto& primitive : model.model.primitives) count += primitive.indices.size()/3;
-            return count;
-        };
-        batch.woundStride = triangleCount(source);
+        batch.woundSurfaces.push_back(prepareZombieTorso(source));
         if (i < zombies.dismembermentAssets.size())
             for (const auto& mesh : zombies.dismembermentAssets[i].meshes)
-                batch.woundStride = std::max(batch.woundStride, triangleCount(mesh));
+                batch.woundSurfaces.push_back(prepareZombieTorso(mesh));
+        batch.closures.resize(batch.woundSurfaces.size());
+        for (std::size_t variant=0; variant<batch.woundSurfaces.size(); ++variant) {
+            const auto& asset = variant == 0 ? source : zombies.dismembermentAssets[i].meshes[variant-1];
+            std::size_t count = batch.woundSurfaces[variant].closures.size();
+            for (const auto& primitive : asset.model.primitives) count += primitive.indices.size()/3;
+            batch.woundStride = std::max(batch.woundStride,count);
+        }
         batch.woundLimit = std::min(std::size_t(maximumTexels), std::size_t(1 << 24));
         batch.animationBounds = emptyBounds();
         batch.bindBounds = emptyBounds();
@@ -453,15 +456,27 @@ void Renderer::drawZombies(double seconds, ZombiePass pass) {
         glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_BUFFER, batch.woundTexture);
         glActiveTexture(GL_TEXTURE0);
-        for (std::size_t level = 0; level <= batch.lods.size() + batch.severed.size(); ++level) {
-            auto& geometry = level == 0 ? static_cast<ZombieGeometry&>(batch) : level <= batch.lods.size() ?
-                batch.lods[level - 1] : batch.severed[level - batch.lods.size() - 1];
+        const auto surfaceLevels = 1+batch.lods.size()+batch.severed.size();
+        for (std::size_t level = 0; level < surfaceLevels+batch.closures.size(); ++level) {
+            const bool closure = level >= surfaceLevels;
+            if (closure && shadowPass) continue;
+            const auto variant = closure ? level-surfaceLevels : 0;
+            auto& geometry = closure ? batch.closures[variant] : level == 0 ? static_cast<ZombieGeometry&>(batch) :
+                level <= batch.lods.size() ? batch.lods[level-1] : batch.severed[level-batch.lods.size()-1];
             if (geometry.count == 0) continue;
+            if (closure) {
+                const auto& exterior = variant == 0 ? static_cast<ZombieGeometry&>(batch) : batch.severed[variant-1];
+                geometry.cameraInstances.clear();
+                for (const auto& instance : exterior.cameraInstances)
+                    if (instance.woundBase > 0) geometry.cameraInstances.push_back(instance);
+            }
             const auto& visible = pass == ZombiePass::FlashlightShadow ? geometry.flashlightInstances :
                 shadowPass ? geometry.shadowInstances : geometry.cameraInstances;
             const auto count = static_cast<GLsizei>(visible.size());
-            if (!shadowPass) zombieVisibleCount_ += visible.size();
+            if (!shadowPass && !closure) zombieVisibleCount_ += visible.size();
             if (count == 0) continue;
+            const bool torsoBackfaces = !shadowPass && std::any_of(visible.begin(),visible.end(),
+                [](const auto& instance) { return instance.woundBase > 0; });
             glBindBuffer(GL_ARRAY_BUFFER, geometry.instanceBuffer);
             // Orphan storage before streaming the compact list to avoid overwriting
             // an in-flight camera or shadow draw. Keep full-population capacity.
@@ -474,12 +489,16 @@ void Renderer::drawZombies(double seconds, ZombiePass pass) {
             const float frame = static_cast<float>(std::fmod(seconds, geometry.duration) / geometry.duration * geometry.frameCount);
             glUniform1f(animationFrameLocation_, frame);
             glUniform1i(animationCountLocation_, geometry.frameCount);
-            GLint triangleOffset = 0;
+            GLint triangleOffset = closure ? static_cast<GLint>(batch.woundSurfaces[variant].triangleCount) : 0;
             for (std::size_t p = 0; p < geometry.model.meshes.size(); ++p) {
                 const auto& mesh = geometry.model.meshes[p];
                 glUniform1i(zombieTriangleOffsetLocation_, triangleOffset);
                 triangleOffset += mesh.count/3;
                 applyMaterial(geometry.model, mesh.material, false);
+                glUniform1i(zombieCullBackfacesLocation_, torsoBackfaces && !material(geometry.model,mesh.material).doubleSided);
+                // Keep torso backs visible; the fragment shader preserves culling
+                // for every other triangle and for unwounded instances.
+                if (torsoBackfaces) glDisable(GL_CULL_FACE);
                 glActiveTexture(GL_TEXTURE1);
                 glBindTexture(GL_TEXTURE_BUFFER, geometry.animationTextures[p]);
                 glActiveTexture(GL_TEXTURE2);
@@ -507,6 +526,7 @@ void Renderer::drawZombies(double seconds, ZombiePass pass) {
     glActiveTexture(GL_TEXTURE0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glUniform1i(animatedLocation_, GL_FALSE);
+    glUniform1i(zombieCullBackfacesLocation_, GL_FALSE);
     glUniform1i(instancedLocation_, GL_FALSE);
     glFrontFace(GL_CCW);
 }
@@ -515,9 +535,11 @@ void Renderer::releaseZombies() noexcept {
     for (auto& batch : zombieBatches_) {
         glDeleteBuffers(1, &batch.woundBuffer);
         glDeleteTextures(1, &batch.woundTexture);
-        for (std::size_t level = 0; level <= batch.lods.size() + batch.severed.size(); ++level) {
-            auto& geometry = level == 0 ? static_cast<ZombieGeometry&>(batch) : level <= batch.lods.size() ?
-                batch.lods[level - 1] : batch.severed[level - batch.lods.size() - 1];
+        const auto surfaceLevels = 1+batch.lods.size()+batch.severed.size();
+        for (std::size_t level = 0; level < surfaceLevels+batch.closures.size(); ++level) {
+            auto& geometry = level >= surfaceLevels ? batch.closures[level-surfaceLevels] :
+                level == 0 ? static_cast<ZombieGeometry&>(batch) : level <= batch.lods.size() ?
+                batch.lods[level-1] : batch.severed[level-batch.lods.size()-1];
             releaseModel(geometry.model);
             glDeleteBuffers(1, &geometry.instanceBuffer);
             for (const auto buffer : geometry.animationBuffers) glDeleteBuffers(1, &buffer);

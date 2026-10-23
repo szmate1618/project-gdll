@@ -1,6 +1,7 @@
 #include "zombie_torso_physics.hpp"
 #include "physics_world.hpp"
 #include "physics_scene.hpp"
+#include "zombie_torso_surface.hpp"
 #include <box3d/box3d.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -28,8 +29,6 @@ struct Shell {
 Shell makeShell(const AnimatedModel& asset, const ZombieTorsoGeometry& geometry, const ZombieTorsoWound& wound) {
     Shell shell;
     std::map<std::array<long,3>,int> welded;
-    struct Edge { int a, b, count; };
-    std::map<std::pair<int,int>, Edge> edges;
     const auto inverse = glm::inverse(geometry.referenceFrame);
     const auto vertex = [&](glm::vec3 point) {
         const auto local = glm::vec3(inverse * glm::vec4(geometry.center+(point-geometry.center)*.8f,1));
@@ -46,37 +45,17 @@ Shell makeShell(const AnimatedModel& asset, const ZombieTorsoGeometry& geometry,
             std::array<int,3> ids{};
             for (int i=0; i<3; ++i) ids[i] = vertex(geometry.referenceVertices[p][primitive.indices[t+i]]);
             if (ids[0]==ids[1] || ids[1]==ids[2] || ids[2]==ids[0]) continue;
-            // Find anatomical boundary loops from the INTACT shell. Damage must
-            // not generate a cap that would close the newly opened wound.
-            for (int i=0; i<3; ++i) {
-                const int a=ids[i], b=ids[(i+1)%3];
-                auto inserted = edges.emplace(std::minmax(a,b), Edge{a,b,0});
-                ++inserted.first->second.count;
-            }
             if (!wound.removedTriangles[source])
                 shell.indices.insert(shell.indices.end(), {ids[0],ids[2],ids[1]}); // Inward-facing contacts.
         }
     }
-    std::multimap<int,int> boundary;
-    for (const auto& item : edges) if (item.second.count==1) boundary.emplace(item.second.a,item.second.b);
-    while (!boundary.empty()) {
-        std::vector<int> loop;
-        const int start=boundary.begin()->first;
-        int current=start;
-        do {
-            const auto edge=boundary.find(current);
-            if (edge==boundary.end()) break;
-            loop.push_back(current); current=edge->second; boundary.erase(edge);
-        } while (current!=start);
-        if (current!=start || loop.size()<3) continue;
-        glm::vec3 center(0);
-        for (const auto id : loop) {
-            const auto p=shell.vertices[id]; center+=glm::vec3(p.x,p.y,p.z);
-        }
-        center/=float(loop.size());
-        const int cap=int(shell.vertices.size()); shell.vertices.push_back(vec(center));
-        for (std::size_t i=0; i<loop.size(); ++i)
-            shell.indices.insert(shell.indices.end(), {loop[i],loop[(i+1)%loop.size()],cap});
+    // The camera and cavity use the same closures, prepared before damage.
+    for (const auto& triangle : geometry.closures) {
+        if (zombieTorsoClosureRemoved(triangle,wound)) continue;
+        std::array<int,3> ids{};
+        for (int i=0; i<3; ++i)
+            ids[i] = vertex(geometry.referenceVertices[triangle[i].primitive][triangle[i].vertex]);
+        shell.indices.insert(shell.indices.end(), {ids[0],ids[2],ids[1]});
     }
     return shell;
 }

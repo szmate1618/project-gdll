@@ -1,5 +1,6 @@
 #include "zombie_wounds.hpp"
 #include "zombie_layer.hpp"
+#include "zombie_torso_surface.hpp"
 #include <algorithm>
 #include <cctype>
 #include <limits>
@@ -81,6 +82,7 @@ ZombieTorsoGeometry prepareZombieTorso(const AnimatedModel& asset) {
     }
     result.center = low.x <= high.x ? (low+high)*.5f : glm::vec3(frame[3]);
     if (std::none_of(result.torsoTriangles.begin(), result.torsoTriangles.end(), [](bool value) { return value; })) result.bone = -1;
+    closeZombieTorso(asset,result);
     return result;
 }
 const ZombieTorsoWound* ZombieWounds::find(std::size_t id) const {
@@ -110,6 +112,15 @@ bool zombieTorsoRay(const AnimatedModel& asset, const ZombieTorsoGeometry& geome
             }
         }
     }
+    for (const auto& triangle : geometry.closures) {
+        if (wound && zombieTorsoClosureRemoved(triangle,*wound)) continue;
+        std::array<glm::vec3,3> points;
+        for (int i=0; i<3; ++i) points[i] = posedVertex(asset,triangle[i].primitive,triangle[i].vertex,pose);
+        float hit = 0;
+        if (rayTriangle(o,d,points[0],points[1],points[2],hit) && hit < distance) {
+            distance = hit; found = true;
+        }
+    }
     return found;
 }
 bool ZombieWounds::hit(std::size_t id, const AnimatedModel& asset, const ZombieTorsoGeometry& geometry,
@@ -136,6 +147,7 @@ bool ZombieWounds::hit(std::size_t id, const AnimatedModel& asset, const ZombieT
             if (close[v] && !(wound.vertexMask[bit/8] & (1u << (bit%8)))) {
                 wound.vertexMask[bit/8] |= std::uint8_t(1u << (bit%8));
                 wound.removedVertices.push_back(geometry.referenceVertices[p][v]);
+                changed = true; // This vertex may open a cap even if its outer faces are already gone.
             }
         }
         for (std::size_t t=0; t<primitive.indices.size(); t+=3) {
@@ -193,5 +205,22 @@ std::vector<std::uint8_t> ZombieWounds::mask(const AnimatedModel& asset, const Z
             mask.push_back(removed[primitive.indices[t]] || removed[primitive.indices[t+1]] || removed[primitive.indices[t+2]]);
     }
     return mask;
+}
+std::vector<std::uint8_t> ZombieWounds::surfaceMask(const AnimatedModel& asset,
+        const ZombieTorsoGeometry& geometry, const ZombieTorsoWound& wound, bool original) {
+    auto result = original ? wound.removedTriangles : mask(asset,wound);
+    for (std::size_t i=0; i<std::min(result.size(),geometry.torsoTriangles.size()); ++i)
+        if (geometry.torsoTriangles[i]) result[i] |= 2;
+    for (const auto& triangle : geometry.closures) {
+        bool removed = original && zombieTorsoClosureRemoved(triangle,wound);
+        if (!original)
+            for (const auto& source : triangle) {
+                const auto point = geometry.referenceVertices[source.primitive][source.vertex];
+                for (const auto hit : wound.removedVertices)
+                    if (glm::dot(point-hit,point-hit)<1e-8f) { removed = true; break; }
+            }
+        result.push_back(removed ? 3 : 2);
+    }
+    return result;
 }
 } // namespace viewer

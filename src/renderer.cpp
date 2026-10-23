@@ -64,6 +64,7 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         skinningBoneCountLocation_ = glGetUniformLocation(program_, "uSkinningBoneCount");
         zombieWoundsLocation_ = glGetUniformLocation(program_, "uZombieWounds");
         zombieTriangleOffsetLocation_ = glGetUniformLocation(program_, "uZombieTriangleOffset");
+        zombieCullBackfacesLocation_ = glGetUniformLocation(program_, "uZombieCullBackfaces");
         shadowPassLocation_ = glGetUniformLocation(program_, "uShadowPass");
         shadowsLocation_ = glGetUniformLocation(program_, "uShadows");
         shadowMapLocation_ = glGetUniformLocation(program_, "uShadowMap");

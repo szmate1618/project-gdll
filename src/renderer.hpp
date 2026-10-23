@@ -226,6 +226,9 @@ private:
         std::vector<std::size_t> freeWoundRows;
         std::vector<ZombieGeometry> lods;
         std::vector<ZombieGeometry> severed;
+        // Original and severed anatomical caps are camera-only, uploaded on demand.
+        std::vector<ZombieTorsoGeometry> woundSurfaces;
+        std::vector<ZombieGeometry> closures;
         std::vector<std::size_t> sourceIndices;
         std::vector<ZombieGPUInstance> staging;
         std::unique_ptr<ZombiePaletteCache> palettes;
@@ -289,6 +292,7 @@ private:
     GLint animationCountLocation_, animationVerticesLocation_;
     GLint skinningLocation_, skinningBonesLocation_, skinningBoneCountLocation_;
     GLint zombieWoundsLocation_ = -1, zombieTriangleOffsetLocation_ = -1;
+    GLint zombieCullBackfacesLocation_ = -1;
     GLint shadowPassLocation_, shadowsLocation_, shadowMapLocation_, sunMatrixLocation_;
     GLint eyeLocation_, sunDirectionLocation_, sunColorLocation_, skyAmbientLocation_, groundAmbientLocation_;
     GLint shadowDistanceLocation_, shadowFadeLocation_;

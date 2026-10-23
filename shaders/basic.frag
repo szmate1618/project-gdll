@@ -9,6 +9,7 @@ flat in vec2 vCanopyLight;
 flat in int vWoundBase;
 uniform usamplerBuffer uZombieWounds;
 uniform int uZombieTriangleOffset;
+uniform bool uZombieCullBackfaces;
 
 uniform vec4 uBaseColor;
 uniform sampler2D uBaseTexture;
@@ -158,13 +159,19 @@ float alphaMaskCutoff() {
 }
 
 void main() {
-    if (!uShadowPass && vWoundBase > 0 && texelFetch(uZombieWounds, vWoundBase - 1 + uZombieTriangleOffset + gl_PrimitiveID).r != 0u) discard;
+    uint wound = 0u;
+    if (!uShadowPass && vWoundBase > 0)
+        wound = texelFetch(uZombieWounds, vWoundBase - 1 + uZombieTriangleOffset + gl_PrimitiveID).r;
+    if ((wound & 1u) != 0u) discard;
+    bool torsoInterior = !gl_FrontFacing && (wound & 2u) != 0u;
+    if (!gl_FrontFacing && uZombieCullBackfaces && !torsoInterior) discard;
     if (uForestVisibility.z > 0.0) {
         vec2 offset = vWorldPosition.xz - uForestVisibility.xy;
         if (dot(offset, offset) > uForestVisibility.z * uForestVisibility.z) discard;
     }
     vec4 color = uBaseColor * vColor;
     if (uHasTexture && (!uShadowPass || uAlphaMode == 1)) color *= texture(uBaseTexture, vUV);
+    if (torsoInterior) color = vec4(0.35, 0.012, 0.02, 1.0);
     if (uAlphaMode == 1 && color.a < alphaMaskCutoff()) discard;
     if (uShadowPass) {
         fragColor = vec4(0.0);

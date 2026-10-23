@@ -930,6 +930,16 @@ when selecting their visual triangle mask. **Sun and flashlight shadow casting
 keep their existing geometry and LODs**, without wound removal or shadows from
 the placeholder contents.
 
+The intact torso's anatomical boundary loops are closed before damage is
+applied. Camera-only dark red cap triangles follow their original rim vertices
+through baked animation and live ragdoll skinning. Shots remove incident cap
+triangles using the same vertex mask as the outer surface and inner collider;
+new bullet openings are never capped afterwards. Surviving torso triangles
+are double-sided for wounded actors, with dark red inward-facing surfaces.
+These closures are prepared from torso boundaries independently of the
+precomputed dismemberment caps. Cap GPU resources are shared per mesh variant
+and allocated on its first wound; intact crowds retain hardware backface culling.
+
 The first wound creates an inward-facing torso collider, contracted to 80% of
 the reference surface around its center. Its fixed shape follows the torso's
 rigid animation/ragdoll frame. Anatomical boundary loops are capped; shot

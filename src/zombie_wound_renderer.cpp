@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 #include "box_layer.hpp"
+#include "zombie_torso_surface.hpp"
 
 #include <algorithm>
 #include <stdexcept>
@@ -23,8 +24,14 @@ void Renderer::updateZombieWound(std::size_t id, ZombieBatch& batch, ZombieGPUIn
         instance.woundBase = float(row->second.offset + 1);
         return;
     }
-    const auto mask = source.severedJoint < 0 ? wound->removedTriangles : ZombieWounds::mask(
-        zombieSource_->dismembermentAssets.at(source.asset).meshes.at(std::size_t(source.severedJoint)), *wound);
+    const auto variant = std::size_t(source.severedJoint+1);
+    const auto& asset = source.severedJoint < 0 ? zombieSource_->assets.at(source.asset) :
+        zombieSource_->dismembermentAssets.at(source.asset).meshes.at(std::size_t(source.severedJoint));
+    const auto& surface = batch.woundSurfaces.at(variant);
+    const auto mask = ZombieWounds::surfaceMask(asset,surface,*wound,source.severedJoint < 0);
+    if (!surface.closures.empty() && batch.closures[variant].model.meshes.empty())
+        uploadZombieGeometry(zombieTorsoClosureModel(asset,surface),batch.closures[variant],batch.staging.size(),
+                             static_cast<GLint>(batch.woundLimit));
     if (mask.size() > batch.woundStride || batch.woundStride == 0)
         throw std::runtime_error("Zombie wound mask does not match its geometry");
     bool grew = false;

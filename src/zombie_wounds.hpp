@@ -8,6 +8,7 @@ struct ZombieInstance;
 
 // Stable original triangle IDs, independent of animation, health and LOD.
 struct ZombieTorsoGeometry {
+    struct Vertex { std::size_t primitive, vertex, bit; };
     int bone = -1;
     glm::mat4 referenceFrame{1}; // Rigid torso frame in asset meters.
     glm::vec3 center{0};
@@ -16,6 +17,8 @@ struct ZombieTorsoGeometry {
     std::vector<std::size_t> triangleOffsets;
     std::vector<bool> torsoTriangles;
     std::size_t triangleCount = 0;
+    // Anatomical closures of the intact surface, before any bullet damage.
+    std::vector<std::array<Vertex, 3>> closures;
 };
 struct ZombieTorsoWound {
     std::uint64_t revision = 0;
@@ -40,6 +43,10 @@ public:
                    const std::vector<std::uint8_t>& mask);
     // Reconstruct a mask for prepared severed geometry without changing shared assets.
     static std::vector<std::uint8_t> mask(const AnimatedModel& asset, const ZombieTorsoWound& wound);
+    // GPU flags: bit 0 removes a triangle, bit 1 identifies a torso interior.
+    // Closure triangles follow the original triangles in the mask.
+    static std::vector<std::uint8_t> surfaceMask(const AnimatedModel& asset,
+        const ZombieTorsoGeometry& geometry, const ZombieTorsoWound& wound, bool original);
 private:
     std::unordered_map<std::size_t, ZombieTorsoWound> entries_;
 };

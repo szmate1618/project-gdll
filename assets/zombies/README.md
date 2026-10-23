@@ -84,6 +84,10 @@ Torso hits additionally test the remaining original posed triangles, removing
 triangles with a torso vertex within 10 cm of the impact. The visible surface
 and an 80%-scale inner collision shell share the original triangle mask.
 Three small dark red boxes demonstrate loose contents inside a wounded torso.
+Anatomical torso boundaries receive dark red closures before shot removal;
+the camera and inner collider remove matching cap triangles when wounded.
+Surviving torso walls expose dark red backfaces, while shadow geometry stays
+unchanged. These runtime closures do not reuse the prepared dismemberment caps.
 Wounds persist on corpses independently of health; shadow geometry stays intact.
 See [runtime torso wounds](../../docs/VIEWER.md) for the collider and LOD behavior.
 
