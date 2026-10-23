@@ -314,10 +314,10 @@ private:
         joint.enableTwistLimit = true;
         joint.lowerTwistAngle = lowerTwist * B3_DEG_TO_RAD;
         joint.upperTwistAngle = upperTwist * B3_DEG_TO_RAD;
-        if (child == head) {
-            // Strong friction at the neck: oppose relative rotation rather
-            // than pulling the head toward an authored pose. Severing removes
-            // this joint, so a detached head retains its launch spin.
+        if (child == head || child == upperArmLeft || child == upperArmRight) {
+            // Joint friction at the neck and shoulders opposes relative motion
+            // without pulling toward an authored pose. Severing removes this
+            // resistance together with the connection.
             joint.enableMotor = true;
             joint.motorVelocity = {0, 0, 0};
             joint.maxMotorTorque = 4.0f; // N*m, shared across the three rotation axes.
@@ -336,6 +336,12 @@ private:
         joint.enableLimit = true;
         joint.lowerAngle = lower * B3_DEG_TO_RAD;
         joint.upperAngle = upper * B3_DEG_TO_RAD;
+        if (child == lowerArmLeft || child == lowerArmRight) {
+            // Brake elbow swing without changing knee motion or adding a spring.
+            joint.enableMotor = true;
+            joint.motorSpeed = 0;
+            joint.maxMotorTorque = 2.0f; // N*m around the hinge axis.
+        }
         joints_[child] = b3CreateRevoluteJoint(world_, &joint);
     }
 

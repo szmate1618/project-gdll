@@ -996,8 +996,11 @@ from the 20 m/s cap on clip motion. No animated angular velocity is
 transferred; severed bodies still receive their separate random spin.
 The neck's spherical joint has a zero-speed rotational motor with a 4 N·m
 torque limit, providing strong friction against relative head/torso rotation.
-It has no target pose or restoring spring. Destroying the neck joint releases
-that resistance along with the connection, preserving detached-head spin.
+Both shoulders use the same 4 N·m rotational brake; elbow hinges use a 2 N·m
+zero-speed motor to suppress continued arm flailing. These brakes have no target
+pose or restoring spring. Severing a joint removes its brake along with the
+connection, preserving detached-part launch and spin; joints still connecting
+parts of a detached arm retain their friction.
 Capsule ends are inset to avoid starting below ground, and activation adds no
 automatic angular launch. Each ragdoll uses a 6 m × 6 m × 0.1 m local ground
 box rather than the full terrain mesh. This floor supports only its owning
