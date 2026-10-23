@@ -1,5 +1,6 @@
 #include "protocol.hpp"
 #include "weapons.hpp"
+#include "zombie_skeleton.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -147,8 +148,15 @@ void payload(Wire& w, CorpsePose& pose) {
     w.integer(pose.id); w.integer(pose.asset); w.integer(pose.version);
     w.matrix(pose.transform); w.matrix(pose.root);
     w.list(pose.bones, maxBones, [&](glm::mat4& m) { w.matrix(m); });
+    if (!w.reading && (pose.severedJoint < -1 || pose.severedJoint >= int(viewer::ragdollPartCount - 1)))
+        throw std::runtime_error("Invalid severed joint");
+    std::uint8_t separation = static_cast<std::uint8_t>(pose.severedJoint + 1);
+    w.integer(separation);
+    pose.severedJoint = static_cast<std::int16_t>(int(separation) - 1);
     if (pose.id >= maxZombies || pose.asset >= maxZombies || !pose.version)
         throw std::runtime_error("Invalid corpse pose");
+    if (pose.severedJoint < -1 || pose.severedJoint >= int(viewer::ragdollPartCount - 1))
+        throw std::runtime_error("Invalid severed joint");
 }
 void payload(Wire& w, PoseAck& ack) {
     w.integer(ack.id); w.integer(ack.version);

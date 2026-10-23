@@ -202,6 +202,14 @@ public:
         ++revision_;
     }
 
+    void sever(Part child) {
+        if (child <= pelvis || child >= partCount) throw std::invalid_argument("Invalid severed ragdoll joint");
+        auto& joint = joints_[child];
+        if (b3Joint_IsValid(joint)) { b3DestroyJoint(joint, true); joint = b3_nullJointId; ++revision_; }
+        for (const auto body : bodies_) b3Body_SetAwake(body, true);
+    }
+
+
     glm::mat4 rootTransform() const {
         const auto position = fromB3(b3Body_GetPosition(bodies_[pelvis]));
         // Preserve the exact instance frame at handoff; the skinning matrices
@@ -277,7 +285,7 @@ private:
         joint.enableTwistLimit = true;
         joint.lowerTwistAngle = lowerTwist * B3_DEG_TO_RAD;
         joint.upperTwistAngle = upperTwist * B3_DEG_TO_RAD;
-        b3CreateSphericalJoint(world_, &joint);
+        joints_[child] = b3CreateSphericalJoint(world_, &joint);
     }
 
     void addHingeJoint(Part parent, Part child, glm::vec3 pivot, glm::quat referenceFrame,
@@ -291,7 +299,7 @@ private:
         joint.enableLimit = true;
         joint.lowerAngle = lower * B3_DEG_TO_RAD;
         joint.upperAngle = upper * B3_DEG_TO_RAD;
-        b3CreateRevoluteJoint(world_, &joint);
+        joints_[child] = b3CreateRevoluteJoint(world_, &joint);
     }
 
     PhysicsWorld& simulation_;
@@ -299,6 +307,7 @@ private:
     b3WorldId world_ = b3_nullWorldId;
     b3BodyId ground_{};
     std::array<b3BodyId, partCount> bodies_{};
+    std::array<b3JointId, partCount> joints_{};
     std::array<glm::mat4, partCount> restBodies_{};
     std::array<glm::mat4, partCount> referenceBodies_{};
     glm::vec3 feet_{0};
@@ -410,9 +419,16 @@ void ZombieRagdollWorld::applyImpulse(std::size_t handle, RagdollPart part, glm:
         throw std::invalid_argument("Ragdoll impulse requires a valid part and finite vector");
     impl_->entries[handle].ragdoll->applyImpulse(static_cast<Part>(part), impulse);
 }
+void ZombieRagdollWorld::sever(std::size_t handle, RagdollPart child) {
+    if (!valid(handle)) throw std::out_of_range("Invalid ragdoll handle");
+    if (child == RagdollPart::pelvis || std::size_t(child) >= ragdollPartCount)
+        throw std::invalid_argument("Invalid severed ragdoll joint");
+    impl_->entries[handle].ragdoll->sever(static_cast<Part>(child));
+}
 void ZombieRagdollWorld::destroy(std::size_t handle) {
     if (valid(handle)) impl_->entries[handle].ragdoll.reset();
 }
+
 
 glm::mat4 ZombieRagdollWorld::rootTransform(std::size_t handle) const {
     if (!valid(handle)) return glm::mat4(1.0f);

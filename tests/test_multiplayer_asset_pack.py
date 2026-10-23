@@ -76,6 +76,20 @@ class MultiplayerAssetPackTests(unittest.TestCase):
     def package(self, **kwargs):
         return package_assets(self.root, self.map, self.output, self.zombies, **kwargs)
 
+    def test_joint_hit_resources_and_fingerprints(self):
+        mesh = self.write("assets/zombies/models/severed/elbow.glb", glb({"extras": {"severed": True}}))
+        hits = {"schema": "godollo.zombie_joint_hits", "version": 1,
+                "source_sha256": self.digest(self.zombie), "joints": [
+                    {"mesh": "severed/elbow.glb", "mesh_sha256": self.digest(mesh)}]}
+        self.json("assets/zombies/models/Zombie.hitboxes.json", hits)
+        self.package()
+        with zipfile.ZipFile(self.output) as archive:
+            self.assertIn("assets/zombies/models/Zombie.hitboxes.json", archive.namelist())
+            self.assertEqual(archive.read("assets/zombies/models/severed/elbow.glb"), mesh.read_bytes())
+        mesh.write_bytes(glb({"extras": {"changed": True}}))
+        with self.assertRaisesRegex(ValueError, "Stale fingerprint"):
+            self.package()
+
     def test_relocated_pack_keeps_referenced_bytes_and_only_runtime_files(self):
         count, size = self.package()
         destination = self.root / "extracted"

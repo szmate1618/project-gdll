@@ -742,6 +742,62 @@ void renderAuthoredAssets(const std::filesystem::path& directory, const std::fil
 
 } // namespace
 
+// Exercises the runtime path using already-prepared local assets. This does not
+// generate or modify those assets.
+void renderJointSeparations(const std::filesystem::path& path, const std::filesystem::path& screenshot) {
+    std::vector<glm::mat4> placements;
+    for (int j = 0; j < 10; ++j)
+        placements.push_back(glm::translate(glm::mat4(1), {float(j % 5 - 2) * 2.6f, 0, -float(j / 5) * 4}));
+    auto layer = viewer::loadZombieLayer(path, placements);
+    if (layer.assets.size() != 1 || layer.dismembermentAssets[0].joints.size() != 10)
+        throw std::runtime_error("Expected one prepared character with ten joint definitions");
+    viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.resize(1280, 960); renderer.setHaze(false); renderer.setGroundFog(false);
+    viewer::Camera camera; camera.setPosition({0, 7, 11}); camera.setOrientation(-90, -28);
+    for (std::size_t j = 0; j < 10; ++j) {
+        auto& instance = layer.instances[j];
+        instance.phase = 0;
+        const auto& asset = layer.assets[0];
+        const auto& joints = layer.dismembermentAssets[0].joints;
+        const auto pose = viewer::sampleZombiePose(asset, instance, .5);
+        const auto center = glm::vec3(instance.transform * viewer::zombieJointTransform(joints[j], pose) *
+                                      glm::vec4(joints[j].center, 1));
+        bool hit = false;
+        for (int attempt = 0; attempt < 32 && !hit; ++attempt) {
+            const float angle = float(attempt) * .618033989f * 6.283185307f;
+            const float y = -.8f + 1.6f * float(attempt % 5) / 4;
+            const auto outward = glm::normalize(glm::vec3(std::cos(angle), y, std::sin(angle)));
+            const auto origin = center + outward * .4f;
+            float closest = 100; std::size_t selected = joints.size();
+            for (std::size_t k = 0; k < joints.size(); ++k) {
+                float distance = 0;
+                if (viewer::zombieJointRay(origin, -outward, instance.transform, joints[k], pose, distance) && distance < closest) {
+                    closest = distance; selected = k;
+                }
+            }
+            if (selected != j) continue;
+            hit = layer.shoot(origin, -outward, .5);
+        }
+        if (!hit || instance.severedJoint != int(j) || !instance.physicsRagdoll || layer.damage().injury(j))
+            throw std::runtime_error("Prepared joint hit did not activate the matching separation: " + joints[j].name);
+    }
+    renderer.updateZombies(layer); renderer.render(camera, .5);
+    if (renderer.zombieVisibleCount() != 10) throw std::runtime_error("Not all severed variants rendered");
+    if (!screenshot.empty()) {
+        auto activation = screenshot.parent_path() / (screenshot.stem().string() + "-activation.ppm");
+        renderer.writeScreenshot(activation);
+    }
+    for (int step = 0; step < 120; ++step) layer.update(1.0f / 120);
+    renderer.updateZombies(layer); renderer.render(camera, .5);
+    viewer::Renderer::checkErrors("severed joint asset rendering");
+    if (!screenshot.empty()) {
+        renderer.writeScreenshot(screenshot);
+        camera.setPosition({-2.6f, 2.3f, 3.2f}); camera.setOrientation(-90, -20);
+        renderer.render(camera, .5);
+        renderer.writeScreenshot(screenshot.parent_path() / (screenshot.stem().string() + "-neck.ppm"));
+    }
+}
+
 int main(int argc, char** argv) {
     if (!glfwInit()) {
         std::cout << "SKIP: GLFW cannot access a display\n";
@@ -768,7 +824,10 @@ int main(int argc, char** argv) {
         renderGroupMovementAndPoseChanges();
         renderIncrementalAndFullRefresh();
         paletteGrowthAndReuse();
-        if (mode == "--assets") {
+        if (mode == "--dismemberment") {
+            if (argc < 3) throw std::runtime_error("--dismemberment requires one prepared character GLB");
+            renderJointSeparations(argv[2], argc > 3 ? argv[3] : "");
+        } else if (mode == "--assets") {
             if (argc < 3) throw std::runtime_error("--assets requires a model directory");
             renderAuthoredAssets(argv[2], argc > 3 ? argv[3] : "");
         } else {

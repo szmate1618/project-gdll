@@ -56,6 +56,46 @@ map's origin and reverses north into world Z south. The default town crowd
 contains 300 zombies spread across safe ground inside this outline. See
 [viewer controls](../../docs/VIEWER.md#zombie-crowd) for overrides.
 
+## Joint hits and prepared severed meshes
+
+Each original character has a companion `models/NAME.hitboxes.json`. These
+definitions contain ten spherical joint regions: waist, neck, and left/right
+shoulder, elbow, hip and knee. Centers and radii use meters in the reference
+bone's orientation; the loader compensates for the source rig's centimeter
+scale. The file records the attachment bone by name and the corresponding
+ragdoll body. The source GLB and every prepared mesh are checked by SHA-256.
+
+A joint hit kills immediately, removes any health injury record, releases the
+matching ragdoll connection and selects that joint's prepared corpse mesh.
+Both sides of each cut have dark red opaque caps. Skin weights stay on their
+own side of the separation; detached upper limbs retain their lower sections.
+All pieces use the original skeleton palette, so bone IDs remain stable.
+Corpses retain the selected separation independently of the health subsystem.
+
+The hit physics body receives a randomized impulse along the shot ray:
+2–4 N·s for low caliber and 5–8 N·s for high caliber. Connected sections follow
+through their joints, so heavier detached assemblies tend to fly more slowly.
+This prototype runtime choice introduces no weapon configuration settings.
+
+The prepared GLBs live locally under `models/severed/`, with content-addressed
+filenames. Keep that directory with the original models and companion JSONs.
+The existing asset packager includes the referenced meshes and definitions;
+multiplayer validates their content fingerprints and replicates the selected
+mesh with the complete corpse pose. These binaries retain the original asset's
+licensing restrictions and are ignored by Git. They were prepared once locally;
+there is no retained generator or automatic regeneration/test pipeline.
+If a referenced mesh is missing or stale, restore the matching prepared set;
+the viewer will report the affected companion file instead of using an
+incompatible mesh. Custom assets without a companion file retain ordinary
+body/head health hits.
+
+Runtime checks (without generating assets):
+
+```bash
+./build/test_zombie_dismemberment assets/zombies/models/ZombieMale_A.glb
+./build/test_zombie_renderer --dismemberment assets/zombies/models/ZombieMale_A.glb build/dismemberment.ppm
+```
+
 ## Reduced-detail meshes
 
 Prepare three local mesh LODs from the existing runtime GLBs:

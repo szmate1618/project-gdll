@@ -35,7 +35,9 @@ void ZombieLayer::rebuildSpatialIndex() {
     crowd_.reset(instances.size());
     hitGeometry_.clear();
     hitGeometry_.reserve(assets.size());
-    for (const auto& asset : assets) hitGeometry_.push_back(prepareZombieHitGeometry(asset));
+    for (std::size_t a = 0; a < assets.size(); ++a)
+        hitGeometry_.push_back(prepareZombieHitGeometry(assets[a], a < dismembermentAssets.size() ?
+            dismembermentAssets[a].joints : std::vector<ZombieJointCollider>{}));
     shotBounds_.resize(instances.size());
     shotPadding_ = 0;
     for (std::size_t id = 0; id < instances.size(); ++id) updateSpatialMembership(id);
@@ -90,9 +92,20 @@ std::optional<ZombieShotHit> ZombieLayer::findShotTarget(glm::vec3 origin, glm::
         // The first region entered determines damage, including overlapping spheres.
         const bool headshot = headHit && (!bodyHit || headDistance <= distance);
         if (headHit) distance = bodyHit ? std::min(distance, headDistance) : headDistance;
-        if ((bodyHit || headHit) && distance < nearest) {
+        int jointHit = -1;
+        float jointDistance = std::numeric_limits<float>::max();
+        for (std::size_t j = 0; j < geometry.joints.size(); ++j) {
+            float d = 0;
+            if (zombieJointRay(origin, direction, instance.transform, geometry.joints[j], pose, d) && d < jointDistance) {
+                jointHit = static_cast<int>(j); jointDistance = d;
+            }
+        }
+        // Joint regions override the coarse body/head damage proxies on this
+        // actor. Occlusion must end at the actual joint collider, not a proxy.
+        if (jointHit >= 0) distance = jointDistance;
+        if ((bodyHit || headHit || jointHit >= 0) && distance < nearest) {
             nearest = distance;
-            selected = ZombieShotHit{id, distance, headshot};
+            selected = ZombieShotHit{id, distance, headshot, jointHit};
             selectedPose = std::move(pose);
         }
     }

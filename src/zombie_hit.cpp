@@ -35,12 +35,13 @@ ZombieHitBounds transformed(const ZombieHitBounds& bounds, const glm::mat4& matr
 }
 }
 
-ZombieHitGeometry prepareZombieHitGeometry(const AnimatedModel& asset) {
+ZombieHitGeometry prepareZombieHitGeometry(const AnimatedModel& asset, const std::vector<ZombieJointCollider>& joints) {
     ZombieHitGeometry geometry;
+    geometry.joints = joints;
+    geometry.jointPoints = emptyBounds();
     geometry.head = asset.ragdollBones[static_cast<std::size_t>(RagdollPart::head)];
     if (geometry.head < 0 || static_cast<std::size_t>(geometry.head) >= asset.skeleton.size()) {
         geometry.head = -1;
-        return geometry;
     }
     std::vector<bool> headJoint(asset.skeleton.size(), false);
     for (std::size_t joint = 0; joint < asset.skeleton.size(); ++joint) {
@@ -68,9 +69,19 @@ ZombieHitGeometry prepareZombieHitGeometry(const AnimatedModel& asset) {
     }
     geometry.headPoints = emptyBounds();
     const auto sample = [&](const glm::mat4* pose) {
-        if (geometry.headVertices.empty()) include(geometry.headPoints, glm::vec3(pose[geometry.head][3]));
+        if (geometry.head >= 0 && geometry.headVertices.empty()) include(geometry.headPoints, glm::vec3(pose[geometry.head][3]));
         else for (const auto vertex : geometry.headVertices)
             include(geometry.headPoints, glm::vec3(headVertexPosition(asset, vertex, pose)));
+        for (const auto& joint : joints) {
+            if (joint.bone < 0 || std::size_t(joint.bone) >= asset.skeleton.size())
+                throw std::invalid_argument("Invalid zombie joint collider bone");
+            const auto matrix = pose[joint.bone] * joint.boneFromMeters;
+            const auto center = glm::vec3(matrix * glm::vec4(joint.center, 1));
+            const auto extent = joint.radius * (glm::abs(glm::vec3(matrix[0])) +
+                glm::abs(glm::vec3(matrix[1])) + glm::abs(glm::vec3(matrix[2])));
+            include(geometry.jointPoints, center - extent);
+            include(geometry.jointPoints, center + extent);
+        }
     };
     const auto frames = [&](const std::vector<glm::mat4>& poses, std::size_t count) {
         if (poses.empty()) {
@@ -111,6 +122,10 @@ ZombieHitBounds zombieShotBounds(const ZombieInstance& instance, const ZombieHit
     }
     include(result, head.minimum);
     include(result, head.maximum);
+    if (!geometry.joints.empty()) {
+        const auto joints = transformed(geometry.jointPoints, instance.transform);
+        include(result, joints.minimum); include(result, joints.maximum);
+    }
     // Outward tolerance covers affine/frame interpolation rounding. Broad-phase
     // bounds may overinclude; the sphere tests make the final decision.
     const auto padding = glm::vec3(0.001f) +

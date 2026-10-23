@@ -1,0 +1,149 @@
+{
+  "schema": "godollo.zombie_joint_hits",
+  "version": 1,
+  "units": "meters",
+  "source_sha256": "bbc9d90f4e2d526de6b90a94bd786872e70a9f68ee0908d21fc77c351ebf2fe1",
+  "description": "Prepared joint separation variants; two capped assemblies, weights isolated across each cut.",
+  "joints": [
+    {
+      "name": "waist",
+      "bone": "bip Spine",
+      "ragdoll_part": 1,
+      "shape": "sphere",
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.105,
+      "mesh": "severed/ZombieFemale_B-waist-0d15f4a2a796.glb",
+      "mesh_sha256": "0d15f4a2a796aaba9711877877ca0f9a875c1bce5f34948115de3654dc33dacc"
+    },
+    {
+      "name": "neck",
+      "bone": "bip Head",
+      "ragdoll_part": 2,
+      "shape": "sphere",
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.085,
+      "mesh": "severed/ZombieFemale_B-neck-fdf058423aba.glb",
+      "mesh_sha256": "fdf058423abada93e364b84af3b7a6ea5b3243bbed92bcd9063e7ad75f64fef1"
+    },
+    {
+      "name": "left_shoulder",
+      "bone": "bip L UpperArm",
+      "ragdoll_part": 3,
+      "shape": "sphere",
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.095,
+      "mesh": "severed/ZombieFemale_B-left_shoulder-64c77a7acdf4.glb",
+      "mesh_sha256": "64c77a7acdf4fd3ba72774f4afed61ab14469c7146967e2e9218b2806c5a34f8"
+    },
+    {
+      "name": "left_elbow",
+      "bone": "bip L Forearm",
+      "ragdoll_part": 4,
+      "shape": "sphere",
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.075,
+      "mesh": "severed/ZombieFemale_B-left_elbow-d5a4bc5d230a.glb",
+      "mesh_sha256": "d5a4bc5d230a6a33f65e3e9a1bb45d11be7e4b189d2d3f3df174af9a5e149268"
+    },
+    {
+      "name": "right_shoulder",
+      "bone": "bip R UpperArm",
+      "ragdoll_part": 5,
+      "shape": "sphere",
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.095,
+      "mesh": "severed/ZombieFemale_B-right_shoulder-5258ed84beba.glb",
+      "mesh_sha256": "5258ed84beba695341d95a5e39f20cf80194898aa3ee7c1e6ae9f28cad7f5e3b"
+    },
+    {
+      "name": "right_elbow",
+      "bone": "bip R Forearm",
+      "ragdoll_part": 6,
+      "shape": "sphere",
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.075,
+      "mesh": "severed/ZombieFemale_B-right_elbow-f5a4912a9da5.glb",
+      "mesh_sha256": "f5a4912a9da5361b99297fe83fdf324c1a837fb53185f25863763c97f4546e9c"
+    },
+    {
+      "name": "left_hip",
+      "bone": "bip L Thigh",
+      "ragdoll_part": 7,
+      "shape": "sphere",
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.105,
+      "mesh": "severed/ZombieFemale_B-left_hip-b4b000c0c8dd.glb",
+      "mesh_sha256": "b4b000c0c8dd77fddaa8b29c741bd74a2a0c57da4a03bd54f639e5357242eccc"
+    },
+    {
+      "name": "left_knee",
+      "bone": "bip L Calf",
+      "ragdoll_part": 8,
+      "shape": "sphere",
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.085,
+      "mesh": "severed/ZombieFemale_B-left_knee-6d4f1424ba20.glb",
+      "mesh_sha256": "6d4f1424ba20658a97576d3eb26146c924ee0cf9fec1fbbaf70a1e92d5edfe66"
+    },
+    {
+      "name": "right_hip",
+      "bone": "bip R Thigh",
+      "ragdoll_part": 9,
+      "shape": "sphere",
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.105,
+      "mesh": "severed/ZombieFemale_B-right_hip-f4ad2c8290f4.glb",
+      "mesh_sha256": "f4ad2c8290f41516cb66366dba5e52919a8a99d5fac1ffbf0da39861c5ce1541"
+    },
+    {
+      "name": "right_knee",
+      "bone": "bip R Calf",
+      "ragdoll_part": 10,
+      "shape": "sphere",
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.085,
+      "mesh": "severed/ZombieFemale_B-right_knee-bcc718ada5a0.glb",
+      "mesh_sha256": "bcc718ada5a076e719dfa3063dcd79ea155be9bd1ce2fda4f352a6e589026694"
+    }
+  ]
+}

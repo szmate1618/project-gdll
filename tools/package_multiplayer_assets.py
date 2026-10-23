@@ -149,6 +149,16 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
             raise ValueError(f"Unsupported zombie LoD manifest: {manifest_path}")
         for model in models:
             assets.model(model)
+            hitboxes = model.with_suffix(".hitboxes.json")
+            if hitboxes.exists():
+                hits = assets.document(hitboxes)
+                if hits.get("schema") != "godollo.zombie_joint_hits" or hits.get("version") != 1:
+                    raise ValueError(f"Unsupported zombie joint manifest: {hitboxes}")
+                assets.add(model, hits["source_sha256"])
+                for joint in hits["joints"]:
+                    mesh = assets.reference(model.parent, joint["mesh"])
+                    mesh.resolve().relative_to(model.parent.resolve())
+                    assets.model(mesh, joint["mesh_sha256"])
             entry = manifest["models"].get(model.name) if manifest else None
             if entry is None:
                 continue

@@ -4,6 +4,7 @@
 /inventory.toml text eol=lf
 /forest_patches.json text eol=lf
 /forest_patches_astra.json text eol=lf
+/assets/zombies/models/*.hitboxes.json text eol=lf
 # Unix launchers need LF for the interpreter shebang.
 /multiplayer/linux/run-client.sh text eol=lf
 

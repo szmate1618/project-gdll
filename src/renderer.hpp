@@ -217,6 +217,7 @@ private:
     };
     struct ZombieBatch : ZombieGeometry {
         std::vector<ZombieGeometry> lods;
+        std::vector<ZombieGeometry> severed;
         std::vector<std::size_t> sourceIndices;
         std::vector<ZombieGPUInstance> staging;
         std::unique_ptr<ZombiePaletteCache> palettes;

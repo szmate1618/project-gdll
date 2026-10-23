@@ -45,6 +45,7 @@ public:
     // stale. Translation preserves the handoff reference; removal keeps IDs stable.
     void translate(std::size_t handle, glm::vec3 displacement);
     void applyImpulse(std::size_t handle, RagdollPart part, glm::vec3 impulse);
+    void sever(std::size_t handle, RagdollPart child);
     void destroy(std::size_t handle);
     [[nodiscard]] glm::mat4 rootTransform(std::size_t handle) const;
     [[nodiscard]] std::array<glm::mat4, ragdollPartCount> bodyTransforms(std::size_t handle) const;

@@ -150,7 +150,9 @@ bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animat
     const auto hit = findShotTarget(origin, direction, animationSeconds, selectedPose);
     if (!hit) return false;
     if (occlusion && !occlusion->lineOfSight(origin, origin + direction * hit->distance)) return false;
-    if (damage_.hit(hit->zombie, caliber, hit->headshot) == 0)
+    if (hit->joint >= 0)
+        activateRagdoll(hit->zombie, std::move(selectedPose), direction * 4.0f, hit->joint, zombieSeverImpulse(caliber, direction));
+    else if (damage_.hit(hit->zombie, caliber, hit->headshot) == 0)
         activateRagdoll(hit->zombie, std::move(selectedPose), direction * 4.0f);
     return true;
 }
@@ -173,7 +175,8 @@ std::size_t ZombieLayer::explode(glm::vec3 origin, float radius, double animatio
     }
     return killed;
 }
-void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> selectedPose, glm::vec3 velocity) {
+void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> selectedPose, glm::vec3 velocity,
+                                int severedJoint, glm::vec3 severImpulse) {
     if (!physics_) physics_ = std::make_unique<Physics>();
     auto& instance = instances[selected];
     if (navigation_) navigation_->reset(selected);
@@ -193,6 +196,12 @@ void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> s
         throw;
     }
     instance.ragdoll = true;
+    instance.severedJoint = severedJoint;
+    if (severedJoint >= 0) {
+        const auto part = dismembermentAssets.at(instance.asset).joints.at(std::size_t(severedJoint)).part;
+        physics_->world.sever(instance.ragdollHandle, part);
+        physics_->world.applyImpulse(instance.ragdollHandle, part, severImpulse);
+    }
     damage_.remove(selected);
     instance.physicsRagdoll = true;
     spatialIndex_.erase(selected);
@@ -324,6 +333,7 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
     paths.resize(std::min(paths.size(), count));
     for (const auto& path : paths) {
         auto asset = loadZombieModel(path);
+        result.dismembermentAssets.push_back(loadZombieDismemberment(path, asset));
         const auto low = asset.model.boundsMin, high = asset.model.boundsMax;
         const float height = high.y - low.y;
         if (!std::isfinite(height) || height <= 0)

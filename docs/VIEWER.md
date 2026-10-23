@@ -891,6 +891,18 @@ separately, including repeated hits on the same zombie. Surviving zombies retain
 their behavior, navigation and living collision membership. At zero HP the layer
 activates the ragdoll and erases its injury record. Grenade deaths also erase
 existing injury records; their blast behavior is unchanged.
+Prepared characters also load `NAME.hitboxes.json` beside their original GLB.
+These spherical colliders follow the authored waist, neck, shoulders, elbows,
+hips and knees. A joint hit overrides the coarse body/head damage proxies on
+that actor and checks world occlusion to the joint collider. It immediately
+kills regardless of HP, removes the health injury record, selects a precomputed
+separation mesh with dark red caps, and releases the matching ragdoll constraint.
+No triangle ray test or runtime mesh cutting is used. The hit physics body
+receives a random impulse along the shot direction: 2–4 N·s for low caliber or
+5–8 N·s for high caliber. Distal sections follow through their joints, so larger
+assemblies tend to move more slowly. The remaining body and detached pieces use the original shared
+bone palette and physics bodies. Custom assets without these definitions keep
+the body/head damage path. See [prepared zombie assets](../assets/zombies/README.md#joint-hits-and-prepared-severed-meshes).
 Box3D then simulates an 11-body capsule/sphere ragdoll with
 constrained ball and hinge joints. Idle, walking, and running instances use shared
 baked vertex-texture animation; only ragdolls use live GPU skinning with retained
@@ -1913,6 +1925,7 @@ src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin dat
 src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting
 src/zombie_hit.{hpp,cpp}    Head hit regions from the displayed skinning pose
 src/zombie_damage.{hpp,cpp} Sparse injury records and health reduction; no geometry or physics
+src/zombie_dismemberment.{hpp,cpp} Joint-hit definitions, prepared mesh loading and affine joint tests
 src/zombie_shooting.cpp    Prepared hit geometry, spatial bounds, and shot selection
 src/zombie_behavior.{hpp,cpp} Dense behavior pool, perception and state transitions
 src/zombie_attack.{hpp,cpp} Fresh range/FOV/body-exposure validation for attacks and future hits

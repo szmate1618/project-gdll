@@ -48,7 +48,8 @@ std::optional<CorpsePose> Replication::nextPose(const Scene& scene) const {
         const auto ack = acknowledged_.find(id);
         if (ack != acknowledged_.end() && ack->second >= instance.ragdollPoseVersion) continue;
         return CorpsePose{static_cast<std::uint32_t>(id), static_cast<std::uint32_t>(instance.asset),
-            instance.ragdollPoseVersion, instance.transform, instance.restRoot, instance.ragdollBones};
+            instance.ragdollPoseVersion, instance.transform, instance.restRoot, instance.ragdollBones,
+            static_cast<std::int16_t>(instance.severedJoint)};
     }
     return std::nullopt;
 }

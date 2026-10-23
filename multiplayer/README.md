@@ -270,6 +270,10 @@ Corpse poses carry independently versioned roots and palettes on a separate
 reliable transport lane. Each peer has at most four unacknowledged poses and a
 32 KiB bulk transport budget. Changes while a pose is in flight coalesce to the
 latest version; round-robin selection prevents moving corpses starving others.
+Protocol version 6 includes the prepared joint-separation index in each complete
+corpse pose, so the mesh variant and bone palette are applied together. Joint
+definitions and referenced capped meshes participate in the scene fingerprint
+and asset packaging. Clients use the server's detached-body motion directly.
 The essential/bulk lanes share bandwidth at 4:1 when both are busy, so bulk
 retries cannot block essential delivery and bulk still makes progress. An
 explicit pose acknowledgement releases a transfer slot; snapshot acknowledgements

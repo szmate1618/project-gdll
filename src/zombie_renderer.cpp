@@ -124,6 +124,18 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
         batch.palettes = std::make_unique<ZombiePaletteCache>(batch.staging.size(), source.skeleton.size(),
                                                               static_cast<std::size_t>(maximumTexels));
         uploadZombieGeometry(source, batch, batch.staging.size(), maximumTexels);
+        if (i < zombies.dismembermentAssets.size()) {
+            const auto& prepared = zombies.dismembermentAssets[i].meshes;
+            batch.severed.resize(prepared.size());
+            for (std::size_t j = 0; j < prepared.size(); ++j) {
+                uploadZombieGeometry(prepared[j], batch.severed[j], batch.staging.size(), maximumTexels);
+                for (const auto& primitive : prepared[j].model.primitives)
+                    for (const auto& vertex : primitive.vertices) {
+                        batch.bindBounds.minimum = glm::min(batch.bindBounds.minimum, vertex.position);
+                        batch.bindBounds.maximum = glm::max(batch.bindBounds.maximum, vertex.position);
+                    }
+            }
+        }
         if (i < zombies.lodAssets.size()) {
             if (zombies.lodAssets[i].size() > 3) throw std::runtime_error("At most three zombie LOD levels are supported");
             batch.lods.resize(zombies.lodAssets[i].size());
@@ -322,6 +334,7 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
         batch.shadowInstances.clear();
         batch.flashlightInstances.clear();
         for (auto& lod : batch.lods) { lod.cameraInstances.clear(); lod.shadowInstances.clear(); lod.flashlightInstances.clear(); }
+        for (auto& mesh : batch.severed) { mesh.cameraInstances.clear(); mesh.shadowInstances.clear(); mesh.flashlightInstances.clear(); }
         batch.palettes->beginFrame();
     }
     zombieVisibilityStats_ = zombieVisibility_.query(cameraFrustum, lightFrustum, zombieCulling_, visibleZombies_, flashlightFrustum);
@@ -347,6 +360,16 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
         const auto frames = clip ? clip->frameCount : asset.frameCount;
         const double time = clip ? source.walkSeconds : seconds;
         const float frame = source.ragdoll ? 0 : animatedFrame(duration, frames, time, source.phase);
+        if (source.severedJoint >= 0) {
+            if (!source.ragdoll || std::size_t(source.severedJoint) >= batch.severed.size())
+                throw std::runtime_error("Invalid severed zombie geometry");
+            auto& mesh = batch.severed[std::size_t(source.severedJoint)];
+            instance.animationFrame = 0;
+            if (cameraVisible) { mesh.cameraInstances.push_back(instance); ++zombieRenderStats_.cameraLevels[0]; }
+            if (shadowVisible) { mesh.shadowInstances.push_back(instance); ++zombieRenderStats_.shadowLevels[0]; }
+            if (flashlightVisible) { mesh.flashlightInstances.push_back(instance); ++zombieRenderStats_.flashlightLevels[0]; }
+            continue;
+        }
         auto cameraInstance = instance;
         if (cameraVisible) {
             cameraInstance.animationFrame = frame;
@@ -414,8 +437,9 @@ void Renderer::drawZombies(double seconds, ZombiePass pass) {
     const glm::mat4 identity(1);
     glUniformMatrix4fv(modelLocation_, 1, GL_FALSE, glm::value_ptr(identity));
     for (auto& batch : zombieBatches_) {
-        for (std::size_t level = 0; level <= batch.lods.size(); ++level) {
-            auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
+        for (std::size_t level = 0; level <= batch.lods.size() + batch.severed.size(); ++level) {
+            auto& geometry = level == 0 ? static_cast<ZombieGeometry&>(batch) : level <= batch.lods.size() ?
+                batch.lods[level - 1] : batch.severed[level - batch.lods.size() - 1];
             if (geometry.count == 0) continue;
             const auto& visible = pass == ZombiePass::FlashlightShadow ? geometry.flashlightInstances :
                 shadowPass ? geometry.shadowInstances : geometry.cameraInstances;
@@ -468,8 +492,9 @@ void Renderer::drawZombies(double seconds, ZombiePass pass) {
 
 void Renderer::releaseZombies() noexcept {
     for (auto& batch : zombieBatches_) {
-        for (std::size_t level = 0; level <= batch.lods.size(); ++level) {
-            auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
+        for (std::size_t level = 0; level <= batch.lods.size() + batch.severed.size(); ++level) {
+            auto& geometry = level == 0 ? static_cast<ZombieGeometry&>(batch) : level <= batch.lods.size() ?
+                batch.lods[level - 1] : batch.severed[level - batch.lods.size() - 1];
             releaseModel(geometry.model);
             glDeleteBuffers(1, &geometry.instanceBuffer);
             for (const auto buffer : geometry.animationBuffers) glDeleteBuffers(1, &buffer);

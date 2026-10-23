@@ -8,6 +8,7 @@
 #include "zombie_ragdoll.hpp"
 #include "zombie_hit.hpp"
 #include "zombie_damage.hpp"
+#include "zombie_dismemberment.hpp"
 #include "zombie_render_updates.hpp"
 
 #include <memory>
@@ -45,6 +46,7 @@ struct ZombieInstance {
     bool removed = false; // Tombstone: source IDs remain stable after corpse removal.
     std::size_t ragdollHandle = 0;
     bool physicsRagdoll = false;
+    int severedJoint = -1; // Index in the original asset's joint manifest; persists on corpses.
     std::uint64_t physicsPoseRevision = 0;
     std::uint64_t ragdollPoseVersion = 0;
     // Skeleton world pose captured from the displayed frame, in asset space.
@@ -71,6 +73,7 @@ struct ZombieLayer {
     ZombieLayer& operator=(const ZombieLayer&) = delete;
 
     std::vector<AnimatedModel> assets;
+    std::vector<ZombieDismembermentAsset> dismembermentAssets;
     // Per original asset, ordered LOD1..3; originals own gameplay/rig identity.
     std::vector<std::vector<AnimatedModel>> lodAssets;
     std::vector<ZombieInstance> instances;
@@ -145,7 +148,8 @@ struct ZombieLayer {
     const ZombieRenderUpdates& renderUpdates() const { return renderUpdates_; }
 
 private:
-    void activateRagdoll(std::size_t zombie, std::vector<glm::mat4> pose, glm::vec3 velocity);
+    void activateRagdoll(std::size_t zombie, std::vector<glm::mat4> pose, glm::vec3 velocity,
+                         int severedJoint = -1, glm::vec3 severImpulse = glm::vec3(0));
     bool shootImpl(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                    const CollisionWorld* occlusion, ShotCaliber caliber);
     ZombieDamage damage_;

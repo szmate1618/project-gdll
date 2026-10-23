@@ -18,6 +18,9 @@ void Snapshots::pushPose(const Scene& scene, const CorpsePose& pose) {
         pose.asset != scene.zombies.instances[pose.id].asset || !pose.version ||
         pose.bones.size() != scene.zombies.assets[pose.asset].skeleton.size())
         throw std::runtime_error("Corpse pose does not match session assets");
+    if (pose.severedJoint >= 0 && (pose.asset >= scene.zombies.dismembermentAssets.size() ||
+        std::size_t(pose.severedJoint) >= scene.zombies.dismembermentAssets[pose.asset].meshes.size()))
+        throw std::runtime_error("Corpse separation does not match session assets");
     auto& cached = poses_.at(pose.id);
     if (!cached || cached->version < pose.version) cached = pose;
 }
@@ -123,6 +126,7 @@ void Snapshots::apply(Scene& scene, double now) {
             else {
                 instance.transform = pose->transform; instance.restRoot = pose->root;
                 if (appliedPoseVersions_[id] != pose->version) {
+                    instance.severedJoint = pose->severedJoint;
                     scene.zombies.setRagdollPalette(id, pose->bones);
                     appliedPoseVersions_[id] = pose->version;
                 }

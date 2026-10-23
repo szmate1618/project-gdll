@@ -44,9 +44,15 @@ void pacedSnapshots() {
 }
 void poseProtocol() {
     CorpsePose pose; pose.id = 7; pose.version = 123; pose.bones.resize(maxBones, glm::mat4(1));
+    pose.severedJoint = 9;
     const auto bytes = encode(pose);
     const auto copy = std::get<CorpsePose>(decode(bytes.data(), bytes.size()));
-    require(copy.id == 7 && copy.version == 123 && copy.bones == pose.bones, "Independent pose wire encoding lost state");
+    require(copy.id == 7 && copy.version == 123 && copy.bones == pose.bones && copy.severedJoint == 9,
+            "Independent pose wire encoding lost separation or skinning state");
+    auto invalidJoint = bytes; invalidJoint.back() = 255;
+    bool invalidRejected = false;
+    try { decode(invalidJoint.data(), invalidJoint.size()); } catch (const std::runtime_error&) { invalidRejected = true; }
+    require(invalidRejected, "Invalid severed joint was accepted from the wire");
     const auto ack = encode(PoseAck{7, 123});
     require(std::get<PoseAck>(decode(ack.data(), ack.size())).version == 123, "Pose acknowledgement lost its version");
     for (std::size_t size = 0; size < bytes.size(); size += 31) {
