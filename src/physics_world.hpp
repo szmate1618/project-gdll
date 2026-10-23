@@ -10,8 +10,8 @@ namespace viewer {
 // and queries. Doors also carry a dedicated bit for living zombie blockers.
 constexpr std::uint64_t ordinaryBodyCategory = 1ull;
 constexpr std::uint64_t interiorBoxCategory = 1ull << 10;
-// Ragdolls retain local fallback floors; those artificial surfaces must not
-// support unrelated movable props when a real scene mesh is available.
+// Local fallback floors support only their owning ragdoll, including severed
+// parts. Their positive group matches the owner's negative collision group.
 constexpr std::uint64_t ragdollFloorCategory = 1ull << 11;
 constexpr std::uint64_t doorBodyCategory = 1ull << 12;
 constexpr std::uint64_t zombieDoorBlockerCategory = 1ull << 13;

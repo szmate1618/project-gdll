@@ -951,9 +951,11 @@ This travel component also applies to unmapped fallback rigs, and is separate
 from the 20 m/s cap on clip motion. No animated angular velocity is
 transferred; severed bodies still receive their separate random spin.
 Capsule ends are inset to avoid starting below ground, and activation adds no
-automatic angular launch. Each ragdoll uses a small local ground box rather than
-the full terrain mesh. Ground placement and existing town/tree collision remain
-independent from animated rendering.
+automatic angular launch. Each ragdoll uses a 6 m × 6 m × 0.1 m local ground
+box rather than the full terrain mesh. This floor supports only its owning
+ragdoll, including severed parts; neighboring corpses cannot land on it.
+Collisions between different ragdolls remain enabled. Ground placement and
+existing town/tree collision remain independent from animated rendering.
 
 For matching-camera animation captures, use `--animation-time S` to freeze the
 idle cycles at a chosen elapsed time:

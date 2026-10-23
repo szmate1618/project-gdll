@@ -96,6 +96,8 @@ public:
         ground_ = b3CreateBody(world_, &groundDef);
         auto groundShape = b3DefaultShapeDef();
         groundShape.filter.categoryBits = ragdollFloorCategory;
+        groundShape.filter.groupIndex = -collisionGroup;
+        groundShape.enableCustomFiltering = true;
         const auto groundBox = b3MakeBoxHull(3.0f, 0.05f, 3.0f);
         b3CreateHullShape(ground_, &groundShape, &groundBox.base);
 

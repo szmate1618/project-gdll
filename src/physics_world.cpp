@@ -7,6 +7,21 @@
 #include <stdexcept>
 
 namespace viewer {
+namespace {
+bool allowShapeContact(b3ShapeId shapeA, b3ShapeId shapeB, void*) {
+    // Filters are fixed before stepping. Negative groups identify a ragdoll
+    // and suppress self-contact; its floor carries the corresponding positive
+    // group so the usual group rule does not reject its owner's contacts.
+    const auto a = b3Shape_GetFilter(shapeA);
+    const auto b = b3Shape_GetFilter(shapeB);
+    if ((a.categoryBits & ragdollFloorCategory) != 0)
+        return a.groupIndex > 0 && b.groupIndex == -a.groupIndex;
+    if ((b.categoryBits & ragdollFloorCategory) != 0)
+        return b.groupIndex > 0 && a.groupIndex == -b.groupIndex;
+    return true;
+}
+} // namespace
+
 PhysicsWorld::PhysicsWorld() {
     auto definition = b3DefaultWorldDef();
     definition.gravity = {0, -9.8f, 0};
@@ -14,6 +29,7 @@ PhysicsWorld::PhysicsWorld() {
     definition.enableContinuous = true;
     world_ = b3CreateWorld(&definition);
     if (!b3World_IsValid(world_)) throw std::runtime_error("Unable to create Box3D world");
+    b3World_SetCustomFilterCallback(world_, allowShapeContact, nullptr);
 }
 PhysicsWorld::~PhysicsWorld() { b3DestroyWorld(world_); }
 void PhysicsWorld::step(float seconds) {
