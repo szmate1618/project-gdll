@@ -898,8 +898,11 @@ that actor and checks world occlusion to the joint collider. It immediately
 kills regardless of HP, removes the health injury record, selects a precomputed
 separation mesh with dark red caps, and releases the matching ragdoll constraint.
 No triangle ray test or runtime mesh cutting is used. The hit physics body
-receives a random impulse along the shot direction: 2–4 N·s for low caliber or
-5–8 N·s for high caliber. Distal sections follow through their joints, so larger
+receives a random impulse along the shot direction: 4–8 N·s for low caliber or
+10–16 N·s for high caliber. Non-head parts also receive an equally strong impulse
+away from the posed pelvis center toward the severed body's center; the two
+impulses add without renormalizing. Heads keep shot-direction-only launch.
+Distal sections follow through their joints, so larger
 assemblies tend to move more slowly. The hit body also gets a random spin axis
 at 1–4 radians/second; connected sections respond through their remaining joints.
 Rolling resistance slows the capsule/sphere colliders on contact, and linear

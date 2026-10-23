@@ -32,8 +32,10 @@ ZombieDismembermentAsset loadZombieDismemberment(const std::filesystem::path& ba
 glm::mat4 zombieJointTransform(const ZombieJointCollider& joint, const std::vector<glm::mat4>& pose);
 bool zombieJointRay(glm::vec3 origin, glm::vec3 direction, const glm::mat4& instance,
                     const ZombieJointCollider& joint, const std::vector<glm::mat4>& pose, float& distance);
-// Prototype impulse magnitude: low caliber 2..4 N s, high caliber 5..8 N s.
-glm::vec3 zombieSeverImpulse(ShotCaliber caliber, glm::vec3 normalizedShotDirection);
+// Shot impulse: low caliber 4..8 N s, high caliber 10..16 N s. Non-head
+// parts also receive the same magnitude along their world-space center offset.
+glm::vec3 zombieSeverImpulse(ShotCaliber caliber, glm::vec3 normalizedShotDirection,
+                            RagdollPart part, glm::vec3 offsetFromZombieCenter);
 // Random world-space spin axis, with angular speed 1..4 radians/second.
 glm::vec3 zombieSeverSpin();
 

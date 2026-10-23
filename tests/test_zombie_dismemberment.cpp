@@ -88,13 +88,29 @@ void releasedConstraint() {
     const auto direction = glm::normalize(glm::vec3(1, .5f, -2));
     for (const auto caliber : {viewer::ShotCaliber::low, viewer::ShotCaliber::high})
         for (int sample = 0; sample < 32; ++sample) {
-            const auto velocity = viewer::zombieSeverImpulse(caliber, direction);
+            const auto velocity = viewer::zombieSeverImpulse(caliber, direction, viewer::RagdollPart::head, {2, 0, 0});
             const float speed = glm::length(velocity);
-            require(speed >= (caliber == viewer::ShotCaliber::low ? 2.0f : 5.0f) - .001f &&
-                    speed <= (caliber == viewer::ShotCaliber::low ? 4.0f : 8.0f) + .001f &&
+            require(speed >= (caliber == viewer::ShotCaliber::low ? 4.0f : 10.0f) - .001f &&
+                    speed <= (caliber == viewer::ShotCaliber::low ? 8.0f : 16.0f) + .001f &&
                     glm::length(glm::cross(velocity, direction)) < .001f,
-                    "Random impulse must follow the shot and use the caliber's bounds");
+                    "Heads must retain the shot direction and use the doubled caliber bounds");
         }
+}
+void outwardLaunch() {
+    for (const auto caliber : {viewer::ShotCaliber::low, viewer::ShotCaliber::high}) {
+        const float minimum = caliber == viewer::ShotCaliber::low ? 4.f : 10.f;
+        const float maximum = caliber == viewer::ShotCaliber::low ? 8.f : 16.f;
+        for (const auto offset : {glm::vec3(3, 0, 0), glm::vec3(-2, 0, 0), glm::vec3(0, -4, 0)}) {
+            const auto impulse = viewer::zombieSeverImpulse(caliber, {0, 0, -1}, viewer::RagdollPart::lowerArmLeft, offset);
+            const float shot = -impulse.z;
+            require(shot >= minimum && shot <= maximum, "Outward launch must preserve the doubled shot impulse");
+            require(glm::length(impulse - glm::vec3(0, 0, -shot) - glm::normalize(offset) * shot) < .001f,
+                    "Non-head parts must get an equal-strength impulse away from the posed zombie center");
+        }
+        const auto centered = viewer::zombieSeverImpulse(caliber, {0, 0, -1}, viewer::RagdollPart::torso, {});
+        require(centered.x == 0 && centered.y == 0 && -centered.z >= minimum && -centered.z <= maximum,
+                "A part at the zombie center must keep a finite shot-only impulse");
+    }
 }
 void preparedAsset(const std::filesystem::path& path) {
     auto layer = viewer::loadZombieLayer(path, std::vector<glm::mat4>{glm::mat4(1)});
@@ -154,7 +170,7 @@ void detachedPartsSettle() {
 }
 int main(int argc, char** argv) {
     try {
-        jointHitAndCleanup(); animatedAffineColliders(); releasedConstraint(); detachedSpin(); detachedPartsSettle();
+        jointHitAndCleanup(); animatedAffineColliders(); releasedConstraint(); outwardLaunch(); detachedSpin(); detachedPartsSettle();
         if (argc > 1) preparedAsset(argv[1]);
         std::cout << "Joint dismemberment tests passed\n"; return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

@@ -152,7 +152,7 @@ struct ZombieLayer {
 
 private:
     void activateRagdoll(std::size_t zombie, std::vector<glm::mat4> pose, glm::vec3 velocity, double animationSeconds,
-                         int severedJoint = -1, glm::vec3 severImpulse = glm::vec3(0));
+                         int severedJoint = -1, ShotCaliber caliber = ShotCaliber::low);
     bool shootImpl(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                    const CollisionWorld* occlusion, ShotCaliber caliber);
     ZombieDamage damage_;

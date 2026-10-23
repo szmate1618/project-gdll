@@ -73,7 +73,11 @@ All pieces use the original skeleton palette, so bone IDs remain stable.
 Corpses retain the selected separation independently of the health subsystem.
 
 The hit physics body receives a randomized impulse along the shot ray:
-2–4 N·s for low caliber and 5–8 N·s for high caliber. Connected sections follow
+4–8 N·s for low caliber and 10–16 N·s for high caliber. Non-head parts receive
+an additional impulse of the same magnitude away from the posed pelvis center,
+using the severed physics body's center to choose the outward direction. Heads
+retain shot-direction-only launch. The two impulses add without renormalizing.
+Connected sections follow
 through their joints, so heavier detached assemblies tend to fly more slowly.
 This prototype runtime choice introduces no weapon configuration settings.
 The hit body also receives a random spin axis at 1–4 radians/second. Angular

@@ -16,10 +16,15 @@ std::mt19937& severRandom() {
     return random;
 }
 }
-glm::vec3 zombieSeverImpulse(ShotCaliber caliber, glm::vec3 direction) {
-    std::uniform_real_distribution<float> magnitude(caliber == ShotCaliber::high ? 5.0f : 2.0f,
-                                                 caliber == ShotCaliber::high ? 8.0f : 4.0f);
-    return direction * magnitude(severRandom());
+glm::vec3 zombieSeverImpulse(ShotCaliber caliber, glm::vec3 direction, RagdollPart part, glm::vec3 offset) {
+    std::uniform_real_distribution<float> magnitude(caliber == ShotCaliber::high ? 10.0f : 4.0f,
+                                                 caliber == ShotCaliber::high ? 16.0f : 8.0f);
+    const float strength = magnitude(severRandom());
+    auto impulse = direction * strength;
+    const float distance = glm::length(offset);
+    if (part != RagdollPart::head && distance > 1e-5f)
+        impulse += offset * (strength / distance);
+    return impulse;
 }
 glm::vec3 zombieSeverSpin() {
     std::uniform_real_distribution<float> unit(0, 1), speed(1, 4);

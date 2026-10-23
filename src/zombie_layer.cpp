@@ -152,7 +152,7 @@ bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animat
     if (occlusion && !occlusion->lineOfSight(origin, origin + direction * hit->distance)) return false;
     if (hit->joint >= 0)
         activateRagdoll(hit->zombie, std::move(selectedPose), direction * 4.0f, animationSeconds,
-                        hit->joint, zombieSeverImpulse(caliber, direction));
+                        hit->joint, caliber);
     else if (damage_.hit(hit->zombie, caliber, hit->headshot) == 0)
         activateRagdoll(hit->zombie, std::move(selectedPose), direction * 4.0f, animationSeconds);
     return true;
@@ -177,7 +177,7 @@ std::size_t ZombieLayer::explode(glm::vec3 origin, float radius, double animatio
     return killed;
 }
 void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> selectedPose, glm::vec3 velocity,
-                                double animationSeconds, int severedJoint, glm::vec3 severImpulse) {
+                                double animationSeconds, int severedJoint, ShotCaliber caliber) {
     if (!physics_) physics_ = std::make_unique<Physics>();
     auto& instance = instances[selected];
     if (navigation_) navigation_->reset(selected);
@@ -207,6 +207,9 @@ void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> s
     instance.severedJoint = severedJoint;
     if (severedJoint >= 0) {
         const auto part = dismembermentAssets.at(instance.asset).joints.at(std::size_t(severedJoint)).part;
+        const auto bodies = physics_->world.bodyTransforms(instance.ragdollHandle);
+        const auto outward = glm::vec3(bodies[std::size_t(part)][3] - bodies[std::size_t(RagdollPart::pelvis)][3]);
+        const auto severImpulse = zombieSeverImpulse(caliber, glm::normalize(velocity), part, outward);
         physics_->world.sever(instance.ragdollHandle, part);
         physics_->world.applyImpulse(instance.ragdollHandle, part, severImpulse);
         physics_->world.addAngularVelocity(instance.ragdollHandle, part, zombieSeverSpin());
