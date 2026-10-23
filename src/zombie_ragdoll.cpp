@@ -202,10 +202,26 @@ public:
         ++revision_;
     }
 
+    void addAngularVelocity(Part part, glm::vec3 velocity) {
+        const auto body = bodies_[part];
+        const auto current = b3Body_GetAngularVelocity(body);
+        b3Body_SetAngularVelocity(body, {current.x + velocity.x, current.y + velocity.y, current.z + velocity.z});
+        b3Body_SetAwake(body, true);
+        ++revision_;
+    }
+
     void sever(Part child) {
         if (child <= pelvis || child >= partCount) throw std::invalid_argument("Invalid severed ragdoll joint");
         auto& joint = joints_[child];
-        if (b3Joint_IsValid(joint)) { b3DestroyJoint(joint, true); joint = b3_nullJointId; ++revision_; }
+        if (b3Joint_IsValid(joint)) {
+            b3DestroyJoint(joint, true);
+            joint = b3_nullJointId;
+            // Light pieces can leave the local floor before sliding/rolling
+            // friction stops them. Drag limits travel without changing launch
+            // impulse or adding velocity to the whole detached assembly.
+            b3Body_SetLinearDamping(bodies_[child], 1.5f);
+            ++revision_;
+        }
         for (const auto body : bodies_) b3Body_SetAwake(body, true);
     }
 
@@ -261,6 +277,9 @@ private:
         shapeDef.filter.categoryBits = ordinaryBodyCategory;
         shapeDef.density = mass / (pi * radius * radius * (2 * halfLength) + (4.0f / 3.0f) * pi * radius * radius * radius);
         shapeDef.baseMaterial.friction = 0.6f;
+        // Sliding friction alone cannot stop spheres/capsules rolling. Apply
+        // contact resistance so detached pieces settle without damping air spin.
+        shapeDef.baseMaterial.rollingResistance = 0.2f;
         shapeDef.filter.groupIndex = collisionGroup;
         if (halfLength > 1e-5f) {
             const b3Capsule capsule{{0, -halfLength, 0}, {0, halfLength, 0}, radius};
@@ -424,6 +443,13 @@ void ZombieRagdollWorld::sever(std::size_t handle, RagdollPart child) {
     if (child == RagdollPart::pelvis || std::size_t(child) >= ragdollPartCount)
         throw std::invalid_argument("Invalid severed ragdoll joint");
     impl_->entries[handle].ragdoll->sever(static_cast<Part>(child));
+}
+void ZombieRagdollWorld::addAngularVelocity(std::size_t handle, RagdollPart part, glm::vec3 velocity) {
+    if (!valid(handle)) throw std::out_of_range("Invalid ragdoll handle");
+    if (std::size_t(part) >= ragdollPartCount || !std::isfinite(velocity.x) ||
+        !std::isfinite(velocity.y) || !std::isfinite(velocity.z))
+        throw std::invalid_argument("Angular velocity requires a valid part and finite vector");
+    impl_->entries[handle].ragdoll->addAngularVelocity(static_cast<Part>(part), velocity);
 }
 void ZombieRagdollWorld::destroy(std::size_t handle) {
     if (valid(handle)) impl_->entries[handle].ragdoll.reset();

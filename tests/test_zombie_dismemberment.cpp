@@ -108,10 +108,53 @@ void preparedAsset(const std::filesystem::path& path) {
                 "Prepared variant must contain visible dark-red cap triangles");
     }
 }
+void detachedSpin() {
+    for (int sample = 0; sample < 32; ++sample) {
+        const float speed = glm::length(viewer::zombieSeverSpin());
+        require(std::isfinite(speed) && speed >= .999f && speed <= 4.001f,
+                "Random spin must stay within one to four radians per second");
+    }
+    viewer::ZombieRagdollWorld control, spinning;
+    const auto a = control.create({0, 0, 0}, 0, {0, 0, 0});
+    const auto b = spinning.create({0, 0, 0}, 0, {0, 0, 0});
+    control.sever(a, viewer::RagdollPart::head); spinning.sever(b, viewer::RagdollPart::head);
+    const auto original = spinning.bodyTransforms(b);
+    spinning.addAngularVelocity(b, viewer::RagdollPart::head, {0, 4, 0});
+    require(original == spinning.bodyTransforms(b), "Adding spin must not alter the activation pose");
+    for (int i = 0; i < 24; ++i) { control.step(1.0f / 120); spinning.step(1.0f / 120); }
+    const auto still = control.bodyTransforms(a), turned = spinning.bodyTransforms(b);
+    require(glm::dot(glm::vec3(still[2][0]), glm::vec3(turned[2][0])) < .9f,
+            "The detached head must rotate under its added angular velocity");
+    require(glm::dot(glm::vec3(still[0][0]), glm::vec3(turned[0][0])) > .999f,
+            "Spin on a detached head must not rotate the remaining pelvis");
+}
+void detachedPartsSettle() {
+    for (std::size_t index = 1; index < viewer::ragdollPartCount; ++index) {
+        const auto part = static_cast<viewer::RagdollPart>(index);
+        viewer::ZombieRagdollWorld world;
+        const auto handle = world.create({}, 0, {0, 0, -4});
+        world.sever(handle, part);
+        world.applyImpulse(handle, part, {8, 0, 0});
+        world.addAngularVelocity(handle, part, {0, 0, -4});
+        for (int frame = 0; frame < 1800; ++frame) {
+            world.step(1.0f / 60);
+            const auto bodies = world.bodyTransforms(handle);
+            for (const auto& body : bodies)
+                if (body[3].y <= -.02f)
+                    throw std::runtime_error("Severed part " + std::to_string(int(part)) + " fell below the floor at frame " +
+                        std::to_string(frame) + " position " + std::to_string(body[3].x) + ", " +
+                        std::to_string(body[3].y) + ", " + std::to_string(body[3].z));
+        }
+        require(world.sleeping(handle), "Severed parts must stop rolling and let the ragdoll sleep");
+        const auto settled = world.bodyTransforms(handle);
+        for (int frame = 0; frame < 120; ++frame) world.step(1.0f / 60);
+        require(settled == world.bodyTransforms(handle), "Settled parts must stay at rest");
+    }
+}
 }
 int main(int argc, char** argv) {
     try {
-        jointHitAndCleanup(); animatedAffineColliders(); releasedConstraint();
+        jointHitAndCleanup(); animatedAffineColliders(); releasedConstraint(); detachedSpin(); detachedPartsSettle();
         if (argc > 1) preparedAsset(argv[1]);
         std::cout << "Joint dismemberment tests passed\n"; return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

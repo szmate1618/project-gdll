@@ -10,11 +10,23 @@
 #include <stdexcept>
 
 namespace viewer {
-glm::vec3 zombieSeverImpulse(ShotCaliber caliber, glm::vec3 direction) {
+namespace {
+std::mt19937& severRandom() {
     thread_local std::mt19937 random(std::random_device{}());
-    std::uniform_real_distribution<float> speed(caliber == ShotCaliber::high ? 5.0f : 2.0f,
+    return random;
+}
+}
+glm::vec3 zombieSeverImpulse(ShotCaliber caliber, glm::vec3 direction) {
+    std::uniform_real_distribution<float> magnitude(caliber == ShotCaliber::high ? 5.0f : 2.0f,
                                                  caliber == ShotCaliber::high ? 8.0f : 4.0f);
-    return direction * speed(random);
+    return direction * magnitude(severRandom());
+}
+glm::vec3 zombieSeverSpin() {
+    std::uniform_real_distribution<float> unit(0, 1), speed(1, 4);
+    const float y = 2 * unit(severRandom()) - 1;
+    const float angle = 6.28318530718f * unit(severRandom());
+    const float radius = std::sqrt(std::max(0.0f, 1 - y * y));
+    return glm::vec3(radius * std::cos(angle), y, radius * std::sin(angle)) * speed(severRandom());
 }
 namespace {
 void validateRig(const AnimatedModel& base, const AnimatedModel& mesh) {

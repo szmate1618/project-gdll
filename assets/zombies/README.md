@@ -76,6 +76,13 @@ The hit physics body receives a randomized impulse along the shot ray:
 2–4 N·s for low caliber and 5–8 N·s for high caliber. Connected sections follow
 through their joints, so heavier detached assemblies tend to fly more slowly.
 This prototype runtime choice introduces no weapon configuration settings.
+The hit body also receives a random spin axis at 1–4 radians/second. Angular
+velocity is added only to that body; connected detached sections respond through
+their remaining physics joints.
+Ragdoll colliders have rolling resistance so spheres and capsules settle after
+ground contact. The severed hit body also has linear drag (1.5/s), limiting how
+far light pieces travel on the existing local artificial floor. Launch impulse
+and airborne spin are unchanged.
 
 The prepared GLBs live locally under `models/severed/`, with content-addressed
 filenames. Keep that directory with the original models and companion JSONs.

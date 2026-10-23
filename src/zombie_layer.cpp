@@ -201,6 +201,7 @@ void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> s
         const auto part = dismembermentAssets.at(instance.asset).joints.at(std::size_t(severedJoint)).part;
         physics_->world.sever(instance.ragdollHandle, part);
         physics_->world.applyImpulse(instance.ragdollHandle, part, severImpulse);
+        physics_->world.addAngularVelocity(instance.ragdollHandle, part, zombieSeverSpin());
     }
     damage_.remove(selected);
     instance.physicsRagdoll = true;

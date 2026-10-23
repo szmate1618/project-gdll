@@ -900,8 +900,12 @@ separation mesh with dark red caps, and releases the matching ragdoll constraint
 No triangle ray test or runtime mesh cutting is used. The hit physics body
 receives a random impulse along the shot direction: 2–4 N·s for low caliber or
 5–8 N·s for high caliber. Distal sections follow through their joints, so larger
-assemblies tend to move more slowly. The remaining body and detached pieces use the original shared
-bone palette and physics bodies. Custom assets without these definitions keep
+assemblies tend to move more slowly. The hit body also gets a random spin axis
+at 1–4 radians/second; connected sections respond through their remaining joints.
+Rolling resistance slows the capsule/sphere colliders on contact, and linear
+drag of 1.5/s on the severed hit body limits travel across its local floor.
+The remaining body and detached pieces use the original shared bone palette
+and physics bodies. Custom assets without these definitions keep
 the body/head damage path. See [prepared zombie assets](../assets/zombies/README.md#joint-hits-and-prepared-severed-meshes).
 Box3D then simulates an 11-body capsule/sphere ragdoll with
 constrained ball and hinge joints. Idle, walking, and running instances use shared

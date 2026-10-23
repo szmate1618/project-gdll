@@ -45,6 +45,8 @@ public:
     // stale. Translation preserves the handoff reference; removal keeps IDs stable.
     void translate(std::size_t handle, glm::vec3 displacement);
     void applyImpulse(std::size_t handle, RagdollPart part, glm::vec3 impulse);
+    // Add world-space angular velocity (radians/second) to this body only.
+    void addAngularVelocity(std::size_t handle, RagdollPart part, glm::vec3 velocity);
     void sever(std::size_t handle, RagdollPart child);
     void destroy(std::size_t handle);
     [[nodiscard]] glm::mat4 rootTransform(std::size_t handle) const;
