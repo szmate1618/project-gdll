@@ -1,6 +1,7 @@
 #include "renderer.hpp"
 #include "door_layer.hpp"
 #include "rain_renderer.hpp"
+#include "blood_mist_renderer.hpp"
 #include "shader_program.hpp"
 
 #include <algorithm>
@@ -233,6 +234,7 @@ void Renderer::releaseModel(ModelGPU& model) noexcept {
 }
 
 void Renderer::release() noexcept {
+    bloodMist_.reset();
     rain_.reset();
     releaseZombies();
     releaseModel(model_);
@@ -417,6 +419,13 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     drawTorsoContents(projection * view);
     drawGrenades(projection * view);
     if (drawOpaque) drawOpaque();
+    if (zombieSource_) {
+        auto bursts = zombieSource_->bloodMist().sample(animationSeconds);
+        if (!bursts.empty()) {
+            if (!bloodMist_) bloodMist_ = std::make_unique<BloodMistRenderer>(shaderDirectory_);
+            bloodMist_->draw(camera,float(width_)/float(height_),std::move(bursts),lighting.unlitColor);
+        }
+    }
     if (!transparentScene_.empty()) {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

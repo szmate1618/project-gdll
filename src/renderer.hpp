@@ -36,6 +36,7 @@
 namespace viewer {
 
 class RainRenderer;
+class BloodMistRenderer;
 class GpuTimer;
 class DoorLayer;
 class BoxLayer;
@@ -410,6 +411,7 @@ private:
     std::size_t zombieCount_ = 0, zombieVisibleCount_ = 0, zombieDrawCalls_ = 0;
     Material fallback_;
     std::unique_ptr<RainRenderer> rain_;
+    std::unique_ptr<BloodMistRenderer> bloodMist_;
     bool rainEnabled_ = false;
 };
 

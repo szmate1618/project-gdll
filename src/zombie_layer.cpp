@@ -155,11 +155,13 @@ bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animat
     const auto hit = findShotTarget(origin, direction, animationSeconds, selectedPose);
     if (!hit) return false;
     if (occlusion && !occlusion->lineOfSight(origin, origin + direction * hit->distance)) return false;
+    bool openedTorso = false;
     if (hit->torso) {
         const auto& instance = instances[hit->zombie];
         const auto& asset = assets[instance.asset];
         const auto& geometry = torsoGeometry_[instance.asset];
         if (wounds_.hit(hit->zombie, asset, geometry, instance, selectedPose, origin + direction * hit->distance)) {
+            openedTorso = true;
             if (!physics_) physics_ = std::make_unique<Physics>();
             const auto frame = instance.transform * selectedPose[geometry.bone] *
                 glm::inverse(asset.skeleton[geometry.bone].referenceWorld) * geometry.referenceFrame;
@@ -172,6 +174,9 @@ bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animat
                         hit->joint, caliber);
     else if (damage_.hit(hit->zombie, caliber, hit->headshot) == 0)
         activateRagdoll(hit->zombie, std::move(selectedPose), direction * 4.0f, animationSeconds);
+    const auto mistSize = openedTorso ? BloodMistSize::large : hit->joint >= 0 ? BloodMistSize::medium : BloodMistSize::small;
+    // Offset slightly toward the incoming bullet so the billboard clears the surface.
+    bloodMist_.emit(origin+direction*std::max(0.0f,hit->distance-.025f),mistSize,animationSeconds);
     return true;
 }
 std::size_t ZombieLayer::explode(glm::vec3 origin, float radius, double animationSeconds, const CollisionWorld& world) {

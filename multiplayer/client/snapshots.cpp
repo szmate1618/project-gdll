@@ -93,6 +93,7 @@ void Snapshots::apply(Scene& scene, double now) {
     for (const auto& z : a.zombies) previous.at(z.id) = &z;
     for (const auto& z : b.zombies) current.at(z.id) = &z;
     scene.zombies.setReplicatedTorsoContents(b.torsoContents);
+    scene.zombies.setReplicatedBloodMist(b.bloodMist,double(b.tick)/60);
     for (std::size_t id = 0; id < scene.zombies.instances.size(); ++id) {
         auto& instance = scene.zombies.instances[id];
         const auto* z = current[id];

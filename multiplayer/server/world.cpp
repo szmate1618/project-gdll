@@ -167,6 +167,7 @@ Snapshot World::snapshot(std::uint32_t id) {
     Snapshot s; s.tick = tick_;
     s.grenades = scene_.grenades->poses();
     s.explosions = scene_.grenades->explosions(viewer::SimulationClock::instance().seconds());
+    s.bloodMist = scene_.zombies.bloodMist().recent(viewer::SimulationClock::instance().seconds());
     for (const auto& [playerId, player] : players_) {
         const auto& weapon = player.weapons.equipped();
         s.players.push_back({playerId, player.resolved, player.controller.movementState(),

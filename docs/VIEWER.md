@@ -954,6 +954,17 @@ its cavity, objects, wound record and GPU mask slot. Unwounded actors do not
 create these extra physics bodies. Multiplayer snapshots carry packed vertex
 masks and authoritative placeholder poses; clients do not simulate the contents.
 
+Accepted bullet hits emit one camera-facing blood-mist quad: ordinary hits use
+an 18 cm burst, dismemberment uses 35 cm, and shots that open more torso geometry
+use 55 cm. The quad expands slightly and fades over 0.2 seconds. All sizes share
+one small cloud-mask texture generated at first use, with per-hit rotation and
+an ambient-tinted dark red color. A bounded 128-event history feeds one sorted,
+instanced draw with depth testing, alpha blending and no depth writes. There is
+no particle physics, shadow casting or per-burst lighting pass. Misses and
+occluded shots emit nothing; shotgun pellets retain separate hit bursts.
+Multiplayer carries event IDs, positions, sizes and ages, retaining one second
+of history to cover interpolation and packet loss without restarting the fade.
+
 Prepared characters also load `NAME.hitboxes.json` beside their original GLB.
 These spherical colliders follow the authored waist, neck, shoulders, elbows,
 hips and knees. A joint hit overrides the ordinary damage volumes on

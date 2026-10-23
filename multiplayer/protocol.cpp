@@ -145,6 +145,15 @@ void payload(Wire& w, Snapshot& s) {
     uniqueIds(s.players); uniqueIds(s.zombies); uniqueIds(s.doors); uniqueIds(s.boxes);
     uniqueIds(s.grenades); uniqueIds(s.explosions);
     w.list(s.torsoContents, maxZombies*3, [&](glm::mat4& transform) { w.matrix(transform); });
+    w.list(s.bloodMist, viewer::BloodMist::capacity, [&](viewer::BloodMistBurst& burst) {
+        w.integer(burst.id); w.vector(burst.position); w.number(burst.age);
+        auto size = static_cast<std::uint8_t>(burst.size);
+        w.integer(size);
+        if (!burst.id || size > 2 || burst.age < 0 || burst.age > viewer::BloodMist::historySeconds)
+            throw std::runtime_error("Invalid blood mist event");
+        burst.size = static_cast<viewer::BloodMistSize>(size);
+    });
+    uniqueIds(s.bloodMist);
 }
 void payload(Wire& w, CorpsePose& pose) {
     w.integer(pose.id); w.integer(pose.asset); w.integer(pose.version);

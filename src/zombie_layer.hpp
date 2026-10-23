@@ -11,6 +11,7 @@
 #include "zombie_dismemberment.hpp"
 #include "zombie_render_updates.hpp"
 #include "zombie_wounds.hpp"
+#include "blood_mist.hpp"
 
 #include <memory>
 #include <optional>
@@ -95,6 +96,10 @@ struct ZombieLayer {
                             const CollisionWorld& world, ShotCaliber caliber = ShotCaliber::low);
     const ZombieDamage& damage() const { return damage_; }
     const ZombieWounds& wounds() const { return wounds_; }
+    const BloodMist& bloodMist() const { return bloodMist_; }
+    void setReplicatedBloodMist(const std::vector<BloodMistBurst>& bursts, double snapshotSeconds) {
+        bloodMist_.replace(bursts,snapshotSeconds);
+    }
     // Sparse wounded actors only. Call before advancing the shared physics world.
     void prepareTorsoPhysics(float seconds, double animationSeconds, PhysicsScene* scene = nullptr);
     std::vector<glm::mat4> torsoContents() const;
@@ -169,6 +174,7 @@ private:
                    const CollisionWorld* occlusion, ShotCaliber caliber);
     ZombieDamage damage_;
     ZombieWounds wounds_;
+    BloodMist bloodMist_;
     std::vector<ZombieTorsoGeometry> torsoGeometry_;
     std::optional<std::vector<glm::mat4>> replicatedTorsoContents_;
     void updateBehaviorImpl(float seconds, const ZombiePlayer& player, const CollisionWorld& world,

@@ -179,7 +179,7 @@ and data URIs are supported. Zombie assets may have at most 128 skeleton nodes
 (including non-joint scene nodes); incompatible rigs fail before hosting.
 Weapon definitions and starting inventory are loaded once per scene and copied
 for each joining player, so changing files cannot change a running session.
-The current wire protocol is version 7; rebuild both client and server together.
+The current wire protocol is version 8; rebuild both client and server together.
 Snapshots include persistent torso wound masks and authoritative loose torso
 contents. Clients render these without running their own cavity physics.
 

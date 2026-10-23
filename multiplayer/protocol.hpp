@@ -2,6 +2,7 @@
 
 #include "fps_controller.hpp"
 #include "grenades.hpp"
+#include "blood_mist.hpp"
 #include <glm/gtc/quaternion.hpp>
 #include <cstdint>
 #include <string>
@@ -13,7 +14,7 @@ constexpr float tickSeconds = 1.0f / 60;
 constexpr std::size_t maxPlayers = 8, maxZombies = 1024, maxVisibleZombies = 256;
 constexpr std::size_t maxBoxes = 512, maxDoors = 4096, maxBones = 128;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 7; // Persistent torso wounds and loose cavity contents.
+constexpr std::uint32_t protocolVersion = 8; // Short-lived blood mist impact events.
 
 struct Hello { std::string fingerprint; };
 struct Welcome { std::uint32_t player = 0; };
@@ -81,6 +82,7 @@ struct Snapshot {
     std::vector<viewer::GrenadePose> grenades;
     std::vector<viewer::GrenadeExplosion> explosions;
     std::vector<glm::mat4> torsoContents;
+    std::vector<viewer::BloodMistBurst> bloodMist{};
 };
 using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment, CorpsePose, PoseAck>;
 std::vector<std::uint8_t> encode(const Message& message);
