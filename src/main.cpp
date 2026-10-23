@@ -1237,6 +1237,7 @@ int run(const Options& options) {
             muzzleModelPosition = app.weapons.equipped().config.muzzlePosition;
             muzzleFlash.fire(simulationClock.seconds(), {});
         }
+        if (zombies) zombies->updateBloodEffects(app.displayedAnimationSeconds);
         const auto viewCamera = app.weaponMotion.aimCamera(app.rig.camera(), app.weapons.slot(),
             simulationClock.seconds(), app.interaction.mode() == viewer::ControlMode::Combat && app.weapons.equipped().owned);
         auto flash = muzzleFlash.light(simulationClock.seconds());

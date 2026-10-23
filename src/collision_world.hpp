@@ -90,6 +90,9 @@ public:
     // terrainOnly, ignore props and buildings for terrain-based placement.
     std::optional<GroundHit> groundAt(float x, float z, float minY, float maxY,
                                      bool terrainOnly = false) const;
+    // Static floor/terrain only, including exposed foundation caps. Decorative
+    // effects must not attach their cached floor plane to a movable box.
+    std::optional<GroundHit> staticGroundAt(float x, float z, float minY, float maxY) const;
     // Walking also supports the exposed upper side of generated foundation
     // bottom caps. Other downward faces (ceilings/roofs) remain excluded.
     // Callers bound maxY by their step height and check slope/body clearance.
@@ -129,7 +132,8 @@ public:
 
 private:
     std::optional<GroundHit> queryGround(float x, float z, float minY, float maxY,
-                                        bool terrainOnly, bool foundationCaps, WalkingGroundCache* cache = nullptr) const;
+                                        bool terrainOnly, bool foundationCaps, WalkingGroundCache* cache = nullptr,
+                                        bool includeBoxes = true) const;
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

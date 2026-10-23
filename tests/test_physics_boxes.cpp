@@ -37,6 +37,7 @@ void supportAndJump() {
     const auto ground = f.world.groundAt(0, 0, 0, 2);
     require(ground && ground->height > .4f, "Ordinary support query must select the crate above terrain");
     require(std::abs(f.world.groundAt(0, 0, -1, 2, true)->height) < .001f, "Terrain-only placement must ignore props");
+    require(std::abs(f.world.staticGroundAt(0,0,-1,2)->height)<.001f, "Cached blood floors must ignore movable crates");
     const auto queryRevision = f.boxes.revision();
     for (int i = 0; i < 60; ++i) {
         f.world.contacts({.5f, 0, 0}, .3f, 1.8f);

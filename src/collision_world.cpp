@@ -569,6 +569,10 @@ std::optional<GroundHit> CollisionWorld::groundAt(float x, float z, float minY, 
     return queryGround(x, z, minY, maxY, terrainOnly, false);
 }
 
+std::optional<GroundHit> CollisionWorld::staticGroundAt(float x, float z, float minY, float maxY) const {
+    return queryGround(x,z,minY,maxY,false,true,nullptr,false);
+}
+
 std::optional<GroundHit> CollisionWorld::walkingGroundAt(float x, float z, float minY, float maxY,
                                                            WalkingGroundCache* cache) const {
     return queryGround(x, z, minY, maxY, false, true, cache);
@@ -576,7 +580,7 @@ std::optional<GroundHit> CollisionWorld::walkingGroundAt(float x, float z, float
 
 std::optional<GroundHit> CollisionWorld::queryGround(float x, float z, float minY, float maxY,
                                                     bool terrainOnly, bool foundationCaps,
-                                                    WalkingGroundCache* cache) const {
+                                                    WalkingGroundCache* cache, bool includeBoxes) const {
     zombie_profile::Timer timer(zombie_profile::Stage::ground);
     if (!std::isfinite(x) || !std::isfinite(z) || !std::isfinite(minY) || !std::isfinite(maxY) || minY > maxY) return std::nullopt;
     Bounds region; region.include({x - epsilon, minY, z - epsilon}); region.include({x + epsilon, maxY, z + epsilon});
@@ -619,7 +623,7 @@ std::optional<GroundHit> CollisionWorld::queryGround(float x, float z, float min
             }
         } else impl_->query(region, consider);
     } else impl_->query(region, consider);
-    if (!terrainOnly && impl_->boxes) {
+    if (includeBoxes && !terrainOnly && impl_->boxes) {
         const auto box = impl_->boxes->groundAt(x, z, minY, maxY);
         if (box && (!result || box->height > result->height)) result = box;
     }

@@ -177,8 +177,10 @@ bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animat
     const auto mistSize = openedTorso ? BloodMistSize::large : hit->joint >= 0 ? BloodMistSize::medium : BloodMistSize::small;
     // Offset slightly toward the incoming bullet so the billboard clears the surface.
     bloodMist_.emit(origin+direction*std::max(0.0f,hit->distance-.025f),mistSize,animationSeconds);
+    emitBloodParticles(*hit,origin+direction*hit->distance,direction,animationSeconds,occlusion);
     return true;
 }
+
 std::size_t ZombieLayer::explode(glm::vec3 origin, float radius, double animationSeconds, const CollisionWorld& world) {
     if (!finite(origin) || !std::isfinite(radius) || radius <= 0) return 0;
     std::vector<std::size_t> ids;

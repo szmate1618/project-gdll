@@ -965,6 +965,25 @@ occluded shots emit nothing; shotgun pellets retain separate hit bursts.
 Multiplayer carries event IDs, positions, sizes and ages, retaining one second
 of history to cover interpolation and packet loss without restarting the fade.
 
+The standalone viewer also emits ten small ballistic blood droplets per hit.
+Dismemberment activates a wound-attached emitter at 60 droplets/second for one
+second. The fixed pools hold 1,024 droplets, 16 emitters and 256 floor stains;
+full particle/emitter pools skip excess emission, and stains replace the oldest
+slots. Particle and emitter updates use no heap allocations or physics bodies.
+Launch position, velocity and age drive gravity in the vertex shader. Droplets,
+stains and the original mist share a texture and a sorted instanced draw;
+render scratch storage and the instance buffer have fixed capacity.
+
+Each hit queries static ground/floor once, excluding movable boxes, and caches
+a local plane. Predicted landings retire droplets and leave randomly rotated
+splats aligned to that plane, offset 8 mm to reduce depth fighting. Stains fade
+over their final three seconds and expire after twenty seconds. This deliberately
+approximates uneven terrain, stairs and ledges; spray ignores walls and moving
+objects. Emitters retain their initial floor plane while following the ragdoll.
+There are no wall stains, moving-object attachments or blood shadow passes.
+The new droplets/emitters/stains are local to the standalone viewer; multiplayer
+continues to replicate the existing mist events without a protocol change.
+
 Prepared characters also load `NAME.hitboxes.json` beside their original GLB.
 These spherical colliders follow the authored waist, neck, shoulders, elbows,
 hips and knees. A joint hit overrides the ordinary damage volumes on

@@ -38,7 +38,6 @@ struct GLState {
         glBlendEquationSeparate(GLenum(equationRgb),GLenum(equationAlpha));
     }
 };
-struct Instance { glm::vec4 centerSize; glm::vec2 rotationOpacity; };
 
 // Generated once: a soft, irregular cloud mask shared by every burst size.
 std::array<std::uint8_t,128*128> mistTexture() {
@@ -67,12 +66,18 @@ BloodMistRenderer::BloodMistRenderer(const std::filesystem::path& shaders) {
         textureLocation_=glGetUniformLocation(program_,"uBloodMask"); color_=glGetUniformLocation(program_,"uColor");
         glGenVertexArrays(1,&vao_); glGenBuffers(1,&instances_);
         glBindVertexArray(vao_); glBindBuffer(GL_ARRAY_BUFFER,instances_);
-        glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(BloodMist::capacity*sizeof(Instance)),nullptr,GL_STREAM_DRAW);
+        glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(capacity*sizeof(Instance)),nullptr,GL_STREAM_DRAW);
         glEnableVertexAttribArray(0); glVertexAttribPointer(0,4,GL_FLOAT,GL_FALSE,sizeof(Instance),nullptr);
         glVertexAttribDivisor(0,1);
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,sizeof(Instance),reinterpret_cast<const void*>(offsetof(Instance,rotationOpacity)));
         glVertexAttribDivisor(1,1);
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2,4,GL_FLOAT,GL_FALSE,sizeof(Instance),reinterpret_cast<const void*>(offsetof(Instance,velocityAge)));
+        glVertexAttribDivisor(2,1);
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3,4,GL_FLOAT,GL_FALSE,sizeof(Instance),reinterpret_cast<const void*>(offsetof(Instance,normalKind)));
+        glVertexAttribDivisor(3,1);
         glGenTextures(1,&texture_); glBindTexture(GL_TEXTURE_2D,texture_);
         const auto pixels=mistTexture();
         glTexImage2D(GL_TEXTURE_2D,0,GL_R8,128,128,0,GL_RED,GL_UNSIGNED_BYTE,pixels.data());
@@ -87,25 +92,44 @@ void BloodMistRenderer::release() noexcept {
     glDeleteTextures(1,&texture_); glDeleteBuffers(1,&instances_); glDeleteVertexArrays(1,&vao_);
     if (program_) glDeleteProgram(program_);
 }
-void BloodMistRenderer::draw(const Camera& camera, float aspect, std::vector<BloodMistBurst> bursts, glm::vec3 ambient) {
-    if (bursts.empty()) return;
+void BloodMistRenderer::draw(const Camera& camera, float aspect, const std::vector<BloodMistBurst>& bursts, glm::vec3 ambient,
+                             const BloodParticles* particles, double seconds) {
     const auto view=camera.view(), projection=camera.projection(aspect);
     const Frustum frustum(projection*view);
     const auto eye=camera.position();
-    std::sort(bursts.begin(),bursts.end(),[&](const auto& a,const auto& b) {
-        return glm::dot(a.position-eye,a.position-eye)>glm::dot(b.position-eye,b.position-eye);
-    });
-    std::vector<Instance> instances;
+    std::size_t count = 0;
+    const auto append = [&](glm::vec3 point, float size, glm::vec2 appearance, glm::vec4 motion,
+                            glm::vec4 normalKind, glm::vec3 current) {
+        if (count==capacity || !frustum.intersects(current-glm::vec3(size*2),current+glm::vec3(size*2))) return;
+        scratch_[count++] = {glm::vec4(point,size),appearance,motion,normalKind,glm::dot(current-eye,current-eye)};
+    };
     for (const auto& burst : bursts) {
         if (burst.age<0 || burst.age>=BloodMist::duration) continue;
         const float t=burst.age/BloodMist::duration;
         const float width=burst.size==BloodMistSize::small ? .18f : burst.size==BloodMistSize::medium ? .35f : .55f;
         const float size=width*(.7f+.45f*t);
-        if (!frustum.intersects(burst.position-glm::vec3(size),burst.position+glm::vec3(size))) continue;
         const float angle=float((burst.id*2654435761u)%65536)*(6.28318530718f/65536);
-        instances.push_back({glm::vec4(burst.position,size),{angle,.85f*(1-t)*(1-t)}});
+        append(burst.position,size,{angle,.85f*(1-t)*(1-t)},glm::vec4(0),glm::vec4(0),burst.position);
     }
-    if (instances.empty()) return;
+    if (particles) {
+        for (const auto& p : particles->particles()) {
+            const float age = float(seconds-p.born);
+            if (p.lifetime<=0 || age<0 || age>=p.lifetime) continue;
+            // Current centre is used only for sorting/culling; the GPU derives
+            // every vertex from immutable launch data rather than a CPU pose.
+            const auto point = p.start+p.velocity*age-glm::vec3(0,.5f*BloodParticles::gravity*age*age,0);
+            const float fade = std::min(1.0f,(p.lifetime-age)*10);
+            append(p.start,p.size,{p.angle,fade},glm::vec4(p.velocity,age),{0,0,0,1},point);
+        }
+        for (const auto& s : particles->stains()) {
+            const float age = float(seconds-s.born);
+            if (s.size<=0 || age<0 || age>=BloodParticles::stainDuration) continue;
+            const float fade = .85f*std::min(1.0f,(BloodParticles::stainDuration-age)/3);
+            append(s.point,s.size,{s.angle,fade},glm::vec4(0),glm::vec4(s.normal,2),s.point);
+        }
+    }
+    if (!count) return;
+    std::sort(scratch_.begin(),scratch_.begin()+count,[](const auto& a,const auto& b) { return a.distance>b.distance; });
     const GLState state;
     glUseProgram(program_);
     glUniformMatrix4fv(view_,1,GL_FALSE,glm::value_ptr(view));
@@ -117,7 +141,7 @@ void BloodMistRenderer::draw(const Camera& camera, float aspect, std::vector<Blo
     glBlendEquation(GL_FUNC_ADD);
     glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ZERO,GL_ONE);
     glBindVertexArray(vao_); glBindBuffer(GL_ARRAY_BUFFER,instances_);
-    glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(instances.size()*sizeof(Instance)),instances.data(),GL_STREAM_DRAW);
-    glDrawArraysInstanced(GL_TRIANGLES,0,6,GLsizei(instances.size()));
+    glBufferSubData(GL_ARRAY_BUFFER,0,GLsizeiptr(count*sizeof(Instance)),scratch_.data());
+    glDrawArraysInstanced(GL_TRIANGLES,0,6,GLsizei(count));
 }
 } // namespace viewer

@@ -12,6 +12,7 @@
 #include "zombie_render_updates.hpp"
 #include "zombie_wounds.hpp"
 #include "blood_mist.hpp"
+#include "blood_particles.hpp"
 
 #include <memory>
 #include <optional>
@@ -97,6 +98,8 @@ struct ZombieLayer {
     const ZombieDamage& damage() const { return damage_; }
     const ZombieWounds& wounds() const { return wounds_; }
     const BloodMist& bloodMist() const { return bloodMist_; }
+    const BloodParticles& bloodParticles() const { return bloodParticles_; }
+    void updateBloodEffects(double seconds); // Resolve sparse ragdoll emitters, then retire droplets.
     void setReplicatedBloodMist(const std::vector<BloodMistBurst>& bursts, double snapshotSeconds) {
         bloodMist_.replace(bursts,snapshotSeconds);
     }
@@ -168,6 +171,8 @@ struct ZombieLayer {
     const ZombieRenderUpdates& renderUpdates() const { return renderUpdates_; }
 
 private:
+    void emitBloodParticles(const ZombieShotHit& hit, glm::vec3 point, glm::vec3 direction,
+                            double seconds, const CollisionWorld* world);
     void activateRagdoll(std::size_t zombie, std::vector<glm::mat4> pose, glm::vec3 velocity, double animationSeconds,
                          int severedJoint = -1, ShotCaliber caliber = ShotCaliber::low);
     bool shootImpl(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
@@ -175,6 +180,7 @@ private:
     ZombieDamage damage_;
     ZombieWounds wounds_;
     BloodMist bloodMist_;
+    BloodParticles bloodParticles_;
     std::vector<ZombieTorsoGeometry> torsoGeometry_;
     std::optional<std::vector<glm::mat4>> replicatedTorsoContents_;
     void updateBehaviorImpl(float seconds, const ZombiePlayer& player, const CollisionWorld& world,
