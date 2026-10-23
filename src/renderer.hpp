@@ -24,6 +24,7 @@
 #include "flashlight.hpp"
 #include "muzzle_flash.hpp"
 #include "grenades.hpp"
+#include "dropped_weapons.hpp"
 #include "atmosphere.hpp"
 #include "night_lighting.hpp"
 #include "day_night.hpp"
@@ -84,6 +85,8 @@ public:
     // Refresh cached poses after physics or spawning. The source must outlive
     // this renderer; unchanged revisions retain meshes and visibility bounds.
     void updateBoxes(const BoxLayer& boxes);
+    // Shared model resources; the physics layer must outlive rendering.
+    void setDroppedWeapons(const DroppedWeapons& weapons, const std::array<Model,weaponIds.size()>& models);
     void loadGrenadeModel(const std::filesystem::path& path);
     void updateGrenades(const std::vector<GrenadePose>& poses) { grenadePoses_ = poses; }
     void updateVegetationBlasts(const std::vector<GrenadeExplosion>& explosions);
@@ -250,6 +253,9 @@ private:
     void beginTownPass(glm::vec3 eye, const glm::mat4& projection, bool sunShadow = false);
     void drawBuildingBatch(const ModelGPU& model, std::size_t batch);
     void drawBoxes(const glm::mat4& projectionView);
+    void setupInstanceMatrices(ModelGPU& model, GLuint& buffer);
+    void drawDroppedWeapons(const glm::mat4& projectionView);
+    void releaseDroppedWeapons() noexcept;
     // Returns false when a building's spatial batch was already drawn in this pass.
     bool drawTownSource(std::size_t index);
     std::vector<VisibilityBounds> uploadTrees(const TreeLayer& trees, const ForestLayer* forests);
@@ -412,6 +418,13 @@ private:
     Material fallback_;
     std::unique_ptr<RainRenderer> rain_;
     std::unique_ptr<BloodMistRenderer> bloodMist_;
+    struct DroppedModelGPU {
+        ModelGPU model;
+        std::vector<DrawInstance> draws;
+        GLuint instances = 0;
+    };
+    std::array<DroppedModelGPU,weaponIds.size()> droppedModels_;
+    const DroppedWeapons* droppedSource_ = nullptr;
     bool rainEnabled_ = false;
 };
 

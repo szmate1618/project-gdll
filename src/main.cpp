@@ -279,7 +279,7 @@ void printHelp() {
               << "Release to drop; swing and release to throw. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
               << "Combat: 1 pistol, 2 SMG, 3 shotgun, 4 sniper, 5 HE grenade; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
-              << "Left Alt release/capture mouse, wheel change speed, F toggle flashlight, Home frame model, Escape quit\n\n"
+              << "Left Alt release/capture mouse, wheel change speed, G discard weapon, F pick up weapon, L toggle flashlight, Home frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
               << "  --fps               Start in walking mode\n"
               << "  --time-of-day H     Starting hour in [0, 24), default 12 (noon)\n"
@@ -362,6 +362,7 @@ struct AppState {
     viewer::WeaponMotion weaponMotion;
     viewer::DoorLayer* doors = nullptr;
     viewer::BoxLayer* boxes = nullptr;
+    viewer::DroppedWeapons* droppedWeapons = nullptr;
     viewer::PhysicsScene* physicsScene = nullptr;
     viewer::InteriorObjects* interiors = nullptr;
     const viewer::CollisionWorld& world;
@@ -415,7 +416,17 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         if (app.weapons.reload() > 0 && app.audio) app.audio->reload(app.weapons.slot());
         std::cout << app.weapons.status() << '\n';
     } else if (key == GLFW_KEY_LEFT_ALT) captureMouse(window, !app.capture);
-    else if (key == GLFW_KEY_F) {
+    else if (key == GLFW_KEY_G && app.capture && app.droppedWeapons) {
+        if (app.droppedWeapons->discard(app.weapons,app.rig.camera(),app.world,app.playerVelocity)) {
+            while (app.rig.camera().viewMode()!=viewer::Camera::ViewMode::original) app.rig.camera().cycleViewMode();
+            std::cout << "Discarded weapon | " << app.weapons.status() << '\n';
+        }
+    } else if (key == GLFW_KEY_F && app.capture && app.droppedWeapons) {
+        if (app.droppedWeapons->pickUp(app.weapons,app.rig.camera(),app.world)) {
+            while (app.rig.camera().viewMode()!=viewer::Camera::ViewMode::original) app.rig.camera().cycleViewMode();
+            std::cout << "Picked up weapon | " << app.weapons.status() << '\n';
+        }
+    } else if (key == GLFW_KEY_L) {
         app.flashlight = !app.flashlight;
         std::cout << "Flashlight: " << (app.flashlight ? "on" : "off") << '\n';
     } else if (key == GLFW_KEY_HOME) {
@@ -461,7 +472,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     }
     if (action != GLFW_PRESS || !app.capture) return;
     if (button == GLFW_MOUSE_BUTTON_RIGHT && app.interaction.mode() == viewer::ControlMode::Combat) {
-        if (app.weapons.equipped().config.hasScope) app.rig.camera().cycleViewMode();
+        if (app.weapons.equipped().owned && app.weapons.equipped().config.hasScope) app.rig.camera().cycleViewMode();
         return;
     }
     if (button != GLFW_MOUSE_BUTTON_LEFT && button != GLFW_MOUSE_BUTTON_RIGHT) return;
@@ -498,7 +509,7 @@ void focusCallback(GLFWwindow* window, int focused) {
 
 // True only for a firearm shot that should pulse the held muzzle light.
 bool updateWeapons(AppState& app, double seconds) {
-    if (!app.capture || app.interaction.mode() != viewer::ControlMode::Combat) {
+    if (!app.capture || app.interaction.mode() != viewer::ControlMode::Combat || !app.weapons.equipped().owned) {
         app.weapons.cancelTrigger();
         return false;
     }
@@ -562,15 +573,32 @@ void inputSelfTest(GLFWwindow* window) {
     const auto originalWeapons = app.weapons;
     const bool originalFlashlight = app.flashlight;
     const auto viewBeforeFlashlight = app.rig.camera().view();
-    key(window, GLFW_KEY_F, 0, GLFW_PRESS, 0);
-    key(window, GLFW_KEY_F, 0, GLFW_REPEAT, 0);
-    key(window, GLFW_KEY_F, 0, GLFW_RELEASE, 0);
+    key(window, GLFW_KEY_L, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_L, 0, GLFW_REPEAT, 0);
+    key(window, GLFW_KEY_L, 0, GLFW_RELEASE, 0);
     if (app.flashlight == originalFlashlight || app.rig.camera().view() != viewBeforeFlashlight)
-        throw std::runtime_error("F must toggle the flashlight once without reframing the camera");
-    key(window, GLFW_KEY_F, 0, GLFW_PRESS, 0);
-    key(window, GLFW_KEY_F, 0, GLFW_RELEASE, 0);
+        throw std::runtime_error("L must toggle the flashlight once without reframing the camera");
+    key(window, GLFW_KEY_L, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_L, 0, GLFW_RELEASE, 0);
     if (app.flashlight != originalFlashlight)
-        throw std::runtime_error("A second F press must restore the flashlight");
+        throw std::runtime_error("A second L press must restore the flashlight");
+    if (app.droppedWeapons) {
+        const auto before = app.droppedWeapons->count();
+        const auto middle = (app.boundsMin+app.boundsMax)*.5f;
+        app.rig.camera().setPosition({middle.x,app.boundsMax.y+5,middle.z});
+        app.rig.camera().setOrientation(-90,0);
+        key(window,GLFW_KEY_G,0,GLFW_PRESS,0);
+        key(window,GLFW_KEY_G,0,GLFW_REPEAT,0);
+        key(window,GLFW_KEY_G,0,GLFW_RELEASE,0);
+        if (app.droppedWeapons->count()!=before+1 || app.weapons.equip(originalWeapons.slot()))
+            throw std::runtime_error("G must discard one weapon and remove its inventory ownership");
+        key(window,GLFW_KEY_F,0,GLFW_PRESS,0);
+        key(window,GLFW_KEY_F,0,GLFW_RELEASE,0);
+        if (app.droppedWeapons->count()!=before || app.weapons.slot()!=originalWeapons.slot() ||
+            app.weapons.equipped().loaded!=originalWeapons.equipped().loaded || app.flashlight!=originalFlashlight)
+            throw std::runtime_error("F must recover the weapon and ammunition without toggling the flashlight");
+        app.rig.camera() = original;
+    }
     const bool wasWalking = app.rig.walking();
     app.rig.enterFreeFly();
     for (int code : {GLFW_KEY_W, GLFW_KEY_S, GLFW_KEY_A, GLFW_KEY_D, GLFW_KEY_Q, GLFW_KEY_E}) {
@@ -704,7 +732,7 @@ void inputSelfTest(GLFWwindow* window) {
     app.weapons = originalWeapons;
     if (wasWalking && !app.rig.enterWalking()) throw std::runtime_error("Failed to restore walking mode after input test");
     app.firstMouse = true;
-    std::cout << "Input self-test passed: movement, mouse capture, control modes, flashlight toggle, weapon selection/fire/reload, shot occlusion, scope, resize, Escape\n";
+    std::cout << "Input self-test passed: movement, mouse capture, control modes, flashlight toggle, weapon selection/fire/reload/discard/pickup, shot occlusion, scope, resize, Escape\n";
 }
 
 void fpsInputSelfTest(GLFWwindow* window) {
@@ -1052,9 +1080,15 @@ int run(const Options& options) {
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
               << " m/s; F1 free-fly, F2 walk, F3 collisions, WASD move, Space jump, Ctrl hold crouch/airborne tuck, "
               << (proneKeyName ? proneKeyName : "Z")
-              << " toggle prone, mouse look, Tab Combat/Interaction, F flashlight, Home frame scene, Left Alt cursor, Escape quit\n";
+              << " toggle prone, mouse look, Tab Combat/Interaction, G discard weapon, F pick up weapon, L flashlight, Home frame scene, Left Alt cursor, Escape quit\n";
+    std::array<viewer::Model,viewer::weaponIds.size()> droppedModels;
+    for (std::size_t i=0; i<droppedModels.size(); ++i)
+        droppedModels[i] = viewer::loadModel(std::filesystem::path(VIEWER_WEAPON_ASSETS)/(std::string(viewer::weaponIds[i])+".glb"));
+    viewer::DroppedWeapons droppedWeapons(physics,droppedModels);
+    app.droppedWeapons = &droppedWeapons;
     viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr,
                               zombies ? &*zombies : nullptr, forests ? &*forests : nullptr);
+    renderer.setDroppedWeapons(droppedWeapons,droppedModels);
     viewer::ReticleOverlay reticle(options.shaders);
     const auto& playerBody = app.rig.player().config();
     viewer::WeaponOverlay weaponOverlay(options.shaders, VIEWER_WEAPON_ASSETS,
@@ -1155,6 +1189,7 @@ int run(const Options& options) {
             for (const auto id : zombies->ragdollIds())
                 doors.activateNear(glm::vec3(zombies->instances[id].transform[3]));
         physicsScene.prepare(boxes);
+        droppedWeapons.prepare(physicsScene,doors);
         grenades.prepare(physicsScene, doors);
         if (zombies) zombieDoorCollision.prepare(doors, *zombies);
         if (zombies) zombies->prepareTorsoPhysics(dt, app.displayedAnimationSeconds, &physicsScene);
@@ -1203,7 +1238,7 @@ int run(const Options& options) {
             muzzleFlash.fire(simulationClock.seconds(), {});
         }
         const auto viewCamera = app.weaponMotion.aimCamera(app.rig.camera(), app.weapons.slot(),
-            simulationClock.seconds(), app.interaction.mode() == viewer::ControlMode::Combat);
+            simulationClock.seconds(), app.interaction.mode() == viewer::ControlMode::Combat && app.weapons.equipped().owned);
         auto flash = muzzleFlash.light(simulationClock.seconds());
         flash.position = weaponOverlay.muzzlePosition(muzzleSlot, muzzleModelPosition,
             app.weaponMotion.pose(muzzleSlot, simulationClock.seconds()));
@@ -1235,7 +1270,7 @@ int run(const Options& options) {
         if (app.collisionDebug)
             debug->draw(viewCamera, overlay, app.width, app.height);
         const auto& heldWeapon = app.weapons.equipped();
-        if (app.interaction.mode() == viewer::ControlMode::Combat &&
+        if (heldWeapon.owned && app.interaction.mode() == viewer::ControlMode::Combat &&
             app.rig.camera().viewMode() == viewer::Camera::ViewMode::original &&
             viewer::weaponViewVisible(heldWeapon.config, heldWeapon.loaded, simulationClock.seconds() < heldWeapon.readyAt))
             weaponOverlay.draw(app.weapons.slot(), app.width, app.height, flash,

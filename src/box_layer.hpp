@@ -20,6 +20,12 @@ struct BoxRayHit {
     float distance;
 };
 struct BoxPointState { glm::vec3 point, velocity; }; // World meters and m/s.
+struct BoxSpawnMotion {
+    glm::quat rotation{1,0,0,0};
+    glm::vec3 velocity{0}, angularVelocity{0}; // World m/s and rad/s.
+    float mass = 0; // kg; zero retains the crate mass estimate.
+    bool continuous = false;
+};
 
 // Owns dynamic untextured props in the shared Y-up, meter-based simulation.
 // Collision queries are read-only; pushing is an explicit dt-scaled action.
@@ -29,7 +35,10 @@ public:
     ~BoxLayer();
     BoxLayer(const BoxLayer&) = delete;
     BoxLayer& operator=(const BoxLayer&) = delete;
-    std::size_t add(glm::vec3 center, glm::vec3 size);
+    std::size_t add(glm::vec3 center, glm::vec3 size, const BoxSpawnMotion& motion = {});
+    // Dense removal moves the last box into this slot. Owners must update their
+    // matching records and release any grips referencing these two indices.
+    void remove(std::size_t index);
     std::size_t count() const;
     std::uint64_t revision() const;
     BoxPose pose(std::size_t index) const;

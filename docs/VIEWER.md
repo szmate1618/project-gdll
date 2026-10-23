@@ -1041,6 +1041,8 @@ idle cycles at a chosen elapsed time:
 | Right mouse button | Combat with a scoped weapon: cycle normal, 10°, and 1° fields of view; Interaction: right-hand box grab within 2 m |
 | 1 / 2 / 3 / 4 / 5 | Equip pistol / submachine gun / shotgun / sniper / HE grenade |
 | R | Reload equipped weapon from its matching reserve ammo |
+| G | Discard the equipped weapon with a fast forward throw and vertical-axis spin |
+| F | Pick up the discarded weapon under the camera ray within 2 m |
 | Shift | Free-fly: move four times faster; standing: run at 6 m/s |
 | Mouse wheel | Adjust free-fly movement speed |
 | F1 | Switch to free-fly mode |
@@ -1051,7 +1053,7 @@ idle cycles at a chosen elapsed time:
 | F3 | Toggle collision visualization |
 | Tab | Switch between Combat (default) and Interaction controls |
 | Left Alt | Release / capture the mouse |
-| F | Toggle the flashlight on/off |
+| L | Toggle the flashlight on/off |
 | Home | Frame the whole scene again in free-fly mode |
 | Escape | Close the viewer |
 
@@ -1274,6 +1276,26 @@ cursor release, focus loss, and camera/control-mode changes also clear held fire
 At most one shot fires per rendered frame; stalls do not produce catch-up bursts.
 Semi-auto clicks during cooldown are discarded. Configuration and inventory are
 read once at startup; gameplay changes live in memory and restart from the file.
+
+### Discarding and picking up weapons
+
+In the standalone viewer, **G** discards the equipped weapon with a 25 m/s
+forward launch, a small upward velocity, and a 14 rad/s spin about world Y.
+Actual player travel adds to the launch. The dropped item renders its weapon
+model and uses a box collider fitted to the model bounds, with continuous
+collision detection and the same streamed terrain/building physics as crates.
+Doors and other physics props can also stop it. A blocked spawn leaves the
+weapon in the inventory. Discarding an HE grenade creates an unprimed pickup.
+
+**F** casts the camera's forward ray against dropped weapon boxes within 2 m.
+Scenery blocks pickup. A successful pickup destroys the physics object and
+equips its weapon, preserving loaded rounds and its existing shot cooldown.
+Reserve ammunition stays with the player throughout. Already-owned weapon types
+are left in the world. Dropping selects the next owned weapon; dropping the last
+one leaves the player unarmed, without firing, reloading, or a held model.
+These actions work in either control mode while the mouse is captured.
+The flashlight toggle is **L**. Multiplayer drop/pickup input and replication
+are not included in this standalone feature.
 
 ## First-person walking
 
@@ -1647,7 +1669,7 @@ Its bright core extends 12 degrees from the viewing axis, fading to zero at
 Tree cards retain their alpha masks and bypass normal-based shading, but receive
 night dimming and the flashlight's cone/distance attenuation.
 
-Press **F** to toggle the flashlight in either control mode. It starts enabled;
+Press **L** to toggle the flashlight in either control mode. It starts enabled;
 turning it off removes the beam, its optional shadows, and its illumination of
 rain, while preserving the night palette and weapon muzzle flashes. The setting
 persists through the day/night cycle; daylight still fades the beam out normally.

@@ -31,6 +31,13 @@ struct WeaponState {
     double readyAt = 0;
 };
 enum class WeaponFireResult { none, fired, empty };
+// A transferable weapon carries its magazine and cooldown. Reserve ammo stays
+// in the player's inventory; definitions remain shared by the fixed slot ID.
+struct WeaponItem {
+    std::size_t slot = 0;
+    int loaded = 0;
+    double readyAt = 0;
+};
 
 class Weapons {
 public:
@@ -46,6 +53,8 @@ public:
     // Empty triggers report once per hold, after the normal shot cooldown.
     WeaponFireResult fireAttempt(double seconds);
     int reload(); // Instant for the prototype; returns transferred rounds.
+    std::optional<WeaponItem> discard();
+    bool pickUp(const WeaponItem& item); // Reject an already-owned weapon type.
     std::string status() const;
 private:
     std::array<WeaponState, weaponIds.size()> weapons_;

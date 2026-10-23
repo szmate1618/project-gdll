@@ -121,7 +121,7 @@ WeaponFireResult Weapons::fireAttempt(double seconds) {
     auto& weapon = weapons_[slot_];
     const bool requested = pressed_ || (held_ && weapon.config.automatic);
     pressed_ = false;
-    if (!requested || !std::isfinite(seconds) || seconds < weapon.readyAt) return WeaponFireResult::none;
+    if (!weapon.owned || !requested || !std::isfinite(seconds) || seconds < weapon.readyAt) return WeaponFireResult::none;
     if (weapon.loaded < weapon.config.ammoPerShot) {
         if (emptyClicked_) return WeaponFireResult::none;
         emptyClicked_ = true;
@@ -134,14 +134,38 @@ WeaponFireResult Weapons::fireAttempt(double seconds) {
 }
 int Weapons::reload() {
     auto& weapon = weapons_[slot_];
+    cancelTrigger();
+    if (!weapon.owned) return 0;
     const int rounds = std::min(weapon.config.magazineCapacity - weapon.loaded, weapon.reserve);
     weapon.loaded += rounds;
     weapon.reserve -= rounds;
-    cancelTrigger();
     return rounds;
+}
+std::optional<WeaponItem> Weapons::discard() {
+    auto& weapon = weapons_[slot_];
+    if (!weapon.owned) return {};
+    const WeaponItem item{slot_,weapon.loaded,weapon.readyAt};
+    weapon.owned = false;
+    weapon.loaded = 0;
+    cancelTrigger();
+    for (std::size_t offset=1; offset<weapons_.size(); ++offset) {
+        const auto next = (item.slot+offset)%weapons_.size();
+        if (weapons_[next].owned) { slot_ = next; break; }
+    }
+    return item;
+}
+bool Weapons::pickUp(const WeaponItem& item) {
+    if (item.slot>=weapons_.size() || weapons_[item.slot].owned || item.loaded<0 ||
+        item.loaded>weapons_[item.slot].config.magazineCapacity || !std::isfinite(item.readyAt)) return false;
+    auto& weapon = weapons_[item.slot];
+    weapon.owned = true;
+    weapon.loaded = item.loaded;
+    weapon.readyAt = item.readyAt;
+    return equip(item.slot);
 }
 std::string Weapons::status() const {
     const auto& weapon = equipped();
+    if (!weapon.owned) return "Unarmed";
     return weapon.config.name + " " + std::to_string(weapon.loaded) + "/" +
         std::to_string(weapon.config.magazineCapacity) + " | reserve " + std::to_string(weapon.reserve);
 }

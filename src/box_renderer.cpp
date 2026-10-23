@@ -4,6 +4,21 @@
 #include <glm/gtc/type_ptr.hpp>
 
 namespace viewer {
+void Renderer::setupInstanceMatrices(ModelGPU& model, GLuint& buffer) {
+    glGenBuffers(1,&buffer);
+    glBindBuffer(GL_ARRAY_BUFFER,buffer);
+    for (const auto& mesh : model.meshes) {
+        glBindVertexArray(mesh.vao);
+        for (GLuint column=0; column<4; ++column) {
+            glEnableVertexAttribArray(4+column);
+            glVertexAttribPointer(4+column,4,GL_FLOAT,GL_FALSE,sizeof(glm::mat4),
+                                  reinterpret_cast<const void*>(column*sizeof(glm::vec4)));
+            glVertexAttribDivisor(4+column,1);
+        }
+    }
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER,0);
+}
 void Renderer::updateBoxes(const BoxLayer& boxes) {
     if (boxSource_ == &boxes && boxRevision_ == boxes.revision()) return;
     if (!boxes.count()) {
@@ -14,17 +29,7 @@ void Renderer::updateBoxes(const BoxLayer& boxes) {
     }
     if (boxModel_.meshes.empty()) {
         uploadModel(BoxLayer::unitCube(), boxModel_);
-        glGenBuffers(1, &boxInstanceBuffer_);
-        glBindBuffer(GL_ARRAY_BUFFER, boxInstanceBuffer_);
-        glBindVertexArray(boxModel_.meshes.front().vao);
-        for (GLuint column = 0; column < 4; ++column) {
-            glEnableVertexAttribArray(4 + column);
-            glVertexAttribPointer(4 + column, 4, GL_FLOAT, GL_FALSE, sizeof(glm::mat4),
-                                  reinterpret_cast<const void*>(column * sizeof(glm::vec4)));
-            glVertexAttribDivisor(4 + column, 1);
-        }
-        glBindVertexArray(0);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        setupInstanceMatrices(boxModel_,boxInstanceBuffer_);
     }
     boxTransforms_.clear();
     std::vector<VisibilityBounds> bounds;

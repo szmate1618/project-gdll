@@ -307,8 +307,8 @@ target_include_directories(viewer_weapons PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/sr
 target_link_libraries(viewer_weapons PUBLIC glm::glm viewer_camera PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_weapons)
 
-add_library(viewer_objects STATIC src/interior_objects.cpp src/physics_scene.cpp)
-target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics)
+add_library(viewer_objects STATIC src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp)
+target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics viewer_weapons)
 viewer_warnings(viewer_objects)
 
 set(VIEWER_TEST_ASSET "${CMAKE_CURRENT_SOURCE_DIR}/assets/test.glb")
@@ -358,6 +358,7 @@ if(GD_VIEWER)
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/gpu_timer.cpp
     src/box_renderer.cpp
+    src/dropped_weapon_renderer.cpp
     src/grenade_renderer.cpp
     src/weapon_overlay.cpp
     src/building_renderer.cpp

@@ -59,22 +59,32 @@ BoxLayer::BoxLayer(std::shared_ptr<PhysicsWorld> world) : impl_(std::make_unique
 BoxLayer::~BoxLayer() = default;
 std::size_t BoxLayer::count() const { return impl_->entries.size(); }
 std::uint64_t BoxLayer::revision() const { return impl_->revision; }
-std::size_t BoxLayer::add(glm::vec3 center, glm::vec3 size) {
-    if (!finite(center) || !finite(size) || glm::any(glm::lessThan(size, glm::vec3(.1f))) ||
-        glm::any(glm::greaterThan(size, glm::vec3(4)))) throw std::invalid_argument("Invalid box dimensions or position");
+std::size_t BoxLayer::add(glm::vec3 center, glm::vec3 size, const BoxSpawnMotion& motion) {
+    if (!finite(center) || !finite(size) || glm::any(glm::lessThan(size, glm::vec3(.01f))) ||
+        glm::any(glm::greaterThan(size, glm::vec3(4))) || !finite(motion.velocity) || !finite(motion.angularVelocity) ||
+        !std::isfinite(glm::length(motion.rotation)) || std::abs(glm::length(motion.rotation)-1)>.001f ||
+        !std::isfinite(motion.mass) || motion.mass<0)
+        throw std::invalid_argument("Invalid box dimensions, position or motion");
+    const auto index = count();
+    if (index==impl_->entries.capacity()) impl_->entries.reserve(std::max(std::size_t(8),index*2));
+    auto entry = std::make_unique<Impl::Entry>(Impl::Entry{impl_.get(), {}, size*.5f, index});
     auto definition = b3DefaultBodyDef();
     definition.type = b3_dynamicBody;
     definition.position = {center.x, center.y, center.z};
+    definition.rotation = {{motion.rotation.x,motion.rotation.y,motion.rotation.z},motion.rotation.w};
+    definition.linearVelocity = vector(motion.velocity);
+    definition.angularVelocity = vector(motion.angularVelocity);
+    definition.isBullet = motion.continuous;
     definition.linearDamping = .1f;
     definition.angularDamping = .3f;
     const auto body = b3CreateBody(impl_->world->id(), &definition);
-    const auto index = count();
-    auto entry = std::make_unique<Impl::Entry>(Impl::Entry{impl_.get(), body, size * .5f, index});
+    entry->body = body;
     const auto half = entry->halfExtents;
     const auto hull = b3MakeBoxHull(half.x, half.y, half.z);
     auto shape = b3DefaultShapeDef();
     // Hollow crates/cabinets: 8–55 kg, rather than solid timber density.
-    shape.density = glm::clamp(size.x * size.y * size.z * 70.0f, 8.0f, 55.0f) / (size.x * size.y * size.z);
+    const float volume = size.x*size.y*size.z;
+    shape.density = (motion.mass>0 ? motion.mass : glm::clamp(volume*70.0f,8.0f,55.0f))/volume;
     shape.baseMaterial.friction = .55f;
     shape.filter.categoryBits = interiorBoxCategory;
     shape.filter.maskBits &= ~ragdollFloorCategory;
@@ -84,6 +94,17 @@ std::size_t BoxLayer::add(glm::vec3 center, glm::vec3 size) {
     impl_->world->trackBodyMotion(body, impl_->revision);
     ++impl_->revision;
     return index;
+}
+void BoxLayer::remove(std::size_t index) {
+    const auto body = impl_->entries.at(index)->body;
+    impl_->world->untrackBodyMotion(body);
+    b3DestroyBody(body);
+    if (index+1<count()) {
+        impl_->entries[index] = std::move(impl_->entries.back());
+        impl_->entries[index]->index = index;
+    }
+    impl_->entries.pop_back();
+    ++impl_->revision;
 }
 BoxPose BoxLayer::pose(std::size_t index) const {
     const auto& e = *impl_->entries.at(index);
