@@ -16,6 +16,7 @@ constexpr float locomotionTurnSpeed = static_cast<float>(tau / 2); // 180 degree
 
 void stopZombieLocomotion(ZombieInstance& instance) {
     instance.walking = false;
+    instance.locomotionVelocity = glm::vec3(0);
     instance.blockedAnimationSeconds = instance.animationRestartSeconds = 0;
 }
 
@@ -37,6 +38,7 @@ void applyZombieLocomotion(ZombieInstance& instance, glm::vec2 desiredVelocity,
                            const ZombieMovement& movement, float speed, float seconds) {
     const auto start = glm::vec3(instance.restRoot[3]);
     const auto feet = movement.feet;
+    instance.locomotionVelocity = seconds > 0 ? (feet - start) / seconds : glm::vec3(0);
     const float magnitude = glm::length(desiredVelocity);
     const auto direction = magnitude > 1e-8f ? desiredVelocity / magnitude : glm::vec2(0);
     const float step = magnitude * seconds;

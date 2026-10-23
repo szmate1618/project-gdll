@@ -199,6 +199,8 @@ void locomotionTransitions() {
         for (int step = 0; step < fps; ++step)
             viewer::moveZombieToward(instance, asset, {0, 0, 10}, 3, dt, blocked, 0);
         require(!instance.walking, "Sustained blockage must settle into idle");
+        require(glm::length(instance.locomotionVelocity) < 1e-4f,
+                "Blocked zombies must not retain their requested running velocity");
         const auto stopped = glm::vec3(instance.restRoot[3]);
         for (int step = 0; step < fps / 2; ++step)
             viewer::moveZombieToward(instance, asset, {0, 0, 10}, 3, dt, clear, 0);
@@ -212,6 +214,7 @@ void locomotionTransitions() {
         viewer::stopZombieLocomotion(instance);
         require(!instance.walking && instance.blockedAnimationSeconds == 0 && instance.animationRestartSeconds == 0,
                 "Explicit behavior stops must bypass the obstruction hold");
+        require(instance.locomotionVelocity == glm::vec3(0), "Explicit stops must clear travel velocity");
     }
 }
 }

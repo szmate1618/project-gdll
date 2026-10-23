@@ -35,6 +35,9 @@ struct ZombieInstance {
     bool running = false; // Select the authored run clip during pursuit.
     glm::mat4 chaseNormalization{1}; // Captured on activation; preserve asset scale/offset.
     double walkSeconds = 0; // Locomotion clip time; advances only while travelling.
+    // Actual world-space feet displacement per second after scene/crowd collision.
+    // Carried into every physics body at death, independently of clip motion.
+    glm::vec3 locomotionVelocity{0};
     // Presentation notifications only. Counters survive behavior-pool eviction;
     // timestamps let audio discard old reactions when a source enters range.
     std::uint64_t heardNoiseRevision = 0, chaseRevision = 0;
@@ -148,7 +151,7 @@ struct ZombieLayer {
     const ZombieRenderUpdates& renderUpdates() const { return renderUpdates_; }
 
 private:
-    void activateRagdoll(std::size_t zombie, std::vector<glm::mat4> pose, glm::vec3 velocity,
+    void activateRagdoll(std::size_t zombie, std::vector<glm::mat4> pose, glm::vec3 velocity, double animationSeconds,
                          int severedJoint = -1, glm::vec3 severImpulse = glm::vec3(0));
     bool shootImpl(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                    const CollisionWorld* occlusion, ShotCaliber caliber);

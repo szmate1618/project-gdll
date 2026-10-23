@@ -84,6 +84,16 @@ ground contact. The severed hit body also has linear drag (1.5/s), limiting how
 far light pieces travel on the existing local artificial floor. Launch impulse
 and airborne spin are unchanged.
 
+All humanoid ragdoll deaths also inherit a separate estimated linear velocity
+per physics body from the preceding 1/30 second of animation. This is computed
+once at death from the selected idle/walk/run clip, in world meters/second,
+capped at 20 m/s. It follows the displayed pose when available and adds to the
+shot/blast launch; detached parts inherit it before their extra impulse/spin.
+Every body also inherits the actual world-space walking/running velocity from
+the last collision-constrained movement step, including terrain height changes.
+This shared travel component is separate from the capped per-part clip motion;
+stopped or blocked zombies do not retain their requested movement speed.
+
 The prepared GLBs live locally under `models/severed/`, with content-addressed
 filenames. Keep that directory with the original models and companion JSONs.
 The existing asset packager includes the referenced meshes and definitions;

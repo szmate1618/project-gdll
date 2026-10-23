@@ -1,7 +1,10 @@
 #include "zombie_shooting_fixture.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_animation.hpp"
+#include "zombie_chase.hpp"
 #include "physics_world.hpp"
+
+#include <box3d/box3d.h>
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -429,6 +432,80 @@ void corpseMembership() {
     require(rejected && assigned.ragdollCount() == 0, "Removed corpse IDs must remain tombstones");
 }
 
+void animationMotionOnDeath(int clip, bool published, int death, bool loopStart = false, bool stationary = false) {
+    viewer::ZombieLayer layer;
+    auto asset = humanoid();
+    const auto frames = [&](float factor) {
+        std::vector<glm::mat4> result;
+        for (int frame = 0; frame < 2; ++frame)
+            for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
+                result.push_back(translation({0, 0, stationary ? 0 : frame * factor * .05f * (bone + 1)}) *
+                                 asset.skeleton[bone].referenceWorld);
+        return result;
+    };
+    asset.boneFrames = frames(1);
+    asset.walkClip = viewer::BakedAnimationClip{"walk", 1, 2, 2, frames(2)};
+    asset.runClip = viewer::BakedAnimationClip{"run", 1, 2, 4, frames(3)};
+    layer.assets.push_back(std::move(asset));
+    layer.instances.emplace_back();
+    auto& instance = layer.instances[0];
+    glm::vec3 feet(700, 3, -2600);
+    instance.restRoot = translation(feet) * glm::rotate(glm::mat4(1), glm::radians(90.f), {0, 1, 0});
+    instance.restTransform = instance.transform = instance.restRoot * glm::scale(glm::mat4(1), glm::vec3(1.25f));
+    instance.chaseNormalization = glm::inverse(instance.restRoot) * instance.restTransform;
+    const viewer::CollisionWorld collision(viewer::Model{});
+    const float travelSpeed = clip == 0 ? 0 : clip == 1 ? 1.2f : 3.f;
+    viewer::moveZombieToward(instance, layer.assets[0], feet + glm::vec3(10, 0, 0), travelSpeed, .1f, collision, 0);
+    feet = glm::vec3(instance.restRoot[3]);
+    instance.walking = clip != 0;
+    instance.running = clip == 2;
+    instance.walkSeconds = loopStart ? 0 : .25;
+    if (published) {
+        instance.displayedAnimationFrame = loopStart ? 0 : .5f;
+        instance.displayedAnimationClip = clip;
+        // A displayed locomotion clip must win over a newer simulation state.
+        instance.walking = false;
+        instance.walkSeconds = .8;
+    }
+    auto simulation = std::make_shared<viewer::PhysicsWorld>();
+    layer.attachPhysics(simulation);
+    if (death == 0)
+        require(viewer::test::shootToKill(layer, feet + glm::vec3(0, .9f, 3), {0, 0, -1}, loopStart ? 0 : .25),
+                "Motion fixture must die from ordinary health damage");
+    else if (death == 1)
+        require(layer.explode(feet + glm::vec3(0, .9f, 2), 8, loopStart ? 0 : .25, collision) == 1,
+                "Motion fixture must die from a blast");
+    else {
+        viewer::ZombieJointCollider joint;
+        joint.bone = layer.assets[0].ragdollBones[std::size_t(viewer::RagdollPart::head)];
+        joint.part = viewer::RagdollPart::head;
+        joint.radius = .1f;
+        layer.dismembermentAssets.resize(1);
+        layer.dismembermentAssets[0].joints.push_back(joint);
+        const auto pose = viewer::sampleZombiePose(layer.assets[0], instance, loopStart ? 0 : .25);
+        const auto center = glm::vec3(instance.restTransform * pose[std::size_t(joint.bone)][3]);
+        require(layer.shoot(center + glm::vec3(0, 0, 3), {0, 0, -1}, loopStart ? 0 : .25) && instance.severedJoint == 0,
+                "Motion fixture must die from dismemberment");
+    }
+    std::vector<float> velocities;
+    b3World_OverlapAABB(simulation->id(), {{690, -10, -2610}, {710, 20, -2590}}, b3DefaultQueryFilter(),
+        [](b3ShapeId shape, void* context) {
+            const auto body = b3Shape_GetBody(shape);
+            if (b3Body_GetType(body) == b3_dynamicBody)
+                static_cast<std::vector<float>*>(context)->push_back(b3Body_GetLinearVelocity(body).x);
+            return true;
+        }, &velocities);
+    std::vector<float> expected;
+    for (const auto bone : layer.assets[0].ragdollBones)
+        expected.push_back(travelSpeed + (stationary ? 0 : (loopStart ? -1 : 1) * 1.25f * (clip + 1) * .1f * (bone + 1)));
+    std::sort(expected.begin(), expected.end());
+    std::sort(velocities.begin(), velocities.end());
+    require(velocities.size() == expected.size(), "Every body must receive its own animation motion estimate");
+    for (std::size_t part = 0; part < expected.size(); ++part)
+        require(std::abs(velocities[part] - expected[part]) < .02f,
+                "Death must inherit per-body animation velocity in world meters, independently of the shot/blast");
+}
+
 } // namespace
 
 int main() {
@@ -444,6 +521,12 @@ int main() {
         corpseMembership();
         headshotFollowsDisplayedPose(false);
         headshotFollowsDisplayedPose(true);
+        for (int clip = 0; clip < 3; ++clip)
+            for (const bool published : {false, true})
+                for (int death = 0; death < 3; ++death)
+                    animationMotionOnDeath(clip, published, death);
+        animationMotionOnDeath(1, true, 0, true);
+        animationMotionOnDeath(0, false, 0, false, true);
         std::cout << "Zombie activation transition tests passed\n";
         return 0;
     } catch (const std::exception& error) {

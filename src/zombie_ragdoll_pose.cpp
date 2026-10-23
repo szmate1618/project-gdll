@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <functional>
 #include <stdexcept>
 
@@ -83,6 +84,33 @@ bool makeZombieRagdollPoses(const ZombieInstance& instance, const AnimatedModel&
         }
     }
     return true;
+}
+
+void inheritZombieRagdollMotion(const ZombieInstance& instance, const AnimatedModel& asset,
+                               const std::vector<glm::mat4>& previousPose, float seconds,
+                               ZombieRagdollWorld& world) {
+    if (previousPose.size() != asset.skeleton.size() || instance.activationPose.size() != asset.skeleton.size() ||
+        !std::isfinite(seconds) || seconds <= 0)
+        throw std::invalid_argument("Ragdoll motion requires matching poses and a positive sample interval");
+    const auto bodies = world.bodyTransforms(instance.ragdollHandle);
+    for (std::size_t part = 0; part < ragdollPartCount; ++part) {
+        const int bone = asset.ragdollBones[part];
+        if (bone < 0 || static_cast<std::size_t>(bone) >= asset.skeleton.size()) continue;
+        const auto currentBone = instance.restTransform * instance.activationPose[std::size_t(bone)];
+        // Track the same point through both poses, including rotation around
+        // the anatomical joint rather than just translation of the joint itself.
+        const auto center = bodies[part][3];
+        const auto localCenter = glm::inverse(currentBone) * center;
+        // Subtract in asset space before applying placement: large map
+        // translations must not introduce motion into a stationary pose.
+        const auto displacement = (instance.activationPose[std::size_t(bone)] - previousPose[std::size_t(bone)]) * localCenter;
+        auto velocity = glm::mat3(instance.restTransform) * glm::vec3(displacement) / seconds;
+        const float speed = glm::length(velocity);
+        if (!std::isfinite(speed)) continue;
+        constexpr float maximumSpeed = 20; // m/s; limit launches from looping clip seams.
+        if (speed > maximumSpeed) velocity *= maximumSpeed / speed;
+        if (speed > 0) world.addLinearVelocity(instance.ragdollHandle, static_cast<RagdollPart>(part), velocity);
+    }
 }
 
 void updateZombieRagdollSkin(ZombieInstance& instance, const AnimatedModel& asset,

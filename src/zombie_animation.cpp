@@ -11,7 +11,7 @@ const BakedAnimationClip* zombieAnimationClip(const AnimatedModel& asset, const 
 }
 
 std::vector<glm::mat4> sampleZombiePose(const AnimatedModel& asset, const ZombieInstance& instance,
-                                     double idleSeconds) {
+                                     double idleSeconds, float secondsOffset) {
     if (instance.displayedAnimationFrame >= 0) {
         const auto* displayedClip = instance.displayedAnimationClip == 2 && asset.runClip ? &*asset.runClip :
             instance.displayedAnimationClip == 1 && asset.walkClip ? &*asset.walkClip : nullptr;
@@ -21,9 +21,17 @@ std::vector<glm::mat4> sampleZombiePose(const AnimatedModel& asset, const Zombie
             if (!std::isfinite(instance.displayedAnimationFrame) || instance.displayedAnimationFrame >= count ||
                 frames.size() != count * asset.skeleton.size())
                 throw std::runtime_error("Invalid published zombie animation pose");
-            const auto first = static_cast<std::size_t>(instance.displayedAnimationFrame) % count;
+            float frame = instance.displayedAnimationFrame;
+            if (secondsOffset != 0) {
+                const float duration = displayedClip ? displayedClip->duration : asset.duration;
+                if (!std::isfinite(duration) || duration <= 0 || !std::isfinite(secondsOffset))
+                    throw std::runtime_error("Invalid zombie animation sample offset");
+                frame += secondsOffset / duration * count;
+                frame -= count * std::floor(frame / count);
+            }
+            const auto first = static_cast<std::size_t>(frame) % count;
             const auto second = (first + 1) % count;
-            const float fraction = instance.displayedAnimationFrame - std::floor(instance.displayedAnimationFrame);
+            const float fraction = frame - std::floor(frame);
             std::vector<glm::mat4> pose;
             for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
                 pose.push_back(frames[first * asset.skeleton.size() + bone] * (1 - fraction) +
@@ -32,6 +40,8 @@ std::vector<glm::mat4> sampleZombiePose(const AnimatedModel& asset, const Zombie
         }
     }
     const auto* clip = zombieAnimationClip(asset, instance);
-    return sampleAnimatedPose(asset, clip ? instance.walkSeconds : idleSeconds, instance.phase, clip);
+    const float duration = clip ? clip->duration : asset.duration;
+    const float phaseOffset = secondsOffset != 0 && duration > 0 ? secondsOffset / duration : 0;
+    return sampleAnimatedPose(asset, clip ? instance.walkSeconds : idleSeconds, instance.phase + phaseOffset, clip);
 }
 } // namespace viewer

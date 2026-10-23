@@ -202,6 +202,14 @@ public:
         ++revision_;
     }
 
+    void addLinearVelocity(Part part, glm::vec3 velocity) {
+        const auto body = bodies_[part];
+        const auto current = b3Body_GetLinearVelocity(body);
+        b3Body_SetLinearVelocity(body, {current.x + velocity.x, current.y + velocity.y, current.z + velocity.z});
+        b3Body_SetAwake(body, true);
+        ++revision_;
+    }
+
     void addAngularVelocity(Part part, glm::vec3 velocity) {
         const auto body = bodies_[part];
         const auto current = b3Body_GetAngularVelocity(body);
@@ -450,6 +458,13 @@ void ZombieRagdollWorld::addAngularVelocity(std::size_t handle, RagdollPart part
         !std::isfinite(velocity.y) || !std::isfinite(velocity.z))
         throw std::invalid_argument("Angular velocity requires a valid part and finite vector");
     impl_->entries[handle].ragdoll->addAngularVelocity(static_cast<Part>(part), velocity);
+}
+void ZombieRagdollWorld::addLinearVelocity(std::size_t handle, RagdollPart part, glm::vec3 velocity) {
+    if (!valid(handle)) throw std::out_of_range("Invalid ragdoll handle");
+    if (std::size_t(part) >= ragdollPartCount || !std::isfinite(velocity.x) ||
+        !std::isfinite(velocity.y) || !std::isfinite(velocity.z))
+        throw std::invalid_argument("Linear velocity requires a valid part and finite vector");
+    impl_->entries[handle].ragdoll->addLinearVelocity(static_cast<Part>(part), velocity);
 }
 void ZombieRagdollWorld::destroy(std::size_t handle) {
     if (valid(handle)) impl_->entries[handle].ragdoll.reset();

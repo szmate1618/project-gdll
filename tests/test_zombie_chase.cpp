@@ -55,11 +55,15 @@ void locomotionSpeedsAndArrival() {
     move(running, 1, {0, 0, 10}, world, 3);
     require(near(glm::vec3(walking.instances[0].restRoot[3]), {0, 0, 1.2f}), "Walk at 1.2 m/s");
     require(near(glm::vec3(running.instances[0].restRoot[3]), {0, 0, 3}), "Run at 3 m/s");
+    require(near(walking.instances[0].locomotionVelocity, {0, 0, 1.2f}) &&
+            near(running.instances[0].locomotionVelocity, {0, 0, 3}),
+            "Record actual world-space walking and running velocity");
     move(walking, 10, {2, 0, 1.2f}, world);
     require(near(glm::vec3(walking.instances[0].restRoot[3]), {2, 0, 1.2f}), "Stop without overshooting");
     require(near(glm::vec3(walking.instances[0].restRoot[2]), {1, 0, 0}), "Face the travel direction");
     move(walking, 1, {2, 0, 1.2f}, world);
     require(!walking.instances[0].walking, "Coincident target must not walk in place");
+    require(near(walking.instances[0].locomotionVelocity, {}), "Arrival must clear inherited travel velocity");
 }
 
 void terrainFollowing() {
@@ -72,6 +76,8 @@ void terrainFollowing() {
     move(layer, 1, {5, 7.5f, 0}, world);
     require(near(glm::vec3(layer.instances[0].restRoot[3]), {0, 6, 0}),
             "Follow the rendered ground triangle below roofs");
+    require(near(layer.instances[0].locomotionVelocity, {1.2f, .36f, 0}),
+            "Velocity must include actual terrain height changes");
     move(layer, 1, {5, 7.5f, 0}, world);
     require(near(glm::vec3(layer.instances[0].restRoot[3]), {1.2f, 6, 0}),
             "Continue on the next rendered terrain triangle");

@@ -151,9 +151,10 @@ bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animat
     if (!hit) return false;
     if (occlusion && !occlusion->lineOfSight(origin, origin + direction * hit->distance)) return false;
     if (hit->joint >= 0)
-        activateRagdoll(hit->zombie, std::move(selectedPose), direction * 4.0f, hit->joint, zombieSeverImpulse(caliber, direction));
+        activateRagdoll(hit->zombie, std::move(selectedPose), direction * 4.0f, animationSeconds,
+                        hit->joint, zombieSeverImpulse(caliber, direction));
     else if (damage_.hit(hit->zombie, caliber, hit->headshot) == 0)
-        activateRagdoll(hit->zombie, std::move(selectedPose), direction * 4.0f);
+        activateRagdoll(hit->zombie, std::move(selectedPose), direction * 4.0f, animationSeconds);
     return true;
 }
 std::size_t ZombieLayer::explode(glm::vec3 origin, float radius, double animationSeconds, const CollisionWorld& world) {
@@ -170,22 +171,25 @@ std::size_t ZombieLayer::explode(glm::vec3 origin, float radius, double animatio
         auto pose = sampleZombiePose(assets.at(instance.asset), instance, animationSeconds);
         const auto outward = offset + glm::vec3(0, .5f, 0);
         const auto direction = glm::length(outward) > .001f ? glm::normalize(outward) : glm::vec3(0, 1, 0);
-        activateRagdoll(id, std::move(pose), direction * (8.0f * (1 - distance / radius)));
+        activateRagdoll(id, std::move(pose), direction * (8.0f * (1 - distance / radius)), animationSeconds);
         ++killed;
     }
     return killed;
 }
 void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> selectedPose, glm::vec3 velocity,
-                                int severedJoint, glm::vec3 severImpulse) {
+                                double animationSeconds, int severedJoint, glm::vec3 severImpulse) {
     if (!physics_) physics_ = std::make_unique<Physics>();
     auto& instance = instances[selected];
     if (navigation_) navigation_->reset(selected);
     const auto feet = glm::vec3(instance.restRoot[3]);
     const float yaw = std::atan2(instance.restRoot[2][0], instance.restRoot[0][0]);
     const auto& asset = assets[instance.asset];
+    constexpr float motionSampleSeconds = 1.0f / 30;
+    const auto previousPose = sampleZombiePose(asset, instance, animationSeconds, -motionSampleSeconds);
     instance.activationPose = std::move(selectedPose);
     RagdollPose reference, current;
-    if (makeZombieRagdollPoses(instance, asset, reference, current))
+    const bool mappedRig = makeZombieRagdollPoses(instance, asset, reference, current);
+    if (mappedRig)
         instance.ragdollHandle = physics_->world.create(feet, yaw, velocity, reference, current);
     else
         instance.ragdollHandle = physics_->world.create(feet, yaw, velocity);
@@ -195,6 +199,10 @@ void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> s
         physics_->world.destroy(instance.ragdollHandle);
         throw;
     }
+    if (instance.locomotionVelocity != glm::vec3(0))
+        for (std::size_t part = 0; part < ragdollPartCount; ++part)
+            physics_->world.addLinearVelocity(instance.ragdollHandle, static_cast<RagdollPart>(part), instance.locomotionVelocity);
+    if (mappedRig) inheritZombieRagdollMotion(instance, asset, previousPose, motionSampleSeconds, physics_->world);
     instance.ragdoll = true;
     instance.severedJoint = severedJoint;
     if (severedJoint >= 0) {
@@ -209,6 +217,7 @@ void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> s
     crowd_.erase(selected);
     behaviors.remove(selected);
     instance.walking = false;
+    instance.locomotionVelocity = glm::vec3(0);
     instance.transform = physics_->world.rootTransform(instance.ragdollHandle) *
         glm::inverse(instance.restRoot) * instance.restTransform;
     updateZombieRagdollSkin(instance, assets[instance.asset], physics_->world);

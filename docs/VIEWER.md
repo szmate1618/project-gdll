@@ -915,6 +915,19 @@ or run skeleton on demand, capturing its pose, including each zombie's phase and
 interpolated animation frame. Bodies start in that pose, with their dimensions
 and joint axes derived from the reference rig;
 hands, fingers, and other unmapped joints retain their captured local poses.
+At activation, a second skeleton sample 1/30 second earlier in the same clip
+estimates a separate linear velocity for each physics body's center. The sample
+follows the displayed clip/frame when available, including wrapping across the
+clip boundary. Estimates use world meters/second and are capped at 20 m/s to
+limit animation discontinuities. This runs only at death, for health damage,
+grenade deaths and dismemberment, and adds to the existing shot/blast velocity.
+Every body also inherits the instance's actual world-space travel velocity from
+the last accepted movement step, including walking/running, terrain height
+changes and collision/crowd sliding. Blocked actors inherit their actual reduced
+travel rather than the requested speed; explicit stops clear travel velocity.
+This travel component also applies to unmapped fallback rigs, and is separate
+from the 20 m/s cap on clip motion. No animated angular velocity is
+transferred; severed bodies still receive their separate random spin.
 Capsule ends are inset to avoid starting below ground, and activation adds no
 automatic angular launch. Each ragdoll uses a small local ground box rather than
 the full terrain mesh. Ground placement and existing town/tree collision remain
