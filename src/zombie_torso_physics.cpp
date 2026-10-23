@@ -14,6 +14,7 @@
 
 namespace viewer {
 namespace {
+const glm::vec3 contentsSize{.075f,.09f,.075f}; // Full dimensions in metres.
 b3Vec3 vec(glm::vec3 p) { return {p.x,p.y,p.z}; }
 glm::vec3 vec(b3Pos p) { return {float(p.x),float(p.y),float(p.z)}; }
 b3WorldTransform transform(const glm::mat4& matrix) {
@@ -67,7 +68,7 @@ struct ZombieTorsoPhysics::Impl {
         struct DeleteMesh { void operator()(b3MeshData* mesh) const { b3DestroyMesh(mesh); } };
         std::vector<std::unique_ptr<b3MeshData, DeleteMesh>> meshes;
         int ownerGroup = 0;
-        std::array<b3BodyId,3> objects{};
+        std::array<b3BodyId,objectCount> objects{};
         glm::vec3 scale{1};
         std::uint64_t revision = 0;
         ~Entry() {
@@ -127,7 +128,8 @@ void ZombieTorsoPhysics::wound(std::size_t id, const AnimatedModel& asset, const
     if (fresh) {
         const auto localCenter=glm::vec3(glm::inverse(geometry.referenceFrame)*glm::vec4(geometry.center,1));
         for (std::size_t i=0; i<entry.objects.size(); ++i) {
-            const auto local=localCenter+glm::vec3((float(i)-1)*.065f,(float(i)-1)*.055f,0);
+            // Two columns and three rows leave gaps between the larger contents.
+            const auto local=localCenter+glm::vec3((float(i%2)-.5f)*.09f,(float(i/2)-1)*.10f,0);
             const auto center=frame*glm::vec4(local,1);
             auto body=b3DefaultBodyDef(); body.type=b3_dynamicBody;
             body.position={center.x,center.y,center.z};
@@ -140,7 +142,7 @@ void ZombieTorsoPhysics::wound(std::size_t id, const AnimatedModel& asset, const
             shape.filter.categoryBits=zombieContentsCategory;
             shape.filter.maskBits=ordinaryBodyCategory|interiorBoxCategory|doorBodyCategory|zombieCavityCategory|zombieContentsCategory;
             shape.filter.groupIndex=entry.ownerGroup;
-            const auto box=b3MakeBoxHull(.025f,.03f,.025f);
+            const auto box=b3MakeBoxHull(contentsSize.x*.5f,contentsSize.y*.5f,contentsSize.z*.5f);
             b3CreateHullShape(object,&shape,&box.base);
         }
     }
@@ -171,7 +173,7 @@ std::vector<glm::mat4> ZombieTorsoPhysics::contents() const {
     for (const auto& item : impl_->entries) for (const auto body : item.second->objects) {
         const auto p=b3Body_GetPosition(body); const auto q=b3Body_GetRotation(body);
         result.push_back(glm::translate(glm::mat4(1),vec(p))*glm::mat4_cast(glm::quat(q.s,q.v.x,q.v.y,q.v.z))*
-                         glm::scale(glm::mat4(1),glm::vec3(.05f,.06f,.05f)));
+                         glm::scale(glm::mat4(1),contentsSize));
     }
     return result;
 }

@@ -1,6 +1,7 @@
 #include "protocol.hpp"
 #include "weapons.hpp"
 #include "zombie_skeleton.hpp"
+#include "zombie_torso_physics.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -144,7 +145,7 @@ void payload(Wire& w, Snapshot& s) {
     });
     uniqueIds(s.players); uniqueIds(s.zombies); uniqueIds(s.doors); uniqueIds(s.boxes);
     uniqueIds(s.grenades); uniqueIds(s.explosions);
-    w.list(s.torsoContents, maxZombies*3, [&](glm::mat4& transform) { w.matrix(transform); });
+    w.list(s.torsoContents, maxZombies*viewer::ZombieTorsoPhysics::objectCount, [&](glm::mat4& transform) { w.matrix(transform); });
     w.list(s.bloodMist, viewer::BloodMist::capacity, [&](viewer::BloodMistBurst& burst) {
         w.integer(burst.id); w.vector(burst.position); w.number(burst.age);
         auto size = static_cast<std::uint8_t>(burst.size);

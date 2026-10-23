@@ -5,10 +5,11 @@
 namespace viewer {
 class PhysicsWorld;
 class PhysicsScene;
-// Owns hollow kinematic cavities and their three loose demonstration props.
+// Owns hollow kinematic cavities and their loose demonstration props.
 // Geometry is rebuilt on damage; normal movement changes only the rigid frame.
 class ZombieTorsoPhysics {
 public:
+    static constexpr std::size_t objectCount = 6;
     explicit ZombieTorsoPhysics(std::shared_ptr<PhysicsWorld> world);
     ~ZombieTorsoPhysics();
     void wound(std::size_t id, const AnimatedModel& asset, const ZombieTorsoGeometry& geometry,

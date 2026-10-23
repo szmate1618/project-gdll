@@ -958,9 +958,9 @@ The first wound creates an inward-facing torso collider, contracted to 80% of
 the reference surface around its center. Its fixed shape follows the torso's
 rigid animation/ragdoll frame. Anatomical boundary loops are capped; shot
 openings are left open. The collider is partitioned below Box3D's per-contact
-triangle-cache limit and rebuilt only when damage changes. Three small dark red
-boxes are created inside as loose demonstration contents. They collide with
-their own cavity and streamed terrain/building surfaces, and ignore the solid
+triangle-cache limit and rebuilt only when damage changes. Six dark red boxes,
+each 7.5 × 9 × 7.5 cm, are created inside as loose demonstration contents. They
+collide with their own cavity and streamed terrain/building surfaces, and ignore the solid
 ragdoll capsules. Physics determines whether they fit through an opening.
 The shell is an approximate fit during animation; rapid motion also inherits
 Box3D's moving-mesh continuous-collision limitations. Removing a corpse releases
