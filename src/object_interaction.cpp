@@ -9,7 +9,6 @@ namespace {
 constexpr float metersPerPixel = .004f;
 constexpr double swingWindow = .10; // Recent displacement per 100 ms, not event frequency.
 constexpr float maxLiftForce = 180; // N per hand: one hand cannot suspend >18.4 kg.
-constexpr float maxDragForce = 240; // N per hand, also available to grounded heavy props.
 constexpr float maxThrowImpulse = 60; // N*s per releasing hand.
 bool finite(glm::vec2 p) { return std::isfinite(p.x) && std::isfinite(p.y); }
 glm::vec3 bounded(glm::vec3 value, float maximum) {
@@ -17,21 +16,30 @@ glm::vec3 bounded(glm::vec3 value, float maximum) {
     return length > maximum ? value * (maximum / length) : value;
 }
 } // namespace
-bool ObjectInteraction::grabbing() const { return grabs_[0].has_value() || grabs_[1].has_value(); }
+bool ObjectInteraction::grabbing() const { return heldProp(Hand::Left).has_value() || heldProp(Hand::Right).has_value(); }
 std::optional<std::size_t> ObjectInteraction::heldBox(Hand hand) const {
     const auto& grab = grabs_[slot(hand)];
-    return grab ? std::optional<std::size_t>(grab->box) : std::nullopt;
+    return grab ? grab->boxes->indexOf(grab->prop) : std::nullopt;
+}
+std::optional<PhysicsProp> ObjectInteraction::heldProp(Hand hand) const {
+    const auto& grab = grabs_[slot(hand)];
+    return grab && grab->prop.valid() && grab->joint->valid() ? std::optional<PhysicsProp>(grab->prop) : std::nullopt;
+}
+float ObjectInteraction::rayReach(glm::vec3 direction) {
+    return std::min(1.5f/std::max(glm::length(glm::vec2(direction.x,direction.z)),1e-6f),
+                    2.0f/std::max(std::abs(direction.y),1e-6f));
 }
 bool ObjectInteraction::press(Hand hand, const Camera& camera, BoxLayer& boxes, const CollisionWorld& world, double seconds) {
     auto& grab = grabs_[slot(hand)];
     grab.reset();
     if (!std::isfinite(seconds)) return false;
-    const auto hit = boxes.raycast(camera.position(), camera.direction(), 2.0f);
+    const auto hit = raycastPhysicsProp(boxes.physicsWorld(),camera.position(),camera.direction(),rayReach(camera.direction()));
     if (!hit || !world.lineOfSight(camera.position(), hit->point)) return false;
     const float yaw = glm::radians(camera.yawDegrees());
     const glm::vec3 forward(std::cos(yaw), 0, std::sin(yaw));
     const auto right = glm::cross(forward, glm::vec3(0, 1, 0));
-    grab = Grab{&boxes, hit->box, hit->localPoint, hit->point - camera.position(), right, forward, hit->point, {}, {}};
+    grab = Grab{&boxes, hit->prop, std::make_unique<PhysicsGrab>(hit->prop,hit->localPoint,maxLiftForce),
+                hit->localPoint, hit->point - camera.position(), right, forward, {}, {}};
     return true;
 }
 glm::vec3 ObjectInteraction::throwVelocity(glm::vec2 swing, glm::vec3 right, glm::vec3 forward) {
@@ -43,20 +51,21 @@ glm::vec3 ObjectInteraction::throwVelocity(glm::vec2 swing, glm::vec3 right, glm
 void ObjectInteraction::release(Hand hand, double seconds) {
     auto& grab = grabs_[slot(hand)];
     if (!grab) return;
+    if (!grab->prop.valid()) { grab.reset(); return; }
     const auto& other = grabs_[1 - slot(hand)];
-    if (std::isfinite(seconds) && !(other && other->boxes == grab->boxes && other->box == grab->box)) {
+    if (std::isfinite(seconds) && !(other && other->prop == grab->prop)) {
         glm::vec2 displacement(0);
         for (const auto& sample : grab->motion)
             if (sample.seconds <= seconds && seconds - sample.seconds < swingWindow) displacement += sample.displacement;
         auto velocity = throwVelocity(displacement / static_cast<float>(swingWindow), grab->right, grab->forward);
         velocity = bounded(velocity, 10.0f);
-        const float mass = grab->boxes->mass(grab->box);
+        const float mass = grab->prop.mass();
         // An object too heavy to suspend cannot become an upward projectile on
         // release. It can still receive a bounded horizontal shove along the floor.
         if (mass * 9.8f > maxLiftForce) velocity.y = std::min(0.0f, velocity.y);
         const auto impulse = bounded(velocity * mass, maxThrowImpulse);
         if (glm::length(impulse) > .001f)
-            grab->boxes->applyImpulse(grab->box, impulse, grab->boxes->pose(grab->box).center);
+            grab->prop.applyImpulse(impulse,grab->prop.center());
     }
     grab.reset();
 }
@@ -74,38 +83,15 @@ void ObjectInteraction::moveMouse(float dx, float dy, double seconds) {
 }
 void ObjectInteraction::update(const Camera& camera, float dt) {
     if (!std::isfinite(dt) || dt <= 0) return;
-    const float step = std::min(dt, .1f);
-    // Validate both grips before counting shared support or applying impulses.
     for (auto& grab : grabs_) if (grab) {
-        const auto point = grab->boxes->pointState(grab->box, grab->localPoint).point;
+        if (!grab->prop.valid() || !grab->joint->valid()) { grab.reset(); continue; }
+        const auto point = grab->prop.pointState(grab->localPoint).point;
         const auto target = camera.position() + grab->eyeOffset + grab->right * grab->drag.x + glm::vec3(0, grab->drag.y, 0);
-        if (glm::distance(point, camera.position()) > 5 || glm::distance(point, target) > 3) grab.reset();
+        if (glm::distance(point, camera.position()) > 5 || glm::distance(point, target) > 3) {
+            grab.reset();
+            continue;
+        }
+        grab->joint->setTarget(target);
     }
-    struct PendingImpulse { BoxLayer* boxes; std::size_t box; glm::vec3 impulse, point; };
-    std::vector<PendingImpulse> impulses;
-    for (auto& grab : grabs_) if (grab) {
-        const auto state = grab->boxes->pointState(grab->box, grab->localPoint);
-        const auto target = camera.position() + grab->eyeOffset + grab->right * grab->drag.x + glm::vec3(0, grab->drag.y, 0);
-        const auto targetVelocity = bounded((target - grab->previousTarget) / step, 6.0f);
-        grab->previousTarget = target;
-        int hands = 0;
-        for (const auto& active : grabs_)
-            if (active && active->boxes == grab->boxes && active->box == grab->box) ++hands;
-        const float mass = grab->boxes->mass(grab->box);
-        constexpr float stiffness = 200; // N/m, per hand.
-        const float damping = 2 * std::sqrt(stiffness * mass / hands);
-        auto force = (target - state.point) * stiffness + (targetVelocity - state.velocity) * damping;
-        // Split gravity compensation for shared objects; two grips must not
-        // double-feed gravity and launch a light box when the mouse is still.
-        force.y += mass * 9.8f / hands;
-        force.y = glm::clamp(force.y, -maxLiftForce, maxLiftForce);
-        const auto horizontal = bounded(glm::vec3(force.x, 0, force.z), maxDragForce);
-        force.x = horizontal.x; force.z = horizontal.z;
-        impulses.push_back({grab->boxes, grab->box, force * step, state.point});
-    }
-    // Both hands observe the same pre-impulse point velocity. Applying while
-    // gathering would let the second hand damp the first hand's fresh impulse.
-    for (const auto& impulse : impulses)
-        impulse.boxes->applyImpulse(impulse.box, impulse.impulse, impulse.point);
 }
 } // namespace viewer

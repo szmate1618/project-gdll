@@ -273,7 +273,7 @@ add_custom_command(
 add_custom_target(viewer_audio_assets DEPENDS ${VIEWER_AUDIO_FILES})
 endif()
 
-add_library(viewer_physics STATIC src/physics_world.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp)
+add_library(viewer_physics STATIC src/physics_world.cpp src/physics_prop.cpp src/physics_grab.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp)
 target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)

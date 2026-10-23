@@ -36,11 +36,16 @@ public:
     // Movement/sleep events are consumed after every fixed step, synchronously.
     void trackBodyMotion(b3BodyId body, std::uint64_t& ownerRevision);
     void untrackBodyMotion(b3BodyId body);
+    bool isGrabbed(b3BodyId body) const;
 private:
+    friend class PhysicsGrab;
+    void beginGrab(b3BodyId body);
+    void endGrab(b3BodyId body);
     b3WorldId world_{};
     float accumulator_ = 0;
     int nextCollisionGroup_ = -1;
     std::unordered_map<std::uint64_t, std::uint64_t*> motionOwners_;
+    std::unordered_map<std::uint64_t, unsigned> grabCounts_; // Both hands may hold one body.
 };
 
 } // namespace viewer

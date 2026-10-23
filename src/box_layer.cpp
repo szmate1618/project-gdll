@@ -40,10 +40,11 @@ glm::mat4 BoxPose::transform() const {
 }
 
 struct BoxLayer::Impl {
-    struct Entry { Impl* owner; b3BodyId body; glm::vec3 halfExtents; std::size_t index; };
+    struct Entry { Impl* owner; b3BodyId body; glm::vec3 halfExtents; std::size_t index; glm::vec2 damping; };
     std::shared_ptr<PhysicsWorld> world;
     std::vector<std::unique_ptr<Entry>> entries;
     std::uint64_t revision = 1;
+    std::uint64_t categories = 0;
     ~Impl() {
         for (const auto& e : entries) {
             world->untrackBodyMotion(e->body);
@@ -59,15 +60,27 @@ BoxLayer::BoxLayer(std::shared_ptr<PhysicsWorld> world) : impl_(std::make_unique
 BoxLayer::~BoxLayer() = default;
 std::size_t BoxLayer::count() const { return impl_->entries.size(); }
 std::uint64_t BoxLayer::revision() const { return impl_->revision; }
+void BoxLayer::wake() { for (const auto& entry : impl_->entries) b3Body_SetAwake(entry->body,true); }
+std::shared_ptr<PhysicsWorld> BoxLayer::physicsWorld() const { return impl_->world; }
+PhysicsProp BoxLayer::prop(std::size_t index) const { return {impl_->world,impl_->entries.at(index)->body}; }
+std::optional<std::size_t> BoxLayer::indexOf(const PhysicsProp& prop) const {
+    if (prop.valid())
+        for (const auto& entry : impl_->entries)
+            if (prop == PhysicsProp(impl_->world,entry->body)) return entry->index;
+    return std::nullopt;
+}
 std::size_t BoxLayer::add(glm::vec3 center, glm::vec3 size, const BoxSpawnMotion& motion) {
     if (!finite(center) || !finite(size) || glm::any(glm::lessThan(size, glm::vec3(.01f))) ||
         glm::any(glm::greaterThan(size, glm::vec3(4))) || !finite(motion.velocity) || !finite(motion.angularVelocity) ||
         !std::isfinite(glm::length(motion.rotation)) || std::abs(glm::length(motion.rotation)-1)>.001f ||
-        !std::isfinite(motion.mass) || motion.mass<0 || !std::isfinite(motion.friction) || motion.friction<0)
+        !std::isfinite(motion.mass) || motion.mass<0 || !std::isfinite(motion.friction) || motion.friction<0 ||
+        !std::isfinite(motion.linearDamping) || motion.linearDamping<0 ||
+        !std::isfinite(motion.angularDamping) || motion.angularDamping<0)
         throw std::invalid_argument("Invalid box dimensions, position or motion");
     const auto index = count();
     if (index==impl_->entries.capacity()) impl_->entries.reserve(std::max(std::size_t(8),index*2));
-    auto entry = std::make_unique<Impl::Entry>(Impl::Entry{impl_.get(), {}, size*.5f, index});
+    auto entry = std::make_unique<Impl::Entry>(Impl::Entry{impl_.get(), {}, size*.5f, index,
+                                                        {motion.linearDamping,motion.angularDamping}});
     auto definition = b3DefaultBodyDef();
     definition.type = b3_dynamicBody;
     definition.position = {center.x, center.y, center.z};
@@ -75,8 +88,8 @@ std::size_t BoxLayer::add(glm::vec3 center, glm::vec3 size, const BoxSpawnMotion
     definition.linearVelocity = vector(motion.velocity);
     definition.angularVelocity = vector(motion.angularVelocity);
     definition.isBullet = motion.continuous;
-    definition.linearDamping = .1f;
-    definition.angularDamping = .3f;
+    definition.linearDamping = motion.linearDamping;
+    definition.angularDamping = motion.angularDamping;
     const auto body = b3CreateBody(impl_->world->id(), &definition);
     entry->body = body;
     const auto half = entry->halfExtents;
@@ -86,11 +99,11 @@ std::size_t BoxLayer::add(glm::vec3 center, glm::vec3 size, const BoxSpawnMotion
     const float volume = size.x*size.y*size.z;
     shape.density = (motion.mass>0 ? motion.mass : glm::clamp(volume*70.0f,8.0f,55.0f))/volume;
     shape.baseMaterial.friction = motion.friction;
-    shape.filter.categoryBits = interiorBoxCategory;
-    shape.filter.maskBits &= ~ragdollFloorCategory;
+    shape.filter = motion.filter;
     shape.userData = entry.get();
     b3CreateHullShape(body, &shape, &hull.base);
     impl_->entries.push_back(std::move(entry));
+    impl_->categories |= motion.filter.categoryBits;
     impl_->world->trackBodyMotion(body, impl_->revision);
     ++impl_->revision;
     return index;
@@ -123,24 +136,17 @@ void BoxLayer::setPose(std::size_t index, glm::vec3 center, glm::quat q) {
 glm::vec3 BoxLayer::velocity(std::size_t index) const {
     return vector(b3Body_GetLinearVelocity(impl_->entries.at(index)->body));
 }
-float BoxLayer::mass(std::size_t index) const { return b3Body_GetMass(impl_->entries.at(index)->body); }
-BoxPointState BoxLayer::pointState(std::size_t index, glm::vec3 localPoint) const {
-    if (!finite(localPoint)) throw std::invalid_argument("Box grip point must be finite");
-    const auto body = impl_->entries.at(index)->body;
-    const auto point = b3Body_GetWorldPoint(body, vector(localPoint));
-    return {{point.x, point.y, point.z}, vector(b3Body_GetWorldPointVelocity(body, point))};
-}
-void BoxLayer::applyImpulse(std::size_t index, glm::vec3 impulse, glm::vec3 point) {
-    if (!finite(impulse) || !finite(point)) throw std::invalid_argument("Box impulse and point must be finite");
-    b3Body_ApplyLinearImpulse(impl_->entries.at(index)->body, vector(impulse), {point.x, point.y, point.z}, true);
-}
-void BoxLayer::dampAfterGroundContact(float linearDamping, float angularDamping) {
+float BoxLayer::mass(std::size_t index) const { return prop(index).mass(); }
+BoxPointState BoxLayer::pointState(std::size_t index, glm::vec3 localPoint) const { return prop(index).pointState(localPoint); }
+void BoxLayer::applyImpulse(std::size_t index, glm::vec3 impulse, glm::vec3 point) { prop(index).applyImpulse(impulse,point); }
+void BoxLayer::dampOnGroundContact(float linearDamping, float angularDamping) {
     std::vector<b3ContactData> contacts;
     for (const auto& entry : impl_->entries) {
         const auto body = entry->body;
         if (!b3Body_IsAwake(body)) continue;
-        contacts.resize(b3Body_GetContactCapacity(body));
-        const int count = b3Body_GetContactData(body, contacts.data(), static_cast<int>(contacts.size()));
+        const bool held = impl_->world->isGrabbed(body);
+        contacts.resize(held ? 0 : b3Body_GetContactCapacity(body));
+        const int count = held ? 0 : b3Body_GetContactData(body, contacts.data(), static_cast<int>(contacts.size()));
         bool supported = false;
         for (int i=0; i<count && !supported; ++i) {
             const auto& contact = contacts[i];
@@ -153,10 +159,8 @@ void BoxLayer::dampAfterGroundContact(float linearDamping, float angularDamping)
                         supported = true;
             }
         }
-        if (supported) {
-            b3Body_SetLinearDamping(body, linearDamping);
-            b3Body_SetAngularDamping(body, angularDamping);
-        }
+        b3Body_SetLinearDamping(body,supported ? linearDamping : entry->damping.x);
+        b3Body_SetAngularDamping(body,supported ? angularDamping : entry->damping.y);
     }
 }
 std::optional<BoxRayHit> BoxLayer::raycast(glm::vec3 origin, glm::vec3 direction, float reach) const {
@@ -184,11 +188,10 @@ std::vector<BoxPose> BoxLayer::query(glm::vec3 minimum, glm::vec3 maximum) const
     if (!finite(minimum) || !finite(maximum) || glm::any(glm::greaterThan(minimum, maximum))) return result;
     struct Query { const BoxLayer* layer; std::vector<BoxPose>* result; } query{this, &result};
     auto filter = b3DefaultQueryFilter();
-    filter.maskBits = interiorBoxCategory;
+    filter.maskBits = impl_->categories;
     b3World_OverlapAABB(impl_->world->id(), {{minimum.x, minimum.y, minimum.z}, {maximum.x, maximum.y, maximum.z}}, filter,
         [](b3ShapeId shape, void* context) {
             const auto& q = *static_cast<Query*>(context);
-            if (b3Shape_GetFilter(shape).categoryBits != interiorBoxCategory) return true;
             const auto* entry = static_cast<Impl::Entry*>(b3Shape_GetUserData(shape));
             if (entry && entry->owner == q.layer->impl_.get()) q.result->push_back(q.layer->pose(entry->index));
             return true;

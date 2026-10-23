@@ -101,9 +101,9 @@ void World::step() {
                         bool conflict = false;
                         for (const auto& [otherId, other] : players_) {
                             if (otherId == id) continue;
-                            const auto box = player.interaction.heldBox(hand);
+                            const auto prop = player.interaction.heldProp(hand);
                             const auto door = player.interaction.grabbedDoor();
-                            conflict |= box && (box == other.interaction.heldBox(viewer::Hand::Left) || box == other.interaction.heldBox(viewer::Hand::Right));
+                            conflict |= prop && (prop == other.interaction.heldProp(viewer::Hand::Left) || prop == other.interaction.heldProp(viewer::Hand::Right));
                             conflict |= door && door == other.interaction.grabbedDoor();
                         }
                         if (conflict) player.interaction.cancel();

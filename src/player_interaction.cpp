@@ -11,9 +11,9 @@ bool PlayerInteraction::press(Hand hand, const Camera& camera, DoorLayer& doors,
                               const CollisionWorld& world, double seconds) {
     if (mode() != ControlMode::Interaction) return false;
     if (hand == Hand::Left) doors_.release();
-    const auto box = boxes.raycast(camera.position(), camera.direction(), 2);
+    const auto prop = raycastPhysicsProp(boxes.physicsWorld(),camera.position(),camera.direction(),ObjectInteraction::rayReach(camera.direction()));
     const auto door = hand == Hand::Left ? doors.raycast(camera.position(), camera.direction(), 1.5f) : std::nullopt;
-    if (door && (!box || door->distance <= box->distance)) {
+    if (door && (!prop || door->distance <= prop->distance)) {
         // Clear only the left prop grip, leaving a right-hand object attached.
         // Replacing a grip must not add a throw boost.
         objects_.cancel(hand);

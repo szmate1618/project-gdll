@@ -1,6 +1,9 @@
 #pragma once
 
 #include "model.hpp"
+#include "physics_world.hpp"
+#include "physics_prop.hpp"
+#include <box3d/types.h>
 #include <glm/gtc/quaternion.hpp>
 #include <memory>
 
@@ -19,16 +22,18 @@ struct BoxRayHit {
     glm::vec3 point, localPoint; // World and body-local meters.
     float distance;
 };
-struct BoxPointState { glm::vec3 point, velocity; }; // World meters and m/s.
+using BoxPointState = PropPointState;
 struct BoxSpawnMotion {
     glm::quat rotation{1,0,0,0};
     glm::vec3 velocity{0}, angularVelocity{0}; // World m/s and rad/s.
     float mass = 0; // kg; zero retains the crate mass estimate.
     bool continuous = false;
     float friction = .55f; // Coulomb coefficient at surface contacts.
+    float linearDamping = .1f, angularDamping = .3f; // Per second.
+    b3Filter filter{interiorBoxCategory,~ragdollFloorCategory,0};
 };
 
-// Owns dynamic untextured props in the shared Y-up, meter-based simulation.
+// Owns box-shaped dynamic props in the shared Y-up, meter-based simulation.
 // Collision queries are read-only; pushing is an explicit dt-scaled action.
 class BoxLayer {
 public:
@@ -42,6 +47,10 @@ public:
     void remove(std::size_t index);
     std::size_t count() const;
     std::uint64_t revision() const;
+    void wake();
+    std::shared_ptr<PhysicsWorld> physicsWorld() const;
+    std::optional<std::size_t> indexOf(const PhysicsProp& prop) const;
+    PhysicsProp prop(std::size_t index) const;
     BoxPose pose(std::size_t index) const;
     // Apply a server pose without advancing local physics. Size is immutable.
     void setPose(std::size_t index, glm::vec3 center, glm::quat rotation);
@@ -49,8 +58,8 @@ public:
     float mass(std::size_t index) const; // Kilograms.
     BoxPointState pointState(std::size_t index, glm::vec3 localPoint) const;
     void applyImpulse(std::size_t index, glm::vec3 impulse, glm::vec3 point); // N*s, world meters.
-    // Enable persistent damping on first support contact, including subsequent bounces.
-    void dampAfterGroundContact(float linearDamping, float angularDamping);
+    // Brake supported bodies; held/airborne bodies retain their spawn damping.
+    void dampOnGroundContact(float linearDamping, float angularDamping);
     std::optional<BoxRayHit> raycast(glm::vec3 origin, glm::vec3 direction, float reach) const;
     std::vector<BoxPose> query(glm::vec3 minimum, glm::vec3 maximum) const;
     void appendContacts(glm::vec3 feet, float radius, float height, float skin,

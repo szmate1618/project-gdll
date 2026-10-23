@@ -18,7 +18,7 @@ public:
     PhysicsScene(const PhysicsScene&) = delete;
     PhysicsScene& operator=(const PhysicsScene&) = delete;
     void ensureNear(glm::vec3 minimum, glm::vec3 maximum);
-    void prepare(const BoxLayer& boxes); // Before the shared physics step.
+    void prepare(const BoxLayer& boxes, float padding = 4); // Metres; before the shared physics step.
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

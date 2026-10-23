@@ -59,6 +59,12 @@ void PhysicsWorld::trackBodyMotion(b3BodyId body, std::uint64_t& ownerRevision) 
 void PhysicsWorld::untrackBodyMotion(b3BodyId body) {
     motionOwners_.erase(b3StoreBodyId(body));
 }
+bool PhysicsWorld::isGrabbed(b3BodyId body) const { return grabCounts_.count(b3StoreBodyId(body)) != 0; }
+void PhysicsWorld::beginGrab(b3BodyId body) { ++grabCounts_[b3StoreBodyId(body)]; }
+void PhysicsWorld::endGrab(b3BodyId body) {
+    const auto found = grabCounts_.find(b3StoreBodyId(body));
+    if (found != grabCounts_.end() && --found->second == 0) grabCounts_.erase(found);
+}
 int PhysicsWorld::allocateCollisionGroup() {
     if (nextCollisionGroup_ == std::numeric_limits<int>::min())
         throw std::runtime_error("Physics collision groups exhausted");

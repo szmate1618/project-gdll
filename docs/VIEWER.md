@@ -962,6 +962,8 @@ triangle-cache limit and rebuilt only when damage changes. Six dark red boxes,
 each 7.5 × 9 × 7.5 cm, are created inside as loose demonstration contents. They
 collide with their own cavity and streamed terrain/building surfaces, and ignore the solid
 ragdoll capsules. Physics determines whether they fit through an opening.
+Crates, dropped weapons and torso contents share `BoxLayer` body ownership;
+their appearance, pickup data and cavity collision settings remain separate.
 The shell is an approximate fit during animation; rapid motion also inherits
 Box3D's moving-mesh continuous-collision limitations. Removing a corpse releases
 its cavity, objects, wound record and GPU mask slot. Unwounded actors do not
@@ -1069,9 +1071,9 @@ idle cycles at a chosen elapsed time:
 | W / S | Move forward / backward |
 | A / D | Strafe left / right |
 | Q / E | Move down / up along world Y in free-fly mode |
-| Mouse | Look around while captured; held boxes move sideways/up/down; held doors move sideways or push/pull |
-| Left mouse button | Combat: shoot; Interaction: left-hand box grab within 2 m or door grab within 1.5 m |
-| Right mouse button | Combat with a scoped weapon: cycle normal, 10°, and 1° fields of view; Interaction: right-hand box grab within 2 m |
+| Mouse | Look around while captured; held props move sideways/up/down; held doors move sideways or push/pull |
+| Left mouse button | Combat: shoot; Interaction: left-hand prop grab within 1.5 m horizontally or door grab within 1.5 m along the ray |
+| Right mouse button | Combat with a scoped weapon: cycle normal, 10°, and 1° fields of view; Interaction: right-hand prop grab within 1.5 m horizontally |
 | 1 / 2 / 3 / 4 / 5 | Equip pistol / submachine gun / shotgun / sniper / HE grenade |
 | R | Reload equipped weapon from its matching reserve ammo |
 | G | Discard the equipped weapon with a fast forward throw and vertical-axis spin |
@@ -1123,17 +1125,25 @@ capsule controller: it reads oriented box contacts and support surfaces, then
 applies bounded, time-scaled impulses during walking. Ordinary clearance,
 support and sight queries do not move boxes.
 
-In Interaction mode, aim the center crosshair at a box within 2 m and hold
+In Interaction mode, aim the center crosshair at a crate, dropped weapon or
+loose torso object within 1.5 m horizontally and 2 m vertically of the camera and hold
 either mouse button: left and right buttons control independent hands. The left
-button selects the nearer door or box; walls, trunks, doors and other boxes
+button selects the nearer door or prop; walls, trunks, doors and other props
 block grabs behind them. Mouse right/left moves the picked point sideways,
 up/down moves it vertically, and WASD moves the grip with the player. Camera
 look remains active while either hand holds anything. If both hands hold
 different objects, mouse movement moves both and rotates the camera once.
 Both hands can also share an object; releasing one leaves the other attached.
+Picking a weapon up with **F** or removing its owning corpse releases any grips
+on the removed bodies. Moving a remaining pickup into a vacated slot preserves
+its existing grips. Body identities also prevent two multiplayer players from
+grabbing the same prop; torso contents use the existing authoritative physics.
 
-Grips apply bounded forces to the live body instead of teleporting it. Each hand
-can exert 180 N vertically and 240 N horizontally, so one hand can suspend up
+Each grip owns a shapeless hand anchor and a critically damped Box3D motor joint
+at the clicked point. Its positional spring is solved during physics substeps
+using the body's mass and rotational inertia. Bounded rotational friction
+settles spin without an orientation spring. Each hand
+can exert up to 180 N, so one hand can suspend up
 to about 18 kg and two hands about 36 kg. Heavier objects respond more slowly
 and can be dragged or tipped on the floor. Mouse offsets are bounded, and a
 large camera teleport or an object too far from its target ends the grip.
@@ -1317,8 +1327,10 @@ forward launch, a small upward velocity, and a 14 rad/s spin about world Y.
 Actual player travel adds to the launch. The dropped item renders its weapon
 model and uses a box collider fitted to the model bounds, with continuous
 collision detection and the same streamed terrain/building physics as crates.
-After the first ground contact, strong linear and angular damping brakes the
-weapon through sliding and bounces, targeting roughly two metres to settle.
+Strong linear and angular damping brakes grounded weapons. Holding a weapon
+disables this braking and skips its support-contact checks. Airborne weapons
+use their normal damping, so released weapons fall normally; braking resumes
+on ground contact. F still collects weapons within 2 m along the camera ray.
 Doors and other physics props can also stop it. A blocked spawn leaves the
 weapon in the inventory. Discarding an HE grenade creates an unprimed pickup.
 

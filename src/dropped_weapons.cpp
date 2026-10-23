@@ -50,7 +50,7 @@ bool DroppedWeapons::pickUp(Weapons& inventory, const Camera& camera, const Coll
 }
 void DroppedWeapons::prepare(PhysicsScene& scene, DoorLayer& doors) {
     scene.prepare(bodies_);
-    bodies_.dampAfterGroundContact(12.0f, 14.0f);
+    bodies_.dampOnGroundContact(12.0f, 14.0f);
     for (std::size_t i=0; i<bodies_.count(); ++i) doors.activateNear(bodies_.pose(i).center,8);
 }
 std::vector<DroppedWeaponPose> DroppedWeapons::poses() const {

@@ -90,11 +90,11 @@ void PhysicsScene::ensureNear(glm::vec3 minimum, glm::vec3 maximum) {
         }
     }
 }
-void PhysicsScene::prepare(const BoxLayer& boxes) {
+void PhysicsScene::prepare(const BoxLayer& boxes, float padding) {
     for (std::size_t i = 0; i < boxes.count(); ++i) {
         const auto box = boxes.pose(i);
         // Cover the next frame and neighboring tiles before bodies reach them.
-        const auto reach = glm::vec3(glm::length(box.halfExtents) + 4);
+        const auto reach = glm::vec3(glm::length(box.halfExtents) + padding);
         const auto travel = boxes.velocity(i) * .2f;
         ensureNear(box.center + glm::min(travel, glm::vec3(0)) - reach,
                    box.center + glm::max(travel, glm::vec3(0)) + reach);

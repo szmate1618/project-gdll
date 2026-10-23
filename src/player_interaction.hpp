@@ -13,6 +13,7 @@ public:
     bool grabbing() const { return doors_.grabbing() || objects_.grabbing(); }
     std::optional<std::size_t> grabbedDoor() const { return doors_.grabbedDoor(); }
     std::optional<std::size_t> heldBox(Hand hand) const { return objects_.heldBox(hand); }
+    std::optional<PhysicsProp> heldProp(Hand hand) const { return objects_.heldProp(hand); }
     bool press(Hand hand, const Camera& camera, DoorLayer& doors, BoxLayer& boxes,
                const CollisionWorld& world, double seconds);
     void release(Hand hand, double seconds);
