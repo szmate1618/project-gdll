@@ -149,7 +149,11 @@ private:
     struct Physics;
     std::unique_ptr<Physics> physics_;
     std::unique_ptr<ZombieNavigation> navigation_;
-    struct ScenarioRoute { glm::vec3 destination{0}; bool finished = false, overridden = false; };
+    struct ScenarioRoute {
+        glm::vec3 destination{0};
+        bool finished = false, overridden = false;
+        WalkingGroundCache groundCache;
+    };
     std::vector<ScenarioRoute> scenarioRoutes_;
     void updateScenarioRoutes(float seconds, const CollisionWorld& world, bool advanceLooking = false);
     void abandonScenarioRoute(std::size_t id);

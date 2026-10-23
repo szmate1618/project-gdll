@@ -14,6 +14,7 @@ struct ZombieNavigationStats {
     std::uint64_t requests = 0, foundPaths = 0, failedPaths = 0;
     std::uint64_t steeringCalls = 0, obstacleTests = 0, velocitySamples = 0;
     std::uint64_t trunkOverflows = 0, meshRejectedCandidates = 0, blockedUpdates = 0;
+    std::uint64_t movementValidationReuses = 0;
 };
 
 // Scenario route navigation. Construction allocates the mesh,
@@ -44,6 +45,9 @@ public:
     // storage. Allocations occur here, never in ordinary follow calls.
     void resetPopulation(std::size_t population);
     bool segmentClear(glm::vec3 a, glm::vec3 b) const;
+    // Reuse this ID's most recent follow validation only for an exact X/Z match.
+    // Changed collision/crowd steps receive the full mesh coverage check.
+    bool movementClear(std::size_t id, glm::vec3 a, glm::vec3 b) const;
     const ZombieNavigationStats& stats() const;
     navmesh_path::Status lastStatus() const;
     const navmesh_path::Mesh& mesh() const;

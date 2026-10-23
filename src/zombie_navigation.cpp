@@ -35,7 +35,9 @@ struct ZombieNavigation::Impl {
     struct State {
         steering::FollowState follow;
         glm::vec2 velocity{0}, plannedGoal{0}, lastPosition{0};
-        bool hasPlan=false, recorded=false;
+        std::uint32_t goalPolygon=navmesh_path::noPolygon;
+        glm::vec2 checkedStart{0}, checkedEnd{0};
+        bool hasPlan=false, recorded=false, checkedMovement=false;
     };
     navmesh_path::Mesh mesh;
     navmesh_path::PathManager paths;
@@ -56,6 +58,8 @@ struct ZombieNavigation::Impl {
     void release(std::size_t id) {
         paths.releaseZombie(id);
         states[id].hasPlan=false;
+        states[id].goalPolygon=navmesh_path::noPolygon;
+        states[id].checkedMovement=false;
         states[id].follow={};
         states[id].velocity={0,0};
     }
@@ -74,6 +78,7 @@ bool ZombieNavigation::plan(std::size_t id,glm::vec3 feet,glm::vec3 target) {
     if (id>=p.states.size()) throw std::out_of_range("Invalid zombie navigation ID");
     auto& s=p.states[id];
     s.follow={};
+    s.checkedMovement=false;
     if (!finite(feet) || !finite(target)) {
         p.release(id);
         p.status=navmesh_path::Status::blockedEndpoint;
@@ -92,6 +97,7 @@ bool ZombieNavigation::plan(std::size_t id,glm::vec3 feet,glm::vec3 target) {
         p.status=navmesh_path::Status::noPath;
         return false;
     }
+    s.goalPolygon=goalPolygon;
     ++p.stats.requests;
     s.hasPlan=p.paths.request(id,point(position),point(goal))!=navmesh_path::invalidPath;
     p.status=p.paths.lastStatus();
@@ -103,9 +109,10 @@ bool ZombieNavigation::plan(std::size_t id,glm::vec3 feet,glm::vec3 target) {
 glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
                                     float speed,float dt,const CollisionWorld& world) {
     auto& p=*impl_;
-    if (id>=p.states.size() || !finite(feet) || !std::isfinite(speed) ||
-        speed<=0 || !std::isfinite(dt) || dt<=0) return {0,0};
+    if (id>=p.states.size()) return {0,0};
     auto& s=p.states[id];
+    s.checkedMovement=false;
+    if (!finite(feet) || !std::isfinite(speed) || speed<=0 || !std::isfinite(dt) || dt<=0) return {0,0};
     if (!s.hasPlan) return {0,0};
     const auto position=horizontal(feet),goal=s.plannedGoal;
     // External placement/teleport invalidates both route progress and sampled
@@ -114,7 +121,7 @@ glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
         reset(id);
         return {0,0};
     }
-    const auto startPolygon=p.mesh.locate(point(position)),goalPolygon=p.mesh.locate(point(goal));
+    const auto startPolygon=p.mesh.locate(point(position)),goalPolygon=s.goalPolygon;
     if (startPolygon==navmesh_path::noPolygon || goalPolygon==navmesh_path::noPolygon ||
         p.mesh.component(startPolygon)!=p.mesh.component(goalPolygon)) {
         p.release(id);
@@ -156,9 +163,8 @@ glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
             }
         }
     }
-    // The shared follower uses a0.15m waypoint arrival radius. Gameplay still
-    // finishes at its actual target; a validated final connection handles that
-    // gap and small goal movement between scheduled replans.
+    // The shared follower uses a0.15m waypoint arrival radius. Scenario travel
+    // finishes at the fixed target using a validated final connection.
     const float remaining=glm::length(goal-position);
     if (s.follow.arrived && remaining>1e-4f) {
         if (!p.mesh.segmentClear(point(position),point(goal))) {
@@ -181,8 +187,12 @@ glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
     ++p.stats.steeringCalls;p.stats.obstacleTests+=sample.obstacleTests;p.stats.velocitySamples+=sample.velocitySamples;
     if (!p.mesh.segmentClear(point(position),point(position+velocity*dt))) {
         ++p.stats.meshRejectedCandidates;
-        velocity=p.mesh.segmentClear(point(position),point(position+desired*dt))?desired:glm::vec2(0);
+        if (!p.mesh.segmentClear(point(position),point(position+desired*dt))) return {0,0};
+        velocity=desired;
     }
+    s.checkedStart=position;
+    s.checkedEnd=position+velocity*dt;
+    s.checkedMovement=true;
     return velocity;
 }
 
@@ -190,6 +200,7 @@ void ZombieNavigation::recordMovement(std::size_t id,glm::vec3 before,glm::vec3 
     auto& p=*impl_;
     if (id>=p.states.size() || !finite(before) || !finite(after) || !std::isfinite(dt) || dt<=0) return;
     auto& s=p.states[id];
+    s.checkedMovement=false;
     s.velocity=(horizontal(after)-horizontal(before))/dt;
     if (!finite(s.velocity)) s.velocity={0,0};
     s.lastPosition=horizontal(after);s.recorded=true;
@@ -209,6 +220,18 @@ void ZombieNavigation::resetPopulation(std::size_t population) {
 }
 bool ZombieNavigation::segmentClear(glm::vec3 a,glm::vec3 b) const {
     return finite(a)&&finite(b)&&impl_->mesh.segmentClear(point(horizontal(a)),point(horizontal(b)));
+}
+bool ZombieNavigation::movementClear(std::size_t id,glm::vec3 a,glm::vec3 b) const {
+    if (!finite(a) || !finite(b)) return false;
+    if (id<impl_->states.size()) {
+        const auto& s=impl_->states[id];
+        // Coverage is planar. Terrain may change Y without changing this segment.
+        if (s.checkedMovement && horizontal(a)==s.checkedStart && horizontal(b)==s.checkedEnd) {
+            ++impl_->stats.movementValidationReuses;
+            return true;
+        }
+    }
+    return segmentClear(a,b);
 }
 const ZombieNavigationStats& ZombieNavigation::stats() const { return impl_->stats; }
 navmesh_path::Status ZombieNavigation::lastStatus() const { return impl_->status; }

@@ -108,6 +108,38 @@ void followNeverSearches() {
             "A teleport triggered a runtime search instead of invalidating the route");
 }
 
+void movementValidationReuse() {
+    viewer::ZombieNavigation navigation(grid({"....", ".##.", "...."}),2);
+    const viewer::CollisionWorld world(viewer::Model{});
+    const glm::vec3 start{.5f,0,.5f},goal{3.5f,0,.5f};
+    require(navigation.plan(0,start,goal),"Validation fixture plan failed");
+    const auto velocity=navigation.follow(0,start,1,.1f,world);
+    const auto end=start+glm::vec3(velocity.x*.1f,0,velocity.y*.1f);
+    require(end!=start && navigation.movementClear(0,start,end+glm::vec3(0,3,0)) &&
+            navigation.stats().movementValidationReuses==1,
+            "Unchanged horizontal movement did not reuse validation across ground height changes");
+    require(!navigation.movementClear(0,start,{1.5f,0,1.5f}) &&
+            !navigation.movementClear(0,{-1,0,0},end),
+            "Changed collision/crowd movement reused unrelated validation");
+    require(navigation.movementClear(0,start,(start+end)*.5f) &&
+            navigation.stats().movementValidationReuses==1,
+            "Shortened valid steps must receive their own coverage check");
+    require(navigation.movementClear(1,start,end) && navigation.stats().movementValidationReuses==1,
+            "Validation was reused for another actor");
+    navigation.recordMovement(0,start,end,.1f);
+    require(navigation.movementClear(0,start,end) && navigation.stats().movementValidationReuses==1,
+            "Accepted movement retained an old validation cache");
+    (void)navigation.follow(0,end,1,.1f,world);
+    navigation.reset(0);
+    require(navigation.movementClear(0,start,end) && navigation.stats().movementValidationReuses==1,
+            "Reset retained an old validation cache");
+    require(navigation.plan(0,start,goal),"Replan fixture failed");
+    (void)navigation.follow(0,start,1,.1f,world);
+    require(!navigation.plan(0,start,{-1,0,0}) && navigation.movementClear(0,start,end) &&
+            navigation.stats().movementValidationReuses==1,
+            "Failed planning retained an old validation cache");
+}
+
 void disconnectedAndOverflow() {
     const viewer::CollisionWorld empty(viewer::Model{});
     viewer::ZombieNavigation disconnected(grid({"...#...","...#...","...#..."}),1);
@@ -150,7 +182,7 @@ void treeBypass() {
 }
 
 int main() {
-    try {routeAroundWall();routeAroundWall(true);followNeverSearches();disconnectedAndOverflow();treeBypass();
+    try {routeAroundWall();routeAroundWall(true);followNeverSearches();movementValidationReuse();disconnectedAndOverflow();treeBypass();
         std::cout<<"scenario route/no-runtime-search/disconnection/overflow/trunk tests passed\n";return 0;
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}
 }

@@ -1,0 +1,81 @@
+Real-map zombie update substep profiling, 2026-10-23 (Europe/Budapest)
+
+Source and workload
+Base revision e8c6be4 plus the working-tree scenario-motion cache optimizations
+and opt-in zombie substep profiler. Release (-O3), Linux, CPU-only measurements.
+Current scenarios/test-horde/scenario.toml: seed 42; 1,000 roamers + 600 crossing.
+Shared scene loader: 1,160,022 static collision triangles, 155,825 tree trunks.
+Stationary player: X=-526.465, Z=296.095; eye Y=0.129849.
+
+Method
+Headless tests/benchmark_zombie_updates.cpp; fixed dt=1/60. Three detailed and
+three control runs, ordered control/detailed/detailed/control/control/detailed.
+Reload the seeded population and preplan all paths before every run. Discard
+60 warmup steps; retain 300 steps/run, 900 rows in each mode. Scene loading,
+planning, file output, rendering, networking, audio and physics advancement are
+outside the measured update. Contact queries still read live props/door poses.
+Perception, crowd collision, locomotion and spatial updates remain enabled.
+
+The host uses HPET for its OS clock, with roughly 1.2 us per steady_clock read.
+Fine scopes therefore use a serialized invariant TSC calibrated against the OS
+clock while remaining on one CPU. Calibration and queries guard against CPU
+migration. Final runs were pinned to allowed CPU 0; no samples were omitted.
+Calibration: 3.03627e-10 seconds/counter tick. These are elapsed wall times, not
+CPU instruction counts; scheduling and host clock/power variation can affect them.
+
+Results: means in milliseconds per update across the three detailed runs.
+Stage times are exclusive; percentages use the detailed total.
+Stage                     ms/update    share   calls/update
+contact queries        6.292   40.31%    2545.92
+navmesh coverage       3.698   23.69%    1617.86
+ground queries         0.521    3.33%    1627.16
+Detour steering        0.196    1.25%    1599.00
+spatial updates        0.204    1.31%    1600.00
+other + timer cost     4.697   30.09%
+Total                      15.610    100.00%
+
+Control total mean: 13.892 ms/update.
+Detailed total mean: 15.610 ms/update.
+Detailed runs were 12.4% higher on average; this includes instrumentation overhead
+and variation between runs. Do not treat the individual stage times as exact
+uninstrumented costs or subtract the whole difference from a single stage.
+
+Run             mode      mean ms/update
+run-0   control   14.288
+run-1   detailed  15.311
+run-2   detailed  14.653
+run-3   control   14.076
+run-4   control   13.313
+run-5   detailed  16.868
+
+Interpretation
+Contact queries and navmesh coverage dominate the named stages, together about
+64% of the instrumented update. Ground lookup, Detour selection and spatial
+updates are individually much smaller in this workload. The remaining work
+includes position lookup, waypoint following, nearby-trunk gathering, physical
+constraint bookkeeping, crowd queries, locomotion, behavior dispatch and timer
+bookkeeping. This report does not separately attribute that remainder.
+
+Contact timing includes the full CollisionWorld::contacts query: static-triangle
+BVH traversal and geometry tests, trunks, doors/boxes, allocation and sorting.
+Coverage includes Mesh::segmentClear, including its endpoint polygon lookups.
+Ground includes cached/fallback support queries and live-box support checks.
+Steering measures Controller::steer; nearby-trunk gathering belongs to the
+remainder. Spatial timing includes perception/crowd index updates and shot bounds.
+
+All six runs produced exactly matching final transforms, locomotion clocks and
+walking/running flags for every zombie. Path request count stayed at the 1,600
+startup requests: zero runtime path searches. Focused navigation, scenario and
+movement CTest suites passed after the final profiler change. Viewer builds.
+
+Reproduce from repository root
+cmake --build build --target benchmark_zombie_updates -j4
+taskset -c 0 ./build/multiplayer/benchmark_zombie_updates output/godollo.glb \
+  scenarios/test-horde/scenario.toml build/benchmarks/zombie-update-substeps \
+  -526.465 296.095
+
+Raw results: build/benchmarks/zombie-update-substeps-20261023-pinned/run-*.csv
+and metadata.txt. Earlier exploratory directories without the -pinned suffix
+contain perturbed or invalid-clock experiments and are not the reported results.
+The viewer's --profile prints the same five stages for interactive use; it
+measures the zombie call separately from the broader weapons/audio behavior timer.

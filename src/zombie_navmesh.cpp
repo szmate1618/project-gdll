@@ -1,3 +1,4 @@
+#include "zombie_update_profile.hpp"
 #include "zombie_navmesh.hpp"
 
 #include <algorithm>
@@ -363,6 +364,7 @@ std::uint32_t Mesh::locate(Point point, std::uint64_t* tests) const {
 }
 
 bool Mesh::segmentClear(Point a, Point b, std::uint64_t* tests) const {
+    zombie_profile::Timer timer(zombie_profile::Stage::coverage);
     if (locate(a, tests) == noPolygon || locate(b, tests) == noPolygon) return false;
     if (a == b) return true;
     double progress = 0;

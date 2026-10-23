@@ -169,3 +169,59 @@ their total-frame timestamps must still all be present. CPU shadow timing
 includes query bookkeeping. Run the standard 100,000-zombie control separately.
 
 Recorded example: [sunlight map resolution on Radeon 660M, 2026-10-20](benchmarks/sun-shadow-resolution-2026-10-20.txt).
+
+## Scenario movement CPU microbenchmark
+
+```bash
+cmake --build build --target benchmark_zombie_scenario_motion -j4
+./build/benchmark_zombie_scenario_motion
+```
+
+Use a Release build. This headless fixture advances 1,600 preplanned actors over
+32,768 sloping terrain triangles and 16,384 navmesh polygons, at 60 Hz for 120
+steps in each of five trials. It measures route following, guarded physical
+movement and final navmesh validation. Setup is excluded. The output includes
+reused segment-check counts and a final-position checksum.
+
+This isolates the scenario movement pipeline; it excludes perception,
+spatial/render updates, crowd, trees, live props and rendering. It is not a
+whole-viewer CPU/GPU benchmark or a prediction of real-map frame times.
+
+## Real-map zombie update substeps
+
+The viewer's existing `--profile` now prints milliseconds and query calls per
+zombie update for ground queries, capsule contact queries, navmesh segment
+coverage, Detour velocity selection and spatial membership updates. The total
+covers only `ZombieLayer::updateBehavior()`, excluding weapons and audio from
+the older broad `behavior` timer. Stage times are exclusive; the remainder
+includes other navigation/behavior work and timer overhead. Detailed clocks
+are disabled without `--profile`.
+
+For repeatable headless measurements of the current scenario:
+
+```bash
+cmake --build build --target benchmark_zombie_updates -j4
+./build/multiplayer/benchmark_zombie_updates output/godollo.glb \
+  scenarios/test-horde/scenario.toml build/benchmarks/zombie-update-substeps
+```
+
+Optional trailing `SPAWN_X SPAWN_Z` chooses the stationary player's position.
+The benchmark uses the shared scene loader with vegetation, static geometry,
+doors and live-prop collision queries. It alternates three detailed and three
+control runs, reloading the seeded population each time. Each run warms up for
+60 steps and measures 300 at 60 Hz. It verifies identical final poses and no
+runtime path requests. Rendering, audio, networking and physics advancement
+are excluded; this is a static-scene zombie update measurement.
+
+Raw CSVs and scene/timer metadata go in the requested output directory. Report
+both control and detailed totals to reveal instrumentation overhead. On x86-64
+with GCC-compatible intrinsics, an invariant counter is calibrated on one CPU;
+query samples that migrate CPUs are omitted and counted. Other platforms or
+failed calibration use `steady_clock`. Counter calibration and setup are
+excluded from the measurements. For controlled Linux comparisons, `taskset -c
+0` pins the benchmark to CPU 0; choose an allowed CPU for the host. The viewer
+does not change CPU affinity. Fine-grained timers can be expensive when the
+host's clock source requires slow reads; do not treat heavily perturbed stage
+times as normal execution costs.
+
+Measured example: [1,600-zombie real-map substeps, 2026-10-23](benchmarks/zombie-update-substeps-2026-10-23.txt).

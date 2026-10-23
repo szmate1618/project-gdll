@@ -6,6 +6,7 @@
 namespace viewer {
 class CollisionWorld;
 class ZombieCrowd;
+class WalkingGroundCache;
 
 struct ZombieMovement {
     glm::vec3 feet;
@@ -19,5 +20,6 @@ struct ZombieMovement {
 // Building walls have 5 cm extra clearance; other obstacles use the body radius.
 ZombieMovement moveZombieBody(glm::vec3 start, glm::vec3 desired,
                               const CollisionWorld& world,
-                              ZombieCrowd* crowd = nullptr, std::size_t id = 0);
+                              ZombieCrowd* crowd = nullptr, std::size_t id = 0,
+                              WalkingGroundCache* groundCache = nullptr);
 } // namespace viewer

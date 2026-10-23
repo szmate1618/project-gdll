@@ -1,3 +1,4 @@
+#include "zombie_update_profile.hpp"
 #include "renderer.hpp"
 #include "door_layer.hpp"
 #include "player_interaction.hpp"
@@ -1110,6 +1111,7 @@ int run(const Options& options) {
     double intervalRenderSeconds = 0.0;
     double intervalSimulationSeconds = 0.0;
     double intervalBehaviorSeconds = 0.0;
+    viewer::zombie_profile::Profile zombieProfile;
     double intervalPreparationSeconds = 0.0;
     int frameCount = 0, intervalFrames = 0;
     while (!glfwWindowShouldClose(window.get())) {
@@ -1126,6 +1128,7 @@ int run(const Options& options) {
             intervalRenderSeconds = 0.0;
             intervalSimulationSeconds = intervalBehaviorSeconds = intervalPreparationSeconds = 0.0;
             gpuTimer.takeAverageMilliseconds();
+            zombieProfile = {};
             continue;
         }
         const double simulationStart = glfwGetTime();
@@ -1173,8 +1176,11 @@ int run(const Options& options) {
             const float height = app.rig.walking() ? player.bodyHeight() : config.height;
             const auto feet = app.rig.walking() ? player.feet() :
                 app.rig.camera().position() - glm::vec3(0, eyeHeight, 0);
-            zombies->updateBehavior(dt, {feet, eyeHeight, height}, collision,
-                                    app.displayedAnimationSeconds);
+            {
+                viewer::zombie_profile::Capture capture(options.profile ? &zombieProfile : nullptr);
+                zombies->updateBehavior(dt, {feet, eyeHeight, height}, collision,
+                                        app.displayedAnimationSeconds);
+            }
             if (app.rig.walking())
                 for (const auto& noise : app.rig.player().noises())
                     zombies->makeNoise(noise.position, noise.decibels);
@@ -1291,6 +1297,8 @@ int run(const Options& options) {
                               << " bounds" << (updates.full ? " (full refresh)" : " (incremental)");
                 }
                 std::cout << '\n';
+                zombieProfile.print(std::cout);
+                zombieProfile = {};
             }
             titleTime = completed;
             intervalFrames = 0;
@@ -1299,6 +1307,7 @@ int run(const Options& options) {
         }
         if (options.frames > 0 && frameCount >= options.frames) break;
     }
+    if (options.profile) zombieProfile.print(std::cout);
     if (!options.screenshot.empty()) renderer.writeScreenshot(options.screenshot);
     if (trees) {
         const auto& stats = renderer.treeStats();

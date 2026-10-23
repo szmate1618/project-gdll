@@ -1,3 +1,4 @@
+#include "zombie_update_profile.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_navigation.hpp"
 #include "zombie_animation.hpp"
@@ -45,6 +46,7 @@ void ZombieLayer::ensureSpatialIndex() {
 }
 
 void ZombieLayer::updateSpatialMembership(std::size_t id) {
+    zombie_profile::Timer timer(zombie_profile::Stage::spatial);
     const auto& instance = instances[id];
     if (instance.removed || instance.ragdoll || instance.asset >= assets.size()) {
         spatialIndex_.erase(id);

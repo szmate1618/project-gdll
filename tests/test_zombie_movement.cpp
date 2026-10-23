@@ -163,6 +163,43 @@ void boxesAndDoorPoses() {
             "The rotated open panel must still block at its current physical pose");
 }
 
+void cachedLiveSupport() {
+    const auto physics=std::make_shared<viewer::PhysicsWorld>();
+    viewer::BoxLayer boxes(physics);
+    boxes.add({0,.1f,0},{2,.2f,2});
+    viewer::CollisionWorld world(floor());
+    viewer::WalkingGroundCache cache;
+    world.setBoxes(&boxes);
+    const auto check = [&](float expected) {
+        const auto hit=world.walkingGroundAt(0,0,-1,1,&cache);
+        require(hit && std::abs(hit->height-expected)<1e-5f,"Static ground cache concealed live box support changes");
+    };
+    check(.2f);
+    boxes.setPose(0,{0,.2f,0},{1,0,0,0}); check(.3f);
+    boxes.setPose(0,{5,.2f,0},{1,0,0,0}); check(0);
+    boxes.setPose(0,{0,.1f,0},{1,0,0,0}); check(.2f);
+    world.setBoxes(nullptr); check(0);
+}
+
+void cachedMovementOnSlopeAndStep() {
+    auto model=floor();
+    quad(model,"terrain",{-4,-.4f,-4},{-4,-.4f,4},{4,.4f,4},{4,.4f,-4});
+    quad(model,"platform",{0,.2f,-1},{0,.2f,1},{1,.2f,1},{1,.2f,-1});
+    quad(model,"platform",{0,0,-1},{0,0,1},{0,.2f,1},{0,.2f,-1});
+    const viewer::CollisionWorld world(model);
+    viewer::WalkingGroundCache cache;
+    glm::vec3 position{-3,0,0};
+    for(int i=0;i<300;++i) {
+        const auto desired=position+glm::vec3(.02f,0,0);
+        const auto plain=viewer::moveZombieBody(position,desired,world);
+        const auto cached=viewer::moveZombieBody(position,desired,world,nullptr,0,&cache);
+        require(plain.feet==cached.feet && plain.travel==cached.travel,
+                "Cached support changed movement across slopes, seams or step edges");
+        position=plain.feet;
+    }
+    require(position.x>2.9f,"Slope/step fixture failed to traverse its surfaces");
+}
+
 void blockedBehaviorAndAnimation() {
     auto model = floor();
     wall(model);
@@ -212,6 +249,7 @@ void crowdAgainstWallAndDeterminism() {
     std::vector<glm::vec3> positions;
     for (int z = 0; z < 20; ++z)
         for (int x = 0; x < 50; ++x) positions.emplace_back(-.4f - x * .65f, 0, (z - 10) * .65f);
+    std::vector<viewer::WalkingGroundCache> groundCaches(count);
     viewer::ZombieCrowd a, b;
     a.reset(count); b.reset(count);
     for (std::size_t id = 0; id < count; ++id) a.update(id, positions[id]);
@@ -222,7 +260,7 @@ void crowdAgainstWallAndDeterminism() {
         for (std::size_t id = 0; id < count; ++id) {
             const auto desired = positions[id] + glm::normalize(glm::vec3(10, 0, 0) - positions[id]) * .15f;
             const auto accepted = viewer::moveZombieBody(positions[id], desired, world, &a, id);
-            const auto replay = viewer::moveZombieBody(positions[id], desired, world, &b, id);
+            const auto replay = viewer::moveZombieBody(positions[id], desired, world, &b, id, &groundCaches[id]);
             require(accepted.feet == replay.feet, "World/crowd movement must repeat across bucket insertion histories");
             require(accepted.feet.x <= -.35f && distance(positions[id], accepted.feet) <= .1502f,
                     "World/crowd correction must not cross a wall or add speed");
@@ -248,6 +286,8 @@ int main() {
         thinWallsSlidingAndCorners();
         polesFencesGuardrailsAndTrunks();
         boxesAndDoorPoses();
+        cachedLiveSupport();
+        cachedMovementOnSlopeAndStep();
         blockedBehaviorAndAnimation();
         boundedExternalMovement();
         crowdAgainstWallAndDeterminism();

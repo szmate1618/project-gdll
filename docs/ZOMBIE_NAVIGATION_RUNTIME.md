@@ -153,6 +153,18 @@ A full local trunk buffer stops the NPC and increments an overflow counter.
 Death releases the path. Teleports, uncovered positions and population changes
 invalidate stale routes and stop travel rather than silently searching again.
 
+The fixed destination polygon is retained from planning. Each follow step also
+retains its validated X/Z segment: the physical guard reuses that result only
+when both endpoints match exactly. Collision/crowd changes receive a fresh
+coverage check; accepting a step or releasing a route clears the saved result.
+
+Each scenario route owns a bounded walking-ground cache for a 1 m square patch.
+It keeps up to 16 static support candidates across all heights, re-evaluating
+triangle coverage and the current height limits on every query. Leaving the
+patch or changing collision worlds refreshes it; overflowing patches use the
+full BVH. Live box support is always queried at its current pose. These caches
+preserve the existing slope, step, contact and crowd checks.
+
 Original behavior movement has no navigation argument. Scenario following is
 implemented in `zombie_scenario_routes.cpp`; both movement modes reuse physical
 collision and locomotion pose updates. Perception owns the one-way handoff.
@@ -195,6 +207,11 @@ mesh or in disconnected regions stop safely. Those capabilities require later
 navigation work rather than additional Detour sampler settings.
 
 ## Validation
+
+`--profile` prints a separate zombie-update breakdown for ground, contacts,
+navmesh coverage, Detour steering and spatial updates. See the
+[real-map profiling harness](BENCHMARKS.md#real-map-zombie-update-substeps) for
+fixed-step runs and instrumentation-overhead controls.
 
 When profiling scenarios, distinguish nearby behavior-pool entries from actors
 following scenario routes: travel continues outside player activation range and

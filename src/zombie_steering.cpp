@@ -1,3 +1,4 @@
+#include "zombie_update_profile.hpp"
 #include "zombie_steering.hpp"
 #include "DetourObstacleAvoidance.h"
 
@@ -56,6 +57,7 @@ std::size_t Controller::workspaceBytes() const noexcept {
 glm::vec2 Controller::steer(glm::vec2 position, glm::vec2 currentVelocity,
                           glm::vec2 desiredVelocity, const Obstacle* obstacles,
                           std::size_t count, Stats* stats) {
+    zombie_profile::Timer timer(zombie_profile::Stage::steering);
     if (count > impl_->maxObstacles)
         throw std::length_error("Detour steering obstacle capacity exceeded");
     const float speedSquared = glm::dot(desiredVelocity, desiredVelocity);

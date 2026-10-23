@@ -167,6 +167,54 @@ void transformedSlopeAndCeiling() {
     require(!contacts.empty() && contacts[0].normal.y < -0.999f, "Ceiling collision prevents rising capsule");
 }
 
+void cachedWalkingGround() {
+    viewer::Model model; addGround(model);
+    viewer::Primitive slope;
+    triangle(slope, {-4,-1,-4}, {-4,-1,4}, {4,1,4});
+    triangle(slope, {-4,-1,-4}, {4,1,4}, {4,1,-4});
+    draw(model, std::move(slope), "terrain");
+    viewer::Primitive platform; floor(platform, .1f, -.4f, 3, .4f, .25f);
+    draw(model, std::move(platform));
+    viewer::Primitive cap; floor(cap, -.2f, -.2f, .2f, .2f, .4f, false);
+    draw(model, std::move(cap), "building_cache_walls");
+    viewer::Primitive ceiling; floor(ceiling, -2, -2, 2, 2, .5f, false);
+    draw(model, std::move(ceiling));
+    viewer::CollisionWorld world(model);
+    viewer::WalkingGroundCache cache;
+    const auto compare = [&](const viewer::CollisionWorld& scene, float x, float z, float lo, float hi) {
+        const auto expected=scene.walkingGroundAt(x,z,lo,hi);
+        const auto actual=scene.walkingGroundAt(x,z,lo,hi,&cache);
+        require(bool(expected)==bool(actual),"Cached ground changed support availability");
+        if (expected) require(expected->height==actual->height && expected->normal==actual->normal &&
+                              expected->terrain==actual->terrain,"Cached ground changed the highest surface or seam normal");
+    };
+    for (const float x : {-.3f,-.1f,0.f,.1f,.2f,.4f,.6f,1.f,3.9f,4.1f,30.f,0.f})
+        for (const float z : {-.3f,0.f,.3f,x})
+            for (const float hi : {-.1f,0.f,.2f,.3f,.45f,1.f}) {
+                compare(world,x,z,-10,hi);
+                compare(world,x,z,.15f,hi);
+            }
+    compare(world,0,0,-10,1);
+    const auto capHit=world.walkingGroundAt(0,0,-10,1,&cache);
+    require(capHit && capHit->height==.4f,"Cached walking must support downward foundation caps but exclude ceilings");
+    // Cache reuse must follow the immutable geometry through moves, then
+    // invalidate on replacement even if the CollisionWorld address is unchanged.
+    viewer::CollisionWorld moved(std::move(world));
+    compare(moved,0,0,-10,1);
+    world=viewer::CollisionWorld(viewer::Model{});
+    compare(world,0,0,-10,1);
+    world=viewer::CollisionWorld(model);
+    compare(world,0,0,-10,1);
+    viewer::Model dense;
+    viewer::Primitive layers;
+    for(int i=0;i<25;++i) floor(layers,-1,-1,1,1,i*.01f);
+    draw(dense,std::move(layers));
+    const viewer::CollisionWorld overflow(dense);
+    for (const float hi : {.1f,.15f,1.f}) compare(overflow,0,0,-10,hi);
+    require(!world.walkingGroundAt(std::numeric_limits<float>::quiet_NaN(),0,-1,1,&cache),
+            "Cached ground accepted nonfinite coordinates");
+}
+
 void degenerateAndEmptyGeometry() {
     viewer::Model model; viewer::Primitive p;
     triangle(p, {0, 0, 0}, {1, 0, 0}, {2, 0, 0});
@@ -229,7 +277,7 @@ void disabledFencesRemoveBarriers() {
 int main() {
     try {
         flatGroundAndContacts(); wallsCornersAndSolidSpawn(); wallClearanceIsOptIn(); courtyardRemainsOpen();
-        transformedSlopeAndCeiling(); degenerateAndEmptyGeometry(); visibilitySegments();
+        transformedSlopeAndCeiling(); cachedWalkingGround(); degenerateAndEmptyGeometry(); visibilitySegments();
         disabledFencesRemoveBarriers();
         std::cout << "Collision world tests passed\n";
         return 0;

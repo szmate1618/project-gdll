@@ -31,6 +31,18 @@ struct GroundHit {
     bool terrain = false;
 };
 
+// Caller-owned walking query cache. Candidate indices cover a small X/Z patch
+// at every static height, preserving overlapping surfaces and changing step
+// ceilings. Dense patches fall back to the BVH; live boxes are never cached.
+class WalkingGroundCache {
+    friend class CollisionWorld;
+    std::uint64_t worldId_ = 0;
+    glm::vec2 minimum_{0}, maximum_{0};
+    std::array<std::uint32_t, 16> triangles_{};
+    std::size_t count_ = 0;
+    bool complete_ = false;
+};
+
 // Y-up vertical capsule. Base and height include the rounded end caps; the
 // center segment runs from base.y + radius to base.y + height - radius.
 // These simple solid trunks are independent of rendered foliage/impostors.
@@ -81,7 +93,8 @@ public:
     // Walking also supports the exposed upper side of generated foundation
     // bottom caps. Other downward faces (ceilings/roofs) remain excluded.
     // Callers bound maxY by their step height and check slope/body clearance.
-    std::optional<GroundHit> walkingGroundAt(float x, float z, float minY, float maxY) const;
+    std::optional<GroundHit> walkingGroundAt(float x, float z, float minY, float maxY,
+                                             WalkingGroundCache* cache = nullptr) const;
     bool insideBuilding(glm::vec3 feet, float radius, float height) const;
     // Finite segment visibility through scene triangles and solid trunk
     // capsules. Double-sided geometry blocks sight; foliage does not. Ignore
@@ -116,7 +129,7 @@ public:
 
 private:
     std::optional<GroundHit> queryGround(float x, float z, float minY, float maxY,
-                                        bool terrainOnly, bool foundationCaps) const;
+                                        bool terrainOnly, bool foundationCaps, WalkingGroundCache* cache = nullptr) const;
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

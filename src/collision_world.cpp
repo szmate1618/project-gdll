@@ -1,9 +1,11 @@
+#include "zombie_update_profile.hpp"
 #include "collision_world.hpp"
 #include "door_collision.hpp"
 #include "box_layer.hpp"
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <limits>
 #include <map>
@@ -17,6 +19,9 @@ namespace viewer {
 namespace {
 
 constexpr float epsilon = 1e-5f;
+// Lifetime identity survives moves and cannot alias a newly constructed world
+// at the same address. Only construction mutates this shared counter.
+std::atomic<std::uint64_t> nextWorldId{1};
 
 struct Bounds {
     glm::vec3 low{std::numeric_limits<float>::max()};
@@ -220,6 +225,7 @@ void appendTrunk(std::vector<glm::vec3>& lines, const TrunkCollider& trunk) {
 }  // namespace
 
 struct CollisionWorld::Impl {
+    const std::uint64_t worldId = nextWorldId.fetch_add(1, std::memory_order_relaxed);
     struct Node {
         Bounds bounds;
         std::uint32_t first = 0, count = 0, left = 0, right = 0;
@@ -509,6 +515,7 @@ bool CollisionWorld::lineOfSight(glm::vec3 origin, glm::vec3 target) const {
 
 std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, float height,
                                              float skin, float wallClearance) const {
+    zombie_profile::Timer timer(zombie_profile::Stage::contacts);
     std::vector<Contact> result;
     if (!finite(feet) || radius <= 0 || height < radius * 2 || skin < 0 || wallClearance < 0) return result;
     const float reach = radius + skin;
@@ -562,16 +569,19 @@ std::optional<GroundHit> CollisionWorld::groundAt(float x, float z, float minY, 
     return queryGround(x, z, minY, maxY, terrainOnly, false);
 }
 
-std::optional<GroundHit> CollisionWorld::walkingGroundAt(float x, float z, float minY, float maxY) const {
-    return queryGround(x, z, minY, maxY, false, true);
+std::optional<GroundHit> CollisionWorld::walkingGroundAt(float x, float z, float minY, float maxY,
+                                                           WalkingGroundCache* cache) const {
+    return queryGround(x, z, minY, maxY, false, true, cache);
 }
 
 std::optional<GroundHit> CollisionWorld::queryGround(float x, float z, float minY, float maxY,
-                                                    bool terrainOnly, bool foundationCaps) const {
+                                                    bool terrainOnly, bool foundationCaps,
+                                                    WalkingGroundCache* cache) const {
+    zombie_profile::Timer timer(zombie_profile::Stage::ground);
     if (!std::isfinite(x) || !std::isfinite(z) || !std::isfinite(minY) || !std::isfinite(maxY) || minY > maxY) return std::nullopt;
     Bounds region; region.include({x - epsilon, minY, z - epsilon}); region.include({x + epsilon, maxY, z + epsilon});
     std::optional<GroundHit> result;
-    impl_->query(region, [&](const Triangle& t) {
+    const auto consider = [&](const Triangle& t) {
         if (terrainOnly && !t.terrain) return;
         auto normal = t.normal;
         if ((t.terrain || (foundationCaps && t.foundation)) && normal.y < 0) normal = -normal;
@@ -579,7 +589,36 @@ std::optional<GroundHit> CollisionWorld::queryGround(float x, float z, float min
         float y;
         if (!verticalIntersection(t, x, z, y) || y < minY - epsilon || y > maxY + epsilon) return;
         if (!result || y > result->height) result = GroundHit{y, normal, t.terrain};
-    });
+    };
+    if (cache) {
+        if (cache->worldId_ != impl_->worldId ||
+            x < cache->minimum_.x || x > cache->maximum_.x ||
+            z < cache->minimum_.y || z > cache->maximum_.y) {
+            cache->worldId_ = impl_->worldId;
+            cache->minimum_ = glm::vec2(x, z) - .5f;
+            cache->maximum_ = glm::vec2(x, z) + .5f;
+            cache->count_ = 0;
+            cache->complete_ = true;
+            Bounds patch;
+            patch.include({cache->minimum_.x - epsilon, std::numeric_limits<float>::lowest(), cache->minimum_.y - epsilon});
+            patch.include({cache->maximum_.x + epsilon, std::numeric_limits<float>::max(), cache->maximum_.y + epsilon});
+            impl_->query(patch, [&](const Triangle& t) {
+                auto normal = t.normal;
+                if ((t.terrain || t.foundation) && normal.y < 0) normal = -normal;
+                if (normal.y <= 1e-4f) return;
+                if (cache->count_ == cache->triangles_.size()) { cache->complete_ = false; return; }
+                cache->triangles_[cache->count_++] = static_cast<std::uint32_t>(&t - impl_->triangles.data());
+            });
+        }
+        if (cache->complete_) {
+            // Keep the BVH traversal order so equal-height seam ties retain the
+            // same normal/terrain classification as the uncached query.
+            for (std::size_t i = 0; i < cache->count_; ++i) {
+                const auto& triangle = impl_->triangles[cache->triangles_[i]];
+                if (triangle.bounds.intersects(region)) consider(triangle);
+            }
+        } else impl_->query(region, consider);
+    } else impl_->query(region, consider);
     if (!terrainOnly && impl_->boxes) {
         const auto box = impl_->boxes->groundAt(x, z, minY, maxY);
         if (box && (!result || box->height > result->height)) result = box;
