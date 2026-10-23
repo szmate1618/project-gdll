@@ -1153,10 +1153,11 @@ grabbing the same prop; torso contents use the existing authoritative physics.
 Each grip owns a shapeless hand anchor and a critically damped Box3D motor joint
 at the clicked point. Its positional spring is solved during physics substeps
 using the body's mass and rotational inertia. Bounded rotational friction
-settles spin without an orientation spring. Each hand
-can exert up to 180 N, so one hand can suspend up
-to about 18 kg and two hands about 36 kg. Heavier objects respond more slowly
-and can be dragged or tipped on the floor. Mouse offsets are bounded, and a
+settles spin without an orientation spring. A hand's normal force budget is
+180 N, enough to suspend about 18 kg. For heavier props the joint's combined
+force budget increases toward 90% of the prop's weight, capped at 420 N,
+so one hand can drag or tip them without lifting them clear of the floor.
+Two hands combine their force budgets. Mouse offsets are bounded, and a
 large camera teleport or an object too far from its target ends the grip.
 Existing collisions remain active while holding objects.
 

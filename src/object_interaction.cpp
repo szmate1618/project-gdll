@@ -9,6 +9,7 @@ namespace {
 constexpr float metersPerPixel = .004f;
 constexpr double swingWindow = .10; // Recent displacement per 100 ms, not event frequency.
 constexpr float maxLiftForce = 180; // N per hand: one hand cannot suspend >18.4 kg.
+constexpr float extraDragForce = 240; // N of additional joint budget for unliftable props.
 constexpr float maxThrowImpulse = 60; // N*s per releasing hand.
 bool finite(glm::vec2 p) { return std::isfinite(p.x) && std::isfinite(p.y); }
 glm::vec3 bounded(glm::vec3 value, float maximum) {
@@ -38,7 +39,11 @@ bool ObjectInteraction::press(Hand hand, const Camera& camera, BoxLayer& boxes, 
     const float yaw = glm::radians(camera.yawDegrees());
     const glm::vec3 forward(std::cos(yaw), 0, std::sin(yaw));
     const auto right = glm::cross(forward, glm::vec3(0, 1, 0));
-    grab = Grab{&boxes, hit->prop, std::make_unique<PhysicsGrab>(hit->prop,hit->localPoint,maxLiftForce),
+    // The joint limits the total force vector. Give heavy props the combined
+    // lift/drag budget, staying below their weight so one hand cannot lift them.
+    const float gripForce = std::max(maxLiftForce, std::min(maxLiftForce+extraDragForce,
+                                                         hit->prop.mass()*9.8f*.9f));
+    grab = Grab{&boxes, hit->prop, std::make_unique<PhysicsGrab>(hit->prop,hit->localPoint,gripForce),
                 hit->localPoint, hit->point - camera.position(), right, forward, {}, {}};
     return true;
 }
