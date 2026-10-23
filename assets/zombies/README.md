@@ -80,6 +80,13 @@ on the same actor. Assets without capsule definitions keep their original
 body/head proxy fallback. The capsule files are included in multiplayer asset
 packs and content fingerprints, with LF line endings.
 
+Torso hits additionally test the remaining original posed triangles, removing
+triangles with a torso vertex within 10 cm of the impact. The visible surface
+and an 80%-scale inner collision shell share the original triangle mask.
+Three small dark red boxes demonstrate loose contents inside a wounded torso.
+Wounds persist on corpses independently of health; shadow geometry stays intact.
+See [runtime torso wounds](../../docs/VIEWER.md) for the collider and LOD behavior.
+
 Each original character has a companion `models/NAME.hitboxes.json`. These
 definitions contain ten spherical joint regions: waist, neck, and left/right
 shoulder, elbow, hip and knee. Centers and radii use meters in the reference

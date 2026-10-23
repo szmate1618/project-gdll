@@ -1,0 +1,121 @@
+Torso wound shader, cavity physics and neck settling investigation
+Recorded 2026-10-23. Baseline source: 05b64db.
+
+Findings
+The controlled runs did not show a repeatable GPU regression from the shared
+wound shader. Cavities added measurable CPU work, approximately 0.17-0.30 ms
+per frame for 20 cavities and 60 loose objects in this fixture. These numbers
+do not reproduce or fully explain the reported change from stable 60 to 49 FPS.
+
+During the investigation, both CPU and GPU timings became substantially faster
+without a change in the reported power source or platform profile. AC remained
+offline, the battery was discharging, and the ACPI platform profile was balanced.
+This prevents treating all runs as one timing distribution. It does not identify
+which clock, power, thermal, scheduling or background-load condition changed.
+
+Separately, a real-asset physics probe reproduced ragdolls failing to sleep.
+A zero-speed neck motor limited to 4 N*m let all 20 probe ragdolls sleep naturally
+within five simulated seconds. Before the change, all 20 remained awake after
+60 simulated seconds. This is a reproducible settling improvement, not a measured
+end-to-end gameplay FPS improvement.
+
+Shader/physics controls
+- AMD Radeon 660M; hardware OpenGL, hidden 1280x720 window, VSync disabled.
+- Existing output/godollo.glb and orthophoto vegetation; no map regeneration.
+- scenarios/old-forest-damage/scenario.toml: 100 characters, player spawn
+  X=700, Z=-2600, authored yaw=-90, pitch=0. These coordinates belong to this map.
+- 20 nearest characters converted to ragdolls using their real mapped rigs.
+- All cases retain the same 20 ragdolls, source assets, draw counts and LODs.
+- Each of those 20 actors receives a nonempty all-zero wound mask. This exercises
+  mask lookup/original-LOD selection while retaining identical visible surfaces.
+- Original shader control removes wound varyings, uniforms and fragment logic
+  from scratch copies of basic.vert/basic.frag. The production shaders are not
+  modified for these comparisons. The renderer and geometry are otherwise shared.
+- Cavity control adds 20 intact inner shells and their 60 dynamic props using
+  the same production ZombieTorsoPhysics implementation. These diagnostic props
+  are not submitted for rendering, isolating the physics cost. Kinematic shells
+  follow the simulated torsos and prepare streamed ground collision normally.
+- Scenario route movement is frozen; perception/audio are disabled. Fixed 1/60 s
+  simulation steps, displayed animation frozen at zero, time of day 12.75 frozen.
+- 480 frames per run; first 60 excluded. CPU medians use 420 frames. GPU timestamp
+  medians use available samples only: 336-368 valid GPU samples of those 420.
+  The 16-slot asynchronous query ring can skip samples; missing samples are never
+  counted as zero. No per-frame glFinish is used; final draining is outside timing.
+- Three alternating four-case rounds, followed by one extra reverse-order round
+  after the timing regime changed. Sixteen runs total, all on battery (75% to 71%).
+- Each final screenshot is byte-identical: SHA256
+  f17d477e04970dcd272cc08f6746acf16f62b000ec17bd05c62ee6b62e49b4c8
+  Verify against summary.json for the exact retained hash.
+- Final counts in every case: 2,449 trees, eight tree draws; six town draws;
+  100 visible zombies, 20 ragdolls, 20 zombie draws; LOD0/1/2/3 = 20/80/0/0;
+  110,894 camera triangles, 12,580 sun-shadow triangles, no flashlight triangles.
+
+Per-run medians, ms
+Case                           GPU    CPU render  CPU sim  Physics  Cavity prep
+original, no cavities, round0  15.093    2.030       1.775    1.517     0.0019
+wounds,   no cavities, round0  15.348    2.025       1.796    1.537     0.0019
+wounds,      cavities, round0  15.536    2.002       2.065    1.743     0.0457
+original,    cavities, round0  15.584    2.031       2.066    1.749     0.0473
+original,    cavities, round1  15.923    2.040       2.107    1.778     0.0492
+wounds,      cavities, round1  15.550    2.010       2.076    1.751     0.0474
+wounds,   no cavities, round1  14.912    2.035       1.841    1.580     0.0019
+original, no cavities, round1  15.342    2.035       1.831    1.570     0.0019
+original, no cavities, round2  15.562    2.050       1.783    1.523     0.0019
+wounds,   no cavities, round2  15.656    2.026       1.793    1.536     0.0019
+wounds,      cavities, round2   6.961    1.344       1.122    0.922     0.0244
+original,    cavities, round2   7.148    1.556       1.231    1.062     0.0280
+original,    cavities, round3   7.208    1.513       1.260    1.091     0.0286
+wounds,      cavities, round3   6.947    1.512       1.208    1.038     0.0255
+wounds,   no cavities, round3   6.954    1.476       1.039    0.895     0.0014
+original, no cavities, round3   7.249    1.542       1.102    0.940     0.0015
+
+CPU sim includes physics and cavity preparation; these columns must not be added
+again. CPU and GPU overlap and must not be summed into frame duration. The GPU
+column measures command-completion elapsed time, including stalls, rather than
+active GPU utilization. The hidden, uncapped runs are not presented gameplay FPS.
+The user's exact camera, severed-mesh population, moving routes and wound sizes
+were not replayed, so this is component isolation rather than an exact regression
+reproduction. These runs also predate the neck-friction fix.
+
+Sleep probe and selected change
+The separate CPU-only probe loads all ten real source characters, uses each
+twice with different idle phases, normalizes height to 1.8 m, and spaces the
+20 bodies eight meters apart. Each receives the normal mapped ragdoll activation
+with {0,0,-4} input velocity. Their own artificial floors remain in use. No cavity
+physics, animation-driven pose overwrite or visual inference determines sleep:
+ZombieRagdollWorld::sleeping() checks every body's actual Box3D awake state.
+
+Before: 0/20 sleeping at 1, 5, 15, 30 and 60 simulated seconds.
+Neck motor, zero relative angular velocity, 4 N*m: 20/20 sleeping by five seconds.
+8 N*m: 19/20 by five seconds; one remained awake at 60 seconds.
+12 N*m: 18/20 by five seconds; existing detached-part settling check failed.
+12 N*m plus head angular drag 8/s: 19/20; settling check passed.
+4 N*m plus head angular drag 8/s: 19/20; settling check passed.
+
+Selected 4 N*m without extra world-space head drag: it settled all real-asset
+probe cases and passed the existing detached-part settling checks. The motor
+opposes relative head/torso rotation; it adds no restoring spring or target pose.
+Neck severing destroys that joint, so detached head spin is unaffected. Other
+ragdoll joints, launch speeds and sleep thresholds retain their existing policy.
+This fixture does not guarantee every pile or externally disturbed corpse sleeps.
+
+Process/power snapshot
+After benchmarking, host top reported approximately 92% CPU idle, about 20 GiB
+available RAM, no swap use and no lingering viewer/benchmark processes. VS Code,
+Codex and the desktop had some activity; the snapshot did not show a runaway
+background CPU job. This does not rule out earlier transient background load.
+A brief read-only GPU-clock sampler was not synchronized to individual draws,
+so its clock readings are not evidence of the clocks during each GPU interval.
+No power, clock, process or hardware settings were changed by this investigation.
+
+Retained local evidence (ignored build outputs)
+build/benchmarks/torso-cost-20261023/
+  main.cpp, diagnostic.hpp, viewer: scratch main with controlled seeding/timing.
+  original/, wounds/: snapshot shader directories.
+  run.py, summarize.py, summary.json: sequential runner and timing summaries.
+  *-round*.csv, *.csv.stages.csv, *.log, *.ppm, *.power.json: raw runs.
+  *-round3.clocks.csv, gpu-clock-samples.csv: read-only clock samples.
+  sleep_probe.cpp, sleep_probe.log: pre-change real-asset awake-state probe.
+  neck_sleep_probe.cpp, neck_sleep_probe.log: initial 12 N*m probe.
+  tune_neck.py, motor*-*.log: torque/damping probes and existing settling checks.
+These scratch sources are not a supported benchmark CLI or unit-test fixture.

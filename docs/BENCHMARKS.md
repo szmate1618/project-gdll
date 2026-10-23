@@ -107,6 +107,10 @@ behavior is a hypothesis, not an isolated root cause or a universal GPU rule.
 Use asynchronous timing in production. Completion waits and frozen simulation
 are diagnostic controls that change the workload, not proposed performance fixes.
 
+The [battery-powered torso shader and physics controls](benchmarks/torso-cost-2026-10-23.txt)
+isolate wound shader and cavity costs, record a substantial timing change with
+the same reported power profile, and include a real-asset ragdoll settling probe.
+
 ## Other tracked benchmark programs
 
 | Case | Source / target | Output |

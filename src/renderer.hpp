@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <vector>
+#include <unordered_map>
 
 #include "camera.hpp"
 #include "model.hpp"

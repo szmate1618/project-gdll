@@ -52,7 +52,7 @@ struct ZombieState {
     glm::mat4 transform{1}, root{1};
     float phase = 0, walkSeconds = 0;
     bool walking = false, running = false, dead = false;
-    std::vector<std::uint8_t> torsoHoles;
+    std::vector<std::uint8_t> torsoHoles{};
 };
 // A complete, coherent corpse pose, delivered independently of essential state.
 // Versions increase for each zombie; an acknowledgement releases a bounded

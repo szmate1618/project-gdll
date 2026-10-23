@@ -910,13 +910,47 @@ separately, including repeated hits on the same zombie. Surviving zombies retain
 their behavior, navigation and living collision membership. At zero HP the layer
 activates the ragdoll and erases its injury record. Grenade deaths also erase
 existing injury records; their blast behavior is unchanged.
+
+Prepared torso surfaces receive geometric wounds. After the usual spatial-grid
+and bounding-box checks, torso candidates use the remaining posed torso
+triangles to place a shot on the visible surface. Each hit removes every
+triangle incident to a torso vertex within **10 cm in world space** of that
+point. This is a vertex-distance rule: a large triangle can disappear entirely,
+or remain intact if none of its vertices is close enough. Repeated hits add to
+the same persistent wound mask; subsequent shots can pass through an opening
+and hit an intact back surface. Other body regions retain their capsule tests,
+and joint-hit precedence remains unchanged. Corpses retain their existing
+non-targetable shooting behavior.
+
+Wound state is separate from health and survives ragdoll activation. The camera
+fragment shader discards those exact original triangle IDs, including their
+depth writes. Wounded camera instances use the original mesh so LOD changes
+cannot close a hole. Prepared severed meshes match wounded reference vertices
+when selecting their visual triangle mask. **Sun and flashlight shadow casting
+keep their existing geometry and LODs**, without wound removal or shadows from
+the placeholder contents.
+
+The first wound creates an inward-facing torso collider, contracted to 80% of
+the reference surface around its center. Its fixed shape follows the torso's
+rigid animation/ragdoll frame. Anatomical boundary loops are capped; shot
+openings are left open. The collider is partitioned below Box3D's per-contact
+triangle-cache limit and rebuilt only when damage changes. Three small dark red
+boxes are created inside as loose demonstration contents. They collide with
+their own cavity and streamed terrain/building surfaces, and ignore the solid
+ragdoll capsules. Physics determines whether they fit through an opening.
+The shell is an approximate fit during animation; rapid motion also inherits
+Box3D's moving-mesh continuous-collision limitations. Removing a corpse releases
+its cavity, objects, wound record and GPU mask slot. Unwounded actors do not
+create these extra physics bodies. Multiplayer snapshots carry packed vertex
+masks and authoritative placeholder poses; clients do not simulate the contents.
+
 Prepared characters also load `NAME.hitboxes.json` beside their original GLB.
 These spherical colliders follow the authored waist, neck, shoulders, elbows,
 hips and knees. A joint hit overrides the ordinary damage volumes on
 that actor and checks world occlusion to the joint collider. It immediately
 kills regardless of HP, removes the health injury record, selects a precomputed
 separation mesh with dark red caps, and releases the matching ragdoll constraint.
-No triangle ray test or runtime mesh cutting is used. The hit physics body
+Joint dismemberment uses its colliders and prepared meshes. The hit physics body
 receives a random impulse along the shot direction: 4–8 N·s for low caliber or
 10–16 N·s for high caliber. Non-head parts also receive an equally strong impulse
 away from the posed pelvis center toward the severed body's center; the two
@@ -950,6 +984,10 @@ travel rather than the requested speed; explicit stops clear travel velocity.
 This travel component also applies to unmapped fallback rigs, and is separate
 from the 20 m/s cap on clip motion. No animated angular velocity is
 transferred; severed bodies still receive their separate random spin.
+The neck's spherical joint has a zero-speed rotational motor with a 4 N·m
+torque limit, providing strong friction against relative head/torso rotation.
+It has no target pose or restoring spring. Destroying the neck joint releases
+that resistance along with the connection, preserving detached-head spin.
 Capsule ends are inset to avoid starting below ground, and activation adds no
 automatic angular launch. Each ragdoll uses a 6 m × 6 m × 0.1 m local ground
 box rather than the full terrain mesh. This floor supports only its owning

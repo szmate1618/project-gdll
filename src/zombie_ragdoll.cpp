@@ -314,6 +314,14 @@ private:
         joint.enableTwistLimit = true;
         joint.lowerTwistAngle = lowerTwist * B3_DEG_TO_RAD;
         joint.upperTwistAngle = upperTwist * B3_DEG_TO_RAD;
+        if (child == head) {
+            // Strong friction at the neck: oppose relative rotation rather
+            // than pulling the head toward an authored pose. Severing removes
+            // this joint, so a detached head retains its launch spin.
+            joint.enableMotor = true;
+            joint.motorVelocity = {0, 0, 0};
+            joint.maxMotorTorque = 4.0f; // N*m, shared across the three rotation axes.
+        }
         joints_[child] = b3CreateSphericalJoint(world_, &joint);
     }
 
