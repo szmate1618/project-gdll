@@ -1,3 +1,4 @@
+#include "zombie_shooting_fixture.hpp"
 #include "simulation_clock.hpp"
 #include "zombie_chase.hpp"
 #include "zombie_layer.hpp"
@@ -95,7 +96,7 @@ void behaviorIntegration() {
             layer.behaviors.find(0)->target == glm::vec3(0, 0, 10),
             "Being blocked must retain pursuit and the last target");
     // A shot removes its body from the crowd index immediately.
-    require(layer.shoot({-2, 0.9f, 1}, {1, 0, 0}), "The inactive blocker must be shootable");
+    require(viewer::test::shootToKill(layer, {-2, 0.9f, 1}, {1, 0, 0}), "The inactive blocker must be shootable");
     require(layer.instances[1].ragdoll, "Shoot the blocker rather than its pursuer");
     layer.chase(0.1f, {0, 0, 300}, world);
     require(layer.instances[0].restRoot[3].z > 0.69f && layer.instances[0].walking,

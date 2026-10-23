@@ -65,12 +65,12 @@ void ZombieLayer::updateSpatialMembership(std::size_t id) {
                                               std::abs(double(bounds.maximum[axis]) - feet[axis])});
 }
 
-std::size_t ZombieLayer::findShotTarget(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
-                                      std::vector<glm::mat4>& selectedPose, float* hitDistance) {
+std::optional<ZombieShotHit> ZombieLayer::findShotTarget(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
+                                                       std::vector<glm::mat4>& selectedPose) {
     ensureSpatialIndex();
     spatialIndex_.queryRay(origin, direction, shotPadding_, spatialCandidates_);
     shootingStats_.spatialCandidates = spatialCandidates_.size();
-    std::size_t selected = instances.size();
+    std::optional<ZombieShotHit> selected;
     float nearest = std::numeric_limits<float>::max();
     for (const auto id : spatialCandidates_) {
         const auto& instance = instances[id];
@@ -87,14 +87,15 @@ std::size_t ZombieLayer::findShotTarget(glm::vec3 origin, glm::vec3 direction, d
         const auto head = zombieHeadHitSphere(asset, instance, pose, geometry);
         float headDistance = 0;
         const bool headHit = raySphere(origin, direction, head.center, head.radius, headDistance);
+        // The first region entered determines damage, including overlapping spheres.
+        const bool headshot = headHit && (!bodyHit || headDistance <= distance);
         if (headHit) distance = bodyHit ? std::min(distance, headDistance) : headDistance;
         if ((bodyHit || headHit) && distance < nearest) {
             nearest = distance;
-            selected = id;
+            selected = ZombieShotHit{id, distance, headshot};
             selectedPose = std::move(pose);
         }
     }
-    if (hitDistance) *hitDistance = nearest;
     return selected;
 }
 } // namespace viewer

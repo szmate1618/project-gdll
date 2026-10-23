@@ -32,6 +32,22 @@ std::int64_t requiredInteger(const toml::node* node,
     return *node->value<std::int64_t>();
 }
 
+std::array<float, 2> playerPair(const toml::table& table, const char* key, const std::filesystem::path& path) {
+    const auto* values = table[key].as_array();
+    if (!values || values->size() != 2)
+        invalid(path, std::string("player.") + key + " must contain two finite numbers");
+    std::array<float, 2> result;
+    for (std::size_t axis = 0; axis < result.size(); ++axis) {
+        const auto& node = (*values)[axis];
+        const auto value = node.value<double>();
+        if ((!node.is_integer() && !node.is_floating_point()) || !value ||
+            !std::isfinite(*value) || std::abs(*value) > 1e7)
+            invalid(path, std::string("player.") + key + " contains an invalid coordinate");
+        result[axis] = static_cast<float>(*value);
+    }
+    return result;
+}
+
 std::optional<ZombieHordeConfig::Rectangle> rectangle(const toml::table& table, const char* key,
     ZombieHordeConfig::CoordinateSystem coordinates, const std::filesystem::path& path,
     const std::string& prefix) {
@@ -79,13 +95,23 @@ ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path)
     } catch (const toml::parse_error& error) {
         invalid(path, std::string("invalid scenario TOML: ") + error.what());
     }
-    checkKeys(document, {"version", "seed", "zombies"}, path);
+    checkKeys(document, {"version", "seed", "zombies", "player"}, path);
     if (document.contains("version") && requiredInteger(document.get("version"), path, "version") != 2)
         invalid(path, "unsupported scenario version; expected version = 2");
     const auto* zombies = document["zombies"].as_table();
     if (!zombies || zombies->empty()) invalid(path, "expected at least one [zombies.HORDE_NAME] table");
 
     ZombieScenarioConfig config;
+    if (document.contains("player")) {
+        const auto* player = document["player"].as_table();
+        if (!player) invalid(path, "player must be a [player] table");
+        checkKeys(*player, {"spawn", "orientation"}, path, "player.");
+        const auto spawn = playerPair(*player, "spawn", path);
+        const auto orientation = playerPair(*player, "orientation", path);
+        if (std::abs(orientation[0]) > 180 || std::abs(orientation[1]) > 89)
+            invalid(path, "player.orientation requires yaw [-180,180] and pitch [-89,89] degrees");
+        config.player = ZombieScenarioConfig::Player{spawn, orientation};
+    }
     if (document.contains("seed")) {
         const auto seed = requiredInteger(document.get("seed"), path, "seed");
         if (seed < 0 || seed > std::numeric_limits<std::uint32_t>::max())

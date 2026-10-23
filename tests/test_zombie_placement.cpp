@@ -1,3 +1,4 @@
+#include "zombie_shooting_fixture.hpp"
 #include "zombie_placement.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_park.hpp"
@@ -219,7 +220,7 @@ void cameraRayActivatesNearestZombieRagdoll() {
     near.transform = near.restTransform;
     layer.instances.push_back(near);
 
-    require(layer.shoot({0, 0.9f, 3}, {0, 0, -1}), "Camera ray must activate a zombie");
+    require(viewer::test::shootToKill(layer, {0, 0.9f, 3}, {0, 0, -1}), "Camera ray must activate a zombie");
     require(layer.ragdollCount() == 1, "A camera ray must activate only one zombie");
     require(!layer.instances[0].ragdoll && layer.instances[1].ragdoll,
             "A camera ray must choose the nearest zombie");
@@ -227,7 +228,7 @@ void cameraRayActivatesNearestZombieRagdoll() {
     layer.update(1.0f / 30.0f);
     require(glm::length(glm::vec3(layer.instances[1].transform[3]) - glm::vec3(before[3])) > 1e-4f,
             "Box3D ragdoll simulation must update the zombie transform");
-    require(layer.shoot({0, 1.78f, 3}, {0, 0, -1}),
+    require(viewer::test::shootToKill(layer, {0, 1.78f, 3}, {0, 0, -1}),
             "The upper head must be hittable even on an unmapped rig");
     require(layer.ragdollCount() == 2, "Headshots must activate a ragdoll");
     require(!layer.shoot({0, 1.78f, 3}, {0, 0, -1}),

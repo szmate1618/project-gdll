@@ -14,6 +14,12 @@ struct ZombieHitSphere {
     float radius;
 };
 
+struct ZombieShotHit {
+    std::size_t zombie;
+    float distance; // World meters along the normalized shot ray.
+    bool headshot;
+};
+
 struct ZombieHitBounds { glm::vec3 minimum{0}, maximum{0}; };
 struct ZombieHeadVertex { std::size_t primitive = 0, vertex = 0; };
 // Immutable per-asset preparation. Point bounds cover every idle/walk/run bone

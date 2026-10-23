@@ -1,5 +1,6 @@
 name = "Submachine gun"
 ammo_type = "smg_rounds"
+caliber = "low"
 shot_interval_seconds = 0.08
 automatic = true
 has_scope = false

@@ -74,6 +74,19 @@ void strictConfigParsing() {
                 geographic.hordes.front().coordinateSystem == viewer::ZombieHordeConfig::CoordinateSystem::Wgs84,
             "WGS84 config must preserve its coordinate system and allow an omitted seed");
     const auto mapwide = fixture.parse(zombieSettings);
+    require(!mapwide.player, "Older scenarios without [player] must preserve the default player spawn");
+    const auto player = fixture.parse("[player]\nspawn = [700, -2600.5]\norientation = [-90, 12.5]\n" + zombieSettings);
+    require(player.player && player.player->spawn == std::array<float, 2>{700, -2600.5f} &&
+                player.player->orientation == std::array<float, 2>{-90, 12.5f},
+            "Player spawn must preserve world X/Z meters and independent yaw/pitch degrees");
+    for (const auto* settings : {"spawn = [1,2]\n", "orientation = [0,0]\n",
+             "spawn = [1,2,3]\norientation = [0,0]\n", "spawn = [1,true]\norientation = [0,0]\n",
+             "spawn = [nan,2]\norientation = [0,0]\n", "spawn = [1e8,2]\norientation = [0,0]\n",
+             "spawn = [1,2]\norientation = [181,0]\n", "spawn = [1,2]\norientation = [0,-90]\n",
+             "spawn = [1,2]\norientation = [0,inf]\n", "spawn = [1,2]\norientation = ['0',0]\n",
+             "spawn = [1,2]\norientation = [0,0]\ntypos = 1\n"})
+        fixture.invalid(std::string("[player]\n") + settings + zombieSettings);
+    fixture.invalid("player = true\n" + zombieSettings);
     require(!mapwide.hordes.front().spawn && !mapwide.hordes.front().destination,
             "Omitting both rectangles must allow mapwide sampling");
     require(!fixture.parse(zombieSettings + worldRectangle).hordes.front().destination &&

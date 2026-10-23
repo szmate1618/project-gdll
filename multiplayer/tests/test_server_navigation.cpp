@@ -208,6 +208,18 @@ void scenarioPopulation(const std::filesystem::path& asset, const std::filesyste
     multiplayer::Scene sameContent(options, loader);
     require(scene.fingerprint == sameContent.fingerprint,
         "Scenario placement changed the shared client content fingerprint");
+    // The generated test GLB is translated to (120,-75). These points lie on
+    // its open ground; (13,8) would invoke the unrelated map-center fallback.
+    const viewer::ZombieScenarioConfig::Player authoredPlayer{{116, -71}, {35, -7}};
+    auto playerOptions = options;
+    playerOptions.spawn.reset();
+    multiplayer::Scene playerScene(playerOptions, loader, authoredPlayer);
+    require(std::abs(playerScene.spawnEye.x - 116) < .001f && std::abs(playerScene.spawnEye.z + 71) < .001f &&
+            playerScene.spawnOrientation == glm::vec2(35, -7), "Scenario player placement or facing was lost");
+    playerOptions.spawn = glm::vec2(120, -71);
+    multiplayer::Scene overrideScene(playerOptions, loader, authoredPlayer);
+    require(std::abs(overrideScene.spawnEye.x - 120) < .001f && std::abs(overrideScene.spawnEye.z + 71) < .001f &&
+            overrideScene.spawnOrientation == glm::vec2(35, -7), "Explicit spawn must override only the scenario position");
     const auto planned = scene.zombies.navigation()->pathFor(0);
     require(planned != 0, "Scenario did not have a route before starting the world");
     scene.model = ground();

@@ -1,3 +1,4 @@
+#include "zombie_shooting_fixture.hpp"
 #include "renderer.hpp"
 #include "zombie_animation.hpp"
 #include "zombie_lod.hpp"
@@ -720,7 +721,7 @@ void renderAuthoredAssets(const std::filesystem::path& directory, const std::fil
     std::cout << "Verified " << layer.assets.size() << " authored rigs in idle/walk/run\n";
     for (std::size_t asset = 0; asset < layer.assets.size(); ++asset) {
         const auto feet = glm::vec3(layer.instances[asset * 3].restRoot[3]);
-        if (!layer.shoot(feet + glm::vec3(0, 0.9f, 5), {0, 0, -1}, 0.5))
+        if (!viewer::test::shootToKill(layer, feet + glm::vec3(0, 0.9f, 5), {0, 0, -1}, 0.5))
             throw std::runtime_error("Authored rig must activate its physics-owned palette");
     }
     for (int frame = 0; frame < 180; ++frame) layer.update(1.0f / 60);

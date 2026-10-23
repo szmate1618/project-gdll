@@ -64,6 +64,12 @@ WeaponConfig loadConfig(const std::filesystem::path& path, const std::string& id
         if (config.automatic || config.pellets != 1 || config.hasScope)
             throw std::runtime_error(path.string() + ": grenades must be single-click, unscoped throws");
     } else if (kind != "firearm") throw std::runtime_error(path.string() + ": unknown weapon kind");
+    else {
+        const auto caliber = required<std::string>(table, "caliber", path);
+        if (caliber == "low") config.caliber = ShotCaliber::low;
+        else if (caliber == "high") config.caliber = ShotCaliber::high;
+        else throw std::runtime_error(path.string() + ": caliber must be 'low' or 'high'");
+    }
     return config;
 }
 } // namespace

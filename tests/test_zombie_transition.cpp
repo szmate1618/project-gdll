@@ -1,3 +1,4 @@
+#include "zombie_shooting_fixture.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_animation.hpp"
 #include "physics_world.hpp"
@@ -132,7 +133,7 @@ void checkTransition(double seconds, float phase, std::size_t first, std::size_t
     instance.phase = phase;
     layer.instances.push_back(instance);
     const auto center = glm::vec3(instance.restRoot * glm::vec4(0, 0.9f, 0, 1));
-    require(layer.shoot(center + glm::vec3(0, 0, 3), {0, 0, -1}, seconds), "Synthetic humanoid must be hit");
+    require(viewer::test::shootToKill(layer, center + glm::vec3(0, 0, 3), {0, 0, -1}, seconds), "Synthetic humanoid must be hit");
     const auto& ragdoll = layer.instances[0];
     require(ragdoll.ragdoll && ragdoll.activationPose.size() == asset.skeleton.size(),
             "Activation must capture the complete displayed skeleton");
@@ -182,7 +183,7 @@ void unknownRigFollowsFallbackMotion() {
     instance.transform = instance.restTransform;
     layer.instances.push_back(instance);
     const auto center = glm::vec3(instance.restRoot * glm::vec4(0, 0.9f, 0, 1));
-    require(layer.shoot(center + glm::vec3(0, 0, 3), {0, 0, -1}, 0.25),
+    require(viewer::test::shootToKill(layer, center + glm::vec3(0, 0, 3), {0, 0, -1}, 0.25),
             "An unmapped rig must still support fallback activation");
     const auto& ragdoll = layer.instances[0];
     constexpr std::size_t root = 2; // The fixture's root has one fully weighted vertex.
@@ -214,7 +215,7 @@ void unmatchedRigFollowsFallbackBody() {
     instance.phase = 0.125f;
     layer.instances.push_back(instance);
     const auto expectedPose = viewer::sampleAnimatedPose(asset, 0.125, instance.phase);
-    require(layer.shoot({3, 0.9f, -4}, {0, 0, -1}, 0.125), "Unknown rig must use the fallback body");
+    require(viewer::test::shootToKill(layer, {3, 0.9f, -4}, {0, 0, -1}, 0.125), "Unknown rig must use the fallback body");
     const auto& ragdoll = layer.instances[0];
     for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
         requireMatrixNear(worldBone(ragdoll, asset, bone), instance.transform * expectedPose[bone],
@@ -252,7 +253,7 @@ void shotWhileWalking() {
     const auto displayed = layer.instances[0];
     const auto& asset = layer.assets[0];
     const auto displayedPose = viewer::sampleZombiePose(asset, displayed, 0.125);
-    require(layer.shoot({6, 4.9f, 3}, {0, 0, -1}, 0.125),
+    require(viewer::test::shootToKill(layer, {6, 4.9f, 3}, {0, 0, -1}, 0.125),
             "The moving zombie must be hittable at its current position");
     const auto& ragdoll = layer.instances[0];
     require(ragdoll.ragdoll && !ragdoll.walking, "A shot must stop walking and start physics");
@@ -302,7 +303,7 @@ void headshotFollowsDisplayedPose(bool walking) {
     auto farther = instance;
     farther.transform = farther.restTransform = farther.restRoot = translation({0, 3, -9});
     layer.instances.insert(layer.instances.begin(), farther);
-    require(layer.shoot({skullX, 5.12f, 0}, {0, 0, -2}, 0.125),
+    require(viewer::test::shootToKill(layer, {skullX, 5.12f, 0}, {0, 0, -2}, 0.125),
             "A headshot must follow the displayed pose, phase, and instance transform");
     require(layer.instances[1].ragdoll && !layer.instances[0].ragdoll,
             "A headshot must activate only the nearest living zombie");
@@ -313,7 +314,7 @@ void layerOwnsPoseInvalidation() {
     viewer::ZombieLayer layer;
     layer.assets.push_back(humanoid());
     layer.instances.emplace_back();
-    require(layer.shoot({0, 0.9f, 3}, {0, 0, -1}), "Fixture must activate physics");
+    require(viewer::test::shootToKill(layer, {0, 0.9f, 3}, {0, 0, -1}), "Fixture must activate physics");
     require(layer.ragdollIds() == std::vector<std::size_t>{0} && layer.ragdollCount() == 1,
             "Shooting must publish the corpse ID immediately");
     const auto initial = layer.instances[0].ragdollPoseVersion;

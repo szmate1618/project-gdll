@@ -1,3 +1,4 @@
+#include "zombie_shooting_fixture.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_animation.hpp"
 #include "zombie_movement.hpp"
@@ -199,7 +200,7 @@ void idleBlockerAndSelection() {
         layer.rebuildSpatialIndex();
         blockers.prepare(doors, layer);
         require(blockers.count() == 1, "Returning to a doorway must recreate its proxy");
-        require(layer.shoot({2, .9f, .5f}, {-1, 0, 0}), "The door obstruction must remain shootable");
+        require(viewer::test::shootToKill(layer, {2, .9f, .5f}, {-1, 0, 0}), "The door obstruction must remain shootable");
         blockers.prepare(doors, layer);
         require(blockers.count() == 0, "Ragdoll handoff must remove the living proxy before the next physics step");
         layer.removeRagdoll(0);

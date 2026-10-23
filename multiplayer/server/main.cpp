@@ -19,16 +19,18 @@ int main(int argc, char** argv) {
         auto navmesh = options.map;
         navmesh.replace_extension(".navmesh");
         multiplayer::ZombiePopulationLoader populationLoader;
+        std::optional<viewer::ZombieScenarioConfig::Player> scenarioPlayer;
         if (!serverOptions.scenario.empty()) {
             const auto scenario = viewer::loadZombieScenarioConfig(serverOptions.scenario);
             if (scenario.count() > multiplayer::maxZombies)
                 throw std::runtime_error("Scenario exceeds the multiplayer zombie limit");
             options.zombieCount = scenario.count();
+            scenarioPlayer = scenario.player;
             populationLoader = [scenario, navmesh](const auto& source, const auto& collision, const auto& model) {
                 return viewer::loadZombieScenario(source, collision, model, navmesh, scenario);
             };
         }
-        multiplayer::Scene scene(options, populationLoader);
+        multiplayer::Scene scene(options, populationLoader, scenarioPlayer);
         multiplayer::World world(scene);
         if (const auto* navigation = scene.zombies.navigation()) {
             std::cout << "Server zombie navigation: " << navmesh

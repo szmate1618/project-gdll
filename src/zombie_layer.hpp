@@ -7,9 +7,11 @@
 #include "zombie_crowd.hpp"
 #include "zombie_ragdoll.hpp"
 #include "zombie_hit.hpp"
+#include "zombie_damage.hpp"
 #include "zombie_render_updates.hpp"
 
 #include <memory>
+#include <optional>
 #include <unordered_map>
 
 namespace viewer {
@@ -20,7 +22,7 @@ class ZombieNavigation;
 struct ZombieInstance {
     std::size_t asset = 0;
     glm::mat4 transform{1};
-    // Live placement until shot; then frozen as the ragdoll handoff basis.
+    // Live placement until death; then frozen as the ragdoll handoff basis.
     glm::mat4 restTransform{1};
     glm::mat4 restRoot{1};
     // Last camera pose, published by rendering for exact hit/ragdoll handoff.
@@ -75,11 +77,14 @@ struct ZombieLayer {
     ZombieBehaviorPool behaviors;
     glm::vec3 boundsMin{0}, boundsMax{0};
 
-    // Returns true when the nearest living zombie under the ray was activated.
+    // Returns true when the nearest living zombie takes damage. Only zero HP
+    // activates its ragdoll; each call represents one bullet or shotgun pellet.
     // animationSeconds is the time of the last displayed frame (before phase).
-    bool shoot(glm::vec3 origin, glm::vec3 direction, double animationSeconds = 0.0);
+    bool shoot(glm::vec3 origin, glm::vec3 direction, double animationSeconds = 0.0,
+               ShotCaliber caliber = ShotCaliber::low);
     bool shootWithOcclusion(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
-                            const CollisionWorld& world);
+                            const CollisionWorld& world, ShotCaliber caliber = ShotCaliber::low);
+    const ZombieDamage& damage() const { return damage_; }
     std::size_t explode(glm::vec3 origin, float radius, double animationSeconds, const CollisionWorld& world);
     const ZombieShootingStats& shootingStats() const { return shootingStats_; }
     // Silent noise at a world position, with a source level in dB at one meter.
@@ -142,7 +147,8 @@ struct ZombieLayer {
 private:
     void activateRagdoll(std::size_t zombie, std::vector<glm::mat4> pose, glm::vec3 velocity);
     bool shootImpl(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
-                   const CollisionWorld* occlusion);
+                   const CollisionWorld* occlusion, ShotCaliber caliber);
+    ZombieDamage damage_;
     void updateBehaviorImpl(float seconds, const ZombiePlayer& player, const CollisionWorld& world,
                             double animationSeconds, const std::vector<ZombiePlayer>* players);
     friend class ZombieDoorCollision; // Reuse the living-body spatial index for door-local physics proxies.
@@ -165,8 +171,8 @@ private:
     std::unordered_map<std::size_t, std::size_t> ragdollSlots_;
     void ensureSpatialIndex();
     void updateSpatialMembership(std::size_t id);
-    std::size_t findShotTarget(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
-                               std::vector<glm::mat4>& selectedPose, float* distance = nullptr);
+    std::optional<ZombieShotHit> findShotTarget(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
+                                              std::vector<glm::mat4>& selectedPose);
     ZombieSpatialIndex spatialIndex_;
     ZombieCrowd crowd_;
     std::vector<std::size_t> behaviorOrder_;

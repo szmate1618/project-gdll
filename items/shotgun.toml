@@ -1,5 +1,7 @@
 name = "Shotgun"
 ammo_type = "shotgun_shells"
+# Each pellet deals 1 base damage (2 on a headshot).
+caliber = "low"
 shot_interval_seconds = 0.9
 automatic = false
 pellets = 8

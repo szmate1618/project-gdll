@@ -8,6 +8,7 @@
 #include <optional>
 #include <cstdint>
 #include "grenades.hpp"
+#include "weapon_caliber.hpp"
 
 namespace viewer {
 inline constexpr std::array<const char*, 5> weaponIds{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"};
@@ -19,6 +20,7 @@ struct WeaponConfig {
     bool automatic = false, hasScope = false;
     int pellets = 1, magazineCapacity = 1, ammoPerShot = 1;
     float spreadDegrees = 0; // Cone half-angle about the camera's forward ray.
+    ShotCaliber caliber = ShotCaliber::low; // Base damage per bullet/pellet: low 1, high 2.
     glm::vec3 muzzlePosition{0}; // Model-local meters: X right, Y up, muzzle -Z.
     std::optional<GrenadeConfig> grenade; // A thrown body instead of hitscan.
 };

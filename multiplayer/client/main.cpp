@@ -225,7 +225,10 @@ int main(int argc, char** argv) {
                         }
 #endif
                         prediction.reconcile(p, *scene.collision); ownState = p; found = true;
-                        if (!ready) in.slot = p.slot;
+                        if (!ready) {
+                            in.slot = p.slot;
+                            if (!options.explicitLook) in.camera.setOrientation(p.yaw, p.pitch);
+                        }
                         const auto correction = before - prediction.eye();
                         if (ready && glm::length(correction) < 2) visualOffset += correction; else visualOffset = {};
                     }

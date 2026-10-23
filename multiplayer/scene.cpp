@@ -70,6 +70,7 @@ Options parseOptions(int argc, char** argv, bool server) {
             const auto yaw = number(i), pitch = number(i);
             if (std::abs(yaw) > 180 || std::abs(pitch) > 89) throw std::runtime_error("Invalid camera orientation");
             o.look = {yaw, pitch};
+            o.explicitLook = true;
         }
         else if (arg == "--bot" && !server) o.bot = true;
         else if (arg == "--screenshot" && !server) o.screenshot = next(i);
@@ -128,7 +129,8 @@ viewer::Model loadSessionMap(const std::filesystem::path& path) {
     return viewer::loadModel(path);
 }
 }
-Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader) :
+Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
+             const std::optional<viewer::ZombieScenarioConfig::Player>& playerSpawn) :
     mapPath(o.map), model(loadSessionMap(o.map)), physics(std::make_shared<viewer::PhysicsWorld>()),
     initialWeapons(resourceRoot() / "items", resourceRoot() / "inventory.toml") {
     std::vector<std::filesystem::path> content{o.map};
@@ -173,7 +175,9 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader) :
     collision = std::make_unique<viewer::CollisionWorld>(model, trunks, doors.get());
     collision->setBoxes(boxes.get());
     const auto center = (model.boundsMin + model.boundsMax) * .5f;
-    const auto spawn = o.spawn.value_or(glm::vec2(center.x, center.z));
+    const auto scenarioSpawn = playerSpawn ? glm::vec2(playerSpawn->spawn[0], playerSpawn->spawn[1]) : glm::vec2(center.x, center.z);
+    const auto spawn = o.spawn.value_or(scenarioSpawn);
+    if (playerSpawn) spawnOrientation = {playerSpawn->orientation[0], playerSpawn->orientation[1]};
     viewer::FPSController player;
     if (!player.spawn({spawn.x, model.boundsMax.y + 2, spawn.y}, *collision))
         throw std::runtime_error("No safe spawn near requested location");

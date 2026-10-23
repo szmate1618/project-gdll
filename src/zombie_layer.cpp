@@ -132,24 +132,26 @@ void ZombieLayer::rebuildRagdollIndex() {
     ragdollSlots_.swap(slots);
 }
 
-bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationSeconds) {
-    return shootImpl(origin, direction, animationSeconds, nullptr);
+bool ZombieLayer::shoot(glm::vec3 origin, glm::vec3 direction, double animationSeconds, ShotCaliber caliber) {
+    return shootImpl(origin, direction, animationSeconds, nullptr, caliber);
 }
-bool ZombieLayer::shootWithOcclusion(glm::vec3 origin, glm::vec3 direction, double animationSeconds, const CollisionWorld& world) {
-    return shootImpl(origin, direction, animationSeconds, &world);
+bool ZombieLayer::shootWithOcclusion(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
+                                    const CollisionWorld& world, ShotCaliber caliber) {
+    return shootImpl(origin, direction, animationSeconds, &world, caliber);
 }
-bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animationSeconds, const CollisionWorld* occlusion) {
+bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
+                           const CollisionWorld* occlusion, ShotCaliber caliber) {
     shootingStats_ = {};
     if (!finite(origin) || !finite(direction)) return false;
     const float length = glm::length(direction);
     if (length < 1e-6f) return false;
     direction /= length;
     std::vector<glm::mat4> selectedPose;
-    float distance = 0;
-    const auto selected = findShotTarget(origin, direction, animationSeconds, selectedPose, &distance);
-    if (selected == instances.size()) return false;
-    if (occlusion && !occlusion->lineOfSight(origin, origin + direction * distance)) return false;
-    activateRagdoll(selected, std::move(selectedPose), direction * 4.0f);
+    const auto hit = findShotTarget(origin, direction, animationSeconds, selectedPose);
+    if (!hit) return false;
+    if (occlusion && !occlusion->lineOfSight(origin, origin + direction * hit->distance)) return false;
+    if (damage_.hit(hit->zombie, caliber, hit->headshot) == 0)
+        activateRagdoll(hit->zombie, std::move(selectedPose), direction * 4.0f);
     return true;
 }
 std::size_t ZombieLayer::explode(glm::vec3 origin, float radius, double animationSeconds, const CollisionWorld& world) {
@@ -191,6 +193,7 @@ void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> s
         throw;
     }
     instance.ragdoll = true;
+    damage_.remove(selected);
     instance.physicsRagdoll = true;
     spatialIndex_.erase(selected);
     crowd_.erase(selected);

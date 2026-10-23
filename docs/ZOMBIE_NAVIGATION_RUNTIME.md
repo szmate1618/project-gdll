@@ -86,6 +86,35 @@ access disabled. The seed is optional; omitting it produces a new random layout
 each load. Seeded loads use a stable horde-name order.
 
 This is scenario format version 2; `version` may be omitted and defaults to 2.
+An optional `[player]` table supplies a ground-level starting location and
+orientation. Existing scenarios can omit it:
+
+```toml
+[player]
+spawn = [700.0, -2600.0] # Absolute world X/Z meters, X east / Z south.
+orientation = [-90.0, 0.0] # Yaw/pitch degrees; -90 north, 0 east, 90 south.
+```
+
+Both arrays are required when the table is present. Ground height is resolved by
+the normal safe-player-spawn query. Yaw is in [-180,180], pitch in [-89,89], and
+positive pitch looks up. The viewer enters walking mode automatically; `--spawn`
+overrides the location while retaining the authored facing. The server uses the
+same location/facing for joining players, with its existing small per-player
+spacing. Clients take the initial facing from the first snapshot unless `--look`
+is supplied. Clients must still use the same `--spawn` position and vegetation
+preset as the server for the existing shared-content fingerprint.
+
+The [old-forest damage scenario](../scenarios/old-forest-damage/scenario.toml)
+contains 100 zombies, initially 10–25 m ahead of the player in the original
+orthophoto forest patch `northeast_north_e+01_n+05_01`. Its positions are authored
+constants selected from `forest_patches.json`; no forest detection runs at load.
+Use the original vegetation preset:
+
+```bash
+./build/godollo_viewer output/godollo.glb --vegetation orthophoto \
+  --scenario scenarios/old-forest-damage/scenario.toml
+```
+
 The old flat `[zombies]` format is rejected. To migrate, change it to
 `[zombies.NAME]`, remove `spawn = "random"` and `destination = "random"`, and
 replace the old spawn rectangle key with `spawn`. Old `spawn_rectangle_m`

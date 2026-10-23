@@ -110,11 +110,13 @@ void fixtures(const std::filesystem::path& scratch) {
     require(partial.reload() == 0, "Empty reserve must not create ammunition");
     // Configure a two-round shot; parsing must affect real firing and reload.
     const std::string customConfig =
-        "name = 'Test pistol'\nammo_type = 'pistol_rounds'\nshot_interval_seconds = 2\n"
+        "name = 'Test pistol'\nammo_type = 'pistol_rounds'\ncaliber = 'high'\nshot_interval_seconds = 2\n"
         "automatic = false\nhas_scope = false\npellets = 1\nspread_degrees = 0\n"
         "magazine_capacity = 7\nammo_per_shot = 2\nmuzzle_position = [0.01, 0.02, -0.3]\n";
     std::ofstream(scratch / "items/pistol.toml") << customConfig;
     viewer::Weapons doubleShot(scratch / "items", inventory);
+    require(doubleShot.equipped().config.caliber == viewer::ShotCaliber::high,
+            "TOML caliber must configure the shot damage category");
     require(glm::distance(doubleShot.equipped().config.muzzlePosition, glm::vec3(.01f, .02f, -.3f)) < 1e-6f,
             "TOML muzzle coordinates must preserve all three model-local axes");
     click(doubleShot);
@@ -145,6 +147,9 @@ void fixtures(const std::filesystem::path& scratch) {
              {"magazine_capacity = 7", "magazine_capacity = 1"},
              {"ammo_per_shot = 2", "ammo_per_shot = 0"},
              {"automatic = false", "automatic = 'false'"},
+             {"caliber = 'high'\n", ""},
+             {"caliber = 'high'", "caliber = 'medium'"},
+             {"caliber = 'high'", "caliber = 2"},
              {"muzzle_position = [0.01, 0.02, -0.3]\n", ""},
              {"muzzle_position = [0.01, 0.02, -0.3]", "muzzle_position = [0, 0]"},
              {"muzzle_position = [0.01, 0.02, -0.3]", "muzzle_position = [0, 0, 0, 0]"},

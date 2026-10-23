@@ -27,14 +27,20 @@ struct ZombieHordeConfig {
 };
 
 struct ZombieScenarioConfig {
+    struct Player {
+        std::array<float, 2> spawn; // Absolute runtime X east / Z south meters; ground height is resolved at load.
+        std::array<float, 2> orientation; // Yaw/pitch degrees: yaw 0 east, -90 north; positive pitch looks up.
+    };
     std::optional<std::uint32_t> seed;
     std::vector<ZombieHordeConfig> hordes;
+    std::optional<Player> player;
 
     // Validates individual counts and the total, including direct C++ callers.
     std::size_t count() const;
 };
 
-// Format version 2; an omitted version also selects version 2.
+// Format version 2; an omitted version also selects version 2. Optional [player]
+// adds ground-resolved world X/Z placement and yaw/pitch without changing old files.
 // Throws std::runtime_error with the file path for malformed/unsupported settings.
 ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path);
 

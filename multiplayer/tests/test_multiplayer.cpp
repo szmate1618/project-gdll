@@ -223,6 +223,9 @@ void serverCommands(const std::filesystem::path& asset) {
     auto& zombie = scene.zombies.instances[0];
     zombie.transform = zombie.restTransform = zombie.restRoot = glm::translate(glm::mat4(1), glm::vec3(8, 0, 0));
     scene.zombies.rebuildSpatialIndex();
+    // Leave 2 HP so this command/replication fixture still exercises a lethal headshot.
+    for (int hit = 0; hit < 4; ++hit)
+        require(scene.zombies.shoot({0, 1.7f, 0}, {1, 0, 0}), "Replication injury setup missed");
     World world(scene);
     const auto first = world.join(), second = world.join();
     Command c; c.sequence = 1; c.left = true; c.movement.yawDegrees = 0;
@@ -363,7 +366,9 @@ void catchUpWeapons(const std::filesystem::path& asset) {
         const auto& player = world.players().at(id);
         require(player.resolved == 2 && player.shots == 1,
             "Catch-up reload or weapon switch erased a preceding click");
-        require(zombie.ragdoll, "Catch-up shot used the later command's aim");
+        require(!zombie.ragdoll && scene.zombies.damage().injury(0) &&
+                scene.zombies.damage().injury(0)->health == 8,
+                "Catch-up shot must use its original aim and apply one low-caliber headshot");
         if (!switchWeapon)
             require(player.weapons.equipped().loaded == 12 && player.weapons.equipped().reserve == 119,
                 "Catch-up reload did not account for the preceding shot");

@@ -629,7 +629,7 @@ are stable indices in the crowd; the instance vector must not be reordered.
 
 Activation and hearing query a 20 m X/Z spatial grid, then apply the original
 3D distance and eligibility checks. Locomotion updates cell membership before
-noise handling; shot zombies leave the grid. External code that edits instance
+noise handling; dead zombies leave the grid. External code that edits instance
 feet/transforms, instance normalization, or asset skeleton/clip data directly
 must call `ZombieLayer::rebuildSpatialIndex()`. It refreshes both grid membership
 and prepared shooting geometry. Changing the population or asset count triggers
@@ -858,7 +858,7 @@ Distance LOD affects rendering and displayed poses; zombies
 still have no occlusion culling.
 
 In Combat mode while the mouse is captured, a weapon shot casts one ray per
-pellet from the camera center and activates the nearest living zombie along
+pellet from the camera center and damages the nearest living zombie along
 each ray under a conservative body or head sphere. The head sphere encloses
 the displayed skinned head geometry,
 including hair and child joints, and follows the displayed idle, walk, or run pose.
@@ -882,8 +882,16 @@ sampling a skeleton. `ZombieLayer::shootingStats()` reports candidate count,
 sampled poses, and posed head vertices for the last shot. Everything runs on the
 existing simulation thread.
 
-Unmapped rigs use a standard head region. Headshots trigger the same ragdoll
-handoff as body hits. Box3D then simulates an 11-body capsule/sphere ragdoll with
+Unmapped rigs use a standard head region. Each zombie starts at 10 HP. The
+`ZombieDamage` class stores a record by stable zombie ID only after a confirmed,
+unblocked hit. Low-caliber bullets/pellets deal 1 damage; high caliber deals 2.
+Headshots double those values. If both spheres intersect the ray, the first
+surface entered determines the region. Each shotgun pellet applies damage
+separately, including repeated hits on the same zombie. Surviving zombies retain
+their behavior, navigation and living collision membership. At zero HP the layer
+activates the ragdoll and erases its injury record. Grenade deaths also erase
+existing injury records; their blast behavior is unchanged.
+Box3D then simulates an 11-body capsule/sphere ragdoll with
 constrained ball and hinge joints. Idle, walking, and running instances use shared
 baked vertex-texture animation; only ragdolls use live GPU skinning with retained
 bind-pose weights. Activation stops pursuit and samples the displayed idle, walk,
@@ -1120,6 +1128,8 @@ measurement or a promise of a similar percentage gain in rendered frame rate.
 Each [weapon TOML](../items/) defines `name`, `ammo_type`,
 `shot_interval_seconds`, `automatic`, `has_scope`, `pellets`, `spread_degrees`
 (cone half-angle), `magazine_capacity`, `ammo_per_shot`, and `muzzle_position`.
+Firearms also require `caliber = "low"` or `"high"`. The pistol and SMG use low,
+the sniper uses high, and the shotgun uses low per pellet (1 body / 2 head damage).
 The muzzle is a required three-number array in the prepared model's local meters:
 X right, Y up, forward -Z. Its position is the center of the barrel's front cap,
 before applying the eye-relative weapon pose and camera-to-world transform.
@@ -1902,6 +1912,7 @@ src/flashlight.{hpp,cpp}   Held-light pose and short-range perspective shadow vo
 src/animated_model.{hpp,cpp} Idle glTF animation sampling and bind-pose skin data
 src/zombie_layer.{hpp,cpp}  Shared character loading, crowd assembly, and shooting
 src/zombie_hit.{hpp,cpp}    Head hit regions from the displayed skinning pose
+src/zombie_damage.{hpp,cpp} Sparse injury records and health reduction; no geometry or physics
 src/zombie_shooting.cpp    Prepared hit geometry, spatial bounds, and shot selection
 src/zombie_behavior.{hpp,cpp} Dense behavior pool, perception and state transitions
 src/zombie_attack.{hpp,cpp} Fresh range/FOV/body-exposure validation for attacks and future hits

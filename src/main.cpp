@@ -516,7 +516,7 @@ bool updateWeapons(AppState& app, double seconds) {
     if (app.zombies && !config.grenade) {
         for (const auto direction : viewer::weaponShotDirections(app.weapons.equipped().config, aim.direction()))
             app.zombies->shootWithOcclusion(app.rig.camera().position(), direction,
-                                            app.displayedAnimationSeconds, app.world);
+                                            app.displayedAnimationSeconds, app.world, config.caliber);
     }
     if (!config.grenade) app.weaponMotion.fire(app.weapons.slot(), seconds);
     std::cout << app.weapons.status() << '\n';
@@ -649,7 +649,9 @@ void inputSelfTest(GLFWwindow* window) {
         shot.weapons.equip(0); shot.weapons.trigger(true);
         const auto rounds = shot.weapons.equipped().loaded;
         updateWeapons(shot, 0);
-        if (zombie.ragdoll == blocked || shot.weapons.equipped().loaded != rounds - 1)
+        const auto* injury = zombies.damage().injury(0);
+        if (zombie.ragdoll || (blocked ? injury != nullptr : !injury || injury->health != 9) ||
+            shot.weapons.equipped().loaded != rounds - 1)
             throw std::runtime_error("Single-player shooting occlusion/ammo self-test failed");
         auto grenadePhysics = std::make_shared<viewer::PhysicsWorld>();
         viewer::Grenades thrown(grenadePhysics);
@@ -949,12 +951,14 @@ int run(const Options& options) {
               << collisionStats.buildings << " buildings, " << collisionStats.bvhNodes << " BVH nodes, "
               << collisionStats.trunks << " tree trunks\n";
     std::optional<viewer::ZombieLayer> zombies;
+    std::optional<viewer::ZombieScenarioConfig::Player> scenarioPlayer;
     auto navmesh = options.model;
     navmesh.replace_extension(".navmesh");
     const auto extent = model.boundsMax - model.boundsMin;
     const bool townSizedTerrain = collisionStats.terrainTriangles != 0 && extent.x >= 100 && extent.z >= 100;
     if (!options.scenario.empty()) {
         const auto scenario = viewer::loadZombieScenarioConfig(options.scenario);
+        scenarioPlayer = scenario.player;
         const auto path = options.zombies.empty() ? std::filesystem::path(VIEWER_ZOMBIE_ASSETS) : options.zombies;
         zombies = viewer::loadZombieScenario(path, collision, model, navmesh, scenario);
         std::cout << "Scenario: " << options.scenario << "; " << zombies->instances.size()
@@ -1009,11 +1013,14 @@ int run(const Options& options) {
     app.collisionDebug = options.collisionDebug;
     glfwGetFramebufferSize(window.get(), &app.width, &app.height);
     app.rig.frame(static_cast<float>(std::max(app.width, 1)) / static_cast<float>(std::max(app.height, 1)));
-    if (options.fps) {
+    if (options.fps || scenarioPlayer) {
         auto preferred = (model.boundsMin + model.boundsMax) * 0.5f;
         preferred.y = model.boundsMax.y + 5.0f;
+        if (scenarioPlayer) { preferred.x = scenarioPlayer->spawn[0]; preferred.z = scenarioPlayer->spawn[1]; }
         if (options.spawn) { preferred.x = options.spawn->x; preferred.z = options.spawn->y; }
         if (!app.rig.enterWalking(preferred)) throw std::runtime_error("Unable to find a valid FPS starting position");
+        if (scenarioPlayer)
+            app.rig.camera().setOrientation(scenarioPlayer->orientation[0], scenarioPlayer->orientation[1]);
     }
     if (options.zombieView && zombies)
         app.rig.camera().frame(zombies->boundsMin, zombies->boundsMax,

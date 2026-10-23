@@ -1,6 +1,7 @@
 #include "zombie_layer.hpp"
 #include "zombie_animation.hpp"
 #include "zombie_hit.hpp"
+#include "zombie_shooting_fixture.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -175,7 +176,7 @@ void longDistanceGeometry() {
         require(shoot(inside, {0, .9f, -4000}, {0, 0, -1}), "A ray starting inside the body must hit");
         auto nearest = singleZombie({0, 0, -4001});
         nearest.instances.push_back(singleZombie({0, 0, -4000}).instances[0]);
-        require(shoot(nearest, {0, .9f, 0}, {0, 0, -1}) && nearest.instances[1].ragdoll && !nearest.instances[0].ragdoll,
+        require(shoot(nearest, {0, .9f, 0}, {0, 0, -1}) && nearest.damage().injury(1) && !nearest.damage().injury(0),
                 "A long-range shot must select the nearer target even when listed second");
     }
 }
@@ -251,14 +252,14 @@ void indexedSelectionMatchesFullScan() {
         const auto expected = referenceTarget(layer, origin, direction, seconds);
         const bool hit = layer.shoot(origin, direction, seconds);
         require(hit == (expected != layer.instances.size()), "Indexed shooting must preserve hit/miss results");
-        if (hit) require(layer.instances[expected].physicsRagdoll, "Indexed shooting must preserve the nearest target");
+        if (hit) require(layer.damage().injury(expected), "Indexed shooting must preserve the nearest target");
     }
     viewer::ZombieLayer ties;
     ties.assets.emplace_back();
     ties.instances.resize(2);
-    require(ties.shoot({0, 0.9f, 3}, {0, 0, -1}) && ties.instances[0].ragdoll,
+    require(viewer::test::shootToKill(ties, {0, 0.9f, 3}, {0, 0, -1}) && ties.instances[0].ragdoll,
             "Equal-distance hits must preserve original instance ID tie order");
-    require(ties.shoot({0, 1.8f, 3}, {0, 0, -1}) && ties.instances[1].ragdoll,
+    require(viewer::test::shootToKill(ties, {0, 1.8f, 3}, {0, 0, -1}) && ties.instances[1].ragdoll,
             "Shot removal must leave the next head-only target hittable");
     viewer::ZombieLayer distant;
     distant.assets.emplace_back();
@@ -294,7 +295,7 @@ void largeCrowdSkipsDetailedPoses() {
     layer.instances[50].removed = true;
     layer.instances[0].restRoot = layer.instances[0].transform = layer.instances[0].restTransform = translation({0, 0, 0});
     layer.rebuildSpatialIndex();
-    require(layer.shoot({0, 0.9f, 2}, {0, 0, -1}) && layer.instances[0].ragdoll,
+    require(viewer::test::shootToKill(layer, {0, 0.9f, 2}, {0, 0, -1}) && layer.instances[0].ragdoll,
             "Explicit rebuild must update shot bounds and spatial membership");
 }
 }

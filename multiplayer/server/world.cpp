@@ -24,7 +24,9 @@ std::uint32_t World::join() {
     spawn.x += static_cast<float>((id - 1) % maxPlayers) * 1.0f;
     if (!player.controller.spawn(spawn, *scene_.collision)) { players_.erase(id); throw std::runtime_error("No safe player spawn"); }
     player.camera.setPosition(player.controller.eyePosition());
-    player.camera.setOrientation(-90, 0);
+    player.camera.setOrientation(scene_.spawnOrientation.x, scene_.spawnOrientation.y);
+    player.held.movement.yawDegrees = scene_.spawnOrientation.x;
+    player.held.pitch = scene_.spawnOrientation.y;
     player.lastPacketTick = tick_;
     return id;
 }
@@ -49,7 +51,7 @@ void World::step() {
     const double now = clock.seconds();
     std::vector<viewer::ZombiePlayer> targets;
     std::vector<viewer::NoiseEvent> noises;
-    struct Shot { glm::vec3 origin; std::vector<glm::vec3> directions; };
+    struct Shot { glm::vec3 origin; std::vector<glm::vec3> directions; viewer::ShotCaliber caliber; };
     std::vector<Shot> shots;
     for (auto& [id, player] : players_) {
         // A small startup buffer absorbs ordinary packet jitter without delaying local prediction.
@@ -134,7 +136,7 @@ void World::step() {
                 if (config.grenade) {
                     if (!scene_.grenades->throwFrom(player.camera.position(), player.camera.direction(), playerVelocity,
                             now, *config.grenade, *scene_.collision)) throw std::logic_error("Accepted grenade throw failed");
-                } else shots.push_back({player.camera.position(), viewer::weaponShotDirections(config, player.camera.direction())});
+                } else shots.push_back({player.camera.position(), viewer::weaponShotDirections(config, player.camera.direction()), config.caliber});
             }
             player.held = command;
         }
@@ -155,7 +157,7 @@ void World::step() {
         scene_.zombies.makeNoise(shot.origin, 110);
         // Match the current prototype's server-tick hit pose; bounded historical hit testing can be added independently.
         for (const auto direction : shot.directions) {
-            scene_.zombies.shootWithOcclusion(shot.origin, direction, now, *scene_.collision);
+            scene_.zombies.shootWithOcclusion(shot.origin, direction, now, *scene_.collision, shot.caliber);
         }
     }
 }

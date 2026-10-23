@@ -37,6 +37,8 @@ bool Network::send(HSteamNetConnection, const Message& message, bool) {
     if (const auto* batch = std::get_if<Commands>(&message)) {
         for (const auto& command : batch->commands) {
             require(command.slot == 3, "Client replaced the authoritative starting sniper with slot zero");
+            require(command.movement.yawDegrees == 35 && command.pitch == -7,
+                    "Client must retain the authoritative scenario starting orientation");
             ++commands;
         }
         world->submit(player, *batch);
@@ -63,6 +65,7 @@ int main(int argc, char** argv) {
         multiplayer::Options options; options.map = argv[1];
         options.trees = options.forests = false; options.zombieCount = 0;
         multiplayer::Scene scene(options);
+        scene.spawnOrientation = {35, -7};
         multiplayer::World server(scene);
         world = &server;
         player = world->join();

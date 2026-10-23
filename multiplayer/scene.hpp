@@ -9,6 +9,7 @@
 #include "tree_layer.hpp"
 #include "undergrowth.hpp"
 #include "zombie_layer.hpp"
+#include "zombie_scenario_config.hpp"
 #include "weapons.hpp"
 #include "vegetation_selection.hpp"
 #include <filesystem>
@@ -28,6 +29,7 @@ struct Options {
     float zombieRadius = 100;
     bool trees = true, forests = true, headless = false, hidden = false, bot = false;
     bool audio = true;
+    bool explicitLook = false;
     glm::vec2 look{-90, 0}; // Client yaw/pitch in degrees; independent of world identity.
     double seconds = 0;
     float fakeLagMs = 0, fakeLossPercent = 0;
@@ -42,7 +44,8 @@ using ZombiePopulationLoader = std::function<viewer::ZombieLayer(
 // Shared CPU scene preparation. The server may supply authoritative population
 // placement; clients construct the default population and consume snapshot poses.
 struct Scene {
-    explicit Scene(const Options& options, const ZombiePopulationLoader& populationLoader = {});
+    explicit Scene(const Options& options, const ZombiePopulationLoader& populationLoader = {},
+                   const std::optional<viewer::ZombieScenarioConfig::Player>& player = std::nullopt);
     std::filesystem::path mapPath;
     viewer::Model model;
     std::shared_ptr<viewer::PhysicsWorld> physics;
@@ -55,6 +58,7 @@ struct Scene {
     std::unique_ptr<viewer::CollisionWorld> collision;
     viewer::ZombieLayer zombies;
     glm::vec3 spawnEye{0};
+    glm::vec2 spawnOrientation{-90, 0};
     std::string fingerprint;
     const viewer::Weapons initialWeapons;
 };
