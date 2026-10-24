@@ -41,7 +41,11 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
     if (shouldStop()) return;
     if (ready) ready(network.listeningPort());
     using Clock = std::chrono::steady_clock;
-    struct Peer { std::uint32_t id = 0; Clock::time_point last = Clock::now(); };
+    struct Peer {
+        std::uint32_t id = 0;
+        // MSVC cannot resolve the enclosing function's Clock alias here.
+        std::chrono::steady_clock::time_point last = std::chrono::steady_clock::now();
+    };
     std::map<HSteamNetConnection, Peer> peers;
     auto disconnect = [&](HSteamNetConnection c, const std::string& reason) {
         const auto p = peers.find(c);
