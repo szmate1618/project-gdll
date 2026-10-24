@@ -216,7 +216,10 @@ desktop systems; system runtimes and graphics drivers come from the destination 
 CI extracts it outside the checkout, checks two-client networking and packaged
 resource lookup, and renders the sample under Xvfb/Mesa software rendering.
 The real town is supplied separately with the
-[portable asset pack](multiplayer/README.md#portable-asset-pack).
+[portable asset pack](multiplayer/README.md#portable-asset-pack): run
+`python3 tools/package_multiplayer_assets.py` locally, extract its
+`build/godollo-assets.zip` into the application folder, then start
+`play-town.cmd` on Windows or `./play-town.sh` on Linux.
 See [Linux client instructions](multiplayer/linux/README.md).
 
 The same workflow has a Windows x64 job for `godollo_client` using MSVC 2022

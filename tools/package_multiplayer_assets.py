@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Package prepared multiplayer assets into a portable ZIP, without generating data."""
+"""Package prepared scene content to extract beside an Actions application build."""
 from __future__ import annotations
 
 import argparse
@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
 
 from src.asset_credits import ASSET_CREDIT_FILES, SOFTWARE_CREDIT_FILES, map_credits, vegetation_credits
 from src.vegetation_selection import VEGETATION_PRESETS, vegetation_paths
+from src.asset_pack_runtime import collect_navigation, pack_instructions
 
 
 def sha256(path):
@@ -33,7 +34,7 @@ class RuntimeAssets:
         self.root = root.resolve()
         self.files = {}
         self.names = {}
-        self.notices = {}
+        self.generated = {}
 
     def add(self, path, expected=None):
         path = path.resolve()
@@ -88,7 +89,7 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
     assets = RuntimeAssets(root)
     document = assets.model(map_path)
     map_hash = assets.files[map_path.resolve()]
-    assets.notices["credits/assets/MAP.txt"] = map_credits(
+    assets.generated["credits/assets/MAP.txt"] = map_credits(
         document, map_path.relative_to(root).as_posix(), map_hash)
     adjacent = map_path.parent
     tree_path, forest_path = vegetation_paths(root, map_path, vegetation)
@@ -137,7 +138,7 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
         if not shrub.exists() and alternate and shrub.with_name(alternate).is_file():
             shrub = shrub.with_name(alternate)
         assets.add(shrub)
-    assets.notices["credits/assets/VEGETATION.txt"] = vegetation_credits(
+    assets.generated["credits/assets/VEGETATION.txt"] = vegetation_credits(
         vegetation if trees else "none", vegetation_layers)
     if zombies is not None:
         models = sorted(zombies.glob("*.glb")) if zombies.is_dir() else [zombies]
@@ -230,12 +231,20 @@ def package_assets(root, map_path, output, zombies, *, trees=True, forests=True,
     if output.suffix.lower() != ".zip":
         raise ValueError("Output must be a .zip file")
     assets = collect_assets(root, map_path, zombies, trees=trees, forests=forests, vegetation=vegetation)
+    navigation = collect_navigation(assets, map_path)
+    scenarios = [assets.add(path).relative_to(root).as_posix()
+                 for path in sorted((root / "scenarios").rglob("scenario.toml"))]
+    launch, generated = pack_instructions(map_path.relative_to(root).as_posix(),
+                                        zombies.relative_to(root).as_posix() if zombies else None,
+                                        vegetation, trees, forests)
+    assets.generated.update(generated)
     manifest = {"version": 1, "map": map_path.relative_to(root).as_posix(),
                 "vegetation": vegetation if trees else "none",
                 "trees": trees and vegetation not in ("none", "sentinel-astra"),
                 "forests": trees and forests and vegetation != "none", "zombies": zombies.relative_to(root).as_posix() if zombies else None,
+                "navigation": navigation, "scenarios": scenarios, "launch": launch,
                 "files": {p.relative_to(root).as_posix(): digest for p, digest in sorted(assets.files.items())}}
-    manifest["files"].update({name: hashlib.sha256(data).hexdigest() for name, data in assets.notices.items()})
+    manifest["files"].update({name: hashlib.sha256(data).hexdigest() for name, data in assets.generated.items()})
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(prefix=output.stem + "-", suffix=".zip", dir=output.parent, delete=False) as stream:
         temporary = Path(stream.name)
@@ -251,8 +260,12 @@ def package_assets(root, map_path, output, zombies, *, trees=True, forests=True,
                         total_size += len(chunk)
                 if digest.hexdigest() != expected:
                     raise ValueError(f"Asset changed during packaging: {path}")
-            for name, data in assets.notices.items():
-                archive.writestr(name, data)
+            for name, data in assets.generated.items():
+                info = zipfile.ZipInfo(name)
+                info.create_system = 3
+                info.external_attr = (0o100755 if name.endswith(".sh") else 0o100644) << 16
+                info.compress_type = zipfile.ZIP_DEFLATED
+                archive.writestr(info, data)
                 total_size += len(data)
             archive.writestr("asset-pack.json", json.dumps(manifest, indent=2) + "\n")
         with zipfile.ZipFile(temporary) as archive:
@@ -284,6 +297,8 @@ def main(argv=None):
         return 1
     print(f"Saved {count} runtime files: {size / 1e6:.1f} MB unpacked, {args.output.stat().st_size / 1e6:.1f} MB ZIP")
     print(args.output.resolve())
+    print("Extract the Actions game package, then this ZIP into the same game folder.\n"
+          "Start play-town.cmd on Windows or ./play-town.sh on Linux.")
     return 0
 
 

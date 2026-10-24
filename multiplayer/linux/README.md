@@ -50,7 +50,10 @@ after extracting the client into a fresh folder. The host can create it with
 ./run-client.sh output/godollo.glb
 ```
 
-Use the server's spawn, zombie-count/radius, and vegetation options. The CI build
+The content ZIP also supplies `play-town.sh`: use `./play-town.sh` (or
+`sh play-town.sh`) to open the town menu with that pack's exact map, vegetation
+and disabled-layer options. It accepts extra arguments such as `--single-player`
+or `--host`. Use the server's spawn, zombie-count/radius, and vegetation options. The CI build
 does not generate or bundle the large town, tree, or zombie assets. Gameplay
 retains the multiplayer prototype's current limitations. Local shrub rustles
 have audio; use `--no-audio` to mute. Remote shrub sounds and other game audio

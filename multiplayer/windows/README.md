@@ -54,8 +54,11 @@ folder. Preserve its `output/`, `assets/`, and `items/` directories and matching
 configuration files. The asset ZIP contains the map, companion layers, trees,
 forest textures, and zombie models; it is shared with Linux and contains no
 executables. The workflow does not download or generate those large assets.
-Run `run-game.cmd` again to select the installed town automatically. For joining,
-use the host's spawn, zombie-count/radius, and vegetation options.
+After installing that content ZIP, use its **`play-town.cmd`** launcher to open
+the town menu with the exact map and vegetation options selected by the packager.
+This also supports packs made with custom map names or disabled layers. The
+base `run-game.cmd` remains available for the sample scene or explicit arguments.
+For joining, use the host's spawn, zombie-count/radius, and vegetation options.
 
 Shaders (including the menu and player shaders), the five first-person weapon
 models with attribution, weapon definitions, inventory, vehicles, and audio

@@ -1,9 +1,11 @@
 """Portable asset exports preserve fingerprints and exclude preparation inputs."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import struct
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -11,6 +13,7 @@ import zipfile
 
 from tools.package_multiplayer_assets import package_assets
 from src.asset_credits import ASSET_CREDIT_FILES, SOFTWARE_CREDIT_FILES
+from src.asset_pack_runtime import pack_instructions
 
 
 def glb(document):
@@ -166,11 +169,13 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         expected.update(f"assets/zombies/models/lod{level}/Zombie.glb" for level in range(1, 4))
         expected.update(f"credits/assets/{name}" for name in (*ASSET_CREDIT_FILES, "MAP.txt", "VEGETATION.txt"))
         expected.update(f"credits/software/{name}" for name in SOFTWARE_CREDIT_FILES)
+        expected.update({"play-town.cmd", "play-town.sh", "ASSET-PACK-README.txt"})
         self.assertEqual(set(manifest["files"]), expected)
         for name, digest in manifest["files"].items():
             self.assertNotIn("\\", name)
             self.assertFalse(Path(name).is_absolute())
-            if name not in ("credits/assets/MAP.txt", "credits/assets/VEGETATION.txt"):
+            if name not in ("credits/assets/MAP.txt", "credits/assets/VEGETATION.txt",
+                            "play-town.cmd", "play-town.sh", "ASSET-PACK-README.txt"):
                 self.assertEqual((destination / name).read_bytes(), (self.root / name).read_bytes())
             self.assertEqual(self.digest(destination / name), digest)
         credit = (destination / "credits/assets/MAP.txt").read_text(encoding="utf-8")
@@ -183,6 +188,86 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         tree = json.loads((destination / "output/trees.instances.json").read_text())
         tree_path = destination / "output" / tree["assets"]["tree"]["path"]
         self.assertEqual(self.digest(tree_path), tree["assets"]["tree"]["sha256"])
+
+    def navigation_publication(self):
+        replay = self.json("output/town.navigation.json", {"map_sha256": self.digest(self.map)})
+        header = bytearray(128)
+        struct.pack_into("<8sII8dQQ", header, 0, b"GDNAV02\0", 4, 1,
+                         -200, -200, 200, 200, .3, .002, .05, .005, 64, 36)
+        header[96:] = bytes.fromhex(self.digest(replay))
+        mesh = self.write("output/town.navmesh", header + struct.pack("<8d", -200, -200, 200, -200, 200, 200, -200, 200)
+                          + struct.pack("<9I", 4, 0, 1, 2, 3, *([0xffffffff] * 4)))
+        metadata = self.json("output/town.navmesh.json", {
+            "format": "GDNAV02", "map_sha256": self.digest(self.map), "output_sha256": self.digest(mesh),
+            "source": replay.name, "source_sha256": self.digest(replay)})
+        return mesh, replay, metadata
+
+    def test_navigation_metadata_and_scenarios_are_included(self):
+        paths = self.navigation_publication()
+        scenario = self.write("scenarios/example/scenario.toml", b"version = 3\n")
+        self.write("scenarios/example/preview.png", b"not needed at runtime")
+        self.package()
+        with zipfile.ZipFile(self.output) as archive:
+            manifest = json.loads(archive.read("asset-pack.json"))
+            self.assertEqual(manifest["navigation"], "output/town.navmesh")
+            self.assertEqual(manifest["scenarios"], ["scenarios/example/scenario.toml"])
+            for path in [*paths, scenario]:
+                name = path.relative_to(self.root).as_posix()
+                self.assertEqual(archive.read(name), path.read_bytes())
+            self.assertNotIn("scenarios/example/preview.png", archive.namelist())
+
+    def test_stale_or_incomplete_navigation_preserves_previous_archive(self):
+        mesh, replay, metadata = self.navigation_publication()
+        self.package()
+        previous = self.output.read_bytes()
+        for path in (mesh, replay, metadata):
+            original = path.read_bytes()
+            path.unlink()
+            with self.subTest(missing=path), self.assertRaises(ValueError):
+                self.package()
+            path.write_bytes(original)
+            self.assertEqual(self.output.read_bytes(), previous)
+        for field in ("map_sha256", "output_sha256", "source_sha256"):
+            original = metadata.read_bytes()
+            document = json.loads(original)
+            document[field] = "0" * 64
+            metadata.write_text(json.dumps(document))
+            with self.subTest(stale=field), self.assertRaisesRegex(ValueError, "fingerprint|provenance"):
+                self.package()
+            metadata.write_bytes(original)
+            self.assertEqual(self.output.read_bytes(), previous)
+
+    def test_launchers_apply_the_pack_options_and_windows_line_endings(self):
+        self.package(trees=False, forests=False, vegetation="none")
+        with zipfile.ZipFile(self.output) as archive:
+            manifest = json.loads(archive.read("asset-pack.json"))
+            self.assertIn("--no-trees", manifest["launch"]["arguments"])
+            self.assertIn("--zombies", manifest["launch"]["arguments"])
+            script = archive.read("play-town.cmd")
+            self.assertIn(b"town.glb", script)
+            self.assertIn(b"%*", script)
+            self.assertNotIn(b"\n", script.replace(b"\r\n", b""))
+            self.assertTrue((archive.getinfo("play-town.sh").external_attr >> 16) & 0o111)
+            self.assertIn(b'"$@"', archive.read("play-town.sh"))
+        launch, files = pack_instructions("output/town space%name&more.glb", None, "osm", True, False)
+        self.assertIn("--no-forests", launch["arguments"])
+        self.assertEqual(launch["arguments"][-2:], ["--zombie-count", "0"])
+        self.assertIn(b'"output/town space%%name&more.glb"', files["play-town.cmd"])
+        self.assertIn(b"'output/town space%name&more.glb'", files["play-town.sh"])
+
+    @unittest.skipUnless(os.name == "posix", "Exercises the Linux launcher")
+    def test_linux_launcher_preserves_paths_and_extra_arguments(self):
+        launch, generated = pack_instructions("output/a folder/town.glb", None, "osm", True, False)
+        folder = self.root / "game with spaces"
+        folder.mkdir()
+        script = folder / "play-town.sh"
+        script.write_bytes(generated["play-town.sh"])
+        client = folder / "run-client.sh"
+        client.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n')
+        client.chmod(0o755)
+        result = subprocess.run(["sh", str(script), "--host", "--port", "27022"], cwd=self.root,
+                                check=True, capture_output=True, text=True)
+        self.assertEqual(result.stdout.splitlines(), launch["arguments"] + ["--host", "--port", "27022"])
 
     def test_missing_or_stale_dependency_preserves_previous_archive(self):
         self.package()

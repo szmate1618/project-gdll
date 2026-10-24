@@ -113,10 +113,17 @@ library only. On Linux:
 
 The same script works on Windows with `py tools/package_multiplayer_assets.py`.
 It writes `build/godollo-assets.zip`, shared by Windows and Linux. It includes
-the map and adjacent tree/pole/guardrail layers, referenced tree models and forest
-textures, zombie models and their referenced LoDs, weapon/inventory definitions,
-forest configuration, and the text notices in `credits/assets/`. It excludes executables,
-shaders, source models, generator datasets, caches, previews, and backups.
+the map (with embedded textures/geographic metadata), adjacent tree/pole/guardrail
+and car-placement layers, referenced tree models/forest textures, zombie and
+vehicle models with their current LoDs, configuration and attribution. Published
+`.navmesh`, `.navigation.json` and `.navmesh.json` companions are included and
+checked against each other and the map. Scenario TOMLs are included for dedicated
+hosting and prototype-viewer use. The integrated menu starts the normal game.
+
+The Actions application package already supplies executables, libraries,
+shaders, weapon models and audio; the content ZIP does not duplicate those build
+outputs. Raw generator datasets, preparation caches, old maps, previews and
+backups are excluded. No local application build is required to make this ZIP.
 
 Use `--map PATH`, `--zombies PATH`, or `--output PATH.zip` for other prepared
 inputs/output. Input assets must stay within this checkout; runtime references must be
@@ -157,12 +164,26 @@ For sessions with disabled layers, use `--no-trees` (also omits forests),
 paths/options and SHA-256 of every included file. Spawn, zombie count/radius,
 and vegetation options still need to match between server and clients.
 
-Extract into a fresh destination for each pack version, keeping the archive's
-folder layout. For either packaged client, first extract the client archive
-there, then the asset ZIP beside `godollo_client` or `godollo_client.exe`.
-Use `./run-client.sh` for the packaged Linux client. Linux source builds fall
-back to their checkout for resources, so extract there before building/running.
-The original single-player executable still uses its build checkout's paths.
+To install the full town after pushing your source changes:
+
+1. Download the packaged application artifact from **Build apps**:
+   `godollo-client-windows-x86_64` or `godollo-client-linux-x86_64`.
+   Extract the enclosed ZIP/tarball into a fresh folder. The separate
+   `godollo-apps-linux-x86_64` artifact contains only binaries and is insufficient.
+2. Extract the locally generated `build/godollo-assets.zip` **into that same game
+   folder**, beside `godollo_client.exe` or `godollo_client`. Keep its subfolders;
+   do not extract the ZIP inside `assets/`.
+3. Start **`play-town.cmd`** on Windows, or **`./play-town.sh`** on Linux
+   (`sh play-town.sh` also works). Choose Single Player, Host Game or Join Game.
+
+The generated launchers apply this pack's map path, vegetation preset and disabled
+layers, including custom `--map` or `--no-zombies` exports. Additional arguments
+are forwarded, e.g. `play-town.cmd --host --port 27020`. They work when launched
+from another working directory. `ASSET-PACK-README.txt` inside the ZIP repeats
+these instructions; `asset-pack.json` records the launcher arguments and hashes.
+Use the application artifact from the matching source revision; handshake
+fingerprints still reject mismatched content. Every player uses the same pack.
+The original prototype viewer still uses its build checkout's resource paths.
 Windows compilation and runtime checks remain in GitHub CI.
 
 ## Run
