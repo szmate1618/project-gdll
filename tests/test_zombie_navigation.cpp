@@ -1,4 +1,6 @@
 #include "zombie_navigation.hpp"
+#include "navmesh_fixture.hpp"
+#include <limits>
 #include "zombie_movement.hpp"
 #include "collision_world.hpp"
 
@@ -176,6 +178,28 @@ void disconnectedAndOverflow() {
             "empty population navigation is unsafe");
 }
 
+void coldCornerReplacement() {
+    auto mesh=test_navmesh::convexSquares(3,3,{{1,1}});auto vertices=mesh.vertices();
+    const double z[]={1000.,1000.99999999,1001.00000001,1002.};
+    for(auto& p:vertices) { p.x+=3000.00001;p.z=z[int(p.z)]; }
+    mesh=viewer::navmesh_path::Mesh(std::move(vertices),mesh.polygons(),mesh.edges());
+    viewer::ZombieNavigation navigation(std::move(mesh),1);
+    const viewer::CollisionWorld world(viewer::Model{});
+    const glm::vec3 feet{3001,0,1001};
+    const auto goal=[&](bool up) {return glm::vec3(3002.5f,0,std::nextafter(1001.f,
+        up?std::numeric_limits<float>::infinity():-std::numeric_limits<float>::infinity()));};
+    const auto check=[&](bool up) {
+        require(navigation.plan(0,feet,goal(up)),"Cold corner replacement failed to plan");
+        const auto v=navigation.follow(0,feet,1.2f,.1f,world);
+        require(up?v.y>0:v.y<0,"Cold path replacement reused the previous corner connection");
+        require(navigation.segmentClear(feet,feet+glm::vec3(v.x*.1f,0,v.y*.1f)),"Replaced corner connection left the mesh");
+    };
+    check(true);check(false);
+    navigation.reset(0);check(true);
+    navigation.resetPopulation(1);check(false);
+    require(navigation.stats().requests==4,"Corner following requested additional runtime paths");
+}
+
 void treeBypass() {
     const glm::vec2 center{9,5};
     const viewer::CollisionWorld world(viewer::Model{},{{{center.x,0,center.y},.6f,5}});
@@ -199,7 +223,7 @@ void treeBypass() {
 }
 
 int main() {
-    try {routeAroundWall();routeAroundWall(true);followNeverSearches();movementValidationReuse();coverageRegionReuse();disconnectedAndOverflow();treeBypass();
+    try {routeAroundWall();routeAroundWall(true);followNeverSearches();movementValidationReuse();coverageRegionReuse();disconnectedAndOverflow();coldCornerReplacement();treeBypass();
         std::cout<<"scenario route/no-runtime-search/disconnection/overflow/trunk tests passed\n";return 0;
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}
 }

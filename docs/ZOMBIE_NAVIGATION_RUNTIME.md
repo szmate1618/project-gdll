@@ -180,6 +180,15 @@ movement feeds the next steering update.
 `setScenarioDestinations()` performs the cold path requests once.
 `ZombieNavigation::follow()` follows the stored goal and path; it cannot start a
 search. Stalls and tree/crowd obstruction retain that path without replanning.
+If a double-precision portal corner cannot be reached faithfully by float body
+positions, the follower tries nearby representable points with covered incoming
+and outgoing connections. Away from corners, it can reconnect forward onto the
+same stored path segment after local avoidance. This is bounded movement on the
+existing path, not a new search, teleport or looser mesh tolerance. An exact-key
+memo avoids repeating that immutable-mesh calculation at an unchanged position;
+position, segment, speed or timestep changes recompute it, and cold path
+replacement/reset/release invalidate it.
+
 A full local trunk buffer stops the NPC and increments an overflow counter.
 Death releases the path. Teleports, uncovered positions and population changes
 invalidate stale routes and stop travel rather than silently searching again.
@@ -201,6 +210,13 @@ polygon. These are geometric proofs, not reduced-frequency optimistic checks.
 The existing exact-match step cache still avoids duplicate physical validation;
 accepting movement clears that one-step result, while certified regions remain
 valid until exit or route invalidation. Reset/replan/release clear the region.
+
+Behavior and scenario loops update gameplay spatial membership and shooting
+bounds when the root or rendered transform changes, including turns in place.
+Unchanged living actors retain their existing membership. Death/removal/invalid
+asset handling and explicit population/rig rebuilds retain their existing
+invalidation paths. Stationary locomotion skips unused facing trigonometry;
+moving actors retain the original rotation calculation.
 
 Steering also reuses at most 32 static trunk candidates in a padded 3D patch.
 Every call still filters the current height/range in original BVH order;
@@ -283,6 +299,14 @@ This is a distant movement approximation. Steering decisions may differ near
 trees/corners, and a moving or newly spawned prop can enter a segment before
 its next refresh (up to 100 ms). Nearby-player interactions retain full checks.
 Ground heights are not replaced by stale samples or interpolated terrain heights.
+
+A zero-length proposed distant segment falls back to ordinary frame-sized
+movement instead of caching a stationary wait. When a frame contains several
+segment slices, the complete start-to-final chord must also remain covered;
+individually covered legs do not prove that chord safe around a corner.
+The [route-progress evaluation](benchmarks/zombie-route-progress-2026-10-24.txt)
+records these fixes and the rejected cheaper-ground, facing-cache and longer
+segment experiments. The retained refresh interval remains 100 ms.
 
 For a viewer comparison using the full movement model everywhere:
 

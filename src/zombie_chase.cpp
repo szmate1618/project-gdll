@@ -59,20 +59,22 @@ void applyZombieLocomotion(ZombieInstance& instance, glm::vec2 desiredVelocity,
             instance.animationRestartSeconds = animationHoldSeconds;
         }
     }
-    const float yaw = std::atan2(instance.restRoot[2].x, instance.restRoot[2].z);
-    float nextYaw = yaw;
-    // Tiny contact slides may go backward or sideways. Keep their physical
-    // clearance correction without reorienting the whole animated body.
     const bool smallAdjustment = travel < .02f && travel < step * .5f;
-    if (locomotion && !smallAdjustment) {
-        const float targetYaw = std::atan2(travelled.x, travelled.y);
-        const float delta = std::remainder(targetYaw - yaw, static_cast<float>(tau));
-        const float turn = locomotionTurnSpeed * seconds;
-        nextYaw += std::clamp(delta, -turn, turn);
-    }
-    if (feet != start || nextYaw != yaw) {
-        instance.restRoot = glm::rotate(glm::translate(glm::mat4(1), feet), nextYaw, {0, 1, 0});
-        instance.transform = instance.restTransform = instance.restRoot * instance.chaseNormalization;
+    if (feet != start || (locomotion && !smallAdjustment)) {
+        const float yaw = std::atan2(instance.restRoot[2].x, instance.restRoot[2].z);
+        float nextYaw = yaw;
+        // Tiny contact slides may go backward or sideways. Keep their physical
+        // clearance correction without reorienting the whole animated body.
+        if (locomotion && !smallAdjustment) {
+            const float targetYaw = std::atan2(travelled.x, travelled.y);
+            const float delta = std::remainder(targetYaw - yaw, static_cast<float>(tau));
+            const float turn = locomotionTurnSpeed * seconds;
+            nextYaw += std::clamp(delta, -turn, turn);
+        }
+        if (feet != start || nextYaw != yaw) {
+            instance.restRoot = glm::rotate(glm::translate(glm::mat4(1), feet), nextYaw, {0, 1, 0});
+            instance.transform = instance.restTransform = instance.restRoot * instance.chaseNormalization;
+        }
     }
     instance.running = speed > 1.2f;
     // Advance the selected authored clip by actual travel time, excluding any

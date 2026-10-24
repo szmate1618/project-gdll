@@ -66,11 +66,15 @@ TravelerMovement moveScenarioTraveler(std::size_t id,glm::vec3 start,float secon
             plan.phased=true;
             plan.velocity=navigation.follow(id,feet,speed,duration,world);
             const auto desired=feet+glm::vec3(plan.velocity.x*duration,0,plan.velocity.y*duration);
-            auto target=terrainFeet(desired,feet,world,ground);
+            // A rejected long navigation step can return zero even though the
+            // ordinary frame step is valid. Do not cache a stationary segment.
+            std::optional<glm::vec3> target;
+            if(desired.x!=feet.x || desired.z!=feet.z) target=terrainFeet(desired,feet,world,ground);
             if (target && !world.simpleTravelerClear(feet,*target,radius,height,contacts)) target.reset();
             if (!target || !navigation.movementClear(id,feet,*target)) {
                 plan.remaining=0;plan.fallbackSeconds=.25f;
                 const auto fallback=fullStep(id,feet,left,world,navigation,crowd,ground,contacts);
+                if(feet!=start && !navigation.movementClear(id,start,fallback.movement.feet)) break;
                 result.movement.travel+=fallback.movement.travel;
                 result.movement.feet=fallback.movement.feet;
                 result.velocity+=fallback.velocity*(left/seconds);
@@ -97,12 +101,14 @@ TravelerMovement moveScenarioTraveler(std::size_t id,glm::vec3 start,float secon
             !navigation.movementClear(id,feet,accepted)) {
             plan.remaining=0;plan.fallbackSeconds=.25f;
             const auto fallback=fullStep(id,feet,left,world,navigation,crowd,ground,contacts);
+            if(feet!=start && !navigation.movementClear(id,start,fallback.movement.feet)) break;
             result.movement.travel+=fallback.movement.travel;
             result.movement.feet=fallback.movement.feet;
             result.velocity+=fallback.velocity*(left/seconds);
             if (zombie_profile::activeProfile) ++zombie_profile::activeProfile->travelerFallbacks;
             break;
         }
+        if(feet!=start && !navigation.movementClear(id,start,accepted)) break;
         result.movement.travel+=distance(feet,accepted);
         result.movement.feet=accepted;
         result.velocity+=plan.velocity*(slice/seconds);

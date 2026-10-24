@@ -1,4 +1,8 @@
 #include "zombie_layer.hpp"
+#include "navmesh_fixture.hpp"
+#include "zombie_crowd.hpp"
+#include <limits>
+#include <algorithm>
 #include "zombie_navigation.hpp"
 #include "zombie_update_profile.hpp"
 #include "simulation_clock.hpp"
@@ -101,6 +105,43 @@ void arrivalAndReplacement() {
     advance(moving,world);
     require(std::abs(moving.instances[0].restRoot[3].y+.1f)<.0001f,"Pending traveler endpoint survived world replacement");
 }
+void representableCorners() {
+    viewer::Model model;
+    quad(model,"terrain",{-5000,0,-5000},{-5000,0,5000},{5000,0,5000},{5000,0,-5000});
+    const viewer::CollisionWorld world(model);
+    for(bool tinyCorner:{false,true}) for(bool distant:{false,true}) {
+        // The second corner's Z is just above a representable float. Extending
+        // the incoming direction still rounds below its outgoing boundary.
+        const double x=tinyCorner?3000.00001:3060.119;
+        const double z=tinyCorner?1000.00000001:-2539.732;
+        const double scale=tinyCorner?1:1.07;
+        auto mesh=tinyCorner?test_navmesh::convexSquares(3,2,{{1,0}}):
+            test_navmesh::convexSquares(10,8,{{4,0},{4,1},{4,2},{4,3},{4,4},{4,5}});
+        auto vertices=mesh.vertices();
+        for(auto& point:vertices) { point.x=x+point.x*scale;point.z=z+point.z*scale; }
+        mesh=viewer::navmesh_path::Mesh(std::move(vertices),mesh.polygons(),mesh.edges());
+        viewer::ZombieNavigation navigation(std::move(mesh),1);
+        glm::vec3 feet(float(x+(tinyCorner?.95:1.5)*scale),0,float(z+(tinyCorner?1:1.5)*scale));
+        const glm::vec3 goal(float(x+(tinyCorner?2.5:8.5)*scale),0,float(z+(tinyCorner?.5:1.5)*scale));
+        require(navigation.plan(0,feet,goal),"Corner regression failed cold planning");
+        viewer::ZombieCrowd crowd;crowd.reset(1);crowd.update(0,feet);
+        viewer::WalkingGroundCache ground;viewer::ContactCandidates contacts;viewer::TravelerPlan plan;
+        for(int frame=0;frame<1600 && glm::length(feet-goal)>1e-4f;++frame) {
+            crowd.beginStep();
+            const auto step=viewer::moveScenarioTraveler(0,feet,dt,world,navigation,crowd,ground,contacts,plan,distant);
+            require(navigation.segmentClear(feet,step.movement.feet),"Corner recovery cut across blocked mesh");
+            const float tolerance=2*std::numeric_limits<float>::epsilon()*std::max({1.f,std::abs(feet.x),std::abs(feet.z)});
+            require(glm::length(glm::vec2(step.movement.feet.x-feet.x,step.movement.feet.z-feet.z))<=1.2f*dt+tolerance,
+                    "Corner recovery teleported instead of walking");
+            navigation.recordMovement(0,feet,step.movement.feet,dt);feet=step.movement.feet;crowd.update(0,feet);
+        }
+        if(glm::length(feet-goal)>1e-4f) {
+            std::cerr<<"Corner case tiny="<<tinyCorner<<" distant="<<distant<<" feet="<<feet.x<<','<<feet.z<<" goal="<<goal.x<<','<<goal.z<<'\n';
+            throw std::runtime_error("Representable corner stalled before its destination");
+        }
+        require(navigation.stats().requests==1,"Corner recovery searched for another path");
+    }
+}
 void obstacleFallback() {
     auto model=terrain();
     quad(model,"building_test_walls",{0,0,-20},{0,0,20},{0,3,20},{0,3,-20});
@@ -122,7 +163,7 @@ void obstacleFallback() {
 int main() {
     try {
         viewer::SimulationClock::instance().reset();
-        modesAndGround();allPlayersAndTransitions();arrivalAndReplacement();obstacleFallback();
+        modesAndGround();allPlayersAndTransitions();arrivalAndReplacement();representableCorners();obstacleFallback();
         std::cout<<"Scenario traveler tests passed\n";return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n';return 1; }
 }

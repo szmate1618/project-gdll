@@ -219,6 +219,9 @@ travel with swept geometry. The selected approach has a full-movement control.
 The [overlap recovery and route-progress follow-up](benchmarks/zombie-overlap-recovery-2026-10-24.txt)
 measures 60-second trajectories, separates ground geometry from other contacts,
 and compares periodic correction against the retained movement model.
+The [route-progress and remaining movement experiments](benchmarks/zombie-route-progress-2026-10-24.txt)
+measure corner reconnection, stationary-update skips and rejected ground/facing/
+longer-segment alternatives, including per-actor stall comparisons.
 The [ground-support/contact sharing experiment](benchmarks/zombie-ground-support-2026-10-24.txt)
 records a rejected small-gain prototype and the unchanged ground-query policy.
 See the [contact and ground evaluation, 2026-10-24](benchmarks/zombie-contact-efficiency-2026-10-24.txt)

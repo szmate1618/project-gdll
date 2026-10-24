@@ -45,6 +45,7 @@ void ZombieLayer::updateScenarioRoutes(float seconds, const CollisionWorld& worl
         auto& instance = instances[id];
         if (route.finished || route.overridden) continue;
         const auto beforeTransform = instance.transform;
+        const auto beforeRoot = instance.restRoot;
         const auto beforeSeconds = instance.walkSeconds;
         const bool wasWalking = instance.walking, wasRunning = instance.running;
         if (instance.removed || instance.ragdoll || instance.asset >= assets.size()) {
@@ -80,7 +81,8 @@ void ZombieLayer::updateScenarioRoutes(float seconds, const CollisionWorld& worl
         const bool moved = beforeTransform != instance.transform;
         if (moved || wasWalking != instance.walking || wasRunning != instance.running || beforeSeconds != instance.walkSeconds)
             markRenderChanged(id, moved);
-        updateSpatialMembership(id);
+        if(moved || beforeRoot!=instance.restRoot || instance.removed || instance.ragdoll || instance.asset>=assets.size())
+            updateSpatialMembership(id);
     }
 }
 

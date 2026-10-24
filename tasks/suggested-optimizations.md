@@ -1,7 +1,7 @@
 # Suggested viewer optimization tasks
 
-These are proposed tasks, not changes enabled in the viewer. Implement and
-measure them separately. Preserve gameplay, stable zombie IDs, spatial-query
+These tasks include implemented work and proposed follow-ups. Implement and
+measure follow-ups separately. Preserve gameplay, stable zombie IDs, spatial-query
 results, and the existing corpse ownership/invalidation contract.
 
 Already implemented: an explicit corpse-ID list for door activation,
@@ -10,44 +10,26 @@ zombies. See [viewer documentation](../docs/VIEWER.md) for their APIs and behavi
 
 ## 1. Skip unchanged gameplay spatial updates
 
-**Priority:** next. **Difficulty:** low to moderate. **Target:** CPU behavior time.
+**Status:** implemented for behavior and scenario-route updates on 2026-10-24.
 
-The behavior loop calls `updateSpatialMembership()` for every processed zombie,
-including stationary idle and attacking zombies. Grid membership already avoids
-moving an ID when it remains in the same cell, but the caller still rebuilds its
-conservative shooting bounds and updates the broad-phase padding limits.
+The loops retain membership/bounds for unchanged living actors and refresh them
+when either root or rendered transform changes, including turns in place.
+Death/removal and explicit loading/population/rig rebuilds retain their existing
+handling. Animation-only changes do not require conservative shooting bounds to
+be recomputed. Stationary locomotion also skips unused facing trigonometry.
 
-Suggested work:
-
-- Track changes to the inputs of gameplay spatial membership and shooting
-  bounds. Update them only when those inputs change.
-- Treat turning as a bounds change even without translation or a cell crossing.
-  Keep animation-only changes separate: conservative shooting bounds already
-  cover the prepared animation clips.
-- Retain full rebuilds for initial loading and explicit population/rig edits.
-  Keep creation, death, removal, and stable-ID membership consistent.
-- Reuse the movement detection in the behavior loop where appropriate, while
-  preserving distinct gameplay and rendering invalidation responsibilities.
-
-Expected benefit: fewer per-actor bounds calculations, especially for large
-active pools containing stationary zombies. Measure the saving; this does not
-reduce GPU geometry or draw calls.
-
-Acceptance checks:
-
-- Stationary idle/attacking zombies perform no unnecessary spatial updates.
-- Movement within a cell, cell crossings, and turns retain correct shooting
-  candidates and bounds, including head regions extending outside a cell.
-- Activation and hearing candidates match an independent reference query.
-- Corpse transitions and bulk rebuilds leave no stale or missing memberships.
+The [evaluation](../docs/benchmarks/zombie-route-progress-2026-10-24.txt) separates
+the paused-actor saving from the smaller effect on a moving horde. Persistent
+facing caching was tried and rejected because its measured benefit was noise.
 
 Start in [zombie_behavior.cpp](../src/zombie_behavior.cpp),
+[zombie_scenario_routes.cpp](../src/zombie_scenario_routes.cpp),
 [zombie_shooting.cpp](../src/zombie_shooting.cpp), and
 [zombie_spatial_index.cpp](../src/zombie_spatial_index.cpp).
 
 ## 2. Synchronize only corpses changed by physics
 
-**Priority:** after task 1, or earlier if settled corpses dominate CPU cost.
+**Priority:** next if settled corpses dominate CPU cost.
 **Difficulty:** moderate. **Target:** CPU physics-to-render synchronization.
 
 Synchronization now iterates only corpse IDs, but still checks every corpse's

@@ -7,6 +7,7 @@
 #include "zombie_steering.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -23,6 +24,54 @@ std::uint32_t slots(std::size_t population) {
         throw std::invalid_argument("Zombie navigation population exceeds path metadata capacity");
     return static_cast<std::uint32_t>(std::max<std::size_t>(1,population));
 }
+// Choose a representable point around a portal corner whose complete incoming
+// and outgoing connections are covered. Never widen mesh boundary tolerances.
+glm::vec2 roundedConnection(const navmesh_path::Mesh& mesh,navmesh_path::Point anchor,
+                            navmesh_path::Point following,glm::vec2 position,float speed,float dt) {
+    const glm::vec2 target{float(anchor.x),float(anchor.z)};
+    const float precision=4*std::numeric_limits<float>::epsilon()*std::max({1.f,std::abs(position.x),std::abs(position.y)});
+    if(glm::length(target-position)>std::max(.15f,speed*dt+precision)) return {0,0};
+    std::array<float,5> xs{},zs{};xs[2]=target.x;zs[2]=target.y;
+    for(int i=1;i>=0;--i) {xs[i]=std::nextafter(xs[i+1],-std::numeric_limits<float>::infinity());zs[i]=std::nextafter(zs[i+1],-std::numeric_limits<float>::infinity());}
+    for(int i=3;i<5;++i) {xs[i]=std::nextafter(xs[i-1],std::numeric_limits<float>::infinity());zs[i]=std::nextafter(zs[i-1],std::numeric_limits<float>::infinity());}
+    float best=std::numeric_limits<float>::max();glm::vec2 velocity{0};
+    for(float x:xs) for(float z:zs) {
+        const glm::vec2 candidate{x,z},offset=candidate-position;const float gap=glm::length(offset);
+        if(gap<=1e-5f || gap>=best || !mesh.segmentClear(point(position),point(candidate)) || !mesh.segmentClear(point(candidate),following)) continue;
+        const auto approach=offset*(std::min(speed,gap/dt)/gap);
+        if(!mesh.segmentClear(point(position),point(position+approach*dt))) continue;
+        best=gap;velocity=approach;
+    }
+    return velocity;
+}
+
+glm::vec2 recoverPathVelocity(const navmesh_path::Mesh& mesh,navmesh_path::PathView path,
+                              std::size_t segment,glm::vec2 position,float speed,float dt) {
+    const auto corner=segment+1;
+    if(corner>=path.size) return {0,0};
+    if(corner+1<path.size) {
+        const auto v=roundedConnection(mesh,path[corner],path[corner+1],position,speed,dt);
+        if(glm::dot(v,v)>0) return v;
+    }
+    // Avoidance or float interpolation may leave the previously visible path
+    // segment. Reconnect locally to that same stored segment, without a search.
+    // Near a corner, returning to the incoming line can alternate between
+    // adjacent floats forever. Corner recovery owns that neighborhood.
+    if(std::hypot(path[corner].x-position.x,path[corner].z-position.y)<=.15) return {0,0};
+    const auto a=path[segment],b=path[corner];
+    const double dx=b.x-a.x,dz=b.z-a.z,length=dx*dx+dz*dz;
+    if(length<=0) return {0,0};
+    const double t=std::clamp(((position.x-a.x)*dx+(position.y-a.z)*dz)/length,0.,1.);
+    const double px=a.x+dx*t,pz=a.z+dz*t;
+    const double lateralSquared=(px-position.x)*(px-position.x)+(pz-position.y)*(pz-position.y);
+    const double step=double(speed)*dt;
+    // Reconnect ahead of the projection when possible; choosing the nearest
+    // neighboring float alone can walk backward along a boundary indefinitely.
+    const double ahead=std::sqrt(std::max(0.,step*step-lateralSquared));
+    const double forward=std::min(1.,t+ahead/std::sqrt(length));
+    return roundedConnection(mesh,{a.x+dx*forward,a.z+dz*forward},b,position,speed,dt);
+}
+
 void validateMesh(const navmesh_path::Mesh& mesh) {
     if (mesh.polygons().empty() || mesh.radius()<.3 || mesh.clearance()<.002 ||
         mesh.buildingExtra()<.05 || mesh.numericMargin()<0)
@@ -50,10 +99,17 @@ struct ZombieNavigation::Impl {
         } coverage;
         bool hasPlan=false, recorded=false, checkedMovement=false;
     };
+    struct Recovery {
+        glm::vec2 position{0},velocity{0};
+        float speed=0,seconds=0;
+        std::size_t segment=0;
+        bool valid=false;
+    };
     navmesh_path::Mesh mesh;
     navmesh_path::PathManager paths;
     steering::Controller controller;
     std::vector<State> states;
+    std::vector<Recovery> recovery;
     std::vector<NearbyTrunk> trunks;
     std::vector<steering::Obstacle> obstacles;
     ZombieNavigationStats stats;
@@ -62,7 +118,7 @@ struct ZombieNavigation::Impl {
 
     Impl(navmesh_path::Mesh source,std::size_t population,std::size_t trunkCapacity)
         :mesh(std::move(source)),paths(mesh,slots(population),50'000,8.0),
-         controller({},trunkCapacity),states(population),trunks(trunkCapacity),obstacles(trunkCapacity) {
+         controller({},trunkCapacity),states(population),recovery(population),trunks(trunkCapacity),obstacles(trunkCapacity) {
         validateMesh(mesh);
         if (!trunkCapacity) throw std::invalid_argument("Zombie navigation needs a positive trunk capacity");
     }
@@ -102,6 +158,7 @@ struct ZombieNavigation::Impl {
         states[id].checkedMovement=false;
         states[id].coverage.valid=false;
         states[id].follow={};
+        recovery[id].valid=false;
         states[id].velocity={0,0};
     }
 };
@@ -119,6 +176,7 @@ bool ZombieNavigation::plan(std::size_t id,glm::vec3 feet,glm::vec3 target) {
     if (id>=p.states.size()) throw std::out_of_range("Invalid zombie navigation ID");
     auto& s=p.states[id];
     s.follow={};
+    p.recovery[id].valid=false;
     s.checkedMovement=false;
     s.coverage.valid=false;
     if (!finite(feet) || !finite(target)) {
@@ -178,6 +236,13 @@ glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
     }
     s.currentPolygon=startPolygon;
     const auto path=p.paths.view(s.path);
+    const auto reconnect=[&] {
+        auto& cache=p.recovery[id];
+        if(!cache.valid || cache.position!=position || cache.segment!=s.follow.segment || cache.speed!=speed || cache.seconds!=dt) {
+            cache={position,recoverPathVelocity(p.mesh,path,s.follow.segment,position,speed,dt),speed,dt,s.follow.segment,true};
+        }
+        return cache.velocity;
+    };
     auto desired=steering::followPath(path.points,path.size,position,speed,dt,s.follow,&p.mesh);
     // A final step toward a double portal corner can round a float body outside
     // the mesh, or stop a few ulps short while physical motion ignores sub-10um
@@ -220,6 +285,7 @@ glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
         }
         desired=(goal-position)*(std::min(speed,remaining/dt)/remaining);
     }
+    if(position+desired*dt==position) desired=reconnect();
     if (!finite(desired) || glm::dot(desired,desired)<1e-12f) return {0,0};
     bool overflow=false;
     const float range=std::max(speed,glm::length(s.velocity))*p.controller.config().horizon+
@@ -235,7 +301,10 @@ glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
     ++p.stats.steeringCalls;p.stats.obstacleTests+=sample.obstacleTests;p.stats.velocitySamples+=sample.velocitySamples;
     if (!p.covered(s,point(position),point(position+velocity*dt))) {
         ++p.stats.meshRejectedCandidates;
-        if (!p.covered(s,point(position),point(position+desired*dt))) return {0,0};
+        if (!p.covered(s,point(position),point(position+desired*dt))) {
+            desired=reconnect();
+            if(glm::dot(desired,desired)==0 || !p.covered(s,point(position),point(position+desired*dt))) return {0,0};
+        }
         velocity=desired;
     }
     s.checkedStart=position;
@@ -257,6 +326,7 @@ void ZombieNavigation::reset(std::size_t id) {
     if (id>=impl_->states.size()) return;
     impl_->paths.releaseZombie(id);
     impl_->states[id]={};
+    impl_->recovery[id]={};
 }
 void ZombieNavigation::resetPopulation(std::size_t population) {
     // Build before publication so a failed allocation leaves the live module

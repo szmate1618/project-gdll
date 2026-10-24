@@ -383,6 +383,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
             continue;
         }
         const auto beforeTransform = instance.transform;
+        const auto beforeRoot = instance.restRoot;
         const auto beforeSeconds = instance.walkSeconds;
         const bool wasRunning = instance.running;
         const bool claimed = stepBehavior(behavior, instance, assets[instance.asset], selectedPlayer, world,
@@ -392,7 +393,8 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
         const bool moved = beforeTransform != instance.transform;
         if (moved || wasWalking != instance.walking || wasRunning != instance.running || beforeSeconds != instance.walkSeconds)
             markRenderChanged(id, moved);
-        updateSpatialMembership(id);
+        if(moved || beforeRoot!=instance.restRoot || instance.removed || instance.ragdoll || instance.asset>=assets.size())
+            updateSpatialMembership(id);
         // Arrival or a completed looking turn can become idle in this step.
         // Keep the living zombie indexed for later activation and shooting.
         if (distantIdle(behavior, instance, rangePlayer)) {

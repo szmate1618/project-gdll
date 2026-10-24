@@ -1,0 +1,204 @@
+Scenario route progress and remaining movement experiments — 2026-10-24
+======================================================================
+
+Decision
+--------
+Keep bounded float-corner recovery, forward reconnection to the existing path,
+its exact-key memo, ordinary-frame fallback for stationary distant plans, and a
+whole-frame coverage guard when several movement slices are combined. Retain
+simple skips for unchanged gameplay spatial updates and unused stationary
+facing arithmetic. Do not retain the cheaper ground guard, persistent facing
+cache, or longer movement segments. No threading, new gameplay flags, runtime
+path search, teleport, mesh-tolerance relaxation or ground-query removal.
+
+Base: 77a8b92. Work branch: experiment/zombie-route-progress-20261024.
+All four requested steps were investigated. This round primarily fixes route
+progress; aggregate CPU and paused-actor costs are reported separately below.
+
+Protocol and artifacts
+----------------------
+Same output/godollo.glb, matching navmesh and seed-42 scenario as the previous
+report: 1,600 actors (1,000 roamers and 600 crossing travelers), stationary
+player X=-526.465, Z=296.095. Fixed 1/60 s simulation, 3,600 frames per quality
+run, 5,760,000 actor-step samples. Headless quality runs do not render, advance
+physics, play audio or network. Doors/props have fixed poses in that fixture.
+
+Timed runs are separate from contact/trajectory diagnostics, pinned to CPU 0,
+release flags, no detailed query clocks. Every invocation resets the population
+three times, warms 60 frames and measures 3,600 frames per reset: 10,800 samples.
+Loading and initial route planning are excluded. Timed cases run serially with
+no concurrent builds or other experiments. AC/balanced is checked before/after
+and AC sampled every two seconds; no power settings changed. Clock/host noise
+is still possible and individual invocation means are retained.
+
+Ignored artifacts: build/benchmarks/zombie-route-progress-20261024/. They include
+source snapshots, isolated variant sources/binaries, quality traces, clean
+CSV timings, power telemetry, rejected-long.patch, helpers and build/test logs.
+Earlier controls/quality data live in zombie-overlap-recovery-20261024/.
+Helpers are one-off experiments, not supported product commands.
+
+Build precautions: restore with fresh mtimes, flatten historical control .cpp
+files away from snapshot headers, and rebuild every class-layout consumer.
+An initial pose-control build accidentally found historical local headers ahead
+of -I; those measurements are invalid and replaced by the v2 runs. Tests were
+also rerun only after a successful rebuild. AGENTS.md now records these traps.
+
+Stall diagnosis and retained behavior
+------------------------------------
+A rejected 100 ms proposal could produce zero velocity while a frame-sized
+proposal remained valid. Caching that stationary segment caused repeated waits;
+zero-length segments now take the ordinary guarded frame step.
+
+Double portal corners can round to float positions on the wrong side of their
+outgoing boundary. A bounded 5x5 neighborhood of representable coordinates is
+searched around the existing corner. The complete incoming and outgoing
+connections must be covered, and actual movement remains speed-limited. If
+avoidance/interpolation loses sight of a stored segment, reconnect locally
+forward along that same segment. Near corners, only corner recovery applies;
+returning to the incoming line there could oscillate between adjacent floats.
+No path search or waypoint rewrite is involved.
+
+The reconnection result depends only on the immutable mesh, current stored path,
+segment, exact position, speed and dt. Keep a separate per-ID cold memo, allocated
+at population setup, to avoid repeating failed calculations while stationary.
+Cold plan replacement, reset, release and population replacement invalidate it.
+A regression reproduced an initially missing cold-replacement invalidation.
+All this state is owned and updated by the serialized simulation thread.
+
+Combining covered legs in one frame does not prove the complete frame chord
+covered. Before appending another leg/fallback, validate the original-frame
+start to the final endpoint; otherwise publish only the accepted partial step.
+
+Quality and progress
+--------------------
+Primary metric: unfinished scenario route, goal >1 m away, <5 cm net horizontal
+movement in the last five simulated seconds. This is a stall proxy, not proof
+that every obstacle wait is erroneous. Compare IDs, not only totals.
+
+Before this round, retained swept movement: 108 stalled actors.
+Selected short-segment version:             23 stalled actors.
+Resolved previous stalled IDs:             85.
+Newly stalled IDs versus retained baseline:  0.
+
+The earlier full-movement control had 100 stalls. Selected resolves 81 of those
+and has four different stalled IDs (278, 489, 965, 1467). That control already
+contained prior exact optimizations; it is not a fully unoptimized historical
+build. The selected count does not establish universal superiority to full
+movement on all routes/maps.
+
+Selected quality run: zero physical body penetrations, zero 5 cm wall-margin
+penetrations, zero sampled static-axis/trunk-core crossings, zero endpoint
+navmesh escapes and zero speed-bound violations. Padded skin contacts: 77.
+Maximum horizontal step .0500318 m includes original behavior actors moving
+at higher speed; coordinate-aware speed limits are checked per actor.
+Unit fixtures independently check complete movement segments around corners,
+arrival, speed bounds and exactly one initial path request in full/distant modes.
+
+Rejected ground guard
+---------------------
+Revisited the cheaper endpoint-height envelope after corner fixes. It changes
+how ground descent is protected: a height envelope alone can lower a body into
+road geometry. The user accepts road overlap but not lost route progress.
+Adding the ordinary solver's clear-contact condition when lowering ground fixed
+one prolonged road-overlap stall. Combined with an intermediate reconnection
+version, it had 26 stalled actors and zero non-ground body contacts, but retained
+some ground overlap and did not demonstrate a dependable CPU advantage.
+
+In an earlier balanced A/B round, baseline 1.846758 ms, corner version 1.927772,
+memo version 1.753158. The descent guard measured 1.780187 ms in one invocation
+and 3.110178 in another, so its pooled timing is not a trustworthy saving.
+Do not compare these intermediate implementations as if they were the final
+forward-reconnection version. Keep conservative swept/contact checks and current
+position ground sampling with the existing candidate cache.
+
+Root transforms and spatial updates
+-----------------------------------
+A persistent 20-byte facing cache per actor was tried. Properly rebuilt v2
+controls produced byte-identical 60-second root/transforms, animation clocks,
+progress and sampled trajectories. ABBA invocation means (ms):
+  control 1.748111; cache 1.760855; cache 1.824175; control 1.853307.
+The pooled difference is only 0.45%, smaller than host/run variation. Reject
+that state and its invalidation complexity.
+
+Keep a stateless skip of unused facing trigonometry while stationary, and call
+gameplay spatial/bounds updates only when root/render transforms change or
+removal/ragdoll/invalid-asset handling requires it. Initial/population/rig edits
+retain explicit rebuilds. Moving/turning actors retain the existing calculations.
+
+A separate paused-looking fixture, perception disabled before behaviors are
+created, measures the relevant case. Six samples/mode at 1,600 actors:
+control ~0.08025 ms, skip ~0.03656 ms; spatial calls 1,600 ->0 per update.
+At 10,000: ~0.4990 ->0.2378 ms. This is a paused-actor fixture, not a whole-game
+FPS or moving-horde gain. The earlier paused.log fixture was invalid because
+it disabled perception after creating behaviors; use paused-v2.log only.
+
+Rejected longer segments
+------------------------
+Tried distance-based reach .12 ->.24 ->.48 ->.60 m, bounded by the next stored
+corner, returning to .12 m/full movement on uncertainty. Ground/crowd/coverage
+still ran each frame. Live prop changes revalidated pending segments using
+binding + motion revisions, including equal-revision BoxLayer replacement.
+Focused tests covered new/moved/rebound props and the complete-frame chord.
+
+Final comparison: short/long/long/short, 21,600 timed updates per mode.
+Invocation mean ms:
+  short 1.843593 /1.924876
+  long  1.963667 /2.008115
+Pooled short 1.884234, long 1.985891: long is 5.40% slower.
+Long quality has 28 stalls: seven newly stalled IDs, two resolved versus short.
+Physical penetrations/crossings/endpoint coverage/speed diagnostics remained
+zero in this fixture; padded contacts rose to 4,879. Reject on progress and
+cost, not just padded contacts. None of its prop revision APIs, added plan
+fields or next-corner getter remain in product code. Keep the 100 ms policy.
+
+Final retained-build verification and CPU comparison
+----------------------------------------------------
+Rebuilt the selected source and every layout-dependent application/test consumer.
+25/25 affected CTest suites passed (4.02 s): collision/trunks, FPS/character steps,
+doors, zombie travel/navigation/scenario/steering/follow/chase/crowd/movement/
+motion/attack/behavior/perception/transitions/shooting/spatial/render updates,
+frame profiling and multiplayer core/server navigation. New regressions cover
+map-scale representable corners, a tiny corner that previously stuck, complete
+frame coverage, speed, arrival, one initial path request, cold replacement and
+reset/population invalidation of the recovery memo.
+
+The final product-layout quality run (quality-retained; TravelerPlan 56 bytes)
+reproduces the short control's progress, trajectories and final pose bytes
+exactly. This avoids relying on the earlier 80-byte experiment-layout control.
+Quality counters/progress above apply to this rebuilt retained version too.
+
+Fresh original-baseline/retained/retained/original-baseline timings:
+  baseline invocation means: 1.926573 /2.429249 ms
+  retained invocation means: 1.845044 /1.856504 ms
+  retained pooled mean:      1.850774 ms/update
+  baseline pooled mean:      2.177911 ms/update
+
+The second baseline has marked drift (its individual repeats 2.175785,
+2.799246, 2.312717 ms versus 1.910993, 1.947428, 1.921298 initially). Do not
+advertise the pooled 15% difference as a dependable speedup. Retained is ~3.9%
+below the cleaner first baseline invocation, but a precise whole-update gain
+is not established under this host variation. The unambiguous result is better
+route progress with modest CPU cost, plus the independently measured paused-
+actor saving. More actors now move instead of remaining stuck, changing work.
+
+All eight final timing invocations (short/long and baseline/retained comparisons)
+began/ended on AC and balanced; all 161 sampled AC states were online.
+These checks do not identify or eliminate thermal/frequency/background drift.
+
+Hardware viewer: 480 frames, fixed 1/60 s, 1280x720, scenario-viewer.toml,
+--hidden --profile --no-audio --time-of-day 12.3 --day-length 0 --animation-time 0.
+Mesa OpenGL 4.6, no reported GL errors, successful screenshot and clean exit.
+Displayed GPU 5.55..6.70 ms and CPU sim 4.40..5.53 ms include rendering/profiling
+contention; this is a smoke check, not a controlled GPU speed comparison.
+The inspected capture shows the town/fences/trees; zero scenario zombies are
+camera-visible. It does not establish visual zombie-motion quality; the headless
+trajectories and focused simulation regressions supply movement evidence.
+
+Limits and next evidence
+------------------------
+The remaining 23 low-progress actors are not claimed fixed. They may include
+physical road/ballast, tree/crowd obstruction and other route/ground interactions;
+this run does not establish each one's cause. A useful follow-up is categorize
+these particular IDs before more approximations. Longer segments and a cheaper
+ground guard do not currently justify replacing the retained policy. Threading
+remains outside this experiment. No GPU rendering algorithm changed.

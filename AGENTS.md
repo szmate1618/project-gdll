@@ -144,6 +144,10 @@ Use this guide as a navigation aid; read the relevant code for current behavior.
   build directory; rerunning CMake configuration alone does not force this.
   Check the rebuilt variant before benchmarking: mixed class layouts can cause
   ABI corruption or stack-smashing failures, not just misleading timings.
+- Historical control `.cpp` files must compile against the same headers as the
+  linked libraries. Quoted includes search beside the source before `-I` paths:
+  flatten control sources into a scratch directory without historical headers
+  and inspect compiler dependencies. Rebuild every layout-dependent consumer.
 - For viewer movement benchmarks, use `--fixed-step --frames N` so every run
   advances the same simulated time. Without `--fixed-step`, wall-clock frame
   deltas make faster variants perform different movement work and change the
@@ -158,7 +162,9 @@ Use this guide as a navigation aid; read the relevant code for current behavior.
 
 Run commands from the repository root. Start with focused checks and expand
 when shared behavior changes; do not repeatedly rerun passing suites without a
-new reason. Documentation-only changes need link/path and whitespace checks.
+new reason. Run tests only after a successful rebuild; otherwise old test
+executables can report success for code that failed to compile. Documentation-only
+changes need link/path and whitespace checks.
 
 ```bash
 # Python: example focused suite; adjust the pattern to the changed module.
