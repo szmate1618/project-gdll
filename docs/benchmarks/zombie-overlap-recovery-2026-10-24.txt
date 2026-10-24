@@ -1,0 +1,243 @@
+Low-rate traveler overlap recovery and route progress — 2026-10-24
+=================================================================
+
+Decision and user criterion
+---------------------------
+Road overlap alone is not a rejection criterion. The user accepts imperfect road
+geometry while that geometry awaits cleanup, provided zombies keep making
+progress. Evaluate sustained stalls separately from overlap counts.
+
+Keep the game's retained swept movement unchanged. The original low-rate variant
+accumulates many additional stalled routes and loses its short-run performance
+advantage. An explicit repair-and-restore prototype recovers overlaps, but adds
+position jumps and does not eliminate navigation stalls. A cheap height-envelope
+guard is a promising faster candidate, but also stalls some actors which the
+retained version moves successfully. None of these measurements justify claiming
+that an automatic physics solver will eventually fix walking zombies.
+
+All prototypes, harness sources and binaries are isolated under ignored build/
+artifacts; no production source/header was changed or restored. Base: 12cc001,
+experiment/zombie-distant-travel-20261024. This follow-up measures alternatives;
+it does not introduce new gameplay flags or change the default movement policy.
+
+Protocol
+--------
+Same real map, navmesh, assets and seed-42 scenario as the earlier report:
+1,600 zombies, stationary player X=-526.465, Z=296.095. All simulation updates
+advance a fixed 1/60 s, independent of real elapsed time. No rendering, audio,
+networking or dynamic-physics advancement in these headless cases. Door and prop
+queries see fixed live poses. Each quality run follows 60 simulated seconds:
+3,600 frames /5,760,000 actor-step samples. Thirteen serial quality invocations
+include repeated variants for progress tracking. Tests cover this fixture, not
+all maps, moving interactions or arbitrarily long travel.
+
+Timed runs are separate from quality diagnostics. CPU 0, release compiler flags,
+no fine-query timers. Ten serial invocations, in F/S/R/E/W/W/E/R/S/F order.
+Each invocation resets the population three times, warms 60 updates and records
+3,600 updates per reset. Each variant has 21,600 timed updates covering repeated
+61-second trajectories with the first second excluded from timings. Loading and
+route planning are excluded. No builds, other experiments or heavy analysis run
+alongside timed cases. No power/CPU/GPU settings were changed.
+
+All 23 monitored invocations (quality + timing) began/ended on balanced power;
+all 421 two-second power samples reported AC online. This does not guarantee
+fixed hardware clocks. All invocations exited successfully. The isolated
+original and retained implementations reproduced their earlier six-second final
+poses byte for byte before these longer measurements. Current headers and
+compiled library layouts were used throughout, without timestamp restoration.
+
+The diagnostic timing.csv files also contain standalone key=value counter
+records emitted outside the timed scope. Analysis filters those records and
+requires exactly 10,800 timed rows per invocation. Do not treat those counter
+records as extra frames. Per-run results and the filtering script are preserved.
+
+Variants
+--------
+F /full: current exact movement model at every frame, with the retained exact
+navigation/contact-region optimizations; distant approximation disabled.
+S /swept: current shipped experimental default, low-rate distant segment refresh
+with the conservative swept guard and current ground/crowd/navmesh validation.
+R /reduced: reconstructed original rejected prototype: 10 Hz steering/endpoint
+capsule validation, with per-frame feet/ground/crowd/navmesh updates.
+E /envelope: R plus the same current-ground endpoint-height envelope guard used
+by S; unexpected height excursions trigger full movement. No simplified swept
+wall/trunk test and no periodic overlap-repair query.
+W /rewind10: R plus staggered 10 Hz current-body overlap checks. On overlap, try
+up to four horizontal penetration corrections with ground resampling, at most
+30 cm total, and validate coverage/crowd. If push-out cannot produce clear feet,
+revalidate and restore a recently checked clear position within 30 cm. Then use
+full movement for 250 ms. Recovery can visibly jump and move backward.
+
+Additional quality-only variants detect overlap at 10/5 Hz and switch to full
+movement, or add bounded push-out at 10/5 Hz without the last-clear restore.
+They are not exposed through the game's APIs or CLI.
+
+What counts as penetration and a stall
+--------------------------------------
+Physical body contacts use the original capsule (radius .3 m, height 1.8 m),
+zero skin AND zero extra wall padding, with the existing walking support
+exemptions and .1 mm depth tolerance. Separate diagnostics record zero-skin
+contacts with the 5 cm wall margin and padded .002 m contacts. The previous
+zero-skin validation retained the wall margin; separating it does not change
+the 12-overlapping-actor result at six seconds in this fixture.
+
+Contact.terrain groups terrain and roads. Other contacts are reported separately.
+Source-mesh inspection identified both non-terrain/road witnesses in R as
+railways_ballast triangles at two different locations. They are ground
+infrastructure too; do not describe them as demonstrated wall/tree penetrations.
+Inspection used each actor's last recorded non-terrain/road contact pose; this is
+not a per-contact source annotation for every earlier frame.
+Actor 727 has a long ballast overlap and little final progress even in the full
+and retained controls; actor 1101 continues moving through a ballast overlap.
+Overlap alone therefore cannot diagnose a new navigation stall.
+
+Consecutive overlapping actor frames form episodes. Durations are observed frame
+counts /60, with one-frame temporal resolution. Episodes still open at the final
+frame are right-censored; their observed duration is a lower bound on eventual
+duration. Four W episodes remain open at the cutoff, each observed <=100 ms.
+Do not claim those four were measured to recover after the cutoff.
+
+Primary progress metric: unfinished scenario route, goal farther than 1 m,
+less than 5 cm net horizontal movement over the final five simulated seconds.
+This detects stationary actors and near-stationary jitter, but remains a stall
+proxy; it does not prove every obstacle wait is a bug. Compare actor IDs too:
+equal totals can conceal different stalled routes. A secondary metric counts
+actors continuously moving less than 1 mm/frame for the final two seconds.
+Original behavior/finished routes are excluded from these progress metrics.
+
+CPU and progress results
+------------------------
+Variant             Mean CPU ms/update    Final 5s low-progress    Final 2s quiet
+Full                       2.368403                  100                  102
+Retained swept             1.720445                  108                  111
+Original reduced           2.048141                  208                  221
+Height envelope            1.479055                  107                  111
+Repair + restore           1.636019                  100                  102
+
+Against retained swept: original reduced is 19.05% slower, height envelope is
+14.03% faster, repair+restore is 4.91% faster. Full is the exact-movement control.
+These are longer-trajectory headless costs, not GPU times or whole-viewer FPS.
+
+Short-run speed does not persist uniformly. Mean CPU ms in successive 10-second
+measured windows (seconds 1..61, across all six repeats per variant):
+                 1..11    11..21   21..31   31..41   41..51   51..61
+Full             1.7574   2.0071   2.2785   2.4944   2.7011   2.9717
+Retained swept   1.4340   1.5421   1.6712   1.7725   1.8755   2.0274
+Original reduced 1.2397   1.5680   2.0001   2.2375   2.4643   2.7793
+Height envelope  1.2152   1.3251   1.4443   1.5088   1.6147   1.7662
+Repair + restore 1.3417   1.4676   1.5977   1.6849   1.7868   1.9374
+
+The earlier ~31% six-second R-versus-full saving was a short-trajectory result.
+The new first window still favors R by ~29.5% versus full, but the whole minute
+favors it by only 13.5%, and retained swept is cheaper over the longer run.
+These changing costs do not alone identify which substep caused the change;
+no claim of a particular bottleneck or constant per-update cost is warranted.
+
+Per-invocation control means, ms (each mean of three 3,600-step runs):
+  full t0/t9          2.357404 /2.379401
+  swept t1/t8         1.719949 /1.720941
+  reduced t2/t7       2.044752 /2.051529
+  envelope t3/t6      1.472781 /1.485329
+  rewind10 t4/t5      1.629327 /1.642710
+
+Compared actor-by-actor with full's 100 low-progress actors:
+  retained swept: 22 newly low-progress, 14 no longer low-progress
+  reduced:       126 newly low-progress, 18 no longer low-progress
+  envelope:       23 newly low-progress, 16 no longer low-progress
+  repair+restore: 22 newly low-progress, 22 no longer low-progress
+Compared with retained swept, envelope has 9 newly low-progress and resolves 10;
+repair+restore has 11 newly low-progress and resolves 19. Matching baseline stall
+totals is not proof that the same actors move correctly.
+
+Concrete ground-geometry regression: actor 279 travels ~71.6 m with full and
+~71.7 m with retained swept over 60 s. R travels ~4.0 m then stops; E travels
+~3.5 m then stops for ~57 s with a small ~4 mm body overlap. W repairs this case
+and travels ~72.1 m. A small road/terrain overlap can therefore matter because
+of lost progress even when its visual penetration would be acceptable.
+
+Overlap/recovery results
+-------------------------
+                         R original       E envelope        W repair/restore
+Actors ever overlapping      497               334                497
+Body-overlap episodes       1,852               842              4,118
+Episode median               .100 s            .033 s            .033 s
+Episode p95                20.267 s            .183 s            .083 s
+Longest observed           58.283 s          57.100 s            .100 s
+Overlapping at cutoff        139                 3                  4
+Maximum body depth           .300 m            .132 m            .212 m
+Terrain/road actor-samples 257,097            10,601              9,733
+Other actor-samples         2,683                 4                 36
+Other actors                   2                 1                  2
+Longest other episode     44.317 s            .017 s            .067 s
+
+F and S have zero physical overlaps over their complete 60-second quality
+trajectories. Padded-skin samples are reported separately (F=50, S=76).
+R's completed 1,713 episodes have median .100 s, p95 .383 s and maximum 3.650 s;
+139 episodes remain open. The long tail cannot be dismissed as brief correction.
+124 of those 139 final overlapping actors also meet the final-five-second
+low-progress criterion. E's two long-lived overlapping actors are stationary;
+a third is a recent overlap. W has no observed episode longer than .100 s,
+including censored lower bounds; this is an observation, not a future guarantee.
+
+W performs 3,037 successful push-outs and 865 successful last-clear restores.
+Three restore attempts fail validation; later handling still bounds the observed
+episodes in this run. Largest push is .300 m, largest restore .140 m, and largest
+single-frame horizontal displacement (repair plus movement) is .319526 m.
+There are 3,672 frame steps above the ordinary coordinate-aware walking speed
+bound; these are repair jumps, not a free correctness-preserving optimization.
+
+Quality-only recovery variants, final 2s quiet /body-overlapping at cutoff:
+  10 Hz detection +full movement             433 /363
+   5 Hz detection +full movement             366 /284
+  10 Hz detection +bounded push-out          249 /166
+   5 Hz detection +bounded push-out          200 /117
+Merely detecting an overlap and switching to the normal movement path does not
+ensure recovery; it can interrupt a coarse segment that would have escaped.
+The normal solver limits correction by requested movement, and zero requested
+movement returns without depenetration. Explicit push-out can fail on support
+geometry. Restoring validated clear feet handles the failed-push cases at the
+cost of backward motion and occasional larger displacement.
+
+Crossings and remaining limits
+-------------------------------
+An independent diagnostic tests body-axis motion at nine heights through nearby
+steep static triangles, and crossings of actual trunk cylindrical cores. R has
+three static crossing actor-frames, all source-identified road meshes:
+  frame 85, actor 463: roads_dirt
+  frame 1209, actor 1: roads_dirt
+  frame 3262, actor 1409: roads_asphalt
+No other variant has a detected static-axis crossing; none has a trunk-core
+crossing. These are sampled body-axis/core witnesses, not a complete continuous
+capsule proof for every barrier/rounded trunk cap. All quality cases stay in the
+navmesh; only explicit push/restore variants exceed normal motion speed bounds.
+Every population makes exactly 1,600 startup path requests and no runtime path
+searches. No per-frame ground/crowd checks were removed from the prototypes.
+
+The F/S controls already have low-progress routes; their causes need separate
+investigation. Periodic collision repair does not guarantee route completion.
+Accepting overlap on roads or railway ballast is reasonable as a visual tradeoff,
+but it does not by itself remove the observed stalls. Under the user's progress
+criterion, prioritize diagnosing those stalled actors or a targeted recovery
+policy rather than rejecting a variant solely for shallow road overlap.
+The cheaper E candidate merits follow-up only with stalled-route recovery or
+additional evidence; W's modest speed gain must justify its jumps and complexity.
+No rendering/visible-motion improvement or behavior on moving props is claimed.
+
+Reproduction and artifacts
+---------------------------
+  build/benchmarks/zombie-overlap-recovery-20261024/
+Contains isolated C++ sources/objects/binaries, base commit, reproduction captures,
+per-frame overlap samples and episodes (with censor flags), 1 Hz trajectories,
+per-actor progress, mesh crossing witnesses, quality/timing JSON summaries,
+raw timing records, power telemetry and one-off helpers/logs copied from
+/tmp/gdll-overlap-recovery/. No product CMake target or CLI was added.
+
+  ./build/benchmarks/zombie-overlap-recovery-20261024/measure quality reduced NEW_OUT 3600
+  taskset -c 0 ./build/benchmarks/zombie-overlap-recovery-20261024/measure timing swept NEW_OUT 3600
+Modes: full, swept, reduced, envelope, check10, check5, push10, push5, rewind10.
+Use a distinct nonexistent output directory. The saved run.py verifies AC/balanced
+without changing settings and records before/after state plus two-second power.
+The harness runs independent thin-wall/trunk-crossing/physical-depth sanity tests
+through its sanity executable. Reproduction captures match the original R and
+retained S implementations byte for byte at the earlier six-second horizon.
+Production sources are unchanged, so their passing 25-suite result was not rerun.

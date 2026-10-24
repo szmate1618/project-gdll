@@ -216,6 +216,9 @@ records selected changes, trajectory checks and actual viewer measurements.
 The [distant traveler evaluation](benchmarks/zombie-distant-travel-2026-10-24.txt)
 compares navigation fast paths, physical contact-region proofs and reduced-rate
 travel with swept geometry. The selected approach has a full-movement control.
+The [overlap recovery and route-progress follow-up](benchmarks/zombie-overlap-recovery-2026-10-24.txt)
+measures 60-second trajectories, separates ground geometry from other contacts,
+and compares periodic correction against the retained movement model.
 The [ground-support/contact sharing experiment](benchmarks/zombie-ground-support-2026-10-24.txt)
 records a rejected small-gain prototype and the unchanged ground-query policy.
 See the [contact and ground evaluation, 2026-10-24](benchmarks/zombie-contact-efficiency-2026-10-24.txt)
@@ -225,6 +228,8 @@ For viewer movement comparisons, add `--fixed-step --frames N` to advance the
 simulation by exactly 1/60 s each frame. Without that diagnostic flag, the viewer
 uses wall-clock delta, so faster runs cover a different amount of simulated time.
 `--animation-time` freezes the render animation input, not the simulation clock.
+Compare longer trajectories and actor-by-actor progress/stalls too: a short-run
+speedup or one final overlap snapshot can miss accumulating failures.
 
 `godollo_viewer --frame-profile FILE` saves asynchronous per-frame GPU and CPU
 CSV timings independently of `--profile`, allowing viewer comparisons without
