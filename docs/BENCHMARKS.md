@@ -229,3 +229,7 @@ host's clock source requires slow reads; do not treat heavily perturbed stage
 times as normal execution costs.
 
 Measured example: [1,600-zombie real-map substeps, 2026-10-23](benchmarks/zombie-update-substeps-2026-10-23.txt).
+
+Cumulative optimization results: [contact and coverage experiments, 2026-10-24](benchmarks/contact-coverage-first-four-2026-10-24.txt).
+The real-map harness now also saves `final-poses.bin` for exact cross-version
+final-pose comparisons, and CSVs include certified-region reuse/build counters.

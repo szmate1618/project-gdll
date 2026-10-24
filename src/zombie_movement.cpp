@@ -35,13 +35,26 @@ auto key(const Contact& c) {
                            c.point.x, c.point.y, c.point.z, c.terrain);
 }
 
-bool clear(glm::vec3 feet, const CollisionWorld& world, float padding = 0) {
-    for (const auto& c : world.contacts(feet, radius, height, padding, wallClearance))
-        if (blocking(c, feet)) return false;
-    return true;
+std::optional<Contact> blockingContact(glm::vec3 feet,const CollisionWorld& world,float padding,bool any,ContactCandidates* cache) {
+    struct Selection {
+        glm::vec3 feet;
+        bool any;
+        std::optional<Contact> deepest;
+    } selection{feet,any,std::nullopt};
+    world.visitContacts(feet,radius,height,padding,wallClearance,{&selection,[](void* context,const Contact& contact) {
+        auto& selected=*static_cast<Selection*>(context);
+        if (!blocking(contact,selected.feet)) return true;
+        if (!selected.deepest || key(contact)>key(*selected.deepest)) selected.deepest=contact;
+        return !selected.any;
+    }},cache);
+    return selection.deepest;
 }
 
-void support(glm::vec3& feet, const CollisionWorld& world, float ceiling, WalkingGroundCache* cache) {
+bool clear(glm::vec3 feet,const CollisionWorld& world,float padding=0,ContactCandidates* cache=nullptr) {
+    return !blockingContact(feet,world,padding,true,cache);
+}
+
+void support(glm::vec3& feet, const CollisionWorld& world, float ceiling, WalkingGroundCache* cache,ContactCandidates* contacts) {
     const auto hit = world.walkingGroundAt(feet.x, feet.z,
         std::numeric_limits<float>::lowest(), ceiling, cache);
     if (!hit || hit->normal.y < minNormalY) return;
@@ -50,19 +63,16 @@ void support(glm::vec3& feet, const CollisionWorld& world, float ceiling, Walkin
     if (!hit->terrain) supported.y += radius * (1 / hit->normal.y - 1) + skin / hit->normal.y;
     // Keep rounded-foot edge support until the entire capsule can descend.
     // Dropping to the ground under its center too early reenters the ledge.
-    if (supported.y < feet.y && !clear(supported, world, skin)) return;
+    if (supported.y < feet.y && !clear(supported, world, skin,contacts)) return;
     feet = supported;
 }
 
-glm::vec3 resolve(glm::vec3 start, glm::vec3 desired, const CollisionWorld& world, WalkingGroundCache* cache) {
+glm::vec3 resolve(glm::vec3 start, glm::vec3 desired, const CollisionWorld& world, WalkingGroundCache* cache,ContactCandidates* contacts) {
     auto feet = desired;
     const float allowance = horizontalDistance(start, desired);
     for (int iteration = 0; iteration < resolutionIterations; ++iteration) {
-        support(feet, world, start.y + stepHeight, cache);
-        const auto contacts = world.contacts(feet, radius, height, skin, wallClearance);
-        const Contact* deepest = nullptr;
-        for (const auto& contact : contacts)
-            if (blocking(contact, feet) && (!deepest || key(contact) > key(*deepest))) deepest = &contact;
+        support(feet, world, start.y + stepHeight, cache,contacts);
+        const auto deepest=blockingContact(feet,world,skin,false,contacts);
         if (!deepest) return feet;
         const glm::vec2 normal(deepest->normal.x, deepest->normal.z);
         const float squared = glm::dot(normal, normal);
@@ -80,13 +90,13 @@ glm::vec3 resolve(glm::vec3 start, glm::vec3 desired, const CollisionWorld& worl
             feet.z = start.z + (feet.z - start.z) * scale;
         }
     }
-    support(feet, world, start.y + stepHeight, cache);
-    return clear(feet, world) ? feet : start;
+    support(feet, world, start.y + stepHeight, cache,contacts);
+    return clear(feet, world,0,contacts) ? feet : start;
 }
 }
 
 ZombieMovement moveZombieBody(glm::vec3 start, glm::vec3 desired, const CollisionWorld& world,
-                              ZombieCrowd* crowd, std::size_t id, WalkingGroundCache* groundCache) {
+                              ZombieCrowd* crowd, std::size_t id, WalkingGroundCache* groundCache,ContactCandidates* contactCache) {
     for (int axis = 0; axis < 3; ++axis)
         if (!std::isfinite(start[axis]) || !std::isfinite(desired[axis])) return {start};
     if (world.empty()) {
@@ -105,7 +115,7 @@ ZombieMovement moveZombieBody(glm::vec3 start, glm::vec3 desired, const Collisio
     for (int segment = 0; segment < maxSegments && remaining > 1e-5f; ++segment) {
         const float step = std::min(remaining, maxSegment);
         auto proposed = result.feet + glm::vec3(direction.x * step, 0, direction.y * step);
-        auto accepted = resolve(result.feet, proposed, world, groundCache);
+        auto accepted = resolve(result.feet, proposed, world, groundCache,contactCache);
         if (horizontalDistance(accepted, proposed) > tolerance) {
             const CharacterStepConfig config{radius, height, stepHeight, minNormalY, skin, wallClearance};
             if (const auto stepped = tryCharacterStep(result.feet, proposed, world, config)) {
@@ -120,11 +130,11 @@ ZombieMovement moveZombieBody(glm::vec3 start, glm::vec3 desired, const Collisio
             accepted = crowd->constrainFrom(id, result.feet, accepted, crowdChecks);
             if (accepted.x != sceneAccepted.x || accepted.z != sceneAccepted.z) {
                 if (accepted.x == result.feet.x && accepted.z == result.feet.z) accepted.y = result.feet.y;
-                else support(accepted, world, result.feet.y + stepHeight, groundCache);
+                else support(accepted, world, result.feet.y + stepHeight, groundCache,contactCache);
                 // A crowd slide can change the scene-resolved direction. Reject
                 // it if it enters a wall; another correction could reenter the
                 // crowd. Unchanged candidates already passed the scene check.
-                if (!clear(accepted, world)) break;
+                if (!clear(accepted, world,0,contactCache)) break;
             }
         }
         const float travel = horizontalDistance(result.feet, accepted);

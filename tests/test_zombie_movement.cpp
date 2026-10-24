@@ -7,6 +7,8 @@
 #include "pole_layer.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
+#include <tuple>
 #include <chrono>
 #include <cmath>
 #include <iostream>
@@ -163,6 +165,52 @@ void boxesAndDoorPoses() {
             "The rotated open panel must still block at its current physical pose");
 }
 
+void contactCandidateReuse() {
+    auto model=floor();
+    wall(model);
+    const auto physics=std::make_shared<viewer::PhysicsWorld>();
+    viewer::BoxLayer boxes(physics);
+    boxes.add({-2,.5f,0},{.5f,1,.5f});
+    viewer::CollisionWorld world(model,{{{-1,0,1},.15f,5}});
+    world.setBoxes(&boxes);
+    viewer::ContactCandidates cache;
+    const auto key=[](const viewer::Contact& c) {
+        return std::make_tuple(c.depth,c.normal.x,c.normal.y,c.normal.z,c.point.x,c.point.y,c.point.z,
+                               c.terrain,c.terrainSupport);
+    };
+    const auto compare=[&](const viewer::CollisionWorld& scene,glm::vec3 feet,float skin=.002f) {
+        auto expected=scene.contacts(feet,.3f,1.8f,skin,.05f);
+        std::vector<viewer::Contact> actual;
+        scene.visitContacts(feet,.3f,1.8f,skin,.05f,{&actual,[](void* target,const viewer::Contact& c) {
+            static_cast<std::vector<viewer::Contact>*>(target)->push_back(c);return true;
+        }},&cache);
+        const auto less=[&](const auto& a,const auto& b) { return key(a)<key(b); };
+        std::sort(expected.begin(),expected.end(),less);std::sort(actual.begin(),actual.end(),less);
+        require(actual.size()==expected.size(),"Candidate cache lost or duplicated contacts");
+        for(std::size_t i=0;i<actual.size();++i)
+            require(key(actual[i])==key(expected[i]),"Candidate cache changed contact geometry");
+        std::size_t visited=0;
+        scene.visitContacts(feet,.3f,1.8f,skin,.05f,{&visited,[](void* target,const viewer::Contact&) {
+            ++*static_cast<std::size_t*>(target);return false;
+        }},&cache);
+        require(visited==(actual.empty()?0u:1u),"Any-contact traversal failed to stop at its first contact");
+    };
+    for(int i=0;i<300;++i) compare(world,{-3+i*.02f,0,.1f});
+    compare(world,{-2,0,0});
+    boxes.setPose(0,{-2,.5f,0},{1,0,0,0});compare(world,{-2,0,0});
+    boxes.setPose(0,{2,.5f,0},{1,0,0,0});compare(world,{-2,0,0});
+    compare(world,{-2,.2f,0},.01f);
+    auto dense=floor();
+    for(int i=0;i<70;++i) wall(dense);
+    std::vector<viewer::TrunkCollider> trunks(40,{{0,0,0},.15f,5});
+    const viewer::CollisionWorld crowded(dense,trunks);
+    compare(crowded,{-.2f,0,0});compare(crowded,{-.21f,0,0});
+    world=viewer::CollisionWorld(floor());
+    compare(world,{-.2f,0,0});
+    world=viewer::CollisionWorld(viewer::Model{});
+    compare(world,{-.2f,0,0});
+}
+
 void cachedLiveSupport() {
     const auto physics=std::make_shared<viewer::PhysicsWorld>();
     viewer::BoxLayer boxes(physics);
@@ -249,6 +297,7 @@ void crowdAgainstWallAndDeterminism() {
     std::vector<glm::vec3> positions;
     for (int z = 0; z < 20; ++z)
         for (int x = 0; x < 50; ++x) positions.emplace_back(-.4f - x * .65f, 0, (z - 10) * .65f);
+    std::vector<viewer::ContactCandidates> contactCaches(count);
     std::vector<viewer::WalkingGroundCache> groundCaches(count);
     viewer::ZombieCrowd a, b;
     a.reset(count); b.reset(count);
@@ -260,7 +309,7 @@ void crowdAgainstWallAndDeterminism() {
         for (std::size_t id = 0; id < count; ++id) {
             const auto desired = positions[id] + glm::normalize(glm::vec3(10, 0, 0) - positions[id]) * .15f;
             const auto accepted = viewer::moveZombieBody(positions[id], desired, world, &a, id);
-            const auto replay = viewer::moveZombieBody(positions[id], desired, world, &b, id, &groundCaches[id]);
+            const auto replay = viewer::moveZombieBody(positions[id], desired, world, &b, id, &groundCaches[id],&contactCaches[id]);
             require(accepted.feet == replay.feet, "World/crowd movement must repeat across bucket insertion histories");
             require(accepted.feet.x <= -.35f && distance(positions[id], accepted.feet) <= .1502f,
                     "World/crowd correction must not cross a wall or add speed");
@@ -286,6 +335,7 @@ int main() {
         thinWallsSlidingAndCorners();
         polesFencesGuardrailsAndTrunks();
         boxesAndDoorPoses();
+        contactCandidateReuse();
         cachedLiveSupport();
         cachedMovementOnSlopeAndStep();
         blockedBehaviorAndAnimation();

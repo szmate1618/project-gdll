@@ -193,6 +193,7 @@ private:
         glm::vec3 destination{0};
         bool finished = false, overridden = false;
         WalkingGroundCache groundCache;
+        ContactCandidates contactCache;
     };
     std::vector<ScenarioRoute> scenarioRoutes_;
     void updateScenarioRoutes(float seconds, const CollisionWorld& world, bool advanceLooking = false);

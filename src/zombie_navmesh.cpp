@@ -363,9 +363,28 @@ std::uint32_t Mesh::locate(Point point, std::uint64_t* tests) const {
     return noPolygon;
 }
 
-bool Mesh::segmentClear(Point a, Point b, std::uint64_t* tests) const {
+bool Mesh::containsPoint(std::uint32_t polygon, Point p) const {
+    if (!finite(p) || polygon>=polygons_.size()) return false;
+    const auto ring=polygons_[polygon];
+    for (unsigned e=0;e<ring.edgeCount;++e) {
+        const auto a=vertices_[edges_[ring.firstEdge+e].vertex];
+        const auto b=vertices_[edges_[ring.firstEdge+(e+1)%ring.edgeCount].vertex];
+        if (cross(a,b,p)<0) return false;
+    }
+    return true;
+}
+
+bool Mesh::segmentClear(Point a, Point b, std::uint64_t* tests, std::uint32_t* hint) const {
     zombie_profile::Timer timer(zombie_profile::Stage::coverage);
-    if (locate(a, tests) == noPolygon || locate(b, tests) == noPolygon) return false;
+    if (hint && containsPoint(*hint,a) && containsPoint(*hint,b)) {
+        if (tests) ++*tests;
+        return true;
+    }
+    const auto start=locate(a,tests),end=locate(b,tests);
+    if (start==noPolygon || end==noPolygon) return false;
+    if (hint) *hint=end;
+    // Exact containment avoids relaxing the existing numerical boundary rules.
+    if (containsPoint(start,a) && containsPoint(start,b)) return true;
     if (a == b) return true;
     double progress = 0;
     // Each positive advance reaches a new interval endpoint; at most two exist

@@ -282,6 +282,7 @@ void queries(bool convexPolygons = false) {
     require(!mesh.segmentClear({1,2.5},{5,2.5}), "hole-crossing segment accepted");
     require(mesh.segmentClear({1,2},{5,2}), "triangle coverage should include hole boundary");
     require(mesh.segmentClear({1,1},{7,1}), "clear line through many triangles rejected");
+    std::uint32_t hint=mesh.locate({.5,.5});
     std::mt19937 random(0x4e4156);
     std::uniform_real_distribution<double> coordinate(.01,7.99);
     for (unsigned i=0;i!=5000;++i) {
@@ -290,6 +291,8 @@ void queries(bool convexPolygons = false) {
         for (auto [x,z]:holes) if (crossesBox(a,b,x,z)) expected=false;
         require(mesh.segmentClear(a,b)==expected && mesh.segmentClear(b,a)==expected,
                 "BVH triangle coverage differs from independent hole-box intersections");
+        require(mesh.segmentClear(a,b,nullptr,&hint)==expected,
+                "Cached polygon coverage differs from independent hole-box intersections");
     }
     require(mesh.segmentClear({2.5,1.5},{2.5,1.5}), "valid zero-length segment rejected");
 }

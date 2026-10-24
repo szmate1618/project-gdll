@@ -48,7 +48,11 @@ public:
     std::uint32_t locate(Point point, std::uint64_t* polygonTests = nullptr) const;
     // Closed polygon coverage. Queries allocate no memory. The bake adds a
     // small numerical margin beyond body clearance, so boundary turns are safe.
-    bool segmentClear(Point a, Point b, std::uint64_t* polygonTests = nullptr) const;
+    bool segmentClear(Point a, Point b, std::uint64_t* polygonTests = nullptr,
+                      std::uint32_t* polygonHint = nullptr) const;
+    // Exact closed convex-polygon containment. Unlike locate's tolerant edge
+    // handling, this is a conservative certificate for skipping coverage work.
+    bool containsPoint(std::uint32_t polygon, Point point) const;
     std::size_t meshBytes() const;
     std::size_t geometryCacheBytes() const;
     std::size_t indexBytes() const;

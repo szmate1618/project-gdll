@@ -65,7 +65,7 @@ void ZombieLayer::setScenarioDestinations(const std::vector<glm::vec3>& destinat
             for (std::size_t planned = 0; planned <= id; ++planned) navigation_->reset(planned);
             throw std::runtime_error("Cannot preplan scenario route for zombie " + std::to_string(id));
         }
-        routes.push_back({destinations[id], false, false, {}});
+        routes.push_back({destinations[id], false, false, {}, {}});
     }
     for (std::size_t id = 0; id < instances.size(); ++id) {
         auto& instance = instances[id];

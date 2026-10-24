@@ -10,12 +10,12 @@ constexpr float walkSpeed = 1.2f;
 
 bool followScenarioRoute(ZombieInstance& instance, glm::vec3 destination, float seconds,
                          const CollisionWorld& world, ZombieCrowd& crowd, std::size_t id,
-                         ZombieNavigation& navigation, WalkingGroundCache& groundCache) {
+                         ZombieNavigation& navigation, WalkingGroundCache& groundCache,ContactCandidates& contacts) {
     const auto start = glm::vec3(instance.restRoot[3]);
     if (glm::length(glm::vec2(destination.x - start.x, destination.z - start.z)) <= 1e-4f) return true;
     const auto velocity = navigation.follow(id, start, walkSpeed, seconds, world);
     auto movement = moveZombieBody(start,
-        start + glm::vec3(velocity.x * seconds, 0, velocity.y * seconds), world, &crowd, id, &groundCache);
+        start + glm::vec3(velocity.x * seconds, 0, velocity.y * seconds), world, &crowd, id, &groundCache,&contacts);
     // Collision/crowd sliding can change the proposed direction. Validate the
     // final physical step before publishing its pose or animation progress.
     if (!navigation.movementClear(id, start, movement.feet)) movement = {start};
@@ -57,7 +57,7 @@ void ZombieLayer::updateScenarioRoutes(float seconds, const CollisionWorld& worl
                 behavior->idleSinceSeconds = SimulationClock::instance().seconds();
             }
             const bool looking = behavior && behavior->state == ZombieState::looking;
-            if (!looking && followScenarioRoute(instance, route.destination, seconds, world, crowd_, id, *navigation_, route.groundCache)) {
+            if (!looking && followScenarioRoute(instance, route.destination, seconds, world, crowd_, id, *navigation_, route.groundCache,route.contactCache)) {
                 route.finished = true;
                 if (navigation_) navigation_->reset(id);
                 stopZombieLocomotion(instance);

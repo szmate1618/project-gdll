@@ -15,6 +15,7 @@ struct ZombieNavigationStats {
     std::uint64_t steeringCalls = 0, obstacleTests = 0, velocitySamples = 0;
     std::uint64_t trunkOverflows = 0, meshRejectedCandidates = 0, blockedUpdates = 0;
     std::uint64_t movementValidationReuses = 0;
+    std::uint64_t coverageRegionReuses = 0, coverageRegionBuilds = 0;
 };
 
 // Scenario route navigation. Construction allocates the mesh,

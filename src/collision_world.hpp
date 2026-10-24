@@ -25,6 +25,14 @@ struct Contact {
     bool terrainSupport = false; // Terrain support; elevated road edges remain obstacles.
 };
 
+// Borrowed callback for synchronous contact enumeration. Return false to stop.
+// The context must remain valid for the duration of visitContacts().
+struct ContactVisitor {
+    void* context;
+    bool (*receive)(void*, const Contact&);
+    bool operator()(const Contact& contact) const { return receive(context, contact); }
+};
+
 struct GroundHit {
     float height = 0.0f;
     glm::vec3 normal{0.0f, 1.0f, 0.0f};
@@ -41,6 +49,19 @@ class WalkingGroundCache {
     std::array<std::uint32_t, 16> triangles_{};
     std::size_t count_ = 0;
     bool complete_ = false;
+};
+
+// Caller-owned static contact candidates. Reuse only while the complete query
+// AABB stays in the recorded patch; overflowing categories fall back to the BVH.
+// Live door/box contacts are never cached.
+class ContactCandidates {
+    friend class CollisionWorld;
+    std::uint64_t worldId_ = 0;
+    glm::vec3 minimum_{0}, maximum_{0};
+    std::array<std::uint32_t,64> triangles_{};
+    std::array<std::uint32_t,32> trunks_{};
+    std::size_t triangleCount_ = 0, trunkCount_ = 0;
+    bool trianglesComplete_ = false, trunksComplete_ = false;
 };
 
 // Y-up vertical capsule. Base and height include the rounded end caps; the
@@ -86,6 +107,10 @@ public:
     // Does not inflate floors, props, door panels, trunks or rendered geometry.
     std::vector<Contact> contacts(glm::vec3 feet, float radius, float height,
                                   float skin = 0.0f, float wallClearance = 0.0f) const;
+    // Same contact generation, without allocating/sorting a full static list.
+    // Return as soon as the visitor declines another contact.
+    void visitContacts(glm::vec3 feet, float radius, float height, float skin,
+                       float wallClearance, ContactVisitor visitor, ContactCandidates* candidates = nullptr) const;
     // Support comes from scene meshes and live props, never vegetation. With
     // terrainOnly, ignore props and buildings for terrain-based placement.
     std::optional<GroundHit> groundAt(float x, float z, float minY, float maxY,

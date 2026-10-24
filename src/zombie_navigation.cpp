@@ -35,8 +35,16 @@ struct ZombieNavigation::Impl {
     struct State {
         steering::FollowState follow;
         glm::vec2 velocity{0}, plannedGoal{0}, lastPosition{0};
-        std::uint32_t goalPolygon=navmesh_path::noPolygon;
+        std::uint32_t goalPolygon=navmesh_path::noPolygon, currentPolygon=navmesh_path::noPolygon;
         glm::vec2 checkedStart{0}, checkedEnd{0};
+        struct CoverageRegion {
+            navmesh_path::Point minimum{}, maximum{};
+            std::uint32_t polygon=navmesh_path::noPolygon;
+            bool valid=false;
+            bool contains(navmesh_path::Point p) const {
+                return valid && p.x>=minimum.x && p.x<=maximum.x && p.z>=minimum.z && p.z<=maximum.z;
+            }
+        } coverage;
         bool hasPlan=false, recorded=false, checkedMovement=false;
     };
     navmesh_path::Mesh mesh;
@@ -55,11 +63,40 @@ struct ZombieNavigation::Impl {
         validateMesh(mesh);
         if (!trunkCapacity) throw std::invalid_argument("Zombie navigation needs a positive trunk capacity");
     }
+    bool covered(State& state,navmesh_path::Point from,navmesh_path::Point to) {
+        auto& region=state.coverage;
+        // A rectangle is convex. Its four certified corners prove coverage of
+        // every segment inside it, including small steering/crowd deviations.
+        if (region.contains(from) && region.contains(to)) {
+            ++stats.coverageRegionReuses;
+            return true;
+        }
+        if (!mesh.segmentClear(from,to,nullptr,&state.currentPolygon)) return false;
+        const double dx=to.x-from.x,dz=to.z-from.z,length=std::hypot(dx,dz);
+        if (length<=0) return true;
+        // Prefer 60 cm ahead; near a polygon edge certify only the short step.
+        // This predicts no movement and changes neither speed nor steering.
+        for (const double reach:{std::max(.6,length),length}) {
+            const navmesh_path::Point ahead{from.x+dx*(reach/length),from.z+dz*(reach/length)};
+            const navmesh_path::Point minimum{std::min(from.x,ahead.x)-.02,std::min(from.z,ahead.z)-.02};
+            const navmesh_path::Point maximum{std::max(from.x,ahead.x)+.02,std::max(from.z,ahead.z)+.02};
+            const auto polygon=state.currentPolygon;
+            if (mesh.containsPoint(polygon,minimum) && mesh.containsPoint(polygon,maximum) &&
+                mesh.containsPoint(polygon,{minimum.x,maximum.z}) &&
+                mesh.containsPoint(polygon,{maximum.x,minimum.z})) {
+                region={minimum,maximum,polygon,true};
+                ++stats.coverageRegionBuilds;
+                break;
+            }
+        }
+        return true;
+    }
     void release(std::size_t id) {
         paths.releaseZombie(id);
         states[id].hasPlan=false;
         states[id].goalPolygon=navmesh_path::noPolygon;
         states[id].checkedMovement=false;
+        states[id].coverage.valid=false;
         states[id].follow={};
         states[id].velocity={0,0};
     }
@@ -79,6 +116,7 @@ bool ZombieNavigation::plan(std::size_t id,glm::vec3 feet,glm::vec3 target) {
     auto& s=p.states[id];
     s.follow={};
     s.checkedMovement=false;
+    s.coverage.valid=false;
     if (!finite(feet) || !finite(target)) {
         p.release(id);
         p.status=navmesh_path::Status::blockedEndpoint;
@@ -97,7 +135,7 @@ bool ZombieNavigation::plan(std::size_t id,glm::vec3 feet,glm::vec3 target) {
         p.status=navmesh_path::Status::noPath;
         return false;
     }
-    s.goalPolygon=goalPolygon;
+    s.goalPolygon=goalPolygon;s.currentPolygon=startPolygon;
     ++p.stats.requests;
     s.hasPlan=p.paths.request(id,point(position),point(goal))!=navmesh_path::invalidPath;
     p.status=p.paths.lastStatus();
@@ -121,7 +159,8 @@ glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
         reset(id);
         return {0,0};
     }
-    const auto startPolygon=p.mesh.locate(point(position)),goalPolygon=s.goalPolygon;
+    const auto startPolygon=s.coverage.contains(point(position))?s.coverage.polygon:p.mesh.locate(point(position));
+    const auto goalPolygon=s.goalPolygon;
     if (startPolygon==navmesh_path::noPolygon || goalPolygon==navmesh_path::noPolygon ||
         p.mesh.component(startPolygon)!=p.mesh.component(goalPolygon)) {
         p.release(id);
@@ -130,6 +169,7 @@ glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
         ++p.stats.blockedUpdates;
         return {0,0};
     }
+    s.currentPolygon=startPolygon;
     const auto path=p.paths.view(p.paths.pathFor(id));
     auto desired=steering::followPath(path.points,path.size,position,speed,dt,s.follow,&p.mesh);
     // A final step toward a double portal corner can round a float body outside
@@ -185,9 +225,9 @@ glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
     steering::Stats sample{};
     auto velocity=p.controller.steer(position,s.velocity,desired,p.obstacles.data(),count,&sample);
     ++p.stats.steeringCalls;p.stats.obstacleTests+=sample.obstacleTests;p.stats.velocitySamples+=sample.velocitySamples;
-    if (!p.mesh.segmentClear(point(position),point(position+velocity*dt))) {
+    if (!p.covered(s,point(position),point(position+velocity*dt))) {
         ++p.stats.meshRejectedCandidates;
-        if (!p.mesh.segmentClear(point(position),point(position+desired*dt))) return {0,0};
+        if (!p.covered(s,point(position),point(position+desired*dt))) return {0,0};
         velocity=desired;
     }
     s.checkedStart=position;
@@ -231,6 +271,7 @@ bool ZombieNavigation::movementClear(std::size_t id,glm::vec3 a,glm::vec3 b) con
             return true;
         }
     }
+    if (id<impl_->states.size()) return impl_->covered(impl_->states[id],point(horizontal(a)),point(horizontal(b)));
     return segmentClear(a,b);
 }
 const ZombieNavigationStats& ZombieNavigation::stats() const { return impl_->stats; }

@@ -325,8 +325,8 @@ struct CollisionWorld::Impl {
         return index;
     }
 
-    template <class Callback> void query(const Bounds& region, Callback callback) const {
-        if (nodes.empty()) return;
+    template <class Callback> bool visitTriangles(const Bounds& region, Callback callback) const {
+        if (nodes.empty()) return true;
         // Median splitting bounds depth to fewer than 32 for uint32 indices.
         std::array<std::uint32_t, 64> stack{};
         std::size_t count = 1;
@@ -336,13 +336,18 @@ struct CollisionWorld::Impl {
             if (node.count) {
                 for (auto i = node.first; i < node.first + node.count; ++i) {
                     const auto& t = triangles[order[i]];
-                    if (t.bounds.intersects(region)) callback(t);
+                    if (t.bounds.intersects(region) && !callback(t)) return false;
                 }
             } else {
                 stack[count++] = node.left;
                 stack[count++] = node.right;
             }
         }
+        return true;
+    }
+
+    template <class Callback> void query(const Bounds& region, Callback callback) const {
+        visitTriangles(region, [&](const Triangle& triangle) { callback(triangle); return true; });
     }
 
     std::uint32_t buildTrunks(std::uint32_t begin, std::uint32_t end) {
@@ -376,8 +381,8 @@ struct CollisionWorld::Impl {
         return index;
     }
 
-    template <class Callback> void queryTrunksIndexed(const Bounds& region, Callback callback) const {
-        if (trunkNodes.empty()) return;
+    template <class Callback> bool visitTrunksIndexed(const Bounds& region, Callback callback) const {
+        if (trunkNodes.empty()) return true;
         std::array<std::uint32_t, 64> stack{};
         std::size_t count = 1;
         while (count) {
@@ -386,20 +391,27 @@ struct CollisionWorld::Impl {
             if (node.count) {
                 for (auto i = node.first; i < node.first + node.count; ++i) {
                     const auto& trunk = trunks[trunkOrder[i]];
-                    if (trunk.bounds.intersects(region)) callback(trunkOrder[i], trunk.collider);
+                    if (trunk.bounds.intersects(region) && !callback(trunkOrder[i], trunk.collider)) return false;
                 }
             } else {
                 stack[count++] = node.left;
                 stack[count++] = node.right;
             }
         }
+        return true;
     }
 
     template <class Callback> void queryTrunks(const Bounds& region, Callback callback) const {
-        queryTrunksIndexed(region, [&](std::uint32_t, const TrunkCollider& trunk) {
-            callback(trunk);
+        visitTrunksIndexed(region, [&](std::uint32_t, const TrunkCollider& trunk) {
+            callback(trunk); return true;
         });
     }
+    template <class Callback> void queryTrunksIndexed(const Bounds& region, Callback callback) const {
+        visitTrunksIndexed(region, [&](std::uint32_t id, const TrunkCollider& trunk) {
+            callback(id,trunk); return true;
+        });
+    }
+
 };
 
 CollisionWorld::CollisionWorld(const Model& model, const std::vector<TrunkCollider>& trunks, const DoorLayer* doors)
@@ -515,21 +527,54 @@ bool CollisionWorld::lineOfSight(glm::vec3 origin, glm::vec3 target) const {
 
 std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, float height,
                                              float skin, float wallClearance) const {
-    zombie_profile::Timer timer(zombie_profile::Stage::contacts);
     std::vector<Contact> result;
-    if (!finite(feet) || radius <= 0 || height < radius * 2 || skin < 0 || wallClearance < 0) return result;
+    visitContacts(feet,radius,height,skin,wallClearance,{&result,[](void* target,const Contact& contact) {
+        static_cast<std::vector<Contact>*>(target)->push_back(contact); return true;
+    }});
+    std::sort(result.begin(),result.end(),[](const Contact& a,const Contact& b) { return a.depth>b.depth; });
+    return result;
+}
+
+void CollisionWorld::visitContacts(glm::vec3 feet,float radius,float height,float skin,
+                                  float wallClearance,ContactVisitor visitor,ContactCandidates* cache) const {
+    zombie_profile::Timer timer(zombie_profile::Stage::contacts);
+    if (!finite(feet) || radius <= 0 || height < radius * 2 || skin < 0 || wallClearance < 0 || !visitor.receive) return;
     const float reach = radius + skin;
     const glm::vec3 p = feet + glm::vec3(0, radius, 0), q = feet + glm::vec3(0, height - radius, 0);
     Bounds region; region.include(p - glm::vec3(reach)); region.include(q + glm::vec3(reach));
     auto wallRegion = region;
     wallRegion.low -= glm::vec3(wallClearance);
     wallRegion.high += glm::vec3(wallClearance);
-    impl_->query(wallRegion, [&](const Triangle& t) {
+    if (cache && (cache->worldId_!=impl_->worldId ||
+        glm::any(glm::lessThan(wallRegion.low,cache->minimum_)) ||
+        glm::any(glm::greaterThan(wallRegion.high,cache->maximum_)))) {
+        cache->worldId_=impl_->worldId;
+        cache->minimum_=wallRegion.low-glm::vec3(.5f);
+        cache->maximum_=wallRegion.high+glm::vec3(.5f);
+        cache->triangleCount_=cache->trunkCount_=0;
+        cache->trianglesComplete_=cache->trunksComplete_=true;
+        Bounds patch; patch.low=cache->minimum_; patch.high=cache->maximum_;
+        impl_->visitTriangles(patch,[&](const Triangle& triangle) {
+            if (cache->triangleCount_==cache->triangles_.size()) {
+                cache->trianglesComplete_=false; return false;
+            }
+            cache->triangles_[cache->triangleCount_++]=std::uint32_t(&triangle-impl_->triangles.data());
+            return true;
+        });
+        impl_->visitTrunksIndexed(patch,[&](std::uint32_t id,const TrunkCollider&) {
+            if (cache->trunkCount_==cache->trunks_.size()) {
+                cache->trunksComplete_=false; return false;
+            }
+            cache->trunks_[cache->trunkCount_++]=id;
+            return true;
+        });
+    }
+    const auto visitTriangle=[&](const Triangle& t) {
         const float triangleReach = reach + (t.wall ? wallClearance : 0.f);
         const auto pair = closestSegmentTriangle(p, q, t);
         const auto separation = pair.segment - pair.triangle;
         const float squared = squareLength(separation);
-        if (squared >= triangleReach * triangleReach) return;
+        if (squared >= triangleReach * triangleReach) return true;
         const float distance = std::sqrt(std::max(squared, 0.0f));
         auto normal = t.normal;
         if (distance > 1e-6f) normal = separation / distance;
@@ -537,9 +582,15 @@ std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, floa
         const auto groundNormal = t.normal.y < 0 ? -t.normal : t.normal;
         const bool terrainSupport = t.terrain && groundNormal.y > epsilon &&
             (!t.road || glm::dot(groundNormal, feet - pair.triangle) >= -epsilon);
-        result.push_back({normal, pair.triangle, triangleReach - distance, t.terrain, terrainSupport});
-    });
-    impl_->queryTrunks(region, [&](const TrunkCollider& trunk) {
+        return visitor({normal, pair.triangle, triangleReach - distance, t.terrain, terrainSupport});
+    };
+    if (cache && cache->trianglesComplete_) {
+        for (std::size_t i=0;i<cache->triangleCount_;++i) {
+            const auto& triangle=impl_->triangles[cache->triangles_[i]];
+            if (triangle.bounds.intersects(wallRegion) && !visitTriangle(triangle)) return;
+        }
+    } else if (!impl_->visitTriangles(wallRegion,visitTriangle)) return;
+    const auto visitTrunk=[&](std::uint32_t,const TrunkCollider& trunk) {
         const float low = trunk.base.y + trunk.radius;
         const float high = trunk.base.y + trunk.height - trunk.radius;
         // Parallel vertical segments have a direct interval solution, avoiding
@@ -551,18 +602,27 @@ std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, floa
         const glm::vec3 separation(feet.x - trunk.base.x, playerY - trunkY, feet.z - trunk.base.z);
         const float combinedRadius = reach + trunk.radius;
         const float squared = squareLength(separation);
-        if (squared >= combinedRadius * combinedRadius) return;
+        if (squared >= combinedRadius * combinedRadius) return true;
         const float distance = std::sqrt(std::max(0.0f, squared));
         // An exactly coincident pair of axes has no unique radial normal.
         // A deterministic horizontal direction depenetrates without lifting.
         const auto normal = distance > 1e-6f ? separation / distance : glm::vec3(1, 0, 0);
         const glm::vec3 point = glm::vec3(trunk.base.x, trunkY, trunk.base.z) + normal * trunk.radius;
-        result.push_back({normal, point, combinedRadius - distance});
-    });
-    if (impl_->doors) appendDoorContacts(*impl_->doors, feet, radius, height, skin, result);
-    if (impl_->boxes) impl_->boxes->appendContacts(feet, radius, height, skin, result);
-    std::sort(result.begin(), result.end(), [](const Contact& a, const Contact& b) { return a.depth > b.depth; });
-    return result;
+        return visitor({normal, point, combinedRadius - distance});
+    };
+    if (cache && cache->trunksComplete_) {
+        for (std::size_t i=0;i<cache->trunkCount_;++i) {
+            const auto id=cache->trunks_[i];
+            const auto& trunk=impl_->trunks[id];
+            if (trunk.bounds.intersects(region) && !visitTrunk(id,trunk.collider)) return;
+        }
+    } else if (!impl_->visitTrunksIndexed(region,visitTrunk)) return;
+    // Dynamic manifold generation retains its existing API and live poses.
+    // No static contacts are stored, and this list is never globally sorted.
+    std::vector<Contact> dynamic;
+    if (impl_->doors) appendDoorContacts(*impl_->doors,feet,radius,height,skin,dynamic);
+    if (impl_->boxes) impl_->boxes->appendContacts(feet,radius,height,skin,dynamic);
+    for (const auto& contact:dynamic) if (!visitor(contact)) return;
 }
 
 std::optional<GroundHit> CollisionWorld::groundAt(float x, float z, float minY, float maxY, bool terrainOnly) const {

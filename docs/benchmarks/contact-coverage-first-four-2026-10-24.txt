@@ -1,0 +1,83 @@
+Contact and navmesh coverage optimization experiments, 2026-10-24
+
+Workload and method
+Base revision: 2b27d3480af4f467d900384da28c85dd1c9cca75
+Release build, same real map, 1,600 scenario zombies (seed 42), fixed dt=1/60.
+Shared headless scene, stationary player X=-526.465 Z=296.095; full vegetation
+collision data. No rendering, audio, network or physics advancement. Existing
+ground queries, crowd guards, physical substeps and perception remain enabled.
+Source: tests/benchmark_zombie_updates.cpp. CPU affinity pinned to allowed CPU 0.
+Each version runs three controls and three detailed profiles, 60 warmup steps
+plus 300 measured steps each. Values below are means: 900 steps in each mode.
+Detailed scopes use the existing calibrated invariant-counter profiler. No
+samples migrated CPUs. Setup, route planning and CSV writes are excluded.
+
+Cumulative results, milliseconds per update
+Version                   Control Detailed Contacts Coverage   Ground
+Original                  13.673   14.428    5.759    3.514    0.478
++ current polygon         10.608   10.945    5.663    0.122    0.442
++ streamed contacts        9.876   10.662    5.504    0.122    0.440
++ static candidates        7.626    7.787    3.198    0.120    0.430
++ certified regions        5.375    5.884    3.086    0.065    0.385
+
+Control update time fell 60.7% (2.54x throughput in this CPU-only fixture).
+These are sequential cumulative batches, not randomized independent feature
+ablations. Run-to-run clock/scheduling variation remains possible; the changes'
+incremental times overlap and should not be treated as portable predictions.
+Detailed query timing adds overhead. Control values are the primary end-to-end
+comparison; neither column is a complete viewer frame time.
+
+Implemented experiments
+1. Cached current polygon: exact closed convex containment of both endpoints
+   proves segment coverage. Cached hints and general same-polygon shortcuts
+   retain the original spatial/interval fallback for crossing or uncertain
+   segments. Exact tests do not relax the original tolerant boundary handling.
+2. Streamed contacts: movement selects any blocking contact or the deepest one
+   directly, using the existing predicate and deterministic tie key. Static
+   contacts no longer require a full vector or global sorting. The legacy
+   sorted contacts API and live door/box manifold APIs remain available.
+3. Static candidates: each scenario route owns a bounded cache of 64 triangle
+   IDs and 32 trunk IDs. The full current contact AABB must fit in a patch padded
+   by 0.5 m on each axis. Leaving it or replacing the collision world refreshes
+   the cache; overflowing categories use their full BVH. Each attempted pose
+   retains the exact narrow-phase tests. Moving doors and props are read live.
+4. Certified regions: prove a padded rectangle by checking all four corners
+   against one convex polygon. Prefer 0.6 m ahead with 0.02 m side padding, or
+   certify the short step near polygon edges. Any segment with both endpoints
+   inside that rectangle is covered. These regions also certify the current
+   position's polygon and avoid repeated position searches. Outside the region,
+   run the ordinary hinted coverage check. No guessed/unchecked movement occurs.
+   Reset, replan and route release invalidate the region; population replacement
+   constructs fresh state. The one-step exact-match validation cache remains.
+
+The last version averaged 85.34 mesh coverage calls per step versus
+1617.86 in the baseline. Region counters are included in its CSVs.
+Ground-height lookup frequency, motion speed, collision accuracy, 10 cm movement
+segments, and the ordinary-behavior/navmesh boundary were not relaxed. No worker
+threads or reduced simulation rates were introduced.
+
+Validation
+All 30 real-map runs completed without runtime path searches. Every version's
+final restRoot matrices, transforms, locomotion clocks and walking/running flags
+matched the baseline byte-for-byte for all actors. Matched profile/control poses
+were also checked within each version. Final-pose bytes are retained in each
+output directory; this is a final-state comparison, not a full trajectory proof.
+
+Twenty focused CTest suites passed: navmesh geometry/search/storage, navigation,
+scenario setup/handoff, movement, character stepping, doors, player FPS movement,
+crowd, locomotion, chasing, attack, behavior, perception, transition and server
+navigation/core. Existing tests check wall/trunk/fence/prop/door collision and
+crowd determinism. Added tests cover cached versus uncached contact geometry,
+early visitor termination, candidate overflow, world replacement and live boxes;
+independent hole intersections check hinted mesh coverage. Region following is
+checked against independent full coverage queries. Viewer and server build.
+
+Reproduce
+cmake --build build --target benchmark_zombie_updates -j4
+taskset -c 0 ./build/multiplayer/benchmark_zombie_updates output/godollo.glb \
+  scenarios/test-horde/scenario.toml build/benchmarks/contact-coverage-check \
+  -526.465 296.095
+
+Retained artifacts (ignored)
+build/benchmarks/contact-coverage-first-four/: baseline and step1..step4 CSVs,
+metadata, final poses, logs, and bin/ executables for every cumulative version.

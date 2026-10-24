@@ -140,6 +140,23 @@ void movementValidationReuse() {
             "Failed planning retained an old validation cache");
 }
 
+void coverageRegionReuse() {
+    viewer::ZombieNavigation navigation(grid({"..........","..........",".........."}),1);
+    const viewer::CollisionWorld empty(viewer::Model{});
+    glm::vec3 position{.2f,0,1.5f};
+    require(navigation.plan(0,position,{9.8f,0,1.5f}),"Coverage-region fixture failed to plan");
+    for(int frame=0;frame<300;++frame) {
+        const auto velocity=navigation.follow(0,position,1.2f,1.f/60,empty);
+        const auto next=position+glm::vec3(velocity.x/60,0,velocity.y/60);
+        require(navigation.segmentClear(position,next),"Reused region allowed uncovered movement");
+        navigation.recordMovement(0,position,next,1.f/60);position=next;
+    }
+    require(position.x>6 && navigation.stats().coverageRegionReuses>0 &&
+            navigation.stats().coverageRegionBuilds>0,"Straight travel did not reuse certified coverage");
+    require(!navigation.movementClear(0,position,{-1,0,1.5f}),"A changed segment escaped its coverage region");
+    require(navigation.stats().requests==1,"Coverage reuse started a runtime path search");
+}
+
 void disconnectedAndOverflow() {
     const viewer::CollisionWorld empty(viewer::Model{});
     viewer::ZombieNavigation disconnected(grid({"...#...","...#...","...#..."}),1);
@@ -182,7 +199,7 @@ void treeBypass() {
 }
 
 int main() {
-    try {routeAroundWall();routeAroundWall(true);followNeverSearches();movementValidationReuse();disconnectedAndOverflow();treeBypass();
+    try {routeAroundWall();routeAroundWall(true);followNeverSearches();movementValidationReuse();coverageRegionReuse();disconnectedAndOverflow();treeBypass();
         std::cout<<"scenario route/no-runtime-search/disconnection/overflow/trunk tests passed\n";return 0;
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}
 }

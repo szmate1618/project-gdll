@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
             if (!rows) throw std::runtime_error("Cannot open profile CSV");
             rows<<std::setprecision(12)<<"frame,detailed,cpu_update_ms";
             for (const auto name:viewer::zombie_profile::names) rows<<','<<name<<"_ms,"<<name<<"_calls,"<<name<<"_dropped";
-            rows<<",other_ms,perception_checks,sight_rays,path_requests,validation_reuses\n";
+            rows<<",other_ms,perception_checks,sight_rays,path_requests,validation_reuses,coverage_region_reuses,coverage_region_builds\n";
             viewer::zombie_profile::Profile aggregate;
             for (unsigned frame=0;frame<360;++frame) {
                 clock.advance(dt);
@@ -78,13 +78,24 @@ int main(int argc, char** argv) {
                 const auto& behavior=scene.zombies.behaviorStats();
                 const auto& navigation=scene.zombies.navigation()->stats();
                 rows<<','<<(sample.seconds-stages)*1000<<','<<behavior.perceptionChecks<<','<<behavior.sightRays
-                    <<','<<navigation.requests<<','<<navigation.movementValidationReuses<<'\n';
+                    <<','<<navigation.requests<<','<<navigation.movementValidationReuses
+                    <<','<<navigation.coverageRegionReuses<<','<<navigation.coverageRegionBuilds<<'\n';
                 aggregate.seconds+=sample.seconds;
                 aggregate.steps+=sample.steps;
             }
             if (scene.zombies.navigation()->stats().requests!=config.count())
                 throw std::runtime_error("Unexpected runtime path searches");
-            if (run==0) reference=scene.zombies.instances;
+            if (run==0) {
+                reference=scene.zombies.instances;
+                std::ofstream poses(output/"final-poses.bin",std::ios::binary);
+                if (!poses) throw std::runtime_error("Cannot write final-pose comparison");
+                for (const auto& instance:reference) {
+                    poses.write(reinterpret_cast<const char*>(&instance.restRoot),sizeof(instance.restRoot));
+                    poses.write(reinterpret_cast<const char*>(&instance.transform),sizeof(instance.transform));
+                    poses.write(reinterpret_cast<const char*>(&instance.walkSeconds),sizeof(instance.walkSeconds));
+                    poses.put(instance.walking); poses.put(instance.running);
+                }
+            }
             else for (std::size_t id=0;id<reference.size();++id) {
                 const auto& a=reference[id];const auto& b=scene.zombies.instances[id];
                 if (a.restRoot!=b.restRoot || a.transform!=b.transform || a.walkSeconds!=b.walkSeconds ||

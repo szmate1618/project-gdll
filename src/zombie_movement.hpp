@@ -7,6 +7,7 @@ namespace viewer {
 class CollisionWorld;
 class ZombieCrowd;
 class WalkingGroundCache;
+class ContactCandidates;
 
 struct ZombieMovement {
     glm::vec3 feet;
@@ -21,5 +22,6 @@ struct ZombieMovement {
 ZombieMovement moveZombieBody(glm::vec3 start, glm::vec3 desired,
                               const CollisionWorld& world,
                               ZombieCrowd* crowd = nullptr, std::size_t id = 0,
-                              WalkingGroundCache* groundCache = nullptr);
+                              WalkingGroundCache* groundCache = nullptr,
+                              ContactCandidates* contactCache = nullptr);
 } // namespace viewer

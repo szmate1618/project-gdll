@@ -184,10 +184,20 @@ A full local trunk buffer stops the NPC and increments an overflow counter.
 Death releases the path. Teleports, uncovered positions and population changes
 invalidate stale routes and stop travel rather than silently searching again.
 
-The fixed destination polygon is retained from planning. Each follow step also
-retains its validated X/Z segment: the physical guard reuses that result only
-when both endpoints match exactly. Collision/crowd changes receive a fresh
-coverage check; accepting a step or releasing a route clears the saved result.
+The fixed destination polygon is retained from planning. Coverage first tests
+both endpoints against the cached current convex polygon; boundary-crossing
+segments retain the full spatial/interval fallback. Exact containment does not
+relax mesh boundary tolerances.
+
+Scenario following also certifies a small rectangle inside one convex polygon:
+all four corners must be covered, preferably extending 60 cm ahead with 2 cm
+padding. Any subsequent segment with both endpoints inside that rectangle is
+covered, even if steering/crowd sliding changes it. Outside the rectangle, use
+the normal coverage check. A covered current position also reuses the certified
+polygon. These are geometric proofs, not reduced-frequency optimistic checks.
+The existing exact-match step cache still avoids duplicate physical validation;
+accepting movement clears that one-step result, while certified regions remain
+valid until exit or route invalidation. Reset/replan/release clear the region.
 
 Each scenario route owns a bounded walking-ground cache for a 1 m square patch.
 It keeps up to 16 static support candidates across all heights, re-evaluating
@@ -195,6 +205,15 @@ triangle coverage and the current height limits on every query. Leaving the
 patch or changing collision worlds refreshes it; overflowing patches use the
 full BVH. Live box support is always queried at its current pose. These caches
 preserve the existing slope, step, contact and crowd checks.
+
+Movement streams contacts to select the first blocker or deepest blocking
+contact, retaining the existing collision predicate and deterministic tie key.
+The legacy sorted contact-list API remains for other callers. Each scenario
+route also caches up to 64 static triangle and 32 trunk candidates in a padded
+3D patch. Reuse requires the complete current query bounds to remain covered;
+world replacement or patch exit refreshes it, and overflow uses the full BVH.
+Every pose still receives exact contact tests, with live doors/props queried
+separately. Ground support, 10 cm movement segments and crowd guards remain.
 
 Original behavior movement has no navigation argument. Scenario following is
 implemented in `zombie_scenario_routes.cpp`; both movement modes reuse physical
