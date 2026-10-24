@@ -69,8 +69,11 @@ heading to runtime -Z and lifts the chassis origin 0.68 m along the stored local
 up axis; heights are already in the map's runtime datum. The quaternion is
 authoritative, including ground tilt, so `yaw_rad` is not applied again.
 
-Each level/server session assigns a uniformly random type from the complete
-config catalog to each position. Multiplayer clients use the server's choices.
+Each level/server session assigns a pseudorandom type from the complete config
+catalog to each position using the shared fixed seed 42. The same placement order
+and catalog reproduce the same car types across runs, in standalone and server
+loads. The nearby-car fallback uses that seed too. Multiplayer clients use the
+server's choices.
 Cars retain their per-type dimensions at the published positions; long cars such
 as the S 500 exceed the publication's nominal 2×4.7 m footprint. Existing positions
 are not repacked, so crowded placements may overlap. Cars remain drivable rigid bodies.

@@ -20,10 +20,11 @@ World::World(Scene& scene) : scene_(scene), vehicleSeats_(scene),
     scene.zombies.attachPhysics(scene.physics);
     if (!scene.vehicles->count()) {
         if (scene.vehiclePlacements) {
-            viewer::placeVehicles(*scene.vehicles, *scene.vehiclePlacements, std::random_device{}());
-            std::cout << "Loaded " << scene.vehicles->count() << " parked cars with server-selected random types\n";
+            viewer::placeVehicles(*scene.vehicles, *scene.vehiclePlacements);
+            std::cout << "Loaded " << scene.vehicles->count() << " parked cars with repeatable server-selected types (seed "
+                      << viewer::vehiclePlacementSeed << ")\n";
         } else {
-            std::mt19937 random(std::random_device{}());
+            std::mt19937 random(viewer::vehiclePlacementSeed);
             const auto type = std::uniform_int_distribution<std::size_t>(0,scene.vehicles->typeCount()-1)(random);
             if (viewer::placeVehicleNear(*scene.vehicles, *scene.collision, scene.spawnEye, scene.model.boundsMin, scene.model.boundsMax,type)) {
                 const auto p = scene.vehicles->pose(0).chassis.center;

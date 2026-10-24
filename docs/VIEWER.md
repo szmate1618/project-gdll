@@ -1112,12 +1112,20 @@ idle cycles at a chosen elapsed time:
 ## Prototype vehicles
 
 The viewer loads `abandoned_cars.instances.json` beside the selected map at level
-startup, when present. Every placement receives a random configured car type,
-chosen once for that level load. The loader verifies the map SHA-256 and preserves
+startup, when present. Every placement receives a pseudorandom configured car
+type using fixed seed 42; the same placement order and catalog repeat the choices
+across runs, including authoritative servers. The loader verifies the map SHA-256 and preserves
 the stored ground tilt and heading; the underside support-plane pivot is converted
 to the runtime chassis origin. An empty file intentionally places no cars.
 If the file is absent, the viewer tries one random car near the initial FPS spawn,
 or near the map center in free-fly, on a supported clear footprint within 25 m.
+This fallback type uses the same fixed seed. For six nearby parked cars and a
+300-zombie approach, run the [car-park horde scenario](../scenarios/car-park-horde/scenario.toml):
+
+```bash
+./build/godollo_viewer output/godollo.glb --scenario scenarios/car-park-horde/scenario.toml
+```
+
 Use `--fps` or `--spawn X Z`, walk near a configured seat entry point, and press
 **Enter** when its car/seat action appears in the title.
 The front-left seat drives; the other seats allow mouse look and Enter to leave.

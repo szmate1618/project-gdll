@@ -468,7 +468,8 @@ if(BUILD_TESTING)
     viewer_warnings(test_zombie_scenario_config)
     add_test(NAME viewer_zombie_scenario_config COMMAND test_zombie_scenario_config
         "${CMAKE_CURRENT_SOURCE_DIR}/scenarios/test-horde/scenario.toml"
-        "${CMAKE_CURRENT_SOURCE_DIR}/scenarios/old-forest-damage/scenario.toml")
+        "${CMAKE_CURRENT_SOURCE_DIR}/scenarios/old-forest-damage/scenario.toml"
+        "${CMAKE_CURRENT_SOURCE_DIR}/scenarios/car-park-horde/scenario.toml")
     add_executable(test_zombie_scenario tests/test_zombie_scenario.cpp)
     target_link_libraries(test_zombie_scenario PRIVATE viewer_zombies)
     viewer_warnings(test_zombie_scenario)

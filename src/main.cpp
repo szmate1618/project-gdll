@@ -1174,12 +1174,13 @@ int run(const Options& options) {
     viewer::VehicleLayer cars(physics, viewer::loadVehicleConfigs(VIEWER_VEHICLES));
     const auto placements = viewer::loadVehiclePlacements(options.model);
     if (placements) {
-        viewer::placeVehicles(cars, *placements, std::random_device{}());
-        std::cout << "Loaded " << cars.count() << " parked cars with random vehicle types\n";
+        viewer::placeVehicles(cars, *placements);
+        std::cout << "Loaded " << cars.count() << " parked cars with repeatable vehicle types (seed "
+                  << viewer::vehiclePlacementSeed << ")\n";
     } else {
         const auto carOrigin = app.rig.walking() ? app.rig.camera().position() :
             glm::vec3((model.boundsMin.x + model.boundsMax.x) * .5f, model.boundsMax.y + 2, (model.boundsMin.z + model.boundsMax.z) * .5f);
-        std::mt19937 random(std::random_device{}());
+        std::mt19937 random(viewer::vehiclePlacementSeed);
         const auto type = std::uniform_int_distribution<std::size_t>(0,cars.typeCount()-1)(random);
         if (viewer::placeVehicleNear(cars, collision, carOrigin, model.boundsMin, model.boundsMax,type)) {
             const auto p = cars.pose(0).chassis.center;

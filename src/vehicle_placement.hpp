@@ -13,7 +13,11 @@ struct VehiclePlacement {
 // Missing sidecars return nullopt. Invalid/stale publications throw before any
 // rigid bodies are created. An empty publication intentionally places no cars.
 std::optional<std::vector<VehiclePlacement>> loadVehiclePlacements(const std::filesystem::path& map);
-// Randomize once per level/server session, never independently on clients. A seed
-// is explicit so tests and authored scenarios can reproduce the selection.
-void placeVehicles(VehicleLayer& cars, const std::vector<VehiclePlacement>& placements, std::uint32_t seed);
+// Shared by standalone and authoritative servers, including the fallback car.
+// With the same placement order and config catalog, types repeat across loads.
+inline constexpr std::uint32_t vehiclePlacementSeed = 42;
+// Clients receive the server's choices. An explicit seed remains available for
+// callers that need a different reproducible layout.
+void placeVehicles(VehicleLayer& cars, const std::vector<VehiclePlacement>& placements,
+                   std::uint32_t seed = vehiclePlacementSeed);
 }

@@ -1,0 +1,16 @@
+version = 3
+seed = 42
+
+# Szabadság út car cluster in the published Gödöllő map.
+# World X east / Z south meters. Nearby cars come from the map sidecar.
+[player]
+spawn = [-620.0, -22.0]
+# Face northeast across the cars toward the approaching horde.
+orientation = [-35.0, 0.0]
+
+[zombies.approaching_horde]
+count = 300
+# Approach from 50–120 m north/northeast, then walk through the car cluster
+# toward the open ground south of the player. Perception can take over en route.
+spawn = [-610.0, -125.0, -545.0, -75.0]
+destination = [-630.0, 0.0, -560.0, 45.0]

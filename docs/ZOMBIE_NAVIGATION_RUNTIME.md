@@ -122,6 +122,30 @@ Use the original vegetation preset:
   --scenario scenarios/old-forest-damage/scenario.toml
 ```
 
+## Car-park horde scenario
+
+`scenarios/car-park-horde/scenario.toml` starts the player at world X/Z
+`[-620, -22]` on Szabadság út, facing northeast across a cluster of abandoned
+cars. In the current published map, the nearest car is about 6 m away and six
+cars are within 50 m. The scenario uses the existing map-sidecar placements;
+it does not generate or relocate cars. It requires that sidecar for the cluster.
+
+Exactly 300 zombies start north/northeast of the player, roughly 50–120 m away,
+and walk through the cars toward the open ground to the south. Seed 42 fixes
+their initial sampling. Standalone and server car choices also repeat across
+loads using the shared fixed seed, independently of the zombie scenario seed.
+
+```bash
+./build/godollo_viewer output/godollo.glb --scenario scenarios/car-park-horde/scenario.toml
+./build/multiplayer/godollo_server output/godollo.glb --scenario scenarios/car-park-horde/scenario.toml
+```
+
+For a separate multiplayer client, use matching `--zombie-count 300` and
+`--spawn -620 -22` along with the server's vegetation preset. The scenario's
+player position automatically selects walking mode in the standalone viewer.
+
+## Older scenario formats
+
 The old flat `[zombies]` format is rejected. To migrate, change it to
 `[zombies.NAME]`, remove `spawn = "random"` and `destination = "random"`, and
 replace the old spawn rectangle key with `spawn`. Old `spawn_rectangle_m`

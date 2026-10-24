@@ -281,7 +281,9 @@ remote interpolation buffer. Punches therefore include network latency.
 
 At level load both peers validate the optional `abandoned_cars.instances.json`
 beside the map and include its exact bytes in the content fingerprint. The server
-spawns every parked car and randomly chooses its type once per session. Clients
+spawns every parked car and chooses its type with fixed pseudorandom seed 42.
+The same placement order and config catalog repeat those choices across sessions
+and standalone loads; the fallback car uses the same seed. Clients
 receive those types and poses from the server, including on late join; they never
 rerandomize the population. Up to 1,024 cars fit the runtime/wire population limit.
 The existing 256 KiB snapshot budget still bounds all entity populations together.

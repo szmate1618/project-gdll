@@ -80,6 +80,10 @@ void parkedPopulation(const Options& o, const std::filesystem::path& directory) 
     require(client.fingerprint==server.fingerprint,"Identical placement publications changed session identity");
     World world(server);
     require(server.vehicles->count()==1000,"Server did not instantiate every parked car");
+    Scene repeated(selected);
+    World repeatedWorld(repeated);
+    for (std::size_t i=0;i<1000;++i)
+        require(repeated.vehicles->type(i)==server.vehicles->type(i),"Reloading the level changed parked car types");
     require(server.vehicles->simulatedCars().empty(),"Server activated suspension for the parked population");
     const auto observer=world.join();
     const auto state=wire(world.snapshot(observer));

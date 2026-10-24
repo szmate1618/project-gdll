@@ -52,7 +52,7 @@ int main(int argc,char** argv) {
         std::vector<viewer::VehiclePlacement> fleet;
         for(int i=0;i<1000;++i) fleet.push_back({std::to_string(i),{float(i)*6,1,0},glm::quat(1,0,0,0)});
         viewer::VehicleLayer first(physics,types),second(physics,types),third(physics,types);
-        viewer::placeVehicles(first,fleet,42);viewer::placeVehicles(second,fleet,42);viewer::placeVehicles(third,fleet,43);
+        viewer::placeVehicles(first,fleet);viewer::placeVehicles(second,fleet);viewer::placeVehicles(third,fleet,43);
         std::set<std::size_t> selected;bool changed=false;
         for(std::size_t i=0;i<fleet.size();++i) {
             selected.insert(first.type(i));changed=changed || first.type(i)!=third.type(i);
