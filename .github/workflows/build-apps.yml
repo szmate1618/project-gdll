@@ -87,7 +87,7 @@ jobs:
         run: python -m pip install cmake==3.31.6
       - name: Bootstrap Windows dependencies
         run: ./build/vcpkg/bootstrap-vcpkg.bat -disableMetrics
-      - name: Configure Windows client
+      - name: Configure Windows game
         run: >-
           cmake -S . -B build -G "Visual Studio 17 2022" -A x64
           -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/build/vcpkg/scripts/buildsystems/vcpkg.cmake"
@@ -96,13 +96,18 @@ jobs:
           -DVCPKG_HOST_TRIPLET=x64-windows-static-md
           -DOPENSSL_USE_STATIC_LIBS=ON -DProtobuf_USE_STATIC_LIBS=ON
           -DGD_VIEWER=ON -DGD_MULTIPLAYER=ON -DBUILD_TESTING=ON
-      - name: Build Windows client
-        run: cmake --build build --config Release --parallel 2 --target godollo_client viewer_test_asset test_scene_fingerprint
-      - name: Check cross-platform scene fingerprint
-        run: ctest --test-dir build -C Release -R '^multiplayer_fingerprint$' --output-on-failure --no-tests=error
+      - name: Build Windows game and session checks
+        run: >-
+          cmake --build build --config Release --parallel 2
+          --target godollo_client godollo_server viewer_test_asset test_scene_fingerprint test_game_sessions
+      - name: Check Windows sessions and cross-platform scene fingerprint
+        run: >-
+          ctest --test-dir build -C Release
+          -R '^multiplayer_(fingerprint|game_sessions|game_modes|loopback)$'
+          --output-on-failure --no-tests=error
       - name: Check executable startup
         run: ./build/multiplayer/Release/godollo_client.exe --help
-      - name: Package Windows client
+      - name: Package Windows game
         shell: pwsh
         run: |
           $package = 'build/windows-client'
@@ -110,13 +115,12 @@ jobs:
           Copy-Item build/multiplayer/Release/godollo_client.exe $package
           Copy-Item shaders, items, vehicles, credits $package -Recurse
           Copy-Item inventory.toml $package
-          Copy-Item assets/test.glb "$package/assets"
+          Copy-Item assets/test.glb, assets/test.navmesh "$package/assets"
+          Copy-Item multiplayer/windows/run-game.cmd $package
           Copy-Item build/assets/weapons "$package/assets" -Recurse
           Copy-Item assets/weapons/README.md "$package/assets/weapons"
           Copy-Item build/audio "$package/assets" -Recurse
-          $openal = Get-ChildItem build/_deps/openal_soft-build -Recurse -Filter OpenAL32.dll | Select-Object -First 1
-          if (-not $openal) { throw 'Missing OpenAL32.dll' }
-          Copy-Item $openal.FullName $package
+          Copy-Item build/multiplayer/Release/OpenAL32.dll $package
           Copy-Item multiplayer/client/players.vert, multiplayer/client/players.frag "$package/multiplayer/client"
           Copy-Item multiplayer/windows/README.md "$package/README.md"
           Get-ChildItem build/vcpkg_installed/x64-windows-static-md/share/*/copyright | ForEach-Object {
@@ -133,6 +137,10 @@ jobs:
           Copy-Item build/_deps/openal_soft-src/fmt-11.1.1/LICENSE "$package/licenses/OpenAL-fmt.txt"
           Copy-Item credits/software/nlohmann-json.txt, credits/software/stb.txt, credits/software/recastnavigation.txt "$package/licenses"
           Compress-Archive -Path "$package/*" -DestinationPath build/godollo-client-windows-x86_64.zip
+      - name: Check relocated Windows game package
+        run: >-
+          python multiplayer/tests/windows_package.py build/multiplayer/Release/godollo_server.exe
+          build/godollo-client-windows-x86_64.zip
       - name: Upload Windows client
         uses: actions/upload-artifact@v7
         with:

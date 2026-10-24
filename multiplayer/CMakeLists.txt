@@ -52,6 +52,14 @@ if(GD_VIEWER)
     target_link_libraries(godollo_client PRIVATE viewer_renderer viewer_undergrowth_audio glfw)
     target_compile_definitions(godollo_client PRIVATE MP_GRAPHICS GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
     add_dependencies(godollo_client viewer_weapon_assets viewer_audio_assets)
+    if(WIN32)
+        # Windows searches beside the executable for this FetchContent DLL.
+        # Keep source-build startup and the ZIP on the same configuration's DLL.
+        add_custom_command(TARGET godollo_client POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "$<TARGET_FILE:OpenAL::OpenAL>" "$<TARGET_FILE_DIR:godollo_client>"
+            VERBATIM)
+    endif()
 endif()
 viewer_warnings(godollo_client)
 

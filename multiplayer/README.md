@@ -7,7 +7,9 @@ same authoritative server on an application-owned thread; no server executable
 needs to be launched or installed. `godollo_server` remains available for
 headless dedicated hosting. GameNetworkingSockets handles UDP transport; the
 shared code owns commands, authoritative simulation, snapshots, prediction and
-interpolation. The integrated application is currently validated on Linux.
+interpolation. The game builds on Linux and Windows; Windows compilation,
+headless session checks and ZIP validation run in GitHub Actions. Interactive
+Windows rendering still needs validation on Windows hardware.
 
 ## Build
 
@@ -62,29 +64,34 @@ See [Linux package instructions](linux/README.md) for requirements and commands.
 CI checks the extracted package's real networking, resource lookup, and rendering
 under Xvfb/Mesa software rendering. This does not validate hardware performance.
 
-## Windows client
+## Windows game
 
 The **Build apps** GitHub Actions workflow also builds the graphical client on
 `windows-2022`. It uses MSVC, GLEW for OpenGL loading, and the pinned vcpkg
 manifest in `windows/`. Protobuf stays at 3.21.12 for compatibility with the
 existing GameNetworkingSockets build. Linux retains its current OpenGL setup.
 
-Download `godollo-client-windows-x86_64` from the workflow run and extract the
-enclosed ZIP. It includes the client, shaders, item/inventory definitions,
-forest configuration, licenses and the synthetic test scene. Windows looks for
-these resources beside the executable, with the source checkout as a development
-fallback. It needs an OpenGL 3.3 driver and the Visual C++ x64 Redistributable.
-See [package usage](windows/README.md) for commands and matching town assets.
+Download `godollo-client-windows-x86_64` from the workflow run, extract the
+complete ZIP, and launch `run-game.cmd`. It opens the Single Player / Host Game /
+Join Game menu with the installed town or the bundled sample scene. The full
+game includes the embedded server, shaders, item/inventory/vehicle definitions,
+audio, runtime DLL, licenses and sample scene. Windows looks for resources beside
+the executable, with the source checkout as a development fallback. It needs an
+OpenGL 3.3 driver and the Visual C++ x64 Redistributable. See
+[package usage](windows/README.md) for commands and matching town assets.
 Git attributes preserve LF endings in fingerprinted configuration files so
 Windows checkout conversion does not create a content mismatch with Linux.
 Scene settings use fixed-width little-endian values in the fingerprint, independent
 of platform float formatting or locale. Both peers must use the updated format;
 older builds are rejected as a content mismatch.
 
-The Windows job builds the multiplayer client and checks `--help` startup and
-the scene fingerprint against cross-platform reference hashes.
-It does not run graphics or gameplay tests. The original viewer, headless server,
-and regression suites continue to be built/tested on Linux.
+The Windows job builds the game, dedicated server and session checks. It tests
+startup, cross-platform fingerprint reference hashes, private admission,
+eight-player capacity, integrated hosting, joining, shutdown and dedicated
+compatibility. It also extracts the ZIP outside the checkout and checks the
+packaged modes and batch launcher from another working directory. Windows
+checks use headless sessions; graphics and the original prototype viewer remain
+covered by Linux CI, with interactive Windows graphics validation still pending.
 
 ## Portable asset pack
 
@@ -500,5 +507,7 @@ The headless session checks exercise one-player admission, eight players plus
 ninth-player rejection, content mismatch/retry, startup errors/cancellation,
 shutdown notification and repeated actual client sessions. Separate-process
 checks cover integrated hosting and abrupt host loss. Existing dedicated-server
-loopback and packet-loss tests remain enabled. These do not establish internet
-router compatibility or Windows support.
+loopback and packet-loss tests remain enabled. The Windows job runs headless
+session and relocated ZIP checks; X11 menu automation remains Linux-only.
+Internet router compatibility and interactive Windows graphics need separate
+hardware validation.

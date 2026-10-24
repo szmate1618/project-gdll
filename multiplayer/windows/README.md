@@ -1,4 +1,4 @@
-# Windows multiplayer client
+# Windows game application
 
 Asset and dataset credits are in `credits/assets/README.txt`; bundled software
 licenses are in `licenses/`. For the town: map data © OpenStreetMap contributors,
@@ -11,48 +11,74 @@ and preparation software; client `licenses/` includes bundled JSON/stb and
 Detour notices, together with platform dependency notices.
 Keep these notices with any redistributed package.
 
-This x64 client is built by the repository's **Build apps** GitHub workflow.
+This x64 game is built by the repository's **Build apps** GitHub workflow.
 It requires a graphics driver supporting OpenGL 3.3 and the Microsoft Visual C++
 2015–2022 x64 Redistributable:
 https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist
 
-Extract the complete ZIP, keep the resource folders beside `godollo_client.exe`,
-and open PowerShell in that folder. The sample scene is included for a quick
-connection check against a server using the same scene:
+Extract the complete ZIP and double-click **`run-game.cmd`**. The launcher sets
+its working directory to the package folder and opens the game menu. It uses
+`output/godollo.glb` when the town asset pack is installed; otherwise it selects
+the included sample scene with trees and zombies disabled. Keep the resources
+and `OpenAL32.dll` beside `godollo_client.exe`. The executable and artifact names
+retain "client" for compatibility; this is the full game, including its server.
+
+- **Single Player** starts a private, one-player loopback server automatically.
+  It works without internet or an online service.
+- **Host Game** starts the same authoritative server for up to eight total
+  players, including the host. Set the UDP port in the menu (27020 by default).
+  Other players join your numeric IP and port. Firewall permission and router
+  port forwarding, where needed, are still manual.
+- **Join Game** connects to the numeric IP and port in the menu without starting
+  a local server. It can join integrated hosts or the standalone server.
+
+Escape leaves a session and returns to the menu. Closing the window also stops
+an embedded server; connection failures return to the menu for retry. No separate
+server program needs to be installed or managed for Single Player or Host Game.
+
+To start a mode directly, open PowerShell in the extracted folder:
 
 ```powershell
-.\godollo_client.exe assets/test.glb --connect SERVER_IP:27020 --no-trees --zombie-count 0
+.\run-game.cmd assets/test.glb --single-player --no-trees --zombie-count 0
+.\run-game.cmd assets/test.glb --host --port 27020 --no-trees --zombie-count 0
+.\run-game.cmd assets/test.glb --connect SERVER_IP:27020 --no-trees --zombie-count 0
 ```
 
-For the actual town, ask the host for an asset ZIP created from the prepared
-source checkout with `tools/package_multiplayer_assets.py`. Extract it into the
-same fresh folder as the client ZIP, preserving its `output/`, `assets/`, and
-`items/` directories and matching configuration files. The asset ZIP contains
-the map, companion layers, trees, forest textures, and zombie models; it is
-shared with Linux and contains no executables. The workflow does not download
-or generate those large assets. Use the server's spawn, zombie-count/radius,
-and vegetation options:
+Arguments to the launcher are passed to `godollo_client.exe`; relative scene
+paths are resolved from the package folder even when the launcher is invoked
+from another working directory.
 
-```powershell
-.\godollo_client.exe output/godollo.glb --connect SERVER_IP:27020
-```
+For the actual town, extract a matching asset ZIP created from the prepared
+source checkout with `tools/package_multiplayer_assets.py` into a fresh game
+folder. Preserve its `output/`, `assets/`, and `items/` directories and matching
+configuration files. The asset ZIP contains the map, companion layers, trees,
+forest textures, and zombie models; it is shared with Linux and contains no
+executables. The workflow does not download or generate those large assets.
+Run `run-game.cmd` again to select the installed town automatically. For joining,
+use the host's spawn, zombie-count/radius, and vegetation options.
 
-Shaders, player shaders, the five first-person weapon models with attribution,
-weapon definitions, inventory, and forest configuration
+Shaders (including the menu and player shaders), the five first-person weapon
+models with attribution, weapon definitions, inventory, vehicles, and audio
 are included. GLEW, OpenSSL, Protobuf and GameNetworkingSockets are linked into
-the client; the Microsoft runtime is supplied by the Redistributable.
-The client still has the prototype limitations described in `multiplayer/README.md`
-in the source repository. Local shrub rustles play through the bundled OpenAL
-library (`--no-audio` to mute); other multiplayer audio remains unimplemented.
+the game; the Microsoft runtime is supplied by the Redistributable. The included
+OpenAL DLL supplies audio (`--no-audio` to mute). Existing multiplayer gameplay
+and audio limitations are documented in `multiplayer/README.md` in the source
+repository.
 
-The workflow compiles the client, checks `--help` startup, and runs the
-cross-platform scene fingerprint regression. Windows graphics and cross-platform
-gameplay need a real Windows machine for validation.
+The workflow builds the game, dedicated server and headless session checks. It
+checks the cross-platform scene fingerprint, private single-player admission,
+eight-player capacity, integrated hosting, joining, disconnects and dedicated
+server compatibility. After packaging, it extracts the ZIP outside the checkout
+and runs the packaged game's headless modes and launcher from another working
+directory, including paths containing spaces. Interactive OpenGL rendering and
+Linux-server/Windows-client gameplay still need Windows hardware validation.
 
 ## Dependency choices
 
 `vcpkg.json` pins the package registry and Protobuf 3.21.12 to match the older
 GameNetworkingSockets 1.4.1 build used on Linux. Both host and target use
 `x64-windows-static-md`: static third-party libraries with the dynamic Microsoft
-runtime. The build uses MSVC 2022 and CMake 3.31, and runs the focused fingerprint
-test; Linux CI continues to run the full regression suites.
+runtime. The build uses MSVC 2022 and CMake 3.31. The build copies its matching
+OpenAL runtime DLL beside the game executable for both source-build startup and
+packaging. Linux CI continues to run the full regression suites, including the
+X11 game-menu test.

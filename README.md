@@ -223,10 +223,12 @@ The same workflow has a Windows x64 job for `godollo_client` using MSVC 2022
 and pinned vcpkg dependencies. Its `godollo-client-windows-x86_64` artifact
 includes shaders, weapon/inventory configuration, licenses, and the small test
 scene. Large map/tree/zombie assets must match the server and are not bundled.
-See [Windows client instructions](multiplayer/windows/README.md). Windows
-compilation, the executable startup check, and the scene fingerprint regression
-run on GitHub; interactive graphics
-and Linux-server/Windows-client gameplay still need Windows hardware validation.
+Launch `run-game.cmd` for Single Player, Host Game or Join Game; it selects the
+installed town or bundled sample scene and manages the embedded server. See
+[Windows game instructions](multiplayer/windows/README.md). Windows compilation,
+headless session checks, scene fingerprints, and relocated ZIP/launcher checks
+run on GitHub. Interactive graphics and Linux-server/Windows-client gameplay
+still need Windows hardware validation.
 
 ## Configuration and coordinates
 

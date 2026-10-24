@@ -9,6 +9,8 @@
 /assets/zombies/models/*.capsules.json text eol=lf
 # Unix launchers need LF for the interpreter shebang.
 /multiplayer/linux/run-client.sh text eol=lf
+# Windows batch launchers need CRLF on checkout; they are not fingerprinted.
+/multiplayer/windows/run-game.cmd text eol=crlf
 
 # Preserve the pinned upstream source and license bytes, including whitespace.
 third_party/recastnavigation/** -text -whitespace
