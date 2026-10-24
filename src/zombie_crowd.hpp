@@ -30,8 +30,6 @@ public:
     void reset(std::size_t population);
     void update(std::size_t id, glm::vec3 feet);
     void erase(std::size_t id);
-    // Local touching-group expansion for physical crowds; uses the 1 m grid.
-    void queryNear(glm::vec3 feet, float radius, std::vector<std::size_t>& ids) const;
     void beginStep() { stats_ = {}; }
     const ZombieCrowdStats& stats() const { return stats_; }
     // Sweep toward desired feet, stopping/sliding at other bodies. No mutation:

@@ -7,6 +7,7 @@
 #include "box_layer.hpp"
 #include "physics_scene.hpp"
 #include "vehicle_player.hpp"
+#include "vehicle_zombie_collision.hpp"
 #include "vehicle_placement.hpp"
 #include <random>
 #include "interior_objects.hpp"
@@ -1232,6 +1233,7 @@ int run(const Options& options) {
                                        {playerConfig.height, playerConfig.eyeHeight});
     viewer::PlayerBody playerBody(physics, playerConfig.eyeHeight);
     viewer::MeleeCombat melee(physics);
+    viewer::VehicleZombieCollision vehicleZombies;
     viewer::PlayerBodyRenderer bodyRenderer(options.shaders);
     app.body = &playerBody; app.melee = &melee;
     viewer::MuzzleFlash muzzleFlash;
@@ -1356,15 +1358,15 @@ int run(const Options& options) {
                 doors.activateNear(cars.pose(i).chassis.center, 10);
             }
             if (zombies) {
-                zombies->prepareVehiclePhysics(cars, physicsScene, collision, step, &doors);
                 zombieDoorCollision.prepare(doors, *zombies);
             }
             cars.beforeStep(step);
+            vehicleZombies.capture(cars);
         }, [&](float step) {
+            if (zombies) vehicleZombies.resolve(cars, *zombies, collision, step,
+                    options.animationTime.value_or(simulationClock.seconds()));
             melee.finish(playerBody, zombies ? &*zombies : nullptr,
                          options.animationTime.value_or(simulationClock.seconds()));
-            if (zombies) zombies->finishVehiclePhysics(cars, step,
-                    options.animationTime.value_or(simulationClock.seconds()));
             playerBody.afterStep();
             bodyRenderer.captureBody(playerBody, step);
         });
@@ -1532,7 +1534,6 @@ int run(const Options& options) {
                     const auto& crowdStats = zombies->crowdStats();
                     std::cout << "; crowd " << crowdStats.neighborChecks << " neighbor checks, "
                               << crowdStats.budgetStops << " budget stops";
-                    std::cout << "; physical living capsules " << zombies->vehiclePhysicsCount();
                     const auto& updates = renderer.zombieUpdateStats();
                     std::cout << "; render preparation " << updates.instances << " instances, " << updates.bounds
                               << " bounds" << (updates.full ? " (full refresh)" : " (incremental)");

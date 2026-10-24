@@ -9,6 +9,7 @@
 #include "vehicle_seats.hpp"
 #include "player_body.hpp"
 #include "melee_combat.hpp"
+#include "vehicle_zombie_collision.hpp"
 #include <map>
 #include <set>
 
@@ -47,6 +48,7 @@ private:
     viewer::InteriorObjects interiors_;
     viewer::ZombieDoorCollision zombieDoors_;
     viewer::MeleeCombat melee_;
+    viewer::VehicleZombieCollision vehicleZombies_;
     std::map<std::uint32_t, ServerPlayer> players_;
     std::uint32_t nextPlayer_ = 1;
     std::uint64_t tick_ = 0;

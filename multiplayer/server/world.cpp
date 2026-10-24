@@ -199,16 +199,16 @@ void World::step() {
         for (const auto i : scene_.vehicles->simulatedCars()) {
             scene_.doors->activateNear(scene_.vehicles->pose(i).chassis.center, 10);
         }
-        scene_.zombies.prepareVehiclePhysics(*scene_.vehicles, physicsScene_, *scene_.collision, seconds, scene_.doors.get());
         zombieDoors_.prepare(*scene_.doors, scene_.zombies);
         melee_.prepare(bodies.data(),bodies.size(),&scene_.zombies,now);
         for (const auto& punch : punches) melee_.punch(*punch.body,punch.eye,punch.direction,*scene_.collision);
         punches.clear();
         for (auto* body : bodies) body->beforeStep(seconds);
         scene_.vehicles->beforeStep(seconds);
+        vehicleZombies_.capture(*scene_.vehicles);
     }, [&](float seconds) {
+        vehicleZombies_.resolve(*scene_.vehicles,scene_.zombies,*scene_.collision,seconds,now);
         melee_.finish(bodies.data(),bodies.size(),&scene_.zombies,now);
-        scene_.zombies.finishVehiclePhysics(*scene_.vehicles, seconds, now);
         for (auto* body : bodies) body->afterStep();
     });
     for (auto& [id, player] : players_) {

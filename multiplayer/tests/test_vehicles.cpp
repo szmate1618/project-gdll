@@ -284,17 +284,20 @@ void zombieImpacts(const Options& o) {
         auto& asset = scene.zombies.assets[0];
         asset.skeleton.resize(1); asset.boneFrames = {glm::mat4(1), glm::mat4(1)};
         asset.frameCount = 2; asset.duration = 1;
-        viewer::ZombieInstance zombie;
-        zombie.restRoot = zombie.restTransform = zombie.transform = glm::translate(glm::mat4(1), glm::vec3(0, 0, -2.08f));
-        scene.zombies.instances.push_back(zombie); scene.zombies.rebuildSpatialIndex();
         const auto chassis = scene.vehicles->pose(0).chassis;
+        // Start at this fitted model's front bumper, rather than inside a
+        // longer car at the old 3.6 m prototype's hardcoded contact position.
+        const glm::vec3 contactFeet(chassis.center.x,0,chassis.center.z-chassis.halfExtents.z-viewer::ZombieCrowd::bodyRadius+.02f);
+        viewer::ZombieInstance zombie;
+        zombie.restRoot = zombie.restTransform = zombie.transform = glm::translate(glm::mat4(1), contactFeet);
+        scene.zombies.instances.push_back(zombie); scene.zombies.rebuildSpatialIndex();
         scene.vehicles->drive(0, 0, 0, false);
         scene.vehicles->applyImpulse(0, {0, 0, -1100 * speed}, chassis.center);
         world.step();
         const auto snapshot = wire(world.snapshot(observer));
         require(snapshot.zombies.size() == 1, "Observer lost the impacted zombie");
         if (speed < 5) {
-            require(!snapshot.zombies[0].dead && scene.zombies.instances[0].restRoot[3].z < -2.09f,
+            require(!snapshot.zombies[0].dead && scene.zombies.instances[0].restRoot[3].z < contactFeet.z-.01f,
                     "Slow server car impacts must push living zombies");
         } else {
             require(snapshot.zombies[0].dead && world.nextPose(observer).has_value(),

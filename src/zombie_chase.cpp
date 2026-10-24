@@ -16,7 +16,6 @@ constexpr float locomotionTurnSpeed = static_cast<float>(tau / 2); // 180 degree
 }
 
 void stopZombieLocomotion(ZombieInstance& instance) {
-    instance.physicsWishVelocity = {};
     instance.walking = false;
     instance.locomotionVelocity = glm::vec3(0);
     instance.blockedAnimationSeconds = instance.animationRestartSeconds = 0;
@@ -41,7 +40,6 @@ void applyZombieLocomotion(ZombieInstance& instance, glm::vec2 desiredVelocity,
     zombie_profile::Timer timer(zombie_profile::Stage::locomotionPose);
     const auto start = glm::vec3(instance.restRoot[3]);
     const auto feet = movement.feet;
-    instance.physicsWishVelocity = seconds > 0 ? glm::vec3(desiredVelocity.x,0,desiredVelocity.y) : glm::vec3(0);
     instance.locomotionVelocity = seconds > 0 ? (feet - start) / seconds : glm::vec3(0);
     const float magnitude = glm::length(desiredVelocity);
     const auto direction = magnitude > 1e-8f ? desiredVelocity / magnitude : glm::vec2(0);
@@ -91,17 +89,12 @@ bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& /*asset*/,
     const auto start = glm::vec3(instance.restRoot[3]);
     const glm::vec2 horizontal(target.x - start.x, target.z - start.z);
     const float distance = glm::length(horizontal);
-    if (distance <= (instance.vehiclePhysics ? .03f : 1e-4f)) {
+    if (distance <= 1e-4f) {
         stopZombieLocomotion(instance);
         return true;
     }
     const auto direction = horizontal / distance;
     const float step = std::min(speed * seconds, distance);
-    if (instance.vehiclePhysics) {
-        instance.physicsWishVelocity = glm::vec3(direction.x,0,direction.y) * (seconds>0?step/seconds:0);
-        instance.running = speed>1.2f;
-        return false;
-    }
     const auto movement = moveZombieBody(start,
         start + glm::vec3(direction.x * step, 0, direction.y * step), world, crowd, id);
     applyZombieLocomotion(instance, direction * (seconds > 0 ? step / seconds : 0.f), movement, speed, seconds);

@@ -71,7 +71,7 @@ void PhysicsScene::ensureNear(glm::vec3 minimum, glm::vec3 maximum) {
             trunk->body = b3CreateBody(impl_->simulation->id(), &def);
             auto shape = b3DefaultShapeDef();
             shape.filter.categoryBits = ordinaryBodyCategory;
-            shape.filter.maskBits = vehicleBodyCategory | livingZombieCategory | playerBodyCategory;
+            shape.filter.maskBits = vehicleBodyCategory | playerBodyCategory;
             const b3Capsule capsule{{0, t.radius, 0}, {0, t.height - t.radius, 0}, t.radius};
             b3CreateCapsuleShape(trunk->body, &shape, &capsule);
             impl_->bodies.push_back(std::move(trunk));
@@ -100,7 +100,7 @@ void PhysicsScene::ensureNear(glm::vec3 minimum, glm::vec3 maximum) {
             // Their existing hinge limits define the swing; importing the wall
             // as another door contact would jam them at the jamb. These meshes
             // support props, leaving door and ragdoll behavior unchanged.
-            shape.filter.maskBits = interiorBoxCategory | grenadeBodyCategory | zombieContentsCategory | vehicleBodyCategory | livingZombieCategory | playerBodyCategory;
+            shape.filter.maskBits = interiorBoxCategory | grenadeBodyCategory | zombieContentsCategory | vehicleBodyCategory | playerBodyCategory;
             b3CreateMeshShape(mesh->body, &shape, mesh->mesh, {1, 1, 1});
             impl_->bodies.push_back(std::move(mesh));
         }

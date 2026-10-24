@@ -1,4 +1,5 @@
 #include "vehicle_player.hpp"
+#include "vehicle_zombie_collision.hpp"
 #include "physics_world.hpp"
 #include "physics_scene.hpp"
 #include "zombie_layer.hpp"
@@ -101,15 +102,15 @@ void crowdedStart() {
         zombies.instances.push_back(z);
     }
     zombies.rebuildSpatialIndex();
-    // Keep this a walking-speed push throughout; full throttle can now move the
-    // physical crowd fast enough to cause a legitimate later high-speed impact.
-    f.cars.drive(0, .35f, 0, false);
+    // Restore the original full-throttle crowded-start fixture from 92b62e8.
+    viewer::VehicleZombieCollision impacts;
+    f.cars.drive(0, 1, 0, false);
     for (int frame = 0; frame < 180; ++frame) {
         f.physics->step(1.f / 60, [&](float seconds) {
             viewer::prepareVehicleScene(f.cars, f.scene);
-            zombies.prepareVehiclePhysics(f.cars, f.scene, f.world, seconds); f.cars.beforeStep(seconds);
+            f.cars.beforeStep(seconds); impacts.capture(f.cars);
         }, [&](float seconds) {
-            zombies.finishVehiclePhysics(f.cars, seconds, 0);
+            impacts.resolve(f.cars, zombies, f.world, seconds, 0);
         });
     }
     std::cout << "crowded start z=" << f.cars.pose(0).chassis.center.z << '\n';
@@ -231,6 +232,7 @@ void cameraObstacles() {
             world.lineOfSight(pivot, rig.camera().position()), "Chase camera must pull in before a wall behind the car");
 }
 void zombies() {
+    viewer::VehicleZombieCollision impacts;
     for (float speed : {1.f, 9.f}) {
         Fixture f; f.tick(120);
         viewer::ZombieLayer zombies; zombies.assets.emplace_back(); zombies.instances.emplace_back(); zombies.attachPhysics(f.physics);
@@ -238,12 +240,12 @@ void zombies() {
         z.restRoot = z.restTransform = z.transform = glm::translate(glm::mat4(1), glm::vec3(0, 0, -2.08f));
         zombies.rebuildSpatialIndex();
         const auto previous = f.cars.pose(0).chassis;
-        // Give the chassis actual momentum, then exercise native contacts.
+        // Give the chassis actual momentum, then exercise swept chassis contacts.
         f.cars.applyImpulse(0, {0, 0, -1100 * speed}, previous.center);
         f.cars.drive(0, 0, 0, false);
         for (int step = 0; step < 2; ++step) f.physics->step(1.f / 60, [&](float seconds) {
-            zombies.prepareVehiclePhysics(f.cars, f.scene, f.world, seconds); f.cars.beforeStep(seconds);
-        }, [&](float seconds) { zombies.finishVehiclePhysics(f.cars, seconds, 0); });
+            f.cars.beforeStep(seconds); impacts.capture(f.cars);
+        }, [&](float seconds) { impacts.resolve(f.cars, zombies, f.world, seconds, 0); });
         if (speed < 5) {
             std::cout << "pushed z=" << z.restRoot[3].z << '\n';
             require(!z.ragdoll && z.restRoot[3].z < -2.10f, "Slow impacts must move the living zombie away");

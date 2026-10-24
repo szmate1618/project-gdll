@@ -160,7 +160,7 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
     if (attackEligible(behavior, instance, player, world, now, stats))
         changeState(behavior, ZombieState::attacking, now);
     else if (arrived && (behavior.sight != ZombieSight::none ||
-             glm::length(glm::vec2(behavior.target.x - feet.x, behavior.target.z - feet.z)) <= (instance.vehiclePhysics ? .03f : 1e-4f)))
+             glm::length(glm::vec2(behavior.target.x - feet.x, behavior.target.z - feet.z)) <= 1e-4f))
         changeState(behavior, ZombieState::idle, now);
     if (behavior.state == ZombieState::idle || behavior.state == ZombieState::attacking) {
         stopZombieLocomotion(instance);

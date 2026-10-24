@@ -15,16 +15,8 @@ bool followScenarioRoute(ZombieInstance& instance, glm::vec3 destination, float 
                          ZombieNavigation& navigation, WalkingGroundCache& groundCache,ContactCandidates& contacts,TravelerPlan& travel,
                          bool distant) {
     const auto start = glm::vec3(instance.restRoot[3]);
-    if (glm::length(glm::vec2(destination.x-start.x,destination.z-start.z)) <= (instance.vehiclePhysics?.03f:1e-4f)) {
-        instance.physicsWishVelocity={};
+    if (glm::length(glm::vec2(destination.x-start.x,destination.z-start.z)) <= 1e-4f) {
         return true;
-    }
-    if (instance.vehiclePhysics) {
-        travel={};
-        const auto velocity=navigation.follow(id,start,walkSpeed,seconds,world);
-        instance.physicsWishVelocity={velocity.x,0,velocity.y};
-        instance.running=false;
-        return false;
     }
     const auto step=moveScenarioTraveler(id,start,seconds,world,navigation,crowd,groundCache,contacts,travel,distant);
     const auto& movement=step.movement;

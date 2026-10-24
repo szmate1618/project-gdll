@@ -43,7 +43,7 @@ void ZombieDoorCollision::prepare(const DoorLayer& doors, ZombieLayer& zombies) 
         zombies.spatialIndex_.query(panel.hinge, reach, data.candidates);
         for (const auto id : data.candidates) {
             const auto& instance = zombies.instances[id];
-            if (instance.removed || instance.ragdoll || instance.vehiclePhysics || instance.asset >= zombies.assets.size()) continue;
+            if (instance.removed || instance.ragdoll || instance.asset >= zombies.assets.size()) continue;
             const auto feet = glm::vec3(instance.restRoot[3]);
             const auto offset = glm::vec2(feet.x - panel.hinge.x, feet.z - panel.hinge.z);
             if (glm::dot(offset, offset) > reach * reach ||

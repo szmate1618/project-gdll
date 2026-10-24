@@ -26,7 +26,6 @@ class ZombieNavigation;
 class PhysicsScene;
 class DoorLayer;
 class VehicleLayer;
-class ZombieVehiclePhysics;
 
 struct ZombieInstance {
     std::size_t asset = 0;
@@ -53,9 +52,6 @@ struct ZombieInstance {
     // Presentation hysteresis for intermittent crowd/door contact. Neither
     // timer changes physical movement or evaluates a per-character skeleton.
     float blockedAnimationSeconds = 0, animationRestartSeconds = 0;
-    // While active, Box3D alone publishes feet; AI supplies a velocity request.
-    bool vehiclePhysics = false;
-    glm::vec3 physicsWishVelocity{0};
     bool ragdoll = false;
     bool removed = false; // Tombstone: source IDs remain stable after corpse removal.
     std::size_t ragdollHandle = 0;
@@ -167,18 +163,11 @@ struct ZombieLayer {
     // calls synchronizePhysics(); standalone update() retains its own stepping.
     void attachPhysics(std::shared_ptr<PhysicsWorld> world);
     void synchronizePhysics();
-    // Paired hooks around each shared fixed step, on the authoritative peer.
-    void prepareVehiclePhysics(VehicleLayer& cars, PhysicsScene& scene, const CollisionWorld& collision,
-                               float seconds, DoorLayer* doors = nullptr);
-    void finishVehiclePhysics(VehicleLayer& cars, float seconds, double animationSeconds);
-    std::size_t vehiclePhysicsCount() const;
-    void resetVehiclePhysics(); // Before externally replacing a population/placement.
     void synchronizePhysics(std::size_t zombie);
     bool meleeHit(std::size_t zombie, glm::vec3 impulse, glm::vec3 point, double animationSeconds);
     void translateRagdoll(std::size_t zombie, glm::vec3 displacement);
     bool knockDown(std::size_t zombie, glm::vec3 velocity, double animationSeconds);
-    // Scene/crowd-constrained push for ordinary movers; physical capsules use
-    // native contact forces and ignore this direct-displacement path.
+    // Scene/crowd-constrained push; publishes spatial and render changes.
     glm::vec3 pushLiving(std::size_t zombie, glm::vec3 displacement, const CollisionWorld& world);
     void applyRagdollImpulse(std::size_t zombie, RagdollPart part, glm::vec3 impulse);
     void removeRagdoll(std::size_t zombie);
@@ -211,7 +200,6 @@ private:
     void updateBehaviorImpl(float seconds, const ZombiePlayer& player, const CollisionWorld& world,
                             double animationSeconds, const std::vector<ZombiePlayer>* players);
     friend class ZombieDoorCollision; // Reuse the living-body spatial index for door-local physics proxies.
-    friend class ZombieVehiclePhysics;
     struct Physics;
     std::unique_ptr<Physics> physics_;
     std::unique_ptr<ZombieNavigation> navigation_;

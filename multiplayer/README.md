@@ -373,11 +373,13 @@ Cars use the same shared rigid-body world, with one physics update per server
 tick regardless of input traffic. Input timeout applies brakes while preserving
 the driver's seat; disconnect releases the seat and applies brakes. Parked cars
 remain available, including to late joiners.
-Nearby living zombies use dynamic upright capsules in that world, including
-their touching crowd neighbors beyond the activation radius. The server alone
-advances their force-driven movement and publishes resulting feet positions.
-Car, crowd, wall, door and object contact responses share the same solver;
-high-speed contact transfers capsule motion into the existing ragdoll system.
+Living zombies retain the normal indexed crowd and scene movement. The server
+sweeps each actively simulated car's chassis between fixed-step poses, pushes
+living zombies at low speed, and creates loose ragdolls on approach speeds of
+at least 5 m/s. Pushes respect scene/crowd constraints and apply a reaction impulse
+to the car. Parked fleets never activate native living-zombie capsules. The same
+collision module runs in the standalone viewer; clients only consume the
+authoritative movement and corpse poses.
 
 The server runs at 60 Hz, including two existing 120 Hz player substeps. It
 sends essential world snapshots at 20 Hz. One peer cannot advance the world by

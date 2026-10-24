@@ -845,8 +845,8 @@ and terrain-only placement retain their previous cap exclusion. Ceiling and
 roof undersides are not reclassified as floors. Road clearance, map geometry,
 and the generator configuration are unchanged.
 
-Outside vehicle physics groups, doors and boxes block at their current physical
-poses without zombie forces or impulses. Opening a door reveals the existing doorway without rebuilding the
+Doors and boxes block at their current physical poses without living-zombie
+forces or impulses. Opening a door reveals the existing doorway without rebuilding the
 collision world. Living zombies near activated door sweeps also have lightweight
 kinematic capsules in the shared physics world. Door forces still apply normally;
 the existing hinge/contact solver stops the panel against a zombie instead of
@@ -859,35 +859,10 @@ receive proxies; stable ID order and shared proxies for adjacent doors keep
 updates deterministic. Proxies follow accepted zombie feet and are removed when
 the zombie leaves, dies or is removed. They contact door panels only, with a 2 cm
 numerical pad outside the movement body for contact slop and impulse compression.
-Zombies with dynamic vehicle-physics capsules do not receive these door-only
-blockers; their native contacts already interact with doors and other bodies.
-
-Living zombies near cars receive upright, rotation-locked 75 kg capsules in the
-shared Box3D world. Activation uses the living spatial index within 10 m of each
-car, including 0.35 seconds of anticipated travel. The 1 m crowd grid expands
-this selection through all touching neighbors (within 0.70 m horizontally), so
-pressure reaches back rows beyond that radius. Separate floors do not connect.
-Capsules remain active within 14 m, or while unsettled; returning to the normal
-controller requires 0.5 seconds away from cars with stable walkable support and
-little velocity relative to the requested movement. Connected groups can exceed
-the initial radius and have no arbitrary truncation that would ignore a back row.
-
-While active, Box3D alone determines feet positions. AI supplies desired velocity
-to a horizontal motor capped at 450 N, with ground friction 0.15 on the capsule.
-The existing curb-clearance checks permit bounded physical lift onto steps up to
-0.30 m. Neither locomotion nor crowd correction teleports a physical zombie.
-Capsules collide with other physical zombies, cars and tires, published terrain,
-walls, tree trunks, doors, boxes and ragdolls. Nearby collision meshes and doors
-are activated for the whole physical group. Pressure can push the group or its
-surroundings; a wall-backed crowd constrains the car through native contacts.
-Ordinary crowd control remains active elsewhere and avoids the indexed physical
-feet. `--profile` reports the active living-capsule count; crowded-group physics
-cost depends on the number of interacting bodies and contacts.
-For a repeatable synthetic CPU comparison (0/50/200 living capsules), build and
-run `./build/test_zombie_vehicle_physics --benchmark`. It reports mean and p95
-milliseconds per 60 Hz step for local selection, movement publication and shared
-physics; AI perception, rendering and networking are excluded. These numbers
-are specific to the build configuration and hardware, rather than FPS estimates.
+Living zombies retain their scene/crowd-constrained movement near vehicles.
+They do not acquire dynamic Box3D capsules or native crowd motors. Car impacts
+use the swept-chassis contacts described below; door-only blockers and melee
+bone surfaces keep their separate responsibilities.
 
 The rendered fence/guardrail panels are solid for movement,
 including transparent texels, while actual mesh entrance gaps remain open.
@@ -1212,38 +1187,47 @@ look.
 
 Nearby published scene triangles and indexed tree-trunk capsules provide
 collision, independently of foliage visibility. Cars also contact doors, boxes
-and existing ragdolls in the shared physics world. Nearby living zombies use the
-dynamic capsules described above: slow contacts physically push the crowd, while
-contact approach speeds of at least 5 m/s trigger ragdolls. The threshold uses
-the solver's pre-impact relative normal velocity and requires an actual contact
-impulse. Ragdolls inherit the solved capsule velocity plus a small upward kick;
-the capsule is removed immediately, including when shot. Contact reaction has
-already acted on the car, so no second manual resistance impulse is added.
-The chassis and tires enable continuous collision against dynamic bodies to
-prevent a fast approach from entering a capsule before the first contact solve.
+and existing ragdolls in the shared physics world. Living zombies use the normal
+indexed crowd controller. After each fixed physics step, chassis poses are swept
+in translation and rotation against nearby living capsules, using each car's
+fitted dimensions. Low-speed contacts request a scene/crowd-constrained push
+and apply resistance to the car; blocked crowds resist more strongly. At least
+5 m/s of approach along the contact normal creates a loose ragdoll and transfers
+an impact impulse back to the car. Approach considers chassis point velocity
+and the captured movement over the step, preserving a hit if another obstacle
+stops the car during that step. Walls, doors, props and trunks can shield a
+zombie from a chassis through the scene visibility test.
+
+`VehicleZombieCollision` visits only actively simulated cars and queries the
+living spatial index independently of camera visibility. Parked fleets do not
+create zombie bodies, wheel joints or per-car impact work. The standalone viewer
+and authoritative multiplayer server use the same capture/resolve sequence.
+The original approximate slow-push response is restored; it is not a full
+Box3D crowd-pressure solver.
 
 At night, two warm cones originate just ahead of the front of the box, aimed
 about three degrees downward and fading out at 60 m. They follow the chassis,
 including while parked, and fade with the day/night lighting. While driving they
 replace the camera flashlight. Headlights currently have no separate shadow
 maps or rain illumination; the usual sun and flashlight shadow passes include
-the car. The optional multiplayer server uses the same capsule simulation and
-replicates accepted zombie transforms and ragdoll poses; clients do not run a
-second copy of living-capsule physics. Cars and driver occupancy are also
+the car. The multiplayer server uses the same swept chassis response and
+replicates accepted zombie transforms and ragdoll poses; clients do not run
+car/crowd collision response. Cars and driver occupancy are also
 replicated; see [multiplayer controls and ownership](../multiplayer/README.md).
 
 The implementation separates fleet ownership (`vehicle_layer.*`), parked/detailed
 body transitions (`vehicle_physics.*`), mesh generation
 (`vehicle_geometry.cpp`), wheel contact/slip sampling (`vehicle_traction.*`),
 placement loading (`vehicle_placement.*`), seat/driver interaction (`vehicle_player.*`),
-living capsule/contact handling (`zombie_vehicle_physics.*`), and rendering
+swept living-zombie contacts (`vehicle_zombie_collision.*`), and rendering
 (`vehicle_renderer.cpp`). `viewer_vehicle_parking` checks the 1,000-car collider budget, parked contacts,
 activation, settling, re-entry and replica poses. `viewer_vehicles` checks driving, suspension, collision,
 entry/exit and zombie reactions without a GPU. `viewer_vehicle_traction` checks
 rolling, wheelspin/skids, moving support bodies and airborne transitions.
-`viewer_zombie_vehicle_physics` checks pinned crowds, connected-group pressure,
-activation/handoff, object and door contacts, curbs and fixed-step locomotion.
-`viewer_vehicle_renderer` checks
+`viewer_vehicle_zombie_collision` checks low/high-speed impacts, ordinary
+acceleration into a victim, swept and scaled/rotated chassis contacts, wall
+shielding, spatial updates, parked fleets, and normal scenario movement without
+allocating native bodies for the living crowd. `viewer_vehicle_renderer` checks
 the body, tires, headlights and GL state and writes day/night captures under the
 build directory when run by CTest.
 
@@ -2231,8 +2215,10 @@ meshes, repeat punch impacts, and cleanup/reuse after unequipping or removal.
 `viewer_zombie_ragdoll` also checks recovery toward a captured bent pose,
 torso lean and recovery after impact, planted feet under gravity and impacts,
 and anchor translation and cleanup.
-`viewer_zombie_vehicle_physics` also checks a punch releasing the vehicle-adjacent
-living capsule into one planted ragdoll and removal from melee queries.
+`viewer_vehicle_zombie_collision` checks slow pushes, the 5 m/s transition,
+normal-driving knockdowns, swept and scaled/rotated contacts, shielding by walls,
+spatial publication, parked fleets, and normal scenario movement without native
+living-zombie bodies.
 `viewer_weapon_overlay` captures the guard, punch, recovery, and whole box body and checks
 scene-depth occlusion alongside the firearm silhouettes and GL state restoration.
 

@@ -82,33 +82,6 @@ glm::vec3 ZombieCrowd::constrain(std::size_t id, glm::vec3 desired) {
     std::size_t checks = 0;
     return constrainFrom(id, bodies_[id].feet, desired, checks);
 }
-void ZombieCrowd::queryNear(glm::vec3 feet, float radius, std::vector<std::size_t>& ids) const {
-    ids.clear();
-    if (!finite(feet) || !std::isfinite(radius) || radius < 0) return;
-    const Cell low{std::floor((double(feet.x) - radius) / cellSize), std::floor((double(feet.z) - radius) / cellSize)};
-    const Cell high{std::floor((double(feet.x) + radius) / cellSize), std::floor((double(feet.z) + radius) / cellSize)};
-    const auto visit = [&](const std::vector<std::size_t>& bucket) {
-        for (const auto id : bucket) {
-            const auto other = bodies_[id].feet;
-            if (std::abs(other.y - feet.y) >= bodyHeight) continue;
-            const auto offset = glm::dvec2(other.x, other.z) - glm::dvec2(feet.x, feet.z);
-            if (glm::dot(offset, offset) <= double(radius) * radius) ids.push_back(id);
-        }
-    };
-    const double width = high.x - low.x + 1, depth = high.z - low.z + 1;
-    if (std::isfinite(width * depth) && width * depth <= double(cells_.size())) {
-        for (std::size_t x = 0; x < static_cast<std::size_t>(width); ++x)
-            for (std::size_t z = 0; z < static_cast<std::size_t>(depth); ++z) {
-                const auto found = cells_.find({low.x + double(x), low.z + double(z)});
-                if (found != cells_.end()) visit(found->second);
-            }
-    } else {
-        for (const auto& entry : cells_)
-            if (entry.first.x >= low.x && entry.first.x <= high.x && entry.first.z >= low.z && entry.first.z <= high.z)
-                visit(entry.second);
-    }
-    std::sort(ids.begin(), ids.end());
-}
 
 glm::vec3 ZombieCrowd::constrainFrom(std::size_t id, glm::vec3 start, glm::vec3 desired,
                                      std::size_t& checks) {
