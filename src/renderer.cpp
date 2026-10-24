@@ -84,6 +84,10 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         groundFogLocation_ = glGetUniformLocation(program_, "uGroundFog");
         nightBlendLocation_ = glGetUniformLocation(program_, "uNightBlend");
         unlitLightLocation_ = glGetUniformLocation(program_, "uUnlitLight");
+        headlightsLocation_ = glGetUniformLocation(program_, "uHeadlights");
+        headlightDirectionLocation_ = glGetUniformLocation(program_, "uHeadlightDirection");
+        headlightPositions_[0] = glGetUniformLocation(program_, "uHeadlightPosition[0]");
+        headlightPositions_[1] = glGetUniformLocation(program_, "uHeadlightPosition[1]");
         flashlightPositionLocation_ = glGetUniformLocation(program_, "uFlashlightPosition");
         flashlightShadowsLocation_ = glGetUniformLocation(program_, "uFlashlightShadows");
         flashlightShadowMapLocation_ = glGetUniformLocation(program_, "uFlashlightShadowMap");
@@ -242,6 +246,10 @@ void Renderer::release() noexcept {
     releaseModel(boxModel_);
     releaseModel(grenadeModel_);
     releaseWoundContents();
+
+    releaseModel(vehicleModel_);
+    glDeleteBuffers(1, &vehicleInstanceBuffer_);
+    releaseVehicleAssets();
     if (boxInstanceBuffer_) glDeleteBuffers(1, &boxInstanceBuffer_);
     boxInstanceBuffer_ = 0;
     releaseModel(roofModel_);
@@ -380,6 +388,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     const auto view = camera.view();
     const auto projection = camera.projection(static_cast<float>(width_) / static_cast<float>(height_));
     prepareForestView(camera);
+    prepareVehicleDraws(camera, projection);
     const bool sunlight = glm::any(glm::greaterThan(lighting.sun.color, glm::vec3(0)));
     if (sunlight) shadowView = sunShadowView(camera.position(), lighting.sun.direction,shadowMap_->resolution());
     const bool castShadows = sunlight && shadows_ && shadowPassLocation_ >= 0;
@@ -420,6 +429,8 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     drawDroppedWeapons(projection * view);
     drawWoundContents(projection * view);
     drawGrenades(projection * view);
+
+    drawVehicles(projection * view);
     if (drawOpaque) drawOpaque();
     if (zombieSource_) {
         auto bursts = zombieSource_->bloodMist().sample(animationSeconds);
@@ -441,7 +452,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     }
     if (rainEnabled_) {
         auto rainLighting = nightLighting_;
-        if (!flashlightEnabled_) rainLighting.flashlightColor = glm::vec3(0);
+        if (!flashlightEnabled_ || vehicleDriver_) rainLighting.flashlightColor = glm::vec3(0);
         rain_->draw(camera, static_cast<float>(width_) / static_cast<float>(height_),
                     animationSeconds, lighting.nightBlend, rainLighting);
     }

@@ -54,6 +54,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         self.write("assets/top.png", b"top texture")
         self.write("assets/shrub.png", b"shrub atlas")
         self.write("inventory.toml", b"inventory\n")
+        self.write("vehicles/car.toml", b"vehicle config\n")
         for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"):
             self.write(f"items/{name}.toml", b"weapon\n")
         self.write("data/raw/input.bin", b"private preparation input")
@@ -101,6 +102,52 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Stale fingerprint"):
             self.package()
 
+    def test_car_positions_are_packaged_with_the_matching_map(self):
+        path = self.root/'output/abandoned_cars.instances.json'
+        self.json('output/abandoned_cars.instances.json',{'schema':'godollo.abandoned-car-placements',
+            'version':1,'map':{'map_sha256':self.digest(self.map)},'instances':[]})
+        self.package()
+        with zipfile.ZipFile(self.output) as archive:
+            self.assertEqual(archive.read('output/abandoned_cars.instances.json'),path.read_bytes())
+        previous = self.output.read_bytes()
+        data = json.loads(path.read_text());data['map']['map_sha256']='stale'
+        path.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError,'fingerprint'):
+            self.package()
+        self.assertEqual(self.output.read_bytes(),previous)
+
+    def vehicle_publication(self):
+        source = self.write('assets/vehicles/models/car.glb',glb({}))
+        levels = []
+        for level in range(4):
+            p = self.write(f'assets/vehicles/models/lod{level}/car.glb',glb({}))
+            levels.append({'path':f'lod{level}/car.glb','sha256':self.digest(p)})
+        self.write('assets/vehicles/CREDITS.md',b'CC BY attribution')
+        self.json('assets/vehicles/sources.json',{'license':'CC BY 4.0'})
+        self.json('assets/vehicles/models/lods.json',{'version':1,'models':{'car':{
+            'source':'car.glb','source_sha256':self.digest(source),'levels':levels}}})
+        return source
+
+    def test_vehicle_pack_includes_current_lods_and_credits(self):
+        self.vehicle_publication()
+        self.write('assets/vehicles/models/lod0/old.glb',b'unused stale cache')
+        self.package()
+        with zipfile.ZipFile(self.output) as archive:
+            self.assertIn('assets/vehicles/CREDITS.md',archive.namelist())
+            self.assertIn('assets/vehicles/models/car.glb',archive.namelist())
+            for level in range(4):
+                self.assertIn(f'assets/vehicles/models/lod{level}/car.glb',archive.namelist())
+            self.assertNotIn('assets/vehicles/models/lod0/old.glb',archive.namelist())
+
+    def test_stale_vehicle_cache_keeps_previous_package(self):
+        source = self.vehicle_publication()
+        self.package()
+        previous = self.output.read_bytes()
+        source.write_bytes(glb({'extras':{'changed':True}}))
+        with self.assertRaisesRegex(ValueError,'fingerprint'):
+            self.package()
+        self.assertEqual(self.output.read_bytes(),previous)
+
     def test_relocated_pack_keeps_referenced_bytes_and_only_runtime_files(self):
         count, size = self.package()
         destination = self.root / "extracted"
@@ -114,6 +161,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         expected = {"output/town.glb", "output/ATTRIBUTION.md", "output/trees.instances.json", "output/poles.instances.json", "output/guardrails.glb",
                     "assets/tree.glb", "assets/dry_tree_impostor.glb", "output/osm/forest_patches.json", "assets/side.png", "assets/top.png", "assets/shrub.png", "inventory.toml",
                     "assets/zombies/models/Zombie.glb", "assets/zombies/models/lods.json"}
+        expected.add("vehicles/car.toml")
         expected.update(f"items/{name}.toml" for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"))
         expected.update(f"assets/zombies/models/lod{level}/Zombie.glb" for level in range(1, 4))
         expected.update(f"credits/assets/{name}" for name in (*ASSET_CREDIT_FILES, "MAP.txt", "VEGETATION.txt"))

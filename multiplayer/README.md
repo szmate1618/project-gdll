@@ -179,7 +179,7 @@ and data URIs are supported. Zombie assets may have at most 128 skeleton nodes
 (including non-joint scene nodes); incompatible rigs fail before hosting.
 Weapon definitions and starting inventory are loaded once per scene and copied
 for each joining player, so changing files cannot change a running session.
-The current wire protocol is version 10; rebuild both client and server together.
+The current wire protocol is version 11; rebuild both client and server together.
 Snapshots include persistent head/torso wound masks and authoritative loose
 cavity contents. Clients render these without running their own cavity physics.
 
@@ -195,6 +195,9 @@ Scene options:
   creation, sight/hearing and attacks. Authored scenario routes, shooting and
   ragdolls remain active. Clients need no matching flag.
 - `--seconds N`: end a session after N seconds, useful for checks.
+- `--time-of-day H --day-length S`: shared day/night clock, starting at noon
+  with a 1,200-second day by default. Zero day length freezes time. Use
+  `--time-of-day 0 --day-length 0` on both peers for fixed night and headlights.
 - `--lag-ms N --loss-percent N`: simulate outgoing packet delay and loss through
   GameNetworkingSockets. These testing options may differ between peers.
 
@@ -202,9 +205,41 @@ Client controls: WASD, mouse look, Shift run, Space jump, Ctrl crouch, Z prone,
 1–5 weapon selection, R reload, F toggle flashlight, left click fire/throw, right click cycle scope.
 Tab switches Combat/Interaction. In Interaction, hold either mouse button to
 grab a nearby prop; left mouse also grabs doors. Mouse motion and walking move
-the grip. Alt releases/recaptures the mouse; Escape exits. Losing focus releases
+the grip. F12 releases/recaptures the mouse; Escape exits. Losing focus releases
 controls. Ammo and mode appear in the window title. Remote players are simple
 colored bodies whose height follows their stance.
+
+At level load both peers validate the optional `abandoned_cars.instances.json`
+beside the map and include its exact bytes in the content fingerprint. The server
+spawns every parked car and randomly chooses its type once per session. Clients
+receive those types and poses from the server, including on late join; they never
+rerandomize the population. Up to 1,024 cars fit the runtime/wire population limit.
+The existing 256 KiB snapshot budget still bounds all entity populations together.
+Full car poses are currently included in every snapshot, so large populations
+increase network traffic; vehicle interest filtering is not implemented yet.
+If the sidecar is absent, the server places one random shared car near the initial
+spawn when clear supported terrain is available within 25 m. An empty sidecar
+suppresses this fallback. Walk beside a car's configured entry point and press
+Enter to enter the indicated free seat. Up to
+four clients share one car in distinct seats; the front-left seat drives. The
+window title shows the car name and available seat inside its configured radius.
+WASD drives, Space brakes, Enter
+exits below 1.5 m/s when there is a clear standing position, and Alt toggles
+first/third person while driving. F12 continues to release/recapture the mouse.
+Passengers can only mouse-look and leave with Enter; they cannot drive, select
+weapons, scope, grab or choose the chase camera. Remote occupants are hidden
+inside the prototype chassis. The server owns seat reservations and releases
+them on exit or disconnect. Clients share optional [vehicle LoD assets](../assets/vehicles/README.md#vehicle-lods) by type,
+with a procedural fallback when the local cache is unavailable. See [vehicle definitions](../vehicles/README.md)
+for names, masses, seat entry/exit points, wheels and headlights. Definitions are
+loaded once per scene, fingerprinted, and shipped with client and asset packages.
+Parked server cars use two static boxes; only driver entry (or an explicit
+gameplay impulse) enables wheel/suspension physics. After the driver leaves or
+disconnects, the car brakes and returns to boxes once settled. Passengers do not
+activate it. Client replicas retain poses and velocity using static colliders
+without local suspension bodies.
+The car has the same suspension, directional grip, steering response, reduced
+reverse performance and zombie push/ragdoll impacts as [single-player](../docs/VIEWER.md#prototype-vehicles).
 
 Combat normal view shows the same camera-local 1911, UMP, scoped M14 sniper and
 pump shotgun as single-player, including the eye-height hand/shoulder poses.
@@ -237,7 +272,16 @@ The server owns player movement, weapon/ammo decisions, zombie perception and
 target selection, door/prop interactions and ragdoll physics. Each zombie is
 advanced once per tick across all players. It retains a visible target, or
 selects the nearest visible player. Disconnects release grabs and invalidate
-target identities. Two players cannot own the same grabbed object.
+target identities. Two players cannot own the same grabbed object or driver seat.
+Cars use the same shared rigid-body world, with one physics update per server
+tick regardless of input traffic. Input timeout applies brakes while preserving
+the driver's seat; disconnect releases the seat and applies brakes. Parked cars
+remain available, including to late joiners.
+Nearby living zombies use dynamic upright capsules in that world, including
+their touching crowd neighbors beyond the activation radius. The server alone
+advances their force-driven movement and publishes resulting feet positions.
+Car, crowd, wall, door and object contact responses share the same solver;
+high-speed contact transfers capsule motion into the existing ragdoll system.
 
 The server runs at 60 Hz, including two existing 120 Hz player substeps. It
 sends essential world snapshots at 20 Hz. One peer cannot advance the world by
@@ -264,6 +308,15 @@ quaternions with the fixed asset normalization kept separate, preserving size
 through turns. Remote players draw in the opaque pass before glass and rain.
 The server does not render, so
 authoritative hit/ragdoll poses come from its animation clock.
+Cars replicate rigid chassis and individual wheel poses plus chassis velocity;
+wheel steering, suspension travel and rotation remain visible to every client.
+All cars are included in essential snapshots (a maximum of 32 on the wire; one
+is currently spawned). The driver camera follows the same interpolated pose as
+the rendered car. Vehicle motion is server-authoritative and is not locally
+predicted, so driving response includes network latency. Driving commands are
+retained/resubmitted normally but never replayed as walking movement. Lighting
+uses the shared server tick and matching day/night settings, including parked
+headlights at night.
 
 Living zombies use the existing spatial index for interest queries. Entry/exit
 radii are 220/240 m in all directions; offscreen threats still simulate.
@@ -318,6 +371,11 @@ command gaps and the movement speed limit.
 The process integration
 test connects two real clients under artificial packet loss and latency,
 exercises late join, and checks content mismatch rejection.
+Vehicle regressions cover exclusive seats, duplicate Enter commands, blocked
+moving exits, timeout braking, disconnect/re-entry, late-join wheel poses,
+interpolation, zombie push/ragdoll replication, and equivalence to single-player
+physics. The graphical client regression also exercises Enter, Alt, F12 and
+first/third person driving views.
 
 This is a first playable networking foundation, with eight-player admission and
 512 interior boxes per session. Capacity/performance at those limits is not a
@@ -338,6 +396,8 @@ update; the next complete snapshot supersedes it.
 Implementation lives in `protocol.*`, `network.*`, `outgoing_snapshots.*`,
 `asset_validation.*` and `scene.*` at this directory root. `server/replication.*`
 owns per-peer interest and corpse transfers; `server/world.*` owns simulation.
+`server/vehicle_seats.*` owns exclusive seat admission and driver-only controls;
+shared `src/vehicle_config.*` and `src/vehicle_player.*` define seats and entry/exit geometry.
 The remaining `server/` code hosts sessions, and `client/` handles input, prediction,
 snapshot playback and rendering. Shared `src/` additions expose movement
 save/restore and remote physics poses; existing single-player APIs and defaults

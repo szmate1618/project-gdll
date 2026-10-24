@@ -1,0 +1,11 @@
+Model Information:
+* title:	2005 Ford Focus (Super Low-Poly)
+* source:	https://sketchfab.com/3d-models/2005-ford-focus-super-low-poly-076d01878b084b6489d3f2ac24bba4f4
+* author:	3DCars (https://sketchfab.com/3DCarss)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "2005 Ford Focus (Super Low-Poly)" (https://sketchfab.com/3d-models/2005-ford-focus-super-low-poly-076d01878b084b6489d3f2ac24bba4f4) by 3DCars (https://sketchfab.com/3DCarss) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

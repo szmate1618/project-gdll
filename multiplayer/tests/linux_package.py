@@ -43,6 +43,8 @@ def main():
             archive.extractall(destination, filter="data")
         package = destination / "godollo-client-linux-x86_64"
         check_credits(package)
+        if not list((package / "vehicles").glob("*.toml")):
+            raise RuntimeError("Package is missing vehicle definitions")
         audio = package / "assets/audio"
         manifest = json.loads((audio / "sources.json").read_text())
         for name in ("rustle.wav", "rustle2.wav", "rustle3.wav", "dry_rustle.wav", "dry_rustle2.wav", "twig_snap.wav"):

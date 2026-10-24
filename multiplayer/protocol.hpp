@@ -3,18 +3,24 @@
 #include "fps_controller.hpp"
 #include "grenades.hpp"
 #include "blood_mist.hpp"
+
+#include "vehicle_config.hpp"
 #include <glm/gtc/quaternion.hpp>
 #include <cstdint>
 #include <string>
 #include <variant>
 #include <vector>
+#include <array>
 
 namespace multiplayer {
 constexpr float tickSeconds = 1.0f / 60;
 constexpr std::size_t maxPlayers = 8, maxZombies = 1024, maxVisibleZombies = 256;
 constexpr std::size_t maxBoxes = 512, maxDoors = 4096, maxBones = 128;
+constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
+constexpr std::uint32_t noVehicle = UINT32_MAX;
+constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 10; // Shared head/torso wounds and up to seven cavity contents.
+constexpr std::uint32_t protocolVersion = 11; // Vehicle types, seats and rigid poses alongside damage/grenades.
 
 struct Hello { std::string fingerprint; };
 struct Welcome { std::uint32_t player = 0; };
@@ -33,6 +39,7 @@ struct Command {
     glm::vec2 drag{0}; // Mouse pixels accumulated during this command.
     bool interaction = false, left = false, right = false, reload = false;
     std::uint8_t slot = 0;
+    bool enterVehicle = false; // One Enter press; deduplicated with the command sequence.
 };
 struct Commands {
     std::vector<Command> commands;
@@ -47,6 +54,9 @@ struct PlayerState {
     std::uint32_t loaded = 0, reserve = 0;
     std::uint64_t shots = 0;
     bool weaponCoolingDown = false;
+
+    std::uint32_t vehicle = noVehicle;
+    std::uint8_t seat = noVehicleSeat;
 };
 struct ZombieState {
     std::uint32_t id = 0, asset = 0;
@@ -72,6 +82,17 @@ struct BoxState {
     glm::vec3 center{0}, halfExtents{.5f};
     glm::quat rotation{1, 0, 0, 0};
 };
+struct RigidPose {
+    glm::vec3 center{0};
+    glm::quat rotation{1, 0, 0, 0};
+};
+struct VehicleState {
+    std::uint32_t id = 0;
+    std::uint32_t type = 0;
+    RigidPose chassis;
+    std::array<RigidPose, 4> wheels;
+    glm::vec3 velocity{0};
+};
 // Self-contained interested-entity set. Absence hides a zombie; it does not kill it.
 struct Snapshot {
     std::uint64_t tick = 0;
@@ -83,6 +104,8 @@ struct Snapshot {
     std::vector<viewer::GrenadeExplosion> explosions;
     std::vector<glm::mat4> woundContents;
     std::vector<viewer::BloodMistBurst> bloodMist{};
+
+    std::vector<VehicleState> vehicles;
 };
 using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment, CorpsePose, PoseAck>;
 std::vector<std::uint8_t> encode(const Message& message);

@@ -1,0 +1,197 @@
+{
+  "animationCount": 0,
+  "categories": [
+    {
+      "uid": "22a2f677efad4d7bbca5ad45f9b5868e",
+      "name": "Cars & Vehicles",
+      "slug": "cars-vehicles",
+      "uri": "https://api.sketchfab.com/v3/categories/22a2f677efad4d7bbca5ad45f9b5868e",
+      "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/45dd0cc0860ac57fcd63bde1cc3f2b7c-v2.svg",
+      "thumbnails": [
+        {
+          "width": "512",
+          "height": "288",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/512x288.png"
+        },
+        {
+          "width": "800",
+          "height": "450",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/800x450.png"
+        }
+      ]
+    }
+  ],
+  "commentCount": 0,
+  "createdAt": "2023-03-26T20:49:07.325705",
+  "embedUrl": "https://sketchfab.com/models/773b1c83b4a240f2ac415c351d3a65c6/embed",
+  "faceCount": 11712,
+  "isAgeRestricted": false,
+  "license": {
+    "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+    "label": "CC Attribution",
+    "fullName": "Creative Commons Attribution",
+    "requirements": "Author must be credited. Commercial use is allowed.",
+    "url": "http://creativecommons.org/licenses/by/4.0/",
+    "slug": "by"
+  },
+  "likeCount": 13,
+  "name": "Opel Corsa B - Low Poly",
+  "publishedAt": "2023-03-26T20:52:37.024475",
+  "soundCount": 0,
+  "staffpickedAt": null,
+  "tags": [
+    {
+      "name": "wheels",
+      "slug": "wheels",
+      "uri": "https://api.sketchfab.com/v3/tags/wheels"
+    },
+    {
+      "name": "opel",
+      "slug": "opel",
+      "uri": "https://api.sketchfab.com/v3/tags/opel"
+    },
+    {
+      "name": "old",
+      "slug": "old",
+      "uri": "https://api.sketchfab.com/v3/tags/old"
+    },
+    {
+      "name": "Corsa",
+      "slug": "corsa",
+      "uri": "https://api.sketchfab.com/v3/tags/corsa"
+    },
+    {
+      "name": "blender3dmodel",
+      "slug": "blender3dmodel",
+      "uri": "https://api.sketchfab.com/v3/tags/blender3dmodel"
+    },
+    {
+      "name": "low-poly-model",
+      "slug": "low-poly-model",
+      "uri": "https://api.sketchfab.com/v3/tags/low-poly-model"
+    },
+    {
+      "name": "low-poly",
+      "slug": "low-poly",
+      "uri": "https://api.sketchfab.com/v3/tags/low-poly"
+    },
+    {
+      "name": "lowpoly",
+      "slug": "lowpoly",
+      "uri": "https://api.sketchfab.com/v3/tags/lowpoly"
+    },
+    {
+      "name": "car",
+      "slug": "car",
+      "uri": "https://api.sketchfab.com/v3/tags/car"
+    },
+    {
+      "name": "noai",
+      "slug": "noai",
+      "uri": "https://api.sketchfab.com/v3/tags/noai"
+    },
+    {
+      "name": "corsab",
+      "slug": "corsab",
+      "uri": "https://api.sketchfab.com/v3/tags/corsab"
+    }
+  ],
+  "thumbnails": {
+    "images": [
+      {
+        "uid": "7f72e40ef99a4c9390060780369a9daa",
+        "width": 1920,
+        "height": 1080,
+        "size": 149507,
+        "url": "https://media.sketchfab.com/models/773b1c83b4a240f2ac415c351d3a65c6/thumbnails/1cee82aaf2b145a494ce6f3071bb7e38/40f8ebff3c7141c281887cf9cc194011.jpeg"
+      },
+      {
+        "uid": "dce9a50cb4a24fcb906c6e487e6014d4",
+        "width": 1024,
+        "height": 576,
+        "size": 48291,
+        "url": "https://media.sketchfab.com/models/773b1c83b4a240f2ac415c351d3a65c6/thumbnails/1cee82aaf2b145a494ce6f3071bb7e38/b36b0e6bc1564e0eac62f52a1b685db3.jpeg"
+      },
+      {
+        "uid": "66e74e0cdb5949c08c3cdf96c4c79303",
+        "width": 720,
+        "height": 405,
+        "size": 29362,
+        "url": "https://media.sketchfab.com/models/773b1c83b4a240f2ac415c351d3a65c6/thumbnails/1cee82aaf2b145a494ce6f3071bb7e38/34b51822e3634cb7a602506afb63c7df.jpeg"
+      },
+      {
+        "uid": "b8533bbdc3c0442dbcea731978615cf5",
+        "width": 256,
+        "height": 144,
+        "size": 7217,
+        "url": "https://media.sketchfab.com/models/773b1c83b4a240f2ac415c351d3a65c6/thumbnails/1cee82aaf2b145a494ce6f3071bb7e38/dc81aee41db148f3b0dff172392adfb8.jpeg"
+      },
+      {
+        "uid": "7341504ca2b04acabcfcd1eac776b153",
+        "width": 64,
+        "height": 36,
+        "size": 1457,
+        "url": "https://media.sketchfab.com/models/773b1c83b4a240f2ac415c351d3a65c6/thumbnails/1cee82aaf2b145a494ce6f3071bb7e38/b960f936304e4d009a445ca7790b0309.jpeg"
+      }
+    ]
+  },
+  "uid": "773b1c83b4a240f2ac415c351d3a65c6",
+  "uri": "https://api.sketchfab.com/v3/models/773b1c83b4a240f2ac415c351d3a65c6",
+  "user": {
+    "uid": "657fd54fe9b64448acfdccde9342999b",
+    "username": "JiggleSticks",
+    "displayName": "JiggleSticks",
+    "account": "basic",
+    "profileUrl": "https://sketchfab.com/JiggleSticks",
+    "avatar": {
+      "uid": "44930eeb40ed47f99c2fdf1652895558",
+      "uri": "https://api.sketchfab.com/v3/avatars/44930eeb40ed47f99c2fdf1652895558",
+      "images": [
+        {
+          "width": 32,
+          "height": 32,
+          "size": 1337,
+          "url": "https://media.sketchfab.com/avatars/44930eeb40ed47f99c2fdf1652895558/e30b584dbac64779ba03a41157b13a98.png"
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "size": 2385,
+          "url": "https://media.sketchfab.com/avatars/44930eeb40ed47f99c2fdf1652895558/1aec7dc1b71f4703ac349ceb4cd76a9d.png"
+        },
+        {
+          "width": 90,
+          "height": 90,
+          "size": 8311,
+          "url": "https://media.sketchfab.com/avatars/44930eeb40ed47f99c2fdf1652895558/e864f1a8fb9a4edab0ef467d0f4bd41e.png"
+        },
+        {
+          "width": 100,
+          "height": 100,
+          "size": 10331,
+          "url": "https://media.sketchfab.com/avatars/44930eeb40ed47f99c2fdf1652895558/4841700dd80f492fa270822b601a23fe.png"
+        }
+      ]
+    },
+    "uri": "https://api.sketchfab.com/v3/users/657fd54fe9b64448acfdccde9342999b"
+  },
+  "vertexCount": 6719,
+  "viewCount": 2147,
+  "viewerUrl": "https://sketchfab.com/3d-models/opel-corsa-b-low-poly-773b1c83b4a240f2ac415c351d3a65c6",
+  "isDownloadable": true,
+  "isProtected": false,
+  "description": "Hi!\n\nSo today I thaught that I had to give some credit not to the most beautifull car, but to the car that never dies.\nMy family had one of these and they were a blast to see. \nI saw one this week and told myself that I had to do one.",
+  "price": null,
+  "downloadCount": 379,
+  "editorUrl": "https://sketchfab.com/models/773b1c83b4a240f2ac415c351d3a65c6/edit",
+  "status": {
+    "warning": {},
+    "processing": "SUCCEEDED"
+  },
+  "source": "website",
+  "hasCommentsDisabled": false,
+  "updatedAt": "2025-09-04T11:22:59.075004",
+  "pbrType": null,
+  "textureCount": 0,
+  "materialCount": 8
+}

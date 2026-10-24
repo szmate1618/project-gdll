@@ -3,6 +3,8 @@
 #include "snapshots.hpp"
 #include "camera.hpp"
 #include "weapon_motion.hpp"
+
+#include "vehicle_player.hpp"
 #ifdef MP_GRAPHICS
 #include "players.hpp"
 #include "renderer.hpp"
@@ -25,6 +27,9 @@ struct Input {
     viewer::Camera camera;
     viewer::WeaponMotion weaponMotion;
     std::size_t equippedSlot = 0; // Authoritative slot, independent of requested slot.
+
+    viewer::VehiclePlayer driver;
+    bool enterVehicle = false, toggleDrivingCamera = false;
     bool capture = true, firstMouse = true, interaction = false, prone = false, reload = false;
     bool leftPressed = false, rightPressed = false;
     bool canScope = false;
@@ -39,12 +44,15 @@ void key(GLFWwindow* window, int code, int, int action, int) {
     if (action != GLFW_PRESS) return;
     auto& in = input(window);
     if (code == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(window, true);
+    if (code == GLFW_KEY_ENTER && in.capture) in.enterVehicle = true;
+    if ((code == GLFW_KEY_LEFT_ALT || code == GLFW_KEY_RIGHT_ALT) && in.driver.driving()) in.toggleDrivingCamera = true;
+    if (in.driver.occupied() && code != GLFW_KEY_F12) return;
     if (code == GLFW_KEY_TAB) in.interaction = !in.interaction;
     if (code == GLFW_KEY_Z) in.prone = true;
     if (code == GLFW_KEY_R) in.reload = true;
     if (code == GLFW_KEY_F) in.flashlight = !in.flashlight;
     if (code >= GLFW_KEY_1 && code <= GLFW_KEY_5) in.slot = static_cast<std::uint8_t>(code - GLFW_KEY_1);
-    if (code == GLFW_KEY_LEFT_ALT) {
+    if (code == GLFW_KEY_LEFT_ALT || code == GLFW_KEY_F12) {
         in.capture = !in.capture; in.firstMouse = true; in.drag = {};
         in.leftPressed = in.rightPressed = false;
         glfwSetInputMode(window, GLFW_CURSOR, in.capture ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
@@ -61,7 +69,7 @@ void mouse(GLFWwindow* window, double x, double y) {
 }
 void button(GLFWwindow* window, int buttonCode, int action, int) {
     auto& in = input(window);
-    if (!in.capture || action != GLFW_PRESS) return;
+    if (!in.capture || in.driver.occupied() || action != GLFW_PRESS) return;
     if (buttonCode == GLFW_MOUSE_BUTTON_LEFT) in.leftPressed = true;
     if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT && in.interaction) in.rightPressed = true;
     if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT && in.canScope && !in.interaction) in.camera.cycleViewMode();
@@ -69,7 +77,7 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
 void focus(GLFWwindow* window, int focused) {
     if (!focused) {
         auto& in = input(window); in.capture = false; in.firstMouse = true;
-        in.drag = {}; in.prone = in.reload = false;
+        in.drag = {}; in.prone = in.reload = in.enterVehicle = in.toggleDrivingCamera = false;
         in.leftPressed = in.rightPressed = false;
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     }
@@ -108,6 +116,7 @@ struct Graphics {
         const auto shaders = multiplayer::resourceRoot() / "shaders";
         renderer = std::make_unique<viewer::Renderer>(scene.model, shaders, scene.trees ? &*scene.trees : nullptr,
             &scene.zombies, scene.forests ? &*scene.forests : nullptr);
+        renderer->setVehicleAssets(multiplayer::resourceRoot() / "assets/vehicles/models");
         reticle = std::make_unique<viewer::ReticleOverlay>(shaders);
         const viewer::FPSConfig body;
         weapon = std::make_unique<viewer::WeaponOverlay>(shaders, multiplayer::weaponModelDirectory(),
@@ -133,12 +142,13 @@ struct Graphics {
 };
 multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double seconds) {
     multiplayer::Command c;
-    const auto aim = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, seconds, !in.interaction);
+    const auto aim = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, seconds, !in.driver.occupied() && !in.interaction);
     c.movement.yawDegrees = aim.yawDegrees(); c.pitch = aim.pitchDegrees(); c.slot = in.slot;
     c.interaction = in.interaction;
     if (bot) { c.movement.forward = 1; c.movement.yawDegrees = 0; c.pitch = 0; return c; }
     if (!window || !in.capture) return c;
 #ifdef MP_GRAPHICS
+    c.enterVehicle = in.enterVehicle; in.enterVehicle = false;
     const auto held = [&](int code) { return glfwGetKey(window, code) == GLFW_PRESS ? 1.0f : 0.0f; };
     c.movement.forward = held(GLFW_KEY_W) - held(GLFW_KEY_S); c.movement.right = held(GLFW_KEY_D) - held(GLFW_KEY_A);
     c.movement.run = held(GLFW_KEY_LEFT_SHIFT); c.movement.jump = held(GLFW_KEY_SPACE); c.movement.crouch = held(GLFW_KEY_LEFT_CONTROL);
@@ -208,13 +218,13 @@ int main(int argc, char** argv) {
                     bool found = false;
                     for (const auto& p : snapshot->players) if (p.id == self) {
                         const bool ready = prediction.ready(); const auto before = prediction.eye();
-                        if (!ready || p.slot != ownState.slot) {
+                        if (!ready || p.slot != ownState.slot || p.vehicle != ownState.vehicle || p.seat != ownState.seat) {
                             if (!weaponDefinitions.equip(p.slot))
                                 throw std::runtime_error("Server equipped an unavailable weapon");
                             while (in.camera.viewMode() != viewer::Camera::ViewMode::original)
                                 in.camera.cycleViewMode();
                         }
-                        in.canScope = weaponDefinitions.equipped().config.hasScope;
+                        in.canScope = p.vehicle == multiplayer::noVehicle && weaponDefinitions.equipped().config.hasScope;
                         in.equippedSlot = p.slot;
 #ifdef MP_GRAPHICS
                         if (graphics.weapon && ready && p.shots > ownState.shots && !weaponDefinitions.equipped().config.grenade) {
@@ -224,13 +234,17 @@ int main(int argc, char** argv) {
                             graphics.muzzleFlash.fire(now, {});
                         }
 #endif
-                        prediction.reconcile(p, *scene.collision); ownState = p; found = true;
+                        prediction.reconcile(p,*scene.collision);
+                        const bool walking=p.vehicle==multiplayer::noVehicle && ownState.vehicle==multiplayer::noVehicle;
+                        in.driver.followCar(p.vehicle==multiplayer::noVehicle?std::optional<std::size_t>{}:p.vehicle,
+                                            *scene.vehicles,in.camera,p.seat==multiplayer::noVehicleSeat?0:p.seat);
+                        ownState=p; found=true;
                         if (!ready) {
                             in.slot = p.slot;
                             if (!options.explicitLook) in.camera.setOrientation(p.yaw, p.pitch);
                         }
                         const auto correction = before - prediction.eye();
-                        if (ready && glm::length(correction) < 2) visualOffset += correction; else visualOffset = {};
+                        if (ready && walking && glm::length(correction) < 2) visualOffset += correction; else visualOffset = {};
                     }
                     if (!found) throw std::runtime_error("Server omitted local player state");
                 } else if (const auto* pose = std::get_if<multiplayer::CorpsePose>(&message)) {
@@ -267,7 +281,14 @@ int main(int argc, char** argv) {
             }
             snapshots.apply(scene, now);
             visualOffset *= static_cast<float>(std::exp(-15 * dt));
-            if (prediction.ready()) in.camera.setPosition(prediction.eye() + visualOffset);
+            if (prediction.ready()) {
+                if (in.toggleDrivingCamera) {
+                    in.driver.toggleThirdPerson(*scene.vehicles, in.camera, *scene.collision);
+                    in.toggleDrivingCamera = false;
+                }
+                if (in.driver.occupied()) in.driver.updateCamera(*scene.vehicles, in.camera, *scene.collision);
+                else in.camera.setPosition(prediction.eye() + visualOffset);
+            }
             if (options.bot) in.camera.setOrientation(0, 0);
 #ifdef MP_GRAPHICS
             if (graphics.window) {
@@ -280,26 +301,37 @@ int main(int argc, char** argv) {
                     renderer.updateGrenades(snapshots.grenades());
                     renderer.updateVegetationBlasts(snapshots.explosions(now));
                     renderer.setExplosionLights(snapshots.explosionLights(now));
-                    const auto viewCamera = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, now, !in.interaction);
+                    const auto viewCamera = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, now, !in.driver.occupied() && !in.interaction);
                     auto flash = graphics.muzzleFlash.light(now);
                     flash.position = graphics.weapon->muzzlePosition(graphics.muzzleSlot, graphics.muzzleModelPosition,
                         in.weaponMotion.pose(graphics.muzzleSlot, now));
                     renderer.setMuzzleFlash(flash.transformed(glm::inverse(viewCamera.view())));
                     renderer.resize(width, height); renderer.updateDoors(*scene.doors); renderer.updateBoxes(*scene.boxes);
+                    renderer.updateVehicles(*scene.vehicles, in.driver.car());
+                    renderer.setDayNightLighting(viewer::dayNightLighting(scene.dayNight.hourAt(snapshots.animationSeconds())));
                     renderer.updateZombies(scene.zombies);
                     renderer.render(viewCamera, snapshots.animationSeconds(), [&] {
                         graphics.players->draw(viewCamera, snapshots.players(), self, width, height);
                     });
-                    if (prediction.ready() && !in.interaction &&
+                    if (prediction.ready() && !in.driver.occupied() && !in.interaction &&
                         in.camera.viewMode() == viewer::Camera::ViewMode::original &&
                         viewer::weaponViewVisible(weaponDefinitions.equipped().config, ownState.loaded, ownState.weaponCoolingDown))
                         graphics.weapon->draw(ownState.slot, width, height, flash,
                                               in.weaponMotion.pose(ownState.slot, now));
-                    graphics.reticle->draw(in.camera.viewMode(), width, height);
+                    if (!in.driver.occupied()) graphics.reticle->draw(in.camera.viewMode(), width, height);
                     renderer.present(width, height); glfwSwapBuffers(graphics.window);
                     viewer::Renderer::checkErrors("multiplayer frame");
+                    const auto entry = !in.driver.occupied() && prediction.ready() ?
+                        viewer::vehicleEntry(*scene.vehicles, in.camera.position(), *scene.collision,
+                            [&](std::size_t car, std::size_t seat) {
+                                for (const auto& p : snapshots.latest().players)
+                                    if (p.vehicle == car && p.seat == seat) return false;
+                                return true;
+                            }) : std::optional<viewer::VehicleSeatRef>{};
                     const auto title = "Gödöllő Multiplayer | Player " + std::to_string(self) + " | " +
-                        (in.interaction ? "Interaction" : "Combat") + " | Ammo " + std::to_string(ownState.loaded) + "/" + std::to_string(ownState.reserve);
+                        (in.driver.occupied() ? (in.driver.driving() ? "Driving | WASD, Space brake, Enter exit, Alt camera" : "Passenger | Mouse look, Enter exit") :
+                         in.interaction ? "Interaction" : "Combat") + " | Ammo " + std::to_string(ownState.loaded) + "/" + std::to_string(ownState.reserve)
+                        + (entry ? " | " + viewer::vehicleEntryLabel(*scene.vehicles, *entry) : "");
                     glfwSetWindowTitle(graphics.window, title.c_str());
                 }
             } else

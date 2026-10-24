@@ -1,0 +1,11 @@
+Model Information:
+* title:	Skoda Octavia 2001 Low Poly Pixel Art
+* source:	https://sketchfab.com/3d-models/skoda-octavia-2001-low-poly-pixel-art-7f2a74dc21524af1a7d7a19faffbdfb8
+* author:	Kuutti Siitonen (https://sketchfab.com/kuuttisiitonen)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Skoda Octavia 2001 Low Poly Pixel Art" (https://sketchfab.com/3d-models/skoda-octavia-2001-low-poly-pixel-art-7f2a74dc21524af1a7d7a19faffbdfb8) by Kuutti Siitonen (https://sketchfab.com/kuuttisiitonen) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

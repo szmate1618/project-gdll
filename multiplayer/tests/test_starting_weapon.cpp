@@ -52,6 +52,8 @@ int main(int argc, char** argv) {
         if (argc != 3) throw std::runtime_error("Test asset and fixture directory arguments missing");
         resources = argv[2];
         std::filesystem::create_directories(resources / "items");
+        std::filesystem::copy(std::filesystem::path(MP_ROOT) / "vehicles", resources / "vehicles",
+            std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
         for (const auto& file : std::filesystem::directory_iterator(std::filesystem::path(MP_ROOT) / "items"))
             if (file.path().extension() == ".toml")
                 std::filesystem::copy_file(file.path(), resources / "items" / file.path().filename(),
@@ -80,6 +82,21 @@ int main(int argc, char** argv) {
         char* args[] = {program, argv[1], noTrees, count, zero, headless, seconds, duration};
         require(clientMain(8, args) == 0 && commands > 1, "Client did not preserve its initial authoritative selection");
         require(world->players().at(player).weapons.slot() == 3, "Client commands replaced the configured starting weapon");
+        // Vehicle resources affect the handshake, while a live session keeps
+        // the definitions captured before the edit.
+        if (!scene.vehicles->count()) scene.vehicles->add({0,2,0});
+        const float capturedWeight = scene.vehicles->config(0).weightKg;
+        const auto carFile = resources / "vehicles/toyota_corolla_1999.toml";
+        std::ifstream carInput(carFile);
+        std::string carText((std::istreambuf_iterator<char>(carInput)), {});
+        const auto weight = carText.find("weight_kg = ");
+        require(weight != std::string::npos, "Vehicle fixture has no mass");
+        carText.replace(weight, carText.find('\n', weight)-weight,
+                        "weight_kg = " + std::to_string(capturedWeight + 100));
+        { std::ofstream carOutput(carFile); carOutput << carText; }
+        multiplayer::Scene changedCars(options);
+        require(changedCars.fingerprint != scene.fingerprint && scene.vehicles->config(0).weightKg == capturedWeight,
+                "Vehicle config did not affect fingerprint or changed a running session");
         // A later join must use the session's fingerprinted starting definitions,
         // even if the source inventory is edited while the server is running.
         { std::ofstream inventory(resources / "inventory.toml"); inventory << "invalid inventory\n"; }

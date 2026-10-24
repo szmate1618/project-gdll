@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "length_m": 3.6,
+  "bottom_m": -0.68,
+  "yaw_degrees": {
+    "toyota-corolla-1999": 180,
+    "volkswagen-golf-v-2006": 180,
+    "mercedes-benz-s-500-1995": 90,
+    "volvo-v70": 90,
+    "suzuki-grand-vitara-2000": 90,
+    "ford-focus-2005": -90,
+    "volkswagen-golf-mk1-1983": 180,
+    "lada-2107": 0,
+    "opel-astra-2008": 180,
+    "opel-corsa-b": 0,
+    "fiat-126p-maluch-basic": -90,
+    "fiat-126p-maluch-flat": -45,
+    "fiat-126p-maluch-tuned": -45,
+    "volkswagen-passat-b8": -90,
+    "suzuki-swift-2024": 180,
+    "skoda-octavia-2001": 180
+  }
+}

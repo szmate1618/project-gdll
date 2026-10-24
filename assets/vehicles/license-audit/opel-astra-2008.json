@@ -1,0 +1,202 @@
+{
+  "animationCount": 0,
+  "categories": [
+    {
+      "uid": "22a2f677efad4d7bbca5ad45f9b5868e",
+      "name": "Cars & Vehicles",
+      "slug": "cars-vehicles",
+      "uri": "https://api.sketchfab.com/v3/categories/22a2f677efad4d7bbca5ad45f9b5868e",
+      "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/45dd0cc0860ac57fcd63bde1cc3f2b7c-v2.svg",
+      "thumbnails": [
+        {
+          "width": "512",
+          "height": "288",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/512x288.png"
+        },
+        {
+          "width": "800",
+          "height": "450",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/800x450.png"
+        }
+      ]
+    }
+  ],
+  "commentCount": 1,
+  "createdAt": "2024-12-12T20:13:53.691584",
+  "embedUrl": "https://sketchfab.com/models/4591ce5c3b444d0197e8cea7d6cd033c/embed",
+  "faceCount": 4634,
+  "isAgeRestricted": false,
+  "license": {
+    "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+    "label": "CC Attribution",
+    "fullName": "Creative Commons Attribution",
+    "requirements": "Author must be credited. Commercial use is allowed.",
+    "url": "http://creativecommons.org/licenses/by/4.0/",
+    "slug": "by"
+  },
+  "likeCount": 25,
+  "name": "Opel Astra 2008 (From scan)",
+  "publishedAt": "2024-12-12T20:44:08.710266",
+  "soundCount": 0,
+  "staffpickedAt": null,
+  "tags": [
+    {
+      "name": "cars",
+      "slug": "cars",
+      "uri": "https://api.sketchfab.com/v3/tags/cars"
+    },
+    {
+      "name": "opel",
+      "slug": "opel",
+      "uri": "https://api.sketchfab.com/v3/tags/opel"
+    },
+    {
+      "name": "retopology",
+      "slug": "retopology",
+      "uri": "https://api.sketchfab.com/v3/tags/retopology"
+    },
+    {
+      "name": "retopo",
+      "slug": "retopo",
+      "uri": "https://api.sketchfab.com/v3/tags/retopo"
+    },
+    {
+      "name": "casual",
+      "slug": "casual",
+      "uri": "https://api.sketchfab.com/v3/tags/casual"
+    },
+    {
+      "name": "retopologized",
+      "slug": "retopologized",
+      "uri": "https://api.sketchfab.com/v3/tags/retopologized"
+    },
+    {
+      "name": "opel-astra",
+      "slug": "opel-astra",
+      "uri": "https://api.sketchfab.com/v3/tags/opel-astra"
+    },
+    {
+      "name": "opelastra",
+      "slug": "opelastra",
+      "uri": "https://api.sketchfab.com/v3/tags/opelastra"
+    },
+    {
+      "name": "vehicle",
+      "slug": "vehicle",
+      "uri": "https://api.sketchfab.com/v3/tags/vehicle"
+    },
+    {
+      "name": "lowpoly",
+      "slug": "lowpoly",
+      "uri": "https://api.sketchfab.com/v3/tags/lowpoly"
+    },
+    {
+      "name": "scan",
+      "slug": "scan",
+      "uri": "https://api.sketchfab.com/v3/tags/scan"
+    },
+    {
+      "name": "car",
+      "slug": "car",
+      "uri": "https://api.sketchfab.com/v3/tags/car"
+    }
+  ],
+  "thumbnails": {
+    "images": [
+      {
+        "uid": "c12b64621af448cf9697291c21d98edd",
+        "width": 1920,
+        "height": 1080,
+        "size": 265074,
+        "url": "https://media.sketchfab.com/models/4591ce5c3b444d0197e8cea7d6cd033c/thumbnails/96a6e1ddfe9a42fd9a32bcd25df1c6ea/acf92059dddc42f480eb43b7c652e708.jpeg"
+      },
+      {
+        "uid": "ad2cf65c498742ae843b481af2fe0ec5",
+        "width": 1024,
+        "height": 576,
+        "size": 57532,
+        "url": "https://media.sketchfab.com/models/4591ce5c3b444d0197e8cea7d6cd033c/thumbnails/96a6e1ddfe9a42fd9a32bcd25df1c6ea/63c42b1a74774bf8bfb260acbabddcdd.jpeg"
+      },
+      {
+        "uid": "7587be47ba904412829860afc26e89af",
+        "width": 720,
+        "height": 405,
+        "size": 32868,
+        "url": "https://media.sketchfab.com/models/4591ce5c3b444d0197e8cea7d6cd033c/thumbnails/96a6e1ddfe9a42fd9a32bcd25df1c6ea/96000028aef147a3bf7c26ff0824e991.jpeg"
+      },
+      {
+        "uid": "a43ba1a80c274785a9e2fb4fbef3aacc",
+        "width": 256,
+        "height": 144,
+        "size": 6949,
+        "url": "https://media.sketchfab.com/models/4591ce5c3b444d0197e8cea7d6cd033c/thumbnails/96a6e1ddfe9a42fd9a32bcd25df1c6ea/e4b1a0a0be6844ec803626d26257f28b.jpeg"
+      },
+      {
+        "uid": "074b0152fbec452b9a4add84a81edc90",
+        "width": 64,
+        "height": 36,
+        "size": 1428,
+        "url": "https://media.sketchfab.com/models/4591ce5c3b444d0197e8cea7d6cd033c/thumbnails/96a6e1ddfe9a42fd9a32bcd25df1c6ea/efc15754e03c465887fe34b1b2db6b5e.jpeg"
+      }
+    ]
+  },
+  "uid": "4591ce5c3b444d0197e8cea7d6cd033c",
+  "uri": "https://api.sketchfab.com/v3/models/4591ce5c3b444d0197e8cea7d6cd033c",
+  "user": {
+    "uid": "bd12deafb6334c54be6356c9d092f003",
+    "username": "exidnost",
+    "displayName": "Exidnost",
+    "account": "basic",
+    "profileUrl": "https://sketchfab.com/exidnost",
+    "avatar": {
+      "uid": "1b63b70deeb84edf96bb4119700d8c8e",
+      "uri": "https://api.sketchfab.com/v3/avatars/1b63b70deeb84edf96bb4119700d8c8e",
+      "images": [
+        {
+          "width": 32,
+          "height": 32,
+          "size": 1153,
+          "url": "https://media.sketchfab.com/avatars/1b63b70deeb84edf96bb4119700d8c8e/1b5398bc0e3c495f89cf4c6d6ee85b7f.jpeg"
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "size": 1593,
+          "url": "https://media.sketchfab.com/avatars/1b63b70deeb84edf96bb4119700d8c8e/a12be89a8751425598f9fd059b2c8c56.jpeg"
+        },
+        {
+          "width": 90,
+          "height": 90,
+          "size": 3241,
+          "url": "https://media.sketchfab.com/avatars/1b63b70deeb84edf96bb4119700d8c8e/a9e4e170a2e940eab4cd8ce0eedfb08e.jpeg"
+        },
+        {
+          "width": 100,
+          "height": 100,
+          "size": 3708,
+          "url": "https://media.sketchfab.com/avatars/1b63b70deeb84edf96bb4119700d8c8e/b974369004cf4e069159c58d6d343084.jpeg"
+        }
+      ]
+    },
+    "uri": "https://api.sketchfab.com/v3/users/bd12deafb6334c54be6356c9d092f003"
+  },
+  "vertexCount": 2549,
+  "viewCount": 1308,
+  "viewerUrl": "https://sketchfab.com/3d-models/opel-astra-2008-from-scan-4591ce5c3b444d0197e8cea7d6cd033c",
+  "isDownloadable": true,
+  "isProtected": false,
+  "description": "I scanned my car and then in blender modeled a new model on top of the scan and got an optimized mesh. \nThis is my first work so far.",
+  "price": null,
+  "downloadCount": 244,
+  "editorUrl": "https://sketchfab.com/models/4591ce5c3b444d0197e8cea7d6cd033c/edit",
+  "status": {
+    "warning": {},
+    "processing": "SUCCEEDED"
+  },
+  "source": "website",
+  "hasCommentsDisabled": false,
+  "updatedAt": "2025-03-11T20:22:52.880472",
+  "pbrType": null,
+  "textureCount": 2,
+  "materialCount": 1
+}

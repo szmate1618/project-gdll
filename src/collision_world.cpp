@@ -2,6 +2,7 @@
 #include "collision_world.hpp"
 #include "door_collision.hpp"
 #include "box_layer.hpp"
+#include "vehicle_layer.hpp"
 
 #include <algorithm>
 #include <array>
@@ -287,6 +288,7 @@ struct CollisionWorld::Impl {
     bool hasTerrain = false;
     const DoorLayer* doors = nullptr;
     BoxLayer* boxes = nullptr;
+    const VehicleLayer* vehicles = nullptr;
 
     void addTriangle(const CollisionFace& face, float winding, int group, bool terrain, bool roof,
                      bool wallBase, bool road) {
@@ -656,6 +658,7 @@ bool CollisionWorld::simpleTravelerClear(glm::vec3 start,glm::vec3 end,float rad
         zombie_profile::Timer propTimer(zombie_profile::Stage::contactProps);
         if (!impl_->boxes->query(region.low,region.high).empty()) return false;
     }
+    if (impl_->vehicles && impl_->vehicles->overlaps(region.low,region.high)) return false;
     const glm::dvec2 from(start.x,start.z),to(end.x,end.z);
     const auto pointDistance=[](glm::dvec2 p,glm::dvec2 a,glm::dvec2 b) {
         const auto d=b-a; const double length=glm::dot(d,d);
@@ -791,6 +794,7 @@ void CollisionWorld::visitContacts(glm::vec3 feet,float radius,float height,floa
         zombie_profile::Timer propTimer(zombie_profile::Stage::contactProps);
         impl_->boxes->appendContacts(feet,radius,height,skin,dynamic);
     }
+    if (impl_->vehicles) impl_->vehicles->appendContacts(feet,radius,height,skin,dynamic);
     for (const auto& contact:dynamic) if (!visitor(contact)) return;
 }
 
@@ -859,6 +863,10 @@ std::optional<GroundHit> CollisionWorld::queryGround(float x, float z, float min
         zombie_profile::Timer propTimer(zombie_profile::Stage::groundProps);
         const auto box = impl_->boxes->groundAt(x, z, minY, maxY);
         if (box && (!result || box->height > result->height)) result = box;
+    }
+    if (includeBoxes && !terrainOnly && impl_->vehicles) {
+        const auto car=impl_->vehicles->groundAt(x,z,minY,maxY);
+        if (car && (!result || car->height>result->height)) result=car;
     }
     return result;
 }
@@ -966,8 +974,10 @@ std::vector<glm::vec3> CollisionWorld::debugLines(glm::vec3 near, float distance
 const CollisionStats& CollisionWorld::stats() const { return impl_->stats; }
 bool CollisionWorld::empty() const {
     return impl_->triangles.empty() && impl_->trunks.empty() &&
-           (!impl_->doors || impl_->doors->count() == 0) && (!impl_->boxes || impl_->boxes->count() == 0);
+           (!impl_->doors || impl_->doors->count() == 0) && (!impl_->boxes || impl_->boxes->count() == 0) &&
+           (!impl_->vehicles || impl_->vehicles->count() == 0);
 }
+void CollisionWorld::setVehicles(const VehicleLayer* vehicles) { impl_->vehicles=vehicles; }
 void CollisionWorld::setBoxes(BoxLayer* boxes) { impl_->boxes = boxes; }
 void CollisionWorld::pushBoxes(glm::vec3 feet, float radius, float height, glm::vec3 velocity, float dt) const {
     if (impl_->boxes) impl_->boxes->push(feet, radius, height, velocity, dt);
@@ -1054,3 +1064,13 @@ std::size_t CollisionWorld::nearbyTrunks(glm::vec3 feet, float agentHeight, floa
 }
 
 }  // namespace viewer
+
+namespace viewer {
+std::vector<std::pair<std::size_t, TrunkCollider>> CollisionWorld::staticTrunks(glm::vec3 minimum, glm::vec3 maximum) const {
+    std::vector<std::pair<std::size_t,TrunkCollider>> result;
+    if (!finite(minimum) || !finite(maximum) || glm::any(glm::greaterThan(minimum,maximum))) return result;
+    Bounds region; region.include(minimum); region.include(maximum);
+    impl_->queryTrunksIndexed(region,[&](std::uint32_t id,const TrunkCollider& trunk) { result.emplace_back(id,trunk); });
+    return result;
+}
+} // namespace viewer

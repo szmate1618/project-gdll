@@ -1,0 +1,242 @@
+{
+  "animationCount": 0,
+  "categories": [
+    {
+      "uid": "22a2f677efad4d7bbca5ad45f9b5868e",
+      "name": "Cars & Vehicles",
+      "slug": "cars-vehicles",
+      "uri": "https://api.sketchfab.com/v3/categories/22a2f677efad4d7bbca5ad45f9b5868e",
+      "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/45dd0cc0860ac57fcd63bde1cc3f2b7c-v2.svg",
+      "thumbnails": [
+        {
+          "width": "512",
+          "height": "288",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/512x288.png"
+        },
+        {
+          "width": "800",
+          "height": "450",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/800x450.png"
+        }
+      ]
+    }
+  ],
+  "commentCount": 0,
+  "createdAt": "2026-01-06T20:40:50.110173",
+  "embedUrl": "https://sketchfab.com/models/a04dd58415f949d78dea020a27202407/embed",
+  "faceCount": 21743,
+  "isAgeRestricted": false,
+  "license": {
+    "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+    "label": "CC Attribution",
+    "fullName": "Creative Commons Attribution",
+    "requirements": "Author must be credited. Commercial use is allowed.",
+    "url": "http://creativecommons.org/licenses/by/4.0/",
+    "slug": "by"
+  },
+  "likeCount": 8,
+  "name": "2024 Suzuki Swift 1.2 CVT GLX PLUS",
+  "publishedAt": "2026-01-06T20:42:12.363175",
+  "soundCount": 0,
+  "staffpickedAt": null,
+  "tags": [
+    {
+      "name": "swift",
+      "slug": "swift",
+      "uri": "https://api.sketchfab.com/v3/tags/swift"
+    },
+    {
+      "name": "12",
+      "slug": "12",
+      "uri": "https://api.sketchfab.com/v3/tags/12"
+    },
+    {
+      "name": "c",
+      "slug": "c",
+      "uri": "https://api.sketchfab.com/v3/tags/c"
+    },
+    {
+      "name": "t",
+      "slug": "t",
+      "uri": "https://api.sketchfab.com/v3/tags/t"
+    },
+    {
+      "name": "x",
+      "slug": "x",
+      "uri": "https://api.sketchfab.com/v3/tags/x"
+    },
+    {
+      "name": "u",
+      "slug": "u",
+      "uri": "https://api.sketchfab.com/v3/tags/u"
+    },
+    {
+      "name": "g",
+      "slug": "g",
+      "uri": "https://api.sketchfab.com/v3/tags/g"
+    },
+    {
+      "name": "s",
+      "slug": "s",
+      "uri": "https://api.sketchfab.com/v3/tags/s"
+    },
+    {
+      "name": "plus",
+      "slug": "plus",
+      "uri": "https://api.sketchfab.com/v3/tags/plus"
+    },
+    {
+      "name": "p",
+      "slug": "p",
+      "uri": "https://api.sketchfab.com/v3/tags/p"
+    },
+    {
+      "name": "v",
+      "slug": "v",
+      "uri": "https://api.sketchfab.com/v3/tags/v"
+    },
+    {
+      "name": "l",
+      "slug": "l",
+      "uri": "https://api.sketchfab.com/v3/tags/l"
+    },
+    {
+      "name": "2",
+      "slug": "2",
+      "uri": "https://api.sketchfab.com/v3/tags/2"
+    },
+    {
+      "name": "suzuki",
+      "slug": "suzuki",
+      "uri": "https://api.sketchfab.com/v3/tags/suzuki"
+    },
+    {
+      "name": "2024",
+      "slug": "2024",
+      "uri": "https://api.sketchfab.com/v3/tags/2024"
+    },
+    {
+      "name": "car",
+      "slug": "car",
+      "uri": "https://api.sketchfab.com/v3/tags/car"
+    },
+    {
+      "name": "free",
+      "slug": "free",
+      "uri": "https://api.sketchfab.com/v3/tags/free"
+    },
+    {
+      "name": "1",
+      "slug": "1",
+      "uri": "https://api.sketchfab.com/v3/tags/1"
+    },
+    {
+      "name": "cvt",
+      "slug": "cvt",
+      "uri": "https://api.sketchfab.com/v3/tags/cvt"
+    },
+    {
+      "name": "glx",
+      "slug": "glx",
+      "uri": "https://api.sketchfab.com/v3/tags/glx"
+    }
+  ],
+  "thumbnails": {
+    "images": [
+      {
+        "uid": "51bb25021e8d4368a90f477282642d19",
+        "width": 1920,
+        "height": 1080,
+        "size": 58584,
+        "url": "https://media.sketchfab.com/models/a04dd58415f949d78dea020a27202407/thumbnails/11eb193f64b1424186dcdaa7e64e34ea/b1d613c118f94aedbec508ca4bb292c0.jpeg"
+      },
+      {
+        "uid": "aacc17c206254062959af7d3ed686371",
+        "width": 1024,
+        "height": 576,
+        "size": 20011,
+        "url": "https://media.sketchfab.com/models/a04dd58415f949d78dea020a27202407/thumbnails/11eb193f64b1424186dcdaa7e64e34ea/a7a9cc75c26c453fadb8c8b6421cae7f.jpeg"
+      },
+      {
+        "uid": "9456a67d62954cb0adace86b63acf05c",
+        "width": 720,
+        "height": 405,
+        "size": 11555,
+        "url": "https://media.sketchfab.com/models/a04dd58415f949d78dea020a27202407/thumbnails/11eb193f64b1424186dcdaa7e64e34ea/763c95b8e6084bcc99cd6e49c2f2207e.jpeg"
+      },
+      {
+        "uid": "a59c117855ef436c9090e0aaf084ae44",
+        "width": 256,
+        "height": 144,
+        "size": 2567,
+        "url": "https://media.sketchfab.com/models/a04dd58415f949d78dea020a27202407/thumbnails/11eb193f64b1424186dcdaa7e64e34ea/15b63bdc2b7b4c228a2e76e71257ecd9.jpeg"
+      },
+      {
+        "uid": "dd632d0d225747e8ac1ca026c4ead75e",
+        "width": 64,
+        "height": 36,
+        "size": 847,
+        "url": "https://media.sketchfab.com/models/a04dd58415f949d78dea020a27202407/thumbnails/11eb193f64b1424186dcdaa7e64e34ea/a72c345ca7ba44a985d4d4781b823fe1.jpeg"
+      }
+    ]
+  },
+  "uid": "a04dd58415f949d78dea020a27202407",
+  "uri": "https://api.sketchfab.com/v3/models/a04dd58415f949d78dea020a27202407",
+  "user": {
+    "uid": "ab7d2fa2ec7445e4b88a8c65839a294a",
+    "username": "tonielpro520",
+    "displayName": "tonielpro520",
+    "account": "basic",
+    "profileUrl": "https://sketchfab.com/tonielpro520",
+    "avatar": {
+      "uid": "0f04c96e42d84ebca96975659430fcb7",
+      "uri": "https://api.sketchfab.com/v3/avatars/0f04c96e42d84ebca96975659430fcb7",
+      "images": [
+        {
+          "width": 32,
+          "height": 32,
+          "size": 2664,
+          "url": "https://media.sketchfab.com/avatars/0f04c96e42d84ebca96975659430fcb7/e9b7ee2ee96047838def084059585093.png"
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "size": 5485,
+          "url": "https://media.sketchfab.com/avatars/0f04c96e42d84ebca96975659430fcb7/352e2cdf1f4f4a7da95eb3c9c687fac7.png"
+        },
+        {
+          "width": 90,
+          "height": 90,
+          "size": 16077,
+          "url": "https://media.sketchfab.com/avatars/0f04c96e42d84ebca96975659430fcb7/803d4cb2eed64a1bb5629640533eaa8b.png"
+        },
+        {
+          "width": 100,
+          "height": 100,
+          "size": 19185,
+          "url": "https://media.sketchfab.com/avatars/0f04c96e42d84ebca96975659430fcb7/9c5f0a9e8b3449c6b114fd8decf3cc1c.png"
+        }
+      ]
+    },
+    "uri": "https://api.sketchfab.com/v3/users/ab7d2fa2ec7445e4b88a8c65839a294a"
+  },
+  "vertexCount": 17463,
+  "viewCount": 276,
+  "viewerUrl": "https://sketchfab.com/3d-models/2024-suzuki-swift-12-cvt-glx-plus-a04dd58415f949d78dea020a27202407",
+  "isDownloadable": true,
+  "isProtected": false,
+  "description": "2024 Suzuki Swift 1.2 CVT GLX PLUS\n![](https://cms-assets.autoscout24.com/uaddx06iwzdz/722MYDZlyfdD8eHgkKkFbr/92add4b54262a3fb9f539e0d5ce02dc8/Suzuki-Swift-2024-1024-03.jpg?w=1100&fit=fill)\nFree",
+  "price": null,
+  "downloadCount": 61,
+  "editorUrl": "https://sketchfab.com/models/a04dd58415f949d78dea020a27202407/edit",
+  "status": {
+    "warning": {},
+    "processing": "SUCCEEDED"
+  },
+  "source": "website",
+  "hasCommentsDisabled": false,
+  "updatedAt": "2026-01-06T20:42:31.493109",
+  "pbrType": null,
+  "textureCount": 0,
+  "materialCount": 20
+}

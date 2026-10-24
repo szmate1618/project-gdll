@@ -62,8 +62,8 @@ private:
     bool initialized_ = false;
 };
 
-// Immutable median-split BVH. Query clears visible and returns original bounds
-// indices, retaining intersecting bounds conservatively.
+// Median-split BVH with optional leaf refits. Query clears visible and returns
+// original bounds indices, retaining intersecting bounds conservatively.
 class VisibilityIndex {
 public:
     VisibilityIndex() = default;
@@ -77,6 +77,12 @@ public:
                           const HorizontalVisibilityRange* range = nullptr,
                           bool frustumCulling = true,
                           VisibilityQueryState* temporal = nullptr) const;
+    // Refit a moved bound without changing IDs/topology. Returns false for an
+    // unchanged bound. Reconstruct the index when its population changes.
+    bool update(std::size_t instance, const VisibilityBounds& bounds);
+    // Intersect both a frustum and a world-space region during BVH traversal.
+    VisibilityStats query(const glm::mat4& projectionView, const VisibilityBounds& region,
+                          std::vector<std::size_t>& visible) const;
     // Exact AABB overlap, including touching boundaries and point queries.
     VisibilityStats query(const VisibilityBounds& region,
                           std::vector<std::size_t>& visible) const;
@@ -91,18 +97,19 @@ public:
 private:
     struct Node {
         VisibilityBounds bounds;
-        std::size_t first = 0, count = 0, left = 0, right = 0;
+        std::size_t first = 0, count = 0, left = 0, right = 0, parent = 0;
     };
     std::size_t build(std::size_t first, std::size_t count);
     template<bool PlaneHints>
     void visit(std::size_t index, const Frustum* frustum, const HorizontalVisibilityRange* range,
                std::vector<std::size_t>& visible, VisibilityStats& stats,
-               VisibilityQueryState* temporal) const;
+               VisibilityQueryState* temporal, const VisibilityBounds* region = nullptr) const;
     void visit(std::size_t index, const VisibilityBounds& region,
                std::vector<std::size_t>& visible, VisibilityStats& stats) const;
     std::vector<VisibilityBounds> bounds_;
     std::vector<std::size_t> order_;
     std::vector<Node> nodes_;
+    std::vector<std::size_t> leafForInstance_;
 };
 
 } // namespace viewer

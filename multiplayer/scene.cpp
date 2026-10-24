@@ -49,6 +49,13 @@ Options parseOptions(int argc, char** argv, bool server) {
             if (n < 5 || n > 1000) throw std::runtime_error("Invalid zombie radius");
             o.zombieRadius = static_cast<float>(n);
         } else if (arg == "--vegetation") o.vegetation.select(next(i));
+        else if (arg == "--time-of-day" || arg == "--day-length") {
+            const auto n = number(i);
+            if (n < 0 || (arg == "--time-of-day" ? n >= 24 : (n > 0 && n < 1) || n > 86400))
+                throw std::runtime_error("Invalid day/night setting");
+            if (arg == "--time-of-day") o.dayNight.startHour = n;
+            else o.dayNight.dayLengthSeconds = n;
+        }
         else if (arg == "--forests" || arg == "--forest")
             throw std::runtime_error("--forests was removed; use --vegetation");
         else if (arg == "--no-trees") o.trees = o.forests = false;
@@ -80,7 +87,8 @@ Options parseOptions(int argc, char** argv, bool server) {
                 << (server ? "[--port 27020] [--no-zombie-perception]" : "[--connect 127.0.0.1:27020] [--headless] [--hidden] [--bot] [--no-audio] [--look YAW PITCH] [--screenshot FILE]")
                 << "\nShared: --spawn X Z --zombies PATH --zombie-count N --zombie-radius METERS\n"
                    "        --vegetation osm-tuned2|orthophoto|osm|sentinel-astra|none\n"
-                   "        --no-trees --no-forests --seconds N --lag-ms N --loss-percent N\n";
+                   "        --no-trees --no-forests --seconds N --lag-ms N --loss-percent N\n"
+                   "        --time-of-day H --day-length S (0 freezes time)\n";
             std::exit(0);
         } else if (!arg.empty() && arg[0] != '-' && !map) { o.map = arg; map = true; }
         else throw std::runtime_error("Unknown option: " + arg);
@@ -108,6 +116,7 @@ std::string sceneFingerprint(const Options& o, std::size_t count, glm::vec3 spaw
     integer(static_cast<std::uint32_t>(count));
     number(o.zombieRadius);
     number(spawnEye.x); number(spawnEye.y); number(spawnEye.z);
+    number(static_cast<float>(o.dayNight.startHour)); number(static_cast<float>(o.dayNight.dayLengthSeconds));
     identity.push_back(o.trees && o.vegetation.source != viewer::VegetationSource::None ? '\1' : '\0');
     identity.push_back(o.forests && o.vegetation.source != viewer::VegetationSource::None ? '\1' : '\0');
     // File hashes are fixed-width hex strings; paths are deliberately excluded.
@@ -133,6 +142,7 @@ viewer::Model loadSessionMap(const std::filesystem::path& path) {
 Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
              const std::optional<viewer::ZombieScenarioConfig::Player>& playerSpawn) :
     mapPath(o.map), model(loadSessionMap(o.map)), physics(std::make_shared<viewer::PhysicsWorld>()),
+    dayNight(o.dayNight),
     initialWeapons(resourceRoot() / "items", resourceRoot() / "inventory.toml") {
     std::vector<std::filesystem::path> content{o.map};
     const auto adjacent = [&](const char* name) { return o.map.parent_path() / name; };
@@ -147,6 +157,10 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
     doors = std::make_unique<viewer::DoorLayer>(viewer::prepareDoorPanels(model), physics);
     boxes = std::make_unique<viewer::BoxLayer>(physics);
     grenades = std::make_unique<viewer::Grenades>(physics);
+
+    vehicles = std::make_unique<viewer::VehicleLayer>(physics, viewer::loadVehicleConfigs(resourceRoot() / "vehicles"));
+    vehiclePlacements = viewer::loadVehiclePlacements(o.map);
+    if (vehiclePlacements) content.push_back(adjacent("abandoned_cars.instances.json"));
     const auto vegetation = viewer::vegetationPaths(o.vegetation, o.map, resourceRoot() / "forest_patches.json");
     if (o.trees && !vegetation.trees.empty() &&
             (vegetation.requireTrees || std::filesystem::exists(vegetation.trees))) {
@@ -175,6 +189,7 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
     if (trees) undergrowth = viewer::UndergrowthIndex(*trees);
     collision = std::make_unique<viewer::CollisionWorld>(model, trunks, doors.get());
     collision->setBoxes(boxes.get());
+    collision->setVehicles(vehicles.get());
     const auto center = (model.boundsMin + model.boundsMax) * .5f;
     const auto scenarioSpawn = playerSpawn ? glm::vec2(playerSpawn->spawn[0], playerSpawn->spawn[1]) : glm::vec2(center.x, center.z);
     const auto spawn = o.spawn.value_or(scenarioSpawn);
@@ -216,6 +231,8 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
     std::sort(items.begin(), items.end());
     content.insert(content.end(), items.begin(), items.end());
     content.push_back(resourceRoot() / "inventory.toml");
+    const auto vehicleFiles = viewer::vehicleConfigFiles(resourceRoot() / "vehicles");
+    content.insert(content.end(), vehicleFiles.begin(), vehicleFiles.end());
     for (const auto& path : content) {
         if (path == o.map) continue; // The map was validated before loading it.
         auto extension = path.extension().string();

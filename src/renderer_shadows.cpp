@@ -73,6 +73,8 @@ void Renderer::drawShadowCasters(const glm::mat4& view, const glm::mat4& project
     drawZombies(seconds, pass);
     drawBoxes(projectionView);
     drawGrenades(projectionView);
+
+    drawVehicles(projectionView, true);
     glUniform1i(shadowPassLocation_, GL_FALSE);
     glDisable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(0, 0);
@@ -131,8 +133,9 @@ void Renderer::applyLighting(const Camera& camera, const SunShadowView& shadowVi
                 NightLighting::flashlightShadowFadeStart, NightLighting::flashlightShadowDistance);
     const auto direction = flashlight.direction;
     glUniform3fv(flashlightDirectionLocation_, 1, glm::value_ptr(direction));
-    const auto flashlightColor = flashlightEnabled_ ? nightLighting_.flashlightColor : glm::vec3(0);
+    const auto flashlightColor = flashlightEnabled_ && !vehicleDriver_ ? nightLighting_.flashlightColor : glm::vec3(0);
     glUniform3fv(flashlightColorLocation_, 1, glm::value_ptr(flashlightColor));
+    applyVehicleLights();
     glUniform3f(flashlightConeLocation_, nightLighting_.flashlightRange,
                 std::cos(glm::radians(nightLighting_.innerAngle)),
                 std::cos(glm::radians(nightLighting_.outerAngle)));

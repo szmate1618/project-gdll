@@ -1,0 +1,272 @@
+{
+  "animationCount": 0,
+  "categories": [
+    {
+      "uid": "22a2f677efad4d7bbca5ad45f9b5868e",
+      "name": "Cars & Vehicles",
+      "slug": "cars-vehicles",
+      "uri": "https://api.sketchfab.com/v3/categories/22a2f677efad4d7bbca5ad45f9b5868e",
+      "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/45dd0cc0860ac57fcd63bde1cc3f2b7c-v2.svg",
+      "thumbnails": [
+        {
+          "width": "512",
+          "height": "288",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/512x288.png"
+        },
+        {
+          "width": "800",
+          "height": "450",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/800x450.png"
+        }
+      ]
+    }
+  ],
+  "commentCount": 0,
+  "createdAt": "2025-10-30T14:57:55.870863",
+  "embedUrl": "https://sketchfab.com/models/5ec88817d7a64f76b14e06e18a7c0923/embed",
+  "faceCount": 904,
+  "isAgeRestricted": false,
+  "license": {
+    "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+    "label": "CC Attribution",
+    "fullName": "Creative Commons Attribution",
+    "requirements": "Author must be credited. Commercial use is allowed.",
+    "url": "http://creativecommons.org/licenses/by/4.0/",
+    "slug": "by"
+  },
+  "likeCount": 9,
+  "name": "Volkswagen Golf Mk1 (1983) — Low Poly 3D Model",
+  "publishedAt": "2025-10-30T15:21:55.980685",
+  "soundCount": 0,
+  "staffpickedAt": null,
+  "tags": [
+    {
+      "name": "automobile",
+      "slug": "automobile",
+      "uri": "https://api.sketchfab.com/v3/tags/automobile"
+    },
+    {
+      "name": "golf",
+      "slug": "golf",
+      "uri": "https://api.sketchfab.com/v3/tags/golf"
+    },
+    {
+      "name": "vintage",
+      "slug": "vintage",
+      "uri": "https://api.sketchfab.com/v3/tags/vintage"
+    },
+    {
+      "name": "retro",
+      "slug": "retro",
+      "uri": "https://api.sketchfab.com/v3/tags/retro"
+    },
+    {
+      "name": "vw",
+      "slug": "vw",
+      "uri": "https://api.sketchfab.com/v3/tags/vw"
+    },
+    {
+      "name": "volkswagen",
+      "slug": "volkswagen",
+      "uri": "https://api.sketchfab.com/v3/tags/volkswagen"
+    },
+    {
+      "name": "hatchback",
+      "slug": "hatchback",
+      "uri": "https://api.sketchfab.com/v3/tags/hatchback"
+    },
+    {
+      "name": "1980's",
+      "slug": "1980s",
+      "uri": "https://api.sketchfab.com/v3/tags/1980s"
+    },
+    {
+      "name": "realistic",
+      "slug": "realistic",
+      "uri": "https://api.sketchfab.com/v3/tags/realistic"
+    },
+    {
+      "name": "background",
+      "slug": "background",
+      "uri": "https://api.sketchfab.com/v3/tags/background"
+    },
+    {
+      "name": "unrealengine",
+      "slug": "unrealengine",
+      "uri": "https://api.sketchfab.com/v3/tags/unrealengine"
+    },
+    {
+      "name": "oldcar",
+      "slug": "oldcar",
+      "uri": "https://api.sketchfab.com/v3/tags/oldcar"
+    },
+    {
+      "name": "golf1",
+      "slug": "golf1",
+      "uri": "https://api.sketchfab.com/v3/tags/golf1"
+    },
+    {
+      "name": "environmentprop",
+      "slug": "environmentprop",
+      "uri": "https://api.sketchfab.com/v3/tags/environmentprop"
+    },
+    {
+      "name": "classiccar",
+      "slug": "classiccar",
+      "uri": "https://api.sketchfab.com/v3/tags/classiccar"
+    },
+    {
+      "name": "lowpolycar",
+      "slug": "lowpolycar",
+      "uri": "https://api.sketchfab.com/v3/tags/lowpolycar"
+    },
+    {
+      "name": "unity",
+      "slug": "unity",
+      "uri": "https://api.sketchfab.com/v3/tags/unity"
+    },
+    {
+      "name": "game",
+      "slug": "game",
+      "uri": "https://api.sketchfab.com/v3/tags/game"
+    },
+    {
+      "name": "vehicle",
+      "slug": "vehicle",
+      "uri": "https://api.sketchfab.com/v3/tags/vehicle"
+    },
+    {
+      "name": "pbr",
+      "slug": "pbr",
+      "uri": "https://api.sketchfab.com/v3/tags/pbr"
+    },
+    {
+      "name": "lowpoly",
+      "slug": "lowpoly",
+      "uri": "https://api.sketchfab.com/v3/tags/lowpoly"
+    },
+    {
+      "name": "gameasset",
+      "slug": "gameasset",
+      "uri": "https://api.sketchfab.com/v3/tags/gameasset"
+    },
+    {
+      "name": "car",
+      "slug": "car",
+      "uri": "https://api.sketchfab.com/v3/tags/car"
+    },
+    {
+      "name": "3dmodel",
+      "slug": "3dmodel",
+      "uri": "https://api.sketchfab.com/v3/tags/3dmodel"
+    },
+    {
+      "name": "europeancar",
+      "slug": "europeancar",
+      "uri": "https://api.sketchfab.com/v3/tags/europeancar"
+    },
+    {
+      "name": "golfmk1",
+      "slug": "golfmk1",
+      "uri": "https://api.sketchfab.com/v3/tags/golfmk1"
+    }
+  ],
+  "thumbnails": {
+    "images": [
+      {
+        "uid": "fc01ad5bdaba42efabb5425b67d7231e",
+        "width": 1920,
+        "height": 1080,
+        "size": 318961,
+        "url": "https://media.sketchfab.com/models/5ec88817d7a64f76b14e06e18a7c0923/thumbnails/4e876ea04cb1467bb9debe4d07e04ea7/5998d394646c461db55eb6c11663822b.jpeg"
+      },
+      {
+        "uid": "1def0ab442bf4046bb9af490a24f730e",
+        "width": 1024,
+        "height": 576,
+        "size": 41056,
+        "url": "https://media.sketchfab.com/models/5ec88817d7a64f76b14e06e18a7c0923/thumbnails/4e876ea04cb1467bb9debe4d07e04ea7/f54b7eb1cb6a4a878e51e74573d5a9d0.jpeg"
+      },
+      {
+        "uid": "620cdb3951ad40debb9d074745c8640a",
+        "width": 720,
+        "height": 405,
+        "size": 19524,
+        "url": "https://media.sketchfab.com/models/5ec88817d7a64f76b14e06e18a7c0923/thumbnails/4e876ea04cb1467bb9debe4d07e04ea7/813a2f3e9886447fa470709ed6beb81c.jpeg"
+      },
+      {
+        "uid": "96f0c99591e64f2abcae1f71bc364fb5",
+        "width": 256,
+        "height": 144,
+        "size": 3504,
+        "url": "https://media.sketchfab.com/models/5ec88817d7a64f76b14e06e18a7c0923/thumbnails/4e876ea04cb1467bb9debe4d07e04ea7/6c1361f690b548f49a27dcc3e8eb2821.jpeg"
+      },
+      {
+        "uid": "0850939e0e264af88d252e4c6e4c8308",
+        "width": 64,
+        "height": 36,
+        "size": 1032,
+        "url": "https://media.sketchfab.com/models/5ec88817d7a64f76b14e06e18a7c0923/thumbnails/4e876ea04cb1467bb9debe4d07e04ea7/d3ecad91c42c4d15b7de86c44bc89a84.jpeg"
+      }
+    ]
+  },
+  "uid": "5ec88817d7a64f76b14e06e18a7c0923",
+  "uri": "https://api.sketchfab.com/v3/models/5ec88817d7a64f76b14e06e18a7c0923",
+  "user": {
+    "uid": "36e14e23ae8241c5a01256ebae553a13",
+    "username": "melnikov.yuriy",
+    "displayName": "Yuriy Melnikov",
+    "account": "basic",
+    "profileUrl": "https://sketchfab.com/melnikov.yuriy",
+    "avatar": {
+      "uid": "d1cc910ee41d4108bf0dfb3d89353bd1",
+      "uri": "https://api.sketchfab.com/v3/avatars/d1cc910ee41d4108bf0dfb3d89353bd1",
+      "images": [
+        {
+          "width": 32,
+          "height": 32,
+          "size": 2945,
+          "url": "https://media.sketchfab.com/avatars/d1cc910ee41d4108bf0dfb3d89353bd1/c94b124d930e4875af94e5991f9543ed.png"
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "size": 6217,
+          "url": "https://media.sketchfab.com/avatars/d1cc910ee41d4108bf0dfb3d89353bd1/aad636ec435d46e29a4433aea7d0bff0.png"
+        },
+        {
+          "width": 90,
+          "height": 90,
+          "size": 19098,
+          "url": "https://media.sketchfab.com/avatars/d1cc910ee41d4108bf0dfb3d89353bd1/33804426044d4360ad5703e0813874ce.png"
+        },
+        {
+          "width": 100,
+          "height": 100,
+          "size": 22873,
+          "url": "https://media.sketchfab.com/avatars/d1cc910ee41d4108bf0dfb3d89353bd1/a390cef14e634b02bb306cea8c789e05.png"
+        }
+      ]
+    },
+    "uri": "https://api.sketchfab.com/v3/users/36e14e23ae8241c5a01256ebae553a13"
+  },
+  "vertexCount": 476,
+  "viewCount": 316,
+  "viewerUrl": "https://sketchfab.com/3d-models/volkswagen-golf-mk1-1983-low-poly-3d-model-5ec88817d7a64f76b14e06e18a7c0923",
+  "isDownloadable": true,
+  "isProtected": false,
+  "description": "**Volkswagen Golf Mk1 (1983) — Low Poly 3D Model**\n\nRealistic low-poly 3D model of the Volkswagen Golf Mk1 (1983), featuring high-quality PBR textures. Perfect for use in games, background scenes, visualizations, or archviz projects.\n\nThe model is optimized for real-time engines like Unity and Unreal Engine, combining a low polygon count with realistic textures that preserve the car’s authentic 1980s look — from its classic hatchback silhouette to chrome details and slightly aged paint.\n\nFeatures:\n\n* **Model year:** 1983 \n* **Format:** BLEND / FBX \n* **Style:** Low Poly with realistic PBR textures \n* **Textures:** BaseColor\n* **Intended use:** Games, visualizations, environment props, AR/VR projects \n* **Optimization:** Suitable for mobile and desktop platforms",
+  "price": null,
+  "downloadCount": 72,
+  "editorUrl": "https://sketchfab.com/models/5ec88817d7a64f76b14e06e18a7c0923/edit",
+  "status": {
+    "warning": {},
+    "processing": "SUCCEEDED"
+  },
+  "source": "website",
+  "hasCommentsDisabled": false,
+  "updatedAt": "2025-11-09T16:06:48.705628",
+  "pbrType": null,
+  "textureCount": 1,
+  "materialCount": 1
+}

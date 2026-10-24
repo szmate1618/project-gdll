@@ -30,7 +30,7 @@ void PlayerRenderer::draw(const viewer::Camera& camera, const std::vector<Player
     const auto vp = camera.projection(static_cast<float>(width) / height) * camera.view();
     glUseProgram(program_); glBindVertexArray(vao_);
     for (const auto& p : players) {
-        if (p.id == self) continue;
+        if (p.id == self || p.vehicle != noVehicle) continue;
         const float heightMeters = p.movement.stance == viewer::PlayerStance::Standing ? 1.8f :
             p.movement.stance == viewer::PlayerStance::Crouched ? 1.1f : .6f;
         const auto model = glm::translate(glm::mat4(1), p.movement.feet + glm::vec3(0, heightMeters * .5f, 0)) *

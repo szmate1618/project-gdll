@@ -845,8 +845,8 @@ and terrain-only placement retain their previous cap exclusion. Ceiling and
 roof undersides are not reclassified as floors. Road clearance, map geometry,
 and the generator configuration are unchanged.
 
-Doors and boxes block at their current physical poses without zombie forces or
-impulses. Opening a door reveals the existing doorway without rebuilding the
+Outside vehicle physics groups, doors and boxes block at their current physical
+poses without zombie forces or impulses. Opening a door reveals the existing doorway without rebuilding the
 collision world. Living zombies near activated door sweeps also have lightweight
 kinematic capsules in the shared physics world. Door forces still apply normally;
 the existing hinge/contact solver stops the panel against a zombie instead of
@@ -859,7 +859,35 @@ receive proxies; stable ID order and shared proxies for adjacent doors keep
 updates deterministic. Proxies follow accepted zombie feet and are removed when
 the zombie leaves, dies or is removed. They contact door panels only, with a 2 cm
 numerical pad outside the movement body for contact slop and impulse compression.
-They do not make zombies dynamic bodies or add collisions with boxes/player/ragdolls.
+Zombies with dynamic vehicle-physics capsules do not receive these door-only
+blockers; their native contacts already interact with doors and other bodies.
+
+Living zombies near cars receive upright, rotation-locked 75 kg capsules in the
+shared Box3D world. Activation uses the living spatial index within 10 m of each
+car, including 0.35 seconds of anticipated travel. The 1 m crowd grid expands
+this selection through all touching neighbors (within 0.70 m horizontally), so
+pressure reaches back rows beyond that radius. Separate floors do not connect.
+Capsules remain active within 14 m, or while unsettled; returning to the normal
+controller requires 0.5 seconds away from cars with stable walkable support and
+little velocity relative to the requested movement. Connected groups can exceed
+the initial radius and have no arbitrary truncation that would ignore a back row.
+
+While active, Box3D alone determines feet positions. AI supplies desired velocity
+to a horizontal motor capped at 450 N, with ground friction 0.15 on the capsule.
+The existing curb-clearance checks permit bounded physical lift onto steps up to
+0.30 m. Neither locomotion nor crowd correction teleports a physical zombie.
+Capsules collide with other physical zombies, cars and tires, published terrain,
+walls, tree trunks, doors, boxes and ragdolls. Nearby collision meshes and doors
+are activated for the whole physical group. Pressure can push the group or its
+surroundings; a wall-backed crowd constrains the car through native contacts.
+Ordinary crowd control remains active elsewhere and avoids the indexed physical
+feet. `--profile` reports the active living-capsule count; crowded-group physics
+cost depends on the number of interacting bodies and contacts.
+For a repeatable synthetic CPU comparison (0/50/200 living capsules), build and
+run `./build/test_zombie_vehicle_physics --benchmark`. It reports mean and p95
+milliseconds per 60 Hz step for local selection, movement publication and shared
+physics; AI perception, rendering and networking are excluded. These numbers
+are specific to the build configuration and hardware, rather than FPS estimates.
 
 The rendered fence/guardrail panels are solid for movement,
 including transparent texels, while actual mesh entrance gaps remain open.
@@ -867,9 +895,10 @@ including transparent texels, while actual mesh entrance gaps remain open.
 those respective zombie obstacles. Pole/guardrail sidecar fingerprint checks
 remain the same as for rendering and player collision.
 
-Zombies do not yet find routes around buildings or crowds, push/open doors,
-push boxes, or collide with the player. Standing zombies have no dynamic physics
-response: doors stop against them, while other moving props do not push them.
+Zombies do not yet find routes around buildings or crowds, deliberately operate
+doors or objects, or collide with the player. Within a vehicle physics group,
+contact can push an unlatched door or movable box. Outside those groups, standing
+zombies retain the original non-dynamic movement and door-blocking behavior.
 The movement module keeps scene constraints, crowd constraints, terrain sampling and transform publication
 separate for later navigation and player interaction work.
 Outside the map zombies retain their last ground height. Walking and running play
@@ -1080,12 +1109,139 @@ idle cycles at a chosen elapsed time:
   --animation-time 0.5 --screenshot build/zombies-idle-1.ppm
 ```
 
+## Prototype vehicles
+
+The viewer loads `abandoned_cars.instances.json` beside the selected map at level
+startup, when present. Every placement receives a random configured car type,
+chosen once for that level load. The loader verifies the map SHA-256 and preserves
+the stored ground tilt and heading; the underside support-plane pivot is converted
+to the runtime chassis origin. An empty file intentionally places no cars.
+If the file is absent, the viewer tries one random car near the initial FPS spawn,
+or near the map center in free-fly, on a supported clear footprint within 25 m.
+Use `--fps` or `--spawn X Z`, walk near a configured seat entry point, and press
+**Enter** when its car/seat action appears in the title.
+The front-left seat drives; the other seats allow mouse look and Enter to leave.
+See [vehicle definitions](../vehicles/README.md) for the per-type TOML fields.
+**W/S** accelerate forward or brake into reverse,
+**A/D** steer, and **Space** brakes the wheels. **Alt** toggles first/third person
+while driving; it has no camera effect on foot.
+Mouse look follows chassis turns. In third person it orbits the car from above,
+and the camera pulls closer when a wall, tree trunk or prop blocks the view.
+Returning to first person restores the seat view. Exiting resets to first person.
+Enter exits only below 1.5 m/s and only when a clear, supported standing position
+is available beside the car. Free-fly/walking mode switching, weapon firing,
+grabbing and weapon selection are suspended while seated.
+
+Parked cars use one static physics body with two box colliders (lower body and
+cabin), with no wheels, joints, traction sampling or surrounding terrain-mesh
+preparation. They remain solid obstacles to players, zombies and moving bodies.
+Entering the driver's seat activates the original chassis, four cylindrical
+wheels and suspension; passengers alone leave the parked representation intact.
+After driver exit or disconnect, the car brakes and retains detailed physics
+until supported and settled for half a second, then returns to the two static
+boxes without changing its pose. Parked cars are immovable until activated;
+explicit gameplay impulses can also activate detailed physics temporarily.
+Only detailed vehicles trigger nearby terrain/door preparation and physical
+zombie group activation. Replicated client cars retain server wheel poses and
+velocity without constructing a second suspension simulation.
+
+Vehicles use GPU instancing for opaque/masked parts, with transparent parts sorted
+individually. A refittable spatial BVH culls by range and independently by camera,
+sun and flashlight frustums; motion and replicated poses invalidate cached bounds.
+`--no-vehicle-instancing` enables individual draws for comparison.
+
+Prepared [vehicle LoDs](../assets/vehicles/README.md#vehicle-lods) replace the
+procedural body when available. Four zoom-aware levels switch near 20/50/100 m
+with hysteresis; `--no-vehicle-lod` retains the near level. Missing or stale
+assets use one blue box and four dark 12-sided tires. Imported complete-car meshes
+have static wheel visuals. Driven cars retain independent wheel bodies and suspension.
+The configured total mass defaults to a 1,000 kg chassis plus
+four 25 kg wheels with centered 24-sided convex cylinder colliders, independent damped suspension
+springs and travel limits. The maximum drive budget is 19,200 N equivalent at
+the tires, three times the original capacity: each grounded wheel can supply up
+to 1,728 N·m of axle torque. Ordinary throttle uses a calibrated 5,500 N budget to
+keep acceleration close to the earlier car despite the increased grip. Extra
+torque compensates measured opposing living-zombie contact impulses from the previous fixed physics
+step, up to that maximum; it resets when resistance stops, throttle is released,
+direction changes or the brake is applied. Airborne wheels contribute no drive.
+Forward motor speed is limited to 85 rad/s (about 110 km/h at the nominal tire
+radius). Reverse uses half the normal and maximum thrust budgets and a 20 rad/s
+motor limit (about 26 km/h). Holding S while moving forward retains full braking
+strength until nearly stopped; Space braking is unchanged. Actual ground speed
+depends on grip, drag, terrain and load.
+
+Each wheel independently samples its rotating contact-point velocity relative
+to the supporting body. Longitudinal slip detects wheelspin or locked-wheel
+skids; lateral slip detects sideways sliding. Along the rolling direction,
+tires use friction 3.0 while rolling and 2.0 during longitudinal wheelspin or a
+locked-wheel skid. Sideways friction is always 2.2. A lateral skid therefore
+retains the higher forward grip if the wheel is still rolling along its length.
+Both axes follow each wheel's actual axle, including front steering, camber and
+chassis rotation. Longitudinal and lateral slip have independent hysteresis.
+These are tire shape coefficients; the physics engine combines each with the
+ground material's friction. The solver limits their combined impulse with an
+ellipse, so diagonal motion shares the available grip budget.
+
+Box3D's pinned version has a local [directional-friction patch](../patches/README.md)
+for these independent contact limits, applied automatically by CMake to fresh
+and cached dependency sources. Its scalar and SIMD solvers both implement the
+same limits; ordinary shapes keep their existing isotropic friction. The
+upstream MIT license and notices are retained.
+
+`VehicleLayer::wheelTraction()` exposes each wheel's latest fixed-step contact
+state and slip speeds in front-left, front-right, rear-left, rear-right order.
+Grip limits, rolling wheel rotation and rigid-body momentum
+still allow coasting and sideways drift. Maximum steering is 30 degrees at rest,
+divided by `1 + speed * 0.05` with speed in m/s. The steering target moves at
+3 rad/s into a turn and 4 rad/s toward center, including the centering portion
+of direction reversals. Physical steering springs and torque limits still
+determine the actual wheel response.
+The car can pitch, roll and overturn; the driver camera retains world-up mouse
+look.
+
+Nearby published scene triangles and indexed tree-trunk capsules provide
+collision, independently of foliage visibility. Cars also contact doors, boxes
+and existing ragdolls in the shared physics world. Nearby living zombies use the
+dynamic capsules described above: slow contacts physically push the crowd, while
+contact approach speeds of at least 5 m/s trigger ragdolls. The threshold uses
+the solver's pre-impact relative normal velocity and requires an actual contact
+impulse. Ragdolls inherit the solved capsule velocity plus a small upward kick;
+the capsule is removed immediately, including when shot. Contact reaction has
+already acted on the car, so no second manual resistance impulse is added.
+The chassis and tires enable continuous collision against dynamic bodies to
+prevent a fast approach from entering a capsule before the first contact solve.
+
+At night, two warm cones originate just ahead of the front of the box, aimed
+about three degrees downward and fading out at 60 m. They follow the chassis,
+including while parked, and fade with the day/night lighting. While driving they
+replace the camera flashlight. Headlights currently have no separate shadow
+maps or rain illumination; the usual sun and flashlight shadow passes include
+the car. The optional multiplayer server uses the same capsule simulation and
+replicates accepted zombie transforms and ragdoll poses; clients do not run a
+second copy of living-capsule physics. Cars and driver occupancy are also
+replicated; see [multiplayer controls and ownership](../multiplayer/README.md).
+
+The implementation separates fleet ownership (`vehicle_layer.*`), parked/detailed
+body transitions (`vehicle_physics.*`), mesh generation
+(`vehicle_geometry.cpp`), wheel contact/slip sampling (`vehicle_traction.*`),
+placement loading (`vehicle_placement.*`), seat/driver interaction (`vehicle_player.*`),
+living capsule/contact handling (`zombie_vehicle_physics.*`), and rendering
+(`vehicle_renderer.cpp`). `viewer_vehicle_parking` checks the 1,000-car collider budget, parked contacts,
+activation, settling, re-entry and replica poses. `viewer_vehicles` checks driving, suspension, collision,
+entry/exit and zombie reactions without a GPU. `viewer_vehicle_traction` checks
+rolling, wheelspin/skids, moving support bodies and airborne transitions.
+`viewer_zombie_vehicle_physics` checks pinned crowds, connected-group pressure,
+activation/handoff, object and door contacts, curbs and fixed-step locomotion.
+`viewer_vehicle_renderer` checks
+the body, tires, headlights and GL state and writes day/night captures under the
+build directory when run by CTest.
+
 ## Camera and coordinates
 
 | Input | Action |
 | --- | --- |
-| W / S | Move forward / backward |
-| A / D | Strafe left / right |
+| W / S | Move forward / backward; driving: accelerate / brake into reverse |
+| A / D | Strafe left / right; driving: steer left / right |
 | Q / E | Move down / up along world Y in free-fly mode |
 | Mouse | Look around while captured; held props move sideways/up/down; held doors move sideways or push/pull |
 | Left mouse button | Combat: shoot; Interaction: left-hand prop grab within 1.5 m horizontally or door grab within 1.5 m along the ray |
@@ -1098,12 +1254,14 @@ idle cycles at a chosen elapsed time:
 | Mouse wheel | Adjust free-fly movement speed |
 | F1 | Switch to free-fly mode |
 | F2 | Switch to walking mode at the camera position and fall onto the surface below; recover to safe ground if needed |
-| Space | Jump while grounded in walking mode; get up first when prone |
+| Space | Jump while grounded in walking mode; get up first when prone; driving: wheel brake |
+| Enter | Enter a nearby stopped car from walking mode; exit beside it when stopped and clear |
 | Ctrl (hold) | Crouch on the ground; tuck legs in the air without lowering the camera |
 | Physical key left of X: Z (QWERTY), Y (QWERTZ) | Toggle prone in walking mode; an airborne press waits for landing |
 | F3 | Toggle collision visualization |
 | Tab | Switch between Combat (default) and Interaction controls |
-| Left Alt | Release / capture the mouse |
+| Left Alt | Release / capture the mouse on foot; toggle first/third person while driving |
+| F12 | Release / capture the mouse |
 | L | Toggle the flashlight on/off |
 | Home | Frame the whole scene again in free-fly mode |
 | Escape | Close the viewer |

@@ -1,0 +1,202 @@
+{
+  "animationCount": 0,
+  "categories": [
+    {
+      "uid": "22a2f677efad4d7bbca5ad45f9b5868e",
+      "name": "Cars & Vehicles",
+      "slug": "cars-vehicles",
+      "uri": "https://api.sketchfab.com/v3/categories/22a2f677efad4d7bbca5ad45f9b5868e",
+      "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/45dd0cc0860ac57fcd63bde1cc3f2b7c-v2.svg",
+      "thumbnails": [
+        {
+          "width": "512",
+          "height": "288",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/512x288.png"
+        },
+        {
+          "width": "800",
+          "height": "450",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/800x450.png"
+        }
+      ]
+    }
+  ],
+  "commentCount": 4,
+  "createdAt": "2023-03-14T10:52:03.223552",
+  "embedUrl": "https://sketchfab.com/models/472028eb6e7d471a9f20bb7d3eef9a64/embed",
+  "faceCount": 144,
+  "isAgeRestricted": false,
+  "license": {
+    "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+    "label": "CC Attribution",
+    "fullName": "Creative Commons Attribution",
+    "requirements": "Author must be credited. Commercial use is allowed.",
+    "url": "http://creativecommons.org/licenses/by/4.0/",
+    "slug": "by"
+  },
+  "likeCount": 203,
+  "name": "Toyota Corolla - PS1 Low Poly",
+  "publishedAt": "2023-03-14T10:57:05.175813",
+  "soundCount": 0,
+  "staffpickedAt": null,
+  "tags": [
+    {
+      "name": "japan",
+      "slug": "japan",
+      "uri": "https://api.sketchfab.com/v3/tags/japan"
+    },
+    {
+      "name": "1999",
+      "slug": "1999",
+      "uri": "https://api.sketchfab.com/v3/tags/1999"
+    },
+    {
+      "name": "psx",
+      "slug": "psx",
+      "uri": "https://api.sketchfab.com/v3/tags/psx"
+    },
+    {
+      "name": "corolla",
+      "slug": "corolla",
+      "uri": "https://api.sketchfab.com/v3/tags/corolla"
+    },
+    {
+      "name": "toyota",
+      "slug": "toyota",
+      "uri": "https://api.sketchfab.com/v3/tags/toyota"
+    },
+    {
+      "name": "ps1",
+      "slug": "ps1",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1"
+    },
+    {
+      "name": "lowpoly",
+      "slug": "lowpoly",
+      "uri": "https://api.sketchfab.com/v3/tags/lowpoly"
+    },
+    {
+      "name": "gameasset",
+      "slug": "gameasset",
+      "uri": "https://api.sketchfab.com/v3/tags/gameasset"
+    },
+    {
+      "name": "car",
+      "slug": "car",
+      "uri": "https://api.sketchfab.com/v3/tags/car"
+    },
+    {
+      "name": "ps1-graphics",
+      "slug": "ps1-graphics",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1-graphics"
+    },
+    {
+      "name": "ps1-style",
+      "slug": "ps1-style",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1-style"
+    },
+    {
+      "name": "noai",
+      "slug": "noai",
+      "uri": "https://api.sketchfab.com/v3/tags/noai"
+    }
+  ],
+  "thumbnails": {
+    "images": [
+      {
+        "uid": "f4971fd9c9cc4947b963635d650ed1a4",
+        "width": 1920,
+        "height": 1080,
+        "size": 134361,
+        "url": "https://media.sketchfab.com/models/472028eb6e7d471a9f20bb7d3eef9a64/thumbnails/fddd2534c4554126b7531d5344bfac4d/9db8726f389b4dbcbdc2298c3e727177.jpeg"
+      },
+      {
+        "uid": "b754d0b59d1a4ac8b274ceb4ce1af43f",
+        "width": 1024,
+        "height": 576,
+        "size": 43617,
+        "url": "https://media.sketchfab.com/models/472028eb6e7d471a9f20bb7d3eef9a64/thumbnails/fddd2534c4554126b7531d5344bfac4d/5a3bc1062b2646939e6313e5fb0b2758.jpeg"
+      },
+      {
+        "uid": "cc8404c21e99499fa8d7119310b2f535",
+        "width": 720,
+        "height": 405,
+        "size": 24918,
+        "url": "https://media.sketchfab.com/models/472028eb6e7d471a9f20bb7d3eef9a64/thumbnails/fddd2534c4554126b7531d5344bfac4d/40c42b205542403e94736e4ee1dee1c8.jpeg"
+      },
+      {
+        "uid": "00249cb6278041e5884bfd4a8c3c93c8",
+        "width": 256,
+        "height": 144,
+        "size": 5338,
+        "url": "https://media.sketchfab.com/models/472028eb6e7d471a9f20bb7d3eef9a64/thumbnails/fddd2534c4554126b7531d5344bfac4d/aa72f5aab0f0435a8927fa0e4f1c9ad1.jpeg"
+      },
+      {
+        "uid": "c04fbd4476db4e5dbc8c86f0c42d0f44",
+        "width": 64,
+        "height": 36,
+        "size": 1263,
+        "url": "https://media.sketchfab.com/models/472028eb6e7d471a9f20bb7d3eef9a64/thumbnails/fddd2534c4554126b7531d5344bfac4d/59219494498f42e2b2c13201f3cf1802.jpeg"
+      }
+    ]
+  },
+  "uid": "472028eb6e7d471a9f20bb7d3eef9a64",
+  "uri": "https://api.sketchfab.com/v3/models/472028eb6e7d471a9f20bb7d3eef9a64",
+  "user": {
+    "uid": "18b507a3ed74409488bca4a83bf8264f",
+    "username": "wersaus33",
+    "displayName": "Wersaus33",
+    "account": "basic",
+    "profileUrl": "https://sketchfab.com/wersaus33",
+    "avatar": {
+      "uid": "9ab5f3a11c594821b6b96b96f266a453",
+      "uri": "https://api.sketchfab.com/v3/avatars/9ab5f3a11c594821b6b96b96f266a453",
+      "images": [
+        {
+          "width": 32,
+          "height": 32,
+          "size": 1123,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/51bf3b156fc547768deedbb34e911a6e.jpeg"
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "size": 1595,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/bc127f3331234f1b82979fddc08e3ae4.jpeg"
+        },
+        {
+          "width": 90,
+          "height": 90,
+          "size": 3349,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/5866b562ff9544b481b99315436184f1.jpeg"
+        },
+        {
+          "width": 100,
+          "height": 100,
+          "size": 3802,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/2627c92ae0b643efa4c7da02eeaf8b69.jpeg"
+        }
+      ]
+    },
+    "uri": "https://api.sketchfab.com/v3/users/18b507a3ed74409488bca4a83bf8264f"
+  },
+  "vertexCount": 82,
+  "viewCount": 5490,
+  "viewerUrl": "https://sketchfab.com/3d-models/toyota-corolla-ps1-low-poly-472028eb6e7d471a9f20bb7d3eef9a64",
+  "isDownloadable": true,
+  "isProtected": false,
+  "description": "PS1 low poly style 99' Toyota Corolla model. I really like cars and wanted to make some PS1 style for a while now. I wanted to begin with some chill and easy ;)\n\n128x128 Texture\n82 Verticles\n144 Triangles",
+  "price": null,
+  "downloadCount": 2246,
+  "editorUrl": "https://sketchfab.com/models/472028eb6e7d471a9f20bb7d3eef9a64/edit",
+  "status": {
+    "warning": {},
+    "processing": "SUCCEEDED"
+  },
+  "source": "website",
+  "hasCommentsDisabled": false,
+  "updatedAt": "2023-11-21T18:51:42.237117",
+  "pbrType": null,
+  "textureCount": 1,
+  "materialCount": 1
+}

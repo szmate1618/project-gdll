@@ -23,11 +23,11 @@ else()
 endif()
 
 add_library(multiplayer_core STATIC protocol.cpp scene.cpp resources.cpp asset_validation.cpp network.cpp fragments.cpp
-    outgoing_snapshots.cpp server/world.cpp server/replication.cpp client/prediction.cpp client/snapshots.cpp)
+    outgoing_snapshots.cpp server/world.cpp server/vehicle_seats.cpp server/replication.cpp client/prediction.cpp client/snapshots.cpp)
 target_include_directories(multiplayer_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(multiplayer_core SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 target_link_libraries(multiplayer_core PUBLIC viewer_fps viewer_zombies viewer_interaction
-    viewer_objects viewer_forests viewer_vegetation viewer_poles viewer_guardrails viewer_weapons viewer_grenades viewer_undergrowth ${mp_transport})
+    viewer_objects viewer_vehicles viewer_forests viewer_vegetation viewer_poles viewer_guardrails viewer_weapons viewer_grenades viewer_undergrowth ${mp_transport})
 target_compile_definitions(multiplayer_core PUBLIC
     MP_ROOT="${PROJECT_SOURCE_DIR}")
 target_compile_definitions(multiplayer_core PRIVATE MP_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}")
@@ -63,6 +63,13 @@ if(BUILD_TESTING)
     viewer_warnings(test_server_navigation)
     add_dependencies(test_server_navigation viewer_test_asset)
     add_test(NAME multiplayer_server_navigation COMMAND test_server_navigation "${VIEWER_TEST_ASSET}")
+
+    add_executable(test_multiplayer_vehicles tests/test_vehicles.cpp)
+    target_link_libraries(test_multiplayer_vehicles PRIVATE multiplayer_core)
+    target_include_directories(test_multiplayer_vehicles SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+    viewer_warnings(test_multiplayer_vehicles)
+    add_dependencies(test_multiplayer_vehicles viewer_test_asset)
+    add_test(NAME multiplayer_vehicles COMMAND test_multiplayer_vehicles "${VIEWER_TEST_ASSET}" "${CMAKE_CURRENT_BINARY_DIR}/parked-vehicle-fixture")
     add_executable(test_multiplayer_transport tests/test_transport.cpp)
     target_link_libraries(test_multiplayer_transport PRIVATE multiplayer_core)
     viewer_warnings(test_multiplayer_transport)

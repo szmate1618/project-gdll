@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <stdexcept>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace multiplayer {
 bool Snapshots::push(Snapshot snapshot, double receivedSeconds) {
@@ -66,8 +67,36 @@ void Snapshots::apply(Scene& scene, double now) {
     }), grenades_.end());
     players_ = b.players;
     for (auto& p : players_) for (const auto& before : a.players) if (before.id == p.id) {
-        p.movement.feet = glm::mix(before.movement.feet, p.movement.feet, t); break;
+        if (before.vehicle == p.vehicle && before.seat == p.seat) p.movement.feet = glm::mix(before.movement.feet, p.movement.feet, t);
+        break;
     }
+    // Chassis and all four wheel poses share one playback time, including the
+    // local driver's camera. No client physics or walking prediction moves cars.
+    std::array<const VehicleState*, maxVehicles> oldVehicles{};
+    for (const auto& vehicle : a.vehicles) oldVehicles.at(vehicle.id) = &vehicle;
+    const auto applyVehicle = [&](const VehicleState& vehicle, const VehicleState* before) {
+        if (vehicle.id > scene.vehicles->count()) throw std::runtime_error("Server supplied non-dense vehicle IDs");
+        if (vehicle.id == scene.vehicles->count()) scene.vehicles->add(vehicle.chassis.center, 0, vehicle.type);
+        if (scene.vehicles->type(vehicle.id) != vehicle.type) throw std::runtime_error("Vehicle type changed during session");
+        const auto blend = [&](const RigidPose& previous, const RigidPose& current) {
+            return RigidPose{glm::mix(previous.center, current.center, t), glm::slerp(previous.rotation, current.rotation, t)};
+        };
+        const auto chassis = before ? blend(before->chassis, vehicle.chassis) : vehicle.chassis;
+        auto pose = scene.vehicles->pose(vehicle.id);
+        pose.chassis.center = chassis.center; pose.chassis.rotation = chassis.rotation;
+        for (std::size_t w = 0; w < pose.wheels.size(); ++w) {
+            const auto wheel = before ? blend(before->wheels[w], vehicle.wheels[w]) : vehicle.wheels[w];
+            pose.wheels[w] = glm::translate(glm::mat4(1), wheel.center) * glm::mat4_cast(wheel.rotation);
+        }
+        scene.vehicles->setPose(vehicle.id, pose, before ? glm::mix(before->velocity, vehicle.velocity, t) : vehicle.velocity);
+    };
+    for (const auto& vehicle : b.vehicles) applyVehicle(vehicle, oldVehicles.at(vehicle.id));
+    // Occupancy is confirmed from the newest snapshot. Publish a newly created
+    // car immediately so a driver never references a not-yet-interpolated ID.
+    for (const auto& vehicle : frames_.back().vehicles)
+        if (vehicle.id >= scene.vehicles->count()) applyVehicle(vehicle, nullptr);
+    for (const auto& player : frames_.back().players) if (player.vehicle != noVehicle)
+        (void)scene.vehicles->config(player.vehicle).seats.at(player.seat);
     std::unordered_map<std::uint32_t, float> oldAngles;
     for (const auto& d : a.doors) oldAngles.emplace(d.id, d.angle);
     for (const auto& d : b.doors) {

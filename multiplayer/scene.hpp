@@ -12,6 +12,9 @@
 #include "zombie_scenario_config.hpp"
 #include "weapons.hpp"
 #include "vegetation_selection.hpp"
+#include "vehicle_layer.hpp"
+#include "vehicle_placement.hpp"
+#include "day_night.hpp"
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -32,6 +35,7 @@ struct Options {
     bool zombiePerception = true; // Authoritative server setting; not world identity.
     bool explicitLook = false;
     glm::vec2 look{-90, 0}; // Client yaw/pitch in degrees; independent of world identity.
+    viewer::DayNightCycle dayNight;
     double seconds = 0;
     float fakeLagMs = 0, fakeLossPercent = 0;
     std::filesystem::path screenshot;
@@ -53,6 +57,9 @@ struct Scene {
     std::unique_ptr<viewer::DoorLayer> doors;
     std::unique_ptr<viewer::BoxLayer> boxes;
     std::unique_ptr<viewer::Grenades> grenades;
+
+    std::unique_ptr<viewer::VehicleLayer> vehicles;
+    std::optional<std::vector<viewer::VehiclePlacement>> vehiclePlacements;
     std::optional<viewer::TreeLayer> trees;
     std::optional<viewer::ForestLayer> forests;
     viewer::UndergrowthIndex undergrowth;
@@ -60,6 +67,8 @@ struct Scene {
     viewer::ZombieLayer zombies;
     glm::vec3 spawnEye{0};
     glm::vec2 spawnOrientation{-90, 0};
+
+    viewer::DayNightCycle dayNight;
     std::string fingerprint;
     const viewer::Weapons initialWeapons;
 };

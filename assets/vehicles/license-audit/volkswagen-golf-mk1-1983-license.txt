@@ -1,0 +1,11 @@
+Model Information:
+* title:	Volkswagen Golf Mk1 (1983) — Low Poly 3D Model
+* source:	https://sketchfab.com/3d-models/volkswagen-golf-mk1-1983-low-poly-3d-model-5ec88817d7a64f76b14e06e18a7c0923
+* author:	Yuriy Melnikov (https://sketchfab.com/melnikov.yuriy)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Volkswagen Golf Mk1 (1983) — Low Poly 3D Model" (https://sketchfab.com/3d-models/volkswagen-golf-mk1-1983-low-poly-3d-model-5ec88817d7a64f76b14e06e18a7c0923) by Yuriy Melnikov (https://sketchfab.com/melnikov.yuriy) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

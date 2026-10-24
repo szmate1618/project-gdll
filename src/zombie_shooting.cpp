@@ -29,6 +29,8 @@ bool raySphere(glm::vec3 origin, glm::vec3 direction, glm::vec3 center, float ra
 
 void ZombieLayer::rebuildSpatialIndex() {
     if (navigation_) navigation_->resetPopulation(instances.size());
+
+    resetVehiclePhysics();
     invalidateRenderData();
     rebuildRagdollIndex();
     spatialIndex_.reset(instances.size());

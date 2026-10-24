@@ -1,0 +1,11 @@
+Model Information:
+* title:	low-poly Volkswagen Passat B8
+* source:	https://sketchfab.com/3d-models/low-poly-volkswagen-passat-b8-de203c04b4da40c8beb9a460ffe3eb7e
+* author:	D.U. (https://sketchfab.com/D.U.)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "low-poly Volkswagen Passat B8" (https://sketchfab.com/3d-models/low-poly-volkswagen-passat-b8-de203c04b4da40c8beb9a460ffe3eb7e) by D.U. (https://sketchfab.com/D.U.) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

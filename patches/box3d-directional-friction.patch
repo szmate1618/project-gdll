@@ -1,0 +1,272 @@
+--- a/include/box3d/box3d.h
++++ b/include/box3d/box3d.h
+@@ -905,6 +905,12 @@
+ /// Set the friction on a shape
+ B3_API void b3Shape_SetFriction( b3ShapeId shapeId, float friction );
+ 
++/// Set directional friction on a convex shape. localAxle follows the body;
++/// its cross product with the contact normal defines the rolling direction.
++/// SetFriction controls rolling grip, perpendicularFriction controls sideways grip.
++/// A zero axle restores ordinary isotropic friction. Other shapes are unchanged.
++B3_API void b3Shape_SetFrictionAxle( b3ShapeId shapeId, b3Vec3 localAxle, float perpendicularFriction );
++
+ /// Get the friction of a shape
+ B3_API float b3Shape_GetFriction( b3ShapeId shapeId );
+ 
+--- a/src/shape.h
++++ b/src/shape.h
+@@ -33,6 +33,8 @@
+ 	int proxyKey;
+ 	b3ShapeType type;
+ 	float density;
++	b3Vec3 frictionAxle;
++	float perpendicularFriction;
+ 	float explosionScale;
+ 	float aabbMargin;
+ 
+--- a/src/shape.c
++++ b/src/shape.c
+@@ -171,6 +171,8 @@
+ 	shape->bodyId = body->id;
+ 	shape->type = shapeType;
+ 	shape->density = def->density;
++	shape->frictionAxle = b3Vec3_zero;
++	shape->perpendicularFriction = 0.0f;
+ 	shape->explosionScale = def->explosionScale;
+ 	shape->filter = def->filter;
+ 	shape->userData = def->userData;
+@@ -1250,6 +1252,16 @@
+ 	b3GetShapeMaterials( shape )[0].friction = friction;
+ }
+ 
++void b3Shape_SetFrictionAxle( b3ShapeId shapeId, b3Vec3 localAxle, float perpendicularFriction )
++{
++	B3_ASSERT( b3IsValidVec3( localAxle ) && b3IsValidFloat( perpendicularFriction ) && perpendicularFriction >= 0.0f );
++	b3World* world = b3GetWorld( shapeId.world0 );
++	b3Shape* shape = b3GetShape( world, shapeId );
++	B3_ASSERT( shape->type == b3_hullShape || shape->type == b3_capsuleShape || shape->type == b3_sphereShape );
++	shape->frictionAxle = b3Normalize( localAxle );
++	shape->perpendicularFriction = perpendicularFriction;
++}
++
+ float b3Shape_GetFriction( b3ShapeId shapeId )
+ {
+ 	b3World* world = b3GetWorld( shapeId.world0 );
+--- a/src/contact.h
++++ b/src/contact.h
+@@ -144,6 +144,8 @@
+ 
+ 	// Mixed friction and restitution
+ 	float friction;
++	float perpendicularFriction;
++	b3Vec3 frictionAxle;
+ 
+ 	// Usage determined by b3_simMeshContact in simFlags
+ 	union
+--- a/src/contact.c
++++ b/src/contact.c
+@@ -646,6 +646,13 @@
+ 	// Keep these updated in case the values on the shapes are modified
+ 	contact->friction =
+ 		world->frictionCallback( materialA->friction, materialA->userMaterialId, materialB->friction, materialB->userMaterialId );
++	bool directionalA = b3LengthSquared( shapeA->frictionAxle ) > 0.0f;
++	bool directionalB = b3LengthSquared( shapeB->frictionAxle ) > 0.0f;
++	contact->frictionAxle = directionalA ? b3RotateVector( xfA.q, shapeA->frictionAxle ) :
++		b3RotateVector( xfB.q, shapeB->frictionAxle );
++	contact->perpendicularFriction = world->frictionCallback(
++		directionalA ? shapeA->perpendicularFriction : materialA->friction, materialA->userMaterialId,
++		directionalB ? shapeB->perpendicularFriction : materialB->friction, materialB->userMaterialId );
+ 	contact->restitution = world->restitutionCallback( materialA->restitution, materialA->userMaterialId, materialB->restitution,
+ 													   materialB->userMaterialId );
+ 
+--- a/src/mesh_contact.c
++++ b/src/mesh_contact.c
+@@ -1090,11 +1090,14 @@
+ 	const b3SurfaceMaterial* materialsA = b3GetShapeMaterials( shapeA );
+ 	const b3SurfaceMaterial* materialB = b3GetShapeMaterials( shapeB );
+ 	b3Vec3 tangentVelocityA = b3Vec3_zero;
++	contact->frictionAxle = b3RotateVector( xfB.q, shapeB->frictionAxle );
++	float sideB = b3LengthSquared( shapeB->frictionAxle ) > 0.0f ? shapeB->perpendicularFriction : materialB->friction;
+ 
+ 	// Update friction and restitution if the mesh has per triangle material
+ 	if ( shapeA->materialCount > 0 )
+ 	{
+ 		float friction = 0.0f;
++		float perpendicularFriction = 0.0f;
+ 		float restitution = 0.0f;
+ 		float sampleCount = 0.0f;
+ 
+@@ -1134,6 +1137,8 @@
+ 				b3SurfaceMaterial material = materialsA[materialIndex];
+ 				friction += world->frictionCallback( material.friction, material.userMaterialId, materialB->friction,
+ 													 materialB->userMaterialId );
++				perpendicularFriction += world->frictionCallback( material.friction, material.userMaterialId,
++					sideB, materialB->userMaterialId );
+ 				restitution += world->restitutionCallback( material.restitution, material.userMaterialId, materialB->restitution,
+ 														   materialB->userMaterialId );
+ 
+@@ -1147,6 +1152,7 @@
+ 		{
+ 			float invCount = 1.0f / sampleCount;
+ 			contact->friction = invCount * friction;
++			contact->perpendicularFriction = invCount * perpendicularFriction;
+ 			contact->restitution = invCount * restitution;
+ 			tangentVelocityA = b3MulSV( invCount, tangentVelocityA );
+ 		}
+@@ -1159,6 +1165,8 @@
+ 		// Keep these updated in case the values on the shapes are modified
+ 		contact->friction = world->frictionCallback( materialsA[0].friction, materialsA[0].userMaterialId, materialB->friction,
+ 													 materialB->userMaterialId );
++		contact->perpendicularFriction = world->frictionCallback( materialsA[0].friction, materialsA[0].userMaterialId,
++			sideB, materialB->userMaterialId );
+ 		contact->restitution = world->restitutionCallback( materialsA[0].restitution, materialsA[0].userMaterialId,
+ 														   materialB->restitution, materialB->userMaterialId );
+ 		tangentVelocityA = materialsA[0].tangentVelocity;
+--- a/src/contact_solver.h
++++ b/src/contact_solver.h
+@@ -30,6 +30,7 @@
+ 	float twistImpulse;
+ 	b3Matrix2 tangentMass;
+ 	b3Vec2 frictionImpulse;
++	float friction1, friction2;
+ 	b3Vec3 rollingImpulse;
+ 	float tangentVelocity1;
+ 	float tangentVelocity2;
+--- a/src/contact_solver.c
++++ b/src/contact_solver.c
+@@ -16,6 +16,44 @@
+ #if B3_ENABLE_VALIDATION
+ #include "shape.h"
+ #endif
++
++// Project each tire's body-local axle into the contact plane. The axle is
++// invariant under wheel spin, but follows steering, camber and body rotation.
++static void b3DirectionalFrictionBasis( const b3Contact* contact, b3Vec3 normal,
++	b3Vec3* tangent1, b3Vec3* tangent2, float* friction1, float* friction2 )
++{
++	*friction1 = contact->friction;
++	*friction2 = contact->perpendicularFriction;
++	*tangent1 = b3Perp( normal );
++	if ( b3LengthSquared( contact->frictionAxle ) == 0.0f )
++	{
++		*friction2 = *friction1;
++	}
++	else
++	{
++		b3Vec3 rolling = b3Cross( normal, contact->frictionAxle );
++		if ( b3LengthSquared( rolling ) > 1.0e-8f ) *tangent1 = b3Normalize( rolling );
++		else *friction1 = *friction2; // A tire on its side has no rolling tangent.
++	}
++	*tangent2 = b3Cross( *tangent1, normal );
++}
++
++// One combined grip budget, expressed as an ellipse in the two tangents.
++static b3Vec2 b3ClampFrictionEllipse( b3Vec2 impulse, float limit1, float limit2 )
++{
++	if ( limit1 <= 0.0f ) impulse.x = 0.0f;
++	if ( limit2 <= 0.0f ) impulse.y = 0.0f;
++	float x = limit1 > 0.0f ? impulse.x / limit1 : 0.0f;
++	float y = limit2 > 0.0f ? impulse.y / limit2 : 0.0f;
++	float lengthSquared = x * x + y * y;
++	if ( lengthSquared > 1.0f )
++	{
++		float scale = 1.0f / sqrtf( lengthSquared );
++		impulse.x *= scale;
++		impulse.y *= scale;
++	}
++	return impulse;
++}
+ 
+ // contact separation for sub-stepping
+ // s = s0 + dot(cB + rB - cA - rA, normal)
+@@ -172,8 +210,9 @@
+ 				b3ManifoldConstraint* constraint = manifoldConstraints + manifoldIndex;
+ 				int pointCount = manifold->pointCount;
+ 				b3Vec3 normal = manifold->normal;
+-				b3Vec3 tangent1 = b3Perp( normal );
+-				b3Vec3 tangent2 = b3Cross( tangent1, normal );
++				b3Vec3 tangent1, tangent2;
++				b3DirectionalFrictionBasis( contact, normal, &tangent1, &tangent2,
++					&constraint->friction1, &constraint->friction2 );
+ 
+ 				constraint->pointCount = pointCount;
+ 				constraint->normal = normal;
+@@ -547,7 +586,8 @@
+ 					constraint->frictionImpulse.y + deltaImpulse.y,
+ 				};
+ 
+-				float maxImpulse = friction * totalNormalImpulse;
++				b3Vec2 candidate = newImpulse;
++				float maxImpulse = constraint->friction1 * totalNormalImpulse;
+ 
+ 				// Clamp the accumulated impulse
+ 				float lengthSquared = b3Dot2( newImpulse, newImpulse );
+@@ -557,6 +597,9 @@
+ 					newImpulse.x *= scale;
+ 					newImpulse.y *= scale;
+ 				}
++				if ( constraint->friction1 != constraint->friction2 )
++					newImpulse = b3ClampFrictionEllipse( candidate, constraint->friction1 * totalNormalImpulse,
++						constraint->friction2 * totalNormalImpulse );
+ 				deltaImpulse = b3Sub2( newImpulse, constraint->frictionImpulse );
+ 				constraint->frictionImpulse = newImpulse;
+ 
+@@ -983,6 +1026,7 @@
+ 	b3SymMatrix3W rollingMass;
+ 	b3Vec3W rollingImpulse;
+ 	b3FloatW friction;
++	b3FloatW friction2;
+ 	b3FloatW rollingResistance;
+ 	b3FloatW tangentVelocity1;
+ 	b3FloatW tangentVelocity2;
+@@ -1383,17 +1427,19 @@
+ 				( (float*)&constraint->normal.Y )[lane] = normal.y;
+ 				( (float*)&constraint->normal.Z )[lane] = normal.z;
+ 
+-				b3Vec3 tangent1 = b3Perp( normal );
++				b3Vec3 tangent1, tangent2;
++				float friction1, friction2;
++				b3DirectionalFrictionBasis( contact, normal, &tangent1, &tangent2, &friction1, &friction2 );
+ 				( (float*)&constraint->tangent1.X )[lane] = tangent1.x;
+ 				( (float*)&constraint->tangent1.Y )[lane] = tangent1.y;
+ 				( (float*)&constraint->tangent1.Z )[lane] = tangent1.z;
+ 
+-				b3Vec3 tangent2 = b3Cross( tangent1, normal );
+ 				( (float*)&constraint->tangent2.X )[lane] = tangent2.x;
+ 				( (float*)&constraint->tangent2.Y )[lane] = tangent2.y;
+ 				( (float*)&constraint->tangent2.Z )[lane] = tangent2.z;
+ 
+-				( (float*)&constraint->friction )[lane] = contact->friction;
++				( (float*)&constraint->friction )[lane] = friction1;
++				( (float*)&constraint->friction2 )[lane] = friction2;
+ 				( (float*)&constraint->restitution )[lane] = contact->restitution;
+ 				( (float*)&constraint->rollingResistance )[lane] = contact->rollingResistance;
+ 
+@@ -1782,6 +1828,7 @@
+ 				b3Vec2W deltaImpulse = b3MulMV2W( c->tangentMass, vt );
+ 				deltaImpulse = (b3Vec2W){ b3NegW( deltaImpulse.x ), b3NegW( deltaImpulse.y ) };
+ 				b3Vec2W newImpulse = b3AddV2W( c->frictionImpulse, deltaImpulse );
++				b3Vec2W candidate = newImpulse;
+ 
+ 				b3FloatW friction = c->friction;
+ 				b3FloatW maxImpulse = b3MulW( friction, totalNormalImpulse );
+@@ -1806,6 +1853,19 @@
+ 					b3SubW( newImpulse.y, c->frictionImpulse.y ),
+ 				};
+ 
++				for ( int lane = 0; lane < B3_SIMD_WIDTH; ++lane )
++				{
++					float mu1 = ( (float*)&c->friction )[lane];
++					float mu2 = ( (float*)&c->friction2 )[lane];
++					if ( mu1 == mu2 ) continue;
++					float normalImpulse = ( (float*)&totalNormalImpulse )[lane];
++					b3Vec2 impulse = { ( (float*)&candidate.x )[lane], ( (float*)&candidate.y )[lane] };
++					impulse = b3ClampFrictionEllipse( impulse, mu1 * normalImpulse, mu2 * normalImpulse );
++					( (float*)&newImpulse.x )[lane] = impulse.x;
++					( (float*)&newImpulse.y )[lane] = impulse.y;
++					( (float*)&deltaImpulse.x )[lane] = impulse.x - ( (float*)&c->frictionImpulse.x )[lane];
++					( (float*)&deltaImpulse.y )[lane] = impulse.y - ( (float*)&c->frictionImpulse.y )[lane];
++				}
+ 				c->frictionImpulse = newImpulse;
+ 
+ 				// Apply delta impulse

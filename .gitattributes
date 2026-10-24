@@ -1,6 +1,7 @@
 # Multiplayer fingerprints hash raw bytes, including line endings. Keep LF so
 # Windows CRLF conversion cannot make matching content fail the Linux handshake.
 /items/*.toml text eol=lf
+/vehicles/*.toml text eol=lf
 /inventory.toml text eol=lf
 /forest_patches.json text eol=lf
 /forest_patches_astra.json text eol=lf
@@ -11,3 +12,6 @@
 
 # Preserve the pinned upstream source and license bytes, including whitespace.
 third_party/recastnavigation/** -text -whitespace
+
+# Unified diffs preserve upstream whitespace after their context prefix.
+/patches/*.patch whitespace=-blank-at-eol,-space-before-tab

@@ -175,10 +175,40 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
                 lod = assets.reference(model.parent, level["path"])
                 lod.resolve().relative_to(model.parent.resolve())
                 assets.model(lod, level["sha256"])
+    # Visual assets are optional, with the same safe prototype fallback as the
+    # client. Include only the current publication, never source archives or old LoDs.
+    vehicle_models = root / "assets/vehicles/models"
+    vehicle_manifest = vehicle_models / "lods.json"
+    if vehicle_manifest.exists():
+        manifest = assets.document(vehicle_manifest)
+        if manifest["version"] != 1:
+            raise ValueError("Unsupported vehicle LoD manifest")
+        for entry in manifest["models"].values():
+            source = assets.reference(vehicle_models, entry["source"])
+            source.resolve().relative_to(vehicle_models.resolve())
+            assets.model(source, entry["source_sha256"])
+            if len(entry["levels"]) != 4:
+                raise ValueError("Expected four vehicle LoDs")
+            for level in entry["levels"]:
+                path = assets.reference(vehicle_models, level["path"])
+                path.resolve().relative_to(vehicle_models.resolve())
+                assets.model(path, level["sha256"])
+        assets.add(root / "assets/vehicles/CREDITS.md")
+        assets.add(root / "assets/vehicles/sources.json")
+    car_placements = adjacent / "abandoned_cars.instances.json"
+    if car_placements.exists():
+        document = assets.document(car_placements)
+        if document.get("schema") != "godollo.abandoned-car-placements" or document.get("version") != 1:
+            raise ValueError("Unsupported vehicle placement schema/version")
+        if document["map"]["map_sha256"] != map_hash:
+            raise ValueError("Vehicle placement map fingerprint mismatch")
     items = sorted((root / "items").glob("*.toml"))
     for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"):
         assets.add(root / "items" / f"{name}.toml")
-    for path in [*items, root / "inventory.toml"]:
+    vehicles = sorted((root / "vehicles").glob("*.toml"))
+    if not vehicles:
+        raise ValueError("Vehicle configuration files are missing")
+    for path in [*items, *vehicles, root / "inventory.toml"]:
         assets.add(path)
     for name in ("assets/README.md", "assets/zombies/README.md", "assets/zombies/sources.json", "assets/forests/README.md"):
         if (root / name).exists():

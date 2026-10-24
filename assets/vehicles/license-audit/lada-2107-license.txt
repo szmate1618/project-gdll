@@ -1,0 +1,11 @@
+Model Information:
+* title:	Lada-2107 (Zhiguli) Low-Poly
+* source:	https://sketchfab.com/3d-models/lada-2107-zhiguli-low-poly-2496c57dce2e47d59fe6f5a2adf516c9
+* author:	AnonimProdaction228 (https://sketchfab.com/AnonimuProdaction)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Lada-2107 (Zhiguli) Low-Poly" (https://sketchfab.com/3d-models/lada-2107-zhiguli-low-poly-2496c57dce2e47d59fe6f5a2adf516c9) by AnonimProdaction228 (https://sketchfab.com/AnonimuProdaction) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

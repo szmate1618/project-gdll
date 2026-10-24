@@ -78,6 +78,7 @@ VisibilityIndex::VisibilityIndex(const std::vector<VisibilityBounds>& bounds) : 
             throw std::runtime_error("Visibility requires finite, ordered bounds");
         }
     }
+    leafForInstance_.resize(bounds_.size());
     order_.resize(bounds_.size());
     std::iota(order_.begin(), order_.end(), std::size_t{0});
     if (!bounds_.empty()) build(0, bounds_.size());
@@ -92,7 +93,10 @@ std::size_t VisibilityIndex::build(std::size_t first, std::size_t count) {
     }
     const auto index = nodes_.size();
     nodes_.push_back({bounds, first, count, 0, 0});
-    if (count <= 32) return index;
+    if (count <= 32) {
+        for (std::size_t offset = first; offset < first + count; ++offset) leafForInstance_[order_[offset]] = index;
+        return index;
+    }
     const auto extent = bounds.maximum - bounds.minimum;
     int axis = extent.y > extent.x ? 1 : 0;
     if (extent.z > extent[axis]) axis = 2;
@@ -107,36 +111,80 @@ std::size_t VisibilityIndex::build(std::size_t first, std::size_t count) {
     const auto right = build(middle, first + count - middle);
     nodes_[index].left = left;
     nodes_[index].right = right;
+    nodes_[left].parent = index;
+    nodes_[right].parent = index;
     return index;
 }
 
 template<bool PlaneHints>
 void VisibilityIndex::visit(std::size_t index, const Frustum* frustum, const HorizontalVisibilityRange* range,
                             std::vector<std::size_t>& visible, VisibilityStats& stats,
-                            VisibilityQueryState* temporal) const {
+                            VisibilityQueryState* temporal, const VisibilityBounds* region) const {
     const auto& node = nodes_[index];
     ++stats.testedNodes;
+    const auto overlaps = [&](const VisibilityBounds& bounds) {
+        return !region || (glm::all(glm::lessThanEqual(bounds.minimum,region->maximum)) &&
+                           glm::all(glm::greaterThanEqual(bounds.maximum,region->minimum)));
+    };
+    if (!overlaps(node.bounds)) return;
+    const bool contained = !region || (glm::all(glm::greaterThanEqual(node.bounds.minimum,region->minimum)) &&
+                                      glm::all(glm::lessThanEqual(node.bounds.maximum,region->maximum)));
     if (range && !range->intersects(node.bounds)) return;
     std::uint8_t* nodePlane = nullptr;
     if constexpr (PlaneHints) nodePlane = &temporal->nodePlanes_[index];
     const auto relation = frustum ? frustum->classify<PlaneHints>(node.bounds.minimum, node.bounds.maximum,
         nodePlane, stats.testedPlanes, stats.temporalRejects) : Frustum::Relation::Inside;
     if (relation == Frustum::Relation::Outside) return;
-    if (relation == Frustum::Relation::Inside && (!range || range->contains(node.bounds))) {
+    if (relation == Frustum::Relation::Inside && contained && (!range || range->contains(node.bounds))) {
         visible.insert(visible.end(), order_.begin() + node.first, order_.begin() + node.first + node.count);
     } else if (node.left != 0) {
-        visit<PlaneHints>(node.left, frustum, range, visible, stats, temporal);
-        visit<PlaneHints>(node.right, frustum, range, visible, stats, temporal);
+        visit<PlaneHints>(node.left, frustum, range, visible, stats, temporal, region);
+        visit<PlaneHints>(node.right, frustum, range, visible, stats, temporal, region);
     } else for (std::size_t offset = node.first; offset < node.first + node.count; ++offset) {
         const auto instance = order_[offset];
         ++stats.testedInstances;
-        if (range && !range->intersects(bounds_[instance])) continue;
+        if (!overlaps(bounds_[instance]) || (range && !range->intersects(bounds_[instance]))) continue;
         std::uint8_t* instancePlane = nullptr;
         if constexpr (PlaneHints) instancePlane = &temporal->instancePlanes_[instance];
         if (!frustum || frustum->classify<PlaneHints>(bounds_[instance].minimum, bounds_[instance].maximum,
                 instancePlane, stats.testedPlanes, stats.temporalRejects) != Frustum::Relation::Outside)
             visible.push_back(instance);
     }
+}
+
+bool VisibilityIndex::update(std::size_t instance, const VisibilityBounds& bounds) {
+    for (int axis = 0; axis < 3; ++axis)
+        if (!std::isfinite(bounds.minimum[axis]) || !std::isfinite(bounds.maximum[axis]) || bounds.minimum[axis] > bounds.maximum[axis])
+            throw std::runtime_error("Visibility requires finite, ordered bounds");
+    auto& old = bounds_.at(instance);
+    if (old.minimum == bounds.minimum && old.maximum == bounds.maximum) return false;
+    old = bounds;
+    auto index = leafForInstance_.at(instance);
+    auto& leaf = nodes_[index];
+    leaf.bounds = bounds_[order_[leaf.first]];
+    for (std::size_t i = leaf.first + 1; i < leaf.first + leaf.count; ++i) {
+        leaf.bounds.minimum = glm::min(leaf.bounds.minimum, bounds_[order_[i]].minimum);
+        leaf.bounds.maximum = glm::max(leaf.bounds.maximum, bounds_[order_[i]].maximum);
+    }
+    while (index != 0) {
+        index = nodes_[index].parent;
+        auto& node = nodes_[index];
+        const auto& a = nodes_[node.left].bounds;
+        const auto& b = nodes_[node.right].bounds;
+        const VisibilityBounds next{glm::min(a.minimum,b.minimum), glm::max(a.maximum,b.maximum)};
+        if (node.bounds.minimum == next.minimum && node.bounds.maximum == next.maximum) break;
+        node.bounds = next;
+    }
+    return true;
+}
+
+VisibilityStats VisibilityIndex::query(const glm::mat4& projectionView, const VisibilityBounds& region,
+                                        std::vector<std::size_t>& visible) const {
+    visible.clear();
+    VisibilityStats stats;
+    const Frustum frustum(projectionView);
+    if (!nodes_.empty()) visit<false>(0, &frustum, nullptr, visible, stats, nullptr, &region);
+    return stats;
 }
 
 VisibilityStats VisibilityIndex::query(const glm::mat4& projectionView,

@@ -109,6 +109,18 @@ FetchContent_Declare(openal_soft
     DOWNLOAD_NAME openal-soft-1.24.3.tar.gz
 )
 FetchContent_MakeAvailable(glm tinygltf box3d meshoptimizer tomlplusplus)
+# Box3D exposes scalar friction; tires need an independent sideways limit.
+# Apply on every configure, including already populated offline dependency trees.
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/patch_box3d_directional_friction.py"
+            "${box3d_SOURCE_DIR}"
+    RESULT_VARIABLE box3d_patch_result)
+if(NOT box3d_patch_result EQUAL 0)
+    message(FATAL_ERROR "Cannot apply the pinned Box3D directional-friction patch")
+endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/patches/box3d-directional-friction.patch"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/patch_box3d_directional_friction.py")
 if(GD_VIEWER)
     FetchContent_MakeAvailable(glfw openal_soft)
 endif()
@@ -116,6 +128,8 @@ endif()
 # Offline asset preparation; never runs during viewer startup.
 add_executable(zombie_mesh_simplify tools/zombie_mesh_simplify.cpp)
 target_link_libraries(zombie_mesh_simplify PRIVATE meshoptimizer)
+add_executable(vehicle_mesh_simplify tools/vehicle_mesh_simplify.cpp)
+target_link_libraries(vehicle_mesh_simplify PRIVATE meshoptimizer)
 
 function(viewer_warnings target)
     # Keep our header/encoding settings out of FetchContent dependencies.
@@ -199,6 +213,11 @@ if(BUILD_TESTING)
     set_tests_properties(viewer_zombie_navmesh_merge PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
+add_library(viewer_vehicle_lods STATIC src/vehicle_lod.cpp)
+target_link_libraries(viewer_vehicle_lods PUBLIC viewer_model viewer_fingerprints)
+target_include_directories(viewer_vehicle_lods SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+viewer_warnings(viewer_vehicle_lods)
+
 add_library(viewer_vegetation STATIC src/vegetation_selection.cpp)
 viewer_warnings(viewer_vegetation)
 
@@ -273,8 +292,8 @@ add_custom_command(
 add_custom_target(viewer_audio_assets DEPENDS ${VIEWER_AUDIO_FILES})
 endif()
 
-add_library(viewer_physics STATIC src/physics_world.cpp src/physics_prop.cpp src/physics_grab.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp)
-target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d)
+add_library(viewer_physics STATIC src/vehicle_config.cpp src/physics_world.cpp src/physics_prop.cpp src/physics_grab.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_physics.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp)
+target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
 
@@ -286,7 +305,7 @@ viewer_warnings(viewer_forests)
 
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp
     src/zombie_layer.cpp src/zombie_lod.cpp src/zombie_lod_assets.cpp src/zombie_hit.cpp src/zombie_damage.cpp src/zombie_dismemberment.cpp src/zombie_shooting.cpp src/zombie_chase.cpp src/zombie_attack.cpp src/zombie_behavior.cpp src/zombie_animation.cpp
-    src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp src/zombie_spatial_index.cpp src/zombie_crowd.cpp src/zombie_movement.cpp src/zombie_door_collision.cpp src/zombie_perception.cpp src/zombie_render_updates.cpp
+    src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp src/zombie_spatial_index.cpp src/zombie_crowd.cpp src/zombie_movement.cpp src/zombie_door_collision.cpp src/zombie_vehicle_physics.cpp src/zombie_perception.cpp src/zombie_render_updates.cpp
     src/zombie_navigation.cpp src/zombie_scenario.cpp src/zombie_scenario_routes.cpp src/zombie_travel.cpp src/zombie_hit_capsules.cpp
     src/zombie_wounds.cpp src/zombie_wound_surface.cpp src/zombie_cavity_physics.cpp
     src/blood_mist.cpp src/blood_particles.cpp src/zombie_blood.cpp)
@@ -311,6 +330,11 @@ viewer_warnings(viewer_weapons)
 add_library(viewer_objects STATIC src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp)
 target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics viewer_weapons)
 viewer_warnings(viewer_objects)
+
+add_library(viewer_vehicles STATIC src/vehicle_player.cpp src/vehicle_placement.cpp)
+target_link_libraries(viewer_vehicles PUBLIC viewer_objects viewer_fps viewer_zombies)
+target_include_directories(viewer_vehicles SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+viewer_warnings(viewer_vehicles)
 
 set(VIEWER_TEST_ASSET "${CMAKE_CURRENT_SOURCE_DIR}/assets/test.glb")
 set(VIEWER_TEST_NAVMESH "${CMAKE_CURRENT_SOURCE_DIR}/assets/test.navmesh")
@@ -361,12 +385,13 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/box_renderer.cpp
     src/dropped_weapon_renderer.cpp
     src/grenade_renderer.cpp
+    src/vehicle_renderer.cpp src/vehicle_visibility.cpp
     src/weapon_overlay.cpp
     src/building_renderer.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
     src/zombie_renderer.cpp src/zombie_wound_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/blood_mist_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
-    viewer_model viewer_weapon_pose viewer_weapons viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting viewer_grenades OpenGL::GL)
+    viewer_vehicle_lods viewer_model viewer_weapon_pose viewer_weapons viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting viewer_grenades OpenGL::GL)
 if(WIN32)
     target_link_libraries(viewer_renderer PUBLIC GLEW::GLEW)
 endif()
@@ -387,7 +412,7 @@ viewer_warnings(viewer_scene_audio)
 add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp src/frame_profile.cpp
     src/reticle_overlay.cpp)
 target_link_libraries(godollo_viewer PRIVATE viewer_vegetation
-    viewer_renderer viewer_fps viewer_interaction viewer_objects viewer_poles viewer_guardrails viewer_weapons viewer_scene_audio glfw
+    viewer_renderer viewer_fps viewer_interaction viewer_objects viewer_vehicles viewer_poles viewer_guardrails viewer_weapons viewer_scene_audio glfw
 )
 target_compile_definitions(godollo_viewer PRIVATE
     GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -397,6 +422,7 @@ target_compile_definitions(godollo_viewer PRIVATE
     VIEWER_ZOMBIE_PARK="${CMAKE_CURRENT_SOURCE_DIR}/assets/zombies/grassalkovich_park.json"
     VIEWER_FOREST_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/forest_patches.json"
     VIEWER_ITEMS="${CMAKE_CURRENT_SOURCE_DIR}/items"
+    VIEWER_VEHICLES="${CMAKE_CURRENT_SOURCE_DIR}/vehicles"
     VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}"
     VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml"
     VIEWER_AUDIO_DIR="${VIEWER_AUDIO_DIR}"
@@ -440,6 +466,12 @@ if(BUILD_TESTING)
     target_link_libraries(test_zombie_scenario PRIVATE viewer_zombies)
     viewer_warnings(test_zombie_scenario)
     add_test(NAME viewer_zombie_scenario COMMAND test_zombie_scenario)
+
+    add_executable(test_zombie_vehicle_physics tests/test_zombie_vehicle_physics.cpp)
+    target_include_directories(test_zombie_vehicle_physics PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+    target_link_libraries(test_zombie_vehicle_physics PRIVATE viewer_vehicles)
+    viewer_warnings(test_zombie_vehicle_physics)
+    add_test(NAME viewer_zombie_vehicle_physics COMMAND test_zombie_vehicle_physics)
 endif()
 
 if(BUILD_TESTING AND GD_VIEWER)
@@ -572,6 +604,62 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_interior_objects PRIVATE viewer_objects viewer_interaction)
     viewer_warnings(test_interior_objects)
     add_test(NAME viewer_interior_objects COMMAND test_interior_objects)
+    add_executable(test_visibility_refit tests/test_visibility_refit.cpp)
+    target_link_libraries(test_visibility_refit PRIVATE viewer_visibility)
+    viewer_warnings(test_visibility_refit)
+    add_test(NAME viewer_visibility_refit COMMAND test_visibility_refit)
+
+    add_executable(test_vehicle_renderer tests/test_vehicle_renderer.cpp)
+    target_link_libraries(test_vehicle_renderer PRIVATE viewer_renderer viewer_vehicles glfw)
+    target_compile_definitions(test_vehicle_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_vehicle_renderer)
+    add_test(NAME viewer_vehicle_renderer COMMAND test_vehicle_renderer)
+    set_tests_properties(viewer_vehicle_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
+    add_executable(test_vehicle_lod_renderer tests/test_vehicle_lod_renderer.cpp)
+    target_link_libraries(test_vehicle_lod_renderer PRIVATE viewer_renderer viewer_vehicles glfw)
+    target_compile_definitions(test_vehicle_lod_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_vehicle_lod_renderer)
+    add_test(NAME viewer_vehicle_lod_renderer COMMAND test_vehicle_lod_renderer
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/vehicles/models" "${CMAKE_CURRENT_SOURCE_DIR}/vehicles"
+        "${CMAKE_CURRENT_BINARY_DIR}/vehicle-lod-renderer")
+    set_tests_properties(viewer_vehicle_lod_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
+    add_executable(test_vehicle_traction tests/test_vehicle_traction.cpp)
+    target_link_libraries(test_vehicle_traction PRIVATE viewer_physics)
+    viewer_warnings(test_vehicle_traction)
+    add_test(NAME viewer_vehicle_traction COMMAND test_vehicle_traction)
+
+    add_executable(test_vehicle_lod tests/test_vehicle_lod.cpp)
+    target_link_libraries(test_vehicle_lod PRIVATE viewer_vehicle_lods)
+    target_include_directories(test_vehicle_lod SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+    add_test(NAME viewer_vehicle_lod COMMAND test_vehicle_lod "${CMAKE_CURRENT_BINARY_DIR}/vehicle-lod-fixture")
+    viewer_warnings(test_vehicle_lod)
+
+    add_executable(test_vehicle_placement tests/test_vehicle_placement.cpp)
+    target_link_libraries(test_vehicle_placement PRIVATE viewer_vehicles)
+    target_include_directories(test_vehicle_placement SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+    viewer_warnings(test_vehicle_placement)
+    add_test(NAME viewer_vehicle_placement COMMAND test_vehicle_placement "${CMAKE_CURRENT_BINARY_DIR}/vehicle-placement-fixture")
+
+    add_executable(test_vehicle_config tests/test_vehicle_config.cpp)
+    target_link_libraries(test_vehicle_config PRIVATE viewer_vehicles)
+    target_compile_definitions(test_vehicle_config PRIVATE TEST_VEHICLE_CONFIGS="${CMAKE_CURRENT_SOURCE_DIR}/vehicles")
+    viewer_warnings(test_vehicle_config)
+    add_test(NAME viewer_vehicle_config COMMAND test_vehicle_config "${CMAKE_CURRENT_BINARY_DIR}/vehicle-config-fixture")
+
+    add_executable(test_vehicle_parking tests/test_vehicle_parking.cpp)
+    target_link_libraries(test_vehicle_parking PRIVATE viewer_vehicles)
+    viewer_warnings(test_vehicle_parking)
+    add_test(NAME viewer_vehicle_parking COMMAND test_vehicle_parking)
+
+    add_executable(test_vehicles tests/test_vehicles.cpp)
+    target_link_libraries(test_vehicles PRIVATE viewer_vehicles)
+    viewer_warnings(test_vehicles)
+    add_test(NAME viewer_vehicles COMMAND test_vehicles)
+
     add_executable(test_physics_boxes tests/test_physics_boxes.cpp)
     target_link_libraries(test_physics_boxes PRIVATE viewer_objects viewer_fps)
     viewer_warnings(test_physics_boxes)

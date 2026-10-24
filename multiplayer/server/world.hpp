@@ -6,6 +6,7 @@
 #include "weapons.hpp"
 #include "zombie_door_collision.hpp"
 #include "replication.hpp"
+#include "vehicle_seats.hpp"
 #include <map>
 #include <set>
 
@@ -38,6 +39,7 @@ public:
     const std::map<std::uint32_t, ServerPlayer>& players() const { return players_; }
 private:
     Scene& scene_;
+    VehicleSeats vehicleSeats_;
     viewer::PhysicsScene physicsScene_;
     viewer::InteriorObjects interiors_;
     viewer::ZombieDoorCollision zombieDoors_;

@@ -1,0 +1,489 @@
+{
+  "version": 1,
+  "checked_on": "2026-10-24",
+  "license_policy": "Commercial use and modification permitted; preserve attribution, license link and modification notice.",
+  "triangle_count_source": "sources.json lists Sketchfab API faceCount; preparation.json records measured triangles from downloaded glTF and output GLBs, counting scene instances.",
+  "download_status": "All 14 official glTF archives downloaded and SHA-256 recorded; all bundled notices verified CC BY 4.0.",
+  "models": [
+    {
+      "requested_name": "Toyota Corolla 1999",
+      "uid": "472028eb6e7d471a9f20bb7d3eef9a64",
+      "api_url": "https://api.sketchfab.com/v3/models/472028eb6e7d471a9f20bb7d3eef9a64",
+      "metadata_status": 200,
+      "checked_on": "2026-10-24",
+      "name": "Toyota Corolla - PS1 Low Poly",
+      "author": "Wersaus33",
+      "author_url": "https://sketchfab.com/wersaus33",
+      "url": "https://sketchfab.com/3d-models/toyota-corolla-ps1-low-poly-472028eb6e7d471a9f20bb7d3eef9a64",
+      "listed_triangles": 144,
+      "license": {
+        "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+        "label": "CC Attribution",
+        "fullName": "Creative Commons Attribution",
+        "requirements": "Author must be credited. Commercial use is allowed.",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "slug": "by"
+      },
+      "downloadable": true,
+      "description": "PS1 low poly style 99' Toyota Corolla model. I really like cars and wanted to make some PS1 style for a while now. I wanted to begin with some chill and easy ;)\n\n128x128 Texture\n82 Verticles\n144 Triangles",
+      "download_status": 200,
+      "license_eligible": true,
+      "slug": "toyota-corolla-1999",
+      "archive_path": "downloads/toyota-corolla-1999.zip",
+      "archive_bytes": 18343,
+      "archive_sha256": "70b63ea4f3571818b034dd83b1418cd67bc890cae29b5142eece1e6d9dae6beb",
+      "scene_path": "source/toyota-corolla-1999/scene.gltf",
+      "bundled_notices": [
+        "source/toyota-corolla-1999/license.txt"
+      ],
+      "triangle_budget": 999
+    },
+    {
+      "requested_name": "Volkswagen Golf V 2006",
+      "uid": "680c5577ea724f7aa3248946c998c7f1",
+      "api_url": "https://api.sketchfab.com/v3/models/680c5577ea724f7aa3248946c998c7f1",
+      "metadata_status": 200,
+      "checked_on": "2026-10-24",
+      "name": "Volkswagen Golf V - PS1 Low Poly",
+      "author": "Wersaus33",
+      "author_url": "https://sketchfab.com/wersaus33",
+      "url": "https://sketchfab.com/3d-models/volkswagen-golf-v-ps1-low-poly-680c5577ea724f7aa3248946c998c7f1",
+      "listed_triangles": 160,
+      "license": {
+        "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+        "label": "CC Attribution",
+        "fullName": "Creative Commons Attribution",
+        "requirements": "Author must be credited. Commercial use is allowed.",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "slug": "by"
+      },
+      "downloadable": true,
+      "description": "2006 VW Golf PS1 style, similar to my Toyota Corolla model.\n\n128x128 Texture",
+      "download_status": 200,
+      "license_eligible": true,
+      "slug": "volkswagen-golf-v-2006",
+      "archive_path": "downloads/volkswagen-golf-v-2006.zip",
+      "archive_bytes": 32077,
+      "archive_sha256": "19dd9f680ca508890933e823e70e75f5105461631e8ed7cc9af1a0b29d536e0c",
+      "scene_path": "source/volkswagen-golf-v-2006/scene.gltf",
+      "bundled_notices": [
+        "source/volkswagen-golf-v-2006/license.txt"
+      ],
+      "triangle_budget": 999
+    },
+    {
+      "requested_name": "Mercedes-Benz S 500 1995",
+      "uid": "7a0ca42d43b5455a8f5d91e4f7f6a4c9",
+      "api_url": "https://api.sketchfab.com/v3/models/7a0ca42d43b5455a8f5d91e4f7f6a4c9",
+      "metadata_status": 200,
+      "checked_on": "2026-10-24",
+      "name": "Mercedes-Benz S 500 - PS1 Low Poly",
+      "author": "Wersaus33",
+      "author_url": "https://sketchfab.com/wersaus33",
+      "url": "https://sketchfab.com/3d-models/mercedes-benz-s-500-ps1-low-poly-7a0ca42d43b5455a8f5d91e4f7f6a4c9",
+      "listed_triangles": 198,
+      "license": {
+        "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+        "label": "CC Attribution",
+        "fullName": "Creative Commons Attribution",
+        "requirements": "Author must be credited. Commercial use is allowed.",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "slug": "by"
+      },
+      "downloadable": true,
+      "description": "A classic 95' S class Mercedes. I used to own 97' C class and have very fond memories of it.\n\n128x128 Texture",
+      "download_status": 200,
+      "license_eligible": true,
+      "slug": "mercedes-benz-s-500-1995",
+      "archive_path": "downloads/mercedes-benz-s-500-1995.zip",
+      "archive_bytes": 23026,
+      "archive_sha256": "d53c69644281157928d12b02c537f82044f4ae162707d8a027adec6b23b5cd8c",
+      "scene_path": "source/mercedes-benz-s-500-1995/scene.gltf",
+      "bundled_notices": [
+        "source/mercedes-benz-s-500-1995/license.txt"
+      ],
+      "triangle_budget": 999
+    },
+    {
+      "requested_name": "Volvo V70",
+      "uid": "d0fad02a54fc4221b19a11eb9d2050b2",
+      "api_url": "https://api.sketchfab.com/v3/models/d0fad02a54fc4221b19a11eb9d2050b2",
+      "metadata_status": 200,
+      "checked_on": "2026-10-24",
+      "name": "Volvo V70 - PS1 Low Poly",
+      "author": "Wersaus33",
+      "author_url": "https://sketchfab.com/wersaus33",
+      "url": "https://sketchfab.com/3d-models/volvo-v70-ps1-low-poly-d0fad02a54fc4221b19a11eb9d2050b2",
+      "listed_triangles": 214,
+      "license": {
+        "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+        "label": "CC Attribution",
+        "fullName": "Creative Commons Attribution",
+        "requirements": "Author must be credited. Commercial use is allowed.",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "slug": "by"
+      },
+      "downloadable": true,
+      "description": "It's been a while since i did a car model. I love making those!",
+      "download_status": 200,
+      "license_eligible": true,
+      "slug": "volvo-v70",
+      "archive_path": "downloads/volvo-v70.zip",
+      "archive_bytes": 21467,
+      "archive_sha256": "f5f771eda9eec8b3bad487da39f4a8e8693b38dd0be3f5aaf4917f72df3b53f9",
+      "scene_path": "source/volvo-v70/scene.gltf",
+      "bundled_notices": [
+        "source/volvo-v70/license.txt"
+      ],
+      "triangle_budget": 999
+    },
+    {
+      "requested_name": "Suzuki Grand Vitara 2000",
+      "uid": "03e3db7b0d4a42d5a52f6740a3d5657d",
+      "api_url": "https://api.sketchfab.com/v3/models/03e3db7b0d4a42d5a52f6740a3d5657d",
+      "metadata_status": 200,
+      "checked_on": "2026-10-24",
+      "name": "Suzuki Grand Vitara - PS1 Low Poly",
+      "author": "Wersaus33",
+      "author_url": "https://sketchfab.com/wersaus33",
+      "url": "https://sketchfab.com/3d-models/suzuki-grand-vitara-ps1-low-poly-03e3db7b0d4a42d5a52f6740a3d5657d",
+      "listed_triangles": 232,
+      "license": {
+        "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+        "label": "CC Attribution",
+        "fullName": "Creative Commons Attribution",
+        "requirements": "Author must be credited. Commercial use is allowed.",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "slug": "by"
+      },
+      "downloadable": true,
+      "description": "The spare wheel added a lot of charm imo. Based off the 00' Grand Vitara.\n\n128x128 Texture",
+      "download_status": 200,
+      "license_eligible": true,
+      "slug": "suzuki-grand-vitara-2000",
+      "archive_path": "downloads/suzuki-grand-vitara-2000.zip",
+      "archive_bytes": 24208,
+      "archive_sha256": "05d1324ef046da3679b03fa99347a98c7bbf3dabf8d604e51c2fc3dc6b09c32b",
+      "scene_path": "source/suzuki-grand-vitara-2000/scene.gltf",
+      "bundled_notices": [
+        "source/suzuki-grand-vitara-2000/license.txt"
+      ],
+      "triangle_budget": 999
+    },
+    {
+      "requested_name": "Ford Focus 2005",
+      "uid": "076d01878b084b6489d3f2ac24bba4f4",
+      "api_url": "https://api.sketchfab.com/v3/models/076d01878b084b6489d3f2ac24bba4f4",
+      "metadata_status": 200,
+      "checked_on": "2026-10-24",
+      "name": "2005 Ford Focus (Super Low-Poly)",
+      "author": "ImperialBlue3D",
+      "author_url": "https://sketchfab.com/ImperialBlue3D",
+      "url": "https://sketchfab.com/3d-models/2005-ford-focus-super-low-poly-076d01878b084b6489d3f2ac24bba4f4",
+      "listed_triangles": 612,
+      "license": {
+        "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+        "label": "CC Attribution",
+        "fullName": "Creative Commons Attribution",
+        "requirements": "Author must be credited. Commercial use is allowed.",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "slug": "by"
+      },
+      "downloadable": true,
+      "description": "One Model before this was the 2003 Impala GS. And I've said That I would make better cars after That model. And now you may be asking me \"This is the worst car I've ever seen, You LIAR!!\". Although You may be right, This was a bad image and I was In a hurry. BE GRATEFUL AND ENJOY THE FREE MODEL I'VE MADE FOR YOU ;) \n\n(also please credit me when using)",
+      "download_status": 200,
+      "license_eligible": true,
+      "slug": "ford-focus-2005",
+      "archive_path": "downloads/ford-focus-2005.zip",
+      "archive_bytes": 746622,
+      "archive_sha256": "a0482c084fcb4824b444ea9eac15fc5edc256339c26b41227af21f25a25e4001",
+      "scene_path": "source/ford-focus-2005/scene.gltf",
+      "bundled_notices": [
+        "source/ford-focus-2005/license.txt"
+      ],
+      "triangle_budget": 999
+    },
+    {
+      "requested_name": "Volkswagen Golf Mk1 1983",
+      "uid": "5ec88817d7a64f76b14e06e18a7c0923",
+      "api_url": "https://api.sketchfab.com/v3/models/5ec88817d7a64f76b14e06e18a7c0923",
+      "metadata_status": 200,
+      "checked_on": "2026-10-24",
+      "name": "Volkswagen Golf Mk1 (1983) — Low Poly 3D Model",
+      "author": "Yuriy Melnikov",
+      "author_url": "https://sketchfab.com/melnikov.yuriy",
+      "url": "https://sketchfab.com/3d-models/volkswagen-golf-mk1-1983-low-poly-3d-model-5ec88817d7a64f76b14e06e18a7c0923",
+      "listed_triangles": 904,
+      "license": {
+        "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+        "label": "CC Attribution",
+        "fullName": "Creative Commons Attribution",
+        "requirements": "Author must be credited. Commercial use is allowed.",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "slug": "by"
+      },
+      "downloadable": true,
+      "description": "**Volkswagen Golf Mk1 (1983) — Low Poly 3D Model**\n\nRealistic low-poly 3D model of the Volkswagen Golf Mk1 (1983), featuring high-quality PBR textures. Perfect for use in games, background scenes, visualizations, or archviz projects.\n\nThe model is optimized for real-time engines like Unity and Unreal Engine, combining a low polygon count with realistic textures that preserve the car’s authentic 1980s look — from its classic hatchback silhouette to chrome details and slightly aged paint.\n\nFeatures:\n\n* **Model year:** 1983 \n* **Format:** BLEND / FBX \n* **Style:** Low Poly with realistic PBR textures \n* **Textures:** BaseColor\n* **Intended use:** Games, visualizations, environment props, AR/VR projects \n* **Optimization:** Suitable for mobile and desktop platforms",
+      "download_status": 200,
+      "license_eligible": true,
+      "slug": "volkswagen-golf-mk1-1983",
+      "archive_path": "downloads/volkswagen-golf-mk1-1983.zip",
+      "archive_bytes": 859600,
+      "archive_sha256": "ed56d3c921d874404fb4e5a2e07844978b6e37a92fe398fcc7a90eade20f952f",
+      "scene_path": "source/volkswagen-golf-mk1-1983/scene.gltf",
+      "bundled_notices": [
+        "source/volkswagen-golf-mk1-1983/license.txt"
+      ],
+      "triangle_budget": 999
+    },
+    {
+      "requested_name": "Lada 2107",
+      "uid": "2496c57dce2e47d59fe6f5a2adf516c9",
+      "api_url": "https://api.sketchfab.com/v3/models/2496c57dce2e47d59fe6f5a2adf516c9",
+      "metadata_status": 200,
+      "checked_on": "2026-10-24",
+      "name": "Lada-2107 (Zhiguli) Low-Poly",
+      "author": "AnonimProdaction228",
+      "author_url": "https://sketchfab.com/AnonimuProdaction",
+      "url": "https://sketchfab.com/3d-models/lada-2107-zhiguli-low-poly-2496c57dce2e47d59fe6f5a2adf516c9",
+      "listed_triangles": 1475,
+      "license": {
+        "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+        "label": "CC Attribution",
+        "fullName": "Creative Commons Attribution",
+        "requirements": "Author must be credited. Commercial use is allowed.",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "slug": "by"
+      },
+      "downloadable": true,
+      "description": "Low-Poly Lada VAZ 2107",
+      "download_status": 200,
+      "license_eligible": true,
+      "slug": "lada-2107",
+      "archive_path": "downloads/lada-2107.zip",
+      "archive_bytes": 73346,
+      "archive_sha256": "8e23cc0da5f500742497fd75a935ba544e2c3df5ad72a8498e1dd1f7dbb09479",
+      "scene_path": "source/lada-2107/scene.gltf",
+      "bundled_notices": [
+        "source/lada-2107/license.txt"
+      ],
+      "triangle_budget": 999
+    },
+    {
+      "requested_name": "Opel Astra 2008",
+      "uid": "4591ce5c3b444d0197e8cea7d6cd033c",
+      "api_url": "https://api.sketchfab.com/v3/models/4591ce5c3b444d0197e8cea7d6cd033c",
+      "metadata_status": 200,
+      "checked_on": "2026-10-24",
+      "name": "Opel Astra 2008 (From scan)",
+      "author": "Exidnost",
+      "author_url": "https://sketchfab.com/exidnost",
+      "url": "https://sketchfab.com/3d-models/opel-astra-2008-from-scan-4591ce5c3b444d0197e8cea7d6cd033c",
+      "listed_triangles": 4634,
+      "license": {
+        "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+        "label": "CC Attribution",
+        "fullName": "Creative Commons Attribution",
+        "requirements": "Author must be credited. Commercial use is allowed.",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "slug": "by"
+      },
+      "downloadable": true,
+      "description": "I scanned my car and then in blender modeled a new model on top of the scan and got an optimized mesh. \nThis is my first work so far.",
+      "download_status": 200,
+      "license_eligible": true,
+      "slug": "opel-astra-2008",
+      "archive_path": "downloads/opel-astra-2008.zip",
+      "archive_bytes": 1947157,
+      "archive_sha256": "e00c801c065e596bcfe08ed471e706ca6943de0f14303f3d816afb1ac82dd665",
+      "scene_path": "source/opel-astra-2008/scene.gltf",
+      "bundled_notices": [
+        "source/opel-astra-2008/license.txt"
+      ],
+      "triangle_budget": 999
+    },
+    {
+      "requested_name": "Opel Corsa B",
+      "uid": "773b1c83b4a240f2ac415c351d3a65c6",
+      "api_url": "https://api.sketchfab.com/v3/models/773b1c83b4a240f2ac415c351d3a65c6",
+      "metadata_status": 200,
+      "checked_on": "2026-10-24",
+      "name": "Opel Corsa B - Low Poly",
+      "author": "JiggleSticks",
+      "author_url": "https://sketchfab.com/JiggleSticks",
+      "url": "https://sketchfab.com/3d-models/opel-corsa-b-low-poly-773b1c83b4a240f2ac415c351d3a65c6",
+      "listed_triangles": 11712,
+      "license": {
+        "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+        "label": "CC Attribution",
+        "fullName": "Creative Commons Attribution",
+        "requirements": "Author must be credited. Commercial use is allowed.",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "slug": "by"
+      },
+      "downloadable": true,
+      "description": "Hi!\n\nSo today I thaught that I had to give some credit not to the most beautifull car, but to the car that never dies.\nMy family had one of these and they were a blast to see. \nI saw one this week and told myself that I had to do one.",
+      "download_status": 200,
+      "license_eligible": true,
+      "slug": "opel-corsa-b",
+      "archive_path": "downloads/opel-corsa-b.zip",
+      "archive_bytes": 148921,
+      "archive_sha256": "68bdecbc2b3205a75df46a66ee0f38b3c498e76add750e392327c0617a4dd682",
+      "scene_path": "source/opel-corsa-b/scene.gltf",
+      "bundled_notices": [
+        "source/opel-corsa-b/license.txt"
+      ],
+      "triangle_budget": 1500
+    },
+    {
+      "requested_name": "Fiat 126p Maluch",
+      "uid": "907fe3ed09694c71b6b0e8b001d25d8d",
+      "api_url": "https://api.sketchfab.com/v3/models/907fe3ed09694c71b6b0e8b001d25d8d",
+      "metadata_status": 200,
+      "checked_on": "2026-10-24",
+      "name": "Fiat 126p Maluch - free",
+      "author": "NETRUNNER_pl",
+      "author_url": "https://sketchfab.com/NETRUNNER_pl",
+      "url": "https://sketchfab.com/3d-models/fiat-126p-maluch-free-907fe3ed09694c71b6b0e8b001d25d8d",
+      "listed_triangles": 11944,
+      "license": {
+        "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+        "label": "CC Attribution",
+        "fullName": "Creative Commons Attribution",
+        "requirements": "Author must be credited. Commercial use is allowed.",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "slug": "by"
+      },
+      "downloadable": true,
+      "description": "**Fiat 126p Maluch**<br/>\nLowpoly model of polish small car (based on italian license)<br/>\n<br/>\nFiat 126 is a four passenger, rear-engine, city car manufactured and marketed by Fiat over a twenty-eight year production run from 1972–2000, over a single generation. Introduced by Fiat in October 1972 at the Turin Auto Show, the 126 replaced the Fiat 500, using major elements from its design. The majority of 126s (some 3.3 million) were manufactured in the Tychy plant. Total production reached approximately 4.7 million units. In Poland the car became a people's car, and a cultural icon, earning the nickname Maluch, meaning \"The Little One\" a name that eventually became official in 1997.<br/>\nMaluch was my 1st car :)\n<br/><br/>\n3 cars in set: Basic model + flat shaded model + tuned version. Each with own texture<br/>\n<br/>\n*Check also my other aircrafts and cars*<br/>\n[Patreon with monthly free model](https://www.patreon.com/user?u=84074894)",
+      "download_status": 200,
+      "license_eligible": true,
+      "slug": "fiat-126p-maluch",
+      "archive_path": "downloads/fiat-126p-maluch.zip",
+      "archive_bytes": 1692031,
+      "archive_sha256": "cd39ba33b960961d5c8c8fe14f44802e2cfa3aeae5cdd6d1281812aa1a8601ba",
+      "scene_path": "source/fiat-126p-maluch/scene.gltf",
+      "bundled_notices": [
+        "source/fiat-126p-maluch/license.txt"
+      ],
+      "variants": [
+        {
+          "name": "basic",
+          "root_node": "Fiat 126p_5"
+        },
+        {
+          "name": "flat",
+          "root_node": "Fiat 126p flat_11"
+        },
+        {
+          "name": "tuned",
+          "root_node": "Fiat 126p tuned_18"
+        }
+      ],
+      "triangle_budget": 1500
+    },
+    {
+      "requested_name": "Volkswagen Passat B8",
+      "uid": "de203c04b4da40c8beb9a460ffe3eb7e",
+      "api_url": "https://api.sketchfab.com/v3/models/de203c04b4da40c8beb9a460ffe3eb7e",
+      "metadata_status": 200,
+      "checked_on": "2026-10-24",
+      "name": "low-poly Volkswagen Passat B8",
+      "author": "D_U",
+      "author_url": "https://sketchfab.com/DU1701",
+      "url": "https://sketchfab.com/3d-models/low-poly-volkswagen-passat-b8-de203c04b4da40c8beb9a460ffe3eb7e",
+      "listed_triangles": 12623,
+      "license": {
+        "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+        "label": "CC Attribution",
+        "fullName": "Creative Commons Attribution",
+        "requirements": "Author must be credited. Commercial use is allowed.",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "slug": "by"
+      },
+      "downloadable": true,
+      "description": "Eighth-generation VW Passat, middle class. *Sedan* body style. It has been produced since 2014. Winner of the *European Car of the Year* competition in 2015. Diesel engine *1.6 TDI 120 hp.*\n\n*This time, I didn't make the engine, transmission, etc. Because I'm lazy.*\nI wouldn't say that I was trying hard. I just decided to try it, so it's probably look so-so.",
+      "download_status": 200,
+      "license_eligible": true,
+      "slug": "volkswagen-passat-b8",
+      "archive_path": "downloads/volkswagen-passat-b8.zip",
+      "archive_bytes": 162789,
+      "archive_sha256": "22d0e1a2ace6cb3d40c2d8e016c169bfaf925977db05f72d13e71f233793264d",
+      "scene_path": "source/volkswagen-passat-b8/scene.gltf",
+      "bundled_notices": [
+        "source/volkswagen-passat-b8/license.txt"
+      ],
+      "triangle_budget": 1500
+    },
+    {
+      "requested_name": "Suzuki Swift 2024",
+      "uid": "a04dd58415f949d78dea020a27202407",
+      "api_url": "https://api.sketchfab.com/v3/models/a04dd58415f949d78dea020a27202407",
+      "metadata_status": 200,
+      "checked_on": "2026-10-24",
+      "name": "2024 Suzuki Swift 1.2 CVT GLX PLUS",
+      "author": "tonielpro520",
+      "author_url": "https://sketchfab.com/tonielpro520",
+      "url": "https://sketchfab.com/3d-models/2024-suzuki-swift-12-cvt-glx-plus-a04dd58415f949d78dea020a27202407",
+      "listed_triangles": 21743,
+      "license": {
+        "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+        "label": "CC Attribution",
+        "fullName": "Creative Commons Attribution",
+        "requirements": "Author must be credited. Commercial use is allowed.",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "slug": "by"
+      },
+      "downloadable": true,
+      "description": "2024 Suzuki Swift 1.2 CVT GLX PLUS\n![](https://cms-assets.autoscout24.com/uaddx06iwzdz/722MYDZlyfdD8eHgkKkFbr/92add4b54262a3fb9f539e0d5ce02dc8/Suzuki-Swift-2024-1024-03.jpg?w=1100&fit=fill)\nFree",
+      "download_status": 200,
+      "license_eligible": true,
+      "slug": "suzuki-swift-2024",
+      "archive_path": "downloads/suzuki-swift-2024.zip",
+      "archive_bytes": 643568,
+      "archive_sha256": "4b4fabae0b92d253eff659e1b877b3d7c667221736324fcf2a7db44829288971",
+      "scene_path": "source/suzuki-swift-2024/scene.gltf",
+      "bundled_notices": [
+        "source/suzuki-swift-2024/license.txt"
+      ],
+      "triangle_budget": 1500,
+      "merge_identical_solid_materials": true
+    },
+    {
+      "requested_name": "Skoda Octavia 2001",
+      "uid": "7f2a74dc21524af1a7d7a19faffbdfb8",
+      "api_url": "https://api.sketchfab.com/v3/models/7f2a74dc21524af1a7d7a19faffbdfb8",
+      "metadata_status": 200,
+      "checked_on": "2026-10-24",
+      "name": "Skoda Octavia 2001 Low Poly Pixel Art",
+      "author": "Kuutti Siitonen",
+      "author_url": "https://sketchfab.com/kuuttisiitonen",
+      "url": "https://sketchfab.com/3d-models/skoda-octavia-2001-low-poly-pixel-art-7f2a74dc21524af1a7d7a19faffbdfb8",
+      "listed_triangles": 4842,
+      "license": {
+        "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+        "label": "CC Attribution",
+        "fullName": "Creative Commons Attribution",
+        "requirements": "Author must be credited. Commercial use is allowed.",
+        "url": "http://creativecommons.org/licenses/by/4.0/",
+        "slug": "by"
+      },
+      "downloadable": true,
+      "description": "",
+      "download_status": 200,
+      "license_eligible": true,
+      "slug": "skoda-octavia-2001",
+      "archive_path": "downloads/skoda-octavia-2001.zip",
+      "archive_bytes": 986845,
+      "archive_sha256": "3c26e5b82450bbaf9bcc52ea0320d3e083612e85edfcd0910490f7f551ad523a",
+      "scene_path": "source/skoda-octavia-2001/scene.gltf",
+      "bundled_notices": [
+        "source/skoda-octavia-2001/license.txt"
+      ],
+      "triangle_budget": 999
+    }
+  ],
+  "default_maximum_triangles": 999,
+  "maximum_triangles": 1500,
+  "budget_policy": "Default 999; user authorized up to 1500 when the original budget visibly damaged shape or wheels."
+}

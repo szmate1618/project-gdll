@@ -1,0 +1,9 @@
+/downloads/
+/source/
+/models/
+
+# Generated vehicle LoD previews and inventories
+/lod-comparisons/
+/lod-report.json
+/LOD_REPORT.md
+/comparisons/

@@ -68,6 +68,7 @@ void command(Wire& w, Command& c) {
     w.number(c.drag.x); w.number(c.drag.y);
     w.flag(c.movement.run); w.flag(c.movement.jump); w.flag(c.movement.crouch); w.flag(c.movement.toggleProne);
     w.flag(c.interaction); w.flag(c.left); w.flag(c.right); w.flag(c.reload); w.integer(c.slot);
+    w.flag(c.enterVehicle);
     if (c.sequence == 0 || std::abs(c.movement.forward) > 1 || std::abs(c.movement.right) > 1 ||
         std::abs(c.movement.yawDegrees) > 180 || std::abs(c.pitch) > 89 || c.slot >= viewer::weaponIds.size() ||
         std::abs(c.drag.x) > 2000 || std::abs(c.drag.y) > 2000)
@@ -113,7 +114,10 @@ void payload(Wire& w, Snapshot& s) {
         w.integer(p.id); w.integer(p.resolved); movement(w, p.movement);
         w.number(p.yaw); w.number(p.pitch); w.integer(p.slot); w.integer(p.loaded); w.integer(p.reserve); w.integer(p.shots);
         w.flag(p.weaponCoolingDown);
-        if (!p.id || p.slot >= viewer::weaponIds.size() || std::abs(p.yaw) > 180 || std::abs(p.pitch) > 89)
+        w.integer(p.vehicle); w.integer(p.seat);
+        if (!p.id || p.slot >= viewer::weaponIds.size() || std::abs(p.yaw) > 180 || std::abs(p.pitch) > 89 ||
+            (p.vehicle != noVehicle && (p.vehicle >= maxVehicles || p.seat >= viewer::maxVehicleSeats)) ||
+            (p.vehicle == noVehicle && p.seat != noVehicleSeat))
             throw std::runtime_error("Invalid player snapshot");
     });
     w.list(s.zombies, maxVisibleZombies, [&](ZombieState& z) {
@@ -155,6 +159,26 @@ void payload(Wire& w, Snapshot& s) {
         burst.size = static_cast<viewer::BloodMistSize>(size);
     });
     uniqueIds(s.bloodMist);
+
+    w.list(s.vehicles, maxVehicles, [&](VehicleState& v) {
+        w.integer(v.id); w.integer(v.type); w.vector(v.velocity);
+        const auto pose = [&](RigidPose& p) {
+            w.vector(p.center);
+            w.number(p.rotation.w); w.number(p.rotation.x); w.number(p.rotation.y); w.number(p.rotation.z);
+            if (std::abs(glm::length(p.rotation) - 1) > .001f)
+                throw std::runtime_error("Invalid vehicle rotation");
+        };
+        pose(v.chassis);
+        for (auto& wheel : v.wheels) pose(wheel);
+        if (v.id >= maxVehicles || v.type >= viewer::maxVehicleTypes) throw std::runtime_error("Invalid vehicle ID");
+    });
+    uniqueIds(s.vehicles);
+    std::set<std::pair<std::uint32_t, std::uint8_t>> occupied;
+    for (const auto& p : s.players) if (p.vehicle != noVehicle) {
+        if (!occupied.emplace(p.vehicle, p.seat).second || std::none_of(s.vehicles.begin(), s.vehicles.end(),
+                [&](const auto& v) { return v.id == p.vehicle; }))
+            throw std::runtime_error("Invalid vehicle occupancy");
+    }
 }
 void payload(Wire& w, CorpsePose& pose) {
     w.integer(pose.id); w.integer(pose.asset); w.integer(pose.version);

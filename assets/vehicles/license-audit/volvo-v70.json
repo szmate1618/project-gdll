@@ -1,0 +1,187 @@
+{
+  "animationCount": 0,
+  "categories": [
+    {
+      "uid": "22a2f677efad4d7bbca5ad45f9b5868e",
+      "name": "Cars & Vehicles",
+      "slug": "cars-vehicles",
+      "uri": "https://api.sketchfab.com/v3/categories/22a2f677efad4d7bbca5ad45f9b5868e",
+      "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/45dd0cc0860ac57fcd63bde1cc3f2b7c-v2.svg",
+      "thumbnails": [
+        {
+          "width": "512",
+          "height": "288",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/512x288.png"
+        },
+        {
+          "width": "800",
+          "height": "450",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/800x450.png"
+        }
+      ]
+    }
+  ],
+  "commentCount": 3,
+  "createdAt": "2023-03-30T07:42:32.447981",
+  "embedUrl": "https://sketchfab.com/models/d0fad02a54fc4221b19a11eb9d2050b2/embed",
+  "faceCount": 214,
+  "isAgeRestricted": false,
+  "license": {
+    "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+    "label": "CC Attribution",
+    "fullName": "Creative Commons Attribution",
+    "requirements": "Author must be credited. Commercial use is allowed.",
+    "url": "http://creativecommons.org/licenses/by/4.0/",
+    "slug": "by"
+  },
+  "likeCount": 105,
+  "name": "Volvo V70 - PS1 Low Poly",
+  "publishedAt": "2023-03-30T07:44:37.545032",
+  "soundCount": 0,
+  "staffpickedAt": null,
+  "tags": [
+    {
+      "name": "volvo",
+      "slug": "volvo",
+      "uri": "https://api.sketchfab.com/v3/tags/volvo"
+    },
+    {
+      "name": "psx",
+      "slug": "psx",
+      "uri": "https://api.sketchfab.com/v3/tags/psx"
+    },
+    {
+      "name": "ps1",
+      "slug": "ps1",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1"
+    },
+    {
+      "name": "gameasset",
+      "slug": "gameasset",
+      "uri": "https://api.sketchfab.com/v3/tags/gameasset"
+    },
+    {
+      "name": "car",
+      "slug": "car",
+      "uri": "https://api.sketchfab.com/v3/tags/car"
+    },
+    {
+      "name": "v70",
+      "slug": "v70",
+      "uri": "https://api.sketchfab.com/v3/tags/v70"
+    },
+    {
+      "name": "ps1-graphics",
+      "slug": "ps1-graphics",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1-graphics"
+    },
+    {
+      "name": "ps1-style",
+      "slug": "ps1-style",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1-style"
+    },
+    {
+      "name": "noai",
+      "slug": "noai",
+      "uri": "https://api.sketchfab.com/v3/tags/noai"
+    }
+  ],
+  "thumbnails": {
+    "images": [
+      {
+        "uid": "f5fb7dc836e34402aab2814357507077",
+        "width": 1920,
+        "height": 1080,
+        "size": 170460,
+        "url": "https://media.sketchfab.com/models/d0fad02a54fc4221b19a11eb9d2050b2/thumbnails/34252cbe34444af0843fb5428910de26/5062b701b40641b3907bec9b67da22e2.jpeg"
+      },
+      {
+        "uid": "c2395b5ffbaf428c8e5560a08c31500f",
+        "width": 1024,
+        "height": 576,
+        "size": 50790,
+        "url": "https://media.sketchfab.com/models/d0fad02a54fc4221b19a11eb9d2050b2/thumbnails/34252cbe34444af0843fb5428910de26/51cda99d9cdc45e49b3ba6911728f221.jpeg"
+      },
+      {
+        "uid": "a29bdc7694724cde9578e7b458c38957",
+        "width": 720,
+        "height": 405,
+        "size": 28526,
+        "url": "https://media.sketchfab.com/models/d0fad02a54fc4221b19a11eb9d2050b2/thumbnails/34252cbe34444af0843fb5428910de26/778c2cc385fb4a438b2b5695f6283110.jpeg"
+      },
+      {
+        "uid": "b2726f1654bb495c82d17ecbd37952f1",
+        "width": 256,
+        "height": 144,
+        "size": 5826,
+        "url": "https://media.sketchfab.com/models/d0fad02a54fc4221b19a11eb9d2050b2/thumbnails/34252cbe34444af0843fb5428910de26/c04abe8394d4483189c401c0dad94a9a.jpeg"
+      },
+      {
+        "uid": "efbe8fc5ed23434691f856c7c39c5a94",
+        "width": 64,
+        "height": 36,
+        "size": 1270,
+        "url": "https://media.sketchfab.com/models/d0fad02a54fc4221b19a11eb9d2050b2/thumbnails/34252cbe34444af0843fb5428910de26/6011a37a1a56431b8650c9ea8f9411c4.jpeg"
+      }
+    ]
+  },
+  "uid": "d0fad02a54fc4221b19a11eb9d2050b2",
+  "uri": "https://api.sketchfab.com/v3/models/d0fad02a54fc4221b19a11eb9d2050b2",
+  "user": {
+    "uid": "18b507a3ed74409488bca4a83bf8264f",
+    "username": "wersaus33",
+    "displayName": "Wersaus33",
+    "account": "basic",
+    "profileUrl": "https://sketchfab.com/wersaus33",
+    "avatar": {
+      "uid": "9ab5f3a11c594821b6b96b96f266a453",
+      "uri": "https://api.sketchfab.com/v3/avatars/9ab5f3a11c594821b6b96b96f266a453",
+      "images": [
+        {
+          "width": 32,
+          "height": 32,
+          "size": 1123,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/51bf3b156fc547768deedbb34e911a6e.jpeg"
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "size": 1595,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/bc127f3331234f1b82979fddc08e3ae4.jpeg"
+        },
+        {
+          "width": 90,
+          "height": 90,
+          "size": 3349,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/5866b562ff9544b481b99315436184f1.jpeg"
+        },
+        {
+          "width": 100,
+          "height": 100,
+          "size": 3802,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/2627c92ae0b643efa4c7da02eeaf8b69.jpeg"
+        }
+      ]
+    },
+    "uri": "https://api.sketchfab.com/v3/users/18b507a3ed74409488bca4a83bf8264f"
+  },
+  "vertexCount": 114,
+  "viewCount": 2971,
+  "viewerUrl": "https://sketchfab.com/3d-models/volvo-v70-ps1-low-poly-d0fad02a54fc4221b19a11eb9d2050b2",
+  "isDownloadable": true,
+  "isProtected": false,
+  "description": "It's been a while since i did a car model. I love making those!",
+  "price": null,
+  "downloadCount": 1000,
+  "editorUrl": "https://sketchfab.com/models/d0fad02a54fc4221b19a11eb9d2050b2/edit",
+  "status": {
+    "warning": {},
+    "processing": "SUCCEEDED"
+  },
+  "source": "website",
+  "hasCommentsDisabled": false,
+  "updatedAt": "2023-03-30T07:44:37.601547",
+  "pbrType": null,
+  "textureCount": 1,
+  "materialCount": 1
+}

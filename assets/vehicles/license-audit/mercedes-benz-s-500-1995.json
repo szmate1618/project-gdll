@@ -1,0 +1,197 @@
+{
+  "animationCount": 0,
+  "categories": [
+    {
+      "uid": "22a2f677efad4d7bbca5ad45f9b5868e",
+      "name": "Cars & Vehicles",
+      "slug": "cars-vehicles",
+      "uri": "https://api.sketchfab.com/v3/categories/22a2f677efad4d7bbca5ad45f9b5868e",
+      "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/45dd0cc0860ac57fcd63bde1cc3f2b7c-v2.svg",
+      "thumbnails": [
+        {
+          "width": "512",
+          "height": "288",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/512x288.png"
+        },
+        {
+          "width": "800",
+          "height": "450",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/800x450.png"
+        }
+      ]
+    }
+  ],
+  "commentCount": 3,
+  "createdAt": "2023-03-14T21:28:47.037841",
+  "embedUrl": "https://sketchfab.com/models/7a0ca42d43b5455a8f5d91e4f7f6a4c9/embed",
+  "faceCount": 198,
+  "isAgeRestricted": false,
+  "license": {
+    "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+    "label": "CC Attribution",
+    "fullName": "Creative Commons Attribution",
+    "requirements": "Author must be credited. Commercial use is allowed.",
+    "url": "http://creativecommons.org/licenses/by/4.0/",
+    "slug": "by"
+  },
+  "likeCount": 230,
+  "name": "Mercedes-Benz S 500 - PS1 Low Poly",
+  "publishedAt": "2023-03-14T21:34:58.728825",
+  "soundCount": 0,
+  "staffpickedAt": null,
+  "tags": [
+    {
+      "name": "psx",
+      "slug": "psx",
+      "uri": "https://api.sketchfab.com/v3/tags/psx"
+    },
+    {
+      "name": "MERCEDES",
+      "slug": "mercedes",
+      "uri": "https://api.sketchfab.com/v3/tags/mercedes"
+    },
+    {
+      "name": "ps1",
+      "slug": "ps1",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1"
+    },
+    {
+      "name": "mercedesbenz",
+      "slug": "mercedesbenz",
+      "uri": "https://api.sketchfab.com/v3/tags/mercedesbenz"
+    },
+    {
+      "name": "s500",
+      "slug": "s500",
+      "uri": "https://api.sketchfab.com/v3/tags/s500"
+    },
+    {
+      "name": "lowpoly",
+      "slug": "lowpoly",
+      "uri": "https://api.sketchfab.com/v3/tags/lowpoly"
+    },
+    {
+      "name": "gameasset",
+      "slug": "gameasset",
+      "uri": "https://api.sketchfab.com/v3/tags/gameasset"
+    },
+    {
+      "name": "sclass",
+      "slug": "sclass",
+      "uri": "https://api.sketchfab.com/v3/tags/sclass"
+    },
+    {
+      "name": "ps1-graphics",
+      "slug": "ps1-graphics",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1-graphics"
+    },
+    {
+      "name": "ps1-style",
+      "slug": "ps1-style",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1-style"
+    },
+    {
+      "name": "noai",
+      "slug": "noai",
+      "uri": "https://api.sketchfab.com/v3/tags/noai"
+    }
+  ],
+  "thumbnails": {
+    "images": [
+      {
+        "uid": "e5bd30a7119148448d21ab5173c82b1d",
+        "width": 1920,
+        "height": 1080,
+        "size": 183646,
+        "url": "https://media.sketchfab.com/models/7a0ca42d43b5455a8f5d91e4f7f6a4c9/thumbnails/e9bad653fdaf46d4825cf59703cb92b4/e7eb7de17246406b9daf261d8186cfd7.jpeg"
+      },
+      {
+        "uid": "1aa47f84627745fbae0f0fcd9587fbf0",
+        "width": 1024,
+        "height": 576,
+        "size": 58259,
+        "url": "https://media.sketchfab.com/models/7a0ca42d43b5455a8f5d91e4f7f6a4c9/thumbnails/e9bad653fdaf46d4825cf59703cb92b4/db238d521cf1486eaaebdd2f7506fb4e.jpeg"
+      },
+      {
+        "uid": "7e7dab023f0d415b8429aa0448b3d512",
+        "width": 720,
+        "height": 405,
+        "size": 33010,
+        "url": "https://media.sketchfab.com/models/7a0ca42d43b5455a8f5d91e4f7f6a4c9/thumbnails/e9bad653fdaf46d4825cf59703cb92b4/8311fb8715aa4b2691a6c1f34a1f012c.jpeg"
+      },
+      {
+        "uid": "16aa28f5142b439d9efa69a17996a33b",
+        "width": 256,
+        "height": 144,
+        "size": 6533,
+        "url": "https://media.sketchfab.com/models/7a0ca42d43b5455a8f5d91e4f7f6a4c9/thumbnails/e9bad653fdaf46d4825cf59703cb92b4/af34a3c2c2f64c30ba20a006513c83b2.jpeg"
+      },
+      {
+        "uid": "3e5631888c4d414da6789d9f1774a0ba",
+        "width": 64,
+        "height": 36,
+        "size": 1292,
+        "url": "https://media.sketchfab.com/models/7a0ca42d43b5455a8f5d91e4f7f6a4c9/thumbnails/e9bad653fdaf46d4825cf59703cb92b4/66b31c19afe64b0dbdbe88415c9d6a04.jpeg"
+      }
+    ]
+  },
+  "uid": "7a0ca42d43b5455a8f5d91e4f7f6a4c9",
+  "uri": "https://api.sketchfab.com/v3/models/7a0ca42d43b5455a8f5d91e4f7f6a4c9",
+  "user": {
+    "uid": "18b507a3ed74409488bca4a83bf8264f",
+    "username": "wersaus33",
+    "displayName": "Wersaus33",
+    "account": "basic",
+    "profileUrl": "https://sketchfab.com/wersaus33",
+    "avatar": {
+      "uid": "9ab5f3a11c594821b6b96b96f266a453",
+      "uri": "https://api.sketchfab.com/v3/avatars/9ab5f3a11c594821b6b96b96f266a453",
+      "images": [
+        {
+          "width": 32,
+          "height": 32,
+          "size": 1123,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/51bf3b156fc547768deedbb34e911a6e.jpeg"
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "size": 1595,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/bc127f3331234f1b82979fddc08e3ae4.jpeg"
+        },
+        {
+          "width": 90,
+          "height": 90,
+          "size": 3349,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/5866b562ff9544b481b99315436184f1.jpeg"
+        },
+        {
+          "width": 100,
+          "height": 100,
+          "size": 3802,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/2627c92ae0b643efa4c7da02eeaf8b69.jpeg"
+        }
+      ]
+    },
+    "uri": "https://api.sketchfab.com/v3/users/18b507a3ed74409488bca4a83bf8264f"
+  },
+  "vertexCount": 106,
+  "viewCount": 5872,
+  "viewerUrl": "https://sketchfab.com/3d-models/mercedes-benz-s-500-ps1-low-poly-7a0ca42d43b5455a8f5d91e4f7f6a4c9",
+  "isDownloadable": true,
+  "isProtected": false,
+  "description": "A classic 95' S class Mercedes. I used to own 97' C class and have very fond memories of it.\n\n128x128 Texture",
+  "price": null,
+  "downloadCount": 1768,
+  "editorUrl": "https://sketchfab.com/models/7a0ca42d43b5455a8f5d91e4f7f6a4c9/edit",
+  "status": {
+    "warning": {},
+    "processing": "SUCCEEDED"
+  },
+  "source": "website",
+  "hasCommentsDisabled": false,
+  "updatedAt": "2023-11-21T18:51:45.390268",
+  "pbrType": null,
+  "textureCount": 1,
+  "materialCount": 1
+}

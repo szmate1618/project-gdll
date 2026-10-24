@@ -1,0 +1,172 @@
+{
+  "animationCount": 0,
+  "categories": [
+    {
+      "uid": "22a2f677efad4d7bbca5ad45f9b5868e",
+      "name": "Cars & Vehicles",
+      "slug": "cars-vehicles",
+      "uri": "https://api.sketchfab.com/v3/categories/22a2f677efad4d7bbca5ad45f9b5868e",
+      "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/45dd0cc0860ac57fcd63bde1cc3f2b7c-v2.svg",
+      "thumbnails": [
+        {
+          "width": "512",
+          "height": "288",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/512x288.png"
+        },
+        {
+          "width": "800",
+          "height": "450",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/800x450.png"
+        }
+      ]
+    }
+  ],
+  "commentCount": 8,
+  "createdAt": "2023-11-22T22:04:41.743430",
+  "embedUrl": "https://sketchfab.com/models/de203c04b4da40c8beb9a460ffe3eb7e/embed",
+  "faceCount": 12623,
+  "isAgeRestricted": false,
+  "license": {
+    "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+    "label": "CC Attribution",
+    "fullName": "Creative Commons Attribution",
+    "requirements": "Author must be credited. Commercial use is allowed.",
+    "url": "http://creativecommons.org/licenses/by/4.0/",
+    "slug": "by"
+  },
+  "likeCount": 63,
+  "name": "low-poly Volkswagen Passat B8",
+  "publishedAt": "2023-11-22T22:21:03.563379",
+  "soundCount": 0,
+  "staffpickedAt": null,
+  "tags": [
+    {
+      "name": "sedan",
+      "slug": "sedan",
+      "uri": "https://api.sketchfab.com/v3/tags/sedan"
+    },
+    {
+      "name": "germany",
+      "slug": "germany",
+      "uri": "https://api.sketchfab.com/v3/tags/germany"
+    },
+    {
+      "name": "low-poly",
+      "slug": "low-poly",
+      "uri": "https://api.sketchfab.com/v3/tags/low-poly"
+    },
+    {
+      "name": "vehicle",
+      "slug": "vehicle",
+      "uri": "https://api.sketchfab.com/v3/tags/vehicle"
+    },
+    {
+      "name": "lowpoly",
+      "slug": "lowpoly",
+      "uri": "https://api.sketchfab.com/v3/tags/lowpoly"
+    },
+    {
+      "name": "car",
+      "slug": "car",
+      "uri": "https://api.sketchfab.com/v3/tags/car"
+    }
+  ],
+  "thumbnails": {
+    "images": [
+      {
+        "uid": "f274bb5c5b5b4adfa633588f90fb62bd",
+        "width": 1920,
+        "height": 1080,
+        "size": 228488,
+        "url": "https://media.sketchfab.com/models/de203c04b4da40c8beb9a460ffe3eb7e/thumbnails/beefeee90537448f893ed6d08971ae8f/de2d72929da1453a85a2cd0fe419eff0.jpeg"
+      },
+      {
+        "uid": "a9197f0acffb46f4bf513eef2a0e5e9b",
+        "width": 1024,
+        "height": 576,
+        "size": 43435,
+        "url": "https://media.sketchfab.com/models/de203c04b4da40c8beb9a460ffe3eb7e/thumbnails/beefeee90537448f893ed6d08971ae8f/644b25cbb21641d4baee610d262cf1cc.jpeg"
+      },
+      {
+        "uid": "a07286e94e754ae9b30167ac0ca3da49",
+        "width": 720,
+        "height": 405,
+        "size": 25965,
+        "url": "https://media.sketchfab.com/models/de203c04b4da40c8beb9a460ffe3eb7e/thumbnails/beefeee90537448f893ed6d08971ae8f/36a5bd30aaa946058ab17f8497ff4a13.jpeg"
+      },
+      {
+        "uid": "37a576275d36453dbaa7a9ba544c8258",
+        "width": 256,
+        "height": 144,
+        "size": 5900,
+        "url": "https://media.sketchfab.com/models/de203c04b4da40c8beb9a460ffe3eb7e/thumbnails/beefeee90537448f893ed6d08971ae8f/6cb95bac9f8142ad9721b7f3142895a1.jpeg"
+      },
+      {
+        "uid": "f1fc3a0e1d7f4b668408b9a49c9f645d",
+        "width": 64,
+        "height": 36,
+        "size": 1263,
+        "url": "https://media.sketchfab.com/models/de203c04b4da40c8beb9a460ffe3eb7e/thumbnails/beefeee90537448f893ed6d08971ae8f/f36f5459af4f4b448164383a90df2d69.jpeg"
+      }
+    ]
+  },
+  "uid": "de203c04b4da40c8beb9a460ffe3eb7e",
+  "uri": "https://api.sketchfab.com/v3/models/de203c04b4da40c8beb9a460ffe3eb7e",
+  "user": {
+    "uid": "5b29badd2f7f4647bcbe257af22aa156",
+    "username": "DU1701",
+    "displayName": "D_U",
+    "account": "basic",
+    "profileUrl": "https://sketchfab.com/DU1701",
+    "avatar": {
+      "uid": "50321f54f6764201ae2ee8d4df1835e9",
+      "uri": "https://api.sketchfab.com/v3/avatars/50321f54f6764201ae2ee8d4df1835e9",
+      "images": [
+        {
+          "width": 32,
+          "height": 32,
+          "size": 472,
+          "url": "https://media.sketchfab.com/avatars/50321f54f6764201ae2ee8d4df1835e9/7ee46db1392d4aa08e1809a8f16e8385.png"
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "size": 709,
+          "url": "https://media.sketchfab.com/avatars/50321f54f6764201ae2ee8d4df1835e9/b224a272831a48c5b6318e59eef76a81.png"
+        },
+        {
+          "width": 90,
+          "height": 90,
+          "size": 1218,
+          "url": "https://media.sketchfab.com/avatars/50321f54f6764201ae2ee8d4df1835e9/0a301b43f0714266a6367658b01397ae.png"
+        },
+        {
+          "width": 100,
+          "height": 100,
+          "size": 1319,
+          "url": "https://media.sketchfab.com/avatars/50321f54f6764201ae2ee8d4df1835e9/a10bc832534b4ad0adcb9f265e9cf7c2.png"
+        }
+      ]
+    },
+    "uri": "https://api.sketchfab.com/v3/users/5b29badd2f7f4647bcbe257af22aa156"
+  },
+  "vertexCount": 7095,
+  "viewCount": 3898,
+  "viewerUrl": "https://sketchfab.com/3d-models/low-poly-volkswagen-passat-b8-de203c04b4da40c8beb9a460ffe3eb7e",
+  "isDownloadable": true,
+  "isProtected": false,
+  "description": "Eighth-generation VW Passat, middle class. *Sedan* body style. It has been produced since 2014. Winner of the *European Car of the Year* competition in 2015. Diesel engine *1.6 TDI 120 hp.*\n\n*This time, I didn't make the engine, transmission, etc. Because I'm lazy.*\nI wouldn't say that I was trying hard. I just decided to try it, so it's probably look so-so.",
+  "price": null,
+  "downloadCount": 942,
+  "editorUrl": "https://sketchfab.com/models/de203c04b4da40c8beb9a460ffe3eb7e/edit",
+  "status": {
+    "warning": {},
+    "processing": "SUCCEEDED"
+  },
+  "source": "website",
+  "hasCommentsDisabled": false,
+  "updatedAt": "2026-08-06T06:10:20.493472",
+  "pbrType": null,
+  "textureCount": 0,
+  "materialCount": 10
+}

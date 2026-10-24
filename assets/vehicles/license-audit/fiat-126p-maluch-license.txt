@@ -1,0 +1,11 @@
+Model Information:
+* title:	Fiat 126p Maluch - free
+* source:	https://sketchfab.com/3d-models/fiat-126p-maluch-free-907fe3ed09694c71b6b0e8b001d25d8d
+* author:	NETRUNNER_pl (https://sketchfab.com/NETRUNNER_pl)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Fiat 126p Maluch - free" (https://sketchfab.com/3d-models/fiat-126p-maluch-free-907fe3ed09694c71b6b0e8b001d25d8d) by NETRUNNER_pl (https://sketchfab.com/NETRUNNER_pl) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

@@ -1,0 +1,11 @@
+Model Information:
+* title:	Opel Astra 2008 (From scan)
+* source:	https://sketchfab.com/3d-models/opel-astra-2008-from-scan-4591ce5c3b444d0197e8cea7d6cd033c
+* author:	Exidnost (https://sketchfab.com/exidnost)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Opel Astra 2008 (From scan)" (https://sketchfab.com/3d-models/opel-astra-2008-from-scan-4591ce5c3b444d0197e8cea7d6cd033c) by Exidnost (https://sketchfab.com/exidnost) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

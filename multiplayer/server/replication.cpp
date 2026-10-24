@@ -4,6 +4,17 @@
 
 namespace multiplayer {
 Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s) {
+    for (std::size_t i = 0; i < scene.vehicles->count(); ++i) {
+        if (i >= maxVehicles) throw std::runtime_error("Vehicle replication budget exceeded");
+        const auto pose = scene.vehicles->pose(i);
+        VehicleState state; state.id = static_cast<std::uint32_t>(i);
+        state.type = static_cast<std::uint32_t>(scene.vehicles->type(i));
+        state.chassis = {pose.chassis.center, pose.chassis.rotation};
+        state.velocity = scene.vehicles->velocity(i);
+        for (std::size_t w = 0; w < state.wheels.size(); ++w)
+            state.wheels[w] = {glm::vec3(pose.wheels[w][3]), glm::normalize(glm::quat_cast(glm::mat3(pose.wheels[w])))};
+        s.vehicles.push_back(state);
+    }
     for (const auto door : scene.doors->activeDoors()) {
         const auto offset = scene.doors->panel(door).center - feet;
         if (glm::dot(offset, offset) < 240.0f * 240 && s.doors.size() < maxDoors)

@@ -1,0 +1,43 @@
+name = "Volvo V70"
+seat_count = 4
+# Initial gameplay mass in kilograms; tune for the vehicle asset.
+weight_kg = 1550.0
+
+# Chassis-local meters: X right, Y up, -Z forward.
+[wheels]
+front_left = [-0.83, -0.32, -1.15]
+front_right = [0.83, -0.32, -1.15]
+rear_left = [-0.83, -0.32, 1.15]
+rear_right = [0.83, -0.32, 1.15]
+
+[headlights]
+left = [-0.64, 0.08, -1.83]
+right = [0.64, 0.08, -1.83]
+
+# front-left driver
+[[seats]]
+eye_position = [-0.38, 0.9, -0.25]
+entry_position = [-1.1, 0.8, -0.25]
+entry_radius = 2.0
+exit_position = [-1.65, 0.4, -0.25]
+
+# front-right passenger
+[[seats]]
+eye_position = [0.38, 0.9, -0.25]
+entry_position = [1.1, 0.8, -0.25]
+entry_radius = 2.0
+exit_position = [1.65, 0.4, -0.25]
+
+# rear-left passenger
+[[seats]]
+eye_position = [-0.38, 0.9, 1.15]
+entry_position = [-1.1, 0.8, 1.15]
+entry_radius = 2.0
+exit_position = [-1.65, 0.4, 1.15]
+
+# rear-right passenger
+[[seats]]
+eye_position = [0.38, 0.9, 1.15]
+entry_position = [1.1, 0.8, 1.15]
+entry_radius = 2.0
+exit_position = [1.65, 0.4, 1.15]

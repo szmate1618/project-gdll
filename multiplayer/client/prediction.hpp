@@ -18,5 +18,6 @@ private:
     std::deque<Command> pending_;
     std::uint64_t sequence_ = 0, resolved_ = 0;
     bool ready_ = false;
+    bool seated_ = false;
 };
 } // namespace multiplayer

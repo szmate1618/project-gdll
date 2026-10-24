@@ -1,0 +1,207 @@
+{
+  "animationCount": 0,
+  "categories": [
+    {
+      "uid": "22a2f677efad4d7bbca5ad45f9b5868e",
+      "name": "Cars & Vehicles",
+      "slug": "cars-vehicles",
+      "uri": "https://api.sketchfab.com/v3/categories/22a2f677efad4d7bbca5ad45f9b5868e",
+      "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/45dd0cc0860ac57fcd63bde1cc3f2b7c-v2.svg",
+      "thumbnails": [
+        {
+          "width": "512",
+          "height": "288",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/512x288.png"
+        },
+        {
+          "width": "800",
+          "height": "450",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/800x450.png"
+        }
+      ]
+    }
+  ],
+  "commentCount": 3,
+  "createdAt": "2023-03-14T17:55:25.432701",
+  "embedUrl": "https://sketchfab.com/models/680c5577ea724f7aa3248946c998c7f1/embed",
+  "faceCount": 160,
+  "isAgeRestricted": false,
+  "license": {
+    "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+    "label": "CC Attribution",
+    "fullName": "Creative Commons Attribution",
+    "requirements": "Author must be credited. Commercial use is allowed.",
+    "url": "http://creativecommons.org/licenses/by/4.0/",
+    "slug": "by"
+  },
+  "likeCount": 193,
+  "name": "Volkswagen Golf V - PS1 Low Poly",
+  "publishedAt": "2023-03-14T17:59:08.378794",
+  "soundCount": 0,
+  "staffpickedAt": null,
+  "tags": [
+    {
+      "name": "golf",
+      "slug": "golf",
+      "uri": "https://api.sketchfab.com/v3/tags/golf"
+    },
+    {
+      "name": "2006",
+      "slug": "2006",
+      "uri": "https://api.sketchfab.com/v3/tags/2006"
+    },
+    {
+      "name": "vw",
+      "slug": "vw",
+      "uri": "https://api.sketchfab.com/v3/tags/vw"
+    },
+    {
+      "name": "volkswagen",
+      "slug": "volkswagen",
+      "uri": "https://api.sketchfab.com/v3/tags/volkswagen"
+    },
+    {
+      "name": "psx",
+      "slug": "psx",
+      "uri": "https://api.sketchfab.com/v3/tags/psx"
+    },
+    {
+      "name": "ps1",
+      "slug": "ps1",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1"
+    },
+    {
+      "name": "volkswagen-golf",
+      "slug": "volkswagen-golf",
+      "uri": "https://api.sketchfab.com/v3/tags/volkswagen-golf"
+    },
+    {
+      "name": "lowpoly",
+      "slug": "lowpoly",
+      "uri": "https://api.sketchfab.com/v3/tags/lowpoly"
+    },
+    {
+      "name": "gameasset",
+      "slug": "gameasset",
+      "uri": "https://api.sketchfab.com/v3/tags/gameasset"
+    },
+    {
+      "name": "car",
+      "slug": "car",
+      "uri": "https://api.sketchfab.com/v3/tags/car"
+    },
+    {
+      "name": "ps1-graphics",
+      "slug": "ps1-graphics",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1-graphics"
+    },
+    {
+      "name": "ps1-style",
+      "slug": "ps1-style",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1-style"
+    },
+    {
+      "name": "noai",
+      "slug": "noai",
+      "uri": "https://api.sketchfab.com/v3/tags/noai"
+    }
+  ],
+  "thumbnails": {
+    "images": [
+      {
+        "uid": "23fea16d0009404ba9da4f7db9a3f8d1",
+        "width": 1920,
+        "height": 1080,
+        "size": 132460,
+        "url": "https://media.sketchfab.com/models/680c5577ea724f7aa3248946c998c7f1/thumbnails/5b9ac962903d463191533678ce0ea5ed/48120e9e09f9457f97fe6308afd7ddd9.jpeg"
+      },
+      {
+        "uid": "300cc4df58144b2b809aa29a7b5870e6",
+        "width": 1024,
+        "height": 576,
+        "size": 44693,
+        "url": "https://media.sketchfab.com/models/680c5577ea724f7aa3248946c998c7f1/thumbnails/5b9ac962903d463191533678ce0ea5ed/58d2f0f613134008a37760cfc87888fa.jpeg"
+      },
+      {
+        "uid": "68a811479a024171b11aba6ffa1c2c0b",
+        "width": 720,
+        "height": 405,
+        "size": 26161,
+        "url": "https://media.sketchfab.com/models/680c5577ea724f7aa3248946c998c7f1/thumbnails/5b9ac962903d463191533678ce0ea5ed/1a236ce26a9243e9a6c1736f7e426f0b.jpeg"
+      },
+      {
+        "uid": "b21849b7a509455ba0f7386d5de38185",
+        "width": 256,
+        "height": 144,
+        "size": 5766,
+        "url": "https://media.sketchfab.com/models/680c5577ea724f7aa3248946c998c7f1/thumbnails/5b9ac962903d463191533678ce0ea5ed/d07f262eafbd4280b157a196d1f3735c.jpeg"
+      },
+      {
+        "uid": "448da10bf63f4dbdbbf8e87751d62391",
+        "width": 64,
+        "height": 36,
+        "size": 1312,
+        "url": "https://media.sketchfab.com/models/680c5577ea724f7aa3248946c998c7f1/thumbnails/5b9ac962903d463191533678ce0ea5ed/46a1bc91b7874e67b98c0fd18c71d63c.jpeg"
+      }
+    ]
+  },
+  "uid": "680c5577ea724f7aa3248946c998c7f1",
+  "uri": "https://api.sketchfab.com/v3/models/680c5577ea724f7aa3248946c998c7f1",
+  "user": {
+    "uid": "18b507a3ed74409488bca4a83bf8264f",
+    "username": "wersaus33",
+    "displayName": "Wersaus33",
+    "account": "basic",
+    "profileUrl": "https://sketchfab.com/wersaus33",
+    "avatar": {
+      "uid": "9ab5f3a11c594821b6b96b96f266a453",
+      "uri": "https://api.sketchfab.com/v3/avatars/9ab5f3a11c594821b6b96b96f266a453",
+      "images": [
+        {
+          "width": 32,
+          "height": 32,
+          "size": 1123,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/51bf3b156fc547768deedbb34e911a6e.jpeg"
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "size": 1595,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/bc127f3331234f1b82979fddc08e3ae4.jpeg"
+        },
+        {
+          "width": 90,
+          "height": 90,
+          "size": 3349,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/5866b562ff9544b481b99315436184f1.jpeg"
+        },
+        {
+          "width": 100,
+          "height": 100,
+          "size": 3802,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/2627c92ae0b643efa4c7da02eeaf8b69.jpeg"
+        }
+      ]
+    },
+    "uri": "https://api.sketchfab.com/v3/users/18b507a3ed74409488bca4a83bf8264f"
+  },
+  "vertexCount": 90,
+  "viewCount": 4291,
+  "viewerUrl": "https://sketchfab.com/3d-models/volkswagen-golf-v-ps1-low-poly-680c5577ea724f7aa3248946c998c7f1",
+  "isDownloadable": true,
+  "isProtected": false,
+  "description": "2006 VW Golf PS1 style, similar to my Toyota Corolla model.\n\n128x128 Texture",
+  "price": null,
+  "downloadCount": 1601,
+  "editorUrl": "https://sketchfab.com/models/680c5577ea724f7aa3248946c998c7f1/edit",
+  "status": {
+    "warning": {},
+    "processing": "SUCCEEDED"
+  },
+  "source": "website",
+  "hasCommentsDisabled": false,
+  "updatedAt": "2023-11-21T18:51:42.524236",
+  "pbrType": null,
+  "textureCount": 1,
+  "materialCount": 2
+}

@@ -10,6 +10,9 @@
 #include "physics_world.hpp"
 #include "simulation_clock.hpp"
 
+#include "zombie_movement.hpp"
+#include "zombie_vehicle_physics.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -31,10 +34,11 @@ bool finite(glm::vec3 value) {
 
 struct ZombieLayer::Physics {
     Physics() : Physics(std::make_shared<PhysicsWorld>()) {}
-    explicit Physics(std::shared_ptr<PhysicsWorld> shared) : simulation(std::move(shared)), world(simulation), cavities(simulation) {}
+    explicit Physics(std::shared_ptr<PhysicsWorld> shared) : simulation(std::move(shared)), world(simulation), cavities(simulation), living(std::make_unique<ZombieVehiclePhysics>(simulation)) {}
     std::shared_ptr<PhysicsWorld> simulation;
     ZombieRagdollWorld world;
     ZombieCavityPhysics cavities;
+    std::unique_ptr<ZombieVehiclePhysics> living;
 };
 
 ZombieLayer::ZombieLayer() = default;
@@ -210,6 +214,31 @@ std::size_t ZombieLayer::explode(glm::vec3 origin, float radius, double animatio
     }
     return killed;
 }
+bool ZombieLayer::knockDown(std::size_t id, glm::vec3 velocity, double seconds) {
+    ensureSpatialIndex();
+    if (id>=instances.size() || !finite(velocity)) return false;
+    const auto& instance=instances[id];
+    if (instance.ragdoll || instance.removed || instance.asset>=assets.size()) return false;
+    activateRagdoll(id,sampleZombiePose(assets[instance.asset],instance,seconds),velocity,seconds);
+    return true;
+}
+glm::vec3 ZombieLayer::pushLiving(std::size_t id, glm::vec3 displacement, const CollisionWorld& world) {
+    ensureSpatialIndex();
+    if (id>=instances.size() || !finite(displacement)) return glm::vec3(0);
+    auto& instance=instances[id];
+    if (instance.ragdoll || instance.removed || instance.asset>=assets.size() || instance.vehiclePhysics) return glm::vec3(0);
+    const auto start=glm::vec3(instance.restRoot[3]);
+    const auto movement=moveZombieBody(start,start+displacement,world,&crowd_,id);
+    const auto delta=movement.feet-start;
+    if (delta!=glm::vec3(0)) {
+        const auto translation=glm::translate(glm::mat4(1),delta);
+        instance.restRoot=translation*instance.restRoot;
+        instance.restTransform=translation*instance.restTransform;
+        instance.transform=translation*instance.transform;
+        updateSpatialMembership(id); markRenderChanged(id);
+    }
+    return delta;
+}
 void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> selectedPose, glm::vec3 velocity,
                                 double animationSeconds, int severedJoint, ShotCaliber caliber) {
     if (!physics_) physics_ = std::make_unique<Physics>();
@@ -218,6 +247,7 @@ void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> s
     const auto feet = glm::vec3(instance.restRoot[3]);
     const float yaw = std::atan2(instance.restRoot[2][0], instance.restRoot[0][0]);
     const auto& asset = assets[instance.asset];
+    if (instance.vehiclePhysics && physics_->living) instance.locomotionVelocity = physics_->living->release(*this,selected);
     constexpr float motionSampleSeconds = 1.0f / 30;
     const auto previousPose = sampleZombiePose(asset, instance, animationSeconds, -motionSampleSeconds);
     instance.activationPose = std::move(selectedPose);
@@ -265,8 +295,20 @@ void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> s
 
 void ZombieLayer::attachPhysics(std::shared_ptr<PhysicsWorld> world) {
     if (ragdollCount() != 0) throw std::logic_error("Attach physics before creating ragdolls");
-    physics_ = std::make_unique<Physics>(std::move(world));
+    auto replacement = std::make_unique<Physics>(std::move(world));
+    resetVehiclePhysics();
+    physics_ = std::move(replacement);
 }
+void ZombieLayer::prepareVehiclePhysics(VehicleLayer& cars, PhysicsScene& scene, const CollisionWorld& collision,
+                                      float seconds, DoorLayer* doors) {
+    if (!physics_ || !physics_->living) throw std::logic_error("Attach shared physics before preparing vehicle contacts");
+    physics_->living->prepare(*this, cars, scene, collision, seconds, doors);
+}
+void ZombieLayer::finishVehiclePhysics(VehicleLayer& cars, float seconds, double animationSeconds) {
+    if (physics_ && physics_->living) physics_->living->finish(*this, cars, seconds, animationSeconds);
+}
+std::size_t ZombieLayer::vehiclePhysicsCount() const { return physics_ && physics_->living ? physics_->living->count() : 0; }
+void ZombieLayer::resetVehiclePhysics() { if (physics_ && physics_->living) physics_->living->clear(*this); }
 
 void ZombieLayer::update(float seconds) {
     if (!physics_ || !std::isfinite(seconds) || seconds <= 0.0f) return;

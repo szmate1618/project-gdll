@@ -12,7 +12,6 @@ struct ZombieMovement;
 // Explicit idle/attack/looking transitions stop immediately, bypassing the
 // short animation hold used for intermittent locomotion obstruction.
 void stopZombieLocomotion(ZombieInstance& instance);
-
 // Rotate in place along the shortest yaw arc at 90 degrees/s. Returns true
 // when aligned. Keep the idle animation and the asset's normalization intact.
 bool turnZombieToward(ZombieInstance& instance, glm::vec2 direction, float seconds);

@@ -41,7 +41,8 @@ window title also shows the camera/control modes and grounded state. **Tab**
 switches Combat/Interaction controls. Combat retains shooting and mouse look;
 Interaction lets you hold **left mouse** on a door within 1.5 m and drag or move
 with WASD to push/pull it, keeping camera orientation fixed until release.
-**Left Alt** releases/captures the mouse; **Escape** closes the viewer.
+**Left Alt** releases/captures the mouse on foot and toggles first/third person
+while driving. **F12** also releases/captures the mouse; **Escape** closes the viewer.
 
 The walking player is a 1.80 m capsule with radius 0.30 m and eye height 1.70 m.
 Gravity, ground contact, and wall sliding use collision triangles derived from

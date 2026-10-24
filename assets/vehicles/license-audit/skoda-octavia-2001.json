@@ -1,0 +1,207 @@
+{
+  "animationCount": 0,
+  "categories": [
+    {
+      "uid": "22a2f677efad4d7bbca5ad45f9b5868e",
+      "name": "Cars & Vehicles",
+      "slug": "cars-vehicles",
+      "uri": "https://api.sketchfab.com/v3/categories/22a2f677efad4d7bbca5ad45f9b5868e",
+      "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/45dd0cc0860ac57fcd63bde1cc3f2b7c-v2.svg",
+      "thumbnails": [
+        {
+          "width": "512",
+          "height": "288",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/512x288.png"
+        },
+        {
+          "width": "800",
+          "height": "450",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/800x450.png"
+        }
+      ]
+    }
+  ],
+  "commentCount": 1,
+  "createdAt": "2024-03-05T09:39:09.308701",
+  "embedUrl": "https://sketchfab.com/models/7f2a74dc21524af1a7d7a19faffbdfb8/embed",
+  "faceCount": 4842,
+  "isAgeRestricted": false,
+  "license": {
+    "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+    "label": "CC Attribution",
+    "fullName": "Creative Commons Attribution",
+    "requirements": "Author must be credited. Commercial use is allowed.",
+    "url": "http://creativecommons.org/licenses/by/4.0/",
+    "slug": "by"
+  },
+  "likeCount": 20,
+  "name": "Skoda Octavia 2001 Low Poly Pixel Art",
+  "publishedAt": "2024-03-05T09:43:17.810743",
+  "soundCount": 0,
+  "staffpickedAt": null,
+  "tags": [
+    {
+      "name": "bad",
+      "slug": "bad",
+      "uri": "https://api.sketchfab.com/v3/tags/bad"
+    },
+    {
+      "name": "lopoly",
+      "slug": "lopoly",
+      "uri": "https://api.sketchfab.com/v3/tags/lopoly"
+    },
+    {
+      "name": "ps1",
+      "slug": "ps1",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1"
+    },
+    {
+      "name": "low-fi",
+      "slug": "low-fi",
+      "uri": "https://api.sketchfab.com/v3/tags/low-fi"
+    },
+    {
+      "name": "pixelated",
+      "slug": "pixelated",
+      "uri": "https://api.sketchfab.com/v3/tags/pixelated"
+    },
+    {
+      "name": "lo-fi",
+      "slug": "lo-fi",
+      "uri": "https://api.sketchfab.com/v3/tags/lo-fi"
+    },
+    {
+      "name": "game",
+      "slug": "game",
+      "uri": "https://api.sketchfab.com/v3/tags/game"
+    },
+    {
+      "name": "lowpoly",
+      "slug": "lowpoly",
+      "uri": "https://api.sketchfab.com/v3/tags/lowpoly"
+    },
+    {
+      "name": "low",
+      "slug": "low",
+      "uri": "https://api.sketchfab.com/v3/tags/low"
+    },
+    {
+      "name": "poly",
+      "slug": "poly",
+      "uri": "https://api.sketchfab.com/v3/tags/poly"
+    },
+    {
+      "name": "car",
+      "slug": "car",
+      "uri": "https://api.sketchfab.com/v3/tags/car"
+    },
+    {
+      "name": "pixel",
+      "slug": "pixel",
+      "uri": "https://api.sketchfab.com/v3/tags/pixel"
+    },
+    {
+      "name": "pixl-art",
+      "slug": "pixl-art",
+      "uri": "https://api.sketchfab.com/v3/tags/pixl-art"
+    }
+  ],
+  "thumbnails": {
+    "images": [
+      {
+        "uid": "7bdf4999570f440b9e7f6c259388c89c",
+        "width": 1920,
+        "height": 1080,
+        "size": 159916,
+        "url": "https://media.sketchfab.com/models/7f2a74dc21524af1a7d7a19faffbdfb8/thumbnails/345fef3bed60450a90f7e1ed7546fd1a/d1d546676b9f40bc8f31d326f3a14542.jpeg"
+      },
+      {
+        "uid": "ec329dfc87cd450fb57d23fd501c7ffd",
+        "width": 1024,
+        "height": 576,
+        "size": 51836,
+        "url": "https://media.sketchfab.com/models/7f2a74dc21524af1a7d7a19faffbdfb8/thumbnails/345fef3bed60450a90f7e1ed7546fd1a/07bef0da9c7246f88b149c799fa81b11.jpeg"
+      },
+      {
+        "uid": "17bfb4fc9e0f4ff4bb438b993d2ce35c",
+        "width": 720,
+        "height": 405,
+        "size": 29515,
+        "url": "https://media.sketchfab.com/models/7f2a74dc21524af1a7d7a19faffbdfb8/thumbnails/345fef3bed60450a90f7e1ed7546fd1a/045c066d2a924a069904b29eb7fb81b5.jpeg"
+      },
+      {
+        "uid": "0937cd45caca49a68e07ef66947e8806",
+        "width": 256,
+        "height": 144,
+        "size": 5841,
+        "url": "https://media.sketchfab.com/models/7f2a74dc21524af1a7d7a19faffbdfb8/thumbnails/345fef3bed60450a90f7e1ed7546fd1a/adf1a625b5484f2387775c240fa2d929.jpeg"
+      },
+      {
+        "uid": "d31b2f5f5cb54d0cad65f52cc7fb4d3e",
+        "width": 64,
+        "height": 36,
+        "size": 1200,
+        "url": "https://media.sketchfab.com/models/7f2a74dc21524af1a7d7a19faffbdfb8/thumbnails/345fef3bed60450a90f7e1ed7546fd1a/53e37c1d333145f4ac188c3141f7b13e.jpeg"
+      }
+    ]
+  },
+  "uid": "7f2a74dc21524af1a7d7a19faffbdfb8",
+  "uri": "https://api.sketchfab.com/v3/models/7f2a74dc21524af1a7d7a19faffbdfb8",
+  "user": {
+    "uid": "dc3dd7a6ae214213a7400eb14a0711a4",
+    "username": "kuuttisiitonen",
+    "displayName": "Kuutti Siitonen",
+    "account": "basic",
+    "profileUrl": "https://sketchfab.com/kuuttisiitonen",
+    "avatar": {
+      "uid": "9263d505460a497eb319f417af4bb7e3",
+      "uri": "https://api.sketchfab.com/v3/avatars/9263d505460a497eb319f417af4bb7e3",
+      "images": [
+        {
+          "width": 32,
+          "height": 32,
+          "size": 616,
+          "url": "https://media.sketchfab.com/avatars/9263d505460a497eb319f417af4bb7e3/59f6f98f81c04741ae3517d79b1a8fdf.jpeg"
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "size": 904,
+          "url": "https://media.sketchfab.com/avatars/9263d505460a497eb319f417af4bb7e3/3c61381727e84a12ae7061c6b43c7557.jpeg"
+        },
+        {
+          "width": 90,
+          "height": 90,
+          "size": 2117,
+          "url": "https://media.sketchfab.com/avatars/9263d505460a497eb319f417af4bb7e3/df521eb1837c4f499f4c23b06c9c73ab.jpeg"
+        },
+        {
+          "width": 100,
+          "height": 100,
+          "size": 2466,
+          "url": "https://media.sketchfab.com/avatars/9263d505460a497eb319f417af4bb7e3/7ab6dedf6ac64d63b9adc057f84f86cb.jpeg"
+        }
+      ]
+    },
+    "uri": "https://api.sketchfab.com/v3/users/dc3dd7a6ae214213a7400eb14a0711a4"
+  },
+  "vertexCount": 2435,
+  "viewCount": 641,
+  "viewerUrl": "https://sketchfab.com/3d-models/skoda-octavia-2001-low-poly-pixel-art-7f2a74dc21524af1a7d7a19faffbdfb8",
+  "isDownloadable": true,
+  "isProtected": false,
+  "description": "",
+  "price": null,
+  "downloadCount": 163,
+  "editorUrl": "https://sketchfab.com/models/7f2a74dc21524af1a7d7a19faffbdfb8/edit",
+  "status": {
+    "warning": {},
+    "processing": "SUCCEEDED"
+  },
+  "source": "website",
+  "hasCommentsDisabled": false,
+  "updatedAt": "2024-03-05T09:43:20.673015",
+  "pbrType": null,
+  "textureCount": 1,
+  "materialCount": 2
+}

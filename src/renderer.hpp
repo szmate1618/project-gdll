@@ -10,6 +10,8 @@
 #include <unordered_map>
 
 #include "camera.hpp"
+#include "vehicle_lod.hpp"
+#include <map>
 #include "model.hpp"
 #include "model_visibility.hpp"
 #include "forest_tree_visibility.hpp"
@@ -41,6 +43,7 @@ class BloodMistRenderer;
 class GpuTimer;
 class DoorLayer;
 class BoxLayer;
+class VehicleLayer;
 
 struct TreeRenderStats {
     std::size_t total = 0, visible = 0, drawCalls = 0;
@@ -91,6 +94,8 @@ public:
     void updateGrenades(const std::vector<GrenadePose>& poses) { grenadePoses_ = poses; }
     void updateVegetationBlasts(const std::vector<GrenadeExplosion>& explosions);
     void setExplosionLights(const std::vector<MuzzleFlashLight>& lights);
+
+    void updateVehicles(const VehicleLayer& vehicles, std::optional<std::size_t> driver = {});
     void present(int width, int height);
     void writeScreenshot(const std::filesystem::path& path) const;
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
@@ -128,6 +133,18 @@ public:
     void setGroundFog(bool enabled) { groundFog_ = enabled; }
     void setAtmosphere(const Atmosphere& atmosphere) { atmosphere_ = atmosphere; }
     const SceneRenderStats& sceneStats() const { return sceneStats_; }
+    void setVehicleAssets(const std::filesystem::path& directory);
+    void setVehicleInstancing(bool enabled) { vehicleInstancing_ = enabled; }
+    void setVehicleDistanceDetail(bool enabled) { vehicleDistanceDetail_ = enabled; }
+    // Draw/query counters describe the camera pass. Bounds update counts are
+    // shared preparation; shadows retain independent frustum queries.
+    struct VehicleStats {
+        std::array<std::size_t, 4> levels{};
+        std::size_t triangles = 0, drawCalls = 0, distanceCulled = 0;
+        std::size_t instancedDrawCalls = 0, transparentDrawCalls = 0;
+        std::size_t rangeCandidates = 0, testedNodes = 0, testedInstances = 0, boundsUpdated = 0;
+    };
+    const VehicleStats& vehicleStats() const { return vehicleStats_; }
     void setTreeCulling(bool enabled) { treeCulling_ = enabled; }
     void setZombieDistanceDetail(bool enabled) { zombieDistanceDetail_ = enabled; }
     void setZombieDrawDistance(float meters) { zombieDrawDistance_ = meters; }
@@ -253,6 +270,15 @@ private:
     void beginTownPass(glm::vec3 eye, const glm::mat4& projection, bool sunShadow = false);
     void drawBuildingBatch(const ModelGPU& model, std::size_t batch);
     void drawBoxes(const glm::mat4& projectionView);
+    void drawVehicles(const glm::mat4& projectionView, bool shadowPass = false);
+    void prepareVehicleDraws(const Camera& camera, const glm::mat4& projection);
+    void releaseVehicleAssets() noexcept;
+    void resetVehicleVisibility();
+    void syncVehicleInstances();
+    void loadVehicleRenderAsset(const std::string& id);
+    void initializeVehicleInstances(ModelGPU& model, GLuint& buffer);
+    void applyVehicleLights();
+
     void setupInstanceMatrices(ModelGPU& model, GLuint& buffer);
     void drawDroppedWeapons(const glm::mat4& projectionView);
     void releaseDroppedWeapons() noexcept;
@@ -306,6 +332,8 @@ private:
     GLint hazeColorLocation_, hazeDensityLocation_, hazeStartLocation_;
     GLint groundFogLocation_;
     GLint nightBlendLocation_, unlitLightLocation_;
+    GLint headlightsLocation_, headlightDirectionLocation_;
+    std::array<GLint, 2> headlightPositions_;
     GLint flashlightPositionLocation_, flashlightShadowsLocation_, flashlightShadowMapLocation_;
     GLint flashlightMatrixLocation_, flashlightShadowDistancesLocation_;
     GLint flashlightDirectionLocation_, flashlightColorLocation_, flashlightConeLocation_;
@@ -333,6 +361,40 @@ private:
     bool shadows_ = true;
     std::vector<std::size_t> shadowScene_;
     ModelGPU model_;
+    ModelGPU vehicleModel_; // Procedural fallback retains independently posed wheels.
+    struct VehicleLodGPU {
+        ModelGPU model;
+        std::vector<DrawInstance> draws;
+        float radius = 2.6f;
+        GLuint instanceBuffer = 0;
+        std::vector<glm::mat4> transforms;
+    };
+    struct VehicleRenderInstance {
+        std::vector<VehicleLodGPU>* lods = nullptr;
+        std::uint64_t revision = 0;
+        glm::vec3 center{0};
+        glm::mat4 chassis{1};
+        std::array<glm::mat4,4> wheels;
+        VehicleDetail detail;
+        float radius = 2.6f;
+    };
+    std::filesystem::path vehicleAssetDirectory_;
+    std::map<std::string, std::vector<VehicleLodGPU>> vehicleAssets_;
+    std::vector<VehicleRenderInstance> vehicleInstances_;
+    std::vector<VisibilityBounds> vehicleBounds_;
+    VisibilityIndex vehicleVisibility_;
+    std::vector<std::size_t> vehicleRangeCandidates_, visibleVehicles_;
+    VisibilityBounds vehicleRange_;
+    std::uint64_t vehicleSourceIdentity_ = 0;
+    bool vehicleRangeLimited_ = false, vehicleInstancing_ = true;
+    float vehicleProjectionScale_ = 1;
+    GLuint vehicleInstanceBuffer_ = 0;
+    std::vector<glm::mat4> vehicleChassisTransforms_, vehicleWheelTransforms_;
+    glm::vec3 vehicleEye_{0};
+    bool vehicleDistanceDetail_ = true;
+    VehicleStats vehicleStats_;
+    const VehicleLayer* vehicleSource_ = nullptr;
+    std::optional<std::size_t> vehicleDriver_;
     ModelGPU boxModel_;
     ModelGPU grenadeModel_;
     ModelGPU woundContentsModel_;

@@ -1,0 +1,217 @@
+{
+  "animationCount": 0,
+  "categories": [
+    {
+      "uid": "22a2f677efad4d7bbca5ad45f9b5868e",
+      "name": "Cars & Vehicles",
+      "slug": "cars-vehicles",
+      "uri": "https://api.sketchfab.com/v3/categories/22a2f677efad4d7bbca5ad45f9b5868e",
+      "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/45dd0cc0860ac57fcd63bde1cc3f2b7c-v2.svg",
+      "thumbnails": [
+        {
+          "width": "512",
+          "height": "288",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/512x288.png"
+        },
+        {
+          "width": "800",
+          "height": "450",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/800x450.png"
+        }
+      ]
+    }
+  ],
+  "commentCount": 3,
+  "createdAt": "2020-08-17T20:17:52.584054",
+  "embedUrl": "https://sketchfab.com/models/907fe3ed09694c71b6b0e8b001d25d8d/embed",
+  "faceCount": 11944,
+  "isAgeRestricted": false,
+  "license": {
+    "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+    "label": "CC Attribution",
+    "fullName": "Creative Commons Attribution",
+    "requirements": "Author must be credited. Commercial use is allowed.",
+    "url": "http://creativecommons.org/licenses/by/4.0/",
+    "slug": "by"
+  },
+  "likeCount": 81,
+  "name": "Fiat 126p Maluch - free",
+  "publishedAt": "2020-08-17T20:28:52.970772",
+  "soundCount": 0,
+  "staffpickedAt": null,
+  "tags": [
+    {
+      "name": "automobile",
+      "slug": "automobile",
+      "uri": "https://api.sketchfab.com/v3/tags/automobile"
+    },
+    {
+      "name": "fiat",
+      "slug": "fiat",
+      "uri": "https://api.sketchfab.com/v3/tags/fiat"
+    },
+    {
+      "name": "drive",
+      "slug": "drive",
+      "uri": "https://api.sketchfab.com/v3/tags/drive"
+    },
+    {
+      "name": "automotive",
+      "slug": "automotive",
+      "uri": "https://api.sketchfab.com/v3/tags/automotive"
+    },
+    {
+      "name": "auto",
+      "slug": "auto",
+      "uri": "https://api.sketchfab.com/v3/tags/auto"
+    },
+    {
+      "name": "126p",
+      "slug": "126p",
+      "uri": "https://api.sketchfab.com/v3/tags/126p"
+    },
+    {
+      "name": "maluch",
+      "slug": "maluch",
+      "uri": "https://api.sketchfab.com/v3/tags/maluch"
+    },
+    {
+      "name": "trafic",
+      "slug": "trafic",
+      "uri": "https://api.sketchfab.com/v3/tags/trafic"
+    },
+    {
+      "name": "blender",
+      "slug": "blender",
+      "uri": "https://api.sketchfab.com/v3/tags/blender"
+    },
+    {
+      "name": "vehicle",
+      "slug": "vehicle",
+      "uri": "https://api.sketchfab.com/v3/tags/vehicle"
+    },
+    {
+      "name": "lowpoly",
+      "slug": "lowpoly",
+      "uri": "https://api.sketchfab.com/v3/tags/lowpoly"
+    },
+    {
+      "name": "gameasset",
+      "slug": "gameasset",
+      "uri": "https://api.sketchfab.com/v3/tags/gameasset"
+    },
+    {
+      "name": "car",
+      "slug": "car",
+      "uri": "https://api.sketchfab.com/v3/tags/car"
+    },
+    {
+      "name": "free",
+      "slug": "free",
+      "uri": "https://api.sketchfab.com/v3/tags/free"
+    },
+    {
+      "name": "noai",
+      "slug": "noai",
+      "uri": "https://api.sketchfab.com/v3/tags/noai"
+    }
+  ],
+  "thumbnails": {
+    "images": [
+      {
+        "uid": "cda65471134f457d88816737dc8b8197",
+        "width": 1920,
+        "height": 1080,
+        "size": 284393,
+        "url": "https://media.sketchfab.com/models/907fe3ed09694c71b6b0e8b001d25d8d/thumbnails/e3aac372a3ed4acbb215218fc0a94164/eadd3eeac1ca4da69d5a08f41517b28d.jpeg"
+      },
+      {
+        "uid": "04a73cca92164fcaa2cd61e17341d424",
+        "width": 1024,
+        "height": 576,
+        "size": 48534,
+        "url": "https://media.sketchfab.com/models/907fe3ed09694c71b6b0e8b001d25d8d/thumbnails/e3aac372a3ed4acbb215218fc0a94164/476ac08578e6454bb6cf498b277b05b4.jpeg"
+      },
+      {
+        "uid": "c08a69d185344dbca08ebb6b086440b5",
+        "width": 720,
+        "height": 405,
+        "size": 28064,
+        "url": "https://media.sketchfab.com/models/907fe3ed09694c71b6b0e8b001d25d8d/thumbnails/e3aac372a3ed4acbb215218fc0a94164/819b9426ef0e4eb49bb6691e14b9f27c.jpeg"
+      },
+      {
+        "uid": "69334c4dfb5b4d55b3a06864c60a5b82",
+        "width": 256,
+        "height": 144,
+        "size": 6186,
+        "url": "https://media.sketchfab.com/models/907fe3ed09694c71b6b0e8b001d25d8d/thumbnails/e3aac372a3ed4acbb215218fc0a94164/5237400be899410ea82964d78b445b06.jpeg"
+      },
+      {
+        "uid": "2638b9708eb64bec99814a4a075dff79",
+        "width": 64,
+        "height": 36,
+        "size": 1312,
+        "url": "https://media.sketchfab.com/models/907fe3ed09694c71b6b0e8b001d25d8d/thumbnails/e3aac372a3ed4acbb215218fc0a94164/f70eedbfab864cf1a716b345df1c7152.jpeg"
+      }
+    ]
+  },
+  "uid": "907fe3ed09694c71b6b0e8b001d25d8d",
+  "uri": "https://api.sketchfab.com/v3/models/907fe3ed09694c71b6b0e8b001d25d8d",
+  "user": {
+    "uid": "b741b2e8f4524c2ab6a72dd36c9b2b46",
+    "username": "NETRUNNER_pl",
+    "displayName": "NETRUNNER_pl",
+    "account": "basic",
+    "profileUrl": "https://sketchfab.com/NETRUNNER_pl",
+    "avatar": {
+      "uid": "be5eb83a05454a9887b9ed607df86689",
+      "uri": "https://api.sketchfab.com/v3/avatars/be5eb83a05454a9887b9ed607df86689",
+      "images": [
+        {
+          "width": 100,
+          "height": 100,
+          "size": 6849,
+          "url": "https://media.sketchfab.com/avatars/be5eb83a05454a9887b9ed607df86689/0dcaf1e2563e460ca109adc48cda9164.jpeg"
+        },
+        {
+          "width": 90,
+          "height": 90,
+          "size": 5556,
+          "url": "https://media.sketchfab.com/avatars/be5eb83a05454a9887b9ed607df86689/332f203feb14405296a96f2e316e366e.jpeg"
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "size": 1182,
+          "url": "https://media.sketchfab.com/avatars/be5eb83a05454a9887b9ed607df86689/fec903af7ddd497e87114fa12b20006a.jpeg"
+        },
+        {
+          "width": 32,
+          "height": 32,
+          "size": 758,
+          "url": "https://media.sketchfab.com/avatars/be5eb83a05454a9887b9ed607df86689/d1b14b3606004bae8baa3173b5166399.jpeg"
+        }
+      ]
+    },
+    "uri": "https://api.sketchfab.com/v3/users/b741b2e8f4524c2ab6a72dd36c9b2b46"
+  },
+  "vertexCount": 8129,
+  "viewCount": 8309,
+  "viewerUrl": "https://sketchfab.com/3d-models/fiat-126p-maluch-free-907fe3ed09694c71b6b0e8b001d25d8d",
+  "isDownloadable": true,
+  "isProtected": false,
+  "description": "**Fiat 126p Maluch**<br/>\nLowpoly model of polish small car (based on italian license)<br/>\n<br/>\nFiat 126 is a four passenger, rear-engine, city car manufactured and marketed by Fiat over a twenty-eight year production run from 1972–2000, over a single generation. Introduced by Fiat in October 1972 at the Turin Auto Show, the 126 replaced the Fiat 500, using major elements from its design. The majority of 126s (some 3.3 million) were manufactured in the Tychy plant. Total production reached approximately 4.7 million units. In Poland the car became a people's car, and a cultural icon, earning the nickname Maluch, meaning \"The Little One\" a name that eventually became official in 1997.<br/>\nMaluch was my 1st car :)\n<br/><br/>\n3 cars in set: Basic model + flat shaded model + tuned version. Each with own texture<br/>\n<br/>\n*Check also my other aircrafts and cars*<br/>\n[Patreon with monthly free model](https://www.patreon.com/user?u=84074894)",
+  "price": null,
+  "downloadCount": 1791,
+  "editorUrl": "https://sketchfab.com/models/907fe3ed09694c71b6b0e8b001d25d8d/edit",
+  "status": {
+    "warning": {},
+    "processing": "SUCCEEDED"
+  },
+  "source": "website",
+  "hasCommentsDisabled": false,
+  "updatedAt": "2023-11-21T18:08:29.799474",
+  "pbrType": null,
+  "textureCount": 6,
+  "materialCount": 29
+}

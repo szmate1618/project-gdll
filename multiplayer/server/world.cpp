@@ -1,19 +1,35 @@
 #include "world.hpp"
 #include "simulation_clock.hpp"
 #include "zombie_animation.hpp"
+#include "vehicle_player.hpp"
+#include <random>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <iostream>
 
 namespace multiplayer {
 ServerPlayer::ServerPlayer(const viewer::Weapons& initialWeapons) : weapons(initialWeapons) {
     held.slot = static_cast<std::uint8_t>(weapons.slot());
 }
-World::World(Scene& scene) : scene_(scene),
+World::World(Scene& scene) : scene_(scene), vehicleSeats_(scene),
     physicsScene_(scene.physics, *scene.collision, scene.model.boundsMin, scene.model.boundsMax),
     interiors_(scene.model, *scene.doors, 1), zombieDoors_(scene.physics) {
     viewer::SimulationClock::instance().reset();
     scene.zombies.attachPhysics(scene.physics);
+    if (!scene.vehicles->count()) {
+        if (scene.vehiclePlacements) {
+            viewer::placeVehicles(*scene.vehicles, *scene.vehiclePlacements, std::random_device{}());
+            std::cout << "Loaded " << scene.vehicles->count() << " parked cars with server-selected random types\n";
+        } else {
+            std::mt19937 random(std::random_device{}());
+            const auto type = std::uniform_int_distribution<std::size_t>(0,scene.vehicles->typeCount()-1)(random);
+            if (viewer::placeVehicleNear(*scene.vehicles, *scene.collision, scene.spawnEye, scene.model.boundsMin, scene.model.boundsMax,type)) {
+                const auto p = scene.vehicles->pose(0).chassis.center;
+                std::cout << "Vehicle placed at " << p.x << ',' << p.y << ',' << p.z << '\n';
+            }
+        }
+    }
 }
 std::uint32_t World::join() {
     if (players_.size() >= maxPlayers || nextPlayer_ == 0) throw std::runtime_error("Server full");
@@ -32,7 +48,7 @@ std::uint32_t World::join() {
 }
 void World::leave(std::uint32_t id) {
     const auto it = players_.find(id);
-    if (it != players_.end()) { it->second.interaction.cancel(); players_.erase(it); }
+    if (it != players_.end()) { vehicleSeats_.leave(id); it->second.interaction.cancel(); players_.erase(it); }
 }
 void World::submit(std::uint32_t id, const Commands& commands) {
     auto& player = players_.at(id);
@@ -62,6 +78,7 @@ void World::step() {
             auto command = player.held;
             bool consumed = false;
             command.movement.toggleProne = false; command.reload = false; command.drag = {};
+            command.enterVehicle = false;
             if (player.started && !player.pending.empty()) {
                 const auto first = player.pending.begin();
                 if (first->first == player.resolved + 1) {
@@ -73,7 +90,21 @@ void World::step() {
             if (!consumed && tick_ - player.lastPacketTick > 12) {
                 command.movement = {}; command.movement.yawDegrees = player.camera.yawDegrees();
                 command.left = command.right = command.reload = false;
+                command.enterVehicle = false;
+                command.movement.jump = vehicleSeats_.car(id) != noVehicle; // Stop an unattended car.
                 player.interaction.cancel();
+            }
+            player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
+            if (command.enterVehicle && vehicleSeats_.toggle(id, player.controller, player.camera)) {
+                player.interaction.cancel(); player.weapons.cancelTrigger();
+                player.triggerNeedsRelease = command.left;
+            }
+            if (vehicleSeats_.car(id) != noVehicle) {
+                vehicleSeats_.drive(id, command);
+                vehicleSeats_.updateSeat(id, player.controller, player.camera);
+                player.weapons.cancelTrigger();
+                player.held = command;
+                continue;
             }
             const auto previousFeet = player.controller.feet();
             const viewer::UndergrowthMotion shrubBefore{previousFeet, player.controller.bodyHeight(),
@@ -141,15 +172,27 @@ void World::step() {
             player.held = command;
         }
         scene_.doors->activateNear(player.controller.feet());
-        targets.push_back({player.controller.feet(), player.controller.eyeHeight(), player.controller.bodyHeight(), id});
     }
     physicsScene_.prepare(*scene_.boxes);
     scene_.grenades->prepare(physicsScene_, *scene_.doors);
     for (std::size_t i = 0; i < scene_.boxes->count(); ++i) scene_.doors->activateNear(scene_.boxes->pose(i).center, 8);
     for (const auto id : scene_.zombies.ragdollIds()) scene_.doors->activateNear(glm::vec3(scene_.zombies.instances[id].transform[3]));
-    zombieDoors_.prepare(*scene_.doors, scene_.zombies);
     scene_.zombies.prepareWoundPhysics(tickSeconds, now, &physicsScene_);
-    scene_.physics->step(tickSeconds);
+    scene_.physics->step(tickSeconds, [&](float seconds) {
+        viewer::prepareVehicleScene(*scene_.vehicles, physicsScene_);
+        for (const auto i : scene_.vehicles->simulatedCars()) {
+            scene_.doors->activateNear(scene_.vehicles->pose(i).chassis.center, 10);
+        }
+        scene_.zombies.prepareVehiclePhysics(*scene_.vehicles, physicsScene_, *scene_.collision, seconds, scene_.doors.get());
+        zombieDoors_.prepare(*scene_.doors, scene_.zombies);
+        scene_.vehicles->beforeStep(seconds);
+    }, [&](float seconds) {
+        scene_.zombies.finishVehiclePhysics(*scene_.vehicles, seconds, now);
+    });
+    for (auto& [id, player] : players_) {
+        vehicleSeats_.updateSeat(id, player.controller, player.camera);
+        targets.push_back({player.controller.feet(), player.controller.eyeHeight(), player.controller.bodyHeight(), id});
+    }
     scene_.grenades->update(now, *scene_.collision, &scene_.zombies, now);
     scene_.zombies.synchronizePhysics();
     scene_.zombies.updateBehaviorForPlayers(tickSeconds, targets, *scene_.collision, now);
@@ -173,7 +216,7 @@ Snapshot World::snapshot(std::uint32_t id) {
         s.players.push_back({playerId, player.resolved, player.controller.movementState(),
             player.camera.yawDegrees(), player.camera.pitchDegrees(), static_cast<std::uint8_t>(player.weapons.slot()),
             static_cast<std::uint32_t>(weapon.loaded), static_cast<std::uint32_t>(weapon.reserve), player.shots,
-            viewer::SimulationClock::instance().seconds() < weapon.readyAt});
+            viewer::SimulationClock::instance().seconds() < weapon.readyAt, vehicleSeats_.car(playerId), vehicleSeats_.seat(playerId)});
     }
     return observer.replication.snapshot(scene_, observer.controller.feet(), std::move(s));
 }

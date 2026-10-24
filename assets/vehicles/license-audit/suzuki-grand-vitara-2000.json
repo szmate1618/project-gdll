@@ -1,0 +1,202 @@
+{
+  "animationCount": 0,
+  "categories": [
+    {
+      "uid": "22a2f677efad4d7bbca5ad45f9b5868e",
+      "name": "Cars & Vehicles",
+      "slug": "cars-vehicles",
+      "uri": "https://api.sketchfab.com/v3/categories/22a2f677efad4d7bbca5ad45f9b5868e",
+      "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/45dd0cc0860ac57fcd63bde1cc3f2b7c-v2.svg",
+      "thumbnails": [
+        {
+          "width": "512",
+          "height": "288",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/512x288.png"
+        },
+        {
+          "width": "800",
+          "height": "450",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/800x450.png"
+        }
+      ]
+    }
+  ],
+  "commentCount": 1,
+  "createdAt": "2023-03-15T11:49:00.958044",
+  "embedUrl": "https://sketchfab.com/models/03e3db7b0d4a42d5a52f6740a3d5657d/embed",
+  "faceCount": 232,
+  "isAgeRestricted": false,
+  "license": {
+    "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+    "label": "CC Attribution",
+    "fullName": "Creative Commons Attribution",
+    "requirements": "Author must be credited. Commercial use is allowed.",
+    "url": "http://creativecommons.org/licenses/by/4.0/",
+    "slug": "by"
+  },
+  "likeCount": 203,
+  "name": "Suzuki Grand Vitara - PS1 Low Poly",
+  "publishedAt": "2023-03-15T11:52:19.318378",
+  "soundCount": 0,
+  "staffpickedAt": null,
+  "tags": [
+    {
+      "name": "suv",
+      "slug": "suv",
+      "uri": "https://api.sketchfab.com/v3/tags/suv"
+    },
+    {
+      "name": "psx",
+      "slug": "psx",
+      "uri": "https://api.sketchfab.com/v3/tags/psx"
+    },
+    {
+      "name": "ps1",
+      "slug": "ps1",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1"
+    },
+    {
+      "name": "suzuki",
+      "slug": "suzuki",
+      "uri": "https://api.sketchfab.com/v3/tags/suzuki"
+    },
+    {
+      "name": "vitara",
+      "slug": "vitara",
+      "uri": "https://api.sketchfab.com/v3/tags/vitara"
+    },
+    {
+      "name": "lowpoly",
+      "slug": "lowpoly",
+      "uri": "https://api.sketchfab.com/v3/tags/lowpoly"
+    },
+    {
+      "name": "gameasset",
+      "slug": "gameasset",
+      "uri": "https://api.sketchfab.com/v3/tags/gameasset"
+    },
+    {
+      "name": "car",
+      "slug": "car",
+      "uri": "https://api.sketchfab.com/v3/tags/car"
+    },
+    {
+      "name": "ps1-graphics",
+      "slug": "ps1-graphics",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1-graphics"
+    },
+    {
+      "name": "ps1-style",
+      "slug": "ps1-style",
+      "uri": "https://api.sketchfab.com/v3/tags/ps1-style"
+    },
+    {
+      "name": "grandvitara",
+      "slug": "grandvitara",
+      "uri": "https://api.sketchfab.com/v3/tags/grandvitara"
+    },
+    {
+      "name": "noai",
+      "slug": "noai",
+      "uri": "https://api.sketchfab.com/v3/tags/noai"
+    }
+  ],
+  "thumbnails": {
+    "images": [
+      {
+        "uid": "8d1b345546a743049f8da3d2f31be604",
+        "width": 1920,
+        "height": 1080,
+        "size": 180935,
+        "url": "https://media.sketchfab.com/models/03e3db7b0d4a42d5a52f6740a3d5657d/thumbnails/e5054e41be584befb166c42c37ea3700/27c9623e027b42fe9db3faf74e96aabb.jpeg"
+      },
+      {
+        "uid": "cd23814c1e4443c89a8244bf62ceacbd",
+        "width": 1024,
+        "height": 576,
+        "size": 58431,
+        "url": "https://media.sketchfab.com/models/03e3db7b0d4a42d5a52f6740a3d5657d/thumbnails/e5054e41be584befb166c42c37ea3700/90269721260749dab395296eb92f584e.jpeg"
+      },
+      {
+        "uid": "00816f024c0d486095a8ff422eb43baa",
+        "width": 720,
+        "height": 405,
+        "size": 33067,
+        "url": "https://media.sketchfab.com/models/03e3db7b0d4a42d5a52f6740a3d5657d/thumbnails/e5054e41be584befb166c42c37ea3700/f14631b504f44a6ba8346fdf762bdb81.jpeg"
+      },
+      {
+        "uid": "fb907c4067054fb3949d350512db636f",
+        "width": 256,
+        "height": 144,
+        "size": 6505,
+        "url": "https://media.sketchfab.com/models/03e3db7b0d4a42d5a52f6740a3d5657d/thumbnails/e5054e41be584befb166c42c37ea3700/4b14e864160247c38e91705d74076aca.jpeg"
+      },
+      {
+        "uid": "05ab0a2661464832b0e4921e260053d2",
+        "width": 64,
+        "height": 36,
+        "size": 1320,
+        "url": "https://media.sketchfab.com/models/03e3db7b0d4a42d5a52f6740a3d5657d/thumbnails/e5054e41be584befb166c42c37ea3700/f9a759a108ec4273ad688305bf8a4e2b.jpeg"
+      }
+    ]
+  },
+  "uid": "03e3db7b0d4a42d5a52f6740a3d5657d",
+  "uri": "https://api.sketchfab.com/v3/models/03e3db7b0d4a42d5a52f6740a3d5657d",
+  "user": {
+    "uid": "18b507a3ed74409488bca4a83bf8264f",
+    "username": "wersaus33",
+    "displayName": "Wersaus33",
+    "account": "basic",
+    "profileUrl": "https://sketchfab.com/wersaus33",
+    "avatar": {
+      "uid": "9ab5f3a11c594821b6b96b96f266a453",
+      "uri": "https://api.sketchfab.com/v3/avatars/9ab5f3a11c594821b6b96b96f266a453",
+      "images": [
+        {
+          "width": 32,
+          "height": 32,
+          "size": 1123,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/51bf3b156fc547768deedbb34e911a6e.jpeg"
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "size": 1595,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/bc127f3331234f1b82979fddc08e3ae4.jpeg"
+        },
+        {
+          "width": 90,
+          "height": 90,
+          "size": 3349,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/5866b562ff9544b481b99315436184f1.jpeg"
+        },
+        {
+          "width": 100,
+          "height": 100,
+          "size": 3802,
+          "url": "https://media.sketchfab.com/avatars/9ab5f3a11c594821b6b96b96f266a453/2627c92ae0b643efa4c7da02eeaf8b69.jpeg"
+        }
+      ]
+    },
+    "uri": "https://api.sketchfab.com/v3/users/18b507a3ed74409488bca4a83bf8264f"
+  },
+  "vertexCount": 128,
+  "viewCount": 4679,
+  "viewerUrl": "https://sketchfab.com/3d-models/suzuki-grand-vitara-ps1-low-poly-03e3db7b0d4a42d5a52f6740a3d5657d",
+  "isDownloadable": true,
+  "isProtected": false,
+  "description": "The spare wheel added a lot of charm imo. Based off the 00' Grand Vitara.\n\n128x128 Texture",
+  "price": null,
+  "downloadCount": 1593,
+  "editorUrl": "https://sketchfab.com/models/03e3db7b0d4a42d5a52f6740a3d5657d/edit",
+  "status": {
+    "warning": {},
+    "processing": "SUCCEEDED"
+  },
+  "source": "website",
+  "hasCommentsDisabled": false,
+  "updatedAt": "2023-11-21T18:51:48.534813",
+  "pbrType": null,
+  "textureCount": 1,
+  "materialCount": 1
+}

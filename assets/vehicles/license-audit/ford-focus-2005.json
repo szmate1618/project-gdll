@@ -1,0 +1,172 @@
+{
+  "animationCount": 0,
+  "categories": [
+    {
+      "uid": "22a2f677efad4d7bbca5ad45f9b5868e",
+      "name": "Cars & Vehicles",
+      "slug": "cars-vehicles",
+      "uri": "https://api.sketchfab.com/v3/categories/22a2f677efad4d7bbca5ad45f9b5868e",
+      "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/45dd0cc0860ac57fcd63bde1cc3f2b7c-v2.svg",
+      "thumbnails": [
+        {
+          "width": "512",
+          "height": "288",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/512x288.png"
+        },
+        {
+          "width": "800",
+          "height": "450",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/800x450.png"
+        }
+      ]
+    }
+  ],
+  "commentCount": 1,
+  "createdAt": "2023-03-03T17:49:22.754175",
+  "embedUrl": "https://sketchfab.com/models/076d01878b084b6489d3f2ac24bba4f4/embed",
+  "faceCount": 612,
+  "isAgeRestricted": false,
+  "license": {
+    "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+    "label": "CC Attribution",
+    "fullName": "Creative Commons Attribution",
+    "requirements": "Author must be credited. Commercial use is allowed.",
+    "url": "http://creativecommons.org/licenses/by/4.0/",
+    "slug": "by"
+  },
+  "likeCount": 40,
+  "name": "2005 Ford Focus (Super Low-Poly)",
+  "publishedAt": "2023-03-03T17:50:55.347514",
+  "soundCount": 0,
+  "staffpickedAt": null,
+  "tags": [
+    {
+      "name": "ford",
+      "slug": "ford",
+      "uri": "https://api.sketchfab.com/v3/tags/ford"
+    },
+    {
+      "name": "unitedstates",
+      "slug": "unitedstates",
+      "uri": "https://api.sketchfab.com/v3/tags/unitedstates"
+    },
+    {
+      "name": "lowpoly",
+      "slug": "lowpoly",
+      "uri": "https://api.sketchfab.com/v3/tags/lowpoly"
+    },
+    {
+      "name": "car",
+      "slug": "car",
+      "uri": "https://api.sketchfab.com/v3/tags/car"
+    },
+    {
+      "name": "free",
+      "slug": "free",
+      "uri": "https://api.sketchfab.com/v3/tags/free"
+    },
+    {
+      "name": "fordfocus",
+      "slug": "fordfocus",
+      "uri": "https://api.sketchfab.com/v3/tags/fordfocus"
+    }
+  ],
+  "thumbnails": {
+    "images": [
+      {
+        "uid": "90f6584fd83c4bbea80fb78bc8c588d8",
+        "width": 1920,
+        "height": 1080,
+        "size": 95248,
+        "url": "https://media.sketchfab.com/models/076d01878b084b6489d3f2ac24bba4f4/thumbnails/4fe00f86489744afa38d195106b6bdaf/ffc542ca1b01478390f0e5973a2ab01b.jpeg"
+      },
+      {
+        "uid": "5e8a2e4717be4b089b7f77790b17d09a",
+        "width": 1024,
+        "height": 576,
+        "size": 35263,
+        "url": "https://media.sketchfab.com/models/076d01878b084b6489d3f2ac24bba4f4/thumbnails/4fe00f86489744afa38d195106b6bdaf/808302e411b745e78731f8774ebc1bb3.jpeg"
+      },
+      {
+        "uid": "7a5c03ca49d4469f912c158dbbab6505",
+        "width": 720,
+        "height": 405,
+        "size": 21692,
+        "url": "https://media.sketchfab.com/models/076d01878b084b6489d3f2ac24bba4f4/thumbnails/4fe00f86489744afa38d195106b6bdaf/2d20a5794d1a411c8a55985fb3272901.jpeg"
+      },
+      {
+        "uid": "62d8a91ae0f24ea9be116e9b9452d6aa",
+        "width": 256,
+        "height": 144,
+        "size": 5302,
+        "url": "https://media.sketchfab.com/models/076d01878b084b6489d3f2ac24bba4f4/thumbnails/4fe00f86489744afa38d195106b6bdaf/a2711e99b8b645a08af6afffc3661274.jpeg"
+      },
+      {
+        "uid": "44f5e0f6007e49ee98358922e23ead1c",
+        "width": 64,
+        "height": 36,
+        "size": 1209,
+        "url": "https://media.sketchfab.com/models/076d01878b084b6489d3f2ac24bba4f4/thumbnails/4fe00f86489744afa38d195106b6bdaf/487ae3bd695c48888ede90d1febb1d78.jpeg"
+      }
+    ]
+  },
+  "uid": "076d01878b084b6489d3f2ac24bba4f4",
+  "uri": "https://api.sketchfab.com/v3/models/076d01878b084b6489d3f2ac24bba4f4",
+  "user": {
+    "uid": "daf9d9476049496da9cc7a30e1ebf5b9",
+    "username": "ImperialBlue3D",
+    "displayName": "ImperialBlue3D",
+    "account": "basic",
+    "profileUrl": "https://sketchfab.com/ImperialBlue3D",
+    "avatar": {
+      "uid": "1742b286a4d34be7b0c5860c975110e8",
+      "uri": "https://api.sketchfab.com/v3/avatars/1742b286a4d34be7b0c5860c975110e8",
+      "images": [
+        {
+          "width": 32,
+          "height": 32,
+          "size": 2168,
+          "url": "https://media.sketchfab.com/avatars/1742b286a4d34be7b0c5860c975110e8/a175a3ac291845709f1260f2a94d7cbf.png"
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "size": 4184,
+          "url": "https://media.sketchfab.com/avatars/1742b286a4d34be7b0c5860c975110e8/c27343d67bbb4fbf8fda6ffd6313a77f.png"
+        },
+        {
+          "width": 90,
+          "height": 90,
+          "size": 12393,
+          "url": "https://media.sketchfab.com/avatars/1742b286a4d34be7b0c5860c975110e8/aca7a5344ea144ac9f7ff1cafd8d3e49.png"
+        },
+        {
+          "width": 100,
+          "height": 100,
+          "size": 15150,
+          "url": "https://media.sketchfab.com/avatars/1742b286a4d34be7b0c5860c975110e8/acdc22faa87a44ac93603db9c0f2e503.png"
+        }
+      ]
+    },
+    "uri": "https://api.sketchfab.com/v3/users/daf9d9476049496da9cc7a30e1ebf5b9"
+  },
+  "vertexCount": 372,
+  "viewCount": 1100,
+  "viewerUrl": "https://sketchfab.com/3d-models/2005-ford-focus-super-low-poly-076d01878b084b6489d3f2ac24bba4f4",
+  "isDownloadable": true,
+  "isProtected": false,
+  "description": "One Model before this was the 2003 Impala GS. And I've said That I would make better cars after That model. And now you may be asking me \"This is the worst car I've ever seen, You LIAR!!\". Although You may be right, This was a bad image and I was In a hurry. BE GRATEFUL AND ENJOY THE FREE MODEL I'VE MADE FOR YOU ;) \n\n(also please credit me when using)",
+  "price": null,
+  "downloadCount": 240,
+  "editorUrl": "https://sketchfab.com/models/076d01878b084b6489d3f2ac24bba4f4/edit",
+  "status": {
+    "warning": {},
+    "processing": "SUCCEEDED"
+  },
+  "source": "website",
+  "hasCommentsDisabled": false,
+  "updatedAt": "2023-03-11T20:34:26.735564",
+  "pbrType": null,
+  "textureCount": 1,
+  "materialCount": 1
+}

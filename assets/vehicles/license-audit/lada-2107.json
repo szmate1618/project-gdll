@@ -1,0 +1,201 @@
+{
+  "animationCount": 0,
+  "categories": [
+    {
+      "uid": "22a2f677efad4d7bbca5ad45f9b5868e",
+      "name": "Cars & Vehicles",
+      "slug": "cars-vehicles",
+      "uri": "https://api.sketchfab.com/v3/categories/22a2f677efad4d7bbca5ad45f9b5868e",
+      "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/45dd0cc0860ac57fcd63bde1cc3f2b7c-v2.svg",
+      "thumbnails": [
+        {
+          "width": "512",
+          "height": "288",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/512x288.png"
+        },
+        {
+          "width": "800",
+          "height": "450",
+          "url": "https://static.sketchfab.com/categories/22a2f677efad4d7bbca5ad45f9b5868e/800x450.png"
+        }
+      ]
+    },
+    {
+      "uid": "17d20ca7b35243d4a45171838b50704c",
+      "name": "Science & Technology",
+      "slug": "science-technology",
+      "uri": "https://api.sketchfab.com/v3/categories/17d20ca7b35243d4a45171838b50704c",
+      "icon": "https://static.sketchfab.com/static/builds/web/dist/static/assets/images/icons/categories/86b1bae49e0ed3f43b2d59b26700234e-v2.svg",
+      "thumbnails": [
+        {
+          "width": "512",
+          "height": "288",
+          "url": "https://static.sketchfab.com/categories/17d20ca7b35243d4a45171838b50704c/512x288.png"
+        },
+        {
+          "width": "800",
+          "height": "450",
+          "url": "https://static.sketchfab.com/categories/17d20ca7b35243d4a45171838b50704c/800x450.png"
+        }
+      ]
+    }
+  ],
+  "commentCount": 0,
+  "createdAt": "2022-07-08T13:29:38.029289",
+  "embedUrl": "https://sketchfab.com/models/2496c57dce2e47d59fe6f5a2adf516c9/embed",
+  "faceCount": 1475,
+  "isAgeRestricted": false,
+  "license": {
+    "uri": "https://api.sketchfab.com/v3/licenses/322a749bcfa841b29dff1e8a1bb74b0b",
+    "label": "CC Attribution",
+    "fullName": "Creative Commons Attribution",
+    "requirements": "Author must be credited. Commercial use is allowed.",
+    "url": "http://creativecommons.org/licenses/by/4.0/",
+    "slug": "by"
+  },
+  "likeCount": 25,
+  "name": "Lada-2107 (Zhiguli) Low-Poly",
+  "publishedAt": "2022-07-08T13:33:34.283711",
+  "soundCount": 0,
+  "staffpickedAt": null,
+  "tags": [
+    {
+      "name": "lada",
+      "slug": "lada",
+      "uri": "https://api.sketchfab.com/v3/tags/lada"
+    },
+    {
+      "name": "russian",
+      "slug": "russian",
+      "uri": "https://api.sketchfab.com/v3/tags/russian"
+    },
+    {
+      "name": "oldcar",
+      "slug": "oldcar",
+      "uri": "https://api.sketchfab.com/v3/tags/oldcar"
+    },
+    {
+      "name": "low-poly",
+      "slug": "low-poly",
+      "uri": "https://api.sketchfab.com/v3/tags/low-poly"
+    },
+    {
+      "name": "blender",
+      "slug": "blender",
+      "uri": "https://api.sketchfab.com/v3/tags/blender"
+    },
+    {
+      "name": "lowpoly",
+      "slug": "lowpoly",
+      "uri": "https://api.sketchfab.com/v3/tags/lowpoly"
+    },
+    {
+      "name": "car",
+      "slug": "car",
+      "uri": "https://api.sketchfab.com/v3/tags/car"
+    },
+    {
+      "name": "free",
+      "slug": "free",
+      "uri": "https://api.sketchfab.com/v3/tags/free"
+    }
+  ],
+  "thumbnails": {
+    "images": [
+      {
+        "uid": "20188cb65a6a418c9ec53a6aca46c720",
+        "width": 1920,
+        "height": 1080,
+        "size": 71156,
+        "url": "https://media.sketchfab.com/models/2496c57dce2e47d59fe6f5a2adf516c9/thumbnails/94a5d23f186749ab82fee133b44ef0f3/96e9be2eab784fb0b7a70dbf65b19f7b.jpeg"
+      },
+      {
+        "uid": "fd545b2854f345948a3c347085e9bdb0",
+        "width": 1024,
+        "height": 576,
+        "size": 24647,
+        "url": "https://media.sketchfab.com/models/2496c57dce2e47d59fe6f5a2adf516c9/thumbnails/94a5d23f186749ab82fee133b44ef0f3/5f3fdb7a54ed4e419417474c5b522c1f.jpeg"
+      },
+      {
+        "uid": "84936b1b6a80476892334da3dee422ee",
+        "width": 720,
+        "height": 405,
+        "size": 14564,
+        "url": "https://media.sketchfab.com/models/2496c57dce2e47d59fe6f5a2adf516c9/thumbnails/94a5d23f186749ab82fee133b44ef0f3/5fc0d1d22ca7407889b323efec9a0f58.jpeg"
+      },
+      {
+        "uid": "972a3e3f368f4b9c995b8366b3bd4bfe",
+        "width": 256,
+        "height": 144,
+        "size": 3307,
+        "url": "https://media.sketchfab.com/models/2496c57dce2e47d59fe6f5a2adf516c9/thumbnails/94a5d23f186749ab82fee133b44ef0f3/7bcc5c198451447ea5f67c18a85307f1.jpeg"
+      },
+      {
+        "uid": "95850eff826b4a8ca81a0a8d5a6c5de8",
+        "width": 64,
+        "height": 36,
+        "size": 1014,
+        "url": "https://media.sketchfab.com/models/2496c57dce2e47d59fe6f5a2adf516c9/thumbnails/94a5d23f186749ab82fee133b44ef0f3/4c358c7b7fb343bb9b3466f9aa0b7d1f.jpeg"
+      }
+    ]
+  },
+  "uid": "2496c57dce2e47d59fe6f5a2adf516c9",
+  "uri": "https://api.sketchfab.com/v3/models/2496c57dce2e47d59fe6f5a2adf516c9",
+  "user": {
+    "uid": "e8c5188738af45e7940570cdd244bc86",
+    "username": "AnonimuProdaction",
+    "displayName": "AnonimProdaction228",
+    "account": "basic",
+    "profileUrl": "https://sketchfab.com/AnonimuProdaction",
+    "avatar": {
+      "uid": "78fa317e46024a5283765aa34df5e508",
+      "uri": "https://api.sketchfab.com/v3/avatars/78fa317e46024a5283765aa34df5e508",
+      "images": [
+        {
+          "width": 100,
+          "height": 100,
+          "size": 6421,
+          "url": "https://media.sketchfab.com/avatars/78fa317e46024a5283765aa34df5e508/aec92fe9a74e499c98d759362cd7f02f.jpeg"
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "size": 2518,
+          "url": "https://media.sketchfab.com/avatars/78fa317e46024a5283765aa34df5e508/17fa177ffaa344a2b2fc8e78efd40fbb.jpeg"
+        },
+        {
+          "width": 90,
+          "height": 90,
+          "size": 5653,
+          "url": "https://media.sketchfab.com/avatars/78fa317e46024a5283765aa34df5e508/02162695bdc840faa3bcb2d418309c5e.jpeg"
+        },
+        {
+          "width": 32,
+          "height": 32,
+          "size": 1350,
+          "url": "https://media.sketchfab.com/avatars/78fa317e46024a5283765aa34df5e508/6fde876cbded4cd48d36a76029e3aa02.jpeg"
+        }
+      ]
+    },
+    "uri": "https://api.sketchfab.com/v3/users/e8c5188738af45e7940570cdd244bc86"
+  },
+  "vertexCount": 788,
+  "viewCount": 1681,
+  "viewerUrl": "https://sketchfab.com/3d-models/lada-2107-zhiguli-low-poly-2496c57dce2e47d59fe6f5a2adf516c9",
+  "isDownloadable": true,
+  "isProtected": false,
+  "description": "Low-Poly Lada VAZ 2107",
+  "price": null,
+  "downloadCount": 359,
+  "editorUrl": "https://sketchfab.com/models/2496c57dce2e47d59fe6f5a2adf516c9/edit",
+  "status": {
+    "warning": {},
+    "processing": "SUCCEEDED"
+  },
+  "source": "website",
+  "hasCommentsDisabled": false,
+  "updatedAt": "2022-07-19T11:30:38.679690",
+  "pbrType": null,
+  "textureCount": 3,
+  "materialCount": 5
+}
