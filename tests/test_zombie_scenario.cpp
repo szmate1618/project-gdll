@@ -210,22 +210,25 @@ spawn = [-80, -70, -40, -20]
                 "Cold loading changed a named horde's seeded destinations");
 }
 
-void geographicRegions() {
+void worldRegionsIgnoreGeographicMetadata() {
     auto scene = terrain();
-    // Independent pyproj reference places 19.35E, 47.60N at the runtime origin.
-    scene.geographicFrame = viewer::Model::GeographicFrame{"EPSG:32634", {375970.52835, 5273162.42161}};
     const viewer::CollisionWorld world(scene);
     auto settings = config(40);
     auto& horde = settings.hordes.front();
-    horde.coordinateSystem = viewer::ZombieHordeConfig::CoordinateSystem::Wgs84;
-    horde.spawn = {{19.3492,47.5994,19.3496,47.5998}};
-    horde.destination = {{19.3504,47.6002,19.3508,47.6006}};
+    horde.spawn = {{-80,20,-40,70}};
+    horde.destination = {{40,-70,80,-20}};
+    const auto unreferenced = viewer::generateZombieScenario(world, scene, mesh(), settings);
+    scene.geographicFrame = viewer::Model::GeographicFrame{"EPSG:32634", {375000, 5273000}};
     const auto population = viewer::generateZombieScenario(world, scene, mesh(), settings);
     for (std::size_t id = 0; id < horde.count; ++id) {
         const auto p = glm::vec3(population.placements[id][3]);
         const auto goal = population.destinations[id];
-        require(p.x < -20 && p.z > 20 && goal.x > 20 && goal.z < -20,
-                "WGS84 endpoint rectangles lost longitude/latitude axes or north-to-Z inversion");
+        require(p.x >= -80 && p.x <= -40 && p.z >= 20 && p.z <= 70 &&
+                    goal.x >= 40 && goal.x <= 80 && goal.z >= -70 && goal.z <= -20,
+                "World endpoint rectangles must preserve east/south meter axes");
+        require(population.placements[id] == unreferenced.placements[id] &&
+                    population.destinations[id] == unreferenced.destinations[id],
+                "Map geographic metadata must not change world scenario locations");
     }
 }
 
@@ -457,7 +460,7 @@ int main() {
     try {
         randomPopulationAndColdLoad();
         multipleHordesAndOptionalRegions();
-        geographicRegions();
+        worldRegionsIgnoreGeographicMetadata();
         disconnectedDestinationsAndBoundedFailure();
         autonomousMovementAndStop();
         perceptionDisabledKeepsRoutes();

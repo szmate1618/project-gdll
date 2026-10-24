@@ -37,18 +37,6 @@ Recast Navigation / Detour 1.6.0 — Mikko Mononen and contributors; zlib licens
   Full upstream notice is preserved in recastnavigation.txt and in
   third_party/recastnavigation/License.txt.
   https://github.com/recastnavigation/recastnavigation/tree/6dc1667f580357e8a2154c28b7867bea7e8ad3a7
-PROJ — Frank Warmerdam, Gerald Evenden, PROJ contributors; MIT-style license
-  and accompanying component/data notices. Platform-selected by CMake or vcpkg,
-  independently of the PROJ version bundled in the Python pyproj wheel.
-  The standalone viewer and authoritative server use native PROJ to convert
-  WGS84 scenario rectangles through the map's recorded CRS and origin.
-  The main upstream notice is preserved in proj.txt; it does not replace the
-  complete notices for the actual PROJ build, its data or its dependencies.
-  Linux packages copy Debian copyright files for bundled shared libraries;
-  Windows packages copy vcpkg copyright files, including PROJ's components.
-  Preserve the applicable notices when distributing PROJ data such as proj.db
-  or transformation grids; projection networking is disabled by the loader.
-  https://proj.org/en/stable/about.html#license
 OpenSSL — OpenSSL Project and contributors; see platform's OpenSSL notice.
   https://www.openssl.org/source/license.html
 GLEW — Windows OpenGL loader; see vcpkg's bundled copyright/license notice.

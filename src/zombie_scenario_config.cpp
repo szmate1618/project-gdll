@@ -49,8 +49,7 @@ std::array<float, 2> playerPair(const toml::table& table, const char* key, const
 }
 
 std::optional<ZombieHordeConfig::Rectangle> rectangle(const toml::table& table, const char* key,
-    ZombieHordeConfig::CoordinateSystem coordinates, const std::filesystem::path& path,
-    const std::string& prefix) {
+    const std::filesystem::path& path, const std::string& prefix) {
     if (!table.contains(key)) return std::nullopt;
     const auto setting = prefix + key;
     const auto* values = table[key].as_array();
@@ -67,9 +66,6 @@ std::optional<ZombieHordeConfig::Rectangle> rectangle(const toml::table& table, 
     }
     if (bounds[0] >= bounds[2] || bounds[1] >= bounds[3])
         invalid(path, setting + " requires minimum bounds smaller than maximum bounds");
-    if (coordinates == ZombieHordeConfig::CoordinateSystem::Wgs84 &&
-        (bounds[0] < -180 || bounds[2] > 180 || bounds[1] < -90 || bounds[3] > 90))
-        invalid(path, setting + " must use longitude [-180,180] and latitude [-90,90] degrees");
     return bounds;
 }
 
@@ -96,8 +92,8 @@ ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path)
         invalid(path, std::string("invalid scenario TOML: ") + error.what());
     }
     checkKeys(document, {"version", "seed", "zombies", "player"}, path);
-    if (document.contains("version") && requiredInteger(document.get("version"), path, "version") != 2)
-        invalid(path, "unsupported scenario version; expected version = 2");
+    if (document.contains("version") && requiredInteger(document.get("version"), path, "version") != 3)
+        invalid(path, "unsupported scenario version; expected version = 3 with world X/Z meters only");
     const auto* zombies = document["zombies"].as_table();
     if (!zombies || zombies->empty()) invalid(path, "expected at least one [zombies.HORDE_NAME] table");
 
@@ -121,24 +117,19 @@ ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path)
     for (const auto& [name, node] : *zombies) {
         const auto* table = node.as_table();
         if (!table || name.str().empty())
-            invalid(path, "expected named [zombies.HORDE_NAME] tables; migrate old flat zombie settings to version 2");
+            invalid(path, "expected named [zombies.HORDE_NAME] tables; migrate old flat zombie settings to version 3");
         const auto prefix = "zombies." + std::string(name.str()) + ".";
-        checkKeys(*table, {"count", "coordinates", "spawn", "destination"}, path, prefix);
+        if (table->contains("coordinates"))
+            invalid(path, prefix + "coordinates is no longer supported; version 3 uses world X/Z meters only (X east, Z south)");
+        checkKeys(*table, {"count", "spawn", "destination"}, path, prefix);
         ZombieHordeConfig horde;
         horde.name = name.str();
         const auto count = requiredInteger(table->get("count"), path, prefix + "count");
         if (count < 1 || static_cast<std::uint64_t>(count) > zombieScenarioMaximumCount)
             invalid(path, prefix + "count must be between 1 and 100000");
         horde.count = static_cast<std::size_t>(count);
-        if (table->contains("coordinates")) {
-            const auto coordinates = (*table)["coordinates"].value<std::string>();
-            if (coordinates == std::optional<std::string>("wgs84"))
-                horde.coordinateSystem = ZombieHordeConfig::CoordinateSystem::Wgs84;
-            else if (coordinates != std::optional<std::string>("world"))
-                invalid(path, prefix + "coordinates must be 'world' or 'wgs84'");
-        }
-        horde.spawn = rectangle(*table, "spawn", horde.coordinateSystem, path, prefix);
-        horde.destination = rectangle(*table, "destination", horde.coordinateSystem, path, prefix);
+        horde.spawn = rectangle(*table, "spawn", path, prefix);
+        horde.destination = rectangle(*table, "destination", path, prefix);
         config.hordes.push_back(std::move(horde));
     }
     try { (void)config.count(); }

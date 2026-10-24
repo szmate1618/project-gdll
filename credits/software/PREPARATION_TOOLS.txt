@@ -43,9 +43,8 @@ Python environment are not distributed by the town asset ZIP. Redistributing
 the preparation environment itself would require its full dependency licenses,
 including bundled codecs, BLAS/LAPACK, GDAL/PROJ data and transitive libraries.
 
-Native PROJ is also a runtime dependency of WGS84 scenario loading in the
-standalone viewer and authoritative server; see README.txt and proj.txt.
-That platform-selected C++ library is separate from pyproj's bundled PROJ.
+PROJ is used only for Python map/asset preparation. Its main upstream notice
+is retained in proj.txt; the C++ viewer/server/client do not depend on PROJ.
 Recast Navigation's Detour subset is runtime local avoidance code, not the
 Python navmesh baker; see README.txt and recastnavigation.txt.
 

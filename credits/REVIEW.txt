@@ -140,3 +140,11 @@ RUNTIME NAVIGATION CREDIT UPDATE — 2026-10-22
   baking and constrained triangulation. No new Python dependency was added.
 - These are source and packaging-notice updates, not a new review of unrelated
   asset rights or a claim that Windows binaries were built locally.
+
+RUNTIME PROJ REMOVAL — 2026-10-24
+
+- Scenario format version 3 accepts world X/Z meters only. Native PROJ is no
+  longer linked by the viewer/server/client or requested by platform builds.
+- Linux/Windows client recipes no longer copy the standalone PROJ notice.
+  proj.txt remains in the asset credit inventory for Python preparation tools;
+  pyproj and the geospatial preparation dependency notices are retained.

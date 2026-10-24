@@ -141,8 +141,8 @@ ZombieScenarioPopulation generateZombieScenario(const CollisionWorld& world, con
     std::size_t spawnAttempts = 0, destinationAttempts = 0;
     for (const auto& horde : config.hordes) {
         std::optional<ScenarioCoordinates> spawnCoordinates, destinationCoordinates;
-        if (horde.spawn) spawnCoordinates.emplace(horde.coordinateSystem, *horde.spawn, scene);
-        if (horde.destination) destinationCoordinates.emplace(horde.coordinateSystem, *horde.destination, scene);
+        if (horde.spawn) spawnCoordinates.emplace(*horde.spawn);
+        if (horde.destination) destinationCoordinates.emplace(*horde.destination);
         for (std::size_t id = 0; id < horde.count; ++id) {
             std::optional<glm::vec3> spawn;
             std::uint32_t spawnPolygon = navmesh_path::noPolygon;

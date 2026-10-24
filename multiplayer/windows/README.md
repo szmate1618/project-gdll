@@ -7,8 +7,8 @@ Copernicus Sentinel-2 and Copernicus DEM GLO-30. The town asset pack adds
 `credits/assets/MAP.txt` with the selected acquisition year and map fingerprint.
 `credits/assets/VEGETATION.txt` separately identifies the selected forests and
 trees, including their reference imagery. `credits/software/` lists runtime
-and preparation software; client `licenses/` includes bundled JSON/stb, Detour
-and PROJ notices, together with platform dependency notices.
+and preparation software; client `licenses/` includes bundled JSON/stb and
+Detour notices, together with platform dependency notices.
 Keep these notices with any redistributed package.
 
 This x64 client is built by the repository's **Build apps** GitHub workflow.

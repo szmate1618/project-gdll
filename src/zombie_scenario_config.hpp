@@ -13,14 +13,11 @@ namespace viewer {
 inline constexpr std::size_t zombieScenarioMaximumCount = 100000;
 
 struct ZombieHordeConfig {
-    enum class CoordinateSystem { World, Wgs84 };
     using Rectangle = std::array<double, 4>;
 
     std::string name;
     std::size_t count = 0;
-    CoordinateSystem coordinateSystem = CoordinateSystem::World;
-    // World: [min_x, min_z, max_x, max_z], absolute runtime meters.
-    // WGS84: [west, south, east, north], longitude/latitude degrees.
+    // [min_x, min_z, max_x, max_z], absolute runtime X east / Z south meters.
     // An omitted rectangle allows valid positions across the map.
     std::optional<Rectangle> spawn;
     std::optional<Rectangle> destination;
@@ -39,8 +36,8 @@ struct ZombieScenarioConfig {
     std::size_t count() const;
 };
 
-// Format version 2; an omitted version also selects version 2. Optional [player]
-// adds ground-resolved world X/Z placement and yaw/pitch without changing old files.
+// Format version 3; an omitted version also selects version 3. All locations
+// use world X/Z meters. Older versions and coordinate-system settings are rejected.
 // Throws std::runtime_error with the file path for malformed/unsupported settings.
 ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path);
 

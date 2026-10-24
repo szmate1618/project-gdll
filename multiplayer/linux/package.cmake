@@ -63,7 +63,7 @@ foreach(library IN LISTS libraries)
 endforeach()
 
 file(COPY "${source_root}/credits/software/nlohmann-json.txt" "${source_root}/credits/software/stb.txt"
-    "${source_root}/credits/software/recastnavigation.txt" "${source_root}/credits/software/proj.txt"
+    "${source_root}/credits/software/recastnavigation.txt"
     DESTINATION "${package}/licenses")
 
 set(projects GameNetworkingSockets GLFW glm box3d tinygltf tomlplusplus OpenAL)

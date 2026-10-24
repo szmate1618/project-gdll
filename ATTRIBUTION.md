@@ -45,13 +45,13 @@ complete notice is in [recastnavigation.txt](credits/software/recastnavigation.t
 The global navmesh baker and route search are this project's code.
 
 **PROJ**, by Frank Warmerdam, Gerald Evenden and PROJ contributors, converts
-WGS 84 scenario coordinates at runtime using the map's recorded CRS and origin.
-Its main MIT-style notice is in [proj.txt](credits/software/proj.txt). Native
-PROJ is selected by the platform build, independently of Python pyproj's bundled
-version. Retain the complete notices for the actual PROJ build, bundled data
-and transitive dependencies when distributing them.
+geographic coordinates during Python map/asset preparation through `pyproj`.
+The C++ viewer, server and client use world meter locations and do not depend
+on PROJ. Its main MIT-style notice is in [proj.txt](credits/software/proj.txt).
+Retain the complete notices for the actual preparation environment, bundled
+data and transitive dependencies when distributing them.
 
 The [software inventory](credits/software/README.txt) lists the other runtime
 libraries and links to the preparation toolchain credits. Asset ZIPs carry
-these credits; Linux and Windows client bundles also copy the Detour and PROJ
-notices into `licenses/`, alongside platform dependency notices.
+these credits; Linux and Windows client bundles also copy the Detour notice
+into `licenses/`, alongside platform dependency notices.

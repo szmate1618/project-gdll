@@ -29,7 +29,6 @@ if(GD_VIEWER)
     endif()
 endif()
 find_package(OpenSSL REQUIRED COMPONENTS Crypto)
-find_package(PROJ CONFIG REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # X11 also works in Wayland sessions through XWayland. Native Wayland support
@@ -153,7 +152,7 @@ viewer_warnings(viewer_model)
 
 add_library(viewer_scenario_config STATIC src/zombie_scenario_config.cpp src/scenario_coordinates.cpp)
 target_include_directories(viewer_scenario_config PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
-target_link_libraries(viewer_scenario_config PUBLIC glm::glm PRIVATE tomlplusplus::tomlplusplus PROJ::proj)
+target_link_libraries(viewer_scenario_config PUBLIC glm::glm PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_scenario_config)
 
 add_library(viewer_visibility STATIC src/visibility.cpp src/model_visibility.cpp)
@@ -467,7 +466,9 @@ if(BUILD_TESTING)
     add_executable(test_zombie_scenario_config tests/test_zombie_scenario_config.cpp)
     target_link_libraries(test_zombie_scenario_config PRIVATE viewer_scenario_config)
     viewer_warnings(test_zombie_scenario_config)
-    add_test(NAME viewer_zombie_scenario_config COMMAND test_zombie_scenario_config)
+    add_test(NAME viewer_zombie_scenario_config COMMAND test_zombie_scenario_config
+        "${CMAKE_CURRENT_SOURCE_DIR}/scenarios/test-horde/scenario.toml"
+        "${CMAKE_CURRENT_SOURCE_DIR}/scenarios/old-forest-damage/scenario.toml")
     add_executable(test_zombie_scenario tests/test_zombie_scenario.cpp)
     target_link_libraries(test_zombie_scenario PRIVATE viewer_zombies)
     viewer_warnings(test_zombie_scenario)

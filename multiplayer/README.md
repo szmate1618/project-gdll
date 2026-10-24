@@ -11,7 +11,7 @@ Use the existing viewer dependencies, plus protobuf headers and its compiler.
 On Debian/Ubuntu:
 
 ```sh
-sudo apt install libssl-dev libproj-dev libprotobuf-dev protobuf-compiler
+sudo apt install libssl-dev libprotobuf-dev protobuf-compiler
 cmake -S . -B build -DGD_MULTIPLAYER=ON
 cmake --build build -j4
 ```
@@ -44,7 +44,7 @@ require a cache. Player perception can hand a scenario actor to original direct
 behavior movement permanently; it releases the route and never searches again.
 Clients receive positions through existing snapshots
 and do not need a navmesh or scenario file. See the [scenario configuration](../docs/ZOMBIE_NAVIGATION_RUNTIME.md#test-horde-scenario)
-for meter/WGS84 rectangles and destination behavior.
+for world X/Z meter rectangles and destination behavior.
 
 ## Linux client package
 

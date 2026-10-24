@@ -42,7 +42,7 @@ The directory `scenarios/test-horde/` contains one configuration file with
 multiple named hordes:
 
 ```toml
-version = 2
+version = 3
 seed = 42
 
 [player]
@@ -70,28 +70,25 @@ valid positions across the map for that endpoint; a supplied rectangle limits
 random positions to its bounds. There is no `"random"` specifier. Counts must
 be positive integers, with at most 100,000 zombies across all hordes.
 
-`coordinates` defaults to `"world"`: rectangles use
-`[min_x, min_z, max_x, max_z]` in absolute runtime meters, X east and Z south.
-They are independent of the scene bounds center. For geographic bounds, use
-`coordinates = "wgs84"` on the horde:
+Rectangles use `[min_x, min_z, max_x, max_z]` in absolute runtime meters,
+X east and Z south. They are relative to the map's recorded origin, independent
+of the scene bounds center and identical to the `--spawn X Z` coordinate frame.
+All scenario locations use meters; the `coordinates` setting is rejected.
+The C++ viewer/server do not require PROJ or geographic metadata to load them.
+The seed is optional; omitting it produces a new random layout each load.
+Seeded loads use a stable horde-name order.
 
-```toml
-[zombies.geographic_horde]
-count = 200
-coordinates = "wgs84"
-spawn = [19.35, 47.58, 19.36, 47.59]
-destination = [19.36, 47.59, 19.37, 47.60]
-```
+This is scenario format version 3; `version` may be omitted and defaults to 3.
+Explicit older versions are rejected. To migrate a version 2 scenario already
+using world meters, set `version = 3` and remove any `coordinates = "world"`.
+For WGS84 bounds, first convert the region offline using Python's `pyproj` and
+the published map's recorded CRS and origin: project longitude/latitude,
+subtract the projected origin, then use X = east and Z = -north. Choose world
+rectangle bounds around the projected region; geographic rectangles generally
+do not project to axis-aligned world rectangles, so this can enlarge the region.
+Remove `coordinates = "wgs84"` after conversion. Python map/asset preparation
+continues to use `pyproj`.
 
-WGS84 rectangles use `[west_longitude, south_latitude, east_longitude,
-north_latitude]` in degrees. The coordinate setting applies to both rectangles
-within that horde; other hordes can use a different setting. PROJ converts
-samples through the loaded map's recorded CRS and origin; supplied geographic
-bounds need that metadata. Projection uses local coordinate data, with network
-access disabled. The seed is optional; omitting it produces a new random layout
-each load. Seeded loads use a stable horde-name order.
-
-This is scenario format version 2; `version` may be omitted and defaults to 2.
 An optional `[player]` table supplies a ground-level starting location and
 orientation. Existing scenarios can omit it:
 
@@ -131,8 +128,8 @@ replace the old spawn rectangle key with `spawn`. Old `spawn_rectangle_m`
 bounds used east/north offsets: for a georeferenced map convert
 `[west, south, east, north]` to world `[west, -north, east, -south]`.
 For unreferenced maps, also add the old scene-bounds center to X/Z.
-Old `spawn_rectangle_wgs84` bounds keep their order and need
-`coordinates = "wgs84"`.
+Old `spawn_rectangle_wgs84` bounds require the offline geographic conversion
+above. Set `version = 3` after migrating either old rectangle format.
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --scenario scenarios/test-horde/scenario.toml
@@ -380,8 +377,9 @@ elapsed time for unchanged rendering. Read the [GPU timing caveat](BENCHMARKS.md
 and linked controlled report before attributing that increase to GPU animation,
 additional geometry or per-frame path searches.
 
-Focused tests cover config validation, meter/WGS84 axes, safe random spawning,
-preplanned route storage, autonomous following without runtime searches,
+Focused tests cover config validation, rejection of geographic/old formats,
+world meter axes, safe random spawning, preplanned route storage,
+autonomous following without runtime searches,
 one-way perception takeover and ordinary behavior isolation. Existing movement,
 crowd, server snapshot and client/server checks cover the shared integration. Real-map startup validates loading and route preparation;
 movement correctness is checked through focused simulation fixtures.

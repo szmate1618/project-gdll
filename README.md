@@ -145,9 +145,9 @@ TOML scenario. All 1,600 paths are calculated before simulation starts:
 ```
 
 The scenario defines named hordes with optional flat `spawn` and `destination`
-rectangles. Bounds default to world X/Z meters; `coordinates = "wgs84"` selects
-longitude/latitude degrees per horde. Omitted bounds allow random valid positions
-across the map.
+rectangles in world X/Z meters (X east, Z south). Scenario format version 3
+accepts meters only; geographic coordinates and the `coordinates` setting are
+rejected. Omitted bounds allow random valid positions across the map.
 Scenario zombies follow their preloaded paths independently of player proximity,
 then stop. They do not search again when blocked. Player perception can hand an
 actor to original behavior movement permanently, releasing its scenario path.
