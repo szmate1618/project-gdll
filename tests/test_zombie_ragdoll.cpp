@@ -3,6 +3,7 @@
 #include <box3d/box3d.h>
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -84,6 +85,96 @@ void lowFeetDoNotLaunchThePelvis() {
         require(bodies[pelvis][3].y <= initial[pelvis][3].y + 0.001f,
                 "Foot capsule penetration must not launch the pelvis upward");
     }
+}
+
+void springPoseRecoversWithPlantedFeet() {
+    auto simulation = std::make_shared<viewer::PhysicsWorld>();
+    b3World_SetGravity(simulation->id(), {0, 0, 0});
+    viewer::ZombieRagdollWorld world(simulation);
+    auto reference = referencePose({}, 0), current = reference;
+    const auto upper = index(RagdollPart::upperArmLeft), lower = index(RagdollPart::lowerArmLeft);
+    const auto pivot = glm::vec3(reference.bones[upper][3]);
+    const auto bend = glm::translate(glm::mat4(1), pivot) * glm::rotate(glm::mat4(1), -.7f, glm::vec3(0, 0, 1)) *
+                      glm::translate(glm::mat4(1), -pivot);
+    for (const auto p : {upper, lower}) {
+        current.bones[p] = bend * reference.bones[p];
+        current.tips[p] = glm::vec3(bend * glm::vec4(reference.tips[p], 1));
+    }
+    const auto handle = world.create({}, 0, {}, reference, current);
+    world.holdPose(handle);
+    const auto initial = world.bodyTransforms(handle);
+    const auto relative = [&](const auto& bodies) {
+        return glm::normalize(glm::quat_cast(glm::mat3(glm::inverse(bodies[index(RagdollPart::torso)]) * bodies[upper])));
+    };
+    const auto target = relative(initial);
+    world.applyImpulse(handle, RagdollPart::lowerArmLeft, {0, 3, 0});
+    float peak = 0, last = 0;
+    for (int f = 0; f < 600; ++f) {
+        world.step(1.f / 60);
+        const auto bodies = world.bodyTransforms(handle);
+        last = 2 * std::acos(std::clamp(std::abs(glm::dot(relative(bodies), target)), 0.f, 1.f));
+        peak = std::max(peak, last);
+    }
+    require(peak > .02f && last < peak * .5f, "Spring ragdoll must resist displacement and recover its captured bent pose");
+    for (auto part : {RagdollPart::lowerLegLeft, RagdollPart::lowerLegRight})
+        require(close(world.bodyTransforms(handle)[index(part)], initial[index(part)], .003f),
+                "Spring ragdoll feet must stay planted while the arm reacts");
+}
+
+void plantedFeetSupportImpactsAndTranslateWithTheirOwner() {
+    auto simulation = std::make_shared<viewer::PhysicsWorld>();
+    viewer::ZombieRagdollWorld world(simulation);
+    const glm::vec3 feet(12, 3, -8);
+    const auto pose = referencePose(feet, .63f);
+    const auto handle = world.create(feet, .63f, {}, pose, pose);
+    const auto initial = world.bodyTransforms(handle);
+    const auto looseCounters = b3World_GetCounters(simulation->id());
+    world.holdPose(handle);
+    const auto pinnedCounters = b3World_GetCounters(simulation->id());
+    require(pinnedCounters.bodyCount == looseCounters.bodyCount &&
+            pinnedCounters.jointCount == looseCounters.jointCount,
+            "Planting feet must reuse the owned lower-leg bodies");
+    world.holdPose(handle);
+    require(b3World_GetCounters(simulation->id()).jointCount == pinnedCounters.jointCount,
+            "Repeated spring activation must not duplicate foot anchors");
+    for (std::size_t p = 0; p < viewer::ragdollPartCount; ++p)
+        require(close(world.bodyTransforms(handle)[p], initial[p]), "Planting feet must preserve the exact captured pose");
+    world.applyImpulse(handle, RagdollPart::torso, {0, 0, 12});
+    float upperBodyMotion = 0, peakTorsoLean = 0, torsoLean = 0;
+    const auto torso = index(RagdollPart::torso);
+    const auto initialUp = glm::normalize(glm::vec3(initial[torso][1]));
+    for (int f = 0; f < 600; ++f) {
+        world.step(1.f / 60);
+        const auto bodies = world.bodyTransforms(handle);
+        for (auto part : {RagdollPart::lowerLegLeft, RagdollPart::lowerLegRight}) {
+            require(close(bodies[index(part)], initial[index(part)], .003f),
+                    "Feet must not slide or tip under gravity and a punch impulse");
+        }
+        const auto up = glm::normalize(glm::vec3(bodies[torso][1]));
+        torsoLean = std::acos(glm::clamp(glm::dot(initialUp, up), -1.f, 1.f));
+        peakTorsoLean = std::max(peakTorsoLean, torsoLean);
+        require(torsoLean < glm::radians(30.f),
+                "The planted torso must not fold over under gravity after a punch");
+        upperBodyMotion = std::max(upperBodyMotion, glm::distance(glm::vec3(bodies[torso][3]), glm::vec3(initial[torso][3])));
+        require(bodies[index(RagdollPart::pelvis)][3].y > feet.y + .6f,
+                "The planted spring ragdoll must stay standing after a punch");
+    }
+    std::cout << "Torso lean: peak " << glm::degrees(peakTorsoLean)
+              << " degrees, settled " << glm::degrees(torsoLean) << " degrees\n";
+    require(torsoLean < glm::radians(5.f), "The torso must recover near its captured posture after a punch");
+    require(upperBodyMotion > .01f, "Planted feet must still allow the upper body to react to a punch");
+    const glm::vec3 displacement(5, 2, -3);
+    world.translate(handle, displacement);
+    for (int f = 0; f < 120; ++f) world.step(1.f / 60);
+    const auto translated = world.bodyTransforms(handle);
+    for (auto part : {RagdollPart::lowerLegLeft, RagdollPart::lowerLegRight}) {
+        auto expected = initial[index(part)];
+        expected[3] += glm::vec4(displacement, 0);
+        require(close(translated[index(part)], expected, .003f), "Translating a ragdoll must carry both foot anchors");
+    }
+    world.destroy(handle);
+    const auto removed = b3World_GetCounters(simulation->id());
+    require(removed.bodyCount == 0 && removed.jointCount == 0, "Removing a planted ragdoll must release its foot anchors");
 }
 
 void repeatedActivationsRemainFiniteAndMoving() {
@@ -185,6 +276,8 @@ int main() {
     try {
         activationUsesLivePoseAndPreservesRoot();
         lowFeetDoNotLaunchThePelvis();
+        springPoseRecoversWithPlantedFeet();
+        plantedFeetSupportImpactsAndTranslateWithTheirOwner();
         repeatedActivationsRemainFiniteAndMoving();
         degenerateReferenceCannotCreateAnInvalidHinge();
         motionRevisionsSleepWakeAndRemoval();

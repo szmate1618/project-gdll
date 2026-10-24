@@ -109,17 +109,18 @@ FetchContent_Declare(openal_soft
     DOWNLOAD_NAME openal-soft-1.24.3.tar.gz
 )
 FetchContent_MakeAvailable(glm tinygltf box3d meshoptimizer tomlplusplus)
-# Box3D exposes scalar friction; tires need an independent sideways limit.
+# Extend Box3D for directional tire friction and refitting posed contact meshes.
 # Apply on every configure, including already populated offline dependency trees.
 execute_process(
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/patch_box3d_directional_friction.py"
             "${box3d_SOURCE_DIR}"
     RESULT_VARIABLE box3d_patch_result)
 if(NOT box3d_patch_result EQUAL 0)
-    message(FATAL_ERROR "Cannot apply the pinned Box3D directional-friction patch")
+    message(FATAL_ERROR "Cannot apply the pinned Box3D physics patches")
 endif()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/patches/box3d-directional-friction.patch"
+    "${CMAKE_CURRENT_SOURCE_DIR}/patches/box3d-mesh-refit.patch"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/patch_box3d_directional_friction.py")
 if(GD_VIEWER)
     FetchContent_MakeAvailable(glfw openal_soft)
@@ -292,7 +293,7 @@ add_custom_command(
 add_custom_target(viewer_audio_assets DEPENDS ${VIEWER_AUDIO_FILES})
 endif()
 
-add_library(viewer_physics STATIC src/vehicle_config.cpp src/physics_world.cpp src/physics_prop.cpp src/physics_grab.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_physics.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp)
+add_library(viewer_physics STATIC src/vehicle_config.cpp src/physics_world.cpp src/player_body.cpp src/physics_prop.cpp src/physics_grab.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_physics.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp)
 target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
@@ -305,7 +306,7 @@ viewer_warnings(viewer_forests)
 
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp
     src/zombie_layer.cpp src/zombie_lod.cpp src/zombie_lod_assets.cpp src/zombie_hit.cpp src/zombie_damage.cpp src/zombie_dismemberment.cpp src/zombie_shooting.cpp src/zombie_chase.cpp src/zombie_attack.cpp src/zombie_behavior.cpp src/zombie_animation.cpp
-    src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp src/zombie_spatial_index.cpp src/zombie_crowd.cpp src/zombie_movement.cpp src/zombie_door_collision.cpp src/zombie_vehicle_physics.cpp src/zombie_perception.cpp src/zombie_render_updates.cpp
+    src/melee_combat.cpp src/melee_contact_mesh.cpp src/zombie_bone_collision.cpp src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp src/zombie_spatial_index.cpp src/zombie_crowd.cpp src/zombie_movement.cpp src/zombie_door_collision.cpp src/zombie_vehicle_physics.cpp src/zombie_perception.cpp src/zombie_render_updates.cpp
     src/zombie_navigation.cpp src/zombie_scenario.cpp src/zombie_scenario_routes.cpp src/zombie_travel.cpp src/zombie_hit_capsules.cpp
     src/zombie_wounds.cpp src/zombie_wound_surface.cpp src/zombie_cavity_physics.cpp
     src/blood_mist.cpp src/blood_particles.cpp src/zombie_blood.cpp)
@@ -313,6 +314,11 @@ target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer
     viewer_zombie_steering viewer_scenario_config)
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_zombies)
+
+add_executable(benchmark_melee_collision EXCLUDE_FROM_ALL tools/benchmark_melee_collision.cpp)
+target_link_libraries(benchmark_melee_collision PRIVATE viewer_zombies)
+target_compile_definitions(benchmark_melee_collision PRIVATE MELEE_BENCH_RIGID_STATS)
+viewer_warnings(benchmark_melee_collision)
 
 add_library(viewer_fps STATIC src/fps_controller.cpp src/player_stance.cpp src/camera_rig.cpp)
 target_link_libraries(viewer_fps PUBLIC viewer_collision viewer_camera viewer_noise)
@@ -386,7 +392,7 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/dropped_weapon_renderer.cpp
     src/grenade_renderer.cpp
     src/vehicle_renderer.cpp src/vehicle_visibility.cpp
-    src/weapon_overlay.cpp
+    src/weapon_overlay.cpp src/player_body_renderer.cpp
     src/building_renderer.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
     src/zombie_renderer.cpp src/zombie_wound_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/blood_mist_renderer.cpp src/shader_program.cpp)
@@ -472,6 +478,21 @@ if(BUILD_TESTING)
     target_link_libraries(test_zombie_vehicle_physics PRIVATE viewer_vehicles)
     viewer_warnings(test_zombie_vehicle_physics)
     add_test(NAME viewer_zombie_vehicle_physics COMMAND test_zombie_vehicle_physics)
+    add_executable(test_melee tests/test_melee.cpp)
+    target_link_libraries(test_melee PRIVATE viewer_zombies)
+    viewer_warnings(test_melee)
+    add_test(NAME viewer_melee COMMAND test_melee)
+    add_test(NAME viewer_melee_retract_pause COMMAND test_melee --retract-pause)
+    add_test(NAME viewer_melee_pelvis_upright COMMAND test_melee --pelvis-upright)
+    add_test(NAME viewer_melee_torso_punch COMMAND test_melee --torso-punch)
+    add_executable(test_melee_contact_mesh tests/test_melee_contact_mesh.cpp)
+    target_link_libraries(test_melee_contact_mesh PRIVATE viewer_zombies)
+    viewer_warnings(test_melee_contact_mesh)
+    add_test(NAME viewer_melee_contact_mesh COMMAND test_melee_contact_mesh)
+    add_executable(test_zombie_bone_collision tests/test_zombie_bone_collision.cpp)
+    target_link_libraries(test_zombie_bone_collision PRIVATE viewer_zombies)
+    viewer_warnings(test_zombie_bone_collision)
+    add_test(NAME viewer_zombie_bone_collision COMMAND test_zombie_bone_collision)
 endif()
 
 if(BUILD_TESTING AND GD_VIEWER)

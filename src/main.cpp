@@ -13,6 +13,9 @@
 #include "reticle_overlay.hpp"
 #include "weapons.hpp"
 #include "weapon_overlay.hpp"
+#include "player_body.hpp"
+#include "player_body_renderer.hpp"
+#include "melee_combat.hpp"
 #include "camera_rig.hpp"
 #include "collision_debug.hpp"
 #include "gpu_timer.hpp"
@@ -298,10 +301,10 @@ void printHelp() {
     std::cout << "Usage: godollo_viewer [model.glb|model.gltf] [options]\n"
               << "Default model: " << VIEWER_DEFAULT_ASSET << "\n\n"
               << "W/S forward/back, A/D strafe, Q/E down/up, mouse look, Shift faster\n"
-              << "Tab switch Combat/Interaction; left mouse shoot in Combat, grab a door (1.5 m) or box (2 m) in Interaction\n"
+              << "Tab switch Combat/Interaction; left mouse shoot/punch in Combat, grab a door (1.5 m) or box (2 m) in Interaction\n"
               << "Interaction: left/right mouse hold boxes with separate hands; mouse sideways/up/down moves boxes; WASD moves grips\n"
               << "Release to drop; swing and release to throw. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
-              << "Combat: 1 pistol, 2 SMG, 3 shotgun, 4 sniper, 5 HE grenade; R reload; hold left mouse for automatic fire\n"
+              << "Combat: key left of 1 (HU 0) fists, 1 pistol, 2 SMG, 3 shotgun, 4 sniper, 5 HE grenade; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
               << "Left Alt cursor / driving camera, F12 cursor, wheel change speed, G discard weapon, F pick up weapon, L toggle flashlight, Home frame model, Escape quit\n\n"
               << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
@@ -390,7 +393,7 @@ struct AppState {
         : rig(collision, model.boundsMin, model.boundsMax, 1280.0f / 720.0f), world(collision) {}
     viewer::CameraRig rig;
     viewer::PlayerInteraction interaction;
-    viewer::Weapons weapons{VIEWER_ITEMS, VIEWER_INVENTORY};
+    viewer::Weapons weapons{VIEWER_ITEMS, VIEWER_INVENTORY, true};
     viewer::WeaponMotion weaponMotion;
     viewer::DoorLayer* doors = nullptr;
     viewer::BoxLayer* boxes = nullptr;
@@ -403,6 +406,8 @@ struct AppState {
     viewer::ZombieLayer* zombies = nullptr;
     viewer::SceneAudio* audio = nullptr;
     viewer::Grenades* grenades = nullptr;
+    viewer::PlayerBody* body = nullptr;
+    viewer::MeleeCombat* melee = nullptr;
     double displayedAnimationSeconds = 0.0;
     glm::vec3 boundsMin, boundsMax;
     std::array<bool, GLFW_KEY_LAST + 1> keys{};
@@ -451,8 +456,8 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         app.weapons.cancelTrigger();
         app.interaction.toggleMode();
         std::cout << "Control mode: " << app.interaction.modeName() << '\n';
-    } else if (key >= GLFW_KEY_1 && key <= GLFW_KEY_5) {
-        if (app.weapons.equip(static_cast<std::size_t>(key - GLFW_KEY_1))) {
+    } else if (key == GLFW_KEY_GRAVE_ACCENT || (key >= GLFW_KEY_1 && key <= GLFW_KEY_5)) {
+        if (app.weapons.equip(key == GLFW_KEY_GRAVE_ACCENT ? viewer::punchSlot : static_cast<std::size_t>(key - GLFW_KEY_1))) {
             while (app.rig.camera().viewMode() != viewer::Camera::ViewMode::original)
                 app.rig.camera().cycleViewMode();
             std::cout << app.weapons.status() << '\n';
@@ -569,6 +574,11 @@ bool updateWeapons(AppState& app, double seconds) {
     const auto result = app.weapons.fireAttempt(seconds);
     if (result == viewer::WeaponFireResult::empty && app.audio) app.audio->emptyClick();
     if (result != viewer::WeaponFireResult::fired) return false;
+    if (app.weapons.slot() == viewer::punchSlot) {
+        if (app.body && app.melee)
+            app.melee->punch(*app.body, app.rig.camera().position(), app.rig.camera().direction(), app.world);
+        return false; // Fists do not create muzzle lights or firearm recoil.
+    }
     const auto aim = app.weaponMotion.aimCamera(app.rig.camera(), app.weapons.slot(), seconds, true);
     if (config.grenade) {
         if (!app.grenades->throwFrom(app.rig.camera().position(), app.rig.camera().direction(),
@@ -694,6 +704,24 @@ void inputSelfTest(GLFWwindow* window) {
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
     if (app.rig.camera().projection(1.0f) != originalProjection)
         throw std::runtime_error("Right-click did not restore the original field of view");
+    app.weapons.equip(0);
+    key(window, GLFW_KEY_0, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_0, 0, GLFW_RELEASE, 0);
+    if (app.weapons.slot() != 0)
+        throw std::runtime_error("The number-row 0 position must not select fists");
+    // GLFW uses the physical US key position: Hungarian 0 is left of 1.
+    key(window, GLFW_KEY_GRAVE_ACCENT, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_GRAVE_ACCENT, 0, GLFW_RELEASE, 0);
+    if (app.weapons.slot() != viewer::punchSlot || app.weapons.equipped().config.hasScope)
+        throw std::runtime_error("Fists selection callback failed");
+    if (app.body && app.melee) {
+        app.body->follow(app.rig.camera().position(), app.rig.camera().direction(), true);
+        mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+        if (updateWeapons(app, 0) || !app.body->punching(viewer::PlayerBodyPart::rightFist))
+            throw std::runtime_error("Fists input must strike without a muzzle flash");
+        mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+        app.body->follow(app.rig.camera().position(), app.rig.camera().direction(), false);
+    }
     for (int slot = 0; slot < static_cast<int>(viewer::weaponIds.size()); ++slot) {
         key(window, GLFW_KEY_1 + slot, 0, GLFW_PRESS, 0);
         key(window, GLFW_KEY_1 + slot, 0, GLFW_RELEASE, 0);
@@ -765,13 +793,18 @@ void inputSelfTest(GLFWwindow* window) {
     if (app.interaction.mode() != viewer::ControlMode::Combat)
         throw std::runtime_error("Tab failed to restore combat mode");
     const auto cameraBeforeAlt = app.rig.camera();
-    for (int alt : {GLFW_KEY_LEFT_ALT, GLFW_KEY_RIGHT_ALT}) {
-        key(window, alt, 0, GLFW_PRESS, 0);
-        key(window, alt, 0, GLFW_RELEASE, 0);
-    }
+    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_PRESS, 0);
+    if (app.capture) throw std::runtime_error("Left Alt must release the cursor on foot");
+    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_REPEAT, 0);
+    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_RELEASE, 0);
+    key(window, GLFW_KEY_RIGHT_ALT, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_RIGHT_ALT, 0, GLFW_RELEASE, 0);
+    if (app.capture) throw std::runtime_error("Right Alt or repeat must not toggle the cursor on foot");
+    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_RELEASE, 0);
     if (!app.capture || app.driver.thirdPerson() || app.rig.camera().position() != cameraBeforeAlt.position() ||
         app.rig.camera().view() != cameraBeforeAlt.view())
-        throw std::runtime_error("Alt must leave the camera and cursor unchanged outside a car");
+        throw std::runtime_error("Left Alt must recapture the cursor without moving the on-foot camera");
     key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
     if (app.capture) throw std::runtime_error("Mouse release self-test failed");
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
@@ -1193,15 +1226,19 @@ int run(const Options& options) {
     renderer.setVehicleDistanceDetail(options.vehicleDistanceDetail);
     renderer.setVehicleInstancing(options.vehicleInstancing);
     viewer::ReticleOverlay reticle(options.shaders);
-    const auto& playerBody = app.rig.player().config();
+    const auto& playerConfig = app.rig.player().config();
     viewer::WeaponOverlay weaponOverlay(options.shaders, VIEWER_WEAPON_ASSETS,
-                                       {playerBody.height, playerBody.eyeHeight});
+                                       {playerConfig.height, playerConfig.eyeHeight});
+    viewer::PlayerBody playerBody(physics, playerConfig.eyeHeight);
+    viewer::MeleeCombat melee(physics);
+    viewer::PlayerBodyRenderer bodyRenderer(options.shaders);
+    app.body = &playerBody; app.melee = &melee;
     viewer::MuzzleFlash muzzleFlash;
     std::size_t muzzleSlot = 0;
     glm::vec3 muzzleModelPosition{0};
     renderer.loadGrenadeModel(std::filesystem::path(VIEWER_WEAPON_ASSETS) / "he_grenade.glb");
     std::uint32_t lastExplosion = 0;
-    std::cout << "Weapons: 1 pistol, 2 SMG, 3 shotgun, 4 sniper, 5 HE grenade; R reload\n" << app.weapons.status() << '\n';
+    std::cout << "Weapons: key left of 1 (HU 0) fists, 1 pistol, 2 SMG, 3 shotgun, 4 sniper, 5 HE grenade; R reload\n" << app.weapons.status() << '\n';
     renderer.setTreeCulling(options.treeCulling);
     renderer.setZombieCulling(options.zombieCulling);
     renderer.setZombieDistanceDetail(options.zombieDistanceDetail);
@@ -1297,12 +1334,22 @@ int run(const Options& options) {
         physicsScene.prepare(boxes);
         droppedWeapons.prepare(physicsScene,doors);
         grenades.prepare(physicsScene, doors);
+        playerBody.follow(app.rig.camera().position(), app.rig.camera().direction(),
+            !app.driver.occupied() && app.weapons.slot() == viewer::punchSlot &&
+            app.interaction.mode() == viewer::ControlMode::Combat);
+        if (playerBody.enabled()) {
+            const auto eye = app.rig.camera().position();
+            physicsScene.ensureNear(eye - glm::vec3(3), eye + glm::vec3(3));
+        }
         if (app.driver.driving()) {
             cars.drive(*app.driver.car(), float(app.keys[GLFW_KEY_W]) - float(app.keys[GLFW_KEY_S]),
                        float(app.keys[GLFW_KEY_D]) - float(app.keys[GLFW_KEY_A]), app.keys[GLFW_KEY_SPACE]);
         }
         if (zombies) zombies->prepareWoundPhysics(dt, app.displayedAnimationSeconds, &physicsScene);
         physics->step(dt, [&](float step) {
+            playerBody.beforeStep(step);
+            melee.prepare(playerBody, zombies ? &*zombies : nullptr,
+                          options.animationTime.value_or(simulationClock.seconds()));
             viewer::prepareVehicleScene(cars, physicsScene);
             for (const auto i : cars.simulatedCars()) {
                 doors.activateNear(cars.pose(i).chassis.center, 10);
@@ -1313,8 +1360,12 @@ int run(const Options& options) {
             }
             cars.beforeStep(step);
         }, [&](float step) {
+            melee.finish(playerBody, zombies ? &*zombies : nullptr,
+                         options.animationTime.value_or(simulationClock.seconds()));
             if (zombies) zombies->finishVehiclePhysics(cars, step,
                     options.animationTime.value_or(simulationClock.seconds()));
+            playerBody.afterStep();
+            bodyRenderer.captureBody(playerBody, step);
         });
         grenades.update(simulationClock.seconds(), collision, zombies ? &*zombies : nullptr, app.displayedAnimationSeconds);
         for (const auto& explosion : grenades.explosions(simulationClock.seconds())) {
@@ -1394,7 +1445,10 @@ int run(const Options& options) {
         if (frameProfile) frameProfile->beginGpu();
         gpuTimer.begin();
         const double renderStart = glfwGetTime();
-        renderer.render(viewCamera, app.displayedAnimationSeconds);
+        renderer.render(viewCamera, app.displayedAnimationSeconds, [&] {
+            bodyRenderer.drawBody(playerBody, viewCamera.projection(float(renderWidth) / renderHeight) *
+                                   viewCamera.view(), renderWidth, renderHeight);
+        });
         if (app.collisionDebug)
             debug->draw(viewCamera, overlay, renderWidth, renderHeight);
         const auto& heldWeapon = app.weapons.equipped();

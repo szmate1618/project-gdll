@@ -1,5 +1,9 @@
 #include "weapon_overlay.hpp"
 #include "renderer.hpp"
+#include "player_body.hpp"
+#include "player_body_renderer.hpp"
+#include "physics_world.hpp"
+#include <glm/gtc/matrix_transform.hpp>
 #include <GLFW/glfw3.h>
 #include <cmath>
 #include <fstream>
@@ -116,7 +120,76 @@ int main(int argc, char** argv) {
                     render(slot,motion.pose(slot,10+elapsed),std::to_string(elapsed));
         }
         glDeleteQueries(1, &query);
-        viewer::Renderer::checkErrors("weapon overlays");
+        viewer::PlayerBodyRenderer bodyRenderer(VIEWER_SHADER_DIR);
+        auto physics = std::make_shared<viewer::PhysicsWorld>();
+        viewer::PlayerBody body(physics, 1.7f);
+        const glm::vec3 eye(0, 1.7f, 0);
+        body.follow(eye, {0, 0, -1}, true);
+        const auto projection = glm::perspective(glm::radians(60.f), float(width) / height, .01f, 20.f);
+        int outboundFrames = 0;
+        for (int pose = 0; pose < 5; ++pose) {
+            if (pose == 1) {
+                body.punch({0, 0, -1});
+                const auto start = body.fistPosition(true);
+                // Sample by travel rather than time so tuning punch speed
+                // cannot accidentally capture the guard or an invisible fist.
+                for (int f = 0; f < 120 && glm::distance(start, body.fistPosition(true)) < .25f &&
+                                    body.punching(viewer::PlayerBodyPart::rightFist); ++f) {
+                    physics->step(1.f / 60, [&](float s) { body.beforeStep(s); }, [&](float s) {
+                        body.afterStep(); bodyRenderer.captureBody(body, s);
+                    });
+                    ++outboundFrames;
+                }
+                if (!body.punching(viewer::PlayerBodyPart::rightFist))
+                    throw std::runtime_error("Punch capture must sample the active swing before guard recovery");
+            }
+            if (pose == 3) {
+                for (int f = 0; f < 120 && body.punching(viewer::PlayerBodyPart::rightFist); ++f) {
+                    physics->step(1.f / 60, [&](float s) { body.beforeStep(s); }, [&](float s) {
+                        body.afterStep(); bodyRenderer.captureBody(body, s);
+                    });
+                    ++outboundFrames;
+                }
+                for (int f = 0; f < 3 * outboundFrames / 2; ++f)
+                    physics->step(1.f / 60, [&](float s) { body.beforeStep(s); }, [&](float s) {
+                        body.afterStep(); bodyRenderer.captureBody(body, s);
+                    });
+                if (!body.returning(viewer::PlayerBodyPart::rightFist) || body.punching(viewer::PlayerBodyPart::rightFist))
+                    throw std::runtime_error("Recovery capture must sample a non-damaging arm still moving toward guard");
+            }
+            glDisable(GL_SCISSOR_TEST); glDepthMask(GL_TRUE); glDepthRange(0, 1);
+            glClearColor(.1f, .2f, .3f, 1); glClearDepth(pose == 4 ? 0 : 1);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            // The close guard is below the eye camera's field of view. Inspect
+            // it externally; the active punch also gets a first-person capture.
+            const auto view = pose != 1 ? glm::lookAt(glm::vec3(1.7f, 1.7f, -1.7f), glm::vec3(0, 1.1f, 0), glm::vec3(0, 1, 0)) :
+                                         glm::lookAt(eye, eye + glm::vec3(0, 0, -1), glm::vec3(0, 1, 0));
+            // Exercise trail blending with non-default caller state, including
+            // a fully occluding depth buffer in the final pose.
+            glBlendFuncSeparate(GL_ONE, GL_ZERO, GL_ZERO, GL_ONE);
+            glBlendEquationSeparate(GL_FUNC_REVERSE_SUBTRACT, GL_FUNC_SUBTRACT);
+            bodyRenderer.drawBody(body, projection * view, width, height);
+            GLint srcRgb = 0, dstRgb = 0, srcAlpha = 0, dstAlpha = 0, equationRgb = 0, equationAlpha = 0;
+            glGetIntegerv(GL_BLEND_SRC_RGB, &srcRgb); glGetIntegerv(GL_BLEND_DST_RGB, &dstRgb);
+            glGetIntegerv(GL_BLEND_SRC_ALPHA, &srcAlpha); glGetIntegerv(GL_BLEND_DST_ALPHA, &dstAlpha);
+            glGetIntegerv(GL_BLEND_EQUATION_RGB, &equationRgb); glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &equationAlpha);
+            if (srcRgb != GL_ONE || dstRgb != GL_ZERO || srcAlpha != GL_ZERO || dstAlpha != GL_ONE ||
+                equationRgb != GL_FUNC_REVERSE_SUBTRACT || equationAlpha != GL_FUNC_SUBTRACT)
+                throw std::runtime_error("Punch motion blur must restore blend functions and equations");
+            glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+            std::size_t foreground = 0;
+            for (std::size_t i = 0; i < pixels.size(); i += 3)
+                if (pixels[i] != pixels[0] || pixels[i+1] != pixels[1] || pixels[i+2] != pixels[2]) ++foreground;
+            if ((pose < 4 && foreground < 500) || (pose == 4 && foreground != 0))
+                throw std::runtime_error("Melee body must render guard/punch and respect scene depth");
+            if (argc > 1 && pose < 4) {
+                std::ofstream capture(std::string(argv[1]) + "-body-" + std::to_string(pose) + ".ppm", std::ios::binary);
+                capture << "P6\n" << width << ' ' << height << "\n255\n";
+                for (int y = height - 1; y >= 0; --y)
+                    capture.write(reinterpret_cast<const char*>(pixels.data() + y * width * 3), width * 3);
+            }
+        }
+        viewer::Renderer::checkErrors("weapon overlays and melee body");
         std::cout << "All five weapon silhouettes and GL state checks passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; result = 1; }
     glfwDestroyWindow(window); glfwTerminate();

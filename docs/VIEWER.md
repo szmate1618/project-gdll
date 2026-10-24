@@ -1244,9 +1244,10 @@ build directory when run by CTest.
 | A / D | Strafe left / right; driving: steer left / right |
 | Q / E | Move down / up along world Y in free-fly mode |
 | Mouse | Look around while captured; held props move sideways/up/down; held doors move sideways or push/pull |
-| Left mouse button | Combat: shoot; Interaction: left-hand prop grab within 1.5 m horizontally or door grab within 1.5 m along the ray |
+| Left mouse button | Combat: shoot or punch; Interaction: left-hand prop grab within 1.5 m horizontally or door grab within 1.5 m along the ray |
 | Right mouse button | Combat with a scoped weapon: cycle normal, 10°, and 1° fields of view; Interaction: right-hand prop grab within 1.5 m horizontally |
 | 1 / 2 / 3 / 4 / 5 | Equip pistol / submachine gun / shotgun / sniper / HE grenade |
+| Key left of 1 (Hungarian 0 / US backtick) | Equip fists (single-player); left click punches with alternating hands |
 | R | Reload equipped weapon from its matching reserve ammo |
 | G | Discard the equipped weapon with a fast forward throw and vertical-axis spin |
 | F | Pick up the discarded weapon under the camera ray within 2 m |
@@ -1353,6 +1354,151 @@ to glTF X=east, Y=up, Z=south; no scene-specific rotation is needed in the viewe
 Framebuffer resize updates the viewport and projection aspect ratio.
 
 ## Prototype weapons and inventory
+
+In the single-player viewer, the **physical key immediately left of 1**
+(Hungarian **0**, US backtick) selects fists, which are always available and use
+no ammunition. The binding follows key position across keyboard layouts. Left click applies a 12 N·s impulse to alternating fists,
+with a 0.5 s cooldown. The camera ray chooses the nearest scene or nearby zombie
+surface; a miss punches along the ray direction. The ray itself causes no damage.
+During the strike, a velocity-based force at the fist sustains an 8.8 m/s target
+speed along the original world-space aim line, carrying only player walking
+translation. It corrects lateral/downward drift and excludes chest rotational
+velocity so torso follow-through does not redirect the punch. A saved ray hit
+remains the aim point; a miss retains its original direction. The fist pulls
+the upper arm forward around the shoulder. This force
+is capped at 480 N at reference size and stops as soon as the strike ends;
+tracking starts on the first physics step to prevent an initial downward swing;
+the arm joints remain spring-free.
+Box3D contact between the currently punching arm/fist and the zombie's bone-local triangles creates
+a ragdoll, transfers the solved impact impulse to the nearest body part, and adds
+damped rotational springs targeting every joint's captured relative pose.
+Arm springs use approximately 6.71 Hz (five times the stiffness of the original
+3 Hz springs). Neck springs use approximately 3.35 Hz, one quarter of the arm
+spring stiffness. Both hip and knee joints use approximately 33.54 Hz, giving
+them another 25 times the arm stiffness. The pelvis-to-torso spine spring uses
+approximately 16.77 Hz, one quarter of its previous stiffness. These support
+the upper body against gravity while arms remain flexible on impact. All use a damping ratio
+of 0.8. Held rigs disable the loose corpse joint brakes, whose static friction
+would otherwise prevent the springs from reaching the captured pose. Both feet are anchored at their captured positions so the zombie stays
+planted while its upper body reacts. The current rig has no separate foot
+bodies, so the lower-leg frames become fixed kinematic bodies.
+Living and spring-held zombies use rigid collision meshes partitioned by bone.
+Each original triangle belongs to the bone with the largest sum of its three
+vertices' skin weights (all eight influences are considered); ties choose the
+lowest bone index. All its vertices then follow that bone rigidly. Triangles
+without weights follow the instance root. Nonempty pieces are built once in
+bone-local bind coordinates, retain both collision sides, and are shared by all
+instances of that asset. The cache survives unequipping, leaving melee range,
+and the transition into a spring ragdoll. Animation and physics only move the
+kinematic bone bodies; they never skin vertices, refit BVHs, or replace meshes.
+Scale is captured from the reference pose; animated scale/shear is ignored.
+Joint regions can develop gaps, overlap, or differ from the rendered skin, which
+keeps its original animation. No deforming seam strips are generated.
+
+Further punches transfer solved impulses into the existing spring rig without
+resetting its spring targets. Internal capsules handle world/prop physics and
+exclude player contacts, avoiding duplicate capsule and bone-mesh impacts.
+This Box3D version does not support mesh-to-mesh contact, so world physics still
+uses the internal bodies. Non-skinned animated assets retain the old posed-mesh
+refit fallback; the weighted zombie models do not use that fallback.
+Firearm hits retain their ordinary loose ragdolls.
+Contact from an arm held in guard never ragdolls a zombie, including while the
+other arm is punching. A collision, full elbow extension, or the strike safety
+timeout immediately ends the strike. In every case the arm holds zero relative
+joint velocities for 0.1 s before beginning a gradual return to guard.
+Shoulder, elbow, and wrist velocity
+motors retract the arm over three times its outbound duration, then lock it in
+its base guard pose. Returning arms
+cannot damage zombies or throw another punch until they reach guard. Glancing
+misses end the strike after at most 0.125 s, followed by the same pause.
+Retraction motors are capped at
+48 rad/s, with increased torque to support the faster return.
+
+The fists rig consists of nine solid boxes: hip, lower torso, chest, and two
+upper arms, forearms, and fists. Dimensions scale from the configured standing
+eye height (1.70 m corresponds to an approximate 1.80 m male); crouching moves
+the anchor without shrinking the anatomy. Parts share a negative collision
+group, allowing overlap. Rigid joint locks hold each idle arm in a symmetric
+guard with upper arms pointing vertically down from the shoulders. Fist centers
+sit 8 cm forward of each shoulder, 1 cm inward, and about 1.7 cm below shoulder
+height at reference size, preserving the 31 cm upper arm and 28 cm forearm
+lengths. A punch releases just that arm into its
+constrained shoulder, elbow and wrist joints; player arms use no springs.
+With a level camera, this close shoulder-height guard sits below the view;
+the fist comes into view as the punch extends. Moving striking/retracting arms
+also draw four faint, blended poses over the previous 32 ms as a lightweight
+motion blur. These poses are sampled at the fixed physics rate, fade as motion
+stops, and respect scene depth without writing depth. Only the arm boxes are
+repeated (at most 24 extra cube draws for both arms); no full-screen blur pass
+is used. Unequipping or teleporting clears the trail history.
+The pelvis-to-lower-torso and lower-to-upper-torso joints use velocity motors
+without springs. During the outward strike their turn and lean follow the active
+fist's measured extension and aim. A straight punch targets 35° of combined spine
+turn (14° lower, 21° upper), with faster, stronger motor tracking to advance the
+punching shoulder during extension. Extension is measured from the original
+strike origin, carrying walking translation; the target reaches its full turn at
+two thirds of arm travel. Collision, full elbow extension, or the
+safety timeout captures the actual torso orientation and ends its forward drive.
+During the 0.1 s pause the motors brake and hold this orientation, compensating
+for pelvis motion; small physical braking travel remains possible. Retraction
+unwinds the captured relative spine pose toward neutral with the returning arm.
+A new strike takes priority over an opposite arm still returning.
+During a stop pause, a paused arm likewise takes priority over an older return.
+Both joints retain their anatomical limits and use bounded motor torque.
+The hip remains dynamic and connected to the walking-controller anchor through
+its spherical joint. Box3D motion locks prevent pelvis rotation around the
+world X and Z axes, blocking forward/backward and sideways bending at the base.
+Rotation around vertical Y retains the existing 8.49 Hz spring and 0.8 damping
+ratio. The spine motors still control punch-driven turn and lean above the
+pelvis. Camera aim remains mouse-controlled.
+An upward support force compensates each player's body part's weight, approximating
+muscular support while leaving contacts and punch impulses fully physical.
+At the reference size, masses in kilograms are 11 hip, 9 lower torso, 17 chest,
+2.2 per upper arm, 1.5 per forearm and 0.6 per fist (45.6 kg total). Zombie
+ragdolls retain their existing anatomical mass distribution (72.6 kg total).
+The body uses `PlayerBodyRenderer`, separate from firearm recoil and muzzle lighting,
+and is drawn against scene depth and is disabled when fists are unequipped,
+in Interaction mode, or while occupying any vehicle seat. Nearby zombie contact meshes use the
+published animation pose and the living spatial index, independently of culling.
+This melee simulation and body rendering are not yet replicated by multiplayer.
+
+For a headless CPU comparison of contact preparation and the full physics step,
+including repeated punches, build and run the optional benchmark:
+
+```bash
+cmake --build build --target benchmark_melee_collision -j4
+./build/benchmark_melee_collision assets/zombies/models/ZombieMale_A.glb 1 240
+./build/benchmark_melee_collision assets/zombies/models/ZombieMale_A.glb 8 240
+```
+
+The CSV reports one-time construction separately, then living, moving-ragdoll,
+settled-ragdoll, and fists-disabled phases. Times exclude asset loading and GPU
+rendering. Moving rigs receive periodic torso impulses and alternating punches;
+the settled phase follows 15 seconds without further impulses. The full-step
+column includes player motors, contact preparation/solving, hit handoff, and
+ragdoll palette synchronization. Cached bone-mesh counts should stay constant.
+
+Historical measurements on melee branch `ab1e348`, before its port to the newer
+damage and vehicle systems, compared against the refit implementation at
+`c89264d`. A headless Release build gave these median mean CPU times across three
+runs of 240 steps per phase
+(`ZombieMale_A`, identical scripted inputs, alternating implementation order):
+
+| Nearby zombies / phase | Refit meshes | Rigid bone meshes |
+| --- | ---: | ---: |
+| 1 moving ragdoll with repeated punches | 0.446 ms | 0.140 ms |
+| 8 moving ragdolls with repeated punches | 2.891 ms | 0.301 ms |
+| 8 settled ragdolls | 0.077 ms | 0.084 ms |
+
+The moving-ragdoll collider preparation alone fell from 0.326 to 0.007 ms for
+one zombie, and from 2.632 to 0.039 ms for eight. All ten original models were
+also compared with one zombie; moving-ragdoll full-step improvements ranged
+from 2.95 to 3.98 times. Settled rigs gain little because the previous path
+already cached their poses; the extra rigid bodies add a small steady overhead.
+These measurements exclude graphics and do not predict whole-game FPS.
+Both implementations hit Box3D's existing 256-triangle contact-query buffer
+limit in some scripted contacts. Benchmark physics diagnostics go to stderr
+so this limitation remains visible without contaminating CSV output.
 
 Keys **1–4** equip the pistol, submachine gun, shotgun, and sniper. The pistol,
 sniper, and shotgun fire once per click; the SMG repeats while left mouse is
@@ -2053,6 +2199,24 @@ ctest --test-dir build --output-on-failure
 The CPU-only [frustum visibility benchmark](VISIBILITY_BENCHMARK.md) compares
 fixed plane order with temporal plane hints across synthetic scenes and a loaded
 map. It also covers the horizontal range limit used inside old forests.
+
+`viewer_melee` checks guard symmetry and locking, anatomy scaling, physical punch
+extension, shoulder follow-through and fist drop, hip rotation,
+forward/sideways bend resistance with compliant twist,
+recovery on extension/contact, self-contact suppression,
+wall blocking, and contact against the published animated mesh. It also checks
+three-times-slower continuous recovery and that idle/returning arms cannot
+ragdoll a zombie, including while the opposite arm punches.
+`viewer_zombie_bone_collision` checks weighted triangle ownership, two-sided
+contacts, scale/reflection, animated and ragdoll bone placement, immutable shared
+meshes, repeat punch impacts, and cleanup/reuse after unequipping or removal.
+`viewer_zombie_ragdoll` also checks recovery toward a captured bent pose,
+torso lean and recovery after impact, planted feet under gravity and impacts,
+and anchor translation and cleanup.
+`viewer_zombie_vehicle_physics` also checks a punch releasing the vehicle-adjacent
+living capsule into one planted ragdoll and removal from melee queries.
+`viewer_weapon_overlay` captures the guard, punch, recovery, and whole box body and checks
+scene-depth occlusion alongside the firearm silhouettes and GL state restoration.
 
 `viewer_day_night` checks clock wrapping/freezing, east-to-west sun movement,
 day/night endpoints, horizon light fading, and continuity across the full day.

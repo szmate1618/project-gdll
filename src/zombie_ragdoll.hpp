@@ -50,6 +50,10 @@ public:
     // Add world-space angular velocity (radians/second) to this body only.
     void addAngularVelocity(std::size_t handle, RagdollPart part, glm::vec3 velocity);
     void sever(std::size_t handle, RagdollPart child);
+    // Capture every joint's current relative rotation as a damped spring target.
+    // Anchor both feet at their current poses; the upper body remains dynamic.
+    // This rig has no separate feet, so anchors lock the lower-leg frames.
+    void holdPose(std::size_t handle);
     void destroy(std::size_t handle);
     [[nodiscard]] glm::mat4 rootTransform(std::size_t handle) const;
     [[nodiscard]] std::array<glm::mat4, ragdollPartCount> bodyTransforms(std::size_t handle) const;

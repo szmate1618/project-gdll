@@ -92,6 +92,26 @@ void dryFire() {
     require(weapons.fireAttempt(rounds + 5) == Result::fired, "A fresh trigger fires after reload");
 }
 
+void punchesNeedNoAmmo() {
+    viewer::Weapons weapons(VIEWER_ITEMS, VIEWER_INVENTORY, true);
+    viewer::Weapons networkInventory(VIEWER_ITEMS, VIEWER_INVENTORY);
+    require(!networkInventory.equip(viewer::punchSlot), "Multiplayer inventory must not expose unreplicated melee");
+    const auto rounds = weapons.equipped().loaded;
+    require(weapons.equip(viewer::punchSlot), "Fists must always be owned");
+    click(weapons);
+    require(weapons.fire(0), "A click must punch without ammunition");
+    require(!weapons.fire(1), "Holding must not repeat punches");
+    click(weapons);
+    require(!weapons.fire(.1) && !weapons.fire(1), "Cooldown clicks must not queue a punch");
+    click(weapons);
+    require(weapons.fire(1), "A fresh click must punch after cooldown");
+    require(weapons.reload() == 0 && weapons.equipped().loaded == 0, "Fists must not reload or consume ammo");
+    require(!weapons.discard() && weapons.equipped().owned, "Fists must not become a dropped equippable weapon");
+    require(viewer::weaponShotDirections(weapons.equipped().config, {0,0,-1}).empty(), "Fists must never emit hitscan bullets");
+    weapons.equip(0);
+    require(weapons.equipped().loaded == rounds, "Punching must preserve firearm ammunition");
+}
+
 void fixtures(const std::filesystem::path& scratch) {
     std::filesystem::create_directories(scratch / "items");
     for (const auto& entry : std::filesystem::directory_iterator(VIEWER_ITEMS))
@@ -166,7 +186,7 @@ void fixtures(const std::filesystem::path& scratch) {
 } // namespace
 int main() {
     try {
-        firingAndReload(); pelletPattern(); dryFire();
+        firingAndReload(); pelletPattern(); dryFire(); punchesNeedNoAmmo();
         viewer::Weapons grenades(VIEWER_ITEMS, VIEWER_INVENTORY);
         require(grenades.equip(4) && grenades.equipped().config.grenade.has_value(), "Key 5 must equip HE grenades");
         const auto visibleAt = [&](double seconds) {

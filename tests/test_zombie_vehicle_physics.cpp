@@ -184,6 +184,25 @@ void grenadeRagdollHandoff() {
     f.tick(10);
     require(f.zombies.vehiclePhysicsCount()==0,"An explosion victim reacquired an upright capsule");
 }
+void meleeRagdollHandoff() {
+    Fixture f; f.moveCar({5,0,0}); f.add({0,0,0}); f.zombies.rebuildSpatialIndex(); f.tick(30);
+    require(f.zombies.instances[0].vehiclePhysics, "Melee fixture did not acquire a physical capsule");
+    require(f.zombies.meleeHit(0, {0,0,-3}, {0,1.4f,0}, 0) && f.zombies.ragdollCount()==1 &&
+            f.zombies.instances[0].springRagdoll && f.zombies.vehiclePhysicsCount()==0 &&
+            !f.zombies.instances[0].vehiclePhysics,
+            "Punch did not transfer the vehicle-adjacent capsule to one planted ragdoll");
+    f.tick(10);
+    require(f.zombies.vehiclePhysicsCount()==0, "A punched zombie reacquired an upright capsule");
+    std::vector<std::size_t> ids;
+    f.zombies.queryLivingNear({},3,ids);
+    require(ids.empty(), "A spring ragdoll remained in living behavior queries");
+    f.zombies.queryMeleeNear({},3,ids);
+    require(ids==std::vector<std::size_t>{0}, "A planted ragdoll disappeared from repeat-punch queries");
+    require(f.zombies.meleeHit(0,{0,0,-2},{0,1.4f,0},0) && f.zombies.ragdollCount()==1,
+            "Repeat punches must reuse the existing ragdoll");
+    f.zombies.removeRagdoll(0); f.zombies.queryMeleeNear({},3,ids);
+    require(ids.empty(), "A removed melee ragdoll retained collision-query membership");
+}
 void scenarioCapsules() {
     Fixture f;f.moveCar({5,0,0});f.add({0,0,0});f.zombies.rebuildSpatialIndex();
     using namespace viewer::navmesh_path;
@@ -225,7 +244,7 @@ int main(int argc, char** argv) {
     try {
         if (argc == 2 && std::string(argv[1]) == "--benchmark") { benchmark(); return 0; }
         const auto start = std::chrono::steady_clock::now();
-        grenadeRagdollHandoff(); scenarioCapsules(); neighborQuery(); blockedCrowd(); pushingAndSelection(); walkingAndObjects(); doorsAndHandoff(); curbsAndFrameRates(); fastApproach();
+        meleeRagdollHandoff(); grenadeRagdollHandoff(); scenarioCapsules(); neighborQuery(); blockedCrowd(); pushingAndSelection(); walkingAndObjects(); doorsAndHandoff(); curbsAndFrameRates(); fastApproach();
         std::cout << "Living capsule regressions passed in " << std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count() << " s\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

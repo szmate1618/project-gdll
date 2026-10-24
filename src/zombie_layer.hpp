@@ -61,6 +61,7 @@ struct ZombieInstance {
     std::size_t ragdollHandle = 0;
     bool physicsRagdoll = false;
     int severedJoint = -1; // Index in the original asset's joint manifest; persists on corpses.
+    bool springRagdoll = false; // Melee pose springs and persistent rigid bone-mesh contacts.
     std::uint64_t physicsPoseRevision = 0;
     std::uint64_t ragdollPoseVersion = 0;
     // Skeleton world pose captured from the displayed frame, in asset space.
@@ -123,6 +124,8 @@ struct ZombieLayer {
     // Exact 3D feet query using the living-body index, independent of camera
     // visibility and behavior activation. Reuses the caller's output storage.
     void queryLivingNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids);
+    // Living zombies plus spring-held ragdolls; both use spatial acceleration.
+    void queryMeleeNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids);
     // Disable only for comparison/tests of the original every-step perception.
     void setPerceptionStaggering(bool enabled);
     // Disabling clears active behaviors and bypasses activation/sight/hearing
@@ -170,6 +173,8 @@ struct ZombieLayer {
     void finishVehiclePhysics(VehicleLayer& cars, float seconds, double animationSeconds);
     std::size_t vehiclePhysicsCount() const;
     void resetVehiclePhysics(); // Before externally replacing a population/placement.
+    void synchronizePhysics(std::size_t zombie);
+    bool meleeHit(std::size_t zombie, glm::vec3 impulse, glm::vec3 point, double animationSeconds);
     void translateRagdoll(std::size_t zombie, glm::vec3 displacement);
     bool knockDown(std::size_t zombie, glm::vec3 velocity, double animationSeconds);
     // Scene/crowd-constrained push for ordinary movers; physical capsules use
@@ -233,6 +238,7 @@ private:
     std::optional<ZombieShotHit> findShotTarget(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                                               std::vector<glm::mat4>& selectedPose);
     ZombieSpatialIndex spatialIndex_;
+    ZombieSpatialIndex springRagdollIndex_;
     ZombieCrowd crowd_;
     std::vector<std::size_t> behaviorOrder_;
     std::vector<ZombieHitGeometry> hitGeometry_;

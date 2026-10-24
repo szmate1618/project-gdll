@@ -74,7 +74,12 @@ WeaponConfig loadConfig(const std::filesystem::path& path, const std::string& id
 }
 } // namespace
 
-Weapons::Weapons(const std::filesystem::path& items, const std::filesystem::path& inventory) {
+Weapons::Weapons(const std::filesystem::path& items, const std::filesystem::path& inventory, bool enableMelee) {
+    auto& punch = weapons_[punchSlot];
+    punch.owned = enableMelee;
+    punch.config.id = "punch"; punch.config.name = "Fists";
+    punch.config.ammoPerShot = 0; punch.config.magazineCapacity = 0;
+    punch.config.shotIntervalSeconds = .5;
     const auto table = toml::parse_file(inventory.string());
     const auto* guns = table["weapons"].as_table();
     const auto* ammo = table["ammo"].as_table();
@@ -143,7 +148,7 @@ int Weapons::reload() {
 }
 std::optional<WeaponItem> Weapons::discard() {
     auto& weapon = weapons_[slot_];
-    if (!weapon.owned) return {};
+    if (!weapon.owned || slot_ == punchSlot) return {};
     const WeaponItem item{slot_,weapon.loaded,weapon.readyAt};
     weapon.owned = false;
     weapon.loaded = 0;
@@ -155,7 +160,7 @@ std::optional<WeaponItem> Weapons::discard() {
     return item;
 }
 bool Weapons::pickUp(const WeaponItem& item) {
-    if (item.slot>=weapons_.size() || weapons_[item.slot].owned || item.loaded<0 ||
+    if (item.slot>=weaponIds.size() || weapons_[item.slot].owned || item.loaded<0 ||
         item.loaded>weapons_[item.slot].config.magazineCapacity || !std::isfinite(item.readyAt)) return false;
     auto& weapon = weapons_[item.slot];
     weapon.owned = true;
@@ -164,6 +169,7 @@ bool Weapons::pickUp(const WeaponItem& item) {
     return equip(item.slot);
 }
 std::string Weapons::status() const {
+    if (slot_ == punchSlot) return "Fists (key left of 1; HU 0)";
     const auto& weapon = equipped();
     if (!weapon.owned) return "Unarmed";
     return weapon.config.name + " " + std::to_string(weapon.loaded) + "/" +
@@ -175,7 +181,7 @@ bool weaponViewVisible(const WeaponConfig& config, std::uint32_t loaded, bool co
 }
 
 std::vector<glm::vec3> weaponShotDirections(const WeaponConfig& config, glm::vec3 forward) {
-    if (config.grenade) return {};
+    if (config.grenade || config.id == "punch") return {};
     forward = glm::normalize(forward);
     std::vector<glm::vec3> result{forward};
     const auto reference = std::abs(forward.y) > .99f ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);

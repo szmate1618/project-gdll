@@ -12,6 +12,7 @@
 
 namespace viewer {
 inline constexpr std::array<const char*, 5> weaponIds{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"};
+constexpr std::size_t punchSlot = weaponIds.size(); // Physical key left of 1 (Hungarian 0), standalone melee.
 // Slots 0..4 correspond to keys 1..5. Ammo counts use rounds (shotgun shells),
 // not pellets. Configuration and starting inventory are read once at startup.
 struct WeaponConfig {
@@ -41,7 +42,7 @@ struct WeaponItem {
 
 class Weapons {
 public:
-    Weapons(const std::filesystem::path& items, const std::filesystem::path& inventory);
+    Weapons(const std::filesystem::path& items, const std::filesystem::path& inventory, bool enableMelee = false);
     bool equip(std::size_t slot);
     std::size_t slot() const { return slot_; }
     const WeaponState& equipped() const { return weapons_[slot_]; }
@@ -57,7 +58,7 @@ public:
     bool pickUp(const WeaponItem& item); // Reject an already-owned weapon type.
     std::string status() const;
 private:
-    std::array<WeaponState, weaponIds.size()> weapons_;
+    std::array<WeaponState, weaponIds.size() + 1> weapons_;
     std::size_t slot_ = 0;
     bool held_ = false, pressed_ = false;
     bool emptyClicked_ = false;

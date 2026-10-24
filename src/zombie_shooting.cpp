@@ -34,6 +34,7 @@ void ZombieLayer::rebuildSpatialIndex() {
     invalidateRenderData();
     rebuildRagdollIndex();
     spatialIndex_.reset(instances.size());
+    springRagdollIndex_.reset(instances.size());
     crowd_.reset(instances.size());
     hitGeometry_.clear();
     hitGeometry_.reserve(assets.size());
@@ -57,9 +58,12 @@ void ZombieLayer::ensureSpatialIndex() {
 void ZombieLayer::updateSpatialMembership(std::size_t id) {
     zombie_profile::Timer timer(zombie_profile::Stage::spatial);
     const auto& instance = instances[id];
+    springRagdollIndex_.erase(id);
     if (instance.removed || instance.ragdoll || instance.asset >= assets.size()) {
         spatialIndex_.erase(id);
         crowd_.erase(id);
+        if (!instance.removed && instance.springRagdoll && instance.physicsRagdoll && instance.asset < assets.size())
+            springRagdollIndex_.update(id, glm::vec3(instance.transform[3]));
         return;
     }
     const auto feet = glm::vec3(instance.restRoot[3]);

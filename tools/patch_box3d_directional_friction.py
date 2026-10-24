@@ -1,4 +1,4 @@
-"""Apply the repository's directional-friction patch to pinned Box3D sources.
+"""Apply the repository's physics patches to pinned Box3D sources.
 
 Safe to repeat on cached FetchContent sources. A source/patch mismatch fails
 rather than silently building a physics engine without the required extension.
@@ -10,7 +10,12 @@ import sys
 
 
 def apply(source: Path) -> None:
-    patch = Path(__file__).resolve().parents[1] / 'patches' / 'box3d-directional-friction.patch'
+    for name in ('box3d-directional-friction.patch', 'box3d-mesh-refit.patch'):
+        apply_patch(source, name)
+
+
+def apply_patch(source: Path, name: str) -> None:
+    patch = Path(__file__).resolve().parents[1] / 'patches' / name
     command = ['git', 'apply', '--whitespace=nowarn']
     environment = os.environ.copy()
     environment['GIT_CEILING_DIRECTORIES'] = str(source.parent)

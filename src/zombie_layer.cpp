@@ -106,6 +106,17 @@ void ZombieLayer::queryLivingNear(glm::vec3 center, float radius, std::vector<st
     }), ids.end());
 }
 
+void ZombieLayer::queryMeleeNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids) {
+    queryLivingNear(center, radius, ids);
+    if (!finite(center) || !std::isfinite(radius) || radius < 0) return;
+    std::vector<std::size_t> corpses;
+    // Feet stay planted during spring simulation. This membership only needs
+    // refreshing on activation, explicit owner translation, or removal.
+    springRagdollIndex_.query(center, radius, corpses);
+    ids.insert(ids.end(), corpses.begin(), corpses.end());
+    std::sort(ids.begin(), ids.end());
+}
+
 void ZombieLayer::markRenderChanged(std::size_t id, bool bounds) {
     zombie_profile::Timer timer(zombie_profile::Stage::renderNotifications);
     if (id >= instances.size()) throw std::out_of_range("Invalid zombie render ID");
@@ -222,6 +233,30 @@ bool ZombieLayer::knockDown(std::size_t id, glm::vec3 velocity, double seconds) 
     activateRagdoll(id,sampleZombiePose(assets[instance.asset],instance,seconds),velocity,seconds);
     return true;
 }
+
+bool ZombieLayer::meleeHit(std::size_t id, glm::vec3 impulse, glm::vec3 point, double seconds) {
+    if (!finite(impulse) || !finite(point)) return false;
+    ensureSpatialIndex();
+    if (id >= instances.size()) return false;
+    auto& instance = instances[id];
+    if (instance.removed || instance.asset >= assets.size()) return false;
+    if (instance.ragdoll) {
+        if (!instance.springRagdoll || !instance.physicsRagdoll || !physics_) return false;
+    } else {
+        if (!knockDown(id, {}, seconds)) return false;
+        physics_->world.holdPose(instance.ragdollHandle);
+        instance.springRagdoll = true;
+        updateSpatialMembership(id);
+    }
+    const auto handle = instances[id].ragdollHandle;
+    const auto transforms = physics_->world.bodyTransforms(handle);
+    std::size_t nearest = 0;
+    for (std::size_t i = 1; i < transforms.size(); ++i)
+        if (glm::distance(glm::vec3(transforms[i][3]), point) < glm::distance(glm::vec3(transforms[nearest][3]), point)) nearest = i;
+    physics_->world.applyImpulse(handle, static_cast<RagdollPart>(nearest), impulse);
+    return true;
+}
+
 glm::vec3 ZombieLayer::pushLiving(std::size_t id, glm::vec3 displacement, const CollisionWorld& world) {
     ensureSpatialIndex();
     if (id>=instances.size() || !finite(displacement)) return glm::vec3(0);
@@ -351,18 +386,21 @@ void ZombieLayer::setReplicatedWoundContents(std::vector<glm::mat4> transforms) 
 
 void ZombieLayer::synchronizePhysics() {
     if (!physics_) return;
-    for (const auto id : ragdollIds_) {
-        auto& instance = instances[id];
-        if (instance.removed || !instance.ragdoll || !instance.physicsRagdoll) continue;
-        const auto revision = physics_->world.poseRevision(instance.ragdollHandle);
-        if (revision == instance.physicsPoseRevision) continue;
-        instance.transform = physics_->world.rootTransform(instance.ragdollHandle) *
-            glm::inverse(instance.restRoot) * instance.restTransform;
-        if (instance.asset < assets.size()) updateZombieRagdollSkin(instance, assets[instance.asset], physics_->world);
-        instance.physicsPoseRevision = revision;
-        ++instance.ragdollPoseVersion;
-        markRenderChanged(id);
-    }
+    for (const auto id : ragdollIds_) synchronizePhysics(id);
+}
+
+void ZombieLayer::synchronizePhysics(std::size_t id) {
+    if (!physics_ || id >= instances.size()) return;
+    auto& instance = instances[id];
+    if (instance.removed || !instance.ragdoll || !instance.physicsRagdoll) return;
+    const auto revision = physics_->world.poseRevision(instance.ragdollHandle);
+    if (revision == instance.physicsPoseRevision) return;
+    instance.transform = physics_->world.rootTransform(instance.ragdollHandle) *
+        glm::inverse(instance.restRoot) * instance.restTransform;
+    if (instance.asset < assets.size()) updateZombieRagdollSkin(instance, assets[instance.asset], physics_->world);
+    instance.physicsPoseRevision = revision;
+    ++instance.ragdollPoseVersion;
+    markRenderChanged(id);
 }
 
 void ZombieLayer::translateRagdoll(std::size_t zombie, glm::vec3 displacement) {
@@ -371,6 +409,7 @@ void ZombieLayer::translateRagdoll(std::size_t zombie, glm::vec3 displacement) {
         throw std::logic_error("Translation requires a physics-owned ragdoll");
     physics_->world.translate(instance.ragdollHandle, displacement);
     synchronizePhysics();
+    updateSpatialMembership(zombie);
 }
 void ZombieLayer::applyRagdollImpulse(std::size_t zombie, RagdollPart part, glm::vec3 impulse) {
     const auto& instance = instances.at(zombie);
@@ -387,11 +426,12 @@ void ZombieLayer::removeRagdoll(std::size_t zombie) {
     wounds_.remove(zombie);
     unregisterRagdoll(zombie);
     instance.removed = true;
-    instance.ragdoll = instance.physicsRagdoll = instance.walking = false;
+    instance.ragdoll = instance.physicsRagdoll = instance.springRagdoll = instance.walking = false;
     instance.ragdollBones.clear();
     instance.activationPose.clear();
     ++instance.ragdollPoseVersion;
     spatialIndex_.erase(zombie);
+    springRagdollIndex_.erase(zombie);
     behaviors.remove(zombie);
     markRenderChanged(zombie);
 }

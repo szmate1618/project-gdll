@@ -1,0 +1,136 @@
+--- a/include/box3d/collision.h
++++ b/include/box3d/collision.h
+@@ -355,6 +355,12 @@
+ /// Create a generic mesh.
+ B3_API b3MeshData* b3CreateMesh( const b3MeshDef* def, int* degenerateTriangleIndices, int degenerateCapacity );
+ 
++/// Update stored vertices and refit the existing triangle BVH without rebuilding topology.
++/// Requires mesh->vertexCount vertices in stored (post-weld) order. Returns false without
++/// mutation for invalid inputs or a newly degenerate triangle. No shape may be in a step.
++/// Call b3Shape_SetMesh on every referencing shape afterwards to refresh broadphase/contacts.
++B3_API bool b3RefitMesh( b3MeshData* mesh, const b3Vec3* vertices, int vertexCount, bool identifyEdges );
++
+ /// Destroy a mesh.
+ B3_API void b3DestroyMesh( b3MeshData* mesh );
+ 
+--- a/include/box3d/types.h
++++ b/include/box3d/types.h
+@@ -2142,6 +2142,9 @@
+ 
+ 	/// Input indices have clockWise winding order.
+ 	bool clockWiseWinding;
++
++	/// Optional output array, vertexCount entries: input vertex to stored vertex after welding.
++	int32_t* vertexMap;
+ } b3MeshDef;
+ 
+ /// 64-bit mesh version. Useful for validating serialized data.
+--- a/src/mesh.c
++++ b/src/mesh.c
+@@ -486,6 +486,7 @@
+ 
+ 	b3Vec3* dstVertices;
+ 	int32_t* dstIndices;
++	int32_t* vertexMap;
+ 
+ 	int vertexCount;
+ 	int indexCount;
+@@ -520,6 +521,11 @@
+ 			// Found duplicate, map to existing vertex
+ 			vertexMapping.data[i] = vertexMapping.data[duplicateIndex];
+ 		}
++	}
++
++	if ( data->vertexMap != NULL )
++	{
++		memcpy( data->vertexMap, vertexMapping.data, vertexCount * sizeof( int32_t ) );
+ 	}
+ 
+ 	// Update indices to reference the new vertex array
+@@ -1628,6 +1634,7 @@
+ 			.srcIndices = def->indices,
+ 			.dstVertices = vertices.data,
+ 			.dstIndices = indices.data,
++			.vertexMap = def->vertexMap,
+ 			.vertexCount = vertexCount,
+ 			.indexCount = 3 * triangleCount,
+ 			.stride = stride,
+@@ -1642,6 +1649,10 @@
+ 		vertices.count = vertexCount;
+ 		b3CopyVerticesWithStride( vertices.data, def->vertices, vertexCount, stride );
+ 		b3Array_Append( indices, def->indices, 3 * triangleCount );
++		if ( def->vertexMap != NULL )
++		{
++			for ( int i = 0; i < vertexCount; ++i ) def->vertexMap[i] = i;
++		}
+ 	}
+ 
+ 	b3Array( b3Primitive ) primitives;
+@@ -1827,6 +1838,67 @@
+ 	mesh->hash = b3Hash64NonZero( (uint8_t*)mesh, mesh->byteCount );
+ 
+ 	return mesh;
++}
++
++bool b3RefitMesh( b3MeshData* mesh, const b3Vec3* vertices, int vertexCount, bool identifyEdges )
++{
++	if ( mesh == NULL || vertices == NULL || mesh->version != B3_MESH_VERSION || vertexCount != mesh->vertexCount )
++	{
++		return false;
++	}
++	for ( int i = 0; i < vertexCount; ++i )
++	{
++		if ( b3IsValidVec3( vertices[i] ) == false ) return false;
++	}
++	const b3MeshTriangle* triangles = b3GetMeshTriangles( mesh );
++	float surfaceArea = 0.0f;
++	const float minArea = 0.01f * B3_LINEAR_SLOP * B3_LINEAR_SLOP;
++	for ( int i = 0; i < mesh->triangleCount; ++i )
++	{
++		const b3MeshTriangle* t = triangles + i;
++		float area = 0.5f * b3Length( b3Cross( b3Sub( vertices[t->index2], vertices[t->index1] ),
++											 b3Sub( vertices[t->index3], vertices[t->index1] ) ) );
++		// Preserve the old mesh on rejection so callers may build replacement topology.
++		if ( b3IsValidFloat( area ) == false || area < minArea ) return false;
++		surfaceArea += area;
++	}
++	memcpy( b3GetMeshVerticesWrite( mesh ), vertices, vertexCount * sizeof( b3Vec3 ) );
++	b3MeshNode* nodes = b3GetMeshNodesWrite( mesh );
++	// Children follow their parent in the packed tree, so reverse order is bottom-up.
++	for ( int i = mesh->nodeCount - 1; i >= 0; --i )
++	{
++		b3MeshNode* node = nodes + i;
++		b3AABB bounds = B3_BOUNDS3_EMPTY;
++		if ( b3IsLeaf( node ) )
++		{
++			for ( uint32_t j = 0; j < node->data.asLeaf.triangleCount; ++j )
++			{
++				const b3MeshTriangle* t = triangles + node->triangleOffset + j;
++				bounds = b3AABB_AddPoint( bounds, vertices[t->index1] );
++				bounds = b3AABB_AddPoint( bounds, vertices[t->index2] );
++				bounds = b3AABB_AddPoint( bounds, vertices[t->index3] );
++			}
++		}
++		else
++		{
++			const b3MeshNode* left = node + 1;
++			const b3MeshNode* right = node + node->data.asNode.childOffset;
++			b3AABB leftBounds = { left->lowerBound, left->upperBound };
++			b3AABB rightBounds = { right->lowerBound, right->upperBound };
++			bounds = b3AABB_Union( leftBounds, rightBounds );
++		}
++		node->lowerBound = bounds.lowerBound;
++		node->upperBound = bounds.upperBound;
++	}
++	mesh->bounds.lowerBound = nodes[0].lowerBound;
++	mesh->bounds.upperBound = nodes[0].upperBound;
++	mesh->surfaceArea = surfaceArea;
++	memset( b3GetMeshFlagsWrite( mesh ), 0, mesh->triangleCount * sizeof( uint8_t ) );
++	if ( identifyEdges ) b3IdentifyEdges( mesh );
++	mesh->hash = 0;
++	mesh->hash = b3Hash64NonZero( (uint8_t*)mesh, mesh->byteCount );
++	B3_VALIDATE( b3IsConsistent( mesh ) );
++	return true;
+ }
+ 
+ void b3DestroyMesh( b3MeshData* mesh )

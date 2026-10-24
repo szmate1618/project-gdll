@@ -1,4 +1,30 @@
-# Box3D directional tire friction
+# Box3D physics extensions
+
+## Deforming melee contact meshes
+
+Normal weighted zombie assets use immutable per-bone meshes in
+`src/zombie_bone_collision.hpp/.cpp`. This extension now supports the fallback
+for non-skinned animated assets.
+
+`box3d-mesh-refit.patch` also extends the pinned version below. It exports the
+input-to-welded vertex mapping from `b3CreateMesh` and adds `b3RefitMesh` to update
+stored positions, refit every BVH bound, reclassify edges, and refresh surface
+metadata without sorting triangles or rebuilding the hierarchy. Invalid vertices
+or newly degenerate triangles reject the update before mutation.
+
+The application owns each mutable mesh exclusively, updates it between physics
+steps, and calls `b3Shape_SetMesh` afterwards to refresh broadphase bounds and
+discard stale contacts. `src/melee_contact_mesh.hpp/.cpp` retains the welded vertex
+map and body/shape ownership. It requests a full rebuild when a welded seam
+separates or when dropped/degenerate triangles require new topology. Unchanged
+poses retain their collision surfaces and contact caches. No lower-detail mesh
+or collider approximation is introduced.
+
+The existing patch helper applies both patches, including on cached sources.
+`viewer_melee_contact_mesh` checks deformation, all BVH branches, edge flags,
+seam/degeneracy rejection, query bounds, stable body ownership, and cleanup.
+
+## Directional friction
 
 `box3d-directional-friction.patch` extends the pinned Box3D commit
 `f555ee42084e0b43cbffa863f40bff8117c08896`. Box3D is MIT licensed; the original

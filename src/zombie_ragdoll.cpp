@@ -236,6 +236,67 @@ public:
     }
 
 
+    void holdPose() {
+        // Stiffness scales with frequency squared: sqrt(5) times the original
+        // 3 Hz makes these pose springs five times stiffer at the same inertia.
+        const float poseSpringHertz = 3.f * std::sqrt(5.f);
+        // The spine, hips, and knees carry the whole upper-body load. Give those
+        // joints 25 times the limb stiffness (five times the frequency) so
+        // gravity cannot fold the planted rig while arms still yield to hits.
+        const float supportSpringHertz = 5.f * poseSpringHertz;
+        for (const auto body : bodies_) {
+            b3Body_SetAwake(body, true);
+            // Player contacts use the bone-mesh surfaces, not these internal
+            // mass/joint colliders. Retain their world and prop collisions.
+            std::vector<b3ShapeId> shapes(b3Body_GetShapeCount(body));
+            const int n = b3Body_GetShapes(body, shapes.data(), static_cast<int>(shapes.size()));
+            for (int s = 0; s < n; ++s) {
+                auto filter = b3Shape_GetFilter(shapes[s]);
+                filter.maskBits &= ~playerBodyCategory;
+                b3Shape_SetFilter(shapes[s], filter, false);
+            }
+        }
+        ++revision_;
+        // The rig has no separate feet/ankles. Fix each lower-leg frame at its
+        // current pose, keeping the distal foot planted without solver drift.
+        // Kinematic bodies remain movable through the owner's translate API.
+        for (const auto part : {lowerLegLeft, lowerLegRight}) {
+            b3Body_SetType(bodies_[part], b3_kinematicBody);
+            b3Body_SetLinearVelocity(bodies_[part], b3Vec3_zero);
+            b3Body_SetAngularVelocity(bodies_[part], b3Vec3_zero);
+        }
+        for (const auto j : joints_) {
+            if (!b3Joint_IsValid(j) || b3Joint_GetType(j) != b3_sphericalJoint) continue;
+            // Loose corpses use static joint friction. In a held pose that
+            // brake can stop recovery short of the spring's target rotation.
+            b3SphericalJoint_EnableMotor(j, false);
+            const auto a = b3Joint_GetBodyA(j), b = b3Joint_GetBodyB(j);
+            const auto qa = b3MulQuat(b3Body_GetRotation(a), b3Joint_GetLocalFrameA(j).q);
+            const auto qb = b3MulQuat(b3Body_GetRotation(b), b3Joint_GetLocalFrameB(j).q);
+            b3SphericalJoint_SetTargetRotation(j, b3InvMulQuat(qa, qb));
+            const bool supportsUpperBody = B3_ID_EQUALS(a, bodies_[pelvis]);
+            const bool neck = B3_ID_EQUALS(b, bodies_[head]);
+            const bool spine = B3_ID_EQUALS(b, bodies_[torso]);
+            float springHertz = supportsUpperBody ? supportSpringHertz : poseSpringHertz;
+            // Half frequency gives one quarter of the neck/spine stiffness.
+            if (neck || spine) springHertz *= .5f;
+            b3SphericalJoint_SetSpringHertz(j, springHertz);
+            b3SphericalJoint_SetSpringDampingRatio(j, .8f);
+            b3SphericalJoint_EnableSpring(j, true);
+        }
+        for (const auto j : joints_) {
+            if (!b3Joint_IsValid(j) || b3Joint_GetType(j) != b3_revoluteJoint) continue;
+            b3RevoluteJoint_EnableMotor(j, false);
+            b3RevoluteJoint_SetTargetAngle(j, b3RevoluteJoint_GetAngle(j));
+            const auto parent = b3Joint_GetBodyA(j);
+            const bool supportsUpperBody = B3_ID_EQUALS(parent, bodies_[upperLegLeft]) ||
+                                          B3_ID_EQUALS(parent, bodies_[upperLegRight]);
+            b3RevoluteJoint_SetSpringHertz(j, supportsUpperBody ? supportSpringHertz : poseSpringHertz);
+            b3RevoluteJoint_SetSpringDampingRatio(j, .8f);
+            b3RevoluteJoint_EnableSpring(j, true);
+        }
+    }
+
     glm::mat4 rootTransform() const {
         const auto position = fromB3(b3Body_GetPosition(bodies_[pelvis]));
         // Preserve the exact instance frame at handoff; the skinning matrices
@@ -484,6 +545,10 @@ void ZombieRagdollWorld::addLinearVelocity(std::size_t handle, RagdollPart part,
 }
 void ZombieRagdollWorld::destroy(std::size_t handle) {
     if (valid(handle)) impl_->entries[handle].ragdoll.reset();
+}
+void ZombieRagdollWorld::holdPose(std::size_t handle) {
+    if (!valid(handle)) throw std::out_of_range("Invalid ragdoll handle");
+    impl_->entries[handle].ragdoll->holdPose();
 }
 
 
