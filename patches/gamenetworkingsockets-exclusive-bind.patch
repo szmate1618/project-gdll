@@ -1,0 +1,21 @@
+--- a/src/steamnetworkingsockets/clientlib/steamnetworkingsockets_lowlevel.cpp
++++ b/src/steamnetworkingsockets/clientlib/steamnetworkingsockets_lowlevel.cpp
+@@ -1635,6 +1635,18 @@
+ 		#endif
+ 	}
+ 
++	#ifdef _WIN32
++		// Reserve the endpoint across both address families and other processes.
++		// Without this, Windows may allow overlapping wildcard UDP listeners.
++		opt = 1;
++		if ( setsockopt( sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char *)&opt, sizeof(opt) ) != 0 )
++		{
++			V_sprintf_safe( errMsg, "Failed to set exclusive socket binding.  Error code 0x%08X.", GetLastSocketError() );
++			closesocket( sock );
++			return INVALID_SOCKET;
++		}
++	#endif
++
+ 	// Bind it to specific desired local port/IP
+ 	if ( bind( sock, (struct sockaddr *)pSockaddr, (socklen_t)len ) == -1 )
+ 	{
