@@ -34,7 +34,7 @@ struct Profile {
     void print(std::ostream& out) const {
         if (!steps) return;
         const double scale = 1000.0 / steps;
-        out << "Zombie update breakdown: " << seconds * scale << " ms/step (" << steps << " steps)\n";
+        out << "Zombie update breakdown: " << seconds * scale << " ms/step (" << steps << " steps; exclusive stages)\n";
         double measured = 0;
         for (std::size_t i = 0; i < stages.size(); ++i) {
             measured += stages[i].seconds;

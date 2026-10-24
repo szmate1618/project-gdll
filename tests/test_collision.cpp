@@ -215,6 +215,17 @@ void cachedWalkingGround() {
             "Cached ground accepted nonfinite coordinates");
 }
 
+void largeCoordinateNearEdgeContact() {
+    viewer::Model model;viewer::Primitive surface;
+    triangle(surface,{-4,1.6f,-4},{-4,1.6f,4},{4,-1.6f,4});
+    triangle(surface,{-4,1.6f,-4},{4,-1.6f,4},{4,-1.6f,-4});
+    draw(model,std::move(surface),"terrain",glm::translate(glm::mat4(1),{3000,0,-3000}));
+    const viewer::CollisionWorld world(model);
+    const auto contacts=world.contacts({0x1.7682e6p+11f,0x1.85423cp+0f,-0x1.774488p+11f},.3f,1.8f,.002f,.05f);
+    require(contacts.size()==1 && contacts[0].point.x==2996.f && contacts[0].normal.x>.375f,
+            "A near-edge face shortcut changed the kilometer-scale contact minimum");
+}
+
 void degenerateAndEmptyGeometry() {
     viewer::Model model; viewer::Primitive p;
     triangle(p, {0, 0, 0}, {1, 0, 0}, {2, 0, 0});
@@ -277,7 +288,7 @@ void disabledFencesRemoveBarriers() {
 int main() {
     try {
         flatGroundAndContacts(); wallsCornersAndSolidSpawn(); wallClearanceIsOptIn(); courtyardRemainsOpen();
-        transformedSlopeAndCeiling(); cachedWalkingGround(); degenerateAndEmptyGeometry(); visibilitySegments();
+        transformedSlopeAndCeiling(); cachedWalkingGround(); largeCoordinateNearEdgeContact(); degenerateAndEmptyGeometry(); visibilitySegments();
         disabledFencesRemoveBarriers();
         std::cout << "Collision world tests passed\n";
         return 0;

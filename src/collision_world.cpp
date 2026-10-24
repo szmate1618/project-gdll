@@ -107,7 +107,8 @@ bool verticalIntersection(const Triangle& t, float x, float z, float& y) {
     return true;
 }
 
-glm::vec3 closestTrianglePoint(glm::vec3 p, const Triangle& t) {
+glm::vec3 closestTrianglePoint(glm::vec3 p, const Triangle& t, bool* interior=nullptr) {
+    if (interior) *interior=false;
     const glm::dvec3 a(t.a), b(t.b), c(t.c), point(p);
     const auto ab = b - a, ac = c - a, ap = point - a;
     const double d1 = glm::dot(ab, ap), d2 = glm::dot(ac, ap);
@@ -127,7 +128,18 @@ glm::vec3 closestTrianglePoint(glm::vec3 p, const Triangle& t) {
         return glm::vec3(b + ((d4 - d3) / ((d4 - d3) + (d5 - d6))) * (c - b));
     }
     const double inverse = 1.0 / (va + vb + vc);
-    return glm::vec3(a + ab * (vb * inverse) + ac * (vc * inverse));
+    const double v=vb*inverse,w=vc*inverse;
+    if (interior) {
+        // Float contact points at kilometer-scale coordinates can make an edge
+        // numerically tie the face minimum. Keep the old comparison near edges.
+        const auto bc=ac-ab;
+        const double longest=std::max({glm::dot(ab,ab),glm::dot(ac,ac),glm::dot(bc,bc)});
+        const double scale=std::max({1.,std::abs(point.x),std::abs(point.y),std::abs(point.z)});
+        const double margin=std::max(.025,16*std::numeric_limits<float>::epsilon()*scale);
+        const double weight=std::min({v,w,1-v-w});
+        *interior=weight>0 && weight*weight*(va+vb+vc)>margin*margin*longest;
+    }
+    return glm::vec3(a + ab * v + ac * w);
 }
 
 struct ClosestPair { glm::vec3 segment, triangle; };
@@ -161,7 +173,12 @@ ClosestPair closestSegmentTriangle(glm::vec3 p, glm::vec3 q, const Triangle& t) 
         const auto onTriangle = closestTrianglePoint(hit, t);
         if (squareLength(hit - onTriangle) < 1e-10f) return {hit, hit};
     }
-    ClosestPair best{p, closestTrianglePoint(p, t)};
+    bool interior=false;
+    ClosestPair best{p,closestTrianglePoint(p,t,&interior)};
+    // A face-interior projection attains the plane-distance lower bound.
+    // If the axis moves away from the plane, no upper endpoint or edge can be
+    // closer. Keep the general path near edges, vertices and plane crossings.
+    if (interior && ((dp>0 && dq>=dp) || (dp<0 && dq<=dp))) return best;
     float distanceSquared = squareLength(best.segment - best.triangle);
     const auto consider = [&](ClosestPair pair) {
         const float candidate = squareLength(pair.segment - pair.triangle);
