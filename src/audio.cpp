@@ -10,6 +10,7 @@
 #include <iostream>
 #include <optional>
 #include <stdexcept>
+#include <string>
 #include <unordered_set>
 
 namespace viewer {
