@@ -979,7 +979,7 @@ each 7.5 × 9 × 7.5 cm, are created inside as loose demonstration contents. The
 collide with their own cavity and streamed terrain/building surfaces, and ignore the solid
 ragdoll capsules. Physics determines whether they fit through an opening.
 Crates, dropped weapons and torso contents share `BoxLayer` body ownership;
-their appearance, pickup data and cavity collision settings remain separate.
+their appearance, equipment metadata and cavity collision settings remain separate.
 The shell is an approximate fit during animation; rapid motion also inherits
 Box3D's moving-mesh continuous-collision limitations. Removing a corpse releases
 its cavity, objects, wound record and GPU mask slot. Unwounded actors do not
@@ -1151,8 +1151,8 @@ look remains active while either hand holds anything. If both hands hold
 different objects, mouse movement moves both and rotates the camera once.
 Both hands can also share an object; releasing one leaves the other attached.
 Picking a weapon up with **F** or removing its owning corpse releases any grips
-on the removed bodies. Moving a remaining pickup into a vacated slot preserves
-its existing grips. Body identities also prevent two multiplayer players from
+on the removed bodies. Moving a remaining equippable weapon into a vacated slot
+preserves its existing grips. Body identities also prevent two multiplayer players from
 grabbing the same prop; torso contents use the existing authoritative physics.
 
 Each grip owns a shapeless hand anchor and a critically damped Box3D motor joint
@@ -1349,7 +1349,8 @@ disables this braking and skips its support-contact checks. Airborne weapons
 use their normal damping, so released weapons fall normally; braking resumes
 on ground contact. F still collects weapons within 2 m along the camera ray.
 Doors and other physics props can also stop it. A blocked spawn leaves the
-weapon in the inventory. Discarding an HE grenade creates an unprimed pickup.
+weapon in the inventory. Discarding an HE grenade creates an unprimed
+equippable object.
 
 **F** casts the camera's forward ray against dropped weapon boxes within 2 m.
 Scenery blocks pickup. A successful pickup destroys the physics object and

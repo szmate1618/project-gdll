@@ -14,7 +14,7 @@ struct DroppedWeaponPose {
     glm::vec3 minimum, maximum;
 };
 
-// Pickup ownership and weapon metadata around the shared box-physics primitive.
+// Equippable weapon ownership and metadata around the shared box-physics primitive.
 // These bodies are separate from ordinary crates and are picked up with F.
 class DroppedWeapons {
 public:

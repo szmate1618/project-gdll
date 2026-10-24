@@ -10,7 +10,7 @@ class PhysicsWorld;
 struct PropPointState { glm::vec3 point, velocity; }; // World metres and m/s.
 
 // A grip borrows a body, keeping its world alive. Body generations prevent a
-// deleted pickup/corpse prop from being confused with a newly allocated body.
+// deleted equippable object or corpse prop from aliasing a newly allocated body.
 class PhysicsProp {
 public:
     PhysicsProp(std::shared_ptr<PhysicsWorld> world, b3BodyId body);
