@@ -134,6 +134,14 @@ Use this guide as a navigation aid; read the relevant code for current behavior.
   writes project outputs; changing `--config` does not isolate those outputs.
 - Use small synthetic fixtures and scratch files under `build/` or `data/tmp/`
   for experiments. Do not resize the user's configured area to speed up tests.
+- When restoring experimental C++ sources/headers, do not preserve old mtimes
+  (`shutil.copy2`, `cp -p`, `rsync -t`): CMake's Make/Ninja builds may reuse newer
+  objects from a different variant. Use `shutil.copyfile` or refresh every
+  restored file's mtime, including headers. If stale objects may already exist,
+  rebuild affected translation units and their dependents, or use a separate
+  build directory; rerunning CMake configuration alone does not force this.
+  Check the rebuilt variant before benchmarking: mixed class layouts can cause
+  ABI corruption or stack-smashing failures, not just misleading timings.
 - Proceed with authorized, reversible work. Ask only for genuinely missing
   decisions or unapproved destructive/external actions, not routine code edits.
   Use the environment's permission mechanism when GPU/display access requires it.
