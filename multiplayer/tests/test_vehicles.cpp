@@ -128,7 +128,7 @@ void ownershipAndDriving(const Options& o) {
     auto state = wire(world.snapshot(first));
     require(state.players[0].vehicle == 0 && state.players[1].vehicle == noVehicle,
             "Driver admission must be exclusive and Enter must execute once");
-    require(glm::distance(world.players().at(first).camera.position(), viewer::vehicleSeat(scene.vehicles->pose(0).chassis)) < .001f,
+    require(glm::distance(world.players().at(first).camera.position(), viewer::vehicleSeat(*scene.vehicles,0,0)) < .001f,
             "Driver camera must follow the physical seat");
     std::uint64_t sequence = 1;
     Command drive; drive.movement.forward = 1; drive.left = true; drive.reload = true; drive.slot = 2; drive.interaction = true;

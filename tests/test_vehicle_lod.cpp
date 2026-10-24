@@ -8,10 +8,10 @@
 using nlohmann::json;
 void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
 void fixture(const std::filesystem::path& path) {
-    const float vertices[]{-1,0,0, 1,0,0, 0,1,0};
+    const float vertices[]{-1,-.68f,-2, 1,-.68f,2, 0,.32f,0};
     json d = {{"asset",{{"version","2.0"}}}, {"buffers", {{{"byteLength",36}}}},
         {"bufferViews", {{{"buffer",0},{"byteLength",36}}}},
-        {"accessors", {{{"bufferView",0},{"componentType",5126},{"count",3},{"type","VEC3"},{"min",{-1,0,0}},{"max",{1,1,0}}}}},
+        {"accessors", {{{"bufferView",0},{"componentType",5126},{"count",3},{"type","VEC3"},{"min",{-1,-.68,-2}},{"max",{1,.32,2}}}}},
         {"meshes", {{{"primitives", {{{"attributes",{{"POSITION",0}}}}}}}}},
         {"nodes", {{{"mesh",0}}}}, {"scenes", {{{"nodes",{0}}}}}, {"scene",0}};
     auto text = d.dump(); while (text.size()%4) text += ' ';
@@ -41,10 +41,17 @@ int main(int argc, char** argv) {
         require(viewer::vehicleCameraDetail(20,0).visible && viewer::vehicleCameraDetail(std::numeric_limits<float>::quiet_NaN(),p).level==0,"Invalid view must keep geometry");
         fixture(root/"source.glb"); fixture(root/"level.glb");
         json entry={{"source","source.glb"},{"source_sha256",viewer::fileSha256(root/"source.glb")},{"levels",json::array()}};
+        entry["frame"]={{"dimensions",{2,1,4}},{"bottom_m",-.68}};
         for(int i=0;i<4;++i) entry["levels"].push_back({{"path","level.glb"},{"sha256",viewer::fileSha256(root/"level.glb")},{"triangles",1}});
-        const auto publish=[&](const json& value) { std::ofstream(root/"lods.json") << json{{"version",1},{"models",{{"car",value}}}}; };
+        const auto publish=[&](const json& value) { std::ofstream(root/"lods.json") << json{{"version",2},{"models",{{"car",value}}}}; };
         publish(entry); require(viewer::loadVehicleLods(root,"car").size()==4,"Valid cache must load all levels");
         require(viewer::loadVehicleLods(root,"other").empty(),"Missing type must use prototype");
+        viewer::VehicleConfig config; config.dimensions={2,1,4};
+        require(viewer::loadVehicleLods(root,"car",&config).size()==4,"Matching per-type dimensions failed to load");
+        config.dimensions.z=3.6f;
+        require(viewer::loadVehicleLods(root,"car",&config).empty(),"Stale prototype fit ignored changed vehicle dimensions");
+        auto wrongFrame=entry;wrongFrame["frame"]["dimensions"]={2,1,3.6};publish(wrongFrame);
+        require(viewer::loadVehicleLods(root,"car").empty(),"Model bounds disagreed with published dimensions");
         auto bad=entry; bad["source_sha256"]="old"; publish(bad);
         require(viewer::loadVehicleLods(root,"car").empty(),"Stale source must fall back atomically");
         bad=entry; bad["levels"][2]["sha256"]="bad"; publish(bad);

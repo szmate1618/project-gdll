@@ -275,7 +275,7 @@ private:
     void releaseVehicleAssets() noexcept;
     void resetVehicleVisibility();
     void syncVehicleInstances();
-    void loadVehicleRenderAsset(const std::string& id);
+    void loadVehicleRenderAsset(const VehicleConfig& config);
     void initializeVehicleInstances(ModelGPU& model, GLuint& buffer);
     void applyVehicleLights();
 

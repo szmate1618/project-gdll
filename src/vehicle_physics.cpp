@@ -19,6 +19,12 @@ constexpr float maxSteeringAngle = .5235988f;
 // the narrower cabin leaves the hood and trunk below the roof line.
 constexpr glm::vec3 lowerCenter(0, -.18f, 0), lowerHalf(.85f, .5f, 1.8f);
 constexpr glm::vec3 cabinCenter(0, .60f, .10f), cabinHalf(.72f, .28f, 1.05f);
+glm::vec3 bodyScale(const VehicleConfig& config) { return config.dimensions / glm::vec3(1.7f, 1.56f, 3.6f); }
+glm::vec3 fittedCenter(glm::vec3 center, const VehicleConfig& config) {
+    // Scale about the tire support plane so every type keeps the same pivot.
+    return (center + glm::vec3(0, vehiclePivotHeight, 0)) * bodyScale(config) - glm::vec3(0, vehiclePivotHeight, 0);
+}
+glm::vec3 activeHalf(const VehicleConfig& config) { return glm::vec3(.85f, .325f, 1.8f) * bodyScale(config); }
 }
 VehiclePhysics::VehiclePhysics(PhysicsWorld& w, const VehicleConfig& c, glm::vec3 center, glm::quat orientation)
     : world(w), config(c) {
@@ -59,17 +65,20 @@ void VehiclePhysics::replaceBoxes(bool active) {
     shape.filter.maskBits = ~ragdollFloorCategory;
     shape.filter.groupIndex = world.allocateCollisionGroup();
     shape.baseMaterial.friction = .4f;
+    const auto scale = bodyScale(config);
     if (active) {
-        shape.density = (config.weightKg - 100.f) / (1.7f * .65f * 3.6f);
-        const auto hull = b3MakeBoxHull(.85f, .325f, 1.8f);
+        const auto half = activeHalf(config);
+        shape.density = (config.weightKg - 100.f) / (8 * half.x * half.y * half.z);
+        const auto hull = b3MakeBoxHull(half.x, half.y, half.z);
         boxes[0] = b3CreateHullShape(body, &shape, &hull.base);
         // Preserve the original lowered center of mass and unconstrained tilt.
         auto mass = b3Body_GetMassData(body);
-        mass.center.y = -.18f;
+        mass.center.y = -.18f * scale.y;
         b3Body_SetMassData(body, mass);
     } else {
-        const auto lower = b3MakeOffsetBoxHull(lowerHalf.x, lowerHalf.y, lowerHalf.z, vector(lowerCenter));
-        const auto cabin = b3MakeOffsetBoxHull(cabinHalf.x, cabinHalf.y, cabinHalf.z, vector(cabinCenter));
+        const auto lowerSize = lowerHalf * scale, cabinSize = cabinHalf * scale;
+        const auto lower = b3MakeOffsetBoxHull(lowerSize.x, lowerSize.y, lowerSize.z, vector(fittedCenter(lowerCenter,config)));
+        const auto cabin = b3MakeOffsetBoxHull(cabinSize.x, cabinSize.y, cabinSize.z, vector(fittedCenter(cabinCenter,config)));
         boxes[0] = b3CreateHullShape(body, &shape, &lower.base);
         boxes[1] = b3CreateHullShape(body, &shape, &cabin.base);
     }
@@ -83,7 +92,7 @@ void VehiclePhysics::activate(const b3HullData* tire) {
     replaceBoxes(true);
     auto shape = b3DefaultShapeDef();
     shape.filter = b3Shape_GetFilter(boxes[0]);
-    shape.density = 25.0f / (3.14159265f * VehicleLayer::wheelRadius * VehicleLayer::wheelRadius * VehicleLayer::wheelWidth);
+    shape.density = 25.0f / (3.14159265f * config.tireRadius * config.tireRadius * config.tireWidth);
     shape.baseMaterial.friction = rollingTireFriction;
     auto wheelDefinition = b3DefaultBodyDef();
     wheelDefinition.type = b3_dynamicBody;
@@ -143,15 +152,16 @@ void VehiclePhysics::park() {
     ++revision;
 }
 VehiclePose VehiclePhysics::pose(std::size_t index) const {
-    VehiclePose result{{index, position(body), {.85f, .325f, 1.8f}, rotation(body)}, storedWheels};
+    VehiclePose result{{index, position(body), activeHalf(config), rotation(body)}, storedWheels};
     if (detailed) for (std::size_t i = 0; i < 4; ++i)
         result.wheels[i] = glm::translate(glm::mat4(1), position(wheels[i])) * glm::mat4_cast(rotation(wheels[i]));
     return result;
 }
 BoxPose VehiclePhysics::collider(std::size_t index, std::size_t part) const {
     const auto q = rotation(body);
-    if (detailed) return {index, position(body), {.85f, .325f, 1.8f}, q};
-    return {index, position(body) + q * (part == 0 ? lowerCenter : cabinCenter), part == 0 ? lowerHalf : cabinHalf, q};
+    if (detailed) return {index, position(body), activeHalf(config), q};
+    return {index, position(body) + q * fittedCenter(part == 0 ? lowerCenter : cabinCenter,config),
+            (part == 0 ? lowerHalf : cabinHalf) * bodyScale(config), q};
 }
 void VehiclePhysics::setPose(const VehiclePose& pose, glm::vec3 velocity) {
     const auto valid = [](glm::vec3 p, glm::quat q) {

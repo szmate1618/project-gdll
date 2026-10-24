@@ -10,6 +10,8 @@ at startup; the default spawned car uses `toyota_corolla_1999.toml`.
 | `name` | Display name used by the entry action |
 | `seat_count` | Number of seats, from 1 to 4; must match the `[[seats]]` tables |
 | `weight_kg` | Total gameplay mass; the chassis uses this minus the four 25 kg wheels |
+| `[dimensions]` | `length_m` real-car fitting target; `width_m` and `height_m` measured fitted mesh bounds, including mirrors |
+| `[wheels].radius_m`, `width_m` | Per-type physical tire cylinder dimensions in meters |
 | `[wheels]` | `front_left`, `front_right`, `rear_left`, `rear_right` wheel centers |
 | `[headlights]` | `left` and `right` light-emitter positions |
 | `[[seats]].eye_position` | Seated player's eye/camera position |
@@ -18,8 +20,9 @@ at startup; the default spawned car uses `toyota_corolla_1999.toml`.
 | `[[seats]].exit_position` | Preferred standing exit candidate |
 
 All coordinates are chassis-local meters: **X right, Y up, -Z forward**, with
-origin at the chassis body center. Wheel centers are suspension anchors at rest;
-wheel colliders/visuals use the existing wheel radius and width. Headlight beams
+origin at a common pivot 0.68 m above the neutral tire support plane. Wheel
+centers are suspension anchors at rest; tire bottoms lie at local Y=-0.68.
+Headlight beams
 follow chassis rotation and point forward with the existing downward tilt.
 
 Seat order is fixed: **0 front-left driver, 1 front-right, 2 rear-left, 3 rear-right**.
@@ -41,7 +44,9 @@ other exits. A disconnect releases only that player's seat; losing the driver
 applies the brakes. Passenger departures never take over the driver controls.
 
 The initial masses are gameplay tuning values. Seat, wheel and light positions
-start with the current prototype chassis dimensions. The runtime renders fitted
+are approximate per-type fits. [Dimensions and reference assumptions](../assets/vehicles/DIMENSIONS.md)
+describe the original source scales and the uniform real-length fit. Collision
+boxes and tire cylinders follow the per-type configuration. The runtime renders fitted
 car LoDs when their cache is available, otherwise the box-and-wheel prototype.
 Imported wheels are static visual geometry. Parked cars use two static box
 colliders. Driver entry enables all four physical wheels; driver exit/disconnect
@@ -66,8 +71,10 @@ authoritative, including ground tilt, so `yaw_rad` is not applied again.
 
 Each level/server session assigns a uniformly random type from the complete
 config catalog to each position. Multiplayer clients use the server's choices.
-The current prototype chassis dimensions fit within the publication's nominal
-2×4.7 m footprint; cars remain drivable rigid bodies. The sidecar is an ignored
+Cars retain their per-type dimensions at the published positions; long cars such
+as the S 500 exceed the publication's nominal 2×4.7 m footprint. Existing positions
+are not repacked, so crowded placements may overlap. Cars remain drivable rigid bodies.
+The sidecar is an ignored
 map output, preserved locally and included with its map in portable asset ZIPs.
 Missing files use the nearby-car fallback; empty files disable it. Invalid or
 stale files fail with a diagnostic instead of silently loading another map's

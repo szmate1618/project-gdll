@@ -40,9 +40,9 @@ std::optional<std::vector<VehiclePlacement>> loadVehiclePlacements(const std::fi
         std::unordered_set<std::string> ids;
         result.reserve(instances.size());
         // Sidecars use a ground-contact pivot and +Z forward. Runtime chassis
-        // uses -Z forward; its tire bottom is .32 + .36 m below its origin.
+        // uses -Z forward and a shared ground-to-origin offset for every type.
         const auto reverse = glm::angleAxis(glm::radians(180.f), glm::vec3(0,1,0));
-        const float pivotHeight = .32f + VehicleLayer::wheelRadius;
+        const float pivotHeight = vehiclePivotHeight;
         for (const auto& instance : instances) {
             const auto id = instance.at("id").get<std::string>();
             if (id.empty() || !ids.insert(id).second) throw std::runtime_error("Empty or duplicate vehicle placement ID");

@@ -181,7 +181,7 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
     vehicle_manifest = vehicle_models / "lods.json"
     if vehicle_manifest.exists():
         manifest = assets.document(vehicle_manifest)
-        if manifest["version"] != 1:
+        if manifest["version"] != 2:
             raise ValueError("Unsupported vehicle LoD manifest")
         for entry in manifest["models"].values():
             source = assets.reference(vehicle_models, entry["source"])

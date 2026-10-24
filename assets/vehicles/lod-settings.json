@@ -1,6 +1,5 @@
 {
-  "version": 1,
-  "length_m": 3.6,
+  "version": 2,
   "bottom_m": -0.68,
   "yaw_degrees": {
     "toyota-corolla-1999": 180,

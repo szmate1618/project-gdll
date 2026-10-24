@@ -61,24 +61,27 @@ std::vector<glm::vec3> vehicleExits(const VehicleLayer& cars, std::size_t car,
 }
 bool placeVehicleNear(VehicleLayer& cars, const CollisionWorld& world,
                       glm::vec3 eye, glm::vec3 minimum, glm::vec3 maximum, std::size_t type) {
+    const auto& definition = cars.typeConfig(type);
+    const auto half = definition.dimensions * .5f;
     // Require supported, clear footprint on published terrain, rather than
     // dropping the car into a building or choosing a GIS/cache height.
     for (float distance : {5.f, 8.f, 12.f, 18.f, 25.f}) for (int a = 0; a < 16; ++a) {
         const float angle = glm::two_pi<float>() * a / 16;
         glm::vec3 p = eye + glm::vec3(std::cos(angle) * distance, 0, std::sin(angle) * distance);
-        if (p.x < minimum.x + 2 || p.z < minimum.z + 3 || p.x > maximum.x - 2 || p.z > maximum.z - 3) continue;
+        if (p.x < minimum.x + half.x || p.z < minimum.z + half.z ||
+            p.x > maximum.x - half.x || p.z > maximum.z - half.z) continue;
         const auto ground = world.groundAt(p.x, p.z, minimum.y - 2, maximum.y + 2, true);
         if (!ground || ground->normal.y < .9f) continue;
         p.y = ground->height;
         bool clear = true;
-        for (float x : {-.75f, 0.f, .75f}) for (float z : {-1.65f, -.8f, 0.f, .8f, 1.65f}) {
+        for (float x : {-half.x, 0.f, half.x}) for (float z : {-half.z, -half.z/2, 0.f, half.z/2, half.z}) {
             const auto sample = p + glm::vec3(x, .06f, z);
             const auto support = world.groundAt(sample.x, sample.z, p.y - .25f, p.y + .25f, true);
-            if (!support || support->normal.y < .9f || world.insideBuilding(sample, .4f, 1.3f)) { clear = false; break; }
-            for (const auto& c : world.contacts(sample, .42f, 1.3f))
+            if (!support || support->normal.y < .9f || world.insideBuilding(sample, .4f, definition.dimensions.y)) { clear = false; break; }
+            for (const auto& c : world.contacts(sample, .42f, definition.dimensions.y))
                 if (c.depth > .02f && c.normal.y < .7f) clear = false;
         }
-        if (clear) { cars.add(p + glm::vec3(0, .32f + VehicleLayer::wheelRadius, 0),0,type); return true; }
+        if (clear) { cars.add(p + glm::vec3(0, vehiclePivotHeight, 0),0,type); return true; }
     }
     return false;
 }

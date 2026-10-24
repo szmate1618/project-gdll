@@ -31,11 +31,13 @@ def append_array(document, binary, array, kind, component=5126):
 
 
 def chassis_model(document, source_binary, yaw_degrees, length=3.6, bottom=-.68):
-    """Fit static complete car to prototype: Y up, X right, -Z forward, meters.
+    """Fit static complete car to its reference length: Y up, -Z forward, meters.
 
     Yaw is an explicitly reviewed input, never guessed from an AABB. The same
     uniform fit is shared by every level, including independently simplified ones.
     """
+    if not math.isfinite(length) or length <= 0 or not math.isfinite(bottom) or not math.isfinite(yaw_degrees):
+        raise ValueError('Invalid vehicle fit')
     if document.get('skins') or document.get('animations'):
         raise ValueError('Expected a static vehicle')
     angle = math.radians(yaw_degrees)
@@ -112,7 +114,8 @@ def chassis_model(document, source_binary, yaw_degrees, length=3.6, bottom=-.68)
     for key in ('extensionsUsed', 'extensionsRequired'):
         if key in result:
             result[key] = [value for value in result[key] if value != legacy]
-    result.setdefault('extras', {})['vehicle_frame'] = {'yaw_degrees': yaw_degrees, 'length_m': length, 'bottom_m': bottom}
+    result.setdefault('extras', {})['vehicle_frame'] = {'yaw_degrees': yaw_degrees, 'length_m': length, 'bottom_m': bottom,
+                                                       'dimensions': ((hi-lo)*scale).tolist()}
     packed = validated_glb(result, bytes(binary))
     return read_glb(packed)
 

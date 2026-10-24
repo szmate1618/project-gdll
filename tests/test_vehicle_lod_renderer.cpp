@@ -43,7 +43,7 @@ void run(const std::filesystem::path& models,const std::filesystem::path& config
     renderer.setVehicleAssets(models);
     const auto types=viewer::loadVehicleConfigs(configs);
     for(const auto& type:types) {
-        require(viewer::loadVehicleLods(models,type.id).size()==4,"Prepared asset type failed validation");
+        require(viewer::loadVehicleLods(models,type.id,&type).size()==4,"Prepared asset type failed validation");
         viewer::VehicleLayer car(physics,{type}); car.add({0,.8f,0});
         renderer.setVehicleInstancing(false);
         renderer.updateVehicles(car);
@@ -136,8 +136,17 @@ void run(const std::filesystem::path& models,const std::filesystem::path& config
 }
 }
 int main(int argc,char** argv) {
-    if(argc!=4) return 1;
+    if(argc!=4 && argc!=5) return 1;
     if(!std::filesystem::exists(std::filesystem::path(argv[1])/"lods.json")) return 77;
+    if (argc==5) {
+        if (std::string(argv[4])!="--cpu-only") return 1;
+        try {
+            for (const auto& type : viewer::loadVehicleConfigs(argv[2]))
+                require(viewer::loadVehicleLods(argv[1],type.id,&type).size()==4,"Prepared asset type failed validation");
+            std::cout<<"All 16 vehicle types and 64 LoDs match their configured fitting frames\n";
+            return 0;
+        } catch (const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
+    }
     if(!glfwInit()) return 77;
     glfwWindowHint(GLFW_VISIBLE,GLFW_FALSE); glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3); glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,3);
     glfwWindowHint(GLFW_OPENGL_PROFILE,GLFW_OPENGL_CORE_PROFILE);

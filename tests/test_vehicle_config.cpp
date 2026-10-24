@@ -1,9 +1,11 @@
 #include "vehicle_player.hpp"
 #include "physics_world.hpp"
+#include "physics_scene.hpp"
 #include "interior_fixture.hpp"
 #include <glm/gtc/constants.hpp>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 
 namespace {
@@ -27,13 +29,27 @@ int main(int argc, char** argv) {
         require(!valid.empty(), "Missing config fixture");
         for (const auto& change : {std::pair<std::string,std::string>{"seat_count = 4","seat_count = 5"},
                  {"seat_count = 4","seat_count = 3"}, {"entry_radius = 2.0","entry_radius = -1.0"},
-                 {"weight_kg = 1100.0","weight_kg = nan"}, {"[-0.38, 0.9, -0.25]","[0.38, 0.9, -0.25]"}}) {
+                 {"weight_kg = 1100.0","weight_kg = nan"}, {"length_m = 4.1000","length_m = -4.1000"},
+                 {"radius_m = 0.2930","radius_m = nan"}}) {
             auto text = valid;
             const auto pos = text.find(change.first);
             require(pos != std::string::npos, "Expected field missing from config fixture");
             text.replace(pos,change.first.size(),change.second);
             { std::ofstream file(path); file << text; }
             rejects([&] { viewer::loadVehicleConfig(path); });
+        }
+        auto invalid = types[0]; invalid.seats[0].eyePosition.x = 1;
+        rejects([&] { viewer::validateVehicleConfig(invalid); });
+        invalid = types[0]; invalid.dimensions.y = std::numeric_limits<float>::infinity();
+        rejects([&] { viewer::validateVehicleConfig(invalid); });
+        require(types[0].dimensions.z == 4.1f, "Corolla did not load its real length");
+        for (const auto& c : types) {
+            for (const auto& seat : c.seats)
+                require(seat.eyePosition.y + viewer::vehiclePivotHeight < c.dimensions.y,
+                        "Seated eyes are above the fitted roof");
+            for (const auto wheel : c.wheels)
+                require(std::abs(wheel.y-c.tireRadius+viewer::vehiclePivotHeight)<.0001f,
+                        "Configured tires do not share the placement ground plane");
         }
         auto custom = types[0]; custom.weightKg = 2100;
         custom.seats[0].entryRadius = .25f;
@@ -71,6 +87,32 @@ int main(int argc, char** argv) {
                 "Vehicle entry action reached through a wall");
         custom.weightKg = 3000;
         require(cars.config(0).weightKg == 2100,"Vehicle definitions were not captured for the running session");
+        // Small and large imported types must use their own colliders and tire
+        // cylinders, including after changing from parked to driven physics.
+        auto fleetWorld = std::make_shared<viewer::PhysicsWorld>();
+        viewer::CollisionWorld fleetCollision(terrain);
+        viewer::PhysicsScene fleetScene(fleetWorld,fleetCollision,terrain.boundsMin,terrain.boundsMax);
+        viewer::VehicleLayer fleet(fleetWorld,types);
+        for (std::size_t i=0;i<types.size();++i) {
+            const auto center = glm::vec3(float(i%4)*8-12,viewer::vehiclePivotHeight,float(i/4)*8-12);
+            fleet.add(center,0,i);
+            const auto halfLength = types[i].dimensions.z/2;
+            require(fleet.overlaps(center+glm::vec3(-.05f,0,halfLength-.02f),center+glm::vec3(.05f,.1f,halfLength+.02f)),
+                    "Parked collision still uses the prototype length");
+            require(!fleet.overlaps(center+glm::vec3(-.05f,0,halfLength+.1f),center+glm::vec3(.05f,.1f,halfLength+.2f)),
+                    "Parked collision extends beyond the configured length");
+            fleet.setDriven(i,true);
+            require(std::abs(fleet.pose(i).chassis.halfExtents.z-halfLength)<.0001f,
+                    "Driven collision ignored the vehicle length");
+        }
+        for (int frame=0;frame<180;++frame) fleetWorld->step(1.f/60,[&](float seconds) {
+            viewer::prepareVehicleScene(fleet,fleetScene); fleet.beforeStep(seconds);
+        });
+        for (std::size_t i=0;i<types.size();++i) {
+            require(fleet.groundedWheels(i)==4,"Per-type tire sizes failed to support the car");
+            require(std::abs(fleet.pose(i).chassis.center.y-viewer::vehiclePivotHeight)<.18f,
+                    "Vehicle settled away from its visual ground plane");
+        }
         std::cout << "Vehicle configuration, mass, wheel and seat checks passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

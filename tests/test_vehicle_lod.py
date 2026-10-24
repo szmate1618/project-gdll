@@ -53,6 +53,18 @@ class VehicleLodTests(unittest.TestCase):
         self.assertNotIn('KHR_materials_pbrSpecularGlossiness',converted['extensionsRequired'])
         self.assertIn('KHR_materials_pbrSpecularGlossiness',d['extensionsRequired'])
 
+    def test_per_type_length_keeps_authored_proportions_and_ground_pivot(self):
+        mesh = trimesh.creation.box(extents=[2, 1.5, 4])
+        d,b = read_glb(trimesh.Scene(mesh).export(file_type='glb'))
+        for length,expected in [(3.2,[1.6,1.2,3.2]), (5.2,[2.6,1.95,5.2])]:
+            fitted,data = chassis_model(d,b,0,length)
+            scene = trimesh.load(io.BytesIO(validated_glb(fitted,data)),file_type='glb',force='scene',process=False)
+            np.testing.assert_allclose(scene.extents,expected,atol=1e-5)
+            self.assertAlmostEqual(scene.bounds[0,1],-.68,places=5)
+        for length in [0,-1,float('nan'),float('inf')]:
+            with self.assertRaises(ValueError):
+                chassis_model(d,b,0,length)
+
     def test_texture_limits_preserve_aspect_and_exact_mip_allocation(self):
         d,b = textured()
         source = copy.deepcopy(d)
@@ -80,7 +92,7 @@ class VehicleLodTests(unittest.TestCase):
     @unittest.skipUnless(HELPER.is_file(),'Build vehicle_mesh_simplify first')
     def test_four_independent_levels_preserve_material_and_reduce_work(self):
         d,b = textured(3)
-        d,b = chassis_model(d,b,0)
+        d,b = chassis_model(d,b,0,5.113)
         outputs = generate_levels(d,b,HELPER)
         counts = [stats['triangles'] for _,stats in outputs]
         self.assertEqual(counts[0],1280)
@@ -91,6 +103,10 @@ class VehicleLodTests(unittest.TestCase):
             self.assertTrue(all(max(i['width'],i['height']) <= [1024,512,256,128][level]
                                 for i in texture_inventory(doc,binary)['images']))
             self.assertEqual(doc['materials'],d['materials'])
+            self.assertEqual(doc['extras']['vehicle_frame']['length_m'],5.113)
+            scene = trimesh.load(io.BytesIO(data),file_type='glb',force='scene',process=False)
+            self.assertGreater(scene.extents[2],4.8)
+            self.assertLess(scene.extents[2],5.4)
 
 
 if __name__ == '__main__':

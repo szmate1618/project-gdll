@@ -3,41 +3,50 @@ seat_count = 4
 # Initial gameplay mass in kilograms; tune for the vehicle asset.
 weight_kg = 650.0
 
-# Chassis-local meters: X right, Y up, -Z forward.
+# Length reference and measured uniformly fitted bounds, including mirrors.
+# See assets/vehicles/DIMENSIONS.md for provenance and variant assumptions.
+[dimensions]
+length_m = 3.1290
+width_m = 1.5941
+height_m = 1.4405
+
+# Chassis-local meters: X right, Y up, -Z forward; ground is Y=-0.68.
 [wheels]
-front_left = [-0.83, -0.32, -1.15]
-front_right = [0.83, -0.32, -1.15]
-rear_left = [-0.83, -0.32, 1.15]
-rear_right = [0.83, -0.32, 1.15]
+radius_m = 0.2600
+width_m = 0.1350
+front_left = [-0.6217, -0.4200, -1.0145]
+front_right = [0.6217, -0.4200, -1.0145]
+rear_left = [-0.6217, -0.4200, 0.8255]
+rear_right = [0.6217, -0.4200, 0.8255]
 
 [headlights]
-left = [-0.64, 0.08, -1.83]
-right = [0.64, 0.08, -1.83]
+left = [-0.5579, -0.0030, -1.5845]
+right = [0.5579, -0.0030, -1.5845]
 
 # front-left driver
 [[seats]]
-eye_position = [-0.38, 0.9, -0.25]
-entry_position = [-1.1, 0.8, -0.25]
+eye_position = [-0.3666, 0.5605, -0.2945]
+entry_position = [-0.9470, 0.5605, -0.2945]
 entry_radius = 2.0
-exit_position = [-1.65, 0.4, -0.25]
+exit_position = [-1.5970, 0.4, -0.2945]
 
 # front-right passenger
 [[seats]]
-eye_position = [0.38, 0.9, -0.25]
-entry_position = [1.1, 0.8, -0.25]
+eye_position = [0.3666, 0.5605, -0.2945]
+entry_position = [0.9470, 0.5605, -0.2945]
 entry_radius = 2.0
-exit_position = [1.65, 0.4, -0.25]
+exit_position = [1.5970, 0.4, -0.2945]
 
 # rear-left passenger
 [[seats]]
-eye_position = [-0.38, 0.9, 1.15]
-entry_position = [-1.1, 0.8, 1.15]
+eye_position = [-0.3666, 0.5605, 0.5255]
+entry_position = [-0.9470, 0.5605, 0.5255]
 entry_radius = 2.0
-exit_position = [-1.65, 0.4, 1.15]
+exit_position = [-1.5970, 0.4, 0.5255]
 
 # rear-right passenger
 [[seats]]
-eye_position = [0.38, 0.9, 1.15]
-entry_position = [1.1, 0.8, 1.15]
+eye_position = [0.3666, 0.5605, 0.5255]
+entry_position = [0.9470, 0.5605, 0.5255]
 entry_radius = 2.0
-exit_position = [1.65, 0.4, 1.15]
+exit_position = [1.5970, 0.4, 0.5255]

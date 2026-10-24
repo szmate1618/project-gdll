@@ -23,6 +23,7 @@ public:
     std::size_t add(glm::vec3 center, glm::quat rotation, std::size_t type = 0);
     std::size_t type(std::size_t car) const;
     const VehicleConfig& config(std::size_t car) const;
+    const VehicleConfig& typeConfig(std::size_t type) const;
     std::size_t typeCount() const;
     // Lifetime identity survives address reuse; pose revisions also cover wheels
     // and explicit multiplayer poses, including while physics is not stepped.

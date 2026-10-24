@@ -28,6 +28,12 @@ void validateVehicleConfig(const VehicleConfig& c) {
     if (c.id.empty() || c.name.empty() || c.name.size() > 100 || !std::isfinite(c.weightKg) ||
         c.weightKg <= 100 || c.weightKg > 20000 || c.seats.empty() || c.seats.size() > maxVehicleSeats)
         throw std::runtime_error("Invalid vehicle name, weight or seat count");
+    for (int axis = 0; axis < 3; ++axis)
+        if (!std::isfinite(c.dimensions[axis]) || c.dimensions[axis] < .5f || c.dimensions[axis] > 10)
+            throw std::runtime_error("Invalid vehicle dimensions");
+    if (!std::isfinite(c.tireRadius) || c.tireRadius < .1f || c.tireRadius > 1 ||
+        !std::isfinite(c.tireWidth) || c.tireWidth < .05f || c.tireWidth > .6f)
+        throw std::runtime_error("Invalid tire dimensions");
     for (auto v : {c.wheels[0],c.wheels[1],c.wheels[2],c.wheels[3],c.headlights[0],c.headlights[1]})
         for (int axis = 0; axis < 3; ++axis)
             if (!std::isfinite(v[axis]) || std::abs(v[axis]) > 20)
@@ -57,6 +63,14 @@ VehicleConfig loadVehicleConfig(const std::filesystem::path& path) {
         const auto* wheels = table["wheels"].as_table();
         const auto* lights = table["headlights"].as_table();
         if (!wheels || !lights) throw std::runtime_error("Expected [wheels] and [headlights] tables");
+        if (table.contains("dimensions")) {
+            const auto* dimensions = table["dimensions"].as_table();
+            if (!dimensions) throw std::runtime_error("Expected [dimensions] table");
+            c.dimensions = {required<double>(*dimensions,"width_m"), required<double>(*dimensions,"height_m"),
+                            required<double>(*dimensions,"length_m")};
+            c.tireRadius = static_cast<float>(required<double>(*wheels,"radius_m"));
+            c.tireWidth = static_cast<float>(required<double>(*wheels,"width_m"));
+        }
         const char* wheelNames[]{"front_left","front_right","rear_left","rear_right"};
         for (std::size_t i=0;i<4;++i) c.wheels[i]=vector(*wheels,wheelNames[i]);
         c.headlights={vector(*lights,"left"),vector(*lights,"right")};

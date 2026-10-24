@@ -32,7 +32,8 @@ void Renderer::setVehicleAssets(const std::filesystem::path& directory) {
     releaseVehicleAssets();
     vehicleAssetDirectory_ = directory;
 }
-void Renderer::loadVehicleRenderAsset(const std::string& id) {
+void Renderer::loadVehicleRenderAsset(const VehicleConfig& config) {
+    const auto& id = config.id;
     if (vehicleModel_.meshes.empty()) {
         uploadModel(VehicleLayer::geometry(),vehicleModel_);
         initializeVehicleInstances(vehicleModel_,vehicleInstanceBuffer_);
@@ -40,7 +41,7 @@ void Renderer::loadVehicleRenderAsset(const std::string& id) {
     if (vehicleAssets_.count(id)) return;
     auto& levels = vehicleAssets_[id];
     if (vehicleAssetDirectory_.empty()) return;
-    auto sources = loadVehicleLods(vehicleAssetDirectory_,id);
+    auto sources = loadVehicleLods(vehicleAssetDirectory_,id,&config);
     levels.reserve(sources.size());
     try {
         for (const auto& source : sources) {

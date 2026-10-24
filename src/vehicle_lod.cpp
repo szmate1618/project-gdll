@@ -20,14 +20,26 @@ VehicleDetail vehicleCameraDetail(float distance, float projectionScale, std::si
     while (level > 0 && effective < thresholds[level - 1] * .9f) --level;
     return {level, effective <= 300};
 }
-std::vector<Model> loadVehicleLods(const std::filesystem::path& directory, const std::string& id) {
+std::vector<Model> loadVehicleLods(const std::filesystem::path& directory, const std::string& id, const VehicleConfig* config) {
     if (!std::filesystem::exists(directory / "lods.json")) return {};
     try {
         std::ifstream stream(directory / "lods.json");
         const auto manifest = nlohmann::json::parse(stream);
-        if (manifest.at("version") != 1) throw std::runtime_error("Unsupported vehicle LoD manifest");
+        if (manifest.at("version") != 2) throw std::runtime_error("Unsupported vehicle LoD manifest");
         if (!manifest.at("models").contains(id)) return {};
         const auto& entry = manifest.at("models").at(id);
+        const auto& frame = entry.at("frame");
+        const auto& dimensions = frame.at("dimensions");
+        const float bottom = frame.at("bottom_m").get<float>();
+        if (!dimensions.is_array() || dimensions.size() != 3 || !std::isfinite(bottom) ||
+            std::abs(bottom + vehiclePivotHeight) > .0001f)
+            throw std::runtime_error("Invalid vehicle LoD fitting frame");
+        for (int axis = 0; axis < 3; ++axis) {
+            const float extent = dimensions.at(axis).get<float>();
+            if (!std::isfinite(extent) || extent <= 0 || extent > 10 ||
+                (config && std::abs(extent-config->dimensions[axis]) > .0002f))
+                throw std::runtime_error("Stale vehicle LoD dimensions");
+        }
         const auto root = std::filesystem::weakly_canonical(directory);
         const auto resolve = [&](const nlohmann::json& value) {
             const auto text = value.get<std::string>();
@@ -58,6 +70,17 @@ std::vector<Model> loadVehicleLods(const std::filesystem::path& directory, const
                 if (!std::isfinite(model.boundsMin[axis]) || !std::isfinite(model.boundsMax[axis]) ||
                     model.boundsMin[axis] < -5 || model.boundsMax[axis] > 5)
                     throw std::runtime_error("Vehicle LoD is outside the chassis-local frame");
+            // LoDs share the LOD0 fit. Simplification may shrink bounds within
+            // its 4% error budget, but must never revert to prototype sizing.
+            const float tolerance = result.empty() ? .0002f : dimensions.at(2).get<float>() * .09f;
+            const glm::vec3 expectedMin(-dimensions.at(0).get<float>()/2, -vehiclePivotHeight,
+                                        -dimensions.at(2).get<float>()/2);
+            const glm::vec3 expectedMax(dimensions.at(0).get<float>()/2,
+                                        dimensions.at(1).get<float>()-vehiclePivotHeight,
+                                        dimensions.at(2).get<float>()/2);
+            if (glm::any(glm::greaterThan(glm::abs(model.boundsMin-expectedMin),glm::vec3(tolerance))) ||
+                glm::any(glm::greaterThan(glm::abs(model.boundsMax-expectedMax),glm::vec3(tolerance))))
+                throw std::runtime_error("Vehicle LoD bounds disagree with fitting frame");
             previous = triangles;
             result.push_back(std::move(model));
         }

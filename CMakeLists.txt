@@ -648,6 +648,10 @@ if(BUILD_TESTING AND GD_VIEWER)
         "${CMAKE_CURRENT_SOURCE_DIR}/assets/vehicles/models" "${CMAKE_CURRENT_SOURCE_DIR}/vehicles"
         "${CMAKE_CURRENT_BINARY_DIR}/vehicle-lod-renderer")
     set_tests_properties(viewer_vehicle_lod_renderer PROPERTIES SKIP_RETURN_CODE 77)
+    add_test(NAME viewer_vehicle_lod_assets COMMAND test_vehicle_lod_renderer
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/vehicles/models" "${CMAKE_CURRENT_SOURCE_DIR}/vehicles"
+        "${CMAKE_CURRENT_BINARY_DIR}/vehicle-lod-assets" --cpu-only)
+    set_tests_properties(viewer_vehicle_lod_assets PROPERTIES SKIP_RETURN_CODE 77)
 
     add_executable(test_vehicle_traction tests/test_vehicle_traction.cpp)
     target_link_libraries(test_vehicle_traction PRIVATE viewer_physics)

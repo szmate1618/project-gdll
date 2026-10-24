@@ -24,22 +24,30 @@ void Renderer::syncVehicleInstances() {
     for (std::size_t i = 0; i < count; ++i) {
         auto& instance = vehicleInstances_[i];
         if (i >= oldCount) {
-            const auto& id = vehicleSource_->config(i).id;
-            loadVehicleRenderAsset(id);
+            const auto& config = vehicleSource_->config(i);
+            const auto& id = config.id;
+            loadVehicleRenderAsset(config);
             instance.lods = &vehicleAssets_.at(id);
             for (const auto& lod : *instance.lods) instance.radius = std::max(instance.radius,lod.radius);
         }
         const auto revision = vehicleSource_->poseRevision(i);
         if (instance.revision == revision) continue;
         const auto pose = vehicleSource_->pose(i);
+        const auto& config = vehicleSource_->config(i);
         instance.center = pose.chassis.center;
         instance.chassis = glm::translate(glm::mat4(1),instance.center) * glm::mat4_cast(pose.chassis.rotation);
         instance.wheels = pose.wheels;
         VisibilityBounds bounds{instance.center-glm::vec3(instance.radius),instance.center+glm::vec3(instance.radius)};
         if (instance.lods->empty()) {
+            instance.radius = std::max(instance.radius,glm::length(config.dimensions)+vehiclePivotHeight);
+            bounds = {instance.center-glm::vec3(instance.radius),instance.center+glm::vec3(instance.radius)};
             // Prototype geometry includes independently suspended wheels. Their
             // configured anchors can extend beyond the normal chassis sphere.
             instance.chassis = pose.chassis.transform();
+            const auto tireScale = glm::vec3(config.tireRadius/VehicleLayer::wheelRadius,
+                                             config.tireWidth/VehicleLayer::wheelWidth,
+                                             config.tireRadius/VehicleLayer::wheelRadius);
+            for (auto& wheel : instance.wheels) wheel = glm::scale(wheel,tireScale);
             for (const auto& wheel : pose.wheels) {
                 bounds.minimum = glm::min(bounds.minimum,glm::vec3(wheel[3])-glm::vec3(.5f));
                 bounds.maximum = glm::max(bounds.maximum,glm::vec3(wheel[3])+glm::vec3(.5f));

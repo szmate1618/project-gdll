@@ -43,12 +43,13 @@ struct VehicleLayer::Impl {
     std::vector<VehicleConfig> types;
     std::vector<std::size_t> simulated;
     std::unordered_map<std::uint64_t,std::size_t> owners;
-    b3HullData* tire = nullptr;
-    ~Impl() { cars.clear(); if(tire) b3DestroyHull(tire); }
+    std::vector<b3HullData*> tires;
+    ~Impl() { cars.clear(); for (auto* tire : tires) if(tire) b3DestroyHull(tire); }
     void activate(std::size_t index) {
         auto& car=*cars.at(index);
         if(car.detailed) return;
-        if(!tire) tire=b3CreateCylinder(VehicleLayer::wheelWidth,VehicleLayer::wheelRadius,-VehicleLayer::wheelWidth/2,24);
+        auto*& tire = tires.at(car.type);
+        if(!tire) tire=b3CreateCylinder(car.config.tireWidth,car.config.tireRadius,-car.config.tireWidth/2,24);
         if(!tire) throw std::runtime_error("Cannot build tire cylinder");
         car.activate(tire);
         for(auto wheel:car.wheels) owners.emplace(b3StoreBodyId(wheel),index);
@@ -65,6 +66,7 @@ VehicleLayer::VehicleLayer(std::shared_ptr<PhysicsWorld> world, std::vector<Vehi
     if (types.empty() || types.size() > maxVehicleTypes) throw std::invalid_argument("Invalid vehicle type count");
     for (const auto& config : types) validateVehicleConfig(config);
     impl_->types = std::move(types);
+    impl_->tires.resize(impl_->types.size(),nullptr);
     impl_->world = std::move(world);
 }
 VehicleLayer::~VehicleLayer() = default;
@@ -73,6 +75,7 @@ std::uint64_t VehicleLayer::poseRevision(std::size_t car) const { return impl_->
 std::size_t VehicleLayer::count() const { return impl_->cars.size(); }
 std::size_t VehicleLayer::type(std::size_t car) const { return impl_->cars.at(car)->type; }
 const VehicleConfig& VehicleLayer::config(std::size_t car) const { return impl_->types.at(type(car)); }
+const VehicleConfig& VehicleLayer::typeConfig(std::size_t type) const { return impl_->types.at(type); }
 std::size_t VehicleLayer::typeCount() const { return impl_->types.size(); }
 std::size_t VehicleLayer::add(glm::vec3 center, float yaw, std::size_t type) {
     if (!std::isfinite(yaw)) throw std::invalid_argument("Vehicle yaw must be finite");
@@ -176,7 +179,7 @@ void VehicleLayer::beforeStep(float seconds) {
             b3Shape_SetFrictionAxle(c->tireShapes[i], {0, 1, 0}, traction.lateralFriction);
             const bool contact = traction.motion != WheelMotion::Airborne;
             // Equal independent torque budgets: airborne wheels supply no drive.
-            const float torque = c->brake ? 1400.f : force * wheelRadius * .25f;
+            const float torque = c->brake ? 1400.f : force * c->config.tireRadius * .25f;
             b3WheelJoint_SetMaxSpinTorque(j, contact ? torque : 0);
             b3WheelJoint_SetSpinMotorSpeed(j, c->brake ? 0 : -c->throttle * (reverse ? reverseMotorSpeed : forwardMotorSpeed));
             if (std::abs(c->throttle) > 0 || std::abs(c->steering) > 0) {

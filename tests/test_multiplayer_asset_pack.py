@@ -124,7 +124,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
             levels.append({'path':f'lod{level}/car.glb','sha256':self.digest(p)})
         self.write('assets/vehicles/CREDITS.md',b'CC BY attribution')
         self.json('assets/vehicles/sources.json',{'license':'CC BY 4.0'})
-        self.json('assets/vehicles/models/lods.json',{'version':1,'models':{'car':{
+        self.json('assets/vehicles/models/lods.json',{'version':2,'models':{'car':{
             'source':'car.glb','source_sha256':self.digest(source),'levels':levels}}})
         return source
 

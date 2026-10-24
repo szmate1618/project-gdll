@@ -1155,11 +1155,14 @@ procedural body when available. Four zoom-aware levels switch near 20/50/100 m
 with hysteresis; `--no-vehicle-lod` retains the near level. Missing or stale
 assets use one blue box and four dark 12-sided tires. Imported complete-car meshes
 have static wheel visuals. Driven cars retain independent wheel bodies and suspension.
+Vehicle definitions set per-type length, fitted bounds, tire dimensions and
+approximate seats/lights; see [source scale and fitting](../assets/vehicles/DIMENSIONS.md).
 The configured total mass defaults to a 1,000 kg chassis plus
 four 25 kg wheels with centered 24-sided convex cylinder colliders, independent damped suspension
 springs and travel limits. The maximum drive budget is 19,200 N equivalent at
 the tires, three times the original capacity: each grounded wheel can supply up
-to 1,728 N·m of axle torque. Ordinary throttle uses a calibrated 5,500 N budget to
+torque proportional to its configured tire radius (1,728 N·m at 0.36 m).
+Ordinary throttle uses a calibrated 5,500 N budget to
 keep acceleration close to the earlier car despite the increased grip. Extra
 torque compensates measured opposing living-zombie contact impulses from the previous fixed physics
 step, up to that maximum; it resets when resistance stops, throttle is released,

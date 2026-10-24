@@ -6,6 +6,8 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+import tomllib
+import numpy as np
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,13 +61,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--assets', type=Path, default=ROOT / 'assets/vehicles')
     parser.add_argument('--helper', type=Path, default=ROOT / 'build/vehicle_mesh_simplify')
+    parser.add_argument('--vehicles', type=Path, default=ROOT / 'vehicles')
     args = parser.parse_args()
     root = args.assets
     preparation = json.loads((root / 'preparation.json').read_text())
     settings = json.loads((root / 'lod-settings.json').read_text())
-    if settings['version'] != 1 or not args.helper.is_file():
-        parser.error('Expected settings version 1 and a built vehicle_mesh_simplify helper')
-    manifest = {'version': 1, 'models': {}}
+    if settings['version'] != 2 or not args.helper.is_file():
+        parser.error('Expected settings version 2 and a built vehicle_mesh_simplify helper')
+    manifest = {'version': 2, 'models': {}}
     report = {'version': 1, 'variants': []}
     cards = []
     for row in preparation['variants']:
@@ -76,9 +79,16 @@ def main():
             raise ValueError('Stale prepared model: ' + row['slug'])
         doc, binary = read_glb(source_bytes)
         inventory = texture_inventory(doc, binary)
-        doc, binary = chassis_model(doc, binary, settings['yaw_degrees'][row['slug']], settings['length_m'], settings['bottom_m'])
+        config_id = row['slug'].replace('-', '_')
+        with (args.vehicles / (config_id + '.toml')).open('rb') as stream:
+            dimensions = tomllib.load(stream)['dimensions']
+        doc, binary = chassis_model(doc, binary, settings['yaw_degrees'][row['slug']], dimensions['length_m'], settings['bottom_m'])
+        frame = doc['extras']['vehicle_frame']
+        expected = [dimensions['width_m'], dimensions['height_m'], dimensions['length_m']]
+        if not np.allclose(frame['dimensions'], expected, atol=.0002, rtol=0):
+            raise ValueError('Fitted bounds disagree with vehicle TOML: ' + row['slug'])
         generated = generate_levels(doc, binary, args.helper.resolve())
-        entry = {'source': source.name, 'source_sha256': source_hash, 'levels': []}
+        entry = {'source': source.name, 'source_sha256': source_hash, 'frame': frame, 'levels': []}
         reference = reference_for(geometry(generated[0][0]))
         canvas = Image.new('RGB', (1280, 680), '#131923')
         draw = ImageDraw.Draw(canvas)
@@ -98,7 +108,7 @@ def main():
         draw.text((18, 650), 'CC BY 4.0 | ' + row['author'] + ' | CPU previews; front view above, rear below', font=font(15), fill='#97abc4')
         atomic(root / 'lod-comparisons' / (row['slug'] + '.png'), image_bytes(canvas))
         cards.append(canvas)
-        manifest['models'][row['slug'].replace('-', '_')] = entry
+        manifest['models'][config_id] = entry
         report['variants'].append({'slug': row['slug'], 'name': row['name'], 'source_textures': inventory,
                                    'source_sha256': source_hash, 'levels': entry['levels']})
         print(row['slug'] + ': ' + ' / '.join(str(s['triangles']) for s in entry['levels']), flush=True)

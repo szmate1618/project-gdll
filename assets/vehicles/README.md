@@ -152,16 +152,20 @@ scans every car for every pass. Refits preserve the original tree partition.
 instanced and transparent draw counts, range candidates, BVH node/instance tests,
 and changed spatial bounds.
 
-`lod-settings.json` records reviewed source yaw corrections and the initial
-uniform fit to the existing prototype: 3.6 m long, tire bottom 0.68 m below the
-chassis origin, X right, Y up, -Z forward. Parent transforms and reflections are
+`lod-settings.json` records reviewed source yaw corrections. Each vehicle TOML
+provides its real-car reference length and measured uniformly fitted bounds;
+see [dimensions, original scale and variant assumptions](DIMENSIONS.md).
+Tire bottoms remain 0.68 m below the chassis origin, X right, Y up, -Z forward.
+Settings and runtime LoD manifests use version 2; old or differently fitted
+publications fall back as a whole. Parent transforms and reflections are
 baked once; equivalent material draws are joined. Focus/Astra legacy diffuse
 materials are converted to base-color input for this shader; imported PBR effects
 are not reproduced. The imported meshes include **static wheels**: wheel spin,
 steering and suspension are simulated physically but are not separately animated
 on these complete-car meshes. The procedural fallback still animates its wheels.
-Physics dimensions and configured seats/lights remain prototype tuning; per-model
-physical dimensions and detailed interiors need later fitting.
+Collision boxes, tire cylinders, seats and lights use per-model definitions.
+These remain approximate fits; detailed interiors and independently animated
+imported wheels need later work.
 
 Portable asset ZIPs include only the active LoD publication, its source checksums
 and required credit files. The basic Linux/Windows application packages continue
