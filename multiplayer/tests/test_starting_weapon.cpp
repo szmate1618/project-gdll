@@ -1,7 +1,5 @@
 // Exercise the real headless client against a scripted transport and server world.
-#define main clientMain
-#include "../client/main.cpp"
-#undef main
+#include "../client/session.cpp"
 #include "server/world.hpp"
 #include <fstream>
 
@@ -80,7 +78,7 @@ int main(int argc, char** argv) {
         char program[] = "godollo_client", noTrees[] = "--no-trees", count[] = "--zombie-count", zero[] = "0";
         char headless[] = "--headless", seconds[] = "--seconds", duration[] = "0.5";
         char* args[] = {program, argv[1], noTrees, count, zero, headless, seconds, duration};
-        require(clientMain(8, args) == 0 && commands > 1, "Client did not preserve its initial authoritative selection");
+        require(multiplayer::runClientSession(multiplayer::parseOptions(8, args, false)) == 0 && commands > 1, "Client did not preserve its initial authoritative selection");
         require(world->players().at(player).weapons.slot() == 3, "Client commands replaced the configured starting weapon");
         // Vehicle resources affect the handshake, while a live session keeps
         // the definitions captured before the edit.

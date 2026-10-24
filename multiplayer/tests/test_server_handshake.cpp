@@ -1,9 +1,11 @@
-// Drive the real server entry point with scripted transport events.
-#define main serverMain
-#include "../server/main.cpp"
-#undef main
+// Drive the shared authoritative server loop with scripted transport events.
+#include "server/runtime.hpp"
+#include "network.hpp"
+#include <iostream>
+#include <stdexcept>
 
 namespace {
+bool running = true;
 std::string fingerprint, closeReason;
 int received = 0, welcomes = 0, snapshots = 0, closes = 0;
 bool earlyHello = false;
@@ -14,7 +16,8 @@ constexpr HSteamNetConnection connection = 1;
 namespace multiplayer {
 Network::Network(float, float) {}
 Network::~Network() = default;
-void Network::listen(std::uint16_t) {}
+void Network::listen(std::uint16_t, bool, std::size_t) {}
+std::uint16_t Network::listeningPort() const { return 27020; }
 std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
     events.clear();
     if (received++ == 0) {
@@ -57,8 +60,8 @@ int main(int argc, char** argv) {
             char program[] = "godollo_server", noTrees[] = "--no-trees";
             char count[] = "--zombie-count", zero[] = "0";
             char* args[] = {program, argv[1], noTrees, count, zero};
-            const auto result = serverMain(5, args);
-            if (result || welcomes != 1 || snapshots < 1 || closes != 1 || closeReason != "Client left")
+            multiplayer::runServer(multiplayer::parseServerOptions(5, args), {}, [] { return !running; });
+            if (welcomes != 1 || snapshots < 1 || closes != 1 || closeReason != "Client left")
                 throw std::runtime_error("Hello before Connected was lost or later Connected reset the joined peer");
         }
         std::cout << "Server handshake ordering checks passed\n";

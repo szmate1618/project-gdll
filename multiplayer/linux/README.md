@@ -1,4 +1,4 @@
-# Linux multiplayer client
+# Linux game application
 
 Asset and dataset credits are in `credits/assets/README.txt`; bundled software
 licenses are in `licenses/`. For the town: map data © OpenStreetMap contributors,
@@ -24,10 +24,17 @@ sudo apt install libopengl0 libgl1 libstdc++6 libx11-6 libxrandr2 libxinerama1 l
 Start with the launcher so the included libraries are found:
 
 ```sh
-./run-client.sh assets/test.glb --connect SERVER_IP:27020 --no-trees --zombie-count 0
+./run-client.sh assets/test.glb --no-trees --zombie-count 0
 ```
 
-The server must use the same scene and options. The package contains the client,
+Choose Single Player, Host Game or Join Game from the menu. Single Player and
+Host Game include an embedded server; no separate server installation is needed.
+Escape leaves a session and returns to the menu. Edit the UDP host port or numeric
+join address in the menu. Direct startup is also available with `--single-player`,
+`--host [--port 27020]`, or `--connect SERVER_IP:27020`. Hosting uses direct UDP;
+firewall rules and router port forwarding remain manual. Remote peers must use
+the same scene and options. The executable/launcher retain their existing client
+names for compatibility. The package contains the game,
 shaders, the five first-person weapon models and their attribution,
 weapon/inventory configuration, forest configuration, a small sample
 scene, and third-party library notices. It includes the client libraries found
@@ -40,7 +47,7 @@ after extracting the client into a fresh folder. The host can create it with
 `tools/package_multiplayer_assets.py` from a prepared source checkout. Then run:
 
 ```sh
-./run-client.sh output/godollo.glb --connect SERVER_IP:27020
+./run-client.sh output/godollo.glb
 ```
 
 Use the server's spawn, zombie-count/radius, and vegetation options. The CI build

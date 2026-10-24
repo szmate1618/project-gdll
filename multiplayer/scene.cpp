@@ -30,7 +30,7 @@ Options parseOptions(int argc, char** argv, bool server) {
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--connect" && !server) o.address = next(i);
-        else if (arg == "--port" && server) {
+        else if (arg == "--port") {
             const auto n = number(i);
             if (n < 1 || n > 65535 || std::floor(n) != n) throw std::runtime_error("Invalid port");
             o.port = static_cast<std::uint16_t>(n);

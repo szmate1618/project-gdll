@@ -1,9 +1,13 @@
 # Multiplayer prototype
 
-The original `godollo_viewer` keeps its entry point, local simulation loop and
-controls. Multiplayer is optional and has separate client/server executables.
-GameNetworkingSockets handles UDP transport; the code here owns commands,
-authoritative simulation, snapshots, prediction and interpolation.
+The original `godollo_viewer` remains independently playable for prototyping and
+testing. The optional `godollo_client` game application provides Single Player,
+Host Game and Join Game from one window. Single Player and Host Game run the
+same authoritative server on an application-owned thread; no server executable
+needs to be launched or installed. `godollo_server` remains available for
+headless dedicated hosting. GameNetworkingSockets handles UDP transport; the
+shared code owns commands, authoritative simulation, snapshots, prediction and
+interpolation. The integrated application is currently validated on Linux.
 
 ## Build
 
@@ -156,15 +160,69 @@ Windows compilation and runtime checks remain in GitHub CI.
 
 ## Run
 
-From the repository root, start the server, then clients in separate terminals:
+Open the game menu from the repository root:
 
 ```sh
-./build/multiplayer/godollo_server output/godollo.glb
+./build/multiplayer/godollo_client output/godollo.glb
+```
+
+Click a mode, press 1–4, or use the arrow keys and Enter. Click the host-port or
+join-address field to edit it; Tab cycles the two fields, Backspace removes
+characters, and Enter finishes editing. The map and scene options come from the
+command line and are reused when switching modes.
+
+- **Single Player** starts a private server on IPv4 loopback at an automatically
+  selected high UDP port. It admits one connection and rejects additional
+  clients, including clients on the same machine, while that player is connected.
+  It needs neither internet access nor an online service and has no discovery
+  advertisement.
+- **Host Game** listens on the selected UDP port (27020 by default), connects the
+  host locally, and admits up to eight total players. Give other players the
+  host's numeric IP and port. Firewall/router configuration is still manual;
+  there is no matchmaking, relay or automatic NAT traversal.
+- **Join Game** connects to the numeric IPv4/IPv6 address and port in the field.
+  It starts no server. For IPv6, use `[ADDRESS]:PORT`.
+
+Startup shows loading/connection feedback. Gameplay starts after the initial
+server-confirmed player state arrives. Escape leaves a session and returns to
+the menu; closing the window also stops any embedded server. A normal host exit
+reports "Host ended the session" to remote clients; an abrupt crash or lost
+connection produces a server timeout and returns graphical clients to the menu.
+Startup and connection errors also return to the menu for retry. Cancellation
+waits for any current CPU scene preparation to finish, with feedback, before
+releasing its resources. No pause or game-state save system is added.
+
+Direct-start options remain useful for development and automated checks:
+
+```sh
+./build/multiplayer/godollo_client output/godollo.glb --single-player
+./build/multiplayer/godollo_client output/godollo.glb --host --port 27020
 ./build/multiplayer/godollo_client output/godollo.glb --connect 127.0.0.1:27020
 ```
 
+A graphical direct-start session returns to the menu on leaving or failure.
+`--seconds N` instead ends the application after the timed session; `--headless`
+runs without a window and also exits after its session. A headless invocation
+without a mode flag retains the old join-client behavior.
+
+Dedicated hosting still uses:
+
+```sh
+./build/multiplayer/godollo_server output/godollo.glb --port 27020
+```
+
+`server/runtime.hpp/.cpp` owns the server loop shared by dedicated and embedded
+hosting; the dedicated entry point only parses options and handles signals.
+`client/main.cpp` owns application/session lifetime, `client/menu.hpp/.cpp` owns
+the window/menu, and `client/session.hpp/.cpp` owns one client session. Each
+endpoint retains its own world and communicates through the existing protocol;
+local play does not bypass server validation. Networking initialization is
+shared for the process, and callbacks are routed to their owning endpoint.
+Artificial packet lag/loss are process-wide GNS settings, so integrated client
+and server use the same values.
+
 Use the server's numeric IP for other machines. The server listens on UDP port
-27020; change it with `--port`. `--connect` accepts numeric IPv4/IPv6 and a port.
+27020; change it with `--port` when hosting. `--connect` accepts numeric IPv4/IPv6 and a port.
 These direct-IP sessions have encrypted transport but no account authentication
 or matchmaking. Run this prototype with trusted peers; no relay service is set up.
 
@@ -207,7 +265,7 @@ for fists, R reload, F toggle flashlight, left click fire/throw/punch, right cli
 cycle scope.
 Tab switches Combat/Interaction. In Interaction, hold either mouse button to
 grab a nearby prop; left mouse also grabs doors. Mouse motion and walking move
-the grip. F12 releases/recaptures the mouse; Escape exits. Losing focus releases
+the grip. F12 releases/recaptures the mouse; Escape returns to the game menu. Losing focus releases
 controls. Ammo and mode appear in the window title. Remote players are simple
 colored bodies whose height follows their stance. With fists equipped, their
 physical torso and arms replace that simple body. Local hands show the newest
@@ -429,3 +487,18 @@ The remaining `server/` code hosts sessions, and `client/` handles input, predic
 snapshot playback and rendering. Shared `src/` additions expose movement
 save/restore and remote physics poses; existing single-player APIs and defaults
 are retained.
+
+## Session integration checks
+
+After rebuilding, run `ctest --test-dir build -R '^multiplayer_' --output-on-failure`.
+Local UDP socket access is required for transport/session tests. The Linux X11
+menu check also needs an accessible display/OpenGL context; it skips without a
+display. It drives the real application through repeated single-player sessions,
+integrated hosting, dedicated-server joining, port conflicts, host loss and
+window close. Captures and logs are written under `build/multiplayer/menu-fixture`.
+The headless session checks exercise one-player admission, eight players plus
+ninth-player rejection, content mismatch/retry, startup errors/cancellation,
+shutdown notification and repeated actual client sessions. Separate-process
+checks cover integrated hosting and abrupt host loss. Existing dedicated-server
+loopback and packet-loss tests remain enabled. These do not establish internet
+router compatibility or Windows support.

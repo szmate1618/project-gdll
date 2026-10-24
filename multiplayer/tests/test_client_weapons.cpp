@@ -1,7 +1,5 @@
 // Run the real graphical client loop against scripted authoritative snapshots.
-#define main clientMain
-#include "../client/main.cpp"
-#undef main
+#include "../client/session.cpp"
 #include <fstream>
 #include "player_body.hpp"
 
@@ -298,7 +296,7 @@ int main(int argc, char** argv) {
         char hidden[] = "--hidden", seconds[] = "--seconds", duration[] = "5";
         char dayLength[] = "--day-length";
         char* args[] = {program, argv[1], noTrees, count, zero, hidden, seconds, duration, dayLength, zero};
-        require(clientMain(10, args) == 0 && frame == 36, "Graphical client did not finish all weapon states");
+        require(multiplayer::runClientSession(multiplayer::parseOptions(10, args, false)) == 0 && frame == 36, "Graphical client did not finish all weapon states");
         const std::array<std::size_t, 5> weaponFrames{1, 3, 4, 5, 12};
         for (std::size_t a = 0; a < weaponFrames.size(); ++a)
             for (std::size_t b = a+1; b < weaponFrames.size(); ++b)

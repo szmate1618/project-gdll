@@ -10,9 +10,11 @@ The repository also includes a **C++17 Linux desktop viewer** with GLFW,
 OpenGL 3.3 Core, textures, free-fly and first-person walking cameras. See
 [desktop viewer setup and controls](docs/VIEWER.md) for Linux packages and details.
 
-An optional [multiplayer client and authoritative server](multiplayer/README.md)
-live under `multiplayer/`. They build separately from the original single-player
-executable with `-DGD_MULTIPLAYER=ON`.
+An optional [game application and authoritative server](multiplayer/README.md)
+live under `multiplayer/` and build with `-DGD_MULTIPLAYER=ON`. The game
+(`godollo_client`) offers Single Player, Host Game and Join Game; local play and
+hosting start an embedded server automatically. The original viewer remains
+independently playable, and `godollo_server` supports dedicated hosting.
 
 ```bash
 cmake -S . -B build
@@ -207,8 +209,8 @@ from a successful run's **Artifacts** list; the enclosed tarball preserves
 executable permissions and is retained for fourteen days. These are compilation
 outputs; runtime resources and libraries are not bundled in this three-binary archive.
 
-For a packaged Linux multiplayer client, download `godollo-client-linux-x86_64`
-from the same run. It includes a launcher, client resources, sample scene, and
+For the packaged Linux game, download `godollo-client-linux-x86_64`
+from the same run. It includes an embedded server, launcher, game resources, sample scene, and
 non-system runtime libraries. It targets Ubuntu 24.04 x86-64 and compatible newer
 desktop systems; system runtimes and graphics drivers come from the destination system.
 CI extracts it outside the checkout, checks two-client networking and packaged

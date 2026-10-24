@@ -14,7 +14,8 @@ public:
     ~Network();
     Network(const Network&) = delete;
     Network& operator=(const Network&) = delete;
-    void listen(std::uint16_t port);
+    void listen(std::uint16_t port, bool loopbackOnly = false, std::size_t capacity = maxPlayers);
+    std::uint16_t listeningPort() const;
     HSteamNetConnection connect(const std::string& address);
     std::vector<std::pair<HSteamNetConnection, Message>> receive();
     std::vector<Event> events;
@@ -24,7 +25,6 @@ public:
     void close(HSteamNetConnection connection, const std::string& reason);
 private:
     static void status(SteamNetConnectionStatusChangedCallback_t* info);
-    static thread_local Network* callbackOwner_;
     bool configureLanes(HSteamNetConnection connection);
     void pump(HSteamNetConnection connection);
     ISteamNetworkingSockets* sockets_ = nullptr;
@@ -34,5 +34,6 @@ private:
     std::vector<Event> pendingEvents_;
     std::map<HSteamNetConnection, Fragments> fragments_;
     std::map<HSteamNetConnection, OutgoingSnapshots> outgoing_;
+    std::size_t capacity_ = maxPlayers;
 };
 } // namespace multiplayer

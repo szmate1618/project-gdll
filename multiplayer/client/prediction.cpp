@@ -4,7 +4,7 @@
 namespace multiplayer {
 Command Prediction::advance(Command command, const viewer::CollisionWorld& collision) {
     if (!ready_) throw std::logic_error("Cannot predict before receiving spawn state");
-    if (pending_.size() >= 180) throw std::runtime_error("Server stopped acknowledging commands");
+    if (pending_.size() >= 180) throw std::runtime_error("Connection lost: server stopped responding (command acknowledgement timeout)");
     command.sequence = ++sequence_;
     pending_.push_back(command);
     if (!seated_) controller_.update(tickSeconds, command.movement, collision);

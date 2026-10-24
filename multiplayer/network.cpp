@@ -3,53 +3,110 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cstring>
+#include <mutex>
+#include <random>
 
 namespace multiplayer {
-thread_local Network* Network::callbackOwner_ = nullptr;
+namespace {
+// GNS has one process-wide interface and callback queue. Serialize callback
+// dispatch with endpoint access; a callback may belong to another session thread.
+std::recursive_mutex runtimeMutex;
+std::size_t runtimeUsers = 0;
+float runtimeLag = 0, runtimeLoss = 0;
+std::map<HSteamListenSocket, Network*> listeners;
+std::map<HSteamNetConnection, Network*> owners;
+}
 Network::Network(float lag, float loss) {
-    SteamDatagramErrMsg error;
-    if (!GameNetworkingSockets_Init(nullptr, error)) throw std::runtime_error(error);
+    std::lock_guard<std::recursive_mutex> lock(runtimeMutex);
+    // Packet simulation is a GNS global setting. Integrated server/client
+    // endpoints use the same application options; never silently overwrite it.
+    if (runtimeUsers && (lag != runtimeLag || loss != runtimeLoss))
+        throw std::invalid_argument("Packet simulation settings must match within one process");
+    if (!runtimeUsers) {
+        SteamDatagramErrMsg error;
+        if (!GameNetworkingSockets_Init(nullptr, error)) throw std::runtime_error(error);
+    }
     sockets_ = SteamNetworkingSockets();
     group_ = sockets_->CreatePollGroup();
     if (group_ == k_HSteamNetPollGroup_Invalid) {
-        GameNetworkingSockets_Kill(); throw std::runtime_error("Cannot create network poll group");
+        if (!runtimeUsers) GameNetworkingSockets_Kill();
+        throw std::runtime_error("Cannot create network poll group");
     }
-    SteamNetworkingUtils()->SetGlobalConfigValueFloat(k_ESteamNetworkingConfig_FakePacketLag_Send, lag);
-    SteamNetworkingUtils()->SetGlobalConfigValueFloat(k_ESteamNetworkingConfig_FakePacketLoss_Send, loss);
+    if (!runtimeUsers) {
+        SteamNetworkingUtils()->SetGlobalConfigValueFloat(k_ESteamNetworkingConfig_FakePacketLag_Send, lag);
+        SteamNetworkingUtils()->SetGlobalConfigValueFloat(k_ESteamNetworkingConfig_FakePacketLoss_Send, loss);
+        runtimeLag = lag; runtimeLoss = loss;
+    }
+    ++runtimeUsers;
 }
 Network::~Network() {
-    for (const auto c : connections_) sockets_->CloseConnection(c, 0, "Shutdown", false);
-    if (listener_ != k_HSteamListenSocket_Invalid) sockets_->CloseListenSocket(listener_);
+    std::lock_guard<std::recursive_mutex> lock(runtimeMutex);
+    for (const auto c : connections_) {
+        owners.erase(c);
+        sockets_->CloseConnection(c, 0, listener_ != k_HSteamListenSocket_Invalid ? "Host ended the session" : "Client disconnected", false);
+    }
+    if (listener_ != k_HSteamListenSocket_Invalid) {
+        listeners.erase(listener_);
+        sockets_->CloseListenSocket(listener_);
+    }
     sockets_->DestroyPollGroup(group_);
-    GameNetworkingSockets_Kill();
+    if (!--runtimeUsers) GameNetworkingSockets_Kill();
 }
-void Network::listen(std::uint16_t port) {
+void Network::listen(std::uint16_t port, bool loopbackOnly, std::size_t capacity) {
+    std::lock_guard<std::recursive_mutex> lock(runtimeMutex);
+    if (listener_ != k_HSteamListenSocket_Invalid || !capacity || capacity > maxPlayers)
+        throw std::invalid_argument("Invalid listener capacity or duplicate listen");
+    capacity_ = capacity;
     SteamNetworkingIPAddr address; address.Clear(); address.m_port = port;
-    SteamNetworkingConfigValue_t callback;
-    callback.SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged, reinterpret_cast<void*>(status));
-    listener_ = sockets_->CreateListenSocketIP(address, 1, &callback);
-    if (listener_ == k_HSteamListenSocket_Invalid) throw std::runtime_error("Cannot listen on UDP port");
+    if (loopbackOnly) address.SetIPv4(0x7f000001, port);
+    SteamNetworkingConfigValue_t config;
+    config.SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged, reinterpret_cast<void*>(status));
+    // This GNS version requires a nonzero listen port. For private sessions,
+    // try random high ports and let the actual bind arbitrate availability.
+    static std::mt19937 ports(std::random_device{}());
+    std::uniform_int_distribution<unsigned int> highPort(49152, 65535);
+    for (int attempt = 0; attempt < (port ? 1 : 32); ++attempt) {
+        if (!port) address.m_port = static_cast<std::uint16_t>(highPort(ports));
+        listener_ = sockets_->CreateListenSocketIP(address, 1, &config);
+        if (listener_ != k_HSteamListenSocket_Invalid) break;
+    }
+    if (listener_ == k_HSteamListenSocket_Invalid) throw std::runtime_error("Cannot listen on UDP port (it may already be in use)");
+    listeners.emplace(listener_, this);
+}
+std::uint16_t Network::listeningPort() const {
+    std::lock_guard<std::recursive_mutex> lock(runtimeMutex);
+    SteamNetworkingIPAddr address;
+    if (!sockets_->GetListenSocketAddress(listener_, &address)) throw std::runtime_error("Cannot query server port");
+    return address.m_port;
 }
 HSteamNetConnection Network::connect(const std::string& text) {
+    std::lock_guard<std::recursive_mutex> lock(runtimeMutex);
     SteamNetworkingIPAddr address;
     if (!address.ParseString(text.c_str()) || !address.m_port) throw std::runtime_error("Use a numeric IP:port, e.g. 127.0.0.1:27020");
-    SteamNetworkingConfigValue_t callback;
-    callback.SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged, reinterpret_cast<void*>(status));
-    const auto c = sockets_->ConnectByIPAddress(address, 1, &callback);
+    SteamNetworkingConfigValue_t config;
+    config.SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged, reinterpret_cast<void*>(status));
+    const auto c = sockets_->ConnectByIPAddress(address, 1, &config);
     if (c == k_HSteamNetConnection_Invalid) throw std::runtime_error("Cannot connect to server");
     connections_.insert(c);
+    owners[c] = this;
     if (!configureLanes(c)) throw std::runtime_error("Cannot configure network priorities");
     if (!sockets_->SetConnectionPollGroup(c, group_)) throw std::runtime_error("Cannot assign connection poll group");
     return c;
 }
 void Network::status(SteamNetConnectionStatusChangedCallback_t* info) {
-    auto& self = *callbackOwner_;
     const auto c = info->m_hConn;
+    Network* owner = nullptr;
+    if (const auto it = owners.find(c); it != owners.end()) owner = it->second;
+    else if (const auto listener = listeners.find(info->m_info.m_hListenSocket); listener != listeners.end())
+        owner = listener->second;
+    if (!owner) return; // Late callback for an endpoint already destroyed.
+    auto& self = *owner;
     if (info->m_info.m_eState == k_ESteamNetworkingConnectionState_Connecting && self.listener_ != k_HSteamListenSocket_Invalid) {
-        if (self.connections_.size() >= maxPlayers || self.sockets_->AcceptConnection(c) != k_EResultOK) {
+        if (self.connections_.size() >= self.capacity_ || self.sockets_->AcceptConnection(c) != k_EResultOK) {
             self.sockets_->CloseConnection(c, 0, "Server full", false); return;
         }
         self.connections_.insert(c);
+        owners[c] = &self;
         if (!self.configureLanes(c) || !self.sockets_->SetConnectionPollGroup(c, self.group_)) {
             self.close(c, "Cannot configure peer transport"); return;
         }
@@ -57,7 +114,8 @@ void Network::status(SteamNetConnectionStatusChangedCallback_t* info) {
     self.pendingEvents_.push_back({c, info->m_info.m_eState, info->m_info.m_szEndDebug});
 }
 std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
-    callbackOwner_ = this; sockets_->RunCallbacks(); callbackOwner_ = nullptr;
+    std::lock_guard<std::recursive_mutex> lock(runtimeMutex);
+    sockets_->RunCallbacks();
     for (const auto c : connections_) pump(c);
     std::vector<std::pair<HSteamNetConnection, Message>> result;
     // Bound receive work so a peer cannot indefinitely postpone simulation ticks.
@@ -86,6 +144,7 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
     return result;
 }
 bool Network::send(HSteamNetConnection c, const Message& message, bool reliable) {
+    std::lock_guard<std::recursive_mutex> lock(runtimeMutex);
     if (!connections_.count(c)) return false;
     auto bytes = encode(message);
     if (std::holds_alternative<CorpsePose>(message)) {
@@ -136,7 +195,9 @@ void Network::pump(HSteamNetConnection c) {
     });
 }
 void Network::close(HSteamNetConnection c, const std::string& reason) {
+    std::lock_guard<std::recursive_mutex> lock(runtimeMutex);
     if (connections_.erase(c)) {
+        owners.erase(c);
         fragments_.erase(c);
         outgoing_.erase(c);
         sockets_->CloseConnection(c, 0, reason.c_str(), false);
