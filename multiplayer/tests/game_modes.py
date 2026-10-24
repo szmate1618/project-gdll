@@ -32,6 +32,12 @@ with tempfile.TemporaryDirectory(prefix="godollo-game-modes-") as directory:
             try:
                 wait_for(host, log, "Connected as player")
                 actual_port = re.search(r"Listening on UDP (\d+)", log.read_text())[1]
+                if not single:
+                    conflict = subprocess.run([*base, "--host", "--port", actual_port, "--seconds", ".25"],
+                                              capture_output=True, text=True, timeout=10)
+                    failure = conflict.stdout + conflict.stderr
+                    if conflict.returncode == 0 or "Cannot listen on UDP port" not in failure:
+                        raise RuntimeError("Second process did not reject the occupied host port:\n" + failure)
                 remote = subprocess.run([*base, "--connect", f"127.0.0.1:{actual_port}", "--seconds", "6"],
                                         capture_output=True, text=True, timeout=12)
                 text = remote.stdout + remote.stderr

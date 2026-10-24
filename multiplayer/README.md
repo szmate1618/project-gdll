@@ -25,6 +25,9 @@ cmake --build build -j4
 CMake uses an installed GameNetworkingSockets package when available, otherwise
 downloads pinned, SHA-256-checked v1.4.1 sources into `build/`. A normal build
 with `GD_MULTIPLAYER=OFF` does not find/download/link networking dependencies.
+The pinned source build applies the [Windows exclusive UDP binding patch](../patches/gamenetworkingsockets-README.md)
+on both fresh and cached dependencies. It makes an occupied hosting port fail
+startup consistently instead of allowing overlapping IPv4/IPv6 listeners.
 
 For a server machine without OpenGL, GLFW, display or audio dependencies:
 

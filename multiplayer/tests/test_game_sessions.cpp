@@ -136,11 +136,20 @@ int main(int argc, char** argv) {
             require(!server.state().error.empty() && !server.state().port, "Startup error was not published");
         }
         {
-            multiplayer::LocalServer first(options, {});
-            auto conflict = options; conflict.scene.port = ready(first);
+            auto first = std::make_unique<multiplayer::LocalServer>(options, multiplayer::ServerSettings{});
+            auto conflict = options; conflict.scene.port = ready(*first);
             multiplayer::LocalServer second(conflict, {});
-            waitFor([&] { return second.state().finished; }, "Port conflict did not fail");
+            waitFor([&] { const auto state = second.state(); return state.port || state.finished; }, "Second server startup did not finish");
             require(!second.state().error.empty() && !second.state().port, "Port conflict reported readiness");
+            {
+                Peer original(conflict.scene.port, fingerprint);
+                waitFor([&] { original.poll(); return original.id && original.snapshots; }, "Failed bind disrupted the original host");
+            }
+            first->requestStop();
+            waitFor([&] { return first->state().finished; }, "Original host did not stop");
+            first.reset();
+            multiplayer::LocalServer replacement(conflict, {});
+            require(ready(replacement) == conflict.scene.port, "Stopped host did not release its port");
         }
         {
             multiplayer::LocalServer cancelled(options, {});

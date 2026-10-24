@@ -15,6 +15,17 @@ if(NOT TARGET GameNetworkingSockets::GameNetworkingSockets AND NOT TARGET GameNe
         DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/_archives"
         DOWNLOAD_NAME gamenetworkingsockets-1.4.1.tar.gz)
     FetchContent_MakeAvailable(gamenetworkingsockets)
+    # Apply on cached/offline sources as well as newly fetched archives.
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tools/patch_gamenetworkingsockets.py"
+            "${gamenetworkingsockets_SOURCE_DIR}"
+        RESULT_VARIABLE mp_patch_result)
+    if(NOT mp_patch_result EQUAL 0)
+        message(FATAL_ERROR "Cannot apply the pinned GameNetworkingSockets socket binding patch")
+    endif()
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${PROJECT_SOURCE_DIR}/tools/patch_gamenetworkingsockets.py"
+        "${PROJECT_SOURCE_DIR}/patches/gamenetworkingsockets-exclusive-bind.patch")
 endif()
 if(TARGET GameNetworkingSockets::static)
     set(mp_transport GameNetworkingSockets::static)
