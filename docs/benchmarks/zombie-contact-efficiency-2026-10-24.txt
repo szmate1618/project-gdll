@@ -1,5 +1,9 @@
 Scenario contact and ground efficiency experiments, 2026-10-24
 
+Later AC/balanced rerun: see the final section. It supersedes the earlier
+hardware-dependent absolute timings and throughput conclusion. Optimization
+keep/reject decisions are unchanged.
+
 Decision
 Keep four changes on experiment/zombie-contact-efficiency-20261024, based on
 master d8026a7. No merge or push is part of this experiment.
@@ -215,3 +219,81 @@ asset. --frame-profile CSV rows can arrive out of frame order; use the frame
 column to discard warmup and report finite GPU samples. A bounded shutdown
 drain happens outside measured frames. Fine --profile adds per-query clocks;
 omit it for whole-viewer comparisons.
+
+AC/balanced rerun, later on 2026-10-24
+The user identified possible battery/low-power operation during the original
+measurements. Reran the full last comparison round using the saved executables,
+unchanged scenario, map, camera and timing settings. No rebuilds or source
+changes were needed; no power settings were changed by the agent. Raw output:
+  build/benchmarks/zombie-contact-efficiency-20261024/power-rerun-1/
+
+Power state was recorded before and after each of the 15 invocations; all 30
+checks reported balanced. All 192 two-second telemetry samples reported AC
+online and battery charging. Powerprofilesctl is the profile source; a CPU
+scaling governor named powersave does not by itself mean the desktop's
+power-saver profile is active. metadata.json records executable/scenario
+SHA-256 hashes and start/end state. power-telemetry.jsonl and run-state.jsonl
+preserve the sampled state and case boundaries. helpers/ contains the rerun
+and analysis scripts. No builds ran alongside timed cases.
+
+Headless controls, ms/update (900 measurements per table entry):
+Case                      First       Reverse       Mean
+Baseline                     5.5146       5.3987       5.4566
+Through empty-door cache     2.9856       2.9399       2.9628
+Selected guarded triangle    2.7650       2.8458       2.8054
+Extra ground parameters      2.7274       2.8294       2.7784
+
+Selected whole-update time fell 48.6%; the triangle step improves
+on the empty-door-cache version by 5.3%. Baseline trials are now close
+(5.515 and 5.399 ms), unlike the prior 5.334-to-6.966 ms drift.
+
+The extra ground cache averages 2.7784 versus 2.8054 ms, only
+0.96% lower. Its trial ranges overlap; the previous round tied. That
+small difference does not justify the additional 640 bytes/route without
+stronger evidence. Keep/reject decisions remain unchanged. All eight
+invocations retain identical baseline final poses, identical detailed/control
+poses, 1,600 startup requests, zero runtime searches and zero dropped timing
+samples. No correctness suites were rerun because source is unchanged.
+
+Viewer repeats, medians per invocation; first 60 of 480 frames discarded:
+Run        GPU       CPU sim   CPU render  Preparation   CPU work (ms)
+0-baseline     6.775      7.803       4.157       0.272      12.225
+1-selected     5.949      4.225       4.103       0.259       8.565
+2-selected     5.660      4.281       4.166       0.249       8.706
+3-baseline     7.226      7.451       4.081       0.262      11.808
+4-baseline     8.385      7.396       4.033       0.263      11.707
+5-selected     6.108      4.207       4.088       0.254       8.540
+6-frozen       4.416      0.046       5.065       0.098       5.189
+
+Mean of the three per-invocation medians for each production version:
+baseline  GPU 7.462; CPU sim 7.550; CPU work 11.913 ms
+selected  GPU 5.906; CPU sim 4.238; CPU work 8.604 ms
+
+Viewer CPU simulation falls 43.9%, and CPU work falls 27.8%.
+GPU elapsed time is also lower, with unchanged rendering code/settings and
+matching final render counts. The first baseline/selected screenshots are
+byte-identical. Both show 9,185 town instances in 1,007 draws, 11,246 trees,
+zero camera-visible zombies and 110 zombie sun-shadow triangles. This still
+measures offscreen travelers, not a dense visible crowd or chasing actors.
+
+The old roughly 31 ms GPU result does not reproduce under logged AC/balanced
+conditions: current production medians span 5.660-8.385 ms. That strongly
+supports power/host conditions as an explanation for the earlier slowdown.
+The old profile was observed only at the end, so this is not a controlled
+isolation of battery status, profile, clocks or temperature individually.
+There is no evidence here for a new rendering-code regression. On this
+integrated GPU, reduced CPU load can affect GPU elapsed time even with the
+same image; do not interpret the GPU change as fewer graphics instructions.
+
+The frozen diagnostic now measures 4.416 ms GPU and
+5.189 ms CPU work. The previous conclusion that further zombie
+CPU optimization could not improve throughput applied only to that prior
+slow environment. This rerun demonstrates frame-work savings and leaves
+useful room for more CPU optimization. Frozen still is not a playable mode,
+a strict performance bound, or a promised result from partial optimizations.
+
+Next action remains profiling the unclassified route/movement/crowd/pose work
+with overhead controls. Selected detailed profiles average about 1.68 ms in
+other work and 0.48 ms across all ground stages. Ground support/contact proof
+sharing is worth investigating; extra cached barycentric constants remain
+rejected. Reduced check cadence and parallelization have not been introduced.
