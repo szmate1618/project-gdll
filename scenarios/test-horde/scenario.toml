@@ -1,6 +1,12 @@
 version = 2
 seed = 42
 
+[player]
+# 200 m northwest of the crossing horde's nearest spawn corner (2400, 2400),
+# ahead of its northwestward travel. Face southeast toward the approaching horde.
+spawn = [2258.579, 2258.579]
+orientation = [45.0, 0.0]
+
 [zombies.roamers]
 count = 1000
 # Omitted spawn and destination bounds allow valid positions across the map.

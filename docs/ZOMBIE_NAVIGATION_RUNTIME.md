@@ -45,6 +45,10 @@ multiple named hordes:
 version = 2
 seed = 42
 
+[player]
+spawn = [2258.579, 2258.579]
+orientation = [45.0, 0.0]
+
 [zombies.roamers]
 count = 1000
 
@@ -57,6 +61,8 @@ destination = [-2900.0, -2900.0, -2400.0, -2400.0]
 This example has 1,000 zombies with mapwide random spawns and destinations,
 plus 600 traveling from the lower-right (southeast) corner to the upper-left
 (northwest) corner of the current roughly 6 km map, for 1,600 zombies total.
+The player starts 200 m northwest of the crossing horde's nearest spawn corner,
+facing southeast toward its spawn region.
 
 Each `[zombies.NAME]` table requires its own `count`. Spawn and destination are
 independently optional flat rectangle arrays. Omitting either allows random
@@ -105,11 +111,13 @@ is supplied. Clients must still use the same `--spawn` position and vegetation
 preset as the server for the existing shared-content fingerprint.
 
 The [old-forest damage scenario](../scenarios/old-forest-damage/scenario.toml)
-contains 100 zombies, initially 10–25 m ahead of the player in the original
-orthophoto forest patch `northeast_north_e+01_n+05_01`. They walk south toward
-and past the player's starting position, continuing to destinations 50–70 m
-behind it for roughly 60–100 m routes. Its positions are authored constants
-selected from `forest_patches.json`; no forest detection runs at load.
+contains 100 zombies, initially 100–120 m ahead of the player in the original
+orthophoto forest patch `northeast_north_e+01_n+05_01`. The player starts at
+world X/Z `[700, -2700]`, facing north. The horde walks south toward and past
+the player, continuing to destinations 100–150 m behind it for roughly
+200–270 m routes. The player and both endpoint rectangles lie inside that same
+patch. Its positions are authored constants selected from `forest_patches.json`;
+no forest detection runs at load.
 Use the original vegetation preset:
 
 ```bash

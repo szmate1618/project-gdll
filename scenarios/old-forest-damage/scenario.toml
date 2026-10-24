@@ -6,13 +6,14 @@ seed = 42
 # north 2500..2932.735 m. Runtime Z is negative north.
 # Use --vegetation orthophoto to load this original forest data.
 [player]
-spawn = [700.0, -2600.0]
+spawn = [700.0, -2700.0]
 # Degrees: yaw -90 faces north (-Z), pitch 0 looks level.
 orientation = [-90.0, 0.0]
 
 [zombies.damage_targets]
 count = 100
-# Start 10..25 m ahead, then walk south toward and past the player's spawn.
-# Destinations 50..70 m behind the player give roughly 60..100 m walks.
-spawn = [688.0, -2625.0, 712.0, -2610.0]
-destination = [688.0, -2550.0, 712.0, -2530.0]
+# Start 100..120 m ahead, then walk south toward and past the player.
+# Destinations 100..150 m behind the player give roughly 200..270 m walks.
+# Both rectangles and the player are inside the same forest patch above.
+spawn = [688.0, -2820.0, 712.0, -2800.0]
+destination = [688.0, -2600.0, 712.0, -2550.0]
