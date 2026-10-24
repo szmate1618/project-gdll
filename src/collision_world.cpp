@@ -555,6 +555,10 @@ void CollisionWorld::visitContacts(glm::vec3 feet,float radius,float height,floa
         cache->triangleCount_=cache->trunkCount_=0;
         cache->trianglesComplete_=cache->trunksComplete_=true;
         Bounds patch; patch.low=cache->minimum_; patch.high=cache->maximum_;
+        // DoorLayer discovers potential hinge sweeps, not only current panel
+        // overlaps. An empty patch therefore stays door-free across activation
+        // and opening, while nearby panels still receive live pose queries.
+        cache->doorFree_=!impl_->doors || impl_->doors->colliders(patch.low,patch.high).empty();
         impl_->visitTriangles(patch,[&](const Triangle& triangle) {
             if (cache->triangleCount_==cache->triangles_.size()) {
                 cache->trianglesComplete_=false; return false;
@@ -627,7 +631,7 @@ void CollisionWorld::visitContacts(glm::vec3 feet,float radius,float height,floa
     // Dynamic manifold generation retains its existing API and live poses.
     // No static contacts are stored, and this list is never globally sorted.
     std::vector<Contact> dynamic;
-    if (impl_->doors) {
+    if (impl_->doors && (!cache || !cache->doorFree_)) {
         zombie_profile::Timer doorTimer(zombie_profile::Stage::contactDoors);
         appendDoorContacts(*impl_->doors,feet,radius,height,skin,dynamic);
     }

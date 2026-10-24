@@ -61,7 +61,7 @@ class ContactCandidates {
     std::array<std::uint32_t,64> triangles_{};
     std::array<std::uint32_t,32> trunks_{};
     std::size_t triangleCount_ = 0, trunkCount_ = 0;
-    bool trianglesComplete_ = false, trunksComplete_ = false;
+    bool trianglesComplete_ = false, trunksComplete_ = false, doorFree_ = false;
 };
 
 // Y-up vertical capsule. Base and height include the rounded end caps; the

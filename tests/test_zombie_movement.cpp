@@ -210,6 +210,17 @@ void contactCandidateReuse() {
     compare(world,{-.2f,0,0});
     world=viewer::CollisionWorld(viewer::Model{});
     compare(world,{-.2f,0,0});
+    viewer::DoorPanel panel;
+    panel.hinge={0,0,0};panel.center={.5f,1,0};panel.halfExtents={.5f,1,.04f};
+    panel.outward={0,0,1};panel.closedTransform=glm::translate(glm::mat4(1),panel.center);
+    viewer::DoorLayer doors({panel},physics);
+    const viewer::CollisionWorld doorWorld(floor(),{},&doors);
+    compare(doorWorld,{-3,0,0}); // Certified empty hinge patch.
+    compare(doorWorld,{.5f,0,0}); // Entering a populated patch must restore checks.
+    compare(doorWorld,{0,0,.5f}); // No closed-panel contact, but a potential sweep.
+    doors.setAngle(0,glm::half_pi<float>());
+    compare(doorWorld,{0,0,.5f});compare(doorWorld,{0,0,-.5f});
+    compare(doorWorld,{-3,0,0});
 }
 
 void cachedLiveSupport() {
