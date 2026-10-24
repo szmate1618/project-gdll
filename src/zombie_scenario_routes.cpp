@@ -1,3 +1,4 @@
+#include "zombie_update_profile.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_chase.hpp"
 #include "zombie_movement.hpp"
@@ -32,6 +33,7 @@ void ZombieLayer::abandonScenarioRoute(std::size_t id) {
 }
 
 void ZombieLayer::updateScenarioRoutes(float seconds, const CollisionWorld& world, bool advanceLooking) {
+    zombie_profile::Timer timer(zombie_profile::Stage::scenarioRoutes);
     if (scenarioRoutes_.empty()) return;
     if (scenarioRoutes_.size() != instances.size()) {
         scenarioRoutes_.clear(); // Bulk population replacement invalidates scenario IDs.

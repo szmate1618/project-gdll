@@ -1,3 +1,4 @@
+#include "zombie_update_profile.hpp"
 #include "zombie_movement.hpp"
 #include "collision_world.hpp"
 #include "zombie_crowd.hpp"
@@ -101,6 +102,7 @@ glm::vec3 resolve(glm::vec3 start, glm::vec3 desired, const CollisionWorld& worl
 
 ZombieMovement moveZombieBody(glm::vec3 start, glm::vec3 desired, const CollisionWorld& world,
                               ZombieCrowd* crowd, std::size_t id, WalkingGroundCache* groundCache,ContactCandidates* contactCache) {
+    zombie_profile::Timer timer(zombie_profile::Stage::bodyMovement);
     for (int axis = 0; axis < 3; ++axis)
         if (!std::isfinite(start[axis]) || !std::isfinite(desired[axis])) return {start};
     if (world.empty()) {

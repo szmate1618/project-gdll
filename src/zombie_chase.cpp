@@ -1,3 +1,4 @@
+#include "zombie_update_profile.hpp"
 #include "zombie_chase.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_movement.hpp"
@@ -36,6 +37,7 @@ bool turnZombieToward(ZombieInstance& instance, glm::vec2 direction, float secon
 
 void applyZombieLocomotion(ZombieInstance& instance, glm::vec2 desiredVelocity,
                            const ZombieMovement& movement, float speed, float seconds) {
+    zombie_profile::Timer timer(zombie_profile::Stage::locomotionPose);
     const auto start = glm::vec3(instance.restRoot[3]);
     const auto feet = movement.feet;
     instance.locomotionVelocity = seconds > 0 ? (feet - start) / seconds : glm::vec3(0);

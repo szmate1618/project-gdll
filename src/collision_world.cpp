@@ -869,7 +869,8 @@ std::optional<Contact> CollisionWorld::trunkContact(glm::vec3 center, float radi
 
 std::size_t CollisionWorld::nearbyTrunks(glm::vec3 feet, float agentHeight, float range,
                                         NearbyTrunk* output, std::size_t capacity,
-                                        bool& overflow) const {
+                                        bool& overflow, TrunkCandidates* cache) const {
+    zombie_profile::Timer timer(zombie_profile::Stage::steeringTrunks);
     overflow = false;
     if (!finite(feet) || !std::isfinite(agentHeight) || agentHeight <= 0 ||
         !std::isfinite(range) || range < 0) return 0;
@@ -880,8 +881,25 @@ std::size_t CollisionWorld::nearbyTrunks(glm::vec3 feet, float agentHeight, floa
     Bounds region;
     region.include(minimum);
     region.include(maximum);
+    if (cache && (cache->worldId_!=impl_->worldId ||
+        glm::any(glm::lessThan(region.low,cache->minimum_)) ||
+        glm::any(glm::greaterThan(region.high,cache->maximum_)))) {
+        zombie_profile::Timer candidateTimer(zombie_profile::Stage::steeringCandidates);
+        cache->worldId_=impl_->worldId;
+        cache->minimum_=region.low-glm::vec3(.5f);
+        cache->maximum_=region.high+glm::vec3(.5f);
+        cache->count_=0; cache->complete_=true;
+        Bounds patch; patch.low=cache->minimum_; patch.high=cache->maximum_;
+        impl_->visitTrunksIndexed(patch,[&](std::uint32_t id,const TrunkCollider&) {
+            if (cache->count_==cache->trunks_.size()) {
+                cache->complete_=false; return false;
+            }
+            cache->trunks_[cache->count_++]=id;
+            return true;
+        });
+    }
     std::size_t written = 0;
-    impl_->queryTrunksIndexed(region, [&](std::uint32_t id, const TrunkCollider& trunk) {
+    const auto append=[&](std::uint32_t id, const TrunkCollider& trunk) {
         // Double precision keeps range tests finite even for large valid floats.
         const double dx = double(feet.x) - trunk.base.x;
         const double dz = double(feet.z) - trunk.base.z;
@@ -889,7 +907,14 @@ std::size_t CollisionWorld::nearbyTrunks(glm::vec3 feet, float agentHeight, floa
         if (dx * dx + dz * dz > reach * reach) return;
         if (written < capacity) output[written++] = NearbyTrunk{id, trunk};
         else overflow = true;
-    });
+    };
+    if (cache && cache->complete_) {
+        for (std::size_t i=0;i<cache->count_;++i) {
+            const auto id=cache->trunks_[i];
+            const auto& trunk=impl_->trunks[id];
+            if (trunk.bounds.intersects(region)) append(id,trunk.collider);
+        }
+    } else impl_->queryTrunksIndexed(region,append);
     return written;
 }
 

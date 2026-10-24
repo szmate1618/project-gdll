@@ -1,3 +1,4 @@
+#include "zombie_update_profile.hpp"
 #include "zombie_crowd.hpp"
 
 #include <algorithm>
@@ -8,6 +9,7 @@
 namespace viewer {
 namespace {
 constexpr double cellSize = 1.0;
+constexpr double sectorCells = 8.0;
 constexpr double diameter = ZombieCrowd::bodyRadius * 2.0;
 constexpr double skin = 0.001; // Numerical clearance, not extra arm spacing.
 bool finite(glm::vec3 p) {
@@ -20,8 +22,20 @@ std::size_t ZombieCrowd::Hash::operator()(const Cell& cell) const {
     return x ^ (z + 0x9e3779b9u + (x << 6) + (x >> 2));
 }
 
+ZombieCrowd::ZombieCrowd(const ZombieCrowd& other)
+    : cells_(other.cells_), bodies_(other.bodies_), sectors_(other.sectors_), stats_(other.stats_) {
+    for (auto& body:bodies_)
+        if (body.present) body.sectorPopulation=&sectors_.at(body.sector);
+}
+
+ZombieCrowd& ZombieCrowd::operator=(const ZombieCrowd& other) {
+    if (this!=&other) *this=ZombieCrowd(other);
+    return *this;
+}
+
 void ZombieCrowd::reset(std::size_t population) {
     cells_.clear();
+    sectors_.clear();
     bodies_.assign(population, {});
     beginStep();
 }
@@ -35,6 +49,8 @@ void ZombieCrowd::erase(std::size_t id) {
     bodies_[bucket.back()].slot = body.slot;
     bucket.pop_back();
     if (bucket.empty()) cells_.erase(found);
+    if (--*body.sectorPopulation == 0) sectors_.erase(body.sector);
+    body.sectorPopulation = nullptr;
     body.present = false;
 }
 
@@ -44,9 +60,16 @@ void ZombieCrowd::update(std::size_t id, glm::vec3 feet) {
     const Cell cell{std::floor(double(feet.x) / cellSize), std::floor(double(feet.z) / cellSize)};
     auto& body = bodies_[id];
     if (!body.present || !(body.cell == cell)) {
+        const Cell sector{std::floor(cell.x/sectorCells),std::floor(cell.z/sectorCells)};
+        auto& population = sectors_[sector];
         auto& destination = cells_[cell];
         destination.push_back(id);
+        // Increment first: moving between fine cells in the same sector must
+        // keep that sector node alive while erase removes the old membership.
+        ++population;
         erase(id);
+        body.sector = sector;
+        body.sectorPopulation = &population;
         body.cell = cell;
         body.slot = destination.size() - 1;
         body.present = true;
@@ -62,6 +85,7 @@ glm::vec3 ZombieCrowd::constrain(std::size_t id, glm::vec3 desired) {
 
 glm::vec3 ZombieCrowd::constrainFrom(std::size_t id, glm::vec3 start, glm::vec3 desired,
                                      std::size_t& checks) {
+    zombie_profile::Timer timer(zombie_profile::Stage::crowdSweep);
     if (id >= bodies_.size() || !bodies_[id].present || !finite(start) || !finite(desired)) return start;
     glm::dvec2 position(start.x, start.z);
     glm::dvec2 remaining = glm::dvec2(desired.x, desired.z) - position;
@@ -78,6 +102,13 @@ glm::vec3 ZombieCrowd::constrainFrom(std::size_t id, glm::vec3 start, glm::vec3 
                        std::floor((std::min(position.y, end.y) - diameter - skin) / cellSize)};
         const Cell high{std::floor((std::max(position.x, end.x) + diameter + skin) / cellSize),
                         std::floor((std::max(position.y, end.y) + diameter + skin) / cellSize)};
+        const auto& body = bodies_[id];
+        if (*body.sectorPopulation == 1 &&
+            low.x >= body.sector.x*sectorCells && high.x < (body.sector.x+1)*sectorCells &&
+            low.z >= body.sector.z*sectorCells && high.z < (body.sector.z+1)*sectorCells) {
+            ++stats_.emptySectorSkips;
+            return {float(end.x),desired.y,float(end.y)};
+        }
         const auto visit = [&](const std::vector<std::size_t>& bucket) {
             for (const auto other : bucket) {
                 if (other == id) continue;

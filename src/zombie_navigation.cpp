@@ -1,3 +1,4 @@
+#include "zombie_update_profile.hpp"
 #include "zombie_navigation.hpp"
 #include "collision_world.hpp"
 #include "file_fingerprint.hpp"
@@ -34,6 +35,7 @@ void validateMesh(const navmesh_path::Mesh& mesh) {
 struct ZombieNavigation::Impl {
     struct State {
         steering::FollowState follow;
+        TrunkCandidates trunkCandidates;
         glm::vec2 velocity{0}, plannedGoal{0}, lastPosition{0};
         std::uint32_t goalPolygon=navmesh_path::noPolygon, currentPolygon=navmesh_path::noPolygon;
         glm::vec2 checkedStart{0}, checkedEnd{0};
@@ -146,6 +148,7 @@ bool ZombieNavigation::plan(std::size_t id,glm::vec3 feet,glm::vec3 target) {
 
 glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
                                     float speed,float dt,const CollisionWorld& world) {
+    zombie_profile::Timer timer(zombie_profile::Stage::navigationControl);
     auto& p=*impl_;
     if (id>=p.states.size()) return {0,0};
     auto& s=p.states[id];
@@ -216,7 +219,7 @@ glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
     bool overflow=false;
     const float range=std::max(speed,glm::length(s.velocity))*p.controller.config().horizon+
                       p.controller.config().radius+p.controller.config().skin;
-    const auto count=world.nearbyTrunks(feet,1.8f,range,p.trunks.data(),p.trunks.size(),overflow);
+    const auto count=world.nearbyTrunks(feet,1.8f,range,p.trunks.data(),p.trunks.size(),overflow,&s.trunkCandidates);
     if (overflow) { ++p.stats.trunkOverflows;s.velocity={0,0};return {0,0}; }
     for (std::size_t i=0;i<count;++i) {
         const auto& trunk=p.trunks[i].collider;

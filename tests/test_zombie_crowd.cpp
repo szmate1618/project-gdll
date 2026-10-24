@@ -46,6 +46,35 @@ void sweepSlideAndMembership() {
     require(near(crowd.constrain(0, {-1, 0, 0}), {-1, 0, 0}), "Existing overlap must allow outward escape");
 }
 
+void emptySectorInvalidation() {
+    viewer::ZombieCrowd crowd;
+    crowd.reset(2);
+    crowd.update(0,{3,0,3});crowd.update(1,{20,0,20});
+    require(crowd.constrain(0,{3.1f,0,3})==glm::vec3(3.1f,0,3) && crowd.stats().emptySectorSkips==1,
+            "A sole body may bypass fine queries only inside its sector");
+    auto copied=crowd;
+    viewer::ZombieCrowd assigned;assigned=copied;
+    auto moved=std::move(assigned);
+    crowd.update(1,{3.8f,0,3});crowd.beginStep();
+    require(crowd.constrain(0,{3.5f,0,3}).x<3.2f && crowd.stats().emptySectorSkips==0,
+            "An entering body must immediately invalidate empty-sector clearance");
+    require(copied.constrain(0,{3.1f,0,3})==glm::vec3(3.1f,0,3) &&
+            moved.constrain(0,{3.1f,0,3})==glm::vec3(3.1f,0,3),
+            "Copied/moved crowd occupancy must be independent of the original");
+    copied.update(1,{3.8f,0,3});
+    require(copied.constrain(0,{3.5f,0,3}).x<3.2f,
+            "Copied crowd bodies must reference their own sector counts");
+    crowd.erase(1);crowd.beginStep();
+    require(crowd.constrain(0,{3.1f,0,3})==glm::vec3(3.1f,0,3) && crowd.stats().emptySectorSkips==1,
+            "Removing the other body restores empty-sector clearance");
+    crowd.update(0,{7.4f,0,3});crowd.update(1,{8.1f,0,3});crowd.beginStep();
+    require(crowd.constrain(0,{7.8f,0,3}).x<7.5f && crowd.stats().emptySectorSkips==0,
+            "A sweep crossing the sector boundary must test the neighboring sector");
+    crowd.update(0,{4,0,4});crowd.update(0,{5,0,4});crowd.beginStep();
+    require(crowd.constrain(0,{5.1f,0,4})==glm::vec3(5.1f,0,4) && crowd.stats().emptySectorSkips==1,
+            "Fine-cell relocation must retain its live sector node");
+}
+
 void opposingMoversAndDenseBudget() {
     viewer::ZombieCrowd crowd;
     crowd.reset(2);
@@ -200,6 +229,7 @@ void packedCrowd() {
 int main() {
     try {
         sweepSlideAndMembership();
+        emptySectorInvalidation();
         opposingMoversAndDenseBudget();
         behaviorIntegration();
         slidingTerrainAndNormalization();

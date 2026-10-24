@@ -205,7 +205,15 @@ The contact breakdown now separates candidate refresh, triangle, trunk, door
 and prop work; ground separates static geometry and props. Parent stage lines
 contain self-time: sum their children to obtain inclusive contact/ground totals.
 Door candidate and overlap counters distinguish broad-phase work from actual
-collisions. See the [contact and ground evaluation, 2026-10-24](benchmarks/zombie-contact-efficiency-2026-10-24.txt)
+collisions.
+
+The remaining update work is also split into behavior dispatch, scenario route
+control, navigation control, path following, steering trunk lookup/refresh,
+body movement, crowd sweeps, root locomotion pose and render notifications.
+These parent lines remain exclusive. Headless CSVs include crowd move, neighbor,
+budget-stop and empty-sector bypass counts. The [route/crowd/pose evaluation](benchmarks/zombie-route-efficiency-2026-10-24.txt)
+records selected changes, trajectory checks and actual viewer measurements.
+See the [contact and ground evaluation, 2026-10-24](benchmarks/zombie-contact-efficiency-2026-10-24.txt)
 for the measured decisions and viewer limitations.
 
 `godollo_viewer --frame-profile FILE` saves asynchronous per-frame GPU and CPU

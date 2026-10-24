@@ -1,3 +1,4 @@
+#include "zombie_update_profile.hpp"
 #include "zombie_behavior.hpp"
 #include "simulation_clock.hpp"
 #include "noise.hpp"
@@ -287,6 +288,7 @@ void ZombieLayer::updateBehaviorForPlayers(float seconds, const std::vector<Zomb
 void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
                                     const CollisionWorld& world, double animationSeconds,
                                     const std::vector<ZombiePlayer>* players) {
+    zombie_profile::Timer timer(zombie_profile::Stage::behaviorDispatch);
     if (!std::isfinite(seconds) || seconds <= 0) return;
     if (!perceptionEnabled_) {
         behaviorStats_ = {};

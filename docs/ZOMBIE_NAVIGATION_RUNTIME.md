@@ -199,6 +199,19 @@ The existing exact-match step cache still avoids duplicate physical validation;
 accepting movement clears that one-step result, while certified regions remain
 valid until exit or route invalidation. Reset/replan/release clear the region.
 
+Steering also reuses at most 32 static trunk candidates in a padded 3D patch.
+Every call still filters the current height/range in original BVH order;
+world changes or patch exit refresh it, and dense overflow uses the full BVH.
+The path follower rejects obviously distant arrival tests before `hypot`, with
+the original calculation retained around arrival/reached boundaries.
+
+The shared crowd keeps exact current occupancy counts in 8 m sectors. A sweep
+whose entire expanded fine-grid query lies inside a sector containing only
+itself can return the unobstructed endpoint directly. Other sweeps retain the
+fine-grid solver, ID ties and budget. Counts change on commit/removal; this is
+an immediate occupancy proof, not a timed cache of neighbors. See the [route,
+crowd and pose experiments](benchmarks/zombie-route-efficiency-2026-10-24.txt).
+
 Each scenario route owns a bounded walking-ground cache for a 1 m square patch.
 It keeps up to 16 static support candidates across all heights, re-evaluating
 triangle coverage and the current height limits on every query. Leaving the

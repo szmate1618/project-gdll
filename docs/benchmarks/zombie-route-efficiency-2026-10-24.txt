@@ -1,0 +1,230 @@
+Route, crowd and root-pose profiling and optimization, 2026-10-24
+
+Decision and scope
+Baseline: 80a2259, already containing the previous contact/coverage/door
+optimizations. Continue on experiment/zombie-contact-efficiency-20261024.
+Keep bounded steering-trunk candidates, exact empty-sector crowd certificates,
+and cheap far-waypoint rejection. Keep the expanded opt-in profile and reduce
+inactive timer initialization. No threading or lower-frequency updates.
+
+Plan and outcomes
+1. Split the previously unclassified update work into behavior dispatch,
+   scenario route iteration, navigation control, path following, steering trunk
+   lookup, body-movement control, crowd sweeps, root locomotion pose and render
+   notifications. Existing contact, ground, coverage and spatial scopes remain.
+2. Follow the measurements: tree gathering and empty crowd-grid traversal were
+   substantial; pose updates were smaller. Test exact candidate/proof reuse.
+3. Also try cheap rejection before waypoint distance calculations, preserving
+   the original boundary calculation and coverage rules.
+4. Compare original/current trajectories and focused correctness tests, then
+   alternate final whole-update and real-viewer runs. Keep choices supported
+   by those results; record remaining work rather than introducing threads.
+
+Retained changes and limits
+Steering: every navigation state owns TrunkCandidates, at most 32 static IDs
+in a query AABB padded by 0.5 m on each side. Reuse only when the entire current
+query is covered and the immutable collision-world identity matches. Filter
+stored trunks by current AABB/height and exact circular range; retain BVH
+order, bounded output and overflow behavior. Overflowing caches use the full
+BVH. Tree geometry is immutable for this world's lifetime. This is candidate
+reuse, not stale steering velocity or skipped avoidance. Cache sizeof on this
+build is 176 bytes/actor, about 275 KiB for 1,600 actors. Dense tree neighborhoods
+may still fall back; large crowds pay the additional cache memory.
+
+Crowd: retain the 1 m fine grid and add population counts for 8x8 m sectors.
+If the entire radius-expanded swept query lies inside the indexed actor's
+sector and that sector contains only itself, no other body can be a candidate.
+Return the same unobstructed endpoint without fine-cell hash lookups. Otherwise
+run the existing sweep/slide solver, ID ties and shared neighbor budget.
+Sector counts change immediately on commit/removal, so later actors observe
+earlier movement as before. Neighboring sectors are never assumed empty.
+Fine-cell relocation increments the destination count before erasing its old
+membership; this preserves the referenced sector node. Copying rebinds body
+references to the copied map; moves retain stable unordered-map nodes.
+The coarse map is bounded by occupied sectors; body metadata and node counts
+add memory. This benefits sparse travel and is not an avoidance shortcut in
+packed crowds. The final real-map fixture skips about 1,075 of 1,597 sweeps per
+update (67.3%); it still checks all actual neighbors.
+
+Waypoints: reject coordinates clearly farther than twice the comparison radius
+before hypot. Near the 0.15 m arrival and 10 micrometer reached boundaries,
+keep the exact original hypot comparisons. Target normalization, waypoint
+coverage checks and numerical corner handling remain. This avoids most distant
+radius calculations without a squared-distance rounding change.
+
+Profiling: all scopes remain opt-in/exclusive. Parent lines are self-time;
+children belong to their own lines. CPU whole-update control runs disable
+fine clocks. Inactive Timer objects now initialize only the profile pointer;
+all other fields are initialized inside the enabled branch before use. Root
+pose timing covers heading/matrix and locomotion-clock updates, not skeleton
+sampling or animation palettes. Render notifications only queue dirty IDs.
+
+Workload and measurement protocol
+Release; current output/godollo.glb/navmesh; 1,600 seeded scenario zombies,
+1,160,022 static triangles, 155,825 trunks; player X=-526.465 Z=296.095.
+Headless benchmark: CPU affinity 0, dt=1/60, 60 warmup and 300 measured steps
+in each of six alternating detailed/control runs. Every table entry averages
+900 controls. Setup/planning and CSV writes are outside the update timer.
+No rendering, networking, audio or dynamic physics advancement in this fixture.
+
+Fine profiling changes execution cost: final detailed updates average about
+4.176 ms versus 2.701 ms in controls. Stage values locate work; they are not
+unperturbed production costs. All measured scopes used calibrated invariant
+TSC, with zero migrated samples. Baseline controls use the saved previous
+executable, so final comparisons include the production cost of new inactive
+profiling scopes too. There is host timing variation even with AC/balanced;
+do not compare arbitrary exploratory phases as a controlled speedup.
+
+Final headless controls, ms/update, alternating B/S/S/B:
+  headless-baseline@final0       3.7164
+  headless-selected@final1       2.8153
+  headless-selected@final2       2.5864
+  headless-baseline@final3       3.7640
+Mean baseline 3.7402; selected 2.7009: 27.8% lower update time.
+
+Exploratory controls, saved separately rather than used as the final baseline:
+  headless-baseline              2.9515
+  headless-baseline@second       4.0826
+  headless-profile               3.4395
+  headless-sectors               2.6957
+  headless-sectors@second        2.7683
+  headless-sectors@third         2.3781
+  headless-trunks                2.8663
+  headless-waypoints             2.8977
+  headless-waypoints@second      2.2134
+
+Expanded detailed profile: initial discovery versus final selected means
+(milliseconds/update; exclusive except explicitly combined groups). The two
+phases have different host/timer overhead conditions. Whole-update gains are
+from the alternating controls above, not the sum of these differences.
+Stage                                  Initial     Selected
+All contacts                              0.9877       1.1289
+All ground                                0.5252       0.5863
+Scenario route control (self)             0.3249       0.3624
+Navigation control (self)                 0.3480       0.3801
+Path following                            0.1671       0.1370
+Steering trunk lookup + refresh           0.6550       0.1719
+Detour velocity selection                 0.1811       0.2047
+Body movement control (self)              0.2724       0.3154
+Crowd sweeps                              0.5127       0.3159
+Root locomotion pose                      0.1926       0.2202
+Spatial membership/bounds                 0.1751       0.2125
+Navmesh coverage                          0.0599       0.0685
+Render notifications                      0.0442       0.0497
+Behavior dispatch (self)                  0.0106       0.0116
+Unclassified + timer remainder            0.0079       0.0081
+
+Ground remains 1,627.16 queries/update; contacts 1,650.14; steering/path updates
+1,599; spatial updates 1,600. Selected steering cache refreshes average 55.45
+per update. Crowd has 13.34 neighbor checks/update, zero budget stops and
+1,074.66 empty-sector bypasses. Ground heights, live props/nearby doors, 10 cm
+movement subdivision and navmesh guards remain. Previous rejected extra ground
+arithmetic is still absent. No runtime searches were added.
+
+Isolated differential and cost probes
+Crowd captures: 2,048 actors x 128 steps each for sparse, mixed and dense
+layouts, two substep sweeps per processed body, alternating update order,
+negative/fine/sector crossings, vertical separation, removal/reentry and
+copy/move. Positions and move/neighbor/budget counters are byte-identical to
+the previous implementation. Timing uses three pinned runs/version alternating
+B/S/S/B/B/S with result output to /dev/null; RNG and output are included:
+  Sparse: 101.104 -> 52.697 ms (47.9% lower).
+  Mixed: 175.488 -> 153.780 ms (12.4% lower).
+  Dense: 259.407 -> 255.382 ms (roughly unchanged; not a claimed dense win).
+These are synthetic solver/capture times, not real-map update predictions.
+
+Waypoint captures: 200,000 cases, local/large coordinates and double neighbors
+around arrival/reached thresholds, exact velocity/segment/arrived output match.
+Capture uses no mesh; focused mesh-following tests and real-map runs cover
+corner/coverage behavior. Matching inactive profiler scopes in both timing
+versions; four pinned repeats/version average 65.785 -> 43.848 ms. Large trial
+variance (old 45.5-81.0, selected 29.6-59.2 ms) limits precision. The production
+profile and final controls are the relevant workload evidence.
+
+Actual viewer: same 1280x720 street camera, scenario, assets and render settings;
+480 frames/run, discard first 60, no audio, fixed time 12.3/day/animation clocks,
+hidden uncapped rendering. Only --frame-profile, no fine --profile. Six runs
+B/S/S/B/B/S; medians per run, ms:
+Run                           GPU      CPU sim   CPU work
+viewer-baseline@final0           9.837     5.455     10.813
+viewer-selected@final1           8.532     4.083      9.739
+viewer-selected@final2           7.957     3.794      9.162
+viewer-baseline@final3           9.159     5.470     10.687
+viewer-baseline@final4           9.129     5.300     10.343
+viewer-selected@final5           8.350     4.157      9.894
+
+Means of the three run medians/version:
+  Baseline GPU 9.375; CPU sim 5.408; CPU work 10.614 ms.
+  Selected GPU 8.280; CPU sim 4.011; CPU work 9.598 ms.
+  Viewer simulation 25.8% lower; CPU work 9.6% lower.
+
+GPU code/draw settings did not change. GPU elapsed changes can reflect CPU/GPU
+resource overlap on the integrated Radeon 660M; CPU submission/preparation may
+include driver waits. Do not add GPU/CPU or infer lower graphics instruction
+count. Current CPU work and GPU are now fairly close; further CPU savings need
+another end-to-end measurement. Earlier frozen timings under different host
+conditions are not a strict bound for this round.
+
+The first baseline/selected screenshots are byte-identical and the selected
+capture was visually inspected. Same 11,246 trees, 9,185 town instances in
+1,007 town draws, zero camera-visible zombies, 110 zombie sun-shadow triangles.
+This workload exercises offscreen navigation, not visible hordes or mass chase.
+
+Power: all 19 invocations logged balanced before/after, and all
+318 two-second samples reported AC online. No power settings changed and
+no builds/other benchmarks ran alongside the final timed cases. Power state
+alone does not hold CPU clocks, scheduling, temperature or GPU clocks constant.
+
+Validation
+Viewer and authoritative server built. All 24 affected CTest suites passed
+(collision/trunks, navigation/scenario, steering/path following, doors/walking,
+chase/crowd/movement/motion/attack/behavior/perception/transition/shooting,
+spatial/render updates, FPS/character step, frame profile, server navigation
+and multiplayer core). Added cached-query tests compare current geometry,
+height/range, capacity/overflow/order, cache exit, world replacement and dense
+fallback without query allocations. Added crowd tests cover sole occupancy,
+entering/removing actors, sector boundaries, within-sector relocation and
+copy/move ownership. Mixed crowd capture passes address/undefined-behavior
+sanitizers. Every exploratory/final real-map version matches baseline final
+poses; each invocation's six modes also agree, with 1,600 startup requests and
+zero runtime searches. These finite captures are evidence, not exhaustive proof.
+
+What next / limits
+The measured root-pose cost is about 0.22 ms with fine timing; render dirty
+notifications about 0.05 and activation/dispatch about 0.01. Those are small
+ceilings compared with ground/contact work. No skeleton evaluation occurs in
+this pose stage. Skipping unchanged spatial updates may help stationary idle
+or attacking actors, but nearly every traveler moves in this fixture.
+
+The best next exact experiment is sharing a proven supporting surface between
+ground selection and contact handling, or certifying that a walkable support
+face cannot block the current capsule. Preserve seams, edges, step ceilings,
+overlapping surfaces and live props; do not substitute a stale height. Ground
+and triangle contact stages remain material after steering/crowd savings.
+
+Route/navigation/body control also deserves a more targeted split before
+changing it: consolidate duplicated result bookkeeping only where unchanged
+positions/coverage/heading inputs can be proved. Storing a path handle rather
+than hashing the ID every follow is another small candidate, with generation
+and release/reset semantics preserved. Pose matrix reuse needs exact input
+invalidation; raw yaw/normalization caching could change legacy rounding.
+
+Cache size/patch tuning and 4/8/16 m crowd sectors can trade memory, occupancy
+hit rate and refresh cost. Retain dense overflow/boundary fallbacks, and measure
+sparse versus packed layouts. Approximate collision, slower update cadence,
+skeleton/render optimization and worker threads remain separate future work.
+Threading is still last; no large future speedup is promised from a small stage.
+
+Reproduction and artifacts
+build/benchmarks/zombie-route-efficiency-20261024/ contains all CSVs/logs,
+source snapshots, saved executables, differential captures, source.patch,
+metadata.json, summary.json and helpers/ scripts. Generated artifacts stay
+ignored. Base revision plus source.patch reconstructs runtime/test changes.
+The runner refuses to overwrite an existing case; use a new @label for repeats.
+
+From the repository root (Release):
+  cmake --build build --target benchmark_zombie_updates godollo_viewer godollo_server -j4
+  taskset -c 0 ./build/multiplayer/benchmark_zombie_updates output/godollo.glb scenarios/test-horde/scenario.toml build/benchmarks/route-review-check -526.465 296.095
+  ./build/godollo_viewer output/godollo.glb --scenario build/benchmarks/zombie-contact-efficiency-20261024/scenario-viewer.toml --hidden --frames 480 --no-audio --time-of-day 12.3 --day-length 0 --animation-time 0 --frame-profile /tmp/route-viewer.csv
+Use --profile separately to see the expanded exclusive update stages; omit it
+for whole-frame controls. See helpers/ for exact per-version replay/probes.

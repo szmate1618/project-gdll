@@ -8,7 +8,7 @@
 namespace viewer {
 
 struct ZombieCrowdStats {
-    std::size_t moves = 0, neighborChecks = 0, budgetStops = 0;
+    std::size_t moves = 0, neighborChecks = 0, budgetStops = 0, emptySectorSkips = 0;
 };
 
 // Simulation-thread upright body cylinders, in world X/Z meters, with feet Y.
@@ -20,6 +20,12 @@ public:
     static constexpr float bodyRadius = 0.30f;
     static constexpr float bodyHeight = 1.8f;
     static constexpr std::size_t neighborBudget = 64;
+
+    ZombieCrowd() = default;
+    ZombieCrowd(const ZombieCrowd& other);
+    ZombieCrowd& operator=(const ZombieCrowd& other);
+    ZombieCrowd(ZombieCrowd&&) noexcept = default;
+    ZombieCrowd& operator=(ZombieCrowd&&) noexcept = default;
 
     void reset(std::size_t population);
     void update(std::size_t id, glm::vec3 feet);
@@ -43,12 +49,16 @@ private:
     struct Hash { std::size_t operator()(const Cell& cell) const; };
     struct Body {
         glm::vec3 feet{0};
-        Cell cell;
+        Cell cell, sector;
+        std::size_t* sectorPopulation = nullptr;
         std::size_t slot = 0;
         bool present = false;
     };
     std::unordered_map<Cell, std::vector<std::size_t>, Hash> cells_;
     std::vector<Body> bodies_;
+    // Coarse counts certify empty fine-grid neighborhoods. Nodes stay valid
+    // through map rehash; a live body owns one count in its referenced node.
+    std::unordered_map<Cell, std::size_t, Hash> sectors_;
     ZombieCrowdStats stats_;
 };
 

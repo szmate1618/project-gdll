@@ -73,6 +73,18 @@ struct TrunkCollider {
     float height = 5.0f;
 };
 
+// Bounded static trunk candidates for steering. The entire query AABB must
+// stay inside the cached patch; world replacement/exit refresh it. Overflow
+// falls back to the original BVH traversal, preserving output order and limits.
+class TrunkCandidates {
+    friend class CollisionWorld;
+    std::uint64_t worldId_ = 0;
+    glm::vec3 minimum_{0}, maximum_{0};
+    std::array<std::uint32_t,32> trunks_{};
+    std::size_t count_ = 0;
+    bool complete_ = false;
+};
+
 // Stable original construction index and a copy of the physical trunk capsule.
 struct NearbyTrunk {
     std::uint32_t id = 0;
@@ -153,7 +165,7 @@ public:
     // A null output is equivalent to zero capacity. Invalid input returns zero.
     std::size_t nearbyTrunks(glm::vec3 feet, float agentHeight, float range,
                              NearbyTrunk* output, std::size_t capacity,
-                             bool& overflow) const;
+                             bool& overflow, TrunkCandidates* candidates = nullptr) const;
 
 private:
     std::optional<GroundHit> queryGround(float x, float z, float minY, float maxY,

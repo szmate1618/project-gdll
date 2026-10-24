@@ -1,3 +1,4 @@
+#include "zombie_update_profile.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_ragdoll.hpp"
 #include "zombie_ragdoll_pose.hpp"
@@ -97,6 +98,7 @@ void ZombieLayer::queryLivingNear(glm::vec3 center, float radius, std::vector<st
 }
 
 void ZombieLayer::markRenderChanged(std::size_t id, bool bounds) {
+    zombie_profile::Timer timer(zombie_profile::Stage::renderNotifications);
     if (id >= instances.size()) throw std::out_of_range("Invalid zombie render ID");
     renderUpdates_.mark(id, bounds);
 }

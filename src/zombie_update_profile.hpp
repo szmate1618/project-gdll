@@ -17,12 +17,14 @@ namespace viewer::zombie_profile {
 enum class Stage : std::size_t {
     ground, contacts, coverage, steering, spatial, contactCandidates,
     contactTriangles, contactTrunks, contactDoors, contactProps,
-    groundStatic, groundProps, count
+    groundStatic, groundProps, steeringCandidates, behaviorDispatch, scenarioRoutes, navigationControl,
+    pathFollowing, steeringTrunks, bodyMovement, crowdSweep, locomotionPose, renderNotifications, count
 };
 inline constexpr std::array<const char*, std::size_t(Stage::count)> names{{
     "ground queries", "contact queries", "navmesh coverage", "Detour steering", "spatial updates",
     "contact candidates", "contact triangles", "contact trunks", "contact doors", "contact props",
-    "ground static", "ground props"
+    "ground static", "ground props", "steering trunk candidates", "behavior dispatch", "scenario routes", "navigation control",
+    "path following", "steering trunk lookup", "body movement", "crowd sweep", "locomotion pose", "render notifications"
 }};
 struct Measurement { double seconds = 0; std::uint64_t calls = 0, dropped = 0; };
 struct Profile {
@@ -133,8 +135,10 @@ private:
 // reported stages can be added without double counting.
 class Timer {
 public:
-    explicit Timer(Stage stage) : profile_(activeProfile), stage_(stage) {
+    explicit Timer(Stage stage) : profile_(activeProfile) {
         if (!profile_) return;
+        stage_ = stage;
+        children_ = 0;
         parent_ = activeTimer;
         activeTimer = this;
         start_ = detail::ticks(cpu_);
@@ -157,9 +161,9 @@ public:
 private:
     Profile* profile_;
     Stage stage_;
-    Timer* parent_ = nullptr;
-    std::uint64_t start_ = 0;
-    unsigned cpu_ = 0;
-    double children_ = 0;
+    Timer* parent_;
+    std::uint64_t start_;
+    unsigned cpu_;
+    double children_;
 };
 } // namespace viewer::zombie_profile
