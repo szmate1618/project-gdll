@@ -52,6 +52,7 @@ struct Options {
     std::filesystem::path guardrails;
     std::filesystem::path zombies;
     std::filesystem::path scenario;
+    bool fullScenarioMovement = false, fixedStep = false;
     int frames = 0;
     int width = 1280, height = 720;
     bool fullscreen = false;
@@ -201,6 +202,8 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--no-town-culling") options.sceneCulling = false;
         else if (argument == "--no-tree-collisions") options.treeCollisions = false;
         else if (argument == "--zombies") { options.zombies = value(); options.explicitZombies = true; }
+        else if (argument == "--fixed-step") options.fixedStep = true;
+        else if (argument == "--full-scenario-movement") options.fullScenarioMovement = true;
         else if (argument == "--scenario") {
             if (!options.scenario.empty()) throw std::runtime_error("Repeated --scenario option");
             options.scenario = value();
@@ -342,6 +345,8 @@ void printHelp() {
               << "  --no-town-culling   Render all town draw instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
               << "  --zombies PATH      Load individual animated GLB/glTF files from PATH\n"
+              << "  --fixed-step        Advance simulation by 1/60 s per frame (benchmark)\n"
+              << "  --full-scenario-movement  Disable distant traveler approximations\n"
               << "  --scenario FILE     Load zombie spawns and preplanned destinations from TOML\n"
               << "  --zombie-count N    Number of zombies (default 300 in palace gardens, otherwise 1000)\n"
               << "  --zombie-radius M   Use radial placement near spawn/map center (default 100 m)\n"
@@ -1010,6 +1015,7 @@ int run(const Options& options) {
         scenarioPlayer = scenario.player;
         const auto path = options.zombies.empty() ? std::filesystem::path(VIEWER_ZOMBIE_ASSETS) : options.zombies;
         zombies = viewer::loadZombieScenario(path, collision, model, navmesh, scenario);
+        if (options.fullScenarioMovement) zombies->setDistantScenarioTravelEnabled(false);
         std::cout << "Scenario: " << options.scenario << "; " << zombies->instances.size()
                   << " zombies with preplanned random destinations\n";
     } else if (!options.noZombies && (options.explicitZombies || townSizedTerrain)) {
@@ -1188,6 +1194,7 @@ int run(const Options& options) {
     viewer::GpuTimer gpuTimer;
     std::unique_ptr<viewer::FrameProfile> frameProfile;
     if (!options.frameProfile.empty()) frameProfile=std::make_unique<viewer::FrameProfile>(options.frameProfile);
+    if (options.fixedStep) std::cout << "Fixed simulation step: 1/60 s per frame\n";
     double previous = glfwGetTime(), titleTime = previous;
     auto& simulationClock = viewer::SimulationClock::instance();
     simulationClock.reset();
@@ -1201,7 +1208,7 @@ int run(const Options& options) {
         glfwPollEvents();
         renderer.setFlashlight(app.flashlight);
         const double now = glfwGetTime();
-        const float dt = static_cast<float>(std::clamp(now - previous, 0.0, 0.1));
+        const float dt = options.fixedStep?1.f/60:static_cast<float>(std::clamp(now - previous, 0.0, 0.1));
         previous = now;
         if (app.width <= 0 || app.height <= 0) {
             audio.service();

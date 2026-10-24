@@ -4,6 +4,7 @@
 #include "zombie_movement.hpp"
 #include "zombie_navigation.hpp"
 #include "simulation_clock.hpp"
+#include <cmath>
 
 namespace viewer {
 namespace {
@@ -11,17 +12,14 @@ constexpr float walkSpeed = 1.2f;
 
 bool followScenarioRoute(ZombieInstance& instance, glm::vec3 destination, float seconds,
                          const CollisionWorld& world, ZombieCrowd& crowd, std::size_t id,
-                         ZombieNavigation& navigation, WalkingGroundCache& groundCache,ContactCandidates& contacts) {
+                         ZombieNavigation& navigation, WalkingGroundCache& groundCache,ContactCandidates& contacts,TravelerPlan& travel,
+                         bool distant) {
     const auto start = glm::vec3(instance.restRoot[3]);
     if (glm::length(glm::vec2(destination.x - start.x, destination.z - start.z)) <= 1e-4f) return true;
-    const auto velocity = navigation.follow(id, start, walkSpeed, seconds, world);
-    auto movement = moveZombieBody(start,
-        start + glm::vec3(velocity.x * seconds, 0, velocity.y * seconds), world, &crowd, id, &groundCache,&contacts);
-    // Collision/crowd sliding can change the proposed direction. Validate the
-    // final physical step before publishing its pose or animation progress.
-    if (!navigation.movementClear(id, start, movement.feet)) movement = {start};
-    navigation.recordMovement(id, start, movement.feet, seconds);
-    applyZombieLocomotion(instance, velocity, movement, walkSpeed, seconds);
+    const auto step=moveScenarioTraveler(id,start,seconds,world,navigation,crowd,groundCache,contacts,travel,distant);
+    const auto& movement=step.movement;
+    navigation.recordMovement(id,start,movement.feet,seconds);
+    applyZombieLocomotion(instance,step.velocity,movement,walkSpeed,seconds);
     return glm::length(glm::vec2(destination.x - movement.feet.x, destination.z - movement.feet.z)) <= 1e-4f;
 }
 } // namespace
@@ -29,10 +27,12 @@ bool followScenarioRoute(ZombieInstance& instance, glm::vec3 destination, float 
 void ZombieLayer::abandonScenarioRoute(std::size_t id) {
     if (id >= scenarioRoutes_.size() || scenarioRoutes_[id].overridden) return;
     scenarioRoutes_[id].overridden = true;
+    scenarioRoutes_[id].travel={};
     if (navigation_) navigation_->reset(id);
 }
 
-void ZombieLayer::updateScenarioRoutes(float seconds, const CollisionWorld& world, bool advanceLooking) {
+void ZombieLayer::updateScenarioRoutes(float seconds, const CollisionWorld& world,const ZombiePlayer& player,
+                                      const std::vector<ZombiePlayer>* players,bool advanceLooking) {
     zombie_profile::Timer timer(zombie_profile::Stage::scenarioRoutes);
     if (scenarioRoutes_.empty()) return;
     if (scenarioRoutes_.size() != instances.size()) {
@@ -59,7 +59,19 @@ void ZombieLayer::updateScenarioRoutes(float seconds, const CollisionWorld& worl
                 behavior->idleSinceSeconds = SimulationClock::instance().seconds();
             }
             const bool looking = behavior && behavior->state == ZombieState::looking;
-            if (!looking && followScenarioRoute(instance, route.destination, seconds, world, crowd_, id, *navigation_, route.groundCache,route.contactCache)) {
+            // Hysteresis leaves a wide full-rate buffer around perception range.
+            // Check every player, including observers unrelated to this actor's
+            // selected behavior target. No players permits distant travel.
+            const float range=route.travel.distant?160.f:200.f;
+            const auto near=[&](const ZombiePlayer& observer) {
+                const glm::vec2 offset(observer.feet.x-instance.restRoot[3].x,observer.feet.z-instance.restRoot[3].z);
+                return !std::isfinite(offset.x) || !std::isfinite(offset.y) || glm::dot(offset,offset)<=range*range;
+            };
+            bool distant=true;
+            if (players) { for (const auto& observer:*players) if (near(observer)) { distant=false;break; } }
+            else distant=!near(player);
+            if (looking) route.travel={};
+            if (!looking && followScenarioRoute(instance, route.destination, seconds, world, crowd_, id, *navigation_, route.groundCache,route.contactCache,route.travel,distant && distantScenarioTravel_)) {
                 route.finished = true;
                 if (navigation_) navigation_->reset(id);
                 stopZombieLocomotion(instance);

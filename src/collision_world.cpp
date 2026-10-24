@@ -107,6 +107,32 @@ bool verticalIntersection(const Triangle& t, float x, float z, float& y) {
     return true;
 }
 
+// Upper height bound of the triangle portion inside an X/Z rectangle. Cold
+// candidate refresh only. A triangle clipped by four half-planes has <=7 vertices.
+float clippedHeight(const Triangle& triangle, glm::vec3 low, glm::vec3 high) {
+    std::array<glm::dvec3,12> polygon{}, next{};
+    polygon[0]=triangle.a; polygon[1]=triangle.b; polygon[2]=triangle.c;
+    std::size_t count=3;
+    for (int axis:{0,2}) for (bool lower:{true,false}) {
+        if (!count) return std::numeric_limits<float>::lowest();
+        const double bound=lower?low[axis]:high[axis];
+        const auto inside=[&](glm::dvec3 p) { return lower?p[axis]>=bound:p[axis]<=bound; };
+        std::size_t written=0;
+        auto previous=polygon[count-1]; bool wasInside=inside(previous);
+        for (std::size_t i=0;i<count;++i) {
+            const auto current=polygon[i]; const bool isInside=inside(current);
+            if (isInside!=wasInside)
+                next[written++]=previous+(current-previous)*((bound-previous[axis])/(current[axis]-previous[axis]));
+            if (isInside) next[written++]=current;
+            previous=current; wasInside=isInside;
+        }
+        polygon=next; count=written;
+    }
+    double maximum=std::numeric_limits<float>::lowest();
+    for (std::size_t i=0;i<count;++i) maximum=std::max(maximum,polygon[i].y);
+    return float(maximum);
+}
+
 glm::vec3 closestTrianglePoint(glm::vec3 p, const Triangle& t, bool* interior=nullptr) {
     if (interior) *interior=false;
     const glm::dvec3 a(t.a), b(t.b), c(t.c), point(p);
@@ -552,8 +578,138 @@ std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, floa
     return result;
 }
 
+void CollisionWorld::prepareContactCandidates(glm::vec3 minimum,glm::vec3 maximum,ContactCandidates& cache) const {
+    if (cache.worldId_!=impl_->worldId ||
+        glm::any(glm::lessThan(minimum,cache.minimum_)) ||
+        glm::any(glm::greaterThan(maximum,cache.maximum_))) {
+        zombie_profile::Timer candidateTimer(zombie_profile::Stage::contactCandidates);
+        cache.worldId_=impl_->worldId;
+        cache.minimum_=minimum-glm::vec3(.5f);
+        cache.maximum_=maximum+glm::vec3(.5f);
+        cache.triangleCount_=cache.trunkCount_=0;
+        cache.trianglesComplete_=cache.trunksComplete_=true;
+        cache.walkingBounds_=false;
+        Bounds patch; patch.low=cache.minimum_; patch.high=cache.maximum_;
+        // DoorLayer discovers potential hinge sweeps, not only current panel
+        // overlaps. An empty patch therefore stays door-free across activation
+        // and opening, while nearby panels still receive live pose queries.
+        cache.doorFree_=!impl_->doors || impl_->doors->colliders(patch.low,patch.high).empty();
+        impl_->visitTriangles(patch,[&](const Triangle& triangle) {
+            if (cache.triangleCount_==cache.triangles_.size()) {
+                cache.trianglesComplete_=false; return false;
+            }
+            cache.triangles_[cache.triangleCount_++]=std::uint32_t(&triangle-impl_->triangles.data());
+            return true;
+        });
+        impl_->visitTrunksIndexed(patch,[&](std::uint32_t id,const TrunkCollider&) {
+            if (cache.trunkCount_==cache.trunks_.size()) {
+                cache.trunksComplete_=false; return false;
+            }
+            cache.trunks_[cache.trunkCount_++]=id;
+            return true;
+        });
+    }
+}
+
+void CollisionWorld::prepareWalkingBounds(ContactCandidates& cache) const {
+    cache.terrainCeiling_=cache.otherCeiling_=std::numeric_limits<float>::lowest();
+    for (std::size_t i=0;i<cache.triangleCount_;++i) {
+        const auto& triangle=impl_->triangles[cache.triangles_[i]];
+        const float top=clippedHeight(triangle,cache.minimum_,cache.maximum_);
+        auto& ceiling=triangle.terrain && !triangle.road && std::abs(triangle.normal.y)>epsilon
+            ?cache.terrainCeiling_:cache.otherCeiling_;
+        ceiling=std::max(ceiling,top);
+    }
+    cache.walkingBounds_=true;
+}
+
+std::uint64_t CollisionWorld::identity() const { return impl_->worldId; }
+
+bool CollisionWorld::walkingRegionClear(float feetY,float radius,float skin,float wallClearance,ContactCandidates& cache) const {
+    if (!cache.trianglesComplete_) return false;
+    if (!cache.walkingBounds_) prepareWalkingBounds(cache);
+    const float scale=std::max({1.f,std::abs(cache.minimum_.x),std::abs(cache.minimum_.y),std::abs(cache.minimum_.z),
+                                std::abs(cache.maximum_.x),std::abs(cache.maximum_.y),std::abs(cache.maximum_.z)});
+    const float error=16*std::numeric_limits<float>::epsilon()*scale;
+    // Every possible overlapping triangle point has separation Y >= .72 of
+    // reach: its upward normal exceeds walking's .707 support threshold.
+    // Non-terrain/road faces additionally stay entirely below the feet.
+    return error<radius*.1f && skin<=.002f && radius>=.1f &&
+        radius>=.72f*(radius+skin+wallClearance)+error &&
+        cache.terrainCeiling_<=feetY+radius-.72f*(radius+skin)-error &&
+        cache.otherCeiling_<=feetY-error;
+}
+
+bool CollisionWorld::simpleTravelerClear(glm::vec3 start,glm::vec3 end,float radius,float height,
+                                         ContactCandidates& cache) const {
+    zombie_profile::Timer timer(zombie_profile::Stage::contacts);
+    if (!finite(start) || !finite(end) || !std::isfinite(radius) || !std::isfinite(height) || radius<=0 || height<2*radius) return false;
+    constexpr float skin=.002f,wallClearance=.05f;
+    const float reach=radius+skin;
+    Bounds region;
+    region.include(glm::min(start,end)-glm::vec3(reach+wallClearance,skin+wallClearance,reach+wallClearance));
+    region.include(glm::max(start,end)+glm::vec3(reach+wallClearance,height+skin+wallClearance,reach+wallClearance));
+    prepareContactCandidates(region.low,region.high,cache);
+    // Geometry close to live interactions keeps the existing full solver.
+    if (!cache.doorFree_ || !cache.trianglesComplete_ || !cache.trunksComplete_) return false;
+    if (impl_->boxes) {
+        zombie_profile::Timer propTimer(zombie_profile::Stage::contactProps);
+        if (!impl_->boxes->query(region.low,region.high).empty()) return false;
+    }
+    const glm::dvec2 from(start.x,start.z),to(end.x,end.z);
+    const auto pointDistance=[](glm::dvec2 p,glm::dvec2 a,glm::dvec2 b) {
+        const auto d=b-a; const double length=glm::dot(d,d);
+        const auto closest=a+d*(length>0?glm::clamp(glm::dot(p-a,d)/length,0.,1.):0.);
+        return glm::dot(p-closest,p-closest);
+    };
+    const auto cross=[](glm::dvec2 a,glm::dvec2 b) { return a.x*b.y-a.y*b.x; };
+    const auto segmentDistance=[&](glm::dvec2 a,glm::dvec2 b) {
+        const auto d=to-from,e=b-a; const double denominator=cross(d,e);
+        if (std::abs(denominator)>1e-12) {
+            const double t=cross(a-from,e)/denominator,u=cross(a-from,d)/denominator;
+            if (t>=0 && t<=1 && u>=0 && u<=1) return 0.;
+        }
+        return std::min({pointDistance(from,a,b),pointDistance(to,a,b),pointDistance(a,from,to),pointDistance(b,from,to)});
+    };
+    {
+    zombie_profile::Timer triangleTimer(zombie_profile::Stage::contactTriangles);
+    const float feetY=std::min(start.y,end.y);
+    if (!walkingRegionClear(feetY,radius,skin,wallClearance,cache)) {
+        for (std::size_t i=0;i<cache.triangleCount_;++i) {
+            const auto& t=impl_->triangles[cache.triangles_[i]];
+            if (!t.bounds.intersects(region)) continue;
+            const float top=clippedHeight(t,region.low,region.high);
+            if (top<feetY-.01f) continue;
+            if (t.terrain && !t.road && std::abs(t.normal.y)>epsilon &&
+                top<feetY+radius-.75f*reach-.01f) continue;
+            // Steep faces become conservative horizontal wall segments. The
+            // third vertex's offset inflates the segment to cover the complete
+            // projected triangle; unusual floors/ramps retain full collision.
+            if (std::abs(t.normal.y)>.25f) return false;
+            std::array<glm::dvec2,3> v{{{t.a.x,t.a.z},{t.b.x,t.b.z},{t.c.x,t.c.z}}};
+            if (glm::dot(v[1]-v[0],v[1]-v[0])<glm::dot(v[2]-v[0],v[2]-v[0])) std::swap(v[1],v[2]);
+            if (glm::dot(v[1]-v[0],v[1]-v[0])<glm::dot(v[2]-v[1],v[2]-v[1])) std::swap(v[0],v[2]);
+            const double inflation=std::sqrt(pointDistance(v[2],v[0],v[1]));
+            const double clearance=reach+(t.wall?wallClearance:0)+inflation+.001;
+            if (segmentDistance(v[0],v[1])<=clearance*clearance) return false;
+        }
+    }
+    }
+    {
+    zombie_profile::Timer trunkTimer(zombie_profile::Stage::contactTrunks);
+    for (std::size_t i=0;i<cache.trunkCount_;++i) {
+        const auto& t=impl_->trunks[cache.trunks_[i]];
+        if (!t.bounds.intersects(region)) continue;
+        const double clearance=reach+t.collider.radius+.001;
+        if (pointDistance({t.collider.base.x,t.collider.base.z},from,to)<=clearance*clearance) return false;
+    }
+    }
+    if (zombie_profile::activeProfile) ++zombie_profile::activeProfile->simpleTravelerClears;
+    return true;
+}
+
 void CollisionWorld::visitContacts(glm::vec3 feet,float radius,float height,float skin,
-                                  float wallClearance,ContactVisitor visitor,ContactCandidates* cache) const {
+                                  float wallClearance,ContactVisitor visitor,ContactCandidates* cache,ContactPolicy policy) const {
     zombie_profile::Timer timer(zombie_profile::Stage::contacts);
     if (!finite(feet) || radius <= 0 || height < radius * 2 || skin < 0 || wallClearance < 0 || !visitor.receive) return;
     const float reach = radius + skin;
@@ -562,35 +718,7 @@ void CollisionWorld::visitContacts(glm::vec3 feet,float radius,float height,floa
     auto wallRegion = region;
     wallRegion.low -= glm::vec3(wallClearance);
     wallRegion.high += glm::vec3(wallClearance);
-    if (cache && (cache->worldId_!=impl_->worldId ||
-        glm::any(glm::lessThan(wallRegion.low,cache->minimum_)) ||
-        glm::any(glm::greaterThan(wallRegion.high,cache->maximum_)))) {
-        zombie_profile::Timer candidateTimer(zombie_profile::Stage::contactCandidates);
-        cache->worldId_=impl_->worldId;
-        cache->minimum_=wallRegion.low-glm::vec3(.5f);
-        cache->maximum_=wallRegion.high+glm::vec3(.5f);
-        cache->triangleCount_=cache->trunkCount_=0;
-        cache->trianglesComplete_=cache->trunksComplete_=true;
-        Bounds patch; patch.low=cache->minimum_; patch.high=cache->maximum_;
-        // DoorLayer discovers potential hinge sweeps, not only current panel
-        // overlaps. An empty patch therefore stays door-free across activation
-        // and opening, while nearby panels still receive live pose queries.
-        cache->doorFree_=!impl_->doors || impl_->doors->colliders(patch.low,patch.high).empty();
-        impl_->visitTriangles(patch,[&](const Triangle& triangle) {
-            if (cache->triangleCount_==cache->triangles_.size()) {
-                cache->trianglesComplete_=false; return false;
-            }
-            cache->triangles_[cache->triangleCount_++]=std::uint32_t(&triangle-impl_->triangles.data());
-            return true;
-        });
-        impl_->visitTrunksIndexed(patch,[&](std::uint32_t id,const TrunkCollider&) {
-            if (cache->trunkCount_==cache->trunks_.size()) {
-                cache->trunksComplete_=false; return false;
-            }
-            cache->trunks_[cache->trunkCount_++]=id;
-            return true;
-        });
-    }
+    if (cache) prepareContactCandidates(wallRegion.low,wallRegion.high,*cache);
     const auto visitTriangle=[&](const Triangle& t) {
         const float triangleReach = reach + (t.wall ? wallClearance : 0.f);
         const auto pair = closestSegmentTriangle(p, q, t);
@@ -608,12 +736,19 @@ void CollisionWorld::visitContacts(glm::vec3 feet,float radius,float height,floa
     };
     {
     zombie_profile::Timer triangleTimer(zombie_profile::Stage::contactTriangles);
+    bool supportOnly=false;
+    if (policy==ContactPolicy::walking && cache && cache->trianglesComplete_) {
+        supportOnly=walkingRegionClear(feet.y,radius,skin,wallClearance,*cache);
+        if (supportOnly && zombie_profile::activeProfile) ++zombie_profile::activeProfile->walkingRegionReuses;
+    }
+    if (!supportOnly) {
     if (cache && cache->trianglesComplete_) {
         for (std::size_t i=0;i<cache->triangleCount_;++i) {
             const auto& triangle=impl_->triangles[cache->triangles_[i]];
             if (triangle.bounds.intersects(wallRegion) && !visitTriangle(triangle)) return;
         }
     } else if (!impl_->visitTriangles(wallRegion,visitTriangle)) return;
+    }
     }
     const auto visitTrunk=[&](std::uint32_t,const TrunkCollider& trunk) {
         const float low = trunk.base.y + trunk.radius;

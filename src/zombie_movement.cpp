@@ -47,7 +47,7 @@ std::optional<Contact> blockingContact(glm::vec3 feet,const CollisionWorld& worl
         if (!blocking(contact,selected.feet)) return true;
         if (!selected.deepest || key(contact)>key(*selected.deepest)) selected.deepest=contact;
         return !selected.any;
-    }},cache);
+    }},cache,ContactPolicy::walking);
     return selection.deepest;
 }
 

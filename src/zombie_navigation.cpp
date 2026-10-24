@@ -35,6 +35,7 @@ void validateMesh(const navmesh_path::Mesh& mesh) {
 struct ZombieNavigation::Impl {
     struct State {
         steering::FollowState follow;
+        navmesh_path::PathId path=navmesh_path::invalidPath;
         TrunkCandidates trunkCandidates;
         glm::vec2 velocity{0}, plannedGoal{0}, lastPosition{0};
         std::uint32_t goalPolygon=navmesh_path::noPolygon, currentPolygon=navmesh_path::noPolygon;
@@ -96,6 +97,7 @@ struct ZombieNavigation::Impl {
     void release(std::size_t id) {
         paths.releaseZombie(id);
         states[id].hasPlan=false;
+        states[id].path=navmesh_path::invalidPath;
         states[id].goalPolygon=navmesh_path::noPolygon;
         states[id].checkedMovement=false;
         states[id].coverage.valid=false;
@@ -139,7 +141,8 @@ bool ZombieNavigation::plan(std::size_t id,glm::vec3 feet,glm::vec3 target) {
     }
     s.goalPolygon=goalPolygon;s.currentPolygon=startPolygon;
     ++p.stats.requests;
-    s.hasPlan=p.paths.request(id,point(position),point(goal))!=navmesh_path::invalidPath;
+    s.path=p.paths.request(id,point(position),point(goal));
+    s.hasPlan=s.path!=navmesh_path::invalidPath;
     p.status=p.paths.lastStatus();
     if (s.hasPlan) ++p.stats.foundPaths;
     else { ++p.stats.failedPaths;p.release(id); }
@@ -162,7 +165,8 @@ glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
         reset(id);
         return {0,0};
     }
-    const auto startPolygon=s.coverage.contains(point(position))?s.coverage.polygon:p.mesh.locate(point(position));
+    const auto startPolygon=s.coverage.contains(point(position))?s.coverage.polygon:
+        p.mesh.containsPoint(s.currentPolygon,point(position))?s.currentPolygon:p.mesh.locate(point(position));
     const auto goalPolygon=s.goalPolygon;
     if (startPolygon==navmesh_path::noPolygon || goalPolygon==navmesh_path::noPolygon ||
         p.mesh.component(startPolygon)!=p.mesh.component(goalPolygon)) {
@@ -173,7 +177,7 @@ glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
         return {0,0};
     }
     s.currentPolygon=startPolygon;
-    const auto path=p.paths.view(p.paths.pathFor(id));
+    const auto path=p.paths.view(s.path);
     auto desired=steering::followPath(path.points,path.size,position,speed,dt,s.follow,&p.mesh);
     // A final step toward a double portal corner can round a float body outside
     // the mesh, or stop a few ulps short while physical motion ignores sub-10um
@@ -208,8 +212,9 @@ glm::vec2 ZombieNavigation::follow(std::size_t id,glm::vec3 feet,
     }
     // The shared follower uses a0.15m waypoint arrival radius. Scenario travel
     // finishes at the fixed target using a validated final connection.
-    const float remaining=glm::length(goal-position);
-    if (s.follow.arrived && remaining>1e-4f) {
+    if (s.follow.arrived) {
+        const float remaining=glm::length(goal-position);
+        if (remaining<=1e-4f) return {0,0};
         if (!p.mesh.segmentClear(point(position),point(goal))) {
             p.release(id);return {0,0};
         }

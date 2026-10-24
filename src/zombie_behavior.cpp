@@ -295,7 +295,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
         if (!scenarioRoutes_.empty()) {
             ensureSpatialIndex();
             crowd_.beginStep();
-            updateScenarioRoutes(seconds, world);
+            updateScenarioRoutes(seconds, world, player, players);
         }
         return; // No nearby-player queries or behavior creation in this mode.
     }
@@ -312,7 +312,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
     ensureSpatialIndex();
     crowd_.beginStep();
     if (players && players->empty()) {
-        updateScenarioRoutes(seconds, world, true);
+        updateScenarioRoutes(seconds, world, player, players, true);
         return;
     }
     // The small expansion keeps the broad phase conservative around float
@@ -400,7 +400,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
             continue;
         }
     }
-    updateScenarioRoutes(seconds, world);
+    updateScenarioRoutes(seconds, world, player, players);
 }
 
 } // namespace viewer

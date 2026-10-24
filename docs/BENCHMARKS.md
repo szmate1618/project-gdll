@@ -213,10 +213,18 @@ body movement, crowd sweeps, root locomotion pose and render notifications.
 These parent lines remain exclusive. Headless CSVs include crowd move, neighbor,
 budget-stop and empty-sector bypass counts. The [route/crowd/pose evaluation](benchmarks/zombie-route-efficiency-2026-10-24.txt)
 records selected changes, trajectory checks and actual viewer measurements.
+The [distant traveler evaluation](benchmarks/zombie-distant-travel-2026-10-24.txt)
+compares navigation fast paths, physical contact-region proofs and reduced-rate
+travel with swept geometry. The selected approach has a full-movement control.
 The [ground-support/contact sharing experiment](benchmarks/zombie-ground-support-2026-10-24.txt)
 records a rejected small-gain prototype and the unchanged ground-query policy.
 See the [contact and ground evaluation, 2026-10-24](benchmarks/zombie-contact-efficiency-2026-10-24.txt)
 for the measured decisions and viewer limitations.
+
+For viewer movement comparisons, add `--fixed-step --frames N` to advance the
+simulation by exactly 1/60 s each frame. Without that diagnostic flag, the viewer
+uses wall-clock delta, so faster runs cover a different amount of simulated time.
+`--animation-time` freezes the render animation input, not the simulation clock.
 
 `godollo_viewer --frame-profile FILE` saves asynchronous per-frame GPU and CPU
 CSV timings independently of `--profile`, allowing viewer comparisons without
@@ -232,7 +240,8 @@ cmake --build build --target benchmark_zombie_updates -j4
   scenarios/test-horde/scenario.toml build/benchmarks/zombie-update-substeps
 ```
 
-Optional trailing `SPAWN_X SPAWN_Z` chooses the stationary player's position.
+Optional trailing `SPAWN_X SPAWN_Z` chooses the stationary player's position;
+a following `full` or `optimized` selects the scenario movement model.
 The benchmark uses the shared scene loader with vegetation, static geometry,
 doors and live-prop collision queries. It alternates three detailed and three
 control runs, reloading the seeded population each time. Each run warms up for
@@ -263,3 +272,21 @@ from two builds on the same platform with `cmp`: the fixture exercises 48,000
 capsule contacts and 96,000 cached/uncached ground queries, including slopes,
 edges and large world coordinates. The explicit-field binary is a local test
 artifact, not a portable runtime format.
+
+The separate `validate_zombie_travel` target performs untimed real-map quality
+checks for 600 steps: physical contacts, padded contacts, navmesh containment,
+coordinate-precision-aware speed bounds, ground offsets and crowd separation.
+It does not run alongside timing measurements. An optional final-pose capture
+checks a saved variant against the same scene without advancing it.
+
+```bash
+cmake --build build --target validate_zombie_travel -j4
+./build/multiplayer/validate_zombie_travel output/godollo.glb \
+  scenarios/test-horde/scenario.toml build/benchmarks/travel-quality optimized -526.465 296.095
+```
+
+The X/Z arguments are fixture coordinates for the current map, not generic map
+centers. Physical contacts use zero skin; padded contacts are reported separately.
+The quality case uses current collision queries after each update, with fixed
+prop/door poses and no physics advancement. It is not an exhaustive guarantee
+for moving props, different maps or every terrain/obstacle configuration.

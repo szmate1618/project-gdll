@@ -49,6 +49,86 @@ void clear(const viewer::CollisionWorld& world, glm::vec3 feet) {
         require(c.terrain || c.depth < .0002f, "Accepted feet must not penetrate a scene obstacle");
 }
 
+void walkingContactRegions() {
+    // Compare against the original, complete contact query. Only contacts which
+    // movement would ignore may disappear; blockers and their geometry must match.
+    const auto key=[](const viewer::Contact& c) {
+        return std::make_tuple(c.depth,c.normal.x,c.normal.y,c.normal.z,c.point.x,c.point.y,c.point.z,
+                               c.terrain,c.terrainSupport);
+    };
+    const auto blockers=[&](std::vector<viewer::Contact> contacts,glm::vec3 feet) {
+        contacts.erase(std::remove_if(contacts.begin(),contacts.end(),[&](const auto& c) {
+            return c.depth<=.0001f || (c.terrainSupport && c.normal.y>=.70710678f) ||
+                (c.normal.y>.7f && c.point.y<=feet.y+.0021f);
+        }),contacts.end());
+        std::sort(contacts.begin(),contacts.end(),[&](const auto& a,const auto& b) { return key(a)<key(b); });
+        return contacts;
+    };
+    std::size_t omitted=0;
+    const auto physics=std::make_shared<viewer::PhysicsWorld>();
+    viewer::BoxLayer boxes(physics);
+    boxes.add({1,.5f,0},{1,1,1});
+    for(float shift:{0.f,3000.f,20000.f}) for(float grade:{0.f,.2f,-.4f,.49f,1.1f})
+    for(const auto* name:{"terrain","roads","platform"}) {
+        viewer::Model model;
+        const auto point=[&](float x,float z) { return glm::vec3(x+shift,x*grade,z-shift); };
+        quad(model,name,point(-4,-4),point(-4,4),point(4,4),point(4,-4));
+        quad(model,"wall",point(-1,-4),point(-1,4),point(-1,4)+glm::vec3(0,2,0),point(-1,-4)+glm::vec3(0,2,0));
+        // Downward overhead geometry remains a separate blocker even when the
+        // supporting terrain underneath qualifies for reuse.
+        quad(model,"ceiling",point(-3,-3)+glm::vec3(0,1.6f,0),
+             point(3,-3)+glm::vec3(0,1.6f,0),point(3,3)+glm::vec3(0,1.6f,0),
+             point(-3,3)+glm::vec3(0,1.6f,0));
+        viewer::CollisionWorld world(model,{{point(2,1),.15f,4}});
+        world.setBoxes(&boxes);
+        viewer::WalkingGroundCache ground;
+        viewer::ContactCandidates candidates;
+        for(int i=0;i<400;++i) {
+            const float x=-4.01f+(i%20)*.421f,z=-4.01f+(i/20)*.421f;
+            const auto hit=world.walkingGroundAt(x+shift,z-shift,-100,100,&ground);
+            if(!hit) continue;
+            for(float radius:{.1f,.3f,.5f}) for(float dy:{0.f,.001f,-.01f,-.5f,.5f}) {
+                const glm::vec3 feet{x+shift,hit->height+dy,z-shift};
+                const auto expected=world.contacts(feet,radius,1.8f,.002f,.05f);
+                std::vector<viewer::Contact> actual;
+                world.visitContacts(feet,radius,1.8f,.002f,.05f,{&actual,[](void* target,const auto& c) {
+                    static_cast<std::vector<viewer::Contact>*>(target)->push_back(c);return true;
+                }},&candidates,viewer::ContactPolicy::walking);
+                omitted+=expected.size()-actual.size();
+                const auto a=blockers(expected,feet),b=blockers(actual,feet);
+                require(a.size()==b.size(),"Walking support proof omitted an obstacle");
+                for(std::size_t j=0;j<a.size();++j)
+                    require(key(a[j])==key(b[j]),"Walking support proof changed blocking geometry");
+            }
+        }
+    }
+    require(omitted>100,"Walking region certificates were never used");
+}
+
+void walkingRegionWallPadding() {
+    auto model=floor();
+    // A padded wall just below the feet can still produce a shallow-angle
+    // blocker for a small capsule. A below-feet bound alone is insufficient.
+    wall(model,"building_test_walls",-2,-.001f);
+    const viewer::CollisionWorld world(model);
+    for(const auto settings:{glm::vec2(.1f,.05f),glm::vec2(.3f,.5f)}) {
+        const float radius=settings.x,padding=settings.y;
+        const glm::vec3 feet{-radius*1.06f,0,0};
+        const auto blocking=[&](const viewer::Contact& c) {
+            return c.depth>.0001f && !(c.terrainSupport && c.normal.y>=.70710678f) &&
+                !(c.normal.y>.7f && c.point.y<=feet.y+.0021f);
+        };
+        bool expected=false,actual=false;
+        for(const auto& c:world.contacts(feet,radius,1.8f,.002f,padding)) expected=expected||blocking(c);
+        struct Context { bool* actual;decltype(blocking)* predicate; } context{&actual,&blocking};
+        viewer::ContactCandidates cache;
+        world.visitContacts(feet,radius,1.8f,.002f,padding,{&context,[](void* target,const viewer::Contact& c) {
+            auto& state=*static_cast<Context*>(target);*state.actual=*state.actual||(*state.predicate)(c);return true;
+        }},&cache,viewer::ContactPolicy::walking);
+        require(expected && actual,"Walking certificate hid a padded below-feet wall contact");
+    }
+}
+
 void thinWallsSlidingAndCorners() {
     auto model = floor();
     wall(model);
@@ -360,6 +440,8 @@ void crowdAgainstWallAndDeterminism() {
 
 int main() {
     try {
+        walkingContactRegions();
+        walkingRegionWallPadding();
         thinWallsSlidingAndCorners();
         polesFencesGuardrailsAndTrunks();
         boxesAndDoorPoses();

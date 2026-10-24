@@ -5,6 +5,7 @@
 #include "zombie_behavior.hpp"
 #include "zombie_spatial_index.hpp"
 #include "zombie_crowd.hpp"
+#include "zombie_travel.hpp"
 #include "zombie_ragdoll.hpp"
 #include "zombie_hit.hpp"
 #include "zombie_damage.hpp"
@@ -132,6 +133,9 @@ struct ZombieLayer {
     // Travel runs without nearby players. Perception can permanently hand an
     // actor to original behavior movement, releasing its route without a search.
     void setScenarioDestinations(const std::vector<glm::vec3>& destinations);
+    // Comparison/diagnostic control. Nearby and ordinary behavior actors always
+    // retain full movement; switching modes discards pending traveler segments.
+    void setDistantScenarioTravelEnabled(bool enabled);
     const glm::vec3* scenarioDestination(std::size_t id) const;
     bool scenarioFinished(std::size_t id) const;
     // Rebuild after external edits to instance feet or replacing a population
@@ -194,9 +198,12 @@ private:
         bool finished = false, overridden = false;
         WalkingGroundCache groundCache;
         ContactCandidates contactCache;
+        TravelerPlan travel;
     };
     std::vector<ScenarioRoute> scenarioRoutes_;
-    void updateScenarioRoutes(float seconds, const CollisionWorld& world, bool advanceLooking = false);
+    bool distantScenarioTravel_ = true;
+    void updateScenarioRoutes(float seconds, const CollisionWorld& world, const ZombiePlayer& player,
+                              const std::vector<ZombiePlayer>* players, bool advanceLooking = false);
     void abandonScenarioRoute(std::size_t id);
     ZombieRenderUpdates renderUpdates_;
     void registerRagdoll(std::size_t zombie);

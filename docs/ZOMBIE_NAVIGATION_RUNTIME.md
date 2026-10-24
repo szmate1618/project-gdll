@@ -173,9 +173,9 @@ The waypoint follower validates corner shortcuts against the mesh. Nearby trunk
 circles come from the collision world's existing BVH into a preallocated
 256-entry buffer. Detour uses those stationary circles and the NPC's previous
 accepted velocity to select a local velocity. The selected step must remain in
-the navmesh. The existing scene, terrain, door and crowd movement constraints
-remain the final physical guard, and the accepted movement feeds the next
-steering update.
+the navmesh. Nearby actors use the existing full scene/terrain/door/crowd guard;
+distant scenario travelers use the swept approximation described below. Accepted
+movement feeds the next steering update.
 
 `setScenarioDestinations()` performs the cold path requests once.
 `ZombieNavigation::follow()` follows the stored goal and path; it cannot start a
@@ -184,7 +184,10 @@ A full local trunk buffer stops the NPC and increments an overflow counter.
 Death releases the path. Teleports, uncovered positions and population changes
 invalidate stale routes and stop travel rather than silently searching again.
 
-The fixed destination polygon is retained from planning. Coverage first tests
+The fixed destination polygon and generation-checked path handle are retained
+from planning. The follower reuses the current polygon before locating a new
+one, and calculates final-goal distance only when the final leg needs it.
+Coverage first tests
 both endpoints against the cached current convex polygon; boundary-crossing
 segments retain the full spatial/interval fallback. Exact containment does not
 relax mesh boundary tolerances.
@@ -225,12 +228,18 @@ The legacy sorted contact-list API remains for other callers. Each scenario
 route also caches up to 64 static triangle and 32 trunk candidates in a padded
 3D patch. Reuse requires the complete current query bounds to remain covered;
 world replacement or patch exit refreshes it, and overflow uses the full BVH.
-Every pose still receives exact contact tests. Candidate refresh also certifies
+The walking query also caches conservative maximum triangle heights clipped to
+that patch. If every possible static contact is provably harmless support, it
+skips the triangle tests while retaining trunk/live-object work. Height bounds,
+body radius, wall padding and float-coordinate margins must prove an upward
+normal above the existing support threshold; uncertain patches use exact tests.
+The complete contact-list API retains every contact for other callers.
+Candidate refresh also certifies
 whether the full patch is outside all potential door hinge sweeps. A certified
 empty patch skips live door lookup until patch exit/world replacement; patches
 near doors query current poses. Live props remain separate. This does not assume
-navmesh routes are clear of open doors. Ground support, 10 cm movement segments
-and crowd guards remain.
+navmesh routes are clear of open doors. Full movement retains ground support,
+10 cm movement segments and crowd guards.
 
 Successful ground lowering reuses its exact clear contact query for the
 immediately following resolution query with the same skin. It still queries
@@ -241,8 +250,51 @@ experiments](benchmarks/zombie-contact-efficiency-2026-10-24.txt) for validation
 rejected alternatives and measured limits.
 
 Original behavior movement has no navigation argument. Scenario following is
-implemented in `zombie_scenario_routes.cpp`; both movement modes reuse physical
-collision and locomotion pose updates. Perception owns the one-way handoff.
+implemented in `zombie_scenario_routes.cpp`, with distant travel isolated in
+`zombie_travel.hpp/.cpp`. Both retain shared ground, crowd and locomotion pose
+updates. Perception owns the one-way handoff.
+
+### Distant scenario travelers
+
+Beyond 200 horizontal meters from every player, scenario travelers may refresh
+steering and a short movement segment at 10 Hz. They return to full movement
+within 160 m of any player; the gap prevents rapid switching. With no players,
+all scenario travelers qualify. Initial segment durations are staggered by stable
+ID. Application steps longer than 50 ms use full movement instead of a large
+catch-up update. Ordinary behavior zombies always use their original movement.
+
+Only the expensive segment refresh slows down. The authoritative feet advance
+smoothly every frame; rendering, shooting, perception, ragdoll handoff and server
+snapshots all use that same current position. Ground height and crowd sweeps
+remain current. Every accepted step still receives navmesh coverage validation.
+These segment refreshes follow the existing path; they never search for a path.
+
+The segment guard uses conservative horizontal wall segments and trunk circles.
+Wall segments include the third projected triangle vertex and building padding;
+trunks use a swept radius test. Potential door sweeps, nearby live props, unusual
+geometry and overflowing candidate patches trigger the existing full solver.
+Ground support must remain terrain with the existing slope limit. Sharp height
+changes outside the certified endpoint envelope, crowd interference and rejected
+coverage discard the segment and retain full updates for a short cooldown.
+World replacement, external feet changes, looking reactions, mode changes and
+ordinary-behavior takeover invalidate pending segments.
+
+This is a distant movement approximation. Steering decisions may differ near
+trees/corners, and a moving or newly spawned prop can enter a segment before
+its next refresh (up to 100 ms). Nearby-player interactions retain full checks.
+Ground heights are not replaced by stale samples or interpolated terrain heights.
+
+For a viewer comparison using the full movement model everywhere:
+
+```bash
+./build/godollo_viewer output/godollo.glb \
+  --scenario scenarios/test-horde/scenario.toml --full-scenario-movement
+```
+
+The owning C++ layer exposes `setDistantScenarioTravelEnabled(false)` for the
+same comparison on a server or test fixture. The [experiment report](benchmarks/zombie-distant-travel-2026-10-24.txt)
+records the independently measured navigation/contact changes, rejected
+standalone modes, quality limits and selected combined version.
 
 ## Server and client boundary
 
@@ -274,7 +326,8 @@ exact source GLB SHA-256, and `report.json` records navigation provenance.
 The runtime reports the cache and replay fingerprints; it cannot infer a map
 content match from that header alone. Use the cache published with the map.
 Runtime clearance checks reject meshes whose body clearance is too small.
-The physical collision world still checks actual accepted movement.
+The physical guard remains independent of navmesh coverage; distant travelers
+use the swept approximation above.
 
 The existing mesh is planar: buildings and fences are baked obstacles, with
 no terrain slope, indoor or moving-door connectivity model. Goals outside the

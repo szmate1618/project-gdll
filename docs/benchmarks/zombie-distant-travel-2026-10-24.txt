@@ -1,0 +1,281 @@
+Scenario traveler navigation, contact regions and distant movement — 2026-10-24
+===============================================================================
+
+Decision
+--------
+Retain navigation fast paths and conservative physical contact-region proofs.
+Retain lower-rate steering combined with a conservative swept collision guard
+for distant scenario travelers. Reject the two standalone movement prototypes.
+Keep all changes on experiment/zombie-distant-travel-20261024, based on 2024927
+(experiment/zombie-contact-efficiency-20261024). No threading was introduced.
+
+Final headless controls: 1.821564 -> 1.407276 ms/update, 22.75% lower than the
+pre-experiment baseline. Against the same new binary with distant movement
+turned off: 1.776478 -> 1.407276 ms, 20.78% lower. That full-mode control varied
+substantially between its two invocations; standalone experiments below provide
+independent evidence for the exact navigation/contact improvements.
+
+Fixed-step viewer simulation: 2.890813 -> 2.466461 ms, a 14.68% reduction in the
+mean of four per-run medians. This compares the new binary's full and optimized
+movement modes, not the older baseline. Hardware variation remains material.
+No rendering changes were made; GPU differences do not establish less GPU work.
+
+Retained behavior
+-----------------
+1. Navigation retains its generation-checked path handle instead of finding it
+   by actor ID each update, reuses the current polygon before global location,
+   and computes final-goal distance only when the final leg needs it. Planning
+   still happens once at load. No runtime path searches were added.
+2. Physical candidate patches cache conservative maximum triangle heights,
+   clipped to the patch's X/Z rectangle. When those bounds prove every possible
+   static contact is harmless under existing walking rules, omit the static
+   triangle contact tests. Float-coordinate error, body radius and wall padding
+   participate in that proof. Trunks, doors and props keep their separate checks;
+   uncertain/overflowing patches use the old solver. The complete contacts API
+   is unchanged. This differs from the rejected single-ground-support sharing
+   experiment: one cold patch proof can eliminate many subsequent contact tests.
+3. Scenario travelers beyond 200 horizontal meters from every player can refresh
+   steering/short movement segments at 10 Hz. Return to full movement within
+   160 m of any player; no players permits distant travel. Stable ID staggering
+   spreads initial refreshes. Application dt >50 ms uses full movement.
+4. The distant segment uses conservative swept horizontal wall segments and
+   trunk circles. Wall inflation covers the third triangle vertex and building
+   clearance. Potential door sweeps, live props, unusual geometry and candidate
+   overflow force full movement. Ground must be terrain with the original slope
+   limit. Intermediate ground remains sampled at the current position; sharp
+   crests/dips outside the endpoint envelope force a full step. Crowd sweeps and
+   navmesh validation run on every accepted current step. Rejection starts a
+   250 ms full-movement cooldown.
+
+Authoritative feet, crowd membership, root transforms and locomotion clocks
+continue to advance every frame. Rendering, shooting, perception and replication
+use those same current feet; no future endpoint is published as the actor pose.
+Perception still hands scenario actors permanently to original behavior. Original
+behavior never requests navmesh paths and always uses its original movement.
+World replacement, changed feet, looking, mode changes and takeover discard any
+pending segment. '--full-scenario-movement' disables distant approximations for
+comparison; the exact navigation and contact-region changes remain enabled.
+
+Ground heights were not made stale or replaced by the rejected arithmetic cache.
+The lookahead/fallback policy actually increases ground query count in this case.
+These segment refreshes are movement decisions along the existing path, not
+new path searches. Profiling's traveler_plans field counts segment refreshes.
+
+Measurement protocol and clock correction
+-----------------------------------------
+Release builds, output/godollo.glb, matching .navmesh/assets, seeded scenario 42:
+1,600 actors (1,000 random + 600 crossing), 1,160,022 collision triangles and
+155,825 trunks. Stationary player X=-526.465, Z=296.095. Sequential measurements;
+no builds or other experiments run concurrently with timings. No power/CPU/GPU
+settings changed. All 38 timed invocations began/ended in balanced mode; all 460
+two-second power samples reported AC online. This does not fix hardware clocks.
+
+Headless: CPU 0, dt=1/60. Each invocation reloads the population six times,
+alternating three detailed and three control runs; each has 60 warmup +300
+measured steps. Each listed invocation contributes 900 controls and 900 detailed
+samples. Controls disable fine-query timers and determine performance decisions.
+Detailed stage times are exclusive but heavily perturbed by tiny-query clocks.
+No migrated timer samples were dropped. Loading, startup planning, rendering,
+audio, networking and physics advancement are excluded. Props/doors are queried
+at live but unchanged poses in this fixture.
+
+Viewer: hardware OpenGL, 1280x720, same fixed street camera, hidden window,
+480 frames; discard frame IDs 1..60. No audio, time 12.3, day length 0,
+--animation-time 0. Final controlled viewer runs additionally use --fixed-step,
+which advances SimulationClock and simulation dt by 1/60 s per rendered frame.
+Both modes therefore advance exactly eight simulated seconds over 480 frames.
+
+Important correction: --animation-time only freezes the render animation input.
+It does NOT freeze or fix SimulationClock. Earlier viewer @final and @visible
+cases used wall-clock dt, so different runtimes advanced different simulation
+amounts and changed timed AI work per frame. Preserve those as wall-clock
+observations; do not combine them with fixed-step results or treat them as
+controlled movement-work comparisons. Earlier reports' frozen animation wording
+likewise does not imply fixed simulation. AGENTS.md and BENCHMARKS.md now warn
+agents to match and record timestep policy. The existing fresh-source-mtime/CMake
+restore warning remains beside it. No timestamp-preserving restores were used.
+
+Standalone exact experiments (control means, ms/update)
+-------------------------------------------------------
+Navigation B/N/N/B:
+  baseline nav0       1.783289
+  navigation nav1     1.756126
+  navigation nav2     1.774355
+  baseline nav3       1.812533
+  means: 1.797911 -> 1.765240, 1.82% lower.
+
+Physical regions N/R/R/N (navigation already enabled):
+  navigation regions0 1.745571
+  regions regions1    1.628713
+  regions regions2    1.630338
+  navigation regions3 1.761643
+  means: 1.753607 -> 1.629526, 7.08% lower.
+  About 677.61 of 1,650.14 contact queries/update bypass static triangle tests.
+
+All eight exact-variant final-pose captures match the original baseline byte for
+byte. These percentages come from separate rounds and should not be added or
+assumed to predict the final hardware batch exactly.
+
+Four movement prototypes (control means, ms/update)
+---------------------------------------------------
+Order: full/simple/reduced/combined/combined/reduced/simple/full.
+  full       1.661903, 1.694076; mean 1.677990
+  simple     1.761042, 1.776114; mean 1.768578 (5.40% slower; reject)
+  reduced    1.158810, 1.150851; mean 1.154831 (31.18% lower; reject)
+  combined   1.389541, 1.377265; mean 1.383403 (17.56% lower; retain with guards)
+
+'Full' includes exact navigation/contact-region improvements. Simple-only used
+the swept model at every frame; its extra setup/fallbacks outweighed savings.
+Reduced-only refreshed less often but kept the old sampled capsule guard. That
+was fastest, but checking only sampled positions allowed real obstacle overlap:
+12 actors in its saved final poses, maximum penetration 0.0891093 m. The combined
+model sweeps the entire short segment. Removed rejected modes from product APIs;
+source snapshots/patch/binaries remain in ignored artifacts for investigation.
+Final selected code adds conservative wall-padding and ground-envelope guards.
+
+Final selected headless batch (control means, ms/update)
+---------------------------------------------------------
+Order baseline/full/selected/selected/full/baseline:
+  baseline final0     1.801304
+  full final1         1.671674
+  selected final2     1.427369
+  selected final3     1.387183
+  full final4         1.881282
+  baseline final5     1.841825
+  means: baseline 1.821564, full 1.776478, selected 1.407276.
+Full remains byte-identical to baseline. Selected captures repeat identically
+within the selected build. Selected trajectories intentionally differ from full:
+median final drift 0.014521 m, 95th percentile 0.052837 m, maximum 1.888522 m.
+The maximum is a real route/steering difference near obstacles, not hidden as
+rounding error. This is an approximation for distant travelers.
+
+Diagnostic mean calls/update, full -> selected:
+  ground queries             1627.16 -> 1839.17 (+13.03%)
+  contact queries            1650.14 ->  806.99
+  Detour steering            1599.00 ->  754.98
+  full body movement         1600.00 ->  546.24
+  navmesh interval coverage    85.34 ->   70.35 (cached proofs handle other steps)
+  spatial updates            1600.00 -> 1600.00
+  crowd sweeps               1597.34 -> 1763.32
+  root/locomotion updates     1600.00 -> 1600.00
+Selected: 209.74 segment refreshes, 34.23 fallback events, 1217.79 smooth slices
+and 175.55 accepted simplified sweeps/update. Slices can exceed actor counts
+when a frame straddles a segment endpoint. Exactly 1,600 initial path requests
+per population and none during simulation in every measured/validation mode.
+
+Selected diagnostic self times, full -> selected, ms/update:
+  ground query + static + prop     0.430258 -> 0.457076
+  contact query/candidates/triangles/trunks/doors/props
+                                  0.807131 -> 0.506794
+  navigation control              0.263711 -> 0.128600
+  path following                  0.094680 -> 0.049791
+  Detour steering                 0.173025 -> 0.092613
+  full body movement              0.267774 -> 0.092790
+  crowd sweep                     0.223818 -> 0.233077
+  root/locomotion                  0.186165 -> 0.183092
+These instrumented costs explain work distribution; they are not normal viewer
+timings and cannot replace the uninstrumented control comparison.
+
+Fixed-step viewer results (per-run median ms)
+----------------------------------------------
+Order F/S/S/F, then S/F/F/S. Same new viewer binary for both modes.
+Run                CPU simulation       CPU work           GPU
+full fixed0            2.712291           6.709681       5.320585
+selected fixed1        2.484431           6.598736       5.104140
+selected fixed2        2.554726           6.799461       5.311360
+full fixed3            3.097994           7.915890       6.983100
+selected fixed4        2.309925           6.282721       4.652320
+full fixed5            2.934279           7.026504       5.303120
+full fixed6            2.818689           6.980059       5.371750
+selected fixed7        2.516762           6.795746       5.269765
+Mean of run medians:
+full                   2.890813           7.158034       5.744639
+selected               2.466461           6.619166       5.084396
+Simulation decreased 14.68%, total CPU work 7.53%. Host variation also affected
+unchanged rendering, particularly full fixed3; retain every run. CPU and GPU
+overlap and must not be added. With no rendering changes, the GPU difference
+cannot be attributed to cheaper zombie drawing or shaders. See the existing
+CPU/GPU overlap report for integrated-hardware effects.
+
+This street view has 0 camera-visible zombies and 110 sun-shadow triangles;
+it measures offscreen movement. Extra wall-clock --zombie-draw-distance 0 runs
+submitted 288 camera instances, but distant fog/occlusion made the capture poor
+for judging movement. Captures and logs are retained, with no GL errors reported.
+They do not establish visible crowd motion quality; smoothness/current-position
+behavior is covered quantitatively by focused tests and trajectory validation.
+No dense 100,000-visible-zombie/rendering improvement is claimed.
+
+Earlier wall-clock viewer observations (separate, not controlled):
+Mean of two run medians, CPU simulation / CPU work / GPU, ms:
+  baseline @final: 2.801781 / 6.860325 / 5.278342
+  full @final:     2.611006 / 6.660470 / 5.094437
+  selected @final: 2.116557 / 6.265843 / 4.622830
+Do not quote these as fixed-simulation gains. Corrected runs above supersede
+that interpretation without discarding the original raw evidence.
+
+Verification and limits
+-----------------------
+- Built viewer, server, affected tests, benchmark, validator and collision corpus.
+  All 25 affected suites pass (3.80 s), including shared collision/steps/doors,
+  navigation/scenario/travel, perception/takeover, crowd, movement, root updates,
+  shooting, spatial index, frame profiling and server integration.
+- Differential walking-contact tests cover terrain/road/platform classifications,
+  slope/seams, large coordinates, several radii/heights, walls/trunks/ceilings and
+  live boxes. Only originally nonblocking supports may disappear. A small-radius
+  capsule with large wall padding exposed an unsafe proof bound; the final bound
+  includes maximum wall reach, and the regression is retained.
+- Existing 48,000 contact +96,000 ground-query corpus is byte-identical to baseline.
+- ASan+UBSan instrumented the changed collision, movement and travel objects and
+  ran both movement/travel suites successfully; not every app dependency was
+  instrumented.
+- Independent untimed 600-frame/1,600-actor real-map validation: 960,000 actor-step
+  samples each for full and selected. Both have 0 physical blocking penetrations,
+  0 navmesh escapes, 0 speed violations and 0 crowd overlaps. Selected has three
+  padded-skin overlap samples; full has five. Zero-skin contacts are checked
+  separately, with the original walking support exemptions.
+- Float-coordinate quantization matters: at ~3 km one ULP is ~0.25 mm. The first
+  validator's origin-sized speed tolerance falsely flagged tiny rounded steps.
+  The corrected independent bound includes both endpoints' coordinate precision;
+  production movement did not need a speed change.
+- Maximum vertical offset from a separate ground query over 10 s is 0.449892 m
+  in BOTH full and selected modes. Existing rounded-foot/ledge support can differ
+  from a vertical ground ray. Final six-second max is 0.042594 m full and 0.071865 m
+  selected. Do not claim exact vertical-ray matching over the real-map trajectory;
+  flat/sloped terrain tests do check current rendered height directly.
+- Distant steering paths can diverge near obstacles (outlier above). Moving or
+  newly spawned props can enter a previously accepted segment before its next
+  refresh (up to 100 ms). Potential door hinge sweeps already force full checks.
+  Nearby actors retain full movement. The real-map validation did not advance
+  dynamic physics, so it is not proof for every moving-prop/terrain/map case.
+
+Artifacts, reproduction and next steps
+--------------------------------------
+Ignored local directory: build/benchmarks/zombie-distant-travel-20261024/
+Contains baseline/intermediate/prototype/selected binaries, exact source snapshots,
+prototype and selected patches, per-run CSVs, final poses, quality summaries,
+captures, logs, power telemetry, summary.json and helpers copied from
+/tmp/gdll-distant-travel/. Helpers are one-off experiment scripts, not product
+APIs. Restore no sources merely to compare binaries; if restoring later, refresh
+source/header mtimes or use separate build directories as AGENTS.md requires.
+
+  cmake --build build --target benchmark_zombie_updates validate_zombie_travel -j4
+  taskset -c 0 ./build/multiplayer/benchmark_zombie_updates output/godollo.glb \
+    scenarios/test-horde/scenario.toml NEW_OUTPUT_DIR -526.465 296.095 optimized
+Use full instead of optimized for the exact-movement control. Use distinct output
+directories. The saved run scripts record power and refuse existing case names;
+they verify AC/balanced but never change the profile.
+
+  ./build/godollo_viewer output/godollo.glb \
+    --scenario scenarios/test-horde/scenario.toml --fixed-step --frames 480 \
+    --hidden --no-audio --frame-profile build/travel-viewer.csv
+Add --full-scenario-movement for the same binary's full movement control. Use
+matching camera/time/settings and a separate CSV per run. The benchmark's saved
+scenario-viewer.toml provides the measured street camera.
+
+Next: assess longer runs with dense crowds and changing props, and inspect a
+useful visible far-traveler view before broadening the distance/rate policy.
+Remaining CPU work includes current ground/crowd/spatial/root updates. A more
+compact hot-data layout was previously evaluated on its own branch; do not assume
+it helps this model without measuring again. GPU/render improvements need their
+own controlled visible workload. Ground query reductions remain an open tradeoff,
+not a demonstrated saving here. Threading remains last.

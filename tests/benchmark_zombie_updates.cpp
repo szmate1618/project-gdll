@@ -16,17 +16,21 @@
 
 int main(int argc, char** argv) {
     try {
-        if (argc!=4 && argc!=6) throw std::runtime_error(
-            "Usage: benchmark_zombie_updates MAP SCENARIO OUTPUT_DIR [SPAWN_X SPAWN_Z]");
+        if (argc!=4 && argc!=6 && argc!=7) throw std::runtime_error(
+            "Usage: benchmark_zombie_updates MAP SCENARIO OUTPUT_DIR [SPAWN_X SPAWN_Z [full|optimized]]");
         multiplayer::Options options;
         options.map=argv[1];
-        if (argc==6) options.spawn=glm::vec2(std::stof(argv[4]),std::stof(argv[5]));
+        if (argc>=6) options.spawn=glm::vec2(std::stof(argv[4]),std::stof(argv[5]));
+        const std::string modeName=argc==7?argv[6]:"optimized";
+        if (modeName!="full" && modeName!="optimized") throw std::runtime_error("Unknown scenario travel mode");
         const auto config=viewer::loadZombieScenarioConfig(argv[2]);
         if (!config.seed) throw std::runtime_error("Repeatable profiling requires a scenario seed");
         options.zombieCount=config.count();
         auto navmesh=options.map; navmesh.replace_extension(".navmesh");
         const auto population=[&](const auto& assets, const auto& collision, const auto& model) {
-            return viewer::loadZombieScenario(assets,collision,model,navmesh,config);
+            auto layer=viewer::loadZombieScenario(assets,collision,model,navmesh,config);
+            layer.setDistantScenarioTravelEnabled(modeName!="full");
+            return layer;
         };
         multiplayer::Scene scene(options,population);
         const std::filesystem::path output=argv[3];
@@ -35,7 +39,7 @@ int main(int argc, char** argv) {
         metadata<<"map="<<options.map<<"\nscenario="<<argv[2]<<"\npopulation="<<scene.zombies.instances.size()
                 <<"\ntrunks="<<scene.collision->stats().trunks<<"\ntriangles="<<scene.collision->stats().triangles
                 <<"\nseed="<<*config.seed<<"\nspawn_eye="<<scene.spawnEye.x<<','<<scene.spawnEye.y<<','<<scene.spawnEye.z
-                <<"\ndt=1/60\nwarmup_steps=60\nmeasured_steps=300\nruns=6 (3 detailed, 3 control)\n";
+                <<"\ntravel_mode="<<modeName<<"\ndt=1/60\nwarmup_steps=60\nmeasured_steps=300\nruns=6 (3 detailed, 3 control)\n";
         viewer::zombie_profile::initializeClock();
         metadata << "seconds_per_tick=" << viewer::zombie_profile::detail::secondsPerTick
                  << "\ntimer=" << viewer::zombie_profile::timerName() << '\n';
@@ -52,7 +56,7 @@ int main(int argc, char** argv) {
             if (!rows) throw std::runtime_error("Cannot open profile CSV");
             rows<<std::setprecision(12)<<"frame,detailed,cpu_update_ms";
             for (const auto name:viewer::zombie_profile::names) rows<<','<<name<<"_ms,"<<name<<"_calls,"<<name<<"_dropped";
-            rows<<",other_ms,perception_checks,sight_rays,path_requests,validation_reuses,coverage_region_reuses,coverage_region_builds,door_candidates,door_overlaps,crowd_moves,crowd_neighbor_checks,crowd_budget_stops,crowd_empty_sector_skips\n";
+            rows<<",other_ms,perception_checks,sight_rays,path_requests,validation_reuses,coverage_region_reuses,coverage_region_builds,door_candidates,door_overlaps,crowd_moves,crowd_neighbor_checks,crowd_budget_stops,crowd_empty_sector_skips,walking_region_reuses,simple_traveler_clears,traveler_plans,traveler_fallbacks,traveler_interpolations\n";
             viewer::zombie_profile::Profile aggregate;
             for (unsigned frame=0;frame<360;++frame) {
                 clock.advance(dt);
@@ -82,9 +86,14 @@ int main(int argc, char** argv) {
                     <<','<<navigation.coverageRegionReuses<<','<<navigation.coverageRegionBuilds
                     <<','<<sample.doorCandidates<<','<<sample.doorOverlaps
                     <<','<<scene.zombies.crowdStats().moves<<','<<scene.zombies.crowdStats().neighborChecks
-                    <<','<<scene.zombies.crowdStats().budgetStops<<','<<scene.zombies.crowdStats().emptySectorSkips<<'\n';
+                    <<','<<scene.zombies.crowdStats().budgetStops<<','<<scene.zombies.crowdStats().emptySectorSkips<<','<<sample.walkingRegionReuses<<','<<sample.simpleTravelerClears<<','<<sample.travelerPlans<<','<<sample.travelerFallbacks<<','<<sample.travelerInterpolations<<'\n';
                 aggregate.doorCandidates+=sample.doorCandidates;
                 aggregate.doorOverlaps+=sample.doorOverlaps;
+                aggregate.walkingRegionReuses+=sample.walkingRegionReuses;
+                aggregate.simpleTravelerClears+=sample.simpleTravelerClears;
+                aggregate.travelerPlans+=sample.travelerPlans;
+                aggregate.travelerFallbacks+=sample.travelerFallbacks;
+                aggregate.travelerInterpolations+=sample.travelerInterpolations;
                 aggregate.seconds+=sample.seconds;
                 aggregate.steps+=sample.steps;
             }
@@ -108,6 +117,21 @@ int main(int argc, char** argv) {
                     throw std::runtime_error("Profiling/control final poses diverged");
             }
             aggregate.print(std::cout);
+        }
+        // Untimed final quality checks. Keep these after all six timing runs so
+        // their additional queries do not warm the measured movement workload.
+        std::ofstream quality(output/"quality.csv");
+        quality<<"id,x,y,z,ground_error,blocking_contacts,navmesh_inside\n";
+        for (std::size_t id=0;id<scene.zombies.instances.size();++id) {
+            const auto feet=glm::vec3(scene.zombies.instances[id].restRoot[3]);
+            const auto hit=scene.collision->walkingGroundAt(feet.x,feet.z,-1e10f,feet.y+.3f);
+            const double error=hit?double(feet.y-hit->height):1e10;
+            std::size_t blocking=0;
+            for (const auto& c:scene.collision->contacts(feet,.3f,1.8f,.002f,.05f))
+                if (c.depth>.0001f && !(c.terrainSupport && c.normal.y>=.70710678f) &&
+                    !(c.normal.y>.7f && c.point.y<=feet.y+.0021f)) ++blocking;
+            quality<<id<<','<<feet.x<<','<<feet.y<<','<<feet.z<<','<<error<<','<<blocking<<','
+                   <<scene.zombies.navigation()->segmentClear(feet,feet)<<'\n';
         }
         std::cout<<"All six runs finished with identical final poses and no runtime path searches\n";
         return 0;

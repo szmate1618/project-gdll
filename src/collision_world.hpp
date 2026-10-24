@@ -33,6 +33,8 @@ struct ContactVisitor {
     bool operator()(const Contact& contact) const { return receive(context, contact); }
 };
 
+enum class ContactPolicy { complete, walking };
+
 struct GroundHit {
     float height = 0.0f;
     glm::vec3 normal{0.0f, 1.0f, 0.0f};
@@ -62,6 +64,8 @@ class ContactCandidates {
     std::array<std::uint32_t,32> trunks_{};
     std::size_t triangleCount_ = 0, trunkCount_ = 0;
     bool trianglesComplete_ = false, trunksComplete_ = false, doorFree_ = false;
+    float terrainCeiling_ = 0, otherCeiling_ = 0;
+    bool walkingBounds_ = false;
 };
 
 // Y-up vertical capsule. Base and height include the rounded end caps; the
@@ -120,9 +124,16 @@ public:
     std::vector<Contact> contacts(glm::vec3 feet, float radius, float height,
                                   float skin = 0.0f, float wallClearance = 0.0f) const;
     // Same contact generation, without allocating/sorting a full static list.
-    // Return as soon as the visitor declines another contact.
+    // Return as soon as the visitor declines another contact. The walking policy allows
+    // certified nonblocking supports to be omitted (zombie walking rules only).
     void visitContacts(glm::vec3 feet, float radius, float height, float skin,
-                       float wallClearance, ContactVisitor visitor, ContactCandidates* candidates = nullptr) const;
+                       float wallClearance, ContactVisitor visitor, ContactCandidates* candidates = nullptr,
+                       ContactPolicy policy = ContactPolicy::complete) const;
+    // Conservative simplified swept test for distant scenario travel. Terrain
+    // height/slope must be sampled separately. Nearby live props/doors and
+    // unsupported geometry return false so callers use full capsule movement.
+    bool simpleTravelerClear(glm::vec3 start, glm::vec3 end, float radius, float height,
+                             ContactCandidates& candidates) const;
     // Support comes from scene meshes and live props, never vegetation. With
     // terrainOnly, ignore props and buildings for terrain-based placement.
     std::optional<GroundHit> groundAt(float x, float z, float minY, float maxY,
@@ -147,6 +158,7 @@ public:
     // Consecutive pairs are line segments, suitable for GL_LINES.
     std::vector<glm::vec3> debugLines(glm::vec3 near, float distance = 15.0f) const;
     const CollisionStats& stats() const;
+    std::uint64_t identity() const; // Immutable geometry lifetime; survives moves.
     bool empty() const; // No static geometry, trunks, doors or boxes.
     // Borrowed dynamic props must outlive this world. Queries remain read-only.
     void setBoxes(BoxLayer* boxes);
@@ -168,6 +180,9 @@ public:
                              bool& overflow, TrunkCandidates* candidates = nullptr) const;
 
 private:
+    void prepareContactCandidates(glm::vec3 minimum, glm::vec3 maximum, ContactCandidates& cache) const;
+    void prepareWalkingBounds(ContactCandidates& cache) const;
+    bool walkingRegionClear(float feetY, float radius, float skin, float wallClearance, ContactCandidates& cache) const;
     std::optional<GroundHit> queryGround(float x, float z, float minY, float maxY,
                                         bool terrainOnly, bool foundationCaps, WalkingGroundCache* cache = nullptr,
                                         bool includeBoxes = true) const;

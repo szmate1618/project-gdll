@@ -18,20 +18,21 @@ enum class Stage : std::size_t {
     ground, contacts, coverage, steering, spatial, contactCandidates,
     contactTriangles, contactTrunks, contactDoors, contactProps,
     groundStatic, groundProps, steeringCandidates, behaviorDispatch, scenarioRoutes, navigationControl,
-    pathFollowing, steeringTrunks, bodyMovement, crowdSweep, locomotionPose, renderNotifications, count
+    pathFollowing, steeringTrunks, bodyMovement, crowdSweep, locomotionPose, renderNotifications, travelerPlanning, count
 };
 inline constexpr std::array<const char*, std::size_t(Stage::count)> names{{
     "ground queries", "contact queries", "navmesh coverage", "Detour steering", "spatial updates",
     "contact candidates", "contact triangles", "contact trunks", "contact doors", "contact props",
     "ground static", "ground props", "steering trunk candidates", "behavior dispatch", "scenario routes", "navigation control",
-    "path following", "steering trunk lookup", "body movement", "crowd sweep", "locomotion pose", "render notifications"
+    "path following", "steering trunk lookup", "body movement", "crowd sweep", "locomotion pose", "render notifications", "traveler segment refresh"
 }};
 struct Measurement { double seconds = 0; std::uint64_t calls = 0, dropped = 0; };
 struct Profile {
     std::array<Measurement, std::size_t(Stage::count)> stages{};
     double seconds = 0;
     std::uint64_t steps = 0;
-    std::uint64_t doorCandidates = 0, doorOverlaps = 0;
+    std::uint64_t doorCandidates = 0, doorOverlaps = 0, walkingRegionReuses = 0, simpleTravelerClears = 0;
+    std::uint64_t travelerPlans = 0, travelerFallbacks = 0, travelerInterpolations = 0;
 
     void print(std::ostream& out) const {
         if (!steps) return;
@@ -46,6 +47,10 @@ struct Profile {
         }
         out << "  door detail: " << double(doorCandidates)/steps << " collider candidates, "
             << double(doorOverlaps)/steps << " overlaps/step\n";
+        out << "  walking contact region reuses: " << double(walkingRegionReuses)/steps << "/step\n";
+        out << "  traveler detail: " << double(travelerPlans)/steps << " segment refreshes, "
+            << double(travelerFallbacks)/steps << " fallbacks, " << double(travelerInterpolations)/steps
+            << " smooth steps, " << double(simpleTravelerClears)/steps << " simple clear sweeps/step\n";
         out << "  other update work + timer overhead: " << (seconds - measured) * scale << " ms\n";
     }
 };
