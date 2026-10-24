@@ -548,6 +548,7 @@ void CollisionWorld::visitContacts(glm::vec3 feet,float radius,float height,floa
     if (cache && (cache->worldId_!=impl_->worldId ||
         glm::any(glm::lessThan(wallRegion.low,cache->minimum_)) ||
         glm::any(glm::greaterThan(wallRegion.high,cache->maximum_)))) {
+        zombie_profile::Timer candidateTimer(zombie_profile::Stage::contactCandidates);
         cache->worldId_=impl_->worldId;
         cache->minimum_=wallRegion.low-glm::vec3(.5f);
         cache->maximum_=wallRegion.high+glm::vec3(.5f);
@@ -584,12 +585,15 @@ void CollisionWorld::visitContacts(glm::vec3 feet,float radius,float height,floa
             (!t.road || glm::dot(groundNormal, feet - pair.triangle) >= -epsilon);
         return visitor({normal, pair.triangle, triangleReach - distance, t.terrain, terrainSupport});
     };
+    {
+    zombie_profile::Timer triangleTimer(zombie_profile::Stage::contactTriangles);
     if (cache && cache->trianglesComplete_) {
         for (std::size_t i=0;i<cache->triangleCount_;++i) {
             const auto& triangle=impl_->triangles[cache->triangles_[i]];
             if (triangle.bounds.intersects(wallRegion) && !visitTriangle(triangle)) return;
         }
     } else if (!impl_->visitTriangles(wallRegion,visitTriangle)) return;
+    }
     const auto visitTrunk=[&](std::uint32_t,const TrunkCollider& trunk) {
         const float low = trunk.base.y + trunk.radius;
         const float high = trunk.base.y + trunk.height - trunk.radius;
@@ -610,6 +614,8 @@ void CollisionWorld::visitContacts(glm::vec3 feet,float radius,float height,floa
         const glm::vec3 point = glm::vec3(trunk.base.x, trunkY, trunk.base.z) + normal * trunk.radius;
         return visitor({normal, point, combinedRadius - distance});
     };
+    {
+    zombie_profile::Timer trunkTimer(zombie_profile::Stage::contactTrunks);
     if (cache && cache->trunksComplete_) {
         for (std::size_t i=0;i<cache->trunkCount_;++i) {
             const auto id=cache->trunks_[i];
@@ -617,11 +623,18 @@ void CollisionWorld::visitContacts(glm::vec3 feet,float radius,float height,floa
             if (trunk.bounds.intersects(region) && !visitTrunk(id,trunk.collider)) return;
         }
     } else if (!impl_->visitTrunksIndexed(region,visitTrunk)) return;
+    }
     // Dynamic manifold generation retains its existing API and live poses.
     // No static contacts are stored, and this list is never globally sorted.
     std::vector<Contact> dynamic;
-    if (impl_->doors) appendDoorContacts(*impl_->doors,feet,radius,height,skin,dynamic);
-    if (impl_->boxes) impl_->boxes->appendContacts(feet,radius,height,skin,dynamic);
+    if (impl_->doors) {
+        zombie_profile::Timer doorTimer(zombie_profile::Stage::contactDoors);
+        appendDoorContacts(*impl_->doors,feet,radius,height,skin,dynamic);
+    }
+    if (impl_->boxes) {
+        zombie_profile::Timer propTimer(zombie_profile::Stage::contactProps);
+        impl_->boxes->appendContacts(feet,radius,height,skin,dynamic);
+    }
     for (const auto& contact:dynamic) if (!visitor(contact)) return;
 }
 
@@ -645,6 +658,8 @@ std::optional<GroundHit> CollisionWorld::queryGround(float x, float z, float min
     if (!std::isfinite(x) || !std::isfinite(z) || !std::isfinite(minY) || !std::isfinite(maxY) || minY > maxY) return std::nullopt;
     Bounds region; region.include({x - epsilon, minY, z - epsilon}); region.include({x + epsilon, maxY, z + epsilon});
     std::optional<GroundHit> result;
+    {
+    zombie_profile::Timer staticTimer(zombie_profile::Stage::groundStatic);
     const auto consider = [&](const Triangle& t) {
         if (terrainOnly && !t.terrain) return;
         auto normal = t.normal;
@@ -683,7 +698,9 @@ std::optional<GroundHit> CollisionWorld::queryGround(float x, float z, float min
             }
         } else impl_->query(region, consider);
     } else impl_->query(region, consider);
+    }
     if (includeBoxes && !terrainOnly && impl_->boxes) {
+        zombie_profile::Timer propTimer(zombie_profile::Stage::groundProps);
         const auto box = impl_->boxes->groundAt(x, z, minY, maxY);
         if (box && (!result || box->height > result->height)) result = box;
     }

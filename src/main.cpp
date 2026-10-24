@@ -1,5 +1,6 @@
 #include "zombie_update_profile.hpp"
 #include "renderer.hpp"
+#include "frame_profile.hpp"
 #include "door_layer.hpp"
 #include "player_interaction.hpp"
 #include "physics_world.hpp"
@@ -84,6 +85,7 @@ struct Options {
     bool zombiePerceptionStaggering = true;
     bool zombiePerception = true;
     bool zombieDistanceDetail = true, zombieShadows = true, profile = false;
+    std::filesystem::path frameProfile;
     bool flashlightShadows = false;
     std::optional<float> zombieDrawDistance;
     int zombieCount = 1000;
@@ -104,6 +106,7 @@ Options parseOptions(int argc, char** argv) {
         };
         if (argument == "--help" || argument == "-h") options.help = true;
         else if (argument == "--profile") options.profile = true;
+        else if (argument == "--frame-profile") options.frameProfile = value();
         else if (argument == "--sun-shadow-resolution") {
             const auto text=value();std::size_t used=0;
             try { options.sunShadowResolution=std::stoi(text,&used); }
@@ -332,6 +335,7 @@ void printHelp() {
               << "  --no-flashlight-shadows Disable nearby flashlight shadows\n"
               << "  --no-zombie-shadows Disable zombie casting for GPU cost comparisons\n"
               << "  --profile           Print frame/GPU/CPU simulation and render timings\n"
+              << "  --frame-profile FILE Save per-frame CPU/GPU timing CSV\n"
               << "  --no-zombie-culling Disable zombie camera-frustum culling for comparison\n"
               << "  --no-zombie-staggering Check zombie sight every simulation step\n"
               << "  --no-zombie-perception Skip activation scans, behaviors, sight and hearing\n"
@@ -1182,6 +1186,8 @@ int run(const Options& options) {
     }
     renderer.resize(options.fullscreen ? options.width : app.width, options.fullscreen ? options.height : app.height);
     viewer::GpuTimer gpuTimer;
+    std::unique_ptr<viewer::FrameProfile> frameProfile;
+    if (!options.frameProfile.empty()) frameProfile=std::make_unique<viewer::FrameProfile>(options.frameProfile);
     double previous = glfwGetTime(), titleTime = previous;
     auto& simulationClock = viewer::SimulationClock::instance();
     simulationClock.reset();
@@ -1299,6 +1305,7 @@ int run(const Options& options) {
             overlay = collisionOverlay(app);
         }
         intervalPreparationSeconds += glfwGetTime() - preparationStart;
+        if (frameProfile) frameProfile->beginGpu();
         gpuTimer.begin();
         const double renderStart = glfwGetTime();
         renderer.render(viewCamera, app.displayedAnimationSeconds);
@@ -1313,6 +1320,8 @@ int run(const Options& options) {
         reticle.draw(app.rig.camera().viewMode(), renderWidth, renderHeight);
         intervalRenderSeconds += glfwGetTime() - renderStart;
         gpuTimer.end();
+        if (frameProfile) frameProfile->endGpu();
+        const double renderEnd=glfwGetTime();
         // Presentation can wait for VSync, so keep it outside both render timers.
         if (!options.hidden) {
             renderer.present(app.width, app.height);
@@ -1325,8 +1334,11 @@ int run(const Options& options) {
         ++frameCount;
         ++intervalFrames;
         const double completed = glfwGetTime();
+        if (frameProfile) frameProfile->record({static_cast<std::uint64_t>(frameCount),
+            (renderEnd-renderStart)*1000,(preparationStart-simulationStart)*1000,
+            (renderStart-preparationStart)*1000,(simulationStart-now)*1000,(completed-renderEnd)*1000});
         const double intervalSeconds = completed - titleTime;
-        if (intervalSeconds >= 1.0 && (!options.hidden || options.profile)) {
+        if (intervalSeconds >= 1.0 && (!options.hidden || options.profile || frameProfile)) {
             const auto fps = static_cast<int>(static_cast<double>(intervalFrames) / intervalSeconds);
             const auto milliseconds = [](double value) {
                 std::ostringstream text;
@@ -1362,6 +1374,7 @@ int run(const Options& options) {
                 + (app.interaction.grabbing() ? " (holding)" : "") + status + " | " + std::to_string(fps)
                 + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + " | CPU sim " + simulationTime + townStatus + treeStatus + zombieStatus + clockStatus.str() + " | " + speedStatus.str() + " m/s";
             glfwSetWindowTitle(window.get(), caption.c_str());
+            if (frameProfile && !options.profile) std::cout << caption << '\n';
             if (options.profile) {
                 std::cout << caption << '\n'
                           << "CPU stages: behavior " << milliseconds(intervalBehaviorSeconds * frameScale)
@@ -1388,6 +1401,14 @@ int run(const Options& options) {
             intervalSimulationSeconds = intervalBehaviorSeconds = intervalPreparationSeconds = 0.0;
         }
         if (options.frames > 0 && frameCount >= options.frames) break;
+    }
+    if (frameProfile) {
+        glFlush();
+        const double deadline=glfwGetTime()+5;
+        while (frameProfile->pending() && glfwGetTime()<deadline) {
+            frameProfile->collect();
+            if (frameProfile->pending()) glfwWaitEventsTimeout(.0005);
+        }
     }
     if (options.profile) zombieProfile.print(std::cout);
     if (!options.screenshot.empty()) renderer.writeScreenshot(options.screenshot);

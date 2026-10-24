@@ -14,15 +14,22 @@
 namespace viewer::zombie_profile {
 // Opt-in, simulation-thread wall timing. Only a Capture enables clocks; cold
 // loading and queries outside the captured zombie update are excluded.
-enum class Stage : std::size_t { ground, contacts, coverage, steering, spatial, count };
+enum class Stage : std::size_t {
+    ground, contacts, coverage, steering, spatial, contactCandidates,
+    contactTriangles, contactTrunks, contactDoors, contactProps,
+    groundStatic, groundProps, count
+};
 inline constexpr std::array<const char*, std::size_t(Stage::count)> names{{
-    "ground queries", "contact queries", "navmesh coverage", "Detour steering", "spatial updates"
+    "ground queries", "contact queries", "navmesh coverage", "Detour steering", "spatial updates",
+    "contact candidates", "contact triangles", "contact trunks", "contact doors", "contact props",
+    "ground static", "ground props"
 }};
 struct Measurement { double seconds = 0; std::uint64_t calls = 0, dropped = 0; };
 struct Profile {
     std::array<Measurement, std::size_t(Stage::count)> stages{};
     double seconds = 0;
     std::uint64_t steps = 0;
+    std::uint64_t doorCandidates = 0, doorOverlaps = 0;
 
     void print(std::ostream& out) const {
         if (!steps) return;
@@ -35,6 +42,8 @@ struct Profile {
                 << double(stages[i].calls) / steps << " calls/step; "
                 << stages[i].dropped << " migrated samples omitted\n";
         }
+        out << "  door detail: " << double(doorCandidates)/steps << " collider candidates, "
+            << double(doorOverlaps)/steps << " overlaps/step\n";
         out << "  other update work + timer overhead: " << (seconds - measured) * scale << " ms\n";
     }
 };

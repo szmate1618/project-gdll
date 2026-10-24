@@ -1,4 +1,5 @@
 #include "zombie_movement.hpp"
+#include "zombie_update_profile.hpp"
 #include "zombie_chase.hpp"
 #include "zombie_layer.hpp"
 #include "box_layer.hpp"
@@ -229,6 +230,22 @@ void cachedLiveSupport() {
     world.setBoxes(nullptr); check(0);
 }
 
+void descendingSupportUsesOneContactQuery() {
+    viewer::Model model;
+    quad(model,"terrain",{-4,-.4f,-4},{-4,-.4f,4},{4,.4f,4},{4,.4f,-4});
+    const viewer::CollisionWorld world(model);
+    viewer::zombie_profile::Profile profile;
+    viewer::ZombieMovement movement;
+    {
+        viewer::zombie_profile::Capture capture(&profile);
+        movement=viewer::moveZombieBody({1,.1f,0},{.98f,.1f,0},world);
+    }
+    require(std::abs(movement.feet.x-.98f)<1e-6f && std::abs(movement.feet.y-.098f)<1e-6f,
+            "Descending support must follow the rendered slope");
+    const auto queries=profile.stages[std::size_t(viewer::zombie_profile::Stage::contacts)].calls;
+    require(queries==1,"An already-clear supported pose repeated the identical contact query");
+}
+
 void cachedMovementOnSlopeAndStep() {
     auto model=floor();
     quad(model,"terrain",{-4,-.4f,-4},{-4,-.4f,4},{4,.4f,4},{4,.4f,-4});
@@ -337,6 +354,7 @@ int main() {
         boxesAndDoorPoses();
         contactCandidateReuse();
         cachedLiveSupport();
+        descendingSupportUsesOneContactQuery();
         cachedMovementOnSlopeAndStep();
         blockedBehaviorAndAnimation();
         boundedExternalMovement();

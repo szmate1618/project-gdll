@@ -384,7 +384,7 @@ add_library(viewer_scene_audio STATIC src/scene_audio.cpp)
 target_link_libraries(viewer_scene_audio PUBLIC viewer_audio viewer_audio_cues viewer_fps viewer_zombies viewer_undergrowth_audio)
 viewer_warnings(viewer_scene_audio)
 
-add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp
+add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp src/frame_profile.cpp
     src/reticle_overlay.cpp)
 target_link_libraries(godollo_viewer PRIVATE viewer_vegetation
     viewer_renderer viewer_fps viewer_interaction viewer_objects viewer_poles viewer_guardrails viewer_weapons viewer_scene_audio glfw
@@ -414,6 +414,9 @@ if(BUILD_TESTING)
     target_link_libraries(test_zombie_path_follow PRIVATE viewer_zombie_steering)
     viewer_warnings(test_zombie_path_follow)
     add_test(NAME viewer_zombie_path_follow COMMAND test_zombie_path_follow)
+    add_executable(capture_collision_queries EXCLUDE_FROM_ALL tests/capture_collision_queries.cpp)
+    target_link_libraries(capture_collision_queries PRIVATE viewer_collision)
+    viewer_warnings(capture_collision_queries)
     add_executable(test_collision_nearby_trunks tests/test_collision_nearby_trunks.cpp)
     target_link_libraries(test_collision_nearby_trunks PRIVATE viewer_collision)
     viewer_warnings(test_collision_nearby_trunks)

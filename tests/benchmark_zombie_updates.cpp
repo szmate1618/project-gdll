@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
             if (!rows) throw std::runtime_error("Cannot open profile CSV");
             rows<<std::setprecision(12)<<"frame,detailed,cpu_update_ms";
             for (const auto name:viewer::zombie_profile::names) rows<<','<<name<<"_ms,"<<name<<"_calls,"<<name<<"_dropped";
-            rows<<",other_ms,perception_checks,sight_rays,path_requests,validation_reuses,coverage_region_reuses,coverage_region_builds\n";
+            rows<<",other_ms,perception_checks,sight_rays,path_requests,validation_reuses,coverage_region_reuses,coverage_region_builds,door_candidates,door_overlaps\n";
             viewer::zombie_profile::Profile aggregate;
             for (unsigned frame=0;frame<360;++frame) {
                 clock.advance(dt);
@@ -79,7 +79,10 @@ int main(int argc, char** argv) {
                 const auto& navigation=scene.zombies.navigation()->stats();
                 rows<<','<<(sample.seconds-stages)*1000<<','<<behavior.perceptionChecks<<','<<behavior.sightRays
                     <<','<<navigation.requests<<','<<navigation.movementValidationReuses
-                    <<','<<navigation.coverageRegionReuses<<','<<navigation.coverageRegionBuilds<<'\n';
+                    <<','<<navigation.coverageRegionReuses<<','<<navigation.coverageRegionBuilds
+                    <<','<<sample.doorCandidates<<','<<sample.doorOverlaps<<'\n';
+                aggregate.doorCandidates+=sample.doorCandidates;
+                aggregate.doorOverlaps+=sample.doorOverlaps;
                 aggregate.seconds+=sample.seconds;
                 aggregate.steps+=sample.steps;
             }

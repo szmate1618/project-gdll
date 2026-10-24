@@ -54,24 +54,28 @@ bool clear(glm::vec3 feet,const CollisionWorld& world,float padding=0,ContactCan
     return !blockingContact(feet,world,padding,true,cache);
 }
 
-void support(glm::vec3& feet, const CollisionWorld& world, float ceiling, WalkingGroundCache* cache,ContactCandidates* contacts) {
+bool support(glm::vec3& feet, const CollisionWorld& world, float ceiling, WalkingGroundCache* cache,ContactCandidates* contacts) {
     const auto hit = world.walkingGroundAt(feet.x, feet.z,
         std::numeric_limits<float>::lowest(), ceiling, cache);
-    if (!hit || hit->normal.y < minNormalY) return;
+    if (!hit || hit->normal.y < minNormalY) return false;
     auto supported = feet;
     supported.y = hit->height;
     if (!hit->terrain) supported.y += radius * (1 / hit->normal.y - 1) + skin / hit->normal.y;
     // Keep rounded-foot edge support until the entire capsule can descend.
     // Dropping to the ground under its center too early reenters the ledge.
-    if (supported.y < feet.y && !clear(supported, world, skin,contacts)) return;
-    feet = supported;
+    const bool descending=supported.y<feet.y;
+    if (descending && !clear(supported,world,skin,contacts)) return false;
+    feet=supported;
+    // The identical padded contact query has already proved these feet clear.
+    // No world/prop/crowd mutation occurs before resolve consumes this result.
+    return descending;
 }
 
 glm::vec3 resolve(glm::vec3 start, glm::vec3 desired, const CollisionWorld& world, WalkingGroundCache* cache,ContactCandidates* contacts) {
     auto feet = desired;
     const float allowance = horizontalDistance(start, desired);
     for (int iteration = 0; iteration < resolutionIterations; ++iteration) {
-        support(feet, world, start.y + stepHeight, cache,contacts);
+        if (support(feet,world,start.y+stepHeight,cache,contacts)) return feet;
         const auto deepest=blockingContact(feet,world,skin,false,contacts);
         if (!deepest) return feet;
         const glm::vec2 normal(deepest->normal.x, deepest->normal.z);

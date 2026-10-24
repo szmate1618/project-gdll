@@ -1,3 +1,4 @@
+#include "zombie_update_profile.hpp"
 #include "door_collision.hpp"
 
 #include <box3d/collision.h>
@@ -113,7 +114,9 @@ void appendDoorContacts(const DoorLayer& doors, glm::vec3 feet, float radius, fl
     const float reach = radius + skin;
     const auto minimum = feet - glm::vec3(reach, skin, reach);
     const auto maximum = feet + glm::vec3(reach, height + skin, reach);
-    for (const auto& door : doors.colliders(minimum, maximum)) {
+    const auto candidates=doors.colliders(minimum,maximum);
+    if (zombie_profile::activeProfile) zombie_profile::activeProfile->doorCandidates+=candidates.size();
+    for (const auto& door:candidates) {
         const auto inverse = glm::conjugate(door.rotation);
         b3Capsule capsule{vector(inverse * (feet + glm::vec3(0, radius, 0) - door.center)),
                           vector(inverse * (feet + glm::vec3(0, height - radius, 0) - door.center)), reach};
@@ -126,8 +129,10 @@ void appendDoorContacts(const DoorLayer& doors, glm::vec3 feet, float radius, fl
         b3CollideHullAndCapsule(&manifold, static_cast<int>(points.size()), &box.base, &capsule, b3Transform_identity, &cache);
         const auto normal = door.rotation * vector(manifold.normal);
         for (int i = 0; i < manifold.pointCount; ++i)
-            if (points[i].separation < 0)
+            if (points[i].separation < 0) {
+                if (zombie_profile::activeProfile) ++zombie_profile::activeProfile->doorOverlaps;
                 contacts.push_back({normal, door.center + door.rotation * vector(points[i].point), -points[i].separation});
+            }
     }
 }
 
