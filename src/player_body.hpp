@@ -1,5 +1,6 @@
 #pragma once
 
+#include "player_body_pose.hpp"
 #include <array>
 #include <memory>
 #include <glm/glm.hpp>
@@ -7,12 +8,6 @@
 
 namespace viewer {
 class PhysicsWorld;
-enum class PlayerBodyPart : std::size_t {
-    hip, lowerTorso, upperTorso, leftUpperArm, leftLowerArm, leftFist,
-    rightUpperArm, rightLowerArm, rightFist, count
-};
-constexpr std::size_t playerBodyPartCount = static_cast<std::size_t>(PlayerBodyPart::count);
-
 // Rigid boxes in world meters, attached to a walking/camera-carried anchor.
 // Standing eye height determines anatomy; crouching never scales the body.
 // Arms lock in guard without springs until their own punch is thrown.
@@ -35,6 +30,7 @@ public:
     // before afterStep() reads the remaining Box3D contacts.
     void recordArmContact(PlayerBodyPart part);
     bool enabled() const;
+    PlayerBodyPose pose() const;
     b3BodyId body(PlayerBodyPart part) const;
     glm::mat4 transform(PlayerBodyPart part) const; // Includes full box size.
     glm::vec3 fistPosition(bool right) const;

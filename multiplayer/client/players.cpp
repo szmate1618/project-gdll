@@ -31,6 +31,15 @@ void PlayerRenderer::draw(const viewer::Camera& camera, const std::vector<Player
     glUseProgram(program_); glBindVertexArray(vao_);
     for (const auto& p : players) {
         if (p.id == self || p.vehicle != noVehicle) continue;
+        glUniform3f(color_, .15f + .12f * (p.id % 4), .65f, .95f);
+        if (p.melee.enabled) {
+            for (const auto& part : p.melee.parts) {
+                const auto m = vp * part;
+                glUniformMatrix4fv(matrix_,1,GL_FALSE,glm::value_ptr(m));
+                glDrawArrays(GL_TRIANGLES,0,36);
+            }
+            continue;
+        }
         const float heightMeters = p.movement.stance == viewer::PlayerStance::Standing ? 1.8f :
             p.movement.stance == viewer::PlayerStance::Crouched ? 1.1f : .6f;
         const auto model = glm::translate(glm::mat4(1), p.movement.feet + glm::vec3(0, heightMeters * .5f, 0)) *

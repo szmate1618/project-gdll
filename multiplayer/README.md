@@ -179,7 +179,7 @@ and data URIs are supported. Zombie assets may have at most 128 skeleton nodes
 (including non-joint scene nodes); incompatible rigs fail before hosting.
 Weapon definitions and starting inventory are loaded once per scene and copied
 for each joining player, so changing files cannot change a running session.
-The current wire protocol is version 11; rebuild both client and server together.
+The current wire protocol is version 12; rebuild both client and server together.
 Snapshots include persistent head/torso wound masks and authoritative loose
 cavity contents. Clients render these without running their own cavity physics.
 
@@ -202,12 +202,17 @@ Scene options:
   GameNetworkingSockets. These testing options may differ between peers.
 
 Client controls: WASD, mouse look, Shift run, Space jump, Ctrl crouch, Z prone,
-1–5 weapon selection, R reload, F toggle flashlight, left click fire/throw, right click cycle scope.
+1–5 weapon selection, the physical key left of 1 (Hungarian 0 / US backtick)
+for fists, R reload, F toggle flashlight, left click fire/throw/punch, right click
+cycle scope.
 Tab switches Combat/Interaction. In Interaction, hold either mouse button to
 grab a nearby prop; left mouse also grabs doors. Mouse motion and walking move
 the grip. F12 releases/recaptures the mouse; Escape exits. Losing focus releases
 controls. Ammo and mode appear in the window title. Remote players are simple
-colored bodies whose height follows their stance.
+colored bodies whose height follows their stance. With fists equipped, their
+physical torso and arms replace that simple body. Local hands show the newest
+server-confirmed pose, translated to the predicted eye; they do not wait for the
+remote interpolation buffer. Punches therefore include network latency.
 
 At level load both peers validate the optional `abandoned_cars.instances.json`
 beside the map and include its exact bytes in the content fingerprint. The server
@@ -310,8 +315,8 @@ The server does not render, so
 authoritative hit/ragdoll poses come from its animation clock.
 Cars replicate rigid chassis and individual wheel poses plus chassis velocity;
 wheel steering, suspension travel and rotation remain visible to every client.
-All cars are included in essential snapshots (a maximum of 32 on the wire; one
-is currently spawned). The driver camera follows the same interpolated pose as
+All cars are included in essential snapshots (up to 1,024), including random
+parked placements loaded beside the map. The driver camera follows the same interpolated pose as
 the rendered car. Vehicle motion is server-authoritative and is not locally
 predicted, so driving response includes network latency. Driving commands are
 retained/resubmitted normally but never replayed as walking movement. Lighting
@@ -340,6 +345,24 @@ poses. Clients retain complete root/palette pairs outside the display buffer and
 apply them together without blending affine bone matrices. Corpses stay hidden
 until their first complete pose arrives.
 
+Physical melee runs at the shared server physics rate. The server validates
+fist ownership, individual clicks and the 0.5 s cooldown. It builds one set of
+nearby zombie contact proxies for all players, reads every striking arm's solved
+contacts, then applies the combined hit reactions. Guard and returning arms do
+not damage zombies. Interaction mode, vehicle occupancy, weapon switching and
+disconnect disable or release the player rig. Fists are always available and
+cannot become dropped equippable items. Melee targets zombies; there is no
+player-health or player-versus-player damage system.
+
+Protocol 12 includes each enabled player's nine physical box poses and hand
+state in essential snapshots. Positions, quaternion orientations and dimensions
+keep the maximum fleet, interested zombies, doors, boxes and eight melee players
+inside the existing 256 KiB message limit. Invalid/non-rigid or oversized poses
+are rejected. Remote body rotations interpolate as quaternions without changing
+box dimensions. Zombie hit reactions use the existing complete, independently
+versioned corpse-pose lane, including repeat impacts and late joins. Clients
+never run melee physics or decide hits.
+
 ## Checks and current limits
 
 ```sh
@@ -354,7 +377,11 @@ can save its final framebuffer with `--screenshot build/multiplayer.ppm`.
 `--hidden` keeps that graphical window invisible; `--look YAW PITCH` selects an
 initial view for repeatable captures. Both still require a display/GPU.
 
-Unit checks cover protocol validation, reconciliation across jumps/stances,
+Unit checks include `multiplayer_melee` for two-player physical hits, duplicate
+commands, alternating hands, late joins, body interpolation, disconnect cleanup
+and the full snapshot budget. Graphics checks cover confirmed first-person
+punches without firearm effects, the physical key binding, and remote physical
+bodies behind glass. Other checks cover protocol validation, reconciliation across jumps/stances,
 multi-player target selection, single-player equivalence, blocked shots, pose
 replication, late-join corpses, command deduplication, fragment loss/reordering and
 stale snapshots. Focused checks cover startup rejection of external GLB resources

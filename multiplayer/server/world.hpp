@@ -7,15 +7,18 @@
 #include "zombie_door_collision.hpp"
 #include "replication.hpp"
 #include "vehicle_seats.hpp"
+#include "player_body.hpp"
+#include "melee_combat.hpp"
 #include <map>
 #include <set>
 
 namespace multiplayer {
 struct ServerPlayer {
-    explicit ServerPlayer(const viewer::Weapons& initialWeapons);
+    ServerPlayer(const viewer::Weapons& initialWeapons, std::shared_ptr<viewer::PhysicsWorld> world);
     viewer::FPSController controller;
     viewer::Camera camera;
     viewer::Weapons weapons;
+    viewer::PlayerBody body;
     viewer::PlayerInteraction interaction;
     viewer::UndergrowthEmitter undergrowth;
     std::map<std::uint64_t, Command> pending;
@@ -43,6 +46,7 @@ private:
     viewer::PhysicsScene physicsScene_;
     viewer::InteriorObjects interiors_;
     viewer::ZombieDoorCollision zombieDoors_;
+    viewer::MeleeCombat melee_;
     std::map<std::uint32_t, ServerPlayer> players_;
     std::uint32_t nextPlayer_ = 1;
     std::uint64_t tick_ = 0;

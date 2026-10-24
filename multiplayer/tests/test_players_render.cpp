@@ -1,6 +1,8 @@
 #include "client/players.hpp"
 #include "renderer.hpp"
 #include "interior_fixture.hpp"
+#include "player_body.hpp"
+#include "physics_world.hpp"
 #include <GLFW/glfw3.h>
 #include <array>
 #include <iostream>
@@ -35,6 +37,18 @@ void check(const std::filesystem::path& screenshot) {
     player.movement.feet.z = -1;
     renderer.render(camera, 0, draw); const auto inFront = pixel();
     if (glm::length(inFront - uncovered) > 5) throw std::runtime_error("Glass tinted a player in front of it");
+    auto physics=std::make_shared<viewer::PhysicsWorld>(); viewer::PlayerBody body(physics,1.7f);
+    body.follow({0,1.7f,-4},{0,0,-1},true); body.punch({0,0,-1});
+    for (int n=0;n<4;++n) physics->step(1.f/60,[&](float dt){body.beforeStep(dt);},[&](float){body.afterStep();});
+    player.slot=static_cast<std::uint8_t>(viewer::punchSlot); player.melee=body.pose();
+    renderer.render(camera); draw(); const auto bodyColor=pixel();
+    renderer.render(camera,0,draw); const auto bodyBehindGlass=pixel();
+    if (!(bodyBehindGlass.r>bodyColor.r+40 && bodyBehindGlass.b<bodyColor.b-30))
+        throw std::runtime_error("Remote physical melee body overwrote the glass tint");
+    if (!screenshot.empty()) renderer.writeScreenshot(screenshot.string()+"-melee.ppm");
+    renderer.render(camera); const auto empty=pixel();
+    renderer.render(camera,0,[&]{players.draw(camera,{player},player.id,width,height);});
+    if (glm::length(pixel()-empty)>1) throw std::runtime_error("Local player also rendered as a remote melee body");
     GLboolean depthWrite = GL_FALSE; glGetBooleanv(GL_DEPTH_WRITEMASK, &depthWrite);
     if (!depthWrite) throw std::runtime_error("Opaque player hook leaked depth state");
     viewer::Renderer::checkErrors("multiplayer players and glass");

@@ -1,5 +1,7 @@
 #include "network.hpp"
 #include "server/replication.hpp"
+#include "player_body.hpp"
+#include "physics_world.hpp"
 #include <chrono>
 #include <iostream>
 #include <thread>
@@ -13,7 +15,14 @@ int main(int argc, char** argv) {
         auto peer = k_HSteamNetConnection_Invalid;
         if (server) { network.listen(port); std::cout << "READY\n" << std::flush; }
         else peer = network.connect("127.0.0.1:" + std::to_string(port));
-        multiplayer::Snapshot state; state.players.emplace_back(); state.players[0].id = 1;
+        auto physics=std::make_shared<viewer::PhysicsWorld>(); viewer::PlayerBody body(physics,1.7f);
+        body.follow({0,1.7f,0},{0,0,-1},true); body.punch({0,0,-1});
+        multiplayer::Snapshot state; state.players.resize(multiplayer::maxPlayers);
+        for (std::size_t p=0;p<state.players.size();++p) {
+            state.players[p].id=static_cast<std::uint32_t>(p+1);
+            state.players[p].slot=static_cast<std::uint8_t>(viewer::punchSlot);
+            state.players[p].melee=body.pose();
+        }
         state.zombies.resize(large ? multiplayer::maxVisibleZombies : 40);
         for (std::size_t i = 0; i < state.zombies.size(); ++i) {
             state.zombies[i].id = static_cast<std::uint32_t>(i); state.zombies[i].dead = !large;
@@ -38,6 +47,10 @@ int main(int argc, char** argv) {
                 if (server && std::holds_alternative<multiplayer::Hello>(message)) peer = connection;
                 if (const auto* snapshot = std::get_if<multiplayer::Snapshot>(&message)) {
                     ++snapshots; latest = std::max(latest, snapshot->tick);
+                    if (snapshot->players.size()!=multiplayer::maxPlayers) throw std::runtime_error("Transport lost physical players");
+                    for (const auto& p : snapshot->players)
+                        if (p.slot!=viewer::punchSlot || !p.melee.enabled || p.melee.striking!=2 || !viewer::validPlayerBodyPose(p.melee))
+                            throw std::runtime_error("Transport lost or corrupted a physical punch pose");
                 }
                 if (const auto* pose = std::get_if<multiplayer::CorpsePose>(&message)) {
                     ++poses;

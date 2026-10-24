@@ -9,6 +9,7 @@
 #include <set>
 #include <stdexcept>
 #include <type_traits>
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace multiplayer {
 namespace {
@@ -42,6 +43,22 @@ struct Wire {
     }
     void vector(glm::vec3& p) { number(p.x); number(p.y); number(p.z); }
     void matrix(glm::mat4& m) { for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r) number(m[c][r]); }
+    // Physical body boxes have rigid orientation and positive dimensions.
+    // TRS needs ten floats instead of sixteen and keeps eight fists players
+    // inside the existing full-fleet essential snapshot budget.
+    void bodyPart(glm::mat4& m) {
+        glm::vec3 center{0}, size{1}; glm::quat rotation{1,0,0,0};
+        if (!reading) {
+            center=glm::vec3(m[3]);
+            size={glm::length(glm::vec3(m[0])),glm::length(glm::vec3(m[1])),glm::length(glm::vec3(m[2]))};
+            rotation=glm::normalize(glm::quat_cast(glm::mat3{glm::vec3(m[0])/size.x,glm::vec3(m[1])/size.y,glm::vec3(m[2])/size.z}));
+        }
+        vector(center); vector(size);
+        number(rotation.w); number(rotation.x); number(rotation.y); number(rotation.z);
+        if (glm::any(glm::lessThan(size,glm::vec3(.02f))) || glm::any(glm::greaterThan(size,glm::vec3(3))) ||
+            std::abs(glm::length(rotation)-1)>.001f) throw std::runtime_error("Invalid physical body box");
+        if (reading) m=glm::translate(glm::mat4(1),center)*glm::mat4_cast(glm::normalize(rotation))*glm::scale(glm::mat4(1),size);
+    }
     template<class T, class F> void list(std::vector<T>& values, std::size_t limit, F item) {
         if (values.size() > limit) throw std::runtime_error("Too many multiplayer records");
         auto count = static_cast<std::uint32_t>(values.size());
@@ -70,7 +87,7 @@ void command(Wire& w, Command& c) {
     w.flag(c.interaction); w.flag(c.left); w.flag(c.right); w.flag(c.reload); w.integer(c.slot);
     w.flag(c.enterVehicle);
     if (c.sequence == 0 || std::abs(c.movement.forward) > 1 || std::abs(c.movement.right) > 1 ||
-        std::abs(c.movement.yawDegrees) > 180 || std::abs(c.pitch) > 89 || c.slot >= viewer::weaponIds.size() ||
+        std::abs(c.movement.yawDegrees) > 180 || std::abs(c.pitch) > 89 || c.slot > viewer::punchSlot ||
         std::abs(c.drag.x) > 2000 || std::abs(c.drag.y) > 2000)
         throw std::runtime_error("Invalid multiplayer command");
 }
@@ -115,7 +132,16 @@ void payload(Wire& w, Snapshot& s) {
         w.number(p.yaw); w.number(p.pitch); w.integer(p.slot); w.integer(p.loaded); w.integer(p.reserve); w.integer(p.shots);
         w.flag(p.weaponCoolingDown);
         w.integer(p.vehicle); w.integer(p.seat);
-        if (!p.id || p.slot >= viewer::weaponIds.size() || std::abs(p.yaw) > 180 || std::abs(p.pitch) > 89 ||
+        w.flag(p.melee.enabled);
+        if (p.melee.enabled) {
+            if (!w.reading && !viewer::validPlayerBodyPose(p.melee)) throw std::runtime_error("Invalid melee player pose");
+            w.vector(p.melee.eye); w.integer(p.melee.striking); w.integer(p.melee.returning);
+            for (auto& part : p.melee.parts) w.bodyPart(part);
+        }
+        if (!viewer::validPlayerBodyPose(p.melee) ||
+            (p.melee.enabled && (p.slot != viewer::punchSlot || p.vehicle != noVehicle)))
+            throw std::runtime_error("Invalid melee player pose");
+        if (!p.id || p.slot > viewer::punchSlot || std::abs(p.yaw) > 180 || std::abs(p.pitch) > 89 ||
             (p.vehicle != noVehicle && (p.vehicle >= maxVehicles || p.seat >= viewer::maxVehicleSeats)) ||
             (p.vehicle == noVehicle && p.seat != noVehicleSeat))
             throw std::runtime_error("Invalid player snapshot");

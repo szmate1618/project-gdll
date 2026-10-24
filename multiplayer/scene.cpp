@@ -143,7 +143,7 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
              const std::optional<viewer::ZombieScenarioConfig::Player>& playerSpawn) :
     mapPath(o.map), model(loadSessionMap(o.map)), physics(std::make_shared<viewer::PhysicsWorld>()),
     dayNight(o.dayNight),
-    initialWeapons(resourceRoot() / "items", resourceRoot() / "inventory.toml") {
+    initialWeapons(resourceRoot() / "items", resourceRoot() / "inventory.toml", true) {
     std::vector<std::filesystem::path> content{o.map};
     const auto adjacent = [&](const char* name) { return o.map.parent_path() / name; };
     if (std::filesystem::exists(adjacent("poles.instances.json"))) {

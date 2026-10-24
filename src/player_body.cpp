@@ -492,6 +492,19 @@ bool PlayerBody::returning(PlayerBodyPart part) const {
 void PlayerBody::recordArmContact(PlayerBodyPart part) {
     if (punching(part)) impl_->arms[index(part) >= index(PlayerBodyPart::rightUpperArm) ? 1 : 0].contacted = true;
 }
+PlayerBodyPose PlayerBody::pose() const {
+    PlayerBodyPose result;
+    result.enabled = enabled();
+    if (!result.enabled) return result;
+    result.eye = impl_->target - impl_->facing * impl_->centers[0];
+    for (std::size_t i=0; i<result.parts.size(); ++i) result.parts[i] = transform(static_cast<PlayerBodyPart>(i));
+    for (std::size_t side=0; side<2; ++side) {
+        const auto fist = side ? PlayerBodyPart::rightFist : PlayerBodyPart::leftFist;
+        if (punching(fist)) result.striking |= 1u << side;
+        if (returning(fist)) result.returning |= 1u << side;
+    }
+    return result;
+}
 bool PlayerBody::enabled() const { return impl_->active; }
 b3BodyId PlayerBody::body(PlayerBodyPart part) const { return impl_->bodies.at(index(part)); }
 glm::mat4 PlayerBody::transform(PlayerBodyPart part) const {

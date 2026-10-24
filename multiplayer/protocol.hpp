@@ -3,6 +3,7 @@
 #include "fps_controller.hpp"
 #include "grenades.hpp"
 #include "blood_mist.hpp"
+#include "player_body_pose.hpp"
 
 #include "vehicle_config.hpp"
 #include <glm/gtc/quaternion.hpp>
@@ -20,7 +21,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 11; // Vehicle types, seats and rigid poses alongside damage/grenades.
+constexpr std::uint32_t protocolVersion = 12; // Physical melee poses and fists as the sixth equipment slot.
 
 struct Hello { std::string fingerprint; };
 struct Welcome { std::uint32_t player = 0; };
@@ -57,6 +58,7 @@ struct PlayerState {
 
     std::uint32_t vehicle = noVehicle;
     std::uint8_t seat = noVehicleSeat;
+    viewer::PlayerBodyPose melee;
 };
 struct ZombieState {
     std::uint32_t id = 0, asset = 0;

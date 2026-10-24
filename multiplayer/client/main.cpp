@@ -10,6 +10,7 @@
 #include "renderer.hpp"
 #include "reticle_overlay.hpp"
 #include "weapon_overlay.hpp"
+#include "player_body_renderer.hpp"
 #include "undergrowth_audio.hpp"
 #include <GLFW/glfw3.h>
 #else
@@ -51,6 +52,7 @@ void key(GLFWwindow* window, int code, int, int action, int) {
     if (code == GLFW_KEY_Z) in.prone = true;
     if (code == GLFW_KEY_R) in.reload = true;
     if (code == GLFW_KEY_F) in.flashlight = !in.flashlight;
+    if (code == GLFW_KEY_GRAVE_ACCENT) in.slot = static_cast<std::uint8_t>(viewer::punchSlot);
     if (code >= GLFW_KEY_1 && code <= GLFW_KEY_5) in.slot = static_cast<std::uint8_t>(code - GLFW_KEY_1);
     if (code == GLFW_KEY_LEFT_ALT || code == GLFW_KEY_F12) {
         in.capture = !in.capture; in.firstMouse = true; in.drag = {};
@@ -95,8 +97,9 @@ struct Graphics {
     std::size_t muzzleSlot = 0;
     glm::vec3 muzzleModelPosition{0};
     std::unique_ptr<multiplayer::PlayerRenderer> players;
+    std::unique_ptr<viewer::PlayerBodyRenderer> body;
     ~Graphics() {
-        audio.reset(); players.reset(); weapon.reset(); reticle.reset(); renderer.reset();
+        audio.reset(); body.reset(); players.reset(); weapon.reset(); reticle.reset(); renderer.reset();
         if (window) glfwDestroyWindow(window);
         glfwTerminate();
     }
@@ -118,11 +121,12 @@ struct Graphics {
             &scene.zombies, scene.forests ? &*scene.forests : nullptr);
         renderer->setVehicleAssets(multiplayer::resourceRoot() / "assets/vehicles/models");
         reticle = std::make_unique<viewer::ReticleOverlay>(shaders);
-        const viewer::FPSConfig body;
+        const viewer::FPSConfig playerConfig;
         weapon = std::make_unique<viewer::WeaponOverlay>(shaders, multiplayer::weaponModelDirectory(),
-            viewer::WeaponViewBody{body.height, body.eyeHeight});
+            viewer::WeaponViewBody{playerConfig.height, playerConfig.eyeHeight});
         renderer->loadGrenadeModel(multiplayer::weaponModelDirectory() / "he_grenade.glb");
         players = std::make_unique<multiplayer::PlayerRenderer>();
+        body = std::make_unique<viewer::PlayerBodyRenderer>(shaders);
         viewer::AudioOptions audioOptions;
         audioOptions.directory = multiplayer::audioDirectory();
         audioOptions.enabled = sound;
@@ -227,7 +231,7 @@ int main(int argc, char** argv) {
                         in.canScope = p.vehicle == multiplayer::noVehicle && weaponDefinitions.equipped().config.hasScope;
                         in.equippedSlot = p.slot;
 #ifdef MP_GRAPHICS
-                        if (graphics.weapon && ready && p.shots > ownState.shots && !weaponDefinitions.equipped().config.grenade) {
+                        if (graphics.weapon && ready && p.shots > ownState.shots && p.slot != viewer::punchSlot && !weaponDefinitions.equipped().config.grenade) {
                             in.weaponMotion.fire(p.slot, now);
                             graphics.muzzleSlot = p.slot;
                             graphics.muzzleModelPosition = weaponDefinitions.equipped().config.muzzlePosition;
@@ -310,8 +314,21 @@ int main(int argc, char** argv) {
                     renderer.updateVehicles(*scene.vehicles, in.driver.car());
                     renderer.setDayNightLighting(viewer::dayNightLighting(scene.dayNight.hourAt(snapshots.animationSeconds())));
                     renderer.updateZombies(scene.zombies);
+                    viewer::PlayerBodyPose ownBody;
+                    if (prediction.ready() && !in.driver.occupied() && !in.interaction && in.slot==viewer::punchSlot && ownState.slot==viewer::punchSlot) {
+                        // Local hands use the newest confirmed pose, without the
+                        // remote interpolation delay; movement remains predicted.
+                        ownBody = ownState.melee;
+                        if (ownBody.enabled) {
+                            const auto translation = in.camera.position()-ownBody.eye;
+                            ownBody.eye += translation;
+                            for (auto& part : ownBody.parts) part[3] += glm::vec4(translation,0);
+                        }
+                    }
+                    graphics.body->capturePose(ownBody,static_cast<float>(dt));
                     renderer.render(viewCamera, snapshots.animationSeconds(), [&] {
                         graphics.players->draw(viewCamera, snapshots.players(), self, width, height);
+                        graphics.body->drawPose(ownBody,viewCamera.projection(float(width)/height)*viewCamera.view(),width,height);
                     });
                     if (prediction.ready() && !in.driver.occupied() && !in.interaction &&
                         in.camera.viewMode() == viewer::Camera::ViewMode::original &&
@@ -330,7 +347,8 @@ int main(int argc, char** argv) {
                             }) : std::optional<viewer::VehicleSeatRef>{};
                     const auto title = "Gödöllő Multiplayer | Player " + std::to_string(self) + " | " +
                         (in.driver.occupied() ? (in.driver.driving() ? "Driving | WASD, Space brake, Enter exit, Alt camera" : "Passenger | Mouse look, Enter exit") :
-                         in.interaction ? "Interaction" : "Combat") + " | Ammo " + std::to_string(ownState.loaded) + "/" + std::to_string(ownState.reserve)
+                         in.interaction ? "Interaction" : "Combat") + (ownState.slot==viewer::punchSlot ? " | Fists: left click punch" :
+                            " | Ammo " + std::to_string(ownState.loaded) + "/" + std::to_string(ownState.reserve))
                         + (entry ? " | " + viewer::vehicleEntryLabel(*scene.vehicles, *entry) : "");
                     glfwSetWindowTitle(graphics.window, title.c_str());
                 }

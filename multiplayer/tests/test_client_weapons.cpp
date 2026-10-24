@@ -3,6 +3,7 @@
 #include "../client/main.cpp"
 #undef main
 #include <fstream>
+#include "player_body.hpp"
 
 namespace {
 std::filesystem::path fixture;
@@ -11,6 +12,7 @@ std::optional<multiplayer::VehicleState> car;
 std::vector<std::vector<unsigned char>> frames;
 int frame = 0;
 bool departed = false;
+viewer::PlayerBodyPose punchPose;
 constexpr HSteamNetConnection testConnection = 1;
 constexpr int frameWidth = 1280, frameHeight = 720;
 
@@ -201,6 +203,7 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             const auto oldSlot = in.slot;
             key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_PRESS, 0);
             key(window, GLFW_KEY_2, 0, GLFW_PRESS, 0);
+            key(window, GLFW_KEY_GRAVE_ACCENT, 0, GLFW_PRESS, 0);
             require(!in.toggleDrivingCamera && in.slot == oldSlot, "Passenger selected chase camera or weapon");
             in.firstMouse = false; in.lastX = in.lastY = 100;
             mouse(window, 160, 80);
@@ -215,9 +218,47 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
                     "Passenger Enter must request one exit");
             authoritative.vehicle = multiplayer::noVehicle; authoritative.seat = multiplayer::noVehicleSeat;
             break;
-        case 30:
+        case 30: {
             require(!in.driver.occupied(), "Passenger exit did not restore walking controls");
-            glfwSetWindowShouldClose(window, true);
+            const auto oldSlot=in.slot;
+            key(window,GLFW_KEY_0,0,GLFW_PRESS,0);
+            require(in.slot==oldSlot,"US number-row 0 unexpectedly equipped fists");
+            key(window,GLFW_KEY_GRAVE_ACCENT,0,GLFW_PRESS,0);
+            require(in.slot==viewer::punchSlot && command(in,window,false,0).slot==viewer::punchSlot,
+                    "Physical key left of 1 did not request multiplayer fists");
+            in.camera.setOrientation(-90,0); authoritative.yaw=-90; authoritative.pitch=0;
+            auto physics=std::make_shared<viewer::PhysicsWorld>(); viewer::PlayerBody body(physics,1.7f);
+            viewer::FPSController controller; controller.restoreMovement(authoritative.movement);
+            body.follow(controller.eyePosition(),{0,0,-1},true); body.punch({0,0,-1});
+            const auto start=body.fistPosition(true);
+            for (int n=0;n<20 && glm::distance(start,body.fistPosition(true))<.3f;++n)
+                physics->step(1.f/60,[&](float step){body.beforeStep(step);},[&](float){body.afterStep();});
+            punchPose=body.pose();
+            authoritative.slot=static_cast<std::uint8_t>(viewer::punchSlot);
+            authoritative.loaded=authoritative.reserve=0; authoritative.melee=punchPose; ++authoritative.shots;
+            break;
+        }
+        case 31:
+            require(!in.canScope,"Confirmed fists enabled scope"); capture("fists-punch");
+            authoritative.melee={};
+            break;
+        case 32:
+            require(differences(30,31)>500,"Confirmed physical hands did not render in first person");
+            authoritative.melee=punchPose; ++authoritative.shots;
+            break;
+        case 33:
+            require(differences(30,32)<100,"Confirmed punches created firearm recoil or muzzle lighting");
+            in.interaction=true;
+            break;
+        case 34:
+            require(differences(31,33)<100,"Interaction mode retained the local physical hands");
+            in.interaction=false; key(window,GLFW_KEY_1,0,GLFW_PRESS,0);
+            authoritative.slot=0; authoritative.melee={};
+            break;
+        case 35:
+            capture("pistol-after-fists");
+            require(differences(31,34)>500,"Equipping a firearm after fists lost its model");
+            glfwSetWindowShouldClose(window,true);
             break;
     }
     Snapshot snapshot; snapshot.tick = static_cast<std::uint64_t>(frame++);
@@ -257,13 +298,13 @@ int main(int argc, char** argv) {
         char hidden[] = "--hidden", seconds[] = "--seconds", duration[] = "5";
         char dayLength[] = "--day-length";
         char* args[] = {program, argv[1], noTrees, count, zero, hidden, seconds, duration, dayLength, zero};
-        require(clientMain(10, args) == 0 && frame == 31, "Graphical client did not finish all weapon states");
+        require(clientMain(10, args) == 0 && frame == 36, "Graphical client did not finish all weapon states");
         const std::array<std::size_t, 5> weaponFrames{1, 3, 4, 5, 12};
         for (std::size_t a = 0; a < weaponFrames.size(); ++a)
             for (std::size_t b = a+1; b < weaponFrames.size(); ++b)
                 require(differences(weaponFrames[a], weaponFrames[b]) > 500,
                         "Server-confirmed weapon models must produce distinct frames");
-        std::cout << "Multiplayer weapons, driving cameras, Enter, Alt and F12 checks passed\n";
+        std::cout << "Multiplayer weapons, melee, driving cameras, Enter, Alt and F12 checks passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

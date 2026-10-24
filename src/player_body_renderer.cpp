@@ -52,16 +52,16 @@ PlayerBodyRenderer::PlayerBodyRenderer(const std::filesystem::path& shaders) {
 PlayerBodyRenderer::~PlayerBodyRenderer() {
     glDeleteBuffers(1, &buffer_); glDeleteVertexArrays(1, &vao_); glDeleteProgram(program_);
 }
-void PlayerBodyRenderer::captureBody(const PlayerBody& body, float seconds) {
-    if (!body.enabled()) { bodyHistoryCount_ = 0; bodyTime_ = 0; return; }
+void PlayerBodyRenderer::captureBody(const PlayerBody& body, float seconds) { capturePose(body.pose(), seconds); }
+void PlayerBodyRenderer::capturePose(const PlayerBodyPose& body, float seconds) {
+    if (!body.enabled) { bodyHistoryCount_ = 0; bodyTime_ = 0; return; }
     if (seconds <= 0) return;
     bodyTime_ += seconds;
     BodySample sample;
     sample.time = bodyTime_;
-    sample.hip = glm::vec3(body.transform(PlayerBodyPart::hip)[3]);
+    sample.hip = glm::vec3(body.parts[static_cast<std::size_t>(PlayerBodyPart::hip)][3]);
     for (std::size_t part = 0; part < sample.arms.size(); ++part)
-        sample.arms[part] = body.transform(static_cast<PlayerBodyPart>(
-            static_cast<std::size_t>(PlayerBodyPart::leftUpperArm) + part));
+        sample.arms[part] = body.parts[static_cast<std::size_t>(PlayerBodyPart::leftUpperArm) + part];
     // Do not draw a streak across teleport/reset discontinuities.
     if (bodyHistoryCount_ && glm::distance(sample.hip, bodyHistory_[0].hip) > 1.f)
         bodyHistoryCount_ = 0;
@@ -70,10 +70,10 @@ void PlayerBodyRenderer::captureBody(const PlayerBody& body, float seconds) {
     bodyHistory_[0] = sample;
     bodyHistoryCount_ = std::min(bodyHistoryCount_ + 1, bodyHistory_.size());
 }
-void PlayerBodyRenderer::drawBodyTrail(const PlayerBody& body, const glm::mat4& projectionView) {
+void PlayerBodyRenderer::drawBodyTrail(const PlayerBodyPose& body, const glm::mat4& projectionView) {
     if (bodyHistoryCount_ < 2) return;
-    const bool left = body.punching(PlayerBodyPart::leftFist) || body.returning(PlayerBodyPart::leftFist);
-    const bool right = body.punching(PlayerBodyPart::rightFist) || body.returning(PlayerBodyPart::rightFist);
+    const bool left = (body.striking | body.returning) & 1;
+    const bool right = (body.striking | body.returning) & 2;
     if (!left && !right) return;
     GLint srcRgb = 0, dstRgb = 0, srcAlpha = 0, dstAlpha = 0, equationRgb = 0, equationAlpha = 0;
     glGetIntegerv(GL_BLEND_SRC_RGB, &srcRgb); glGetIntegerv(GL_BLEND_DST_RGB, &dstRgb);
@@ -113,7 +113,10 @@ void PlayerBodyRenderer::drawBodyTrail(const PlayerBody& body, const glm::mat4& 
     glBlendEquationSeparate(equationRgb, equationAlpha);
 }
 void PlayerBodyRenderer::drawBody(const PlayerBody& body, const glm::mat4& projectionView, int width, int height) {
-    if (!body.enabled()) { bodyHistoryCount_ = 0; bodyTime_ = 0; return; }
+    drawPose(body.pose(), projectionView, width, height);
+}
+void PlayerBodyRenderer::drawPose(const PlayerBodyPose& body, const glm::mat4& projectionView, int width, int height) {
+    if (!body.enabled) { bodyHistoryCount_ = 0; bodyTime_ = 0; return; }
     if (width <= 0 || height <= 0) return;
     GLint previousProgram = 0, previousVao = 0, previousFront = 0, previousCullMode = 0, previousDepthFunction = 0;
     glGetIntegerv(GL_CURRENT_PROGRAM, &previousProgram);
@@ -134,7 +137,7 @@ void PlayerBodyRenderer::drawBody(const PlayerBody& body, const glm::mat4& proje
     glUseProgram(program_); glBindVertexArray(vao_);
     glUniform1f(opacity_, 1.f);
     for (std::size_t part = 0; part < playerBodyPartCount; ++part) {
-        const auto transform = projectionView * body.transform(static_cast<PlayerBodyPart>(part));
+        const auto transform = projectionView * body.parts[part];
         glUniformMatrix4fv(transform_, 1, GL_FALSE, glm::value_ptr(transform));
         glDrawArrays(GL_TRIANGLES, 0, vertexCount_);
     }

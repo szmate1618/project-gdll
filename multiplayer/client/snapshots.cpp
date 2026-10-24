@@ -67,7 +67,10 @@ void Snapshots::apply(Scene& scene, double now) {
     }), grenades_.end());
     players_ = b.players;
     for (auto& p : players_) for (const auto& before : a.players) if (before.id == p.id) {
-        if (before.vehicle == p.vehicle && before.seat == p.seat) p.movement.feet = glm::mix(before.movement.feet, p.movement.feet, t);
+        if (before.vehicle == p.vehicle && before.seat == p.seat) {
+            p.movement.feet = glm::mix(before.movement.feet, p.movement.feet, t);
+            p.melee = viewer::interpolatePlayerBodyPose(before.melee,p.melee,t);
+        }
         break;
     }
     // Chassis and all four wheel poses share one playback time, including the

@@ -59,7 +59,11 @@ void protocol() {
     Command c; c.sequence = 1; c.slot = 4;
     auto commands = encode(Commands{{c}});
     require(std::get<Commands>(decode(commands.data(), commands.size())).commands[0].slot == 4, "Grenade slot command round trip failed");
-    c.slot = 5;
+    c.slot = static_cast<std::uint8_t>(viewer::punchSlot);
+    commands = encode(Commands{{c}});
+    require(std::get<Commands>(decode(commands.data(),commands.size())).commands[0].slot==viewer::punchSlot,
+            "Fists slot command round trip failed");
+    c.slot = static_cast<std::uint8_t>(viewer::punchSlot+1);
     rejects([&] { encode(Commands{{c}}); }, "Unavailable weapon slot accepted");
     c.slot = 4;
     c.movement.forward = std::numeric_limits<float>::quiet_NaN();

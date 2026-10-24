@@ -9,12 +9,13 @@
 #include <iostream>
 
 namespace multiplayer {
-ServerPlayer::ServerPlayer(const viewer::Weapons& initialWeapons) : weapons(initialWeapons) {
+ServerPlayer::ServerPlayer(const viewer::Weapons& initialWeapons, std::shared_ptr<viewer::PhysicsWorld> world)
+    : weapons(initialWeapons), body(std::move(world),controller.config().eyeHeight) {
     held.slot = static_cast<std::uint8_t>(weapons.slot());
 }
 World::World(Scene& scene) : scene_(scene), vehicleSeats_(scene),
     physicsScene_(scene.physics, *scene.collision, scene.model.boundsMin, scene.model.boundsMax),
-    interiors_(scene.model, *scene.doors, 1), zombieDoors_(scene.physics) {
+    interiors_(scene.model, *scene.doors, 1), zombieDoors_(scene.physics), melee_(scene.physics) {
     viewer::SimulationClock::instance().reset();
     scene.zombies.attachPhysics(scene.physics);
     if (!scene.vehicles->count()) {
@@ -34,7 +35,7 @@ World::World(Scene& scene) : scene_(scene), vehicleSeats_(scene),
 std::uint32_t World::join() {
     if (players_.size() >= maxPlayers || nextPlayer_ == 0) throw std::runtime_error("Server full");
     const auto id = nextPlayer_++;
-    auto& player = players_.try_emplace(id, scene_.initialWeapons).first->second;
+    auto& player = players_.try_emplace(id, scene_.initialWeapons, scene_.physics).first->second;
     player.undergrowth = viewer::UndergrowthEmitter(id);
     auto spawn = scene_.spawnEye;
     spawn.x += static_cast<float>((id - 1) % maxPlayers) * 1.0f;
@@ -69,6 +70,8 @@ void World::step() {
     std::vector<viewer::NoiseEvent> noises;
     struct Shot { glm::vec3 origin; std::vector<glm::vec3> directions; viewer::ShotCaliber caliber; };
     std::vector<Shot> shots;
+    struct Punch { viewer::PlayerBody* body; glm::vec3 eye, direction; };
+    std::vector<Punch> punches;
     for (auto& [id, player] : players_) {
         // A small startup buffer absorbs ordinary packet jitter without delaying local prediction.
         if (!player.started && (player.pending.size() >= 3 || tick_ - player.lastPacketTick > 3)) player.started = true;
@@ -103,6 +106,7 @@ void World::step() {
                 vehicleSeats_.drive(id, command);
                 vehicleSeats_.updateSeat(id, player.controller, player.camera);
                 player.weapons.cancelTrigger();
+                player.body.follow(player.camera.position(),player.camera.direction(),false);
                 player.held = command;
                 continue;
             }
@@ -157,6 +161,8 @@ void World::step() {
             player.weapons.trigger(command.left && !command.interaction && !player.triggerNeedsRelease);
             // Accept before the next input can reload/switch weapons or change aim.
             const auto& config = player.weapons.equipped().config;
+            player.body.follow(player.camera.position(),player.camera.direction(),
+                player.weapons.slot()==viewer::punchSlot && !command.interaction);
             const bool canThrow = !config.grenade || scene_.grenades->canThrow(player.camera.position(), *scene_.collision);
             if (!canThrow) {
                 player.weapons.cancelTrigger();
@@ -164,7 +170,9 @@ void World::step() {
             }
             if (canThrow && player.weapons.fireAttempt(now) == viewer::WeaponFireResult::fired) {
                 ++player.shots;
-                if (config.grenade) {
+                if (player.weapons.slot()==viewer::punchSlot) {
+                    punches.push_back({&player.body,player.camera.position(),player.camera.direction()});
+                } else if (config.grenade) {
                     if (!scene_.grenades->throwFrom(player.camera.position(), player.camera.direction(), playerVelocity,
                             now, *config.grenade, *scene_.collision)) throw std::logic_error("Accepted grenade throw failed");
                 } else shots.push_back({player.camera.position(), viewer::weaponShotDirections(config, player.camera.direction()), config.caliber});
@@ -172,6 +180,13 @@ void World::step() {
             player.held = command;
         }
         scene_.doors->activateNear(player.controller.feet());
+    }
+    std::vector<viewer::PlayerBody*> bodies;
+    bodies.reserve(players_.size());
+    for (auto& [id,player] : players_) {
+        (void)id;
+        bodies.push_back(&player.body);
+        if (player.body.enabled()) physicsScene_.ensureNear(player.camera.position()-glm::vec3(3),player.camera.position()+glm::vec3(3));
     }
     physicsScene_.prepare(*scene_.boxes);
     scene_.grenades->prepare(physicsScene_, *scene_.doors);
@@ -185,9 +200,15 @@ void World::step() {
         }
         scene_.zombies.prepareVehiclePhysics(*scene_.vehicles, physicsScene_, *scene_.collision, seconds, scene_.doors.get());
         zombieDoors_.prepare(*scene_.doors, scene_.zombies);
+        melee_.prepare(bodies.data(),bodies.size(),&scene_.zombies,now);
+        for (const auto& punch : punches) melee_.punch(*punch.body,punch.eye,punch.direction,*scene_.collision);
+        punches.clear();
+        for (auto* body : bodies) body->beforeStep(seconds);
         scene_.vehicles->beforeStep(seconds);
     }, [&](float seconds) {
+        melee_.finish(bodies.data(),bodies.size(),&scene_.zombies,now);
         scene_.zombies.finishVehiclePhysics(*scene_.vehicles, seconds, now);
+        for (auto* body : bodies) body->afterStep();
     });
     for (auto& [id, player] : players_) {
         vehicleSeats_.updateSeat(id, player.controller, player.camera);
@@ -216,7 +237,7 @@ Snapshot World::snapshot(std::uint32_t id) {
         s.players.push_back({playerId, player.resolved, player.controller.movementState(),
             player.camera.yawDegrees(), player.camera.pitchDegrees(), static_cast<std::uint8_t>(player.weapons.slot()),
             static_cast<std::uint32_t>(weapon.loaded), static_cast<std::uint32_t>(weapon.reserve), player.shots,
-            viewer::SimulationClock::instance().seconds() < weapon.readyAt, vehicleSeats_.car(playerId), vehicleSeats_.seat(playerId)});
+            viewer::SimulationClock::instance().seconds() < weapon.readyAt, vehicleSeats_.car(playerId), vehicleSeats_.seat(playerId),player.body.pose()});
     }
     return observer.replication.snapshot(scene_, observer.controller.feet(), std::move(s));
 }

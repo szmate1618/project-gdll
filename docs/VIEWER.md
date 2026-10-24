@@ -1247,7 +1247,7 @@ build directory when run by CTest.
 | Left mouse button | Combat: shoot or punch; Interaction: left-hand prop grab within 1.5 m horizontally or door grab within 1.5 m along the ray |
 | Right mouse button | Combat with a scoped weapon: cycle normal, 10°, and 1° fields of view; Interaction: right-hand prop grab within 1.5 m horizontally |
 | 1 / 2 / 3 / 4 / 5 | Equip pistol / submachine gun / shotgun / sniper / HE grenade |
-| Key left of 1 (Hungarian 0 / US backtick) | Equip fists (single-player); left click punches with alternating hands |
+| Key left of 1 (Hungarian 0 / US backtick) | Equip fists; left click punches with alternating hands |
 | R | Reload equipped weapon from its matching reserve ammo |
 | G | Discard the equipped weapon with a fast forward throw and vertical-axis spin |
 | F | Pick up the discarded weapon under the camera ray within 2 m |
@@ -1355,7 +1355,7 @@ Framebuffer resize updates the viewport and projection aspect ratio.
 
 ## Prototype weapons and inventory
 
-In the single-player viewer, the **physical key immediately left of 1**
+In the viewer and multiplayer client, the **physical key immediately left of 1**
 (Hungarian **0**, US backtick) selects fists, which are always available and use
 no ammunition. The binding follows key position across keyboard layouts. Left click applies a 12 N·s impulse to alternating fists,
 with a 0.5 s cooldown. The camera ray chooses the nearest scene or nearby zombie
@@ -1460,7 +1460,14 @@ The body uses `PlayerBodyRenderer`, separate from firearm recoil and muzzle ligh
 and is drawn against scene depth and is disabled when fists are unequipped,
 in Interaction mode, or while occupying any vehicle seat. Nearby zombie contact meshes use the
 published animation pose and the living spatial index, independently of culling.
-This melee simulation and body rendering are not yet replicated by multiplayer.
+Multiplayer runs the rig and all contacts on the server. Clients send fist
+selection and trigger input, render the newest confirmed local pose at the
+predicted eye, and interpolate remote bodies. Nearby zombie collision surfaces
+are shared across every player; simultaneous hits are collected before handing
+the zombie to its planted ragdoll. Repeated hits and late joins use the existing
+versioned corpse-pose replication. Fists cannot be discarded and never create
+firearm recoil, muzzle flashes, or hitscan bullets. Melee targets zombies; player
+health and player-versus-player damage are not part of this prototype.
 
 For a headless CPU comparison of contact preparation and the full physics step,
 including repeated punches, build and run the optional benchmark:

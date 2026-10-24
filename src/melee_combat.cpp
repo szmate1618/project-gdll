@@ -49,13 +49,24 @@ MeleeCombat::MeleeCombat(std::shared_ptr<PhysicsWorld> world) : impl_(std::make_
 }
 MeleeCombat::~MeleeCombat() = default;
 void MeleeCombat::prepare(PlayerBody& player, ZombieLayer* zombies, double seconds) {
+    auto* body = &player;
+    prepare(&body, 1, zombies, seconds);
+}
+void MeleeCombat::prepare(PlayerBody* const* players, std::size_t count, ZombieLayer* zombies, double seconds) {
     auto& d = *impl_;
     auto previous = std::move(d.meshes);
     d.meshes.clear();
-    if (!player.enabled() || !zombies) { d.boneRigs.clear(); return; }
+    if (!zombies) { d.boneRigs.clear(); return; }
     ++d.generation;
-    const auto center = glm::vec3(player.transform(PlayerBodyPart::hip)[3]);
-    zombies->queryMeleeNear(center, 3, d.nearby);
+    d.nearby.clear();
+    std::vector<std::size_t> nearby;
+    for (std::size_t p=0; p<count; ++p) if (players[p]->enabled()) {
+        const auto center = glm::vec3(players[p]->transform(PlayerBodyPart::hip)[3]);
+        zombies->queryMeleeNear(center, 3, nearby);
+        d.nearby.insert(d.nearby.end(), nearby.begin(), nearby.end());
+    }
+    std::sort(d.nearby.begin(),d.nearby.end());
+    d.nearby.erase(std::unique(d.nearby.begin(),d.nearby.end()),d.nearby.end());
     for (const auto id : d.nearby) {
         // Catch up only nearby rigs before positioning their bone surfaces,
         // including when one render frame advances several physics steps.
@@ -172,39 +183,47 @@ MeleeContactStats MeleeCombat::contactStats() const {
     return stats;
 }
 void MeleeCombat::finish(PlayerBody& player, ZombieLayer* zombies, double seconds) {
-    if (!player.enabled() || !zombies) return;
+    auto* body = &player;
+    finish(&body, 1, zombies, seconds);
+}
+void MeleeCombat::finish(PlayerBody* const* players, std::size_t count, ZombieLayer* zombies, double seconds) {
+    if (!zombies) return;
     auto& d = *impl_;
     struct Hit { glm::vec3 impulse{0}, point{0}; float weight = 0; };
     std::map<std::size_t, Hit> hits;
-    for (const auto part : arms) {
-        if (!player.punching(part)) continue;
-        const auto body = player.body(part);
-        d.contacts.resize(b3Body_GetContactCapacity(body));
-        const int n = b3Body_GetContactData(body, d.contacts.data(), static_cast<int>(d.contacts.size()));
-        for (int c = 0; c < n; ++c) {
-            const auto& contact = d.contacts[c];
-            const bool armIsA = B3_ID_EQUALS(b3Shape_GetBody(contact.shapeIdA), body);
-            const auto other = b3Shape_GetBody(armIsA ? contact.shapeIdB : contact.shapeIdA);
-            const auto found = std::find_if(d.meshes.begin(), d.meshes.end(), [&](const auto& mesh) { return B3_ID_EQUALS(mesh->surface->body(), other); });
-            auto zombie = found != d.meshes.end() ? (*found)->id : zombies->instances.size();
-            if (found == d.meshes.end()) {
-                for (const auto& [id, rig] : d.boneRigs)
-                    if (rig.contacts->owns(other)) { zombie = id; break; }
-            }
-            if (zombie == zombies->instances.size()) continue;
-            for (int m = 0; m < contact.manifoldCount; ++m) {
-                const auto& manifold = contact.manifolds[m];
-                const auto normal = manifold.normal;
-                for (int p = 0; p < manifold.pointCount; ++p) {
-                    const auto& point = manifold.points[p];
-                    if (point.totalNormalImpulse <= .001f) continue;
-                    player.recordArmContact(part);
-                    auto& hit = hits[zombie];
-                    hit.impulse += glm::vec3(normal.x, normal.y, normal.z) * (armIsA ? 1.f : -1.f) * point.totalNormalImpulse;
-                    const auto center = b3Body_GetWorldCenter(body);
-                    const auto anchor = armIsA ? point.anchorA : point.anchorB;
-                    hit.point += (glm::vec3(center.x, center.y, center.z) + glm::vec3(anchor.x, anchor.y, anchor.z)) * point.totalNormalImpulse;
-                    hit.weight += point.totalNormalImpulse;
+    for (std::size_t p=0; p<count; ++p) {
+        auto& player = *players[p];
+        if (!player.enabled()) continue;
+        for (const auto part : arms) {
+            if (!player.punching(part)) continue;
+            const auto body = player.body(part);
+            d.contacts.resize(b3Body_GetContactCapacity(body));
+            const int n = b3Body_GetContactData(body, d.contacts.data(), static_cast<int>(d.contacts.size()));
+            for (int c = 0; c < n; ++c) {
+                const auto& contact = d.contacts[c];
+                const bool armIsA = B3_ID_EQUALS(b3Shape_GetBody(contact.shapeIdA), body);
+                const auto other = b3Shape_GetBody(armIsA ? contact.shapeIdB : contact.shapeIdA);
+                const auto found = std::find_if(d.meshes.begin(), d.meshes.end(), [&](const auto& mesh) { return B3_ID_EQUALS(mesh->surface->body(), other); });
+                auto zombie = found != d.meshes.end() ? (*found)->id : zombies->instances.size();
+                if (found == d.meshes.end()) {
+                    for (const auto& [id, rig] : d.boneRigs)
+                        if (rig.contacts->owns(other)) { zombie = id; break; }
+                }
+                if (zombie == zombies->instances.size()) continue;
+                for (int m = 0; m < contact.manifoldCount; ++m) {
+                    const auto& manifold = contact.manifolds[m];
+                    const auto normal = manifold.normal;
+                    for (int p = 0; p < manifold.pointCount; ++p) {
+                        const auto& point = manifold.points[p];
+                        if (point.totalNormalImpulse <= .001f) continue;
+                        player.recordArmContact(part);
+                        auto& hit = hits[zombie];
+                        hit.impulse += glm::vec3(normal.x, normal.y, normal.z) * (armIsA ? 1.f : -1.f) * point.totalNormalImpulse;
+                        const auto center = b3Body_GetWorldCenter(body);
+                        const auto anchor = armIsA ? point.anchorA : point.anchorB;
+                        hit.point += (glm::vec3(center.x, center.y, center.z) + glm::vec3(anchor.x, anchor.y, anchor.z)) * point.totalNormalImpulse;
+                        hit.weight += point.totalNormalImpulse;
+                    }
                 }
             }
         }

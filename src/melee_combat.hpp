@@ -26,6 +26,10 @@ public:
     void prepare(PlayerBody& player, ZombieLayer* zombies, double animationSeconds);
     void finish(PlayerBody& player, ZombieLayer* zombies, double animationSeconds);
     void punch(PlayerBody& player, glm::vec3 eye, glm::vec3 direction, const CollisionWorld& scene);
+    // Shared proxies for all participating players; collect every solved hit
+    // before changing any zombie ownership/contact surface. Borrows the array.
+    void prepare(PlayerBody* const* players, std::size_t count, ZombieLayer* zombies, double animationSeconds);
+    void finish(PlayerBody* const* players, std::size_t count, ZombieLayer* zombies, double animationSeconds);
     MeleeContactStats contactStats() const;
 private:
     struct Impl;
