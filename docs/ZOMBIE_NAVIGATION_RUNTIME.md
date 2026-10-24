@@ -212,8 +212,20 @@ The legacy sorted contact-list API remains for other callers. Each scenario
 route also caches up to 64 static triangle and 32 trunk candidates in a padded
 3D patch. Reuse requires the complete current query bounds to remain covered;
 world replacement or patch exit refreshes it, and overflow uses the full BVH.
-Every pose still receives exact contact tests, with live doors/props queried
-separately. Ground support, 10 cm movement segments and crowd guards remain.
+Every pose still receives exact contact tests. Candidate refresh also certifies
+whether the full patch is outside all potential door hinge sweeps. A certified
+empty patch skips live door lookup until patch exit/world replacement; patches
+near doors query current poses. Live props remain separate. This does not assume
+navmesh routes are clear of open doors. Ground support, 10 cm movement segments
+and crowd guards remain.
+
+Successful ground lowering reuses its exact clear contact query for the
+immediately following resolution query with the same skin. It still queries
+the supporting height every movement step, including offscreen travelers.
+Triangle contacts use a guarded face-interior fast path; edges, vertices and
+plane crossings retain the general calculation. See the [contact and ground
+experiments](benchmarks/zombie-contact-efficiency-2026-10-24.txt) for validation,
+rejected alternatives and measured limits.
 
 Original behavior movement has no navigation argument. Scenario following is
 implemented in `zombie_scenario_routes.cpp`; both movement modes reuse physical

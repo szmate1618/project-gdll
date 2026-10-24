@@ -501,6 +501,11 @@ separates behavior time and renderer preparation (door/instance/bounds updates),
 and reports the behavior-pool entry count and the last step's perception/sight-ray
 counts. Pool entries track perception/behavior activity, not the total number of
 scenario travelers.
+`--frame-profile FILE` writes per-frame GPU and CPU timing CSVs independently
+of `--profile`; use it alone to avoid fine zombie-query timing overhead.
+GPU samples are asynchronous, so CSV row order can differ from frame order;
+missing samples are NaN. The CPU columns include driver/submission waits.
+See [benchmark guidance](BENCHMARKS.md#real-map-zombie-update-substeps).
 CPU render time covers submission; hidden-run FPS omits presentation/VSync waits. Shutdown
 also reports camera LOD counts, submitted camera/shadow triangles and the number
 of frustum-visible zombies rejected by distance.

@@ -12,3 +12,19 @@ Base: `d8026a7`; branch `experiment/zombie-contact-efficiency-20261024`.
 Keep criteria: meaningful repeatable whole-update benefit, focused movement/geometry/server checks, unchanged movement rules and final-pose comparisons. Ground still follows the rendered surface, including slopes, seams, caps and live props. Use alternate baseline/selected runs to limit ordering bias. Do not run CPU-heavy builds alongside timed runs. Parallelization remains a last resort.
 
 No FPS or GPU gain is inferred solely from headless timing. GPU and CPU measurements overlap. Rendering comparisons retain lighting, camera and draw settings. A future reduction of query rate or simplified geometry is a separate approximation, assessed explicitly rather than silently introduced here.
+
+## Outcome
+
+Completed with four retained changes: exact ground-support contact reuse,
+direct local door-grid lookup, certified empty door-sweep patches, and a guarded
+triangle-face fast path. Door work was unexpectedly dominant, so the measured
+plan expanded to include its index and cache. Full door omission and additional
+ground-cache arithmetic were tested and rejected. Smaller candidate patches
+were deferred after measuring their limited cost ceiling.
+
+The [evaluation report](zombie-contact-efficiency-2026-10-24.txt) records repeated
+headless controls, actual viewer comparisons, the frozen diagnostic, numerical
+and movement validation, rejected experiments, and the next optimization order.
+Headless update time improved; final viewer throughput stayed GPU-limited under
+the measured conditions. No reduction of collision standards or update cadence
+was retained.

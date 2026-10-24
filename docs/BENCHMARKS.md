@@ -201,6 +201,19 @@ the older broad `behavior` timer. Stage times are exclusive; the remainder
 includes other navigation/behavior work and timer overhead. Detailed clocks
 are disabled without `--profile`.
 
+The contact breakdown now separates candidate refresh, triangle, trunk, door
+and prop work; ground separates static geometry and props. Parent stage lines
+contain self-time: sum their children to obtain inclusive contact/ground totals.
+Door candidate and overlap counters distinguish broad-phase work from actual
+collisions. See the [contact and ground evaluation, 2026-10-24](benchmarks/zombie-contact-efficiency-2026-10-24.txt)
+for the measured decisions and viewer limitations.
+
+`godollo_viewer --frame-profile FILE` saves asynchronous per-frame GPU and CPU
+CSV timings independently of `--profile`, allowing viewer comparisons without
+fine-query clocks. Rows may arrive out of frame order; filter warmup by `frame`.
+GPU timings can be NaN when unavailable. CPU submission/preparation can include
+driver waits, so those columns are not pure arithmetic costs.
+
 For repeatable headless measurements of the current scenario:
 
 ```bash
@@ -233,3 +246,10 @@ Measured example: [1,600-zombie real-map substeps, 2026-10-23](benchmarks/zombie
 Cumulative optimization results: [contact and coverage experiments, 2026-10-24](benchmarks/contact-coverage-first-four-2026-10-24.txt).
 The real-map harness now also saves `final-poses.bin` for exact cross-version
 final-pose comparisons, and CSVs include certified-region reuse/build counters.
+
+For differential collision experiments, build `capture_collision_queries` and
+run `./build/capture_collision_queries /tmp/collision.bin`. Compare captures
+from two builds on the same platform with `cmp`: the fixture exercises 48,000
+capsule contacts and 96,000 cached/uncached ground queries, including slopes,
+edges and large world coordinates. The explicit-field binary is a local test
+artifact, not a portable runtime format.

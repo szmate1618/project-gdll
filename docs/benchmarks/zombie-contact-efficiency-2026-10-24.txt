@@ -1,0 +1,217 @@
+Scenario contact and ground efficiency experiments, 2026-10-24
+
+Decision
+Keep four changes on experiment/zombie-contact-efficiency-20261024, based on
+master d8026a7. No merge or push is part of this experiment.
+  c87a145: reuse an identical clear contact result after ground placement;
+           expose contact/ground substeps and production-viewer frame CSVs.
+  7bcfe8e: direct door-grid lookups for small collision-query rectangles.
+  9189565: skip door queries inside certified empty hinge-sweep patches.
+  ba0842f: guarded face-interior minimum for capsule/triangle contacts.
+The previous ground, candidate and navmesh coverage caches remain enabled.
+
+Reject unconditional scenario-door omission, an unguarded triangle shortcut,
+and extra precomputed ground-cache geometry. Keep the numerical corpus and
+profiling tools for future comparisons. Parallelization, reduced simulation
+frequency, longer movement segments and reduced collision accuracy were not
+introduced.
+
+Workload and method
+Release build; current output/godollo.glb and output/godollo.navmesh; 1,600
+scenario zombies, seed 42, scenarios/test-horde/scenario.toml. The collision
+world has 1,160,022 triangles and 155,825 trunks. Stationary player X=-526.465,
+Z=296.095. Headless benchmark uses dt=1/60, 60 warmup plus 300 measured updates
+per run, three controls and three detailed runs per version. CPU affinity 0.
+Rendering, audio, networking and dynamic physics advancement are excluded.
+Startup path planning and CSV writes are outside the update timer.
+
+Whole-update controls disable all detailed timers. Detailed scopes are
+exclusive, use calibrated invariant TSC, and report migrated samples; all
+repeated comparison rounds reported zero dropped samples. Fine timing adds
+measurable overhead, so controls decide whole-update gains. Cross-version
+comparison uses saved final poses, not just checksums.
+
+Headless repeated comparisons: milliseconds/update, control means
+Round order             First trial   Reverse-order trial   Mean
+Baseline d8026a7            5.3339           6.9661           6.1500
+Through empty-door cache   3.7975           3.7744           3.7860
+Selected guarded triangle  3.4703           3.5372           3.5038
+Extra ground parameters    3.5239           3.4785           3.5012
+
+Order was baseline, door-free, triangle, ground, ground, triangle, door-free,
+baseline. Each cell averages 900 control updates. Selected versus baseline:
+43.0% lower elapsed update time; guarded triangle versus door-free: 7.5% lower.
+There is substantial host timing drift, especially between the two baseline
+runs. These are workload/host observations, not a portable performance promise.
+
+Earlier cumulative controls (one six-run invocation per version):
+Baseline 5.4414; support-result reuse 4.7081; direct door grid 3.2734;
+empty-door patch 2.8626; selected guarded triangle 2.7803. These show where
+savings appeared but are not used instead of the repeated comparisons above.
+
+Detailed substeps: milliseconds/update, initial baseline versus selected
+                                       Baseline  Selected
+All contact stages combined              3.6642    0.9460
+  Triangle narrow phase                  1.1323    0.5316
+  Door work                              1.9099    0.0088
+  Static candidate refresh               0.0380    0.0781
+All ground stages combined               0.5485    0.5007
+  Static ground                          0.3301    0.2785
+Navmesh coverage                         0.0643    0.0594
+Detour steering                          0.1787    0.1736
+Spatial membership                       0.1782    0.1678
+Other, including instrumentation         1.9612    1.7037
+
+Combined contact/ground totals include parent self-time and their exclusive
+children; do not add the indented children again. Additional timer scopes
+perturb these measurements. Contact queries fell from 2,545.92 to 1,650.14 per
+update. Ground height queries remained 1,627.16. Live door lookups fell from
+2,529.91 to 34.46; the empty-patch check runs on cache refresh too. The final
+fixture averaged 1.41 door candidates and zero actual door overlaps/update.
+Navmesh checks are already cheap after the previous certified-region cache.
+
+What was kept and why
+Ground placement: when lowering feet, support() checks the proposed supported
+pose with the same skin used by the immediately following resolution query.
+If clear, reuse that exact result. There is no intervening world mutation.
+Other skins, crowd poses and actual penetrations keep their original checks.
+This saves a contact query without skipping a ground-height query or assuming
+that the last frame's height is still valid.
+
+Door grid: colliders() used to scan every occupied Z cell within the selected
+X strip even for tiny local queries. Rectangles covering at most 16 cells now
+look up those cells directly, preserving ascending cell and panel ordering.
+Large queries retain the occupied-strip traversal and the same live poses.
+
+Door-free patches: static candidate-cache refresh queries the full patch
+against conservative potential door hinge sweeps. An empty result remains
+empty when those doors activate or open. A cached body query wholly inside
+that patch can omit door lookup. Patches near a door keep live lookup;
+leaving the patch or replacing the collision world refreshes the proof. Door
+panel topology is immutable for the world's lifetime. Ordinary behavior
+movement without this scenario candidate cache keeps full door collision.
+This removes 98.6% of the live queries in the measured route workload.
+
+Triangles: when the closest point lies safely inside a face, and the capsule
+axis goes away from its plane, the lower endpoint already gives the minimum.
+Return its original point arithmetic without evaluating the upper endpoint
+and three edges. The interior test uses a conservative physical margin with
+coordinate-scale rounding allowance. Edge/vertex/crossing cases retain the
+original calculation and tie behavior.
+
+Rejected experiments
+1. Omit all scenario door queries: 2.8797 ms versus 2.8626 with the safe cache;
+   no measured benefit. A path avoiding baked buildings does not certify
+   dynamic door swing clearance. A small corridor fixture produces:
+     Navmesh valid: 1; closed overlaps: 0; open overlaps: 2; omitted overlaps: 0
+   Its open door swings from the building boundary into walkable space.
+   The temporary omission flag is absent from selected source.
+2. Unguarded triangle shortcut: a small barycentric margin changed one contact
+   normal near an edge at world coordinates around 3,000 m. The corpus caught
+   it; the physical/coordinate-scale guard restores exact comparison results.
+3. Extra ground parameters: precompute edge deltas and determinant per cached
+   triangle. All heights remained identical, but repeated controls tied the
+   selected version (3.5012 versus 3.5038 ms). It added 640 bytes/route, about
+   0.98 MiB for 1,600 zombies, for no repeatable whole-update gain. Removed.
+4. Smaller candidate patches: deferred. Candidate refresh is about 0.078 ms in
+   the selected detailed profile; changing refresh frequency has a small
+   ceiling and risks adding work. No unmeasured variant was retained.
+
+Actual viewer, separate from headless controls
+Production viewer at 1280x720, Radeon 660M, Mesa 24.2.8; level street camera
+[-526.465,296.095], orientation [-90,0], time 12.3, frozen day/animation clocks,
+no audio, hidden uncapped rendering. Same map/scenario and render settings.
+Only --frame-profile is enabled; per-query --profile timing is disabled.
+Seven runs of 480 frames; discard first 60. Entries are per-run medians (ms):
+Run       GPU     CPU sim  CPU render  Preparation  CPU work
+Baseline0 30.743   20.187      8.482       0.663       29.926
+Selected1 30.618   12.209     12.221       5.598       30.506
+Selected2 30.559   12.266     12.147       5.483       30.337
+Baseline3 30.829   20.165      8.561       0.664       29.764
+Baseline4 30.544   20.014      8.424       0.650       29.583
+Selected5 30.576   11.984     12.148       5.780       30.382
+Frozen6   30.777    0.178     12.358      17.741       30.701
+
+Mean of the three simulation medians: baseline 20.122 versus selected 12.153,
+39.6% lower. CPU work and GPU elapsed time did not improve in these samples.
+CPU frame timings include OpenGL submission/backpressure; the preparation
+interval also includes query collection/timestamp submission. Wait time can
+move between those intervals as CPU simulation gets shorter. They do not
+isolate pure preparation arithmetic. GPU and CPU overlap: never add them to
+predict frame time or infer GPU utilization solely from elapsed timestamps.
+
+Frozen is a diagnostic scratch build that skips updateBehavior, not a proposed
+movement mode. Assets, population and rendering remain. Even that sample has
+30.777 ms GPU elapsed time, so further zombie CPU savings alone did not unlock
+higher frame throughput in this final viewer environment.
+
+An earlier identical level-camera baseline measured median GPU 7.634, CPU sim
+7.395 and CPU work 11.814 ms. At final inspection powerprofilesctl reported
+power-saver. It was not logged continuously and no power settings were changed;
+these observations do not prove the cause or time of the slowdown. No CPU-heavy
+builds ran alongside the timed comparisons. A normal-performance-profile
+viewer rerun is needed before making an FPS/GPU claim.
+
+Baseline0 and Selected1 final screenshots are pixel-identical, visually
+inspected at 1280x720. Both render 9,185 town instances in 1,007 draws and 11,246
+trees; zero camera-visible zombies, 110 zombie sun-shadow triangles. This camera
+validates offscreen traveler cost, not dense visible crowds or chase workloads.
+
+Correctness and validation
+Viewer and authoritative server built. Eighteen focused CTest suites pass:
+collision, FPS, character step, doors, door walking, zombie navigation/scenario,
+movement/motion, chase/crowd/attack/behavior/perception/transition, frame-profile,
+server navigation and multiplayer core. Added regressions cover single-query
+support placement, local/wide door ordering and open-door poses, cache exit and
+closed/open live door collision, and the large-coordinate near-edge contact.
+
+Deterministic corpus: 48,000 capsule queries plus 96,000 ground queries across
+32 flat/sloped/steep, local/large-coordinate fixtures. Selected explicit-field
+binary output matches baseline byte-for-byte. Every repeated real-map variant
+matches baseline final poses; each invocation's six modes also agree. All runs
+retain 1,600 startup requests and zero runtime path searches. Final-pose and
+finite-corpus equivalence are evidence for these workloads, not exhaustive
+proof over all possible geometry or every intermediate trajectory.
+
+Further efficiency assessment
+There is room for more CPU savings, but remaining door and coverage work is
+already small. The next exact experiment should split the 1.70 ms detailed
+"other" into route/movement control, crowd commit, handoff/perception and pose
+updates, using control timings to account for added instrumentation. Measure
+dense visible crowds and scenario-to-behavior takeover as separate workloads.
+
+For ground, investigate sharing a proven supporting triangle/plane between
+height selection and contact generation. Preserve ceiling limits, seams,
+overlapping surfaces and live-prop overrides. A single cached-height value
+would be incorrect. All ground stages total about 0.50 ms with fine timing;
+eliminating only part of that work cannot produce another multi-millisecond
+win in this workload. Extra cached barycentric constants already failed the
+whole-update test.
+
+A larger future algorithmic change could certify static obstacle-free travel
+patches and only do expensive static contact work on patch exit, while checking
+live props separately. The proof must include capsule extent, step/support
+changes and all obstacles absent from the planar navmesh. Reduced-frequency
+updates or simpler distant collision would offer larger possible savings but
+change guarantees and need explicit visual/behavior acceptance. Worker threads
+remain a last resort. First repeat the viewer under comparable power conditions
+and identify GPU work before promising a frame-rate improvement.
+
+Reproduction and raw data
+All raw logs, CSVs, screenshots, rejected patches and saved executables are in
+build/benchmarks/zombie-contact-efficiency-20261024/ (ignored local artifacts).
+helpers/ preserves the scripts and logs used for this experiment. The viewer
+scenario copy adds only the fixed player camera; the user's scenario is intact.
+
+Current-source commands, from the repository root:
+  cmake --build build --target benchmark_zombie_updates capture_collision_queries godollo_viewer -j4
+  taskset -c 0 ./build/multiplayer/benchmark_zombie_updates output/godollo.glb scenarios/test-horde/scenario.toml build/benchmarks/new-zombie-control -526.465 296.095
+  ./build/capture_collision_queries /tmp/selected-collision.bin
+  ./build/godollo_viewer output/godollo.glb --scenario build/benchmarks/zombie-contact-efficiency-20261024/scenario-viewer.toml --hidden --frames 480 --no-audio --time-of-day 12.3 --day-length 0 --animation-time 0 --frame-profile /tmp/selected-viewer.csv --screenshot /tmp/selected-viewer.ppm
+
+To compare captures from two builds on the same platform, use cmp on the
+corpus files. Their binary format is for differential tests, not a portable
+asset. --frame-profile CSV rows can arrive out of frame order; use the frame
+column to discard warmup and report finite GPU samples. A bounded shutdown
+drain happens outside measured frames. Fine --profile adds per-query clocks;
+omit it for whole-viewer comparisons.
