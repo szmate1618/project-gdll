@@ -103,6 +103,31 @@ void forceAndLimits() {
     }
 }
 
+void localAndWideColliderQueries() {
+    std::vector<viewer::DoorPanel> panels;
+    for(int x=-3;x<=3;++x) for(int z=-20;z<=20;++z) {
+        viewer::DoorPanel p;
+        p.draw=panels.size();p.hinge={x*40.f,0,z*40.f};
+        p.center=p.hinge+glm::vec3(.5f,1,0);p.halfExtents={.5f,1,.04f};
+        p.outward={0,0,1};p.closedTransform=glm::translate(glm::mat4(1),p.center);
+        panels.push_back(p);
+    }
+    const auto physics=std::make_shared<viewer::PhysicsWorld>();
+    viewer::DoorLayer doors(panels,physics);
+    constexpr std::size_t middle=3*41+20;
+    const auto local=doors.colliders({-.2f,-1,-.2f},{.2f,3,.2f});
+    require(local.size()==1 && local.front().door==middle,"Local lookup must select only the nearby hinge sweep");
+    const auto wide=doors.colliders({-100,-1,-1000},{100,3,1000});
+    require(wide.size()==5*41,"Wide sparse lookup lost a swept panel");
+    for(std::size_t i=1;i<wide.size();++i)
+        require(wide[i-1].door<wide[i].door,"Local/wide query order must remain stable");
+    doors.setAngle(middle,glm::half_pi<float>());
+    const auto opened=doors.colliders({-.2f,-1,-.2f},{.2f,3,.2f});
+    require(opened.size()==1 && glm::distance(opened.front().center,local.front().center)>.1f,
+            "Local hinge candidates must use the panel's current open pose");
+    require(doors.colliders({10,-1,10},{11,3,11}).empty(),"An empty local query must not acquire distant panels");
+}
+
 void foundationSeamsDoNotShortenCollider() {
     auto model = fixture();
     auto& mesh = model.primitives[0];
@@ -176,7 +201,7 @@ void sweptBoundsStayVisible() {
 
 int main() {
     try {
-        extractionAndActivation(); foundationSeamsDoNotShortenCollider(); forceAndLimits(); bodyCollisionOpensDoor();
+        extractionAndActivation(); localAndWideColliderQueries(); foundationSeamsDoNotShortenCollider(); forceAndLimits(); bodyCollisionOpensDoor();
         sharedRagdollCollision(); sweptBoundsStayVisible();
         std::cout << "Door physics tests passed\n";
         return 0;

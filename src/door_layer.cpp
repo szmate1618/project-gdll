@@ -174,12 +174,8 @@ std::vector<DoorCollider> DoorLayer::colliders(glm::vec3 minimum, glm::vec3 maxi
     const float reach = impl_->maximumReach;
     const int left = cell(minimum.x - reach), right = cell(maximum.x + reach);
     const int first = cell(minimum.z - reach), last = cell(maximum.z + reach);
-    // For long sight queries, traverse occupied cells in the X interval rather
-    // than visiting every empty cell in a potentially huge query rectangle.
-    for (auto found = impl_->cells.lower_bound({left, std::numeric_limits<int>::min()});
-         found != impl_->cells.end() && found->first.first <= right; ++found) {
-        if (found->first.second < first || found->first.second > last) continue;
-        for (const auto index : found->second) {
+    const auto append=[&](const std::vector<std::size_t>& indices) {
+        for (const auto index : indices) {
             const auto& e = impl_->entries[index];
             const auto& p = e.panel;
             const float swept = 2 * p.halfExtents.x + p.halfExtents.z + .02f;
@@ -195,6 +191,21 @@ std::vector<DoorCollider> DoorLayer::colliders(glm::vec3 minimum, glm::vec3 maxi
                 collider.rotation = {bodyRotation.s, bodyRotation.v.x, bodyRotation.v.y, bodyRotation.v.z};
             }
             result.push_back(collider);
+        }
+    };
+    const double cellCount=(double(right)-left+1)*(double(last)-first+1);
+    if (cellCount<=16) {
+        // Body queries cover only a handful of cells. Looking those up directly
+        // avoids scanning an entire occupied X strip for every zombie step.
+        for(int x=left;x<=right;++x) for(int z=first;z<=last;++z) {
+            const auto found=impl_->cells.find({x,z});
+            if(found!=impl_->cells.end()) append(found->second);
+        }
+    } else {
+        // Long sight/selection queries retain the sparse occupied-cell scan.
+        for (auto found=impl_->cells.lower_bound({left,std::numeric_limits<int>::min()});
+             found!=impl_->cells.end() && found->first.first<=right;++found) {
+            if(found->first.second>=first && found->first.second<=last) append(found->second);
         }
     }
     return result;
