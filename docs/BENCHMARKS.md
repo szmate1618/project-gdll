@@ -213,6 +213,8 @@ body movement, crowd sweeps, root locomotion pose and render notifications.
 These parent lines remain exclusive. Headless CSVs include crowd move, neighbor,
 budget-stop and empty-sector bypass counts. The [route/crowd/pose evaluation](benchmarks/zombie-route-efficiency-2026-10-24.txt)
 records selected changes, trajectory checks and actual viewer measurements.
+The [ground-support/contact sharing experiment](benchmarks/zombie-ground-support-2026-10-24.txt)
+records a rejected small-gain prototype and the unchanged ground-query policy.
 See the [contact and ground evaluation, 2026-10-24](benchmarks/zombie-contact-efficiency-2026-10-24.txt)
 for the measured decisions and viewer limitations.
 

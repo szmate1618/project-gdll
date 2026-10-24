@@ -1,0 +1,172 @@
+Ground-support/contact sharing experiment — 2026-10-24
+=====================================================
+
+Decision
+--------
+Do not retain this runtime prototype. It produced a small headless saving,
+1.818323 -> 1.778145 ms/update (2.21%, 0.040178 ms), but no reliable whole-viewer
+improvement. The added proof construction, public query parameters and numerical
+boundary rules are not justified by that saving in the current workload. This
+is a cost/complexity decision, not a claim that sharing support cannot help.
+All previous contact, coverage, door, ground, steering and crowd optimizations
+remain. Restored runtime sources match baseline commit 8ab3ccb. Ground heights
+continue to be queried at the current position with the existing candidate cache.
+
+This differs from the previously rejected ground-cache arithmetic experiment:
+that experiment cached additional ground interpolation constants. This one
+passed the result of the current ground query to contact handling.
+
+Prototype
+---------
+walkingGroundAt optionally filled a 32-byte, stack-local WalkingSupport token:
+world lifetime ID, selected static triangle ID, exact supported feet and a
+conservative squared X/Z clearance to triangle edges. It reused the double
+barycentric intersection already used for rendered-surface ground height.
+
+moveZombieBody passed the token directly to its following contact query. The
+contact visitor omitted only the selected supporting triangle when all of the
+following held: same world and exact feet, non-road terrain, upward normal Y at
+least 0.9, a complete capsule-radius disk plus safety margin inside the triangle,
+and sufficiently small float-coordinate error relative to body radius. The
+remaining contact generator and deterministic deepest-blocker selection stayed
+unchanged. The token added no persistent storage per zombie.
+
+Seams, edges, steep terrain, roads, building/foundation floors, ceilings, missing
+support, changed feet and a replacement world fell back to existing geometry
+work. Prop-selected ground invalidated the token. Other triangles, tree trunks,
+doors and props retained their existing live checks. No simulation rate,
+subdivision, ground height, physical clearance or navmesh coverage was relaxed.
+
+Only one supporting face could be omitted per query. Ground discovery, other
+nearby triangles, candidate lookup, props and query orchestration still ran.
+That limited the total saving even though triangle contact time decreased.
+
+Measurement protocol
+--------------------
+Base: 8ab3ccb, experiment/zombie-contact-efficiency-20261024.
+Release builds, same map/assets and seeded 1,600-zombie scenario throughout.
+No power/CPU/GPU settings changed. Sequential measurements, with no builds or
+other experiments running concurrently. All 16 timed invocations began and
+ended with the balanced profile; all 203 two-second telemetry samples reported
+AC online. This does not imply constant hardware clocks or eliminate host drift.
+
+Headless: benchmark_zombie_updates, pinned to CPU 0, real map, stationary player
+at X=-526.465, Z=296.095. Each invocation reloads the population six times with
+60 warmup and 300 measured 60 Hz updates, alternating detailed/control capture.
+Four invocations per binary: B/P/P/B followed by P/B/B/P. Each binary therefore
+has 3,600 control and 3,600 detailed samples. Controls disable fine query clocks;
+they determine the performance decision. Scene loading, initial path planning,
+rendering, audio, network and physics advancement are excluded. Doors/props are
+queried at their live, unchanged poses in this fixture.
+
+Viewer: 1280x720, fixed street camera, hidden hardware OpenGL, 480 frames with
+frame IDs 1..60 discarded, no audio, time 12.3, frozen day and animation clocks.
+Ordinary simulation runs. B/P/P/B then P/B/B/P, four runs per binary. Reported
+values below are per-run medians, not sums of independently timed CPU/GPU work.
+There were 0 camera-visible zombies and 110 sun-shadow zombie triangles in the
+final view. This tests the offscreen scenario workload, not dense visible crowds.
+
+Headless results (ms per update)
+-------------------------------
+                          Baseline          Prototype
+First B/P/P/B:           1.788386           1.757372
+                         1.801838           1.777808
+Reverse P/B/B/P:         1.808452           1.783905
+                         1.874617           1.793496
+Mean:                    1.818323           1.778145
+Median of run means:     1.805145           1.780856
+
+The mean saving is 2.21%; the median-of-run-means saving is 1.35%. Baseline run
+variation is larger than the saving, though a small headless benefit is plausible.
+Do not describe this as a large improvement or as proof of no benefit.
+
+Selected detailed stage means, ms/update (exclusive, instrumented):
+                          Baseline          Prototype
+Whole update             3.238302           3.184995
+Ground query self        0.133091           0.132889
+Ground static            0.206643           0.215881
+Ground props             0.080799           0.081412
+Contact query self       0.197986           0.203893
+Contact triangles        0.516143           0.452793
+Body movement self       0.263121           0.264423
+
+Triangle contact work fell about 12.3%, but proof construction/checking adds
+work elsewhere. Detailed timers themselves materially perturb this tiny-query
+workload; these are diagnostic costs, not normal viewer stage times. Ground and
+contact query call counts did not decrease.
+
+Viewer results (per-run median ms)
+----------------------------------
+Run                     CPU simulation       CPU work          GPU
+B first0                    2.838602           6.961625       5.238520
+P first1                    4.270004          10.211280       8.438040
+P first2                    4.306461          10.122685       8.491340
+B first3                    4.252613          10.111650       8.143020
+P reverse0                  4.162064          10.018796       8.023460
+B reverse1                  4.258794          10.152229       8.708120
+B reverse2                  4.436611          10.422061       8.893800
+P reverse3                  3.389734           8.418107       7.968980
+
+Pooled mean of those medians:
+B                           3.946655           9.411891       7.745865
+P                           4.032065           9.692717       8.230455
+
+The first group favors baseline, the reverse group favors the prototype. Large
+host variation affects unchanged render/preparation work as well as simulation.
+These measurements do not establish a prototype viewer regression or a gain.
+Rendering code is unchanged. CPU/GPU overlap, so do not add their times or infer
+increased shader work from these GPU values. See the existing CPU/GPU overlap
+report for the integrated-hardware diagnostic protocol.
+
+Correctness and restoration
+---------------------------
+- 24 affected viewer and server suites passed on the prototype, including shared
+  collision, movement, steps, doors, scenario/navigation, behavior and crowd.
+- Added a temporary differential safety regression across flat/gentle/steep
+  terrain, road/platform classifications, seams, three world-coordinate scales,
+  capsule radii, shifted feet heights, trunks, walls, live boxes and ceilings.
+  Complete-query blocking contacts and their geometry matched exactly. It also
+  checked that interior support omission actually occurred, and that a token
+  from a different world could not suppress contacts.
+- Existing differential corpus: 48,000 capsule and 96,000 ground queries,
+  byte-identical to baseline.
+- All eight real-map invocations produced byte-identical final zombie poses.
+  All 14,400 rows matched the baseline's 35 deterministic query, navigation,
+  perception and crowd counter fields. No timer migrations were dropped.
+- Exactly 1,600 startup path requests per population, with no runtime searches.
+- All eight viewer captures were pixel-identical. No GL errors were reported.
+- Rejected prototype sources and their regression are preserved in ignored
+  artifacts. Restored C++ files receive fresh mtimes; affected translation units
+  are rebuilt to avoid the prior timestamp-preserving-restore/ABI mistake.
+  The restored viewer/server and 24 suites passed (3.49 seconds); the restored
+  collision corpus is also byte-identical. Runtime src/ and tests/ match HEAD.
+
+Artifacts and reproduction
+--------------------------
+Ignored local directory:
+  build/benchmarks/zombie-ground-support-20261024/
+Contains base commit, support.patch, prototype source snapshots, baseline and
+prototype benchmark/viewer binaries, per-frame CSVs, final poses, screenshots,
+logs, power telemetry, summary.json, counter comparison and collision captures.
+One-off Python helpers live in /tmp/gdll-ground-support/ and are copied into
+that ignored directory's helpers/ folder. They are not product tools.
+
+The baseline and prototype binaries can be rerun without source restoration:
+  taskset -c 0 build/benchmarks/zombie-ground-support-20261024/bin/update-baseline \
+    output/godollo.glb scenarios/test-horde/scenario.toml NEW_OUTPUT_DIR -526.465 296.095
+Replace update-baseline with update-support for the candidate. Use distinct
+output directories. The saved run.py records power and reproduces both viewer
+and CPU settings, refusing to overwrite existing cases. It expects AC/balanced
+but never changes the power profile. Applying support.patch is optional for
+future investigation; it was deliberately not retained in the active runtime.
+
+Next candidate
+--------------
+Inspect unnecessary calculations and lookups in the existing route follower:
+for example, compute final-goal distance only when the final leg actually needs
+it, and examine repeated horizontal displacement/length calculations and path
+handle lookup. Measure each change with controls before keeping it. This means
+repeated per-update arithmetic/bookkeeping, not duplicated routes or extra path
+searches. Each scenario zombie still receives its path at load time. Threading
+remains a last resort; do not broaden this result into a claim about all possible
+ground-query optimizations.
