@@ -121,12 +121,12 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             in.capture = true;
             button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
             require(in.camera.viewMode() == viewer::Camera::ViewMode::original, "Pistol entered scope view");
-            authoritative.slot = 4; authoritative.loaded = 2;
+            authoritative.slot = 4; authoritative.loaded = 1;
             break;
         case 13:
             require(differences(0, 12) > 500, "Ready grenade did not appear in the hand");
             capture("he_grenade");
-            authoritative.loaded = 1; authoritative.weaponCoolingDown = true; ++authoritative.shots;
+            authoritative.loaded = 0; authoritative.weaponCoolingDown = true; ++authoritative.shots;
             break;
         case 14:
             require(differences(0, 13) < 100, "Thrown grenade remained in the hand during cooldown");
@@ -139,7 +139,7 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             break;
         case 16:
             require(differences(0, 15) < 100, "Re-equipping a cooling grenade restored its held model too soon");
-            authoritative.weaponCoolingDown = false;
+            authoritative.weaponCoolingDown = false; authoritative.loaded = 1;
             break;
         case 17:
             require(differences(12, 16) < 100, "Grenade did not return when the server confirmed cooldown expiry");
@@ -296,6 +296,44 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
         case 35:
             capture("pistol-after-fists");
             require(differences(31,34)>500,"Equipping a firearm after fists lost its model");
+            button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_PRESS,0);
+            require(command(in,window,false,0).left,"A fresh physical press must produce firing input");
+            authoritative.slot=4; authoritative.loaded=0;
+            authoritative.reloadRemaining=.5f; authoritative.reloadDuration=1;
+            break;
+        case 36:
+            require(in.weaponReloading && in.leftHeld && in.suppressLeftUntilRelease && !command(in,window,false,0).left,
+                    "Confirmed grenade autoload must latch suppression for the physically held throw button");
+            authoritative.reloadRemaining=authoritative.reloadDuration=0; authoritative.loaded=1;
+            break;
+        case 37:
+            require(!in.weaponReloading && in.leftHeld && in.suppressLeftUntilRelease && !command(in,window,false,0).left,
+                    "Autoload completion must not turn a held throw button into a fresh press");
+            button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_RELEASE,0);
+            button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_PRESS,0);
+            require(command(in,window,false,0).left,"Physical release and repress must rearm firing after autoload");
+            key(window,GLFW_KEY_R,0,GLFW_PRESS,0);
+            {
+                const auto reloading=command(in,window,false,0);
+                require(reloading.reload && !reloading.left && in.suppressLeftUntilRelease,
+                        "Requesting reload while physically holding fire must require a release");
+            }
+            button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_RELEASE,0);
+            button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_PRESS,0);
+            authoritative.weaponSwitchRemaining=.5f; authoritative.weaponSwitchDuration=1;
+            break;
+        case 38:
+            require(in.weaponSwitching && in.leftHeld && in.suppressLeftUntilRelease && !command(in,window,false,0).left,
+                    "Confirmed switching must retain the physical-release requirement");
+            authoritative.weaponSwitchRemaining=authoritative.weaponSwitchDuration=0;
+            break;
+        case 39:
+            require(!in.weaponSwitching && in.leftHeld && !command(in,window,false,0).left,
+                    "Switch completion must not rearm a physically held click");
+            button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_RELEASE,0);
+            button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_PRESS,0);
+            require(command(in,window,false,0).left,"A fresh click after switch completion must fire");
+            button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_RELEASE,0);
             glfwSetWindowShouldClose(window,true);
             break;
     }
@@ -330,8 +368,8 @@ int main(int argc, char** argv) {
             std::filesystem::copy_file(source / "multiplayer/client" / shader, fixture / "multiplayer/client" / shader,
                                        std::filesystem::copy_options::overwrite_existing);
         std::ofstream(fixture / "inventory.toml") <<
-            "equipped='pistol'\n[weapons]\npistol=0\nsubmachine_gun=0\nsniper=0\nshotgun=0\nhe_grenade=2\n"
-            "[ammo]\npistol_rounds=0\nsmg_rounds=0\nsniper_rounds=0\nshotgun_shells=0\nhe_grenades=0\n"
+            "equipped='pistol'\n[weapons]\npistol=0\nsubmachine_gun=0\nsniper=0\nshotgun=0\nhe_grenade=1\n"
+            "[ammo]\n"
             "[hotbar]\n0='pistol'\n1='submachine_gun'\n2='shotgun'\n3='sniper'\n4='he_grenade'\n5='skill:punch'\n"
             "[placements.pistol]\nstorage='body/hip_holster/holster'\nx=0\ny=0\n"
             "[placements.he_grenade]\nstorage='body/chest_pouch/pouch'\nx=0\ny=0\n"
@@ -348,7 +386,7 @@ int main(int argc, char** argv) {
         char hidden[] = "--hidden", seconds[] = "--seconds", duration[] = "5";
         char dayLength[] = "--day-length";
         char* args[] = {program, argv[1], noTrees, count, zero, hidden, seconds, duration, dayLength, zero};
-        require(multiplayer::runClientSession(multiplayer::parseOptions(10, args, false)) == 0 && frame == 36, "Graphical client did not finish all weapon states");
+        require(multiplayer::runClientSession(multiplayer::parseOptions(10, args, false)) == 0 && frame == 40, "Graphical client did not finish all weapon states");
         const std::array<std::size_t, 5> weaponFrames{1, 3, 4, 5, 12};
         for (std::size_t a = 0; a < weaponFrames.size(); ++a)
             for (std::size_t b = a+1; b < weaponFrames.size(); ++b)

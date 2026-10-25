@@ -6,6 +6,7 @@
 #include <cmath>
 #include <iomanip>
 #include <sstream>
+#include <utility>
 
 namespace viewer {
 InventoryInteraction::InventoryInteraction(Rml::ElementDocument& document, PlayerInventory& inventory)
@@ -52,11 +53,20 @@ void InventoryInteraction::refresh() {
     populateInventoryDetails(document_, inventory_, selected_);
     document_.UpdateDocument();
 }
+std::vector<InventoryDragAction> InventoryInteraction::takeActions() {
+    return std::exchange(actions_, {});
+}
+void InventoryInteraction::refreshLayout() {
+    if (!drag_.held()) refresh();
+}
 void InventoryInteraction::beginDrag() {
     if (dragCandidate_.empty()) return;
     const auto item = std::move(dragCandidate_);
     dragCandidate_.clear();
-    if (drag_.pickUp(item)) refresh();
+    if (drag_.pickUp(item)) {
+        actions_.push_back({InventoryDragActionKind::PickUp, item, "", 0, 0, 0});
+        refresh();
+    }
 }
 void InventoryInteraction::rotate(int turns) {
     if (!drag_.held() || drag_.pending()) return;
@@ -66,6 +76,7 @@ void InventoryInteraction::rotate(int turns) {
     if (turns > 0) { anchorX_ = rectangle.height - 1 - oldY; anchorY_ = oldX; }
     else { anchorX_ = oldY; anchorY_ = rectangle.width - 1 - oldX; }
     drag_.rotate(turns);
+    actions_.push_back({InventoryDragActionKind::Rotate, held.item, "", 0, 0, turns});
     populateInventoryDetails(document_, inventory_, selected_);
 }
 void InventoryInteraction::ghost() {
@@ -92,13 +103,15 @@ void InventoryInteraction::ghost() {
     const auto& held = *drag_.held();
     const auto rectangle = inventoryRectangle(inventory_.items().at(held.item), {"", 0, 0, held.rotation});
     ghost_->SetProperty("display", "block");
-    ghost_->SetClass("valid", check.result == InventoryDrop::Free);
+    ghost_->SetClass("valid", check.result == InventoryDrop::Free || check.result == InventoryDrop::Merge);
     ghost_->SetClass("swap", check.result == InventoryDrop::Swap);
     ghost_->SetClass("placing", bool(drag_.pending()));
     for (const auto& property : {std::pair{Rml::PropertyId::Left, left}, {Rml::PropertyId::Top, top},
             {Rml::PropertyId::Width, rectangle.width * cellWidth_}, {Rml::PropertyId::Height, rectangle.height * cellHeight_}})
         ghost_->SetProperty(property.first, Rml::Property(property.second, Rml::Unit::PX));
-    ghost_->SetInnerRML(Rml::StringUtilities::EncodeRml(inventory_.items().at(held.item).inventory().name));
+    const auto& item = inventory_.items().at(held.item);
+    ghost_->SetInnerRML(Rml::StringUtilities::EncodeRml(item.inventory().name) +
+        (item.inventory().stackable ? "<span class='storage-item-quantity'>" + std::to_string(inventory_.quantity(held.item)) + "</span>" : ""));
     if (drag_.pending()) {
         const float scale = document_.GetContext()->GetDensityIndependentPixelRatio();
         const auto dimensions = document_.GetContext()->GetDimensions();
@@ -118,6 +131,7 @@ void InventoryInteraction::ghost() {
 }
 void InventoryInteraction::cancel() {
     const bool changed = bool(drag_.held());
+    if (changed) actions_.push_back({InventoryDragActionKind::Cancel, drag_.held()->item, "", 0, 0, 0});
     drag_.cancel();
     pressed_ = false; wheel_ = 0;
     dragCandidate_.clear();
@@ -129,6 +143,8 @@ void InventoryInteraction::process(const std::vector<InventoryPointerEvent>& eve
     const PresentationViewport& presentation, double seconds) {
     const double elapsed = lastSeconds_ && std::isfinite(seconds) && seconds >= *lastSeconds_ ? seconds - *lastSeconds_ : 0;
     if (std::isfinite(seconds)) lastSeconds_ = seconds;
+    refreshInventoryQuantities(document_, inventory_);
+    populateInventoryDetails(document_, inventory_, selected_);
     // Newly requested placements start now, not at the preceding frame's time.
     // Input cancellation wins over a completion in this update.
     bool advancePending = bool(drag_.pending());
@@ -181,8 +197,10 @@ void InventoryInteraction::process(const std::vector<InventoryPointerEvent>& eve
         case InventoryPointerAction::Release:
             if (pressed_ && drag_.held() && !drag_.pending()) {
                 const auto hovered = hit();
+                const auto item = drag_.held()->item;
                 const auto check = drag_.drop(hovered.storage, hovered.x - anchorX_, hovered.y - anchorY_);
                 if (check.result != InventoryDrop::Rejected) {
+                    actions_.push_back({InventoryDragActionKind::Drop, item, hovered.storage, hovered.x - anchorX_, hovered.y - anchorY_});
                     if (drag_.pending()) destinationGrid_ = hovered.grid;
                     else if (drag_.held()) { selected_ = drag_.held()->item; anchorX_ = anchorY_ = 0; }
                     wheel_ = 0;

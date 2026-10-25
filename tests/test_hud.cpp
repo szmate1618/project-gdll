@@ -205,6 +205,17 @@ int main(int argc, char** argv) {
             state.selectionSlot = -1; state.weaponSwitchDuration = state.weaponSwitchRemaining = 0;
             clear(); hud.draw(state, 1280, 720); checkState();
             require(first == pixels(1280, 720), "Closing selection must restore the gameplay HUD");
+            state.reloadDuration = 4; state.reloadRemaining = 3;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto reloading = pixels(1280, 720);
+            require(reloading != first, "Reload progress must render without a weapon switch");
+            if (argc > 1) capture((std::string(argv[1]) + "-reloading.ppm").c_str(), reloading, 1280, 720);
+            state.reloadRemaining = 1;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(reloading != pixels(1280, 720), "Reload progress must advance with its remaining time");
+            state.reloadDuration = state.reloadRemaining = 0;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(first == pixels(1280, 720), "Finishing a reload must hide its progress");
             state.loaded = 3;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto changed = pixels(1280, 720);
@@ -415,6 +426,77 @@ int main(int argc, char** argv) {
             state.screen = viewer::HudScreen::Gameplay;
             clear(); hud.draw(state, 1280, 720); checkState();
             require(first == pixels(1280, 720), "Closing a prototype screen failed to restore the gameplay HUD");
+        }
+        {
+            StorageFixture fixture;
+            std::ofstream(fixture.directory / "inventory.toml") <<
+                "[weapons]\npistol=12\n"
+                "[ammo.hud_rounds]\nitem='pistol_rounds'\nquantity=12\n"
+                "[ammo.hud_rounds_2]\nitem='pistol_rounds'\nquantity=5\n"
+                "[placements.pistol]\nstorage='body/hip_holster/holster'\nx=0\ny=0\n"
+                "[placements.hud_rounds]\nstorage='backpack/tactical_backpack/top_quick_access'\nx=0\ny=0\n"
+                "[placements.hud_rounds_2]\nstorage='backpack/tactical_backpack/top_quick_access'\nx=1\ny=0\n";
+            auto inventory = viewer::loadPlayerInventory(fixture.directory);
+            viewer::Hud hud(fixture.directory / "ui", inventory);
+            state.screen = viewer::HudScreen::Inventory;
+            const auto draw = [&](double elapsed = 0) { state.seconds += elapsed; clear(); hud.draw(state, 1280, 720); checkState(); return pixels(1280, 720); };
+            const auto move = [&](float x, float y) { hud.pointerMove(x / 1280, y / 720); };
+            const auto changedRegion = [&](const auto& before, const auto& after, int left, int top, int width, int height) {
+                for (int y = top; y < top + height; ++y) for (int x = left; x < left + width; ++x)
+                    if (colorAt(before, 1280, 720, x, y) != colorAt(after, 1280, 720, x, y)) return true;
+                return false;
+            };
+            draw();
+            move(610, 197); hud.pointerButton(0, true); hud.pointerButton(0, false);
+            const auto selected = draw();
+            require(hud.takeInventoryActions().empty() && !hud.inventoryDragging(),
+                    "Selecting a stack must not send a pickup action");
+            require(inventory.consume("hud_rounds", 12), "Could not consume graphical ammo fixture");
+            const auto empty = draw();
+            require(inventory.locationOf("hud_rounds")->placement && inventory.quantity("hud_rounds") == 0,
+                    "Depleted stacks must keep their storage footprint");
+            require(changedRegion(selected, empty, 602, 188, 24, 24), "Stack quantity did not refresh in its grid cell");
+            require(changedRegion(selected, empty, 910, 235, 314, 310), "Selected stack quantity did not refresh in item details");
+            require(empty == draw(), "Unchanged empty stacks must render consistently");
+            if (argc > 1) capture((std::string(argv[1]) + "-ammo-empty.ppm").c_str(), empty, 1280, 720);
+            move(610, 197); hud.pointerButton(0, true); move(700, 250);
+            draw();
+            require(inventory.held() && inventory.held()->item == "hud_rounds", "Empty ammo stacks must remain draggable");
+            auto actions = hud.takeInventoryActions();
+            require(actions.size() == 1 && actions[0].kind == viewer::InventoryDragActionKind::PickUp &&
+                    actions[0].item == "hud_rounds" && hud.inventoryDragging(),
+                    "Dragging must expose one authoritative pickup action");
+            require(inventory.consume("hud_rounds_2", 1), "Could not consume a second graphical stack");
+            draw();
+            require(inventory.held() && inventory.held()->item == "hud_rounds", "Live ammo updates cancelled the current drag");
+            hud.pointerButton(1, true); draw();
+            require(!inventory.held() && inventory.quantity("hud_rounds") == 0, "Cancelling a depleted stack drag changed its quantity");
+            require(hud.inventoryDragging(), "Queued cancellation must block authoritative placement reconciliation");
+            actions = hud.takeInventoryActions();
+            require(actions.size() == 1 && actions[0].kind == viewer::InventoryDragActionKind::Cancel && !hud.inventoryDragging(),
+                    "Cancelling must expose one authoritative action and drain the idle queue");
+            // An immediate return is idle locally, but its actions still need delivery.
+            move(638, 197); hud.pointerButton(0, true); move(700, 250); move(638, 197); hud.pointerButton(0, false);
+            draw();
+            require(!inventory.held() && hud.inventoryDragging(), "Completed unsent operations must block reconciliation");
+            actions = hud.takeInventoryActions();
+            require(actions.size() == 2 && actions[0].kind == viewer::InventoryDragActionKind::PickUp &&
+                    actions[1].kind == viewer::InventoryDragActionKind::Drop && actions[1].x == 1 && actions[1].y == 0 &&
+                    actions[1].storage == "backpack/tactical_backpack/top_quick_access" && !hud.inventoryDragging(),
+                    "Immediate return must preserve the pickup/drop order and destination cells");
+            hud.refreshInventoryLayout();
+            // Counts may change while a placement is waiting for storage access.
+            move(638, 197); hud.pointerButton(0, true); move(600, 261); hud.pointerButton(0, false);
+            draw();
+            require(inventory.held() && inventory.held()->item == "hud_rounds_2", "Ammo placement must wait for storage access");
+            require(inventory.consume("hud_rounds_2", 1), "Could not consume a pending graphical stack");
+            draw(.1); draw(30);
+            require(!inventory.held() && inventory.locationOf("hud_rounds_2")->placement->storage == "backpack/tactical_backpack/main" &&
+                    inventory.quantity("hud_rounds_2") == 3, "Quantity refresh interrupted or reset a pending placement");
+            actions = hud.takeInventoryActions();
+            require(actions.size() == 2 && actions[0].kind == viewer::InventoryDragActionKind::PickUp &&
+                    actions[1].kind == viewer::InventoryDragActionKind::Drop,
+                    "Timed completion must not enqueue an extra user operation");
         }
         {
             auto hudInventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());

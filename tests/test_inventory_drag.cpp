@@ -130,8 +130,48 @@ void tagRestrictions() {
         "A non-first allowed tag must be sufficient for placement");
     alternate.cancel();
 }
+void ammoMerging() {
+    viewer::StorageLoadout storage;
+    viewer::StorageBackpack backpack;
+    backpack.id = "test"; backpack.grid = {4, 2, .5}; storage.backpack = backpack;
+    const std::string pack = "backpack/test/main";
+    viewer::InventoryContents contents;
+    for (const auto* id : {"source", "target"})
+        contents.owned.emplace(id, viewer::Item(id, {"Pistol rounds", "ammo", 1, 1, "pistol_rounds", true, 60}, {}, {"ammo"}));
+    contents.quantities = {{"source", 10}, {"target", 54}};
+    contents.placements["source"] = {pack, 0, 0};
+    contents.placements["target"] = {pack, 1, 0};
+    viewer::PlayerInventory inventory(storage, contents);
+    viewer::InventoryDrag drag(inventory);
+    require(drag.pickUp("source") && drag.drop(pack, 1, 0).result == viewer::InventoryDrop::Merge && drag.pending(),
+        "Dropping compatible ammo onto a stack with room must begin a timed merge");
+    require(inventory.quantity("source") == 10 && inventory.quantity("target") == 54,
+        "Pending merge must not transfer rounds early");
+    drag.cancel();
+    require(inventory.quantity("source") == 10 && inventory.quantity("target") == 54 &&
+        inventory.locationOf("source")->placement->x == 0, "Cancelling merge must preserve both stacks");
+    drag.pickUp("source"); completeDrop(drag, pack, 1, 0);
+    require(inventory.quantity("source") == 4 && inventory.quantity("target") == 60 && !drag.held() &&
+        inventory.locationOf("source")->placement->x == 0 && inventory.locationOf("target")->placement->x == 1,
+        "Partial merge must fill the target and restore the remainder to its source footprint");
+    drag.pickUp("source");
+    require(completeDrop(drag, pack, 1, 0).result == viewer::InventoryDrop::Merge && !drag.held() &&
+        inventory.quantity("source") == 4 && inventory.quantity("target") == 60 &&
+        inventory.locationOf("source")->placement->x == 0 && inventory.locationOf("target")->placement->x == 1,
+        "A full target must remain a no-op merge that preserves both stack footprints");
+    inventory.consume("target", 10);
+    drag.pickUp("source"); completeDrop(drag, pack, 1, 0);
+    require(inventory.quantity("source") == 0 && inventory.quantity("target") == 54 &&
+        inventory.owns("source") && inventory.locationOf("source")->placement->x == 0 &&
+        inventory.placements().size() == 2, "Complete merge must retain the empty stack and both footprints");
+    drag.pickUp("source");
+    require(completeDrop(drag, pack, 1, 0).result == viewer::InventoryDrop::Merge && !drag.held() &&
+        inventory.quantity("source") == 0 && inventory.quantity("target") == 54 &&
+        inventory.locationOf("source")->placement->x == 0 && inventory.locationOf("target")->placement->x == 1,
+        "An empty source must remain a no-op merge that preserves both stack footprints");
+}
 } // namespace
 int main() {
-    try { rotationAndBoundaries(); swapChains(); tagRestrictions(); std::cout << "Inventory drag checks passed\n"; return 0; }
+    try { rotationAndBoundaries(); swapChains(); tagRestrictions(); ammoMerging(); std::cout << "Inventory drag checks passed\n"; return 0; }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

@@ -63,11 +63,22 @@ Item loadItem(const Path& directory, const std::string& id) {
     const auto itemId = label(table, "id", file);
     item.name = label(table, "name", file);
     item.type = label(table, "type", file);
-    const auto weapon = label(table, "weapon", file);
-    if (itemId != id || weapon != id || item.type != "weapon")
-        invalid(file, "expected matching item/weapon IDs and type = 'weapon'");
-    if (!std::filesystem::is_regular_file(directory / (weapon + ".gameplay.toml")))
-        invalid(file, "missing gameplay definition for weapon " + weapon);
+    if (itemId != id) invalid(file, "expected matching item/weapon IDs");
+    WeaponConfig gameplay;
+    if (item.type == "weapon") {
+        const auto weapon = label(table, "weapon", file);
+        if (weapon != id) invalid(file, "expected matching item/weapon IDs and type = 'weapon'");
+        if (!std::filesystem::is_regular_file(directory / (weapon + ".gameplay.toml")))
+            invalid(file, "missing gameplay definition for weapon " + weapon);
+        gameplay = loadWeaponConfig(directory / (id + ".gameplay.toml"), id);
+    } else if (item.type == "ammo") {
+        item.ammoType = label(table, "ammo_type", file);
+        item.stackable = required<bool>(table, "stackable", file);
+        if (!item.stackable) invalid(file, "ammo must be stackable");
+        if (!table["max_stack"].is_integer()) invalid(file, "max_stack must be a positive integer");
+        item.maxStack = required<int>(table, "max_stack", file);
+        if (item.maxStack < 1) invalid(file, "max_stack must be a positive integer");
+    } else invalid(file, "type must be 'weapon' or 'ammo'");
     const auto dimension = [&](const char* key) {
         if (!table[key].is_integer()) invalid(file, std::string(key) + " must be an integer cell count");
         const auto value = required<std::int64_t>(table, key, file);
@@ -76,7 +87,7 @@ Item loadItem(const Path& directory, const std::string& id) {
     };
     item.width = dimension("width");
     item.height = dimension("height");
-    return Item(id, std::move(item), loadWeaponConfig(directory / (id + ".gameplay.toml"), id),
+    return Item(id, std::move(item), std::move(gameplay),
         readTags(directory / (id + ".tags.txt")));
 }
 } // namespace viewer

@@ -16,6 +16,7 @@ struct InventoryContents {
     std::map<std::string, ItemPlacement> placements;
     std::array<std::string, 10> hotbar; // Owned item IDs or skill:<registered ID>.
     std::map<std::string, std::string> skills; // Registered action labels; no storage or combat state.
+    std::map<std::string, int> quantities; // Ammo stack ID -> rounds; empty stacks remain owned and placed.
 };
 struct HeldInventoryItem {
     std::string item;
@@ -32,13 +33,20 @@ struct InventoryMatch {
 };
 
 // Owns the player's storage and item locations independently of the GUI.
-// All public access is read-only; InventoryDrag is the placement transaction
-// service used by the GUI and available to future gameplay callers.
+// Quantity changes are bounded by stack definitions. InventoryDrag owns local
+// placement transactions; complete authoritative layouts synchronize when idle.
 class PlayerInventory {
 public:
     PlayerInventory(StorageLoadout storage, InventoryContents contents);
     bool owns(const std::string& id) const;
     const Item* find(const std::string& id) const;
+    int quantity(const std::string& id) const;
+    bool setQuantity(const std::string& id, int amount);
+    bool consume(const std::string& id, int amount);
+    int ammoCount(std::string_view ammoType) const;
+    // Apply a complete authoritative layout between local drag transactions.
+    // Invalid snapshots leave both placement and quantity state untouched.
+    bool synchronizePlacements(const std::map<std::string, ItemPlacement>& placements);
     bool hasTag(std::string_view tag) const;
     bool hasType(std::string_view type) const;
     std::optional<InventoryLocation> locationOf(const std::string& id) const;

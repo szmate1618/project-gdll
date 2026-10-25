@@ -1788,7 +1788,7 @@ recovery. Automatic fire adds a bounded amount of residual recoil. The shotgun's
 separate fore-end pulls back and returns between 0.12 and 0.66 seconds after
 each shell. Empty clicks and grenade throws do not trigger firearm motion.
 Models keep their existing vertices and one draw per held weapon; part motion
-uses a pump mask and a translation in the vertex shader. Reload remains instant.
+uses a pump mask and a translation in the vertex shader. Reload uses the configured weapon and storage access timer.
 
 Scoped sniper views have pronounced breathing sway and a short upward firing kick,
 scaled with zoom for comparable screen motion at both magnifications. Breathing
@@ -1808,8 +1808,11 @@ The window title and console report the equipped weapon, magazine, and reserve.
 
 **4**, then left click, equips an HE grenade; **left click** throws one in Combat mode. Holding
 the button throws only once. The starting inventory supplies six grenades.
-After a throw, the held model disappears until the configured cooldown ends;
-an empty inventory keeps the hand empty. Switching weapons or reloading does
+One grenade starts loaded and five occupy an ammo stack. After a throw, the
+held model disappears while the next matching grenade is automatically
+retrieved, paying its reload time plus storage access. It returns after both
+retrieval and the configured cooldown; an empty inventory keeps the hand empty.
+Switching weapons or reloading does
 not bypass the cooldown. Multiplayer follows the server-confirmed readiness.
 The original mesh is a medium grey octagonal column with red stripes near both
 ends, shared between the held and thrown model. Grenades use the same Box3D
@@ -1879,7 +1882,7 @@ this fixture. These are small absolute CPU savings, not an end-to-end forest FPS
 measurement or a promise of a similar percentage gain in rendered frame rate.
 
 Each [weapon TOML](../storage/weapons/) defines `name`, `ammo_type`,
-`shot_interval_seconds`, `automatic`, `has_scope`, `pellets`, `spread_degrees`
+`shot_interval_seconds`, `draw_time_seconds`, `reload_time_seconds`, `automatic`, `has_scope`, `pellets`, `spread_degrees`
 (cone half-angle), `magazine_capacity`, `ammo_per_shot`, and `muzzle_position`.
 Firearms also require `caliber = "low"` or `"high"`. The pistol and SMG use low,
 the sniper uses high, and the shotgun uses low per pellet (1 body / 2 head damage).
@@ -1907,10 +1910,15 @@ tags. Their `weapon` ID links to the matching `<id>.gameplay.toml` above. Item d
 
 [inventory.toml](../inventory.toml) chooses the initially `equipped` weapon.
 Its `[weapons]` table lists owned weapon IDs and their starting loaded rounds;
-omit a weapon to remove ownership. `[ammo]` holds additional reserves for the
-five separate `ammo_type` values, including zero reserves. **R** instantly
-transfers matching reserve rounds into the equipped magazine, allowing partial
-reloads when the reserve is low. Firing, switching, and reloading preserve each
+omit a weapon to remove ownership. `[ammo.<stack-id>]` entries name an ammo
+`item` from `storage/ammo/` and its `quantity`, with a separate placement for
+each stack. Empty stacks stay in their cells and can be moved or refilled.
+**R** starts a reload lasting the weapon's `reload_time_seconds` plus the
+selected ammo stack's access time, including backpack obstruction and support.
+The fastest stack wins; equal times prefer the smallest quantity sufficient
+to fill the magazine, otherwise the largest quantity. One stack supplies each
+reload, with partial loading when necessary. Ammo transfers when the timer
+finishes; the HUD shows progress. Firing, switching, and reloading preserve each
 weapon's own cooldown. Reloading and equipping require a fresh trigger press;
 cursor release, focus loss, and camera/control-mode changes also clear held fire.
 At most one shot fires per rendered frame; stalls do not produce catch-up bursts.

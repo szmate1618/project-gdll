@@ -23,7 +23,7 @@ std::optional<WeaponSwitchTiming> weaponSwitchTiming(const PlayerInventory& inve
         newWeapon.drawTimeSeconds};
 }
 bool WeaponSwitch::begin(Weapons& weapons, const PlayerInventory& inventory, std::size_t target, double seconds) {
-    if (pending_ || target > punchSlot || target == weapons.slot() || !std::isfinite(seconds) ||
+    if (pending_ || weapons.reloading() || target > punchSlot || target == weapons.slot() || !std::isfinite(seconds) ||
         !weapons.state(target).owned) return false;
     const auto timing = weaponSwitchTiming(inventory, weapons.equipped().config, weapons.state(target).config);
     if (!timing || !std::isfinite(seconds + timing->total())) return false;

@@ -208,6 +208,11 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
         for suffix in ("gameplay.toml", "inventory.toml", "tags.txt"):
             assets.add(weapon_definitions / f"{name}.{suffix}")
     definitions = sorted([*weapon_definitions.glob("*.toml"), *weapon_definitions.glob("*.tags.txt")])
+    ammo_definitions = root / "storage/ammo"
+    for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades"):
+        for suffix in ("inventory.toml", "tags.txt"):
+            assets.add(ammo_definitions / f"{name}.{suffix}")
+    definitions += sorted([*ammo_definitions.glob("*.toml"), *ammo_definitions.glob("*.tags.txt")])
     vehicles = sorted((root / "vehicles").glob("*.toml"))
     if not vehicles:
         raise ValueError("Vehicle configuration files are missing")

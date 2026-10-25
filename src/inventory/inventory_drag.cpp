@@ -1,4 +1,5 @@
 #include "inventory_drag.hpp"
+#include <algorithm>
 #include <cmath>
 
 namespace viewer {
@@ -34,6 +35,23 @@ InventoryDropCheck InventoryDrag::preview(const std::string& storage, int x, int
         if (!check.displaced.empty()) return {}; // More than one occupied item.
         check = {InventoryDrop::Swap, other.item};
     }
+    if (check.result == InventoryDrop::Swap) {
+        const auto& source = inventory_.contents_.owned.at(inventory_.held_->item);
+        const auto& target = inventory_.contents_.owned.at(check.displaced);
+        if (source.inventory().stackable && target.inventory().stackable &&
+            source.inventory().ammoType == target.inventory().ammoType) {
+            // A merge returns the source stack to its pickup footprint. In a
+            // swap chain that footprint may already hold the preceding item.
+            // Quantities can change during reloads, so they must not decide
+            // whether the operation moves stack footprints or merges rounds.
+            const auto sourceRectangle = inventoryRectangle(source, sourcePlacement_);
+            const auto& sourceContainer = inventory_.layout_.at(sourcePlacement_.storage);
+            const bool sourceFree = std::none_of(sourceContainer.items.begin(), sourceContainer.items.end(), [&](const auto& other) {
+                return inventoryRectanglesOverlap(sourceRectangle, other);
+            });
+            if (sourceFree) check.result = InventoryDrop::Merge;
+        }
+    }
     return check;
 }
 InventoryDropCheck InventoryDrag::drop(const std::string& storage, int x, int y) {
@@ -66,6 +84,20 @@ void InventoryDrag::completePlacement() {
     pending_.reset();
     const auto& check = placement.result;
     const auto placed = *inventory_.held_;
+    if (check.result == InventoryDrop::Merge) {
+        const auto& target = inventory_.contents_.owned.at(check.displaced);
+        const int transfer = std::min(inventory_.quantity(placed.item),
+            target.inventory().maxStack - inventory_.quantity(check.displaced));
+        inventory_.consume(placed.item, transfer);
+        inventory_.setQuantity(check.displaced, inventory_.quantity(check.displaced) + transfer);
+        inventory_.contents_.placements[placed.item] = sourcePlacement_;
+        sourcePlacement_ = {};
+        sourceAccess_ = {};
+        inventory_.held_.reset();
+        originalPlacements_.reset();
+        inventory_.rebuild();
+        return;
+    }
     if (check.result == InventoryDrop::Swap) {
         const auto displaced = inventory_.contents_.placements.at(check.displaced);
         const auto rotation = displaced.rotation;

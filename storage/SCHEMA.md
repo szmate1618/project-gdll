@@ -150,3 +150,8 @@ TOMLs and tag sidecars are included in fingerprints and content packs. See
 Root `inventory.toml` continues to control ownership, ammunition, placements and
 shortcuts. Gameplay behavior is defined in `storage/weapons/*.gameplay.toml`;
 inventory names and footprints use `*.inventory.toml`, and tags use `*.tags.txt`.
+Ammo stack descriptors live in `storage/ammo/`; each `[ammo.<instance-id>]`
+in the root config names an `item` descriptor and `quantity` from zero to
+`max_stack`, plus its own `[placements.<instance-id>]`. Zero stacks stay in
+place. Reloads add the selected stack's adjusted storage access time to the
+weapon's `reload_time_seconds`; see [inventory behavior](../docs/INVENTORY.md#ammo-stacks-and-reloads).

@@ -19,6 +19,7 @@ targets are defined in `cmake/Inventory.cmake` for graphical and headless builds
 | Present configured action shortcuts | `src/gui/action_hotbar.hpp/.cpp` |
 | Preview and confirm ten action shortcuts | `src/action_selection.hpp/.cpp` |
 | Calculate and advance timed weapon changes | `src/weapon_switch.hpp/.cpp` |
+| Select ammo stacks and advance timed reloads | `src/weapon_reload.hpp/.cpp` |
 | Coordinate GUI documents and rendering | `src/gui/hud.hpp/.cpp` |
 
 ## Item components
@@ -30,8 +31,9 @@ settings and grenade parameters. `tags()` and `hasTag()` use `<id>.tags.txt`.
 Combat's `Weapons` uses the same gameplay parser; there is no second inventory
 interpretation of the gameplay schema.
 
-Mutable magazine rounds, reserves and cooldowns remain in `Weapons`. Mutable
-storage locations belong to `PlayerInventory`. Changing one player's placement
+Mutable magazine rounds and cooldowns remain in `Weapons`. Reserve ammunition
+is the quantity of matching ammo stacks in `PlayerInventory`; combat's reserve
+count is a display cache. Mutable storage locations also belong to that model. Changing one player's placement
 does not change an item's definition.
 
 ## Player model and queries
@@ -115,14 +117,42 @@ the combined storage cost at zero, after all adjustments. Identical grid pointer
 identify a shared compartment; null endpoints have no access cost (fists).
 Standalone endpoint times cannot simply be added because their bases may be shared.
 
+## Ammo stacks and reloads
+
+Ammo descriptors in `storage/ammo/` define `type = "ammo"`, `ammo_type`,
+`stackable = true` and `max_stack`. Root `inventory.toml` declares each stack
+under `[ammo.<unique-instance-id>]`, with `item` naming its descriptor and
+`quantity` between zero and its maximum. Each instance needs a placement.
+Multiple stacks may share a descriptor. Empty stacks stay owned, occupy their
+cell and remain movable. Dragging a compatible stack onto another merges up
+to the target maximum and restores the source to its pickup position, including
+when its quantity becomes zero.
+
+`WeaponReload` selects a positive matching stack that is currently stored.
+The shortest `inventoryAccess()` time wins, including backpack obstruction and
+support. At equal access time, choose the smallest stack that can fill the
+missing magazine rounds; if none can, choose the largest stack. One reload
+uses one stack and may partially fill the magazine. The duration snapshots
+`reload_time_seconds` from the weapon's gameplay file plus the selected stack's
+access time. Transfer occurs at completion; shooting, switching and discarding
+wait for it. Retrieval leaves the stack in place even at zero.
+
+Grenades have one loaded grenade. A successful throw automatically starts the
+same retrieval process for another grenade of the matching `ammo_type`.
+Both its shot cooldown and retrieval must complete before the next throw.
+Multiplayer owns the quantities and reload timer on the server and publishes
+them to the client HUD.
+
 ## Current prototype boundary
 
-There is one owned instance per item/weapon ID. Acquisition/removal, multiple
-instances of the same definition, stacking, ammo accounting,
-and placement network replication remain future work. The combat
-ownership/ammo state is not synchronized with this storage model yet. The refactor
-provides shared definitions and a reusable query/placement model without changing
-those mechanics. Placements still last for the session and do not rewrite TOML.
+There is one owned firearm per weapon ID, with multiple ammo stack instances.
+Weapon acquisition/removal synchronization remains separate from ammo accounting.
+Multiplayer replays sequenced inventory
+pickup, rotation, placement and cancellation through the server's `InventoryDrag`.
+Snapshots update quantities continuously, including during drags. Placement
+corrections wait until queued operations are acknowledged and both drags are idle.
+New actions wait behind an earlier server placement timer. Placements and stack
+changes last for the session and do not rewrite TOML.
 
 The configuration formats and tag restrictions remain documented in
 [the storage schema](../storage/SCHEMA.md) and
@@ -137,7 +167,7 @@ compartment, otherwise both bases, plus the old weapon's backpack destination
 adjustment and the new weapon's backpack source adjustment. Both obstruction
 penalties and support bonuses apply. The pair is excluded from occupancy scoring.
 Equipped weapons retain their reserved storage footprints. Timed switching
-uses the current standalone inventory; server players use their startup layout.
+uses the current inventory on standalone and authoritative servers.
 
 `inventoryAccessRange(grid, itemHeight)` calculates attainable limits across
 all possible placements and other-item occupancy. With H grid rows and h item

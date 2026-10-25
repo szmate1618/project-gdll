@@ -43,7 +43,9 @@ starter footprints are editable prototype values:
 | HE grenade | 1×1 |
 
 The filename prefix, `id`, and `weapon` must match. `weapon` references the
-matching `<id>.gameplay.toml`. This prototype supports `type = "weapon"` only.
+matching `<id>.gameplay.toml`. Ammo descriptors use `type = "ammo"` in
+`storage/ammo/`, with `ammo_type`, `stackable = true` and `max_stack` instead
+of a weapon gameplay reference.
 `name` is the inventory display name. No icon, texture, font or model asset is
 specified here.
 
@@ -124,17 +126,43 @@ source and destination costs. A completed free-space placement finishes the move
 Overlapping multiple items or extending outside the grid is rejected.
 Right-click, leaving Inventory or losing focus restores the whole unfinished swap
 chain. Completed moves persist in memory until the session ends; no configuration
-files are written. Automatic packing, stacking and runtime
-ownership synchronization are not implemented. Existing grenade/ammunition counts and combat behavior
-are unchanged.
+files are written. Compatible ammo stacks merge up to their maximum when
+dropped onto one another; the source returns to its pickup position, even at
+zero quantity. Automatic packing and runtime weapon ownership synchronization
+are not implemented.
 
 ## Ownership and action hotbar
 
 The existing `[weapons]` table in root `inventory.toml` is the ownership source:
 a key means that weapon is owned, and its value is its starting loaded round
 count. Zero rounds still means an owned weapon. This is not an item footprint
-or a count of firearm instances; the current grenade/ammo rules are unchanged.
+or a count of firearm instances. Grenades use a single loaded grenade.
 There is no second list of owned weapons to keep synchronized.
+
+Ammo comes from named stack instances in the same configuration:
+
+```toml
+[ammo.pistol_spare_1]
+item = "pistol_rounds" # storage/ammo/pistol_rounds.inventory.toml
+quantity = 60         # 0..max_stack; zero stacks remain in inventory
+
+[placements.pistol_spare_1]
+storage = "backpack/tactical_backpack/main"
+x = 7
+y = 0
+```
+
+Use distinct instance IDs for multiple stacks of the same ammo item. Each
+needs its own valid placement. Matching uses the descriptor's `ammo_type`.
+Starting loaded/reserve amounts are pistol 12/120, SMG 30/300, shotgun 6/48,
+sniper 5/30 and HE grenade 1/5 (six grenades total).
+
+Each weapon gameplay file defines nonnegative `reload_time_seconds`.
+Reloading adds the selected ammo stack's current storage access time,
+including backpack obstruction/support. Choose fastest access first, then
+the smallest sufficient stack, or the largest insufficient stack. Transfer
+happens when the timer finishes and uses one stack per reload. Throwing a
+grenade automatically retrieves another of the same ammo type.
 
 `[hotbar]` maps slots `0`–`9` to owned item IDs. Omit a slot to leave it unassigned:
 
@@ -151,8 +179,8 @@ All five weapons start owned and assigned in that order; slots 5–9 are empty.
 Shortcuts are references, so they add no ownership or storage capacity. Unknown
 or unowned IDs and invalid slot numbers are rejected. Inventory and Skills use
 the same player-owned model, loaded once at startup. Restart to apply
-file edits. These remain visual menu shortcuts; weapon input bindings and
-runtime weapon ownership changes are not connected to this menu snapshot yet.
+file edits. Shortcuts preview and confirm equipment changes; runtime weapon
+ownership changes remain separate from the inventory model.
 
 Gameplay reads `storage/weapons/*.gameplay.toml` and ownership/ammo from `inventory.toml` at startup.
 Inventory descriptors, gameplay definitions, tag files and the player inventory

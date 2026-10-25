@@ -36,6 +36,11 @@ def check_contents(package):
             raise RuntimeError("Package is missing a generated weapon model: " + name)
     if not (package / "assets/audio/sources.json").is_file():
         raise RuntimeError("Package is missing audio resources")
+    for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades"):
+        for suffix in ("inventory.toml", "tags.txt"):
+            filename = f"storage/ammo/{name}.{suffix}"
+            if not (package / filename).is_file():
+                raise RuntimeError("Package is missing " + filename)
 
 
 def main():

@@ -60,9 +60,8 @@ void transitions() {
 }
 void sharedStorageAndBothAdjustments() {
     const auto original = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);
-    auto contents = original;
+    viewer::InventoryContents contents;
     // Three distinct 1x1 items: old at the bottom, new in the middle and one blocker above.
-    contents.owned.clear(); contents.placements.clear(); contents.hotbar = {};
     const auto& model = original.owned.at("pistol");
     for (const char* id : {"old", "new", "blocker"}) {
         auto config = model.gameplay(); config.id = id; config.drawTimeSeconds = .25;

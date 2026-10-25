@@ -2,6 +2,7 @@ name = "Pistol"
 ammo_type = "pistol_rounds"
 caliber = "low"
 draw_time_seconds = 0.35
+reload_time_seconds = 1.5
 shot_interval_seconds = 0.3
 automatic = false
 has_scope = false

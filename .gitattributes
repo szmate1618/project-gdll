@@ -2,6 +2,8 @@
 # Windows CRLF conversion cannot make matching content fail the Linux handshake.
 /storage/weapons/*.toml text eol=lf
 /storage/weapons/*.tags.txt text eol=lf
+/storage/ammo/*.toml text eol=lf
+/storage/ammo/*.tags.txt text eol=lf
 /vehicles/*.toml text eol=lf
 /inventory.toml text eol=lf
 /skills.toml text eol=lf

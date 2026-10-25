@@ -127,7 +127,7 @@ struct Hud::Impl {
             document = context->LoadDocument((directory / "hud.rml").generic_string());
             if (!document) throw std::runtime_error("Cannot load HUD layout: " + directory.string());
             for (const char* id : {"heading", "north-coordinate", "east-coordinate", "movement", "mode", "speed",
-                                    "equipment", "weapon", "mode-icon", "movement-icon", "loaded", "reserve", "prompt", "capture", "compass-scale", "map-caption", "switch-fill", "switch-countdown"}) {
+                                    "equipment", "weapon", "mode-icon", "movement-icon", "loaded", "reserve", "prompt", "capture", "compass-scale", "map-caption", "switch-fill", "switch-countdown", "switch-label"}) {
                 auto* element = document->GetElementById(id);
                 if (!element) throw std::runtime_error(std::string("Missing HUD element: ") + id);
                 elements.emplace(id, element);
@@ -261,13 +261,17 @@ struct Hud::Impl {
             selectionSlot = state.selectionSlot;
             if (selectionSlot >= 0 && selectionSlot < 10) populateWeaponSelection(*document, inventory, selectionSlot);
         }
-        const bool switching = state.weaponSwitchRemaining > 0 && state.weaponSwitchDuration > 0;
-        document->SetClass("switching", switching);
-        if (switching) {
-            const double progress = std::clamp(1 - state.weaponSwitchRemaining / state.weaponSwitchDuration, 0.0, 1.0);
+        const bool reloading = state.reloadRemaining > 0 && state.reloadDuration > 0;
+        const double remaining = reloading ? state.reloadRemaining : state.weaponSwitchRemaining;
+        const double duration = reloading ? state.reloadDuration : state.weaponSwitchDuration;
+        const bool progressing = remaining > 0 && duration > 0;
+        document->SetClass("switching", progressing);
+        if (progressing) {
+            setText("switch-label", reloading ? "RELOADING" : "SWITCHING WEAPON");
+            const double progress = std::clamp(1 - remaining / duration, 0.0, 1.0);
             elements.at("switch-fill")->SetProperty(Rml::PropertyId::Width, Rml::Property(static_cast<float>(progress * 318), Rml::Unit::DP));
             std::ostringstream countdown;
-            countdown << std::fixed << std::setprecision(1) << state.weaponSwitchRemaining << "s";
+            countdown << std::fixed << std::setprecision(1) << remaining << "s";
             setText("switch-countdown", countdown.str());
         }
         pointerEvents.clear();
@@ -326,6 +330,15 @@ void Hud::mouseWheel(float notches) {
     if (std::isfinite(notches)) impl_->pointerEvents.push_back({InventoryPointerAction::Wheel, std::clamp(notches, -32.f, 32.f)});
 }
 void Hud::cancelInventoryDrag() { impl_->pointerEvents.push_back({InventoryPointerAction::Cancel}); }
+std::vector<InventoryDragAction> Hud::takeInventoryActions() {
+    return impl_->inventoryInteraction ? impl_->inventoryInteraction->takeActions() : std::vector<InventoryDragAction>{};
+}
+bool Hud::inventoryDragging() const {
+    return impl_->inventoryInteraction && impl_->inventoryInteraction->dragging();
+}
+void Hud::refreshInventoryLayout() {
+    if (impl_->inventoryInteraction) impl_->inventoryInteraction->refreshLayout();
+}
 void Hud::setMinimap(const MinimapSource& source, unsigned int texture) {
     impl_->renderer.setMinimap(source, texture);
     impl_->hasSatelliteImage = texture != 0;

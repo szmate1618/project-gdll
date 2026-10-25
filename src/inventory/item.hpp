@@ -8,11 +8,14 @@ namespace viewer {
 struct ItemInventoryConfig {
     std::string name, type;
     int width = 0, height = 0; // Grid cells, not world dimensions.
+    std::string ammoType{};
+    bool stackable = false;
+    int maxStack = 1;
 };
 
 // One immutable equippable item definition, with inventory and gameplay
 // components. Placement/ammo/cooldown state belongs to their runtime owners.
-// The prototype has one owned instance per item ID.
+// IDs identify owned instances; several ammo stacks can share a definition.
 class Item {
 public:
     Item(std::string id, ItemInventoryConfig inventory, WeaponConfig gameplay, std::vector<std::string> tags);

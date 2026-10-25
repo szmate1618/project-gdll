@@ -18,6 +18,7 @@
 #include "weapons.hpp"
 #include "action_selection.hpp"
 #include "weapon_switch.hpp"
+#include "weapon_reload.hpp"
 #include "weapon_overlay.hpp"
 #include "player_body.hpp"
 #include "player_body_renderer.hpp"
@@ -407,13 +408,14 @@ struct GLFWLifetime {
 
 struct AppState {
     AppState(const viewer::CollisionWorld& collision, const viewer::Model& model)
-        : rig(collision, model.boundsMin, model.boundsMax, 1280.0f / 720.0f), world(collision) {}
+        : rig(collision, model.boundsMin, model.boundsMax, 1280.0f / 720.0f), world(collision) { weapons.syncAmmo(inventory); }
     viewer::CameraRig rig;
     viewer::PlayerInteraction interaction;
     viewer::Weapons weapons{VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY, true};
     viewer::PlayerInventory inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_INVENTORY).parent_path());
     viewer::ActionSelection actionSelection;
     viewer::WeaponSwitch weaponSwitch;
+    viewer::WeaponReload weaponReload;
     viewer::WeaponMotion weaponMotion;
     viewer::DoorLayer* doors = nullptr;
     viewer::BoxLayer* boxes = nullptr;
@@ -503,20 +505,21 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         app.weapons.cancelTrigger();
     } else if (key == GLFW_KEY_R) {
         if (app.weaponSwitch.pending() || app.actionSelection.open()) return;
-        if (app.weapons.reload() > 0 && app.audio) app.audio->reload(app.weapons.slot());
+        if (app.weaponReload.begin(app.weapons, app.inventory, viewer::SimulationClock::instance().seconds()) && app.audio)
+            app.audio->reload(app.weapons.slot());
         std::cout << app.weapons.status() << '\n';
     } else if ((key == GLFW_KEY_LEFT_ALT || key == GLFW_KEY_RIGHT_ALT) && app.driver.driving()) {
         if (app.driver.toggleThirdPerson(*app.cars,app.rig.camera(),app.world))
             std::cout << (app.driver.thirdPerson()?"Driving camera: third person\n":"Driving camera: first person\n");
     } else if (key == GLFW_KEY_LEFT_ALT || key == GLFW_KEY_F12) captureMouse(window, !app.capture);
     else if (key == GLFW_KEY_G && app.capture && app.droppedWeapons) {
-        if (app.weaponSwitch.pending()) return;
+        if (app.weaponSwitch.pending() || app.weaponReload.pending()) return;
         if (app.droppedWeapons->discard(app.weapons,app.rig.camera(),app.world,app.playerVelocity)) {
             while (app.rig.camera().viewMode()!=viewer::Camera::ViewMode::original) app.rig.camera().cycleViewMode();
             std::cout << "Discarded weapon | " << app.weapons.status() << '\n';
         }
     } else if (key == GLFW_KEY_F && app.capture && app.droppedWeapons) {
-        if (app.weaponSwitch.pending()) return;
+        if (app.weaponSwitch.pending() || app.weaponReload.pending()) return;
         if (app.droppedWeapons->pickUp(app.weapons,app.rig.camera(),app.world)) {
             while (app.rig.camera().viewMode()!=viewer::Camera::ViewMode::original) app.rig.camera().cycleViewMode();
             std::cout << "Picked up weapon | " << app.weapons.status() << '\n';
@@ -585,7 +588,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
         if (target) app.weaponSwitch.begin(app.weapons, app.inventory, *target, viewer::SimulationClock::instance().seconds());
         return; // Confirmation never fires, punches or grabs an object.
     }
-    if (app.weaponSwitch.pending()) return;
+    if (app.weaponSwitch.pending() || app.weaponReload.pending()) return;
     if (button == GLFW_MOUSE_BUTTON_RIGHT && app.interaction.mode() == viewer::ControlMode::Combat) {
         if (app.weapons.equipped().owned && app.weapons.equipped().config.hasScope) app.rig.camera().cycleViewMode();
         return;
@@ -662,6 +665,7 @@ bool updateWeapons(AppState& app, double seconds) {
         if (!app.grenades->throwFrom(app.rig.camera().position(), app.rig.camera().direction(),
                 app.playerVelocity, seconds, *config.grenade, app.world))
             throw std::logic_error("Accepted grenade throw failed");
+        app.weaponReload.begin(app.weapons, app.inventory, seconds);
     } else if (app.audio) app.audio->shot(app.weapons.slot());
     if (app.zombies && !config.grenade) {
         for (const auto direction : viewer::weaponShotDirections(app.weapons.equipped().config, aim.direction()))
@@ -726,6 +730,7 @@ void inputSelfTest(GLFWwindow* window) {
     if (!key || !cursor || !mouse || !resize) throw std::runtime_error("Input callbacks were not registered");
     const auto original = app.rig.camera();
     const auto originalWeapons = app.weapons;
+    const auto originalInventory = app.inventory;
     const auto choose = [&](int hotbarSlot) {
         const auto previous = app.weapons.slot();
         const int code = hotbarSlot == 0 ? GLFW_KEY_GRAVE_ACCENT : GLFW_KEY_1 + hotbarSlot - 1;
@@ -861,6 +866,10 @@ void inputSelfTest(GLFWwindow* window) {
         throw std::runtime_error("Shooting callback did not consume ammo");
     key(window, GLFW_KEY_R, 0, GLFW_PRESS, 0);
     key(window, GLFW_KEY_R, 0, GLFW_RELEASE, 0);
+    if (!app.weaponReload.pending() || app.weapons.equipped().loaded != loaded - 1)
+        throw std::runtime_error("Reload callback must start a timer before transferring ammo");
+    app.weaponReload.update(app.weapons, app.inventory,
+        viewer::SimulationClock::instance().seconds() + app.weaponReload.duration());
     if (app.weapons.equipped().loaded != loaded)
         throw std::runtime_error("Reload callback did not refill magazine");
     for (const bool blocked : {true, false}) {
@@ -948,6 +957,7 @@ void inputSelfTest(GLFWwindow* window) {
     app.keys.fill(false);
     app.rig.camera() = original;
     app.weapons = originalWeapons;
+    app.inventory = originalInventory;
     if (wasWalking && !app.rig.enterWalking()) throw std::runtime_error("Failed to restore walking mode after input test");
     app.firstMouse = true;
     std::cout << "Input self-test passed: movement, mouse capture, control modes, flashlight toggle, weapon selection/fire/reload/discard/pickup, shot occlusion, scope, resize, Escape\n";
@@ -1495,6 +1505,8 @@ int run(const Options& options) {
             simulated = true;
             simulationClock.advance(step);
             app.displayedAnimationSeconds = options.animationTime.value_or(simulationClock.seconds());
+            app.weaponReload.update(app.weapons, app.inventory, simulationClock.seconds());
+            app.weapons.syncAmmo(app.inventory);
             if (app.weaponSwitch.update(app.weapons, simulationClock.seconds())) {
                 while (app.rig.camera().viewMode() != viewer::Camera::ViewMode::original)
                     app.rig.camera().cycleViewMode();
@@ -1657,9 +1669,12 @@ int run(const Options& options) {
         hudState.selectionSlot = app.actionSelection.selected();
         hudState.weaponSwitchRemaining = app.weaponSwitch.remaining(simulationClock.seconds());
         if (const auto* timing = app.weaponSwitch.timing()) hudState.weaponSwitchDuration = timing->total();
+        hudState.reloadRemaining = app.weaponReload.remaining(simulationClock.seconds());
+        hudState.reloadDuration = app.weaponReload.duration();
         if (app.driver.occupied()) hudState.prompt = "Enter: exit vehicle";
         else if (app.interaction.grabbing()) hudState.prompt = "Holding object";
         hud.draw(hudState, renderWidth, renderHeight, app.width, app.height);
+        (void)hud.takeInventoryActions(); // Standalone already applies these operations locally.
         intervalRenderSeconds += glfwGetTime() - renderStart;
         gpuTimer.end();
         if (frameProfile) frameProfile->endGpu();

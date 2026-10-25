@@ -35,6 +35,9 @@ void protocol() {
     PlayerState player; player.id = 42; player.movement.feet = {12, 3, -4}; player.resolved = 99;
     player.weaponCoolingDown = true;
     player.weaponSwitchRemaining = 1.25f; player.weaponSwitchDuration = 3.5f;
+    player.reloadRemaining = 2.25f; player.reloadDuration = 4.5f;
+    player.ammoQuantities = {0, 5, 60};
+    player.inventoryPlacements.push_back({"backpack/tactical_backpack/main", 7, 0, 90});
     s.players.push_back(player);
     s.zombies.push_back({}); s.doors.push_back({3, .5f}); s.boxes.push_back({});
     s.grenades.push_back({7, {1, 2, 3}, {1, 0, 0, 0}});
@@ -45,6 +48,28 @@ void protocol() {
         "Snapshot round trip lost state");
     require(copy.players[0].weaponSwitchRemaining == 1.25f && copy.players[0].weaponSwitchDuration == 3.5f,
             "Snapshot lost authoritative switch progress");
+    require(copy.players[0].reloadRemaining == 2.25f && copy.players[0].reloadDuration == 4.5f &&
+            copy.players[0].ammoQuantities == std::vector<std::uint32_t>({0, 5, 60}),
+            "Snapshot lost reload timing or empty ammo stacks");
+    require(copy.players[0].inventoryPlacements.at(0).rotation == 90 &&
+            copy.players[0].inventoryPlacements[0].storage == "backpack/tactical_backpack/main",
+            "Snapshot lost authoritative storage placements");
+    Command inventoryCommand; inventoryCommand.sequence = 1;
+    inventoryCommand.inventoryActions = {
+        {viewer::InventoryDragActionKind::PickUp, "pistol_rounds_1", "", 0, 0, 0},
+        {viewer::InventoryDragActionKind::Rotate, "", "", 0, 0, -1},
+        {viewer::InventoryDragActionKind::Drop, "", "body/chest_pouch/pouch", 1, 0, 0},
+        {viewer::InventoryDragActionKind::Cancel, "pistol_rounds_1", "", 0, 0, 0}};
+    const auto commandBytes = encode(Commands{{inventoryCommand}});
+    const auto inventoryCommands = std::get<Commands>(decode(commandBytes.data(), commandBytes.size()));
+    require(inventoryCommands.commands[0].inventoryActions.size() == 4 &&
+            inventoryCommands.commands[0].inventoryActions[0].item == "pistol_rounds_1" &&
+            inventoryCommands.commands[0].inventoryActions[1].turns == 3 &&
+            inventoryCommands.commands[0].inventoryActions[2].x == 1 &&
+            inventoryCommands.commands[0].inventoryActions[3].item == "pistol_rounds_1",
+            "Command lost inventory action order or values");
+    auto invalidReload = s; invalidReload.players[0].reloadRemaining = 5;
+    rejects([&] { encode(invalidReload); }, "Reload progress beyond duration accepted");
     require(copy.grenades.at(0).id == 7 && copy.grenades[0].center.y == 2 &&
             copy.explosions.at(0).id == 6 && copy.explosions[0].age == .08f,
             "Snapshot must preserve grenade poses and explosion ages");
@@ -341,7 +366,7 @@ void triggerResets(const std::filesystem::path& asset) {
         const auto shots = player.shots;
         require(shots > 0, "Trigger reset fixture must fire before reloading/switching");
         command.reload = reset.reload; command.slot = reset.slot;
-        const int waitTicks = settleTicks(command.slot);
+        const int waitTicks = reset.reload ? 600 : settleTicks(command.slot);
         advance(command);
         command.reload = false; advance(command, std::max(90, waitTicks));
         require(player.shots == shots, "Reloading/switching fired without releasing LMB");
@@ -385,9 +410,14 @@ void catchUpWeapons(const std::filesystem::path& asset) {
         require(!zombie.ragdoll && scene.zombies.damage().injury(0) &&
                 scene.zombies.damage().injury(0)->health == 8,
                 "Catch-up shot must use its original aim and apply one low-caliber headshot");
-        if (!switchWeapon)
-            require(player.weapons.equipped().loaded == 12 && player.weapons.equipped().reserve == 119,
-                "Catch-up reload did not account for the preceding shot");
+        if (!switchWeapon) {
+            require(player.weaponReload.pending() && player.weapons.equipped().loaded == 11 && player.weapons.equipped().reserve == 120,
+                "Catch-up reload must defer transfer after the preceding shot");
+            for (int i = 0; i < 600 && player.weaponReload.pending(); ++i) world.step();
+            require(player.weapons.equipped().loaded == 12 && player.weapons.equipped().reserve == 119 &&
+                    player.inventory.ammoCount("pistol_rounds") == 119,
+                "Catch-up reload did not consume inventory ammo");
+        }
         world.step();
         require(player.shots == 1, "Catch-up replay repeated a shot");
     }
@@ -412,8 +442,8 @@ void queuedInputTimeout(const std::filesystem::path& asset) {
     const auto& player = world.players().at(id);
     require(world.snapshot(id).players.front().resolved == 32 && player.pending.empty(),
         "Queued timeout fixture did not drain all commands");
-    require(player.shots == 1 && player.weapons.equipped().loaded == 12 && player.weapons.equipped().reserve == 119,
-        "Packet timeout erased an acknowledged shot or reload");
+    require(player.shots == 1 && player.weaponReload.pending() && player.weapons.equipped().loaded == 11 && player.weapons.equipped().reserve == 120,
+        "Packet timeout erased an acknowledged shot or pending reload");
     require(player.controller.stance() == viewer::PlayerStance::Prone &&
             glm::distance(beforeTimeout, player.controller.feet()) > .01f,
         "Packet timeout erased acknowledged movement or a prone toggle");
@@ -480,8 +510,9 @@ void serverGrenades(const std::filesystem::path& asset) {
     throwInput.sequence = 2; throwInput.left = true;
     world.submit(id, Commands{{throwInput}}); world.step();
     state = world.snapshot(id);
-    require(state.grenades.size() == 1 && state.players[0].loaded == 5 && state.players[0].weaponCoolingDown && world.players().at(id).shots == 1,
-            "Server must turn one accepted grenade click into one replicated body and one consumed grenade");
+    require(state.grenades.size() == 1 && state.players[0].loaded == 0 && state.players[0].reserve == 5 &&
+            state.players[0].reloadRemaining > 0 && state.players[0].weaponCoolingDown && world.players().at(id).shots == 1,
+            "Server must consume the held grenade and start retrieving another inventory grenade");
     bool exploded = false;
     for (int i = 0; i < 200; ++i) {
         world.step(); state = world.snapshot(id);
@@ -489,6 +520,9 @@ void serverGrenades(const std::filesystem::path& asset) {
     }
     require(exploded && state.grenades.empty() && !state.players[0].weaponCoolingDown && world.players().at(id).shots == 1,
             "Server must detonate the grenade once without repeating a held throw");
+    require(state.players[0].loaded == 1 && state.players[0].reserve == 4 &&
+            world.players().at(id).inventory.ammoCount("he_grenades") == 4,
+            "Grenade autoreload must retrieve exactly one matching grenade from inventory");
     Snapshots snapshots;
     Snapshot event; event.tick = 1; event.explosions.push_back({1, {2, 3, 4}, .05f});
     snapshots.push(event, 10);
@@ -507,6 +541,65 @@ void serverGrenades(const std::filesystem::path& asset) {
     require(delayed.grenades().empty() && !delayed.explosionLights(20).empty(),
             "An interpolated grenade must disappear on the same frame as its confirmed explosion light");
 }
+void serverInventoryAmmo(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    using Action = viewer::InventoryDragActionKind;
+    Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
+    Scene scene(options); World world(scene); const auto id = world.join();
+    const auto& player = world.players().at(id);
+    for (int i = 0; i < 5; ++i) world.step();
+    std::uint64_t sequence = 0;
+    const auto submit = [&](Command command) {
+        command.sequence = ++sequence;
+        world.submit(id, Commands{{command}}); world.submit(id, Commands{{command}});
+        world.step();
+    };
+    Command move;
+    move.inventoryActions = {{Action::PickUp, "pistol_rounds_1", "", 0, 0, 0},
+        {Action::Drop, "", "body/chest_pouch/pouch", 1, 0, 0}};
+    submit(move);
+    require(player.inventoryDrag.pending() && world.snapshot(id).players[0].inventoryDragging,
+            "A network inventory move must start authoritative storage access");
+    for (int i = 0; i < 600 && player.inventoryDrag.pending(); ++i) world.step();
+    require(!player.inventory.held() && player.inventory.locationOf("pistol_rounds_1")->placement->storage == "body/chest_pouch/pouch",
+            "A replicated move must commit once, without repeating held actions");
+    Command fire; fire.left = true; submit(fire);
+    Command reload; reload.reload = true; submit(reload);
+    require(player.weaponReload.pending() &&
+            std::abs(player.weaponReload.duration() - (player.weapons.equipped().config.reloadTimeSeconds + .65)) < 1e-6,
+            "Server reload must use the moved ammo stack's current pouch access time");
+    for (int i = 0; i < 600 && player.weaponReload.pending(); ++i) world.step();
+    require(player.inventory.quantity("pistol_rounds_1") == 59 && player.inventory.quantity("pistol_rounds_2") == 60,
+            "Reload must consume the fastest matching stack after the network move");
+    Command merge;
+    merge.inventoryActions = {{Action::PickUp, "pistol_rounds_2", "", 0, 0, 0},
+        {Action::Drop, "", "body/chest_pouch/pouch", 1, 0, 0}};
+    submit(merge);
+    for (int i = 0; i < 600 && player.inventoryDrag.pending(); ++i) world.step();
+    require(player.inventory.quantity("pistol_rounds_1") == 60 && player.inventory.quantity("pistol_rounds_2") == 59 &&
+            player.inventory.ammoCount("pistol_rounds") == 119,
+            "Network stack merge must preserve the source footprint and total ammo");
+    const auto snapshot = world.snapshot(id).players[0];
+    require(!snapshot.inventoryDragging && snapshot.inventoryPlacements.size() == player.inventory.items().size() &&
+            snapshot.ammoQuantities.size() == 11,
+            "Authoritative idle inventory must publish placements and all stack quantities");
+    submit(fire);
+    Command outward;
+    outward.inventoryActions = {{Action::PickUp, "pistol_rounds_1", "", 0, 0, 0},
+        {Action::Drop, "", "backpack/tactical_backpack/main", 6, 4, 0}};
+    submit(outward);
+    require(bool(player.inventoryDrag.pending()), "Jitter fixture must have a pending first move");
+    // The client completed its first timer before this delayed server did.
+    move.inventoryActions[0].item = "pistol_rounds_1";
+    move.reload = true;
+    submit(move);
+    require(player.pendingInventoryActions.size() == 2, "Next move must wait behind the authoritative timer");
+    for (int i = 0; i < 1200 && (player.inventoryDrag.pending() || !player.pendingInventoryActions.empty()); ++i) world.step();
+    require(!player.inventory.held() && player.inventory.locationOf("pistol_rounds_1")->placement->storage == "body/chest_pouch/pouch" &&
+            player.pendingInventoryActions.empty(), "Network jitter lost an acknowledged inventory move");
+    require(player.weaponReload.pending() && std::abs(player.weaponReload.duration() - 2.15) < 1e-6,
+            "A queued reload must wait for storage moves and use their completed access time");
+}
 void inputRecovery(const std::filesystem::path& asset) {
     using namespace multiplayer;
     Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
@@ -516,10 +609,11 @@ void inputRecovery(const std::filesystem::path& asset) {
     World world(scene); const auto id = world.join();
     Prediction client; client.reconcile(world.snapshot(id).players.front(), *scene.collision);
     std::deque<Commands> transit;
-    for (int frame = 0; frame < 1800; ++frame) {
-        const int cycle = frame % 300;
-        const int lossEnd = frame < 900 ? 90 : 150;
-        Command c; c.movement.forward = 1; c.movement.yawDegrees = 0;
+    // Leave time for the actual storage access and reload after each lost burst.
+    for (int frame = 0; frame < 3600; ++frame) {
+        const int cycle = frame % 600;
+        const int lossEnd = frame < 1800 ? 90 : 150;
+        Command c; c.movement.forward = cycle < 300 ? 1 : -1; c.movement.yawDegrees = 0;
         c.movement.toggleProne = cycle == 68;
         c.left = cycle == 70; c.reload = cycle == 76;
         client.advance(c, *scene.collision);
@@ -537,9 +631,9 @@ void inputRecovery(const std::filesystem::path& asset) {
             "Input catch-up advanced movement faster than real time");
         require(world.tick() == static_cast<std::uint64_t>(frame + 1), "Input catch-up advanced the world clock");
         if (frame % 3 == 2) client.reconcile(world.snapshot(id).players.front(), *scene.collision);
-        if (cycle == 299) {
+        if (cycle == 599) {
             require(client.outstanding() <= 8, "Recovered connection retained its input backlog");
-            const auto cycles = static_cast<std::uint64_t>(frame / 300 + 1);
+            const auto cycles = static_cast<std::uint64_t>(frame / 600 + 1);
             require(player.shots == cycles && player.weapons.equipped().loaded == 12,
                 "Input catch-up lost or repeated a click/reload");
             require(player.controller.stance() == (cycles % 2 ? viewer::PlayerStance::Prone : viewer::PlayerStance::Standing),
@@ -578,7 +672,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); fragments(); prediction(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        triggerResets(argv[1]); serverCommands(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]);
+        triggerResets(argv[1]); serverCommands(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

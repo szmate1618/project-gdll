@@ -1,6 +1,7 @@
 #pragma once
 
 #include "inventory/inventory_drag.hpp"
+#include "inventory/inventory_action.hpp"
 #include <vector>
 
 namespace Rml { class Element; class ElementDocument; }
@@ -19,6 +20,9 @@ public:
     void process(const std::vector<InventoryPointerEvent>& events, int width, int height,
         const PresentationViewport& presentation, double seconds);
     void cancel();
+    std::vector<InventoryDragAction> takeActions();
+    bool dragging() const { return drag_.held().has_value() || !actions_.empty(); }
+    void refreshLayout(); // Refresh a synchronized idle inventory without cancelling input.
 private:
     struct Hit {
         std::string storage, item;
@@ -34,6 +38,7 @@ private:
     Rml::ElementDocument& document_;
     PlayerInventory& inventory_;
     InventoryDrag drag_;
+    std::vector<InventoryDragAction> actions_;
     Rml::Element* ghost_ = nullptr; // Owned by the document.
     Rml::Element* progress_ = nullptr;
     Rml::Element* progressFill_ = nullptr;

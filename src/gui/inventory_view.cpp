@@ -43,6 +43,9 @@ std::string gridMarkup(const InventoryContainer& container, double cell, const P
             "dp;height:" + number(rectangle.height * cell) + "dp;font-size:" + number(std::min(10.0, cell * .48)) + "dp'>";
         if (rectangle.width > 1 || rectangle.height > 1)
             result += "<div class='storage-item-label'>" + Rml::StringUtilities::EncodeRml(item.inventory().name) + "</div>";
+        if (item.inventory().stackable)
+            result += "<span class='storage-item-quantity' id='quantity-" + Rml::StringUtilities::EncodeRml(item.id()) + "'>" +
+                std::to_string(inventory.quantity(item.id())) + "</span>";
         result += "</div>";
     }
     return result + "</div>";
@@ -115,15 +118,29 @@ void populateInventory(Rml::ElementDocument& document, const PlayerInventory& in
         " internal cells · " + std::to_string(backpack.slots.size()) + " external compartments");
 }
 
+void refreshInventoryQuantities(Rml::ElementDocument& document, const PlayerInventory& inventory) {
+    for (const auto& [id, item] : inventory.items()) {
+        if (!item.inventory().stackable) continue;
+        auto* element = document.GetElementById("quantity-" + id);
+        if (!element) continue; // The held stack is drawn by the drag ghost.
+        const auto quantity = std::to_string(inventory.quantity(id));
+        if (element->GetInnerRML() != quantity) element->SetInnerRML(quantity);
+    }
+}
+
 void populateInventoryDetails(Rml::ElementDocument& document, const PlayerInventory& inventory, const std::string& selected) {
     const auto set = [&](const char* id, const std::string& value) {
-        document.GetElementById(id)->SetInnerRML(Rml::StringUtilities::EncodeRml(value));
+        auto* element = document.GetElementById(id);
+        const auto encoded = Rml::StringUtilities::EncodeRml(value);
+        if (element->GetInnerRML() != encoded) element->SetInnerRML(encoded);
     };
     if (selected.empty()) return;
     const auto& item = inventory.items().at(selected);
     set("inventory-item-name", item.inventory().name);
     const auto tagged = [&](const char* tag) { return std::find(item.tags().begin(), item.tags().end(), tag) != item.tags().end(); };
     set("inventory-type", tagged("long_gun") ? "Primary weapon" : tagged("handgun") ? "Handgun" : tagged("grenade") ? "Grenade" : item.inventory().type);
+    set("inventory-quantity", item.inventory().stackable ?
+        std::to_string(inventory.quantity(selected)) + " / " + std::to_string(item.inventory().maxStack) : "1");
     std::string tags;
     for (const auto& tag : item.tags()) { if (!tags.empty()) tags += ", "; tags += tag; }
     set("inventory-tags", tags);

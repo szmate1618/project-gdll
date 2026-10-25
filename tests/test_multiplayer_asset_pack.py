@@ -66,6 +66,9 @@ class MultiplayerAssetPackTests(unittest.TestCase):
             self.write(f"storage/weapons/{name}.inventory.toml", b"item definition\n")
             self.write(f"storage/weapons/{name}.gameplay.toml", b"weapon gameplay\n")
             self.write(f"storage/weapons/{name}.tags.txt", b"long_gun, ranged\n")
+        for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades"):
+            self.write(f"storage/ammo/{name}.inventory.toml", b"ammo item definition\n")
+            self.write(f"storage/ammo/{name}.tags.txt", b"ammo, stackable\n")
         self.write("data/raw/input.bin", b"private preparation input")
         self.write("output/backups/town.glb", b"old town")
         self.write("assets/zombies/source/original.bin", b"source asset")
@@ -174,6 +177,8 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         expected.update({"skills.toml", "skills/melee/punch.skill.toml", "storage/equipment.toml", "storage/backpacks.toml", "storage/loadout.toml"})
         for suffix in ("inventory.toml", "gameplay.toml", "tags.txt"):
             expected.update(f"storage/weapons/{name}.{suffix}" for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"))
+        for suffix in ("inventory.toml", "tags.txt"):
+            expected.update(f"storage/ammo/{name}.{suffix}" for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades"))
         expected.update(f"assets/zombies/models/lod{level}/Zombie.glb" for level in range(1, 4))
         expected.update(f"credits/assets/{name}" for name in (*ASSET_CREDIT_FILES, "MAP.txt", "VEGETATION.txt"))
         expected.update(f"credits/software/{name}" for name in SOFTWARE_CREDIT_FILES)

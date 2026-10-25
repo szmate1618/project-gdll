@@ -17,6 +17,7 @@
         <div class="detail-square unselected"></div><div id="inventory-item-name" class="detail-name">No item selected</div><div id="inventory-help" class="detail-subtitle">Drag / Wheel: 90° / Right-click: cancel</div>
         <div class="detail-fields">
             <div class="detail-field"><div class="field-label">TYPE</div><div id="inventory-type" class="field-value">—</div></div>
+            <div class="detail-field"><div class="field-label">QUANTITY</div><div id="inventory-quantity" class="field-value">—</div></div>
             <div class="detail-field"><div class="field-label">SIZE</div><div id="inventory-size" class="field-value">—</div></div>
             <div class="detail-field"><div class="field-label">TAGS</div><div id="inventory-tags" class="field-value">—</div></div>
             <div class="detail-field"><div class="field-label">CURRENT LOCATION</div><div id="inventory-current-location" class="field-value">—</div></div>

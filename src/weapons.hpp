@@ -11,6 +11,8 @@
 #include "weapon_config.hpp"
 
 namespace viewer {
+class PlayerInventory;
+class WeaponReload;
 inline constexpr std::array<const char*, 5> weaponIds{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"};
 constexpr std::size_t punchSlot = weaponIds.size(); // Equipment ID; hotbar positions are independent.
 // Slots 0..4 are fixed weapon IDs. Ammo counts use rounds (shotgun shells),
@@ -18,7 +20,7 @@ constexpr std::size_t punchSlot = weaponIds.size(); // Equipment ID; hotbar posi
 struct WeaponState {
     WeaponConfig config;
     bool owned = false;
-    int loaded = 0, reserve = 0;
+    int loaded = 0, reserve = 0; // reserve is a display cache of inventory ammo stacks.
     double readyAt = 0;
 };
 enum class WeaponFireResult { none, fired, empty };
@@ -47,15 +49,18 @@ public:
     // runs only for an eligible trigger and must not change this Weapons object.
     // A rejected semi-automatic press is consumed, not queued.
     WeaponFireResult fireAttempt(double seconds, const std::function<bool()>& accept = {});
-    int reload(); // Instant for the prototype; returns transferred rounds.
+    void syncAmmo(const PlayerInventory& inventory);
+    bool reloading() const { return reloading_; }
     std::optional<WeaponItem> discard();
     bool pickUp(const WeaponItem& item); // Reject an already-owned weapon type.
     std::string status() const;
 private:
+    friend class WeaponReload;
     std::array<WeaponState, weaponIds.size() + 1> weapons_;
     std::size_t slot_ = 0;
     bool held_ = false, pressed_ = false;
     bool emptyClicked_ = false;
+    bool reloading_ = false;
 };
 
 // Deterministic cone pattern, including a centered pellet. Each direction uses

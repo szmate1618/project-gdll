@@ -19,7 +19,7 @@ DroppedWeapons::DroppedWeapons(std::shared_ptr<PhysicsWorld> world, const std::a
 }
 bool DroppedWeapons::discard(Weapons& inventory, const Camera& camera, const CollisionWorld& world, glm::vec3 playerVelocity) {
     const auto& weapon = inventory.equipped();
-    if (!weapon.owned) return false;
+    if (!weapon.owned || inventory.reloading()) return false;
     const auto slot = inventory.slot();
     const auto direction = camera.direction();
     const auto center = camera.position()+direction*.75f;

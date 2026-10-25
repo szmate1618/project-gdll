@@ -2,12 +2,13 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <stdexcept>
 
 namespace {
 void require(bool condition, const char* message) { if (!condition) throw std::runtime_error(message); }
 void click(viewer::Weapons& weapons) { weapons.trigger(false); weapons.trigger(true); }
-void firingAndReload() {
+void firing() {
     viewer::Weapons weapons(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
     require(weapons.equipped().config.id == "pistol", "Inventory must select starting weapon");
     const int loaded = weapons.equipped().loaded, reserve = weapons.equipped().reserve;
@@ -21,9 +22,6 @@ void firingAndReload() {
     require(weapons.fire(.4), "New press after cooldown must fire");
     require(weapons.equipped().loaded == loaded - 2, "Shots must consume magazine rounds");
     require(weapons.equipped().reserve == reserve, "Shots must not consume reserve directly");
-    require(weapons.reload() == 2 && weapons.equipped().loaded == loaded &&
-            weapons.equipped().reserve == reserve - 2, "Reload must transfer only missing rounds");
-    require(weapons.reload() == 0, "Full magazine must not waste ammo");
     require(!weapons.equip(5), "Invalid slot must not equip");
 
     weapons.equip(1); click(weapons);
@@ -42,10 +40,8 @@ void firingAndReload() {
     for (int i = 0; i < 40; ++i) if (weapons.fire(11 + i)) ++shots;
     require(shots == 28 && weapons.equipped().loaded == 0, "Automatic fire must stop at empty magazine");
     require(!weapons.fire(100), "Empty gun must not fire");
-    require(weapons.reload() == 30, "Empty magazine must refill from its own ammo");
-    require(!weapons.fire(101), "Reload must require a fresh trigger press");
     weapons.equip(0);
-    require(weapons.equipped().reserve == reserve - 2, "SMG reload must not touch pistol ammo");
+    require(weapons.equipped().reserve == reserve, "SMG firing must not touch pistol reserve ammo");
 }
 
 void pelletPattern() {
@@ -86,12 +82,7 @@ void dryFire() {
             "Holding an empty gun cannot spam clicks every frame");
     click(weapons);
     require(weapons.fireAttempt(rounds + 3) == Result::empty, "A new trigger press allows one more empty click");
-    const auto reserve = weapons.equipped().reserve;
     require(weapons.equipped().loaded == 0, "Dry fire cannot consume ammunition");
-    require(weapons.reload() == rounds && weapons.equipped().reserve == reserve - rounds, "Reload still transfers rounds normally");
-    require(weapons.fireAttempt(rounds + 4) == Result::none, "Reload clears held/empty input");
-    click(weapons);
-    require(weapons.fireAttempt(rounds + 5) == Result::fired, "A fresh trigger fires after reload");
 }
 
 void punchesNeedNoAmmo() {
@@ -107,7 +98,7 @@ void punchesNeedNoAmmo() {
     require(!weapons.fire(.1) && !weapons.fire(1), "Cooldown clicks must not queue a punch");
     click(weapons);
     require(weapons.fire(1), "A fresh click must punch after cooldown");
-    require(weapons.reload() == 0 && weapons.equipped().loaded == 0, "Fists must not reload or consume ammo");
+    require(weapons.equipped().loaded == 0, "Fists must not consume ammo");
     require(!weapons.discard() && weapons.equipped().owned, "Fists must not become a dropped equippable weapon");
     require(viewer::weaponShotDirections(weapons.equipped().config, {0,0,-1}).empty(), "Fists must never emit hitscan bullets");
     weapons.equip(0);
@@ -162,19 +153,37 @@ void fixtures(const std::filesystem::path& scratch) {
         std::filesystem::copy_file(std::filesystem::path(VIEWER_WEAPON_CONFIGS) / filename, scratch / "weapons" / filename,
                                   std::filesystem::copy_options::overwrite_existing);
     }
+    std::filesystem::copy(std::filesystem::path(VIEWER_WEAPON_CONFIGS).parent_path() / "ammo", scratch / "ammo",
+        std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
     const auto inventory = scratch / "inventory.toml";
     const auto write = [&](const std::string& text) { std::ofstream(inventory) << text; };
-    const std::string base = "equipped = 'pistol'\n[weapons]\npistol = 3\n[ammo]\n"
-                             "pistol_rounds = 1\nsmg_rounds = 0\nsniper_rounds = 0\nshotgun_shells = 0\nhe_grenades = 0\n";
+    const std::string base = "equipped = 'pistol'\n[weapons]\npistol = 3\n[ammo.reserve]\n"
+                             "item = 'pistol_rounds'\nquantity = 1\n";
     write(base);
     viewer::Weapons partial(scratch / "weapons", inventory);
     require(!partial.equip(1), "Inventory omission must remove ownership");
-    require(partial.reload() == 1 && partial.equipped().loaded == 4 && partial.equipped().reserve == 0,
-            "Partial reserve must give partial reload");
-    require(partial.reload() == 0, "Empty reserve must not create ammunition");
-    // Configure a two-round shot; parsing must affect real firing and reload.
+    require(partial.equipped().loaded == 3 && partial.equipped().reserve == 1,
+            "Initial reserves must be read from ammo item stacks");
+    {
+        std::ifstream input(scratch / "ammo/pistol_rounds.inventory.toml");
+        std::string descriptor{std::istreambuf_iterator<char>(input), {}};
+        const std::string originalId = "id = \"pistol_rounds\"";
+        descriptor.replace(descriptor.find(originalId), originalId.size(), "id = \"alternate\"");
+        std::ofstream(scratch / "ammo/alternate.inventory.toml") << descriptor;
+        std::filesystem::copy_file(scratch / "ammo/pistol_rounds.tags.txt", scratch / "ammo/alternate.tags.txt",
+            std::filesystem::copy_options::overwrite_existing);
+        auto aliased = base;
+        const std::string originalItem = "item = 'pistol_rounds'";
+        aliased.replace(aliased.find(originalItem), originalItem.size(), "item = 'alternate'");
+        write(aliased);
+        viewer::Weapons alternative(scratch / "weapons", inventory);
+        require(alternative.equipped().reserve == 1,
+            "A descriptor ID different from ammo_type must still initialize the correct reserve cache");
+        write(base);
+    }
+    // Configure a two-round shot; parsing must affect real firing.
     const std::string customConfig =
-        "name = 'Test pistol'\nammo_type = 'pistol_rounds'\ncaliber = 'high'\nshot_interval_seconds = 2\ndraw_time_seconds = 0.45\n"
+        "name = 'Test pistol'\nammo_type = 'pistol_rounds'\ncaliber = 'high'\nshot_interval_seconds = 2\ndraw_time_seconds = 0.45\nreload_time_seconds = 1.25\n"
         "automatic = false\nhas_scope = false\npellets = 1\nspread_degrees = 0\n"
         "magazine_capacity = 7\nammo_per_shot = 2\nmuzzle_position = [0.01, 0.02, -0.3]\n";
     std::ofstream(scratch / "weapons/pistol.gameplay.toml") << customConfig;
@@ -182,6 +191,7 @@ void fixtures(const std::filesystem::path& scratch) {
     require(doubleShot.equipped().config.caliber == viewer::ShotCaliber::high,
             "TOML caliber must configure the shot damage category");
     require(doubleShot.equipped().config.drawTimeSeconds == .45, "Draw time must come from gameplay TOML");
+    require(doubleShot.equipped().config.reloadTimeSeconds == 1.25, "Reload time must come from gameplay TOML");
     require(glm::distance(doubleShot.equipped().config.muzzlePosition, glm::vec3(.01f, .02f, -.3f)) < 1e-6f,
             "TOML muzzle coordinates must preserve all three model-local axes");
     click(doubleShot);
@@ -190,23 +200,26 @@ void fixtures(const std::filesystem::path& scratch) {
     require(!doubleShot.fire(1), "TOML cooldown must control repeat timing");
     click(doubleShot);
     require(!doubleShot.fire(2), "Insufficient magazine ammo must not fire a partial shot");
-    require(doubleShot.reload() == 1, "Reload must allow a partially filled magazine");
-    click(doubleShot);
-    require(doubleShot.fire(2), "Enough ammo after reload must permit firing");
     const auto invalid = [&] {
         try { viewer::Weapons bad(scratch / "weapons", inventory); }
         catch (const std::exception&) { return; }
         throw std::runtime_error("Invalid inventory was accepted");
     };
     write("equipped = 'missing'\n[weapons]\n[ammo]\n"); invalid();
-    write("equipped = 'pistol'\n[weapons]\npistol = 99\n[ammo]\npistol_rounds = 1\n"); invalid();
-    auto negative = base; negative.replace(negative.find("pistol_rounds = 1"), 17, "pistol_rounds = -1");
+    write("equipped = 'pistol'\n[weapons]\npistol = 99\n[ammo.reserve]\nitem = 'pistol_rounds'\nquantity = 1\n"); invalid();
+    auto negative = base; negative.replace(negative.find("quantity = 1"), 12, "quantity = -1");
     write(negative); invalid();
+    auto excessive = base; excessive.replace(excessive.find("quantity = 1"), 12, "quantity = 61");
+    write(excessive); invalid();
     write("this is not valid TOML"); invalid();
     write(base);
     for (const auto& change : std::vector<std::pair<std::string, std::string>>{
              {"shot_interval_seconds = 2", "shot_interval_seconds = nan"},
              {"shot_interval_seconds = 2", "shot_interval_seconds = 0"},
+             {"reload_time_seconds = 1.25\n", ""},
+             {"reload_time_seconds = 1.25", "reload_time_seconds = -1"},
+             {"reload_time_seconds = 1.25", "reload_time_seconds = nan"},
+             {"reload_time_seconds = 1.25", "reload_time_seconds = 'fast'"},
              {"draw_time_seconds = 0.45\n", ""},
              {"draw_time_seconds = 0.45", "draw_time_seconds = -1"},
              {"draw_time_seconds = 0.45", "draw_time_seconds = nan"},
@@ -235,7 +248,7 @@ void fixtures(const std::filesystem::path& scratch) {
 } // namespace
 int main() {
     try {
-        firingAndReload(); pelletPattern(); dryFire(); punchesNeedNoAmmo(); physicalActionAcceptance();
+        firing(); pelletPattern(); dryFire(); punchesNeedNoAmmo(); physicalActionAcceptance();
         viewer::Weapons grenades(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
         require(grenades.equip(4) && grenades.equipped().config.grenade.has_value(), "Key 5 must equip HE grenades");
         const auto visibleAt = [&](double seconds) {
@@ -250,8 +263,8 @@ int main() {
         require(!visibleAt(0) && !visibleAt(readyAt - .001), "The held grenade must remain hidden throughout cooldown");
         grenades.equip(0);
         require(viewer::weaponViewVisible(grenades.equipped().config, 0, true), "Firearm models remain visible while cooling down or empty");
-        grenades.equip(4); grenades.reload();
-        require(!visibleAt(.1) && visibleAt(readyAt), "Switching/reloading cannot bypass cooldown; its exact end restores the grenade");
+        grenades.equip(4);
+        require(!visibleAt(.1) && !visibleAt(readyAt), "An empty grenade hand requires another inventory grenade");
         require(!grenades.fire(10) && viewer::weaponShotDirections(grenades.equipped().config, {0, 0, -1}).empty(),
                 "Holding throw cannot repeat or create hitscan bullets");
         for (int i = 1; i < rounds; ++i) {
@@ -260,6 +273,6 @@ int main() {
         }
         require(!visibleAt(100), "After the last grenade, the hand must stay empty beyond cooldown");
         fixtures(std::filesystem::current_path() / "weapon-test-fixtures");
-        std::cout << "Weapon configuration, inventory, firing, reload, and pellet tests passed\n";
+        std::cout << "Weapon configuration, inventory, firing, and pellet tests passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

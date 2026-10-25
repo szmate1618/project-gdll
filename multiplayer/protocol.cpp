@@ -41,6 +41,14 @@ struct Wire {
         if (n > 1) throw std::runtime_error("Invalid multiplayer flag");
         value = n != 0;
     }
+    void text(std::string& value, std::size_t maximum) {
+        if (value.size() > maximum) throw std::runtime_error("Multiplayer string too long");
+        auto length = static_cast<std::uint16_t>(value.size());
+        integer(length);
+        if (length > maximum || (reading && length > size - offset)) throw std::runtime_error("Invalid multiplayer string");
+        if (reading) { value.assign(reinterpret_cast<const char*>(input + offset), length); offset += length; }
+        else bytes.insert(bytes.end(), value.begin(), value.end());
+    }
     void vector(glm::vec3& p) { number(p.x); number(p.y); number(p.z); }
     void matrix(glm::mat4& m) { for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r) number(m[c][r]); }
     // Physical body boxes have rigid orientation and positive dimensions.
@@ -86,6 +94,33 @@ void command(Wire& w, Command& c) {
     w.flag(c.movement.run); w.flag(c.movement.jump); w.flag(c.movement.crouch); w.flag(c.movement.toggleProne);
     w.flag(c.interaction); w.flag(c.left); w.flag(c.right); w.flag(c.reload); w.integer(c.slot);
     w.flag(c.enterVehicle);
+    w.list(c.inventoryActions, 64, [&](viewer::InventoryDragAction& action) {
+        auto kind = static_cast<std::uint8_t>(action.kind);
+        w.integer(kind);
+        if (kind > static_cast<std::uint8_t>(viewer::InventoryDragActionKind::Cancel))
+            throw std::runtime_error("Invalid inventory action");
+        action.kind = static_cast<viewer::InventoryDragActionKind>(kind);
+        switch (action.kind) {
+        case viewer::InventoryDragActionKind::PickUp: w.text(action.item, 128); break;
+        case viewer::InventoryDragActionKind::Rotate: {
+            auto turns = static_cast<std::uint8_t>((action.turns % 4 + 4) % 4);
+            w.integer(turns);
+            if (turns > 3) throw std::runtime_error("Invalid inventory rotation");
+            action.turns = turns;
+            break;
+        }
+        case viewer::InventoryDragActionKind::Drop: {
+            w.text(action.storage, 192);
+            if (!w.reading && (action.x < 0 || action.x > 15 || action.y < 0 || action.y > 15))
+                throw std::runtime_error("Invalid inventory cell");
+            auto x = static_cast<std::uint8_t>(action.x), y = static_cast<std::uint8_t>(action.y);
+            w.integer(x); w.integer(y); action.x = x; action.y = y;
+            if (x > 15 || y > 15) throw std::runtime_error("Invalid inventory cell");
+            break;
+        }
+        case viewer::InventoryDragActionKind::Cancel: w.text(action.item, 128); break;
+        }
+    });
     if (c.sequence == 0 || std::abs(c.movement.forward) > 1 || std::abs(c.movement.right) > 1 ||
         std::abs(c.movement.yawDegrees) > 180 || std::abs(c.pitch) > 89 || c.slot > viewer::punchSlot ||
         std::abs(c.drag.x) > 2000 || std::abs(c.drag.y) > 2000)
@@ -144,6 +179,23 @@ void payload(Wire& w, Snapshot& s) {
         w.number(p.weaponSwitchRemaining); w.number(p.weaponSwitchDuration);
         if (p.weaponSwitchRemaining < 0 || p.weaponSwitchDuration < p.weaponSwitchRemaining)
             throw std::runtime_error("Invalid weapon switch progress");
+        w.number(p.reloadRemaining); w.number(p.reloadDuration);
+        if (p.reloadRemaining < 0 || p.reloadDuration < p.reloadRemaining)
+            throw std::runtime_error("Invalid reload progress");
+        w.list(p.ammoQuantities, 1024, [&](std::uint32_t& count) { w.integer(count); });
+        w.flag(p.inventoryDragging);
+        w.list(p.inventoryPlacements, 1024, [&](viewer::ItemPlacement& placement) {
+            w.text(placement.storage, 192);
+            if (!w.reading && (placement.x < 0 || placement.x > 15 || placement.y < 0 || placement.y > 15 ||
+                placement.rotation < 0 || placement.rotation > 270 || placement.rotation % 90))
+                throw std::runtime_error("Invalid inventory placement");
+            auto x = static_cast<std::uint8_t>(placement.x), y = static_cast<std::uint8_t>(placement.y);
+            auto rotation = static_cast<std::uint8_t>(placement.rotation / 90);
+            w.integer(x); w.integer(y); w.integer(rotation);
+            if (x > 15 || y > 15 || rotation > 3) throw std::runtime_error("Invalid inventory placement");
+            placement.x = x; placement.y = y; placement.rotation = rotation * 90;
+        });
+        if (p.inventoryDragging && !p.inventoryPlacements.empty()) throw std::runtime_error("Invalid held inventory snapshot");
         if (!p.id || p.slot > viewer::punchSlot || std::abs(p.yaw) > 180 || std::abs(p.pitch) > 89 ||
             (p.vehicle != noVehicle && (p.vehicle >= maxVehicles || p.seat >= viewer::maxVehicleSeats)) ||
             (p.vehicle == noVehicle && p.seat != noVehicleSeat))

@@ -5,6 +5,8 @@
 #include "player_interaction.hpp"
 #include "weapons.hpp"
 #include "weapon_switch.hpp"
+#include "weapon_reload.hpp"
+#include "inventory/inventory_drag.hpp"
 #include "zombie_door_collision.hpp"
 #include "replication.hpp"
 #include "vehicle_seats.hpp"
@@ -12,6 +14,7 @@
 #include "melee_combat.hpp"
 #include "vehicle_zombie_collision.hpp"
 #include <map>
+#include <deque>
 #include <set>
 
 namespace multiplayer {
@@ -22,7 +25,10 @@ struct ServerPlayer {
     viewer::Camera camera;
     viewer::Weapons weapons;
     viewer::PlayerInventory inventory;
+    viewer::InventoryDrag inventoryDrag;
+    std::deque<viewer::InventoryDragAction> pendingInventoryActions;
     viewer::WeaponSwitch weaponSwitch;
+    viewer::WeaponReload weaponReload;
     viewer::PlayerBody body;
     viewer::PlayerInteraction interaction;
     viewer::UndergrowthEmitter undergrowth;
@@ -30,7 +36,7 @@ struct ServerPlayer {
     Command held;
     std::uint64_t resolved = 0, lastPacketTick = 0, shots = 0;
     Replication replication;
-    bool started = false, triggerNeedsRelease = false;
+    bool started = false, triggerNeedsRelease = false, reloadRequested = false;
 };
 class World {
 public:

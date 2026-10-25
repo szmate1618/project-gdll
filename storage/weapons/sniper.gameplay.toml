@@ -2,6 +2,7 @@ name = "Sniper"
 ammo_type = "sniper_rounds"
 caliber = "high"
 draw_time_seconds = 0.85
+reload_time_seconds = 2.5
 shot_interval_seconds = 1.2
 automatic = false
 has_scope = true

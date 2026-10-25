@@ -20,7 +20,7 @@ void placements() {
     const auto storage = viewer::loadStorageLoadout(std::filesystem::path(VIEWER_ITEM_ROOT) / "storage");
     const auto inventory = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);
     const auto layout = viewer::buildInventoryLayout(storage, inventory);
-    require(inventory.placements.size() == 5, "Every starter weapon needs a placement");
+    require(inventory.placements.size() == inventory.owned.size(), "Every starter weapon and ammo stack needs a placement");
     const auto& sniper = inventory.owned.at("sniper");
     for (const auto* reference : {"body/left_shoulder_sling/carry", "body/right_shoulder_sling/carry"}) {
         const auto& sling = layout.at(reference);
@@ -32,8 +32,8 @@ void placements() {
         holster.items[0].width == 2 && holster.items[0].height == 1, "Pistol must fill the 2x1 holster");
     require(layout.at("body/chest_pouch/pouch").items.at(0).item == "he_grenade", "Grenade must be in the chest pouch");
     const auto& backpack = layout.at("backpack/tactical_backpack/main");
-    require(backpack.items.size() == 3 && backpack.grid.width == 8 && backpack.grid.height == 10,
-        "The other three weapons must be in the equipped tactical backpack");
+    require(backpack.items.size() == 12 && backpack.grid.width == 8 && backpack.grid.height == 10,
+        "The other three weapons and nine ammo stacks must be in the equipped tactical backpack");
     require(inventory.placements.at("submachine_gun").x == 0 && inventory.placements.at("shotgun").x == 3 &&
         inventory.placements.at("sniper").y == 2, "Grid cell positions were not parsed");
     auto changed = inventory;

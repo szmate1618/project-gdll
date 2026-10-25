@@ -42,6 +42,11 @@ def check_credits(package):
             filename = f"storage/weapons/{name}.{suffix}"
             if not (package / filename).is_file():
                 raise RuntimeError("Package is missing " + filename)
+    for name in ("pistol_rounds", "smg_rounds", "sniper_rounds", "shotgun_shells", "he_grenades"):
+        for suffix in ("inventory.toml", "tags.txt"):
+            filename = f"storage/ammo/{name}.{suffix}"
+            if not (package / filename).is_file():
+                raise RuntimeError("Package is missing " + filename)
     for name, credit in expected.items():
         path = package / "credits/assets" / name
         if credit not in path.read_text(encoding="utf-8"):

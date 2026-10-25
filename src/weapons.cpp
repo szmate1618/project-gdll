@@ -1,10 +1,13 @@
 #include "weapons.hpp"
+#include "inventory/item_config.hpp"
+#include "inventory/player_inventory.hpp"
 
 #include <toml++/toml.hpp>
 #include <glm/gtc/constants.hpp>
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <set>
 #include <stdexcept>
 
@@ -37,6 +40,25 @@ Weapons::Weapons(const std::filesystem::path& definitions, const std::filesystem
     const auto* ammo = table["ammo"].as_table();
     if (!guns || !ammo) throw std::runtime_error(inventory.string() + ": expected [weapons] and [ammo] tables");
     const auto selected = required<std::string>(table, "equipped", inventory);
+    // Initialize the display cache through actual item definitions; descriptor
+    // IDs need not equal weapon ammo types. Runtime counts come from syncAmmo.
+    std::map<std::string, int> initialAmmo;
+    std::map<std::string, ItemInventoryConfig> ammoDefinitions;
+    for (const auto& [key, node] : *ammo) {
+        const auto* stack = node.as_table();
+        if (!stack) throw std::runtime_error(inventory.string() + ": ammo." + std::string(key.str()) + " must be an item stack table");
+        const auto item = required<std::string>(*stack, "item", inventory);
+        const auto quantity = count(*stack, "quantity", inventory);
+        auto definition = ammoDefinitions.find(item);
+        if (definition == ammoDefinitions.end())
+            definition = ammoDefinitions.emplace(item, loadItem(definitions.parent_path() / "ammo", item).inventory()).first;
+        if (definition->second.type != "ammo" || quantity > definition->second.maxStack)
+            throw std::runtime_error(inventory.string() + ": invalid ammo item or quantity for " + item);
+        auto& total = initialAmmo[definition->second.ammoType];
+        if (quantity > std::numeric_limits<int>::max() - total)
+            throw std::runtime_error(inventory.string() + ": invalid or excessive ammo stack quantity");
+        total += quantity;
+    }
     std::set<std::string> ammoTypes;
     bool foundEquipped = false;
     for (std::size_t i = 0; i < ids.size(); ++i) {
@@ -44,7 +66,7 @@ Weapons::Weapons(const std::filesystem::path& definitions, const std::filesystem
         weapon.config = loadWeaponConfig(definitions / (std::string(ids[i]) + ".gameplay.toml"), ids[i]);
         if (!ammoTypes.insert(weapon.config.ammoType).second)
             throw std::runtime_error("Prototype weapons require separate ammo_type values");
-        weapon.reserve = count(*ammo, weapon.config.ammoType, inventory);
+        weapon.reserve = initialAmmo[weapon.config.ammoType];
         weapon.owned = guns->contains(ids[i]);
         if (weapon.owned) weapon.loaded = count(*guns, ids[i], inventory);
         if (weapon.loaded > weapon.config.magazineCapacity)
@@ -60,7 +82,7 @@ Weapons::Weapons(const std::filesystem::path& definitions, const std::filesystem
 }
 
 bool Weapons::equip(std::size_t slot) {
-    if (slot >= weapons_.size() || !weapons_[slot].owned) return false;
+    if (reloading_ || slot >= weapons_.size() || !weapons_[slot].owned) return false;
     slot_ = slot;
     cancelTrigger();
     return true;
@@ -78,7 +100,7 @@ WeaponFireResult Weapons::fireAttempt(double seconds, const std::function<bool()
     auto& weapon = weapons_[slot_];
     const bool requested = pressed_ || (held_ && weapon.config.automatic);
     pressed_ = false;
-    if (!weapon.owned || !requested || !std::isfinite(seconds) || seconds < weapon.readyAt) return WeaponFireResult::none;
+    if (reloading_ || !weapon.owned || !requested || !std::isfinite(seconds) || seconds < weapon.readyAt) return WeaponFireResult::none;
     if (weapon.loaded < weapon.config.ammoPerShot) {
         if (emptyClicked_) return WeaponFireResult::none;
         emptyClicked_ = true;
@@ -90,18 +112,13 @@ WeaponFireResult Weapons::fireAttempt(double seconds, const std::function<bool()
     emptyClicked_ = false;
     return WeaponFireResult::fired;
 }
-int Weapons::reload() {
-    auto& weapon = weapons_[slot_];
-    cancelTrigger();
-    if (!weapon.owned) return 0;
-    const int rounds = std::min(weapon.config.magazineCapacity - weapon.loaded, weapon.reserve);
-    weapon.loaded += rounds;
-    weapon.reserve -= rounds;
-    return rounds;
+void Weapons::syncAmmo(const PlayerInventory& inventory) {
+    for (std::size_t i = 0; i < ids.size(); ++i)
+        weapons_[i].reserve = inventory.ammoCount(weapons_[i].config.ammoType);
 }
 std::optional<WeaponItem> Weapons::discard() {
     auto& weapon = weapons_[slot_];
-    if (!weapon.owned || slot_ == punchSlot) return {};
+    if (reloading_ || !weapon.owned || slot_ == punchSlot) return {};
     const WeaponItem item{slot_,weapon.loaded,weapon.readyAt};
     weapon.owned = false;
     weapon.loaded = 0;
@@ -113,7 +130,7 @@ std::optional<WeaponItem> Weapons::discard() {
     return item;
 }
 bool Weapons::pickUp(const WeaponItem& item) {
-    if (item.slot>=weaponIds.size() || weapons_[item.slot].owned || item.loaded<0 ||
+    if (reloading_ || item.slot>=weaponIds.size() || weapons_[item.slot].owned || item.loaded<0 ||
         item.loaded>weapons_[item.slot].config.magazineCapacity || !std::isfinite(item.readyAt)) return false;
     auto& weapon = weapons_[item.slot];
     weapon.owned = true;

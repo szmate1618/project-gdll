@@ -72,7 +72,7 @@ void cancellationAndRowIndependence() {
     require(drag.drop("body/hip_holster/holster", 0, 0).result == viewer::InventoryDrop::Rejected && !drag.pending(),
         "Rejected drops must not start timers or spend source access");
     drag.drop(pack, 7, 9);
-    near(drag.pending()->durationSeconds, 3.73, "Rejected placement must preserve original pickup cost for the valid drop");
+    near(drag.pending()->durationSeconds, 4.81, "Rejected placement must preserve pickup cost and include ammo stacks obstructing the destination column");
     drag.cancel();
 }
 void returningToOriginalCompartment() {

@@ -41,12 +41,13 @@ void queriesFollowTransactions() {
     auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
     const std::string pack = "backpack/tactical_backpack/main";
     const auto sniperStart = *inventory.locationOf("sniper")->placement;
+    const auto initialPackSize = inventory.itemsIn(pack).size();
     {
         viewer::InventoryDrag drag(inventory);
         drag.pickUp("sniper");
         require(inventory.owns("sniper") && inventory.locationOf("sniper")->kind == viewer::InventoryLocationKind::Hand &&
             !inventory.locationOf("sniper")->placement, "Held item must remain owned and report in-hand location");
-        require(inventory.itemsIn(pack).size() == 2, "Held item must leave its storage query");
+        require(inventory.itemsIn(pack).size() + 1 == initialPackSize, "Held item must leave its storage query");
         drag.rotate(1);
         require(completeDrop(drag, "body/left_shoulder_sling/carry", 0, 0).result == viewer::InventoryDrop::Free, "Sniper move failed");
         const auto placed = inventory.locationOf("sniper");
@@ -68,6 +69,31 @@ void queriesFollowTransactions() {
     require(inventory.locationOf("sniper")->placement->storage != sniperStart.storage,
         "Cancelling a later transaction must preserve earlier completed moves");
 }
+void ammoQuantities() {
+    auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
+    require(inventory.ammoCount("pistol_rounds") == 120 && inventory.ammoCount("smg_rounds") == 300 &&
+        inventory.ammoCount("shotgun_shells") == 48 && inventory.ammoCount("sniper_rounds") == 30 &&
+        inventory.ammoCount("he_grenades") == 5, "Starting reserves must come from the configured ammo stacks");
+    const auto start = *inventory.locationOf("pistol_rounds_1")->placement;
+    require(!inventory.consume("missing", 1) && !inventory.consume("pistol", 1) &&
+        !inventory.consume("pistol_rounds_1", -1) && !inventory.consume("pistol_rounds_1", 61),
+        "Invalid consumption must not change any stack");
+    require(inventory.consume("pistol_rounds_1", 60) && inventory.quantity("pistol_rounds_1") == 0 &&
+        inventory.ammoCount("pistol_rounds") == 60, "Consumption must update the selected stack and its type total");
+    const auto empty = inventory.locationOf("pistol_rounds_1");
+    require(inventory.owns("pistol_rounds_1") && empty->kind == viewer::InventoryLocationKind::Storage &&
+        empty->placement->storage == start.storage && empty->placement->x == start.x && empty->placement->y == start.y,
+        "An empty ammo stack must retain ownership and its exact storage footprint");
+    require(!inventory.setQuantity("pistol_rounds_1", 61) && !inventory.setQuantity("pistol_rounds_1", -1) &&
+        !inventory.setQuantity("pistol", 1) && inventory.setQuantity("pistol_rounds_1", 12),
+        "Authoritative quantities must respect item stack limits");
+    viewer::InventoryDrag drag(inventory);
+    require(drag.pickUp("pistol_rounds_1") && inventory.consume("pistol_rounds_1", 2),
+        "Dragging must preserve mutable ammo stack identity");
+    drag.cancel();
+    require(inventory.quantity("pistol_rounds_1") == 10 && inventory.locationOf("pistol_rounds_1")->placement->x == start.x,
+        "Cancelling a drag must restore placement without resurrecting consumed ammo");
+}
 void constructionRejectsInvalidState() {
     const auto storage = viewer::loadStorageLoadout(std::filesystem::path(VIEWER_ITEM_ROOT) / "storage");
     const auto original = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);
@@ -85,10 +111,45 @@ void constructionRejectsInvalidState() {
     contents = original;
     contents.owned.insert_or_assign("pistol", original.owned.at("sniper"));
     rejects(contents);
+    contents = original;
+    contents.quantities.erase("pistol_rounds_1");
+    rejects(contents);
+    contents = original;
+    contents.quantities["pistol_rounds_1"] = 61;
+    rejects(contents);
+    contents = original;
+    contents.quantities["pistol"] = 1;
+    rejects(contents);
+}
+void authoritativePlacements() {
+    auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
+    inventory.consume("pistol_rounds_1", 3);
+    auto placements = inventory.placements();
+    placements["pistol_rounds_1"] = {"backpack/tactical_backpack/top_quick_access", 0, 0};
+    require(inventory.synchronizePlacements(placements) &&
+        inventory.locationOf("pistol_rounds_1")->placement->storage == "backpack/tactical_backpack/top_quick_access" &&
+        inventory.quantity("pistol_rounds_1") == 57, "Authoritative placements must preserve live ammo quantities");
+    auto invalid = placements;
+    invalid["pistol_rounds_1"] = invalid.at("pistol_rounds_2");
+    require(!inventory.synchronizePlacements(invalid) &&
+        inventory.locationOf("pistol_rounds_1")->placement->storage == "backpack/tactical_backpack/top_quick_access",
+        "Overlapping authoritative placements must be rejected without partial updates");
+    invalid = placements;
+    invalid.erase("pistol");
+    require(!inventory.synchronizePlacements(invalid), "Incomplete authoritative ownership must be rejected");
+    invalid = placements;
+    invalid["unowned"] = invalid.at("pistol");
+    require(!inventory.synchronizePlacements(invalid), "Unexpected authoritative item IDs must be rejected");
+    viewer::InventoryDrag drag(inventory);
+    drag.pickUp("pistol_rounds_1");
+    require(!inventory.synchronizePlacements(placements) && inventory.held()->item == "pistol_rounds_1",
+        "Authoritative placements must not replace an active local drag");
+    drag.cancel();
+    require(inventory.synchronizePlacements(placements), "Completed drag cancellation must permit authoritative synchronization");
 }
 } // namespace
 int main() {
-    try { definitionsAndQueries(); queriesFollowTransactions(); constructionRejectsInvalidState();
+    try { definitionsAndQueries(); queriesFollowTransactions(); ammoQuantities(); constructionRejectsInvalidState(); authoritativePlacements();
         std::cout << "Player inventory components and query checks passed\n"; return 0; }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

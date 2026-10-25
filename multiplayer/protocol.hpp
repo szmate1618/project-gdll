@@ -1,4 +1,6 @@
 #pragma once
+#include "inventory/inventory_action.hpp"
+#include "inventory/player_inventory.hpp"
 
 #include "fps_controller.hpp"
 #include "grenades.hpp"
@@ -21,7 +23,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 13; // Authoritative weapon switch progress.
+constexpr std::uint32_t protocolVersion = 14; // Inventory ammo stacks and timed reloads.
 
 struct Hello { std::string fingerprint; };
 struct Welcome { std::uint32_t player = 0; };
@@ -41,6 +43,7 @@ struct Command {
     bool interaction = false, left = false, right = false, reload = false;
     std::uint8_t slot = 0;
     bool enterVehicle = false; // One Enter press; deduplicated with the command sequence.
+    std::vector<viewer::InventoryDragAction> inventoryActions{};
 };
 struct Commands {
     std::vector<Command> commands;
@@ -60,6 +63,10 @@ struct PlayerState {
     std::uint8_t seat = noVehicleSeat;
     viewer::PlayerBodyPose melee;
     float weaponSwitchRemaining = 0, weaponSwitchDuration = 0; // Server simulation seconds.
+    float reloadRemaining = 0, reloadDuration = 0;
+    std::vector<std::uint32_t> ammoQuantities{}; // Stack IDs in fingerprinted inventory map order.
+    bool inventoryDragging = false;
+    std::vector<viewer::ItemPlacement> inventoryPlacements{}; // All item IDs in the same map order, when idle.
 };
 struct ZombieState {
     std::uint32_t id = 0, asset = 0;

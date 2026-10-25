@@ -18,6 +18,8 @@ struct Fixture {
         std::filesystem::create_directories(root / "storage");
         std::filesystem::copy(std::filesystem::path(VIEWER_ITEM_ROOT) / "storage/weapons", root / "storage/weapons",
             std::filesystem::copy_options::recursive);
+        std::filesystem::copy(std::filesystem::path(VIEWER_ITEM_ROOT) / "storage/ammo", root / "storage/ammo",
+            std::filesystem::copy_options::recursive);
         std::filesystem::copy_file(std::filesystem::path(VIEWER_ITEM_ROOT) / "inventory.toml", root / "inventory.toml");
         std::filesystem::copy_file(std::filesystem::path(VIEWER_ITEM_ROOT) / "skills.toml", root / "skills.toml");
         std::filesystem::copy(std::filesystem::path(VIEWER_ITEM_ROOT) / "skills", root / "skills", std::filesystem::copy_options::recursive);
@@ -46,7 +48,8 @@ struct Fixture {
 void starterInventory() {
     const auto inventory = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);
     const std::array<const char*, 5> expected{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"};
-    require(inventory.owned.size() == 5, "All five weapons must have owned item definitions");
+    require(inventory.owned.size() == 16 && inventory.quantities.size() == 11,
+        "All five weapons and eleven ammo stacks must have owned item definitions");
     for (std::size_t slot = 0; slot < expected.size(); ++slot) {
         require(inventory.hotbar[slot] == expected[slot], "Weapon hotbar order must match slots 0–4");
         const auto& item = inventory.owned.at(expected[slot]);
@@ -80,6 +83,30 @@ void starterInventory() {
         std::vector<std::string>{"handgun", "ranged", "utility"}, "Tag parsing must trim whitespace and preserve order");
     fixture.inventory("[weapons]\n");
     require(viewer::loadInventoryContents(fixture.root).owned.empty(), "No ownership entries must mean no owned items");
+}
+void ammoDefinitionsAndStacks() {
+    Fixture fixture;
+    fixture.inventory("[weapons]\n[ammo.first]\nitem='pistol_rounds'\nquantity=60\n"
+        "[ammo.empty]\nitem='pistol_rounds'\nquantity=0\n");
+    const auto inventory = viewer::loadInventoryContents(fixture.root);
+    const auto& stack = inventory.owned.at("first");
+    require(stack.id() == "first" && stack.gameplay().id.empty() && stack.inventory().type == "ammo" &&
+        stack.inventory().ammoType == "pistol_rounds" && stack.inventory().stackable && stack.inventory().maxStack == 60,
+        "Ammo stack must retain its unique ID, ammo type and stack limit without weapon gameplay");
+    require(inventory.owned.at("empty").id() == "empty" && inventory.quantities.at("empty") == 0 &&
+        inventory.quantities.at("first") == 60, "Independent stacks of one ammo item must preserve configured quantities, including zero");
+    for (const auto* quantity : {"-1", "61", "1.5", "'3'"}) {
+        fixture.inventory((std::string("[weapons]\n[ammo.rounds]\nitem='pistol_rounds'\nquantity=") + quantity).c_str());
+        fixture.rejects("inventory.toml", "quantity");
+    }
+    fixture.inventory("[weapons]\n[ammo]\npistol_rounds=120\n");
+    fixture.rejects("inventory.toml", "item and quantity");
+    fixture.inventory("[weapons]\n[ammo.rounds]\nitem='pistol_rounds'\nquantity=1\n");
+    fixture.replace("storage/ammo/pistol_rounds.inventory.toml", "max_stack = 60", "max_stack = 0");
+    fixture.rejects("pistol_rounds.inventory.toml", "max_stack");
+    fixture.replace("storage/ammo/pistol_rounds.inventory.toml", "max_stack = 0", "max_stack = 60");
+    fixture.replace("storage/ammo/pistol_rounds.inventory.toml", "stackable = true", "stackable = false");
+    fixture.rejects("pistol_rounds.inventory.toml", "stackable");
 }
 void invalidInventory() {
     Fixture fixture;
@@ -165,7 +192,7 @@ void invalidDefinitions() {
 } // namespace
 int main() {
     try {
-        starterInventory(); invalidInventory(); invalidDefinitions();
+        starterInventory(); ammoDefinitionsAndStacks(); invalidInventory(); invalidDefinitions();
         std::cout << "Item definitions and inventory shortcuts passed\n";
         return 0;
     } catch (const std::exception& error) {

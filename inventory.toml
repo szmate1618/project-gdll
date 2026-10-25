@@ -1,5 +1,5 @@
 # Starting inventory. [weapons] values are loaded rounds; omit a weapon to
-# remove ownership. Reserves are additional rounds, separate from magazines.
+# remove ownership. Each [ammo.<stack ID>] is a placed ammo item with a quantity.
 equipped = "pistol"
 
 [weapons]
@@ -7,14 +7,51 @@ pistol = 12
 submachine_gun = 30
 sniper = 5
 shotgun = 6
-he_grenade = 6
+he_grenade = 1
 
-[ammo]
-pistol_rounds = 120
-smg_rounds = 300
-sniper_rounds = 30
-shotgun_shells = 48
-he_grenades = 0
+[ammo.pistol_rounds_1]
+item = "pistol_rounds"
+quantity = 60
+
+[ammo.pistol_rounds_2]
+item = "pistol_rounds"
+quantity = 60
+
+[ammo.smg_rounds_1]
+item = "smg_rounds"
+quantity = 60
+
+[ammo.smg_rounds_2]
+item = "smg_rounds"
+quantity = 60
+
+[ammo.smg_rounds_3]
+item = "smg_rounds"
+quantity = 60
+
+[ammo.smg_rounds_4]
+item = "smg_rounds"
+quantity = 60
+
+[ammo.smg_rounds_5]
+item = "smg_rounds"
+quantity = 60
+
+[ammo.shotgun_shells_1]
+item = "shotgun_shells"
+quantity = 24
+
+[ammo.shotgun_shells_2]
+item = "shotgun_shells"
+quantity = 24
+
+[ammo.sniper_rounds_1]
+item = "sniper_rounds"
+quantity = 30
+
+[ammo.he_grenades_1]
+item = "he_grenades"
+quantity = 5
 
 # Owned item IDs or skill:<ID> references registered in skills.toml.
 [hotbar]
@@ -50,3 +87,58 @@ y = 0
 storage = "backpack/tactical_backpack/main"
 x = 0
 y = 2
+
+[placements.pistol_rounds_1]
+storage = "backpack/tactical_backpack/main"
+x = 7
+y = 0
+
+[placements.pistol_rounds_2]
+storage = "backpack/tactical_backpack/main"
+x = 7
+y = 1
+
+[placements.smg_rounds_1]
+storage = "backpack/tactical_backpack/main"
+x = 7
+y = 2
+
+[placements.smg_rounds_2]
+storage = "backpack/tactical_backpack/main"
+x = 7
+y = 3
+
+[placements.smg_rounds_3]
+storage = "backpack/tactical_backpack/main"
+x = 7
+y = 4
+
+[placements.smg_rounds_4]
+storage = "backpack/tactical_backpack/main"
+x = 7
+y = 5
+
+[placements.smg_rounds_5]
+storage = "backpack/tactical_backpack/main"
+x = 7
+y = 6
+
+[placements.shotgun_shells_1]
+storage = "backpack/tactical_backpack/main"
+x = 7
+y = 7
+
+[placements.shotgun_shells_2]
+storage = "backpack/tactical_backpack/main"
+x = 7
+y = 8
+
+[placements.sniper_rounds_1]
+storage = "backpack/tactical_backpack/right_side"
+x = 0
+y = 0
+
+[placements.he_grenades_1]
+storage = "backpack/tactical_backpack/right_side"
+x = 0
+y = 1

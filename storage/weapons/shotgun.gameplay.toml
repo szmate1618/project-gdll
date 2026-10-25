@@ -3,6 +3,7 @@ ammo_type = "shotgun_shells"
 # Each pellet deals 1 base damage (2 on a headshot).
 caliber = "low"
 draw_time_seconds = 0.7
+reload_time_seconds = 3.0
 shot_interval_seconds = 0.9
 automatic = false
 pellets = 8

@@ -14,6 +14,7 @@ struct WeaponConfig {
     std::string id, name, ammoType;
     double shotIntervalSeconds = 0;
     double drawTimeSeconds = 0; // Used for both putting away and drawing this weapon.
+    double reloadTimeSeconds = 0; // Weapon handling only; source storage adds access time.
     bool automatic = false, hasScope = false;
     int pellets = 1, magazineCapacity = 1, ammoPerShot = 1;
     float spreadDegrees = 0; // Cone half-angle about the camera's forward ray.

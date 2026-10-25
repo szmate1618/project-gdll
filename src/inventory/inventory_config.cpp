@@ -44,6 +44,28 @@ InventoryContents loadInventoryContents(const Path& root) {
         if (!node.is_integer() || !count || *count < 0) invalid(file, "invalid loaded round count for " + id);
         result.owned.emplace(id, loadItem(root / "storage/weapons", id));
     }
+    if (table.contains("ammo")) {
+        const auto* ammo = table["ammo"].as_table();
+        if (!ammo) invalid(file, "ammo must be a table of stack IDs");
+        for (const auto& [key, node] : *ammo) {
+            const std::string id(key.str());
+            if (id.empty() || !std::all_of(id.begin(), id.end(), [](char c) {
+                    return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
+                })) invalid(file, "invalid ammo stack ID " + id);
+            const auto* stack = node.as_table();
+            if (!stack) invalid(file, "ammo." + id + " must specify item and quantity");
+            const auto definitionId = label(*stack, "item", file);
+            const auto definition = loadItem(root / "storage/ammo", definitionId);
+            if (definition.inventory().type != "ammo") invalid(file, "ammo." + id + " must reference an ammo item");
+            if (!(*stack)["quantity"].is_integer()) invalid(file, "ammo." + id + ".quantity must be an integer");
+            const auto quantity = required<std::int64_t>(*stack, "quantity", file);
+            if (quantity < 0 || quantity > definition.inventory().maxStack)
+                invalid(file, "ammo." + id + ".quantity exceeds stack limits");
+            if (!result.owned.emplace(id, Item(id, definition.inventory(), {}, definition.tags())).second)
+                invalid(file, "duplicate owned item ID " + id);
+            result.quantities.emplace(id, static_cast<int>(quantity));
+        }
+    }
     if (table.contains("placements")) {
         const auto* placements = table["placements"].as_table();
         if (!placements) invalid(file, "placements must be a table keyed by owned item ID");

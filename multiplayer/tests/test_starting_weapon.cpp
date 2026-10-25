@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
         {
             std::ofstream inventory(resources / "inventory.toml");
             inventory << "equipped = 'sniper'\n[weapons]\npistol = 12\nsniper = 5\n"
-                         "[ammo]\npistol_rounds = 120\nsmg_rounds = 300\nsniper_rounds = 30\nshotgun_shells = 48\nhe_grenades = 0\n"
+                         "[ammo]\n"
                          "[placements.pistol]\nstorage='body/hip_holster/holster'\nx=0\ny=0\n"
                          "[placements.sniper]\nstorage='backpack/tactical_backpack/main'\nx=0\ny=0\n";
             require(bool(inventory), "Could not write starting weapon fixture");
@@ -103,6 +103,14 @@ int main(int argc, char** argv) {
             require(changedDefinition.fingerprint != fingerprint,
                     "Inventory, gameplay or tags file was omitted from the scene fingerprint");
             fingerprint = changedDefinition.fingerprint;
+        }
+        for (const auto* suffix : {".inventory.toml", ".tags.txt"}) {
+            { std::ofstream file(resources / "storage/ammo" / (std::string("pistol_rounds") + suffix), std::ios::app);
+              file << "\n"; }
+            multiplayer::Scene changedAmmo(options);
+            require(changedAmmo.fingerprint != fingerprint,
+                    "Ammo descriptor or tags were omitted from the scene fingerprint");
+            fingerprint = changedAmmo.fingerprint;
         }
         // A later join must use the session's fingerprinted starting definitions,
         // even if the source inventory is edited while the server is running.

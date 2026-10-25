@@ -6,7 +6,7 @@
 #include <optional>
 
 namespace viewer {
-enum class InventoryDrop { Rejected, Free, Swap };
+enum class InventoryDrop { Rejected, Free, Swap, Merge };
 struct InventoryDropCheck {
     InventoryDrop result = InventoryDrop::Rejected;
     std::string displaced;

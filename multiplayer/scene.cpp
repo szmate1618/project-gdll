@@ -229,12 +229,13 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
         }
     }
     std::vector<std::filesystem::path> definitions;
-    for (const auto& entry : std::filesystem::directory_iterator(resourceRoot() / "storage/weapons")) {
-        const auto filename = entry.path().filename().string();
-        const bool tags = filename.size() >= 9 && filename.compare(filename.size() - 9, 9, ".tags.txt") == 0;
-        if (entry.is_regular_file() && (entry.path().extension() == ".toml" || tags))
-            definitions.push_back(entry.path());
-    }
+    for (const auto* directory : {"storage/weapons", "storage/ammo"})
+        for (const auto& entry : std::filesystem::directory_iterator(resourceRoot() / directory)) {
+            const auto filename = entry.path().filename().string();
+            const bool tags = filename.size() >= 9 && filename.compare(filename.size() - 9, 9, ".tags.txt") == 0;
+            if (entry.is_regular_file() && (entry.path().extension() == ".toml" || tags))
+                definitions.push_back(entry.path());
+        }
     std::sort(definitions.begin(), definitions.end());
     content.insert(content.end(), definitions.begin(), definitions.end());
     content.push_back(resourceRoot() / "inventory.toml");

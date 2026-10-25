@@ -1,9 +1,11 @@
 #pragma once
 
+#include "inventory/inventory_action.hpp"
 #include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 #include <glm/vec3.hpp>
 
 namespace viewer {
@@ -26,6 +28,7 @@ struct HudState {
     bool mouseCaptured = true;
     int selectionSlot = -1; // Hotbar preview 0..9; -1 hides the selector.
     double weaponSwitchRemaining = 0, weaponSwitchDuration = 0; // Seconds; zero hides progress.
+    double reloadRemaining = 0, reloadDuration = 0; // Includes ammunition storage access.
 };
 
 // Owns the application's RmlUi lifetime. One HUD at a time, on the GL thread.
@@ -46,6 +49,9 @@ public:
     void pointerButton(int button, bool pressed); // 0: left, 1: right/cancel.
     void mouseWheel(float notches);
     void cancelInventoryDrag();
+    std::vector<InventoryDragAction> takeInventoryActions();
+    bool inventoryDragging() const; // Includes completed actions awaiting delivery.
+    void refreshInventoryLayout(); // Call after applying an idle authoritative placement snapshot.
     // Borrow the terrain's uploaded OpenGL texture; its renderer must outlive
     // this HUD. The mapping is copied; no extra image decode/upload is needed.
     void setMinimap(const MinimapSource& source, unsigned int texture);

@@ -36,16 +36,17 @@ struct Input {
     viewer::WeaponMotion weaponMotion;
     viewer::ActionSelection actionSelection;
     viewer::ActionShortcuts actions;
-    bool suppressLeftUntilRelease = false, weaponSwitching = false;
+    bool suppressLeftUntilRelease = false, weaponSwitching = false, weaponReloading = false;
     std::size_t equippedSlot = 0; // Authoritative slot, independent of requested slot.
 
     viewer::VehiclePlayer driver;
     bool enterVehicle = false, toggleDrivingCamera = false;
     bool capture = true, firstMouse = true, interaction = false, prone = false, reload = false;
-    bool leftPressed = false, rightPressed = false;
+    bool leftPressed = false, rightPressed = false, leftHeld = false;
     bool canScope = false;
     bool flashlight = true;
     bool leave = false;
+    std::vector<viewer::InventoryDragAction> inventoryActions;
 #ifdef MP_GRAPHICS
     viewer::HudScreen hudScreen = viewer::HudScreen::Gameplay;
     viewer::Hud* hud = nullptr; // Borrowed from Graphics on the GL thread.
@@ -81,7 +82,10 @@ void key(GLFWwindow* window, int code, int, int action, int) {
     if (in.driver.occupied() && code != GLFW_KEY_F12) return;
     if (code == GLFW_KEY_TAB) { in.interaction = !in.interaction; in.actionSelection.close(); }
     if (code == GLFW_KEY_Z) in.prone = true;
-    if (code == GLFW_KEY_R && !in.weaponSwitching && !in.actionSelection.open()) in.reload = true;
+    if (code == GLFW_KEY_R && !in.weaponSwitching && !in.weaponReloading && !in.actionSelection.open()) {
+        in.reload = true;
+        in.suppressLeftUntilRelease |= in.leftHeld;
+    }
     if (code == GLFW_KEY_F) in.flashlight = !in.flashlight;
     if (code == GLFW_KEY_GRAVE_ACCENT || (code >= GLFW_KEY_1 && code <= GLFW_KEY_9)) {
         in.actionSelection.highlight(code == GLFW_KEY_GRAVE_ACCENT ? 0 : code - GLFW_KEY_1 + 1);
@@ -112,7 +116,10 @@ void mouse(GLFWwindow* window, double x, double y) {
 }
 void button(GLFWwindow* window, int buttonCode, int action, int) {
     auto& in = input(window);
-    if (buttonCode == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) in.suppressLeftUntilRelease = false;
+    if (buttonCode == GLFW_MOUSE_BUTTON_LEFT) {
+        in.leftHeld = action == GLFW_PRESS;
+        if (action == GLFW_RELEASE) in.suppressLeftUntilRelease = false;
+    }
     if (in.hudScreen == viewer::HudScreen::Inventory) {
         double x, y; glfwGetCursorPos(window, &x, &y);
         inventoryPointer(window, in.hud, x, y);
@@ -122,11 +129,11 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
     if (!in.capture || in.driver.occupied() || action != GLFW_PRESS || in.hudScreen != viewer::HudScreen::Gameplay) return;
     if (buttonCode == GLFW_MOUSE_BUTTON_LEFT && in.actionSelection.open()) {
         const auto target = in.actionSelection.confirm(in.actions, in.equippedSlot);
-        if (target && !in.weaponSwitching && in.slot == in.equippedSlot) in.slot = static_cast<std::uint8_t>(*target);
+        if (target && !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot) in.slot = static_cast<std::uint8_t>(*target);
         in.leftPressed = false; in.suppressLeftUntilRelease = true;
         return;
     }
-    if (in.weaponSwitching || in.slot != in.equippedSlot) {
+    if (in.weaponSwitching || in.weaponReloading || in.slot != in.equippedSlot) {
         if (buttonCode == GLFW_MOUSE_BUTTON_LEFT) in.suppressLeftUntilRelease = true;
         return;
     }
@@ -149,7 +156,7 @@ void focus(GLFWwindow* window, int focused) {
         in.actionSelection.close();
         if (in.hud) in.hud->cancelInventoryDrag();
         in.drag = {}; in.prone = in.reload = in.enterVehicle = in.toggleDrivingCamera = false;
-        in.leftPressed = in.rightPressed = false;
+        in.leftPressed = in.rightPressed = in.leftHeld = false;
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     }
 }
@@ -244,6 +251,7 @@ struct Graphics {
 };
 multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double seconds) {
     multiplayer::Command c;
+    c.inventoryActions.swap(in.inventoryActions);
     const auto aim = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, seconds, !in.driver.occupied() && !in.interaction);
     c.movement.yawDegrees = aim.yawDegrees(); c.pitch = aim.pitchDegrees(); c.slot = in.slot;
     c.interaction = in.interaction;
@@ -257,8 +265,8 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
     c.movement.run = held(GLFW_KEY_LEFT_SHIFT); c.movement.jump = held(GLFW_KEY_SPACE); c.movement.crouch = held(GLFW_KEY_LEFT_CONTROL);
     c.movement.toggleProne = in.prone; in.prone = false;
     c.reload = in.reload; in.reload = false; c.drag = in.drag; in.drag = {};
-    c.left = !in.actionSelection.open() && !in.suppressLeftUntilRelease && !in.weaponSwitching && in.slot == in.equippedSlot &&
-        (in.leftPressed || glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS);
+    c.left = !in.actionSelection.open() && !in.suppressLeftUntilRelease && !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot &&
+        (in.leftPressed || in.leftHeld);
     c.right = c.interaction && (in.rightPressed || glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
     in.leftPressed = in.rightPressed = false;
 #endif
@@ -300,6 +308,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
     float remoteTravel = 0;
     glm::vec3 visualOffset(0);
     multiplayer::PlayerState ownState;
+    std::uint64_t lastInventoryCommand = 0;
     auto weaponDefinitions = scene.initialWeapons;
     while (!graphics.closed() && !in.leave) {
         if (checkServer) checkServer();
@@ -309,6 +318,10 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
         const double dt = std::min(.1, std::chrono::duration<double>(clockNow - previous).count()); previous = clockNow;
 #ifdef MP_GRAPHICS
         if (graphics.window) glfwPollEvents();
+        if (in.hud) {
+            auto actions = in.hud->takeInventoryActions();
+            in.inventoryActions.insert(in.inventoryActions.end(), actions.begin(), actions.end());
+        }
 #endif
         if (!prediction.ready() && feedback) {
             if (!feedback("Connecting - waiting for player state...")) break;
@@ -350,6 +363,11 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                     in.canScope = p.vehicle == multiplayer::noVehicle && weaponDefinitions.equipped().config.hasScope;
                     in.equippedSlot = p.slot;
                     in.weaponSwitching = p.weaponSwitchRemaining > 0;
+                    in.weaponReloading = p.reloadRemaining > 0;
+                    // Commands mask firing while busy. A synthetic false is
+                    // not a physical release and must not rearm a held click.
+                    if ((in.weaponSwitching || in.weaponReloading) && in.leftHeld)
+                        in.suppressLeftUntilRelease = true;
 #ifdef MP_GRAPHICS
                     if (graphics.weapon && ready && p.shots > ownState.shots && p.slot != viewer::punchSlot && !weaponDefinitions.equipped().config.grenade) {
                         in.weaponMotion.fire(p.slot, now);
@@ -363,6 +381,41 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                     in.driver.followCar(p.vehicle==multiplayer::noVehicle?std::optional<std::size_t>{}:p.vehicle,
                                         *scene.vehicles,in.camera,p.seat==multiplayer::noVehicleSeat?0:p.seat);
                     ownState=p; found=true;
+                    bool inventoryIdle = !p.inventoryDragging && in.inventoryActions.empty() && p.resolved >= lastInventoryCommand;
+#ifdef MP_GRAPHICS
+                    inventoryIdle = inventoryIdle && (!in.hud || !in.hud->inventoryDragging());
+#endif
+                    if (inventory && inventoryIdle && !p.inventoryPlacements.empty()) {
+                        std::map<std::string, viewer::ItemPlacement> placements;
+                        std::size_t index = 0;
+                        bool changed = false;
+                        for (const auto& [id, item] : inventory->items()) {
+                            (void)item;
+                            if (index >= p.inventoryPlacements.size()) throw std::runtime_error("Incomplete authoritative inventory placements");
+                            const auto& placement = p.inventoryPlacements[index++];
+                            const auto& current = inventory->placements().at(id);
+                            changed |= current.storage != placement.storage || current.x != placement.x ||
+                                current.y != placement.y || current.rotation != placement.rotation;
+                            placements.emplace(id, placement);
+                        }
+                        if (index != p.inventoryPlacements.size() || !inventory->synchronizePlacements(placements))
+                            throw std::runtime_error("Invalid authoritative inventory placements");
+#ifdef MP_GRAPHICS
+                        if (changed && in.hud) in.hud->refreshInventoryLayout();
+#else
+                        (void)changed;
+#endif
+                    }
+                    if (inventory && !p.ammoQuantities.empty()) {
+                        std::size_t stack = 0;
+                        for (const auto& [id, item] : inventory->items()) {
+                            if (!item.inventory().stackable) continue;
+                            if (stack >= p.ammoQuantities.size() || p.ammoQuantities[stack] > static_cast<std::uint32_t>(item.inventory().maxStack) ||
+                                !inventory->setQuantity(id, static_cast<int>(p.ammoQuantities[stack++])))
+                                throw std::runtime_error("Invalid authoritative ammo stack quantities");
+                        }
+                        if (stack != p.ammoQuantities.size()) throw std::runtime_error("Unexpected authoritative ammo stacks");
+                    }
                     if (!ready) {
                         in.slot = p.slot;
                         if (!options.explicitLook) in.camera.setOrientation(p.yaw, p.pitch);
@@ -388,7 +441,8 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 const viewer::UndergrowthMotion shrubBefore{controller.feet(), controller.bodyHeight(),
                     controller.config().radius, controller.grounded(), false};
 #endif
-                prediction.advance(nextCommand, *scene.collision);
+                const auto predicted = prediction.advance(nextCommand, *scene.collision);
+                if (!predicted.inventoryActions.empty()) lastInventoryCommand = predicted.sequence;
 #ifdef MP_GRAPHICS
                 const auto movement = controller.feet() - shrubBefore.feet;
                 graphics.speedMetersPerSecond = glm::length(glm::vec2(movement.x, movement.z)) / multiplayer::tickSeconds;
@@ -476,6 +530,8 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 hudState.selectionSlot = in.actionSelection.selected();
                 hudState.weaponSwitchRemaining = ownState.weaponSwitchRemaining;
                 hudState.weaponSwitchDuration = ownState.weaponSwitchDuration;
+                hudState.reloadRemaining = ownState.reloadRemaining;
+                hudState.reloadDuration = ownState.reloadDuration;
                 if (prediction.ready()) {
                     hudState.equipment = weaponDefinitions.equipped().config.name;
                     hudState.slot = ownState.slot;

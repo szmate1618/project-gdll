@@ -31,6 +31,9 @@ WeaponConfig loadWeaponConfig(const std::filesystem::path& path, const std::stri
     config.drawTimeSeconds = required<double>(table, "draw_time_seconds", path);
     if (!std::isfinite(config.drawTimeSeconds) || config.drawTimeSeconds < 0)
         throw std::runtime_error(path.string() + ": draw_time_seconds must be finite and nonnegative");
+    config.reloadTimeSeconds = required<double>(table, "reload_time_seconds", path);
+    if (!std::isfinite(config.reloadTimeSeconds) || config.reloadTimeSeconds < 0)
+        throw std::runtime_error(path.string() + ": reload_time_seconds must be finite and nonnegative");
     config.automatic = required<bool>(table, "automatic", path);
     config.hasScope = required<bool>(table, "has_scope", path);
     config.pellets = count(table, "pellets", path);
