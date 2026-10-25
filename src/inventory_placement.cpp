@@ -11,7 +11,24 @@ std::string backpackStorageReference(const std::string& backpack, const std::str
     return "backpack/" + backpack + "/" + slot;
 }
 
-InventoryLayout buildInventoryLayout(const StorageLoadout& loadout, const InventoryItems& inventory) {
+InventoryItemRectangle inventoryRectangle(const ItemDefinition& item, const ItemPlacement& placement) {
+    if (placement.rotation < 0 || placement.rotation > 270 || placement.rotation % 90 != 0)
+        throw std::runtime_error("Invalid inventory rotation for " + item.id);
+    const bool rotated = placement.rotation % 180 != 0;
+    return {item.id, placement.x, placement.y, rotated ? item.height : item.width, rotated ? item.width : item.height};
+}
+bool inventoryRectangleFits(const StorageGrid& grid, const InventoryItemRectangle& rectangle) {
+    return rectangle.width > 0 && rectangle.height > 0 && rectangle.width <= grid.width && rectangle.height <= grid.height &&
+        rectangle.x >= 0 && rectangle.y >= 0 && rectangle.x <= grid.width - rectangle.width &&
+        rectangle.y <= grid.height - rectangle.height;
+}
+bool inventoryRectanglesOverlap(const InventoryItemRectangle& a, const InventoryItemRectangle& b) {
+    return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+InventoryLayout buildInventoryLayout(const StorageLoadout& loadout, const InventoryItems& inventory, const std::string& heldItem) {
+    if (!heldItem.empty() && (inventory.owned.find(heldItem) == inventory.owned.end() || inventory.placements.count(heldItem)))
+        throw std::runtime_error("Held inventory item must be owned and have no placement");
     InventoryLayout result;
     const auto add = [&](const std::string& reference, const StorageGrid& grid) {
         if (!result.emplace(reference, InventoryContainer{grid, {}}).second)
@@ -27,6 +44,7 @@ InventoryLayout buildInventoryLayout(const StorageLoadout& loadout, const Invent
             add(backpackStorageReference(backpack.id, slot.id), slot.grid);
     }
     for (const auto& [id, item] : inventory.owned) {
+        if (id == heldItem) continue;
         const auto invalid = [&](const std::string& reason) {
             throw std::runtime_error("inventory.toml: placements." + id + " " + reason);
         };
@@ -36,15 +54,13 @@ InventoryLayout buildInventoryLayout(const StorageLoadout& loadout, const Invent
         const auto found = result.find(entry.storage);
         if (found == result.end()) invalid("references unavailable storage " + entry.storage);
         auto& container = found->second;
-        const auto& grid = container.grid;
-        if (item.width < 1 || item.height < 1 || item.width > grid.width || item.height > grid.height ||
-            entry.x < 0 || entry.y < 0 || entry.x > grid.width - item.width || entry.y > grid.height - item.height)
+        const auto rectangle = inventoryRectangle(item, entry);
+        if (!inventoryRectangleFits(container.grid, rectangle))
             invalid("extends outside " + entry.storage);
         for (const auto& placed : container.items)
-            if (entry.x < placed.x + placed.width && entry.x + item.width > placed.x &&
-                entry.y < placed.y + placed.height && entry.y + item.height > placed.y)
+            if (inventoryRectanglesOverlap(rectangle, placed))
                 invalid("overlaps " + placed.item + " in " + entry.storage);
-        container.items.push_back({id, entry.x, entry.y, item.width, item.height});
+        container.items.push_back(rectangle);
     }
     // Also reject stale placements when callers construct a snapshot directly.
     for (const auto& [id, placement] : inventory.placements) {

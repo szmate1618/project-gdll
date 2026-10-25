@@ -16,6 +16,7 @@ struct ItemDefinition {
 struct ItemPlacement {
     std::string storage; // Reference to an equipped storage compartment.
     int x = 0, y = 0; // Zero-based cell coordinates of the item's top left.
+    int rotation = 0; // Clockwise degrees: 0, 90, 180 or 270.
 };
 
 struct InventoryItems {

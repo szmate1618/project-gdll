@@ -43,6 +43,7 @@ struct Input {
     bool leave = false;
 #ifdef MP_GRAPHICS
     viewer::HudScreen hudScreen = viewer::HudScreen::Gameplay;
+    viewer::Hud* hud = nullptr; // Borrowed from Graphics on the GL thread.
 #endif
     double lastX = 0, lastY = 0;
     glm::vec2 drag{0};
@@ -61,6 +62,9 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         in.hudScreen = in.hudScreen == requested ? viewer::HudScreen::Gameplay : requested;
         in.firstMouse = true; in.drag = {};
         in.leftPressed = in.rightPressed = in.prone = in.reload = in.enterVehicle = in.toggleDrivingCamera = false;
+        if (in.hud) in.hud->cancelInventoryDrag();
+        glfwSetInputMode(window, GLFW_CURSOR,
+            in.capture && in.hudScreen == viewer::HudScreen::Gameplay ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
         return;
     }
     if (in.hudScreen != viewer::HudScreen::Gameplay) return;
@@ -80,8 +84,13 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         glfwSetInputMode(window, GLFW_CURSOR, in.capture ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
     }
 }
+void inventoryPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
+    int width, height; glfwGetWindowSize(window, &width, &height);
+    if (hud && width > 0 && height > 0) hud->pointerMove(float(x / width), float(y / height));
+}
 void mouse(GLFWwindow* window, double x, double y) {
     auto& in = input(window);
+    if (in.hudScreen == viewer::HudScreen::Inventory) { inventoryPointer(window, in.hud, x, y); return; }
     if (!in.capture || in.hudScreen != viewer::HudScreen::Gameplay) return;
     if (in.firstMouse) { in.firstMouse = false; in.lastX = x; in.lastY = y; return; }
     const float dx = static_cast<float>(x - in.lastX), dy = static_cast<float>(in.lastY - y);
@@ -91,14 +100,25 @@ void mouse(GLFWwindow* window, double x, double y) {
 }
 void button(GLFWwindow* window, int buttonCode, int action, int) {
     auto& in = input(window);
+    if (in.hudScreen == viewer::HudScreen::Inventory) {
+        double x, y; glfwGetCursorPos(window, &x, &y);
+        inventoryPointer(window, in.hud, x, y);
+        if (in.hud) in.hud->pointerButton(buttonCode, action == GLFW_PRESS);
+        return;
+    }
     if (!in.capture || in.driver.occupied() || action != GLFW_PRESS || in.hudScreen != viewer::HudScreen::Gameplay) return;
     if (buttonCode == GLFW_MOUSE_BUTTON_LEFT) in.leftPressed = true;
     if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT && in.interaction) in.rightPressed = true;
     if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT && in.canScope && !in.interaction) in.camera.cycleViewMode();
 }
+void scroll(GLFWwindow* window, double, double y) {
+    auto& in = input(window);
+    if (in.hudScreen == viewer::HudScreen::Inventory && in.hud) in.hud->mouseWheel(static_cast<float>(y));
+}
 void focus(GLFWwindow* window, int focused) {
     if (!focused) {
         auto& in = input(window); in.capture = false; in.firstMouse = true;
+        if (in.hud) in.hud->cancelInventoryDrag();
         in.drag = {}; in.prone = in.reload = in.enterVehicle = in.toggleDrivingCamera = false;
         in.leftPressed = in.rightPressed = false;
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
@@ -127,6 +147,7 @@ struct Graphics {
             glfwSetWindowUserPointer(window, nullptr);
             glfwSetKeyCallback(window, nullptr); glfwSetCursorPosCallback(window, nullptr);
             glfwSetCharCallback(window, nullptr);
+            glfwSetScrollCallback(window, nullptr);
             glfwSetMouseButtonCallback(window, nullptr); glfwSetWindowFocusCallback(window, nullptr);
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         }
@@ -153,6 +174,7 @@ struct Graphics {
         renderer->setVehicleAssets(multiplayer::resourceRoot() / "assets/vehicles/models");
         reticle = std::make_unique<viewer::ReticleOverlay>(shaders);
         hud = std::make_unique<viewer::Hud>(multiplayer::resourceRoot() / "ui");
+        in.hud = hud.get();
         if (const auto minimap = viewer::findMinimapSource(scene.model)) {
             hud->setMinimap(*minimap, renderer->sceneTexture(minimap->texture));
             hud->setMinimapRoads(scene.model);
@@ -170,10 +192,13 @@ struct Graphics {
         audio = std::make_unique<viewer::AudioSystem>(audioOptions);
     }
     void bindInput(Input& in) {
+        in.hud = hud.get();
         glfwSetWindowUserPointer(window, &in); glfwSetKeyCallback(window, key); glfwSetCursorPosCallback(window, mouse);
         glfwSetMouseButtonCallback(window, button); glfwSetWindowFocusCallback(window, focus);
         glfwSetCharCallback(window, nullptr);
-        glfwSetInputMode(window, GLFW_CURSOR, in.capture ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+        glfwSetScrollCallback(window, scroll);
+        glfwSetInputMode(window, GLFW_CURSOR,
+            in.capture && in.hudScreen == viewer::HudScreen::Gameplay ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
     }
 #else
     void bindInput(Input&) {}

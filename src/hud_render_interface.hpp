@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 #include "opengl.hpp"
 #include "minimap.hpp"
 #include <filesystem>
@@ -17,7 +19,7 @@ class HudRenderInterface final : public Rml::RenderInterface {
 public:
     explicit HudRenderInterface(const std::filesystem::path& shaderDirectory);
     ~HudRenderInterface() override;
-    void render(Rml::Context& context, int width, int height);
+    void render(Rml::Context& context, int width, int height, const std::function<void()>& afterLayout = {});
     void setMinimap(const MinimapSource& source, GLuint texture);
     void setMinimapRoads(const Model& model);
     void setMinimapPosition(glm::vec2 position) { minimapPosition_ = position; }

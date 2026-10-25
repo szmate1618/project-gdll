@@ -189,6 +189,7 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             require(!in.driver.thirdPerson(), "Alt must return to the driver seat");
             key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
             require(in.hudScreen == viewer::HudScreen::Inventory, "F1 must open inventory while seated");
+            require(glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_NORMAL, "Inventory must release the cursor while seated");
             key(window, GLFW_KEY_F2, 0, GLFW_PRESS, 0);
             key(window, GLFW_KEY_F2, 0, GLFW_REPEAT, 0);
             require(in.hudScreen == viewer::HudScreen::Skills, "F2 must select skills without repeat toggling");
@@ -204,6 +205,7 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
                     previewCommand.movement.forward == 0, "Prototype screen passed gameplay input through");
             key(window, GLFW_KEY_ESCAPE, 0, GLFW_PRESS, 0);
             require(in.hudScreen == viewer::HudScreen::Gameplay && !in.leave, "Escape must close skills before leaving session");
+            require(glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED, "Closing inventory screens must restore cursor capture");
             in.capture = true;
             key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
             require(!in.capture && !in.driver.thirdPerson(), "F12 must release the mouse without changing camera mode");

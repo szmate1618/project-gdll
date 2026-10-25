@@ -1,4 +1,5 @@
 body.loadout { background-color: #29312fed; }
+body.inventory { pointer-events: auto; }
 #loadout-frame { position: absolute; left: 50%; top: 50%; margin-left: -606dp; margin-top: -330dp; width: 1212dp; height: 660dp; }
 #loadout-header { position: absolute; top: 0dp; width: 1212dp; height: 48dp; border-bottom: 1dp #f5f6f24d; }
 .page-tab { position: absolute; top: 6dp; height: 40dp; width: 178dp; font-size: 19dp; color: #f5f6f280; }
@@ -89,3 +90,7 @@ body.loadout { background-color: #29312fed; }
 #satellite-overview { display: block; position: absolute; left: 50%; margin-left: -257dp; top: 54dp; width: 512dp; height: 512dp; border: 1dp #f5f6f24d; background-color: #121b16; }
 #map-unavailable { position: absolute; left: 0dp; top: 298dp; width: 1210dp; text-align: center; font-size: 13dp; color: #f5f6f299; }
 .has-satellite #map-unavailable { display: none; }
+
+.inventory-ghost { position: absolute; z-index: 100; box-sizing: border-box; border: 2dp #ec6962; background-color: #ec696240; pointer-events: none; overflow: hidden; font-size: 9dp; }
+.inventory-ghost.valid { border-color: #59c49c; background-color: #59c49c40; }
+.inventory-ghost.swap { border-color: #e7cd65; background-color: #e7cd6540; }

@@ -82,6 +82,7 @@ Root `inventory.toml` gives each owned item one placement:
 storage = "body/hip_holster/holster"
 x = 0
 y = 0
+rotation = 0 # Optional clockwise degrees: 0, 90, 180 or 270.
 ```
 
 `storage` references an **equipped** compartment. Valid reference forms are:
@@ -97,7 +98,8 @@ the right and Y downward. These are different from the normalized panel
 coordinates used to position storage compartments.
 
 The rectangle size comes from the item descriptor's `width` and `height`; a
-placement cannot override it. On opening Inventory, all owned items must have
+placement cannot override it. At 90° or 270°, width and height exchange axes.
+On opening Inventory, all owned items must have
 one placement, references must resolve to equipped storage, and rectangles must
 fit without overlapping. Touching edges are allowed. Missing/stale placements,
 unequipped compartments, invalid coordinates, oversized items and overlaps
@@ -105,7 +107,7 @@ produce configuration errors rather than clipping or silently moving items.
 
 The starter pistol is 2×1 in the hip holster, and the grenade is in the chest
 pouch. Left and right shoulder slings are also equipped, each with a vertical
-2×5 grid. They will fit the 5×2 sniper after rotation support is added; the
+2×5 grid. They fit the 5×2 sniper after a 90° wheel rotation while held; the
 current weapon placements stay in the backpack, holster and pouch. The SMG, shotgun and sniper are in the tactical backpack. Those three
 weapons need 24 cells, so the starter loadout now equips the existing 8×10
 backpack instead of the 20-cell sling bag. The 4×5 sling-bag definition remains
@@ -113,9 +115,13 @@ available in the catalog.
 
 The UI draws each occupied footprint as a labeled/tinted rectangle on the
 compartment grid; tiny body-storage items also have a name below the grid.
-Placements remain a startup menu snapshot: automatic packing, rotation,
-drag-and-drop, stacking, tag restrictions and runtime ownership synchronization
-are not implemented. Existing grenade/ammunition counts and combat behavior
+Drag items with the left mouse button and rotate them with the wheel in 90°
+steps. Free-space drops finish the move; overlapping one item swaps it into
+the cursor. Overlapping multiple items or extending outside the grid is rejected.
+Right-click, leaving Inventory or losing focus restores the whole unfinished swap
+chain. Completed moves persist in memory until the session ends; no configuration
+files are written. Automatic packing, stacking, tag restrictions and runtime
+ownership synchronization are not implemented. Existing grenade/ammunition counts and combat behavior
 are unchanged.
 
 ## Ownership and action hotbar

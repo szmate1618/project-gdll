@@ -429,6 +429,7 @@ struct AppState {
     bool capture = true, firstMouse = true, hidden = false;
     bool collisionDebug = false;
     viewer::HudScreen hudScreen = viewer::HudScreen::Gameplay;
+    viewer::Hud* hud = nullptr; // Borrows the graphics-thread HUD.
     bool flashlight = true;
     glm::vec3 playerVelocity{0};
     double lastX = 0, lastY = 0;
@@ -441,7 +442,8 @@ void captureMouse(GLFWwindow* window, bool captured) {
     app.capture = captured;
     if (!captured) { app.interaction.cancel(); app.weapons.cancelTrigger(); }
     app.firstMouse = true;
-    if (!app.hidden) glfwSetInputMode(window, GLFW_CURSOR, captured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+    if (!app.hidden) glfwSetInputMode(window, GLFW_CURSOR,
+        captured && app.hudScreen == viewer::HudScreen::Gameplay ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
 }
 
 void framebufferCallback(GLFWwindow* window, int width, int height) {
@@ -463,6 +465,9 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         app.hudScreen = app.hudScreen == requested ? viewer::HudScreen::Gameplay : requested;
         app.keys.fill(false); app.proneToggleQueued = false; app.firstMouse = true;
         app.weapons.cancelTrigger(); app.interaction.cancel();
+        if (app.hud) app.hud->cancelInventoryDrag();
+        if (!app.hidden) glfwSetInputMode(window, GLFW_CURSOR,
+            app.capture && app.hudScreen == viewer::HudScreen::Gameplay ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
         return;
     }
     if (app.hudScreen != viewer::HudScreen::Gameplay) return;
@@ -532,8 +537,14 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     }
 }
 
+void inventoryPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
+    int width, height;
+    glfwGetWindowSize(window, &width, &height);
+    if (hud && width > 0 && height > 0) hud->pointerMove(float(x / width), float(y / height));
+}
 void cursorCallback(GLFWwindow* window, double x, double y) {
     auto& app = state(window);
+    if (app.hudScreen == viewer::HudScreen::Inventory) { inventoryPointer(window, app.hud, x, y); return; }
     if (!app.capture || app.hudScreen != viewer::HudScreen::Gameplay) return;
     if (!app.firstMouse && std::isfinite(x) && std::isfinite(y))
         app.interaction.look(app.rig.camera(), static_cast<float>(x - app.lastX), static_cast<float>(app.lastY - y), glfwGetTime());
@@ -544,6 +555,12 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     auto& app = state(window);
+    if (app.hudScreen == viewer::HudScreen::Inventory) {
+        double x, y; glfwGetCursorPos(window, &x, &y);
+        inventoryPointer(window, app.hud, x, y);
+        if (app.hud) app.hud->pointerButton(button, action == GLFW_PRESS);
+        return;
+    }
     if ((button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT) && action == GLFW_RELEASE) {
         if (button == GLFW_MOUSE_BUTTON_LEFT) app.weapons.trigger(false);
         app.interaction.release(button == GLFW_MOUSE_BUTTON_LEFT ? viewer::Hand::Left : viewer::Hand::Right, glfwGetTime());
@@ -572,6 +589,8 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
 }
 
 void scrollCallback(GLFWwindow* window, double, double y) {
+    if (state(window).hudScreen == viewer::HudScreen::Inventory && state(window).hud)
+        state(window).hud->mouseWheel(static_cast<float>(y));
     if (state(window).hudScreen != viewer::HudScreen::Gameplay) return;
     auto& rig = state(window).rig;
     if (!rig.walking()) rig.camera().adjustSpeed(std::pow(1.2f, static_cast<float>(std::clamp(y, -20.0, 20.0))));
@@ -579,6 +598,7 @@ void scrollCallback(GLFWwindow* window, double, double y) {
 
 void focusCallback(GLFWwindow* window, int focused) {
     if (!focused) {
+        if (state(window).hud) state(window).hud->cancelInventoryDrag();
         state(window).keys.fill(false);
         state(window).proneToggleQueued = false;
         state(window).firstMouse = true;
@@ -1279,6 +1299,7 @@ int run(const Options& options) {
     renderer.setVehicleInstancing(options.vehicleInstancing);
     viewer::ReticleOverlay reticle(options.shaders);
     viewer::Hud hud(VIEWER_HUD_DIR);
+    app.hud = &hud;
     if (const auto minimap = viewer::findMinimapSource(model)) {
         hud.setMinimap(*minimap, renderer.sceneTexture(minimap->texture));
         hud.setMinimapRoads(model);

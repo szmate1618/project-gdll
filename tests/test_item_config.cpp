@@ -76,6 +76,14 @@ void starterInventory() {
 }
 void invalidInventory() {
     Fixture fixture;
+    for (const auto* angle : {"0", "90", "180", "270"}) {
+        fixture.inventory((std::string("[weapons]\npistol=1\n[placements.pistol]\nstorage='body/hip_holster/holster'\nx=0\ny=0\nrotation=") + angle).c_str());
+        require(viewer::loadInventoryItems(fixture.root).placements.at("pistol").rotation == std::stoi(angle), "Configured rotation was not parsed");
+    }
+    for (const auto* angle : {"-90", "45", "360", "90.5", "'90'"}) {
+        fixture.inventory((std::string("[weapons]\npistol=1\n[placements.pistol]\nstorage='body/hip_holster/holster'\nx=0\ny=0\nrotation=") + angle).c_str());
+        fixture.rejects("inventory.toml", "rotation");
+    }
     for (const auto* text : {
         "[weapons]\npistol=1\n[hotbar]\n0='sniper'\n",
         "[weapons]\npistol=1\n[hotbar]\n0=5\n",

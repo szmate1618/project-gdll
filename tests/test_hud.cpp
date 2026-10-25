@@ -353,6 +353,46 @@ int main(int argc, char** argv) {
             clear(); hud.draw(state, 1280, 720); checkState();
             require(first == pixels(1280, 720), "Closing a prototype screen failed to restore the gameplay HUD");
         }
+        {
+            viewer::Hud hud(VIEWER_HUD_DIR);
+            state.screen = viewer::HudScreen::Inventory;
+            const auto draw = [&] { clear(); hud.draw(state, 1280, 720); checkState(); return pixels(1280, 720); };
+            const auto initial = draw();
+            const auto move = [&](float x, float y) { hud.pointerMove(x / 1280, y / 720); };
+            // Exchange SMG for shotgun, then shotgun for sniper. Cancel must
+            // restore all three footprints, rather than only the last item.
+            move(600, 261); hud.pointerButton(0, true);
+            move(650, 261); hud.pointerButton(0, false); draw();
+            move(600, 293); hud.pointerButton(0, true); hud.pointerButton(0, false); draw();
+            hud.pointerButton(1, true);
+            const auto cancelled = draw();
+            for (int y = 150; y < 540; ++y) for (int x = 34; x < 872; ++x)
+                require(colorAt(initial, 1280, 720, x, y) == colorAt(cancelled, 1280, 720, x, y), "Right-click failed to restore all swapped item footprints");
+            // Sniper starts at backpack row 2. Pick up its first cell, rotate,
+            // and align the rotated grab cell with the sling's second column.
+            move(600, 293); hud.pointerButton(0, true); hud.mouseWheel(1);
+            move(74, 195);
+            const auto held = draw();
+            require(held != initial, "Inventory input did not show a held item");
+            if (argc > 1) capture((std::string(argv[1]) + "-drag-preview.ppm").c_str(), held, 1280, 720);
+            hud.pointerButton(0, false);
+            const auto placed = draw();
+            require(colorAt(placed, 1280, 720, 55, 230) != colorAt(initial, 1280, 720, 55, 230), "Rotated sniper was not placed in the shoulder sling");
+            for (int y = 568; y < 690; ++y) for (int x = 34; x < 1246; ++x)
+                require(colorAt(initial, 1280, 720, x, y) == colorAt(placed, 1280, 720, x, y), "Storage drag changed the hotbar");
+            if (argc > 1) capture((std::string(argv[1]) + "-drag-placed.ppm").c_str(), placed, 1280, 720);
+            // Same window fractions work after a 2x render-resolution change.
+            clear(); hud.draw(state, 640, 360); checkState();
+            move(74, 195); hud.pointerButton(0, true); hud.mouseWheel(-1);
+            clear(); hud.draw(state, 640, 360); checkState();
+            hud.pointerButton(1, true);
+            clear(); hud.draw(state, 640, 360); checkState();
+            require(draw() == placed, "Right-click failed to restore the previous completed placement");
+            move(74, 195); hud.pointerButton(0, true); draw();
+            state.screen = viewer::HudScreen::Skills; draw();
+            state.screen = viewer::HudScreen::Inventory;
+            require(draw() == placed, "Leaving Inventory failed to cancel a pending drag");
+        }
         // Use isolated configuration files to check that actual screen geometry
         // changes with selection, and that reopening a cached page performs no IO.
         {

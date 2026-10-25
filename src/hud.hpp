@@ -34,6 +34,12 @@ public:
     Hud(const Hud&) = delete;
     Hud& operator=(const Hud&) = delete;
     void draw(const HudState& state, int width, int height);
+    // Queue inventory input on the GL thread. Window fractions also work with
+    // HiDPI displays and a render resolution different from the window size.
+    void pointerMove(float normalizedX, float normalizedY);
+    void pointerButton(int button, bool pressed); // 0: left, 1: right/cancel.
+    void mouseWheel(float notches);
+    void cancelInventoryDrag();
     // Borrow the terrain's uploaded OpenGL texture; its renderer must outlive
     // this HUD. The mapping is copied; no extra image decode/upload is needed.
     void setMinimap(const MinimapSource& source, unsigned int texture);

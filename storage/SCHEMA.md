@@ -48,8 +48,8 @@ equipped in the starter loadout and appear at the top corners of Body Storage.
 Their references are `body/left_shoulder_sling/carry` and
 `body/right_shoulder_sling/carry`.
 
-They have the same footprint as the 5×2 sniper after rotation. Rotation is not
-implemented yet, so the sniper keeps its current backpack placement. The chest
+They fit the 5×2 sniper when rotated 90° using the mouse wheel while held.
+The sniper starts in the backpack. The chest
 pouch's panel position is lower to leave room for the right sling.
 
 ## Coordinates and layout
@@ -79,8 +79,12 @@ the footprint's top left. Dimensions come from the item definition. The UI
 requires a valid non-overlapping placement for every owned item; it does not
 rearrange items to make them fit. See [the item schema](weapons/README.md).
 
-Automatic packing, rotation, tag restrictions and equipping interactions are
-not implemented. Item details remain unselected. The shared hotbar reads weapon
+Dragging supports rotation, free-space placement and exchange with one overlapping
+item. Right-click, closing Inventory or losing focus restores the entire unfinished
+swap chain; placing into free space completes it. Moves last for the session only.
+Optional placement `rotation` is 0, 90, 180 or 270 degrees, clockwise.
+Automatic packing, tag restrictions and equipping interactions are
+not implemented. Item details follow the selected item. The shared hotbar reads weapon
 ownership and shortcuts from root `inventory.toml`; Skills entries remain visual
 examples. Unknown extra catalog fields are ignored, so tags from an older
 storage descriptor have no effect.

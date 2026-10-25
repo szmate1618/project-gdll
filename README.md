@@ -36,7 +36,10 @@ reactions, moans, chase grunts, footsteps, doors and weapon effects include
 to supply replacements or `--no-audio` to mute playback without changing AI hearing.
 
 **F1** opens Inventory, **F2** Skills, **F3** the empty Health screen, and **F4**
-the full Sentinel map.
+the full Sentinel map. In Inventory, drag items with the left mouse button and
+rotate held items with the wheel in 90° steps. Placing over one item picks it up
+in exchange. Right-click cancels the entire unfinished swap chain. Completed
+moves last for the session; configuration files and hotbar assignments stay unchanged.
 **F8** selects free-fly; **F9** enters walking mode at the camera position when
 clear, falling onto the surface below or recovering to safe ground if needed.
 In walking mode, use **WASD** to walk, the mouse to look, **Space** to jump, and

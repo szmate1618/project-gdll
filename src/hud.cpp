@@ -1,6 +1,7 @@
 #include "hud.hpp"
 #include "hud_render_interface.hpp"
 #include "inventory_view.hpp"
+#include "inventory_interaction.hpp"
 #include "item_config.hpp"
 #include "storage_config.hpp"
 #include <RmlUi/Core.h>
@@ -89,6 +90,8 @@ struct Hud::Impl {
     Rml::ElementDocument* document = nullptr;
     std::array<Rml::ElementDocument*, 4> screens{};
     std::optional<InventoryItems> inventoryItems;
+    std::unique_ptr<InventoryInteraction> inventoryInteraction;
+    std::vector<InventoryPointerEvent> pointerEvents;
     bool hasSatelliteImage = false;
     std::filesystem::path sourceDirectory;
     HudScreen screen = HudScreen::Gameplay;
@@ -150,6 +153,7 @@ struct Hud::Impl {
     }
     ~Impl() { shutdown(); }
     void shutdown() {
+        inventoryInteraction.reset();
         if (initialized) { Rml::Shutdown(); initialized = false; hudActive = false; }
         Rml::SetRenderInterface(nullptr);
         Rml::SetSystemInterface(nullptr);
@@ -199,7 +203,8 @@ struct Hud::Impl {
                     populateActionHotbar(*page, *inventoryItems);
                 }
                 if (selected == HudScreen::Inventory)
-                    populateInventory(*page, loadStorageLoadout(sourceDirectory.parent_path() / "storage"), *inventoryItems);
+                    inventoryInteraction = std::make_unique<InventoryInteraction>(*page,
+                        loadStorageLoadout(sourceDirectory.parent_path() / "storage"), *inventoryItems);
                 if (selected == HudScreen::Map) {
                     auto* map = dynamic_cast<SatelliteMapElement*>(page->GetElementById("satellite-overview"));
                     if (!map) throw std::runtime_error("Missing full satellite map element");
@@ -210,6 +215,10 @@ struct Hud::Impl {
             return page;
         };
         auto* nextDocument = screenDocument(next);
+        if (screen == HudScreen::Inventory) {
+            inventoryInteraction->cancel();
+            pointerEvents.clear();
+        }
         screenDocument(screen)->Hide();
         nextDocument->Show();
         screen = next;
@@ -224,10 +233,14 @@ struct Hud::Impl {
         }
         showScreen(state.screen);
         if (screen != HudScreen::Gameplay) {
-            renderer.render(*context, width, height);
+            if (screen == HudScreen::Inventory)
+                renderer.render(*context, width, height, [&] { inventoryInteraction->process(pointerEvents, width, height); });
+            else renderer.render(*context, width, height);
+            pointerEvents.clear();
             return;
         }
         updateCompass(state.yawDegrees);
+        pointerEvents.clear();
         renderer.setMinimapPosition({state.position.x, state.position.z});
         // Coordinates remain local metres; the reference's latitude/longitude
         // cannot be inferred from a runtime position without map georeferencing.
@@ -257,6 +270,21 @@ struct Hud::Impl {
 Hud::Hud(const std::filesystem::path& directory) : impl_(std::make_unique<Impl>(directory)) {}
 Hud::~Hud() = default;
 void Hud::draw(const HudState& state, int width, int height) { impl_->draw(state, width, height); }
+void Hud::pointerMove(float x, float y) {
+    if (!std::isfinite(x) || !std::isfinite(y)) return;
+    auto& events = impl_->pointerEvents;
+    const InventoryPointerEvent event{InventoryPointerAction::Move, x, y};
+    if (!events.empty() && events.back().action == InventoryPointerAction::Move) events.back() = event;
+    else events.push_back(event);
+}
+void Hud::pointerButton(int button, bool pressed) {
+    if (button == 0) impl_->pointerEvents.push_back({pressed ? InventoryPointerAction::Press : InventoryPointerAction::Release});
+    else if (button == 1 && pressed) cancelInventoryDrag();
+}
+void Hud::mouseWheel(float notches) {
+    if (std::isfinite(notches)) impl_->pointerEvents.push_back({InventoryPointerAction::Wheel, std::clamp(notches, -32.f, 32.f)});
+}
+void Hud::cancelInventoryDrag() { impl_->pointerEvents.push_back({InventoryPointerAction::Cancel}); }
 void Hud::setMinimap(const MinimapSource& source, unsigned int texture) {
     impl_->renderer.setMinimap(source, texture);
     impl_->hasSatelliteImage = texture != 0;

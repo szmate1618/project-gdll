@@ -112,6 +112,14 @@ InventoryItems loadInventoryItems(const Path& root) {
             };
             entry.x = coordinate("x");
             entry.y = coordinate("y");
+            if (placement->contains("rotation")) {
+                if (!(*placement)["rotation"].is_integer())
+                    invalid(file, "placements." + id + ".rotation must be an integer angle");
+                const auto rotation = required<std::int64_t>(*placement, "rotation", file);
+                if (rotation < 0 || rotation > 270 || rotation % 90 != 0)
+                    invalid(file, "placements." + id + ".rotation must be 0, 90, 180 or 270");
+                entry.rotation = static_cast<int>(rotation);
+            }
             result.placements.emplace(id, std::move(entry));
         }
     }

@@ -14,13 +14,13 @@
     </div>
     <div id="item-details" class="panel main-panel details-panel">
         <div class="panel-heading">ITEM DETAILS</div>
-        <div class="detail-square unselected"></div><div class="detail-name">No item selected</div><div class="detail-subtitle">Storage loaded from inventory.toml</div>
+        <div class="detail-square unselected"></div><div id="inventory-item-name" class="detail-name">No item selected</div><div id="inventory-help" class="detail-subtitle">Drag / Wheel: 90° / Right-click: cancel</div>
         <div class="detail-fields">
-            <div class="detail-field"><div class="field-label">TYPE</div><div class="field-value">—</div></div>
-            <div class="detail-field"><div class="field-label">SIZE</div><div class="field-value">—</div></div>
-            <div class="detail-field"><div class="field-label">TAGS</div><div class="field-value">—</div></div>
-            <div class="detail-field"><div class="field-label">CURRENT LOCATION</div><div class="field-value">—</div></div>
-            <div class="detail-field"><div class="field-label">ACCESS TIME</div><div class="field-value">—</div></div>
+            <div class="detail-field"><div class="field-label">TYPE</div><div id="inventory-type" class="field-value">—</div></div>
+            <div class="detail-field"><div class="field-label">SIZE</div><div id="inventory-size" class="field-value">—</div></div>
+            <div class="detail-field"><div class="field-label">TAGS</div><div id="inventory-tags" class="field-value">—</div></div>
+            <div class="detail-field"><div class="field-label">CURRENT LOCATION</div><div id="inventory-current-location" class="field-value">—</div></div>
+            <div class="detail-field"><div class="field-label">ACCESS TIME</div><div id="inventory-access-time" class="field-value">—</div></div>
         </div>
     </div>
 </body>

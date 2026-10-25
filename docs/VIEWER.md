@@ -104,7 +104,7 @@ Noto or Liberation Sans font; Windows uses the system Segoe UI font. To select
 another installed font, set `GD_HUD_FONT` to its `.ttf` path before launching.
 FreeType creates the glyph atlas needed to render this system-font text.
 
-F1 opens the Inventory visual prototype; F2 opens Skills, F3 Health and F4 Map.
+F1 opens Inventory; F2 opens Skills, F3 Health and F4 Map.
 Press the active key again, or Escape, to return to the gameplay HUD. Opening
 any screen cancels
 held actions and blocks movement, camera look and gameplay inputs while it is
@@ -116,7 +116,7 @@ are available in the graphical multiplayer client.
 [storage/loadout.toml](../storage/loadout.toml) and the equipment/backpack catalogs
 in that folder. The starter selection is an 8×10 tactical backpack, hip holster
 and chest pouch, plus left and right shoulder slings with vertical 2×5 grids.
-The slings start empty; rotation will let the 5×2 sniper fit their 2×5 grids. The 4×5 sling bag remains
+The slings start empty; rotate the 5×2 sniper to fit their 2×5 grids. The 4×5 sling bag remains
 available in the catalog. Slot
 coordinates are normalized within each panel's inner storage rectangle. Capacity, pocket placement and access times come from those files;
 see [the storage schema](../storage/SCHEMA.md) for editing and validation rules.
@@ -124,8 +124,19 @@ The files are read once when Inventory first opens; restart to reload changes.
 Root `inventory.toml` places the 2×1 pistol in the holster, the grenade in the
 chest pouch, and the other three weapons in the backpack. Occupied N×M footprints
 are drawn as tinted rectangles on the grids. References, bounds and overlap
-are validated against the equipped storage; item details remain unselected.
+are validated against the equipped storage. Picking up an item shows its details.
 Storage placements do not change the weapon/ammo mechanics.
+
+Inventory releases the cursor. Hold the left mouse button to pick up and drag an
+item; release to place it. Each mouse-wheel notch rotates the held item 90°;
+the opposite direction reverses rotation. Green previews indicate free space,
+yellow indicates a swap, and red indicates a rejected placement. A drop must fit
+entirely inside one compartment and may overlap at most one other item. Swapping
+immediately holds the displaced item; click and release to place it next.
+Right-click, leaving Inventory, or losing window focus cancels the entire
+unfinished swap chain, restoring all placements to before the first pickup.
+A free-space drop completes the chain. Completed moves persist for the session;
+they are not written to TOML or synchronized over the network.
 
 [skills.rml](../ui/skills.rml) has a skill list, skill details and an empty
 combo-builder section reserved for later design. Both screens use
@@ -136,9 +147,8 @@ remain fixed examples. The shared hotbar reads owned weapon IDs and slots from
 [storage/weapons/*.inventory.toml](../storage/weapons/README.md). Slots 0–4 start
 assigned to pistol, SMG, shotgun, sniper and HE grenade; 5–9 are empty. Item descriptors carry N×M grid
 footprints separately from gameplay settings in `storage/weapons/*.gameplay.toml`.
-Ownership and shortcuts are cached when Inventory or Skills first opens. The layouts do not
-implement interactive placement, equipping, assignment, skill use, filters,
-drag-and-drop or combos.
+Ownership and shortcuts are cached when Inventory or Skills first opens.
+Hotbar assignment, equipping, skill use, filters and combos remain unimplemented.
 Icons and the body reference are colored square placeholders. System fonts and
 the HUD backend are shared; each screen is cached until the session ends.
 

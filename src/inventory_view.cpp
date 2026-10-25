@@ -25,9 +25,9 @@ std::string size(const StorageGrid& grid) {
 std::string position(double x, double y) {
     return "left:" + number(x) + "dp;top:" + number(y) + "dp;";
 }
-std::string gridMarkup(const InventoryContainer& container, double cell, const InventoryItems& inventory) {
+std::string gridMarkup(const InventoryContainer& container, double cell, const InventoryItems& inventory, const std::string& reference) {
     const auto& grid = container.grid;
-    std::string result = "<div class='storage-grid' style='width:" + number(grid.width * cell) + "dp'>";
+    std::string result = "<div class='storage-grid' data-storage=\"" + Rml::StringUtilities::EncodeRml(reference) + "\" style='width:" + number(grid.width * cell) + "dp'>";
     for (int row = 0; row < grid.height; ++row) {
         result += "<div class='storage-row' style='height:" + number(cell) + "dp'>";
         for (int column = 0; column < grid.width; ++column) result += "<div class='storage-cell'></div>";
@@ -36,7 +36,7 @@ std::string gridMarkup(const InventoryContainer& container, double cell, const I
     for (const auto& rectangle : container.items) {
         const auto& item = inventory.owned.at(rectangle.item);
         const bool explosive = std::find(item.tags.begin(), item.tags.end(), "explosive") != item.tags.end();
-        result += "<div class='storage-item" + std::string(explosive ? " explosive" : "") + "' style='" +
+        result += "<div class='storage-item" + std::string(explosive ? " explosive" : "") + "' data-item=\"" + Rml::StringUtilities::EncodeRml(item.id) + "\" style='" +
             position(rectangle.x * cell, rectangle.y * cell) + "width:" + number(rectangle.width * cell) +
             "dp;height:" + number(rectangle.height * cell) + "dp;font-size:" + number(std::min(10.0, cell * .48)) + "dp'>";
         if (rectangle.width > 1 || rectangle.height > 1)
@@ -49,10 +49,10 @@ std::string gridMarkup(const InventoryContainer& container, double cell, const I
 // Coordinates refer to the whole inner panel, including space around the main
 // grid. Clamp the complete card at edges so its label and timing stay readable.
 std::string slotMarkup(const StorageSlot& slot, const InventoryContainer& container, const InventoryItems& inventory,
-                       double panelWidth, double panelHeight, double maxGridHeight = 64) {
+                       double panelWidth, double panelHeight, const std::string& reference, double maxGridHeight = 64) {
     constexpr double width = 108;
     const double cell = std::min({24.0, width / slot.grid.width, maxGridHeight / slot.grid.height});
-    const double height = 28 + slot.grid.height * cell + 22 + (container.items.empty() ? 0 : 14);
+    const double height = 28 + slot.grid.height * cell + 22 + 14;
     const double left = std::clamp((slot.x + 1) * panelWidth / 2 - width / 2, 0.0, panelWidth - width);
     const double top = std::clamp((slot.y + 1) * panelHeight / 2 - height / 2, 0.0, panelHeight - height);
     std::string names;
@@ -62,8 +62,8 @@ std::string slotMarkup(const StorageSlot& slot, const InventoryContainer& contai
     }
     return "<div class='storage-slot' style='" + position(left, top) + "'>"
         "<div class='storage-label'>" + Rml::StringUtilities::EncodeRml(slot.name) + "</div>" +
-        gridMarkup(container, cell, inventory) +
-        (names.empty() ? "" : "<div class='storage-occupants'>" + names + "</div>") +
+        gridMarkup(container, cell, inventory, reference) +
+        "<div class='storage-occupants'>" + names + "</div>" +
         "<div class='storage-time'>" + size(slot.grid) + " / " +
         number(slot.grid.accessTime) + "s</div></div>";
 }
@@ -74,12 +74,13 @@ void set(Rml::ElementDocument& document, const char* id, const std::string& mark
 }
 } // namespace
 
-void populateInventory(Rml::ElementDocument& document, const StorageLoadout& loadout, const InventoryItems& inventory) {
-    const auto layout = buildInventoryLayout(loadout, inventory);
+void populateInventory(Rml::ElementDocument& document, const StorageLoadout& loadout, const InventoryItems& inventory,
+                       const std::string& heldItem) {
+    const auto layout = buildInventoryLayout(loadout, inventory, heldItem);
     std::string body;
     for (const auto& equipment : loadout.equipment)
         for (const auto& slot : equipment.slots)
-            body += slotMarkup(slot, layout.at(bodyStorageReference(equipment.id, slot.id)), inventory, 348, 344);
+            body += slotMarkup(slot, layout.at(bodyStorageReference(equipment.id, slot.id)), inventory, 348, 344, bodyStorageReference(equipment.id, slot.id));
     if (body.empty()) body = "<div class='storage-empty'>NO BODY STORAGE EQUIPPED</div>";
     set(document, "body-storage-slots", body);
     set(document, "body-storage-count", std::to_string(loadout.equipment.size()) + " EQUIPPED");
@@ -98,11 +99,11 @@ void populateInventory(Rml::ElementDocument& document, const StorageLoadout& loa
     const double top = (344 - grid.height * cell) / 2;
     std::string contents = "<div class='main-storage' style='" +
         position((388 - grid.width * cell) / 2, top) + "'>" +
-        gridMarkup(layout.at(backpackStorageReference(backpack.id)), cell, inventory) + "</div>";
+        gridMarkup(layout.at(backpackStorageReference(backpack.id)), cell, inventory, backpackStorageReference(backpack.id)) + "</div>";
     // Shorter external grids leave room for top/bottom compartments around the
     // central grid, while retaining the same panel-relative coordinate frame.
     for (const auto& slot : backpack.slots)
-        contents += slotMarkup(slot, layout.at(backpackStorageReference(backpack.id, slot.id)), inventory, 388, 344, 40);
+        contents += slotMarkup(slot, layout.at(backpackStorageReference(backpack.id, slot.id)), inventory, 388, 344, backpackStorageReference(backpack.id, slot.id), 26);
     set(document, "backpack-storage", contents);
     set(document, "backpack-name", Rml::StringUtilities::EncodeRml(backpack.name));
     set(document, "backpack-size", size(grid));
