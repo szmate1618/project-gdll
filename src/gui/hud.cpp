@@ -272,10 +272,9 @@ Hud::~Hud() = default;
 void Hud::draw(const HudState& state, int width, int height) { impl_->draw(state, width, height); }
 void Hud::pointerMove(float x, float y) {
     if (!std::isfinite(x) || !std::isfinite(y)) return;
-    auto& events = impl_->pointerEvents;
-    const InventoryPointerEvent event{InventoryPointerAction::Move, x, y};
-    if (!events.empty() && events.back().action == InventoryPointerAction::Move) events.back() = event;
-    else events.push_back(event);
+    // Preserve the pointer path: moving away and back between rendered frames
+    // must still be distinguishable from a click without dragging.
+    impl_->pointerEvents.push_back({InventoryPointerAction::Move, x, y});
 }
 void Hud::pointerButton(int button, bool pressed) {
     if (button == 0) impl_->pointerEvents.push_back({pressed ? InventoryPointerAction::Press : InventoryPointerAction::Release});

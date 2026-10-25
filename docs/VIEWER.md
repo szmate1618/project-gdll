@@ -131,13 +131,19 @@ Compartment `allowed_tags` restrict the hip holster to `handgun` items and both
 shoulder slings to `long_gun` items; other starter compartments accept any tag.
 Storage placements do not change the weapon/ammo mechanics.
 
-Inventory releases the cursor. Hold the left mouse button to pick up and drag an
-item; release to place it. Each mouse-wheel notch rotates the held item 90°;
+Inventory releases the cursor. Click an item to select its details without
+moving it or paying access time. Hold the left mouse button and move at least
+4 design pixels to pick up and drag an item; release to place it. Turning the
+wheel while holding the mouse button also begins the drag.
+Each mouse-wheel notch rotates the held item 90°;
 the opposite direction reverses rotation. Green previews indicate free space,
 yellow indicates a swap, and red indicates a rejected placement. A drop must fit
 entirely inside one compartment and may overlap at most one other item. Pickup
 is instant; a valid drop waits for source access plus destination access. The
-pending item stays at the destination with a progress bar, and other inventory
+exception is returning an item to its original holster, pouch, sling or external
+pocket, which is immediate even in a different cell. A genuine drag returned
+to the backpack main compartment still pays its access cost.
+A pending item stays at the destination with a progress bar, and other inventory
 moves/rotation wait until completion. The world and game/session time keep running.
 At completion, swapping immediately holds the displaced item; its next placement
 charges destination access only. Click and release to place it next.

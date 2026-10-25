@@ -28,6 +28,7 @@ private:
     void refresh();
     void ghost();
     void rotate(int turns);
+    void beginDrag();
     Rml::ElementDocument& document_;
     PlayerInventory& inventory_;
     InventoryDrag drag_;
@@ -38,6 +39,8 @@ private:
     Rml::Element* destinationGrid_ = nullptr; // Valid until refresh rebuilds the grids.
     std::optional<double> lastSeconds_;
     std::string selected_;
+    std::string dragCandidate_;
+    float pressX_ = 0, pressY_ = 0; // Window fractions, stable across viewport resizing.
     float normalizedX_ = 0, normalizedY_ = 0, x_ = 0, y_ = 0;
     float wheel_ = 0, cellWidth_ = 16, cellHeight_ = 16;
     int anchorX_ = 0, anchorY_ = 0;

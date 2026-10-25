@@ -71,7 +71,11 @@ unfinished chain; completed free-space drops persist. Storage and item maps
 cannot be modified directly through the public model API.
 
 Pickup is immediate. `drop()` validates the destination and starts `pending()`
-for source plus destination compartment access time. `advance(seconds)` takes
+for source plus destination compartment access time. Returning to the current
+pickup's original non-main compartment (including an external backpack pocket)
+finishes immediately, even in a different cell or valid rotation. Main-backpack
+returns remain timed, independent of whether occupancy adjustments are configured.
+`advance(seconds)` takes
 elapsed simulation/session seconds and commits the placement when time is up.
 Pending items still report `Hand` until completion. A displaced item is picked
 up at completion and charges destination access only on its next placement.
@@ -79,6 +83,11 @@ Further drops/rotation are blocked during a pending placement. `cancel()` needs
 no time and restores the whole unfinished chain. The GUI consumes the caller's
 `HudState::seconds` clock, which continues while menus are open, and draws a
 progress bar beside the pending destination. There is no game pause.
+
+The GUI separates selection from pickup: a press selects details, and a release
+without dragging does not modify the model. A drag starts after 4 design pixels
+of movement, or a deliberate wheel turn while pressed. Pointer paths are retained
+so moving away and back between rendered frames still counts as a real drag.
 
 `inventoryAccess()` is a pure occupancy calculation used by source pickup,
 destination placement and the item details display. Backpack main access starts

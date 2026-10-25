@@ -363,6 +363,31 @@ int main(int argc, char** argv) {
             const auto draw = [&](double elapsed = 0) { state.seconds += elapsed; clear(); hud.draw(state, 1280, 720); checkState(); return pixels(1280, 720); };
             const auto initial = draw();
             const auto move = [&](float x, float y) { hud.pointerMove(x / 1280, y / 720); };
+            const auto click = [&](const char* id, float x, float y) {
+                const auto before = *hudInventory.locationOf(id)->placement;
+                move(x, y); hud.pointerButton(0, true); draw();
+                require(!hudInventory.held() && hudInventory.locationOf(id)->placement,
+                    "Pressing an item must select it without starting a pickup");
+                move(x + 1, y + 1); hud.pointerButton(0, false); draw();
+                const auto after = hudInventory.locationOf(id);
+                require(!hudInventory.held() && after->placement && after->placement->storage == before.storage &&
+                    after->placement->x == before.x && after->placement->y == before.y && after->placement->rotation == before.rotation,
+                    "Clicking or small pointer jitter must not start a timed replacement");
+            };
+            click("pistol", 65, 402);
+            click("he_grenade", 304, 333);
+            click("sniper", 600, 293);
+            // Preserve the path even when moving away and back happens within
+            // a single render frame. Only the actual backpack drag is timed.
+            move(65, 402); hud.pointerButton(0, true);
+            move(200, 420); move(65, 402); hud.pointerButton(0, false); draw();
+            require(!hudInventory.held() && hudInventory.locationOf("pistol")->placement->storage == "body/hip_holster/holster",
+                "Dragging a pistol away and back into its holster must return it without a timer");
+            move(600, 293); hud.pointerButton(0, true);
+            move(800, 450); move(600, 293); hud.pointerButton(0, false); draw();
+            require(hudInventory.held() && hudInventory.held()->item == "sniper",
+                "A true backpack drag returned to its origin must retain the backpack access cost");
+            hud.pointerButton(1, true); draw();
             // Exchange SMG for shotgun, then shotgun for sniper. Cancel must
             // restore all three footprints, rather than only the last item.
             move(600, 261); hud.pointerButton(0, true);
@@ -407,7 +432,8 @@ int main(int argc, char** argv) {
             hud.pointerButton(1, true);
             clear(); hud.draw(state, 640, 360); checkState();
             require(draw() == placed, "Right-click failed to restore the previous completed placement");
-            move(74, 195); hud.pointerButton(0, true); draw();
+            move(74, 195); hud.pointerButton(0, true); move(80, 205); draw();
+            require(hudInventory.held().has_value(), "Dragging beyond the movement threshold must pick up the item");
             state.screen = viewer::HudScreen::Skills; draw();
             state.screen = viewer::HudScreen::Inventory;
             require(draw() == placed, "Leaving Inventory failed to cancel a pending drag");

@@ -51,6 +51,12 @@ void InventoryInteraction::refresh() {
     populateInventoryDetails(document_, inventory_, selected_);
     document_.UpdateDocument();
 }
+void InventoryInteraction::beginDrag() {
+    if (dragCandidate_.empty()) return;
+    const auto item = std::move(dragCandidate_);
+    dragCandidate_.clear();
+    if (drag_.pickUp(item)) refresh();
+}
 void InventoryInteraction::rotate(int turns) {
     if (!drag_.held() || drag_.pending()) return;
     const auto& held = *drag_.held();
@@ -113,6 +119,7 @@ void InventoryInteraction::cancel() {
     const bool changed = bool(drag_.held());
     drag_.cancel();
     pressed_ = false; wheel_ = 0;
+    dragCandidate_.clear();
     if (changed) refresh();
     ghost_->SetProperty("display", "none");
     progress_->SetProperty("display", "none");
@@ -129,9 +136,16 @@ void InventoryInteraction::process(const std::vector<InventoryPointerEvent>& eve
         case InventoryPointerAction::Move:
             normalizedX_ = event.x; normalizedY_ = event.y;
             x_ = normalizedX_ * width; y_ = normalizedY_ * height;
+            if (pressed_ && !dragCandidate_.empty()) {
+                const float dx = (normalizedX_ - pressX_) * width, dy = (normalizedY_ - pressY_) * height;
+                const float threshold = 4 * document_.GetContext()->GetDensityIndependentPixelRatio();
+                if (dx * dx + dy * dy >= threshold * threshold) beginDrag();
+            }
             break;
         case InventoryPointerAction::Cancel: cancel(); advancePending = false; break;
         case InventoryPointerAction::Wheel:
+            // A deliberate wheel turn while holding an item also starts its drag.
+            if (pressed_ && event.x != 0) beginDrag();
             if (drag_.held() && !drag_.pending()) {
                 wheel_ += event.x;
                 while (std::abs(wheel_) >= 1) {
@@ -143,14 +157,17 @@ void InventoryInteraction::process(const std::vector<InventoryPointerEvent>& eve
         case InventoryPointerAction::Press: {
             if (drag_.pending()) break;
             pressed_ = true;
+            dragCandidate_.clear();
             const auto hovered = hit();
             if (!drag_.held() && !hovered.item.empty()) {
                 const auto placement = inventory_.placements().at(hovered.item);
                 anchorX_ = hovered.x - placement.x; anchorY_ = hovered.y - placement.y;
                 cellWidth_ = hovered.cellWidth; cellHeight_ = hovered.cellHeight;
                 selected_ = hovered.item; wheel_ = 0;
-                drag_.pickUp(selected_);
-                refresh();
+                dragCandidate_ = selected_;
+                pressX_ = normalizedX_; pressY_ = normalizedY_;
+                populateInventoryDetails(document_, inventory_, selected_);
+                document_.UpdateDocument();
             }
             break;
         }
@@ -166,6 +183,7 @@ void InventoryInteraction::process(const std::vector<InventoryPointerEvent>& eve
                 }
             }
             pressed_ = false;
+            dragCandidate_.clear();
             break;
         }
     }

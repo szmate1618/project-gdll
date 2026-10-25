@@ -75,9 +75,49 @@ void cancellationAndRowIndependence() {
     near(drag.pending()->durationSeconds, 3.73, "Rejected placement must preserve original pickup cost for the valid drop");
     drag.cancel();
 }
+void returningToOriginalCompartment() {
+    auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
+    viewer::InventoryDrag drag(inventory);
+    constexpr auto holster = "body/hip_holster/holster";
+    constexpr auto pouch = "body/chest_pouch/pouch";
+    drag.pickUp("pistol"); drag.rotate(2);
+    require(drag.drop(holster, 0, 0).result == viewer::InventoryDrop::Free && !drag.pending() && !drag.held(),
+        "Returning a dragged item to its holster must be instantaneous");
+    require(inventory.locationOf("pistol")->placement->rotation == 180, "Free returns must still apply valid orientation changes");
+    drag.pickUp("he_grenade");
+    require(drag.drop(pouch, 2, 1).result == viewer::InventoryDrop::Rejected && drag.held() && !drag.pending(),
+        "Free put-back must not bypass compartment bounds");
+    require(drag.drop(pouch, 1, 1).result == viewer::InventoryDrop::Free && !drag.pending() && !drag.held(),
+        "Returning to the original pouch must be free even in a different cell");
+    require(inventory.locationOf("he_grenade")->placement->x == 1 && inventory.locationOf("he_grenade")->placement->y == 1,
+        "Free returns must use the requested position");
+    constexpr auto pocket = "backpack/tactical_backpack/left_side";
+    drag.pickUp("he_grenade"); drag.drop(pocket, 0, 0);
+    require(drag.pending() && drag.pending()->durationSeconds > 0, "Moving to a different compartment must still cost access time");
+    drag.advance(drag.pending()->durationSeconds);
+    drag.pickUp("he_grenade");
+    require(drag.drop(pocket, 0, 1).result == viewer::InventoryDrop::Free && !drag.pending() && !drag.held(),
+        "An external backpack pocket must behave like a pouch when returning its item");
+    drag.pickUp("sniper"); drag.rotate(1); drag.drop(sling, 0, 0);
+    drag.advance(drag.pending()->durationSeconds);
+    drag.pickUp("sniper");
+    require(drag.drop(sling, 0, 0).result == viewer::InventoryDrop::Free && !drag.pending(),
+        "Returning an item to its shoulder sling must be free");
+    drag.pickUp("submachine_gun");
+    require(drag.drop(pack, 0, 0).result == viewer::InventoryDrop::Free && drag.pending() && drag.pending()->durationSeconds > 0,
+        "An actual backpack drag returned to its original cells must still charge access time");
+    drag.cancel();
+    // Identify the main backpack by its equipped compartment, not by the
+    // optional obstruction/support configuration.
+    auto fixedStorage = inventory.storage(); fixedStorage.backpack->grid.backpackAccess.reset();
+    viewer::PlayerInventory fixed(fixedStorage, viewer::loadInventoryContents(VIEWER_ITEM_ROOT));
+    viewer::InventoryDrag fixedDrag(fixed); fixedDrag.pickUp("sniper"); fixedDrag.drop(pack, 0, 2);
+    require(fixedDrag.pending() && fixedDrag.pending()->durationSeconds > 0,
+        "Main-backpack returns must remain timed even without occupancy scoring");
+}
 } // namespace
 int main() {
-    try { sourceAndDestination(); swapDestinationOnly(); cancellationAndRowIndependence();
+    try { sourceAndDestination(); swapDestinationOnly(); cancellationAndRowIndependence(); returningToOriginalCompartment();
         std::cout << "Timed inventory placement checks passed\n"; return 0; }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

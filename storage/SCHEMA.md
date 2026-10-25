@@ -66,7 +66,12 @@ so the same obstruction/support is not charged twice.
 
 Picking up an item is immediate. A valid drop starts a timer for the original
 compartment's access time plus the destination compartment's access time. The
-item stays pending until that timer completes, with a progress bar beside its
+exception is returning to the same non-main compartment: holsters, pouches,
+shoulder slings and external backpack pockets accept the item immediately, even
+in another valid cell. Backpack main compartments still charge for actual drags
+returned to their starting cells. Simple GUI clicks select details without
+picking up or replacing the item.
+Timed placements stay pending until the timer completes, with a progress bar beside the
 destination. During placement, further moves/rotation are blocked; cancellation
 remains available. An overlapping item is picked up automatically at completion
 and pays only destination access on its next placement. Cancelling an unfinished
