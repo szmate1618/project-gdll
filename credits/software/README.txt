@@ -13,6 +13,14 @@ Protobuf — Google and contributors; BSD-3-Clause (see bundled platform notice)
   https://github.com/protocolbuffers/protobuf
 GLFW 3.4 — Marcus Geelnard, Camilla Löwy and contributors; zlib/libpng license.
   https://www.glfw.org/license.html
+RmlUi 6.3 — RmlUi Team and contributors; MIT, including bundled container notices.
+  Used by the shared viewer/client HUD; not linked into headless servers.
+  https://github.com/mikke89/RmlUi/tree/6.3
+FreeType — The FreeType Project; FreeType License (FTL).
+  Platform-selected, or pinned 2.13.3 when development files are unavailable.
+  Portions of this software are copyright © 2024 The FreeType Project
+  (www.freetype.org). All rights reserved.
+  HUD fonts come from the operating system and are not redistributed.
 GLM 1.0.1 — G-Truc Creation and contributors; see GLM.txt (dual license).
   https://github.com/g-truc/glm/blob/1.0.1/copying.txt
 Box3D — Erin Catto; MIT, pinned commit f555ee42084e0b43cbffa863f40bff8117c08896.

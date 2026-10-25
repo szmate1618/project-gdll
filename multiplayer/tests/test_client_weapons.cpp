@@ -19,10 +19,20 @@ void require(bool condition, const char* message) {
 }
 std::size_t differences(std::size_t a, std::size_t b) {
     std::size_t count = 0;
-    for (std::size_t i = 0; i < frames.at(a).size(); i += 3)
-        if (std::abs(int(frames[a][i]) - int(frames[b][i])) > 8 ||
-            std::abs(int(frames[a][i+1]) - int(frames[b][i+1])) > 8 ||
-            std::abs(int(frames[a][i+2]) - int(frames[b][i+2])) > 8) ++count;
+    // Compare the world/held-weapon area. The HUD intentionally differs between
+    // connection, equipment, cooldown, interaction and vehicle states.
+    for (int y = 0; y < frameHeight; ++y)
+        for (int x = 0; x < frameWidth; ++x) {
+            const bool hud = (y > 600 && (x < 240 || (x > 550 && x < 740) || x > 1140)) ||
+                (x < 240 && y < 320) || (x >= 250 && x < 430 && y < 120) ||
+                (x > 450 && x < 830 && y < 110) || (x > 990 && y < 160) ||
+                (x > 310 && x < 970 && y > 130 && y < 170);
+            if (hud) continue;
+            const auto i = static_cast<std::size_t>(y * frameWidth + x) * 3;
+            if (std::abs(int(frames[a][i]) - int(frames[b][i])) > 8 ||
+                std::abs(int(frames[a][i+1]) - int(frames[b][i+1])) > 8 ||
+                std::abs(int(frames[a][i+2]) - int(frames[b][i+2])) > 8) ++count;
+        }
     return count;
 }
 void capture(const char* name) {
@@ -279,6 +289,7 @@ int main(int argc, char** argv) {
         std::filesystem::copy(source / "items", fixture / "items", copy);
         std::filesystem::copy(source / "vehicles", fixture / "vehicles", copy);
         std::filesystem::copy(source / "shaders", fixture / "shaders", copy);
+        std::filesystem::copy(source / "ui", fixture / "ui", copy);
         std::filesystem::create_directories(fixture / "multiplayer/client");
         for (const auto* shader : {"players.vert", "players.frag"})
             std::filesystem::copy_file(source / "multiplayer/client" / shader, fixture / "multiplayer/client" / shader,

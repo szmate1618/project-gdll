@@ -1,0 +1,47 @@
+<rml>
+<head>
+    <title>Game HUD</title>
+    <link type="text/rcss" href="hud.rcss" />
+</head>
+<body>
+    <div id="session" class="panel">
+        <div class="eyebrow">GODOLLO</div>
+        <div id="movement" class="session-value">FREE FLY</div>
+        <div id="mode" class="accent">COMBAT</div>
+    </div>
+    <div id="compass" class="panel">
+        <div class="eyebrow">HEADING</div>
+        <div id="heading">N 000</div>
+    </div>
+    <div id="status" class="panel">
+        <div id="flashlight">LIGHT OFF</div>
+        <div id="capture" class="accent"></div>
+    </div>
+    <div id="navigation" class="panel">
+        <div class="map-heading"><span class="eyebrow">LOCAL AREA</span><span class="north">N</span></div>
+        <div id="map-placeholder"><div id="player-placeholder"></div></div>
+        <div class="map-footer"><span>200 x 200 m</span><span class="muted">MAP PLACEHOLDER</span></div>
+        <div id="coordinates" class="muted">E 0 / N 0</div>
+    </div>
+    <div id="vitals" class="panel">
+        <div class="eyebrow">VITALS</div>
+        <div class="vital-row"><span class="square health"></span><span>HEALTH</span><span class="unavailable">--</span></div>
+        <div class="vital-row"><span class="square stamina"></span><span>STAMINA</span><span class="unavailable">--</span></div>
+    </div>
+    <div id="quickbar">
+        <div id="slot-5" class="slot"><div class="slot-key">~</div><div class="square fists"></div><div class="slot-label">FISTS</div></div>
+        <div id="slot-0" class="slot"><div class="slot-key">1</div><div class="square pistol"></div><div class="slot-label">PISTOL</div></div>
+        <div id="slot-1" class="slot"><div class="slot-key">2</div><div class="square smg"></div><div class="slot-label">SMG</div></div>
+        <div id="slot-2" class="slot"><div class="slot-key">3</div><div class="square shotgun"></div><div class="slot-label">SHOTGUN</div></div>
+        <div id="slot-3" class="slot"><div class="slot-key">4</div><div class="square sniper"></div><div class="slot-label">SNIPER</div></div>
+        <div id="slot-4" class="slot"><div class="slot-key">5</div><div class="square grenade"></div><div class="slot-label">HE</div></div>
+    </div>
+    <div id="weapon" class="panel">
+        <div class="eyebrow">EQUIPPED</div>
+        <div id="equipment">CONNECTING</div>
+        <div class="ammo"><span id="loaded">--</span><span class="ammo-divider"> / </span><span id="reserve">--</span></div>
+        <div id="ammo-label" class="muted">LOADED / RESERVE</div>
+    </div>
+    <div id="prompt"></div>
+</body>
+</rml>

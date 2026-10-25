@@ -1,0 +1,40 @@
+# Keep graphics-only UI dependencies out of dedicated/headless server builds.
+function(gd_add_hud)
+    set(BUILD_SHARED_LIBS OFF)
+    find_package(Freetype QUIET)
+    if(NOT TARGET Freetype::Freetype)
+        set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
+        set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+        set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+        set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+        set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+        FetchContent_Declare(freetype
+            URL https://codeload.github.com/freetype/freetype/tar.gz/refs/tags/VER-2-13-3
+            URL_HASH SHA256=bc5c898e4756d373e0d991bab053036c5eb2aa7c0d5c67e8662ddc6da40c4103
+            DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/_archives"
+            DOWNLOAD_NAME freetype-2.13.3.tar.gz)
+        FetchContent_MakeAvailable(freetype)
+        add_library(Freetype::Freetype ALIAS freetype)
+    endif()
+    set(RMLUI_SAMPLES OFF CACHE BOOL "" FORCE)
+    set(RMLUI_LUA_BINDINGS OFF CACHE BOOL "" FORCE)
+    set(RMLUI_SVG_PLUGIN OFF CACHE BOOL "" FORCE)
+    set(RMLUI_LOTTIE_PLUGIN OFF CACHE BOOL "" FORCE)
+    set(RMLUI_IME_SAMPLE_USE_NOTO_FONTS OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(rmlui
+        URL https://codeload.github.com/mikke89/RmlUi/tar.gz/refs/tags/6.3
+        URL_HASH SHA256=d977298bb6147610e5984d5db85ddf284020d655a8713913f6982074f1dbdede
+        DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/_archives"
+        DOWNLOAD_NAME rmlui-6.3.tar.gz)
+    FetchContent_MakeAvailable(rmlui)
+
+    add_library(viewer_hud STATIC src/hud.cpp src/hud_render_interface.cpp)
+    target_include_directories(viewer_hud PUBLIC "${PROJECT_SOURCE_DIR}/src")
+    target_link_libraries(viewer_hud PUBLIC glm::glm PRIVATE RmlUi::Core viewer_renderer)
+    target_compile_definitions(viewer_hud PRIVATE GL_GLEXT_PROTOTYPES)
+    if(WIN32)
+        target_link_libraries(viewer_hud PRIVATE GLEW::GLEW)
+    endif()
+    viewer_warnings(viewer_hud)
+endfunction()
+gd_add_hud()

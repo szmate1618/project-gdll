@@ -10,6 +10,7 @@
 #include "players.hpp"
 #include "renderer.hpp"
 #include "reticle_overlay.hpp"
+#include "hud.hpp"
 #include "weapon_overlay.hpp"
 #include "player_body_renderer.hpp"
 #include "undergrowth_audio.hpp"
@@ -94,6 +95,7 @@ struct Graphics {
 #ifdef MP_GRAPHICS
     std::unique_ptr<viewer::Renderer> renderer;
     std::unique_ptr<viewer::ReticleOverlay> reticle;
+    std::unique_ptr<viewer::Hud> hud;
     std::unique_ptr<viewer::WeaponOverlay> weapon;
     std::unique_ptr<viewer::AudioSystem> audio;
     viewer::UndergrowthEmitter undergrowth;
@@ -103,7 +105,7 @@ struct Graphics {
     std::unique_ptr<multiplayer::PlayerRenderer> players;
     std::unique_ptr<viewer::PlayerBodyRenderer> body;
     ~Graphics() {
-        audio.reset(); body.reset(); players.reset(); weapon.reset(); reticle.reset(); renderer.reset();
+        audio.reset(); body.reset(); players.reset(); weapon.reset(); hud.reset(); reticle.reset(); renderer.reset();
         if (window) {
             glfwSetWindowUserPointer(window, nullptr);
             glfwSetKeyCallback(window, nullptr); glfwSetCursorPosCallback(window, nullptr);
@@ -133,6 +135,7 @@ struct Graphics {
             &scene.zombies, scene.forests ? &*scene.forests : nullptr);
         renderer->setVehicleAssets(multiplayer::resourceRoot() / "assets/vehicles/models");
         reticle = std::make_unique<viewer::ReticleOverlay>(shaders);
+        hud = std::make_unique<viewer::Hud>(multiplayer::resourceRoot() / "ui");
         const viewer::FPSConfig playerConfig;
         weapon = std::make_unique<viewer::WeaponOverlay>(shaders, multiplayer::weaponModelDirectory(),
             viewer::WeaponViewBody{playerConfig.height, playerConfig.eyeHeight});
@@ -371,6 +374,23 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                     graphics.weapon->draw(ownState.slot, width, height, flash,
                                           in.weaponMotion.pose(ownState.slot, now));
                 if (!in.driver.occupied()) graphics.reticle->draw(in.camera.viewMode(), width, height);
+                viewer::HudState hudState;
+                hudState.position = in.camera.position();
+                hudState.yawDegrees = in.camera.yawDegrees();
+                hudState.movement = in.driver.occupied() ? (in.driver.driving() ? "DRIVING" : "PASSENGER") : "FPS walking";
+                hudState.mode = in.interaction ? "Interaction" : "Combat";
+                hudState.flashlight = in.flashlight;
+                hudState.mouseCaptured = in.capture;
+                if (prediction.ready()) {
+                    hudState.equipment = weaponDefinitions.equipped().config.name;
+                    hudState.slot = ownState.slot;
+                    if (ownState.slot != viewer::punchSlot) {
+                        hudState.loaded = static_cast<int>(ownState.loaded);
+                        hudState.reserve = static_cast<int>(ownState.reserve);
+                    }
+                }
+                if (in.driver.occupied()) hudState.prompt = "Enter: exit vehicle";
+                graphics.hud->draw(hudState, width, height);
                 renderer.present(width, height); glfwSwapBuffers(graphics.window);
                 viewer::Renderer::checkErrors("multiplayer frame");
                 const auto entry = !in.driver.occupied() && prediction.ready() ?

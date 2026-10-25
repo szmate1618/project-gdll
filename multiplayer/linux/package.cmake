@@ -27,7 +27,7 @@ set(staging "${BUILD_DIR}/linux-client-${suffix}")
 set(package "${staging}/godollo-client-linux-x86_64")
 file(MAKE_DIRECTORY "${package}/assets" "${package}/multiplayer/client" "${package}/lib" "${package}/licenses")
 file(COPY "${client}" DESTINATION "${package}")
-file(COPY "${source_root}/shaders" "${source_root}/items" "${source_root}/vehicles" "${source_root}/credits" DESTINATION "${package}")
+file(COPY "${source_root}/shaders" "${source_root}/ui" "${source_root}/items" "${source_root}/vehicles" "${source_root}/credits" DESTINATION "${package}")
 file(COPY "${source_root}/inventory.toml" DESTINATION "${package}")
 file(COPY "${source_root}/assets/test.glb" "${source_root}/assets/test.navmesh"
     DESTINATION "${package}/assets")
@@ -66,8 +66,8 @@ file(COPY "${source_root}/credits/software/nlohmann-json.txt" "${source_root}/cr
     "${source_root}/credits/software/recastnavigation.txt"
     DESTINATION "${package}/licenses")
 
-set(projects GameNetworkingSockets GLFW glm box3d tinygltf tomlplusplus OpenAL)
-set(license_names LICENSE LICENSE.md copying.txt LICENSE LICENSE LICENSE COPYING)
+set(projects GameNetworkingSockets GLFW glm box3d tinygltf tomlplusplus OpenAL RmlUi)
+set(license_names LICENSE LICENSE.md copying.txt LICENSE LICENSE LICENSE COPYING LICENSE.txt)
 foreach(project IN LISTS projects)
     load_cache("${BUILD_DIR}" READ_WITH_PREFIX dependency_ "${project}_SOURCE_DIR")
 endforeach()
@@ -76,6 +76,13 @@ configure_file("${dependency_OpenAL_SOURCE_DIR}/fmt-11.1.1/LICENSE" "${package}/
 foreach(project license IN ZIP_LISTS projects license_names)
     configure_file("${dependency_${project}_SOURCE_DIR}/${license}" "${package}/licenses/${project}.txt" COPYONLY)
 endforeach()
+configure_file("${dependency_RmlUi_SOURCE_DIR}/Include/RmlUi/Core/Containers/LICENSE.txt"
+    "${package}/licenses/RmlUi-containers.txt" COPYONLY)
+load_cache("${BUILD_DIR}" READ_WITH_PREFIX dependency_ freetype_SOURCE_DIR)
+if(dependency_freetype_SOURCE_DIR)
+    configure_file("${dependency_freetype_SOURCE_DIR}/docs/FTL.TXT" "${package}/licenses/FreeType.txt" COPYONLY)
+    configure_file("${dependency_freetype_SOURCE_DIR}/LICENSE.TXT" "${package}/licenses/FreeType-licenses.txt" COPYONLY)
+endif()
 if(NOT DEFINED PROTOBUF_LICENSE)
     set(PROTOBUF_LICENSE "/usr/share/doc/libprotobuf-dev/copyright")
 endif()

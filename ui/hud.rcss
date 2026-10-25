@@ -1,0 +1,51 @@
+body {
+    width: 100%; height: 100%; margin: 0;
+    font-family: hud-system; font-weight: normal; font-size: 14dp;
+    color: #edf0eb; pointer-events: none;
+}
+div { display: block; }
+.panel { position: absolute; background-color: #101916db; border: 1dp #5c706266; padding: 12dp; }
+.eyebrow { font-size: 10dp; color: #a7b5ab; letter-spacing: 2dp; }
+.muted { color: #a7b5ab; font-size: 10dp; }
+.accent { color: #e1c986; }
+#session { left: 26dp; top: 26dp; width: 170dp; }
+.session-value { margin-top: 5dp; margin-bottom: 3dp; font-size: 17dp; }
+#mode { font-size: 11dp; }
+#compass { top: 26dp; left: 50%; margin-left: -70dp; width: 114dp; text-align: center; }
+#heading { margin-top: 4dp; font-size: 21dp; }
+#status { right: 26dp; top: 26dp; text-align: right; font-size: 11dp; }
+#capture { margin-top: 3dp; }
+#navigation { left: 26dp; bottom: 26dp; width: 188dp; padding: 10dp; }
+.map-heading { height: 24dp; }
+.north { float: right; color: #e1c986; font-size: 12dp; }
+#map-placeholder { position: relative; width: 188dp; height: 188dp; background-color: #3a5144; }
+#player-placeholder { position: absolute; left: 90dp; top: 90dp; width: 8dp; height: 8dp; background-color: #e1c986; }
+.map-footer { margin-top: 8dp; font-size: 11dp; }
+.map-footer .muted { display: block; margin-top: 3dp; font-size: 9dp; }
+#coordinates { margin-top: 4dp; }
+#vitals { left: 254dp; bottom: 26dp; width: 148dp; }
+.vital-row { position: relative; margin-top: 12dp; font-size: 11dp; }
+.vital-row .square { display: inline-block; width: 10dp; height: 10dp; margin-right: 9dp; }
+.unavailable { float: right; color: #a7b5ab; }
+.health { background-color: #c96d62; }
+.stamina { background-color: #92b69b; }
+#quickbar { position: absolute; left: 50%; bottom: 26dp; margin-left: -183dp; width: 366dp; display: flex; }
+.slot { width: 50dp; margin: 0 4dp; padding: 7dp 0; background-color: #101916db; border: 1dp #5c706266; text-align: center; }
+.slot.selected { border-color: #e1c986; background-color: #2c342bdb; }
+.slot-key { font-size: 10dp; color: #a7b5ab; }
+.slot .square { width: 20dp; height: 20dp; margin: 7dp auto; }
+.slot-label { font-size: 8dp; color: #c5cec7; }
+.fists { background-color: #b29a85; }
+.pistol { background-color: #a5b1bc; }
+.smg { background-color: #889dba; }
+.shotgun { background-color: #bd9c73; }
+.sniper { background-color: #93a88a; }
+.grenade { background-color: #b3ae72; }
+#weapon { right: 26dp; bottom: 26dp; width: 230dp; text-align: right; }
+#equipment { margin-top: 5dp; font-size: 16dp; }
+.ammo { margin-top: 7dp; margin-bottom: 3dp; }
+#loaded { font-size: 34dp; }
+.ammo-divider { color: #788a7e; font-size: 21dp; }
+#reserve { color: #c5cec7; font-size: 21dp; }
+#ammo-label { font-size: 9dp; letter-spacing: 1dp; }
+#prompt { position: absolute; bottom: 144dp; left: 25%; width: 50%; text-align: center; color: #e1c986; font-size: 13dp; }

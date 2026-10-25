@@ -10,6 +10,8 @@ trees, including their reference imagery. `credits/software/` lists runtime
 and preparation software; client `licenses/` includes bundled JSON/stb and
 Detour notices, together with platform dependency notices.
 Keep these notices with any redistributed package.
+Portions of this software are copyright © 2024 The FreeType Project
+(www.freetype.org). All rights reserved.
 
 This x64 game is built by the repository's **Build apps** GitHub workflow.
 It requires a graphics driver supporting OpenGL 3.3 and the Microsoft Visual C++
@@ -67,6 +69,10 @@ the game; the Microsoft runtime is supplied by the Redistributable. The included
 OpenAL DLL supplies audio (`--no-audio` to mute). Existing multiplayer gameplay
 and audio limitations are documented in `multiplayer/README.md` in the source
 repository.
+
+The RmlUi HUD uses colored squares for artwork and the built-in Segoe UI font.
+No HUD images or fonts are bundled. Set `GD_HUD_FONT` to an installed `.ttf`
+path to select another system font.
 
 The workflow builds the game, dedicated server and headless session checks. It
 checks the cross-platform scene fingerprint, private single-player admission,

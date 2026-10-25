@@ -12,6 +12,7 @@
 #include <random>
 #include "interior_objects.hpp"
 #include "reticle_overlay.hpp"
+#include "hud.hpp"
 #include "weapons.hpp"
 #include "weapon_overlay.hpp"
 #include "player_body.hpp"
@@ -1228,6 +1229,7 @@ int run(const Options& options) {
     renderer.setVehicleDistanceDetail(options.vehicleDistanceDetail);
     renderer.setVehicleInstancing(options.vehicleInstancing);
     viewer::ReticleOverlay reticle(options.shaders);
+    viewer::Hud hud(VIEWER_HUD_DIR);
     const auto& playerConfig = app.rig.player().config();
     viewer::WeaponOverlay weaponOverlay(options.shaders, VIEWER_WEAPON_ASSETS,
                                        {playerConfig.height, playerConfig.eyeHeight});
@@ -1461,6 +1463,22 @@ int run(const Options& options) {
             weaponOverlay.draw(app.weapons.slot(), renderWidth, renderHeight, flash,
                                app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds()));
         reticle.draw(app.rig.camera().viewMode(), renderWidth, renderHeight);
+        viewer::HudState hudState;
+        hudState.position = app.rig.camera().position();
+        hudState.yawDegrees = app.rig.camera().yawDegrees();
+        hudState.movement = app.driver.occupied() ? (app.driver.driving() ? "DRIVING" : "PASSENGER") : app.rig.modeName();
+        hudState.mode = app.interaction.modeName();
+        hudState.equipment = heldWeapon.owned ? heldWeapon.config.name : "EMPTY HANDS";
+        hudState.slot = heldWeapon.owned ? static_cast<int>(app.weapons.slot()) : -1;
+        if (heldWeapon.owned && app.weapons.slot() != viewer::punchSlot) {
+            hudState.loaded = heldWeapon.loaded;
+            hudState.reserve = heldWeapon.reserve;
+        }
+        hudState.flashlight = app.flashlight;
+        hudState.mouseCaptured = app.capture;
+        if (app.driver.occupied()) hudState.prompt = "Enter: exit vehicle";
+        else if (app.interaction.grabbing()) hudState.prompt = "Holding object";
+        hud.draw(hudState, renderWidth, renderHeight);
         intervalRenderSeconds += glfwGetTime() - renderStart;
         gpuTimer.end();
         if (frameProfile) frameProfile->endGpu();

@@ -60,7 +60,7 @@ add_executable(godollo_client client/main.cpp client/session.cpp client/options.
 target_link_libraries(godollo_client PRIVATE multiplayer_server_runtime)
 if(GD_VIEWER)
     target_sources(godollo_client PRIVATE client/menu.cpp client/players.cpp "${PROJECT_SOURCE_DIR}/src/reticle_overlay.cpp")
-    target_link_libraries(godollo_client PRIVATE viewer_renderer viewer_undergrowth_audio glfw)
+    target_link_libraries(godollo_client PRIVATE viewer_renderer viewer_hud viewer_undergrowth_audio glfw)
     target_compile_definitions(godollo_client PRIVATE MP_GRAPHICS GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
     add_dependencies(godollo_client viewer_weapon_assets viewer_audio_assets)
     if(WIN32)
@@ -145,7 +145,7 @@ if(BUILD_TESTING)
 
         add_executable(test_client_weapons tests/test_client_weapons.cpp client/players.cpp
             "${PROJECT_SOURCE_DIR}/src/reticle_overlay.cpp")
-        target_link_libraries(test_client_weapons PRIVATE multiplayer_core viewer_renderer viewer_undergrowth_audio glfw)
+        target_link_libraries(test_client_weapons PRIVATE multiplayer_core viewer_renderer viewer_hud viewer_undergrowth_audio glfw)
         target_compile_definitions(test_client_weapons PRIVATE MP_GRAPHICS GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
             VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}" VIEWER_AUDIO_DIR="${VIEWER_AUDIO_DIR}")
         add_dependencies(test_client_weapons viewer_weapon_assets viewer_test_asset viewer_audio_assets)

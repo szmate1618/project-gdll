@@ -402,6 +402,7 @@ if(WIN32)
 endif()
 target_compile_definitions(viewer_renderer PRIVATE GL_GLEXT_PROTOTYPES)
 viewer_warnings(viewer_renderer)
+include(cmake/Hud.cmake)
 endif()
 
 add_library(viewer_audio_cues STATIC src/zombie_audio.cpp src/door_audio.cpp)
@@ -417,11 +418,12 @@ viewer_warnings(viewer_scene_audio)
 add_executable(godollo_viewer src/main.cpp src/collision_debug.cpp src/frame_profile.cpp
     src/reticle_overlay.cpp)
 target_link_libraries(godollo_viewer PRIVATE viewer_vegetation
-    viewer_renderer viewer_fps viewer_interaction viewer_objects viewer_vehicles viewer_poles viewer_guardrails viewer_weapons viewer_scene_audio glfw
+    viewer_renderer viewer_hud viewer_fps viewer_interaction viewer_objects viewer_vehicles viewer_poles viewer_guardrails viewer_weapons viewer_scene_audio glfw
 )
 target_compile_definitions(godollo_viewer PRIVATE
     GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
     VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
+    VIEWER_HUD_DIR="${CMAKE_CURRENT_SOURCE_DIR}/ui"
     VIEWER_DEFAULT_ASSET="${VIEWER_TEST_ASSET}"
     VIEWER_ZOMBIE_ASSETS="${CMAKE_CURRENT_SOURCE_DIR}/assets/zombies/models"
     VIEWER_ZOMBIE_PARK="${CMAKE_CURRENT_SOURCE_DIR}/assets/zombies/grassalkovich_park.json"
@@ -498,6 +500,13 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING AND GD_VIEWER)
+    add_executable(test_hud tests/test_hud.cpp)
+    target_link_libraries(test_hud PRIVATE viewer_hud glfw)
+    target_compile_definitions(test_hud PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_HUD_DIR="${CMAKE_CURRENT_SOURCE_DIR}/ui")
+    viewer_warnings(test_hud)
+    add_test(NAME viewer_hud COMMAND test_hud)
+    set_tests_properties(viewer_hud PROPERTIES SKIP_RETURN_CODE 77)
     add_executable(benchmark_visibility EXCLUDE_FROM_ALL tests/benchmark_visibility.cpp)
     target_link_libraries(benchmark_visibility PRIVATE viewer_visibility)
     viewer_warnings(benchmark_visibility)

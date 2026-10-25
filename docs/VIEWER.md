@@ -28,6 +28,33 @@ listener, preloaded effects, streamed ambience, and a bounded nearby-zombie voic
 pool. See [audio setup and replacement sounds](AUDIO.md). Use `--no-audio` to
 disable playback while retaining simulation hearing.
 
+## HUD
+
+The viewer and graphical multiplayer client share an RmlUi HUD. It displays
+live equipment and ammunition, the selected equipment slot, compass heading,
+local east/north coordinates, control/camera mode, flashlight state and cursor
+capture. Multiplayer equipment and ammunition follow the server-confirmed
+state. The HUD is drawn into the scene target before presentation, so it also
+appears in screenshots and follows the selected render resolution.
+
+The local-area panel reserves a square for a north-up 200 × 200 m minimap.
+For now it is a solid green placeholder with a yellow player square; it does
+not load satellite imagery. All equipment artwork is represented by colored
+squares. Health and stamina show `--` because those player stats are not yet
+implemented. The HUD loads no raster/vector images and creates no artwork.
+
+Layout and styling live in [hud.rml](../ui/hud.rml) and
+[hud.rcss](../ui/hud.rcss). The small GL backend supports flat geometry, text and
+rectangular clipping; transforms, rounded clipping and filter effects are not
+implemented. It restores GL state after drawing, and caches unchanged text
+instead of rebuilding the document each frame. The HUD is informational and
+does not intercept gameplay input.
+
+No font is bundled or downloaded for the HUD. Linux uses an installed DejaVu,
+Noto or Liberation Sans font; Windows uses the system Segoe UI font. To select
+another installed font, set `GD_HUD_FONT` to its `.ttf` path before launching.
+FreeType creates the glyph atlas needed to render this system-font text.
+
 ## Linux dependencies
 
 Install a C++17 compiler, CMake 3.20 or newer, Python 3, OpenGL development
@@ -40,14 +67,14 @@ Ubuntu / Debian:
 
 ```bash
 sudo apt install build-essential cmake python3 pkg-config libgl1-mesa-dev \
-  libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libssl-dev
+  libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libssl-dev fonts-dejavu-core
 ```
 
 Fedora:
 
 ```bash
 sudo dnf install gcc-c++ cmake python3 pkgconf-pkg-config mesa-libGL-devel \
-  libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel openssl-devel
+  libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel openssl-devel dejavu-sans-fonts
 ```
 
 CMake downloads pinned versions of [GLFW 3.4](https://github.com/glfw/glfw/releases/tag/3.4),
@@ -56,6 +83,12 @@ CMake downloads pinned versions of [GLFW 3.4](https://github.com/glfw/glfw/relea
 each archive's SHA-256. It also fetches a pinned Box3D commit for door and ragdoll physics.
 Audio uses [OpenAL Soft 1.24.3](https://github.com/kcat/openal-soft/releases/tag/1.24.3),
 also pinned and hash-checked, with its built-in HRTF data.
+The HUD uses [RmlUi 6.3](https://github.com/mikke89/RmlUi/releases/tag/6.3).
+It uses an installed FreeType development package when available, otherwise
+CMake builds pinned, hash-checked FreeType 2.13.3. Headless/server-only builds
+(`GD_VIEWER=OFF`) do not fetch or link either UI dependency.
+Portions of this software are copyright © 2024 The FreeType Project
+(www.freetype.org). All rights reserved.
 The first configure needs network access. Downloads live
 under `build/_archives/`; extracted dependencies and their build products live
 under `build/_deps/`. Their examples, tests, and install targets are disabled.

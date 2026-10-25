@@ -10,6 +10,8 @@ trees, including their reference imagery. `credits/software/` lists runtime
 and preparation software; client `licenses/` includes bundled JSON/stb and
 Detour notices, together with platform dependency notices.
 Keep these notices with any redistributed package.
+Portions of this software are copyright © 2024 The FreeType Project
+(www.freetype.org). All rights reserved.
 
 Download `godollo-client-linux-x86_64` from the **Build apps** workflow and
 extract the enclosed tarball. It targets Ubuntu 24.04 x86-64 (glibc 2.39) and
@@ -18,7 +20,7 @@ graphics driver. Older glibc versions and 32-bit systems are not supported.
 On Ubuntu, the desktop runtime packages can be installed with:
 
 ```sh
-sudo apt install libopengl0 libgl1 libstdc++6 libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6
+sudo apt install libopengl0 libgl1 libstdc++6 libx11-6 libxrandr2 libxinerama1 libxcursor1 libxi6 fonts-dejavu-core
 ```
 
 Start with the launcher so the included libraries are found:
@@ -41,6 +43,10 @@ scene, and third-party library notices. It includes the client libraries found
 at build time, except glibc, the C++ runtime, and the OpenGL dispatch/driver stack; those come from
 the destination system. A desktop X11/XWayland installation is also required.
 The launcher resolves relative map paths from the package folder.
+
+The HUD uses RmlUi with colored-square artwork placeholders. Its font comes
+from the installed DejaVu, Noto or Liberation Sans system fonts; set
+`GD_HUD_FONT` to another installed `.ttf` path to override that choice.
 
 For the actual town, extract a matching `godollo-assets.zip` into this folder
 after extracting the client into a fresh folder. The host can create it with
