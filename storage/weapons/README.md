@@ -116,9 +116,11 @@ available in the catalog.
 The UI draws each occupied footprint as a labeled/tinted rectangle on the
 compartment grid; tiny body-storage items also have a name below the grid.
 Drag items with the left mouse button and rotate them with the wheel in 90°
-steps. Valid drops wait for source plus destination access, with a progress bar
-beside the destination; an item displaced at completion pays destination access
-only on its next placement. A completed free-space placement finishes the move.
+steps. Valid drops charge each distinct source/destination compartment base once
+plus both backpack footprint adjustments, with a progress bar beside the
+destination. Returning to the exact pickup compartment, cell and rotation is free
+if no other item is displaced. A displaced item's pickup is free; its next placement pays both
+source and destination costs. A completed free-space placement finishes the move.
 Overlapping multiple items or extending outside the grid is rejected.
 Right-click, leaving Inventory or losing focus restores the whole unfinished swap
 chain. Completed moves persist in memory until the session ends; no configuration
@@ -159,6 +161,7 @@ for cross-platform byte consistency.
 
 Weapon gameplay TOMLs require `draw_time_seconds`, a finite nonnegative number
 of seconds. It is used for both drawing that weapon and putting it away.
-A confirmed change adds the old put-away time, both storage access times and
-the new draw time. Obstruction is charged once for the higher-scoring footprint;
-base and support adjustments apply to both. See [weapon switching](../../docs/INVENTORY.md#weapon-switching-and-theoretical-access-ranges).
+A confirmed change adds the old put-away time, the combined storage cost and
+the new draw time. Charge each distinct compartment's base once, plus both
+backpack obstruction penalties minus both support bonuses, floored at zero.
+See [weapon switching](../../docs/INVENTORY.md#weapon-switching-and-theoretical-access-ranges).

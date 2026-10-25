@@ -38,6 +38,9 @@ left, mode/stance/speed along the bottom, and equipment/ammo at the lower right.
 Multiplayer equipment and ammunition follow the server-confirmed
 state. The HUD is drawn into the scene target before presentation, so it also
 appears in screenshots and follows the selected render resolution.
+Inventory input uses the fitted scene rectangle during presentation, including
+black bars when fullscreen and render aspect ratios differ, so clicks and drag
+previews stay aligned with the visible items. HiDPI input remains in window fractions.
 
 The navigation area displays a north-up 300 × 300 m minimap centered on the
 player's horizontal position (the camera in free-fly mode). Driving uses the
@@ -86,7 +89,7 @@ are not treated as satellite maps. Detail is limited by the imagery embedded in
 the loaded map; newer processed raster caches are never consulted.
 
 All equipment artwork is still represented by colored squares. Health, stamina
-and weariness have tinted, outlined tracks and show
+and weariness have tinted tracks at 60% opacity with white outlines at 80%, and show
 `--` because those player stats are not yet implemented. No filled amount is
 invented for them. Coordinates use local metres rather than inferred latitude
 and longitude. No other HUD artwork or custom font is loaded or generated.
@@ -157,14 +160,13 @@ Each mouse-wheel notch rotates the held item 90°;
 the opposite direction reverses rotation. Green previews indicate free space,
 yellow indicates a swap, and red indicates a rejected placement. A drop must fit
 entirely inside one compartment and may overlap at most one other item. Pickup
-is instant; a valid drop waits for source access plus destination access. The
-exception is returning an item to its original holster, pouch, sling or external
-pocket, which is immediate even in a different cell. A genuine drag returned
-to the backpack main compartment still pays its access cost.
+is instant; a valid drop charges each distinct source/destination compartment's
+base once, plus both backpack footprint adjustments. Returning to the exact
+pickup compartment, cell and rotation is free if no other item is displaced.
 A pending item stays at the destination with a progress bar, and other inventory
 moves/rotation wait until completion. The world and game/session time keep running.
 At completion, swapping immediately holds the displaced item; its next placement
-charges destination access only. Click and release to place it next.
+charges its source and destination costs. Click and release to place it next.
 Right-click, leaving Inventory, or losing window focus cancels the entire
 unfinished swap chain, restoring all placements to before the first pickup.
 A completed free-space placement finishes the chain. Cancellation requires no
@@ -172,8 +174,9 @@ time. Backpack main compartments start from their former bottom-row base times
 (sling bag 1.22s, tactical backpack 3.08s, hiking backpack 4.45s). Access adds a
 linear penalty for the largest occupied-cell count above the item and subtracts
 a bonus for the mean count below it. Item details show the adjusted time.
-Swaps use the higher obstruction and lower support across both footprints, once
-for destination access. Body slots and external pockets keep fixed access times.
+Swaps use the incoming item's destination scores and save the outgoing item's
+source scores for its next placement. The exchanged pair is excluded from scoring.
+Body slots and external pockets keep fixed access times.
 See [the scoring rules](../storage/SCHEMA.md#catalog-fields) for the formula and
 configurable penalty/bonus values.
 Completed moves persist for the session;
@@ -1572,12 +1575,13 @@ Escape cancels the preview. The initial slots are 0 pistol, 1 SMG, 2 shotgun,
 is not implemented. Punch equips the existing fists, which use no ammunition.
 
 Switching shows a progress bar without a draw/put-away animation. Its duration is
-old weapon `draw_time_seconds` + old storage access + new storage access + new
-weapon `draw_time_seconds`. Draw time also serves as put-away time; Punch costs
+old weapon `draw_time_seconds` + combined storage access + new weapon
+`draw_time_seconds`. Draw time also serves as put-away time; Punch costs
 zero for its own draw and storage. Both storage footprints exclude each other
-when scoring occupancy. Only the weapon with the larger obstruction score pays
-its obstruction penalty (the old weapon wins ties); both base access times and
-support bonuses remain. The delay is sampled on confirmation and advances with
+when scoring occupancy. Charge each distinct compartment's base once, plus
+obstruction minus support for the old weapon's backpack destination and the new
+weapon's backpack source. Floor the combined storage cost at zero.
+The delay is sampled on confirmation and advances with
 simulation time. Combat, reload and discard/pickup wait until completion, and
 confirmation/held clicks do not fire on completion. Scope resets on completion.
 Storage locations remain reserved while a weapon is equipped. Multiplayer

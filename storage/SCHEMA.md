@@ -58,23 +58,23 @@ max(0, access_time + obstruction * obstruction_time_per_cell
 ```
 
 Pickup snapshots the source scores before removing the item. Placement scores
-the proposed destination. A swap scores both the incoming footprint and the
-outgoing item's footprint with both exchanged items excluded. It uses **one**
-destination base, the **higher obstruction** and **lower support** of those two
-footprints. An automatically picked-up item's next placement has no source charge,
-so the same obstruction/support is not charged twice.
+the proposed destination. A swap excludes both exchanged items: the incoming
+item uses its own destination scores, and the outgoing item snapshots its own
+source scores before the incoming item is stored. Automatic pickup costs no time;
+its source cost is deferred until that item's next placement, like manual pickup.
 
 Picking up an item is immediate. A valid drop starts a timer for the original
-compartment's access time plus the destination compartment's access time. The
-exception is returning to the same non-main compartment: holsters, pouches,
-shoulder slings and external backpack pockets accept the item immediately, even
-in another valid cell. Backpack main compartments still charge for actual drags
-returned to their starting cells. Simple GUI clicks select details without
-picking up or replacing the item.
+compartment's base plus the destination compartment's base, charging the base
+only once if both are the same compartment. Add obstruction penalties and subtract
+support bonuses for both the source and destination backpack footprints, then
+floor the combined time at zero. Returning to the exact pickup compartment, cell
+and rotation is free if no other item is displaced, including inside the backpack.
+Other moves within one compartment charge one base. Simple GUI clicks select details without picking up or replacing
+the item.
 Timed placements stay pending until the timer completes, with a progress bar beside the
 destination. During placement, further moves/rotation are blocked; cancellation
 remains available. An overlapping item is picked up automatically at completion
-and pays only destination access on its next placement. Cancelling an unfinished
+and pays its source and destination costs on its next placement. Cancelling an unfinished
 chain restores all its original placements immediately. The game continues to
 run, including time progression, while inventory is open.
 

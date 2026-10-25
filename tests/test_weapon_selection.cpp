@@ -50,10 +50,15 @@ void transitions() {
             "Completion must equip once without firing a click held during switching");
     require(!switching.update(weapons, 100) && !switching.pending(), "Completion must not repeat");
     const auto punch = viewer::weaponSwitchTiming(inventory, weapons.equipped().config, weapons.state(viewer::punchSlot).config);
-    require(punch && punch->newAccess == 0 && punch->draw == 0 && punch->oldAccess > 0,
+    require(punch && punch->draw == 0 && punch->storageAccess > 0,
             "Punch must have no storage/draw cost, while putting away its old weapon stays timed");
+    near(punch->storageAccess, 2.84, "Switching to fists must charge only the old weapon's adjusted source storage");
+    const auto fromPunch = viewer::weaponSwitchTiming(inventory, weapons.state(viewer::punchSlot).config, weapons.equipped().config);
+    near(fromPunch->storageAccess, 2.84, "Switching from fists must charge only the new weapon's adjusted storage");
+    const auto separate = viewer::weaponSwitchTiming(inventory, weapons.state(0).config, weapons.state(4).config);
+    near(separate->storageAccess, 1.0, "Holster and chest pouch must each charge their access time");
 }
-void obstructionOnce() {
+void sharedStorageAndBothAdjustments() {
     const auto original = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);
     auto contents = original;
     // Three distinct 1x1 items: old at the bottom, new in the middle and one blocker above.
@@ -72,16 +77,23 @@ void obstructionOnce() {
     viewer::PlayerInventory inventory(loadout, contents);
     const auto timing = viewer::weaponSwitchTiming(inventory, inventory.find("old")->gameplay(), inventory.find("new")->gameplay());
     require(timing.has_value(), "Synthetic switch must have valid storage");
-    near(timing->oldAccess + timing->newAccess, 4.5, "Pair must exclude one another and charge its shared blocker once");
-    near(timing->total(), 5.0, "Total must include both draw operations and both accesses");
-    // Higher obstruction belongs to the new weapon now; support also remains in force.
+    near(timing->storageAccess, 3.0, "Shared storage must charge one base and both obstruction penalties, excluding the pair");
+    near(timing->total(), 3.5, "Total must retain both draw operations");
+    // Obstruction belongs to the new weapon; support belongs to the old one.
     contents.placements["new"].y = 2;
     contents.placements["old"].y = 0;
     contents.placements["blocker"].y = 1;
     viewer::PlayerInventory reversed(loadout, contents);
     const auto reverse = viewer::weaponSwitchTiming(reversed, reversed.find("old")->gameplay(), reversed.find("new")->gameplay());
-    near(reverse->oldAccess, 1.75, "Old weapon must keep its support bonus with no obstruction charge");
-    near(reverse->newAccess, 2.5, "New weapon must receive the single larger obstruction charge");
+    near(reverse->storageAccess, 2.25, "Shared base must retain the old weapon's support and the new weapon's obstruction");
+    // Equal configuration values do not make separate compartments identical.
+    loadout.equipment.push_back({"pouch", "POUCH", {{"main", "MAIN", 0, 0, {1, 4, 2}}}});
+    contents.placements["new"] = {"body/pouch/main", 0, 0};
+    viewer::PlayerInventory different(loadout, contents);
+    const auto across = viewer::weaponSwitchTiming(different, different.find("old")->gameplay(), different.find("new")->gameplay());
+    near(across->storageAccess, 3.75, "Different compartments must charge both bases plus the backpack support adjustment");
+    const auto back = viewer::weaponSwitchTiming(different, different.find("new")->gameplay(), different.find("old")->gameplay());
+    near(back->storageAccess, 3.75, "Backpack adjustment must apply equally when drawing instead of storing the weapon");
 }
 void theoreticalRanges() {
     viewer::StorageGrid grid{2, 3, 2, {}, viewer::BackpackAccessConfig{.5, .25}};
@@ -103,7 +115,7 @@ void theoreticalRanges() {
 }
 }
 int main() {
-    try { selection(); transitions(); obstructionOnce(); theoreticalRanges();
+    try { selection(); transitions(); sharedStorageAndBothAdjustments(); theoreticalRanges();
         std::cout << "Weapon selection, switching and access range checks passed\n"; return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

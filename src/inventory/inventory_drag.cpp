@@ -1,6 +1,5 @@
 #include "inventory_drag.hpp"
 #include <cmath>
-#include <algorithm>
 
 namespace viewer {
 InventoryDrag::InventoryDrag(PlayerInventory& inventory) : inventory_(inventory) {}
@@ -10,7 +9,7 @@ bool InventoryDrag::pickUp(const std::string& item) {
     const auto found = inventory_.contents_.placements.find(item);
     if (found == inventory_.contents_.placements.end()) return false;
     originalPlacements_ = inventory_.contents_.placements;
-    sourceStorage_ = found->second.storage;
+    sourcePlacement_ = found->second;
     sourceAccess_ = inventoryAccess(inventory_.layout_.at(found->second.storage),
         inventoryRectangle(inventory_.contents_.owned.at(item), found->second));
     inventory_.held_ = HeldInventoryItem{item, found->second.rotation};
@@ -43,19 +42,13 @@ InventoryDropCheck InventoryDrag::drop(const std::string& storage, int x, int y)
     const ItemPlacement destination{storage, x, y, inventory_.held_->rotation};
     const auto& container = inventory_.layout_.at(storage);
     const auto rectangle = inventoryRectangle(inventory_.contents_.owned.at(inventory_.held_->item), destination);
-    InventoryAccess access;
-    if (check.result == InventoryDrop::Swap) {
-        const auto displaced = std::find_if(container.items.begin(), container.items.end(),
-            [&](const auto& other) { return other.item == check.displaced; });
-        access = inventorySwapAccess(container, rectangle, *displaced);
-    } else access = inventoryAccess(container, rectangle);
-    const auto& backpack = inventory_.storage_.backpack;
-    const bool mainBackpack = backpack && storage == backpackStorageReference(backpack->id);
-    // Returning to the same holster/pouch/pocket is a free put-back, even if
-    // the item moved to another cell. Main-backpack rearrangement still costs time.
-    const bool freeReturn = storage == sourceStorage_ && !mainBackpack;
+    const auto access = inventoryAccess(container, rectangle, check.displaced);
+    const bool unchanged = check.result == InventoryDrop::Free && storage == sourcePlacement_.storage &&
+        x == sourcePlacement_.x && y == sourcePlacement_.y && destination.rotation == sourcePlacement_.rotation;
+    const double duration = unchanged ? 0 : inventoryTransferSeconds(&inventory_.layout_.at(sourcePlacement_.storage).grid,
+        sourceAccess_.scores, &container.grid, access.scores);
     pending_ = PendingInventoryPlacement{inventory_.held_->item, destination, check,
-        freeReturn ? 0 : sourceAccess_.seconds + access.seconds, 0, sourceAccess_, access};
+        duration, 0, sourceAccess_, access};
     if (pending_->durationSeconds == 0) completePlacement();
     return check;
 }
@@ -76,24 +69,26 @@ void InventoryDrag::completePlacement() {
     if (check.result == InventoryDrop::Swap) {
         const auto displaced = inventory_.contents_.placements.at(check.displaced);
         const auto rotation = displaced.rotation;
-        sourceStorage_ = displaced.storage;
+        sourcePlacement_ = displaced;
+        // Snapshot the outgoing footprint before publishing the incoming item.
+        // Automatic pickup is free now; its source access is paid on the next drop.
+        sourceAccess_ = inventoryAccess(inventory_.layout_.at(sourcePlacement_.storage),
+            inventoryRectangle(inventory_.contents_.owned.at(check.displaced), displaced), placed.item);
         inventory_.contents_.placements.erase(check.displaced);
         inventory_.held_ = HeldInventoryItem{check.displaced, rotation};
     } else {
-        sourceStorage_.clear();
+        sourcePlacement_ = {};
+        sourceAccess_ = {};
         inventory_.held_.reset();
         originalPlacements_.reset();
     }
     inventory_.contents_.placements[placed.item] = placement.destination;
-    // A swap already paid for accessing the displaced item. Its next move
-    // charges only destination access, even when it starts another swap.
-    sourceAccess_ = {};
     inventory_.rebuild();
 }
 void InventoryDrag::cancel() {
     pending_.reset();
     sourceAccess_ = {};
-    sourceStorage_.clear();
+    sourcePlacement_ = {};
     if (!originalPlacements_) return;
     inventory_.contents_.placements = std::move(*originalPlacements_);
     originalPlacements_.reset();

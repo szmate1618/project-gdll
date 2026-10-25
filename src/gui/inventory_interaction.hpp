@@ -5,6 +5,7 @@
 
 namespace Rml { class Element; class ElementDocument; }
 namespace viewer {
+struct PresentationViewport;
 enum class InventoryPointerAction { Move, Press, Release, Cancel, Wheel };
 struct InventoryPointerEvent {
     InventoryPointerAction action;
@@ -15,7 +16,8 @@ struct InventoryPointerEvent {
 class InventoryInteraction {
 public:
     InventoryInteraction(Rml::ElementDocument& document, PlayerInventory& inventory);
-    void process(const std::vector<InventoryPointerEvent>& events, int width, int height, double seconds);
+    void process(const std::vector<InventoryPointerEvent>& events, int width, int height,
+        const PresentationViewport& presentation, double seconds);
     void cancel();
 private:
     struct Hit {

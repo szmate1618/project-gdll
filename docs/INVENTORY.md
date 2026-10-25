@@ -77,14 +77,15 @@ unfinished chain; completed free-space drops persist. Storage and item maps
 cannot be modified directly through the public model API.
 
 Pickup is immediate. `drop()` validates the destination and starts `pending()`
-for source plus destination compartment access time. Returning to the current
-pickup's original non-main compartment (including an external backpack pocket)
-finishes immediately, even in a different cell or valid rotation. Main-backpack
-returns remain timed, independent of whether occupancy adjustments are configured.
+for the source and destination compartment bases (one base if both references
+identify the same compartment), plus both backpack endpoint adjustments.
+Returning to the exact pickup compartment, cell and rotation is free if it
+displaces no other item. Moving elsewhere in that compartment charges its base once.
 `advance(seconds)` takes
 elapsed simulation/session seconds and commits the placement when time is up.
 Pending items still report `Hand` until completion. A displaced item is picked
-up at completion and charges destination access only on its next placement.
+up at completion for free and retains its source access for its next placement,
+just like a manually picked-up item.
 Further drops/rotation are blocked during a pending placement. `cancel()` needs
 no time and restores the whole unfinished chain. The GUI consumes the caller's
 `HudState::seconds` clock, which continues while menus are open, and draws a
@@ -100,11 +101,19 @@ destination placement and the item details display. Backpack main access starts
 from the catalog's base time, adds a linear obstruction penalty and subtracts a
 linear support bonus, floored at zero. Obstruction is the maximum occupied-cell
 count above any footprint cell; support is the mean count below footprint cells.
-Self is excluded; empty gaps do not stop the scan. For a swap,
-`inventorySwapAccess()` excludes both exchanged items and takes the maximum
-obstruction and minimum support across their two footprints, applying one
-destination access time. Non-main compartments remain fixed. Pending placements
-retain source/destination scores and times as snapshots for inspection by callers.
+Self is excluded; empty gaps do not stop the scan. For a swap, both exchanged
+items are excluded. The incoming item uses its own destination footprint; the
+outgoing item snapshots its own source footprint before the incoming item is
+published, and pays that cost on its next placement. Non-main compartments
+remain fixed. Pending placements retain source/destination scores and standalone
+access times as snapshots for inspection by callers.
+
+`inventoryTransferSeconds()` combines these scores for inventory moves and weapon
+switches: add each distinct compartment's base once, add the source and
+destination obstruction penalties, and subtract their support bonuses. Floor
+the combined storage cost at zero, after all adjustments. Identical grid pointers
+identify a shared compartment; null endpoints have no access cost (fists).
+Standalone endpoint times cannot simply be added because their bases may be shared.
 
 ## Current prototype boundary
 
@@ -123,9 +132,10 @@ The configuration formats and tag restrictions remain documented in
 
 `WeaponSwitch` snapshots both storage accesses and both gameplay draw times
 when a selection is confirmed. Draw time is also the old weapon's put-away
-time. Only the higher raw obstruction score contributes its penalty; equal
-scores choose the old weapon. Each access keeps its own base and support
-term and is floored at zero. The pair is excluded from occupancy scoring.
+time. Storage timing uses `inventoryTransferSeconds()`: one base for a shared
+compartment, otherwise both bases, plus the old weapon's backpack destination
+adjustment and the new weapon's backpack source adjustment. Both obstruction
+penalties and support bonuses apply. The pair is excluded from occupancy scoring.
 Equipped weapons retain their reserved storage footprints. Timed switching
 uses the current standalone inventory; server players use their startup layout.
 

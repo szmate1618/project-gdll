@@ -1608,7 +1608,7 @@ int run(const Options& options) {
         if (const auto* timing = app.weaponSwitch.timing()) hudState.weaponSwitchDuration = timing->total();
         if (app.driver.occupied()) hudState.prompt = "Enter: exit vehicle";
         else if (app.interaction.grabbing()) hudState.prompt = "Holding object";
-        hud.draw(hudState, renderWidth, renderHeight);
+        hud.draw(hudState, renderWidth, renderHeight, app.width, app.height);
         intervalRenderSeconds += glfwGetTime() - renderStart;
         gpuTimer.end();
         if (frameProfile) frameProfile->endGpu();

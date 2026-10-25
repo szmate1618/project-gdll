@@ -1,5 +1,6 @@
 #include "inventory_interaction.hpp"
 #include "inventory_view.hpp"
+#include "presentation_viewport.hpp"
 #include <RmlUi/Core.h>
 #include <algorithm>
 #include <cmath>
@@ -124,20 +125,26 @@ void InventoryInteraction::cancel() {
     ghost_->SetProperty("display", "none");
     progress_->SetProperty("display", "none");
 }
-void InventoryInteraction::process(const std::vector<InventoryPointerEvent>& events, int width, int height, double seconds) {
+void InventoryInteraction::process(const std::vector<InventoryPointerEvent>& events, int width, int height,
+    const PresentationViewport& presentation, double seconds) {
     const double elapsed = lastSeconds_ && std::isfinite(seconds) && seconds >= *lastSeconds_ ? seconds - *lastSeconds_ : 0;
     if (std::isfinite(seconds)) lastSeconds_ = seconds;
     // Newly requested placements start now, not at the preceding frame's time.
     // Input cancellation wins over a completion in this update.
     bool advancePending = bool(drag_.pending());
-    x_ = normalizedX_ * width; y_ = normalizedY_ * height;
+    const auto updatePointer = [&] {
+        const auto point = presentation.scenePointer(normalizedX_, normalizedY_, width, height);
+        x_ = point.x; y_ = point.y;
+    };
+    updatePointer();
     for (const auto& event : events) {
         switch (event.action) {
         case InventoryPointerAction::Move:
             normalizedX_ = event.x; normalizedY_ = event.y;
-            x_ = normalizedX_ * width; y_ = normalizedY_ * height;
+            updatePointer();
             if (pressed_ && !dragCandidate_.empty()) {
-                const float dx = (normalizedX_ - pressX_) * width, dy = (normalizedY_ - pressY_) * height;
+                const auto press = presentation.scenePointer(pressX_, pressY_, width, height);
+                const float dx = x_ - press.x, dy = y_ - press.y;
                 const float threshold = 4 * document_.GetContext()->GetDensityIndependentPixelRatio();
                 if (dx * dx + dy * dy >= threshold * threshold) beginDrag();
             }

@@ -4,11 +4,23 @@
 #include <vector>
 
 namespace viewer {
+namespace {
+double adjustmentSeconds(const StorageGrid& grid, InventoryAccessScores scores) {
+    if (!grid.backpackAccess) return 0;
+    return scores.obstruction * grid.backpackAccess->obstructionTimePerCell
+        - scores.support * grid.backpackAccess->supportTimePerCell;
+}
+}
 double inventoryAccessSeconds(const StorageGrid& grid, InventoryAccessScores scores) {
-    double seconds = grid.accessTime;
-    if (grid.backpackAccess) {
-        seconds += scores.obstruction * grid.backpackAccess->obstructionTimePerCell;
-        seconds -= scores.support * grid.backpackAccess->supportTimePerCell;
+    return std::max(0.0, grid.accessTime + adjustmentSeconds(grid, scores));
+}
+double inventoryTransferSeconds(const StorageGrid* source, InventoryAccessScores sourceScores,
+                                const StorageGrid* destination, InventoryAccessScores destinationScores) {
+    double seconds = 0;
+    if (source) seconds += source->accessTime + adjustmentSeconds(*source, sourceScores);
+    if (destination) {
+        if (destination != source) seconds += destination->accessTime;
+        seconds += adjustmentSeconds(*destination, destinationScores);
     }
     return std::max(0.0, seconds);
 }
@@ -43,13 +55,5 @@ InventoryAccess inventoryAccess(const InventoryContainer& container, const Inven
     }
     scores.support = supportTotal / (rectangle.width * rectangle.height);
     return {scores, inventoryAccessSeconds(grid, scores)};
-}
-InventoryAccess inventorySwapAccess(const InventoryContainer& container, const InventoryItemRectangle& incoming,
-                                    const InventoryItemRectangle& outgoing) {
-    const auto placed = inventoryAccess(container, incoming, outgoing.item);
-    const auto picked = inventoryAccess(container, outgoing, incoming.item);
-    const InventoryAccessScores scores{std::max(placed.scores.obstruction, picked.scores.obstruction),
-        std::min(placed.scores.support, picked.scores.support)};
-    return {scores, inventoryAccessSeconds(container.grid, scores)};
 }
 } // namespace viewer

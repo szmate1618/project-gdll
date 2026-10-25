@@ -43,6 +43,6 @@ private:
     std::optional<std::map<std::string, ItemPlacement>> originalPlacements_;
     std::optional<PendingInventoryPlacement> pending_;
     InventoryAccess sourceAccess_;
-    std::string sourceStorage_; // Compartment of the current manual/automatic pickup.
+    ItemPlacement sourcePlacement_; // Position and orientation of the current pickup.
 };
 } // namespace viewer

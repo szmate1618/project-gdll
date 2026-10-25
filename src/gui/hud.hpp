@@ -37,9 +37,11 @@ public:
     ~Hud();
     Hud(const Hud&) = delete;
     Hud& operator=(const Hud&) = delete;
-    void draw(const HudState& state, int width, int height);
+    // Presentation size is the destination framebuffer size; omit it when the
+    // scene fills that framebuffer. Input uses the same fitted image as present().
+    void draw(const HudState& state, int width, int height, int presentationWidth = 0, int presentationHeight = 0);
     // Queue inventory input on the GL thread. Window fractions also work with
-    // HiDPI displays and a render resolution different from the window size.
+    // HiDPI displays, letterboxing and a different render resolution.
     void pointerMove(float normalizedX, float normalizedY);
     void pointerButton(int button, bool pressed); // 0: left, 1: right/cancel.
     void mouseWheel(float notches);

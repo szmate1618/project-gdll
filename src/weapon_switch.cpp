@@ -18,11 +18,8 @@ std::optional<WeaponSwitchTiming> weaponSwitchTiming(const PlayerInventory& inve
     };
     auto oldAccess = access(oldWeapon, newWeapon.id), newAccess = access(newWeapon, oldWeapon.id);
     if (!oldAccess || !newAccess) return {};
-    if (oldAccess->scores.obstruction >= newAccess->scores.obstruction) newAccess->scores.obstruction = 0;
-    else oldAccess->scores.obstruction = 0;
     return WeaponSwitchTiming{oldWeapon.drawTimeSeconds,
-        oldAccess->grid ? inventoryAccessSeconds(*oldAccess->grid, oldAccess->scores) : 0,
-        newAccess->grid ? inventoryAccessSeconds(*newAccess->grid, newAccess->scores) : 0,
+        inventoryTransferSeconds(oldAccess->grid, oldAccess->scores, newAccess->grid, newAccess->scores),
         newWeapon.drawTimeSeconds};
 }
 bool WeaponSwitch::begin(Weapons& weapons, const PlayerInventory& inventory, std::size_t target, double seconds) {

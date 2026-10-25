@@ -3,6 +3,7 @@
 #include "minimap.hpp"
 #include "minimap_fixture.hpp"
 #include "opengl.hpp"
+#include "presentation_viewport.hpp"
 #include <GLFW/glfw3.h>
 #include <array>
 #include <chrono>
@@ -392,16 +393,30 @@ int main(int argc, char** argv) {
             click("he_grenade", 304, 333);
             click("sniper", 600, 293);
             // Preserve the path even when moving away and back happens within
-            // a single render frame. Only the actual backpack drag is timed.
+            // a single render frame. An exact return remains free after a real drag.
             move(65, 402); hud.pointerButton(0, true);
             move(200, 420); move(65, 402); hud.pointerButton(0, false); draw();
             require(!hudInventory.held() && hudInventory.locationOf("pistol")->placement->storage == "body/hip_holster/holster",
-                "Dragging a pistol away and back into its holster must return it without a timer");
+                "Returning to the original holster position must complete immediately");
             move(600, 293); hud.pointerButton(0, true);
             move(800, 450); move(600, 293); hud.pointerButton(0, false); draw();
-            require(hudInventory.held() && hudInventory.held()->item == "sniper",
-                "A true backpack drag returned to its origin must retain the backpack access cost");
-            hud.pointerButton(1, true); draw();
+            require(!hudInventory.held() && hudInventory.locationOf("sniper")->placement->y == 2,
+                "A true backpack drag returned to its origin must complete immediately");
+            // Round-trip through the short top pocket, including pickup from
+            // its occupied grid rather than only dropping into an empty grid.
+            move(65, 402); hud.pointerButton(0, true);
+            move(610, 197); hud.pointerButton(0, false); draw(); draw(2);
+            require(hudInventory.locationOf("pistol")->placement &&
+                hudInventory.locationOf("pistol")->placement->storage == "backpack/tactical_backpack/top_quick_access",
+                "Pistol must fit in the backpack top pocket");
+            move(610, 197); hud.pointerButton(0, true); draw();
+            move(610, 220); draw();
+            require(hudInventory.held() && hudInventory.held()->item == "pistol",
+                "A pistol stored in the top pocket must be draggable out again");
+            move(65, 402); hud.pointerButton(0, false); draw(); draw(2);
+            require(!hudInventory.held() && hudInventory.locationOf("pistol")->placement &&
+                hudInventory.locationOf("pistol")->placement->storage == "body/hip_holster/holster",
+                "Pistol must return to its holster after leaving the top pocket");
             // Exchange SMG for shotgun, then shotgun for sniper. Cancel must
             // restore all three footprints, rather than only the last item.
             move(600, 261); hud.pointerButton(0, true);
@@ -451,6 +466,73 @@ int main(int argc, char** argv) {
             state.screen = viewer::HudScreen::Skills; draw();
             state.screen = viewer::HudScreen::Inventory;
             require(draw() == placed, "Leaving Inventory failed to cancel a pending drag");
+        }
+        {
+            const auto root = std::filesystem::path(VIEWER_HUD_DIR).parent_path();
+            auto contents = viewer::loadInventoryContents(root);
+            contents.placements.at("pistol") = {"backpack/tactical_backpack/top_quick_access", 0, 0};
+            viewer::PlayerInventory inventory(viewer::loadStorageLoadout(root / "storage"), std::move(contents));
+            viewer::Hud hud(VIEWER_HUD_DIR, inventory);
+            state.screen = viewer::HudScreen::Inventory;
+            for (const auto dimensions : {std::array{1280, 720}, std::array{640, 360}, std::array{1366, 768},
+                    std::array{1280, 800}, std::array{1024, 768}, std::array{1920, 1080}}) {
+                const int width = dimensions[0], height = dimensions[1];
+                const float scale = std::min(width / 1280.f, height / 720.f);
+                const float left = (width - 1280 * scale) / 2, top = (height - 720 * scale) / 2;
+                const auto move = [&](float x, float y) { hud.pointerMove((left + x * scale) / width, (top + y * scale) / height); };
+                const auto draw = [&] { clear(); hud.draw(state, width, height); checkState(); };
+                draw();
+                for (float x : {605.f, 610.f, 620.f, 630.f, 640.f, 648.f}) {
+                    for (float y : {191.f, 197.f, 205.f, 211.f}) {
+                        move(x, y); hud.pointerButton(0, true); draw();
+                        move(x, y + 30); draw();
+                        if (!inventory.held()) throw std::runtime_error("Top-pocket pickup failed at " +
+                            std::to_string(x) + "," + std::to_string(y) + " at width " + std::to_string(width));
+                        hud.pointerButton(0, false); hud.pointerButton(1, true); draw();
+                    }
+                }
+            }
+        }
+        // Presentation letterboxing must not shift clicks or drag previews.
+        // These fitted rectangles are independent of the production fit helper.
+        for (const bool topPocket : {true, false}) {
+            const auto root = std::filesystem::path(VIEWER_HUD_DIR).parent_path();
+            auto contents = viewer::loadInventoryContents(root);
+            contents.placements.at("pistol") = {topPocket ? "backpack/tactical_backpack/top_quick_access" :
+                "backpack/tactical_backpack/front_utility", 0, 0};
+            viewer::PlayerInventory inventory(viewer::loadStorageLoadout(root / "storage"), std::move(contents));
+            viewer::Hud hud(VIEWER_HUD_DIR, inventory);
+            state.screen = viewer::HudScreen::Inventory;
+            for (const auto fit : {std::array{1920, 1200, 0, 60, 1920, 1080},
+                    std::array{2560, 1080, 320, 0, 1920, 1080}, std::array{1921, 1200, 0, 60, 1921, 1081}}) {
+                const auto viewport = viewer::presentationViewport(1280, 720, fit[0], fit[1]);
+                require(viewport.x == fit[2] && viewport.y == fit[3] && viewport.width == fit[4] && viewport.height == fit[5],
+                    "Presented viewport must preserve blit rounding and its top-left origin");
+                const auto move = [&](float x, float y) {
+                    hud.pointerMove((fit[2] + x * fit[4] / 1280) / fit[0], (fit[3] + y * fit[5] / 720) / fit[1]);
+                };
+                const auto draw = [&] {
+                    clear(); hud.draw(state, 1280, 720, fit[0], fit[1]); checkState(); return pixels(1280, 720);
+                };
+                draw();
+                move(610, topPocket ? 197 : 449); hud.pointerButton(0, true); draw();
+                move(900, 340); draw();
+                require(inventory.held() && inventory.held()->item == "pistol",
+                    "Presented high/low pocket must be clickable at its visible position");
+                for (const int y : {110, 340, 540}) {
+                    move(900, float(y));
+                    const auto dragged = draw();
+                    require(isColor(colorAt(dragged, 1280, 720, 900, y), {236, 105, 98}),
+                        "Dragged item must follow the pointer vertically through the presented image");
+                    if (argc > 1 && topPocket && fit[0] == 1920 && y == 110)
+                        capture((std::string(argv[1]) + "-letterboxed-drag.ppm").c_str(), dragged, 1280, 720);
+                }
+                hud.pointerButton(0, false); hud.pointerButton(1, true); draw();
+                // A pointer in a black bar must remain outside the scene.
+                hud.pointerMove(0, 0); hud.pointerButton(0, true); move(610, topPocket ? 197 : 449); draw();
+                require(!inventory.held(), "Clicking presentation padding must not pick up an inventory item");
+                hud.pointerButton(0, false); draw();
+            }
         }
         // A registered empty definition must add a visible action without
         // changing the combo placeholders or the shared hotbar.

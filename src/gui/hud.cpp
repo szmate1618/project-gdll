@@ -4,6 +4,7 @@
 #include "inventory_interaction.hpp"
 #include "action_hotbar.hpp"
 #include "skills_view.hpp"
+#include "presentation_viewport.hpp"
 #include "inventory/player_inventory.hpp"
 #include <RmlUi/Core.h>
 #include <algorithm>
@@ -225,7 +226,7 @@ struct Hud::Impl {
         nextDocument->Show();
         screen = next;
     }
-    void draw(const HudState& state, int newWidth, int newHeight) {
+    void draw(const HudState& state, int newWidth, int newHeight, int presentationWidth, int presentationHeight) {
         if (newWidth <= 0 || newHeight <= 0) return;
         if (width != newWidth || height != newHeight) {
             width = newWidth; height = newHeight;
@@ -234,14 +235,18 @@ struct Hud::Impl {
             context->SetDensityIndependentPixelRatio(std::min(float(width) / 1280, float(height) / 720));
         }
         showScreen(state.screen);
+        const auto presentation = presentationViewport(width, height,
+            presentationWidth > 0 ? presentationWidth : width, presentationHeight > 0 ? presentationHeight : height);
         if (screen != HudScreen::Gameplay) {
             if (screen == HudScreen::Inventory)
-                renderer.render(*context, width, height, [&] { inventoryInteraction->process(pointerEvents, width, height, state.seconds); });
+                renderer.render(*context, width, height, [&] { inventoryInteraction->process(pointerEvents, width, height, presentation, state.seconds); });
             else if (screen == HudScreen::Skills)
                 renderer.render(*context, width, height, [&] {
                     for (const auto& event : pointerEvents) {
-                        if (event.action == InventoryPointerAction::Move)
-                            context->ProcessMouseMove(static_cast<int>(event.x * width), static_cast<int>(event.y * height), 0);
+                        if (event.action == InventoryPointerAction::Move) {
+                            const auto point = presentation.scenePointer(event.x, event.y, width, height);
+                            context->ProcessMouseMove(static_cast<int>(point.x), static_cast<int>(point.y), 0);
+                        }
                         else if (event.action == InventoryPointerAction::Wheel)
                             context->ProcessMouseWheel(-event.x, 0);
                     }
@@ -295,7 +300,9 @@ struct Hud::Impl {
 Hud::Hud(const std::filesystem::path& directory, PlayerInventory& inventory)
     : impl_(std::make_unique<Impl>(directory, inventory)) {}
 Hud::~Hud() = default;
-void Hud::draw(const HudState& state, int width, int height) { impl_->draw(state, width, height); }
+void Hud::draw(const HudState& state, int width, int height, int presentationWidth, int presentationHeight) {
+    impl_->draw(state, width, height, presentationWidth, presentationHeight);
+}
 void Hud::pointerMove(float x, float y) {
     if (!std::isfinite(x) || !std::isfinite(y)) return;
     // Preserve the pointer path: moving away and back between rendered frames

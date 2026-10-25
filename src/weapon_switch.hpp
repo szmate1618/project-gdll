@@ -5,12 +5,11 @@
 
 namespace viewer {
 struct WeaponSwitchTiming {
-    double putAway = 0, oldAccess = 0, newAccess = 0, draw = 0; // Seconds.
-    double total() const { return putAway + oldAccess + newAccess + draw; }
+    double putAway = 0, storageAccess = 0, draw = 0; // Seconds.
+    double total() const { return putAway + storageAccess + draw; }
 };
 // Storage locations remain reserved while equipped. Score both footprints
-// excluding the pair, but charge obstruction only on the higher-scoring one
-// (old weapon wins ties). Retain both base times and each support adjustment.
+// excluding the pair; charge each compartment base once and both adjustments.
 std::optional<WeaponSwitchTiming> weaponSwitchTiming(const PlayerInventory& inventory,
     const WeaponConfig& oldWeapon, const WeaponConfig& newWeapon);
 
