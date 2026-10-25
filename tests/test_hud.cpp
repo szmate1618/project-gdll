@@ -1,4 +1,6 @@
 #include "hud.hpp"
+#include "minimap.hpp"
+#include "minimap_fixture.hpp"
 #include "opengl.hpp"
 #include <GLFW/glfw3.h>
 #include <array>
@@ -44,6 +46,14 @@ int main(int argc, char** argv) {
     try {
         viewer::initializeOpenGL();
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << '\n';
+        const auto mapModel = minimapFixture();
+        const auto mapSource = viewer::findMinimapSource(mapModel);
+        require(mapSource.has_value(), "Missing test map source");
+        GLuint mapTexture;
+        glGenTextures(1, &mapTexture); glBindTexture(GL_TEXTURE_2D, mapTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, 4, 4, 0, GL_RGBA, GL_UNSIGNED_BYTE, mapModel.images[0].rgba.data());
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         GLuint framebuffer, color, vao, buffer, unpack, sampler, texture;
         glGenFramebuffers(1, &framebuffer); glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glGenTextures(1, &color); glBindTexture(GL_TEXTURE_2D, color);
@@ -143,7 +153,45 @@ int main(int argc, char** argv) {
             require(mapPixels(small) > 2850 && mapPixels(small) < 3000, "HUD did not scale its map on resize");
             hud.draw(state, 0, 0); checkState();
             hud.draw(state, 1280, 720); checkState();
+            hud.setMinimap(*mapSource, mapTexture); checkState();
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto map = pixels(1280, 720);
+            const auto colorAt = [](const auto& image, int width, int height, int x, int top) {
+                const auto i = static_cast<std::size_t>((height - 1 - top) * width + x) * 3;
+                return std::array<int, 3>{image[i], image[i+1], image[i+2]};
+            };
+            const auto isColor = [](auto actual, std::array<int, 3> expected) {
+                return std::abs(actual[0] - expected[0]) <= 2 && std::abs(actual[1] - expected[1]) <= 2 &&
+                       std::abs(actual[2] - expected[2]) <= 2;
+            };
+            require(isColor(colorAt(map, 1280, 720, 1150, 35), {220,30,20}) &&
+                    isColor(colorAt(map, 1280, 720, 1248, 35), {20,210,30}) &&
+                    isColor(colorAt(map, 1280, 720, 1150, 132), {20,30,220}) &&
+                    isColor(colorAt(map, 1280, 720, 1248, 132), {220,210,20}),
+                    "Minimap flipped its imagery or changed the source colours");
+            state.position.x = 180;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto moved = pixels(1280, 720);
+            // The 400 m terrain ends at X=200. A 200 m window centered at
+            // X=180 must reach its edge 60% across the control, leaving blank
+            // space afterward rather than repeating or stretching the texture.
+            require(isColor(colorAt(moved, 1280, 720, 1150, 35), {20,210,30}) &&
+                    isColor(colorAt(moved, 1280, 720, 1208, 35), {20,210,30}) &&
+                    isColor(colorAt(moved, 1280, 720, 1214, 35), {18,26,20}),
+                    "Minimap did not follow the player with a fixed 200 m window at the map edge");
+            require(isColor(colorAt(moved, 1280, 720, 1200, 84), {245,246,242}), "Player marker moved away from the center");
+            state.position.x = 0;
+            clear(); hud.draw(state, 640, 360); checkState();
+            const auto resizedMap = pixels(640, 360);
+            require(isColor(colorAt(resizedMap, 640, 360, 575, 18), {220,30,20}) &&
+                    isColor(colorAt(resizedMap, 640, 360, 624, 66), {220,210,20}),
+                    "Resizing changed the minimap's world coverage or orientation");
         }
+        require(glIsTexture(mapTexture), "HUD deleted the borrowed terrain texture");
+        glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, mapTexture);
+        GLint filter; glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &filter);
+        require(filter == GL_NEAREST, "HUD changed the scene terrain's texture filtering");
+        glBindTexture(GL_TEXTURE_2D, texture); glActiveTexture(GL_TEXTURE3);
         // Multiplayer returns to its shared menu window and starts another session.
         {
             viewer::Hud hud(VIEWER_HUD_DIR);
@@ -152,6 +200,7 @@ int main(int argc, char** argv) {
             require(first == pixels(1280, 720), "HUD failed to recreate after a session ended");
         }
         glDeleteSamplers(1, &sampler); glDeleteTextures(1, &texture); glDeleteTextures(1, &color);
+        glDeleteTextures(1, &mapTexture);
         glDeleteBuffers(1, &buffer); glDeleteBuffers(1, &unpack); glDeleteVertexArrays(1, &vao);
         glDeleteFramebuffers(1, &framebuffer);
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; result = 1; }

@@ -12,8 +12,8 @@
     </div>
     <div id="navigation">
         <div id="coordinates"><div id="north-coordinate">N 0 m</div><div id="east-coordinate">E 0 m</div></div>
-        <div id="map-placeholder"><div id="player-placeholder"></div></div>
-        <div class="map-caption">200 x 200 m</div>
+        <minimap id="minimap"><div id="player-placeholder"></div></minimap>
+        <div id="map-caption" class="map-caption">NO MAP</div>
     </div>
     <div id="vitals">
         <div class="vital-row health">

@@ -98,6 +98,9 @@ public:
     void updateVehicles(const VehicleLayer& vehicles, std::optional<std::size_t> driver = {});
     void present(int width, int height);
     void writeScreenshot(const std::filesystem::path& path) const;
+    // Borrow an uploaded scene texture. Do not delete it or change its sampler
+    // settings; consumers must stop using it before this renderer is destroyed.
+    GLuint sceneTexture(std::size_t index) const { return model_.textures.at(index); }
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
     void setRoofBatching(bool enabled) { roofBatching_ = enabled; }
     void setWallBatching(bool enabled) { wallBatching_ = enabled; }

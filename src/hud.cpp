@@ -33,6 +33,16 @@ private:
     std::chrono::steady_clock::time_point start_ = std::chrono::steady_clock::now();
 };
 
+class MinimapElement final : public Rml::Element {
+public:
+    explicit MinimapElement(const Rml::String& tag) : Rml::Element(tag) {}
+    HudRenderInterface* renderer = nullptr; // Owned by the HUD; outlives this element.
+protected:
+    void OnRender() override {
+        if (renderer) renderer->drawMinimap(GetAbsoluteOffset(Rml::BoxArea::Content), GetBox().GetSize(Rml::BoxArea::Content));
+    }
+};
+
 std::filesystem::path systemFont() {
     if (const auto* override = std::getenv("GD_HUD_FONT")) return override;
 #ifdef _WIN32
@@ -63,6 +73,7 @@ std::string speed(float metresPerSecond) {
 struct Hud::Impl {
     HudRenderInterface renderer;
     HudSystem system;
+    Rml::ElementInstancerGeneric<MinimapElement> minimapInstancer;
     // FreeType borrows these bytes until Rml::Shutdown().
     std::vector<Rml::byte> font;
     Rml::Context* context = nullptr;
@@ -91,14 +102,18 @@ struct Hud::Impl {
                 throw std::runtime_error("Cannot load HUD system font: " + path.string());
             context = Rml::CreateContext("game-hud", {1280, 720});
             if (!context) throw std::runtime_error("Cannot create HUD context");
+            Rml::Factory::RegisterElementInstancer("minimap", &minimapInstancer);
             document = context->LoadDocument((directory / "hud.rml").generic_string());
             if (!document) throw std::runtime_error("Cannot load HUD layout: " + directory.string());
             for (const char* id : {"heading", "north-coordinate", "east-coordinate", "movement", "mode", "speed",
-                                    "equipment", "weapon", "loaded", "reserve", "prompt", "capture", "compass-scale"}) {
+                                    "equipment", "weapon", "loaded", "reserve", "prompt", "capture", "compass-scale", "map-caption"}) {
                 auto* element = document->GetElementById(id);
                 if (!element) throw std::runtime_error(std::string("Missing HUD element: ") + id);
                 elements.emplace(id, element);
             }
+            auto* minimap = dynamic_cast<MinimapElement*>(document->GetElementById("minimap"));
+            if (!minimap) throw std::runtime_error("Missing HUD minimap element");
+            minimap->renderer = &renderer;
             std::string scale = "<div class=\"compass-rule\"></div>";
             for (std::size_t i = 0; i < ticks.size(); ++i)
                 scale += "<div class=\"compass-tick\" id=\"tick-" + std::to_string(i) + "\"></div>";
@@ -162,6 +177,7 @@ struct Hud::Impl {
             context->SetDensityIndependentPixelRatio(std::min(float(width) / 1280, float(height) / 720));
         }
         updateCompass(state.yawDegrees);
+        renderer.setMinimapPosition({state.position.x, state.position.z});
         // Coordinates remain local metres; the reference's latitude/longitude
         // cannot be inferred from a runtime position without map georeferencing.
         setText("north-coordinate", "N " + std::to_string(std::lround(-state.position.z)) + " m");
@@ -190,4 +206,8 @@ struct Hud::Impl {
 Hud::Hud(const std::filesystem::path& directory) : impl_(std::make_unique<Impl>(directory)) {}
 Hud::~Hud() = default;
 void Hud::draw(const HudState& state, int width, int height) { impl_->draw(state, width, height); }
+void Hud::setMinimap(const MinimapSource& source, unsigned int texture) {
+    impl_->renderer.setMinimap(source, texture);
+    impl_->setText("map-caption", texture ? "200 x 200 m" : "NO MAP");
+}
 } // namespace viewer

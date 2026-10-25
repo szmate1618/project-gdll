@@ -39,17 +39,32 @@ Multiplayer equipment and ammunition follow the server-confirmed
 state. The HUD is drawn into the scene target before presentation, so it also
 appears in screenshots and follows the selected render resolution.
 
-The navigation area reserves a square for a north-up 200 × 200 m minimap.
-For now it is a solid green placeholder with a white player square; it does
-not load satellite imagery. All equipment artwork is represented by colored
-squares. Health, stamina and weariness have tinted, outlined tracks and show
+The navigation area displays a north-up 200 × 200 m minimap centered on the
+player's horizontal position (the camera in free-fly mode). Driving uses the
+occupied seat, including with the chase camera. It reuses the satellite texture already
+uploaded for the active published terrain: no separate image files, network
+requests, extra texture copies, or per-frame image uploads are needed. The
+terrain's transformed vertices and native glTF UVs determine alignment, including
+the runtime Z-south axis. The imagery is unlit and retains its original colors.
+The white square remains centered as the map scrolls, and areas beyond the
+published terrain are blank rather than stretched or repeated. Resizing the HUD
+changes screen size only; its world coverage remains 200 × 200 m.
+
+Scenes without a single usable, textured `terrain` draw show a green fallback
+and `NO MAP`, including the small sample scene. Tiled or non-affine terrain UVs
+are not treated as satellite maps. Detail is limited by the imagery embedded in
+the loaded map; newer processed raster caches are never consulted.
+
+All equipment artwork is still represented by colored squares. Health, stamina
+and weariness have tinted, outlined tracks and show
 `--` because those player stats are not yet implemented. No filled amount is
 invented for them. Coordinates use local metres rather than inferred latitude
-and longitude. The HUD loads no raster/vector images and creates no artwork.
+and longitude. No other HUD artwork or custom font is loaded or generated.
 
 Layout and styling live in [hud.rml](../ui/hud.rml) and
 [hud.rcss](../ui/hud.rcss). The small GL backend supports flat geometry, text and
-rectangular clipping; transforms, rounded clipping and filter effects are not
+rectangular clipping, plus a custom minimap element sampling the borrowed scene
+texture; transforms, rounded clipping and filter effects are not
 implemented. It restores GL state after drawing, and caches unchanged text
 instead of rebuilding the document each frame. The HUD is informational and
 does not intercept gameplay input.

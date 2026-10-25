@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <iostream>
 #include <memory>
+#include <array>
 
 namespace viewer {
 namespace {
@@ -80,11 +81,56 @@ HudRenderInterface::HudRenderInterface(const std::filesystem::path& directory) {
     viewportLocation_ = glGetUniformLocation(program_, "uViewport");
     translationLocation_ = glGetUniformLocation(program_, "uTranslation");
     texturedLocation_ = glGetUniformLocation(program_, "uTextured");
+    minimapLocation_ = glGetUniformLocation(program_, "uMinimap");
+    minimapSizeLocation_ = glGetUniformLocation(program_, "uMinimapSize");
+    minimapOriginLocation_ = glGetUniformLocation(program_, "uMinimapOrigin");
+    minimapXLocation_ = glGetUniformLocation(program_, "uMinimapX");
+    minimapYLocation_ = glGetUniformLocation(program_, "uMinimapY");
     glUseProgram(program_);
     glUniform1i(glGetUniformLocation(program_, "uTexture"), 0);
+    glGenSamplers(1, &minimapSampler_);
+    glSamplerParameteri(minimapSampler_, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glSamplerParameteri(minimapSampler_, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glSamplerParameteri(minimapSampler_, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glSamplerParameteri(minimapSampler_, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
 
-HudRenderInterface::~HudRenderInterface() { glDeleteProgram(program_); }
+HudRenderInterface::~HudRenderInterface() {
+    if (minimapQuad_) ReleaseGeometry(minimapQuad_);
+    glDeleteSamplers(1, &minimapSampler_);
+    glDeleteProgram(program_);
+}
+
+void HudRenderInterface::setMinimap(const MinimapSource& source, GLuint texture) {
+    minimap_ = source;
+    minimapTexture_ = texture;
+}
+
+void HudRenderInterface::drawMinimap(Rml::Vector2f offset, Rml::Vector2f size) {
+    if (!minimapTexture_ || size.x <= 0 || size.y <= 0) return;
+    if (!minimapQuad_) {
+        const std::array<Rml::Vertex, 4> vertices{{
+            {{0, 0}, {255, 255, 255, 255}, {0, 0}}, {{1, 0}, {255, 255, 255, 255}, {1, 0}},
+            {{1, 1}, {255, 255, 255, 255}, {1, 1}}, {{0, 1}, {255, 255, 255, 255}, {0, 1}}}};
+        const std::array<int, 6> indices{{0, 1, 2, 0, 2, 3}};
+        minimapQuad_ = CompileGeometry({vertices.data(), vertices.size()}, {indices.data(), indices.size()});
+    }
+    // Top of the control is north (-Z). The sampled span stays 200 m at every
+    // HUD resolution; only uniforms change as the player moves.
+    const auto x = glm::vec2(minimap_.uvFromWorld * glm::dvec3(200, 0, 0));
+    const auto y = glm::vec2(minimap_.uvFromWorld * glm::dvec3(0, 200, 0));
+    const auto center = glm::vec2(minimap_.uvFromWorld * glm::dvec3(minimapPosition_, 1));
+    const auto origin = center - (x + y) * .5f;
+    glUniform1i(minimapLocation_, 1);
+    glUniform2f(minimapSizeLocation_, size.x, size.y);
+    glUniform2f(minimapOriginLocation_, origin.x, origin.y);
+    glUniform2f(minimapXLocation_, x.x, x.y);
+    glUniform2f(minimapYLocation_, y.x, y.y);
+    glBindSampler(0, minimapSampler_);
+    RenderGeometry(minimapQuad_, offset, minimapTexture_);
+    glBindSampler(0, 0);
+    glUniform1i(minimapLocation_, 0);
+}
 
 void HudRenderInterface::render(Rml::Context& context, int width, int height) {
     GlState restore;
@@ -99,6 +145,7 @@ void HudRenderInterface::render(Rml::Context& context, int width, int height) {
     glBindSampler(0, 0);
     glUseProgram(program_);
     glUniform2f(viewportLocation_, float(width), float(height));
+    glUniform1i(minimapLocation_, 0);
     context.Update();
     context.Render();
 }

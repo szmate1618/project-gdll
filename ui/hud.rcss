@@ -17,7 +17,7 @@ div { display: block; }
 #heading { position: absolute; top: 29dp; left: 188dp; width: 68dp; text-align: center; font-size: 17dp; }
 #navigation { position: absolute; top: 29dp; right: 25dp; width: 212dp; height: 126dp; }
 #coordinates { position: absolute; left: 0dp; top: 17dp; width: 97dp; font-size: 12dp; line-height: 20dp; }
-#map-placeholder { position: absolute; right: 0dp; top: 0dp; width: 108dp; height: 108dp; background-color: #3a5144; border: 1dp #f5f6f299; }
+#minimap { display: block; position: absolute; right: 0dp; top: 0dp; width: 108dp; height: 108dp; background-color: #3a5144; border: 1dp #f5f6f299; }
 #player-placeholder { position: absolute; left: 51dp; top: 51dp; width: 6dp; height: 6dp; background-color: #f5f6f2; }
 .map-caption { position: absolute; right: 0dp; top: 114dp; width: 110dp; text-align: center; font-size: 9dp; color: #f5f6f299; }
 #vitals { position: absolute; left: 34dp; bottom: 40dp; width: 260dp; height: 94dp; }

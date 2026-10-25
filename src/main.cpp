@@ -13,6 +13,7 @@
 #include "interior_objects.hpp"
 #include "reticle_overlay.hpp"
 #include "hud.hpp"
+#include "minimap.hpp"
 #include "weapons.hpp"
 #include "weapon_overlay.hpp"
 #include "player_body.hpp"
@@ -1230,6 +1231,8 @@ int run(const Options& options) {
     renderer.setVehicleInstancing(options.vehicleInstancing);
     viewer::ReticleOverlay reticle(options.shaders);
     viewer::Hud hud(VIEWER_HUD_DIR);
+    if (const auto minimap = viewer::findMinimapSource(model))
+        hud.setMinimap(*minimap, renderer.sceneTexture(minimap->texture));
     const auto& playerConfig = app.rig.player().config();
     viewer::WeaponOverlay weaponOverlay(options.shaders, VIEWER_WEAPON_ASSETS,
                                        {playerConfig.height, playerConfig.eyeHeight});
@@ -1465,7 +1468,7 @@ int run(const Options& options) {
                                app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds()));
         reticle.draw(app.rig.camera().viewMode(), renderWidth, renderHeight);
         viewer::HudState hudState;
-        hudState.position = app.rig.camera().position();
+        hudState.position = app.driver.occupied() ? app.driver.eyePosition(cars) : app.rig.camera().position();
         hudState.yawDegrees = app.rig.camera().yawDegrees();
         hudState.movement = app.driver.occupied() ? (app.driver.driving() ? "DRIVING" : "PASSENGER") :
             !app.rig.walking() ? "FREE FLY" : app.rig.player().stance() == viewer::PlayerStance::Prone ? "PRONE" :

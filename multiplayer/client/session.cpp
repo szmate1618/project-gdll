@@ -11,6 +11,7 @@
 #include "renderer.hpp"
 #include "reticle_overlay.hpp"
 #include "hud.hpp"
+#include "minimap.hpp"
 #include "weapon_overlay.hpp"
 #include "player_body_renderer.hpp"
 #include "undergrowth_audio.hpp"
@@ -137,6 +138,8 @@ struct Graphics {
         renderer->setVehicleAssets(multiplayer::resourceRoot() / "assets/vehicles/models");
         reticle = std::make_unique<viewer::ReticleOverlay>(shaders);
         hud = std::make_unique<viewer::Hud>(multiplayer::resourceRoot() / "ui");
+        if (const auto minimap = viewer::findMinimapSource(scene.model))
+            hud->setMinimap(*minimap, renderer->sceneTexture(minimap->texture));
         const viewer::FPSConfig playerConfig;
         weapon = std::make_unique<viewer::WeaponOverlay>(shaders, multiplayer::weaponModelDirectory(),
             viewer::WeaponViewBody{playerConfig.height, playerConfig.eyeHeight});
@@ -378,7 +381,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                                           in.weaponMotion.pose(ownState.slot, now));
                 if (!in.driver.occupied()) graphics.reticle->draw(in.camera.viewMode(), width, height);
                 viewer::HudState hudState;
-                hudState.position = in.camera.position();
+                hudState.position = in.driver.occupied() ? in.driver.eyePosition(*scene.vehicles) : in.camera.position();
                 hudState.yawDegrees = in.camera.yawDegrees();
                 const auto stance = prediction.controller().stance();
                 hudState.movement = in.driver.occupied() ? (in.driver.driving() ? "DRIVING" : "PASSENGER") :

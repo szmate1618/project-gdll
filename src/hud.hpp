@@ -7,6 +7,7 @@
 #include <glm/vec3.hpp>
 
 namespace viewer {
+struct MinimapSource;
 
 // Presentation snapshot only; callers retain simulation/network ownership.
 struct HudState {
@@ -22,7 +23,7 @@ struct HudState {
 
 // Owns the application's RmlUi lifetime. One HUD at a time, on the GL thread.
 // Construct/destroy with a current context. Draws into the currently bound FBO
-// in framebuffer pixels, preserving GL state. No image files are loaded.
+// in framebuffer pixels, preserving GL state.
 class Hud {
 public:
     explicit Hud(const std::filesystem::path& directory);
@@ -30,6 +31,9 @@ public:
     Hud(const Hud&) = delete;
     Hud& operator=(const Hud&) = delete;
     void draw(const HudState& state, int width, int height);
+    // Borrow the terrain's uploaded OpenGL texture; its renderer must outlive
+    // this HUD. The mapping is copied; no extra image decode/upload is needed.
+    void setMinimap(const MinimapSource& source, unsigned int texture);
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
