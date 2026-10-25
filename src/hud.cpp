@@ -208,6 +208,6 @@ Hud::~Hud() = default;
 void Hud::draw(const HudState& state, int width, int height) { impl_->draw(state, width, height); }
 void Hud::setMinimap(const MinimapSource& source, unsigned int texture) {
     impl_->renderer.setMinimap(source, texture);
-    impl_->setText("map-caption", texture ? "200 x 200 m" : "NO MAP");
+    impl_->setText("map-caption", texture ? "" : "NO MAP");
 }
 } // namespace viewer

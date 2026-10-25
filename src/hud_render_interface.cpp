@@ -89,8 +89,8 @@ HudRenderInterface::HudRenderInterface(const std::filesystem::path& directory) {
     glUseProgram(program_);
     glUniform1i(glGetUniformLocation(program_, "uTexture"), 0);
     glGenSamplers(1, &minimapSampler_);
-    glSamplerParameteri(minimapSampler_, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glSamplerParameteri(minimapSampler_, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glSamplerParameteri(minimapSampler_, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glSamplerParameteri(minimapSampler_, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glSamplerParameteri(minimapSampler_, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glSamplerParameteri(minimapSampler_, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
@@ -115,10 +115,11 @@ void HudRenderInterface::drawMinimap(Rml::Vector2f offset, Rml::Vector2f size) {
         const std::array<int, 6> indices{{0, 1, 2, 0, 2, 3}};
         minimapQuad_ = CompileGeometry({vertices.data(), vertices.size()}, {indices.data(), indices.size()});
     }
-    // Top of the control is north (-Z). The sampled span stays 200 m at every
-    // HUD resolution; only uniforms change as the player moves.
-    const auto x = glm::vec2(minimap_.uvFromWorld * glm::dvec3(200, 0, 0));
-    const auto y = glm::vec2(minimap_.uvFromWorld * glm::dvec3(0, 200, 0));
+    // Top of the control is north (-Z). World coverage is independent of HUD
+    // resolution; only uniforms change as the player moves.
+    constexpr double spanMeters = 400;
+    const auto x = glm::vec2(minimap_.uvFromWorld * glm::dvec3(spanMeters, 0, 0));
+    const auto y = glm::vec2(minimap_.uvFromWorld * glm::dvec3(0, spanMeters, 0));
     const auto center = glm::vec2(minimap_.uvFromWorld * glm::dvec3(minimapPosition_, 1));
     const auto origin = center - (x + y) * .5f;
     glUniform1i(minimapLocation_, 1);

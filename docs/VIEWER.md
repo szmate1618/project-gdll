@@ -39,16 +39,23 @@ Multiplayer equipment and ammunition follow the server-confirmed
 state. The HUD is drawn into the scene target before presentation, so it also
 appears in screenshots and follows the selected render resolution.
 
-The navigation area displays a north-up 200 × 200 m minimap centered on the
+The navigation area displays a north-up 400 × 400 m minimap centered on the
 player's horizontal position (the camera in free-fly mode). Driving uses the
 occupied seat, including with the chase camera. It reuses the satellite texture already
 uploaded for the active published terrain: no separate image files, network
 requests, extra texture copies, or per-frame image uploads are needed. The
 terrain's transformed vertices and native glTF UVs determine alignment, including
-the runtime Z-south axis. The imagery is unlit and retains its original colors.
+the runtime Z-south axis. The imagery is unlit, with a 15% display contrast boost
+around mid-gray in the minimap fragment shader. This changes only its on-screen
+appearance; the source pixels and scene terrain are unchanged. Set
+`minimapContrast` to `1.0` in [hud.frag](../ui/hud.frag) to restore original colors.
 The white square remains centered as the map scrolls, and areas beyond the
 published terrain are blank rather than stretched or repeated. Resizing the HUD
-changes screen size only; its world coverage remains 200 × 200 m.
+changes screen size only; its world coverage remains 400 × 400 m. The map has no
+size caption beneath it.
+The minimap uses nearest-neighbor filtering for both magnification and
+minification, without mipmaps. Its own sampler leaves the terrain's scene
+filtering unchanged.
 
 Scenes without a single usable, textured `terrain` draw show a green fallback
 and `NO MAP`, including the small sample scene. Tiled or non-affine terrain UVs

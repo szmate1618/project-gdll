@@ -52,8 +52,8 @@ int main(int argc, char** argv) {
         GLuint mapTexture;
         glGenTextures(1, &mapTexture); glBindTexture(GL_TEXTURE_2D, mapTexture);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, 4, 4, 0, GL_RGBA, GL_UNSIGNED_BYTE, mapModel.images[0].rgba.data());
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         GLuint framebuffer, color, vao, buffer, unpack, sampler, texture;
         glGenFramebuffers(1, &framebuffer); glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glGenTextures(1, &color); glBindTexture(GL_TEXTURE_2D, color);
@@ -164,33 +164,38 @@ int main(int argc, char** argv) {
                 return std::abs(actual[0] - expected[0]) <= 2 && std::abs(actual[1] - expected[1]) <= 2 &&
                        std::abs(actual[2] - expected[2]) <= 2;
             };
-            require(isColor(colorAt(map, 1280, 720, 1150, 35), {220,30,20}) &&
-                    isColor(colorAt(map, 1280, 720, 1248, 35), {20,210,30}) &&
-                    isColor(colorAt(map, 1280, 720, 1150, 132), {20,30,220}) &&
-                    isColor(colorAt(map, 1280, 720, 1248, 132), {220,210,20}),
-                    "Minimap flipped its imagery or changed the source colours");
+            require(isColor(colorAt(map, 1280, 720, 1150, 50), {234,15,4}) &&
+                    isColor(colorAt(map, 1280, 720, 1248, 50), {4,222,15}) &&
+                    isColor(colorAt(map, 1280, 720, 1150, 120), {4,15,234}) &&
+                    isColor(colorAt(map, 1280, 720, 1248, 120), {234,222,4}),
+                    "Minimap orientation or display contrast is wrong");
+            require(isColor(colorAt(map, 1280, 720, 1198, 50), {234,15,4}) &&
+                    isColor(colorAt(map, 1280, 720, 1201, 50), {4,222,15}),
+                    "Nearest-filtered minimap must retain a sharp texel boundary without blending");
+            require(isColor(colorAt(map, 1280, 720, 1150, 35), {18,26,20}),
+                    "400 m window must extend past the 300 m terrain's north edge");
             state.position.x = 180;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto moved = pixels(1280, 720);
-            // The 400 m terrain ends at X=200. A 200 m window centered at
-            // X=180 must reach its edge 60% across the control, leaving blank
+            // The 400 m terrain ends at X=200. A 400 m window centered at
+            // X=180 must reach its edge 55% across the control, leaving blank
             // space afterward rather than repeating or stretching the texture.
-            require(isColor(colorAt(moved, 1280, 720, 1150, 35), {20,210,30}) &&
-                    isColor(colorAt(moved, 1280, 720, 1208, 35), {20,210,30}) &&
-                    isColor(colorAt(moved, 1280, 720, 1214, 35), {18,26,20}),
-                    "Minimap did not follow the player with a fixed 200 m window at the map edge");
+            require(isColor(colorAt(moved, 1280, 720, 1170, 50), {4,222,15}) &&
+                    isColor(colorAt(moved, 1280, 720, 1202, 50), {4,222,15}) &&
+                    isColor(colorAt(moved, 1280, 720, 1209, 50), {18,26,20}),
+                    "Minimap did not follow the player with a fixed 400 m window at the map edge");
             require(isColor(colorAt(moved, 1280, 720, 1200, 84), {245,246,242}), "Player marker moved away from the center");
             state.position.x = 0;
             clear(); hud.draw(state, 640, 360); checkState();
             const auto resizedMap = pixels(640, 360);
-            require(isColor(colorAt(resizedMap, 640, 360, 575, 18), {220,30,20}) &&
-                    isColor(colorAt(resizedMap, 640, 360, 624, 66), {220,210,20}),
+            require(isColor(colorAt(resizedMap, 640, 360, 575, 25), {234,15,4}) &&
+                    isColor(colorAt(resizedMap, 640, 360, 624, 60), {234,222,4}),
                     "Resizing changed the minimap's world coverage or orientation");
         }
         require(glIsTexture(mapTexture), "HUD deleted the borrowed terrain texture");
         glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, mapTexture);
         GLint filter; glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &filter);
-        require(filter == GL_NEAREST, "HUD changed the scene terrain's texture filtering");
+        require(filter == GL_LINEAR, "HUD changed the scene terrain's texture filtering");
         glBindTexture(GL_TEXTURE_2D, texture); glActiveTexture(GL_TEXTURE3);
         // Multiplayer returns to its shared menu window and starts another session.
         {
