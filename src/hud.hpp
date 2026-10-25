@@ -9,7 +9,7 @@
 namespace viewer {
 struct MinimapSource;
 struct Model;
-enum class HudScreen { Gameplay, Inventory, Skills };
+enum class HudScreen { Gameplay, Inventory, Skills, Health, Map };
 
 // Presentation snapshot only; callers retain simulation/network ownership.
 struct HudState {

@@ -4,6 +4,7 @@ uniform bool uTextured;
 uniform bool uMinimap;
 uniform bool uMinimapRoads;
 uniform bool uMinimapRoadOverlay;
+uniform float uMapContrast;
 uniform vec2 uMinimapOrigin;
 uniform vec2 uMinimapX;
 uniform vec2 uMinimapY;
@@ -30,10 +31,9 @@ void main() {
             vec3 linear = texture(uTexture, uv).rgb;
             vec3 srgb = mix(12.92 * linear, 1.055 * pow(linear, vec3(1.0 / 2.4)) - 0.055,
                             greaterThan(linear, vec3(0.0031308)));
-            // Display-only contrast in encoded RGB; terrain and HUD text keep
-            // their existing colors. 1.0 restores the original satellite image.
-            const float minimapContrast = 1.15;
-            srgb = clamp((srgb - 0.5) * minimapContrast + 0.5, 0.0, 1.0);
+            // The minimap requests a contrast boost; the full map requests
+            // original colors. Both adjustments operate in encoded RGB.
+            srgb = clamp((srgb - 0.5) * uMapContrast + 0.5, 0.0, 1.0);
             fragColor = vec4(srgb, 1.0);
         }
         return;

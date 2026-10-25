@@ -33,14 +33,19 @@ private:
     std::chrono::steady_clock::time_point start_ = std::chrono::steady_clock::now();
 };
 
-class MinimapElement final : public Rml::Element {
+class SatelliteMapElement final : public Rml::Element {
 public:
-    explicit MinimapElement(const Rml::String& tag) : Rml::Element(tag) {}
+    explicit SatelliteMapElement(const Rml::String& tag) : Rml::Element(tag), fullImage_(tag == "satellite-map") {}
     HudRenderInterface* renderer = nullptr; // Owned by the HUD; outlives this element.
 protected:
     void OnRender() override {
-        if (renderer) renderer->drawMinimap(GetAbsoluteOffset(Rml::BoxArea::Content), GetBox().GetSize(Rml::BoxArea::Content));
+        if (!renderer) return;
+        const auto offset = GetAbsoluteOffset(Rml::BoxArea::Content), size = GetBox().GetSize(Rml::BoxArea::Content);
+        if (fullImage_) renderer->drawSatelliteMap(offset, size);
+        else renderer->drawMinimap(offset, size);
     }
+private:
+    bool fullImage_;
 };
 
 std::filesystem::path systemFont() {
@@ -73,12 +78,13 @@ std::string speed(float metresPerSecond) {
 struct Hud::Impl {
     HudRenderInterface renderer;
     HudSystem system;
-    Rml::ElementInstancerGeneric<MinimapElement> minimapInstancer;
+    Rml::ElementInstancerGeneric<SatelliteMapElement> mapInstancer;
     // FreeType borrows these bytes until Rml::Shutdown().
     std::vector<Rml::byte> font;
     Rml::Context* context = nullptr;
     Rml::ElementDocument* document = nullptr;
-    std::array<Rml::ElementDocument*, 2> screens{};
+    std::array<Rml::ElementDocument*, 4> screens{};
+    bool hasSatelliteImage = false;
     std::filesystem::path sourceDirectory;
     HudScreen screen = HudScreen::Gameplay;
     std::unordered_map<std::string, Rml::Element*> elements;
@@ -105,7 +111,8 @@ struct Hud::Impl {
                 throw std::runtime_error("Cannot load HUD system font: " + path.string());
             context = Rml::CreateContext("game-hud", {1280, 720});
             if (!context) throw std::runtime_error("Cannot create HUD context");
-            Rml::Factory::RegisterElementInstancer("minimap", &minimapInstancer);
+            Rml::Factory::RegisterElementInstancer("minimap", &mapInstancer);
+            Rml::Factory::RegisterElementInstancer("satellite-map", &mapInstancer);
             document = context->LoadDocument((directory / "hud.rml").generic_string());
             if (!document) throw std::runtime_error("Cannot load HUD layout: " + directory.string());
             for (const char* id : {"heading", "north-coordinate", "east-coordinate", "movement", "mode", "speed",
@@ -114,7 +121,7 @@ struct Hud::Impl {
                 if (!element) throw std::runtime_error(std::string("Missing HUD element: ") + id);
                 elements.emplace(id, element);
             }
-            auto* minimap = dynamic_cast<MinimapElement*>(document->GetElementById("minimap"));
+            auto* minimap = dynamic_cast<SatelliteMapElement*>(document->GetElementById("minimap"));
             if (!minimap) throw std::runtime_error("Missing HUD minimap element");
             minimap->renderer = &renderer;
             std::string scale = "<div class=\"compass-rule\"></div>";
@@ -175,13 +182,21 @@ struct Hud::Impl {
         if (screen == next) return;
         const auto screenDocument = [&](HudScreen selected) {
             if (selected == HudScreen::Gameplay) return document;
-            const auto index = selected == HudScreen::Inventory ? 0u : 1u;
-            if (!screens[index]) {
-                const char* file = index == 0 ? "inventory.rml" : "skills.rml";
-                screens[index] = context->LoadDocument((sourceDirectory / file).generic_string());
-                if (!screens[index]) throw std::runtime_error(std::string("Cannot load HUD screen: ") + file);
+            constexpr std::array<const char*, 4> files{"inventory.rml", "skills.rml", "health.rml", "map.rml"};
+            const auto index = static_cast<std::size_t>(selected) - 1;
+            auto*& page = screens.at(index);
+            if (!page) {
+                const char* file = files.at(index);
+                page = context->LoadDocument((sourceDirectory / file).generic_string());
+                if (!page) throw std::runtime_error(std::string("Cannot load HUD screen: ") + file);
+                if (selected == HudScreen::Map) {
+                    auto* map = dynamic_cast<SatelliteMapElement*>(page->GetElementById("satellite-overview"));
+                    if (!map) throw std::runtime_error("Missing full satellite map element");
+                    map->renderer = &renderer;
+                    page->SetClass("has-satellite", hasSatelliteImage);
+                }
             }
-            return screens[index];
+            return page;
         };
         auto* nextDocument = screenDocument(next);
         screenDocument(screen)->Hide();
@@ -233,6 +248,8 @@ Hud::~Hud() = default;
 void Hud::draw(const HudState& state, int width, int height) { impl_->draw(state, width, height); }
 void Hud::setMinimap(const MinimapSource& source, unsigned int texture) {
     impl_->renderer.setMinimap(source, texture);
+    impl_->hasSatelliteImage = texture != 0;
+    if (auto* map = impl_->screens[3]) map->SetClass("has-satellite", impl_->hasSatelliteImage);
     impl_->setText("map-caption", texture ? "" : "NO MAP");
 }
 void Hud::setMinimapRoads(const Model& model) { impl_->renderer.setMinimapRoads(model); }

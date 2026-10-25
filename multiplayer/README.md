@@ -290,7 +290,8 @@ Scene options:
 - `--lag-ms N --loss-percent N`: simulate outgoing packet delay and loss through
   GameNetworkingSockets. These testing options may differ between peers.
 
-F1 opens the Inventory visual prototype and F2 opens Skills. Press the active
+F1 opens Inventory, F2 Skills, F3 Health (empty) and F4 the full Sentinel map
+without road overlays. Press the active
 key again or Escape to close it. Both screens use fixed sample content and
 block gameplay inputs while visible; they do not change inventory or skills.
 See the shared [HUD layouts](../docs/VIEWER.md#hud).

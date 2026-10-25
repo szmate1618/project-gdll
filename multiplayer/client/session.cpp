@@ -20,6 +20,7 @@
 struct GLFWwindow;
 #endif
 #include <chrono>
+#include <array>
 #include <cmath>
 #include <iostream>
 #include <memory>
@@ -52,10 +53,11 @@ Input& input(GLFWwindow* window) { return *static_cast<Input*>(glfwGetWindowUser
 void key(GLFWwindow* window, int code, int, int action, int) {
     if (action != GLFW_PRESS) return;
     auto& in = input(window);
-    if (code == GLFW_KEY_F1 || code == GLFW_KEY_F2 ||
+    if ((code >= GLFW_KEY_F1 && code <= GLFW_KEY_F4) ||
         (code == GLFW_KEY_ESCAPE && in.hudScreen != viewer::HudScreen::Gameplay)) {
-        const auto requested = code == GLFW_KEY_F1 ? viewer::HudScreen::Inventory :
-            code == GLFW_KEY_F2 ? viewer::HudScreen::Skills : viewer::HudScreen::Gameplay;
+        constexpr std::array<viewer::HudScreen, 4> screens{viewer::HudScreen::Inventory, viewer::HudScreen::Skills,
+            viewer::HudScreen::Health, viewer::HudScreen::Map};
+        const auto requested = code == GLFW_KEY_ESCAPE ? viewer::HudScreen::Gameplay : screens[code - GLFW_KEY_F1];
         in.hudScreen = in.hudScreen == requested ? viewer::HudScreen::Gameplay : requested;
         in.firstMouse = true; in.drag = {};
         in.leftPressed = in.rightPressed = in.prone = in.reload = in.enterVehicle = in.toggleDrivingCamera = false;

@@ -22,6 +22,7 @@ public:
     void setMinimapRoads(const Model& model);
     void setMinimapPosition(glm::vec2 position) { minimapPosition_ = position; }
     void drawMinimap(Rml::Vector2f offset, Rml::Vector2f size);
+    void drawSatelliteMap(Rml::Vector2f offset, Rml::Vector2f size);
     Rml::CompiledGeometryHandle CompileGeometry(Rml::Span<const Rml::Vertex> vertices,
                                                Rml::Span<const int> indices) override;
     void RenderGeometry(Rml::CompiledGeometryHandle geometry, Rml::Vector2f translation,
@@ -33,6 +34,8 @@ public:
     void EnableScissorRegion(bool enable) override;
     void SetScissorRegion(Rml::Rectanglei region) override;
 private:
+    void drawSatelliteImage(Rml::Vector2f offset, Rml::Vector2f size, glm::vec2 origin,
+                            glm::vec2 uvX, glm::vec2 uvY, float contrast);
     GLuint program_ = 0;
     GLint viewportLocation_ = -1, translationLocation_ = -1, texturedLocation_ = -1;
     int width_ = 0, height_ = 0;
@@ -44,6 +47,7 @@ private:
     GLint minimapOriginLocation_ = -1, minimapXLocation_ = -1, minimapYLocation_ = -1;
     GLint roadsLocation_ = -1, centerLocation_ = -1, spanLocation_ = -1;
     GLint roadOverlayLocation_ = -1;
+    GLint mapContrastLocation_ = -1;
     std::unique_ptr<MinimapRoadRenderer> roads_;
 };
 

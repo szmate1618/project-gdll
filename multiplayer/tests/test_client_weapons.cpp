@@ -192,6 +192,11 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             key(window, GLFW_KEY_F2, 0, GLFW_PRESS, 0);
             key(window, GLFW_KEY_F2, 0, GLFW_REPEAT, 0);
             require(in.hudScreen == viewer::HudScreen::Skills, "F2 must select skills without repeat toggling");
+            key(window, GLFW_KEY_F3, 0, GLFW_PRESS, 0);
+            require(in.hudScreen == viewer::HudScreen::Health, "F3 must select health while seated");
+            key(window, GLFW_KEY_F4, 0, GLFW_PRESS, 0);
+            key(window, GLFW_KEY_F4, 0, GLFW_REPEAT, 0);
+            require(in.hudScreen == viewer::HudScreen::Map, "F4 must select map without repeat toggling");
             key(window, GLFW_KEY_ENTER, 0, GLFW_PRESS, 0);
             button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
             const auto previewCommand = command(in, window, false, 0.0);

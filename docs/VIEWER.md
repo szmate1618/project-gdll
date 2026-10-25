@@ -47,8 +47,10 @@ requests, extra texture copies, or per-frame image uploads are needed. The
 terrain's transformed vertices and native glTF UVs determine alignment, including
 the runtime Z-south axis. The imagery is unlit, with a 15% display contrast boost
 around mid-gray in the minimap fragment shader. This changes only its on-screen
-appearance; the source pixels and scene terrain are unchanged. Set
-`minimapContrast` to `1.0` in [hud.frag](../ui/hud.frag) to restore original colors.
+appearance; the source pixels and scene terrain are unchanged. The contrast
+argument in `drawMinimap()` in
+[hud_render_interface.cpp](../src/hud_render_interface.cpp) is `1.15`; use `1.0`
+to restore original colors.
 The white square remains centered as the map scrolls, and areas beyond the
 published terrain are blank rather than stretched or repeated. Resizing the HUD
 changes screen size only; its world coverage remains 300 × 300 m. The map has no
@@ -102,11 +104,13 @@ Noto or Liberation Sans font; Windows uses the system Segoe UI font. To select
 another installed font, set `GD_HUD_FONT` to its `.ttf` path before launching.
 FreeType creates the glyph atlas needed to render this system-font text.
 
-F1 opens the Inventory visual prototype; F2 opens Skills. Press the active key
-again, or Escape, to return to the gameplay HUD. Opening either screen cancels
+F1 opens the Inventory visual prototype; F2 opens Skills, F3 Health and F4 Map.
+Press the active key again, or Escape, to return to the gameplay HUD. Opening
+any screen cancels
 held actions and blocks movement, camera look and gameplay inputs while it is
 visible; simulation continues. F8 and F9 now select free-fly and walking modes.
-The same screens are available in the graphical multiplayer client.
+F10 toggles the standalone viewer's collision overlay. The same four screens
+are available in the graphical multiplayer client.
 
 [inventory.rml](../ui/inventory.rml) has body-storage zones, a four-column by
 five-row backpack, external pockets and item details. [skills.rml](../ui/skills.rml)
@@ -119,15 +123,23 @@ assignment, skill use, filters, drag-and-drop or combos. Icons and the body
 reference are colored square placeholders. System fonts and the HUD backend are
 shared; each screen is loaded on first use and cached until the session ends.
 
-After building `test_hud`, capture both static screens without loading town data:
+After building `test_hud`, capture the screens without loading town data:
 
 ```bash
 ./build/test_hud build/loadout
-# Writes build/loadout-inventory.ppm and build/loadout-skills.ppm, plus small captures.
+# Writes build/loadout-{inventory,skills,health,map}.ppm, plus small captures.
 ```
 
-For reproducible in-game captures, use `--hud-screen inventory` or
-`--hud-screen skills` with the viewer's normal map, camera and screenshot options:
+[health.rml](../ui/health.rml) is an empty content panel. [map.rml](../ui/map.rml)
+shows the entire published Sentinel image, fitted without cropping or changing
+its aspect ratio. It borrows the same terrain texture as the minimap, uses
+nearest filtering and original RGB colors, and draws no roads or player marker.
+Health and Map omit the action hotbar. Scenes without satellite imagery show
+`NO MAP AVAILABLE`.
+
+For reproducible in-game captures, use `--hud-screen inventory`,
+`--hud-screen skills`, `--hud-screen health` or `--hud-screen map` with the
+viewer's normal map, camera and screenshot options:
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --spawn 100 100 --hud-screen inventory \
@@ -357,7 +369,7 @@ tree height. Radius is estimated as 3.5% of the smaller crown dimension,
 clamped to 0.10–0.50 m and at most half the tree height. These are approximations,
 since the detector does not measure trunks. The textured canopy cards never
 enter the town collision world, and trees add no walkable canopy surfaces.
-F3 displays nearby trunk colliders; `--no-tree-collisions` disables them.
+F10 displays nearby trunk colliders; `--no-tree-collisions` disables them.
 
 Walking through runtime forest shrubs produces short recorded rustles. Running
 is louder; a stable dry subset can also crack twigs and alert nearby zombies.
@@ -1368,7 +1380,9 @@ build directory when run by CTest.
 | Enter | Enter a nearby stopped car from walking mode; exit beside it when stopped and clear |
 | Ctrl (hold) | Crouch on the ground; tuck legs in the air without lowering the camera |
 | Physical key left of X: Z (QWERTY), Y (QWERTZ) | Toggle prone in walking mode; an airborne press waits for landing |
-| F3 | Toggle collision visualization |
+| F3 | Open / close the empty Health screen |
+| F4 | Open / close the full Sentinel map |
+| F10 | Toggle collision visualization |
 | Tab | Switch between Combat (default) and Interaction controls |
 | Left Alt | Release / capture the mouse on foot; toggle first/third person while driving |
 | F12 | Release / capture the mouse |
@@ -1976,7 +1990,7 @@ The default contact skin is 0.002 m. On slopes the rounded capsule's bottom sits
 slightly above the terrain height at its center, so eye height measured vertically
 from that point can be slightly greater than 1.70 m.
 
-**F3** overlays the player shape (green when grounded, red while airborne), nearby
+**F10** overlays the player shape (green when grounded, red while airborne), nearby
 collision geometry (amber), and ground contact normal (cyan). The window title
 also reports whether the player is grounded.
 Lines remain visible through rendered geometry. Switching back to free-fly with

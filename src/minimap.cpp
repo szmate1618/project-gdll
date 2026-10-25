@@ -44,7 +44,7 @@ std::optional<MinimapSource> findMinimapSource(const Model& model) {
     const glm::dmat3 world{glm::dvec3(a, 1), glm::dvec3(b, 1), glm::dvec3(c, 1)};
     const glm::dmat3 uv{glm::dvec3(mesh.vertices[0].uv, 1), glm::dvec3(mesh.vertices[bIndex].uv, 1),
                          glm::dvec3(mesh.vertices[cIndex].uv, 1)};
-    MinimapSource result{texture, uv * glm::inverse(world)};
+    MinimapSource result{texture, uv * glm::inverse(world), {image.width, image.height}};
     glm::vec2 minimum(std::numeric_limits<float>::max()), maximum(std::numeric_limits<float>::lowest());
     for (std::size_t i = 0; i < mesh.vertices.size(); ++i) {
         const auto expected = mesh.vertices[i].uv;

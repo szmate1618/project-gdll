@@ -7,6 +7,7 @@
 #include <iostream>
 #include <memory>
 #include <array>
+#include <algorithm>
 #include <cmath>
 
 namespace viewer {
@@ -106,6 +107,7 @@ HudRenderInterface::HudRenderInterface(const std::filesystem::path& directory) {
     centerLocation_ = glGetUniformLocation(program_, "uMinimapCenter");
     spanLocation_ = glGetUniformLocation(program_, "uMinimapSpan");
     roadOverlayLocation_ = glGetUniformLocation(program_, "uMinimapRoadOverlay");
+    mapContrastLocation_ = glGetUniformLocation(program_, "uMapContrast");
     glUseProgram(program_);
     glUniform1i(glGetUniformLocation(program_, "uTexture"), 0);
     glGenSamplers(1, &minimapSampler_);
@@ -130,7 +132,8 @@ void HudRenderInterface::setMinimapRoads(const Model& model) {
     roads_ = std::make_unique<MinimapRoadRenderer>(model);
 }
 
-void HudRenderInterface::drawMinimap(Rml::Vector2f offset, Rml::Vector2f size) {
+void HudRenderInterface::drawSatelliteImage(Rml::Vector2f offset, Rml::Vector2f size, glm::vec2 origin,
+                                            glm::vec2 x, glm::vec2 y, float contrast) {
     if (!minimapTexture_ || size.x <= 0 || size.y <= 0) return;
     if (!minimapQuad_) {
         const std::array<Rml::Vertex, 4> vertices{{
@@ -139,22 +142,36 @@ void HudRenderInterface::drawMinimap(Rml::Vector2f offset, Rml::Vector2f size) {
         const std::array<int, 6> indices{{0, 1, 2, 0, 2, 3}};
         minimapQuad_ = CompileGeometry({vertices.data(), vertices.size()}, {indices.data(), indices.size()});
     }
+    glUniform1i(minimapLocation_, 1);
+    glUniform2f(minimapSizeLocation_, size.x, size.y);
+    glUniform2f(minimapOriginLocation_, origin.x, origin.y);
+    glUniform2f(minimapXLocation_, x.x, x.y);
+    glUniform2f(minimapYLocation_, y.x, y.y);
+    glUniform1f(mapContrastLocation_, contrast);
+    glBindSampler(0, minimapSampler_);
+    RenderGeometry(minimapQuad_, offset, minimapTexture_);
+    glBindSampler(0, 0);
+    glUniform1i(minimapLocation_, 0);
+}
+
+void HudRenderInterface::drawSatelliteMap(Rml::Vector2f offset, Rml::Vector2f size) {
+    if (!minimapTexture_ || size.x <= 0 || size.y <= 0) return;
+    const float scale = std::min(size.x / minimap_.imageSize.x, size.y / minimap_.imageSize.y);
+    const Rml::Vector2f fitted{minimap_.imageSize.x * scale, minimap_.imageSize.y * scale};
+    offset += (size - fitted) * .5f;
+    // Display all native UVs, with original RGB colors and no road pass.
+    drawSatelliteImage(offset, fitted, {0, 0}, {1, 0}, {0, 1}, 1.f);
+}
+
+void HudRenderInterface::drawMinimap(Rml::Vector2f offset, Rml::Vector2f size) {
+    if (!minimapTexture_ || size.x <= 0 || size.y <= 0) return;
     // Top of the control is north (-Z). World coverage is independent of HUD
     // resolution; only uniforms change as the player moves.
     constexpr double spanMeters = 300;
     const auto x = glm::vec2(minimap_.uvFromWorld * glm::dvec3(spanMeters, 0, 0));
     const auto y = glm::vec2(minimap_.uvFromWorld * glm::dvec3(0, spanMeters, 0));
     const auto center = glm::vec2(minimap_.uvFromWorld * glm::dvec3(minimapPosition_, 1));
-    const auto origin = center - (x + y) * .5f;
-    glUniform1i(minimapLocation_, 1);
-    glUniform2f(minimapSizeLocation_, size.x, size.y);
-    glUniform2f(minimapOriginLocation_, origin.x, origin.y);
-    glUniform2f(minimapXLocation_, x.x, x.y);
-    glUniform2f(minimapYLocation_, y.x, y.y);
-    glBindSampler(0, minimapSampler_);
-    RenderGeometry(minimapQuad_, offset, minimapTexture_);
-    glBindSampler(0, 0);
-    glUniform1i(minimapLocation_, 0);
+    drawSatelliteImage(offset, size, center - (x + y) * .5f, x, y, 1.15f);
     if (roads_) {
         const glm::ivec2 targetSize{int(std::ceil(size.x)), int(std::ceil(size.y))};
         glUniform1i(roadsLocation_, 1);

@@ -4,8 +4,10 @@ body.loadout { background-color: #29312fed; }
 .page-tab { position: absolute; top: 6dp; height: 40dp; width: 178dp; font-size: 19dp; color: #f5f6f280; }
 #inventory-tab { left: 0dp; }
 #skills-tab { left: 204dp; }
+#health-tab { left: 408dp; }
+#map-tab { left: 612dp; }
 .key-label { display: inline-block; width: 28dp; font-size: 11dp; color: #f5f6f299; }
-.inventory #inventory-tab, .skills #skills-tab { color: #f5f6f2; border-bottom: 2dp #59c49c; }
+.inventory #inventory-tab, .skills #skills-tab, .health #health-tab, .map #map-tab { color: #f5f6f2; border-bottom: 2dp #59c49c; }
 .close-hint { position: absolute; right: 0dp; top: 12dp; font-size: 11dp; color: #f5f6f299; }
 .panel { position: absolute; border: 1dp #f5f6f24d; background-color: #34403bd9; }
 .main-panel { top: 68dp; height: 450dp; }
@@ -91,3 +93,8 @@ body.loadout { background-color: #29312fed; }
 .combo-caption span { font-size: 11dp; color: #f5f6f266; }
 .description { height: 67dp; }
 .skill-storage-note { padding-top: 16dp; border-top: 1dp #f5f6f226; font-size: 11dp; color: #59c49c; line-height: 19dp; }
+.health #action-hotbar, .map #action-hotbar { display: none; }
+.full-panel { left: 0dp; width: 1210dp; height: 590dp; }
+#satellite-overview { display: block; position: absolute; left: 50%; margin-left: -257dp; top: 54dp; width: 512dp; height: 512dp; border: 1dp #f5f6f24d; background-color: #121b16; }
+#map-unavailable { position: absolute; left: 0dp; top: 298dp; width: 1210dp; text-align: center; font-size: 13dp; color: #f5f6f299; }
+.has-satellite #map-unavailable { display: none; }

@@ -1,0 +1,8 @@
+<rml>
+<head><title>Health</title><link type="text/template" href="loadout.rml" /></head>
+<body template="loadout" class="loadout health">
+    <div id="health-panel" class="panel main-panel full-panel">
+        <div class="panel-heading">HEALTH</div>
+    </div>
+</body>
+</rml>

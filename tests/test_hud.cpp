@@ -14,6 +14,14 @@ void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
 GLint integer(GLenum name) { GLint result; glGetIntegerv(name, &result); return result; }
+std::array<int, 3> colorAt(const std::vector<unsigned char>& image, int width, int height, int x, int top) {
+    const auto i = static_cast<std::size_t>((height - 1 - top) * width + x) * 3;
+    return {image[i], image[i+1], image[i+2]};
+}
+bool isColor(std::array<int, 3> actual, std::array<int, 3> expected) {
+    return std::abs(actual[0] - expected[0]) <= 2 && std::abs(actual[1] - expected[1]) <= 2 &&
+           std::abs(actual[2] - expected[2]) <= 2;
+}
 std::vector<unsigned char> pixels(int width, int height) {
     std::vector<unsigned char> result(static_cast<std::size_t>(width) * height * 3);
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
@@ -167,14 +175,6 @@ int main(int argc, char** argv) {
             hud.setMinimap(*mapSource, mapTexture); checkState();
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto map = pixels(1280, 720);
-            const auto colorAt = [](const auto& image, int width, int height, int x, int top) {
-                const auto i = static_cast<std::size_t>((height - 1 - top) * width + x) * 3;
-                return std::array<int, 3>{image[i], image[i+1], image[i+2]};
-            };
-            const auto isColor = [](auto actual, std::array<int, 3> expected) {
-                return std::abs(actual[0] - expected[0]) <= 2 && std::abs(actual[1] - expected[1]) <= 2 &&
-                       std::abs(actual[2] - expected[2]) <= 2;
-            };
             require(isColor(colorAt(map, 1280, 720, 1150, 50), {234,15,4}) &&
                     isColor(colorAt(map, 1280, 720, 1248, 50), {4,222,15}) &&
                     isColor(colorAt(map, 1280, 720, 1150, 120), {4,15,234}) &&
@@ -293,6 +293,35 @@ int main(int argc, char** argv) {
             state.screen = viewer::HudScreen::Inventory;
             clear(); hud.draw(state, 640, 360); checkState();
             if (argc > 1) capture((std::string(argv[1]) + "-inventory-small.ppm").c_str(), pixels(640, 360), 640, 360);
+            state.screen = viewer::HudScreen::Health;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto health = pixels(1280, 720);
+            if (argc > 1) capture((std::string(argv[1]) + "-health.ppm").c_str(), health, 1280, 720);
+            require(colorAt(health, 1280, 720, 100, 200) == colorAt(health, 1280, 720, 640, 360),
+                    "Empty health panel contains unexpected content");
+            state.screen = viewer::HudScreen::Map;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto noMap = pixels(1280, 720);
+            hud.setMinimap(*mapSource, mapTexture);
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto fullMap = pixels(1280, 720);
+            require(isColor(colorAt(fullMap, 1280, 720, 400, 180), {220,30,20}) &&
+                    isColor(colorAt(fullMap, 1280, 720, 870, 180), {20,210,30}) &&
+                    isColor(colorAt(fullMap, 1280, 720, 400, 640), {20,30,220}) &&
+                    isColor(colorAt(fullMap, 1280, 720, 870, 640), {220,210,20}),
+                    "Full map is missing imagery, has the wrong orientation or changes original RGB colors");
+            hud.setMinimapRoads(minimapRoadFixture());
+            state.position = {1000, 0, 1000};
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(fullMap == pixels(1280, 720), "Full map drew roads or followed player movement");
+            if (argc > 1) capture((std::string(argv[1]) + "-map.ppm").c_str(), fullMap, 1280, 720);
+            clear(); hud.draw(state, 640, 360); checkState();
+            require(isColor(colorAt(pixels(640, 360), 640, 360, 200, 90), {220,30,20}),
+                    "Full map did not scale with the screen");
+            hud.setMinimap(*mapSource, 0);
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(noMap == pixels(1280, 720), "Full map retained stale imagery or fallback text after its source was removed");
+            state.position = {0, 0, 0};
             state.screen = viewer::HudScreen::Gameplay;
             clear(); hud.draw(state, 1280, 720); checkState();
             require(first == pixels(1280, 720), "Closing a prototype screen failed to restore the gameplay HUD");

@@ -1,0 +1,10 @@
+<rml>
+<head><title>Map</title><link type="text/template" href="loadout.rml" /></head>
+<body template="loadout" class="loadout map">
+    <div id="map-panel" class="panel main-panel full-panel">
+        <div class="panel-heading">MAP</div><div class="panel-meta">SENTINEL RGB</div>
+        <satellite-map id="satellite-overview"></satellite-map>
+        <div id="map-unavailable">NO MAP AVAILABLE</div>
+    </div>
+</body>
+</rml>
