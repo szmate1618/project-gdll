@@ -14,8 +14,8 @@ large weapons placed in it. Other choices are `small_sling_bag` (4×5) and
 `hiking_backpack` (10×14).
 Omit `backpack` for no backpack; use `equipment = []` for no body storage.
 
-The HUD reads all three files **on first opening Inventory**, then keeps that
-screen for the session. Restart the application to reload edits. The folder lives
+The application reads all three files **when creating the player inventory**, then
+keeps that model for the session. Restart the application to reload edits. The folder lives
 beside `ui/` in the checkout and distributed clients. Missing files and invalid
 values produce an error naming the source file and field.
 

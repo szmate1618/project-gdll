@@ -12,7 +12,8 @@
 #include <random>
 #include "interior_objects.hpp"
 #include "reticle_overlay.hpp"
-#include "hud.hpp"
+#include "gui/hud.hpp"
+#include "inventory/inventory_config.hpp"
 #include "minimap.hpp"
 #include "weapons.hpp"
 #include "weapon_overlay.hpp"
@@ -407,6 +408,7 @@ struct AppState {
     viewer::CameraRig rig;
     viewer::PlayerInteraction interaction;
     viewer::Weapons weapons{VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY, true};
+    viewer::PlayerInventory inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_INVENTORY).parent_path());
     viewer::WeaponMotion weaponMotion;
     viewer::DoorLayer* doors = nullptr;
     viewer::BoxLayer* boxes = nullptr;
@@ -1298,7 +1300,7 @@ int run(const Options& options) {
     renderer.setVehicleDistanceDetail(options.vehicleDistanceDetail);
     renderer.setVehicleInstancing(options.vehicleInstancing);
     viewer::ReticleOverlay reticle(options.shaders);
-    viewer::Hud hud(VIEWER_HUD_DIR);
+    viewer::Hud hud(VIEWER_HUD_DIR, app.inventory);
     app.hud = &hud;
     if (const auto minimap = viewer::findMinimapSource(model)) {
         hud.setMinimap(*minimap, renderer.sceneTexture(minimap->texture));

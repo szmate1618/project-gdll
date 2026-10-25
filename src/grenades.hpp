@@ -1,6 +1,7 @@
 #pragma once
 
 #include "muzzle_flash.hpp"
+#include "weapon_config.hpp"
 #include <glm/gtc/quaternion.hpp>
 #include <cstdint>
 #include <memory>
@@ -12,9 +13,6 @@ class PhysicsScene;
 class CollisionWorld;
 class DoorLayer;
 class ZombieLayer;
-struct GrenadeConfig {
-    float fuseSeconds = 3, blastRadius = 8, throwSpeed = 14;
-};
 struct GrenadePose {
     std::uint32_t id = 0;
     glm::vec3 center{0};

@@ -49,7 +49,7 @@ the runtime Z-south axis. The imagery is unlit, with a 15% display contrast boos
 around mid-gray in the minimap fragment shader. This changes only its on-screen
 appearance; the source pixels and scene terrain are unchanged. The contrast
 argument in `drawMinimap()` in
-[hud_render_interface.cpp](../src/hud_render_interface.cpp) is `1.15`; use `1.0`
+[hud_render_interface.cpp](../src/gui/hud_render_interface.cpp) is `1.15`; use `1.0`
 to restore original colors.
 The white square remains centered as the map scrolls, and areas beyond the
 published terrain are blank rather than stretched or repeated. Resizing the HUD
@@ -120,7 +120,9 @@ The slings start empty; rotate the 5×2 sniper to fit their 2×5 grids. The 4×5
 available in the catalog. Slot
 coordinates are normalized within each panel's inner storage rectangle. Capacity, pocket placement and access times come from those files;
 see [the storage schema](../storage/SCHEMA.md) for editing and validation rules.
-The files are read once when Inventory first opens; restart to reload changes.
+The application reads the files once when creating the player inventory at startup;
+restart to reload changes. The GUI borrows that model. See
+[inventory code and queries](INVENTORY.md) for the ownership and module boundaries.
 Root `inventory.toml` places the 2×1 pistol in the holster, the grenade in the
 chest pouch, and the other three weapons in the backpack. Occupied N×M footprints
 are drawn as tinted rectangles on the grids. References, bounds and overlap
@@ -149,7 +151,7 @@ remain fixed examples. The shared hotbar reads owned weapon IDs and slots from
 [storage/weapons/*.inventory.toml](../storage/weapons/README.md). Slots 0–4 start
 assigned to pistol, SMG, shotgun, sniper and HE grenade; 5–9 are empty. Item descriptors carry N×M grid
 footprints separately from gameplay settings in `storage/weapons/*.gameplay.toml`.
-Ownership and shortcuts are cached when Inventory or Skills first opens.
+Ownership and shortcuts are loaded with the player inventory at startup.
 Hotbar assignment, equipping, skill use, filters and combos remain unimplemented.
 Icons and the body reference are colored square placeholders. System fonts and
 the HUD backend are shared; each screen is cached until the session ends.

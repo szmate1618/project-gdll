@@ -1,4 +1,5 @@
-#include "hud.hpp"
+#include "gui/hud.hpp"
+#include "inventory/inventory_config.hpp"
 #include "minimap.hpp"
 #include "minimap_fixture.hpp"
 #include "opengl.hpp"
@@ -145,7 +146,8 @@ int main(int argc, char** argv) {
         state.movement = "CROUCH"; state.yawDegrees = 225; state.speedMetersPerSecond = 1.5f / 3.6f;
         std::vector<unsigned char> first;
         {
-            viewer::Hud hud(VIEWER_HUD_DIR);
+            auto hudInventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            viewer::Hud hud(VIEWER_HUD_DIR, hudInventory);
             clear(); hud.draw(state, 1280, 720); checkState();
             first = pixels(1280, 720);
             require(mapPixels(first) > 11400 && mapPixels(first) < 11800,
@@ -276,7 +278,8 @@ int main(int argc, char** argv) {
         glBindTexture(GL_TEXTURE_2D, texture); glActiveTexture(GL_TEXTURE3);
         // Multiplayer returns to its shared menu window and starts another session.
         {
-            viewer::Hud hud(VIEWER_HUD_DIR);
+            auto hudInventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            viewer::Hud hud(VIEWER_HUD_DIR, hudInventory);
             state.loaded = 7;
             clear(); hud.draw(state, 1280, 720); checkState();
             require(first == pixels(1280, 720), "HUD failed to recreate after a session ended");
@@ -354,7 +357,8 @@ int main(int argc, char** argv) {
             require(first == pixels(1280, 720), "Closing a prototype screen failed to restore the gameplay HUD");
         }
         {
-            viewer::Hud hud(VIEWER_HUD_DIR);
+            auto hudInventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            viewer::Hud hud(VIEWER_HUD_DIR, hudInventory);
             state.screen = viewer::HudScreen::Inventory;
             const auto draw = [&] { clear(); hud.draw(state, 1280, 720); checkState(); return pixels(1280, 720); };
             const auto initial = draw();
@@ -377,6 +381,9 @@ int main(int argc, char** argv) {
             if (argc > 1) capture((std::string(argv[1]) + "-drag-preview.ppm").c_str(), held, 1280, 720);
             hud.pointerButton(0, false);
             const auto placed = draw();
+            require(hudInventory.locationOf("sniper")->placement->storage == "body/left_shoulder_sling/carry" &&
+                hudInventory.locationOf("sniper")->placement->rotation == 90,
+                "GUI placement did not update the application's player inventory model");
             require(colorAt(placed, 1280, 720, 55, 230) != colorAt(initial, 1280, 720, 55, 230), "Rotated sniper was not placed in the shoulder sling");
             for (int y = 568; y < 690; ++y) for (int x = 34; x < 1246; ++x)
                 require(colorAt(initial, 1280, 720, x, y) == colorAt(placed, 1280, 720, x, y), "Storage drag changed the hotbar");
@@ -401,7 +408,8 @@ int main(int argc, char** argv) {
             state.screen = viewer::HudScreen::Inventory;
             std::vector<unsigned char> configured;
             {
-                viewer::Hud hud(fixture.directory / "ui");
+                auto hudInventory = viewer::loadPlayerInventory(std::filesystem::path(fixture.directory / "ui").parent_path());
+                viewer::Hud hud(fixture.directory / "ui", hudInventory);
                 clear(); hud.draw(state, 1280, 720); checkState();
                 configured = pixels(1280, 720);
                 if (argc > 1) capture((std::string(argv[1]) + "-hiking.ppm").c_str(), configured, 1280, 720);
@@ -412,7 +420,8 @@ int main(int argc, char** argv) {
                 clear(); hud.draw(state, 1280, 720); checkState();
                 require(configured == pixels(1280, 720), "Reopening Inventory unexpectedly reloaded storage files");
             }
-            viewer::Hud emptyHud(fixture.directory / "ui");
+            auto emptyHudInventory = viewer::loadPlayerInventory(std::filesystem::path(fixture.directory / "ui").parent_path());
+            viewer::Hud emptyHud(fixture.directory / "ui", emptyHudInventory);
             clear(); emptyHud.draw(state, 1280, 720); checkState();
             const auto empty = pixels(1280, 720);
             if (argc > 1) capture((std::string(argv[1]) + "-unequipped.ppm").c_str(), empty, 1280, 720);

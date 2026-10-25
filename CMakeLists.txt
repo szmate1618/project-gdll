@@ -327,9 +327,15 @@ add_library(viewer_interaction STATIC src/door_interaction.cpp src/object_intera
 target_link_libraries(viewer_interaction PUBLIC viewer_camera viewer_collision viewer_physics)
 viewer_warnings(viewer_interaction)
 
+add_library(viewer_weapon_config STATIC src/weapon_config.cpp)
+target_include_directories(viewer_weapon_config PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(viewer_weapon_config PUBLIC glm::glm PRIVATE tomlplusplus::tomlplusplus)
+viewer_warnings(viewer_weapon_config)
+include(cmake/Inventory.cmake)
+
 add_library(viewer_weapons STATIC src/weapons.cpp src/weapon_motion.cpp)
 target_include_directories(viewer_weapons PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
-target_link_libraries(viewer_weapons PUBLIC glm::glm viewer_camera PRIVATE tomlplusplus::tomlplusplus)
+target_link_libraries(viewer_weapons PUBLIC viewer_weapon_config viewer_camera PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_weapons)
 
 add_library(viewer_objects STATIC src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp)

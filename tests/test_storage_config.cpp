@@ -1,4 +1,4 @@
-#include "storage_config.hpp"
+#include "inventory/storage_config.hpp"
 
 #include <chrono>
 #include <cmath>

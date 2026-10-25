@@ -7,8 +7,8 @@
 #include <sstream>
 
 namespace viewer {
-InventoryInteraction::InventoryInteraction(Rml::ElementDocument& document, StorageLoadout storage, InventoryItems& inventory)
-    : document_(document), storage_(std::move(storage)), inventory_(inventory), drag_(storage_, inventory_) {
+InventoryInteraction::InventoryInteraction(Rml::ElementDocument& document, PlayerInventory& inventory)
+    : document_(document), inventory_(inventory), drag_(inventory_) {
     auto element = document_.CreateElement("div");
     element->SetClassNames("inventory-ghost");
     ghost_ = document_.AppendChild(std::move(element));
@@ -38,44 +38,19 @@ InventoryInteraction::Hit InventoryInteraction::hit() const {
     return {};
 }
 void InventoryInteraction::refresh() {
-    populateInventory(document_, storage_, inventory_, drag_.held() ? drag_.held()->item : "");
-    details();
+    populateInventory(document_, inventory_);
+    populateInventoryDetails(document_, inventory_, selected_);
     document_.UpdateDocument();
-}
-void InventoryInteraction::details() {
-    const auto set = [&](const char* id, const std::string& value) {
-        document_.GetElementById(id)->SetInnerRML(Rml::StringUtilities::EncodeRml(value));
-    };
-    if (selected_.empty()) return;
-    const auto& item = inventory_.owned.at(selected_);
-    set("inventory-item-name", item.name);
-    const auto tagged = [&](const char* tag) { return std::find(item.tags.begin(), item.tags.end(), tag) != item.tags.end(); };
-    set("inventory-type", tagged("long_gun") ? "Primary weapon" : tagged("handgun") ? "Handgun" : tagged("grenade") ? "Grenade" : item.type);
-    std::string tags;
-    for (const auto& tag : item.tags) { if (!tags.empty()) tags += ", "; tags += tag; }
-    set("inventory-tags", tags);
-    const bool held = drag_.held() && drag_.held()->item == selected_;
-    const auto placement = held ? ItemPlacement{"", 0, 0, drag_.held()->rotation} : inventory_.placements.at(selected_);
-    const auto rectangle = inventoryRectangle(item, placement);
-    set("inventory-size", std::to_string(rectangle.width) + " × " + std::to_string(rectangle.height) + " / " + std::to_string(placement.rotation) + "°");
-    set("inventory-current-location", held ? "IN HAND" : placement.storage);
-    std::ostringstream access;
-    if (held) access << "—";
-    else {
-        const auto& grid = drag_.layout().at(placement.storage).grid;
-        access << std::fixed << std::setprecision(2) << grid.accessTime + grid.depthTimePerRow * placement.y << "s";
-    }
-    set("inventory-access-time", access.str());
 }
 void InventoryInteraction::rotate(int turns) {
     if (!drag_.held()) return;
     const auto& held = *drag_.held();
-    const auto rectangle = inventoryRectangle(inventory_.owned.at(held.item), {"", 0, 0, held.rotation});
+    const auto rectangle = inventoryRectangle(inventory_.items().at(held.item), {"", 0, 0, held.rotation});
     const int oldX = anchorX_, oldY = anchorY_;
     if (turns > 0) { anchorX_ = rectangle.height - 1 - oldY; anchorY_ = oldX; }
     else { anchorX_ = oldY; anchorY_ = rectangle.width - 1 - oldX; }
     drag_.rotate(turns);
-    details();
+    populateInventoryDetails(document_, inventory_, selected_);
 }
 void InventoryInteraction::ghost() {
     if (!drag_.held()) { ghost_->SetProperty("display", "none"); return; }
@@ -89,14 +64,14 @@ void InventoryInteraction::ghost() {
         check = drag_.preview(hovered.storage, hovered.x - anchorX_, hovered.y - anchorY_);
     }
     const auto& held = *drag_.held();
-    const auto rectangle = inventoryRectangle(inventory_.owned.at(held.item), {"", 0, 0, held.rotation});
+    const auto rectangle = inventoryRectangle(inventory_.items().at(held.item), {"", 0, 0, held.rotation});
     ghost_->SetProperty("display", "block");
     ghost_->SetClass("valid", check.result == InventoryDrop::Free);
     ghost_->SetClass("swap", check.result == InventoryDrop::Swap);
     for (const auto& property : {std::pair{Rml::PropertyId::Left, left}, {Rml::PropertyId::Top, top},
             {Rml::PropertyId::Width, rectangle.width * cellWidth_}, {Rml::PropertyId::Height, rectangle.height * cellHeight_}})
         ghost_->SetProperty(property.first, Rml::Property(property.second, Rml::Unit::PX));
-    ghost_->SetInnerRML(Rml::StringUtilities::EncodeRml(inventory_.owned.at(held.item).name));
+    ghost_->SetInnerRML(Rml::StringUtilities::EncodeRml(inventory_.items().at(held.item).inventory().name));
 }
 void InventoryInteraction::cancel() {
     const bool changed = bool(drag_.held());
@@ -127,7 +102,7 @@ void InventoryInteraction::process(const std::vector<InventoryPointerEvent>& eve
             pressed_ = true;
             const auto hovered = hit();
             if (!drag_.held() && !hovered.item.empty()) {
-                const auto placement = inventory_.placements.at(hovered.item);
+                const auto placement = inventory_.placements().at(hovered.item);
                 anchorX_ = hovered.x - placement.x; anchorY_ = hovered.y - placement.y;
                 cellWidth_ = hovered.cellWidth; cellHeight_ = hovered.cellHeight;
                 selected_ = hovered.item; wheel_ = 0;

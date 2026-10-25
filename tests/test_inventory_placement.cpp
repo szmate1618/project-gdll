@@ -1,5 +1,5 @@
-#include "inventory_placement.hpp"
-#include "item_config.hpp"
+#include "inventory/inventory_placement.hpp"
+#include "inventory/inventory_config.hpp"
 
 #include <iostream>
 #include <stdexcept>
@@ -8,7 +8,7 @@ namespace {
 void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
-void rejects(const viewer::StorageLoadout& storage, const viewer::InventoryItems& inventory, const char* reason) {
+void rejects(const viewer::StorageLoadout& storage, const viewer::InventoryContents& inventory, const char* reason) {
     try { viewer::buildInventoryLayout(storage, inventory); }
     catch (const std::exception& error) {
         require(std::string(error.what()).find(reason) != std::string::npos, "Placement error omitted its reason");
@@ -18,13 +18,13 @@ void rejects(const viewer::StorageLoadout& storage, const viewer::InventoryItems
 }
 void placements() {
     const auto storage = viewer::loadStorageLoadout(std::filesystem::path(VIEWER_ITEM_ROOT) / "storage");
-    const auto inventory = viewer::loadInventoryItems(VIEWER_ITEM_ROOT);
+    const auto inventory = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);
     const auto layout = viewer::buildInventoryLayout(storage, inventory);
     require(inventory.placements.size() == 5, "Every starter weapon needs a placement");
     const auto& sniper = inventory.owned.at("sniper");
     for (const auto* reference : {"body/left_shoulder_sling/carry", "body/right_shoulder_sling/carry"}) {
         const auto& sling = layout.at(reference);
-        require(sling.items.empty() && sling.grid.width == sniper.height && sling.grid.height == sniper.width,
+        require(sling.items.empty() && sling.grid.width == sniper.inventory().height && sling.grid.height == sniper.inventory().width,
             "Each equipped sling must fit the sniper after future rotation");
     }
     const auto& holster = layout.at("body/hip_holster/holster");
@@ -40,7 +40,8 @@ void placements() {
     changed.placements.at("pistol").storage = "body/left_shoulder_sling/carry";
     rejects(storage, changed, "allowed tag");
     changed = inventory;
-    changed.owned.at("pistol").tags = {"ranged"};
+    const auto& pistol = changed.owned.at("pistol");
+    changed.owned.insert_or_assign("pistol", viewer::Item(pistol.id(), pistol.inventory(), pistol.gameplay(), {"ranged"}));
     rejects(storage, changed, "allowed tag");
     changed = inventory;
     changed.placements.erase("pistol");
@@ -72,8 +73,8 @@ void placements() {
 }
 void boundariesAndExternalPockets() {
     const auto storage = viewer::loadStorageLoadout(std::filesystem::path(VIEWER_ITEM_ROOT) / "storage");
-    const auto original = viewer::loadInventoryItems(VIEWER_ITEM_ROOT);
-    viewer::InventoryItems inventory;
+    const auto original = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);
+    viewer::InventoryContents inventory;
     inventory.owned.emplace("pistol", original.owned.at("pistol"));
     inventory.owned.emplace("he_grenade", original.owned.at("he_grenade"));
     // The 2x1 pistol and 1x1 grenade may touch edges in the backpack.
@@ -88,7 +89,9 @@ void boundariesAndExternalPockets() {
     rejects(storage, inventory, "outside");
     inventory.placements["he_grenade"] = {"backpack/tactical_backpack/main", 7, 9};
     viewer::buildInventoryLayout(storage, inventory); // Exact bottom/right corner is valid.
-    inventory.owned.at("he_grenade").width = 2;
+    const auto grenade = inventory.owned.at("he_grenade");
+    auto footprint = grenade.inventory(); footprint.width = 2;
+    inventory.owned.insert_or_assign("he_grenade", viewer::Item(grenade.id(), footprint, grenade.gameplay(), grenade.tags()));
     rejects(storage, inventory, "outside");
 }
 } // namespace

@@ -7,6 +7,7 @@
 #include <glm/vec3.hpp>
 
 namespace viewer {
+class PlayerInventory;
 struct MinimapSource;
 struct Model;
 enum class HudScreen { Gameplay, Inventory, Skills, Health, Map };
@@ -29,7 +30,7 @@ struct HudState {
 // in framebuffer pixels, preserving GL state.
 class Hud {
 public:
-    explicit Hud(const std::filesystem::path& directory);
+    Hud(const std::filesystem::path& directory, PlayerInventory& inventory); // Borrows inventory until destruction.
     ~Hud();
     Hud(const Hud&) = delete;
     Hud& operator=(const Hud&) = delete;

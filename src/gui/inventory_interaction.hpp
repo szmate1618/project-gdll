@@ -1,6 +1,6 @@
 #pragma once
 
-#include "inventory_drag.hpp"
+#include "inventory/inventory_drag.hpp"
 #include <vector>
 
 namespace Rml { class Element; class ElementDocument; }
@@ -11,11 +11,10 @@ struct InventoryPointerEvent {
     float x = 0, y = 0; // Move: window fractions. Wheel: x is signed notches.
 };
 
-// RmlUi adapter for storage dragging. Owns the fixed loadout; borrows the
-// document and session inventory. Input is consumed on the rendering thread.
+// RmlUi adapter for storage dragging. Borrows the document and player inventory. Input is consumed on the rendering thread.
 class InventoryInteraction {
 public:
-    InventoryInteraction(Rml::ElementDocument& document, StorageLoadout storage, InventoryItems& inventory);
+    InventoryInteraction(Rml::ElementDocument& document, PlayerInventory& inventory);
     void process(const std::vector<InventoryPointerEvent>& events, int width, int height);
     void cancel();
 private:
@@ -26,12 +25,10 @@ private:
     };
     Hit hit() const;
     void refresh();
-    void details();
     void ghost();
     void rotate(int turns);
     Rml::ElementDocument& document_;
-    StorageLoadout storage_;
-    InventoryItems& inventory_;
+    PlayerInventory& inventory_;
     InventoryDrag drag_;
     Rml::Element* ghost_ = nullptr; // Owned by the document.
     std::string selected_;

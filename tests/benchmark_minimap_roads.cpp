@@ -1,4 +1,5 @@
-#include "hud.hpp"
+#include "gui/hud.hpp"
+#include "inventory/inventory_config.hpp"
 #include "minimap.hpp"
 #include "minimap_roads.hpp"
 #include "model.hpp"
@@ -90,7 +91,8 @@ int main(int argc, char** argv) {
         std::vector<double> cpu[2], gpu[2];
         for (int round = 0; round < rounds; ++round) for (int step = 0; step < 2; ++step) {
             const int roads = (round + step) % 2;
-            viewer::Hud hud(hudDirectory);
+            auto hudInventory = viewer::loadPlayerInventory(std::filesystem::path(hudDirectory).parent_path());
+            viewer::Hud hud(hudDirectory, hudInventory);
             hud.setMinimap(*source, satellite);
             if (roads) hud.setMinimapRoads(model);
             for (int frame = 0; frame < warmup; ++frame) { glClear(GL_COLOR_BUFFER_BIT); hud.draw(stateAt(frame), 1280, 720); }

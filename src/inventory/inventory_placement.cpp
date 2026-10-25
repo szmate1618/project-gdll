@@ -1,5 +1,5 @@
 #include "inventory_placement.hpp"
-#include "item_config.hpp"
+#include "player_inventory.hpp"
 
 #include <algorithm>
 #include <stdexcept>
@@ -12,27 +12,27 @@ std::string backpackStorageReference(const std::string& backpack, const std::str
     return "backpack/" + backpack + "/" + slot;
 }
 
-InventoryItemRectangle inventoryRectangle(const ItemDefinition& item, const ItemPlacement& placement) {
+InventoryItemRectangle inventoryRectangle(const Item& item, const ItemPlacement& placement) {
     if (placement.rotation < 0 || placement.rotation > 270 || placement.rotation % 90 != 0)
-        throw std::runtime_error("Invalid inventory rotation for " + item.id);
+        throw std::runtime_error("Invalid inventory rotation for " + item.id());
     const bool rotated = placement.rotation % 180 != 0;
-    return {item.id, placement.x, placement.y, rotated ? item.height : item.width, rotated ? item.width : item.height};
+    return {item.id(), placement.x, placement.y, rotated ? item.inventory().height : item.inventory().width, rotated ? item.inventory().width : item.inventory().height};
 }
 bool inventoryRectangleFits(const StorageGrid& grid, const InventoryItemRectangle& rectangle) {
     return rectangle.width > 0 && rectangle.height > 0 && rectangle.width <= grid.width && rectangle.height <= grid.height &&
         rectangle.x >= 0 && rectangle.y >= 0 && rectangle.x <= grid.width - rectangle.width &&
         rectangle.y <= grid.height - rectangle.height;
 }
-bool inventoryItemAllowed(const StorageGrid& grid, const ItemDefinition& item) {
+bool inventoryItemAllowed(const StorageGrid& grid, const Item& item) {
     return grid.allowedTags.empty() || std::any_of(grid.allowedTags.begin(), grid.allowedTags.end(), [&](const auto& tag) {
-        return std::find(item.tags.begin(), item.tags.end(), tag) != item.tags.end();
+        return item.hasTag(tag);
     });
 }
 bool inventoryRectanglesOverlap(const InventoryItemRectangle& a, const InventoryItemRectangle& b) {
     return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
-InventoryLayout buildInventoryLayout(const StorageLoadout& loadout, const InventoryItems& inventory, const std::string& heldItem) {
+InventoryLayout buildInventoryLayout(const StorageLoadout& loadout, const InventoryContents& inventory, const std::string& heldItem) {
     if (!heldItem.empty() && (inventory.owned.find(heldItem) == inventory.owned.end() || inventory.placements.count(heldItem)))
         throw std::runtime_error("Held inventory item must be owned and have no placement");
     InventoryLayout result;
@@ -54,6 +54,7 @@ InventoryLayout buildInventoryLayout(const StorageLoadout& loadout, const Invent
         const auto invalid = [&](const std::string& reason) {
             throw std::runtime_error("inventory.toml: placements." + id + " " + reason);
         };
+        if (id != item.id()) invalid("does not match its item definition ID");
         const auto placement = inventory.placements.find(id);
         if (placement == inventory.placements.end()) invalid("is required for every owned item");
         const auto& entry = placement->second;

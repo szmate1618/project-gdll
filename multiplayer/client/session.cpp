@@ -6,11 +6,12 @@
 #include "weapon_motion.hpp"
 
 #include "vehicle_player.hpp"
+#include "inventory/inventory_config.hpp"
 #ifdef MP_GRAPHICS
 #include "players.hpp"
 #include "renderer.hpp"
 #include "reticle_overlay.hpp"
-#include "hud.hpp"
+#include "gui/hud.hpp"
 #include "minimap.hpp"
 #include "weapon_overlay.hpp"
 #include "player_body_renderer.hpp"
@@ -153,7 +154,7 @@ struct Graphics {
         }
         if (ownsWindow) { glfwDestroyWindow(window); glfwTerminate(); }
     }
-    void initialize(multiplayer::Scene& scene, Input& in, bool hidden, bool sound, GLFWwindow* sharedWindow) {
+    void initialize(multiplayer::Scene& scene, Input& in, bool hidden, bool sound, GLFWwindow* sharedWindow, viewer::PlayerInventory& inventory) {
         window = sharedWindow;
         if (!window) {
             if (!glfwInit()) throw std::runtime_error("Cannot initialize GLFW; --headless is available for network checks");
@@ -173,7 +174,7 @@ struct Graphics {
             &scene.zombies, scene.forests ? &*scene.forests : nullptr);
         renderer->setVehicleAssets(multiplayer::resourceRoot() / "assets/vehicles/models");
         reticle = std::make_unique<viewer::ReticleOverlay>(shaders);
-        hud = std::make_unique<viewer::Hud>(multiplayer::resourceRoot() / "ui");
+        hud = std::make_unique<viewer::Hud>(multiplayer::resourceRoot() / "ui", inventory);
         in.hud = hud.get();
         if (const auto minimap = viewer::findMinimapSource(scene.model)) {
             hud->setMinimap(*minimap, renderer->sceneTexture(minimap->texture));
@@ -202,7 +203,7 @@ struct Graphics {
     }
 #else
     void bindInput(Input&) {}
-    void initialize(multiplayer::Scene&, Input&, bool, bool, GLFWwindow*) { throw std::runtime_error("This build supports --headless clients only"); }
+    void initialize(multiplayer::Scene&, Input&, bool, bool, GLFWwindow*, viewer::PlayerInventory&) { throw std::runtime_error("This build supports --headless clients only"); }
 #endif
     bool closed() const {
 #ifdef MP_GRAPHICS
@@ -252,8 +253,12 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
     multiplayer::Prediction prediction;
     multiplayer::Snapshots snapshots;
     Input in; in.camera.setPosition(scene.spawnEye); in.camera.setOrientation(options.look.x, options.look.y);
+    std::optional<viewer::PlayerInventory> inventory;
     Graphics graphics;
-    if (!options.headless) graphics.initialize(scene, in, options.hidden, options.audio, window);
+    if (!options.headless) {
+        inventory.emplace(viewer::loadPlayerInventory(multiplayer::resourceRoot()));
+        graphics.initialize(scene, in, options.hidden, options.audio, window, *inventory);
+    }
     multiplayer::Network network(options.fakeLagMs, options.fakeLossPercent);
     const auto connection = network.connect(options.address);
     using Clock = std::chrono::steady_clock;

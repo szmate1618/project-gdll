@@ -6,8 +6,8 @@
 #include <vector>
 
 namespace viewer {
-struct InventoryItems;
-struct ItemDefinition;
+struct InventoryContents;
+class Item;
 struct ItemPlacement;
 struct InventoryItemRectangle {
     std::string item;
@@ -18,8 +18,8 @@ struct InventoryContainer {
     std::vector<InventoryItemRectangle> items;
 };
 using InventoryLayout = std::map<std::string, InventoryContainer>;
-InventoryItemRectangle inventoryRectangle(const ItemDefinition& item, const ItemPlacement& placement);
-bool inventoryItemAllowed(const StorageGrid& grid, const ItemDefinition& item);
+InventoryItemRectangle inventoryRectangle(const Item& item, const ItemPlacement& placement);
+bool inventoryItemAllowed(const StorageGrid& grid, const Item& item);
 bool inventoryRectangleFits(const StorageGrid& grid, const InventoryItemRectangle& rectangle);
 bool inventoryRectanglesOverlap(const InventoryItemRectangle& a, const InventoryItemRectangle& b);
 
@@ -30,6 +30,6 @@ std::string backpackStorageReference(const std::string& backpack, const std::str
 // Resolves equipped storage references and requires exactly one in-bounds,
 // non-overlapping placement per owned item. No GPU state or item interaction.
 // A held item temporarily has no placement. All other ownership invariants hold.
-InventoryLayout buildInventoryLayout(const StorageLoadout& loadout, const InventoryItems& inventory,
+InventoryLayout buildInventoryLayout(const StorageLoadout& loadout, const InventoryContents& inventory,
                                      const std::string& heldItem = {});
 } // namespace viewer

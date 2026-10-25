@@ -1,12 +1,13 @@
 #include "inventory_view.hpp"
-#include "storage_config.hpp"
-#include "item_config.hpp"
-#include "inventory_placement.hpp"
+#include "inventory/storage_config.hpp"
+#include "inventory/player_inventory.hpp"
+#include "inventory/inventory_placement.hpp"
 
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/StringUtilities.h>
 #include <algorithm>
 #include <iomanip>
+#include <RmlUi/Core.h>
 #include <locale>
 #include <sstream>
 #include <stdexcept>
@@ -25,7 +26,7 @@ std::string size(const StorageGrid& grid) {
 std::string position(double x, double y) {
     return "left:" + number(x) + "dp;top:" + number(y) + "dp;";
 }
-std::string gridMarkup(const InventoryContainer& container, double cell, const InventoryItems& inventory, const std::string& reference) {
+std::string gridMarkup(const InventoryContainer& container, double cell, const PlayerInventory& inventory, const std::string& reference) {
     const auto& grid = container.grid;
     std::string result = "<div class='storage-grid' data-storage=\"" + Rml::StringUtilities::EncodeRml(reference) + "\" style='width:" + number(grid.width * cell) + "dp'>";
     for (int row = 0; row < grid.height; ++row) {
@@ -34,13 +35,13 @@ std::string gridMarkup(const InventoryContainer& container, double cell, const I
         result += "</div>";
     }
     for (const auto& rectangle : container.items) {
-        const auto& item = inventory.owned.at(rectangle.item);
-        const bool explosive = std::find(item.tags.begin(), item.tags.end(), "explosive") != item.tags.end();
-        result += "<div class='storage-item" + std::string(explosive ? " explosive" : "") + "' data-item=\"" + Rml::StringUtilities::EncodeRml(item.id) + "\" style='" +
+        const auto& item = inventory.items().at(rectangle.item);
+        const bool explosive = std::find(item.tags().begin(), item.tags().end(), "explosive") != item.tags().end();
+        result += "<div class='storage-item" + std::string(explosive ? " explosive" : "") + "' data-item=\"" + Rml::StringUtilities::EncodeRml(item.id()) + "\" style='" +
             position(rectangle.x * cell, rectangle.y * cell) + "width:" + number(rectangle.width * cell) +
             "dp;height:" + number(rectangle.height * cell) + "dp;font-size:" + number(std::min(10.0, cell * .48)) + "dp'>";
         if (rectangle.width > 1 || rectangle.height > 1)
-            result += "<div class='storage-item-label'>" + Rml::StringUtilities::EncodeRml(item.name) + "</div>";
+            result += "<div class='storage-item-label'>" + Rml::StringUtilities::EncodeRml(item.inventory().name) + "</div>";
         result += "</div>";
     }
     return result + "</div>";
@@ -48,7 +49,7 @@ std::string gridMarkup(const InventoryContainer& container, double cell, const I
 
 // Coordinates refer to the whole inner panel, including space around the main
 // grid. Clamp the complete card at edges so its label and timing stay readable.
-std::string slotMarkup(const StorageSlot& slot, const InventoryContainer& container, const InventoryItems& inventory,
+std::string slotMarkup(const StorageSlot& slot, const InventoryContainer& container, const PlayerInventory& inventory,
                        double panelWidth, double panelHeight, const std::string& reference, double maxGridHeight = 64) {
     constexpr double width = 108;
     const double cell = std::min({24.0, width / slot.grid.width, maxGridHeight / slot.grid.height});
@@ -58,7 +59,7 @@ std::string slotMarkup(const StorageSlot& slot, const InventoryContainer& contai
     std::string names;
     for (const auto& placed : container.items) {
         if (!names.empty()) names += " / ";
-        names += Rml::StringUtilities::EncodeRml(inventory.owned.at(placed.item).name);
+        names += Rml::StringUtilities::EncodeRml(inventory.items().at(placed.item).inventory().name);
     }
     return "<div class='storage-slot' style='" + position(left, top) + "'>"
         "<div class='storage-label'>" + Rml::StringUtilities::EncodeRml(slot.name) + "</div>" +
@@ -74,9 +75,9 @@ void set(Rml::ElementDocument& document, const char* id, const std::string& mark
 }
 } // namespace
 
-void populateInventory(Rml::ElementDocument& document, const StorageLoadout& loadout, const InventoryItems& inventory,
-                       const std::string& heldItem) {
-    const auto layout = buildInventoryLayout(loadout, inventory, heldItem);
+void populateInventory(Rml::ElementDocument& document, const PlayerInventory& inventory) {
+    const auto& loadout = inventory.storage();
+    const auto& layout = inventory.layout();
     std::string body;
     for (const auto& equipment : loadout.equipment)
         for (const auto& slot : equipment.slots)
@@ -113,22 +114,29 @@ void populateInventory(Rml::ElementDocument& document, const StorageLoadout& loa
         " internal cells · " + std::to_string(backpack.slots.size()) + " external compartments");
 }
 
-void populateActionHotbar(Rml::ElementDocument& document, const InventoryItems& inventory) {
-    std::string contents;
-    for (std::size_t slot = 0; slot < inventory.hotbar.size(); ++slot) {
-        const auto& id = inventory.hotbar[slot];
-        contents += "<div class='action-slot " + std::string(id.empty() ? "empty" : "item") +
-            (slot == 9 ? " last" : "") + "'><span class='action-number'>" + std::to_string(slot) + "</span>";
-        if (id.empty()) contents += "<div class='assignment-name'>Unassigned</div>";
-        else {
-            const auto& item = inventory.owned.at(id);
-            const bool explosive = std::find(item.tags.begin(), item.tags.end(), "explosive") != item.tags.end();
-            contents += "<span class='assignment-type'>ITEM</span><div class='assignment-square " +
-                std::string(explosive ? "grenade" : "pistol") + "'></div><div class='assignment-name'>" +
-                Rml::StringUtilities::EncodeRml(item.name) + "</div>";
-        }
-        contents += "</div>";
+void populateInventoryDetails(Rml::ElementDocument& document, const PlayerInventory& inventory, const std::string& selected) {
+    const auto set = [&](const char* id, const std::string& value) {
+        document.GetElementById(id)->SetInnerRML(Rml::StringUtilities::EncodeRml(value));
+    };
+    if (selected.empty()) return;
+    const auto& item = inventory.items().at(selected);
+    set("inventory-item-name", item.inventory().name);
+    const auto tagged = [&](const char* tag) { return std::find(item.tags().begin(), item.tags().end(), tag) != item.tags().end(); };
+    set("inventory-type", tagged("long_gun") ? "Primary weapon" : tagged("handgun") ? "Handgun" : tagged("grenade") ? "Grenade" : item.inventory().type);
+    std::string tags;
+    for (const auto& tag : item.tags()) { if (!tags.empty()) tags += ", "; tags += tag; }
+    set("inventory-tags", tags);
+    const bool held = inventory.held() && inventory.held()->item == selected;
+    const auto placement = held ? ItemPlacement{"", 0, 0, inventory.held()->rotation} : inventory.placements().at(selected);
+    const auto rectangle = inventoryRectangle(item, placement);
+    set("inventory-size", std::to_string(rectangle.width) + " × " + std::to_string(rectangle.height) + " / " + std::to_string(placement.rotation) + "°");
+    set("inventory-current-location", held ? "IN HAND" : placement.storage);
+    std::ostringstream access;
+    if (held) access << "—";
+    else {
+        const auto& grid = inventory.layout().at(placement.storage).grid;
+        access << std::fixed << std::setprecision(2) << grid.accessTime + grid.depthTimePerRow * placement.y << "s";
     }
-    set(document, "hotbar-slots", contents);
+    set("inventory-access-time", access.str());
 }
 } // namespace viewer

@@ -2,8 +2,8 @@
 #include "hud_render_interface.hpp"
 #include "inventory_view.hpp"
 #include "inventory_interaction.hpp"
-#include "item_config.hpp"
-#include "storage_config.hpp"
+#include "action_hotbar.hpp"
+#include "inventory/player_inventory.hpp"
 #include <RmlUi/Core.h>
 #include <algorithm>
 #include <array>
@@ -89,7 +89,7 @@ struct Hud::Impl {
     Rml::Context* context = nullptr;
     Rml::ElementDocument* document = nullptr;
     std::array<Rml::ElementDocument*, 4> screens{};
-    std::optional<InventoryItems> inventoryItems;
+    PlayerInventory& inventory;
     std::unique_ptr<InventoryInteraction> inventoryInteraction;
     std::vector<InventoryPointerEvent> pointerEvents;
     bool hasSatelliteImage = false;
@@ -102,7 +102,8 @@ struct Hud::Impl {
     int width = 0, height = 0, slot = -2, bearing = -1;
     bool initialized = false;
 
-    explicit Impl(const std::filesystem::path& directory) : renderer(directory), sourceDirectory(directory) {
+    Impl(const std::filesystem::path& directory, PlayerInventory& playerInventory)
+        : renderer(directory), inventory(playerInventory), sourceDirectory(directory) {
         if (hudActive) throw std::runtime_error("Only one HUD may own RmlUi at a time");
         Rml::SetSystemInterface(&system);
         Rml::SetRenderInterface(&renderer);
@@ -199,12 +200,10 @@ struct Hud::Impl {
                 page = context->LoadDocument((sourceDirectory / file).generic_string());
                 if (!page) throw std::runtime_error(std::string("Cannot load HUD screen: ") + file);
                 if (selected == HudScreen::Inventory || selected == HudScreen::Skills) {
-                    if (!inventoryItems) inventoryItems = loadInventoryItems(sourceDirectory.parent_path());
-                    populateActionHotbar(*page, *inventoryItems);
+                    populateActionHotbar(*page, inventory);
                 }
                 if (selected == HudScreen::Inventory)
-                    inventoryInteraction = std::make_unique<InventoryInteraction>(*page,
-                        loadStorageLoadout(sourceDirectory.parent_path() / "storage"), *inventoryItems);
+                    inventoryInteraction = std::make_unique<InventoryInteraction>(*page, inventory);
                 if (selected == HudScreen::Map) {
                     auto* map = dynamic_cast<SatelliteMapElement*>(page->GetElementById("satellite-overview"));
                     if (!map) throw std::runtime_error("Missing full satellite map element");
@@ -267,7 +266,8 @@ struct Hud::Impl {
     }
 };
 
-Hud::Hud(const std::filesystem::path& directory) : impl_(std::make_unique<Impl>(directory)) {}
+Hud::Hud(const std::filesystem::path& directory, PlayerInventory& inventory)
+    : impl_(std::make_unique<Impl>(directory, inventory)) {}
 Hud::~Hud() = default;
 void Hud::draw(const HudState& state, int width, int height) { impl_->draw(state, width, height); }
 void Hud::pointerMove(float x, float y) {

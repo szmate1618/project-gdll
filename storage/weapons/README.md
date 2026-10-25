@@ -146,7 +146,7 @@ There is no second list of owned weapons to keep synchronized.
 All five weapons start owned and assigned in that order; slots 5–9 are empty.
 Shortcuts are references, so they add no ownership or storage capacity. Unknown
 or unowned IDs and invalid slot numbers are rejected. Inventory and Skills use
-the same cached data, read once when either screen first opens. Restart to apply
+the same player-owned model, loaded once at startup. Restart to apply
 file edits. These remain visual menu shortcuts; weapon input bindings and
 runtime weapon ownership changes are not connected to this menu snapshot yet.
 

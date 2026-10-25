@@ -1,4 +1,4 @@
-#include "item_config.hpp"
+#include "inventory/inventory_config.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -31,7 +31,7 @@ struct Fixture {
         std::ofstream(root / filename) << text;
     }
     void rejects(const char* file, const char* reason) {
-        try { viewer::loadInventoryItems(root); }
+        try { viewer::loadInventoryContents(root); }
         catch (const std::exception& error) {
             const std::string message(error.what());
             require(message.find(file) != std::string::npos, "Error omitted filename");
@@ -42,43 +42,47 @@ struct Fixture {
     }
 };
 void starterInventory() {
-    const auto inventory = viewer::loadInventoryItems(VIEWER_ITEM_ROOT);
+    const auto inventory = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);
     const std::array<const char*, 5> expected{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"};
     require(inventory.owned.size() == 5, "All five weapons must have owned item definitions");
     for (std::size_t slot = 0; slot < expected.size(); ++slot) {
         require(inventory.hotbar[slot] == expected[slot], "Weapon hotbar order must match slots 0–4");
         const auto& item = inventory.owned.at(expected[slot]);
-        require(item.weapon == expected[slot] && item.type == "weapon", "Item gameplay reference was lost");
-        require(item.width > 0 && item.height > 0 && !item.tags.empty(), "Item footprint/tags missing");
+        require(item.gameplay().id == expected[slot] && item.inventory().type == "weapon", "Item gameplay reference was lost");
+        require(item.inventory().width > 0 && item.inventory().height > 0 && !item.tags().empty(), "Item footprint/tags missing");
         const std::string category = slot == 0 ? "handgun" : slot == 4 ? "grenade" : "long_gun";
-        require(std::find(item.tags.begin(), item.tags.end(), category) != item.tags.end(),
+        require(std::find(item.tags().begin(), item.tags().end(), category) != item.tags().end(),
             "Weapon category must come from its comma-separated tags file");
     }
     for (std::size_t slot = 5; slot < inventory.hotbar.size(); ++slot)
         require(inventory.hotbar[slot].empty(), "Slots 5–9 must start unassigned");
     const auto& pistol = inventory.owned.at("pistol");
-    require(pistol.width == 2 && pistol.height == 1, "Pistol must have a 2x1 cell footprint");
+    require(pistol.inventory().width == 2 && pistol.inventory().height == 1, "Pistol must have a 2x1 cell footprint");
     const auto& sniper = inventory.owned.at("sniper");
-    require(sniper.width == 5 && sniper.height == 2, "Sniper footprint must come from its item descriptor");
+    require(sniper.inventory().width == 5 && sniper.inventory().height == 2, "Sniper footprint must come from its item descriptor");
     Fixture fixture;
     fixture.inventory("[weapons]\npistol=0\n[hotbar]\n9='pistol'\n");
-    const auto partial = viewer::loadInventoryItems(fixture.root);
+    const auto partial = viewer::loadInventoryContents(fixture.root);
     require(partial.owned.size() == 1 && partial.hotbar[9] == "pistol" && partial.hotbar[0].empty(),
         "Ownership must follow the inventory, including an owned empty firearm, and allow sparse shortcuts");
     fixture.replace("storage/weapons/pistol.inventory.toml", "width = 2", "width = 3");
-    require(viewer::loadInventoryItems(fixture.root).owned.at("pistol").width == 3,
+    require(viewer::loadInventoryContents(fixture.root).owned.at("pistol").inventory().width == 3,
         "Editing the item descriptor must change its grid footprint independently of gameplay");
+    fixture.replace("storage/weapons/pistol.gameplay.toml", "magazine_capacity = 12", "magazine_capacity = 7");
+    const auto configured = viewer::loadInventoryContents(fixture.root).owned.at("pistol");
+    require(configured.inventory().width == 3 && configured.gameplay().magazineCapacity == 7,
+        "One loaded item must retain both independently configured components");
     std::ofstream(fixture.root / "storage/weapons/pistol.tags.txt") << "  handgun ,\n ranged , utility \n";
-    require(viewer::loadInventoryItems(fixture.root).owned.at("pistol").tags ==
+    require(viewer::loadInventoryContents(fixture.root).owned.at("pistol").tags() ==
         std::vector<std::string>{"handgun", "ranged", "utility"}, "Tag parsing must trim whitespace and preserve order");
     fixture.inventory("[weapons]\n");
-    require(viewer::loadInventoryItems(fixture.root).owned.empty(), "No ownership entries must mean no owned items");
+    require(viewer::loadInventoryContents(fixture.root).owned.empty(), "No ownership entries must mean no owned items");
 }
 void invalidInventory() {
     Fixture fixture;
     for (const auto* angle : {"0", "90", "180", "270"}) {
         fixture.inventory((std::string("[weapons]\npistol=1\n[placements.pistol]\nstorage='body/hip_holster/holster'\nx=0\ny=0\nrotation=") + angle).c_str());
-        require(viewer::loadInventoryItems(fixture.root).placements.at("pistol").rotation == std::stoi(angle), "Configured rotation was not parsed");
+        require(viewer::loadInventoryContents(fixture.root).placements.at("pistol").rotation == std::stoi(angle), "Configured rotation was not parsed");
     }
     for (const auto* angle : {"-90", "45", "360", "90.5", "'90'"}) {
         fixture.inventory((std::string("[weapons]\npistol=1\n[placements.pistol]\nstorage='body/hip_holster/holster'\nx=0\ny=0\nrotation=") + angle).c_str());
@@ -109,6 +113,11 @@ void invalidInventory() {
 
 }
 void invalidDefinitions() {
+    {
+        Fixture fixture;
+        fixture.replace("storage/weapons/pistol.gameplay.toml", "shot_interval_seconds = 0.3", "shot_interval_seconds = -1");
+        fixture.rejects("pistol.gameplay.toml", "interval");
+    }
     for (const auto* value : {"0", "17", "2.5", "'two'"}) {
         Fixture fixture;
         fixture.replace("storage/weapons/pistol.inventory.toml", "width = 2", std::string("width = ") + value);
