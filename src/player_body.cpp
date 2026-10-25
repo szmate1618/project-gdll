@@ -484,6 +484,12 @@ bool PlayerBody::canPunch() const {
     return d.active && (arm.state == Impl::ArmState::guard ||
         (arm.state == Impl::ArmState::returning && arm.seconds >= arm.returnDuration + returnSettlingSeconds));
 }
+float PlayerBody::estimatedPunchReach() const {
+    const auto& d = *impl_;
+    // Add the guard's eye-forward offset to the arm's straightening travel.
+    // Both come from the same anatomy used to construct the physical rig.
+    return fullPunchTravel * d.scale - d.centers[index(PlayerBodyPart::rightFist)].z;
+}
 bool PlayerBody::punch(glm::vec3 direction, const glm::vec3* target) {
     auto& d = *impl_; if (!canPunch()) return false;
     const auto fist = d.right ? PlayerBodyPart::rightFist : PlayerBodyPart::leftFist;

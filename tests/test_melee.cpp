@@ -25,6 +25,81 @@ bool solvedContact(b3BodyId body) {
                 if (contacts[c].manifolds[m].points[p].totalNormalImpulse > .001f) return true;
     return false;
 }
+struct PunchLaunch {
+    glm::vec3 origin, direction;
+    float estimatedReach;
+};
+PunchLaunch aimedPunch(float height, glm::vec3 eye, glm::vec3 direction, bool right,
+                       float sceneDistance = 0, float physicsDistance = 0) {
+    auto world = std::make_shared<viewer::PhysicsWorld>();
+    viewer::PlayerBody player(world, height);
+    viewer::MeleeCombat melee(world);
+    viewer::BoxLayer boxes(world);
+    direction = glm::normalize(direction);
+    const auto across = glm::normalize(glm::cross(glm::vec3(0, 1, 0), direction));
+    const auto rotation = glm::quat_cast(glm::mat3(across, glm::cross(direction, across), direction));
+    constexpr glm::vec3 panelSize(2, 2, .02f);
+    viewer::Model model;
+    if (sceneDistance > 0) {
+        model = viewer::BoxLayer::unitCube();
+        const auto center = eye + direction * (sceneDistance + panelSize.z * .5f);
+        model.draws.push_back({0, glm::translate(glm::mat4(1), center) * glm::mat4_cast(rotation) *
+                                  glm::scale(glm::mat4(1), panelSize), "building"});
+    }
+    if (physicsDistance > 0) {
+        viewer::BoxSpawnMotion motion; motion.rotation = rotation;
+        boxes.add(eye + direction * (physicsDistance + panelSize.z * .5f), panelSize, motion);
+    }
+    viewer::CollisionWorld scene(model);
+    player.follow(eye, direction, true);
+    if (!right) require(player.punch(direction), "The first hand must be available before checking left-hand aim");
+    const auto fist = right ? viewer::PlayerBodyPart::rightFist : viewer::PlayerBodyPart::leftFist;
+    const auto origin = player.fistPosition(right);
+    require(melee.punch(player, eye, direction * 3.f, scene), "A valid melee aim must start a punch");
+    const auto velocity = b3Body_GetLinearVelocity(player.body(fist));
+    return {origin, glm::normalize(glm::vec3(velocity.x, velocity.y, velocity.z)), player.estimatedPunchReach()};
+}
+void punchAimConvergence() {
+    struct AimCase { float height; glm::vec3 direction; bool right; };
+    const std::array<AimCase, 4> cases{{
+        {1.7f, {0, 0, -1}, true}, {1.7f, {.4f, .7f, -1}, false},
+        {2.04f, {-.7f, -.3f, -1}, true}, {2.04f, {0, 0, -1}, false}}};
+    float nominalReach = 0;
+    for (const auto& test : cases) {
+        // Use an offset, crouched eye position too: anatomy follows standing
+        // height, while convergence must follow the current camera position.
+        const glm::vec3 eye(4, test.height == 1.7f ? 1.7f : 1.2f, -3);
+        const auto direction = glm::normalize(test.direction);
+        const auto checkTarget = [](const PunchLaunch& launch, glm::vec3 target, float tolerance) {
+            const auto offset = target - launch.origin;
+            require(glm::dot(offset, launch.direction) > 0 &&
+                    glm::length(glm::cross(offset, launch.direction)) < tolerance,
+                    "The fist launch must converge on the selected point under the crosshair");
+        };
+        const auto missing = aimedPunch(test.height, eye, direction, test.right);
+        if (nominalReach == 0) {
+            nominalReach = missing.estimatedReach;
+            require(nominalReach > .6f && nominalReach < .9f, "Estimated punch reach must stay within the physical arm's scale");
+        }
+        require(std::abs(missing.estimatedReach / nominalReach - test.height / 1.7f) < .00001f,
+                "Estimated reach must scale with standing anatomy, including when crouched");
+        checkTarget(missing, eye + direction * missing.estimatedReach, .00001f);
+        if (test.direction.y == 0)
+            require(missing.direction.y > .1f, "A level missed ray must lift the fist toward eye height");
+        for (const auto distant : {glm::vec2(5, 0), glm::vec2(0, 5)}) {
+            const auto launch = aimedPunch(test.height, eye, direction, test.right, distant.x, distant.y);
+            require(glm::distance(launch.direction, missing.direction) < .00001f,
+                    "Distant scene and physics hits must use the same reachable target as a missed ray");
+        }
+        for (const auto nearby : {glm::vec2(.4f, 0), glm::vec2(0, .4f),
+                                  glm::vec2(.4f, .55f), glm::vec2(.55f, .4f)}) {
+            const auto launch = aimedPunch(test.height, eye, direction, test.right, nearby.x, nearby.y);
+            checkTarget(launch, eye + direction * .4f, .002f);
+            require(glm::distance(launch.direction, missing.direction) > .01f,
+                    "Nearby surfaces must preserve their own convergence point instead of the reach endpoint");
+        }
+    }
+}
 void punchAcceptance() {
     auto world = std::make_shared<viewer::PhysicsWorld>();
     viewer::PlayerBody player(world, 1.7f);
@@ -693,6 +768,7 @@ int main(int argc, char** argv) {
             std::cout << "Punch retraction pause checks passed\n";
             return 0;
         }
+        punchAimConvergence();
         punchAcceptance();
         closeContactDoesNotLockPunches(false);
         closeContactDoesNotLockPunches(true);

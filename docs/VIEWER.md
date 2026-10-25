@@ -1605,14 +1605,18 @@ layout; client-only storage moves are still not replicated.
  Left click applies a 12 N·s impulse to alternating fists,
 with a 0.5 s cooldown after an arm accepts the strike. Rejected punches consume
 the click without starting another cooldown; holding does not retry them.
-The camera ray chooses the nearest scene or nearby zombie surface; a miss
-punches along the ray direction. The ray itself causes no damage.
+The camera ray chooses the nearest surface within the estimated maximum
+fist-center reach (about 0.745 m at the reference standing size). A miss or
+distant background uses the endpoint at that reach on the same camera ray.
+At level aim this point is at eye height; looking up or down moves it with
+the crosshair. The estimate scales with anatomy and guides aim; actual reach
+depends on joints and torso motion. The ray itself causes no damage.
 During the strike, a velocity-based force at the fist sustains an 8.8 m/s target
 speed along the original world-space aim line, carrying only player walking
 translation. It corrects lateral/downward drift and excludes chest rotational
-velocity so torso follow-through does not redirect the punch. A saved ray hit
-remains the aim point; a miss retains its original direction. The fist pulls
-the upper arm forward around the shoulder. This force
+velocity so torso follow-through does not redirect the punch. The selected
+surface or fallback endpoint remains the saved world-space aim point. The fist
+pulls the upper arm forward around the shoulder. This force
 is capped at 480 N at reference size and stops as soon as the strike ends;
 tracking starts on the first physics step to prevent an initial downward swing;
 the arm joints remain spring-free.

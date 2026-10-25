@@ -244,12 +244,11 @@ void MeleeCombat::finish(PlayerBody* const* players, std::size_t count, ZombieLa
 bool MeleeCombat::punch(PlayerBody& player, glm::vec3 eye, glm::vec3 direction, const CollisionWorld& scene) {
     if (!player.canPunch() || !std::isfinite(glm::length(direction)) || glm::length(direction) < .0001f) return false;
     direction = glm::normalize(direction);
-    // The scene BVH includes distant geometry that has not been uploaded into
-    // local Box3D tiles. Binary search its finite visibility segment for aim.
-    constexpr float range = 1000;
+    // Misses and distant scenery converge on the same finite eye-ray point.
+    // The scene BVH also covers nearby geometry outside the local Box3D tiles.
+    const float range = player.estimatedPunchReach();
     float distance = range;
-    bool hit = !scene.lineOfSight(eye, eye + direction * range);
-    if (hit) {
+    if (!scene.lineOfSight(eye, eye + direction * range)) {
         float lo = 0, hi = range;
         for (int i = 0; i < 22; ++i) {
             const float middle = (lo + hi) * .5f;
@@ -264,8 +263,8 @@ bool MeleeCombat::punch(PlayerBody& player, glm::vec3 eye, glm::vec3 direction, 
     filter.maskBits = meleeZombieCategory | ordinaryBodyCategory | doorBodyCategory | interiorBoxCategory | vehicleBodyCategory;
     const auto ray = b3World_CastRayClosest(impl_->world->id(), {eye.x, eye.y, eye.z},
         {direction.x * range, direction.y * range, direction.z * range}, filter);
-    if (ray.hit && ray.fraction * range < distance) { distance = ray.fraction * range; hit = true; }
+    if (ray.hit && ray.fraction * range < distance) distance = ray.fraction * range;
     const auto target = eye + direction * distance;
-    return player.punch(direction, hit ? &target : nullptr);
+    return player.punch(direction, &target);
 }
 } // namespace viewer

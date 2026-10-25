@@ -26,6 +26,9 @@ public:
     // contact prevents it from settling exactly into guard. Rejected attempts
     // do not change the hand order or start a strike.
     bool canPunch() const;
+    // Approximate eye-to-fist-center forward reach in meters, scaled with the
+    // standing anatomy. Used for aim convergence; actual joint/torso motion varies.
+    float estimatedPunchReach() const;
     bool punch(glm::vec3 direction, const glm::vec3* target = nullptr);
     bool punching(PlayerBodyPart part) const;
     // Includes the non-damaging 0.1 s pause before every motor retraction.
