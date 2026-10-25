@@ -4,6 +4,7 @@
 #include "physics_scene.hpp"
 #include "player_interaction.hpp"
 #include "weapons.hpp"
+#include "weapon_switch.hpp"
 #include "zombie_door_collision.hpp"
 #include "replication.hpp"
 #include "vehicle_seats.hpp"
@@ -15,10 +16,13 @@
 
 namespace multiplayer {
 struct ServerPlayer {
-    ServerPlayer(const viewer::Weapons& initialWeapons, std::shared_ptr<viewer::PhysicsWorld> world);
+    ServerPlayer(const viewer::Weapons& initialWeapons, const viewer::PlayerInventory& initialInventory,
+                 std::shared_ptr<viewer::PhysicsWorld> world);
     viewer::FPSController controller;
     viewer::Camera camera;
     viewer::Weapons weapons;
+    viewer::PlayerInventory inventory;
+    viewer::WeaponSwitch weaponSwitch;
     viewer::PlayerBody body;
     viewer::PlayerInteraction interaction;
     viewer::UndergrowthEmitter undergrowth;

@@ -268,7 +268,7 @@ and data URIs are supported. Zombie assets may have at most 128 skeleton nodes
 (including non-joint scene nodes); incompatible rigs fail before hosting.
 Weapon definitions and starting inventory are loaded once per scene and copied
 for each joining player, so changing files cannot change a running session.
-The current wire protocol is version 12; rebuild both client and server together.
+The current wire protocol is version 13; rebuild both client and server together.
 Snapshots include persistent head/torso wound masks and authoritative loose
 cavity contents. Clients render these without running their own cavity physics.
 
@@ -297,8 +297,9 @@ block gameplay inputs while visible; they do not change inventory or skills.
 See the shared [HUD layouts](../docs/VIEWER.md#hud).
 
 Client controls: WASD, mouse look, Shift run, Space jump, Ctrl crouch, Z prone,
-1–5 weapon selection, the physical key left of 1 (Hungarian 0 / US backtick)
-for fists, R reload, F toggle flashlight, left click fire/throw/punch, right click
+1–9 hotbar preview and the physical key left of 1 (Hungarian 0 / US backtick)
+for slot 0; mouse wheel cycles assigned actions, and left click confirms.
+Weapon changes show server-timed progress; the starter Punch shortcut is 5. R reload, F toggle flashlight, left click fire/throw/punch, right click
 cycle scope.
 Tab switches Combat/Interaction. In Interaction, hold either mouse button to
 grab a nearby prop; left mouse also grabs doors. Mouse motion and walking move

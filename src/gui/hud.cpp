@@ -100,7 +100,7 @@ struct Hud::Impl {
     std::unordered_map<std::string, std::string> text;
     std::array<Rml::Element*, 24> ticks{};
     std::array<Rml::Element*, 6> directions{};
-    int width = 0, height = 0, slot = -2, bearing = -1;
+    int width = 0, height = 0, slot = -2, bearing = -1, selectionSlot = -1;
     bool initialized = false;
 
     Impl(const std::filesystem::path& directory, PlayerInventory& playerInventory)
@@ -126,7 +126,7 @@ struct Hud::Impl {
             document = context->LoadDocument((directory / "hud.rml").generic_string());
             if (!document) throw std::runtime_error("Cannot load HUD layout: " + directory.string());
             for (const char* id : {"heading", "north-coordinate", "east-coordinate", "movement", "mode", "speed",
-                                    "equipment", "weapon", "loaded", "reserve", "prompt", "capture", "compass-scale", "map-caption"}) {
+                                    "equipment", "weapon", "loaded", "reserve", "prompt", "capture", "compass-scale", "map-caption", "switch-fill", "switch-countdown"}) {
                 auto* element = document->GetElementById(id);
                 if (!element) throw std::runtime_error(std::string("Missing HUD element: ") + id);
                 elements.emplace(id, element);
@@ -251,6 +251,20 @@ struct Hud::Impl {
             return;
         }
         updateCompass(state.yawDegrees);
+        document->SetClass("selecting", state.selectionSlot >= 0 && state.selectionSlot < 10);
+        if (state.selectionSlot != selectionSlot) {
+            selectionSlot = state.selectionSlot;
+            if (selectionSlot >= 0 && selectionSlot < 10) populateWeaponSelection(*document, inventory, selectionSlot);
+        }
+        const bool switching = state.weaponSwitchRemaining > 0 && state.weaponSwitchDuration > 0;
+        document->SetClass("switching", switching);
+        if (switching) {
+            const double progress = std::clamp(1 - state.weaponSwitchRemaining / state.weaponSwitchDuration, 0.0, 1.0);
+            elements.at("switch-fill")->SetProperty(Rml::PropertyId::Width, Rml::Property(static_cast<float>(progress * 318), Rml::Unit::DP));
+            std::ostringstream countdown;
+            countdown << std::fixed << std::setprecision(1) << state.weaponSwitchRemaining << "s";
+            setText("switch-countdown", countdown.str());
+        }
         pointerEvents.clear();
         renderer.setMinimapPosition({state.position.x, state.position.z});
         // Coordinates remain local metres; the reference's latitude/longitude

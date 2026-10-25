@@ -109,7 +109,8 @@ void populateInventory(Rml::ElementDocument& document, const PlayerInventory& in
     set(document, "backpack-storage", contents);
     set(document, "backpack-name", Rml::StringUtilities::EncodeRml(backpack.name));
     set(document, "backpack-size", size(grid));
-    set(document, "backpack-access", "BASE ACCESS / " + number(grid.accessTime) + "s");
+    const auto range = inventoryAccessRange(grid);
+    set(document, "backpack-access", "ACCESS / " + number(range.best) + "–" + number(range.worst) + "s");
     set(document, "backpack-caption", std::to_string(grid.width * grid.height) +
         " internal cells · " + std::to_string(backpack.slots.size()) + " external compartments");
 }

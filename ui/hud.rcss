@@ -57,3 +57,25 @@ div { display: block; }
 .unconfirmed #weapon-placeholder { background-color: #898d8c; }
 #prompt { position: absolute; bottom: 110dp; left: 25%; width: 50%; text-align: center; font-size: 13dp; }
 #capture { position: absolute; bottom: 18dp; left: 25%; width: 50%; text-align: center; font-size: 10dp; color: #f5f6f299; }
+#weapon-selection { display: none; position: absolute; left: 24dp; top: 24dp; width: 346dp; height: 94dp; }
+.selecting #weapon-selection { display: block; }
+#selection-slots { position: relative; width: 346dp; height: 74dp; }
+.selection-slot { position: absolute; top: 0dp; width: 22dp; height: 30dp; box-sizing: border-box; border: 1dp #f5f6f24d; background-color: #29312fed; }
+.selection-slot.selected { width: 112dp; height: 74dp; border-color: #59c49c; background-color: #34403bf5; }
+.selection-key { position: absolute; left: 0dp; top: 4dp; width: 20dp; text-align: center; font-size: 10dp; color: #f5f6f299; }
+.selected .selection-key { left: 6dp; color: #59c49c; font-size: 11dp; }
+.selection-icon { position: absolute; left: 8dp; top: 21dp; width: 4dp; height: 4dp; background-color: #f5f6f2; }
+.selected .selection-icon { left: 10dp; top: 32dp; width: 16dp; height: 16dp; }
+.skill .selection-icon { background-color: #e7cd65; }
+.selection-name { display: none; }
+.selected .selection-name { display: block; position: absolute; left: 34dp; right: 7dp; top: 28dp; font-size: 11dp; line-height: 14dp; }
+.empty .selection-icon { display: none; }
+.empty .selection-name { left: 8dp; color: #f5f6f259; }
+.selected.empty .selection-name { top: 30dp; }
+.selection-hint { position: absolute; top: 82dp; width: 346dp; font-size: 8dp; letter-spacing: 1dp; color: #f5f6f299; }
+#weapon-switch { display: none; position: absolute; bottom: 155dp; left: 50%; margin-left: -160dp; width: 320dp; height: 36dp; }
+.switching #weapon-switch { display: block; }
+.switch-label { font-size: 10dp; letter-spacing: 1dp; }
+#switch-countdown { float: right; color: #59c49c; }
+.switch-track { position: absolute; top: 23dp; width: 318dp; height: 6dp; border: 1dp #f5f6f280; background-color: #29312fed; }
+#switch-fill { height: 6dp; background-color: #59c49c; }

@@ -156,3 +156,9 @@ Gameplay reads `storage/weapons/*.gameplay.toml` and ownership/ammo from `invent
 Inventory descriptors, gameplay definitions, tag files and the player inventory
 are included in multiplayer fingerprints and content packs, with LF line endings
 for cross-platform byte consistency.
+
+Weapon gameplay TOMLs require `draw_time_seconds`, a finite nonnegative number
+of seconds. It is used for both drawing that weapon and putting it away.
+A confirmed change adds the old put-away time, both storage access times and
+the new draw time. Obstruction is charged once for the higher-scoring footprint;
+base and support adjustments apply to both. See [weapon switching](../../docs/INVENTORY.md#weapon-switching-and-theoretical-access-ranges).

@@ -72,10 +72,15 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
         case 2:
             require(differences(0, 1) > 500, "Confirmed pistol did not appear after spawn");
             capture("pistol");
-            key(window, GLFW_KEY_2, 0, GLFW_PRESS, 0); // Not confirmed by the server yet.
+            key(window, GLFW_KEY_1, 0, GLFW_PRESS, 0); // Preview hotbar 1 (SMG).
             break;
         case 3:
-            require(differences(1, 2) < 100, "Requested slot replaced the server-confirmed pistol");
+            require(in.equippedSlot == 0 && in.slot == 0 && in.actionSelection.selected() == 1,
+                    "Preview replaced the server-confirmed pistol");
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+            require(in.slot == 1 && !command(in, window, false, 0).left,
+                    "Selection confirmation must request SMG and consume the click");
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
             authoritative.slot = 1;
             break;
         case 4: capture("submachine_gun"); authoritative.slot = 2; break;
@@ -250,8 +255,13 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             key(window,GLFW_KEY_0,0,GLFW_PRESS,0);
             require(in.slot==oldSlot,"US number-row 0 unexpectedly equipped fists");
             key(window,GLFW_KEY_GRAVE_ACCENT,0,GLFW_PRESS,0);
+            require(in.slot==oldSlot && in.actionSelection.selected()==0,
+                    "Physical key left of 1 must preview slot zero without equipping");
+            key(window,GLFW_KEY_5,0,GLFW_PRESS,0);
+            button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_PRESS,0);
+            button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_RELEASE,0);
             require(in.slot==viewer::punchSlot && command(in,window,false,0).slot==viewer::punchSlot,
-                    "Physical key left of 1 did not request multiplayer fists");
+                    "Confirmed Punch shortcut did not request multiplayer fists");
             in.camera.setOrientation(-90,0); authoritative.yaw=-90; authoritative.pitch=0;
             auto physics=std::make_shared<viewer::PhysicsWorld>(); viewer::PlayerBody body(physics,1.7f);
             viewer::FPSController controller; controller.restoreMovement(authoritative.movement);
@@ -278,7 +288,9 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             break;
         case 34:
             require(differences(31,33)<100,"Interaction mode retained the local physical hands");
-            in.interaction=false; key(window,GLFW_KEY_1,0,GLFW_PRESS,0);
+            in.interaction=false; key(window,GLFW_KEY_GRAVE_ACCENT,0,GLFW_PRESS,0);
+            button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_PRESS,0);
+            button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_RELEASE,0);
             authoritative.slot=0; authoritative.melee={};
             break;
         case 35:
@@ -287,6 +299,9 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             glfwSetWindowShouldClose(window,true);
             break;
     }
+    // This fixture also scripts external authoritative equipment changes.
+    // Their matching requests stand in for completed user selections.
+    if (!in.actionSelection.open()) in.slot = authoritative.slot;
     Snapshot snapshot; snapshot.tick = static_cast<std::uint64_t>(frame++);
     snapshot.players.push_back(authoritative);
     if (car) snapshot.vehicles.push_back(*car);
@@ -306,6 +321,8 @@ int main(int argc, char** argv) {
         const auto copy = std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing;
         std::filesystem::copy(source / "storage", fixture / "storage", copy);
         std::filesystem::copy(source / "vehicles", fixture / "vehicles", copy);
+        std::filesystem::copy(source / "skills", fixture / "skills", copy);
+        std::filesystem::copy_file(source / "skills.toml", fixture / "skills.toml", std::filesystem::copy_options::overwrite_existing);
         std::filesystem::copy(source / "shaders", fixture / "shaders", copy);
         std::filesystem::copy(source / "ui", fixture / "ui", copy);
         std::filesystem::create_directories(fixture / "multiplayer/client");
@@ -315,6 +332,7 @@ int main(int argc, char** argv) {
         std::ofstream(fixture / "inventory.toml") <<
             "equipped='pistol'\n[weapons]\npistol=0\nsubmachine_gun=0\nsniper=0\nshotgun=0\nhe_grenade=2\n"
             "[ammo]\npistol_rounds=0\nsmg_rounds=0\nsniper_rounds=0\nshotgun_shells=0\nhe_grenades=0\n"
+            "[hotbar]\n0='pistol'\n1='submachine_gun'\n2='shotgun'\n3='sniper'\n4='he_grenade'\n5='skill:punch'\n"
             "[placements.pistol]\nstorage='body/hip_holster/holster'\nx=0\ny=0\n"
             "[placements.he_grenade]\nstorage='body/chest_pouch/pouch'\nx=0\ny=0\n"
             "[placements.submachine_gun]\nstorage='backpack/tactical_backpack/main'\nx=0\ny=0\n"

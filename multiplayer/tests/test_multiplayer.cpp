@@ -34,6 +34,7 @@ void protocol() {
     Snapshot s; s.tick = 123;
     PlayerState player; player.id = 42; player.movement.feet = {12, 3, -4}; player.resolved = 99;
     player.weaponCoolingDown = true;
+    player.weaponSwitchRemaining = 1.25f; player.weaponSwitchDuration = 3.5f;
     s.players.push_back(player);
     s.zombies.push_back({}); s.doors.push_back({3, .5f}); s.boxes.push_back({});
     s.grenades.push_back({7, {1, 2, 3}, {1, 0, 0, 0}});
@@ -42,6 +43,8 @@ void protocol() {
     const auto copy = std::get<Snapshot>(decode(bytes.data(), bytes.size()));
     require(copy.tick == 123 && copy.players[0].id == 42 && copy.players[0].movement.feet.x == 12 && copy.players[0].weaponCoolingDown,
         "Snapshot round trip lost state");
+    require(copy.players[0].weaponSwitchRemaining == 1.25f && copy.players[0].weaponSwitchDuration == 3.5f,
+            "Snapshot lost authoritative switch progress");
     require(copy.grenades.at(0).id == 7 && copy.grenades[0].center.y == 2 &&
             copy.explosions.at(0).id == 6 && copy.explosions[0].age == .08f,
             "Snapshot must preserve grenade poses and explosion ages");
@@ -296,7 +299,9 @@ void serverCommands(const std::filesystem::path& asset) {
     world.submit(first, Commands{{c}}); world.step(); ++c.sequence;
     require(player.shots == shots + 2, "Releasing and pressing the trigger did not fire again");
     c.slot = 1;
-    for (int tick = 0; tick < 60; ++tick, ++c.sequence) {
+    const auto delay = viewer::weaponSwitchTiming(scene.initialInventory, player.weapons.equipped().config, player.weapons.state(1).config);
+    const int switchTicks = static_cast<int>(std::ceil(delay->total() / tickSeconds)) + 5;
+    for (int tick = 0; tick < switchTicks; ++tick, ++c.sequence) {
         world.submit(first, Commands{{c}}); world.step();
     }
     require(player.shots == shots + 2, "Switching to an automatic weapon fired the held trigger");
@@ -326,12 +331,19 @@ void triggerResets(const std::filesystem::path& asset) {
             }
         };
         Command command; command.slot = reset.reload ? reset.slot : 0;
-        advance(command);
+        const auto settleTicks = [&](std::size_t target) {
+            const auto timing = viewer::weaponSwitchTiming(scene.initialInventory, player.weapons.equipped().config,
+                                                           player.weapons.state(target).config);
+            return static_cast<int>(std::ceil(timing->total() / tickSeconds)) + 5;
+        };
+        advance(command, settleTicks(command.slot));
         command.left = true; advance(command, 90);
         const auto shots = player.shots;
         require(shots > 0, "Trigger reset fixture must fire before reloading/switching");
-        command.reload = reset.reload; command.slot = reset.slot; advance(command);
-        command.reload = false; advance(command, 90);
+        command.reload = reset.reload; command.slot = reset.slot;
+        const int waitTicks = settleTicks(command.slot);
+        advance(command);
+        command.reload = false; advance(command, std::max(90, waitTicks));
         require(player.shots == shots, "Reloading/switching fired without releasing LMB");
         // A synthesized timeout release is not a physical button release.
         for (int tick = 0; tick < 20; ++tick) world.step();
@@ -457,10 +469,17 @@ void serverGrenades(const std::filesystem::path& asset) {
     scene.spawnEye = {0, 1.7f, 0};
     World world(scene);
     const auto id = world.join();
-    Command throwInput; throwInput.sequence = 1; throwInput.slot = 4; throwInput.left = true;
+    Command throwInput; throwInput.sequence = 1; throwInput.slot = 4;
     world.submit(id, Commands{{throwInput}});
     for (int i = 0; i < 5; ++i) world.step();
     auto state = world.snapshot(id);
+    require(state.players[0].slot == 0 && state.players[0].weaponSwitchRemaining > 0 && state.grenades.empty(),
+            "Weapon change must publish timed progress before equipping a grenade");
+    for (int i = 0; i < 600 && world.players().at(id).weaponSwitch.pending(); ++i) world.step();
+    require(world.players().at(id).weapons.slot() == 4, "Timed grenade selection did not complete");
+    throwInput.sequence = 2; throwInput.left = true;
+    world.submit(id, Commands{{throwInput}}); world.step();
+    state = world.snapshot(id);
     require(state.grenades.size() == 1 && state.players[0].loaded == 5 && state.players[0].weaponCoolingDown && world.players().at(id).shots == 1,
             "Server must turn one accepted grenade click into one replicated body and one consumed grenade");
     bool exploded = false;

@@ -39,5 +39,13 @@
     </div>
     <div id="prompt"></div>
     <div id="capture"></div>
+    <div id="weapon-selection">
+        <div id="selection-slots"></div>
+        <div class="selection-hint">LEFT CLICK TO SELECT</div>
+    </div>
+    <div id="weapon-switch">
+        <div class="switch-label">SWITCHING WEAPON <span id="switch-countdown"></span></div>
+        <div class="switch-track"><div id="switch-fill"></div></div>
+    </div>
 </body>
 </rml>

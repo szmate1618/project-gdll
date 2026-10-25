@@ -57,6 +57,10 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         self.write("assets/top.png", b"top texture")
         self.write("assets/shrub.png", b"shrub atlas")
         self.write("inventory.toml", b"inventory\n")
+        self.write("skills.toml", b"[melee]\npunch='Punch'\n")
+        self.write("skills/melee/punch.skill.toml", b"")
+        for name in ("equipment.toml", "backpacks.toml", "loadout.toml"):
+            self.write(f"storage/{name}", b"storage config\n")
         self.write("vehicles/car.toml", b"vehicle config\n")
         for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"):
             self.write(f"storage/weapons/{name}.inventory.toml", b"item definition\n")
@@ -167,6 +171,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
                     "assets/tree.glb", "assets/dry_tree_impostor.glb", "output/osm/forest_patches.json", "assets/side.png", "assets/top.png", "assets/shrub.png", "inventory.toml",
                     "assets/zombies/models/Zombie.glb", "assets/zombies/models/lods.json"}
         expected.add("vehicles/car.toml")
+        expected.update({"skills.toml", "skills/melee/punch.skill.toml", "storage/equipment.toml", "storage/backpacks.toml", "storage/loadout.toml"})
         for suffix in ("inventory.toml", "gameplay.toml", "tags.txt"):
             expected.update(f"storage/weapons/{name}.{suffix}" for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"))
         expected.update(f"assets/zombies/models/lod{level}/Zombie.glb" for level in range(1, 4))

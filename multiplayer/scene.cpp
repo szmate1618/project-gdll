@@ -1,6 +1,8 @@
 #include "scene.hpp"
 #include "asset_validation.hpp"
 #include "file_fingerprint.hpp"
+#include "inventory/inventory_config.hpp"
+#include "skills/skills_config.hpp"
 #include "guardrail_layer.hpp"
 #include "model_merge.hpp"
 #include "pole_layer.hpp"
@@ -143,7 +145,8 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
              const std::optional<viewer::ZombieScenarioConfig::Player>& playerSpawn) :
     mapPath(o.map), model(loadSessionMap(o.map)), physics(std::make_shared<viewer::PhysicsWorld>()),
     dayNight(o.dayNight),
-    initialWeapons(resourceRoot() / "storage/weapons", resourceRoot() / "inventory.toml", true) {
+    initialWeapons(resourceRoot() / "storage/weapons", resourceRoot() / "inventory.toml", true),
+    initialInventory(viewer::loadPlayerInventory(resourceRoot())) {
     std::vector<std::filesystem::path> content{o.map};
     const auto adjacent = [&](const char* name) { return o.map.parent_path() / name; };
     if (std::filesystem::exists(adjacent("poles.instances.json"))) {
@@ -235,6 +238,11 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
     std::sort(definitions.begin(), definitions.end());
     content.insert(content.end(), definitions.begin(), definitions.end());
     content.push_back(resourceRoot() / "inventory.toml");
+    content.push_back(resourceRoot() / "skills.toml");
+    for (const auto& skill : viewer::loadMeleeSkills(resourceRoot()))
+        content.push_back(resourceRoot() / "skills/melee" / (skill.id + ".skill.toml"));
+    for (const char* file : {"equipment.toml", "backpacks.toml", "loadout.toml"})
+        content.push_back(resourceRoot() / "storage" / file);
     const auto vehicleFiles = viewer::vehicleConfigFiles(resourceRoot() / "vehicles");
     content.insert(content.end(), vehicleFiles.begin(), vehicleFiles.end());
     for (const auto& path : content) {

@@ -9,8 +9,9 @@
 #include <iostream>
 
 namespace multiplayer {
-ServerPlayer::ServerPlayer(const viewer::Weapons& initialWeapons, std::shared_ptr<viewer::PhysicsWorld> world)
-    : weapons(initialWeapons), body(std::move(world),controller.config().eyeHeight) {
+ServerPlayer::ServerPlayer(const viewer::Weapons& initialWeapons, const viewer::PlayerInventory& initialInventory,
+                           std::shared_ptr<viewer::PhysicsWorld> world)
+    : weapons(initialWeapons), inventory(initialInventory), body(std::move(world),controller.config().eyeHeight) {
     held.slot = static_cast<std::uint8_t>(weapons.slot());
 }
 World::World(Scene& scene) : scene_(scene), vehicleSeats_(scene),
@@ -36,7 +37,7 @@ World::World(Scene& scene) : scene_(scene), vehicleSeats_(scene),
 std::uint32_t World::join() {
     if (players_.size() >= maxPlayers || nextPlayer_ == 0) throw std::runtime_error("Server full");
     const auto id = nextPlayer_++;
-    auto& player = players_.try_emplace(id, scene_.initialWeapons, scene_.physics).first->second;
+    auto& player = players_.try_emplace(id, scene_.initialWeapons, scene_.initialInventory, scene_.physics).first->second;
     player.undergrowth = viewer::UndergrowthEmitter(id);
     auto spawn = scene_.spawnEye;
     spawn.x += static_cast<float>((id - 1) % maxPlayers) * 1.0f;
@@ -74,6 +75,8 @@ void World::step() {
     struct Punch { viewer::PlayerBody* body; glm::vec3 eye, direction; };
     std::vector<Punch> punches;
     for (auto& [id, player] : players_) {
+        const bool completedSwitch = player.weaponSwitch.update(player.weapons, now);
+        if (completedSwitch && player.held.left) player.triggerNeedsRelease = true;
         // A small startup buffer absorbs ordinary packet jitter without delaying local prediction.
         if (!player.started && (player.pending.size() >= 3 || tick_ - player.lastPacketTick > 3)) player.started = true;
         // Drain jitter backlogs using the existing 120 Hz substeps, never extra movement time.
@@ -154,16 +157,17 @@ void World::step() {
                 player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
                 player.interaction.update(player.camera, tickSeconds / inputs);
             }
-            const bool switchedWeapon = player.weapons.slot() != command.slot && player.weapons.equip(command.slot);
-            if (command.reload) player.weapons.reload();
+            const bool switchedWeapon = player.weaponSwitch.begin(player.weapons, player.inventory, command.slot, now);
+            if (command.reload && !player.weaponSwitch.pending()) player.weapons.reload();
             // Resetting Weapons must not turn an already-held button into a new press.
             if (consumed && !command.left) player.triggerNeedsRelease = false;
             if ((switchedWeapon || command.reload) && command.left && player.held.left) player.triggerNeedsRelease = true;
-            player.weapons.trigger(command.left && !command.interaction && !player.triggerNeedsRelease);
+            if (player.weaponSwitch.pending() && command.left) player.triggerNeedsRelease = true;
+            player.weapons.trigger(command.left && !command.interaction && !player.triggerNeedsRelease && !player.weaponSwitch.pending());
             // Accept before the next input can reload/switch weapons or change aim.
             const auto& config = player.weapons.equipped().config;
             player.body.follow(player.camera.position(),player.camera.direction(),
-                player.weapons.slot()==viewer::punchSlot && !command.interaction);
+                player.weapons.slot()==viewer::punchSlot && !command.interaction && !player.weaponSwitch.pending());
             const bool canThrow = !config.grenade || scene_.grenades->canThrow(player.camera.position(), *scene_.collision);
             if (!canThrow) {
                 player.weapons.cancelTrigger();
@@ -238,7 +242,9 @@ Snapshot World::snapshot(std::uint32_t id) {
         s.players.push_back({playerId, player.resolved, player.controller.movementState(),
             player.camera.yawDegrees(), player.camera.pitchDegrees(), static_cast<std::uint8_t>(player.weapons.slot()),
             static_cast<std::uint32_t>(weapon.loaded), static_cast<std::uint32_t>(weapon.reserve), player.shots,
-            viewer::SimulationClock::instance().seconds() < weapon.readyAt, vehicleSeats_.car(playerId), vehicleSeats_.seat(playerId),player.body.pose()});
+            viewer::SimulationClock::instance().seconds() < weapon.readyAt, vehicleSeats_.car(playerId), vehicleSeats_.seat(playerId),player.body.pose(),
+            static_cast<float>(player.weaponSwitch.remaining(viewer::SimulationClock::instance().seconds())),
+            player.weaponSwitch.timing() ? static_cast<float>(player.weaponSwitch.timing()->total()) : 0.f});
     }
     return observer.replication.snapshot(scene_, observer.controller.feet(), std::move(s));
 }

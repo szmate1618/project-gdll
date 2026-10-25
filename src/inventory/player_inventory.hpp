@@ -14,7 +14,8 @@ struct ItemPlacement {
 struct InventoryContents {
     std::map<std::string, Item> owned;
     std::map<std::string, ItemPlacement> placements;
-    std::array<std::string, 10> hotbar; // Read-only shortcut configuration.
+    std::array<std::string, 10> hotbar; // Owned item IDs or skill:<registered ID>.
+    std::map<std::string, std::string> skills; // Registered action labels; no storage or combat state.
 };
 struct HeldInventoryItem {
     std::string item;
@@ -47,6 +48,7 @@ public:
     const auto& items() const { return contents_.owned; }
     const auto& placements() const { return contents_.placements; }
     const auto& hotbar() const { return contents_.hotbar; }
+    const auto& skills() const { return contents_.skills; }
     const StorageLoadout& storage() const { return storage_; }
     const InventoryLayout& layout() const { return layout_; }
     const auto& held() const { return held_; }

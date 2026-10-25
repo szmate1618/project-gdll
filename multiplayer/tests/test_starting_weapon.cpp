@@ -50,12 +50,16 @@ int main(int argc, char** argv) {
         if (argc != 3) throw std::runtime_error("Test asset and fixture directory arguments missing");
         resources = argv[2];
         const auto copy = std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing;
-        for (const auto* directory : {"storage", "vehicles"})
+        for (const auto* directory : {"storage", "vehicles", "skills"})
             std::filesystem::copy(std::filesystem::path(MP_ROOT) / directory, resources / directory, copy);
+        std::filesystem::copy_file(std::filesystem::path(MP_ROOT) / "skills.toml", resources / "skills.toml",
+                                   std::filesystem::copy_options::overwrite_existing);
         {
             std::ofstream inventory(resources / "inventory.toml");
             inventory << "equipped = 'sniper'\n[weapons]\npistol = 12\nsniper = 5\n"
-                         "[ammo]\npistol_rounds = 120\nsmg_rounds = 300\nsniper_rounds = 30\nshotgun_shells = 48\nhe_grenades = 0\n";
+                         "[ammo]\npistol_rounds = 120\nsmg_rounds = 300\nsniper_rounds = 30\nshotgun_shells = 48\nhe_grenades = 0\n"
+                         "[placements.pistol]\nstorage='body/hip_holster/holster'\nx=0\ny=0\n"
+                         "[placements.sniper]\nstorage='backpack/tactical_backpack/main'\nx=0\ny=0\n";
             require(bool(inventory), "Could not write starting weapon fixture");
         }
         multiplayer::Options options; options.map = argv[1];

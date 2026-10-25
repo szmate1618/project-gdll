@@ -19,6 +19,8 @@ struct Fixture {
         std::filesystem::copy(std::filesystem::path(VIEWER_ITEM_ROOT) / "storage/weapons", root / "storage/weapons",
             std::filesystem::copy_options::recursive);
         std::filesystem::copy_file(std::filesystem::path(VIEWER_ITEM_ROOT) / "inventory.toml", root / "inventory.toml");
+        std::filesystem::copy_file(std::filesystem::path(VIEWER_ITEM_ROOT) / "skills.toml", root / "skills.toml");
+        std::filesystem::copy(std::filesystem::path(VIEWER_ITEM_ROOT) / "skills", root / "skills", std::filesystem::copy_options::recursive);
     }
     ~Fixture() { std::filesystem::remove_all(root); }
     void inventory(const char* text) { std::ofstream(root / "inventory.toml") << text; }
@@ -54,8 +56,9 @@ void starterInventory() {
         require(std::find(item.tags().begin(), item.tags().end(), category) != item.tags().end(),
             "Weapon category must come from its comma-separated tags file");
     }
-    for (std::size_t slot = 5; slot < inventory.hotbar.size(); ++slot)
-        require(inventory.hotbar[slot].empty(), "Slots 5–9 must start unassigned");
+    require(inventory.hotbar[5] == "skill:punch" && inventory.skills.at("punch") == "Punch", "Punch shortcut must reference the registered skill");
+    for (std::size_t slot = 6; slot < inventory.hotbar.size(); ++slot)
+        require(inventory.hotbar[slot].empty(), "Slots 6–9 must start unassigned");
     const auto& pistol = inventory.owned.at("pistol");
     require(pistol.inventory().width == 2 && pistol.inventory().height == 1, "Pistol must have a 2x1 cell footprint");
     const auto& sniper = inventory.owned.at("sniper");

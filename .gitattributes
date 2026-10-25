@@ -4,6 +4,9 @@
 /storage/weapons/*.tags.txt text eol=lf
 /vehicles/*.toml text eol=lf
 /inventory.toml text eol=lf
+/skills.toml text eol=lf
+/skills/melee/*.skill.toml text eol=lf
+/storage/*.toml text eol=lf
 /forest_patches.json text eol=lf
 /forest_patches_astra.json text eol=lf
 /assets/zombies/models/*.hitboxes.json text eol=lf

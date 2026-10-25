@@ -21,7 +21,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 12; // Physical melee poses and fists as the sixth equipment slot.
+constexpr std::uint32_t protocolVersion = 13; // Authoritative weapon switch progress.
 
 struct Hello { std::string fingerprint; };
 struct Welcome { std::uint32_t player = 0; };
@@ -59,6 +59,7 @@ struct PlayerState {
     std::uint32_t vehicle = noVehicle;
     std::uint8_t seat = noVehicleSeat;
     viewer::PlayerBodyPose melee;
+    float weaponSwitchRemaining = 0, weaponSwitchDuration = 0; // Server simulation seconds.
 };
 struct ZombieState {
     std::uint32_t id = 0, asset = 0;

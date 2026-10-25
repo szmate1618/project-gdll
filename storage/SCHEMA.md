@@ -134,14 +134,15 @@ Dragging supports rotation, free-space placement and exchange with one overlappi
 item. Right-click, closing Inventory or losing focus restores the entire unfinished
 swap chain; placing into free space completes it. Moves last for the session only.
 Optional placement `rotation` is 0, 90, 180 or 270 degrees, clockwise.
-Automatic packing and equipping interactions are
-not implemented. Item details follow the selected item. The shared hotbar reads weapon
-ownership and shortcuts from root `inventory.toml`; Skills entries remain visual
-examples. Unknown extra catalog fields are ignored, so tags from an older
+Automatic packing is not implemented. Item details follow the selected item.
+The shared hotbar reads owned item IDs and `skill:<ID>` shortcuts from root
+`inventory.toml`; skills are registered in `skills.toml`. Gameplay previews
+these slots and confirms a timed weapon switch with left click. Unknown extra catalog fields are ignored, so tags from an older
 storage descriptor have no effect.
 
 The equipment/backpack catalogs and `loadout.toml` configure the storage view.
-They remain local UI resources outside multiplayer fingerprints. The weapon
+Their bytes are included in multiplayer fingerprints because weapon switch
+timing uses the configured storage layout. The weapon
 files in the `weapons/` subfolder are shared content: gameplay TOMLs, inventory
 TOMLs and tag sidecars are included in fingerprints and content packs. See
 [weapon configuration](weapons/README.md) for their independent schemas.

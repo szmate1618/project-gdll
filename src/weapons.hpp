@@ -11,8 +11,8 @@
 
 namespace viewer {
 inline constexpr std::array<const char*, 5> weaponIds{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"};
-constexpr std::size_t punchSlot = weaponIds.size(); // Physical key left of 1 (Hungarian 0), standalone melee.
-// Slots 0..4 correspond to keys 1..5. Ammo counts use rounds (shotgun shells),
+constexpr std::size_t punchSlot = weaponIds.size(); // Equipment ID; hotbar positions are independent.
+// Slots 0..4 are fixed weapon IDs. Ammo counts use rounds (shotgun shells),
 // not pellets. Configuration and starting inventory are read once at startup.
 struct WeaponState {
     WeaponConfig config;
@@ -35,6 +35,7 @@ public:
     bool equip(std::size_t slot);
     std::size_t slot() const { return slot_; }
     const WeaponState& equipped() const { return weapons_[slot_]; }
+    const WeaponState& state(std::size_t slot) const { return weapons_.at(slot); }
     void trigger(bool held);
     void cancelTrigger();
     // One firing opportunity per frame, with no burst of overdue shots after a

@@ -121,7 +121,7 @@ bool Weapons::pickUp(const WeaponItem& item) {
     return equip(item.slot);
 }
 std::string Weapons::status() const {
-    if (slot_ == punchSlot) return "Fists (key left of 1; HU 0)";
+    if (slot_ == punchSlot) return "Fists";
     const auto& weapon = equipped();
     if (!weapon.owned) return "Unarmed";
     return weapon.config.name + " " + std::to_string(weapon.loaded) + "/" +

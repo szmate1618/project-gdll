@@ -28,6 +28,9 @@ WeaponConfig loadWeaponConfig(const std::filesystem::path& path, const std::stri
     config.name = required<std::string>(table, "name", path);
     config.ammoType = required<std::string>(table, "ammo_type", path);
     config.shotIntervalSeconds = required<double>(table, "shot_interval_seconds", path);
+    config.drawTimeSeconds = required<double>(table, "draw_time_seconds", path);
+    if (!std::isfinite(config.drawTimeSeconds) || config.drawTimeSeconds < 0)
+        throw std::runtime_error(path.string() + ": draw_time_seconds must be finite and nonnegative");
     config.automatic = required<bool>(table, "automatic", path);
     config.hasScope = required<bool>(table, "has_scope", path);
     config.pellets = count(table, "pellets", path);

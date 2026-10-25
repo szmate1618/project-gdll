@@ -92,7 +92,12 @@ void poseProtocol() {
 void authoritativeHits(const Options& options) {
     Scene scene(options); openScene(scene); World world(scene);
     const auto first=world.join(),second=world.join();
-    for (std::uint64_t sequence=1;sequence<=90;++sequence) {
+    for (auto id : {first,second}) world.submit(id,Commands{{fists(1)}});
+    for (int tick=0;tick<600 && (world.players().at(first).weapons.slot()!=viewer::punchSlot ||
+                               world.players().at(second).weapons.slot()!=viewer::punchSlot);++tick) world.step();
+    require(world.players().at(first).weapons.slot()==viewer::punchSlot && world.players().at(second).weapons.slot()==viewer::punchSlot,
+            "Both players must finish putting away their weapons before punching");
+    for (std::uint64_t sequence=2;sequence<=91;++sequence) {
         for (auto id : {first,second}) {
             auto command=fists(sequence,true); command.reload=sequence==40;
             world.submit(id,Commands{{command}}); world.submit(id,Commands{{command}});
@@ -106,11 +111,11 @@ void authoritativeHits(const Options& options) {
     auto snapshot=wire(world.snapshot(first));
     require(snapshot.players[0].melee.enabled && snapshot.players[1].melee.enabled && snapshot.zombies[0].dead && snapshot.zombies[1].dead,
             "Physical player poses or hit outcomes were absent from the observer snapshot");
-    for (auto id : {first,second}) world.submit(id,Commands{{fists(91)}});
+    for (auto id : {first,second}) world.submit(id,Commands{{fists(92)}});
     world.step();
-    for (auto id : {first,second}) world.submit(id,Commands{{fists(92,true)}});
+    for (auto id : {first,second}) world.submit(id,Commands{{fists(93,true)}});
     world.step();
-    for (int n=0;n<8 && (world.players().at(first).resolved<92 || world.players().at(second).resolved<92);++n) world.step();
+    for (int n=0;n<8 && (world.players().at(first).resolved<93 || world.players().at(second).resolved<93);++n) world.step();
     snapshot=wire(world.snapshot(second));
     require(world.players().at(first).shots==2 && world.players().at(second).shots==2 && (snapshot.players[0].melee.striking|snapshot.players[0].melee.returning)==1 &&
             (snapshot.players[1].melee.striking|snapshot.players[1].melee.returning)==1 && scene.zombies.ragdollCount()==2,
@@ -129,11 +134,11 @@ void authoritativeHits(const Options& options) {
     world.leave(second);
     require(b3World_GetCounters(scene.physics->id()).bodyCount==before-int(viewer::playerBodyPartCount)-1,
             "Disconnect retained a player's physical bodies");
-    auto interaction=fists(93,true); interaction.interaction=true;
+    auto interaction=fists(94,true); interaction.interaction=true;
     world.submit(first,Commands{{interaction}}); world.step();
     require(!wire(world.snapshot(first)).players[0].melee.enabled && world.players().at(first).shots==2,
             "Interaction mode left the physical fists enabled or punched");
-    auto gun=fists(94); gun.slot=0; world.submit(first,Commands{{gun}}); world.step();
+    auto gun=fists(95); gun.slot=0; world.submit(first,Commands{{gun}}); world.step();
     require(!wire(world.snapshot(first)).players[0].melee.enabled,"Equipping a gun retained the fists body");
 }
 void simultaneousSharedImpact(const Options& options) {
@@ -160,7 +165,7 @@ void seatedFists(const Options& options) {
     const auto box=scene.vehicles->pose(0).chassis;
     scene.spawnEye=box.center+scene.vehicles->config(0).seats[1].entryPosition+glm::vec3(.6f,0,0);
     World world(scene); const auto id=world.join(); world.submit(id,Commands{{fists(1)}});
-    for(int n=0;n<6;++n) world.step();
+    for(int n=0;n<600 && world.players().at(id).weapons.slot()!=viewer::punchSlot;++n) world.step();
     require(wire(world.snapshot(id)).players[0].melee.enabled,"Seat fixture did not enable fists");
     auto enter=fists(2,true); enter.enterVehicle=true; world.submit(id,Commands{{enter}}); world.step();
     for(std::uint64_t sequence=3;sequence<20;++sequence) {

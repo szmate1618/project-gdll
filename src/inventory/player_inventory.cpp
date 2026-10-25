@@ -7,7 +7,8 @@ namespace viewer {
 PlayerInventory::PlayerInventory(StorageLoadout storage, InventoryContents contents)
     : storage_(std::move(storage)), contents_(std::move(contents)), layout_(buildInventoryLayout(storage_, contents_)) {
     for (const auto& id : hotbar())
-        if (!id.empty() && !owns(id)) throw std::invalid_argument("Inventory shortcut references unowned item " + id);
+        if (!id.empty() && !owns(id) && !(id.compare(0, 6, "skill:") == 0 && contents_.skills.count(id.substr(6))))
+            throw std::invalid_argument("Inventory shortcut references unowned item or unknown skill " + id);
 }
 void PlayerInventory::rebuild() {
     layout_ = buildInventoryLayout(storage_, contents_, held_ ? held_->item : "");

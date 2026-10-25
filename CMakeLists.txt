@@ -333,9 +333,9 @@ target_link_libraries(viewer_weapon_config PUBLIC glm::glm PRIVATE tomlplusplus:
 viewer_warnings(viewer_weapon_config)
 include(cmake/Inventory.cmake)
 
-add_library(viewer_weapons STATIC src/weapons.cpp src/weapon_motion.cpp)
+add_library(viewer_weapons STATIC src/weapons.cpp src/weapon_motion.cpp src/weapon_switch.cpp src/action_selection.cpp)
 target_include_directories(viewer_weapons PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
-target_link_libraries(viewer_weapons PUBLIC viewer_weapon_config viewer_camera PRIVATE tomlplusplus::tomlplusplus)
+target_link_libraries(viewer_weapons PUBLIC viewer_weapon_config viewer_camera viewer_inventory PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_weapons)
 
 add_library(viewer_objects STATIC src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp)
@@ -568,6 +568,11 @@ if(BUILD_TESTING AND GD_VIEWER)
         VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml")
     viewer_warnings(test_weapons)
     add_test(NAME viewer_weapons COMMAND test_weapons)
+    add_executable(test_weapon_selection tests/test_weapon_selection.cpp)
+    target_link_libraries(test_weapon_selection PRIVATE viewer_weapons)
+    target_compile_definitions(test_weapon_selection PRIVATE VIEWER_ITEM_ROOT="${PROJECT_SOURCE_DIR}")
+    viewer_warnings(test_weapon_selection)
+    add_test(NAME viewer_weapon_selection COMMAND test_weapon_selection)
 
     add_executable(test_weapon_motion tests/test_weapon_motion.cpp)
     target_link_libraries(test_weapon_motion PRIVATE viewer_weapons)

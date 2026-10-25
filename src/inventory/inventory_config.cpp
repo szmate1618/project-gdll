@@ -1,5 +1,6 @@
 #include "inventory_config.hpp"
 #include "item_config.hpp"
+#include "skills/skills_config.hpp"
 #include <toml++/toml.hpp>
 #include <algorithm>
 #include <cstdint>
@@ -77,12 +78,19 @@ InventoryContents loadInventoryContents(const Path& root) {
     if (table.contains("hotbar")) {
         const auto* hotbar = table["hotbar"].as_table();
         if (!hotbar) invalid(file, "hotbar must be a table of slots 0–9");
+        bool loadedSkills = false;
         for (const auto& [key, node] : *hotbar) {
             const auto slot = key.str();
             if (slot.size() != 1 || slot[0] < '0' || slot[0] > '9') invalid(file, "hotbar slots must be 0–9");
             const auto id = node.value<std::string>();
-            if (!id || result.owned.find(*id) == result.owned.end())
-                invalid(file, "hotbar slot " + std::string(slot) + " must reference an owned item ID");
+            if (id && id->compare(0, 6, "skill:") == 0) {
+                if (!loadedSkills) {
+                    for (const auto& skill : loadMeleeSkills(root)) result.skills.emplace(skill.id, skill.name);
+                    loadedSkills = true;
+                }
+                if (!result.skills.count(id->substr(6))) invalid(file, "hotbar slot " + std::string(slot) + " references an unknown skill");
+            } else if (!id || result.owned.find(*id) == result.owned.end())
+                invalid(file, "hotbar slot " + std::string(slot) + " must reference an owned item ID or skill:<ID>");
             result.hotbar[static_cast<std::size_t>(slot[0] - '0')] = *id;
         }
     }

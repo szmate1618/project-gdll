@@ -24,6 +24,8 @@ struct HudState {
     std::optional<int> loaded, reserve;
     int slot = -1; // Equipment slots 0..4; fists are 5. -1 means unconfirmed.
     bool mouseCaptured = true;
+    int selectionSlot = -1; // Hotbar preview 0..9; -1 hides the selector.
+    double weaponSwitchRemaining = 0, weaponSwitchDuration = 0; // Seconds; zero hides progress.
 };
 
 // Owns the application's RmlUi lifetime. One HUD at a time, on the GL thread.

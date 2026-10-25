@@ -141,6 +141,9 @@ void payload(Wire& w, Snapshot& s) {
         if (!viewer::validPlayerBodyPose(p.melee) ||
             (p.melee.enabled && (p.slot != viewer::punchSlot || p.vehicle != noVehicle)))
             throw std::runtime_error("Invalid melee player pose");
+        w.number(p.weaponSwitchRemaining); w.number(p.weaponSwitchDuration);
+        if (p.weaponSwitchRemaining < 0 || p.weaponSwitchDuration < p.weaponSwitchRemaining)
+            throw std::runtime_error("Invalid weapon switch progress");
         if (!p.id || p.slot > viewer::punchSlot || std::abs(p.yaw) > 180 || std::abs(p.pitch) > 89 ||
             (p.vehicle != noVehicle && (p.vehicle >= maxVehicles || p.seat >= viewer::maxVehicleSeats)) ||
             (p.vehicle == noVehicle && p.seat != noVehicleSeat))

@@ -4,21 +4,25 @@
 #include <vector>
 
 namespace viewer {
-namespace {
-InventoryAccess accessTime(const StorageGrid& grid, InventoryAccessScores scores) {
+double inventoryAccessSeconds(const StorageGrid& grid, InventoryAccessScores scores) {
     double seconds = grid.accessTime;
     if (grid.backpackAccess) {
         seconds += scores.obstruction * grid.backpackAccess->obstructionTimePerCell;
         seconds -= scores.support * grid.backpackAccess->supportTimePerCell;
     }
-    return {scores, std::max(0.0, seconds)};
+    return std::max(0.0, seconds);
 }
-} // namespace
+InventoryAccessRange inventoryAccessRange(const StorageGrid& grid, int itemHeight) {
+    if (itemHeight < 1 || itemHeight > grid.height) throw std::invalid_argument("Invalid access footprint height");
+    const int otherRows = grid.height - itemHeight;
+    return {inventoryAccessSeconds(grid, {0, static_cast<double>(otherRows)}),
+            inventoryAccessSeconds(grid, {otherRows, 0})};
+}
 InventoryAccess inventoryAccess(const InventoryContainer& container, const InventoryItemRectangle& rectangle,
                                 const std::string& excludedItem) {
     const auto& grid = container.grid;
     if (!inventoryRectangleFits(grid, rectangle)) throw std::invalid_argument("Access footprint is outside its compartment");
-    if (!grid.backpackAccess) return accessTime(grid, {});
+    if (!grid.backpackAccess) return {{}, inventoryAccessSeconds(grid, {})};
     std::vector<bool> occupied(static_cast<std::size_t>(grid.width) * grid.height, false);
     for (const auto& other : container.items) {
         if (other.item == rectangle.item || other.item == excludedItem) continue;
@@ -38,13 +42,14 @@ InventoryAccess inventoryAccess(const InventoryContainer& container, const Inven
         }
     }
     scores.support = supportTotal / (rectangle.width * rectangle.height);
-    return accessTime(grid, scores);
+    return {scores, inventoryAccessSeconds(grid, scores)};
 }
 InventoryAccess inventorySwapAccess(const InventoryContainer& container, const InventoryItemRectangle& incoming,
                                     const InventoryItemRectangle& outgoing) {
     const auto placed = inventoryAccess(container, incoming, outgoing.item);
     const auto picked = inventoryAccess(container, outgoing, incoming.item);
-    return accessTime(container.grid, {std::max(placed.scores.obstruction, picked.scores.obstruction),
-        std::min(placed.scores.support, picked.scores.support)});
+    const InventoryAccessScores scores{std::max(placed.scores.obstruction, picked.scores.obstruction),
+        std::min(placed.scores.support, picked.scores.support)};
+    return {scores, inventoryAccessSeconds(container.grid, scores)};
 }
 } // namespace viewer

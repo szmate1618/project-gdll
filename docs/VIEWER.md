@@ -129,7 +129,7 @@ are drawn as tinted rectangles on the grids. References, bounds and overlap
 are validated against the equipped storage. Picking up an item shows its details.
 Compartment `allowed_tags` restrict the hip holster to `handgun` items and both
 shoulder slings to `long_gun` items; other starter compartments accept any tag.
-Storage placements do not change the weapon/ammo mechanics.
+Storage placements determine weapon-switch access times; ammo remains separate.
 
 Inventory releases the cursor. Click an item to select its details without
 moving it or paying access time. Hold the left mouse button and move at least
@@ -179,10 +179,10 @@ styled by [loadout.rcss](../ui/loadout.rcss) and the HUD stylesheet.
 The shared hotbar reads owned weapon IDs and slots from
 [inventory.toml](../inventory.toml), using inventory labels from
 [storage/weapons/*.inventory.toml](../storage/weapons/README.md). Slots 0–4 start
-assigned to pistol, SMG, shotgun, sniper and HE grenade; 5–9 are empty. Item descriptors carry N×M grid
+assigned to pistol, SMG, shotgun, sniper and HE grenade; slot 5 references `skill:punch`, and 6–9 are empty. Item descriptors carry N×M grid
 footprints separately from gameplay settings in `storage/weapons/*.gameplay.toml`.
 Ownership and shortcuts are loaded with the player inventory at startup.
-Hotbar assignment, equipping and skill use remain unimplemented.
+Hotbar editing and combo execution remain unimplemented. In gameplay, number keys and the mouse wheel preview these configured shortcuts; left click confirms.
 Icons and the body reference are colored square placeholders. System fonts and
 the HUD backend are shared; each screen is cached until the session ends.
 
@@ -1428,13 +1428,13 @@ build directory when run by CTest.
 | Mouse | Look around while captured; held props move sideways/up/down; held doors move sideways or push/pull |
 | Left mouse button | Combat: shoot or punch; Interaction: left-hand prop grab within 1.5 m horizontally or door grab within 1.5 m along the ray |
 | Right mouse button | Combat with a scoped weapon: cycle normal, 10°, and 1° fields of view; Interaction: right-hand prop grab within 1.5 m horizontally |
-| 1 / 2 / 3 / 4 / 5 | Equip pistol / submachine gun / shotgun / sniper / HE grenade |
-| Key left of 1 (Hungarian 0 / US backtick) | Equip fists; left click punches with alternating hands |
+| 1–9 | Preview the corresponding configured hotbar slot; left click confirms |
+| Key left of 1 (Hungarian 0 / US backtick) | Preview hotbar slot 0; number-row 0 at the right is unbound |
 | R | Reload equipped weapon from its matching reserve ammo |
 | G | Discard the equipped weapon with a fast forward throw and vertical-axis spin |
 | F | Pick up the discarded weapon under the camera ray within 2 m |
 | Shift | Free-fly: move four times faster; standing: run at 6 m/s |
-| Mouse wheel | Adjust free-fly movement speed |
+| Mouse wheel | Combat: cycle assigned hotbar actions; Interaction in free-fly: adjust movement speed |
 | F1 | Open / close the Inventory visual prototype |
 | F2 | Open / close the Skills visual prototype |
 | F8 | Switch to free-fly mode |
@@ -1541,9 +1541,32 @@ Framebuffer resize updates the viewport and projection aspect ratio.
 
 ## Prototype weapons and inventory
 
-In the viewer and multiplayer client, the **physical key immediately left of 1**
-(Hungarian **0**, US backtick) selects fists, which are always available and use
-no ammunition. The binding follows key position across keyboard layouts. Left click applies a 12 N·s impulse to alternating fists,
+In the viewer and multiplayer client, number keys **1–9** preview the matching
+hotbar position; the **physical key immediately left of 1** (Hungarian **0**, US
+backtick) previews position zero. The right-hand number-row zero is unbound.
+The compact upper-left overlay shows all ten numbered positions and expands
+the highlighted one to show its action name and icon. The mouse
+wheel cycles assigned actions, wrapping over empty positions. **Left click**
+confirms and consumes that click. Selecting the equipped action does nothing;
+Escape cancels the preview. The initial slots are 0 pistol, 1 SMG, 2 shotgun,
+3 sniper, 4 HE grenade, and 5 Punch. `inventory.toml` accepts owned item IDs and
+`skill:<ID>` references registered in `skills.toml`; editing assignments in the UI
+is not implemented. Punch equips the existing fists, which use no ammunition.
+
+Switching shows a progress bar without a draw/put-away animation. Its duration is
+old weapon `draw_time_seconds` + old storage access + new storage access + new
+weapon `draw_time_seconds`. Draw time also serves as put-away time; Punch costs
+zero for its own draw and storage. Both storage footprints exclude each other
+when scoring occupancy. Only the weapon with the larger obstruction score pays
+its obstruction penalty (the old weapon wins ties); both base access times and
+support bonuses remain. The delay is sampled on confirmation and advances with
+simulation time. Combat, reload and discard/pickup wait until completion, and
+confirmation/held clicks do not fire on completion. Scope resets on completion.
+Storage locations remain reserved while a weapon is equipped. Multiplayer
+calculates and publishes the delay on the server using its startup storage
+layout; client-only storage moves are still not replicated.
+
+ Left click applies a 12 N·s impulse to alternating fists,
 with a 0.5 s cooldown. The camera ray chooses the nearest scene or nearby zombie
 surface; a miss punches along the ray direction. The ray itself causes no damage.
 During the strike, a velocity-based force at the fist sustains an 8.8 m/s target
@@ -1693,7 +1716,7 @@ Both implementations hit Box3D's existing 256-triangle contact-query buffer
 limit in some scripted contacts. Benchmark physics diagnostics go to stderr
 so this limitation remains visible without contaminating CSV output.
 
-Keys **1–4** equip the pistol, submachine gun, shotgun, and sniper. The pistol,
+The starter firearm shortcuts are **0–3** (0 is the key left of 1); preview then left click to equip the pistol, submachine gun, shotgun, or sniper. The pistol,
 sniper, and shotgun fire once per click; the SMG repeats while left mouse is
 held. Every shot respects its configured cooldown and consumes magazine ammo,
 including misses and shots in scenes without zombies. Empty weapons stop firing.
@@ -1727,7 +1750,7 @@ two-handed pistol hold and shoulder-seated stocks, with estimated shoulder
 width and arm reach. Crouching and prone preserve these upper-body proportions.
 The window title and console report the equipped weapon, magazine, and reserve.
 
-**5** equips an HE grenade; **left click** throws one in Combat mode. Holding
+**4**, then left click, equips an HE grenade; **left click** throws one in Combat mode. Holding
 the button throws only once. The starting inventory supplies six grenades.
 After a throw, the held model disappears until the configured cooldown ends;
 an empty inventory keeps the hand empty. Switching weapons or reloading does

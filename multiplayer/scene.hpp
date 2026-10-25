@@ -11,6 +11,7 @@
 #include "zombie_layer.hpp"
 #include "zombie_scenario_config.hpp"
 #include "weapons.hpp"
+#include "inventory/player_inventory.hpp"
 #include "vegetation_selection.hpp"
 #include "vehicle_layer.hpp"
 #include "vehicle_placement.hpp"
@@ -71,5 +72,6 @@ struct Scene {
     viewer::DayNightCycle dayNight;
     std::string fingerprint;
     const viewer::Weapons initialWeapons;
+    const viewer::PlayerInventory initialInventory;
 };
 } // namespace multiplayer

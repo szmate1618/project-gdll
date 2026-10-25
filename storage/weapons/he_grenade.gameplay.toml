@@ -1,6 +1,7 @@
 name = "HE grenade"
 kind = "he_grenade"
 ammo_type = "he_grenades"
+draw_time_seconds = 0.3
 shot_interval_seconds = 0.8
 automatic = false
 has_scope = false
