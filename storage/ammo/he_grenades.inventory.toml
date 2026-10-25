@@ -1,0 +1,9 @@
+schema_version = 2
+id = "he_grenades"
+name = "HE grenades"
+type = "ammo"
+ammo_type = "he_grenades"
+width = 1
+height = 1
+stackable = true
+max_stack = 6
