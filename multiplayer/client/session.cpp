@@ -40,6 +40,9 @@ struct Input {
     bool canScope = false;
     bool flashlight = true;
     bool leave = false;
+#ifdef MP_GRAPHICS
+    viewer::HudScreen hudScreen = viewer::HudScreen::Gameplay;
+#endif
     double lastX = 0, lastY = 0;
     glm::vec2 drag{0};
     std::uint8_t slot = 0;
@@ -49,6 +52,16 @@ Input& input(GLFWwindow* window) { return *static_cast<Input*>(glfwGetWindowUser
 void key(GLFWwindow* window, int code, int, int action, int) {
     if (action != GLFW_PRESS) return;
     auto& in = input(window);
+    if (code == GLFW_KEY_F1 || code == GLFW_KEY_F2 ||
+        (code == GLFW_KEY_ESCAPE && in.hudScreen != viewer::HudScreen::Gameplay)) {
+        const auto requested = code == GLFW_KEY_F1 ? viewer::HudScreen::Inventory :
+            code == GLFW_KEY_F2 ? viewer::HudScreen::Skills : viewer::HudScreen::Gameplay;
+        in.hudScreen = in.hudScreen == requested ? viewer::HudScreen::Gameplay : requested;
+        in.firstMouse = true; in.drag = {};
+        in.leftPressed = in.rightPressed = in.prone = in.reload = in.enterVehicle = in.toggleDrivingCamera = false;
+        return;
+    }
+    if (in.hudScreen != viewer::HudScreen::Gameplay) return;
     if (code == GLFW_KEY_ESCAPE) in.leave = true;
     if (code == GLFW_KEY_ENTER && in.capture) in.enterVehicle = true;
     if ((code == GLFW_KEY_LEFT_ALT || code == GLFW_KEY_RIGHT_ALT) && in.driver.driving()) in.toggleDrivingCamera = true;
@@ -67,7 +80,7 @@ void key(GLFWwindow* window, int code, int, int action, int) {
 }
 void mouse(GLFWwindow* window, double x, double y) {
     auto& in = input(window);
-    if (!in.capture) return;
+    if (!in.capture || in.hudScreen != viewer::HudScreen::Gameplay) return;
     if (in.firstMouse) { in.firstMouse = false; in.lastX = x; in.lastY = y; return; }
     const float dx = static_cast<float>(x - in.lastX), dy = static_cast<float>(in.lastY - y);
     in.lastX = x; in.lastY = y;
@@ -76,7 +89,7 @@ void mouse(GLFWwindow* window, double x, double y) {
 }
 void button(GLFWwindow* window, int buttonCode, int action, int) {
     auto& in = input(window);
-    if (!in.capture || in.driver.occupied() || action != GLFW_PRESS) return;
+    if (!in.capture || in.driver.occupied() || action != GLFW_PRESS || in.hudScreen != viewer::HudScreen::Gameplay) return;
     if (buttonCode == GLFW_MOUSE_BUTTON_LEFT) in.leftPressed = true;
     if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT && in.interaction) in.rightPressed = true;
     if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT && in.canScope && !in.interaction) in.camera.cycleViewMode();
@@ -180,6 +193,7 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
     if (bot) { c.movement.forward = 1; c.movement.yawDegrees = 0; c.pitch = 0; return c; }
     if (!window || !in.capture) return c;
 #ifdef MP_GRAPHICS
+    if (in.hudScreen != viewer::HudScreen::Gameplay) return c;
     c.enterVehicle = in.enterVehicle; in.enterVehicle = false;
     const auto held = [&](int code) { return glfwGetKey(window, code) == GLFW_PRESS ? 1.0f : 0.0f; };
     c.movement.forward = held(GLFW_KEY_W) - held(GLFW_KEY_S); c.movement.right = held(GLFW_KEY_D) - held(GLFW_KEY_A);
@@ -383,6 +397,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                                           in.weaponMotion.pose(ownState.slot, now));
                 if (!in.driver.occupied()) graphics.reticle->draw(in.camera.viewMode(), width, height);
                 viewer::HudState hudState;
+                hudState.screen = in.hudScreen;
                 hudState.position = in.driver.occupied() ? in.driver.eyePosition(*scene.vehicles) : in.camera.position();
                 hudState.yawDegrees = in.camera.yawDegrees();
                 const auto stance = prediction.controller().stance();

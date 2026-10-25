@@ -187,6 +187,18 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             break;
         case 26: {
             require(!in.driver.thirdPerson(), "Alt must return to the driver seat");
+            key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
+            require(in.hudScreen == viewer::HudScreen::Inventory, "F1 must open inventory while seated");
+            key(window, GLFW_KEY_F2, 0, GLFW_PRESS, 0);
+            key(window, GLFW_KEY_F2, 0, GLFW_REPEAT, 0);
+            require(in.hudScreen == viewer::HudScreen::Skills, "F2 must select skills without repeat toggling");
+            key(window, GLFW_KEY_ENTER, 0, GLFW_PRESS, 0);
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+            const auto previewCommand = command(in, window, false, 0.0);
+            require(!previewCommand.enterVehicle && !previewCommand.left && !previewCommand.reload &&
+                    previewCommand.movement.forward == 0, "Prototype screen passed gameplay input through");
+            key(window, GLFW_KEY_ESCAPE, 0, GLFW_PRESS, 0);
+            require(in.hudScreen == viewer::HudScreen::Gameplay && !in.leave, "Escape must close skills before leaving session");
             in.capture = true;
             key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
             require(!in.capture && !in.driver.thirdPerson(), "F12 must release the mouse without changing camera mode");

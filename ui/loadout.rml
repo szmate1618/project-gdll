@@ -1,0 +1,32 @@
+<template name="loadout" content="page-content">
+<head>
+    <link type="text/rcss" href="hud.rcss" />
+    <link type="text/rcss" href="loadout.rcss" />
+</head>
+<body>
+    <div id="loadout-frame">
+        <div id="loadout-header">
+            <div id="inventory-tab" class="page-tab"><span class="key-label">F1</span>INVENTORY</div>
+            <div id="skills-tab" class="page-tab"><span class="key-label">F2</span>SKILLS</div>
+            <div class="close-hint">Press the active key or Esc to close</div>
+        </div>
+        <div id="page-content"></div>
+        <div id="action-hotbar" class="panel">
+            <div class="panel-heading">ACTION SHORTCUTS</div>
+            <div class="hotbar-note">References only. Items stay in storage; learned skills occupy no storage.</div>
+            <div id="hotbar-slots">
+            <div class="action-slot item"><span class="action-number">0</span><span class="assignment-type">ITEM</span><div class="assignment-square pistol"></div><div class="assignment-name">Pistol</div></div>
+            <div class="action-slot item"><span class="action-number">1</span><span class="assignment-type">ITEM</span><div class="assignment-square grenade"></div><div class="assignment-name">Grenade</div></div>
+            <div class="action-slot item"><span class="action-number">2</span><span class="assignment-type">ITEM</span><div class="assignment-square medkit"></div><div class="assignment-name">Medkit</div></div>
+            <div class="action-slot skill"><span class="action-number">3</span><span class="assignment-type">SKILL</span><div class="assignment-square punch"></div><div class="assignment-name">Punch</div></div>
+            <div class="action-slot skill"><span class="action-number">4</span><span class="assignment-type">SKILL</span><div class="assignment-square shove"></div><div class="assignment-name">Shove</div></div>
+            <div class="action-slot skill"><span class="action-number">5</span><span class="assignment-type">SKILL</span><div class="assignment-square listen"></div><div class="assignment-name">Listen</div></div>
+            <div class="action-slot empty"><span class="action-number">6</span><div class="assignment-name">Unassigned</div></div>
+            <div class="action-slot empty"><span class="action-number">7</span><div class="assignment-name">Unassigned</div></div>
+            <div class="action-slot empty"><span class="action-number">8</span><div class="assignment-name">Unassigned</div></div>
+            <div class="action-slot empty last"><span class="action-number">9</span><div class="assignment-name">Unassigned</div></div>
+            </div>
+        </div>
+    </div>
+</body>
+</template>

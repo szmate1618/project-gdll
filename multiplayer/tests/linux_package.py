@@ -23,7 +23,7 @@ def check_credits(package):
         "ZOMBIES.txt": "Denys Almaral",
         "AUDIO.txt": "Michel Baradari",
     }
-    for name in ("hud.rml", "hud.rcss", "hud.vert", "hud.frag"):
+    for name in ("hud.rml", "hud.rcss", "hud.vert", "hud.frag", "inventory.rml", "skills.rml", "loadout.rml", "loadout.rcss"):
         if not (package / "ui" / name).is_file():
             raise RuntimeError("Package is missing HUD resource " + name)
     for name, credit in expected.items():

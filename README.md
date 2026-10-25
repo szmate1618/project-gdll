@@ -35,7 +35,9 @@ reactions, moans, chase grunts, footsteps, doors and weapon effects include
 [credits and permissive licenses](assets/audio/CREDITS.md). Use `--audio-dir DIR`
 to supply replacements or `--no-audio` to mute playback without changing AI hearing.
 
-**F1** selects free-fly; **F2** places a walking player on nearby clear ground.
+**F1** opens the Inventory visual prototype; **F2** opens Skills.
+**F8** selects free-fly; **F9** enters walking mode at the camera position when
+clear, falling onto the surface below or recovering to safe ground if needed.
 In walking mode, use **WASD** to walk, the mouse to look, **Space** to jump, and
 **Shift** to run. **F3** toggles collision lines and the player capsule; green
 means grounded, red means airborne, and cyan marks the ground normal. The

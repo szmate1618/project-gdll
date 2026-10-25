@@ -262,6 +262,40 @@ int main(int argc, char** argv) {
             state.loaded = 7;
             clear(); hud.draw(state, 1280, 720); checkState();
             require(first == pixels(1280, 720), "HUD failed to recreate after a session ended");
+            state.screen = viewer::HudScreen::Inventory;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto inventory = pixels(1280, 720);
+            if (argc > 1) capture((std::string(argv[1]) + "-inventory.ppm").c_str(), inventory, 1280, 720);
+            state.screen = viewer::HudScreen::Skills;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto skills = pixels(1280, 720);
+            if (argc > 1) capture((std::string(argv[1]) + "-skills.ppm").c_str(), skills, 1280, 720);
+            std::size_t pageChanges = 0;
+            for (int y = 0; y < 720; ++y) for (int x = 0; x < 1280; ++x) {
+                const auto i = static_cast<std::size_t>(y * 1280 + x) * 3;
+                const bool same = inventory[i] == skills[i] && inventory[i+1] == skills[i+1] && inventory[i+2] == skills[i+2];
+                if (y < 160) require(same, "Inventory and skills show different shared hotbars");
+                if (!same) ++pageChanges;
+            }
+            require(pageChanges > 5000, "Inventory and skills did not render different page content");
+            clear(); hud.draw(state, 640, 360); checkState();
+            const auto smallSkills = pixels(640, 360);
+            if (argc > 1) capture((std::string(argv[1]) + "-skills-small.ppm").c_str(), smallSkills, 640, 360);
+            const auto marginColor = [&] {
+                const auto i = static_cast<std::size_t>((360 - 1 - 355) * 640) * 3;
+                return std::array<unsigned char, 3>{smallSkills[i], smallSkills[i+1], smallSkills[i+2]};
+            }();
+            for (int y = 0; y < 10; ++y) for (int x = 17; x < 623; ++x) {
+                const auto i = static_cast<std::size_t>(y * 640 + x) * 3;
+                require(smallSkills[i] == marginColor[0] && smallSkills[i+1] == marginColor[1] && smallSkills[i+2] == marginColor[2],
+                        "Scaled hotbar wrapped or overflowed into the bottom margin");
+            }
+            state.screen = viewer::HudScreen::Inventory;
+            clear(); hud.draw(state, 640, 360); checkState();
+            if (argc > 1) capture((std::string(argv[1]) + "-inventory-small.ppm").c_str(), pixels(640, 360), 640, 360);
+            state.screen = viewer::HudScreen::Gameplay;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(first == pixels(1280, 720), "Closing a prototype screen failed to restore the gameplay HUD");
         }
         glDeleteSamplers(1, &sampler); glDeleteTextures(1, &texture); glDeleteTextures(1, &color);
         glDeleteTextures(1, &mapTexture);

@@ -51,22 +51,22 @@ void fallingTransitions() {
     rig.camera().look(20, 10);
     const auto yaw = rig.camera().yawDegrees();
     const auto pitch = rig.camera().pitchDegrees();
-    require(rig.enterWalking(), "F2 above a named building failed");
+    require(rig.enterWalking(), "F9 above a named building failed");
     require(glm::length(rig.camera().position() - aboveRoof) < 1e-5f && !rig.player().grounded(),
-            "F2 teleported the camera instead of starting airborne");
+            "F9 teleported the camera instead of starting airborne");
     require(rig.camera().yawDegrees() == yaw && rig.camera().pitchDegrees() == pitch,
-            "F2 reset camera orientation");
+            "F9 reset camera orientation");
     settle(rig, .25f);
     require(rig.player().verticalVelocity() < -2 && rig.camera().position().y < aboveRoof.y &&
-                !rig.player().grounded(), "F2 did not start a gravity-driven fall");
+                !rig.player().grounded(), "F9 did not start a gravity-driven fall");
     const auto fallingEye = rig.camera().position();
     const auto fallingVelocity = rig.player().verticalVelocity();
     require(rig.enterWalking() && rig.camera().position() == fallingEye &&
-                rig.player().verticalVelocity() == fallingVelocity, "Repeated F2 reset an active fall");
+                rig.player().verticalVelocity() == fallingVelocity, "Repeated F9 reset an active fall");
     settle(rig, 2);
     require(rig.player().grounded() && std::abs(rig.player().feet().y - 4) < .01f &&
                 std::abs(rig.player().feet().x) < 1e-5f && std::abs(rig.player().feet().z) < 1e-5f,
-            "F2 did not land on the roof directly below the camera");
+            "F9 did not land on the roof directly below the camera");
     require(std::abs(rig.camera().position().y - 5.7f) < .01f, "Roof landing lost the eye height");
     rig.update(1.0f / 120, 0, 0, 0, false, true);
     require(rig.player().verticalVelocity() > 3, "Cannot jump after a rooftop landing");
@@ -82,7 +82,7 @@ void fallingTransitions() {
     require(rig.enterWalking(), "Cannot start a long fall above a roof");
     settle(rig, 10, 30);
     require(rig.player().grounded() && std::abs(rig.player().feet().y - 4) < .01f,
-            "Long F2 fall tunneled through the roof");
+            "Long F9 fall tunneled through the roof");
 
     for (const auto eye : {glm::vec3(10,10,0), glm::vec3(0,2,0)}) {
         rig.enterFreeFly();
@@ -91,7 +91,7 @@ void fallingTransitions() {
                 "A clear terrain/indoor position was not preserved");
         settle(rig, 2);
         require(rig.player().grounded() && std::abs(rig.player().feet().y) < .01f,
-                "F2 did not land on terrain outdoors/inside the shell");
+                "F9 did not land on terrain outdoors/inside the shell");
     }
 
     for (const auto eye : {glm::vec3(0,4.5f,0), glm::vec3(2,2,0), glm::vec3(8,2,0),
@@ -101,11 +101,11 @@ void fallingTransitions() {
         require(rig.enterWalking() && rig.player().grounded(),
                 "Roof/wall/trunk overlap or missing support failed to recover to safe ground");
         require(glm::length(rig.camera().position() - eye) > .1f,
-                "An invalid F2 capsule retained its unsafe position");
+                "An invalid F9 capsule retained its unsafe position");
         const auto& config = rig.player().config();
         require(!world.insideBuilding(rig.player().feet(), config.radius, config.height) &&
                     world.contacts(rig.player().feet(), config.radius, config.height).empty(),
-                "F2 recovery left the capsule inside collision geometry");
+                "F9 recovery left the capsule inside collision geometry");
     }
 
     viewer::Model empty;
@@ -113,7 +113,7 @@ void fallingTransitions() {
     viewer::CameraRig emptyRig(emptyWorld, {-10,-10,-10}, {10,10,10}, 1);
     emptyRig.camera().setPosition(aboveRoof);
     require(!emptyRig.enterWalking() && !emptyRig.walking() && !emptyRig.hasPlayer() &&
-                emptyRig.camera().position() == aboveRoof, "Failed F2 changed camera/player state");
+                emptyRig.camera().position() == aboveRoof, "Failed F9 changed camera/player state");
 }
 } // namespace
 

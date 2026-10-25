@@ -78,6 +78,9 @@ struct Hud::Impl {
     std::vector<Rml::byte> font;
     Rml::Context* context = nullptr;
     Rml::ElementDocument* document = nullptr;
+    std::array<Rml::ElementDocument*, 2> screens{};
+    std::filesystem::path sourceDirectory;
+    HudScreen screen = HudScreen::Gameplay;
     std::unordered_map<std::string, Rml::Element*> elements;
     std::unordered_map<std::string, std::string> text;
     std::array<Rml::Element*, 24> ticks{};
@@ -85,7 +88,7 @@ struct Hud::Impl {
     int width = 0, height = 0, slot = -2, bearing = -1;
     bool initialized = false;
 
-    explicit Impl(const std::filesystem::path& directory) : renderer(directory) {
+    explicit Impl(const std::filesystem::path& directory) : renderer(directory), sourceDirectory(directory) {
         if (hudActive) throw std::runtime_error("Only one HUD may own RmlUi at a time");
         Rml::SetSystemInterface(&system);
         Rml::SetRenderInterface(&renderer);
@@ -168,6 +171,23 @@ struct Hud::Impl {
             setText("direction-" + std::to_string(i), names[(index % 8 + 8) % 8]);
         }
     }
+    void showScreen(HudScreen next) {
+        if (screen == next) return;
+        const auto screenDocument = [&](HudScreen selected) {
+            if (selected == HudScreen::Gameplay) return document;
+            const auto index = selected == HudScreen::Inventory ? 0u : 1u;
+            if (!screens[index]) {
+                const char* file = index == 0 ? "inventory.rml" : "skills.rml";
+                screens[index] = context->LoadDocument((sourceDirectory / file).generic_string());
+                if (!screens[index]) throw std::runtime_error(std::string("Cannot load HUD screen: ") + file);
+            }
+            return screens[index];
+        };
+        auto* nextDocument = screenDocument(next);
+        screenDocument(screen)->Hide();
+        nextDocument->Show();
+        screen = next;
+    }
     void draw(const HudState& state, int newWidth, int newHeight) {
         if (newWidth <= 0 || newHeight <= 0) return;
         if (width != newWidth || height != newHeight) {
@@ -175,6 +195,11 @@ struct Hud::Impl {
             context->SetDimensions({width, height});
             // Scale the complete 1280x720 layout together, retaining corner anchors.
             context->SetDensityIndependentPixelRatio(std::min(float(width) / 1280, float(height) / 720));
+        }
+        showScreen(state.screen);
+        if (screen != HudScreen::Gameplay) {
+            renderer.render(*context, width, height);
+            return;
         }
         updateCompass(state.yawDegrees);
         renderer.setMinimapPosition({state.position.x, state.position.z});

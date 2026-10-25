@@ -56,6 +56,7 @@ struct Options {
     std::filesystem::path model = VIEWER_DEFAULT_ASSET;
     std::filesystem::path shaders = VIEWER_SHADER_DIR;
     std::filesystem::path screenshot;
+    viewer::HudScreen hudScreen = viewer::HudScreen::Gameplay;
     std::filesystem::path trees;
     std::filesystem::path poles;
     std::filesystem::path guardrails;
@@ -118,6 +119,12 @@ Options parseOptions(int argc, char** argv) {
         };
         if (argument == "--help" || argument == "-h") options.help = true;
         else if (argument == "--profile") options.profile = true;
+        else if (argument == "--hud-screen") {
+            const auto screen = value();
+            if (screen == "inventory") options.hudScreen = viewer::HudScreen::Inventory;
+            else if (screen == "skills") options.hudScreen = viewer::HudScreen::Skills;
+            else throw std::runtime_error("--hud-screen requires inventory or skills");
+        }
         else if (argument == "--frame-profile") options.frameProfile = value();
         else if (argument == "--sun-shadow-resolution") {
             const auto text=value();std::size_t used=0;
@@ -310,7 +317,7 @@ void printHelp() {
               << "Combat: key left of 1 (HU 0) fists, 1 pistol, 2 SMG, 3 shotgun, 4 sniper, 5 HE grenade; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
               << "Left Alt cursor / driving camera, F12 cursor, wheel change speed, G discard weapon, F pick up weapon, L toggle flashlight, Home frame model, Escape quit\n\n"
-              << "F1 free-fly, F2 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
+              << "F1 Inventory, F2 Skills, F8 free-fly, F9 FPS walking, F3 collision overlay; Space jump in FPS\n\n"
               << "  --fps               Start in walking mode\n"
               << "  --fullscreen        Fill the primary monitor at the selected render resolution\n"
               << "  --resolution WxH    960x540, 1280x720 (default) or 1920x1080\n"
@@ -373,6 +380,7 @@ void printHelp() {
               << "  --self-test-fps     Exercise mode-switch and jump callbacks\n"
               << "  --frames N          Render N frames, then exit\n"
               << "  --screenshot FILE   Save a PPM image; defaults to 3 frames\n"
+              << "  --hud-screen NAME   Start with inventory or skills visible (also in captures)\n"
               << "  --hidden            Hide the window for capture (display still required)\n"
               << "  --allow-software    Permit a CPU OpenGL driver for diagnostics\n"
               << "  --self-test-input   Exercise registered input/resize callbacks\n"
@@ -418,6 +426,7 @@ struct AppState {
     int width = 1280, height = 720;
     bool capture = true, firstMouse = true, hidden = false;
     bool collisionDebug = false;
+    viewer::HudScreen hudScreen = viewer::HudScreen::Gameplay;
     bool flashlight = true;
     glm::vec3 playerVelocity{0};
     double lastX = 0, lastY = 0;
@@ -441,8 +450,19 @@ void framebufferCallback(GLFWwindow* window, int width, int height) {
 
 void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     auto& app = state(window);
-    if (key >= 0 && key <= GLFW_KEY_LAST) app.keys[static_cast<std::size_t>(key)] = action != GLFW_RELEASE;
+    if (key >= 0 && key <= GLFW_KEY_LAST)
+        app.keys[static_cast<std::size_t>(key)] = action != GLFW_RELEASE && app.hudScreen == viewer::HudScreen::Gameplay;
     if (action != GLFW_PRESS) return;
+    if (key == GLFW_KEY_F1 || key == GLFW_KEY_F2 ||
+        (key == GLFW_KEY_ESCAPE && app.hudScreen != viewer::HudScreen::Gameplay)) {
+        const auto requested = key == GLFW_KEY_F1 ? viewer::HudScreen::Inventory :
+            key == GLFW_KEY_F2 ? viewer::HudScreen::Skills : viewer::HudScreen::Gameplay;
+        app.hudScreen = app.hudScreen == requested ? viewer::HudScreen::Gameplay : requested;
+        app.keys.fill(false); app.proneToggleQueued = false; app.firstMouse = true;
+        app.weapons.cancelTrigger(); app.interaction.cancel();
+        return;
+    }
+    if (app.hudScreen != viewer::HudScreen::Gameplay) return;
     if (key == GLFW_KEY_ENTER && app.cars) {
         if (app.driver.toggle(*app.cars, app.rig, app.world)) {
             app.weapons.cancelTrigger(); app.interaction.cancel(); app.proneToggleQueued = false;
@@ -489,12 +509,12 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         app.weapons.cancelTrigger();
         app.interaction.cancel();
         app.rig.frame(static_cast<float>(std::max(app.width, 1)) / static_cast<float>(std::max(app.height, 1)));
-    } else if (key == GLFW_KEY_F1) {
+    } else if (key == GLFW_KEY_F8) {
         app.proneToggleQueued = false;
         app.weapons.cancelTrigger();
         app.interaction.cancel();
         app.rig.enterFreeFly();
-    } else if (key == GLFW_KEY_F2) {
+    } else if (key == GLFW_KEY_F9) {
         app.weapons.cancelTrigger();
         app.interaction.cancel();
         try { app.rig.enterWalking(); }
@@ -511,7 +531,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
 
 void cursorCallback(GLFWwindow* window, double x, double y) {
     auto& app = state(window);
-    if (!app.capture) return;
+    if (!app.capture || app.hudScreen != viewer::HudScreen::Gameplay) return;
     if (!app.firstMouse && std::isfinite(x) && std::isfinite(y))
         app.interaction.look(app.rig.camera(), static_cast<float>(x - app.lastX), static_cast<float>(app.lastY - y), glfwGetTime());
     app.lastX = x;
@@ -526,7 +546,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
         app.interaction.release(button == GLFW_MOUSE_BUTTON_LEFT ? viewer::Hand::Left : viewer::Hand::Right, glfwGetTime());
         return;
     }
-    if (action != GLFW_PRESS || !app.capture || app.driver.occupied()) return;
+    if (action != GLFW_PRESS || !app.capture || app.driver.occupied() || app.hudScreen != viewer::HudScreen::Gameplay) return;
     if (button == GLFW_MOUSE_BUTTON_RIGHT && app.interaction.mode() == viewer::ControlMode::Combat) {
         if (app.weapons.equipped().owned && app.weapons.equipped().config.hasScope) app.rig.camera().cycleViewMode();
         return;
@@ -549,6 +569,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
 }
 
 void scrollCallback(GLFWwindow* window, double, double y) {
+    if (state(window).hudScreen != viewer::HudScreen::Gameplay) return;
     auto& rig = state(window).rig;
     if (!rig.walking()) rig.camera().adjustSpeed(std::pow(1.2f, static_cast<float>(std::clamp(y, -20.0, 20.0))));
 }
@@ -836,10 +857,26 @@ void inputSelfTest(GLFWwindow* window) {
 void fpsInputSelfTest(GLFWwindow* window) {
     auto& app = state(window);
     const auto key = glfwSetKeyCallback(window, keyCallback);
+    const bool wasWalking = app.rig.walking();
     key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
-    if (app.rig.walking()) throw std::runtime_error("F1 failed to select free-fly mode");
+    if (app.hudScreen != viewer::HudScreen::Inventory || app.rig.walking() != wasWalking)
+        throw std::runtime_error("F1 failed to open inventory without changing camera mode");
+    key(window, GLFW_KEY_F1, 0, GLFW_REPEAT, 0);
+    if (app.hudScreen != viewer::HudScreen::Inventory) throw std::runtime_error("Repeated F1 closed inventory");
+    key(window, GLFW_KEY_2, 0, GLFW_PRESS, 0);
+    if (app.keys[GLFW_KEY_2]) throw std::runtime_error("Inventory passed gameplay input through");
     key(window, GLFW_KEY_F2, 0, GLFW_PRESS, 0);
-    if (!app.rig.walking()) throw std::runtime_error("F2 failed to select FPS mode");
+    if (app.hudScreen != viewer::HudScreen::Skills) throw std::runtime_error("F2 failed to select skills");
+    key(window, GLFW_KEY_ESCAPE, 0, GLFW_PRESS, 0);
+    if (app.hudScreen != viewer::HudScreen::Gameplay || glfwWindowShouldClose(window))
+        throw std::runtime_error("Escape did not close the skills screen before quitting");
+    key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
+    if (app.hudScreen != viewer::HudScreen::Gameplay) throw std::runtime_error("Active screen key did not close inventory");
+    key(window, GLFW_KEY_F8, 0, GLFW_PRESS, 0);
+    if (app.rig.walking()) throw std::runtime_error("F8 failed to select free-fly mode");
+    key(window, GLFW_KEY_F9, 0, GLFW_PRESS, 0);
+    if (!app.rig.walking()) throw std::runtime_error("F9 failed to select FPS mode");
     for (int frame = 0; frame < 120; ++frame) moveCamera(app, 1.0f / 120.0f);
     if (!app.rig.player().grounded()) throw std::runtime_error("FPS player did not settle on the ground");
     const float feet = app.rig.player().feet().y;
@@ -877,12 +914,12 @@ void fpsInputSelfTest(GLFWwindow* window) {
     if (app.collisionDebug == overlay) throw std::runtime_error("F3 failed to toggle collision debugging");
     key(window, GLFW_KEY_F3, 0, GLFW_PRESS, 0);
     const auto walkingEye = app.rig.camera().position();
-    key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_F8, 0, GLFW_PRESS, 0);
     if (glm::length(app.rig.camera().position() - walkingEye) > 1e-5f)
         throw std::runtime_error("Leaving FPS mode moved the free-fly camera unexpectedly");
-    key(window, GLFW_KEY_F2, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_F9, 0, GLFW_PRESS, 0);
     app.keys.fill(false);
-    std::cout << "FPS input self-test passed: F1/F2 modes, 1.70 m eye height, Space jump/landing, Ctrl crouch, prone toggle, F3 overlay\n";
+    std::cout << "FPS input self-test passed: F8/F9 modes, 1.70 m eye height, Space jump/landing, Ctrl crouch, prone toggle, F3 overlay\n";
 }
 
 std::vector<viewer::DebugVertex> collisionOverlay(const AppState& app) {
@@ -1152,6 +1189,7 @@ int run(const Options& options) {
     glfwSwapInterval(options.frames > 0 ? 0 : 1);
     initializeGraphics(options.allowSoftware);
     AppState app(collision, model);
+    app.hudScreen = options.hudScreen;
     app.boundsMin = model.boundsMin;
     app.boundsMax = model.boundsMax;
     app.hidden = options.hidden;
@@ -1215,7 +1253,7 @@ int run(const Options& options) {
     if (!options.hidden && glfwRawMouseMotionSupported()) glfwSetInputMode(window.get(), GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
     const char* proneKeyName = glfwGetKeyName(GLFW_KEY_Z, 0);
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
-              << " m/s; F1 free-fly, F2 walk, F3 collisions, WASD move, Space jump, Ctrl hold crouch/airborne tuck, "
+              << " m/s; F1 Inventory, F2 Skills, F8 free-fly, F9 walk, F3 collisions, WASD move, Space jump, Ctrl hold crouch/airborne tuck, "
               << (proneKeyName ? proneKeyName : "Z")
               << " toggle prone, mouse look, Tab Combat/Interaction, G discard weapon, F pick up weapon, L flashlight, Home frame scene, Left Alt cursor / driving camera, F12 cursor, Escape quit\n";
     std::array<viewer::Model,viewer::weaponIds.size()> droppedModels;
@@ -1470,6 +1508,7 @@ int run(const Options& options) {
                                app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds()));
         reticle.draw(app.rig.camera().viewMode(), renderWidth, renderHeight);
         viewer::HudState hudState;
+        hudState.screen = app.hudScreen;
         hudState.position = app.driver.occupied() ? app.driver.eyePosition(cars) : app.rig.camera().position();
         hudState.yawDegrees = app.rig.camera().yawDegrees();
         hudState.movement = app.driver.occupied() ? (app.driver.driving() ? "DRIVING" : "PASSENGER") :

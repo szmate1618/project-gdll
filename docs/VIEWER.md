@@ -102,6 +102,38 @@ Noto or Liberation Sans font; Windows uses the system Segoe UI font. To select
 another installed font, set `GD_HUD_FONT` to its `.ttf` path before launching.
 FreeType creates the glyph atlas needed to render this system-font text.
 
+F1 opens the Inventory visual prototype; F2 opens Skills. Press the active key
+again, or Escape, to return to the gameplay HUD. Opening either screen cancels
+held actions and blocks movement, camera look and gameplay inputs while it is
+visible; simulation continues. F8 and F9 now select free-fly and walking modes.
+The same screens are available in the graphical multiplayer client.
+
+[inventory.rml](../ui/inventory.rml) has body-storage zones, a four-column by
+five-row backpack, external pockets and item details. [skills.rml](../ui/skills.rml)
+has a skill list, skill details and an empty combo-builder section reserved for
+later design. Both use [loadout.rml](../ui/loadout.rml) for the header and identical
+0–9 action shortcuts, styled by [loadout.rcss](../ui/loadout.rcss) and the HUD
+stylesheet. All entries, access times, requirements and assignments are fixed
+examples; these layouts do not expose the real inventory or implement equipping,
+assignment, skill use, filters, drag-and-drop or combos. Icons and the body
+reference are colored square placeholders. System fonts and the HUD backend are
+shared; each screen is loaded on first use and cached until the session ends.
+
+After building `test_hud`, capture both static screens without loading town data:
+
+```bash
+./build/test_hud build/loadout
+# Writes build/loadout-inventory.ppm and build/loadout-skills.ppm, plus small captures.
+```
+
+For reproducible in-game captures, use `--hud-screen inventory` or
+`--hud-screen skills` with the viewer's normal map, camera and screenshot options:
+
+```bash
+./build/godollo_viewer output/godollo.glb --spawn 100 100 --hud-screen inventory \
+  --hidden --fixed-step --frames 3 --screenshot build/inventory-ingame.ppm
+```
+
 ## Linux dependencies
 
 Install a C++17 compiler, CMake 3.20 or newer, Python 3, OpenGL development
@@ -1328,8 +1360,10 @@ build directory when run by CTest.
 | F | Pick up the discarded weapon under the camera ray within 2 m |
 | Shift | Free-fly: move four times faster; standing: run at 6 m/s |
 | Mouse wheel | Adjust free-fly movement speed |
-| F1 | Switch to free-fly mode |
-| F2 | Switch to walking mode at the camera position and fall onto the surface below; recover to safe ground if needed |
+| F1 | Open / close the Inventory visual prototype |
+| F2 | Open / close the Skills visual prototype |
+| F8 | Switch to free-fly mode |
+| F9 | Switch to walking mode at the camera position and fall onto the surface below; recover to safe ground if needed |
 | Space | Jump while grounded in walking mode; get up first when prone; driving: wheel brake |
 | Enter | Enter a nearby stopped car from walking mode; exit beside it when stopped and clear |
 | Ctrl (hold) | Crouch on the ground; tuck legs in the air without lowering the camera |
@@ -1340,7 +1374,7 @@ build directory when run by CTest.
 | F12 | Release / capture the mouse |
 | L | Toggle the flashlight on/off |
 | Home | Frame the whole scene again in free-fly mode |
-| Escape | Close the viewer |
+| Escape | Close the active prototype screen; otherwise close the viewer |
 
 The mouse is captured when the window opens. Movement uses elapsed frame time
 and normalizes diagonal input. Mouse pitch is
@@ -1750,7 +1784,7 @@ are not included in this standalone feature.
 
 ## First-person walking
 
-Launch the generated town, then press **F2**, or start directly in walking mode:
+Launch the generated town, then press **F9**, or start directly in walking mode:
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --fps
@@ -1760,12 +1794,12 @@ Launch the generated town, then press **F2**, or start directly in walking mode:
 
 `--spawn X Z` requests a location in the loaded scene's local meter coordinates;
 Y is found from the terrain. `--fps` and `--spawn` search for clear, walkable
-terrain under or near the requested position. **F2** preserves the free-fly eye
+terrain under or near the requested position. **F9** preserves the free-fly eye
 position when the player capsule fits and a scene surface exists beneath it,
 then gravity drops the player onto that surface, including building roofs.
 Clear interiors can also retain the camera position. If the capsule overlaps a
-wall, roof, trunk, or live door, or there is no surface below it, F2 uses the
-safe ground search instead. The viewer logs mode changes. **F1** releases the
+wall, roof, trunk, or live door, or there is no surface below it, F9 uses the
+safe ground search instead. The viewer logs mode changes. **F8** releases the
 camera from the controller at its current eye position; gravity applies only
 in walking mode.
 
@@ -2435,7 +2469,7 @@ Both the town and transformed sample-GLB integration checks passed. These are
 local measurements, not a guaranteed frame rate on other machines.
 
 The FPS extension was also built and tested through all seven CTest suites.
-A native GPU run on AMD Radeon 660M / OpenGL 4.6 Core verified F1/F2 switching,
+A native GPU run on AMD Radeon 660M / OpenGL 4.6 Core verified camera-mode switching (now F8/F9),
 the 1.70 m eye offset, Space jump and landing, and the existing free-fly input
 callbacks. The walking capture is saved as `build/godollo-fps.png`. A separate
 three-frame GPU run at `--spawn 10 10 --collision-debug` verified rendering of

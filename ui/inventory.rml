@@ -1,0 +1,63 @@
+<rml>
+<head><title>Inventory</title><link type="text/template" href="loadout.rml" /></head>
+<body template="loadout" class="loadout inventory">
+    <div id="body-storage" class="panel main-panel">
+        <div class="panel-heading">BODY STORAGE</div><div class="panel-meta">QUICK ACCESS</div>
+        <div class="body-placeholder"></div><div class="body-placeholder-label">BODY<br/>REFERENCE</div>
+        <div class="body-slot shoulder selected"><div class="slot-label">SHOULDER</div><div class="slot-box"><div class="storage-square pistol"></div></div><div class="access-time">0.7s</div></div>
+        <div class="body-slot chest"><div class="slot-label">CHEST</div><div class="slot-box"><div class="storage-square medkit"></div></div><div class="access-time">0.8s</div></div>
+        <div class="body-slot jacket-left"><div class="slot-label">JACKET / L</div><div class="slot-box"></div><div class="access-time">0.7s</div></div>
+        <div class="body-slot jacket-right"><div class="slot-label">JACKET / R</div><div class="slot-box"></div><div class="access-time">0.7s</div></div>
+        <div class="body-slot belt-left"><div class="slot-label">BELT / L</div><div class="slot-box"><div class="storage-square grenade"></div></div><div class="access-time">0.6s</div></div>
+        <div class="body-slot belt-right"><div class="slot-label">BELT / R</div><div class="slot-box"></div><div class="access-time">0.6s</div></div>
+        <div class="body-slot thigh-left"><div class="slot-label">THIGH / L</div><div class="slot-box"></div><div class="access-time">0.8s</div></div>
+        <div class="body-slot thigh-right"><div class="slot-label">THIGH / R</div><div class="slot-box"></div><div class="access-time">0.8s</div></div>
+    </div>
+    <div id="backpack" class="panel main-panel">
+        <div class="panel-heading">BACKPACK</div><div class="panel-meta backpack-size">4 × 5</div>
+        <div class="pouch-label">TOP POUCH / 3 × 1</div>
+        <div class="top-pouch"><div class="pocket-cell"></div><div class="pocket-cell"></div><div class="pocket-cell"></div></div>
+        <div class="pouch-time">0.5s</div>
+        <div class="access-band faster">TOP ROWS / FASTER ACCESS</div>
+        <div id="backpack-grid">
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+            <div class="backpack-cell"></div>
+
+        </div>
+        <div class="side-pocket left-pocket"><div class="side-label">SIDE / L</div><div class="side-cell"></div><div class="side-cell"></div><div class="side-time">0.6s</div></div>
+        <div class="side-pocket right-pocket"><div class="side-label">SIDE / R</div><div class="side-cell"></div><div class="side-cell"></div><div class="side-time">0.6s</div></div>
+        <div class="access-band slower">BOTTOM ROWS / SLOWER ACCESS</div>
+        <div class="backpack-caption">20 internal slots · external pockets shown separately</div>
+    </div>
+    <div id="item-details" class="panel main-panel details-panel">
+        <div class="panel-heading">ITEM DETAILS</div>
+        <div class="detail-square pistol"></div><div class="detail-name">Pistol</div><div class="detail-subtitle">Selected in shoulder storage</div>
+        <div class="detail-fields">
+<div class="detail-field"><div class="field-label">TYPE</div><div class="field-value">Sidearm</div></div>
+<div class="detail-field"><div class="field-label">SIZE</div><div class="field-value">2 × 1 slots</div></div>
+<div class="detail-field"><div class="field-label">TAGS</div><div class="field-value">Ranged / one-handed</div></div>
+<div class="detail-field"><div class="field-label">CURRENT LOCATION</div><div class="field-value">Body storage / shoulder</div></div>
+<div class="detail-field"><div class="field-label">ACCESS TIME</div><div class="field-value">0.7s</div></div>
+
+        </div>
+    </div>
+</body>
+</rml>

@@ -14,6 +14,7 @@ def check_contents(package):
         "assets/test.glb", "assets/test.navmesh", "inventory.toml",
         "shaders/game_menu.vert", "shaders/game_menu.frag",
         "ui/hud.rml", "ui/hud.rcss", "ui/hud.vert", "ui/hud.frag", "licenses/RmlUi.txt",
+        "ui/inventory.rml", "ui/skills.rml", "ui/loadout.rml", "ui/loadout.rcss",
         "multiplayer/client/players.vert", "multiplayer/client/players.frag",
         "credits/assets/README.txt", "licenses/GameNetworkingSockets.txt",
     ]

@@ -290,6 +290,11 @@ Scene options:
 - `--lag-ms N --loss-percent N`: simulate outgoing packet delay and loss through
   GameNetworkingSockets. These testing options may differ between peers.
 
+F1 opens the Inventory visual prototype and F2 opens Skills. Press the active
+key again or Escape to close it. Both screens use fixed sample content and
+block gameplay inputs while visible; they do not change inventory or skills.
+See the shared [HUD layouts](../docs/VIEWER.md#hud).
+
 Client controls: WASD, mouse look, Shift run, Space jump, Ctrl crouch, Z prone,
 1–5 weapon selection, the physical key left of 1 (Hungarian 0 / US backtick)
 for fists, R reload, F toggle flashlight, left click fire/throw/punch, right click

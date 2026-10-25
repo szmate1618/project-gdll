@@ -1,0 +1,93 @@
+body.loadout { background-color: #29312fed; }
+#loadout-frame { position: absolute; left: 50%; top: 50%; margin-left: -606dp; margin-top: -330dp; width: 1212dp; height: 660dp; }
+#loadout-header { position: absolute; top: 0dp; width: 1212dp; height: 48dp; border-bottom: 1dp #f5f6f24d; }
+.page-tab { position: absolute; top: 6dp; height: 40dp; width: 178dp; font-size: 19dp; color: #f5f6f280; }
+#inventory-tab { left: 0dp; }
+#skills-tab { left: 204dp; }
+.key-label { display: inline-block; width: 28dp; font-size: 11dp; color: #f5f6f299; }
+.inventory #inventory-tab, .skills #skills-tab { color: #f5f6f2; border-bottom: 2dp #59c49c; }
+.close-hint { position: absolute; right: 0dp; top: 12dp; font-size: 11dp; color: #f5f6f299; }
+.panel { position: absolute; border: 1dp #f5f6f24d; background-color: #34403bd9; }
+.main-panel { top: 68dp; height: 450dp; }
+.panel-heading { position: absolute; left: 20dp; top: 17dp; font-size: 12dp; letter-spacing: 2dp; }
+.panel-meta { position: absolute; right: 20dp; top: 18dp; font-size: 10dp; color: #f5f6f299; }
+#body-storage { left: 0dp; width: 388dp; }
+#backpack { left: 408dp; width: 428dp; }
+.details-panel { left: 856dp; width: 354dp; }
+.body-placeholder { position: absolute; top: 174dp; left: 170dp; width: 48dp; height: 48dp; background-color: #88958f; }
+.body-placeholder-label { position: absolute; top: 237dp; left: 137dp; width: 114dp; font-size: 10dp; line-height: 17dp; text-align: center; color: #f5f6f280; }
+.body-slot { position: absolute; width: 108dp; height: 80dp; }
+.shoulder, .jacket-left, .belt-left, .thigh-left { left: 20dp; }
+.chest, .jacket-right, .belt-right, .thigh-right { right: 20dp; }
+.shoulder, .chest { top: 64dp; }
+.jacket-left, .jacket-right { top: 156dp; }
+.belt-left, .belt-right { top: 248dp; }
+.thigh-left, .thigh-right { top: 340dp; }
+.slot-label { font-size: 10dp; color: #f5f6f2bf; }
+.slot-box { position: absolute; top: 21dp; width: 106dp; height: 36dp; border: 1dp #f5f6f25e; background-color: #29312f66; }
+.body-slot.selected .slot-box { border-color: #59c49c; background-color: #59c49c1f; }
+.storage-square { position: absolute; left: 9dp; top: 8dp; width: 20dp; height: 20dp; }
+.access-time { position: absolute; top: 65dp; font-size: 11dp; color: #f5f6f299; }
+.pistol { background-color: #f5f6f2; }
+.grenade { background-color: #b3ae72; }
+.medkit { background-color: #ec6962; }
+.punch { background-color: #e7cd65; }
+.shove { background-color: #b29a85; }
+.listen { background-color: #93a88a; }
+.step { background-color: #889dba; }
+.backpack-size { color: #59c49c; font-size: 14dp; top: 14dp; }
+.pouch-label { position: absolute; left: 141dp; top: 50dp; font-size: 10dp; color: #f5f6f299; }
+.top-pouch { position: absolute; left: 141dp; top: 72dp; width: 144dp; height: 34dp; }
+.pocket-cell { float: left; box-sizing: border-box; width: 48dp; height: 34dp; border: 1dp #f5f6f24d; background-color: #29312f66; }
+.pouch-time { position: absolute; left: 297dp; top: 80dp; font-size: 11dp; color: #f5f6f299; }
+.access-band { position: absolute; left: 88dp; width: 252dp; text-align: center; font-size: 10dp; color: #f5f6f2a6; }
+.faster { top: 126dp; }
+.slower { top: 412dp; }
+#backpack-grid { position: absolute; left: 114dp; top: 150dp; width: 200dp; height: 250dp; }
+.backpack-cell { float: left; box-sizing: border-box; width: 50dp; height: 50dp; border: 1dp #f5f6f24d; background-color: #29312f66; }
+.side-pocket { position: absolute; top: 218dp; width: 48dp; height: 100dp; }
+.left-pocket { left: 24dp; }
+.right-pocket { right: 24dp; }
+.side-label { position: absolute; top: -25dp; width: 60dp; font-size: 10dp; color: #f5f6f299; }
+.side-cell { width: 46dp; height: 46dp; border: 1dp #f5f6f24d; background-color: #29312f66; }
+.side-time { margin-top: 9dp; font-size: 11dp; color: #f5f6f299; }
+.backpack-caption { position: absolute; bottom: 8dp; width: 428dp; text-align: center; font-size: 9dp; color: #f5f6f280; }
+.detail-square { position: absolute; left: 20dp; top: 66dp; width: 42dp; height: 42dp; }
+.detail-name { position: absolute; left: 80dp; top: 61dp; font-size: 24dp; }
+.detail-subtitle { position: absolute; left: 80dp; top: 98dp; font-size: 10dp; color: #f5f6f299; }
+.detail-fields { position: absolute; left: 20dp; top: 140dp; width: 314dp; }
+.detail-field { height: 57dp; padding-top: 5dp; border-top: 1dp #f5f6f226; }
+.field-label { margin-top: 5dp; font-size: 9dp; letter-spacing: 1dp; color: #f5f6f280; }
+.field-value { margin-top: 7dp; font-size: 13dp; }
+#action-hotbar { bottom: 0dp; left: 0dp; width: 1210dp; height: 120dp; }
+#action-hotbar .panel-heading { top: 12dp; font-size: 11dp; }
+.hotbar-note { position: absolute; right: 20dp; top: 13dp; font-size: 10dp; color: #f5f6f299; }
+#hotbar-slots { display: flex; position: absolute; left: 19dp; top: 43dp; width: 1172dp; height: 62dp; }
+.action-slot { position: relative; flex: 1; min-width: 0dp; height: 60dp; margin-right: 8dp; border: 1dp #f5f6f24d; background-color: #29312f66; }
+.action-slot.last { margin-right: 0dp; }
+.action-number { position: absolute; left: 8dp; top: 6dp; font-size: 11dp; color: #f5f6f2bf; }
+.assignment-type { position: absolute; right: 8dp; top: 8dp; font-size: 8dp; letter-spacing: 1dp; }
+.item .assignment-type { color: #59c49c; }
+.skill .assignment-type { color: #e7cd65; }
+.assignment-square { position: absolute; left: 8dp; top: 33dp; width: 14dp; height: 14dp; }
+.assignment-name { position: absolute; left: 29dp; top: 30dp; font-size: 12dp; }
+.empty .assignment-name { left: 8dp; font-size: 10dp; color: #f5f6f259; }
+#skills-list { left: 0dp; width: 518dp; }
+#combo-builder { left: 538dp; width: 298dp; }
+.skill-filters { position: absolute; top: 53dp; left: 20dp; width: 478dp; height: 30dp; }
+.filter { display: inline-block; margin-right: 8dp; padding: 5dp 14dp; font-size: 11dp; color: #f5f6f299; border: 1dp #f5f6f226; }
+.filter.active { color: #f5f6f2; border-color: #59c49c; background-color: #59c49c1f; }
+.skill-entries { position: absolute; left: 20dp; top: 98dp; width: 478dp; }
+.skill-entry { position: relative; width: 476dp; height: 73dp; margin-bottom: 10dp; border: 1dp #f5f6f226; }
+.skill-entry.selected { border-color: #e7cd65; background-color: #e7cd650f; }
+.skill-square { position: absolute; left: 16dp; top: 20dp; width: 28dp; height: 28dp; }
+.skill-name { position: absolute; left: 60dp; top: 9dp; font-size: 16dp; }
+.skill-cost { position: absolute; right: 16dp; top: 13dp; font-size: 10dp; color: #e7cd65; }
+.skill-requirement { position: absolute; left: 60dp; top: 34dp; font-size: 11dp; color: #f5f6f299; }
+.skill-assignment { position: absolute; left: 60dp; top: 54dp; font-size: 9dp; color: #59c49c; }
+.combo-space { position: absolute; top: 65dp; left: 20dp; width: 256dp; height: 362dp; border: 1dp #f5f6f226; background-color: #29312f33; }
+.reserved-label { position: absolute; left: 14dp; top: 14dp; font-size: 9dp; letter-spacing: 1dp; color: #f5f6f266; }
+.combo-caption { position: absolute; top: 153dp; width: 256dp; text-align: center; font-size: 14dp; line-height: 26dp; color: #f5f6f299; }
+.combo-caption span { font-size: 11dp; color: #f5f6f266; }
+.description { height: 67dp; }
+.skill-storage-note { padding-top: 16dp; border-top: 1dp #f5f6f226; font-size: 11dp; color: #59c49c; line-height: 19dp; }
