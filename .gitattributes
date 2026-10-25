@@ -19,5 +19,5 @@
 # Preserve the pinned upstream source and license bytes, including whitespace.
 third_party/recastnavigation/** -text -whitespace
 
-# Unified diffs preserve upstream whitespace after their context prefix.
-/patches/*.patch whitespace=-blank-at-eol,-space-before-tab
+# Unified diffs need LF on Windows and preserve upstream context whitespace.
+/patches/*.patch text eol=lf whitespace=-blank-at-eol,-space-before-tab
