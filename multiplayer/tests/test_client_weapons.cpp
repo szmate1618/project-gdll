@@ -299,11 +299,9 @@ int main(int argc, char** argv) {
     try {
         require(argc == 3, "Expected test map and fixture directory");
         fixture = argv[2];
-        std::filesystem::create_directories(fixture / "items");
+        std::filesystem::create_directories(fixture);
         const std::filesystem::path source(MP_ROOT);
         const auto copy = std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing;
-        std::filesystem::copy(source / "items", fixture / "items", copy);
-        std::filesystem::copy(source / "weapons", fixture / "weapons", copy);
         std::filesystem::copy(source / "storage", fixture / "storage", copy);
         std::filesystem::copy(source / "vehicles", fixture / "vehicles", copy);
         std::filesystem::copy(source / "shaders", fixture / "shaders", copy);

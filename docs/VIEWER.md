@@ -115,11 +115,13 @@ are available in the graphical multiplayer client.
 [inventory.rml](../ui/inventory.rml) builds body storage and the backpack from
 [storage/loadout.toml](../storage/loadout.toml) and the equipment/backpack catalogs
 in that folder. The starter selection is an 8×10 tactical backpack, hip holster
-and chest pouch. The 4×5 sling bag remains available in the catalog. Slot
+and chest pouch, plus left and right shoulder slings with vertical 2×5 grids.
+The slings start empty; rotation will let the 5×2 sniper fit their 2×5 grids. The 4×5 sling bag remains
+available in the catalog. Slot
 coordinates are normalized within each panel's inner storage rectangle. Capacity, pocket placement and access times come from those files;
 see [the storage schema](../storage/SCHEMA.md) for editing and validation rules.
 The files are read once when Inventory first opens; restart to reload changes.
-Root `inventory.toml` places the 1×1 pistol in the holster, the grenade in the
+Root `inventory.toml` places the 2×1 pistol in the holster, the grenade in the
 chest pouch, and the other three weapons in the backpack. Occupied N×M footprints
 are drawn as tinted rectangles on the grids. References, bounds and overlap
 are validated against the equipped storage; item details remain unselected.
@@ -131,10 +133,10 @@ combo-builder section reserved for later design. Both screens use
 styled by [loadout.rcss](../ui/loadout.rcss) and the HUD stylesheet. Skills
 remain fixed examples. The shared hotbar reads owned weapon IDs and slots from
 [inventory.toml](../inventory.toml), using inventory labels from
-[items/*.toml](../items/README.md). Slots 0–4 start assigned to pistol, SMG,
-shotgun, sniper and HE grenade; 5–9 are empty. Item descriptors carry N×M grid
-footprints separately from gameplay settings in `weapons/*.toml`. Ownership and
-shortcuts are cached when Inventory or Skills first opens. The layouts do not
+[storage/weapons/*.inventory.toml](../storage/weapons/README.md). Slots 0–4 start
+assigned to pistol, SMG, shotgun, sniper and HE grenade; 5–9 are empty. Item descriptors carry N×M grid
+footprints separately from gameplay settings in `storage/weapons/*.gameplay.toml`.
+Ownership and shortcuts are cached when Inventory or Skills first opens. The layouts do not
 implement interactive placement, equipping, assignment, skill use, filters,
 drag-and-drop or combos.
 Icons and the body reference are colored square placeholders. System fonts and
@@ -1711,7 +1713,7 @@ response fades over 12 m and creates no particles or extra mesh vertices.
 Multiplayer throws, collisions, fuses and blasts run on the server; clients
 interpolate the replicated bodies and fade explosion events by their age.
 
-[he_grenade.toml](../weapons/he_grenade.toml) uses `kind = "he_grenade"` and adds
+[he_grenade.gameplay.toml](../storage/weapons/he_grenade.gameplay.toml) uses `kind = "he_grenade"` and adds
 `fuse_seconds` (0–30, exclusive of zero), `blast_radius` (0–50 m), and
 `throw_speed` (0–30 m/s). All three must be finite and positive. Grenade inventory
 counts are whole grenades; `muzzle_position` is unused for throws.
@@ -1753,7 +1755,7 @@ zero. Idle timings show that those static bodies were not a significant cost in
 this fixture. These are small absolute CPU savings, not an end-to-end forest FPS
 measurement or a promise of a similar percentage gain in rendered frame rate.
 
-Each [weapon TOML](../weapons/) defines `name`, `ammo_type`,
+Each [weapon TOML](../storage/weapons/) defines `name`, `ammo_type`,
 `shot_interval_seconds`, `automatic`, `has_scope`, `pellets`, `spread_degrees`
 (cone half-angle), `magazine_capacity`, `ammo_per_shot`, and `muzzle_position`.
 Firearms also require `caliber = "low"` or `"high"`. The pistol and SMG use low,
@@ -1776,9 +1778,9 @@ empty clicks produce no flash. Scope mode hides the mesh but keeps the muzzle
 light. The multiplayer client pulses on server-confirmed local shots. This
 short-lived point light does not render additional shadow maps.
 
-[Inventory item definitions](../items/README.md) provide each weapon's inventory
-label, cell footprint and tags. Their `weapon` ID links to the separate gameplay
-TOML above. Item dimensions determine the rendered footprint and validate configured placements.
+[Inventory item definitions](../storage/weapons/README.md) provide each weapon's inventory
+label and cell footprint. Sibling `<id>.tags.txt` files provide comma-separated
+tags. Their `weapon` ID links to the matching `<id>.gameplay.toml` above. Item dimensions determine the rendered footprint and validate configured placements.
 
 [inventory.toml](../inventory.toml) chooses the initially `equipped` weapon.
 Its `[weapons]` table lists owned weapon IDs and their starting loaded rounds;
@@ -2559,8 +2561,9 @@ resize, and Escape callbacks passed the input check. Screenshots are in
 ```text
 CMakeLists.txt              Viewer and unit-test build configuration
 src/main.cpp               Window, input callbacks, render loop, CLI
-weapons/*.toml             Five weapon gameplay configurations
-items/*.toml               Inventory item descriptors (labels, cell footprints, tags)
+storage/weapons/*.gameplay.toml  Five weapon gameplay configurations
+storage/weapons/*.inventory.toml Inventory names and cell footprints
+storage/weapons/*.tags.txt       Comma-separated item categories
 inventory.toml             Starting weapons, loaded rounds, and ammo reserves
 src/weapons.{hpp,cpp}       TOML loading, trigger/cooldown state, ammo, and pellet rays
 src/weapon_overlay.{hpp,cpp} Batched camera-local firearm meshes

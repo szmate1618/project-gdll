@@ -6,7 +6,7 @@
 ```toml
 schema_version = 1
 backpack = "tactical_backpack"
-equipment = ["hip_holster", "chest_pouch"]
+equipment = ["hip_holster", "chest_pouch", "left_shoulder_sling", "right_shoulder_sling"]
 ```
 
 The starter bag is the **8×10 tactical backpack**, large enough for the three
@@ -21,7 +21,7 @@ values produce an error naming the source file and field.
 
 ## Catalog fields
 
-Every file has integer `schema_version = 1`. Each `[[equipment]]` or
+Each storage catalog and loadout file has integer `schema_version = 1`. Each `[[equipment]]` or
 `[[backpacks]]` entry has a unique nonempty `id`, a nonempty display `name`, and
 `[[equipment.slots]]` / `[[backpacks.slots]]` compartment tables. To define no
 external compartments, set `slots = []` directly on the backpack entry.
@@ -39,6 +39,18 @@ Backpacks also have a `[backpacks.grid]` table with `width`, `height`,
 has the base access time. Row `r`, counting from zero, adds
 `r * depth_time_per_row`. The screen displays the top and bottom row times.
 These are descriptive values; no retrieval mechanic is implemented.
+
+## Shoulder slings
+
+`left_shoulder_sling` and `right_shoulder_sling` each define a vertical **2×5**
+`carry` compartment, with a prototype access time of 0.7 seconds. Both are
+equipped in the starter loadout and appear at the top corners of Body Storage.
+Their references are `body/left_shoulder_sling/carry` and
+`body/right_shoulder_sling/carry`.
+
+They have the same footprint as the 5×2 sniper after rotation. Rotation is not
+implemented yet, so the sniper keeps its current backpack placement. The chest
+pouch's panel position is lower to leave room for the right sling.
 
 ## Coordinates and layout
 
@@ -65,7 +77,7 @@ with `body/<equipment-id>/<slot-id>`, `backpack/<backpack-id>/main`, or
 Unlike compartment anchors, **item positions are integer cell coordinates** of
 the footprint's top left. Dimensions come from the item definition. The UI
 requires a valid non-overlapping placement for every owned item; it does not
-rearrange items to make them fit. See [the item schema](../items/README.md).
+rearrange items to make them fit. See [the item schema](weapons/README.md).
 
 Automatic packing, rotation, tag restrictions and equipping interactions are
 not implemented. Item details remain unselected. The shared hotbar reads weapon
@@ -73,8 +85,12 @@ ownership and shortcuts from root `inventory.toml`; Skills entries remain visual
 examples. Unknown extra catalog fields are ignored, so tags from an older
 storage descriptor have no effect.
 
-This folder configures the **storage view only**. The existing root
-`inventory.toml` and `weapons/*.toml` control prototype weapon ownership and
-ammo independently. [Item descriptors](../items/README.md) in `items/*.toml`
-define inventory labels, cell footprints and tags. Storage files are local UI resources and are not added
-to multiplayer gameplay fingerprints.
+The equipment/backpack catalogs and `loadout.toml` configure the storage view.
+They remain local UI resources outside multiplayer fingerprints. The weapon
+files in the `weapons/` subfolder are shared content: gameplay TOMLs, inventory
+TOMLs and tag sidecars are included in fingerprints and content packs. See
+[weapon configuration](weapons/README.md) for their independent schemas.
+
+Root `inventory.toml` continues to control ownership, ammunition, placements and
+shortcuts. Gameplay behavior is defined in `storage/weapons/*.gameplay.toml`;
+inventory names and footprints use `*.inventory.toml`, and tags use `*.tags.txt`.

@@ -114,10 +114,11 @@ void punchesNeedNoAmmo() {
 
 void fixtures(const std::filesystem::path& scratch) {
     std::filesystem::create_directories(scratch / "weapons");
-    for (const auto& entry : std::filesystem::directory_iterator(VIEWER_WEAPON_CONFIGS))
-        if (entry.path().extension() == ".toml")
-            std::filesystem::copy_file(entry.path(), scratch / "weapons" / entry.path().filename(),
-                                       std::filesystem::copy_options::overwrite_existing);
+    for (const auto* id : viewer::weaponIds) {
+        const auto filename = std::string(id) + ".gameplay.toml";
+        std::filesystem::copy_file(std::filesystem::path(VIEWER_WEAPON_CONFIGS) / filename, scratch / "weapons" / filename,
+                                  std::filesystem::copy_options::overwrite_existing);
+    }
     const auto inventory = scratch / "inventory.toml";
     const auto write = [&](const std::string& text) { std::ofstream(inventory) << text; };
     const std::string base = "equipped = 'pistol'\n[weapons]\npistol = 3\n[ammo]\n"
@@ -133,7 +134,7 @@ void fixtures(const std::filesystem::path& scratch) {
         "name = 'Test pistol'\nammo_type = 'pistol_rounds'\ncaliber = 'high'\nshot_interval_seconds = 2\n"
         "automatic = false\nhas_scope = false\npellets = 1\nspread_degrees = 0\n"
         "magazine_capacity = 7\nammo_per_shot = 2\nmuzzle_position = [0.01, 0.02, -0.3]\n";
-    std::ofstream(scratch / "weapons/pistol.toml") << customConfig;
+    std::ofstream(scratch / "weapons/pistol.gameplay.toml") << customConfig;
     viewer::Weapons doubleShot(scratch / "weapons", inventory);
     require(doubleShot.equipped().config.caliber == viewer::ShotCaliber::high,
             "TOML caliber must configure the shot damage category");
@@ -179,7 +180,7 @@ void fixtures(const std::filesystem::path& scratch) {
              {"has_scope = false\n", ""}}) {
         auto badConfig = customConfig;
         badConfig.replace(badConfig.find(change.first), change.first.size(), change.second);
-        std::ofstream(scratch / "weapons/pistol.toml") << badConfig;
+        std::ofstream(scratch / "weapons/pistol.gameplay.toml") << badConfig;
         invalid();
     }
 }

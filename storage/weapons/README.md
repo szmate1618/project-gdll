@@ -1,28 +1,33 @@
-# Inventory item definitions (v1)
+# Weapon configuration
 
-These files describe equippable items as inventory objects. Firing, ammunition,
-recoil, muzzle coordinates and grenade behavior belong in `weapons/*.toml`.
-The five existing gameplay files were moved there without changing their values.
+Each weapon keeps its inventory description, gameplay settings and tags together
+under `storage/weapons/`:
+
+```text
+pistol.inventory.toml    Inventory name and N×M footprint (schema version 2)
+pistol.gameplay.toml     Firing, ammo, muzzle and other gameplay settings
+pistol.tags.txt          Comma-separated category tags
+```
 
 | Path | Responsibility |
 | --- | --- |
-| `items/<id>.toml` | Item label, N×M cell footprint, tags and gameplay reference |
-| `weapons/<id>.toml` | Weapon behavior and existing combat HUD label |
-| `inventory.toml` | Player weapon ownership, loaded rounds, reserves, placements and action shortcuts |
+| `storage/weapons/<id>.inventory.toml` | Item label, N×M cell footprint and gameplay reference |
+| `storage/weapons/<id>.gameplay.toml` | Weapon behavior and combat HUD label |
+| `storage/weapons/<id>.tags.txt` | Shared tags for that weapon |
+| `inventory.toml` | Player ownership, loaded rounds, reserves, placements and action shortcuts |
 | `storage/equipment.toml`, `storage/backpacks.toml` | Available storage equipment and compartments |
 | `storage/loadout.toml` | Equipped backpack and body storage |
 
-## Item schema
+## Inventory schema (v2)
 
 ```toml
-schema_version = 1
+schema_version = 2
 id = "pistol"
 name = "Pistol"
 type = "weapon"
 weapon = "pistol"
-width = 1
+width = 2
 height = 1
-tags = ["handgun", "ranged"]
 ```
 
 `width` and `height` are **N columns × M rows of inventory cells**, not meters,
@@ -31,16 +36,42 @@ starter footprints are editable prototype values:
 
 | Item | Footprint |
 | --- | --- |
-| Pistol | 1×1 |
+| Pistol | 2×1 |
 | Submachine gun | 3×2 |
 | Shotgun | 4×2 |
 | Sniper | 5×2 |
 | HE grenade | 1×1 |
 
-The filename stem, `id`, and `weapon` must match; `weapon` references
-`weapons/<id>.toml`. Version 1 supports `type = "weapon"` only. `name` is the
-inventory display name. `tags` is an array of unique nonempty category strings;
-`[]` is valid. No icon, texture, font or model asset is specified here.
+The filename prefix, `id`, and `weapon` must match. `weapon` references the
+matching `<id>.gameplay.toml`. This prototype supports `type = "weapon"` only.
+`name` is the inventory display name. No icon, texture, font or model asset is
+specified here.
+
+## Tags files
+
+Tags are read from `<id>.tags.txt`, independently of the inventory TOML:
+
+```text
+handgun, ranged
+```
+
+Use one or more comma-separated tags, without quotes. Surrounding spaces and
+newlines are trimmed. Tags contain lowercase letters, digits and underscores;
+empty values, duplicate tags and missing files are rejected. Inventory schema
+version 2 replaces the old inline `tags` array with this sidecar file. Storage
+catalogs retain their independent version 1 schema.
+
+| Weapon | Tags |
+| --- | --- |
+| Pistol | `handgun, ranged` |
+| HE grenade | `grenade, throwable, explosive` |
+| Submachine gun | `long_gun, smg, ranged, two_handed` |
+| Shotgun | `long_gun, shotgun, ranged, two_handed` |
+| Sniper | `long_gun, rifle, ranged, two_handed` |
+
+`long_gun` is the common category for our rifles, SMG and shotgun. The specific
+weapon tags are retained alongside it. Tag restrictions on storage are not yet
+implemented.
 
 ## Storage placements
 
@@ -72,8 +103,10 @@ fit without overlapping. Touching edges are allowed. Missing/stale placements,
 unequipped compartments, invalid coordinates, oversized items and overlaps
 produce configuration errors rather than clipping or silently moving items.
 
-The starter pistol is 1×1 in the hip holster, and the grenade is in the chest
-pouch. The SMG, shotgun and sniper are in the tactical backpack. Those three
+The starter pistol is 2×1 in the hip holster, and the grenade is in the chest
+pouch. Left and right shoulder slings are also equipped, each with a vertical
+2×5 grid. They will fit the 5×2 sniper after rotation support is added; the
+current weapon placements stay in the backpack, holster and pouch. The SMG, shotgun and sniper are in the tactical backpack. Those three
 weapons need 24 cells, so the starter loadout now equips the existing 8×10
 backpack instead of the 20-cell sling bag. The 4×5 sling-bag definition remains
 available in the catalog.
@@ -111,6 +144,7 @@ the same cached data, read once when either screen first opens. Restart to apply
 file edits. These remain visual menu shortcuts; weapon input bindings and
 runtime weapon ownership changes are not connected to this menu snapshot yet.
 
-Gameplay reads `weapons/` and ownership/ammo from `inventory.toml` at startup.
-Both catalogs and inventory are included in multiplayer fingerprints and content
-packs, with LF line endings for cross-platform byte consistency.
+Gameplay reads `storage/weapons/*.gameplay.toml` and ownership/ammo from `inventory.toml` at startup.
+Inventory descriptors, gameplay definitions, tag files and the player inventory
+are included in multiplayer fingerprints and content packs, with LF line endings
+for cross-platform byte consistency.

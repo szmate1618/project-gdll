@@ -21,9 +21,15 @@ void placements() {
     const auto inventory = viewer::loadInventoryItems(VIEWER_ITEM_ROOT);
     const auto layout = viewer::buildInventoryLayout(storage, inventory);
     require(inventory.placements.size() == 5, "Every starter weapon needs a placement");
+    const auto& sniper = inventory.owned.at("sniper");
+    for (const auto* reference : {"body/left_shoulder_sling/carry", "body/right_shoulder_sling/carry"}) {
+        const auto& sling = layout.at(reference);
+        require(sling.items.empty() && sling.grid.width == sniper.height && sling.grid.height == sniper.width,
+            "Each equipped sling must fit the sniper after future rotation");
+    }
     const auto& holster = layout.at("body/hip_holster/holster");
     require(holster.items.size() == 1 && holster.items[0].item == "pistol" &&
-        holster.items[0].width == 1 && holster.items[0].height == 1, "Pistol must occupy one holster cell");
+        holster.items[0].width == 2 && holster.items[0].height == 1, "Pistol must fill the 2x1 holster");
     require(layout.at("body/chest_pouch/pouch").items.at(0).item == "he_grenade", "Grenade must be in the chest pouch");
     const auto& backpack = layout.at("backpack/tactical_backpack/main");
     require(backpack.items.size() == 3 && backpack.grid.width == 8 && backpack.grid.height == 10,
@@ -64,10 +70,10 @@ void boundariesAndExternalPockets() {
     viewer::InventoryItems inventory;
     inventory.owned.emplace("pistol", original.owned.at("pistol"));
     inventory.owned.emplace("he_grenade", original.owned.at("he_grenade"));
-    // Adjacent 1x1 rectangles in the two-cell holster may touch edges.
-    inventory.placements["pistol"] = {"body/hip_holster/holster", 0, 0};
-    inventory.placements["he_grenade"] = {"body/hip_holster/holster", 1, 0};
-    require(viewer::buildInventoryLayout(storage, inventory).at("body/hip_holster/holster").items.size() == 2,
+    // The 2x1 pistol and 1x1 grenade may touch edges in the backpack.
+    inventory.placements["pistol"] = {"backpack/tactical_backpack/main", 0, 0};
+    inventory.placements["he_grenade"] = {"backpack/tactical_backpack/main", 2, 0};
+    require(viewer::buildInventoryLayout(storage, inventory).at("backpack/tactical_backpack/main").items.size() == 2,
         "Touching edges must not count as overlap");
     inventory.placements["he_grenade"] = {"backpack/tactical_backpack/left_side", 0, 1};
     require(viewer::buildInventoryLayout(storage, inventory).at("backpack/tactical_backpack/left_side").items.size() == 1,

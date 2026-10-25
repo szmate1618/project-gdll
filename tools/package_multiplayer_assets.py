@@ -203,11 +203,11 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
             raise ValueError("Unsupported vehicle placement schema/version")
         if document["map"]["map_sha256"] != map_hash:
             raise ValueError("Vehicle placement map fingerprint mismatch")
-    definitions = []
-    for folder in ("weapons", "items"):
-        for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"):
-            assets.add(root / folder / f"{name}.toml")
-        definitions.extend(sorted((root / folder).glob("*.toml")))
+    weapon_definitions = root / "storage/weapons"
+    for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"):
+        for suffix in ("gameplay.toml", "inventory.toml", "tags.txt"):
+            assets.add(weapon_definitions / f"{name}.{suffix}")
+    definitions = sorted([*weapon_definitions.glob("*.toml"), *weapon_definitions.glob("*.tags.txt")])
     vehicles = sorted((root / "vehicles").glob("*.toml"))
     if not vehicles:
         raise ValueError("Vehicle configuration files are missing")

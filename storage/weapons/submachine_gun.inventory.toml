@@ -1,8 +1,7 @@
-schema_version = 1
+schema_version = 2
 id = "submachine_gun"
 name = "Submachine gun"
 type = "weapon"
 weapon = "submachine_gun"
 width = 3
 height = 2
-tags = ["smg", "ranged", "two_handed"]

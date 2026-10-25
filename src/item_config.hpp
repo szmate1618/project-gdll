@@ -25,7 +25,7 @@ struct InventoryItems {
     std::array<std::string, 10> hotbar;
 };
 
-// Reads inventory.toml ownership/hotbar and matching items/*.toml descriptors.
-// Weapon behavior stays in weapons/*.toml; this snapshot is for menu display.
+// Reads inventory.toml ownership/placements/hotbar and per-weapon inventory/tag
+// files in storage/weapons/. Gameplay stays in *.gameplay.toml.
 InventoryItems loadInventoryItems(const std::filesystem::path& resourceRoot);
 } // namespace viewer

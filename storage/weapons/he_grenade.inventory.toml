@@ -1,8 +1,7 @@
-schema_version = 1
+schema_version = 2
 id = "he_grenade"
 name = "HE grenade"
 type = "weapon"
 weapon = "he_grenade"
 width = 1
 height = 1
-tags = ["throwable", "explosive"]

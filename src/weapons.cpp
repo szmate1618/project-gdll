@@ -89,7 +89,7 @@ Weapons::Weapons(const std::filesystem::path& definitions, const std::filesystem
     bool foundEquipped = false;
     for (std::size_t i = 0; i < ids.size(); ++i) {
         auto& weapon = weapons_[i];
-        weapon.config = loadConfig(definitions / (std::string(ids[i]) + ".toml"), ids[i]);
+        weapon.config = loadConfig(definitions / (std::string(ids[i]) + ".gameplay.toml"), ids[i]);
         if (!ammoTypes.insert(weapon.config.ammoType).second)
             throw std::runtime_error("Prototype weapons require separate ammo_type values");
         weapon.reserve = count(*ammo, weapon.config.ammoType, inventory);

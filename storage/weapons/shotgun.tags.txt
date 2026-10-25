@@ -1,0 +1,1 @@
+long_gun, shotgun, ranged, two_handed

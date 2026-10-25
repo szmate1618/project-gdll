@@ -48,8 +48,7 @@ struct StorageFixture {
         const std::filesystem::path ui(VIEWER_HUD_DIR);
         std::filesystem::create_directory(directory);
         std::filesystem::copy(ui, directory / "ui", std::filesystem::copy_options::recursive);
-        for (const auto* folder : {"storage", "items", "weapons"})
-            std::filesystem::copy(ui.parent_path() / folder, directory / folder, std::filesystem::copy_options::recursive);
+        std::filesystem::copy(ui.parent_path() / "storage", directory / "storage", std::filesystem::copy_options::recursive);
         std::filesystem::copy_file(ui.parent_path() / "inventory.toml", directory / "inventory.toml");
     }
     ~StorageFixture() { std::filesystem::remove_all(directory); }

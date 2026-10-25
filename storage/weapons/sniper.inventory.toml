@@ -1,8 +1,7 @@
-schema_version = 1
+schema_version = 2
 id = "sniper"
 name = "Sniper"
 type = "weapon"
 weapon = "sniper"
 width = 5
 height = 2
-tags = ["rifle", "ranged", "two_handed"]

@@ -22,10 +22,13 @@ def check_contents(package):
     for name in required:
         if not (package / name).is_file():
             raise RuntimeError("Package is missing " + name)
-    for folder in ("items", "weapons", "vehicles"):
-        if not list((package / folder).glob("*.toml")):
-            raise RuntimeError("Package is missing " + folder + " definitions")
+    if not list((package / "vehicles").glob("*.toml")):
+        raise RuntimeError("Package is missing vehicle definitions")
     for name in ("pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"):
+        for suffix in ("inventory.toml", "gameplay.toml", "tags.txt"):
+            filename = f"storage/weapons/{name}.{suffix}"
+            if not (package / filename).is_file():
+                raise RuntimeError("Package is missing " + filename)
         model = package / "assets/weapons" / (name + ".glb")
         if not model.is_file() or model.read_bytes()[:4] != b"glTF":
             raise RuntimeError("Package is missing a generated weapon model: " + name)

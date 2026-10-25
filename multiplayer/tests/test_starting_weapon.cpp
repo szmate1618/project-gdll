@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
         if (argc != 3) throw std::runtime_error("Test asset and fixture directory arguments missing");
         resources = argv[2];
         const auto copy = std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing;
-        for (const auto* directory : {"items", "weapons", "vehicles"})
+        for (const auto* directory : {"storage", "vehicles"})
             std::filesystem::copy(std::filesystem::path(MP_ROOT) / directory, resources / directory, copy);
         {
             std::ofstream inventory(resources / "inventory.toml");
@@ -92,12 +92,12 @@ int main(int argc, char** argv) {
         require(changedCars.fingerprint != scene.fingerprint && scene.vehicles->config(0).weightKg == capturedWeight,
                 "Vehicle config did not affect fingerprint or changed a running session");
         auto fingerprint = changedCars.fingerprint;
-        for (const auto* folder : {"items", "weapons"}) {
-            { std::ofstream file(resources / folder / "pistol.toml", std::ios::app);
-              file << "\n# Fingerprint coverage for separate item/gameplay definitions\n"; }
+        for (const auto* suffix : {".inventory.toml", ".gameplay.toml", ".tags.txt"}) {
+            { std::ofstream file(resources / "storage/weapons" / (std::string("pistol") + suffix), std::ios::app);
+              file << "\n"; }
             multiplayer::Scene changedDefinition(options);
             require(changedDefinition.fingerprint != fingerprint,
-                    "Item or gameplay definition was omitted from the scene fingerprint");
+                    "Inventory, gameplay or tags file was omitted from the scene fingerprint");
             fingerprint = changedDefinition.fingerprint;
         }
         // A later join must use the session's fingerprinted starting definitions,

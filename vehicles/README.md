@@ -1,6 +1,6 @@
 # Vehicle definitions
 
-Each TOML file defines a car type, following the weapon definitions in `items/`.
+Each TOML file defines a car type, following the gameplay definitions in `storage/weapons/*.gameplay.toml`.
 There are 16 definitions for the downloaded car types, including the three Fiat
 variants. The filename stem is its stable type name. Definitions are loaded once
 at startup; the default spawned car uses `toyota_corolla_1999.toml`.

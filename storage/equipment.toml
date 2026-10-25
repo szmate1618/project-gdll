@@ -19,7 +19,7 @@ name = "Chest pouch"
 id = "pouch"
 name = "CHEST POUCH"
 x = 0.75
-y = -0.65
+y = 0.1
 width = 2
 height = 2
 access_time = 0.65
@@ -43,3 +43,27 @@ y = -0.1
 width = 1
 height = 2
 access_time = 0.55
+
+[[equipment]]
+id = "left_shoulder_sling"
+name = "Left shoulder sling"
+[[equipment.slots]]
+id = "carry"
+name = "LEFT SHOULDER SLING"
+x = -1
+y = -1
+width = 2
+height = 5
+access_time = 0.7
+
+[[equipment]]
+id = "right_shoulder_sling"
+name = "Right shoulder sling"
+[[equipment.slots]]
+id = "carry"
+name = "RIGHT SHOULDER SLING"
+x = 1
+y = -1
+width = 2
+height = 5
+access_time = 0.7

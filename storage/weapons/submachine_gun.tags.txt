@@ -1,0 +1,1 @@
+long_gun, smg, ranged, two_handed

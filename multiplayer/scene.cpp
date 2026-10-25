@@ -143,7 +143,7 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
              const std::optional<viewer::ZombieScenarioConfig::Player>& playerSpawn) :
     mapPath(o.map), model(loadSessionMap(o.map)), physics(std::make_shared<viewer::PhysicsWorld>()),
     dayNight(o.dayNight),
-    initialWeapons(resourceRoot() / "weapons", resourceRoot() / "inventory.toml", true) {
+    initialWeapons(resourceRoot() / "storage/weapons", resourceRoot() / "inventory.toml", true) {
     std::vector<std::filesystem::path> content{o.map};
     const auto adjacent = [&](const char* name) { return o.map.parent_path() / name; };
     if (std::filesystem::exists(adjacent("poles.instances.json"))) {
@@ -225,13 +225,15 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
             content.push_back(o.zombieAssets);
         }
     }
-    for (const auto* directory : {"weapons", "items"}) {
-        std::vector<std::filesystem::path> definitions;
-        for (const auto& entry : std::filesystem::directory_iterator(resourceRoot() / directory))
-            if (entry.path().extension() == ".toml") definitions.push_back(entry.path());
-        std::sort(definitions.begin(), definitions.end());
-        content.insert(content.end(), definitions.begin(), definitions.end());
+    std::vector<std::filesystem::path> definitions;
+    for (const auto& entry : std::filesystem::directory_iterator(resourceRoot() / "storage/weapons")) {
+        const auto filename = entry.path().filename().string();
+        const bool tags = filename.size() >= 9 && filename.compare(filename.size() - 9, 9, ".tags.txt") == 0;
+        if (entry.is_regular_file() && (entry.path().extension() == ".toml" || tags))
+            definitions.push_back(entry.path());
     }
+    std::sort(definitions.begin(), definitions.end());
+    content.insert(content.end(), definitions.begin(), definitions.end());
     content.push_back(resourceRoot() / "inventory.toml");
     const auto vehicleFiles = viewer::vehicleConfigFiles(resourceRoot() / "vehicles");
     content.insert(content.end(), vehicleFiles.begin(), vehicleFiles.end());

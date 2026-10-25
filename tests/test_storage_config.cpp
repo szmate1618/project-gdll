@@ -41,8 +41,17 @@ struct Fixture {
 };
 void selectedStorage() {
     const auto loadout = viewer::loadStorageLoadout(VIEWER_STORAGE_DIR);
-    require(loadout.equipment.size() == 2 && loadout.equipment[0].id == "hip_holster" &&
-        loadout.equipment[1].id == "chest_pouch", "Selection must resolve only equipped equipment, in order");
+    require(loadout.equipment.size() == 4 && loadout.equipment[0].id == "hip_holster" &&
+        loadout.equipment[1].id == "chest_pouch" &&
+        loadout.equipment[2].id == "left_shoulder_sling" && loadout.equipment[3].id == "right_shoulder_sling",
+        "Selection must resolve only equipped equipment, in order");
+    for (std::size_t index = 2; index < 4; ++index) {
+        const auto& sling = loadout.equipment[index].slots.at(0);
+        require(sling.grid.width == 2 && sling.grid.height == 5 && sling.id == "carry",
+            "Shoulder slings must be vertical 2x5 compartments");
+        require(sling.y == -1 && sling.x == (index == 2 ? -1 : 1),
+            "Shoulder slings must use the top corners of the body storage panel");
+    }
     const auto& holster = loadout.equipment[0].slots.at(0);
     require(holster.grid.width == 2 && holster.grid.height == 1 && holster.grid.accessTime == .35,
         "Holster dimensions and timing were lost");

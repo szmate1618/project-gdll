@@ -1,5 +1,6 @@
 #include "item_config.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -14,9 +15,9 @@ struct Fixture {
         ("item-fixture-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     Fixture() {
         std::filesystem::create_directory(root);
-        for (const auto* folder : {"items", "weapons"})
-            std::filesystem::copy(std::filesystem::path(VIEWER_ITEM_ROOT) / folder, root / folder,
-                std::filesystem::copy_options::recursive);
+        std::filesystem::create_directories(root / "storage");
+        std::filesystem::copy(std::filesystem::path(VIEWER_ITEM_ROOT) / "storage/weapons", root / "storage/weapons",
+            std::filesystem::copy_options::recursive);
         std::filesystem::copy_file(std::filesystem::path(VIEWER_ITEM_ROOT) / "inventory.toml", root / "inventory.toml");
     }
     ~Fixture() { std::filesystem::remove_all(root); }
@@ -49,11 +50,14 @@ void starterInventory() {
         const auto& item = inventory.owned.at(expected[slot]);
         require(item.weapon == expected[slot] && item.type == "weapon", "Item gameplay reference was lost");
         require(item.width > 0 && item.height > 0 && !item.tags.empty(), "Item footprint/tags missing");
+        const std::string category = slot == 0 ? "handgun" : slot == 4 ? "grenade" : "long_gun";
+        require(std::find(item.tags.begin(), item.tags.end(), category) != item.tags.end(),
+            "Weapon category must come from its comma-separated tags file");
     }
     for (std::size_t slot = 5; slot < inventory.hotbar.size(); ++slot)
         require(inventory.hotbar[slot].empty(), "Slots 5–9 must start unassigned");
     const auto& pistol = inventory.owned.at("pistol");
-    require(pistol.width == 1 && pistol.height == 1, "Pistol must have a 1x1 cell footprint");
+    require(pistol.width == 2 && pistol.height == 1, "Pistol must have a 2x1 cell footprint");
     const auto& sniper = inventory.owned.at("sniper");
     require(sniper.width == 5 && sniper.height == 2, "Sniper footprint must come from its item descriptor");
     Fixture fixture;
@@ -61,9 +65,12 @@ void starterInventory() {
     const auto partial = viewer::loadInventoryItems(fixture.root);
     require(partial.owned.size() == 1 && partial.hotbar[9] == "pistol" && partial.hotbar[0].empty(),
         "Ownership must follow the inventory, including an owned empty firearm, and allow sparse shortcuts");
-    fixture.replace("items/pistol.toml", "width = 1", "width = 3");
+    fixture.replace("storage/weapons/pistol.inventory.toml", "width = 2", "width = 3");
     require(viewer::loadInventoryItems(fixture.root).owned.at("pistol").width == 3,
         "Editing the item descriptor must change its grid footprint independently of gameplay");
+    std::ofstream(fixture.root / "storage/weapons/pistol.tags.txt") << "  handgun ,\n ranged , utility \n";
+    require(viewer::loadInventoryItems(fixture.root).owned.at("pistol").tags ==
+        std::vector<std::string>{"handgun", "ranged", "utility"}, "Tag parsing must trim whitespace and preserve order");
     fixture.inventory("[weapons]\n");
     require(viewer::loadInventoryItems(fixture.root).owned.empty(), "No ownership entries must mean no owned items");
 }
@@ -96,38 +103,43 @@ void invalidInventory() {
 void invalidDefinitions() {
     for (const auto* value : {"0", "17", "2.5", "'two'"}) {
         Fixture fixture;
-        fixture.replace("items/pistol.toml", "width = 1", std::string("width = ") + value);
-        fixture.rejects("pistol.toml", "width");
+        fixture.replace("storage/weapons/pistol.inventory.toml", "width = 2", std::string("width = ") + value);
+        fixture.rejects("pistol.inventory.toml", "width");
     }
     {
         Fixture fixture;
-        fixture.replace("items/pistol.toml", "height = 1", "height = 0");
-        fixture.rejects("pistol.toml", "height");
+        fixture.replace("storage/weapons/pistol.inventory.toml", "height = 1", "height = 0");
+        fixture.rejects("pistol.inventory.toml", "height");
     }
     {
         Fixture fixture;
-        fixture.replace("items/pistol.toml", "schema_version = 1", "schema_version = 2");
-        fixture.rejects("pistol.toml", "schema_version");
+        fixture.replace("storage/weapons/pistol.inventory.toml", "schema_version = 2", "schema_version = 99");
+        fixture.rejects("pistol.inventory.toml", "schema_version");
     }
     {
         Fixture fixture;
-        fixture.replace("items/pistol.toml", "weapon = \"pistol\"", "weapon = \"sniper\"");
-        fixture.rejects("pistol.toml", "matching item/weapon IDs");
+        fixture.replace("storage/weapons/pistol.inventory.toml", "weapon = \"pistol\"", "weapon = \"sniper\"");
+        fixture.rejects("pistol.inventory.toml", "matching item/weapon IDs");
+    }
+    for (const auto* tags : {"handgun, ,ranged", "handgun,handgun", "handgun,", "handgun,wrong tag"}) {
+        Fixture fixture;
+        std::ofstream(fixture.root / "storage/weapons/pistol.tags.txt") << tags;
+        fixture.rejects("pistol.tags.txt", "tag");
     }
     {
         Fixture fixture;
-        fixture.replace("items/pistol.toml", "[\"handgun\", \"ranged\"]", "[7]");
-        fixture.rejects("pistol.toml", "tags");
+        std::filesystem::remove(fixture.root / "storage/weapons/pistol.tags.txt");
+        fixture.rejects("pistol.tags.txt", "read");
     }
     {
         Fixture fixture;
-        std::filesystem::remove(fixture.root / "weapons/pistol.toml");
-        fixture.rejects("pistol.toml", "gameplay definition");
+        std::filesystem::remove(fixture.root / "storage/weapons/pistol.gameplay.toml");
+        fixture.rejects("pistol.inventory.toml", "gameplay definition");
     }
     {
         Fixture fixture;
-        std::filesystem::remove(fixture.root / "items/pistol.toml");
-        fixture.rejects("pistol.toml", "");
+        std::filesystem::remove(fixture.root / "storage/weapons/pistol.inventory.toml");
+        fixture.rejects("pistol.inventory.toml", "");
     }
 }
 } // namespace

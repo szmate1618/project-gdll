@@ -3,6 +3,7 @@
 #include <toml++/toml.hpp>
 #include <algorithm>
 #include <cstdint>
+#include <fstream>
 #include <stdexcept>
 
 namespace viewer {
@@ -26,11 +27,34 @@ std::string label(const toml::table& table, const char* key, const Path& file) {
     if (value.empty()) invalid(file, std::string(key) + " must not be empty");
     return value;
 }
+std::vector<std::string> readTags(const Path& file) {
+    std::ifstream input(file, std::ios::binary);
+    if (!input) invalid(file, "cannot read tag file");
+    const std::string text{std::istreambuf_iterator<char>(input), {}};
+    std::vector<std::string> result;
+    std::size_t start = 0;
+    while (true) {
+        const auto end = text.find(',', start);
+        auto tag = text.substr(start, end == std::string::npos ? end : end - start);
+        const auto first = tag.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos) invalid(file, "empty tag in comma-separated list");
+        tag = tag.substr(first, tag.find_last_not_of(" \t\r\n") - first + 1);
+        if (!std::all_of(tag.begin(), tag.end(), [](char c) {
+            return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
+        })) invalid(file, "tags must use lowercase letters, digits and underscores");
+        if (std::find(result.begin(), result.end(), tag) != result.end()) invalid(file, "duplicate tag " + tag);
+        result.push_back(std::move(tag));
+        if (end == std::string::npos) break;
+        start = end + 1;
+    }
+    return result;
+}
 ItemDefinition definition(const Path& root, const std::string& id) {
-    const auto file = root / "items" / (id + ".toml");
+    const auto directory = root / "storage/weapons";
+    const auto file = directory / (id + ".inventory.toml");
     const auto table = read(file);
-    if (!table["schema_version"].is_integer() || required<int>(table, "schema_version", file) != 1)
-        invalid(file, "schema_version must be integer 1");
+    if (!table["schema_version"].is_integer() || required<int>(table, "schema_version", file) != 2)
+        invalid(file, "schema_version must be integer 2");
     ItemDefinition item;
     item.id = label(table, "id", file);
     item.name = label(table, "name", file);
@@ -38,7 +62,7 @@ ItemDefinition definition(const Path& root, const std::string& id) {
     item.weapon = label(table, "weapon", file);
     if (item.id != id || item.weapon != id || item.type != "weapon")
         invalid(file, "expected matching item/weapon IDs and type = 'weapon'");
-    if (!std::filesystem::is_regular_file(root / "weapons" / (item.weapon + ".toml")))
+    if (!std::filesystem::is_regular_file(directory / (item.weapon + ".gameplay.toml")))
         invalid(file, "missing gameplay definition for weapon " + item.weapon);
     const auto dimension = [&](const char* key) {
         if (!table[key].is_integer()) invalid(file, std::string(key) + " must be an integer cell count");
@@ -48,15 +72,7 @@ ItemDefinition definition(const Path& root, const std::string& id) {
     };
     item.width = dimension("width");
     item.height = dimension("height");
-    const auto* tags = table["tags"].as_array();
-    if (!tags) invalid(file, "tags must be an array of strings");
-    for (const auto& node : *tags) {
-        const auto tag = node.value<std::string>();
-        if (!tag || tag->empty()) invalid(file, "tags must contain nonempty strings");
-        if (std::find(item.tags.begin(), item.tags.end(), *tag) != item.tags.end())
-            invalid(file, "duplicate tag " + *tag);
-        item.tags.push_back(*tag);
-    }
+    item.tags = readTags(directory / (id + ".tags.txt"));
     return item;
 }
 } // namespace
