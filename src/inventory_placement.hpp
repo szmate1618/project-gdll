@@ -19,6 +19,7 @@ struct InventoryContainer {
 };
 using InventoryLayout = std::map<std::string, InventoryContainer>;
 InventoryItemRectangle inventoryRectangle(const ItemDefinition& item, const ItemPlacement& placement);
+bool inventoryItemAllowed(const StorageGrid& grid, const ItemDefinition& item);
 bool inventoryRectangleFits(const StorageGrid& grid, const InventoryItemRectangle& rectangle);
 bool inventoryRectanglesOverlap(const InventoryItemRectangle& a, const InventoryItemRectangle& b);
 

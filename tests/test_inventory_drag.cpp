@@ -78,8 +78,46 @@ void swapChains() {
     require(inventory.placements.count("a") && inventory.placements.count("b"), "Rejected drop must retain both occupied items");
     wide.cancel(); viewer::buildInventoryLayout(storage, inventory);
 }
+void tagRestrictions() {
+    auto storage = viewer::loadStorageLoadout(std::filesystem::path(VIEWER_ITEM_ROOT) / "storage");
+    auto inventory = viewer::loadInventoryItems(VIEWER_ITEM_ROOT);
+    const auto original = inventory.placements;
+    const std::string holster = "body/hip_holster/holster";
+    viewer::InventoryDrag drag(storage, inventory);
+    drag.pickUp("he_grenade");
+    // The grenade fits and overlaps exactly one item, but its tag forbids a swap.
+    require(drag.preview(holster, 0, 0).result == viewer::InventoryDrop::Rejected &&
+        drag.drop(holster, 0, 0).result == viewer::InventoryDrop::Rejected,
+        "A forbidden tag must reject both preview and occupied-slot placement");
+    require(drag.held()->item == "he_grenade" && inventory.placements.count("pistol"), "Rejected swap must preserve the held and stored items");
+    drag.cancel(); require(same(original, inventory.placements), "Rejected placement must be fully cancellable");
+    drag.pickUp("pistol");
+    for (const auto* sling : {"body/left_shoulder_sling/carry", "body/right_shoulder_sling/carry"})
+        require(drag.drop(sling, 0, 0).result == viewer::InventoryDrop::Rejected, "Pistol must not enter either sling even though it fits");
+    drag.cancel();
+    for (const auto* id : {"submachine_gun", "shotgun", "sniper"}) {
+        for (const auto* sling : {"body/left_shoulder_sling/carry", "body/right_shoulder_sling/carry"}) {
+            drag.pickUp(id); drag.rotate(1);
+            require(drag.drop(sling, 0, 0).result == viewer::InventoryDrop::Free, "Each rotated long gun must be accepted by either sling");
+            drag.pickUp(id);
+            const auto& start = original.at(id);
+            drag.rotate(-1);
+            require(drag.drop(start.storage, start.x, start.y).result == viewer::InventoryDrop::Free, "Long guns must still fit unrestricted backpack storage");
+        }
+    }
+    drag.pickUp("pistol");
+    require(drag.drop(holster, 0, 0).result == viewer::InventoryDrop::Free, "Matching handgun tag must allow the holster");
+    // Multiple allowed tags mean any match, not all tags; this is data-driven.
+    auto alternateStorage = storage;
+    alternateStorage.equipment[0].slots[0].grid.allowedTags = {"utility", "grenade", "handgun"};
+    viewer::InventoryDrag alternate(alternateStorage, inventory);
+    alternate.pickUp("he_grenade");
+    require(alternate.preview(holster, 0, 0).result == viewer::InventoryDrop::Swap,
+        "A non-first allowed tag must be sufficient for placement");
+    alternate.cancel();
+}
 } // namespace
 int main() {
-    try { rotationAndBoundaries(); swapChains(); std::cout << "Inventory drag checks passed\n"; return 0; }
+    try { rotationAndBoundaries(); swapChains(); tagRestrictions(); std::cout << "Inventory drag checks passed\n"; return 0; }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

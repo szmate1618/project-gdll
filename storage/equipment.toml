@@ -11,6 +11,7 @@ y = 0.45
 width = 2
 height = 1
 access_time = 0.35
+allowed_tags = ["handgun"]
 
 [[equipment]]
 id = "chest_pouch"
@@ -55,6 +56,7 @@ y = -1
 width = 2
 height = 5
 access_time = 0.7
+allowed_tags = ["long_gun"]
 
 [[equipment]]
 id = "right_shoulder_sling"
@@ -67,3 +69,4 @@ y = -1
 width = 2
 height = 5
 access_time = 0.7
+allowed_tags = ["long_gun"]

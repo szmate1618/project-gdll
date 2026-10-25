@@ -70,8 +70,8 @@ catalogs retain their independent version 1 schema.
 | Sniper | `long_gun, rifle, ranged, two_handed` |
 
 `long_gun` is the common category for our rifles, SMG and shotgun. The specific
-weapon tags are retained alongside it. Tag restrictions on storage are not yet
-implemented.
+weapon tags are retained alongside it. Storage compartments may restrict accepted
+items using `allowed_tags`; see [the storage schema](../SCHEMA.md#item-tag-restrictions).
 
 ## Storage placements
 
@@ -102,7 +102,7 @@ placement cannot override it. At 90° or 270°, width and height exchange axes.
 On opening Inventory, all owned items must have
 one placement, references must resolve to equipped storage, and rectangles must
 fit without overlapping. Touching edges are allowed. Missing/stale placements,
-unequipped compartments, invalid coordinates, oversized items and overlaps
+unequipped compartments, disallowed item tags, invalid coordinates, oversized items and overlaps
 produce configuration errors rather than clipping or silently moving items.
 
 The starter pistol is 2×1 in the hip holster, and the grenade is in the chest
@@ -120,7 +120,7 @@ steps. Free-space drops finish the move; overlapping one item swaps it into
 the cursor. Overlapping multiple items or extending outside the grid is rejected.
 Right-click, leaving Inventory or losing focus restores the whole unfinished swap
 chain. Completed moves persist in memory until the session ends; no configuration
-files are written. Automatic packing, stacking, tag restrictions and runtime
+files are written. Automatic packing, stacking and runtime
 ownership synchronization are not implemented. Existing grenade/ammunition counts and combat behavior
 are unchanged.
 

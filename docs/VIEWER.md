@@ -125,6 +125,8 @@ Root `inventory.toml` places the 2×1 pistol in the holster, the grenade in the
 chest pouch, and the other three weapons in the backpack. Occupied N×M footprints
 are drawn as tinted rectangles on the grids. References, bounds and overlap
 are validated against the equipped storage. Picking up an item shows its details.
+Compartment `allowed_tags` restrict the hip holster to `handgun` items and both
+shoulder slings to `long_gun` items; other starter compartments accept any tag.
 Storage placements do not change the weapon/ammo mechanics.
 
 Inventory releases the cursor. Hold the left mouse button to pick up and drag an

@@ -49,6 +49,7 @@ void selectedStorage() {
         const auto& sling = loadout.equipment[index].slots.at(0);
         require(sling.grid.width == 2 && sling.grid.height == 5 && sling.id == "carry",
             "Shoulder slings must be vertical 2x5 compartments");
+        require(sling.grid.allowedTags == std::vector<std::string>{"long_gun"}, "Each sling must only accept long guns");
         require(sling.y == -1 && sling.x == (index == 2 ? -1 : 1),
             "Shoulder slings must use the top corners of the body storage panel");
     }
@@ -56,6 +57,8 @@ void selectedStorage() {
     require(holster.grid.width == 2 && holster.grid.height == 1 && holster.grid.accessTime == .35,
         "Holster dimensions and timing were lost");
     require(holster.x == -.8 && holster.y == .45, "Panel-relative coordinates were changed");
+    require(holster.grid.allowedTags == std::vector<std::string>{"handgun"}, "Holster must only accept handguns");
+    require(loadout.equipment[1].slots.at(0).grid.allowedTags.empty(), "Omitted restrictions must allow any tag");
     require(loadout.backpack && loadout.backpack->id == "tactical_backpack" &&
         loadout.backpack->grid.width == 8 && loadout.backpack->grid.height == 10 &&
         loadout.backpack->slots.size() == 4, "Starter tactical pack must have an 8x10 grid and four external pockets");
@@ -87,6 +90,21 @@ void invalidReferences() {
     fixture.rejects("loadout.toml", "schema_version");
 }
 void invalidCatalogs() {
+    for (const auto* value : {"'handgun'", "[1]", "['']", "['wrong tag']", "['Handgun']", "['handgun','handgun']"}) {
+        Fixture fixture;
+        fixture.replace("equipment.toml", "allowed_tags = [\"handgun\"]", std::string("allowed_tags = ") + value);
+        fixture.rejects("equipment.toml", "allowed_tags");
+    }
+    {
+        Fixture fixture;
+        fixture.replace("equipment.toml", "allowed_tags = [\"handgun\"]", "allowed_tags = []");
+        require(viewer::loadStorageLoadout(fixture.directory).equipment[0].slots[0].grid.allowedTags.empty(),
+            "An empty allowed_tags array must be unrestricted");
+        // Main backpack grids use the same field and parsing rules as pockets.
+        fixture.replace("backpacks.toml", "depth_time_per_row = 0.12", "depth_time_per_row = 0.12\nallowed_tags = ['utility','long_gun']");
+        require(viewer::loadStorageLoadout(fixture.directory).backpack->grid.allowedTags ==
+            std::vector<std::string>{"utility", "long_gun"}, "Backpack grid restrictions were lost");
+    }
     for (const auto& value : {"0", "17", "2.5", "'four'"}) {
         Fixture fixture;
         fixture.replace("backpacks.toml", "width = 4", std::string("width = ") + value);

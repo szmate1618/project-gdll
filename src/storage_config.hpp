@@ -12,6 +12,8 @@ struct StorageGrid {
     int height = 0;
     double accessTime = 0; // Seconds at row zero.
     double depthTimePerRow = 0; // Seconds per row; main backpack grid only.
+    // Empty accepts any item; otherwise at least one item tag must match.
+    std::vector<std::string> allowedTags{};
 };
 
 struct StorageSlot {

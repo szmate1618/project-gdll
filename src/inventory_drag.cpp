@@ -23,6 +23,7 @@ InventoryDropCheck InventoryDrag::preview(const std::string& storage, int x, int
     if (!held_) return {};
     const auto found = layout_.find(storage);
     if (found == layout_.end()) return {};
+    if (!inventoryItemAllowed(found->second.grid, inventory_.owned.at(held_->item))) return {};
     const auto rectangle = inventoryRectangle(inventory_.owned.at(held_->item), {storage, x, y, held_->rotation});
     if (!inventoryRectangleFits(found->second.grid, rectangle)) return {};
     InventoryDropCheck check{InventoryDrop::Free, {}};

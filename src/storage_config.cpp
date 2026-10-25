@@ -1,6 +1,7 @@
 #include "storage_config.hpp"
 
 #include <toml++/toml.hpp>
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <stdexcept>
@@ -57,6 +58,19 @@ StorageGrid grid(const toml::table& table, const Path& file, bool mainGrid = fal
     result.height = dimension("height");
     result.accessTime = time(table, "access_time", file);
     if (mainGrid) result.depthTimePerRow = time(table, "depth_time_per_row", file);
+    if (table.contains("allowed_tags")) {
+        const auto* tags = table["allowed_tags"].as_array();
+        if (!tags) invalid(file, "allowed_tags", "must be an array of tag strings");
+        std::unordered_set<std::string> seen;
+        for (const auto& node : *tags) {
+            const auto tag = node.value<std::string>();
+            if (!tag || tag->empty() || !std::all_of(tag->begin(), tag->end(), [](char c) {
+                    return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
+                })) invalid(file, "allowed_tags", "must contain nonempty lowercase tag identifiers");
+            if (!seen.insert(*tag).second) invalid(file, "allowed_tags", "contains duplicate tag " + *tag);
+            result.allowedTags.push_back(*tag);
+        }
+    }
     return result;
 }
 

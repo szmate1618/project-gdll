@@ -37,6 +37,12 @@ void placements() {
     require(inventory.placements.at("submachine_gun").x == 0 && inventory.placements.at("shotgun").x == 3 &&
         inventory.placements.at("sniper").y == 2, "Grid cell positions were not parsed");
     auto changed = inventory;
+    changed.placements.at("pistol").storage = "body/left_shoulder_sling/carry";
+    rejects(storage, changed, "allowed tag");
+    changed = inventory;
+    changed.owned.at("pistol").tags = {"ranged"};
+    rejects(storage, changed, "allowed tag");
+    changed = inventory;
     changed.placements.erase("pistol");
     rejects(storage, changed, "required");
     changed = inventory;

@@ -52,6 +52,19 @@ They fit the 5×2 sniper when rotated 90° using the mouse wheel while held.
 The sniper starts in the backpack. The chest
 pouch's panel position is lower to leave room for the right sling.
 
+## Item tag restrictions
+
+Each compartment may specify `allowed_tags = ["handgun"]` alongside its width,
+height and access time. An item must have at least one of the listed tags in its
+`*.tags.txt` definition. Omit the field or use `[]` to accept any item. Entries
+must be unique, nonempty strings containing lowercase letters, digits or underscores.
+The same optional field works inside a backpack's main `grid` table.
+
+The hip holster accepts `handgun`; both shoulder slings accept `long_gun`.
+The chest pouch and backpacks remain unrestricted. Both startup placement
+validation and drag/drop previews enforce the rule, including swaps and rotated
+items. Rotation never changes item tags. The item must also fit the grid.
+
 ## Coordinates and layout
 
 Coordinates position the compartment card's **center within the inner storage
@@ -83,7 +96,7 @@ Dragging supports rotation, free-space placement and exchange with one overlappi
 item. Right-click, closing Inventory or losing focus restores the entire unfinished
 swap chain; placing into free space completes it. Moves last for the session only.
 Optional placement `rotation` is 0, 90, 180 or 270 degrees, clockwise.
-Automatic packing, tag restrictions and equipping interactions are
+Automatic packing and equipping interactions are
 not implemented. Item details follow the selected item. The shared hotbar reads weapon
 ownership and shortcuts from root `inventory.toml`; Skills entries remain visual
 examples. Unknown extra catalog fields are ignored, so tags from an older

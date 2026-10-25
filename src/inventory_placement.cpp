@@ -1,6 +1,7 @@
 #include "inventory_placement.hpp"
 #include "item_config.hpp"
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace viewer {
@@ -21,6 +22,11 @@ bool inventoryRectangleFits(const StorageGrid& grid, const InventoryItemRectangl
     return rectangle.width > 0 && rectangle.height > 0 && rectangle.width <= grid.width && rectangle.height <= grid.height &&
         rectangle.x >= 0 && rectangle.y >= 0 && rectangle.x <= grid.width - rectangle.width &&
         rectangle.y <= grid.height - rectangle.height;
+}
+bool inventoryItemAllowed(const StorageGrid& grid, const ItemDefinition& item) {
+    return grid.allowedTags.empty() || std::any_of(grid.allowedTags.begin(), grid.allowedTags.end(), [&](const auto& tag) {
+        return std::find(item.tags.begin(), item.tags.end(), tag) != item.tags.end();
+    });
 }
 bool inventoryRectanglesOverlap(const InventoryItemRectangle& a, const InventoryItemRectangle& b) {
     return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
@@ -54,6 +60,7 @@ InventoryLayout buildInventoryLayout(const StorageLoadout& loadout, const Invent
         const auto found = result.find(entry.storage);
         if (found == result.end()) invalid("references unavailable storage " + entry.storage);
         auto& container = found->second;
+        if (!inventoryItemAllowed(container.grid, item)) invalid("has no allowed tag for " + entry.storage);
         const auto rectangle = inventoryRectangle(item, entry);
         if (!inventoryRectangleFits(container.grid, rectangle))
             invalid("extends outside " + entry.storage);
