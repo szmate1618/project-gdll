@@ -144,8 +144,14 @@ charges destination access only. Click and release to place it next.
 Right-click, leaving Inventory, or losing window focus cancels the entire
 unfinished swap chain, restoring all placements to before the first pickup.
 A completed free-space placement finishes the chain. Cancellation requires no
-time. Backpack main compartments use one fixed access time for every cell
-(sling bag 1.06s, tactical backpack 2.54s, hiking backpack 3.48s).
+time. Backpack main compartments start from their former bottom-row base times
+(sling bag 1.22s, tactical backpack 3.08s, hiking backpack 4.45s). Access adds a
+linear penalty for the largest occupied-cell count above the item and subtracts
+a bonus for the mean count below it. Item details show the adjusted time.
+Swaps use the higher obstruction and lower support across both footprints, once
+for destination access. Body slots and external pockets keep fixed access times.
+See [the scoring rules](../storage/SCHEMA.md#catalog-fields) for the formula and
+configurable penalty/bonus values.
 Completed moves persist for the session;
 they are not written to TOML or synchronized over the network.
 

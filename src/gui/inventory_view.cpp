@@ -2,6 +2,7 @@
 #include "inventory/storage_config.hpp"
 #include "inventory/player_inventory.hpp"
 #include "inventory/inventory_placement.hpp"
+#include "inventory/inventory_access.hpp"
 
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/StringUtilities.h>
@@ -108,7 +109,7 @@ void populateInventory(Rml::ElementDocument& document, const PlayerInventory& in
     set(document, "backpack-storage", contents);
     set(document, "backpack-name", Rml::StringUtilities::EncodeRml(backpack.name));
     set(document, "backpack-size", size(grid));
-    set(document, "backpack-access", "MAIN COMPARTMENT / " + number(grid.accessTime) + "s");
+    set(document, "backpack-access", "BASE ACCESS / " + number(grid.accessTime) + "s");
     set(document, "backpack-caption", std::to_string(grid.width * grid.height) +
         " internal cells · " + std::to_string(backpack.slots.size()) + " external compartments");
 }
@@ -133,8 +134,8 @@ void populateInventoryDetails(Rml::ElementDocument& document, const PlayerInvent
     std::ostringstream access;
     if (held) access << "—";
     else {
-        const auto& grid = inventory.layout().at(placement.storage).grid;
-        access << std::fixed << std::setprecision(2) << grid.accessTime << "s";
+        const auto time = inventoryAccess(inventory.layout().at(placement.storage), inventoryRectangle(item, placement));
+        access << std::fixed << std::setprecision(2) << time.seconds << "s";
     }
     set("inventory-access-time", access.str());
 }

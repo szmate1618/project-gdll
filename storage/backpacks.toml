@@ -6,7 +6,9 @@ name = "SLING BAG"
 [backpacks.grid]
 width = 4
 height = 5
-access_time = 1.06
+access_time = 1.22
+obstruction_time_per_cell = 0.08
+support_time_per_cell = 0.08
 [[backpacks.slots]]
 id = "front_pocket"
 name = "FRONT POCKET"
@@ -22,7 +24,9 @@ name = "TACTICAL BACKPACK"
 [backpacks.grid]
 width = 8
 height = 10
-access_time = 2.54
+access_time = 3.08
+obstruction_time_per_cell = 0.12
+support_time_per_cell = 0.12
 [[backpacks.slots]]
 id = "left_side"
 name = "SIDE / L"
@@ -62,7 +66,9 @@ name = "HIKING BACKPACK"
 [backpacks.grid]
 width = 10
 height = 14
-access_time = 3.48
+access_time = 4.45
+obstruction_time_per_cell = 0.15
+support_time_per_cell = 0.15
 [[backpacks.slots]]
 id = "left_bottle"
 name = "BOTTLE / L"

@@ -7,12 +7,18 @@
 
 namespace viewer {
 
+struct BackpackAccessConfig {
+    double obstructionTimePerCell = 0; // Seconds added per obstruction score point.
+    double supportTimePerCell = 0; // Seconds subtracted per support score point.
+};
 struct StorageGrid {
     int width = 0;
     int height = 0;
     double accessTime = 0; // Seconds to access this compartment, independent of cell.
     // Empty accepts any item; otherwise at least one item tag must match.
     std::vector<std::string> allowedTags{};
+    // Only main backpack grids use occupancy-dependent access times.
+    std::optional<BackpackAccessConfig> backpackAccess{};
 };
 
 struct StorageSlot {

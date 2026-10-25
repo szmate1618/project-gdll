@@ -134,6 +134,9 @@ StorageLoadout loadStorageLoadout(const Path& directory) {
             const auto* main = table["grid"].as_table();
             if (!main) invalid(file, result.id + ".grid", "must be a table");
             result.grid = grid(*main, file);
+            if (main->contains("obstruction_time_per_cell") || main->contains("support_time_per_cell"))
+                result.grid.backpackAccess = BackpackAccessConfig{
+                    time(*main, "obstruction_time_per_cell", file), time(*main, "support_time_per_cell", file)};
             return result;
         });
     const auto file = directory / "loadout.toml";

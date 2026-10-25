@@ -35,11 +35,34 @@ Each compartment has:
 | `access_time` | Finite nonnegative compartment access time in seconds |
 
 Backpacks also have a `[backpacks.grid]` table with `width`, `height`,
-and `access_time`. All cells in the main compartment use the same access time;
-`depth_time_per_row` is no longer used. The catalog's fixed values are averages
-of the former top and bottom row times, rounded to hundredths: sling bag 1.06s,
-tactical backpack 2.54s, and hiking backpack 3.48s. External pockets retain their
-own access times.
+and `access_time`. The main compartment's base is the former bottom-row time:
+sling bag 1.22s, tactical backpack 3.08s, hiking backpack 4.45s. There is no direct
+row/depth surcharge; `depth_time_per_row` is no longer used. External pockets and
+body storage retain their fixed access times.
+
+Main backpack grids also accept `obstruction_time_per_cell` and
+`support_time_per_cell`. Specify both, as finite nonnegative seconds per score
+point, or omit both for fixed access. Starter values reuse the former row
+increments: 0.08s for the sling bag, 0.12s for the tactical pack, 0.15s for the
+hiking pack, for both penalty and bonus.
+
+For every cell of the item's rotated footprint, count occupied cells anywhere
+above and below it in the same column, including across empty gaps. Exclude the
+queried item itself. **Obstruction** is the largest above-count; **support** is
+the average below-count across all footprint cells, including columns with zero
+support. Access time is:
+
+```text
+max(0, access_time + obstruction * obstruction_time_per_cell
+                   - support * support_time_per_cell)
+```
+
+Pickup snapshots the source scores before removing the item. Placement scores
+the proposed destination. A swap scores both the incoming footprint and the
+outgoing item's footprint with both exchanged items excluded. It uses **one**
+destination base, the **higher obstruction** and **lower support** of those two
+footprints. An automatically picked-up item's next placement has no source charge,
+so the same obstruction/support is not charged twice.
 
 Picking up an item is immediate. A valid drop starts a timer for the original
 compartment's access time plus the destination compartment's access time. The

@@ -1,5 +1,6 @@
 #include "inventory_drag.hpp"
 #include <cmath>
+#include <algorithm>
 
 namespace viewer {
 InventoryDrag::InventoryDrag(PlayerInventory& inventory) : inventory_(inventory) {}
@@ -9,7 +10,8 @@ bool InventoryDrag::pickUp(const std::string& item) {
     const auto found = inventory_.contents_.placements.find(item);
     if (found == inventory_.contents_.placements.end()) return false;
     originalPlacements_ = inventory_.contents_.placements;
-    sourceAccessSeconds_ = inventory_.layout_.at(found->second.storage).grid.accessTime;
+    sourceAccess_ = inventoryAccess(inventory_.layout_.at(found->second.storage),
+        inventoryRectangle(inventory_.contents_.owned.at(item), found->second));
     inventory_.held_ = HeldInventoryItem{item, found->second.rotation};
     inventory_.contents_.placements.erase(found);
     inventory_.rebuild();
@@ -37,8 +39,17 @@ InventoryDropCheck InventoryDrag::preview(const std::string& storage, int x, int
 InventoryDropCheck InventoryDrag::drop(const std::string& storage, int x, int y) {
     const auto check = preview(storage, x, y);
     if (check.result == InventoryDrop::Rejected) return check;
-    pending_ = PendingInventoryPlacement{inventory_.held_->item, {storage, x, y, inventory_.held_->rotation}, check,
-        sourceAccessSeconds_ + inventory_.layout_.at(storage).grid.accessTime, 0};
+    const ItemPlacement destination{storage, x, y, inventory_.held_->rotation};
+    const auto& container = inventory_.layout_.at(storage);
+    const auto rectangle = inventoryRectangle(inventory_.contents_.owned.at(inventory_.held_->item), destination);
+    InventoryAccess access;
+    if (check.result == InventoryDrop::Swap) {
+        const auto displaced = std::find_if(container.items.begin(), container.items.end(),
+            [&](const auto& other) { return other.item == check.displaced; });
+        access = inventorySwapAccess(container, rectangle, *displaced);
+    } else access = inventoryAccess(container, rectangle);
+    pending_ = PendingInventoryPlacement{inventory_.held_->item, destination, check,
+        sourceAccess_.seconds + access.seconds, 0, sourceAccess_, access};
     if (pending_->durationSeconds == 0) completePlacement();
     return check;
 }
@@ -67,12 +78,12 @@ void InventoryDrag::completePlacement() {
     inventory_.contents_.placements[placed.item] = placement.destination;
     // A swap already paid for accessing the displaced item. Its next move
     // charges only destination access, even when it starts another swap.
-    sourceAccessSeconds_ = 0;
+    sourceAccess_ = {};
     inventory_.rebuild();
 }
 void InventoryDrag::cancel() {
     pending_.reset();
-    sourceAccessSeconds_ = 0;
+    sourceAccess_ = {};
     if (!originalPlacements_) return;
     inventory_.contents_.placements = std::move(*originalPlacements_);
     originalPlacements_.reset();

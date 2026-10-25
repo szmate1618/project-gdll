@@ -12,6 +12,7 @@ targets are defined in `cmake/Inventory.cmake` for graphical and headless builds
 | Read storage catalogs and equipped loadout | `src/inventory/storage_config.hpp/.cpp` |
 | Own player items, equipped storage, placements and held item; answer queries | `src/inventory/player_inventory.hpp/.cpp` |
 | Resolve compartments and validate footprints, tags and overlaps | `src/inventory/inventory_placement.hpp/.cpp` |
+| Score backpack obstruction/support and calculate adjusted access times | `src/inventory/inventory_access.hpp/.cpp` |
 | Pick up, rotate, place, swap and cancel a placement transaction | `src/inventory/inventory_drag.hpp/.cpp` |
 | Draw storage grids and item details | `src/gui/inventory_view.hpp/.cpp` |
 | Convert pointer/wheel input and hit tests into inventory operations | `src/gui/inventory_interaction.hpp/.cpp` |
@@ -78,6 +79,17 @@ Further drops/rotation are blocked during a pending placement. `cancel()` needs
 no time and restores the whole unfinished chain. The GUI consumes the caller's
 `HudState::seconds` clock, which continues while menus are open, and draws a
 progress bar beside the pending destination. There is no game pause.
+
+`inventoryAccess()` is a pure occupancy calculation used by source pickup,
+destination placement and the item details display. Backpack main access starts
+from the catalog's base time, adds a linear obstruction penalty and subtracts a
+linear support bonus, floored at zero. Obstruction is the maximum occupied-cell
+count above any footprint cell; support is the mean count below footprint cells.
+Self is excluded; empty gaps do not stop the scan. For a swap,
+`inventorySwapAccess()` excludes both exchanged items and takes the maximum
+obstruction and minimum support across their two footprints, applying one
+destination access time. Non-main compartments remain fixed. Pending placements
+retain source/destination scores and times as snapshots for inspection by callers.
 
 ## Current prototype boundary
 

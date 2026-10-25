@@ -1,6 +1,7 @@
 #pragma once
 
 #include "inventory_placement.hpp"
+#include "inventory_access.hpp"
 #include "player_inventory.hpp"
 #include <optional>
 
@@ -15,6 +16,7 @@ struct PendingInventoryPlacement {
     ItemPlacement destination;
     InventoryDropCheck result;
     double durationSeconds = 0, elapsedSeconds = 0;
+    InventoryAccess sourceAccess, destinationAccess;
     double progress() const { return durationSeconds > 0 ? elapsedSeconds / durationSeconds : 1; }
 };
 // Borrows the player inventory, which must outlive this controller. An unfinished swap chain is a reversible transaction.
@@ -40,6 +42,6 @@ private:
     PlayerInventory& inventory_;
     std::optional<std::map<std::string, ItemPlacement>> originalPlacements_;
     std::optional<PendingInventoryPlacement> pending_;
-    double sourceAccessSeconds_ = 0;
+    InventoryAccess sourceAccess_;
 };
 } // namespace viewer

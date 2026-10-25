@@ -367,7 +367,7 @@ int main(int argc, char** argv) {
             // restore all three footprints, rather than only the last item.
             move(600, 261); hud.pointerButton(0, true);
             move(650, 261); hud.pointerButton(0, false); draw(); draw(6);
-            move(600, 293); hud.pointerButton(0, true); hud.pointerButton(0, false); draw(); draw(3);
+            move(600, 293); hud.pointerButton(0, true); hud.pointerButton(0, false); draw(); draw(4);
             hud.pointerButton(1, true);
             const auto cancelled = draw();
             for (int y = 150; y < 540; ++y) for (int x = 34; x < 872; ++x)
@@ -383,7 +383,7 @@ int main(int argc, char** argv) {
             const auto pending = draw();
             require(hudInventory.held() && !hudInventory.placements().count("sniper"),
                 "Item must remain held until placement access time completes");
-            const auto halfway = draw(1.62);
+            const auto halfway = draw(2.01);
             require(pending != halfway, "Pending placement did not animate its progress bar");
             require(isColor(colorAt(halfway, 1280, 720, 65, 261), {231,205,101}),
                 "Placement progress bar must appear near the destination item");
@@ -392,7 +392,7 @@ int main(int argc, char** argv) {
                 "Pending placement progress must follow viewport scaling");
             move(900, 500);
             require(draw() == halfway, "Pending item or progress bar followed the mouse away from its destination");
-            const auto placed = draw(1.63);
+            const auto placed = draw(2.02);
             require(hudInventory.locationOf("sniper")->placement->storage == "body/left_shoulder_sling/carry" &&
                 hudInventory.locationOf("sniper")->placement->rotation == 90,
                 "GUI placement did not update the application's player inventory model");
