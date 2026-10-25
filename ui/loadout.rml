@@ -2,6 +2,7 @@
 <head>
     <link type="text/rcss" href="hud.rcss" />
     <link type="text/rcss" href="loadout.rcss" />
+    <link type="text/rcss" href="palette.rcss" />
 </head>
 <body>
     <div id="loadout-frame">

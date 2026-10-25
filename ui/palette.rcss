@@ -1,0 +1,62 @@
+/* Shared HUD and loadout palette. Keep the game menu in menu.cpp aligned.
+   Ink: #f5f6f2; backdrop: #171d1c; surface: #202725.
+   Primary mint #59c49c: active controls, available items, progress.
+   Secondary amber #e7cd65: skills, pending actions, swaps, weariness.
+   Secondary coral #ec6962: health and rejected actions.
+   Other hex suffixes are opacity levels of these same colors.
+   Satellite imagery and its terrain/road colors keep their geographic meaning. */
+body { color: #f5f6f2; }
+div, span, button { border-color: #f5f6f23d; }
+.compass-rule, .compass-tick { background-color: #f5f6f2b0; }
+.compass-pointer, .compass-center, #player-placeholder,
+.status-item .square, #weapon-placeholder, .selection-icon,
+.loadout .pistol { background-color: #f5f6f2; }
+#minimap { background-color: #3a5144; border-color: #f5f6f299; }
+.vital-track, #mode-status, #movement-status, .weapon-divider { border-color: #f5f6f299; }
+.weapon-divider { background-color: #f5f6f299; }
+.health .square, .loadout .medkit { background-color: #ec6962; }
+.stamina .square, #switch-fill { background-color: #59c49c; }
+.weariness .square, .fists #weapon-placeholder, .grenade #weapon-placeholder,
+.skill .selection-icon, .loadout .grenade, .loadout .punch,
+.placement-fill { background-color: #e7cd65; }
+.health .vital-track { background-color: #ec69622e; }
+.stamina .vital-track { background-color: #59c49c2e; }
+.weariness .vital-track { background-color: #e7cd652e; }
+.unconfirmed #weapon-placeholder { background-color: #f5f6f266; }
+.map-caption, .vital-name span, #capture, .selection-key, .selection-hint,
+.key-label, .close-hint, .panel-meta, .storage-time, .detail-subtitle,
+.backpack-access, #map-unavailable { color: #f5f6f299; }
+.empty .selection-name, .empty .assignment-name { color: #f5f6f259; }
+.selection-slot, .switch-track, .placement-label { background-color: #171d1ced; }
+.selection-slot.selected { border-color: #59c49c; background-color: #202725f5; }
+.selected .selection-key, #switch-countdown { color: #59c49c; }
+.switch-track, .placement-track { border-color: #f5f6f280; }
+
+body.loadout { background-color: #171d1ce6; }
+.panel { background-color: #202725cc; }
+.page-tab, .body-placeholder-label, .backpack-caption,
+.field-label, .skills-empty, .combo-number { color: #f5f6f280; }
+.inventory #inventory-tab, .skills #skills-tab,
+.health #health-tab, .map #map-tab { color: #f5f6f2; border-color: #59c49c; }
+.body-placeholder, .loadout .unselected { background-color: #f5f6f240; }
+.backpack-size, .storage-occupants, .item .assignment-type,
+.skills-group-heading, .combo-add { color: #59c49c; }
+.storage-label, .action-number { color: #f5f6f2bf; }
+.storage-item { border-color: #59c49c; background-color: #59c49c40; }
+.storage-item.explosive { border-color: #e7cd65; background-color: #e7cd6540; }
+.storage-cell, .action-slot, .combo-slot, #save-combo { background-color: #171d1c66; }
+.storage-item-label { color: #f5f6f2; }
+.detail-field, .skills-group-heading, .skill-entry,
+.combo-number, .skills-group { border-color: #f5f6f226; }
+.skill .assignment-type { color: #e7cd65; }
+.skills-group { background-color: #171d1c33; }
+.skill-entry:hover { background-color: #59c49c1f; }
+.skill-square { border-color: #e7cd6580; background-color: #e7cd6526; }
+.combo-arrow { color: #59c49c80; }
+#save-combo { color: #f5f6f280; }
+#satellite-overview { background-color: #121b16; border-color: #f5f6f23d; }
+.inventory-ghost { border-color: #ec6962; background-color: #ec696240; }
+.inventory-ghost.valid { border-color: #59c49c; background-color: #59c49c40; }
+.inventory-ghost.swap, .inventory-ghost.placing { border-color: #e7cd65; background-color: #e7cd6540; }
+.placement-track { background-color: #171d1c; }
+.placement-label { color: #f5f6f2; }

@@ -1,6 +1,7 @@
 #pragma once
 #include "opengl.hpp"
 #include "options.hpp"
+#include <array>
 #include <string>
 #include <vector>
 struct GLFWwindow;
@@ -23,7 +24,8 @@ private:
     struct Vertex { float x, y, r, g, b; };
     void callbacks();
     void draw(const std::string& message, bool loading);
-    void rectangle(float x, float y, float w, float h, float r, float g, float b);
+    void rectangle(float x, float y, float w, float h, const std::array<float, 3>& color);
+    void frame(float x, float y, float w, float h, bool focused);
     void text(float x, float y, const std::string& value, float scale = 2);
     static void key(GLFWwindow*, int, int, int, int);
     static void character(GLFWwindow*, unsigned int);

@@ -1,99 +1,86 @@
-body.loadout { background-color: #29312fed; }
 body.inventory, body.skills { pointer-events: auto; }
 #loadout-frame { position: absolute; left: 50%; top: 50%; margin-left: -606dp; margin-top: -330dp; width: 1212dp; height: 660dp; }
-#loadout-header { position: absolute; top: 0dp; width: 1212dp; height: 48dp; border-bottom: 1dp #f5f6f24d; }
-.page-tab { position: absolute; top: 6dp; height: 40dp; width: 178dp; font-size: 19dp; color: #f5f6f280; }
+#loadout-header { position: absolute; top: 0dp; width: 1212dp; height: 48dp; border-bottom-width: 1dp; }
+.page-tab { position: absolute; top: 6dp; height: 40dp; width: 178dp; font-size: 19dp; }
 #inventory-tab { left: 0dp; }
 #skills-tab { left: 204dp; }
 #health-tab { left: 408dp; }
 #map-tab { left: 612dp; }
-.key-label { display: inline-block; width: 28dp; font-size: 11dp; color: #f5f6f299; }
-.inventory #inventory-tab, .skills #skills-tab, .health #health-tab, .map #map-tab { color: #f5f6f2; border-bottom: 2dp #59c49c; }
-.close-hint { position: absolute; right: 0dp; top: 12dp; font-size: 11dp; color: #f5f6f299; }
-.panel { position: absolute; border: 1dp #f5f6f24d; background-color: #34403bd9; }
+.key-label { display: inline-block; width: 28dp; font-size: 11dp; }
+.inventory #inventory-tab, .skills #skills-tab, .health #health-tab, .map #map-tab { border-bottom-width: 2dp; }
+.close-hint { position: absolute; right: 0dp; top: 12dp; font-size: 11dp; }
+.panel { position: absolute; border-width: 1dp; }
 .main-panel { top: 68dp; height: 450dp; }
 .panel-heading { position: absolute; left: 20dp; top: 17dp; font-size: 12dp; letter-spacing: 2dp; }
-.panel-meta { position: absolute; right: 20dp; top: 18dp; font-size: 10dp; color: #f5f6f299; }
+.panel-meta { position: absolute; right: 20dp; top: 18dp; font-size: 10dp; }
 #body-storage { left: 0dp; width: 388dp; }
 #backpack { left: 408dp; width: 428dp; }
 .details-panel { left: 856dp; width: 354dp; }
-.body-placeholder { position: absolute; top: 174dp; left: 170dp; width: 48dp; height: 48dp; background-color: #88958f; }
-.body-placeholder-label { position: absolute; top: 237dp; left: 137dp; width: 114dp; font-size: 10dp; line-height: 17dp; text-align: center; color: #f5f6f280; }
-.pistol { background-color: #f5f6f2; }
-.grenade { background-color: #b3ae72; }
-.medkit { background-color: #ec6962; }
-.punch { background-color: #e7cd65; }
-.backpack-size { color: #59c49c; font-size: 14dp; top: 14dp; }
+.body-placeholder { position: absolute; top: 174dp; left: 170dp; width: 48dp; height: 48dp; }
+.body-placeholder-label { position: absolute; top: 237dp; left: 137dp; width: 114dp; font-size: 10dp; line-height: 17dp; text-align: center; }
+.backpack-size { font-size: 14dp; top: 14dp; }
 /* Slot coordinates use this inner rectangle of each panel, in design dp. */
 .storage-area { position: absolute; left: 20dp; top: 62dp; height: 344dp; }
 #body-storage-slots { width: 348dp; }
 #backpack-storage { width: 388dp; }
 .storage-slot { position: absolute; width: 108dp; }
-.storage-label { height: 28dp; font-size: 10dp; line-height: 12dp; color: #f5f6f2bf; overflow: hidden; }
+.storage-label { height: 28dp; font-size: 10dp; line-height: 12dp; overflow: hidden; }
 .storage-row { display: flex; }
 .storage-grid { position: relative; }
-.storage-item { position: absolute; box-sizing: border-box; border: 1dp #59c49c; background-color: #59c49c40; overflow: hidden; }
-.storage-item.explosive { border-color: #e7cd65; background-color: #e7cd6540; }
-.storage-item-label { padding: 2dp; color: #f5f6f2; }
-.storage-occupants { height: 14dp; padding-top: 3dp; font-size: 9dp; color: #59c49c; white-space: nowrap; overflow: hidden; }
-.storage-cell { flex: 1; min-width: 0dp; box-sizing: border-box; border: 1dp #f5f6f24d; background-color: #29312f66; }
-.storage-time { padding-top: 7dp; font-size: 10dp; color: #f5f6f299; }
+.storage-item { position: absolute; box-sizing: border-box; border-width: 1dp; overflow: hidden; }
+.storage-item-label { padding: 2dp; }
+.storage-occupants { height: 14dp; padding-top: 3dp; font-size: 9dp; white-space: nowrap; overflow: hidden; }
+.storage-cell { flex: 1; min-width: 0dp; box-sizing: border-box; border-width: 1dp; }
+.storage-time { padding-top: 7dp; font-size: 10dp; }
 .main-storage { position: absolute; }
-.storage-empty { position: absolute; top: 300dp; width: 100%; text-align: center; font-size: 10dp; color: #f5f6f299; }
-.backpack-access { position: absolute; bottom: 28dp; width: 428dp; text-align: center; font-size: 10dp; color: #f5f6f2a6; }
-.backpack-caption { position: absolute; bottom: 8dp; width: 428dp; text-align: center; font-size: 9dp; color: #f5f6f280; }
-.unselected { background-color: #88958f; }
+.storage-empty { position: absolute; top: 300dp; width: 100%; text-align: center; font-size: 10dp; }
+.backpack-access { position: absolute; bottom: 28dp; width: 428dp; text-align: center; font-size: 10dp; }
+.backpack-caption { position: absolute; bottom: 8dp; width: 428dp; text-align: center; font-size: 9dp; }
 .detail-square { position: absolute; left: 20dp; top: 66dp; width: 42dp; height: 42dp; }
 .detail-name { position: absolute; left: 80dp; top: 61dp; font-size: 24dp; }
-.detail-subtitle { position: absolute; left: 80dp; top: 98dp; font-size: 10dp; color: #f5f6f299; }
+.detail-subtitle { position: absolute; left: 80dp; top: 98dp; font-size: 10dp; }
 .detail-fields { position: absolute; left: 20dp; top: 140dp; width: 314dp; }
-.detail-field { height: 57dp; padding-top: 5dp; border-top: 1dp #f5f6f226; }
-.field-label { margin-top: 5dp; font-size: 9dp; letter-spacing: 1dp; color: #f5f6f280; }
+.detail-field { height: 57dp; padding-top: 5dp; border-top-width: 1dp; }
+.field-label { margin-top: 5dp; font-size: 9dp; letter-spacing: 1dp; }
 .field-value { margin-top: 7dp; font-size: 13dp; }
 #action-hotbar { bottom: 0dp; left: 0dp; width: 1210dp; height: 120dp; }
 #action-hotbar .panel-heading { top: 12dp; font-size: 11dp; }
 #hotbar-slots { display: flex; position: absolute; left: 19dp; top: 43dp; width: 1172dp; height: 62dp; }
-.action-slot { position: relative; flex: 1; min-width: 0dp; height: 60dp; margin-right: 8dp; border: 1dp #f5f6f24d; background-color: #29312f66; }
+.action-slot { position: relative; flex: 1; min-width: 0dp; height: 60dp; margin-right: 8dp; border-width: 1dp; }
 .action-slot.last { margin-right: 0dp; }
-.action-number { position: absolute; left: 8dp; top: 6dp; font-size: 11dp; color: #f5f6f2bf; }
+.action-number { position: absolute; left: 8dp; top: 6dp; font-size: 11dp; }
 .assignment-type { position: absolute; right: 8dp; top: 8dp; font-size: 8dp; letter-spacing: 1dp; }
-.item .assignment-type { color: #59c49c; }
-.skill .assignment-type { color: #e7cd65; }
 .assignment-square { position: absolute; left: 8dp; top: 33dp; width: 14dp; height: 14dp; }
 .assignment-name { position: absolute; left: 29dp; right: 5dp; top: 30dp; font-size: 11dp; line-height: 13dp; }
-.empty .assignment-name { left: 8dp; font-size: 10dp; color: #f5f6f259; }
+.empty .assignment-name { left: 8dp; font-size: 10dp; }
 /* Skills shares the loadout frame, palette and type scale. */
 #skills-list { left: 0dp; width: 366dp; }
 #combo-builder { left: 386dp; width: 438dp; }
 #combo-details { left: 844dp; width: 366dp; }
-.skills-group { position: absolute; left: 20dp; right: 20dp; border: 1dp #f5f6f226; background-color: #29312f33; }
+.skills-group { position: absolute; left: 20dp; right: 20dp; border-width: 1dp; }
 #melee-skills { top: 54dp; height: 244dp; }
 #saved-combos { top: 314dp; bottom: 20dp; }
-.skills-group-heading { height: 32dp; padding-left: 12dp; line-height: 32dp; font-size: 10dp; letter-spacing: 1dp; color: #59c49c; border-bottom: 1dp #f5f6f226; }
+.skills-group-heading { height: 32dp; padding-left: 12dp; line-height: 32dp; font-size: 10dp; letter-spacing: 1dp; border-bottom-width: 1dp; }
 #melee-skill-entries { position: absolute; left: 0dp; right: 0dp; top: 33dp; bottom: 0dp; overflow-y: auto; }
-.skill-entry { position: relative; height: 56dp; border-bottom: 1dp #f5f6f226; }
-.skill-entry:hover { background-color: #59c49c1f; }
-.skill-square { position: absolute; left: 12dp; top: 12dp; width: 30dp; height: 30dp; border: 1dp #e7cd6580; background-color: #e7cd6526; }
+.skill-entry { position: relative; height: 56dp; border-bottom-width: 1dp; }
+.skill-square { position: absolute; left: 12dp; top: 12dp; width: 30dp; height: 30dp; border-width: 1dp; }
 .skill-name { position: absolute; left: 56dp; right: 12dp; top: 18dp; font-size: 14dp; white-space: nowrap; overflow: hidden; }
-.skills-empty { padding: 18dp 12dp; font-size: 11dp; color: #f5f6f280; }
+.skills-empty { padding: 18dp 12dp; font-size: 11dp; }
 #combo-slots { position: absolute; top: 54dp; left: 20dp; right: 20dp; }
-.combo-slot { position: relative; height: 44dp; border: 1dp #f5f6f24d; background-color: #29312f66; }
-.combo-number { position: absolute; top: 0dp; left: 0dp; width: 40dp; height: 44dp; line-height: 44dp; text-align: center; font-size: 14dp; color: #f5f6f280; border-right: 1dp #f5f6f226; }
-.combo-add { position: absolute; left: 41dp; right: 0dp; top: 0dp; height: 44dp; line-height: 44dp; text-align: center; font-size: 12dp; color: #59c49c; }
+.combo-slot { position: relative; height: 44dp; border-width: 1dp; }
+.combo-number { position: absolute; top: 0dp; left: 0dp; width: 40dp; height: 44dp; line-height: 44dp; text-align: center; font-size: 14dp; border-right-width: 1dp; }
+.combo-add { position: absolute; left: 41dp; right: 0dp; top: 0dp; height: 44dp; line-height: 44dp; text-align: center; font-size: 12dp; }
 .combo-add span { margin-right: 7dp; font-size: 20dp; }
-.combo-arrow { height: 16dp; line-height: 16dp; text-align: center; font-size: 14dp; color: #59c49c80; }
-#save-combo { position: absolute; left: 20dp; right: 20dp; bottom: 20dp; height: 38dp; line-height: 38dp; text-align: center; font-family: hud-system; font-size: 12dp; color: #f5f6f280; border: 1dp #f5f6f24d; background-color: #29312f66; }
+.combo-arrow { height: 16dp; line-height: 16dp; text-align: center; font-size: 14dp; }
+#save-combo { position: absolute; left: 20dp; right: 20dp; bottom: 20dp; height: 38dp; line-height: 38dp; text-align: center; font-family: hud-system; font-size: 12dp; border-width: 1dp; }
 .health #action-hotbar, .map #action-hotbar { display: none; }
 .full-panel { left: 0dp; width: 1210dp; height: 590dp; }
-#satellite-overview { display: block; position: absolute; left: 50%; margin-left: -257dp; top: 54dp; width: 512dp; height: 512dp; border: 1dp #f5f6f24d; background-color: #121b16; }
-#map-unavailable { position: absolute; left: 0dp; top: 298dp; width: 1210dp; text-align: center; font-size: 13dp; color: #f5f6f299; }
+#satellite-overview { display: block; position: absolute; left: 50%; margin-left: -257dp; top: 54dp; width: 512dp; height: 512dp; border-width: 1dp; }
+#map-unavailable { position: absolute; left: 0dp; top: 298dp; width: 1210dp; text-align: center; font-size: 13dp; }
 .has-satellite #map-unavailable { display: none; }
 
-.inventory-ghost { position: absolute; z-index: 100; box-sizing: border-box; border: 2dp #ec6962; background-color: #ec696240; pointer-events: none; overflow: hidden; font-size: 9dp; }
-.inventory-ghost.valid { border-color: #59c49c; background-color: #59c49c40; }
-.inventory-ghost.swap { border-color: #e7cd65; background-color: #e7cd6540; }
-.inventory-ghost.placing { border-color: #e7cd65; background-color: #e7cd6540; }
+.inventory-ghost { position: absolute; z-index: 100; box-sizing: border-box; border-width: 2dp; pointer-events: none; overflow: hidden; font-size: 9dp; }
 .inventory-placement-progress { position: absolute; z-index: 101; width: 132dp; height: 30dp; pointer-events: none; }
-.placement-track { width: 130dp; height: 6dp; border: 1dp #f5f6f280; background-color: #29312f; }
-.placement-fill { height: 6dp; background-color: #e7cd65; }
-.placement-label { padding-top: 4dp; font-size: 9dp; color: #f5f6f2; background-color: #29312fed; }
+.placement-track { width: 130dp; height: 6dp; border-width: 1dp; }
+.placement-fill { height: 6dp; }
+.placement-label { padding-top: 4dp; font-size: 9dp; }

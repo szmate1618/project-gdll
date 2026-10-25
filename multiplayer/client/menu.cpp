@@ -10,6 +10,13 @@
 
 namespace multiplayer {
 namespace {
+// Same roles as ui/palette.rcss; this menu uses the small GL renderer.
+constexpr std::array<float, 3> rgb(unsigned int hex) {
+    return {float((hex >> 16) & 255) / 255, float((hex >> 8) & 255) / 255, float(hex & 255) / 255};
+}
+constexpr auto backdrop = rgb(0x171d1c), surface = rgb(0x202725), ink = rgb(0xf5f6f2);
+constexpr auto primary = rgb(0x59c49c), pending = rgb(0xe7cd65), line = rgb(0x4c5150);
+
 // Five columns, seven bits per column; enough for menu labels and numeric IPs.
 std::array<unsigned char, 5> glyph(char c) {
     switch (std::toupper(static_cast<unsigned char>(c))) {
@@ -126,9 +133,15 @@ bool GameMenu::progress(const std::string& message) {
     loading_ = true; callbacks(); glfwPollEvents(); draw(message, true);
     return !closed() && !cancelled_;
 }
-void GameMenu::rectangle(float x, float y, float w, float h, float r, float g, float b) {
+void GameMenu::rectangle(float x, float y, float w, float h, const std::array<float, 3>& color) {
+    const auto r = color[0], g = color[1], b = color[2];
     vertices_.insert(vertices_.end(), {{x,y,r,g,b},{x+w,y,r,g,b},{x+w,y+h,r,g,b},
         {x,y,r,g,b},{x+w,y+h,r,g,b},{x,y+h,r,g,b}});
+}
+void GameMenu::frame(float x, float y, float w, float h, bool focused) {
+    rectangle(x, y, w, h, focused ? primary : line);
+    rectangle(x + 1, y + 1, w - 2, h - 2, surface);
+    if (focused) rectangle(x, y, 3, h, primary);
 }
 void GameMenu::text(float x, float y, const std::string& value, float scale) {
     const float start = x;
@@ -137,7 +150,7 @@ void GameMenu::text(float x, float y, const std::string& value, float scale) {
         if (y > 565) break;
         const auto columns = glyph(c);
         for (int col = 0; col < 5; ++col) for (int row = 0; row < 7; ++row)
-            if (columns[col] & (1 << row)) rectangle(x + col * scale, y + row * scale, scale, scale, .85f, .9f, .94f);
+            if (columns[col] & (1 << row)) rectangle(x + col * scale, y + row * scale, scale, scale, ink);
         x += 6 * scale;
     }
 }
@@ -148,12 +161,13 @@ void GameMenu::draw(const std::string& message, bool loading) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDisable(GL_SCISSOR_TEST); glDisable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE); glDisable(GL_BLEND);
     glDepthMask(GL_TRUE); glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    glClearColor(.025f,.04f,.055f,1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClearColor(backdrop[0], backdrop[1], backdrop[2], 1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     const float scale = std::min(width / 960.f, height / 600.f);
     glViewport(static_cast<int>((width - 960 * scale) / 2), static_cast<int>((height - 600 * scale) / 2),
                static_cast<int>(960 * scale), static_cast<int>(600 * scale));
     vertices_.clear();
-    rectangle(60, 100, 840, 2, .2f, .55f, .45f);
+    rectangle(60, 100, 840, 1, line);
+    rectangle(60, 100, 70, 2, loading ? pending : primary);
     text(60, 55, "GODOLLO", 4);
     if (loading) {
         text(60, 150, message, 2);
@@ -162,15 +176,15 @@ void GameMenu::draw(const std::string& message, bool loading) {
         const std::array<const char*, 4> labels{"1  SINGLE PLAYER", "2  HOST GAME", "3  JOIN GAME", "4  QUIT"};
         for (int row = 0; row < 4; ++row) {
             const bool selected = selected_ == row;
-            rectangle(60, 135.f + row * 55, 380, 45, selected ? .12f : .06f, selected ? .3f : .12f, selected ? .26f : .15f);
+            frame(60, 135.f + row * 55, 380, 45, selected);
             text(78, 150.f + row * 55, labels[row]);
         }
         text(490, 145, "HOST: UP TO 8 PLAYERS", 1.5f);
         text(490, 170, "UDP PORT", 1.5f);
-        rectangle(490, 190, 410, 40, .08f, editing_ == 1 ? .3f : .15f, .2f);
+        frame(490, 190, 410, 40, editing_ == 1);
         text(505, 202, port + (editing_ == 1 ? "_" : ""));
         text(490, 260, "JOIN: NUMERIC IP:PORT", 1.5f);
-        rectangle(490, 285, 410, 40, .08f, editing_ == 2 ? .3f : .15f, .2f);
+        frame(490, 285, 410, 40, editing_ == 2);
         text(505, 298, address + (editing_ == 2 ? "_" : ""), 1.5f);
         text(60, 385, "SINGLE PLAYER IS PRIVATE AND WORKS OFFLINE.", 1.5f);
         text(60, 415, "CLICK OR USE 1-4 / ARROWS + ENTER. TAB EDITS FIELDS.", 1.5f);

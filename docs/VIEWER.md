@@ -91,8 +91,22 @@ and weariness have tinted, outlined tracks and show
 invented for them. Coordinates use local metres rather than inferred latitude
 and longitude. No other HUD artwork or custom font is loaded or generated.
 
-Layout and styling live in [hud.rml](../ui/hud.rml) and
-[hud.rcss](../ui/hud.rcss). The small GL backend supports flat geometry, text and
+Layout lives in [hud.rml](../ui/hud.rml), [hud.rcss](../ui/hud.rcss), and
+[loadout.rcss](../ui/loadout.rcss). [palette.rcss](../ui/palette.rcss) holds shared
+color roles for gameplay and all loadout screens; the game-mode menu uses the
+same colors in its GL renderer. Keep surfaces dark and neutral, use warm white
+for text and thin rules, and reserve accents for meaning:
+
+| Role | Color | Use |
+| --- | --- | --- |
+| Primary | Mint `#59c49c` | Selection, available items, progress |
+| Secondary | Amber `#e7cd65` | Skills, pending actions, swaps, weariness |
+| Secondary | Coral `#ec6962` | Health and rejected actions |
+| Neutrals | Ink `#f5f6f2`, charcoal `#171d1c` / `#202725` | Text, backdrop, surfaces |
+
+Opacity variants provide hierarchy; equipment types do not introduce extra
+accent colors. Satellite imagery and terrain/road colors retain their map
+meaning. The small GL backend supports flat geometry, text and
 rectangular clipping, plus a custom minimap element sampling the borrowed scene
 texture and drawing cached road surfaces; RmlUi transforms, rounded clipping
 and filter effects are not implemented. It restores GL state after drawing, and caches unchanged text
