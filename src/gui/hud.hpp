@@ -15,6 +15,7 @@ enum class HudScreen { Gameplay, Inventory, Skills, Health, Map };
 // Presentation snapshot only; callers retain simulation/network ownership.
 struct HudState {
     HudScreen screen = HudScreen::Gameplay;
+    double seconds = 0; // Monotonic simulation/session time; continues in menus.
     glm::vec3 position{0}; // Runtime metres: X east, Y up, Z south.
     float yawDegrees = -90; // Camera yaw; -90 is north, 0 is east.
     float speedMetersPerSecond = 0; // Horizontal travel speed; displayed in km/h.

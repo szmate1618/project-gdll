@@ -32,13 +32,23 @@ Each compartment has:
 | `id`, `name` | ID unique within its parent, and display label |
 | `x`, `y` | Finite normalized panel coordinates in `[-1, 1]` |
 | `width`, `height` | Integer grid dimensions, 1–16 cells per axis |
-| `access_time` | Finite nonnegative retrieval time in seconds |
+| `access_time` | Finite nonnegative compartment access time in seconds |
 
 Backpacks also have a `[backpacks.grid]` table with `width`, `height`,
-`access_time`, and `depth_time_per_row` (finite nonnegative seconds). Its top row
-has the base access time. Row `r`, counting from zero, adds
-`r * depth_time_per_row`. The screen displays the top and bottom row times.
-These are descriptive values; no retrieval mechanic is implemented.
+and `access_time`. All cells in the main compartment use the same access time;
+`depth_time_per_row` is no longer used. The catalog's fixed values are averages
+of the former top and bottom row times, rounded to hundredths: sling bag 1.06s,
+tactical backpack 2.54s, and hiking backpack 3.48s. External pockets retain their
+own access times.
+
+Picking up an item is immediate. A valid drop starts a timer for the original
+compartment's access time plus the destination compartment's access time. The
+item stays pending until that timer completes, with a progress bar beside its
+destination. During placement, further moves/rotation are blocked; cancellation
+remains available. An overlapping item is picked up automatically at completion
+and pays only destination access on its next placement. Cancelling an unfinished
+chain restores all its original placements immediately. The game continues to
+run, including time progression, while inventory is open.
 
 ## Shoulder slings
 

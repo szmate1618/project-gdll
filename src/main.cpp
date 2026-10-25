@@ -1541,6 +1541,7 @@ int run(const Options& options) {
                                app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds()));
         reticle.draw(app.rig.camera().viewMode(), renderWidth, renderHeight);
         viewer::HudState hudState;
+        hudState.seconds = simulationClock.seconds();
         hudState.screen = app.hudScreen;
         hudState.position = app.driver.occupied() ? app.driver.eyePosition(cars) : app.rig.camera().position();
         hudState.yawDegrees = app.rig.camera().yawDegrees();

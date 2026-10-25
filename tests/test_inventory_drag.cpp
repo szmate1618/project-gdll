@@ -5,6 +5,11 @@
 
 namespace {
 void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
+viewer::InventoryDropCheck completeDrop(viewer::InventoryDrag& drag, const std::string& storage, int x, int y) {
+    const auto result = drag.drop(storage, x, y);
+    if (drag.pending()) drag.advance(drag.pending()->durationSeconds);
+    return result;
+}
 bool same(const std::map<std::string, viewer::ItemPlacement>& a, const std::map<std::string, viewer::ItemPlacement>& b) {
     if (a.size() != b.size()) return false;
     for (const auto& [id, placement] : a) {
@@ -28,9 +33,9 @@ void rotationAndBoundaries() {
     require(drag.preview(sling, 0, 0).result == viewer::InventoryDrop::Rejected, "Horizontal sniper must not fit a vertical sling");
     drag.rotate(1);
     require(drag.held()->rotation == 90 && drag.preview(sling, 0, 0).result == viewer::InventoryDrop::Free, "Quarter turn must allow the sniper in its sling");
-    require(drag.drop(sling, 0, 1).result == viewer::InventoryDrop::Rejected && drag.held(), "Partial out-of-bounds placement must leave item held");
-    require(drag.drop(sling, -1, 0).result == viewer::InventoryDrop::Rejected, "Negative cell must be rejected");
-    require(drag.drop(sling, 0, 0).result == viewer::InventoryDrop::Free && !drag.held(), "Free drop must finish the transaction");
+    require(completeDrop(drag, sling, 0, 1).result == viewer::InventoryDrop::Rejected && drag.held(), "Partial out-of-bounds placement must leave item held");
+    require(completeDrop(drag, sling, -1, 0).result == viewer::InventoryDrop::Rejected, "Negative cell must be rejected");
+    require(completeDrop(drag, sling, 0, 0).result == viewer::InventoryDrop::Free && !drag.held(), "Free drop must finish the transaction");
     const auto moved = inventory.placements();
     drag.pickUp("sniper"); drag.rotate(-1);
     require(drag.held()->rotation == 0, "Reverse wheel must turn counterclockwise");
@@ -46,7 +51,7 @@ void rotationAndBoundaries() {
 void swapChains() {
     viewer::StorageLoadout storage;
     viewer::StorageBackpack backpack;
-    backpack.id = "test"; backpack.grid = {10, 6, 0, 0}; storage.backpack = backpack;
+    backpack.id = "test"; backpack.grid = {10, 6, 0}; storage.backpack = backpack;
     const std::string pack = "backpack/test/main";
     viewer::InventoryContents contents;
     for (const auto* id : {"a", "b", "c"}) {
@@ -62,13 +67,13 @@ void swapChains() {
     drag.pickUp("a");
     // Only one cell overlaps B, which must still be exchanged.
     require(drag.preview(pack, 2, 0).displaced == "b", "Partial overlap must identify the displaced item");
-    require(drag.drop(pack, 2, 0).result == viewer::InventoryDrop::Swap && drag.held()->item == "b", "Swap must immediately pick up B");
-    require(drag.drop(pack, 5, 0).displaced == "c" && drag.held()->item == "c", "Swap chains must pick up the next item");
+    require(completeDrop(drag, pack, 2, 0).result == viewer::InventoryDrop::Swap && drag.held()->item == "b", "Swap must immediately pick up B");
+    require(completeDrop(drag, pack, 5, 0).displaced == "c" && drag.held()->item == "c", "Swap chains must pick up the next item");
     require(inventory.placements().size() == 2 && inventory.items().size() == 3, "Swap must conserve all items");
     drag.cancel();
     require(!drag.held() && same(inventory.placements(), original), "Cancel must restore the entire chain, including initial rotations");
-    drag.pickUp("a"); drag.drop(pack, 2, 0);
-    require(drag.drop(pack, 0, 0).result == viewer::InventoryDrop::Free, "Displaced item must fit the now-vacant original area");
+    drag.pickUp("a"); completeDrop(drag, pack, 2, 0);
+    require(completeDrop(drag, pack, 0, 0).result == viewer::InventoryDrop::Free, "Displaced item must fit the now-vacant original area");
     const auto finished = inventory.placements();
     drag.cancel(); require(same(inventory.placements(), finished), "Cancel after completing a chain must do nothing");
     drag.pickUp("c"); drag.rotate(1);
@@ -82,7 +87,7 @@ void swapChains() {
     viewer::PlayerInventory wideInventory(storage, contents);
     viewer::InventoryDrag wide(wideInventory);
     wide.pickUp("c");
-    require(wide.drop(pack, 0, 0).result == viewer::InventoryDrop::Rejected && wide.held()->item == "c", "Overlapping multiple items must reject the drop");
+    require(completeDrop(wide, pack, 0, 0).result == viewer::InventoryDrop::Rejected && wide.held()->item == "c", "Overlapping multiple items must reject the drop");
     require(wideInventory.placements().count("a") && wideInventory.placements().count("b"), "Rejected drop must retain both occupied items");
     wide.cancel();
 }
@@ -95,26 +100,26 @@ void tagRestrictions() {
     drag.pickUp("he_grenade");
     // The grenade fits and overlaps exactly one item, but its tag forbids a swap.
     require(drag.preview(holster, 0, 0).result == viewer::InventoryDrop::Rejected &&
-        drag.drop(holster, 0, 0).result == viewer::InventoryDrop::Rejected,
+        completeDrop(drag, holster, 0, 0).result == viewer::InventoryDrop::Rejected,
         "A forbidden tag must reject both preview and occupied-slot placement");
     require(drag.held()->item == "he_grenade" && inventory.placements().count("pistol"), "Rejected swap must preserve the held and stored items");
     drag.cancel(); require(same(original, inventory.placements()), "Rejected placement must be fully cancellable");
     drag.pickUp("pistol");
     for (const auto* sling : {"body/left_shoulder_sling/carry", "body/right_shoulder_sling/carry"})
-        require(drag.drop(sling, 0, 0).result == viewer::InventoryDrop::Rejected, "Pistol must not enter either sling even though it fits");
+        require(completeDrop(drag, sling, 0, 0).result == viewer::InventoryDrop::Rejected, "Pistol must not enter either sling even though it fits");
     drag.cancel();
     for (const auto* id : {"submachine_gun", "shotgun", "sniper"}) {
         for (const auto* sling : {"body/left_shoulder_sling/carry", "body/right_shoulder_sling/carry"}) {
             drag.pickUp(id); drag.rotate(1);
-            require(drag.drop(sling, 0, 0).result == viewer::InventoryDrop::Free, "Each rotated long gun must be accepted by either sling");
+            require(completeDrop(drag, sling, 0, 0).result == viewer::InventoryDrop::Free, "Each rotated long gun must be accepted by either sling");
             drag.pickUp(id);
             const auto& start = original.at(id);
             drag.rotate(-1);
-            require(drag.drop(start.storage, start.x, start.y).result == viewer::InventoryDrop::Free, "Long guns must still fit unrestricted backpack storage");
+            require(completeDrop(drag, start.storage, start.x, start.y).result == viewer::InventoryDrop::Free, "Long guns must still fit unrestricted backpack storage");
         }
     }
     drag.pickUp("pistol");
-    require(drag.drop(holster, 0, 0).result == viewer::InventoryDrop::Free, "Matching handgun tag must allow the holster");
+    require(completeDrop(drag, holster, 0, 0).result == viewer::InventoryDrop::Free, "Matching handgun tag must allow the holster");
     // Multiple allowed tags mean any match, not all tags; this is data-driven.
     auto alternateStorage = storage;
     alternateStorage.equipment[0].slots[0].grid.allowedTags = {"utility", "grenade", "handgun"};

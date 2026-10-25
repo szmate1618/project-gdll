@@ -429,6 +429,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                                           in.weaponMotion.pose(ownState.slot, now));
                 if (!in.driver.occupied()) graphics.reticle->draw(in.camera.viewMode(), width, height);
                 viewer::HudState hudState;
+                hudState.seconds = now;
                 hudState.screen = in.hudScreen;
                 hudState.position = in.driver.occupied() ? in.driver.eyePosition(*scene.vehicles) : in.camera.position();
                 hudState.yawDegrees = in.camera.yawDegrees();

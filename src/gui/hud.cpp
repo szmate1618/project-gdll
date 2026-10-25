@@ -233,7 +233,7 @@ struct Hud::Impl {
         showScreen(state.screen);
         if (screen != HudScreen::Gameplay) {
             if (screen == HudScreen::Inventory)
-                renderer.render(*context, width, height, [&] { inventoryInteraction->process(pointerEvents, width, height); });
+                renderer.render(*context, width, height, [&] { inventoryInteraction->process(pointerEvents, width, height, state.seconds); });
             else renderer.render(*context, width, height);
             pointerEvents.clear();
             return;

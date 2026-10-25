@@ -10,8 +10,7 @@ namespace viewer {
 struct StorageGrid {
     int width = 0;
     int height = 0;
-    double accessTime = 0; // Seconds at row zero.
-    double depthTimePerRow = 0; // Seconds per row; main backpack grid only.
+    double accessTime = 0; // Seconds to access this compartment, independent of cell.
     // Empty accepts any item; otherwise at least one item tag must match.
     std::vector<std::string> allowedTags{};
 };

@@ -135,11 +135,18 @@ Inventory releases the cursor. Hold the left mouse button to pick up and drag an
 item; release to place it. Each mouse-wheel notch rotates the held item 90°;
 the opposite direction reverses rotation. Green previews indicate free space,
 yellow indicates a swap, and red indicates a rejected placement. A drop must fit
-entirely inside one compartment and may overlap at most one other item. Swapping
-immediately holds the displaced item; click and release to place it next.
+entirely inside one compartment and may overlap at most one other item. Pickup
+is instant; a valid drop waits for source access plus destination access. The
+pending item stays at the destination with a progress bar, and other inventory
+moves/rotation wait until completion. The world and game/session time keep running.
+At completion, swapping immediately holds the displaced item; its next placement
+charges destination access only. Click and release to place it next.
 Right-click, leaving Inventory, or losing window focus cancels the entire
 unfinished swap chain, restoring all placements to before the first pickup.
-A free-space drop completes the chain. Completed moves persist for the session;
+A completed free-space placement finishes the chain. Cancellation requires no
+time. Backpack main compartments use one fixed access time for every cell
+(sling bag 1.06s, tactical backpack 2.54s, hiking backpack 3.48s).
+Completed moves persist for the session;
 they are not written to TOML or synchronized over the network.
 
 [skills.rml](../ui/skills.rml) has a skill list, skill details and an empty

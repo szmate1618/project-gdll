@@ -116,8 +116,10 @@ available in the catalog.
 The UI draws each occupied footprint as a labeled/tinted rectangle on the
 compartment grid; tiny body-storage items also have a name below the grid.
 Drag items with the left mouse button and rotate them with the wheel in 90°
-steps. Free-space drops finish the move; overlapping one item swaps it into
-the cursor. Overlapping multiple items or extending outside the grid is rejected.
+steps. Valid drops wait for source plus destination access, with a progress bar
+beside the destination; an item displaced at completion pays destination access
+only on its next placement. A completed free-space placement finishes the move.
+Overlapping multiple items or extending outside the grid is rejected.
 Right-click, leaving Inventory or losing focus restores the whole unfinished swap
 chain. Completed moves persist in memory until the session ends; no configuration
 files are written. Automatic packing, stacking and runtime

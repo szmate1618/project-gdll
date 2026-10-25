@@ -94,3 +94,8 @@ body.inventory { pointer-events: auto; }
 .inventory-ghost { position: absolute; z-index: 100; box-sizing: border-box; border: 2dp #ec6962; background-color: #ec696240; pointer-events: none; overflow: hidden; font-size: 9dp; }
 .inventory-ghost.valid { border-color: #59c49c; background-color: #59c49c40; }
 .inventory-ghost.swap { border-color: #e7cd65; background-color: #e7cd6540; }
+.inventory-ghost.placing { border-color: #e7cd65; background-color: #e7cd6540; }
+.inventory-placement-progress { position: absolute; z-index: 101; width: 132dp; height: 30dp; pointer-events: none; }
+.placement-track { width: 130dp; height: 6dp; border: 1dp #f5f6f280; background-color: #29312f; }
+.placement-fill { height: 6dp; background-color: #e7cd65; }
+.placement-label { padding-top: 4dp; font-size: 9dp; color: #f5f6f2; background-color: #29312fed; }

@@ -69,10 +69,20 @@ or cancel it. Cancelling or destroying that controller restores the entire
 unfinished chain; completed free-space drops persist. Storage and item maps
 cannot be modified directly through the public model API.
 
+Pickup is immediate. `drop()` validates the destination and starts `pending()`
+for source plus destination compartment access time. `advance(seconds)` takes
+elapsed simulation/session seconds and commits the placement when time is up.
+Pending items still report `Hand` until completion. A displaced item is picked
+up at completion and charges destination access only on its next placement.
+Further drops/rotation are blocked during a pending placement. `cancel()` needs
+no time and restores the whole unfinished chain. The GUI consumes the caller's
+`HudState::seconds` clock, which continues while menus are open, and draws a
+progress bar beside the pending destination. There is no game pause.
+
 ## Current prototype boundary
 
 There is one owned instance per item/weapon ID. Acquisition/removal, multiple
-instances of the same definition, stacking, ammo accounting, retrieval delays,
+instances of the same definition, stacking, ammo accounting,
 equipping and network replication are separate future gameplay work. The combat
 ownership/ammo state is not synchronized with this storage model yet. The refactor
 provides shared definitions and a reusable query/placement model without changing

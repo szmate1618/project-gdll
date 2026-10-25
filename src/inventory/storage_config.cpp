@@ -46,7 +46,7 @@ double time(const toml::table& table, const char* key, const Path& file) {
     return result;
 }
 
-StorageGrid grid(const toml::table& table, const Path& file, bool mainGrid = false) {
+StorageGrid grid(const toml::table& table, const Path& file) {
     StorageGrid result;
     const auto dimension = [&](const char* key) {
         if (!table[key].is_integer()) invalid(file, key, "must be an integer");
@@ -57,7 +57,6 @@ StorageGrid grid(const toml::table& table, const Path& file, bool mainGrid = fal
     result.width = dimension("width");
     result.height = dimension("height");
     result.accessTime = time(table, "access_time", file);
-    if (mainGrid) result.depthTimePerRow = time(table, "depth_time_per_row", file);
     if (table.contains("allowed_tags")) {
         const auto* tags = table["allowed_tags"].as_array();
         if (!tags) invalid(file, "allowed_tags", "must be an array of tag strings");
@@ -134,7 +133,7 @@ StorageLoadout loadStorageLoadout(const Path& directory) {
             static_cast<StorageEquipment&>(result) = equipment(table, file);
             const auto* main = table["grid"].as_table();
             if (!main) invalid(file, result.id + ".grid", "must be a table");
-            result.grid = grid(*main, file, true);
+            result.grid = grid(*main, file);
             return result;
         });
     const auto file = directory / "loadout.toml";

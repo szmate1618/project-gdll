@@ -6,6 +6,11 @@
 
 namespace {
 void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
+viewer::InventoryDropCheck completeDrop(viewer::InventoryDrag& drag, const std::string& storage, int x, int y) {
+    const auto result = drag.drop(storage, x, y);
+    if (drag.pending()) drag.advance(drag.pending()->durationSeconds);
+    return result;
+}
 void definitionsAndQueries() {
     const std::filesystem::path root(VIEWER_ITEM_ROOT);
     const auto pistol = viewer::loadItem(root / "storage/weapons", "pistol");
@@ -43,12 +48,12 @@ void queriesFollowTransactions() {
             !inventory.locationOf("sniper")->placement, "Held item must remain owned and report in-hand location");
         require(inventory.itemsIn(pack).size() == 2, "Held item must leave its storage query");
         drag.rotate(1);
-        require(drag.drop("body/left_shoulder_sling/carry", 0, 0).result == viewer::InventoryDrop::Free, "Sniper move failed");
+        require(completeDrop(drag, "body/left_shoulder_sling/carry", 0, 0).result == viewer::InventoryDrop::Free, "Sniper move failed");
         const auto placed = inventory.locationOf("sniper");
         require(placed->kind == viewer::InventoryLocationKind::Storage && placed->placement->rotation == 90 &&
             placed->placement->storage == "body/left_shoulder_sling/carry", "Location must follow a completed rotated move");
         drag.pickUp("submachine_gun");
-        drag.drop(pack, 3, 0); // Exchange with the shotgun.
+        completeDrop(drag, pack, 3, 0); // Exchange with the shotgun.
         require(inventory.locationOf("shotgun")->kind == viewer::InventoryLocationKind::Hand &&
             inventory.locationOf("submachine_gun")->placement->x == 3, "Location queries must reflect both sides of a swap");
         const auto primary = inventory.findByTag("long_gun");

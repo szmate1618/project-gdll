@@ -360,14 +360,14 @@ int main(int argc, char** argv) {
             auto hudInventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
             viewer::Hud hud(VIEWER_HUD_DIR, hudInventory);
             state.screen = viewer::HudScreen::Inventory;
-            const auto draw = [&] { clear(); hud.draw(state, 1280, 720); checkState(); return pixels(1280, 720); };
+            const auto draw = [&](double elapsed = 0) { state.seconds += elapsed; clear(); hud.draw(state, 1280, 720); checkState(); return pixels(1280, 720); };
             const auto initial = draw();
             const auto move = [&](float x, float y) { hud.pointerMove(x / 1280, y / 720); };
             // Exchange SMG for shotgun, then shotgun for sniper. Cancel must
             // restore all three footprints, rather than only the last item.
             move(600, 261); hud.pointerButton(0, true);
-            move(650, 261); hud.pointerButton(0, false); draw();
-            move(600, 293); hud.pointerButton(0, true); hud.pointerButton(0, false); draw();
+            move(650, 261); hud.pointerButton(0, false); draw(); draw(6);
+            move(600, 293); hud.pointerButton(0, true); hud.pointerButton(0, false); draw(); draw(3);
             hud.pointerButton(1, true);
             const auto cancelled = draw();
             for (int y = 150; y < 540; ++y) for (int x = 34; x < 872; ++x)
@@ -380,7 +380,19 @@ int main(int argc, char** argv) {
             require(held != initial, "Inventory input did not show a held item");
             if (argc > 1) capture((std::string(argv[1]) + "-drag-preview.ppm").c_str(), held, 1280, 720);
             hud.pointerButton(0, false);
-            const auto placed = draw();
+            const auto pending = draw();
+            require(hudInventory.held() && !hudInventory.placements().count("sniper"),
+                "Item must remain held until placement access time completes");
+            const auto halfway = draw(1.62);
+            require(pending != halfway, "Pending placement did not animate its progress bar");
+            require(isColor(colorAt(halfway, 1280, 720, 65, 261), {231,205,101}),
+                "Placement progress bar must appear near the destination item");
+            clear(); hud.draw(state, 640, 360); checkState();
+            require(isColor(colorAt(pixels(640, 360), 640, 360, 33, 131), {231,205,101}),
+                "Pending placement progress must follow viewport scaling");
+            move(900, 500);
+            require(draw() == halfway, "Pending item or progress bar followed the mouse away from its destination");
+            const auto placed = draw(1.63);
             require(hudInventory.locationOf("sniper")->placement->storage == "body/left_shoulder_sling/carry" &&
                 hudInventory.locationOf("sniper")->placement->rotation == 90,
                 "GUI placement did not update the application's player inventory model");

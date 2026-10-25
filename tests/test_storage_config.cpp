@@ -62,16 +62,20 @@ void selectedStorage() {
     require(loadout.backpack && loadout.backpack->id == "tactical_backpack" &&
         loadout.backpack->grid.width == 8 && loadout.backpack->grid.height == 10 &&
         loadout.backpack->slots.size() == 4, "Starter tactical pack must have an 8x10 grid and four external pockets");
-    require(loadout.backpack->grid.depthTimePerRow == .12 && loadout.backpack->grid.accessTime == 2.0,
-        "Backpack depth/access times were lost");
+    require(loadout.backpack->grid.accessTime == 2.54,
+        "Backpack compartment access time was lost");
     Fixture fixture;
     fixture.write("loadout.toml", "schema_version=1\nbackpack='hiking_backpack'\nequipment=['jacket']\n");
     const auto alternative = viewer::loadStorageLoadout(fixture.directory);
+    require(alternative.backpack->grid.accessTime == 3.48, "Hiking backpack must use its averaged compartment access time");
     require(alternative.backpack->grid.width == 10 && alternative.backpack->grid.height == 14 &&
         alternative.backpack->slots.size() == 3 && alternative.equipment[0].slots.size() == 2,
         "Alternate catalog selection must change storage capacity and compartments");
     require(alternative.backpack->slots[0].x == -1 && alternative.backpack->slots[1].x == 1 &&
         alternative.backpack->slots[2].y == -1, "Edge coordinates must remain panel-relative");
+    fixture.write("loadout.toml", "schema_version=1\nbackpack='small_sling_bag'\nequipment=[]\n");
+    require(viewer::loadStorageLoadout(fixture.directory).backpack->grid.accessTime == 1.06,
+        "Sling bag must use its averaged compartment access time");
     fixture.write("loadout.toml", "schema_version=1\nequipment=[]\n");
     const auto empty = viewer::loadStorageLoadout(fixture.directory);
     require(empty.equipment.empty() && !empty.backpack, "Unequipped loadout must not invent storage");
@@ -101,7 +105,7 @@ void invalidCatalogs() {
         require(viewer::loadStorageLoadout(fixture.directory).equipment[0].slots[0].grid.allowedTags.empty(),
             "An empty allowed_tags array must be unrestricted");
         // Main backpack grids use the same field and parsing rules as pockets.
-        fixture.replace("backpacks.toml", "depth_time_per_row = 0.12", "depth_time_per_row = 0.12\nallowed_tags = ['utility','long_gun']");
+        fixture.replace("backpacks.toml", "access_time = 2.54", "access_time = 2.54\nallowed_tags = ['utility','long_gun']");
         require(viewer::loadStorageLoadout(fixture.directory).backpack->grid.allowedTags ==
             std::vector<std::string>{"utility", "long_gun"}, "Backpack grid restrictions were lost");
     }
@@ -122,8 +126,8 @@ void invalidCatalogs() {
     }
     {
         Fixture fixture;
-        fixture.replace("backpacks.toml", "depth_time_per_row = 0.08", "depth_time_per_row = -1");
-        fixture.rejects("backpacks.toml", "depth_time_per_row");
+        fixture.replace("backpacks.toml", "access_time = 1.06", "access_time = -1");
+        fixture.rejects("backpacks.toml", "access_time");
     }
     {
         Fixture fixture;

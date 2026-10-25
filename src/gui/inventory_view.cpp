@@ -108,8 +108,7 @@ void populateInventory(Rml::ElementDocument& document, const PlayerInventory& in
     set(document, "backpack-storage", contents);
     set(document, "backpack-name", Rml::StringUtilities::EncodeRml(backpack.name));
     set(document, "backpack-size", size(grid));
-    set(document, "backpack-access", "TOP " + number(grid.accessTime) + "s / BOTTOM " +
-        number(grid.accessTime + (grid.height - 1) * grid.depthTimePerRow) + "s");
+    set(document, "backpack-access", "MAIN COMPARTMENT / " + number(grid.accessTime) + "s");
     set(document, "backpack-caption", std::to_string(grid.width * grid.height) +
         " internal cells · " + std::to_string(backpack.slots.size()) + " external compartments");
 }
@@ -135,7 +134,7 @@ void populateInventoryDetails(Rml::ElementDocument& document, const PlayerInvent
     if (held) access << "—";
     else {
         const auto& grid = inventory.layout().at(placement.storage).grid;
-        access << std::fixed << std::setprecision(2) << grid.accessTime + grid.depthTimePerRow * placement.y << "s";
+        access << std::fixed << std::setprecision(2) << grid.accessTime << "s";
     }
     set("inventory-access-time", access.str());
 }
