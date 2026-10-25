@@ -93,20 +93,24 @@ and longitude. No other HUD artwork or custom font is loaded or generated.
 
 Layout lives in [hud.rml](../ui/hud.rml), [hud.rcss](../ui/hud.rcss), and
 [loadout.rcss](../ui/loadout.rcss). [palette.rcss](../ui/palette.rcss) holds shared
-color roles for gameplay and all loadout screens; the game-mode menu uses the
-same colors in its GL renderer. Keep surfaces dark and neutral, use warm white
-for text and thin rules, and reserve accents for meaning:
+color roles for gameplay and all loadout screens. The main game-mode menu
+retains its original blue/green scheme and is styled separately. Warm white is
+the main in-game UI color, with grey menu surfaces and the HUD's health red as
+the menu accent:
 
 | Role | Color | Use |
 | --- | --- | --- |
-| Primary | Mint `#59c49c` | Selection, available items, progress |
-| Secondary | Amber `#e7cd65` | Skills, pending actions, swaps, weariness |
-| Secondary | Coral `#ec6962` | Health and rejected actions |
-| Neutrals | Ink `#f5f6f2`, charcoal `#171d1c` / `#202725` | Text, backdrop, surfaces |
+| Primary | White `#f5f6f2` | Text, item outlines and progress |
+| Accent | Health red `#ec6962` | Active loadout tabs, group headings, hover, combo markers and health |
+| Placement feedback | Green `#59c49c` / yellow `#e7cd65` / red `#ec6962` | Free space, swaps and rejection |
+| Surfaces | Grey `#2b2d2f` / `#383a3c` | Menu backdrop and panels |
 
-Opacity variants provide hierarchy; equipment types do not introduce extra
-accent colors. Satellite imagery and terrain/road colors retain their map
-meaning. The small GL backend supports flat geometry, text and
+Opacity variants provide hierarchy in menus. The gameplay HUD retains its
+original colors: red health, green stamina, yellow weariness, and the original
+equipment tints (tan fists/shotgun, blue SMG, sage sniper, olive grenade).
+The loadout's skill and grenade placeholders repeat their HUD equipment tints.
+Satellite imagery and terrain/road colors retain their map meaning.
+The small GL backend supports flat geometry, text and
 rectangular clipping, plus a custom minimap element sampling the borrowed scene
 texture and drawing cached road surfaces; RmlUi transforms, rounded clipping
 and filter effects are not implemented. It restores GL state after drawing, and caches unchanged text

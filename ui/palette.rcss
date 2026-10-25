@@ -1,62 +1,71 @@
-/* Shared HUD and loadout palette. Keep the game menu in menu.cpp aligned.
-   Ink: #f5f6f2; backdrop: #171d1c; surface: #202725.
-   Primary mint #59c49c: active controls, available items, progress.
-   Secondary amber #e7cd65: skills, pending actions, swaps, weariness.
-   Secondary coral #ec6962: health and rejected actions.
-   Other hex suffixes are opacity levels of these same colors.
-   Satellite imagery and its terrain/road colors keep their geographic meaning. */
+/* HUD and in-game loadout palette. The main menu has its own color scheme.
+   Primary white #f5f6f2: text, item outlines and progress.
+   Grey backdrop #2b2d2f and surfaces #383a3c anchor the menu screens.
+   Health red #ec6962 accents menu navigation, headings and combo markers.
+   Gameplay vitals and equipment retain their HUD tints; inventory placement
+   keeps green/yellow/red feedback for valid space, swaps and rejection.
+   Hex suffixes vary opacity; satellite imagery retains its geographic colors. */
 body { color: #f5f6f2; }
-div, span, button { border-color: #f5f6f23d; }
+div, span, button { border-color: #f5f6f24d; }
 .compass-rule, .compass-tick { background-color: #f5f6f2b0; }
 .compass-pointer, .compass-center, #player-placeholder,
 .status-item .square, #weapon-placeholder, .selection-icon,
-.loadout .pistol { background-color: #f5f6f2; }
+.loadout .pistol, #switch-fill,
+.placement-fill { background-color: #f5f6f2; }
 #minimap { background-color: #3a5144; border-color: #f5f6f299; }
 .vital-track, #mode-status, #movement-status, .weapon-divider { border-color: #f5f6f299; }
 .weapon-divider { background-color: #f5f6f299; }
 .health .square, .loadout .medkit { background-color: #ec6962; }
-.stamina .square, #switch-fill { background-color: #59c49c; }
-.weariness .square, .fists #weapon-placeholder, .grenade #weapon-placeholder,
-.skill .selection-icon, .loadout .grenade, .loadout .punch,
-.placement-fill { background-color: #e7cd65; }
 .health .vital-track { background-color: #ec69622e; }
+.stamina .square { background-color: #59c49c; }
+.weariness .square { background-color: #e7cd65; }
 .stamina .vital-track { background-color: #59c49c2e; }
 .weariness .vital-track { background-color: #e7cd652e; }
-.unconfirmed #weapon-placeholder { background-color: #f5f6f266; }
+.fists #weapon-placeholder { background-color: #b29a85; }
+.smg #weapon-placeholder { background-color: #889dba; }
+.shotgun #weapon-placeholder { background-color: #bd9c73; }
+.sniper #weapon-placeholder { background-color: #93a88a; }
+.grenade #weapon-placeholder { background-color: #b3ae72; }
+.unconfirmed #weapon-placeholder { background-color: #898d8c; }
 .map-caption, .vital-name span, #capture, .selection-key, .selection-hint,
 .key-label, .close-hint, .panel-meta, .storage-time, .detail-subtitle,
 .backpack-access, #map-unavailable { color: #f5f6f299; }
 .empty .selection-name, .empty .assignment-name { color: #f5f6f259; }
-.selection-slot, .switch-track, .placement-label { background-color: #171d1ced; }
-.selection-slot.selected { border-color: #59c49c; background-color: #202725f5; }
-.selected .selection-key, #switch-countdown { color: #59c49c; }
+.selection-slot, .switch-track, .placement-label { background-color: #2b2d2fed; }
+.selection-slot.selected { border-color: #f5f6f2; background-color: #383a3cf5; }
+.selected .selection-key { color: #ec6962; }
+#switch-countdown { color: #f5f6f2; }
 .switch-track, .placement-track { border-color: #f5f6f280; }
 
-body.loadout { background-color: #171d1ce6; }
-.panel { background-color: #202725cc; }
+body.loadout { background-color: #2b2d2fed; }
+.panel { background-color: #383a3cd9; }
 .page-tab, .body-placeholder-label, .backpack-caption,
-.field-label, .skills-empty, .combo-number { color: #f5f6f280; }
+.field-label, .skills-empty { color: #f5f6f280; }
 .inventory #inventory-tab, .skills #skills-tab,
-.health #health-tab, .map #map-tab { color: #f5f6f2; border-color: #59c49c; }
+.health #health-tab, .map #map-tab { color: #f5f6f2; border-color: #ec6962; }
 .body-placeholder, .loadout .unselected { background-color: #f5f6f240; }
 .backpack-size, .storage-occupants, .item .assignment-type,
-.skills-group-heading, .combo-add { color: #59c49c; }
+.skill .assignment-type, .combo-add,
 .storage-label, .action-number { color: #f5f6f2bf; }
-.storage-item { border-color: #59c49c; background-color: #59c49c40; }
-.storage-item.explosive { border-color: #e7cd65; background-color: #e7cd6540; }
-.storage-cell, .action-slot, .combo-slot, #save-combo { background-color: #171d1c66; }
+.storage-item, .storage-item.explosive { border-color: #f5f6f2; background-color: #f5f6f226; }
+.storage-cell, .action-slot, .combo-slot, #save-combo { background-color: #2b2d2f66; }
 .storage-item-label { color: #f5f6f2; }
 .detail-field, .skills-group-heading, .skill-entry,
 .combo-number, .skills-group { border-color: #f5f6f226; }
-.skill .assignment-type { color: #e7cd65; }
-.skills-group { background-color: #171d1c33; }
-.skill-entry:hover { background-color: #59c49c1f; }
-.skill-square { border-color: #e7cd6580; background-color: #e7cd6526; }
-.combo-arrow { color: #59c49c80; }
+.skills-group { background-color: #2b2d2f33; }
+.skills-group-heading { color: #ec6962; background-color: #ec69620d; }
+.skill-entry:hover { background-color: #ec696214; }
+.skill-square { border-color: #b29a8580; background-color: #b29a854d; }
+.loadout .punch { background-color: #b29a85; }
+.loadout .grenade { background-color: #b3ae72; }
+.combo-add span { color: #ec6962; }
+.combo-arrow { color: #ec696280; }
+.combo-number { color: #ec6962bf; }
 #save-combo { color: #f5f6f280; }
-#satellite-overview { background-color: #121b16; border-color: #f5f6f23d; }
+#satellite-overview { background-color: #2b2d2f; border-color: #f5f6f24d; }
 .inventory-ghost { border-color: #ec6962; background-color: #ec696240; }
-.inventory-ghost.valid { border-color: #59c49c; background-color: #59c49c40; }
-.inventory-ghost.swap, .inventory-ghost.placing { border-color: #e7cd65; background-color: #e7cd6540; }
-.placement-track { background-color: #171d1c; }
+.inventory-ghost.valid { border-color: #59c49c; background-color: #59c49c26; }
+.inventory-ghost.swap { border-color: #e7cd65; background-color: #e7cd6526; }
+.inventory-ghost.placing { border-color: #f5f6f2; background-color: #f5f6f226; }
+.placement-track { background-color: #2b2d2f; }
 .placement-label { color: #f5f6f2; }

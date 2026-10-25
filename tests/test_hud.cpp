@@ -304,15 +304,11 @@ int main(int argc, char** argv) {
             state.screen = viewer::HudScreen::Inventory;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto inventory = pixels(1280, 720);
-            std::size_t bodyItemPixels = 0, backpackItemPixels = 0;
-            for (int y = 160; y < 500; ++y) for (int x = 34; x < 872; ++x) {
-                if (isColor(colorAt(inventory, 1280, 720, x, y), {89,196,156})) {
-                    if (x < 424) ++bodyItemPixels;
-                    if (x > 442) ++backpackItemPixels;
-                }
-            }
-            require(bodyItemPixels > 60 && backpackItemPixels > 150,
-                    "Inventory did not render occupied item rectangles in body storage and backpack");
+            // Sample item edges away from text and empty grid lines: labels
+            // now share the same white as occupied item outlines.
+            for (const auto& point : {std::array<int, 2>{55, 402}, {102, 402}, {593, 260}, {704, 260}, {593, 310}})
+                require(isColor(colorAt(inventory, 1280, 720, point[0], point[1]), {245,246,242}),
+                        "Inventory did not render occupied item rectangles in body storage and backpack");
             if (argc > 1) capture((std::string(argv[1]) + "-inventory.ppm").c_str(), inventory, 1280, 720);
             state.screen = viewer::HudScreen::Skills;
             clear(); hud.draw(state, 1280, 720); checkState();
@@ -428,10 +424,10 @@ int main(int argc, char** argv) {
                 "Item must remain held until placement access time completes");
             const auto halfway = draw(2.01);
             require(pending != halfway, "Pending placement did not animate its progress bar");
-            require(isColor(colorAt(halfway, 1280, 720, 65, 261), {231,205,101}),
+            require(isColor(colorAt(halfway, 1280, 720, 65, 261), {245,246,242}),
                 "Placement progress bar must appear near the destination item");
             clear(); hud.draw(state, 640, 360); checkState();
-            require(isColor(colorAt(pixels(640, 360), 640, 360, 33, 131), {231,205,101}),
+            require(isColor(colorAt(pixels(640, 360), 640, 360, 33, 131), {245,246,242}),
                 "Pending placement progress must follow viewport scaling");
             move(900, 500);
             require(draw() == halfway, "Pending item or progress bar followed the mouse away from its destination");
