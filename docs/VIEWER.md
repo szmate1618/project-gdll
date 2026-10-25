@@ -1603,8 +1603,10 @@ calculates and publishes the delay on the server using its startup storage
 layout; client-only storage moves are still not replicated.
 
  Left click applies a 12 N·s impulse to alternating fists,
-with a 0.5 s cooldown. The camera ray chooses the nearest scene or nearby zombie
-surface; a miss punches along the ray direction. The ray itself causes no damage.
+with a 0.5 s cooldown after an arm accepts the strike. Rejected punches consume
+the click without starting another cooldown; holding does not retry them.
+The camera ray chooses the nearest scene or nearby zombie surface; a miss
+punches along the ray direction. The ray itself causes no damage.
 During the strike, a velocity-based force at the fist sustains an 8.8 m/s target
 speed along the original world-space aim line, carrying only player walking
 translation. It corrects lateral/downward drift and excludes chest rotational
@@ -1653,9 +1655,12 @@ timeout immediately ends the strike. In every case the arm holds zero relative
 joint velocities for 0.1 s before beginning a gradual return to guard.
 Shoulder, elbow, and wrist velocity
 motors retract the arm over three times its outbound duration, then lock it in
-its base guard pose. Returning arms
-cannot damage zombies or throw another punch until they reach guard. Glancing
-misses end the strike after at most 0.125 s, followed by the same pause.
+its base guard pose. Returning arms cannot damage zombies. A hand normally
+becomes ready on reaching guard; if contact blocks exact alignment, it can punch
+again after its normal return duration plus 0.25 s of settling. The return
+motors keep working until guard is reached or another accepted punch starts
+from the current physical pose. Glancing misses end the strike after at most
+0.125 s, followed by the same pause.
 Retraction motors are capped at
 48 rad/s, with increased torque to support the faster return.
 

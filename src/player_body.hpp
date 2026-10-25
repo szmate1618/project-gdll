@@ -22,9 +22,14 @@ public:
     // Read contacts after melee damage has consumed them, then start returning
     // any striking arm that hit something or reached its extension limit.
     void afterStep();
-    void punch(glm::vec3 direction, const glm::vec3* target = nullptr);
+    // The alternating hand becomes ready after bounded recovery, even if
+    // contact prevents it from settling exactly into guard. Rejected attempts
+    // do not change the hand order or start a strike.
+    bool canPunch() const;
+    bool punch(glm::vec3 direction, const glm::vec3* target = nullptr);
     bool punching(PlayerBodyPart part) const;
     // Includes the non-damaging 0.1 s pause before every motor retraction.
+    // Blocked arms keep retracting after becoming ready for their next punch.
     bool returning(PlayerBodyPart part) const;
     // Preserve a solved contact when melee handoff removes its zombie mesh
     // before afterStep() reads the remaining Box3D contacts.

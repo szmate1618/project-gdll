@@ -72,8 +72,12 @@ void World::step() {
     std::vector<viewer::NoiseEvent> noises;
     struct Shot { glm::vec3 origin; std::vector<glm::vec3> directions; viewer::ShotCaliber caliber; };
     std::vector<Shot> shots;
-    struct Punch { viewer::PlayerBody* body; glm::vec3 eye, direction; };
-    std::vector<Punch> punches;
+    std::vector<viewer::PlayerBody*> bodies;
+    bodies.reserve(players_.size());
+    for (auto& [id, player] : players_) {
+        (void)id;
+        bodies.push_back(&player.body);
+    }
     for (auto& [id, player] : players_) {
         const bool completedSwitch = player.weaponSwitch.update(player.weapons, now);
         if (completedSwitch && player.held.left) player.triggerNeedsRelease = true;
@@ -173,24 +177,27 @@ void World::step() {
                 player.weapons.cancelTrigger();
                 player.triggerNeedsRelease |= command.left;
             }
-            if (canThrow && player.weapons.fireAttempt(now) == viewer::WeaponFireResult::fired) {
+            if (canThrow && player.weapons.fireAttempt(now, [&] {
+                    if (player.weapons.slot() != viewer::punchSlot) return true;
+                    if (!player.body.canPunch()) return false;
+                    // Start before a later queued command can switch or disable
+                    // the body. Refresh shared aim surfaces before accepting.
+                    melee_.prepare(bodies.data(), bodies.size(), &scene_.zombies, now);
+                    return melee_.punch(player.body, player.camera.position(), player.camera.direction(), *scene_.collision);
+                }) == viewer::WeaponFireResult::fired) {
                 ++player.shots;
-                if (player.weapons.slot()==viewer::punchSlot) {
-                    punches.push_back({&player.body,player.camera.position(),player.camera.direction()});
-                } else if (config.grenade) {
+                if (config.grenade) {
                     if (!scene_.grenades->throwFrom(player.camera.position(), player.camera.direction(), playerVelocity,
                             now, *config.grenade, *scene_.collision)) throw std::logic_error("Accepted grenade throw failed");
-                } else shots.push_back({player.camera.position(), viewer::weaponShotDirections(config, player.camera.direction()), config.caliber});
+                } else if (player.weapons.slot() != viewer::punchSlot)
+                    shots.push_back({player.camera.position(), viewer::weaponShotDirections(config, player.camera.direction()), config.caliber});
             }
             player.held = command;
         }
         scene_.doors->activateNear(player.controller.feet());
     }
-    std::vector<viewer::PlayerBody*> bodies;
-    bodies.reserve(players_.size());
     for (auto& [id,player] : players_) {
         (void)id;
-        bodies.push_back(&player.body);
         if (player.body.enabled()) physicsScene_.ensureNear(player.camera.position()-glm::vec3(3),player.camera.position()+glm::vec3(3));
     }
     physicsScene_.prepare(*scene_.boxes);
@@ -205,8 +212,6 @@ void World::step() {
         }
         zombieDoors_.prepare(*scene_.doors, scene_.zombies);
         melee_.prepare(bodies.data(),bodies.size(),&scene_.zombies,now);
-        for (const auto& punch : punches) melee_.punch(*punch.body,punch.eye,punch.direction,*scene_.collision);
-        punches.clear();
         for (auto* body : bodies) body->beforeStep(seconds);
         scene_.vehicles->beforeStep(seconds);
         vehicleZombies_.capture(*scene_.vehicles);

@@ -25,7 +25,8 @@ public:
     ~MeleeCombat();
     void prepare(PlayerBody& player, ZombieLayer* zombies, double animationSeconds);
     void finish(PlayerBody& player, ZombieLayer* zombies, double animationSeconds);
-    void punch(PlayerBody& player, glm::vec3 eye, glm::vec3 direction, const CollisionWorld& scene);
+    // True only when a physical arm accepts the strike.
+    bool punch(PlayerBody& player, glm::vec3 eye, glm::vec3 direction, const CollisionWorld& scene);
     // Shared proxies for all participating players; collect every solved hit
     // before changing any zombie ownership/contact surface. Borrows the array.
     void prepare(PlayerBody* const* players, std::size_t count, ZombieLayer* zombies, double animationSeconds);

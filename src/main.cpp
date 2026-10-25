@@ -646,14 +646,16 @@ bool updateWeapons(AppState& app, double seconds) {
         app.weapons.cancelTrigger();
         return false;
     }
+    if (app.weapons.slot() == viewer::punchSlot) {
+        app.weapons.fireAttempt(seconds, [&] {
+            return app.body && app.melee && app.melee->punch(*app.body,
+                app.rig.camera().position(), app.rig.camera().direction(), app.world);
+        });
+        return false; // Fists do not create muzzle lights or firearm recoil.
+    }
     const auto result = app.weapons.fireAttempt(seconds);
     if (result == viewer::WeaponFireResult::empty && app.audio) app.audio->emptyClick();
     if (result != viewer::WeaponFireResult::fired) return false;
-    if (app.weapons.slot() == viewer::punchSlot) {
-        if (app.body && app.melee)
-            app.melee->punch(*app.body, app.rig.camera().position(), app.rig.camera().direction(), app.world);
-        return false; // Fists do not create muzzle lights or firearm recoil.
-    }
     const auto aim = app.weaponMotion.aimCamera(app.rig.camera(), app.weapons.slot(), seconds, true);
     if (config.grenade) {
         if (!app.grenades->throwFrom(app.rig.camera().position(), app.rig.camera().direction(),
@@ -810,6 +812,24 @@ void inputSelfTest(GLFWwindow* window) {
         mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
         if (updateWeapons(app, 0) || !app.body->punching(viewer::PlayerBodyPart::rightFist))
             throw std::runtime_error("Fists input must strike without a muzzle flash");
+        mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+        if (!app.body->punch(app.rig.camera().direction()))
+            throw std::runtime_error("Fists rejection fixture must occupy the other hand");
+        const auto readyAt = app.weapons.equipped().readyAt;
+        mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+        updateWeapons(app, 1);
+        if (app.weapons.equipped().readyAt != readyAt)
+            throw std::runtime_error("A rejected physical punch consumed the weapon cooldown");
+        app.body->follow(app.rig.camera().position(), app.rig.camera().direction(), false);
+        app.body->follow(app.rig.camera().position(), app.rig.camera().direction(), true);
+        updateWeapons(app, 1);
+        if (app.body->punching(viewer::PlayerBodyPart::rightFist))
+            throw std::runtime_error("Holding a rejected punch retried without a fresh click");
+        mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+        mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+        if (updateWeapons(app, 1) || !app.body->punching(viewer::PlayerBodyPart::rightFist) ||
+            app.weapons.equipped().readyAt != 1.5)
+            throw std::runtime_error("A fresh click after rejection must punch without another cooldown delay");
         mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
         app.body->follow(app.rig.camera().position(), app.rig.camera().direction(), false);
     }

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <vector>
 #include <glm/glm.hpp>
@@ -42,7 +43,10 @@ public:
     // stall. Semi-automatic clicks during cooldown are discarded, not queued.
     bool fire(double seconds);
     // Empty triggers report once per hold, after the normal shot cooldown.
-    WeaponFireResult fireAttempt(double seconds);
+    // An optional action must accept before ammo/cooldown are committed. It
+    // runs only for an eligible trigger and must not change this Weapons object.
+    // A rejected semi-automatic press is consumed, not queued.
+    WeaponFireResult fireAttempt(double seconds, const std::function<bool()>& accept = {});
     int reload(); // Instant for the prototype; returns transferred rounds.
     std::optional<WeaponItem> discard();
     bool pickUp(const WeaponItem& item); // Reject an already-owned weapon type.

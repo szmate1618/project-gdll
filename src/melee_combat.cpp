@@ -241,8 +241,8 @@ void MeleeCombat::finish(PlayerBody* const* players, std::size_t count, ZombieLa
         else ++it;
     }
 }
-void MeleeCombat::punch(PlayerBody& player, glm::vec3 eye, glm::vec3 direction, const CollisionWorld& scene) {
-    if (!player.enabled() || !std::isfinite(glm::length(direction)) || glm::length(direction) < .0001f) return;
+bool MeleeCombat::punch(PlayerBody& player, glm::vec3 eye, glm::vec3 direction, const CollisionWorld& scene) {
+    if (!player.canPunch() || !std::isfinite(glm::length(direction)) || glm::length(direction) < .0001f) return false;
     direction = glm::normalize(direction);
     // The scene BVH includes distant geometry that has not been uploaded into
     // local Box3D tiles. Binary search its finite visibility segment for aim.
@@ -266,6 +266,6 @@ void MeleeCombat::punch(PlayerBody& player, glm::vec3 eye, glm::vec3 direction, 
         {direction.x * range, direction.y * range, direction.z * range}, filter);
     if (ray.hit && ray.fraction * range < distance) { distance = ray.fraction * range; hit = true; }
     const auto target = eye + direction * distance;
-    player.punch(direction, hit ? &target : nullptr);
+    return player.punch(direction, hit ? &target : nullptr);
 }
 } // namespace viewer

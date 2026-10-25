@@ -74,7 +74,7 @@ void Weapons::cancelTrigger() { held_ = pressed_ = emptyClicked_ = false; }
 bool Weapons::fire(double seconds) {
     return fireAttempt(seconds) == WeaponFireResult::fired;
 }
-WeaponFireResult Weapons::fireAttempt(double seconds) {
+WeaponFireResult Weapons::fireAttempt(double seconds, const std::function<bool()>& accept) {
     auto& weapon = weapons_[slot_];
     const bool requested = pressed_ || (held_ && weapon.config.automatic);
     pressed_ = false;
@@ -84,6 +84,7 @@ WeaponFireResult Weapons::fireAttempt(double seconds) {
         emptyClicked_ = true;
         return WeaponFireResult::empty;
     }
+    if (accept && !accept()) return WeaponFireResult::none;
     weapon.loaded -= weapon.config.ammoPerShot;
     weapon.readyAt = seconds + weapon.config.shotIntervalSeconds;
     emptyClicked_ = false;

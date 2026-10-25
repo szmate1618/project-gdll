@@ -14,6 +14,9 @@ constexpr std::size_t count = playerBodyPartCount;
 // Inspection speed relative to the previous 3 N*s impulse / 2.2 m/s drive.
 constexpr float punchSpeedScale = 4.f;
 constexpr float maxReturnAngularSpeed = 48.f;
+// Let an unobstructed arm settle into its exact guard, but do not make
+// collision-free joint alignment a prerequisite for the next attack.
+constexpr float returnSettlingSeconds = .25f;
 constexpr glm::vec3 fistOffset(0, .015f, -.045f);
 constexpr float fullPunchTravel = .31f + .28f - fistOffset.z - .08f;
 struct GuardArm {
@@ -191,10 +194,20 @@ struct PlayerBody::Impl {
     }
     bool returnFinished(std::size_t side) const {
         const auto& arm = arms[side];
-        return arm.seconds >= arm.returnDuration &&
-            glm::length(jointRotationError(arm.joints[0])) < .01f &&
-            std::abs(b3RevoluteJoint_GetAngle(arm.joints[1])) < .01f &&
-            glm::length(jointRotationError(arm.joints[2])) < .01f;
+        if (arm.seconds < arm.returnDuration ||
+            glm::length(jointRotationError(arm.joints[0])) >= .01f ||
+            std::abs(b3RevoluteJoint_GetAngle(arm.joints[1])) >= .01f ||
+            glm::length(jointRotationError(arm.joints[2])) >= .01f) return false;
+        // Contact can leave positional constraint error even when all joint
+        // angles match guard. Do not project that deflection through a blocker.
+        const auto chest = bodies[index(PlayerBodyPart::upperTorso)];
+        const auto q = quat(b3Body_GetRotation(chest));
+        const auto first = side ? index(PlayerBodyPart::rightUpperArm) : index(PlayerBodyPart::leftUpperArm);
+        for (std::size_t part = first; part < first + 3; ++part) {
+            const auto guard = position(chest) + q * (centers[part] - centers[index(PlayerBodyPart::upperTorso)]);
+            if (glm::distance(position(bodies[part]), guard) > .005f * scale) return false;
+        }
+        return true;
     }
     std::array<glm::quat, 2> strikeTorsoTargets(std::size_t side) const {
         const auto& arm = arms[side];
@@ -462,13 +475,21 @@ void PlayerBody::afterStep() {
         if (contact || extended || arm.seconds >= .5f / punchSpeedScale) d.beginReturn(side);
     }
 }
-void PlayerBody::punch(glm::vec3 direction, const glm::vec3* target) {
-    auto& d = *impl_; if (!d.active) return;
+bool PlayerBody::canPunch() const {
+    const auto& d = *impl_;
+    const auto& arm = d.arms[d.right ? 1u : 0u];
+    // An obstructed arm keeps retracting through its existing physical joints
+    // until it reaches guard or is used again. Never snap it through a blocker
+    // or weld a deflected pose merely to make the hand ready.
+    return d.active && (arm.state == Impl::ArmState::guard ||
+        (arm.state == Impl::ArmState::returning && arm.seconds >= arm.returnDuration + returnSettlingSeconds));
+}
+bool PlayerBody::punch(glm::vec3 direction, const glm::vec3* target) {
+    auto& d = *impl_; if (!canPunch()) return false;
     const auto fist = d.right ? PlayerBodyPart::rightFist : PlayerBodyPart::leftFist;
     if (target) direction = *target - fistPosition(d.right);
-    if (!std::isfinite(glm::length(direction)) || glm::length(direction) < .0001f) return;
+    if (!std::isfinite(glm::length(direction)) || glm::length(direction) < .0001f) return false;
     const auto side = d.right ? 1u : 0u;
-    if (d.arms[side].state != Impl::ArmState::guard) return;
     d.rebuildArm(side, true);
     d.arms[side].punchDirection = glm::normalize(direction);
     d.arms[side].punchOrigin = fistPosition(d.right);
@@ -477,6 +498,7 @@ void PlayerBody::punch(glm::vec3 direction, const glm::vec3* target) {
     if (target) d.arms[side].aimTarget = *target;
     b3Body_ApplyLinearImpulseToCenter(body(fist), vec(d.arms[side].punchDirection * (3.f * punchSpeedScale * d.scale * d.scale * d.scale)), true);
     d.right = !d.right;
+    return true;
 }
 bool PlayerBody::punching(PlayerBodyPart part) const {
     const auto p = index(part);

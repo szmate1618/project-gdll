@@ -9,6 +9,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string_view>
 
@@ -23,6 +24,31 @@ bool solvedContact(b3BodyId body) {
             for (int p = 0; p < contacts[c].manifolds[m].pointCount; ++p)
                 if (contacts[c].manifolds[m].points[p].totalNormalImpulse > .001f) return true;
     return false;
+}
+void punchAcceptance() {
+    auto world = std::make_shared<viewer::PhysicsWorld>();
+    viewer::PlayerBody player(world, 1.7f);
+    const glm::vec3 eye(0, 1.7f, 0), aim(0, 0, -1);
+    require(!player.canPunch() && !player.punch(aim), "A disabled body must reject punches");
+    player.follow(eye, aim, true);
+    require(player.canPunch(), "An equipped body must have a ready hand");
+    require(!player.punch({0, 0, 0}) &&
+            !player.punch({std::numeric_limits<float>::quiet_NaN(), 0, 0}),
+            "Invalid directions must reject the punch without consuming the hand");
+    const auto target = player.fistPosition(true);
+    require(!player.punch(aim, &target), "A target at the fist must reject the punch");
+    require(player.canPunch() && player.punch(aim) && player.punching(viewer::PlayerBodyPart::rightFist),
+            "The first accepted punch must still use the right hand after rejected attempts");
+    require(player.canPunch() && player.punch(aim) && player.punching(viewer::PlayerBodyPart::leftFist),
+            "The other guarded hand must remain available");
+    require(!player.canPunch() && !player.punch(aim), "An active hand must reject another punch");
+    world->step(1.f / 60, [&](float dt) { player.beforeStep(dt); }, [&](float) {
+        player.recordArmContact(viewer::PlayerBodyPart::leftFist);
+        player.recordArmContact(viewer::PlayerBodyPart::rightFist);
+        player.afterStep();
+    });
+    require(player.returning(viewer::PlayerBodyPart::rightFist) && !player.canPunch() && !player.punch(aim),
+            "The impact pause and early retraction must still reject another punch");
 }
 void fistPullRotatesShoulder() {
     for (bool right : {true, false}) {
@@ -429,6 +455,63 @@ viewer::AnimatedModel zombieCube() {
     asset.model.boundsMin = {-.225f, 0, -.16f}; asset.model.boundsMax = {.225f, 1.8f, .16f};
     return asset;
 }
+void closeContactDoesNotLockPunches(bool zombieTarget) {
+    auto world = std::make_shared<viewer::PhysicsWorld>();
+    viewer::PlayerBody player(world, 1.7f);
+    viewer::MeleeCombat melee(world);
+    viewer::ZombieLayer zombies;
+    b3BodyId blocker{};
+    if (zombieTarget) {
+        zombies.assets.push_back(zombieCube()); zombies.instances.emplace_back();
+        auto& zombie = zombies.instances[0];
+        zombie.restRoot = zombie.restTransform = zombie.transform =
+            glm::translate(glm::mat4(1), glm::vec3(0, 0, -.3f));
+        zombies.attachPhysics(world); zombies.rebuildSpatialIndex();
+    } else {
+        auto definition = b3DefaultBodyDef(); definition.position = {0, .9f, -.3f};
+        blocker = b3CreateBody(world->id(), &definition);
+        const auto hull = b3MakeBoxHull(.225f, .9f, .16f);
+        auto shape = b3DefaultShapeDef(); b3CreateHullShape(blocker, &shape, &hull.base);
+    }
+    const glm::vec3 eye(0, 1.7f, 0), aim(0, 0, -1);
+    player.follow(eye, aim, true);
+    bool contacted = false, blockedRecovery = false;
+    for (int attempt = 0; attempt < 6; ++attempt) {
+        const bool right = attempt % 2 == 0;
+        const auto fist = right ? viewer::PlayerBodyPart::rightFist : viewer::PlayerBodyPart::leftFist;
+        const auto before = player.fistPosition(right);
+        require(player.canPunch(), "Close physical contacts must not indefinitely lock the next alternating hand");
+        blockedRecovery |= player.returning(fist);
+        require(player.punch(aim), "Repeated close punches must be accepted after bounded recovery");
+        require(player.punching(fist), "Rejected or obstructed strikes must not alter the accepted hand order");
+        require(glm::distance(before, player.fistPosition(right)) < .00001f,
+                "Reusing an obstructed hand must start from its solved pose");
+        for (int frame = 0; frame < 60; ++frame) {
+            world->step(1.f / 60, [&](float dt) {
+                player.beforeStep(dt);
+                if (zombieTarget) melee.prepare(player, &zombies, 0);
+            }, [&](float) {
+                for (auto part : {viewer::PlayerBodyPart::leftUpperArm, viewer::PlayerBodyPart::leftLowerArm,
+                                  viewer::PlayerBodyPart::leftFist, viewer::PlayerBodyPart::rightUpperArm,
+                                  viewer::PlayerBodyPart::rightLowerArm, viewer::PlayerBodyPart::rightFist})
+                    contacted |= solvedContact(player.body(part));
+                if (zombieTarget) melee.finish(player, &zombies, 0);
+                const auto beforeReturn = player.fistPosition(right);
+                const bool wasReturning = player.returning(fist), wasPunching = player.punching(fist);
+                player.afterStep();
+                if (wasReturning || wasPunching)
+                    require(glm::distance(beforeReturn, player.fistPosition(right)) < .01f,
+                            "Recovery readiness must not teleport a blocked hand to guard");
+                require(viewer::validPlayerBodyPose(player.pose()), "Repeated blocked punches must keep the body finite and attached");
+            });
+            if (zombieTarget) zombies.synchronizePhysics();
+        }
+    }
+    require(contacted, "The close-contact fixture must produce solved arm contacts");
+    if (!zombieTarget)
+        require(blockedRecovery, "The rigid blocker must prevent exact guard alignment beyond the recovery deadline");
+    if (b3Body_IsValid(blocker)) b3DestroyBody(blocker);
+}
 void returningArmCannotRagdoll() {
     auto world = std::make_shared<viewer::PhysicsWorld>();
     viewer::PlayerBody player(world, 1.7f);
@@ -610,6 +693,9 @@ int main(int argc, char** argv) {
             std::cout << "Punch retraction pause checks passed\n";
             return 0;
         }
+        punchAcceptance();
+        closeContactDoesNotLockPunches(false);
+        closeContactDoesNotLockPunches(true);
         fistPullRotatesShoulder();
         slowGuardRecovery();
         returningArmCannotRagdoll();

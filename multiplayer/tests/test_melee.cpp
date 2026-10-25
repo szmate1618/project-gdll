@@ -141,6 +141,37 @@ void authoritativeHits(const Options& options) {
     auto gun=fists(95); gun.slot=0; world.submit(first,Commands{{gun}}); world.step();
     require(!wire(world.snapshot(first)).players[0].melee.enabled,"Equipping a gun retained the fists body");
 }
+void rejectedPunches(const Options& options) {
+    Scene scene(options); openScene(scene);
+    scene.zombies.instances.clear(); scene.zombies.rebuildSpatialIndex();
+    World world(scene); const auto id=world.join(); world.submit(id,Commands{{fists(1)}});
+    for(int n=0;n<600 && world.players().at(id).weapons.slot()!=viewer::punchSlot;++n) world.step();
+    const auto& player=world.players().at(id);
+    require(player.body.enabled() && player.body.canPunch(),"Rejection fixture did not enable fists");
+    // Put both real arms in flight without advancing the equipment timer. The
+    // test owns this non-const world; its inspection API only exposes const players.
+    auto& body=const_cast<viewer::PlayerBody&>(player.body);
+    require(body.punch({0,0,-1}) && body.punch({0,0,-1}) && !body.canPunch(),
+            "Rejection fixture must make the alternating hand unavailable");
+    const auto readyAt=player.weapons.equipped().readyAt;
+    auto reload=fists(3,true); reload.reload=true;
+    world.submit(id,Commands{{fists(2,true),reload,fists(4,true),fists(5,true)}});
+    world.step();
+    require(player.resolved==3 && player.shots==0 && player.weapons.equipped().readyAt==readyAt,
+            "Rejected physical punches followed by a batched reload must not count or spend cooldown");
+
+    body.follow(player.camera.position(),player.camera.direction(),false);
+    body.follow(player.camera.position(),player.camera.direction(),true);
+    require(body.canPunch(),"Rejection fixture must restore an available hand");
+    world.step(); world.step();
+    require(player.shots==0 && player.weapons.equipped().readyAt==readyAt,
+            "Holding after physical rejection must not queue a punch");
+    world.submit(id,Commands{{fists(6)}}); world.step();
+    world.submit(id,Commands{{fists(7,true)}}); world.step();
+    require(player.shots==1 && player.weapons.equipped().readyAt>readyAt &&
+            (player.body.pose().striking|player.body.pose().returning)!=0,
+            "A fresh click after physical rejection must start and count one real punch immediately");
+}
 void simultaneousSharedImpact(const Options& options) {
     Scene scene(options); openScene(scene); scene.zombies.instances.resize(1); scene.zombies.rebuildSpatialIndex();
     scene.zombies.attachPhysics(scene.physics);
@@ -201,7 +232,7 @@ int main(int argc,char** argv) {
     try {
         require(argc==2,"Expected test map");
         Options options; options.map=argv[1]; options.zombieCount=0; options.trees=options.forests=false;
-        poseProtocol(); authoritativeHits(options); simultaneousSharedImpact(options); seatedFists(options); interpolation(options);
+        poseProtocol(); authoritativeHits(options); rejectedPunches(options); simultaneousSharedImpact(options); seatedFists(options); interpolation(options);
         std::cout<<"Multiplayer melee authority, shared contacts, replication and cleanup passed\n";
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}
 }

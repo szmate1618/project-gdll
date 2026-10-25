@@ -79,7 +79,9 @@ void dryFire() {
     for (int i = 0; i < rounds; ++i)
         require(weapons.fireAttempt(i) == Result::fired, "Held SMG consumes its magazine normally");
     require(weapons.fireAttempt(rounds - 1 + .01) == Result::none, "Shot cooldown cannot produce an empty click");
-    require(weapons.fireAttempt(rounds) == Result::empty, "Held automatic trigger reports empty after its last round");
+    int callbacks = 0;
+    require(weapons.fireAttempt(rounds, [&] { ++callbacks; return true; }) == Result::empty && callbacks == 0,
+            "An empty trigger must report empty without starting the physical action");
     require(weapons.fireAttempt(rounds + 1) == Result::none && weapons.fireAttempt(rounds + 2) == Result::none,
             "Holding an empty gun cannot spam clicks every frame");
     click(weapons);
@@ -110,6 +112,47 @@ void punchesNeedNoAmmo() {
     require(viewer::weaponShotDirections(weapons.equipped().config, {0,0,-1}).empty(), "Fists must never emit hitscan bullets");
     weapons.equip(0);
     require(weapons.equipped().loaded == rounds, "Punching must preserve firearm ammunition");
+}
+
+void physicalActionAcceptance() {
+    using Result = viewer::WeaponFireResult;
+    viewer::Weapons weapons(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY, true);
+    require(weapons.equip(viewer::punchSlot), "Acceptance fixture must equip fists");
+    bool available = false;
+    int attempts = 0;
+    const auto accept = [&] { ++attempts; return available; };
+    require(weapons.fireAttempt(1, accept) == Result::none && attempts == 0,
+            "No trigger must not attempt a physical action");
+    const auto readyAt = weapons.equipped().readyAt;
+    click(weapons);
+    require(weapons.fireAttempt(1, accept) == Result::none && attempts == 1 &&
+            weapons.equipped().readyAt == readyAt,
+            "A rejected physical punch must not spend its cooldown");
+    available = true;
+    require(weapons.fireAttempt(1, accept) == Result::none && attempts == 1,
+            "Holding a rejected punch must not retry when the arm becomes available");
+    click(weapons);
+    require(weapons.fireAttempt(1, accept) == Result::fired && attempts == 2 &&
+            weapons.equipped().readyAt == 1.5,
+            "A fresh press after rejection must start immediately and commit one cooldown");
+    click(weapons);
+    require(weapons.fireAttempt(1.1, accept) == Result::none && attempts == 2 &&
+            weapons.fireAttempt(1.5, accept) == Result::none && attempts == 2,
+            "Cooldown clicks must neither start nor queue a physical action");
+
+    weapons.equip(0);
+    const auto loaded = weapons.equipped().loaded;
+    const auto firearmReadyAt = weapons.equipped().readyAt;
+    available = false;
+    click(weapons);
+    require(weapons.fireAttempt(2, accept) == Result::none && attempts == 3 &&
+            weapons.equipped().loaded == loaded && weapons.equipped().readyAt == firearmReadyAt,
+            "Rejected actions must not consume ammunition or cooldown");
+    available = true;
+    click(weapons);
+    require(weapons.fireAttempt(2, accept) == Result::fired && attempts == 4 &&
+            weapons.equipped().loaded == loaded - 1,
+            "Accepted actions must still consume ammunition exactly once");
 }
 
 void fixtures(const std::filesystem::path& scratch) {
@@ -192,7 +235,7 @@ void fixtures(const std::filesystem::path& scratch) {
 } // namespace
 int main() {
     try {
-        firingAndReload(); pelletPattern(); dryFire(); punchesNeedNoAmmo();
+        firingAndReload(); pelletPattern(); dryFire(); punchesNeedNoAmmo(); physicalActionAcceptance();
         viewer::Weapons grenades(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
         require(grenades.equip(4) && grenades.equipped().config.grenade.has_value(), "Key 5 must equip HE grenades");
         const auto visibleAt = [&](double seconds) {
