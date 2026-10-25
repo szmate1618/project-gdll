@@ -13,6 +13,9 @@ namespace {
 constexpr std::size_t count = playerBodyPartCount;
 // Inspection speed relative to the previous 3 N*s impulse / 2.2 m/s drive.
 constexpr float punchSpeedScale = 4.f;
+// At the inspection speed, allow nine fixed solves so a reachable surface's
+// contact impulse can resolve before falling back to the miss timeout.
+constexpr float maxStrikeSeconds = .6f / punchSpeedScale;
 constexpr float maxReturnAngularSpeed = 48.f;
 // Let an unobstructed arm settle into its exact guard, but do not make
 // collision-free joint alignment a prerequisite for the next attack.
@@ -472,7 +475,7 @@ void PlayerBody::afterStep() {
         const bool extended = b3RevoluteJoint_GetAngle(arm.joints[1]) <= arm.extendedAngle + glm::radians(5.f);
         // Glancing impulses can rotate the whole bent arm instead of extending
         // it. Bound those misses so an arm cannot remain loose indefinitely.
-        if (contact || extended || arm.seconds >= .5f / punchSpeedScale) d.beginReturn(side);
+        if (contact || extended || arm.seconds >= maxStrikeSeconds) d.beginReturn(side);
     }
 }
 bool PlayerBody::canPunch() const {

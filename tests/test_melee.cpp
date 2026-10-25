@@ -342,9 +342,15 @@ void torsoStopsWithTheStrike() {
             });
         require(player.returning(fist), "The strike must end before checking the torso hold");
         const float stopped = yaw();
-        if (!impact)
-            require(stopped > glm::radians(32.f) && stopped < glm::radians(39.f),
-                    "An unobstructed punch must turn the shoulders approximately 35 degrees during the strike");
+        if (!impact) {
+            // The authored 14 + 21 degree spine turn is relative to the
+            // pelvis; its yaw spring also allows a small physical hip turn.
+            const auto axis = b3Body_GetLocalVector(player.body(viewer::PlayerBodyPart::hip),
+                b3Body_GetWorldVector(player.body(viewer::PlayerBodyPart::upperTorso), {1, 0, 0}));
+            const float spineTurn = (right ? 1.f : -1.f) * std::atan2(-axis.z, axis.x);
+            require(spineTurn > glm::radians(32.f) && spineTurn < glm::radians(39.f),
+                    "An unobstructed punch must turn the spine approximately 35 degrees relative to the pelvis");
+        }
         float extra = 0;
         for (int f = 0; f < 6; ++f) {
             world->step(1.f / 60, [&](float s) { player.beforeStep(s); }, [&](float) { player.afterStep(); });
@@ -561,7 +567,8 @@ void closeContactDoesNotLockPunches(bool zombieTarget) {
         require(player.punching(fist), "Rejected or obstructed strikes must not alter the accepted hand order");
         require(glm::distance(before, player.fistPosition(right)) < .00001f,
                 "Reusing an obstructed hand must start from its solved pose");
-        for (int frame = 0; frame < 60; ++frame) {
+        // Fists allow one click every half second, alternating hands.
+        for (int frame = 0; frame < 30; ++frame) {
             world->step(1.f / 60, [&](float dt) {
                 player.beforeStep(dt);
                 if (zombieTarget) melee.prepare(player, &zombies, 0);
@@ -662,6 +669,54 @@ void meshContact(bool blocked, bool distant, int publishedFrame = -1) {
             "Only real, unoccluded contact with the published animated mesh may create a ragdoll");
     require(!player.punching(viewer::PlayerBodyPart::rightFist), "Hit or missed punches must recover to guard");
     require(!z.ragdoll || recoveredOnContact, "Every punch handoff must recover its arm on the contact step");
+}
+
+void reachableForeheadContact() {
+    for (bool right : {false, true}) {
+        auto world = std::make_shared<viewer::PhysicsWorld>();
+        viewer::PlayerBody player(world, 1.7f);
+        viewer::MeleeCombat melee(world);
+        const glm::vec3 eye(0, 1.7f, 0), target(0, 1.65f, -.82f);
+        const auto direction = glm::normalize(target - eye);
+        player.follow(eye, direction, true);
+        if (!right) {
+            player.punch(direction);
+            player.follow(eye, direction, false); player.follow(eye, direction, true);
+        }
+        for (int frame = 0; frame < 30; ++frame)
+            world->step(1.f / 60, [&](float s) { player.beforeStep(s); }, [&](float) { player.afterStep(); });
+
+        // A small forehead surface avoids incidental shoulder/chest contacts.
+        // The fist reaches it before the old safety cutoff, but the mesh's
+        // solved contact impulse arrives on the following physics step.
+        viewer::AnimatedModel forehead;
+        forehead.model = viewer::BoxLayer::unitCube();
+        forehead.model.draws.emplace_back();
+        for (auto& vertex : forehead.model.primitives[0].vertices)
+            vertex.position = vertex.position * glm::vec3(.12f, .20f, .08f) + glm::vec3(0, 1.65f, 0);
+        forehead.model.boundsMin = {-.06f, 1.55f, -.04f};
+        forehead.model.boundsMax = {.06f, 1.75f, .04f};
+        viewer::ZombieLayer zombies;
+        zombies.assets.push_back(std::move(forehead)); zombies.instances.emplace_back();
+        auto& zombie = zombies.instances[0];
+        zombie.restRoot = zombie.restTransform = zombie.transform =
+            glm::translate(glm::mat4(1), glm::vec3(0, 0, target.z));
+        zombies.attachPhysics(world); zombies.rebuildSpatialIndex();
+        viewer::Model empty;
+        viewer::CollisionWorld scene(empty);
+        melee.prepare(player, &zombies, 0);
+        require(melee.punch(player, player.eyePosition(), direction, scene), "A reachable forehead punch must start");
+        require(!zombie.ragdoll, "Selecting a forehead aim point must not cause damage");
+        const auto fist = right ? viewer::PlayerBodyPart::rightFist : viewer::PlayerBodyPart::leftFist;
+        for (int frame = 0; frame < 30 && player.punching(fist); ++frame)
+            world->step(1.f / 60, [&](float s) {
+                player.beforeStep(s); melee.prepare(player, &zombies, 0);
+            }, [&](float) {
+                melee.finish(player, &zombies, 0); player.afterStep();
+            });
+        require(zombie.ragdoll, "A reachable forehead contact must resolve before the strike safety timeout");
+        require(!player.punching(fist) && player.returning(fist), "The forehead impact must end the strike immediately");
+    }
 }
 
 void idleArmContactCannotRagdoll() {
@@ -785,6 +840,7 @@ int main(int argc, char** argv) {
         anatomyAndDynamics();
         meshContact(false, false); meshContact(true, false); meshContact(false, true);
         meshContact(false, false, 0); meshContact(false, false, 1);
+        reachableForeheadContact();
         idleArmContactCannotRagdoll();
         parkedVehicleStopsThePunch(); wallContactReturnsArmWithoutZombies();
         std::cout << "Melee tests passed\n";

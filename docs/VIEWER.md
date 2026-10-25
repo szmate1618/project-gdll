@@ -1674,7 +1674,8 @@ becomes ready on reaching guard; if contact blocks exact alignment, it can punch
 again after its normal return duration plus 0.25 s of settling. The return
 motors keep working until guard is reached or another accepted punch starts
 from the current physical pose. Glancing misses end the strike after at most
-0.125 s, followed by the same pause.
+0.15 s (nine fixed steps), allowing a reachable surface's contact impulse to
+resolve before the safety cutoff, followed by the same pause.
 Retraction motors are capped at
 48 rad/s, with increased torque to support the faster return.
 
@@ -1698,10 +1699,10 @@ is used. Unequipping or teleporting clears the trail history.
 The pelvis-to-lower-torso and lower-to-upper-torso joints use velocity motors
 without springs. During the outward strike their turn and lean follow the active
 fist's measured extension and aim. A straight punch targets 35° of combined spine
-turn (14° lower, 21° upper), with faster, stronger motor tracking to advance the
-punching shoulder during extension. Extension is measured from the original
-strike origin, carrying walking translation; the target reaches its full turn at
-two thirds of arm travel. Collision, full elbow extension, or the
+turn relative to the pelvis (14° lower, 21° upper), with faster, stronger motor
+tracking to advance the punching shoulder during extension. Extension is measured
+from the original strike origin, carrying walking translation; the target reaches
+its full turn at two thirds of arm travel. Collision, full elbow extension, or the
 safety timeout captures the actual torso orientation and ends its forward drive.
 During the 0.1 s pause the motors brake and hold this orientation, compensating
 for pelvis motion; small physical braking travel remains possible. Retraction
