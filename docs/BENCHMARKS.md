@@ -121,6 +121,35 @@ the same reported power profile, and include a real-asset ragdoll settling probe
 | Healthy tree trunk/canopy geometry A/B | `tests/benchmark_tree_card_split.cpp` / `benchmark_tree_card_split` | Alternating original/split rounds, geometry counts, asset split metrics and captures |
 | Sun shadow-map resolution A/B | `tests/benchmark_shadow_resolution.cpp` / `benchmark_shadow_resolution` | 2048² versus 1024²; total-frame and full sunlight-shadow GPU/CPU timings, captures |
 | Grenades with/without tree contacts | `tests/benchmark_grenade_trees.cpp` / `benchmark_grenade_trees` | CSV stage timings on stdout; microseconds per update |
+| Minimap road overlay | `tests/benchmark_minimap_roads.cpp` / `benchmark_minimap_roads` | HUD-only baseline/roads CSV, CPU/GPU medians and geometry metadata |
+
+### Minimap road overlay
+
+```bash
+cmake --build build --target benchmark_minimap_roads -j4
+./build/benchmark_minimap_roads output/godollo.glb build/benchmarks/minimap-roads
+```
+
+This hardware-GL test draws only the shared HUD at 1280x720, with its 108x108
+pixel minimap covering 300 m. It alternates baseline and road-overlay order over
+four rounds, each with 512 warmup and 512 measured frames. Both modes follow the
+same 100 m radius circle around the loaded map origin on a fixed 60 Hz timeline.
+Road preparation and upload happen outside frame timers. `metadata.txt` records
+the GPU/driver, preparation time, triangle/cell counts and static buffer bytes;
+`frames.csv` contains per-frame CPU/GPU times and `report.txt` their medians.
+The road mode includes its 4× MSAA pass, resolve and compositing; target
+allocation occurs during warmup. An optional third argument selects a HUD
+directory, so a saved control executable can use its matching RML/CSS/shaders
+when comparing renderer versions.
+
+CPU time covers `Hud::draw`; asynchronous GPU queries cover the HUD pass.
+Query collection, completion waits and presentation are outside CPU timing.
+The 3D scene, simulation, audio and VSync are absent, so these results isolate
+HUD cost and cannot establish a gameplay FPS change. Very small GPU differences
+can be dominated by clock/scheduling variation; inspect round consistency before
+attributing a difference to roads.
+
+### Other benchmark inputs
 
 The map Hi-Z case takes `MAP TREES FORESTS CAMERA_FILE OUTPUT_DIRECTORY`.
 Camera-file lines are `INDEX NAME eye X Y Z yaw DEGREES pitch DEGREES` in runtime

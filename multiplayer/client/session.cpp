@@ -138,8 +138,10 @@ struct Graphics {
         renderer->setVehicleAssets(multiplayer::resourceRoot() / "assets/vehicles/models");
         reticle = std::make_unique<viewer::ReticleOverlay>(shaders);
         hud = std::make_unique<viewer::Hud>(multiplayer::resourceRoot() / "ui");
-        if (const auto minimap = viewer::findMinimapSource(scene.model))
+        if (const auto minimap = viewer::findMinimapSource(scene.model)) {
             hud->setMinimap(*minimap, renderer->sceneTexture(minimap->texture));
+            hud->setMinimapRoads(scene.model);
+        }
         const viewer::FPSConfig playerConfig;
         weapon = std::make_unique<viewer::WeaponOverlay>(shaders, multiplayer::weaponModelDirectory(),
             viewer::WeaponViewBody{playerConfig.height, playerConfig.eyeHeight});

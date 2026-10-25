@@ -8,6 +8,7 @@
 
 namespace viewer {
 struct MinimapSource;
+struct Model;
 
 // Presentation snapshot only; callers retain simulation/network ownership.
 struct HudState {
@@ -34,6 +35,8 @@ public:
     // Borrow the terrain's uploaded OpenGL texture; its renderer must outlive
     // this HUD. The mapping is copied; no extra image decode/upload is needed.
     void setMinimap(const MinimapSource& source, unsigned int texture);
+    // Snapshot and upload loaded road surfaces once; the model need not outlive the HUD.
+    void setMinimapRoads(const Model& model);
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

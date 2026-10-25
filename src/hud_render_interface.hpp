@@ -3,11 +3,13 @@
 #include "opengl.hpp"
 #include "minimap.hpp"
 #include <filesystem>
+#include <memory>
 #include <RmlUi/Core/RenderInterface.h>
 
 namespace Rml { class Context; }
 
 namespace viewer {
+class MinimapRoadRenderer;
 
 // Basic RmlUi backend for flat rectangles and text, with rectangular clipping.
 // File textures are rejected; the minimap borrows the scene's terrain texture.
@@ -17,6 +19,7 @@ public:
     ~HudRenderInterface() override;
     void render(Rml::Context& context, int width, int height);
     void setMinimap(const MinimapSource& source, GLuint texture);
+    void setMinimapRoads(const Model& model);
     void setMinimapPosition(glm::vec2 position) { minimapPosition_ = position; }
     void drawMinimap(Rml::Vector2f offset, Rml::Vector2f size);
     Rml::CompiledGeometryHandle CompileGeometry(Rml::Span<const Rml::Vertex> vertices,
@@ -32,13 +35,16 @@ public:
 private:
     GLuint program_ = 0;
     GLint viewportLocation_ = -1, translationLocation_ = -1, texturedLocation_ = -1;
-    int height_ = 0;
+    int width_ = 0, height_ = 0;
     MinimapSource minimap_;
     glm::vec2 minimapPosition_{0};
     GLuint minimapTexture_ = 0, minimapSampler_ = 0; // Texture is borrowed; sampler is owned.
     Rml::CompiledGeometryHandle minimapQuad_ = 0;
     GLint minimapLocation_ = -1, minimapSizeLocation_ = -1;
     GLint minimapOriginLocation_ = -1, minimapXLocation_ = -1, minimapYLocation_ = -1;
+    GLint roadsLocation_ = -1, centerLocation_ = -1, spanLocation_ = -1;
+    GLint roadOverlayLocation_ = -1;
+    std::unique_ptr<MinimapRoadRenderer> roads_;
 };
 
 } // namespace viewer

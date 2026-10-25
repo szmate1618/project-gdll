@@ -1231,8 +1231,10 @@ int run(const Options& options) {
     renderer.setVehicleInstancing(options.vehicleInstancing);
     viewer::ReticleOverlay reticle(options.shaders);
     viewer::Hud hud(VIEWER_HUD_DIR);
-    if (const auto minimap = viewer::findMinimapSource(model))
+    if (const auto minimap = viewer::findMinimapSource(model)) {
         hud.setMinimap(*minimap, renderer.sceneTexture(minimap->texture));
+        hud.setMinimapRoads(model);
+    }
     const auto& playerConfig = app.rig.player().config();
     viewer::WeaponOverlay weaponOverlay(options.shaders, VIEWER_WEAPON_ASSETS,
                                        {playerConfig.height, playerConfig.eyeHeight});

@@ -1,4 +1,5 @@
 #include "hud_render_interface.hpp"
+#include "minimap_road_renderer.hpp"
 #include "shader_program.hpp"
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/Vertex.h>
@@ -6,6 +7,7 @@
 #include <iostream>
 #include <memory>
 #include <array>
+#include <cmath>
 
 namespace viewer {
 namespace {
@@ -22,6 +24,9 @@ public:
         glGetIntegerv(GL_CURRENT_PROGRAM, &program);
         glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vao);
         glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &arrayBuffer);
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawFramebuffer);
+        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &readFramebuffer);
+        glGetIntegerv(GL_RENDERBUFFER_BINDING, &renderbuffer);
         glGetIntegerv(GL_ACTIVE_TEXTURE, &activeTexture);
         glActiveTexture(GL_TEXTURE0);
         glGetIntegerv(GL_TEXTURE_BINDING_2D, &texture);
@@ -43,11 +48,18 @@ public:
         depth = glIsEnabled(GL_DEPTH_TEST); blend = glIsEnabled(GL_BLEND);
         cull = glIsEnabled(GL_CULL_FACE); stencil = glIsEnabled(GL_STENCIL_TEST);
         scissor = glIsEnabled(GL_SCISSOR_TEST);
+        multisample = glIsEnabled(GL_MULTISAMPLE);
+        sampleCoverage = glIsEnabled(GL_SAMPLE_COVERAGE);
+        alphaToCoverage = glIsEnabled(GL_SAMPLE_ALPHA_TO_COVERAGE);
+        sampleMask = glIsEnabled(GL_SAMPLE_MASK);
     }
     ~GlState() {
         glUseProgram(program);
         glBindVertexArray(vao);
         glBindBuffer(GL_ARRAY_BUFFER, arrayBuffer);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawFramebuffer);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, readFramebuffer);
+        glBindRenderbuffer(GL_RENDERBUFFER, renderbuffer);
         glBindTexture(GL_TEXTURE_2D, texture);
         glBindSampler(0, sampler);
         glActiveTexture(activeTexture);
@@ -64,14 +76,18 @@ public:
         enable(GL_DEPTH_TEST, depth); enable(GL_BLEND, blend);
         enable(GL_CULL_FACE, cull); enable(GL_STENCIL_TEST, stencil);
         enable(GL_SCISSOR_TEST, scissor);
+        enable(GL_MULTISAMPLE, multisample); enable(GL_SAMPLE_COVERAGE, sampleCoverage);
+        enable(GL_SAMPLE_ALPHA_TO_COVERAGE, alphaToCoverage); enable(GL_SAMPLE_MASK, sampleMask);
     }
 private:
     static void enable(GLenum flag, GLboolean value) { if (value) glEnable(flag); else glDisable(flag); }
     GLint program{}, vao{}, arrayBuffer{}, activeTexture{}, texture{}, sampler{};
+    GLint drawFramebuffer{}, readFramebuffer{}, renderbuffer{};
     GLint unpackAlignment{}, unpackRowLength{}, unpackSkipPixels{}, unpackSkipRows{}, unpackBuffer{};
     GLint viewport[4]{}, scissorBox[4]{};
     GLint sourceRgb{}, destinationRgb{}, sourceAlpha{}, destinationAlpha{}, equationRgb{}, equationAlpha{};
     GLboolean depthWrite{}, depth{}, blend{}, cull{}, stencil{}, scissor{};
+    GLboolean multisample{}, sampleCoverage{}, alphaToCoverage{}, sampleMask{};
 };
 } // namespace
 
@@ -86,6 +102,10 @@ HudRenderInterface::HudRenderInterface(const std::filesystem::path& directory) {
     minimapOriginLocation_ = glGetUniformLocation(program_, "uMinimapOrigin");
     minimapXLocation_ = glGetUniformLocation(program_, "uMinimapX");
     minimapYLocation_ = glGetUniformLocation(program_, "uMinimapY");
+    roadsLocation_ = glGetUniformLocation(program_, "uMinimapRoads");
+    centerLocation_ = glGetUniformLocation(program_, "uMinimapCenter");
+    spanLocation_ = glGetUniformLocation(program_, "uMinimapSpan");
+    roadOverlayLocation_ = glGetUniformLocation(program_, "uMinimapRoadOverlay");
     glUseProgram(program_);
     glUniform1i(glGetUniformLocation(program_, "uTexture"), 0);
     glGenSamplers(1, &minimapSampler_);
@@ -105,6 +125,10 @@ void HudRenderInterface::setMinimap(const MinimapSource& source, GLuint texture)
     minimap_ = source;
     minimapTexture_ = texture;
 }
+void HudRenderInterface::setMinimapRoads(const Model& model) {
+    GlState restore;
+    roads_ = std::make_unique<MinimapRoadRenderer>(model);
+}
 
 void HudRenderInterface::drawMinimap(Rml::Vector2f offset, Rml::Vector2f size) {
     if (!minimapTexture_ || size.x <= 0 || size.y <= 0) return;
@@ -117,7 +141,7 @@ void HudRenderInterface::drawMinimap(Rml::Vector2f offset, Rml::Vector2f size) {
     }
     // Top of the control is north (-Z). World coverage is independent of HUD
     // resolution; only uniforms change as the player moves.
-    constexpr double spanMeters = 400;
+    constexpr double spanMeters = 300;
     const auto x = glm::vec2(minimap_.uvFromWorld * glm::dvec3(spanMeters, 0, 0));
     const auto y = glm::vec2(minimap_.uvFromWorld * glm::dvec3(0, spanMeters, 0));
     const auto center = glm::vec2(minimap_.uvFromWorld * glm::dvec3(minimapPosition_, 1));
@@ -131,14 +155,37 @@ void HudRenderInterface::drawMinimap(Rml::Vector2f offset, Rml::Vector2f size) {
     RenderGeometry(minimapQuad_, offset, minimapTexture_);
     glBindSampler(0, 0);
     glUniform1i(minimapLocation_, 0);
+    if (roads_) {
+        const glm::ivec2 targetSize{int(std::ceil(size.x)), int(std::ceil(size.y))};
+        glUniform1i(roadsLocation_, 1);
+        glUniform2f(centerLocation_, minimapPosition_.x, minimapPosition_.y);
+        glUniform1f(spanLocation_, float(spanMeters));
+        glUniform2f(viewportLocation_, float(targetSize.x), float(targetSize.y));
+        glUniform2f(minimapSizeLocation_, float(targetSize.x), float(targetSize.y));
+        glUniform2f(translationLocation_, 0, 0);
+        const auto overlay = roads_->render(minimapPosition_, float(spanMeters), targetSize);
+        glUniform1i(roadsLocation_, 0);
+        glUniform2f(viewportLocation_, float(width_), float(height_));
+        glUniform2f(minimapSizeLocation_, size.x, size.y);
+        if (overlay) {
+            glUniform1i(minimapLocation_, 1);
+            glUniform1i(roadOverlayLocation_, 1);
+            RenderGeometry(minimapQuad_, offset, overlay);
+            glUniform1i(roadOverlayLocation_, 0);
+            glUniform1i(minimapLocation_, 0);
+        }
+    }
 }
 
 void HudRenderInterface::render(Rml::Context& context, int width, int height) {
     GlState restore;
+    width_ = width;
     height_ = height;
     glViewport(0, 0, width, height);
     glDisable(GL_DEPTH_TEST); glDepthMask(GL_FALSE);
     glDisable(GL_CULL_FACE); glDisable(GL_STENCIL_TEST); glDisable(GL_SCISSOR_TEST);
+    glEnable(GL_MULTISAMPLE);
+    glDisable(GL_SAMPLE_COVERAGE); glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE); glDisable(GL_SAMPLE_MASK);
     glEnable(GL_BLEND);
     // RmlUi vertex colours and font atlases both use premultiplied alpha.
     glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
@@ -147,6 +194,8 @@ void HudRenderInterface::render(Rml::Context& context, int width, int height) {
     glUseProgram(program_);
     glUniform2f(viewportLocation_, float(width), float(height));
     glUniform1i(minimapLocation_, 0);
+    glUniform1i(roadsLocation_, 0);
+    glUniform1i(roadOverlayLocation_, 0);
     context.Update();
     context.Render();
 }

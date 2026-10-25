@@ -210,4 +210,5 @@ void Hud::setMinimap(const MinimapSource& source, unsigned int texture) {
     impl_->renderer.setMinimap(source, texture);
     impl_->setText("map-caption", texture ? "" : "NO MAP");
 }
+void Hud::setMinimapRoads(const Model& model) { impl_->renderer.setMinimapRoads(model); }
 } // namespace viewer

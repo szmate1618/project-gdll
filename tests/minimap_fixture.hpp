@@ -28,3 +28,17 @@ inline viewer::Model minimapFixture() {
     model.draws.push_back({0, glm::mat4(1), "terrain"});
     return model;
 }
+
+inline viewer::Model minimapRoadFixture() {
+    auto model = minimapFixture();
+    viewer::Primitive road;
+    for (const auto p : {glm::vec3(80, 15, -350), glm::vec3(100, 15, -350),
+                         glm::vec3(100, 15, 350), glm::vec3(80, 15, 350)}) {
+        viewer::Vertex vertex; vertex.position = p; road.vertices.push_back(vertex);
+    }
+    road.material = 0; // Deliberately textured: the minimap must still draw a flat color.
+    road.indices = {0, 1, 2, 0, 2, 3};
+    model.primitives.push_back(std::move(road));
+    model.draws.push_back({1, glm::mat4(1), "roads_asphalt"});
+    return model;
+}

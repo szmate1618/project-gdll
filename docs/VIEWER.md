@@ -39,7 +39,7 @@ Multiplayer equipment and ammunition follow the server-confirmed
 state. The HUD is drawn into the scene target before presentation, so it also
 appears in screenshots and follows the selected render resolution.
 
-The navigation area displays a north-up 400 × 400 m minimap centered on the
+The navigation area displays a north-up 300 × 300 m minimap centered on the
 player's horizontal position (the camera in free-fly mode). Driving uses the
 occupied seat, including with the chase camera. It reuses the satellite texture already
 uploaded for the active published terrain: no separate image files, network
@@ -51,11 +51,32 @@ appearance; the source pixels and scene terrain are unchanged. Set
 `minimapContrast` to `1.0` in [hud.frag](../ui/hud.frag) to restore original colors.
 The white square remains centered as the map scrolls, and areas beyond the
 published terrain are blank rather than stretched or repeated. Resizing the HUD
-changes screen size only; its world coverage remains 400 × 400 m. The map has no
+changes screen size only; its world coverage remains 300 × 300 m. The map has no
 size caption beneath it.
 The minimap uses nearest-neighbor filtering for both magnification and
 minification, without mipmaps. Its own sampler leaves the terrain's scene
 filtering unchanged.
+
+Loaded `roads_*` surfaces are drawn over the imagery in a flat cream color,
+using their existing widths without textures or lighting. At HUD setup, the
+road node transforms are applied once and their X/Z triangles are uploaded to
+one static buffer. The temporary CPU geometry is then released; GPU memory
+is eight bytes per triangle vertex. No road geometry is uploaded during movement.
+Triangles are grouped into 100 m cells, with a small BVH over their full bounds.
+When the map center changes, intersecting cell ranges are selected for one
+batched submission and clipped to the minimap rectangle. This index is separate
+from the scene's coarse material-mesh visibility and collision indexes.
+
+Only the road layer uses 4× MSAA to reduce thin-road flicker during scrolling.
+It renders into a transparent RGBA8 target, resolves partial sample coverage to
+premultiplied color/alpha, and composites over the nearest-filtered satellite
+imagery. The two targets are allocated on first use and resized only when HUD
+dimensions change; their color storage totals 20 bytes per minimap pixel
+(about 228 KiB for the default 108×108 pixels, excluding driver overhead).
+This reduces aliasing without enforcing a minimum road width or snapping map
+movement; very thin roads can still show sample changes. The player square is
+drawn above the resolved roads. See the
+[isolated HUD benchmark](BENCHMARKS.md#minimap-road-overlay) for measuring cost.
 
 Scenes without a single usable, textured `terrain` draw show a green fallback
 and `NO MAP`, including the small sample scene. Tiled or non-affine terrain UVs
@@ -71,8 +92,8 @@ and longitude. No other HUD artwork or custom font is loaded or generated.
 Layout and styling live in [hud.rml](../ui/hud.rml) and
 [hud.rcss](../ui/hud.rcss). The small GL backend supports flat geometry, text and
 rectangular clipping, plus a custom minimap element sampling the borrowed scene
-texture; transforms, rounded clipping and filter effects are not
-implemented. It restores GL state after drawing, and caches unchanged text
+texture and drawing cached road surfaces; RmlUi transforms, rounded clipping
+and filter effects are not implemented. It restores GL state after drawing, and caches unchanged text
 instead of rebuilding the document each frame. The HUD is informational and
 does not intercept gameplay input.
 

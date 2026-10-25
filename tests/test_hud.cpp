@@ -54,12 +54,15 @@ int main(int argc, char** argv) {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, 4, 4, 0, GL_RGBA, GL_UNSIGNED_BYTE, mapModel.images[0].rgba.data());
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        GLuint framebuffer, color, vao, buffer, unpack, sampler, texture;
+        GLuint framebuffer, readFramebuffer, renderbuffer, color, vao, buffer, unpack, sampler, texture;
         glGenFramebuffers(1, &framebuffer); glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glGenTextures(1, &color); glBindTexture(GL_TEXTURE_2D, color);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1280, 720, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color, 0);
         require(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE, "Incomplete HUD test framebuffer");
+        glGenFramebuffers(1, &readFramebuffer); glBindFramebuffer(GL_READ_FRAMEBUFFER, readFramebuffer);
+        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color, 0);
+        glGenRenderbuffers(1, &renderbuffer); glBindRenderbuffer(GL_RENDERBUFFER, renderbuffer);
         glGenVertexArrays(1, &vao); glBindVertexArray(vao);
         glGenBuffers(1, &buffer); glBindBuffer(GL_ARRAY_BUFFER, buffer);
         glGenBuffers(1, &unpack); glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpack);
@@ -72,6 +75,10 @@ int main(int argc, char** argv) {
         glViewport(13, 17, 20, 30); glScissor(11, 19, 31, 41);
         glEnable(GL_DEPTH_TEST); glEnable(GL_CULL_FACE); glEnable(GL_STENCIL_TEST);
         glDepthMask(GL_TRUE); glDisable(GL_BLEND);
+        glDisable(GL_MULTISAMPLE);
+        glEnable(GL_SAMPLE_COVERAGE); glSampleCoverage(0, GL_FALSE);
+        glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+        glEnable(GL_SAMPLE_MASK); glSampleMaski(0, 0);
         glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ZERO, GL_ONE);
         glBlendEquationSeparate(GL_FUNC_REVERSE_SUBTRACT, GL_FUNC_SUBTRACT);
         const auto clear = [] {
@@ -80,7 +87,8 @@ int main(int argc, char** argv) {
         };
         const auto checkState = [&] {
             require(integer(GL_DRAW_FRAMEBUFFER_BINDING) == GLint(framebuffer) &&
-                    integer(GL_READ_FRAMEBUFFER_BINDING) == GLint(framebuffer), "HUD changed framebuffer bindings");
+                    integer(GL_READ_FRAMEBUFFER_BINDING) == GLint(readFramebuffer) &&
+                    integer(GL_RENDERBUFFER_BINDING) == GLint(renderbuffer), "HUD changed framebuffer/renderbuffer bindings");
             require(integer(GL_VERTEX_ARRAY_BINDING) == GLint(vao) && integer(GL_ARRAY_BUFFER_BINDING) == GLint(buffer),
                     "HUD changed geometry bindings");
             require(integer(GL_ACTIVE_TEXTURE) == GL_TEXTURE3 && integer(GL_PIXEL_UNPACK_BUFFER_BINDING) == GLint(unpack),
@@ -93,6 +101,9 @@ int main(int argc, char** argv) {
                     integer(GL_UNPACK_SKIP_PIXELS) == 3 && integer(GL_UNPACK_SKIP_ROWS) == 2, "HUD changed pixel unpack state");
             require(glIsEnabled(GL_DEPTH_TEST) && glIsEnabled(GL_CULL_FACE) && glIsEnabled(GL_STENCIL_TEST) &&
                     glIsEnabled(GL_SCISSOR_TEST) && !glIsEnabled(GL_BLEND), "HUD changed GL enables");
+            require(!glIsEnabled(GL_MULTISAMPLE) && glIsEnabled(GL_SAMPLE_COVERAGE) &&
+                    glIsEnabled(GL_SAMPLE_ALPHA_TO_COVERAGE) && glIsEnabled(GL_SAMPLE_MASK),
+                    "HUD changed multisample coverage state");
             require(integer(GL_BLEND_EQUATION_RGB) == GL_FUNC_REVERSE_SUBTRACT && integer(GL_BLEND_EQUATION_ALPHA) == GL_FUNC_SUBTRACT &&
                     integer(GL_BLEND_SRC_RGB) == GL_SRC_ALPHA && integer(GL_BLEND_DST_RGB) == GL_ONE &&
                     integer(GL_BLEND_SRC_ALPHA) == GL_ZERO && integer(GL_BLEND_DST_ALPHA) == GL_ONE,
@@ -172,18 +183,18 @@ int main(int argc, char** argv) {
             require(isColor(colorAt(map, 1280, 720, 1198, 50), {234,15,4}) &&
                     isColor(colorAt(map, 1280, 720, 1201, 50), {4,222,15}),
                     "Nearest-filtered minimap must retain a sharp texel boundary without blending");
-            require(isColor(colorAt(map, 1280, 720, 1150, 35), {18,26,20}),
-                    "400 m window must extend past the 300 m terrain's north edge");
+            require(isColor(colorAt(map, 1280, 720, 1150, 35), {234,15,4}),
+                    "300 m window must stay within the terrain's north edge");
             state.position.x = 180;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto moved = pixels(1280, 720);
-            // The 400 m terrain ends at X=200. A 400 m window centered at
-            // X=180 must reach its edge 55% across the control, leaving blank
+            // The 400 m terrain ends at X=200. A 300 m window centered at
+            // X=180 must reach its edge 56.7% across the control, leaving blank
             // space afterward rather than repeating or stretching the texture.
             require(isColor(colorAt(moved, 1280, 720, 1170, 50), {4,222,15}) &&
                     isColor(colorAt(moved, 1280, 720, 1202, 50), {4,222,15}) &&
-                    isColor(colorAt(moved, 1280, 720, 1209, 50), {18,26,20}),
-                    "Minimap did not follow the player with a fixed 400 m window at the map edge");
+                    isColor(colorAt(moved, 1280, 720, 1215, 50), {18,26,20}),
+                    "Minimap did not follow the player with a fixed 300 m window at the map edge");
             require(isColor(colorAt(moved, 1280, 720, 1200, 84), {245,246,242}), "Player marker moved away from the center");
             state.position.x = 0;
             clear(); hud.draw(state, 640, 360); checkState();
@@ -191,6 +202,54 @@ int main(int argc, char** argv) {
             require(isColor(colorAt(resizedMap, 640, 360, 575, 25), {234,15,4}) &&
                     isColor(colorAt(resizedMap, 640, 360, 624, 60), {234,222,4}),
                     "Resizing changed the minimap's world coverage or orientation");
+            hud.setMinimapRoads(minimapRoadFixture()); checkState();
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto roads = pixels(1280, 720);
+            require(isColor(colorAt(roads, 1280, 720, 1232, 50), {230,219,184}),
+                    "Road surface must be flat-colored over satellite imagery, ignoring its source texture");
+            require(isColor(colorAt(roads, 1280, 720, 1232, 10), {0,0,0}) &&
+                    isColor(colorAt(roads, 1280, 720, 1232, 160), {0,0,0}), "Roads escaped the minimap rectangle");
+            require(isColor(colorAt(roads, 1280, 720, 1150, 50), {234,15,4}), "Road overlay changed unrelated imagery");
+            state.position.x = 90;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto centeredRoad = pixels(1280, 720);
+            require(isColor(colorAt(centeredRoad, 1280, 720, 1200, 60), {230,219,184}) &&
+                    isColor(colorAt(centeredRoad, 1280, 720, 1200, 84), {245,246,242}),
+                    "Roads must follow the minimap center and remain below the player marker");
+            state.position.x = 1000;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(isColor(colorAt(pixels(1280, 720), 1280, 720, 1224, 50), {18,26,20}),
+                    "A panned minimap retained stale nearby road geometry");
+            state.position.x = 0;
+            // A road just under one output pixel wide, limited to the north
+            // half of the map, must retain partial coverage while scrolling.
+            auto thinRoad = minimapRoadFixture();
+            const std::array<glm::vec3, 4> thinCorners{{{40, 15, -110}, {42.5f, 15, -110},
+                                                       {42.5f, 15, -30}, {40, 15, -30}}};
+            for (std::size_t i = 0; i < thinCorners.size(); ++i)
+                thinRoad.primitives.back().vertices[i].position = thinCorners[i];
+            hud.setMinimapRoads(thinRoad); checkState();
+            bool partialCoverage = false;
+            for (int step = 0; step < 8; ++step) {
+                state.position.x = step * .35f;
+                clear(); hud.draw(state, 1280, 720); checkState();
+                const auto movingRoad = pixels(1280, 720);
+                int coverage = 0;
+                for (int x = 1210; x < 1220; ++x) {
+                    const auto red = colorAt(movingRoad, 1280, 720, x, 60)[0];
+                    coverage += red - 4;
+                    partialCoverage |= red > 10 && red < 224;
+                }
+                require(coverage > 100 && coverage < 280, "Subpixel road disappeared or changed width while scrolling");
+                require(isColor(colorAt(movingRoad, 1280, 720, 1215, 120), {234,222,4}),
+                        "Resolved road overlay is upside down or contaminated untouched satellite imagery");
+            }
+            require(partialCoverage, "Road edges lack multisampled partial coverage");
+            state.position.x = 0;
+            hud.setMinimapRoads(minimapRoadFixture());
+            clear(); hud.draw(state, 640, 360); checkState();
+            require(isColor(colorAt(pixels(640, 360), 640, 360, 616, 25), {230,219,184}),
+                    "Road MSAA target did not follow HUD resize");
         }
         require(glIsTexture(mapTexture), "HUD deleted the borrowed terrain texture");
         glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, mapTexture);
@@ -207,7 +266,8 @@ int main(int argc, char** argv) {
         glDeleteSamplers(1, &sampler); glDeleteTextures(1, &texture); glDeleteTextures(1, &color);
         glDeleteTextures(1, &mapTexture);
         glDeleteBuffers(1, &buffer); glDeleteBuffers(1, &unpack); glDeleteVertexArrays(1, &vao);
-        glDeleteFramebuffers(1, &framebuffer);
+        glDeleteFramebuffers(1, &framebuffer); glDeleteFramebuffers(1, &readFramebuffer);
+        glDeleteRenderbuffers(1, &renderbuffer);
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; result = 1; }
     glfwDestroyWindow(window); glfwTerminate();
     return result;

@@ -2,6 +2,8 @@
 uniform sampler2D uTexture;
 uniform bool uTextured;
 uniform bool uMinimap;
+uniform bool uMinimapRoads;
+uniform bool uMinimapRoadOverlay;
 uniform vec2 uMinimapOrigin;
 uniform vec2 uMinimapX;
 uniform vec2 uMinimapY;
@@ -9,6 +11,15 @@ in vec4 vColor;
 in vec2 vUv;
 out vec4 fragColor;
 void main() {
+    if (uMinimapRoadOverlay) {
+        fragColor = texture(uTexture, vec2(vUv.x, 1.0 - vUv.y));
+        return;
+    }
+    if (uMinimapRoads) {
+        if (any(lessThan(vUv, vec2(0.0))) || any(greaterThan(vUv, vec2(1.0)))) discard;
+        fragColor = vec4(0.90, 0.86, 0.72, 1.0);
+        return;
+    }
     if (uMinimap) {
         vec2 uv = uMinimapOrigin + vUv.x * uMinimapX + vUv.y * uMinimapY;
         if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) {
