@@ -114,13 +114,16 @@ are available in the graphical multiplayer client.
 
 [inventory.rml](../ui/inventory.rml) builds body storage and the backpack from
 [storage/loadout.toml](../storage/loadout.toml) and the equipment/backpack catalogs
-in that folder. The starter selection is a 4×5 sling bag, hip holster and chest
-pouch. Slot coordinates are normalized within each panel's inner storage
-rectangle. Capacity, pocket placement and access times come from those files;
+in that folder. The starter selection is an 8×10 tactical backpack, hip holster
+and chest pouch. The 4×5 sling bag remains available in the catalog. Slot
+coordinates are normalized within each panel's inner storage rectangle. Capacity, pocket placement and access times come from those files;
 see [the storage schema](../storage/SCHEMA.md) for editing and validation rules.
 The files are read once when Inventory first opens; restart to reload changes.
-All storage cells are empty and item details are unselected. These definitions
-configure the storage view independently of the weapon/ammo `inventory.toml`.
+Root `inventory.toml` places the 1×1 pistol in the holster, the grenade in the
+chest pouch, and the other three weapons in the backpack. Occupied N×M footprints
+are drawn as tinted rectangles on the grids. References, bounds and overlap
+are validated against the equipped storage; item details remain unselected.
+Storage placements do not change the weapon/ammo mechanics.
 
 [skills.rml](../ui/skills.rml) has a skill list, skill details and an empty
 combo-builder section reserved for later design. Both screens use
@@ -132,8 +135,8 @@ remain fixed examples. The shared hotbar reads owned weapon IDs and slots from
 shotgun, sniper and HE grenade; 5–9 are empty. Item descriptors carry N×M grid
 footprints separately from gameplay settings in `weapons/*.toml`. Ownership and
 shortcuts are cached when Inventory or Skills first opens. The layouts do not
-implement item placement, equipping, assignment, skill use, filters, drag-and-drop
-or combos.
+implement interactive placement, equipping, assignment, skill use, filters,
+drag-and-drop or combos.
 Icons and the body reference are colored square placeholders. System fonts and
 the HUD backend are shared; each screen is cached until the session ends.
 
@@ -1775,7 +1778,7 @@ short-lived point light does not render additional shadow maps.
 
 [Inventory item definitions](../items/README.md) provide each weapon's inventory
 label, cell footprint and tags. Their `weapon` ID links to the separate gameplay
-TOML above. Item dimensions do not yet perform placement or fitting.
+TOML above. Item dimensions determine the rendered footprint and validate configured placements.
 
 [inventory.toml](../inventory.toml) chooses the initially `equipped` weapon.
 Its `[weapons]` table lists owned weapon IDs and their starting loaded rounds;

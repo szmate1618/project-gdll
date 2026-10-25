@@ -14,7 +14,7 @@
     </div>
     <div id="item-details" class="panel main-panel details-panel">
         <div class="panel-heading">ITEM DETAILS</div>
-        <div class="detail-square unselected"></div><div class="detail-name">No item selected</div><div class="detail-subtitle">Item placement is not configured</div>
+        <div class="detail-square unselected"></div><div class="detail-name">No item selected</div><div class="detail-subtitle">Storage loaded from inventory.toml</div>
         <div class="detail-fields">
             <div class="detail-field"><div class="field-label">TYPE</div><div class="field-value">—</div></div>
             <div class="detail-field"><div class="field-label">SIZE</div><div class="field-value">—</div></div>

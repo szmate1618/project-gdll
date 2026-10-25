@@ -199,7 +199,7 @@ struct Hud::Impl {
                     populateActionHotbar(*page, *inventoryItems);
                 }
                 if (selected == HudScreen::Inventory)
-                    populateInventory(*page, loadStorageLoadout(sourceDirectory.parent_path() / "storage"));
+                    populateInventory(*page, loadStorageLoadout(sourceDirectory.parent_path() / "storage"), *inventoryItems);
                 if (selected == HudScreen::Map) {
                     auto* map = dynamic_cast<SatelliteMapElement*>(page->GetElementById("satellite-overview"));
                     if (!map) throw std::runtime_error("Missing full satellite map element");

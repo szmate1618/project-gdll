@@ -3,6 +3,6 @@ id = "pistol"
 name = "Pistol"
 type = "weapon"
 weapon = "pistol"
-width = 2
+width = 1
 height = 1
 tags = ["handgun", "ranged"]

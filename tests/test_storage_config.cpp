@@ -47,10 +47,10 @@ void selectedStorage() {
     require(holster.grid.width == 2 && holster.grid.height == 1 && holster.grid.accessTime == .35,
         "Holster dimensions and timing were lost");
     require(holster.x == -.8 && holster.y == .45, "Panel-relative coordinates were changed");
-    require(loadout.backpack && loadout.backpack->id == "small_sling_bag" &&
-        loadout.backpack->grid.width == 4 && loadout.backpack->grid.height == 5 &&
-        loadout.backpack->slots.size() == 1, "Starter pack must have a 4x5 grid and one external pocket");
-    require(loadout.backpack->grid.depthTimePerRow == .08 && loadout.backpack->grid.accessTime == .9,
+    require(loadout.backpack && loadout.backpack->id == "tactical_backpack" &&
+        loadout.backpack->grid.width == 8 && loadout.backpack->grid.height == 10 &&
+        loadout.backpack->slots.size() == 4, "Starter tactical pack must have an 8x10 grid and four external pockets");
+    require(loadout.backpack->grid.depthTimePerRow == .12 && loadout.backpack->grid.accessTime == 2.0,
         "Backpack depth/access times were lost");
     Fixture fixture;
     fixture.write("loadout.toml", "schema_version=1\nbackpack='hiking_backpack'\nequipment=['jacket']\n");

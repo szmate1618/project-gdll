@@ -76,6 +76,29 @@ InventoryItems loadInventoryItems(const Path& root) {
         if (!node.is_integer() || !count || *count < 0) invalid(file, "invalid loaded round count for " + id);
         result.owned.emplace(id, definition(root, id));
     }
+    if (table.contains("placements")) {
+        const auto* placements = table["placements"].as_table();
+        if (!placements) invalid(file, "placements must be a table keyed by owned item ID");
+        for (const auto& [key, node] : *placements) {
+            const std::string id(key.str());
+            const auto* placement = node.as_table();
+            if (!placement || result.owned.find(id) == result.owned.end())
+                invalid(file, "placements." + id + " must describe an owned item");
+            ItemPlacement entry;
+            entry.storage = label(*placement, "storage", file);
+            const auto coordinate = [&](const char* axis) {
+                if (!(*placement)[axis].is_integer())
+                    invalid(file, "placements." + id + "." + axis + " must be an integer cell coordinate");
+                const auto value = required<std::int64_t>(*placement, axis, file);
+                if (value < 0 || value > 15)
+                    invalid(file, "placements." + id + "." + axis + " must be between 0 and 15 cells");
+                return static_cast<int>(value);
+            };
+            entry.x = coordinate("x");
+            entry.y = coordinate("y");
+            result.placements.emplace(id, std::move(entry));
+        }
+    }
     if (table.contains("hotbar")) {
         const auto* hotbar = table["hotbar"].as_table();
         if (!hotbar) invalid(file, "hotbar must be a table of slots 0–9");

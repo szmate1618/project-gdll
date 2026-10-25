@@ -8,7 +8,7 @@ The five existing gameplay files were moved there without changing their values.
 | --- | --- |
 | `items/<id>.toml` | Item label, N×M cell footprint, tags and gameplay reference |
 | `weapons/<id>.toml` | Weapon behavior and existing combat HUD label |
-| `inventory.toml` | Player weapon ownership, loaded rounds, reserves and action shortcuts |
+| `inventory.toml` | Player weapon ownership, loaded rounds, reserves, placements and action shortcuts |
 | `storage/equipment.toml`, `storage/backpacks.toml` | Available storage equipment and compartments |
 | `storage/loadout.toml` | Equipped backpack and body storage |
 
@@ -20,7 +20,7 @@ id = "pistol"
 name = "Pistol"
 type = "weapon"
 weapon = "pistol"
-width = 2
+width = 1
 height = 1
 tags = ["handgun", "ranged"]
 ```
@@ -31,7 +31,7 @@ starter footprints are editable prototype values:
 
 | Item | Footprint |
 | --- | --- |
-| Pistol | 2×1 |
+| Pistol | 1×1 |
 | Submachine gun | 3×2 |
 | Shotgun | 4×2 |
 | Sniper | 5×2 |
@@ -42,10 +42,48 @@ The filename stem, `id`, and `weapon` must match; `weapon` references
 inventory display name. `tags` is an array of unique nonempty category strings;
 `[]` is valid. No icon, texture, font or model asset is specified here.
 
-The item dimensions and tags are parsed and retained for the inventory UI.
-Placement, fitting, rotation, stacking and tag restrictions are not implemented
-in this prototype. A large footprint does not automatically occupy storage or
-resize the backpack. Storage grids remain empty until placements are defined.
+## Storage placements
+
+Root `inventory.toml` gives each owned item one placement:
+
+```toml
+[placements.pistol]
+storage = "body/hip_holster/holster"
+x = 0
+y = 0
+```
+
+`storage` references an **equipped** compartment. Valid reference forms are:
+
+- `body/<equipment-id>/<slot-id>`
+- `backpack/<backpack-id>/main` for the internal grid
+- `backpack/<backpack-id>/<slot-id>` for an external pocket
+
+The IDs come from the storage catalogs and `storage/loadout.toml`. The slot ID
+`main` is reserved for the backpack's internal grid. Item `x` and `y` are
+**zero-based integer cell coordinates of its top left**, with X increasing to
+the right and Y downward. These are different from the normalized panel
+coordinates used to position storage compartments.
+
+The rectangle size comes from the item descriptor's `width` and `height`; a
+placement cannot override it. On opening Inventory, all owned items must have
+one placement, references must resolve to equipped storage, and rectangles must
+fit without overlapping. Touching edges are allowed. Missing/stale placements,
+unequipped compartments, invalid coordinates, oversized items and overlaps
+produce configuration errors rather than clipping or silently moving items.
+
+The starter pistol is 1×1 in the hip holster, and the grenade is in the chest
+pouch. The SMG, shotgun and sniper are in the tactical backpack. Those three
+weapons need 24 cells, so the starter loadout now equips the existing 8×10
+backpack instead of the 20-cell sling bag. The 4×5 sling-bag definition remains
+available in the catalog.
+
+The UI draws each occupied footprint as a labeled/tinted rectangle on the
+compartment grid; tiny body-storage items also have a name below the grid.
+Placements remain a startup menu snapshot: automatic packing, rotation,
+drag-and-drop, stacking, tag restrictions and runtime ownership synchronization
+are not implemented. Existing grenade/ammunition counts and combat behavior
+are unchanged.
 
 ## Ownership and action hotbar
 

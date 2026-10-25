@@ -1,5 +1,5 @@
 schema_version = 1
 
 # Catalog IDs, not saved item contents. Read on first opening Inventory.
-backpack = "small_sling_bag"
+backpack = "tactical_backpack"
 equipment = ["hip_holster", "chest_pouch"]

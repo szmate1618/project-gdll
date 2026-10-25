@@ -13,8 +13,14 @@ struct ItemDefinition {
     std::vector<std::string> tags;
 };
 
+struct ItemPlacement {
+    std::string storage; // Reference to an equipped storage compartment.
+    int x = 0, y = 0; // Zero-based cell coordinates of the item's top left.
+};
+
 struct InventoryItems {
     std::map<std::string, ItemDefinition> owned;
+    std::map<std::string, ItemPlacement> placements;
     // IDs reference owned items. Empty strings denote unassigned shortcuts.
     std::array<std::string, 10> hotbar;
 };

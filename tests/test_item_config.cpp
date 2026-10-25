@@ -53,7 +53,7 @@ void starterInventory() {
     for (std::size_t slot = 5; slot < inventory.hotbar.size(); ++slot)
         require(inventory.hotbar[slot].empty(), "Slots 5–9 must start unassigned");
     const auto& pistol = inventory.owned.at("pistol");
-    require(pistol.width == 2 && pistol.height == 1, "Pistol must have a 2x1 cell footprint");
+    require(pistol.width == 1 && pistol.height == 1, "Pistol must have a 1x1 cell footprint");
     const auto& sniper = inventory.owned.at("sniper");
     require(sniper.width == 5 && sniper.height == 2, "Sniper footprint must come from its item descriptor");
     Fixture fixture;
@@ -61,7 +61,7 @@ void starterInventory() {
     const auto partial = viewer::loadInventoryItems(fixture.root);
     require(partial.owned.size() == 1 && partial.hotbar[9] == "pistol" && partial.hotbar[0].empty(),
         "Ownership must follow the inventory, including an owned empty firearm, and allow sparse shortcuts");
-    fixture.replace("items/pistol.toml", "width = 2", "width = 3");
+    fixture.replace("items/pistol.toml", "width = 1", "width = 3");
     require(viewer::loadInventoryItems(fixture.root).owned.at("pistol").width == 3,
         "Editing the item descriptor must change its grid footprint independently of gameplay");
     fixture.inventory("[weapons]\n");
@@ -83,11 +83,20 @@ void invalidInventory() {
     fixture.rejects("inventory.toml", "round count");
     fixture.inventory("[weapons]\n'../pistol'=1\n");
     fixture.rejects("inventory.toml", "weapon ID");
+    for (const auto* text : {
+        "[weapons]\npistol=1\n[placements.sniper]\nstorage='body/hip_holster/holster'\nx=0\ny=0\n",
+        "[weapons]\npistol=1\n[placements.pistol]\nstorage='body/hip_holster/holster'\nx=-1\ny=0\n",
+        "[weapons]\npistol=1\n[placements.pistol]\nstorage='body/hip_holster/holster'\nx=0.5\ny=0\n",
+        "[weapons]\npistol=1\n[placements.pistol]\nstorage='body/hip_holster/holster'\nx=0\ny=16\n"}) {
+        fixture.inventory(text);
+        fixture.rejects("inventory.toml", "placements");
+    }
+
 }
 void invalidDefinitions() {
     for (const auto* value : {"0", "17", "2.5", "'two'"}) {
         Fixture fixture;
-        fixture.replace("items/pistol.toml", "width = 2", std::string("width = ") + value);
+        fixture.replace("items/pistol.toml", "width = 1", std::string("width = ") + value);
         fixture.rejects("pistol.toml", "width");
     }
     {

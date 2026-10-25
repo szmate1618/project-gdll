@@ -314,7 +314,12 @@ int main(int argc, char** argv) {
                                        std::filesystem::copy_options::overwrite_existing);
         std::ofstream(fixture / "inventory.toml") <<
             "equipped='pistol'\n[weapons]\npistol=0\nsubmachine_gun=0\nsniper=0\nshotgun=0\nhe_grenade=2\n"
-            "[ammo]\npistol_rounds=0\nsmg_rounds=0\nsniper_rounds=0\nshotgun_shells=0\nhe_grenades=0\n";
+            "[ammo]\npistol_rounds=0\nsmg_rounds=0\nsniper_rounds=0\nshotgun_shells=0\nhe_grenades=0\n"
+            "[placements.pistol]\nstorage='body/hip_holster/holster'\nx=0\ny=0\n"
+            "[placements.he_grenade]\nstorage='body/chest_pouch/pouch'\nx=0\ny=0\n"
+            "[placements.submachine_gun]\nstorage='backpack/tactical_backpack/main'\nx=0\ny=0\n"
+            "[placements.shotgun]\nstorage='backpack/tactical_backpack/main'\nx=3\ny=0\n"
+            "[placements.sniper]\nstorage='backpack/tactical_backpack/main'\nx=0\ny=2\n";
         multiplayer::Options options; options.map = argv[1]; options.dayNight.dayLengthSeconds = 0;
         options.trees = options.forests = false; options.zombieCount = 0;
         multiplayer::Scene scene(options);

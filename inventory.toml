@@ -23,3 +23,29 @@ he_grenades = 0
 2 = "shotgun"
 3 = "sniper"
 4 = "he_grenade"
+
+# Item top-left positions in storage cells. References must name equipped gear.
+[placements.pistol]
+storage = "body/hip_holster/holster"
+x = 0
+y = 0
+
+[placements.he_grenade]
+storage = "body/chest_pouch/pouch"
+x = 0
+y = 0
+
+[placements.submachine_gun]
+storage = "backpack/tactical_backpack/main"
+x = 0
+y = 0
+
+[placements.shotgun]
+storage = "backpack/tactical_backpack/main"
+x = 3
+y = 0
+
+[placements.sniper]
+storage = "backpack/tactical_backpack/main"
+x = 0
+y = 2

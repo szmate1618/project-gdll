@@ -5,12 +5,13 @@
 
 ```toml
 schema_version = 1
-backpack = "small_sling_bag"
+backpack = "tactical_backpack"
 equipment = ["hip_holster", "chest_pouch"]
 ```
 
-The starter bag is **4 columns × 5 rows**, with one external pocket. The other
-backpack choices are `tactical_backpack` (8×10) and `hiking_backpack` (10×14).
+The starter bag is the **8×10 tactical backpack**, large enough for the three
+large weapons placed in it. Other choices are `small_sling_bag` (4×5) and
+`hiking_backpack` (10×14).
 Omit `backpack` for no backpack; use `equipment = []` for no body storage.
 
 The HUD reads all three files **on first opening Inventory**, then keeps that
@@ -58,12 +59,19 @@ not coordinates relative to that central grid.
 
 ## Prototype boundary
 
-This simplifies the supplied descriptor schema: item tags, fitting, rotation,
-saved placements and equipping interactions are not modeled.
-All compartment cells start empty. Item details remain unselected; the shared
-hotbar reads weapon ownership and shortcuts from root `inventory.toml`; Skills
-entries remain visual examples. Unknown extra TOML fields are
-ignored, so tags from an older descriptor have no effect.
+Item placements live in root `inventory.toml`, referencing equipped storage
+with `body/<equipment-id>/<slot-id>`, `backpack/<backpack-id>/main`, or
+`backpack/<backpack-id>/<slot-id>`. `main` is reserved for the internal grid.
+Unlike compartment anchors, **item positions are integer cell coordinates** of
+the footprint's top left. Dimensions come from the item definition. The UI
+requires a valid non-overlapping placement for every owned item; it does not
+rearrange items to make them fit. See [the item schema](../items/README.md).
+
+Automatic packing, rotation, tag restrictions and equipping interactions are
+not implemented. Item details remain unselected. The shared hotbar reads weapon
+ownership and shortcuts from root `inventory.toml`; Skills entries remain visual
+examples. Unknown extra catalog fields are ignored, so tags from an older
+storage descriptor have no effect.
 
 This folder configures the **storage view only**. The existing root
 `inventory.toml` and `weapons/*.toml` control prototype weapon ownership and

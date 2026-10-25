@@ -55,6 +55,8 @@ struct StorageFixture {
     ~StorageFixture() { std::filesystem::remove_all(directory); }
     void select(const char* fields) const {
         std::ofstream(directory / "storage/loadout.toml") << "schema_version=1\n" << fields;
+        // Storage-only variants have no items to place in unequipped gear.
+        std::ofstream(directory / "inventory.toml") << "[weapons]\n";
     }
 };
 } // namespace
@@ -282,6 +284,15 @@ int main(int argc, char** argv) {
             state.screen = viewer::HudScreen::Inventory;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto inventory = pixels(1280, 720);
+            std::size_t bodyItemPixels = 0, backpackItemPixels = 0;
+            for (int y = 160; y < 500; ++y) for (int x = 34; x < 872; ++x) {
+                if (isColor(colorAt(inventory, 1280, 720, x, y), {89,196,156})) {
+                    if (x < 424) ++bodyItemPixels;
+                    if (x > 442) ++backpackItemPixels;
+                }
+            }
+            require(bodyItemPixels > 60 && backpackItemPixels > 150,
+                    "Inventory did not render occupied item rectangles in body storage and backpack");
             if (argc > 1) capture((std::string(argv[1]) + "-inventory.ppm").c_str(), inventory, 1280, 720);
             state.screen = viewer::HudScreen::Skills;
             clear(); hud.draw(state, 1280, 720); checkState();
