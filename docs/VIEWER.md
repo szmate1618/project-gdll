@@ -1620,6 +1620,16 @@ pulls the upper arm forward around the shoulder. This force
 is capped at 480 N at reference size and stops as soon as the strike ends;
 tracking starts on the first physics step to prevent an initial downward swing;
 the arm joints remain spring-free.
+
+Standalone movement, input acceptance, zombie movement and rigid-body physics
+advance together at 60 Hz. A punch uses the solved eye/fist pair at the start
+of its step, then player movement carries the rig through that solve. Frames
+with no simulation step retain clicks; catch-up frames process every step
+without repeating a consumed click. Camera position and body rendering share
+the same interpolation between solved steps, while mouse aim stays immediate.
+Nearby zombie contact surfaces are refreshed before aiming, and multiplayer
+advances living zombies before contacts so snapshots retain the solved roots.
+
 Box3D contact between the currently punching arm/fist and the zombie's bone-local triangles creates
 a ragdoll, transfers the solved impact impulse to the nearest body part, and adds
 damped rotational springs targeting every joint's captured relative pose.
@@ -2472,6 +2482,10 @@ recovery on extension/contact, self-contact suppression,
 wall blocking, and contact against the published animated mesh. It also checks
 three-times-slower continuous recovery and that idle/returning arms cannot
 ragdoll a zombie, including while the opposite arm punches.
+`viewer_melee_timing` replays both hands while stationary, running forward or
+backward, and strafing across 30/60/120/144 Hz and irregular render intervals.
+It checks matching physical poses and contact steps, clicks between solves,
+and camera/body interpolation through equipment changes and teleports.
 `viewer_zombie_bone_collision` checks weighted triangle ownership, two-sided
 contacts, scale/reflection, animated and ragdoll bone placement, immutable shared
 meshes, repeat punch impacts, and cleanup/reuse after unequipping or removal.

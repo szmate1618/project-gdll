@@ -21,6 +21,7 @@
 #include "weapon_overlay.hpp"
 #include "player_body.hpp"
 #include "player_body_renderer.hpp"
+#include "player_presentation.hpp"
 #include "melee_combat.hpp"
 #include "camera_rig.hpp"
 #include "collision_debug.hpp"
@@ -697,6 +698,19 @@ void moveCamera(AppState& app, float dt) {
     }
     if (dt > 0) app.proneToggleQueued = false;
     app.interaction.update(app.rig.camera(), dt);
+}
+
+void updateZombieBehavior(AppState& app, float seconds, double animationSeconds,
+                          viewer::zombie_profile::Profile* profile) {
+    if (!app.zombies) return;
+    const auto& player = app.rig.player();
+    const auto& config = player.config();
+    const float eyeHeight = app.rig.walking() ? player.eyeHeight() : config.eyeHeight;
+    const float height = app.rig.walking() ? player.bodyHeight() : config.height;
+    const auto eye = app.driver.occupied() ? app.driver.eyePosition(*app.cars) : app.rig.camera().position();
+    const auto feet = app.rig.walking() ? player.feet() : eye - glm::vec3(0, eyeHeight, 0);
+    viewer::zombie_profile::Capture capture(profile);
+    app.zombies->updateBehavior(seconds, {feet, eyeHeight, height}, app.world, animationSeconds);
 }
 
 void inputSelfTest(GLFWwindow* window) {
@@ -1443,6 +1457,8 @@ int run(const Options& options) {
     viewer::zombie_profile::Profile zombieProfile;
     double intervalPreparationSeconds = 0.0;
     int frameCount = 0, intervalFrames = 0;
+    viewer::PlayerPresentation playerPresentation;
+    playerPresentation.reset(app.rig.camera().position(), playerBody.pose());
     while (!glfwWindowShouldClose(window.get())) {
         glfwPollEvents();
         renderer.setFlashlight(app.flashlight);
@@ -1461,41 +1477,78 @@ int run(const Options& options) {
             continue;
         }
         const double simulationStart = glfwGetTime();
-        const auto previousCameraPosition = app.rig.camera().position();
-        simulationClock.advance(dt);
-        if (app.weaponSwitch.update(app.weapons, simulationClock.seconds())) {
-            while (app.rig.camera().viewMode() != viewer::Camera::ViewMode::original)
-                app.rig.camera().cycleViewMode();
-        }
-        if (!options.night) {
-            displayedHour = options.dayNight.hourAt(simulationClock.seconds());
-            renderer.setDayNightLighting(viewer::dayNightLighting(displayedHour, {}, {}, atmosphere));
-        }
-        doors.activateNear(app.rig.camera().position());
-        for (std::size_t i = 0; i < boxes.count(); ++i)
-            doors.activateNear(boxes.pose(i).center, 8);
-        if (zombies)
-            for (const auto id : zombies->ragdollIds())
-                doors.activateNear(glm::vec3(zombies->instances[id].transform[3]));
-        physicsScene.prepare(boxes);
-        droppedWeapons.prepare(physicsScene,doors);
-        grenades.prepare(physicsScene, doors);
-        playerBody.follow(app.rig.camera().position(), app.rig.camera().direction(),
-            !app.driver.occupied() && !app.weaponSwitch.pending() && app.weapons.slot() == viewer::punchSlot &&
-            app.interaction.mode() == viewer::ControlMode::Combat);
-        if (playerBody.enabled()) {
-            const auto eye = app.rig.camera().position();
-            physicsScene.ensureNear(eye - glm::vec3(3), eye + glm::vec3(3));
-        }
-        if (app.driver.driving()) {
-            cars.drive(*app.driver.car(), float(app.keys[GLFW_KEY_W]) - float(app.keys[GLFW_KEY_S]),
-                       float(app.keys[GLFW_KEY_D]) - float(app.keys[GLFW_KEY_A]), app.keys[GLFW_KEY_SPACE]);
-        }
-        if (zombies) zombies->prepareWoundPhysics(dt, app.displayedAnimationSeconds, &physicsScene);
+        const auto previousCameraPosition = playerPresentation.eye(physics->interpolationAlpha());
+        bool simulated = false;
+        const auto followPlayerBody = [&] {
+            playerBody.follow(app.rig.camera().position(), app.rig.camera().direction(),
+                !app.driver.occupied() && !app.weaponSwitch.pending() && app.weapons.slot() == viewer::punchSlot &&
+                app.interaction.mode() == viewer::ControlMode::Combat);
+        };
+        const auto fireWeapons = [&] {
+            if (updateWeapons(app, simulationClock.seconds())) {
+                muzzleSlot = app.weapons.slot();
+                muzzleModelPosition = app.weapons.equipped().config.muzzlePosition;
+                muzzleFlash.fire(simulationClock.seconds(), {});
+            }
+        };
         physics->step(dt, [&](float step) {
+            simulated = true;
+            simulationClock.advance(step);
+            app.displayedAnimationSeconds = options.animationTime.value_or(simulationClock.seconds());
+            if (app.weaponSwitch.update(app.weapons, simulationClock.seconds())) {
+                while (app.rig.camera().viewMode() != viewer::Camera::ViewMode::original)
+                    app.rig.camera().cycleViewMode();
+            }
+            doors.activateNear(app.rig.camera().position());
+            for (std::size_t i = 0; i < boxes.count(); ++i)
+                doors.activateNear(boxes.pose(i).center, 8);
+            if (zombies)
+                for (const auto id : zombies->ragdollIds())
+                    doors.activateNear(glm::vec3(zombies->instances[id].transform[3]));
+            physicsScene.prepare(boxes);
+            droppedWeapons.prepare(physicsScene, doors);
+            grenades.prepare(physicsScene, doors);
+
+            const double behaviorStart = glfwGetTime();
+            updateZombieBehavior(app, step, app.displayedAnimationSeconds, options.profile ? &zombieProfile : nullptr);
+            intervalBehaviorSeconds += glfwGetTime() - behaviorStart;
+            // Aim from the solved start-of-step eye/fist pair, before movement
+            // sets the anchor's endpoint for this same physics solve.
+            followPlayerBody();
+            melee.prepare(playerBody, zombies ? &*zombies : nullptr, app.displayedAnimationSeconds);
+            if (app.weapons.slot() == viewer::punchSlot) fireWeapons();
+
+            const auto& movingPlayer = app.rig.player();
+            const viewer::UndergrowthMotion shrubBefore{movingPlayer.feet(), movingPlayer.bodyHeight(),
+                movingPlayer.config().radius, movingPlayer.grounded(), false};
+            moveCamera(app, step);
+            // Throws need this step's measured velocity; firearm origins also
+            // retain their existing post-movement camera position.
+            if (app.weapons.slot() != viewer::punchSlot) fireWeapons();
+            if (app.rig.walking()) {
+                const bool running = movingPlayer.stance() == viewer::PlayerStance::Standing &&
+                    (app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]);
+                if (const auto event = undergrowthEmitter.update(step, shrubBefore,
+                        {movingPlayer.feet(), movingPlayer.bodyHeight(), movingPlayer.config().radius,
+                         movingPlayer.grounded(), running}, undergrowth)) {
+                    if (zombies) zombies->makeNoise(event->noise.position, event->noise.decibels);
+                    audio.rustle(*event);
+                }
+                if (zombies)
+                    for (const auto& noise : movingPlayer.noises())
+                        zombies->makeNoise(noise.position, noise.decibels);
+            } else undergrowthEmitter.reset();
+            anchorGroundFog();
+            followPlayerBody();
+            if (playerBody.enabled()) {
+                const auto eye = app.rig.camera().position();
+                physicsScene.ensureNear(eye - glm::vec3(3), eye + glm::vec3(3));
+            }
+            if (app.driver.driving())
+                cars.drive(*app.driver.car(), float(app.keys[GLFW_KEY_W]) - float(app.keys[GLFW_KEY_S]),
+                           float(app.keys[GLFW_KEY_D]) - float(app.keys[GLFW_KEY_A]), app.keys[GLFW_KEY_SPACE]);
+            if (zombies) zombies->prepareWoundPhysics(step, app.displayedAnimationSeconds, &physicsScene);
             playerBody.beforeStep(step);
-            melee.prepare(playerBody, zombies ? &*zombies : nullptr,
-                          options.animationTime.value_or(simulationClock.seconds()));
             viewer::prepareVehicleScene(cars, physicsScene);
             for (const auto i : cars.simulatedCars()) {
                 doors.activateNear(cars.pose(i).chassis.center, 10);
@@ -1507,70 +1560,45 @@ int run(const Options& options) {
             vehicleZombies.capture(cars);
         }, [&](float step) {
             if (zombies) vehicleZombies.resolve(cars, *zombies, collision, step,
-                    options.animationTime.value_or(simulationClock.seconds()));
+                    app.displayedAnimationSeconds);
             melee.finish(playerBody, zombies ? &*zombies : nullptr,
-                         options.animationTime.value_or(simulationClock.seconds()));
+                         app.displayedAnimationSeconds);
             playerBody.afterStep();
             bodyRenderer.captureBody(playerBody, step);
-        });
-        grenades.update(simulationClock.seconds(), collision, zombies ? &*zombies : nullptr, app.displayedAnimationSeconds);
-        for (const auto& explosion : grenades.explosions(simulationClock.seconds())) {
-            if (explosion.id <= lastExplosion) continue;
-            audio.explosion(explosion.position);
-            lastExplosion = explosion.id;
-        }
-        if (zombies) zombies->synchronizePhysics();
-        const auto& movingPlayer = app.rig.player();
-        const viewer::UndergrowthMotion shrubBefore{movingPlayer.feet(), movingPlayer.bodyHeight(),
-            movingPlayer.config().radius, movingPlayer.grounded(), false};
-        moveCamera(app, dt);
-        std::optional<viewer::UndergrowthEvent> shrubEvent;
-        if (app.rig.walking()) {
-            const bool running = movingPlayer.stance() == viewer::PlayerStance::Standing &&
-                (app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]);
-            shrubEvent = undergrowthEmitter.update(dt, shrubBefore,
-                {movingPlayer.feet(), movingPlayer.bodyHeight(), movingPlayer.config().radius, movingPlayer.grounded(), running},
-                undergrowth);
-        } else undergrowthEmitter.reset();
-        anchorGroundFog();
-        app.displayedAnimationSeconds = options.animationTime.value_or(simulationClock.seconds());
-        const double behaviorStart = glfwGetTime();
-        if (zombies) {
-            const auto& player = app.rig.player();
-            const auto& config = player.config();
-            const float eyeHeight = app.rig.walking() ? player.eyeHeight() : config.eyeHeight;
-            const float height = app.rig.walking() ? player.bodyHeight() : config.height;
-            const auto eye = app.driver.occupied() ? app.driver.eyePosition(cars) : app.rig.camera().position();
-            const auto feet = app.rig.walking() ? player.feet() :
-                eye - glm::vec3(0, eyeHeight, 0);
-            {
-                viewer::zombie_profile::Capture capture(options.profile ? &zombieProfile : nullptr);
-                zombies->updateBehavior(dt, {feet, eyeHeight, height}, collision,
-                                        app.displayedAnimationSeconds);
+            if (zombies) zombies->synchronizePhysics();
+            if (app.driver.occupied()) app.driver.updateCamera(cars, app.rig.camera(), app.world);
+            grenades.update(simulationClock.seconds(), collision, zombies ? &*zombies : nullptr, app.displayedAnimationSeconds);
+            for (const auto& explosion : grenades.explosions(simulationClock.seconds())) {
+                if (explosion.id <= lastExplosion) continue;
+                audio.explosion(explosion.position);
+                lastExplosion = explosion.id;
             }
-            if (app.rig.walking())
-                for (const auto& noise : app.rig.player().noises())
-                    zombies->makeNoise(noise.position, noise.decibels);
+            if (zombies) zombies->updateBloodEffects(app.displayedAnimationSeconds);
+            audio.update(app.rig, zombies ? &*zombies : nullptr, step, &doors);
+            playerPresentation.advance(app.rig.camera().position(), playerBody.pose());
+        });
+        if (!simulated) audio.service();
+        app.displayedAnimationSeconds = options.animationTime.value_or(simulationClock.seconds());
+        if (!options.night) {
+            displayedHour = options.dayNight.hourAt(simulationClock.seconds());
+            renderer.setDayNightLighting(viewer::dayNightLighting(displayedHour, {}, {}, atmosphere));
         }
-        if (updateWeapons(app, simulationClock.seconds())) {
-            muzzleSlot = app.weapons.slot();
-            muzzleModelPosition = app.weapons.equipped().config.muzzlePosition;
-            muzzleFlash.fire(simulationClock.seconds(), {});
-        }
-        if (zombies) zombies->updateBloodEffects(app.displayedAnimationSeconds);
-        const auto viewCamera = app.weaponMotion.aimCamera(app.rig.camera(), app.weapons.slot(),
+        // Mouse orientation remains immediate; interpolate only solved position
+        // and body snapshots so render rate never changes movement or punch work.
+        const float presentationAlpha = physics->interpolationAlpha();
+        if (glm::distance(app.rig.camera().position(), playerPresentation.currentEye()) > 2.f)
+            playerPresentation.reset(app.rig.camera().position(), playerBody.pose());
+        if (app.driver.occupied()) app.driver.updateCamera(cars, app.rig.camera(), app.world);
+        auto presentedCamera = app.rig.camera();
+        if (!app.driver.occupied()) presentedCamera.setPosition(playerPresentation.eye(presentationAlpha));
+        const auto presentedBody = playerPresentation.pose(presentationAlpha);
+        const auto viewCamera = app.weaponMotion.aimCamera(presentedCamera, app.weapons.slot(),
             simulationClock.seconds(), !app.driver.occupied() && app.interaction.mode() == viewer::ControlMode::Combat && app.weapons.equipped().owned);
         auto flash = muzzleFlash.light(simulationClock.seconds());
         flash.position = weaponOverlay.muzzlePosition(muzzleSlot, muzzleModelPosition,
             app.weaponMotion.pose(muzzleSlot, simulationClock.seconds()));
         renderer.setMuzzleFlash(flash.transformed(glm::inverse(viewCamera.view())));
-        if (shrubEvent) {
-            if (zombies) zombies->makeNoise(shrubEvent->noise.position, shrubEvent->noise.decibels);
-            audio.rustle(*shrubEvent);
-        }
-        audio.update(app.rig, zombies ? &*zombies : nullptr, dt, &doors);
         const double preparationStart = glfwGetTime();
-        intervalBehaviorSeconds += preparationStart - behaviorStart;
         intervalSimulationSeconds += preparationStart - simulationStart;
         renderer.updateDoors(doors);
         renderer.updateBoxes(boxes);
@@ -1592,8 +1620,11 @@ int run(const Options& options) {
         gpuTimer.begin();
         const double renderStart = glfwGetTime();
         renderer.render(viewCamera, app.displayedAnimationSeconds, [&] {
-            bodyRenderer.drawBody(playerBody, viewCamera.projection(float(renderWidth) / renderHeight) *
-                                   viewCamera.view(), renderWidth, renderHeight);
+            if (!app.driver.occupied() && !app.weaponSwitch.pending() && app.weapons.slot() == viewer::punchSlot &&
+                app.interaction.mode() == viewer::ControlMode::Combat)
+                bodyRenderer.drawPose(presentedBody, viewCamera.projection(float(renderWidth) / renderHeight) *
+                                       viewCamera.view(), renderWidth, renderHeight,
+                                       (1.f - presentationAlpha) * viewer::PhysicsWorld::fixedStepSeconds);
         });
         if (app.collisionDebug)
             debug->draw(viewCamera, overlay, renderWidth, renderHeight);
@@ -1615,7 +1646,7 @@ int run(const Options& options) {
         hudState.mode = app.interaction.mode() == viewer::ControlMode::Combat ? "COMBAT" : "INTERACT";
         const auto velocity = app.driver.car() ? cars.velocity(*app.driver.car()) : app.playerVelocity;
         hudState.speedMetersPerSecond = !app.driver.occupied() && !app.rig.walking() && dt > 0 ?
-            glm::length(app.rig.camera().position() - previousCameraPosition) / dt : glm::length(glm::vec2(velocity.x, velocity.z));
+            glm::length(presentedCamera.position() - previousCameraPosition) / dt : glm::length(glm::vec2(velocity.x, velocity.z));
         hudState.equipment = heldWeapon.owned ? heldWeapon.config.name : "EMPTY HANDS";
         hudState.slot = heldWeapon.owned ? static_cast<int>(app.weapons.slot()) : -1;
         if (heldWeapon.owned && app.weapons.slot() != viewer::punchSlot) {

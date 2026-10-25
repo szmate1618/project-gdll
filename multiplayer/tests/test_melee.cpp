@@ -52,6 +52,10 @@ Command fists(std::uint64_t sequence,bool left=false) {
 void poseProtocol() {
     auto physics=std::make_shared<viewer::PhysicsWorld>();
     viewer::PlayerBody body(physics,1.7f); body.follow({0,1.7f,0},{0,0,-1},true);
+    body.follow({.1f,1.7f,0},{1,0,0},true);
+    require(glm::distance(body.eyePosition(),glm::vec3(0,1.7f,0))<.00001f,
+            "Following a future translated/turned eye must retain the solved aim origin until physics advances");
+    body.follow({0,1.7f,0},{0,0,-1},true);
     body.punch({0,0,-1});
     PlayerState player; player.id=1; player.slot=static_cast<std::uint8_t>(viewer::punchSlot); player.melee=body.pose();
     Snapshot s; s.players.push_back(player);
@@ -172,6 +176,67 @@ void rejectedPunches(const Options& options) {
             (player.body.pose().striking|player.body.pose().returning)!=0,
             "A fresh click after physical rejection must start and count one real punch immediately");
 }
+void movingTargetContactsMatchSnapshot(const Options& options) {
+    Scene scene(options); openScene(scene); scene.zombies.instances.resize(1); scene.zombies.rebuildSpatialIndex();
+    World world(scene); const auto id=world.join(); world.submit(id,Commands{{fists(1)}});
+    for(int n=0;n<600 && world.players().at(id).weapons.slot()!=viewer::punchSlot;++n) world.step();
+    require(world.players().at(id).body.enabled(),"Moving-target fixture did not enable fists");
+    auto& zombie=scene.zombies.instances[0];
+    zombie.restRoot=zombie.restTransform=zombie.transform=glm::translate(glm::mat4(1),{0,0,-2.5f});
+    scene.zombies.rebuildSpatialIndex(); scene.zombies.setPerceptionEnabled(true);
+    auto filter=b3DefaultQueryFilter();
+    filter.categoryBits=viewer::playerBodyCategory; filter.maskBits=viewer::meleeZombieCategory;
+    for(int tick=0;tick<5;++tick) {
+        const float previous=zombie.restRoot[3].z;
+        world.step();
+        require(zombie.restRoot[3].z>previous+.02f && !zombie.ragdoll,
+                "Moving-target fixture must keep approaching throughout the contact checks");
+        const auto snapshot=wire(world.snapshot(id));
+        require(snapshot.zombies.size()==1 && snapshot.zombies[0].root==zombie.restRoot,
+                "Moving target snapshot lost its current root");
+        const auto ray=b3World_CastRayClosest(scene.physics->id(),{0,1,0},{0,0,-3},filter);
+        require(ray.hit && std::abs(ray.point.z-(snapshot.zombies[0].root[3].z+.16f))<.0001f,
+                "Melee contact surfaces must match the moving target's published pose in the same tick");
+    }
+}
+viewer::PlayerBodyPose runningPunchPose(const Options& options,bool batched,bool directStart) {
+    Scene scene(options); openScene(scene); scene.zombies.instances.clear(); scene.zombies.rebuildSpatialIndex();
+    World world(scene); const auto id=world.join(); world.submit(id,Commands{{fists(1)}});
+    for(int n=0;n<600 && world.players().at(id).weapons.slot()!=viewer::punchSlot;++n) world.step();
+    const auto& player=world.players().at(id);
+    require(player.body.canPunch(),"Running aim fixture did not enable an available hand");
+    const auto startEye=player.camera.position();
+    if(directStart) {
+        viewer::MeleeCombat melee(scene.physics);
+        auto& body=const_cast<viewer::PlayerBody&>(player.body);
+        require(melee.punch(body,startEye,player.camera.direction(),*scene.collision),
+                "Running aim reference must launch from the current solved eye before movement");
+    }
+    auto first=fists(2,!batched && !directStart); first.movement.right=1; first.movement.run=true;
+    if(batched) {
+        auto second=first; second.sequence=3; second.left=!directStart;
+        auto third=first; third.sequence=4;
+        auto fourth=first; fourth.sequence=5;
+        world.submit(id,Commands{{first,second,third,fourth}});
+    } else world.submit(id,Commands{{first}});
+    world.step();
+    require(player.camera.position().x>startEye.x+.09f && player.resolved==(batched?3u:2u),
+            "Running aim fixture must move one full tick and consume the intended punch command");
+    require(player.shots==(directStart?0u:1u),"A running command must accept exactly one punch");
+    return player.body.pose();
+}
+void runningPunchStartsAtSolvedEye(const Options& options) {
+    for(const bool batched : {false,true}) {
+        const auto reference=runningPunchPose(options,batched,true);
+        const auto commanded=runningPunchPose(options,batched,false);
+        require(commanded.striking==reference.striking && commanded.returning==reference.returning,
+                "Commanded running punches must share the direct start-of-step strike state");
+        for(std::size_t p=0;p<commanded.parts.size();++p)
+            for(int c=0;c<4;++c)
+                require(glm::distance(commanded.parts[p][c],reference.parts[p][c])<.00001f,
+                        "Running punch aim must use the solved eye even after an earlier batched movement command");
+    }
+}
 void simultaneousSharedImpact(const Options& options) {
     Scene scene(options); openScene(scene); scene.zombies.instances.resize(1); scene.zombies.rebuildSpatialIndex();
     scene.zombies.attachPhysics(scene.physics);
@@ -232,7 +297,8 @@ int main(int argc,char** argv) {
     try {
         require(argc==2,"Expected test map");
         Options options; options.map=argv[1]; options.zombieCount=0; options.trees=options.forests=false;
-        poseProtocol(); authoritativeHits(options); rejectedPunches(options); simultaneousSharedImpact(options); seatedFists(options); interpolation(options);
+        poseProtocol(); authoritativeHits(options); rejectedPunches(options); movingTargetContactsMatchSnapshot(options);
+        runningPunchStartsAtSolvedEye(options); simultaneousSharedImpact(options); seatedFists(options); interpolation(options);
         std::cout<<"Multiplayer melee authority, shared contacts, replication and cleanup passed\n";
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}
 }

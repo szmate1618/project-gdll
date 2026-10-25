@@ -39,20 +39,22 @@ PhysicsWorld::~PhysicsWorld() { b3DestroyWorld(world_); }
 void PhysicsWorld::step(float seconds, const std::function<void(float)>& before,
                         const std::function<void(float)>& after) {
     if (!std::isfinite(seconds) || seconds <= 0) return;
-    constexpr float fixedStep = 1.0f / 60.0f;
     accumulator_ = std::min(accumulator_ + seconds, 0.2f);
     int steps = 0;
-    while (accumulator_ >= fixedStep && steps++ < 8) {
-        if (before) before(fixedStep);
-        b3World_Step(world_, fixedStep, 4);
+    while (accumulator_ >= fixedStepSeconds && steps++ < 8) {
+        if (before) before(fixedStepSeconds);
+        b3World_Step(world_, fixedStepSeconds, 4);
         const auto events = b3World_GetBodyEvents(world_);
         for (int i = 0; i < events.moveCount; ++i) {
             const auto found = motionOwners_.find(b3StoreBodyId(events.moveEvents[i].bodyId));
             if (found != motionOwners_.end()) ++*found->second;
         }
-        if (after) after(fixedStep);
-        accumulator_ -= fixedStep;
+        if (after) after(fixedStepSeconds);
+        accumulator_ -= fixedStepSeconds;
     }
+}
+float PhysicsWorld::interpolationAlpha() const {
+    return std::clamp(accumulator_ / fixedStepSeconds, 0.f, 1.f);
 }
 void PhysicsWorld::trackBodyMotion(b3BodyId body, std::uint64_t& ownerRevision) {
     if (!b3Body_IsValid(body)) throw std::invalid_argument("Cannot track an invalid physics body");

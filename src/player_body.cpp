@@ -534,6 +534,10 @@ PlayerBodyPose PlayerBody::pose() const {
     return result;
 }
 bool PlayerBody::enabled() const { return impl_->active; }
+glm::vec3 PlayerBody::eyePosition() const {
+    const auto& d = *impl_;
+    return position(d.anchor) - quat(b3Body_GetRotation(d.anchor)) * d.centers[index(PlayerBodyPart::hip)];
+}
 b3BodyId PlayerBody::body(PlayerBodyPart part) const { return impl_->bodies.at(index(part)); }
 glm::mat4 PlayerBody::transform(PlayerBodyPart part) const {
     const auto b = body(part);

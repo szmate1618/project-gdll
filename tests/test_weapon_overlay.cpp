@@ -2,6 +2,7 @@
 #include "renderer.hpp"
 #include "player_body.hpp"
 #include "player_body_renderer.hpp"
+#include "player_presentation.hpp"
 #include "physics_world.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <GLFW/glfw3.h>
@@ -125,6 +126,8 @@ int main(int argc, char** argv) {
         viewer::PlayerBody body(physics, 1.7f);
         const glm::vec3 eye(0, 1.7f, 0);
         body.follow(eye, {0, 0, -1}, true);
+        viewer::PlayerPresentation presentation;
+        presentation.reset(eye, body.pose());
         const auto projection = glm::perspective(glm::radians(60.f), float(width) / height, .01f, 20.f);
         int outboundFrames = 0;
         for (int pose = 0; pose < 5; ++pose) {
@@ -133,10 +136,10 @@ int main(int argc, char** argv) {
                 const auto start = body.fistPosition(true);
                 // Sample by travel rather than time so tuning punch speed
                 // cannot accidentally capture the guard or an invisible fist.
-                for (int f = 0; f < 120 && glm::distance(start, body.fistPosition(true)) < .25f &&
+                for (int f = 0; f < 120 && glm::distance(start, body.fistPosition(true)) < .40f &&
                                     body.punching(viewer::PlayerBodyPart::rightFist); ++f) {
                     physics->step(1.f / 60, [&](float s) { body.beforeStep(s); }, [&](float s) {
-                        body.afterStep(); bodyRenderer.captureBody(body, s);
+                        body.afterStep(); bodyRenderer.captureBody(body, s); presentation.advance(eye, body.pose());
                     });
                     ++outboundFrames;
                 }
@@ -146,13 +149,13 @@ int main(int argc, char** argv) {
             if (pose == 3) {
                 for (int f = 0; f < 120 && body.punching(viewer::PlayerBodyPart::rightFist); ++f) {
                     physics->step(1.f / 60, [&](float s) { body.beforeStep(s); }, [&](float s) {
-                        body.afterStep(); bodyRenderer.captureBody(body, s);
+                        body.afterStep(); bodyRenderer.captureBody(body, s); presentation.advance(eye, body.pose());
                     });
                     ++outboundFrames;
                 }
                 for (int f = 0; f < 3 * outboundFrames / 2; ++f)
                     physics->step(1.f / 60, [&](float s) { body.beforeStep(s); }, [&](float s) {
-                        body.afterStep(); bodyRenderer.captureBody(body, s);
+                        body.afterStep(); bodyRenderer.captureBody(body, s); presentation.advance(eye, body.pose());
                     });
                 if (!body.returning(viewer::PlayerBodyPart::rightFist) || body.punching(viewer::PlayerBodyPart::rightFist))
                     throw std::runtime_error("Recovery capture must sample a non-damaging arm still moving toward guard");
@@ -168,7 +171,10 @@ int main(int argc, char** argv) {
             // a fully occluding depth buffer in the final pose.
             glBlendFuncSeparate(GL_ONE, GL_ZERO, GL_ZERO, GL_ONE);
             glBlendEquationSeparate(GL_FUNC_REVERSE_SUBTRACT, GL_FUNC_SUBTRACT);
-            bodyRenderer.drawBody(body, projection * view, width, height);
+            if (pose == 1)
+                bodyRenderer.drawPose(presentation.pose(.5f), projection * view, width, height,
+                                      .5f * viewer::PhysicsWorld::fixedStepSeconds);
+            else bodyRenderer.drawBody(body, projection * view, width, height);
             GLint srcRgb = 0, dstRgb = 0, srcAlpha = 0, dstAlpha = 0, equationRgb = 0, equationAlpha = 0;
             glGetIntegerv(GL_BLEND_SRC_RGB, &srcRgb); glGetIntegerv(GL_BLEND_DST_RGB, &dstRgb);
             glGetIntegerv(GL_BLEND_SRC_ALPHA, &srcAlpha); glGetIntegerv(GL_BLEND_DST_ALPHA, &dstAlpha);

@@ -74,10 +74,14 @@ void World::step() {
     std::vector<Shot> shots;
     std::vector<viewer::PlayerBody*> bodies;
     bodies.reserve(players_.size());
+    targets.reserve(players_.size());
     for (auto& [id, player] : players_) {
-        (void)id;
         bodies.push_back(&player.body);
+        targets.push_back({player.controller.feet(), player.controller.eyeHeight(), player.controller.bodyHeight(), id});
     }
+    // Advance living poses from the start-of-tick player state before aim and
+    // contacts. Do not move them again between the solve and its snapshot.
+    scene_.zombies.updateBehaviorForPlayers(tickSeconds, targets, *scene_.collision, now);
     for (auto& [id, player] : players_) {
         const bool completedSwitch = player.weaponSwitch.update(player.weapons, now);
         if (completedSwitch && player.held.left) player.triggerNeedsRelease = true;
@@ -183,7 +187,7 @@ void World::step() {
                     // Start before a later queued command can switch or disable
                     // the body. Refresh shared aim surfaces before accepting.
                     melee_.prepare(bodies.data(), bodies.size(), &scene_.zombies, now);
-                    return melee_.punch(player.body, player.camera.position(), player.camera.direction(), *scene_.collision);
+                    return melee_.punch(player.body, player.body.eyePosition(), player.camera.direction(), *scene_.collision);
                 }) == viewer::WeaponFireResult::fired) {
                 ++player.shots;
                 if (config.grenade) {
@@ -221,12 +225,11 @@ void World::step() {
         for (auto* body : bodies) body->afterStep();
     });
     for (auto& [id, player] : players_) {
+        (void)id;
         vehicleSeats_.updateSeat(id, player.controller, player.camera);
-        targets.push_back({player.controller.feet(), player.controller.eyeHeight(), player.controller.bodyHeight(), id});
     }
     scene_.grenades->update(now, *scene_.collision, &scene_.zombies, now);
     scene_.zombies.synchronizePhysics();
-    scene_.zombies.updateBehaviorForPlayers(tickSeconds, targets, *scene_.collision, now);
     for (const auto& noise : noises) scene_.zombies.makeNoise(noise.position, noise.decibels);
     for (const auto& shot : shots) {
         scene_.zombies.makeNoise(shot.origin, 110);

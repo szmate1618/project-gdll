@@ -18,9 +18,11 @@ public:
     void captureBody(const PlayerBody& body, float seconds);
     void drawBody(const PlayerBody& body, const glm::mat4& projectionView, int width, int height);
     void capturePose(const PlayerBodyPose& pose, float seconds);
-    void drawPose(const PlayerBodyPose& pose, const glm::mat4& projectionView, int width, int height);
+    // Delay trail samples to match an interpolated pose's simulation timestamp.
+    void drawPose(const PlayerBodyPose& pose, const glm::mat4& projectionView, int width, int height,
+                  float secondsBehindNewest = 0);
 private:
-    void drawBodyTrail(const PlayerBodyPose& pose, const glm::mat4& projectionView);
+    void drawBodyTrail(const PlayerBodyPose& pose, const glm::mat4& projectionView, float secondsBehindNewest);
     struct BodySample {
         std::array<glm::mat4, 6> arms{}; // Left upper/lower/fist, then right.
         glm::vec3 hip{0};

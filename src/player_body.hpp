@@ -38,6 +38,9 @@ public:
     // before afterStep() reads the remaining Box3D contacts.
     void recordArmContact(PlayerBodyPart part);
     bool enabled() const;
+    // Eye implied by the last solved anchor pose, in world meters. A follow()
+    // target does not change this until physics advances (except initial reset).
+    glm::vec3 eyePosition() const;
     PlayerBodyPose pose() const;
     b3BodyId body(PlayerBodyPart part) const;
     glm::mat4 transform(PlayerBodyPart part) const; // Includes full box size.

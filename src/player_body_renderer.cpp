@@ -70,7 +70,8 @@ void PlayerBodyRenderer::capturePose(const PlayerBodyPose& body, float seconds) 
     bodyHistory_[0] = sample;
     bodyHistoryCount_ = std::min(bodyHistoryCount_ + 1, bodyHistory_.size());
 }
-void PlayerBodyRenderer::drawBodyTrail(const PlayerBodyPose& body, const glm::mat4& projectionView) {
+void PlayerBodyRenderer::drawBodyTrail(const PlayerBodyPose& body, const glm::mat4& projectionView,
+                                     float secondsBehindNewest) {
     if (bodyHistoryCount_ < 2) return;
     const bool left = (body.striking | body.returning) & 1;
     const bool right = (body.striking | body.returning) & 2;
@@ -84,8 +85,9 @@ void PlayerBodyRenderer::drawBodyTrail(const PlayerBodyPose& body, const glm::ma
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     // The opaque arm and scene already own depth. Ghosts only read it.
     glDepthMask(GL_FALSE);
+    const double displayedTime = bodyHistory_[0].time - std::max(0.f, secondsBehindNewest);
     for (int tap = 4; tap > 0; --tap) {
-        const double time = bodyHistory_[0].time - tap * .008;
+        const double time = displayedTime - tap * .008;
         for (std::size_t i = 1; i < bodyHistoryCount_; ++i) {
             const auto& newer = bodyHistory_[i - 1];
             const auto& older = bodyHistory_[i];
@@ -96,7 +98,8 @@ void PlayerBodyRenderer::drawBodyTrail(const PlayerBodyPose& body, const glm::ma
                 // Interpolate only nearby recorded poses; no velocity extrapolation
                 // through an impact, and no camera-turn smear of an idle guard.
                 const auto pose = older.arms[part] * (1.f - t) + newer.arms[part] * t;
-                const float travel = glm::distance(glm::vec3(pose[3]), glm::vec3(bodyHistory_[0].arms[part][3]));
+                const auto& displayed = body.parts[static_cast<std::size_t>(PlayerBodyPart::leftUpperArm) + part];
+                const float travel = glm::distance(glm::vec3(pose[3]), glm::vec3(displayed[3]));
                 const float opacity = .035f * (5 - tap) * std::clamp(travel / .04f, 0.f, 1.f);
                 if (opacity < .005f) continue;
                 const auto transform = projectionView * pose;
@@ -115,7 +118,8 @@ void PlayerBodyRenderer::drawBodyTrail(const PlayerBodyPose& body, const glm::ma
 void PlayerBodyRenderer::drawBody(const PlayerBody& body, const glm::mat4& projectionView, int width, int height) {
     drawPose(body.pose(), projectionView, width, height);
 }
-void PlayerBodyRenderer::drawPose(const PlayerBodyPose& body, const glm::mat4& projectionView, int width, int height) {
+void PlayerBodyRenderer::drawPose(const PlayerBodyPose& body, const glm::mat4& projectionView, int width, int height,
+                                  float secondsBehindNewest) {
     if (!body.enabled) { bodyHistoryCount_ = 0; bodyTime_ = 0; return; }
     if (width <= 0 || height <= 0) return;
     GLint previousProgram = 0, previousVao = 0, previousFront = 0, previousCullMode = 0, previousDepthFunction = 0;
@@ -141,7 +145,7 @@ void PlayerBodyRenderer::drawPose(const PlayerBodyPose& body, const glm::mat4& p
         glUniformMatrix4fv(transform_, 1, GL_FALSE, glm::value_ptr(transform));
         glDrawArrays(GL_TRIANGLES, 0, vertexCount_);
     }
-    drawBodyTrail(body, projectionView);
+    drawBodyTrail(body, projectionView, secondsBehindNewest);
     glBindVertexArray(static_cast<GLuint>(previousVao)); glUseProgram(static_cast<GLuint>(previousProgram));
     if (depth) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
     if (blend) glEnable(GL_BLEND); else glDisable(GL_BLEND);

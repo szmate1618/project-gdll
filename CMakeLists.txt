@@ -292,7 +292,7 @@ add_custom_command(
 add_custom_target(viewer_audio_assets DEPENDS ${VIEWER_AUDIO_FILES})
 endif()
 
-add_library(viewer_physics STATIC src/vehicle_config.cpp src/physics_world.cpp src/player_body.cpp src/player_body_pose.cpp src/physics_prop.cpp src/physics_grab.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_physics.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp src/vehicle_steering.cpp)
+add_library(viewer_physics STATIC src/vehicle_config.cpp src/physics_world.cpp src/player_body.cpp src/player_body_pose.cpp src/player_presentation.cpp src/physics_prop.cpp src/physics_grab.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_physics.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp src/vehicle_steering.cpp)
 target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
@@ -495,6 +495,13 @@ if(BUILD_TESTING)
     add_test(NAME viewer_melee_retract_pause COMMAND test_melee --retract-pause)
     add_test(NAME viewer_melee_pelvis_upright COMMAND test_melee --pelvis-upright)
     add_test(NAME viewer_melee_torso_punch COMMAND test_melee --torso-punch)
+    add_executable(test_melee_timing tests/test_melee_timing.cpp)
+    target_link_libraries(test_melee_timing PRIVATE viewer_zombies viewer_fps viewer_weapons)
+    target_compile_definitions(test_melee_timing PRIVATE
+        VIEWER_WEAPON_CONFIGS="${CMAKE_CURRENT_SOURCE_DIR}/storage/weapons"
+        VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml")
+    viewer_warnings(test_melee_timing)
+    add_test(NAME viewer_melee_timing COMMAND test_melee_timing)
     add_executable(test_melee_contact_mesh tests/test_melee_contact_mesh.cpp)
     target_link_libraries(test_melee_contact_mesh PRIVATE viewer_zombies)
     viewer_warnings(test_melee_contact_mesh)

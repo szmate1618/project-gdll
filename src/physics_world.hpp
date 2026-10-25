@@ -29,6 +29,7 @@ constexpr std::uint64_t meleeZombieCategory = 1ull << 21;
 // before releasing it. Advance once per application frame, then read all poses.
 class PhysicsWorld {
 public:
+    static constexpr float fixedStepSeconds = 1.f / 60.f;
     PhysicsWorld();
     ~PhysicsWorld();
     PhysicsWorld(const PhysicsWorld&) = delete;
@@ -36,6 +37,8 @@ public:
     // Optional hooks run once per fixed step, outside Box3D callbacks.
     void step(float seconds, const std::function<void(float)>& before = {},
               const std::function<void(float)>& after = {});
+    // Fraction of the next fixed step accrued since the last solved pose.
+    float interpolationAlpha() const;
     b3WorldId id() const { return world_; }
     int allocateCollisionGroup(); // Negative groups suppress ragdoll self-contact.
     // Owner revision must have a stable address until untrackBodyMotion().
