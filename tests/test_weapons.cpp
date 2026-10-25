@@ -8,7 +8,7 @@ namespace {
 void require(bool condition, const char* message) { if (!condition) throw std::runtime_error(message); }
 void click(viewer::Weapons& weapons) { weapons.trigger(false); weapons.trigger(true); }
 void firingAndReload() {
-    viewer::Weapons weapons(VIEWER_ITEMS, VIEWER_INVENTORY);
+    viewer::Weapons weapons(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
     require(weapons.equipped().config.id == "pistol", "Inventory must select starting weapon");
     const int loaded = weapons.equipped().loaded, reserve = weapons.equipped().reserve;
     click(weapons);
@@ -49,7 +49,7 @@ void firingAndReload() {
 }
 
 void pelletPattern() {
-    viewer::Weapons weapons(VIEWER_ITEMS, VIEWER_INVENTORY);
+    viewer::Weapons weapons(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
     weapons.equip(2); click(weapons);
     const int shells = weapons.equipped().loaded;
     require(weapons.fire(0) && weapons.equipped().loaded == shells - 1, "Shotgun must consume one shell, not eight rounds");
@@ -72,7 +72,7 @@ void pelletPattern() {
 
 void dryFire() {
     using Result = viewer::WeaponFireResult;
-    viewer::Weapons weapons(VIEWER_ITEMS, VIEWER_INVENTORY);
+    viewer::Weapons weapons(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
     weapons.equip(1);
     click(weapons);
     const auto rounds = weapons.equipped().loaded;
@@ -93,8 +93,8 @@ void dryFire() {
 }
 
 void punchesNeedNoAmmo() {
-    viewer::Weapons weapons(VIEWER_ITEMS, VIEWER_INVENTORY, true);
-    viewer::Weapons networkInventory(VIEWER_ITEMS, VIEWER_INVENTORY);
+    viewer::Weapons weapons(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY, true);
+    viewer::Weapons networkInventory(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
     require(!networkInventory.equip(viewer::punchSlot), "Multiplayer inventory must not expose unreplicated melee");
     const auto rounds = weapons.equipped().loaded;
     require(weapons.equip(viewer::punchSlot), "Fists must always be owned");
@@ -113,17 +113,17 @@ void punchesNeedNoAmmo() {
 }
 
 void fixtures(const std::filesystem::path& scratch) {
-    std::filesystem::create_directories(scratch / "items");
-    for (const auto& entry : std::filesystem::directory_iterator(VIEWER_ITEMS))
+    std::filesystem::create_directories(scratch / "weapons");
+    for (const auto& entry : std::filesystem::directory_iterator(VIEWER_WEAPON_CONFIGS))
         if (entry.path().extension() == ".toml")
-            std::filesystem::copy_file(entry.path(), scratch / "items" / entry.path().filename(),
+            std::filesystem::copy_file(entry.path(), scratch / "weapons" / entry.path().filename(),
                                        std::filesystem::copy_options::overwrite_existing);
     const auto inventory = scratch / "inventory.toml";
     const auto write = [&](const std::string& text) { std::ofstream(inventory) << text; };
     const std::string base = "equipped = 'pistol'\n[weapons]\npistol = 3\n[ammo]\n"
                              "pistol_rounds = 1\nsmg_rounds = 0\nsniper_rounds = 0\nshotgun_shells = 0\nhe_grenades = 0\n";
     write(base);
-    viewer::Weapons partial(scratch / "items", inventory);
+    viewer::Weapons partial(scratch / "weapons", inventory);
     require(!partial.equip(1), "Inventory omission must remove ownership");
     require(partial.reload() == 1 && partial.equipped().loaded == 4 && partial.equipped().reserve == 0,
             "Partial reserve must give partial reload");
@@ -133,8 +133,8 @@ void fixtures(const std::filesystem::path& scratch) {
         "name = 'Test pistol'\nammo_type = 'pistol_rounds'\ncaliber = 'high'\nshot_interval_seconds = 2\n"
         "automatic = false\nhas_scope = false\npellets = 1\nspread_degrees = 0\n"
         "magazine_capacity = 7\nammo_per_shot = 2\nmuzzle_position = [0.01, 0.02, -0.3]\n";
-    std::ofstream(scratch / "items/pistol.toml") << customConfig;
-    viewer::Weapons doubleShot(scratch / "items", inventory);
+    std::ofstream(scratch / "weapons/pistol.toml") << customConfig;
+    viewer::Weapons doubleShot(scratch / "weapons", inventory);
     require(doubleShot.equipped().config.caliber == viewer::ShotCaliber::high,
             "TOML caliber must configure the shot damage category");
     require(glm::distance(doubleShot.equipped().config.muzzlePosition, glm::vec3(.01f, .02f, -.3f)) < 1e-6f,
@@ -149,7 +149,7 @@ void fixtures(const std::filesystem::path& scratch) {
     click(doubleShot);
     require(doubleShot.fire(2), "Enough ammo after reload must permit firing");
     const auto invalid = [&] {
-        try { viewer::Weapons bad(scratch / "items", inventory); }
+        try { viewer::Weapons bad(scratch / "weapons", inventory); }
         catch (const std::exception&) { return; }
         throw std::runtime_error("Invalid inventory was accepted");
     };
@@ -179,7 +179,7 @@ void fixtures(const std::filesystem::path& scratch) {
              {"has_scope = false\n", ""}}) {
         auto badConfig = customConfig;
         badConfig.replace(badConfig.find(change.first), change.first.size(), change.second);
-        std::ofstream(scratch / "items/pistol.toml") << badConfig;
+        std::ofstream(scratch / "weapons/pistol.toml") << badConfig;
         invalid();
     }
 }
@@ -187,7 +187,7 @@ void fixtures(const std::filesystem::path& scratch) {
 int main() {
     try {
         firingAndReload(); pelletPattern(); dryFire(); punchesNeedNoAmmo();
-        viewer::Weapons grenades(VIEWER_ITEMS, VIEWER_INVENTORY);
+        viewer::Weapons grenades(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
         require(grenades.equip(4) && grenades.equipped().config.grenade.has_value(), "Key 5 must equip HE grenades");
         const auto visibleAt = [&](double seconds) {
             const auto& held = grenades.equipped();

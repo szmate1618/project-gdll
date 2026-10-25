@@ -1,13 +1,8 @@
+schema_version = 1
+id = "shotgun"
 name = "Shotgun"
-ammo_type = "shotgun_shells"
-# Each pellet deals 1 base damage (2 on a headshot).
-caliber = "low"
-shot_interval_seconds = 0.9
-automatic = false
-pellets = 8
-has_scope = false
-spread_degrees = 4.0
-magazine_capacity = 6
-ammo_per_shot = 1
-# Center of the barrel's front cap, in model-local meters (X right, Y up, -Z forward).
-muzzle_position = [0.0, -0.0045398, -0.475]
+type = "weapon"
+weapon = "shotgun"
+width = 4
+height = 2
+tags = ["shotgun", "ranged", "two_handed"]

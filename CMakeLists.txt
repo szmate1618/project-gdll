@@ -428,7 +428,7 @@ target_compile_definitions(godollo_viewer PRIVATE
     VIEWER_ZOMBIE_ASSETS="${CMAKE_CURRENT_SOURCE_DIR}/assets/zombies/models"
     VIEWER_ZOMBIE_PARK="${CMAKE_CURRENT_SOURCE_DIR}/assets/zombies/grassalkovich_park.json"
     VIEWER_FOREST_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/forest_patches.json"
-    VIEWER_ITEMS="${CMAKE_CURRENT_SOURCE_DIR}/items"
+    VIEWER_WEAPON_CONFIGS="${CMAKE_CURRENT_SOURCE_DIR}/weapons"
     VIEWER_VEHICLES="${CMAKE_CURRENT_SOURCE_DIR}/vehicles"
     VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}"
     VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml"
@@ -558,7 +558,7 @@ if(BUILD_TESTING AND GD_VIEWER)
     add_executable(test_weapons tests/test_weapons.cpp)
     target_link_libraries(test_weapons PRIVATE viewer_weapons)
     target_compile_definitions(test_weapons PRIVATE
-        VIEWER_ITEMS="${CMAKE_CURRENT_SOURCE_DIR}/items"
+        VIEWER_WEAPON_CONFIGS="${CMAKE_CURRENT_SOURCE_DIR}/weapons"
         VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml")
     viewer_warnings(test_weapons)
     add_test(NAME viewer_weapons COMMAND test_weapons)
@@ -603,7 +603,7 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_compile_definitions(test_muzzle_flash_render PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
         VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
         VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}"
-        VIEWER_ITEMS="${CMAKE_CURRENT_SOURCE_DIR}/items" VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml")
+        VIEWER_WEAPON_CONFIGS="${CMAKE_CURRENT_SOURCE_DIR}/weapons" VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml")
     add_dependencies(test_muzzle_flash_render viewer_weapon_assets)
     viewer_warnings(test_muzzle_flash_render)
     add_test(NAME viewer_muzzle_flash_render COMMAND test_muzzle_flash_render)
@@ -622,7 +622,7 @@ if(BUILD_TESTING AND GD_VIEWER)
     add_executable(test_weapon_models tests/test_weapon_models.cpp)
     target_link_libraries(test_weapon_models PRIVATE viewer_model viewer_weapons)
     target_compile_definitions(test_weapon_models PRIVATE VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}"
-        VIEWER_ITEMS="${CMAKE_CURRENT_SOURCE_DIR}/items" VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml")
+        VIEWER_WEAPON_CONFIGS="${CMAKE_CURRENT_SOURCE_DIR}/weapons" VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml")
     add_dependencies(test_weapon_models viewer_weapon_assets)
     viewer_warnings(test_weapon_models)
     add_test(NAME viewer_weapon_models COMMAND test_weapon_models)
@@ -893,7 +893,7 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_zombie_movement PRIVATE viewer_poles)
     target_link_libraries(test_zombie_damage PRIVATE viewer_weapons)
     target_compile_definitions(test_zombie_damage PRIVATE
-        VIEWER_ITEMS="${CMAKE_CURRENT_SOURCE_DIR}/items"
+        VIEWER_WEAPON_CONFIGS="${CMAKE_CURRENT_SOURCE_DIR}/weapons"
         VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml")
 
     add_executable(test_character_step tests/test_character_step.cpp)

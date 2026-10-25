@@ -29,6 +29,10 @@ def check_credits(package):
     for name in ("equipment.toml", "backpacks.toml", "loadout.toml"):
         if not (package / "storage" / name).is_file():
             raise RuntimeError("Package is missing storage resource " + name)
+    for folder in ("items", "weapons"):
+        for name in ("pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"):
+            if not (package / folder / (name + ".toml")).is_file():
+                raise RuntimeError("Package is missing " + folder + "/" + name + ".toml")
     for name, credit in expected.items():
         path = package / "credits/assets" / name
         if credit not in path.read_text(encoding="utf-8"):

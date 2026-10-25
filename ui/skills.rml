@@ -7,15 +7,15 @@
         <div class="skill-entries">
         <div class="skill-entry selected">
             <div class="skill-square punch"></div><div class="skill-name">Punch</div><div class="skill-cost">8 STAMINA</div>
-            <div class="skill-requirement">Requires / Empty hands</div><div class="skill-assignment">Assigned / shortcut 3</div>
+            <div class="skill-requirement">Requires / Empty hands</div><div class="skill-assignment">Unassigned</div>
         </div>
         <div class="skill-entry">
             <div class="skill-square shove"></div><div class="skill-name">Shove</div><div class="skill-cost">12 STAMINA</div>
-            <div class="skill-requirement">Requires / Empty hands</div><div class="skill-assignment">Assigned / shortcut 4</div>
+            <div class="skill-requirement">Requires / Empty hands</div><div class="skill-assignment">Unassigned</div>
         </div>
         <div class="skill-entry">
             <div class="skill-square listen"></div><div class="skill-name">Listen</div><div class="skill-cost">4 STAMINA</div>
-            <div class="skill-requirement">Requires / Stand still</div><div class="skill-assignment">Assigned / shortcut 5</div>
+            <div class="skill-requirement">Requires / Stand still</div><div class="skill-assignment">Unassigned</div>
         </div>
         <div class="skill-entry">
             <div class="skill-square step"></div><div class="skill-name">Quick step</div><div class="skill-cost">10 STAMINA</div>
@@ -34,7 +34,7 @@
             <div class="detail-field description"><div class="field-label">DESCRIPTION</div><div class="field-value">An unarmed strike at close range.</div></div>
             <div class="detail-field"><div class="field-label">STAMINA COST</div><div class="field-value">8 stamina</div></div>
             <div class="detail-field"><div class="field-label">REQUIREMENTS</div><div class="field-value">Empty hands</div></div>
-            <div class="detail-field"><div class="field-label">ASSIGNMENT</div><div class="field-value">Action shortcut / 3</div></div>
+            <div class="detail-field"><div class="field-label">ASSIGNMENT</div><div class="field-value">Unassigned</div></div>
             <div class="skill-storage-note">Learned actions occupy no storage slots.</div>
         </div>
     </div>

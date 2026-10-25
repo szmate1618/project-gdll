@@ -22,7 +22,7 @@ def check_contents(package):
     for name in required:
         if not (package / name).is_file():
             raise RuntimeError("Package is missing " + name)
-    for folder in ("items", "vehicles"):
+    for folder in ("items", "weapons", "vehicles"):
         if not list((package / folder).glob("*.toml")):
             raise RuntimeError("Package is missing " + folder + " definitions")
     for name in ("pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"):

@@ -125,9 +125,15 @@ configure the storage view independently of the weapon/ammo `inventory.toml`.
 [skills.rml](../ui/skills.rml) has a skill list, skill details and an empty
 combo-builder section reserved for later design. Both screens use
 [loadout.rml](../ui/loadout.rml) for the header and identical 0–9 action shortcuts,
-styled by [loadout.rcss](../ui/loadout.rcss) and the HUD stylesheet. Skills and
-hotbar assignments remain fixed examples. The layouts do not implement item
-placement, equipping, assignment, skill use, filters, drag-and-drop or combos.
+styled by [loadout.rcss](../ui/loadout.rcss) and the HUD stylesheet. Skills
+remain fixed examples. The shared hotbar reads owned weapon IDs and slots from
+[inventory.toml](../inventory.toml), using inventory labels from
+[items/*.toml](../items/README.md). Slots 0–4 start assigned to pistol, SMG,
+shotgun, sniper and HE grenade; 5–9 are empty. Item descriptors carry N×M grid
+footprints separately from gameplay settings in `weapons/*.toml`. Ownership and
+shortcuts are cached when Inventory or Skills first opens. The layouts do not
+implement item placement, equipping, assignment, skill use, filters, drag-and-drop
+or combos.
 Icons and the body reference are colored square placeholders. System fonts and
 the HUD backend are shared; each screen is cached until the session ends.
 
@@ -1702,7 +1708,7 @@ response fades over 12 m and creates no particles or extra mesh vertices.
 Multiplayer throws, collisions, fuses and blasts run on the server; clients
 interpolate the replicated bodies and fade explosion events by their age.
 
-[he_grenade.toml](../items/he_grenade.toml) uses `kind = "he_grenade"` and adds
+[he_grenade.toml](../weapons/he_grenade.toml) uses `kind = "he_grenade"` and adds
 `fuse_seconds` (0–30, exclusive of zero), `blast_radius` (0–50 m), and
 `throw_speed` (0–30 m/s). All three must be finite and positive. Grenade inventory
 counts are whole grenades; `muzzle_position` is unused for throws.
@@ -1744,7 +1750,7 @@ zero. Idle timings show that those static bodies were not a significant cost in
 this fixture. These are small absolute CPU savings, not an end-to-end forest FPS
 measurement or a promise of a similar percentage gain in rendered frame rate.
 
-Each [weapon TOML](../items/) defines `name`, `ammo_type`,
+Each [weapon TOML](../weapons/) defines `name`, `ammo_type`,
 `shot_interval_seconds`, `automatic`, `has_scope`, `pellets`, `spread_degrees`
 (cone half-angle), `magazine_capacity`, `ammo_per_shot`, and `muzzle_position`.
 Firearms also require `caliber = "low"` or `"high"`. The pistol and SMG use low,
@@ -1766,6 +1772,10 @@ Automatic fire restarts the pulse per shot; shotguns pulse once per shell and
 empty clicks produce no flash. Scope mode hides the mesh but keeps the muzzle
 light. The multiplayer client pulses on server-confirmed local shots. This
 short-lived point light does not render additional shadow maps.
+
+[Inventory item definitions](../items/README.md) provide each weapon's inventory
+label, cell footprint and tags. Their `weapon` ID links to the separate gameplay
+TOML above. Item dimensions do not yet perform placement or fitting.
 
 [inventory.toml](../inventory.toml) chooses the initially `equipped` weapon.
 Its `[weapons]` table lists owned weapon IDs and their starting loaded rounds;
@@ -2546,7 +2556,8 @@ resize, and Escape callbacks passed the input check. Screenshots are in
 ```text
 CMakeLists.txt              Viewer and unit-test build configuration
 src/main.cpp               Window, input callbacks, render loop, CLI
-items/*.toml               Four prototype weapon configurations
+weapons/*.toml             Five weapon gameplay configurations
+items/*.toml               Inventory item descriptors (labels, cell footprints, tags)
 inventory.toml             Starting weapons, loaded rounds, and ammo reserves
 src/weapons.{hpp,cpp}       TOML loading, trigger/cooldown state, ammo, and pellet rays
 src/weapon_overlay.{hpp,cpp} Batched camera-local firearm meshes

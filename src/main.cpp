@@ -406,7 +406,7 @@ struct AppState {
         : rig(collision, model.boundsMin, model.boundsMax, 1280.0f / 720.0f), world(collision) {}
     viewer::CameraRig rig;
     viewer::PlayerInteraction interaction;
-    viewer::Weapons weapons{VIEWER_ITEMS, VIEWER_INVENTORY, true};
+    viewer::Weapons weapons{VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY, true};
     viewer::WeaponMotion weaponMotion;
     viewer::DoorLayer* doors = nullptr;
     viewer::BoxLayer* boxes = nullptr;

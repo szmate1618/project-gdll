@@ -1,6 +1,7 @@
 #include "hud.hpp"
 #include "hud_render_interface.hpp"
 #include "inventory_view.hpp"
+#include "item_config.hpp"
 #include "storage_config.hpp"
 #include <RmlUi/Core.h>
 #include <algorithm>
@@ -11,6 +12,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <unordered_map>
@@ -86,6 +88,7 @@ struct Hud::Impl {
     Rml::Context* context = nullptr;
     Rml::ElementDocument* document = nullptr;
     std::array<Rml::ElementDocument*, 4> screens{};
+    std::optional<InventoryItems> inventoryItems;
     bool hasSatelliteImage = false;
     std::filesystem::path sourceDirectory;
     HudScreen screen = HudScreen::Gameplay;
@@ -191,6 +194,10 @@ struct Hud::Impl {
                 const char* file = files.at(index);
                 page = context->LoadDocument((sourceDirectory / file).generic_string());
                 if (!page) throw std::runtime_error(std::string("Cannot load HUD screen: ") + file);
+                if (selected == HudScreen::Inventory || selected == HudScreen::Skills) {
+                    if (!inventoryItems) inventoryItems = loadInventoryItems(sourceDirectory.parent_path());
+                    populateActionHotbar(*page, *inventoryItems);
+                }
                 if (selected == HudScreen::Inventory)
                     populateInventory(*page, loadStorageLoadout(sourceDirectory.parent_path() / "storage"));
                 if (selected == HudScreen::Map) {

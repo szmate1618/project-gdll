@@ -1,12 +1,8 @@
+schema_version = 1
+id = "submachine_gun"
 name = "Submachine gun"
-ammo_type = "smg_rounds"
-caliber = "low"
-shot_interval_seconds = 0.08
-automatic = true
-has_scope = false
-pellets = 1
-spread_degrees = 0.0
-magazine_capacity = 30
-ammo_per_shot = 1
-# Center of the barrel's front cap, in model-local meters (X right, Y up, -Z forward).
-muzzle_position = [-0.0113252, 0.0081202, -0.325]
+type = "weapon"
+weapon = "submachine_gun"
+width = 3
+height = 2
+tags = ["smg", "ranged", "two_handed"]

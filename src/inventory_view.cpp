@@ -1,5 +1,6 @@
 #include "inventory_view.hpp"
 #include "storage_config.hpp"
+#include "item_config.hpp"
 
 #include <RmlUi/Core/ElementDocument.h>
 #include <RmlUi/Core/StringUtilities.h>
@@ -86,5 +87,24 @@ void populateInventory(Rml::ElementDocument& document, const StorageLoadout& loa
         number(grid.accessTime + (grid.height - 1) * grid.depthTimePerRow) + "s");
     set(document, "backpack-caption", std::to_string(grid.width * grid.height) +
         " internal cells · " + std::to_string(backpack.slots.size()) + " external compartments");
+}
+
+void populateActionHotbar(Rml::ElementDocument& document, const InventoryItems& inventory) {
+    std::string contents;
+    for (std::size_t slot = 0; slot < inventory.hotbar.size(); ++slot) {
+        const auto& id = inventory.hotbar[slot];
+        contents += "<div class='action-slot " + std::string(id.empty() ? "empty" : "item") +
+            (slot == 9 ? " last" : "") + "'><span class='action-number'>" + std::to_string(slot) + "</span>";
+        if (id.empty()) contents += "<div class='assignment-name'>Unassigned</div>";
+        else {
+            const auto& item = inventory.owned.at(id);
+            const bool explosive = std::find(item.tags.begin(), item.tags.end(), "explosive") != item.tags.end();
+            contents += "<span class='assignment-type'>ITEM</span><div class='assignment-square " +
+                std::string(explosive ? "grenade" : "pistol") + "'></div><div class='assignment-name'>" +
+                Rml::StringUtilities::EncodeRml(item.name) + "</div>";
+        }
+        contents += "</div>";
+    }
+    set(document, "hotbar-slots", contents);
 }
 } // namespace viewer

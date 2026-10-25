@@ -42,7 +42,7 @@ struct WeaponItem {
 
 class Weapons {
 public:
-    Weapons(const std::filesystem::path& items, const std::filesystem::path& inventory, bool enableMelee = false);
+    Weapons(const std::filesystem::path& definitions, const std::filesystem::path& inventory, bool enableMelee = false);
     bool equip(std::size_t slot);
     std::size_t slot() const { return slot_; }
     const WeaponState& equipped() const { return weapons_[slot_]; }

@@ -50,7 +50,7 @@ void check(const std::filesystem::path& captures) {
     const auto model = room();
     viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
     viewer::WeaponOverlay overlay(VIEWER_SHADER_DIR, VIEWER_WEAPON_ASSETS);
-    viewer::Weapons weapons(VIEWER_ITEMS, VIEWER_INVENTORY);
+    viewer::Weapons weapons(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
     renderer.resize(width, height);
     renderer.setShadows(false); renderer.setHaze(false); renderer.setGroundFog(false);
     viewer::Camera camera;

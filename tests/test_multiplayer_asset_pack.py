@@ -59,7 +59,8 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         self.write("inventory.toml", b"inventory\n")
         self.write("vehicles/car.toml", b"vehicle config\n")
         for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"):
-            self.write(f"items/{name}.toml", b"weapon\n")
+            self.write(f"items/{name}.toml", b"item definition\n")
+            self.write(f"weapons/{name}.toml", b"weapon gameplay\n")
         self.write("data/raw/input.bin", b"private preparation input")
         self.write("output/backups/town.glb", b"old town")
         self.write("assets/zombies/source/original.bin", b"source asset")
@@ -165,7 +166,8 @@ class MultiplayerAssetPackTests(unittest.TestCase):
                     "assets/tree.glb", "assets/dry_tree_impostor.glb", "output/osm/forest_patches.json", "assets/side.png", "assets/top.png", "assets/shrub.png", "inventory.toml",
                     "assets/zombies/models/Zombie.glb", "assets/zombies/models/lods.json"}
         expected.add("vehicles/car.toml")
-        expected.update(f"items/{name}.toml" for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"))
+        for folder in ("items", "weapons"):
+            expected.update(f"{folder}/{name}.toml" for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"))
         expected.update(f"assets/zombies/models/lod{level}/Zombie.glb" for level in range(1, 4))
         expected.update(f"credits/assets/{name}" for name in (*ASSET_CREDIT_FILES, "MAP.txt", "VEGETATION.txt"))
         expected.update(f"credits/software/{name}" for name in SOFTWARE_CREDIT_FILES)

@@ -49,13 +49,9 @@ int main(int argc, char** argv) {
     try {
         if (argc != 3) throw std::runtime_error("Test asset and fixture directory arguments missing");
         resources = argv[2];
-        std::filesystem::create_directories(resources / "items");
-        std::filesystem::copy(std::filesystem::path(MP_ROOT) / "vehicles", resources / "vehicles",
-            std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
-        for (const auto& file : std::filesystem::directory_iterator(std::filesystem::path(MP_ROOT) / "items"))
-            if (file.path().extension() == ".toml")
-                std::filesystem::copy_file(file.path(), resources / "items" / file.path().filename(),
-                                           std::filesystem::copy_options::overwrite_existing);
+        const auto copy = std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing;
+        for (const auto* directory : {"items", "weapons", "vehicles"})
+            std::filesystem::copy(std::filesystem::path(MP_ROOT) / directory, resources / directory, copy);
         {
             std::ofstream inventory(resources / "inventory.toml");
             inventory << "equipped = 'sniper'\n[weapons]\npistol = 12\nsniper = 5\n"
@@ -95,6 +91,15 @@ int main(int argc, char** argv) {
         multiplayer::Scene changedCars(options);
         require(changedCars.fingerprint != scene.fingerprint && scene.vehicles->config(0).weightKg == capturedWeight,
                 "Vehicle config did not affect fingerprint or changed a running session");
+        auto fingerprint = changedCars.fingerprint;
+        for (const auto* folder : {"items", "weapons"}) {
+            { std::ofstream file(resources / folder / "pistol.toml", std::ios::app);
+              file << "\n# Fingerprint coverage for separate item/gameplay definitions\n"; }
+            multiplayer::Scene changedDefinition(options);
+            require(changedDefinition.fingerprint != fingerprint,
+                    "Item or gameplay definition was omitted from the scene fingerprint");
+            fingerprint = changedDefinition.fingerprint;
+        }
         // A later join must use the session's fingerprinted starting definitions,
         // even if the source inventory is edited while the server is running.
         { std::ofstream inventory(resources / "inventory.toml"); inventory << "invalid inventory\n"; }

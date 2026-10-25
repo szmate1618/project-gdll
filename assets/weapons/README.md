@@ -73,7 +73,7 @@ scales with FOV so both zoom levels have comparable screen motion. At 10° FOV,
 breathing is bounded by 0.27° yaw and 0.168° pitch (up to about 20 pixels from
 center at 720p). The 1° FOV reduces those angular amplitudes by about ten times.
 
-Each weapon's [item TOML](../../items/) records `muzzle_position` in these
+Each weapon's [gameplay TOML](../../weapons/) records `muzzle_position` in these
 model-local meters, at the center of the original barrel's front cap (the M14
 body cap for the sniper, rather than the decorative heavy-barrel sleeve).
 The measured positions are:
@@ -111,7 +111,7 @@ cmake --build build --target viewer_weapon_assets
 ```
 
 The grenade's fuse, radius and launch speed are configured in
-`items/he_grenade.toml`; throwing and blast behavior are described in
+`weapons/he_grenade.toml`; throwing and blast behavior are described in
 [the viewer guide](../../docs/VIEWER.md#prototype-weapons-and-inventory).
 
 To regenerate `models.json`, download the free source from the page above and

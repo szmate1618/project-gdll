@@ -354,7 +354,7 @@ Slot 5 throws a grey/red octagonal HE grenade on left click. The server owns
 its 3-second fuse, shared prop physics, 8 m occluded blast, and outward impulses.
 Clients interpolate thrown bodies and show the short explosion point light;
 the flashlight toggle does not disable that light. Grenade settings and starting
-counts are in `items/he_grenade.toml` and `inventory.toml`.
+counts are in `weapons/he_grenade.toml` and `inventory.toml`.
 
 Graphical client builds generate the five small weapon GLBs offline from the
 tracked [CC0 mesh source](../assets/weapons/README.md). Linux and Windows client

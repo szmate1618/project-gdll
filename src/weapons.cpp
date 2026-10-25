@@ -74,7 +74,7 @@ WeaponConfig loadConfig(const std::filesystem::path& path, const std::string& id
 }
 } // namespace
 
-Weapons::Weapons(const std::filesystem::path& items, const std::filesystem::path& inventory, bool enableMelee) {
+Weapons::Weapons(const std::filesystem::path& definitions, const std::filesystem::path& inventory, bool enableMelee) {
     auto& punch = weapons_[punchSlot];
     punch.owned = enableMelee;
     punch.config.id = "punch"; punch.config.name = "Fists";
@@ -89,7 +89,7 @@ Weapons::Weapons(const std::filesystem::path& items, const std::filesystem::path
     bool foundEquipped = false;
     for (std::size_t i = 0; i < ids.size(); ++i) {
         auto& weapon = weapons_[i];
-        weapon.config = loadConfig(items / (std::string(ids[i]) + ".toml"), ids[i]);
+        weapon.config = loadConfig(definitions / (std::string(ids[i]) + ".toml"), ids[i]);
         if (!ammoTypes.insert(weapon.config.ammoType).second)
             throw std::runtime_error("Prototype weapons require separate ammo_type values");
         weapon.reserve = count(*ammo, weapon.config.ammoType, inventory);

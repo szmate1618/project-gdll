@@ -17,7 +17,7 @@ int main() {
         const std::array<const char*, 4> names{"pistol", "submachine_gun", "shotgun", "sniper"};
         const std::array<const char*, 4> bodies{"1911_Body", "UMP_Body", "TacticalPump_Body", "M14_Body"};
         const std::array<float, 4> lengths{.22f, .65f, .95f, 1.16f};
-        viewer::Weapons weapons(VIEWER_ITEMS, VIEWER_INVENTORY);
+        viewer::Weapons weapons(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
         for (std::size_t slot = 0; slot < names.size(); ++slot) {
             const auto model = viewer::loadModel(std::filesystem::path(VIEWER_WEAPON_ASSETS) /
                                                   (std::string(names[slot]) + ".glb"));

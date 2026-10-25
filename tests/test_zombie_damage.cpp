@@ -86,7 +86,7 @@ void missesAndExplosions() {
 }
 
 void configuredPellets() {
-    viewer::Weapons weapons(VIEWER_ITEMS, VIEWER_INVENTORY);
+    viewer::Weapons weapons(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
     for (const auto slot : {0u, 1u, 2u, 3u}) {
         weapons.equip(slot);
         require(weapons.equipped().config.caliber == (slot == 3 ? viewer::ShotCaliber::high : viewer::ShotCaliber::low),

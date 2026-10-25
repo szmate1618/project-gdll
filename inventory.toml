@@ -15,3 +15,11 @@ smg_rounds = 300
 sniper_rounds = 30
 shotgun_shells = 48
 he_grenades = 0
+
+# Action references into owned weapons above. These slots add no storage.
+[hotbar]
+0 = "pistol"
+1 = "submachine_gun"
+2 = "shotgun"
+3 = "sniper"
+4 = "he_grenade"

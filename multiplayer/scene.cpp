@@ -143,7 +143,7 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
              const std::optional<viewer::ZombieScenarioConfig::Player>& playerSpawn) :
     mapPath(o.map), model(loadSessionMap(o.map)), physics(std::make_shared<viewer::PhysicsWorld>()),
     dayNight(o.dayNight),
-    initialWeapons(resourceRoot() / "items", resourceRoot() / "inventory.toml", true) {
+    initialWeapons(resourceRoot() / "weapons", resourceRoot() / "inventory.toml", true) {
     std::vector<std::filesystem::path> content{o.map};
     const auto adjacent = [&](const char* name) { return o.map.parent_path() / name; };
     if (std::filesystem::exists(adjacent("poles.instances.json"))) {
@@ -225,11 +225,13 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
             content.push_back(o.zombieAssets);
         }
     }
-    std::vector<std::filesystem::path> items;
-    for (const auto& entry : std::filesystem::directory_iterator(resourceRoot() / "items"))
-        if (entry.path().extension() == ".toml") items.push_back(entry.path());
-    std::sort(items.begin(), items.end());
-    content.insert(content.end(), items.begin(), items.end());
+    for (const auto* directory : {"weapons", "items"}) {
+        std::vector<std::filesystem::path> definitions;
+        for (const auto& entry : std::filesystem::directory_iterator(resourceRoot() / directory))
+            if (entry.path().extension() == ".toml") definitions.push_back(entry.path());
+        std::sort(definitions.begin(), definitions.end());
+        content.insert(content.end(), definitions.begin(), definitions.end());
+    }
     content.push_back(resourceRoot() / "inventory.toml");
     const auto vehicleFiles = viewer::vehicleConfigFiles(resourceRoot() / "vehicles");
     content.insert(content.end(), vehicleFiles.begin(), vehicleFiles.end());

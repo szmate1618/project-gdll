@@ -58,7 +58,7 @@ body.loadout { background-color: #29312fed; }
 .item .assignment-type { color: #59c49c; }
 .skill .assignment-type { color: #e7cd65; }
 .assignment-square { position: absolute; left: 8dp; top: 33dp; width: 14dp; height: 14dp; }
-.assignment-name { position: absolute; left: 29dp; top: 30dp; font-size: 12dp; }
+.assignment-name { position: absolute; left: 29dp; right: 5dp; top: 30dp; font-size: 11dp; line-height: 13dp; }
 .empty .assignment-name { left: 8dp; font-size: 10dp; color: #f5f6f259; }
 #skills-list { left: 0dp; width: 518dp; }
 #combo-builder { left: 538dp; width: 298dp; }

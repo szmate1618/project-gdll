@@ -59,12 +59,14 @@ not coordinates relative to that central grid.
 ## Prototype boundary
 
 This simplifies the supplied descriptor schema: item tags, fitting, rotation,
-saved contents, equipping interactions and hotbar assignments are not modeled.
+saved placements and equipping interactions are not modeled.
 All compartment cells start empty. Item details remain unselected; the shared
-hotbar and Skills entries remain visual examples. Unknown extra TOML fields are
+hotbar reads weapon ownership and shortcuts from root `inventory.toml`; Skills
+entries remain visual examples. Unknown extra TOML fields are
 ignored, so tags from an older descriptor have no effect.
 
 This folder configures the **storage view only**. The existing root
-`inventory.toml` and `items/*.toml` continue to control prototype weapon ownership
-and ammo independently. Storage files are local UI resources and are not added
+`inventory.toml` and `weapons/*.toml` control prototype weapon ownership and
+ammo independently. [Item descriptors](../items/README.md) in `items/*.toml`
+define inventory labels, cell footprints and tags. Storage files are local UI resources and are not added
 to multiplayer gameplay fingerprints.

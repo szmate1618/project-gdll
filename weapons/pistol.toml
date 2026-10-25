@@ -1,0 +1,12 @@
+name = "Pistol"
+ammo_type = "pistol_rounds"
+caliber = "low"
+shot_interval_seconds = 0.3
+automatic = false
+has_scope = false
+pellets = 1
+spread_degrees = 0.0
+magazine_capacity = 12
+ammo_per_shot = 1
+# Center of the barrel's front cap, in model-local meters (X right, Y up, -Z forward).
+muzzle_position = [0.0, 0.0267731, -0.11]

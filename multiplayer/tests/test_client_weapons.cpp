@@ -303,6 +303,8 @@ int main(int argc, char** argv) {
         const std::filesystem::path source(MP_ROOT);
         const auto copy = std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing;
         std::filesystem::copy(source / "items", fixture / "items", copy);
+        std::filesystem::copy(source / "weapons", fixture / "weapons", copy);
+        std::filesystem::copy(source / "storage", fixture / "storage", copy);
         std::filesystem::copy(source / "vehicles", fixture / "vehicles", copy);
         std::filesystem::copy(source / "shaders", fixture / "shaders", copy);
         std::filesystem::copy(source / "ui", fixture / "ui", copy);

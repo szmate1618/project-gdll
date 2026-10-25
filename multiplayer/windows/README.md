@@ -52,7 +52,7 @@ from another working directory.
 
 For the actual town, extract a matching asset ZIP created from the prepared
 source checkout with `tools/package_multiplayer_assets.py` into a fresh game
-folder. Preserve its `output/`, `assets/`, and `items/` directories and matching
+folder. Preserve its `output/`, `assets/`, `weapons/`, and `items/` directories and matching
 configuration files. The asset ZIP contains the map, companion layers, trees,
 forest textures, and zombie models; it is shared with Linux and contains no
 executables. The workflow does not download or generate those large assets.
