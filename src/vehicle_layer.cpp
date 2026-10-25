@@ -1,5 +1,6 @@
 #include "vehicle_layer.hpp"
 #include "vehicle_physics.hpp"
+#include "vehicle_steering.hpp"
 #include <unordered_map>
 #include "physics_world.hpp"
 #include "collision_world.hpp"
@@ -15,23 +16,6 @@ namespace {
 std::atomic<std::uint64_t> nextLayerId{1};
 constexpr float forwardMotorSpeed = 85.f, reverseMotorSpeed = 20.f; // rad/s
 constexpr float reverseThrustScale = .5f;
-constexpr float maxSteeringAngle = .5235988f; // 30 degrees, radians
-constexpr float steeringSpeedReduction = .05f; // per m/s
-constexpr float steeringRate = 3.f, steeringReturnRate = 4.f; // rad/s
-float advanceSteeringAngle(float current, float target, float seconds) {
-    const auto approach = [](float from, float to, float step) {
-        return from + std::clamp(to - from, -step, step);
-    };
-    // A direction reversal first returns to center, then turns the other way.
-    // Split the elapsed time at center so response is independent of step size.
-    if (current * target < 0) {
-        const float centeringTime = std::min(seconds, std::abs(current) / steeringReturnRate);
-        current = approach(current, 0, steeringReturnRate * centeringTime);
-        seconds -= centeringTime;
-    }
-    const float rate = std::abs(target) < std::abs(current) ? steeringReturnRate : steeringRate;
-    return approach(current, target, rate * seconds);
-}
 glm::vec3 vector(b3Vec3 v) { return {v.x, v.y, v.z}; }
 b3Vec3 vector(glm::vec3 v) { return {v.x, v.y, v.z}; }
 glm::quat rotation(b3BodyId b) { const auto q = b3Body_GetRotation(b); return {q.s, q.v.x, q.v.y, q.v.z}; }
@@ -159,8 +143,9 @@ void VehicleLayer::beforeStep(float seconds) {
         // once stopped or backing up. Space always retains its normal brake.
         const float thrustScale = reverse && glm::dot(velocity, forward) <= .5f ? reverseThrustScale : 1.f;
         // Reduce steering lock at speed, without overwriting lateral momentum.
-        const float targetAngle = -c->steering * maxSteeringAngle / (1 + speed * steeringSpeedReduction);
-        c->steeringAngle = advanceSteeringAngle(c->steeringAngle, targetAngle, seconds);
+        const float targetAngle = vehicleSteeringTarget(c->steering, speed);
+        c->steeringAngle = advanceVehicleSteering(c->steeringAngle, targetAngle, seconds);
+        const auto frontAngles = vehicleFrontSteeringAngles(c->config, c->steeringAngle);
         // Normal force is calibrated for the previous acceleration with the
         // higher grip. Reserve torque compensates resistance from the last fixed
         // step, rather than multiplying the unloaded throttle force as well.
@@ -170,7 +155,7 @@ void VehicleLayer::beforeStep(float seconds) {
         c->opposingImpulse = 0;
         for (int i = 0; i < 4; ++i) {
             const auto j = c->joints[i];
-            if (i < 2) b3WheelJoint_SetTargetSteeringAngle(j, c->steeringAngle);
+            if (i < 2) b3WheelJoint_SetTargetSteeringAngle(j, frontAngles[i]);
             auto& traction = c->traction[i];
             traction = sampleWheelTraction(c->wheels[i], traction);
             b3Shape_SetFriction(c->tireShapes[i], traction.friction);

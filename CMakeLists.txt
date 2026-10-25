@@ -292,7 +292,7 @@ add_custom_command(
 add_custom_target(viewer_audio_assets DEPENDS ${VIEWER_AUDIO_FILES})
 endif()
 
-add_library(viewer_physics STATIC src/vehicle_config.cpp src/physics_world.cpp src/player_body.cpp src/player_body_pose.cpp src/physics_prop.cpp src/physics_grab.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_physics.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp)
+add_library(viewer_physics STATIC src/vehicle_config.cpp src/physics_world.cpp src/player_body.cpp src/player_body_pose.cpp src/physics_prop.cpp src/physics_grab.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_physics.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp src/vehicle_steering.cpp)
 target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
@@ -683,6 +683,17 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_vehicle_traction PRIVATE viewer_physics)
     viewer_warnings(test_vehicle_traction)
     add_test(NAME viewer_vehicle_traction COMMAND test_vehicle_traction)
+
+    add_executable(test_vehicle_steering tests/test_vehicle_steering.cpp)
+    target_link_libraries(test_vehicle_steering PRIVATE viewer_physics)
+    viewer_warnings(test_vehicle_steering)
+    add_test(NAME viewer_vehicle_steering COMMAND test_vehicle_steering)
+
+    add_executable(test_vehicle_handling tests/test_vehicle_handling.cpp)
+    target_link_libraries(test_vehicle_handling PRIVATE viewer_physics)
+    target_compile_definitions(test_vehicle_handling PRIVATE TEST_VEHICLE_CONFIGS="${CMAKE_CURRENT_SOURCE_DIR}/vehicles")
+    viewer_warnings(test_vehicle_handling)
+    add_test(NAME viewer_vehicle_handling COMMAND test_vehicle_handling)
 
     add_executable(test_vehicle_lod tests/test_vehicle_lod.cpp)
     target_link_libraries(test_vehicle_lod PRIVATE viewer_vehicle_lods)

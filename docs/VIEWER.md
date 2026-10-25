@@ -1390,11 +1390,16 @@ upstream MIT license and notices are retained.
 `VehicleLayer::wheelTraction()` exposes each wheel's latest fixed-step contact
 state and slip speeds in front-left, front-right, rear-left, rear-right order.
 Grip limits, rolling wheel rotation and rigid-body momentum
-still allow coasting and sideways drift. Maximum steering is 30 degrees at rest,
-divided by `1 + speed * 0.05` with speed in m/s. The steering target moves at
+still allow coasting and sideways drift. The equivalent center steering angle
+is 30 degrees at rest, divided by `1 + speed * 0.05` with speed in m/s.
+Ackermann geometry uses each type's wheelbase and front track: the inside front
+wheel turns farther than the outside wheel so both follow the same turn center,
+reducing low-speed tire scrub. Individual wheel travel is limited to 45 degrees.
+The steering target moves at
 3 rad/s into a turn and 4 rad/s toward center, including the centering portion
-of direction reversals. Physical steering springs and torque limits still
-determine the actual wheel response.
+of direction reversals. Critically damped 30 Hz steering springs hold the
+requested wheel angles against loaded tire contacts, with a 1,800 N·m torque
+limit. Physical contact forces still determine the actual wheel response.
 The car can pitch, roll and overturn; the driver camera retains world-up mouse
 look.
 
@@ -1431,12 +1436,16 @@ replicated; see [multiplayer controls and ownership](../multiplayer/README.md).
 The implementation separates fleet ownership (`vehicle_layer.*`), parked/detailed
 body transitions (`vehicle_physics.*`), mesh generation
 (`vehicle_geometry.cpp`), wheel contact/slip sampling (`vehicle_traction.*`),
+steering response and turn geometry (`vehicle_steering.*`),
 placement loading (`vehicle_placement.*`), seat/driver interaction (`vehicle_player.*`),
 swept living-zombie contacts (`vehicle_zombie_collision.*`), and rendering
 (`vehicle_renderer.cpp`). `viewer_vehicle_parking` checks the 1,000-car collider budget, parked contacts,
 activation, settling, re-entry and replica poses. `viewer_vehicles` checks driving, suspension, collision,
 entry/exit and zombie reactions without a GPU. `viewer_vehicle_traction` checks
 rolling, wheelspin/skids, moving support bodies and airborne transitions.
+`viewer_vehicle_steering` checks turn geometry and input response;
+`viewer_vehicle_handling` checks loaded wheel angles, low-speed turning radius
+and recovery from lateral slips on mesh ground.
 `viewer_vehicle_zombie_collision` checks low/high-speed impacts, ordinary
 acceleration into a victim, swept and scaled/rotated chassis contacts, wall
 shielding, spatial updates, parked fleets, and normal scenario movement without

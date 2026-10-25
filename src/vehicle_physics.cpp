@@ -1,4 +1,5 @@
 #include "vehicle_physics.hpp"
+#include "vehicle_steering.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 #include <stdexcept>
@@ -14,7 +15,6 @@ glm::quat rotation(b3BodyId body) {
     return {q.s, q.v.x, q.v.y, q.v.z};
 }
 b3Vec3 vector(glm::vec3 v) { return {v.x, v.y, v.z}; }
-constexpr float maxSteeringAngle = .5235988f;
 // Chassis-local meters. The lower box reaches the neutral tire support plane;
 // the narrower cabin leaves the hood and trunk below the roof line.
 constexpr glm::vec3 lowerCenter(0, -.18f, 0), lowerHalf(.85f, .5f, 1.8f);
@@ -123,10 +123,13 @@ void VehiclePhysics::activate(const b3HullData* tire) {
         joint.enableSuspensionLimit = true;
         joint.lowerSuspensionLimit = -.18f; joint.upperSuspensionLimit = .18f;
         joint.enableSteering = i < 2;
-        joint.steeringHertz = 8; joint.steeringDampingRatio = 1;
+        // Hold the commanded lock against tire contact torque under load,
+        // including on heavier cars.
+        joint.steeringHertz = 30; joint.steeringDampingRatio = 1;
         joint.maxSteeringTorque = 1800;
         joint.enableSteeringLimit = true;
-        joint.lowerSteeringLimit = -maxSteeringAngle; joint.upperSteeringLimit = maxSteeringAngle;
+        joint.lowerSteeringLimit = -maxVehicleWheelSteeringAngle;
+        joint.upperSteeringLimit = maxVehicleWheelSteeringAngle;
         joint.enableSpinMotor = true;
         joints[i] = b3CreateWheelJoint(world.id(), &joint);
     }
