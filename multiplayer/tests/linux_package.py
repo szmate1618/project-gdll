@@ -26,6 +26,9 @@ def check_credits(package):
     for name in ("hud.rml", "hud.rcss", "hud.vert", "hud.frag", "inventory.rml", "skills.rml", "health.rml", "map.rml", "loadout.rml", "loadout.rcss"):
         if not (package / "ui" / name).is_file():
             raise RuntimeError("Package is missing HUD resource " + name)
+    for name in ("equipment.toml", "backpacks.toml", "loadout.toml"):
+        if not (package / "storage" / name).is_file():
+            raise RuntimeError("Package is missing storage resource " + name)
     for name, credit in expected.items():
         path = package / "credits/assets" / name
         if credit not in path.read_text(encoding="utf-8"):

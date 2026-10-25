@@ -1,0 +1,92 @@
+schema_version = 1
+
+[[backpacks]]
+id = "small_sling_bag"
+name = "SLING BAG"
+[backpacks.grid]
+width = 4
+height = 5
+access_time = 0.9
+depth_time_per_row = 0.08
+[[backpacks.slots]]
+id = "front_pocket"
+name = "FRONT POCKET"
+x = 0
+y = -1
+width = 2
+height = 1
+access_time = 0.6
+
+[[backpacks]]
+id = "tactical_backpack"
+name = "TACTICAL BACKPACK"
+[backpacks.grid]
+width = 8
+height = 10
+access_time = 2.0
+depth_time_per_row = 0.12
+[[backpacks.slots]]
+id = "left_side"
+name = "SIDE / L"
+x = -1
+y = 0
+width = 1
+height = 2
+access_time = 1.2
+[[backpacks.slots]]
+id = "right_side"
+name = "SIDE / R"
+x = 1
+y = 0
+width = 1
+height = 2
+access_time = 1.2
+[[backpacks.slots]]
+id = "front_utility"
+name = "FRONT UTILITY"
+x = 0
+y = 1
+width = 2
+height = 2
+access_time = 1.6
+[[backpacks.slots]]
+id = "top_quick_access"
+name = "TOP POCKET"
+x = 0
+y = -1
+width = 2
+height = 1
+access_time = 0.9
+
+[[backpacks]]
+id = "hiking_backpack"
+name = "HIKING BACKPACK"
+[backpacks.grid]
+width = 10
+height = 14
+access_time = 2.5
+depth_time_per_row = 0.15
+[[backpacks.slots]]
+id = "left_bottle"
+name = "BOTTLE / L"
+x = -1
+y = 0.3
+width = 1
+height = 3
+access_time = 1.1
+[[backpacks.slots]]
+id = "right_bottle"
+name = "BOTTLE / R"
+x = 1
+y = 0.3
+width = 1
+height = 3
+access_time = 1.1
+[[backpacks.slots]]
+id = "top_compartment"
+name = "TOP POCKET"
+x = 0
+y = -1
+width = 3
+height = 2
+access_time = 1.3

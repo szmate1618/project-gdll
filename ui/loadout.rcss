@@ -18,18 +18,6 @@ body.loadout { background-color: #29312fed; }
 .details-panel { left: 856dp; width: 354dp; }
 .body-placeholder { position: absolute; top: 174dp; left: 170dp; width: 48dp; height: 48dp; background-color: #88958f; }
 .body-placeholder-label { position: absolute; top: 237dp; left: 137dp; width: 114dp; font-size: 10dp; line-height: 17dp; text-align: center; color: #f5f6f280; }
-.body-slot { position: absolute; width: 108dp; height: 80dp; }
-.shoulder, .jacket-left, .belt-left, .thigh-left { left: 20dp; }
-.chest, .jacket-right, .belt-right, .thigh-right { right: 20dp; }
-.shoulder, .chest { top: 64dp; }
-.jacket-left, .jacket-right { top: 156dp; }
-.belt-left, .belt-right { top: 248dp; }
-.thigh-left, .thigh-right { top: 340dp; }
-.slot-label { font-size: 10dp; color: #f5f6f2bf; }
-.slot-box { position: absolute; top: 21dp; width: 106dp; height: 36dp; border: 1dp #f5f6f25e; background-color: #29312f66; }
-.body-slot.selected .slot-box { border-color: #59c49c; background-color: #59c49c1f; }
-.storage-square { position: absolute; left: 9dp; top: 8dp; width: 20dp; height: 20dp; }
-.access-time { position: absolute; top: 65dp; font-size: 11dp; color: #f5f6f299; }
 .pistol { background-color: #f5f6f2; }
 .grenade { background-color: #b3ae72; }
 .medkit { background-color: #ec6962; }
@@ -38,22 +26,20 @@ body.loadout { background-color: #29312fed; }
 .listen { background-color: #93a88a; }
 .step { background-color: #889dba; }
 .backpack-size { color: #59c49c; font-size: 14dp; top: 14dp; }
-.pouch-label { position: absolute; left: 141dp; top: 50dp; font-size: 10dp; color: #f5f6f299; }
-.top-pouch { position: absolute; left: 141dp; top: 72dp; width: 144dp; height: 34dp; }
-.pocket-cell { float: left; box-sizing: border-box; width: 48dp; height: 34dp; border: 1dp #f5f6f24d; background-color: #29312f66; }
-.pouch-time { position: absolute; left: 297dp; top: 80dp; font-size: 11dp; color: #f5f6f299; }
-.access-band { position: absolute; left: 88dp; width: 252dp; text-align: center; font-size: 10dp; color: #f5f6f2a6; }
-.faster { top: 126dp; }
-.slower { top: 412dp; }
-#backpack-grid { position: absolute; left: 114dp; top: 150dp; width: 200dp; height: 250dp; }
-.backpack-cell { float: left; box-sizing: border-box; width: 50dp; height: 50dp; border: 1dp #f5f6f24d; background-color: #29312f66; }
-.side-pocket { position: absolute; top: 218dp; width: 48dp; height: 100dp; }
-.left-pocket { left: 24dp; }
-.right-pocket { right: 24dp; }
-.side-label { position: absolute; top: -25dp; width: 60dp; font-size: 10dp; color: #f5f6f299; }
-.side-cell { width: 46dp; height: 46dp; border: 1dp #f5f6f24d; background-color: #29312f66; }
-.side-time { margin-top: 9dp; font-size: 11dp; color: #f5f6f299; }
+/* Slot coordinates use this inner rectangle of each panel, in design dp. */
+.storage-area { position: absolute; left: 20dp; top: 62dp; height: 344dp; }
+#body-storage-slots { width: 348dp; }
+#backpack-storage { width: 388dp; }
+.storage-slot { position: absolute; width: 108dp; }
+.storage-label { height: 28dp; font-size: 10dp; line-height: 12dp; color: #f5f6f2bf; overflow: hidden; }
+.storage-row { display: flex; }
+.storage-cell { flex: 1; min-width: 0dp; box-sizing: border-box; border: 1dp #f5f6f24d; background-color: #29312f66; }
+.storage-time { padding-top: 7dp; font-size: 10dp; color: #f5f6f299; }
+.main-storage { position: absolute; }
+.storage-empty { position: absolute; top: 300dp; width: 100%; text-align: center; font-size: 10dp; color: #f5f6f299; }
+.backpack-access { position: absolute; bottom: 28dp; width: 428dp; text-align: center; font-size: 10dp; color: #f5f6f2a6; }
 .backpack-caption { position: absolute; bottom: 8dp; width: 428dp; text-align: center; font-size: 9dp; color: #f5f6f280; }
+.unselected { background-color: #88958f; }
 .detail-square { position: absolute; left: 20dp; top: 66dp; width: 42dp; height: 42dp; }
 .detail-name { position: absolute; left: 80dp; top: 61dp; font-size: 24dp; }
 .detail-subtitle { position: absolute; left: 80dp; top: 98dp; font-size: 10dp; color: #f5f6f299; }

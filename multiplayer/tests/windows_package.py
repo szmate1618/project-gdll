@@ -11,6 +11,7 @@ import zipfile
 def check_contents(package):
     required = [
         "godollo_client.exe", "OpenAL32.dll", "run-game.cmd", "README.md",
+        "storage/equipment.toml", "storage/backpacks.toml", "storage/loadout.toml",
         "assets/test.glb", "assets/test.navmesh", "inventory.toml",
         "shaders/game_menu.vert", "shaders/game_menu.frag",
         "ui/hud.rml", "ui/hud.rcss", "ui/hud.vert", "ui/hud.frag", "licenses/RmlUi.txt",

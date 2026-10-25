@@ -4,6 +4,7 @@
 #include "opengl.hpp"
 #include <GLFW/glfw3.h>
 #include <array>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -40,6 +41,20 @@ void capture(const char* path, const std::vector<unsigned char>& image, int widt
     for (int row = height - 1; row >= 0; --row)
         file.write(reinterpret_cast<const char*>(image.data() + row * width * 3), width * 3);
 }
+struct StorageFixture {
+    std::filesystem::path directory = std::filesystem::current_path() /
+        ("hud-storage-fixture-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    StorageFixture() {
+        const std::filesystem::path ui(VIEWER_HUD_DIR);
+        std::filesystem::create_directory(directory);
+        std::filesystem::copy(ui, directory / "ui", std::filesystem::copy_options::recursive);
+        std::filesystem::copy(ui.parent_path() / "storage", directory / "storage", std::filesystem::copy_options::recursive);
+    }
+    ~StorageFixture() { std::filesystem::remove_all(directory); }
+    void select(const char* fields) const {
+        std::ofstream(directory / "storage/loadout.toml") << "schema_version=1\n" << fields;
+    }
+};
 } // namespace
 
 int main(int argc, char** argv) {
@@ -325,6 +340,41 @@ int main(int argc, char** argv) {
             state.screen = viewer::HudScreen::Gameplay;
             clear(); hud.draw(state, 1280, 720); checkState();
             require(first == pixels(1280, 720), "Closing a prototype screen failed to restore the gameplay HUD");
+        }
+        // Use isolated configuration files to check that actual screen geometry
+        // changes with selection, and that reopening a cached page performs no IO.
+        {
+            StorageFixture fixture;
+            fixture.select("backpack='hiking_backpack'\nequipment=['jacket']\n");
+            state.screen = viewer::HudScreen::Inventory;
+            std::vector<unsigned char> configured;
+            {
+                viewer::Hud hud(fixture.directory / "ui");
+                clear(); hud.draw(state, 1280, 720); checkState();
+                configured = pixels(1280, 720);
+                if (argc > 1) capture((std::string(argv[1]) + "-hiking.ppm").c_str(), configured, 1280, 720);
+                state.screen = viewer::HudScreen::Gameplay;
+                clear(); hud.draw(state, 1280, 720); checkState();
+                fixture.select("equipment=[]\n");
+                state.screen = viewer::HudScreen::Inventory;
+                clear(); hud.draw(state, 1280, 720); checkState();
+                require(configured == pixels(1280, 720), "Reopening Inventory unexpectedly reloaded storage files");
+            }
+            viewer::Hud emptyHud(fixture.directory / "ui");
+            clear(); emptyHud.draw(state, 1280, 720); checkState();
+            const auto empty = pixels(1280, 720);
+            if (argc > 1) capture((std::string(argv[1]) + "-unequipped.ppm").c_str(), empty, 1280, 720);
+            std::size_t bodyChanges = 0, backpackChanges = 0;
+            for (int y = 0; y < 720; ++y) for (int x = 0; x < 1280; ++x) {
+                const bool same = colorAt(configured, 1280, 720, x, y) == colorAt(empty, 1280, 720, x, y);
+                if (y >= 568) require(same, "Storage configuration changed shared hotbar examples");
+                if (y > 140 && y < 540 && !same) {
+                    if (x > 34 && x < 424) ++bodyChanges;
+                    if (x > 442 && x < 872) ++backpackChanges;
+                }
+            }
+            require(bodyChanges > 100 && backpackChanges > 1000,
+                    "Storage selections did not change rendered body compartments and backpack grid");
         }
         glDeleteSamplers(1, &sampler); glDeleteTextures(1, &texture); glDeleteTextures(1, &color);
         glDeleteTextures(1, &mapTexture);

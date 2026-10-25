@@ -1,5 +1,7 @@
 #include "hud.hpp"
 #include "hud_render_interface.hpp"
+#include "inventory_view.hpp"
+#include "storage_config.hpp"
 #include <RmlUi/Core.h>
 #include <algorithm>
 #include <array>
@@ -189,6 +191,8 @@ struct Hud::Impl {
                 const char* file = files.at(index);
                 page = context->LoadDocument((sourceDirectory / file).generic_string());
                 if (!page) throw std::runtime_error(std::string("Cannot load HUD screen: ") + file);
+                if (selected == HudScreen::Inventory)
+                    populateInventory(*page, loadStorageLoadout(sourceDirectory.parent_path() / "storage"));
                 if (selected == HudScreen::Map) {
                     auto* map = dynamic_cast<SatelliteMapElement*>(page->GetElementById("satellite-overview"));
                     if (!map) throw std::runtime_error("Missing full satellite map element");

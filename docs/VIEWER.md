@@ -112,16 +112,24 @@ visible; simulation continues. F8 and F9 now select free-fly and walking modes.
 F10 toggles the standalone viewer's collision overlay. The same four screens
 are available in the graphical multiplayer client.
 
-[inventory.rml](../ui/inventory.rml) has body-storage zones, a four-column by
-five-row backpack, external pockets and item details. [skills.rml](../ui/skills.rml)
-has a skill list, skill details and an empty combo-builder section reserved for
-later design. Both use [loadout.rml](../ui/loadout.rml) for the header and identical
-0–9 action shortcuts, styled by [loadout.rcss](../ui/loadout.rcss) and the HUD
-stylesheet. All entries, access times, requirements and assignments are fixed
-examples; these layouts do not expose the real inventory or implement equipping,
-assignment, skill use, filters, drag-and-drop or combos. Icons and the body
-reference are colored square placeholders. System fonts and the HUD backend are
-shared; each screen is loaded on first use and cached until the session ends.
+[inventory.rml](../ui/inventory.rml) builds body storage and the backpack from
+[storage/loadout.toml](../storage/loadout.toml) and the equipment/backpack catalogs
+in that folder. The starter selection is a 4×5 sling bag, hip holster and chest
+pouch. Slot coordinates are normalized within each panel's inner storage
+rectangle. Capacity, pocket placement and access times come from those files;
+see [the storage schema](../storage/SCHEMA.md) for editing and validation rules.
+The files are read once when Inventory first opens; restart to reload changes.
+All storage cells are empty and item details are unselected. These definitions
+configure the storage view independently of the weapon/ammo `inventory.toml`.
+
+[skills.rml](../ui/skills.rml) has a skill list, skill details and an empty
+combo-builder section reserved for later design. Both screens use
+[loadout.rml](../ui/loadout.rml) for the header and identical 0–9 action shortcuts,
+styled by [loadout.rcss](../ui/loadout.rcss) and the HUD stylesheet. Skills and
+hotbar assignments remain fixed examples. The layouts do not implement item
+placement, equipping, assignment, skill use, filters, drag-and-drop or combos.
+Icons and the body reference are colored square placeholders. System fonts and
+the HUD backend are shared; each screen is cached until the session ends.
 
 After building `test_hud`, capture the screens without loading town data:
 
