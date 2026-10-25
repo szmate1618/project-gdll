@@ -1325,6 +1325,7 @@ int run(const Options& options) {
             continue;
         }
         const double simulationStart = glfwGetTime();
+        const auto previousCameraPosition = app.rig.camera().position();
         simulationClock.advance(dt);
         if (!options.night) {
             displayedHour = options.dayNight.hourAt(simulationClock.seconds());
@@ -1466,15 +1467,19 @@ int run(const Options& options) {
         viewer::HudState hudState;
         hudState.position = app.rig.camera().position();
         hudState.yawDegrees = app.rig.camera().yawDegrees();
-        hudState.movement = app.driver.occupied() ? (app.driver.driving() ? "DRIVING" : "PASSENGER") : app.rig.modeName();
-        hudState.mode = app.interaction.modeName();
+        hudState.movement = app.driver.occupied() ? (app.driver.driving() ? "DRIVING" : "PASSENGER") :
+            !app.rig.walking() ? "FREE FLY" : app.rig.player().stance() == viewer::PlayerStance::Prone ? "PRONE" :
+            app.rig.player().stance() == viewer::PlayerStance::Crouched ? "CROUCH" : "STAND";
+        hudState.mode = app.interaction.mode() == viewer::ControlMode::Combat ? "COMBAT" : "INTERACT";
+        const auto velocity = app.driver.car() ? cars.velocity(*app.driver.car()) : app.playerVelocity;
+        hudState.speedMetersPerSecond = !app.driver.occupied() && !app.rig.walking() && dt > 0 ?
+            glm::length(app.rig.camera().position() - previousCameraPosition) / dt : glm::length(glm::vec2(velocity.x, velocity.z));
         hudState.equipment = heldWeapon.owned ? heldWeapon.config.name : "EMPTY HANDS";
         hudState.slot = heldWeapon.owned ? static_cast<int>(app.weapons.slot()) : -1;
         if (heldWeapon.owned && app.weapons.slot() != viewer::punchSlot) {
             hudState.loaded = heldWeapon.loaded;
             hudState.reserve = heldWeapon.reserve;
         }
-        hudState.flashlight = app.flashlight;
         hudState.mouseCaptured = app.capture;
         if (app.driver.occupied()) hudState.prompt = "Enter: exit vehicle";
         else if (app.interaction.grabbing()) hudState.prompt = "Holding object";

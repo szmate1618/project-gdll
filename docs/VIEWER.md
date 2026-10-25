@@ -31,17 +31,21 @@ disable playback while retaining simulation hearing.
 ## HUD
 
 The viewer and graphical multiplayer client share an RmlUi HUD. It displays
-live equipment and ammunition, the selected equipment slot, compass heading,
-local east/north coordinates, control/camera mode, flashlight state and cursor
-capture. Multiplayer equipment and ammunition follow the server-confirmed
+live equipment and ammunition, a scrolling compass ribbon, local east/north
+coordinates, control mode, stance, horizontal speed in km/h and cursor capture.
+The layout is transparent: navigation at the upper right, vitals at the lower
+left, mode/stance/speed along the bottom, and equipment/ammo at the lower right.
+Multiplayer equipment and ammunition follow the server-confirmed
 state. The HUD is drawn into the scene target before presentation, so it also
 appears in screenshots and follows the selected render resolution.
 
-The local-area panel reserves a square for a north-up 200 × 200 m minimap.
-For now it is a solid green placeholder with a yellow player square; it does
+The navigation area reserves a square for a north-up 200 × 200 m minimap.
+For now it is a solid green placeholder with a white player square; it does
 not load satellite imagery. All equipment artwork is represented by colored
-squares. Health and stamina show `--` because those player stats are not yet
-implemented. The HUD loads no raster/vector images and creates no artwork.
+squares. Health, stamina and weariness have tinted, outlined tracks and show
+`--` because those player stats are not yet implemented. No filled amount is
+invented for them. Coordinates use local metres rather than inferred latitude
+and longitude. The HUD loads no raster/vector images and creates no artwork.
 
 Layout and styling live in [hud.rml](../ui/hud.rml) and
 [hud.rcss](../ui/hud.rcss). The small GL backend supports flat geometry, text and

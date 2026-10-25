@@ -53,18 +53,9 @@ std::filesystem::path systemFont() {
     throw std::runtime_error("No HUD system font found. Set GD_HUD_FONT to an installed .ttf font.");
 }
 
-std::string coordinates(glm::vec3 position) {
+std::string speed(float metresPerSecond) {
     std::ostringstream result;
-    // North is -Z in the runtime frame.
-    result << "E " << std::lround(position.x) << " / N " << std::lround(-position.z);
-    return result.str();
-}
-
-std::string heading(float yaw) {
-    const int bearing = (static_cast<int>(std::lround(yaw + 90)) % 360 + 360) % 360;
-    constexpr std::array<const char*, 8> directions{"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
-    std::ostringstream result;
-    result << directions[((bearing + 22) / 45) % 8] << "  " << std::setfill('0') << std::setw(3) << bearing;
+    result << std::fixed << std::setprecision(1) << std::max(0.f, metresPerSecond) * 3.6f << " km/h";
     return result.str();
 }
 } // namespace
@@ -78,7 +69,9 @@ struct Hud::Impl {
     Rml::ElementDocument* document = nullptr;
     std::unordered_map<std::string, Rml::Element*> elements;
     std::unordered_map<std::string, std::string> text;
-    int width = 0, height = 0, slot = -2;
+    std::array<Rml::Element*, 24> ticks{};
+    std::array<Rml::Element*, 6> directions{};
+    int width = 0, height = 0, slot = -2, bearing = -1;
     bool initialized = false;
 
     explicit Impl(const std::filesystem::path& directory) : renderer(directory) {
@@ -100,12 +93,23 @@ struct Hud::Impl {
             if (!context) throw std::runtime_error("Cannot create HUD context");
             document = context->LoadDocument((directory / "hud.rml").generic_string());
             if (!document) throw std::runtime_error("Cannot load HUD layout: " + directory.string());
-            for (const char* id : {"heading", "coordinates", "movement", "mode", "equipment", "loaded", "reserve",
-                                    "ammo-label", "prompt", "flashlight", "capture", "slot-0", "slot-1", "slot-2",
-                                    "slot-3", "slot-4", "slot-5"}) {
+            for (const char* id : {"heading", "north-coordinate", "east-coordinate", "movement", "mode", "speed",
+                                    "equipment", "weapon", "loaded", "reserve", "prompt", "capture", "compass-scale"}) {
                 auto* element = document->GetElementById(id);
                 if (!element) throw std::runtime_error(std::string("Missing HUD element: ") + id);
                 elements.emplace(id, element);
+            }
+            std::string scale = "<div class=\"compass-rule\"></div>";
+            for (std::size_t i = 0; i < ticks.size(); ++i)
+                scale += "<div class=\"compass-tick\" id=\"tick-" + std::to_string(i) + "\"></div>";
+            for (std::size_t i = 0; i < directions.size(); ++i)
+                scale += "<div class=\"compass-label\" id=\"direction-" + std::to_string(i) + "\"></div>";
+            elements.at("compass-scale")->SetInnerRML(scale);
+            for (std::size_t i = 0; i < ticks.size(); ++i)
+                ticks[i] = document->GetElementById("tick-" + std::to_string(i));
+            for (std::size_t i = 0; i < directions.size(); ++i) {
+                directions[i] = document->GetElementById("direction-" + std::to_string(i));
+                elements.emplace("direction-" + std::to_string(i), directions[i]);
             }
             document->Show();
             std::cout << "HUD system font: " << path << '\n';
@@ -127,6 +131,28 @@ struct Hud::Impl {
         entry->second = value;
         elements.at(id)->SetInnerRML(Rml::StringUtilities::EncodeRml(value));
     }
+    void updateCompass(float yaw) {
+        const int next = (static_cast<int>(std::lround(yaw + 90)) % 360 + 360) % 360;
+        if (next == bearing) return;
+        bearing = next;
+        setText("heading", std::to_string(bearing) + "°");
+        // Keep unwrapped angles for placement so crossing north scrolls smoothly.
+        const int firstTick = static_cast<int>(std::floor((bearing - 111) / 10.f)) * 10;
+        for (std::size_t i = 0; i < ticks.size(); ++i) {
+            const int angle = firstTick + static_cast<int>(i) * 10;
+            ticks[i]->SetProperty(Rml::PropertyId::Left, Rml::Property(222.f + (angle - bearing) * 2.f, Rml::Unit::DP));
+            ticks[i]->SetClass("major", angle % 30 == 0);
+        }
+        constexpr std::array<const char*, 8> names{"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+        const int firstDirection = static_cast<int>(std::floor((bearing - 111) / 45.f));
+        for (std::size_t i = 0; i < directions.size(); ++i) {
+            const int index = firstDirection + static_cast<int>(i);
+            const int offset = index * 45 - bearing;
+            directions[i]->SetProperty(Rml::PropertyId::Left, Rml::Property(222.f + offset * 2.f, Rml::Unit::DP));
+            directions[i]->SetClass("covered", std::abs(offset) < 20);
+            setText("direction-" + std::to_string(i), names[(index % 8 + 8) % 8]);
+        }
+    }
     void draw(const HudState& state, int newWidth, int newHeight) {
         if (newWidth <= 0 || newHeight <= 0) return;
         if (width != newWidth || height != newHeight) {
@@ -135,21 +161,27 @@ struct Hud::Impl {
             // Scale the complete 1280x720 layout together, retaining corner anchors.
             context->SetDensityIndependentPixelRatio(std::min(float(width) / 1280, float(height) / 720));
         }
-        setText("heading", heading(state.yawDegrees));
-        setText("coordinates", coordinates(state.position));
+        updateCompass(state.yawDegrees);
+        // Coordinates remain local metres; the reference's latitude/longitude
+        // cannot be inferred from a runtime position without map georeferencing.
+        setText("north-coordinate", "N " + std::to_string(std::lround(-state.position.z)) + " m");
+        setText("east-coordinate", "E " + std::to_string(std::lround(state.position.x)) + " m");
         setText("movement", state.movement);
         setText("mode", state.mode);
+        setText("speed", speed(state.speedMetersPerSecond));
         setText("equipment", state.equipment);
-        setText("loaded", state.loaded ? std::to_string(*state.loaded) : "--");
-        setText("reserve", state.reserve ? std::to_string(*state.reserve) : "--");
-        setText("ammo-label", state.slot == 5 ? "MELEE" : "LOADED / RESERVE");
-        setText("flashlight", state.flashlight ? "LIGHT ON" : "LIGHT OFF");
+        const auto ammo = [](std::optional<int> count) {
+            if (!count) return std::string("--");
+            return (*count < 10 ? "0" : "") + std::to_string(*count);
+        };
+        setText("loaded", ammo(state.loaded));
+        setText("reserve", ammo(state.reserve));
         setText("capture", state.mouseCaptured ? "" : "CURSOR FREE");
         setText("prompt", state.prompt);
         if (slot != state.slot) {
             slot = state.slot;
-            for (int index = 0; index < 6; ++index)
-                elements.at("slot-" + std::to_string(index))->SetClass("selected", index == slot);
+            constexpr std::array<const char*, 6> classes{"pistol", "smg", "shotgun", "sniper", "grenade", "fists"};
+            elements.at("weapon")->SetClassNames(slot >= 0 && slot < 6 ? classes[slot] : "unconfirmed");
         }
         renderer.render(*context, width, height);
     }

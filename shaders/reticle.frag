@@ -27,7 +27,7 @@ void main() {
     // Scaling X produces circular geometry on non-square framebuffers.
     vec2 point = vec2(vNdc.x * uAspect, vNdc.y);
     if (uMode == 0) {
-        float mark = crosshair(point, 0.030, 0.0018, 0.0);
+        float mark = crosshair(point, 0.100, 0.0010, 0.052);
         fragColor = vec4(vec3(0.95), mark * 0.90);
         return;
     }

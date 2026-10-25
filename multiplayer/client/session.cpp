@@ -96,6 +96,7 @@ struct Graphics {
     std::unique_ptr<viewer::Renderer> renderer;
     std::unique_ptr<viewer::ReticleOverlay> reticle;
     std::unique_ptr<viewer::Hud> hud;
+    float speedMetersPerSecond = 0;
     std::unique_ptr<viewer::WeaponOverlay> weapon;
     std::unique_ptr<viewer::AudioSystem> audio;
     viewer::UndergrowthEmitter undergrowth;
@@ -307,6 +308,8 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
 #endif
                 prediction.advance(nextCommand, *scene.collision);
 #ifdef MP_GRAPHICS
+                const auto movement = controller.feet() - shrubBefore.feet;
+                graphics.speedMetersPerSecond = glm::length(glm::vec2(movement.x, movement.z)) / multiplayer::tickSeconds;
                 // Fresh prediction only: reconciliation replays must stay silent.
                 if (graphics.audio) {
                     const bool running = nextCommand.movement.run && controller.stance() == viewer::PlayerStance::Standing;
@@ -377,9 +380,14 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 viewer::HudState hudState;
                 hudState.position = in.camera.position();
                 hudState.yawDegrees = in.camera.yawDegrees();
-                hudState.movement = in.driver.occupied() ? (in.driver.driving() ? "DRIVING" : "PASSENGER") : "FPS walking";
-                hudState.mode = in.interaction ? "Interaction" : "Combat";
-                hudState.flashlight = in.flashlight;
+                const auto stance = prediction.controller().stance();
+                hudState.movement = in.driver.occupied() ? (in.driver.driving() ? "DRIVING" : "PASSENGER") :
+                    stance == viewer::PlayerStance::Prone ? "PRONE" : stance == viewer::PlayerStance::Crouched ? "CROUCH" : "STAND";
+                hudState.mode = in.interaction ? "INTERACT" : "COMBAT";
+                if (const auto car = in.driver.car()) {
+                    const auto velocity = scene.vehicles->velocity(*car);
+                    hudState.speedMetersPerSecond = glm::length(glm::vec2(velocity.x, velocity.z));
+                } else hudState.speedMetersPerSecond = graphics.speedMetersPerSecond;
                 hudState.mouseCaptured = in.capture;
                 if (prediction.ready()) {
                     hudState.equipment = weaponDefinitions.equipped().config.name;

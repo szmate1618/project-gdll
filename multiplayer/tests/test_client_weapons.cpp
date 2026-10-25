@@ -23,10 +23,9 @@ std::size_t differences(std::size_t a, std::size_t b) {
     // connection, equipment, cooldown, interaction and vehicle states.
     for (int y = 0; y < frameHeight; ++y)
         for (int x = 0; x < frameWidth; ++x) {
-            const bool hud = (y > 600 && (x < 240 || (x > 550 && x < 740) || x > 1140)) ||
-                (x < 240 && y < 320) || (x >= 250 && x < 430 && y < 120) ||
-                (x > 450 && x < 830 && y < 110) || (x > 990 && y < 160) ||
-                (x > 310 && x < 970 && y > 130 && y < 170);
+            const bool hud = (x > 410 && x < 870 && y > 630) || (x > 1000 && y > 550) ||
+                (x < 310 && y < 145) || (x > 425 && x < 910 && y < 95) || (x > 1030 && y < 115) ||
+                (x > 310 && x < 970 && y > 95 && y < 135);
             if (hud) continue;
             const auto i = static_cast<std::size_t>(y * frameWidth + x) * 3;
             if (std::abs(int(frames[a][i]) - int(frames[b][i])) > 8 ||

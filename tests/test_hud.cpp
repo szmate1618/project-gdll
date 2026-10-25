@@ -95,12 +95,20 @@ int main(int argc, char** argv) {
         };
         viewer::HudState state;
         state.equipment = "Pistol <test>"; state.slot = 0; state.loaded = 7; state.reserve = 42;
+        state.movement = "CROUCH"; state.yawDegrees = 225; state.speedMetersPerSecond = 1.5f / 3.6f;
         std::vector<unsigned char> first;
         {
             viewer::Hud hud(VIEWER_HUD_DIR);
             clear(); hud.draw(state, 1280, 720); checkState();
             first = pixels(1280, 720);
-            require(mapPixels(first) > 35000, "HUD did not draw its full map placeholder into the scene framebuffer");
+            require(mapPixels(first) > 11400 && mapPixels(first) < 11800,
+                    "HUD did not draw its map placeholder into the scene framebuffer");
+            for (int y = 0; y < 720; ++y) for (int x = 0; x < 1280; ++x) {
+                const auto i = static_cast<std::size_t>(y * 1280 + x) * 3;
+                if (first[i] == 0x3a && first[i+1] == 0x51 && first[i+2] == 0x44)
+                    require(x > 1100 && y > 550, "Minimap is not anchored to the upper right");
+            }
+            require(first[(680 * 1280 + 40) * 3] == 0, "Removed upper-left panel still obscures the scene");
             if (argc > 1) capture(argv[1], first, 1280, 720);
             clear(); hud.draw(state, 1280, 720); checkState();
             require(first == pixels(1280, 720), "Unchanged HUD state changed rendered output");
@@ -112,12 +120,27 @@ int main(int argc, char** argv) {
                 const auto i = static_cast<std::size_t>(y * 1280 + x) * 3;
                 if (first[i] == changed[i] && first[i+1] == changed[i+1] && first[i+2] == changed[i+2]) continue;
                 ++differences;
-                require(x > 990 && y < 170, "Ammo update changed unrelated HUD content");
+                require(x > 1100 && y < 100, "Ammo update changed unrelated HUD content");
             }
             require(differences > 20, "Live ammunition did not update");
+            state.yawDegrees = 269;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto westOfNorth = pixels(1280, 720);
+            state.yawDegrees = 270;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto north = pixels(1280, 720);
+            std::size_t compassChanges = 0;
+            for (int y = 0; y < 720; ++y) for (int x = 0; x < 1280; ++x) {
+                const auto i = static_cast<std::size_t>(y * 1280 + x) * 3;
+                if (westOfNorth[i] == north[i] && westOfNorth[i+1] == north[i+1] && westOfNorth[i+2] == north[i+2]) continue;
+                ++compassChanges;
+                require(x > 410 && x < 870 && y > 630 && y < 700, "Compass wrap changed content outside its clipped ribbon");
+            }
+            require(compassChanges > 20 && compassChanges < 5000, "Compass did not scroll continuously across north");
+            state.yawDegrees = 225;
             clear(); hud.draw(state, 640, 360); checkState();
             const auto small = pixels(640, 360);
-            require(mapPixels(small) > 8500 && mapPixels(small) < 9000, "HUD did not scale its map on resize");
+            require(mapPixels(small) > 2850 && mapPixels(small) < 3000, "HUD did not scale its map on resize");
             hud.draw(state, 0, 0); checkState();
             hud.draw(state, 1280, 720); checkState();
         }
