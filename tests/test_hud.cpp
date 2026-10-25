@@ -50,6 +50,11 @@ struct StorageFixture {
         const std::filesystem::path ui(VIEWER_HUD_DIR);
         std::filesystem::create_directory(directory);
         std::filesystem::copy(ui, directory / "ui", std::filesystem::copy_options::recursive);
+        const auto icons = ui.parent_path() / "data/assets/game-icons/hud";
+        if (std::filesystem::is_directory(icons)) {
+            std::filesystem::create_directories(directory / "data/assets/game-icons");
+            std::filesystem::copy(icons, directory / "data/assets/game-icons/hud", std::filesystem::copy_options::recursive);
+        }
         std::filesystem::copy(ui.parent_path() / "storage", directory / "storage", std::filesystem::copy_options::recursive);
         std::filesystem::copy_file(ui.parent_path() / "inventory.toml", directory / "inventory.toml");
         std::filesystem::copy_file(ui.parent_path() / "skills.toml", directory / "skills.toml");
@@ -164,6 +169,26 @@ int main(int argc, char** argv) {
             if (argc > 1) capture(argv[1], first, 1280, 720);
             clear(); hud.draw(state, 1280, 720); checkState();
             require(first == pixels(1280, 720), "Unchanged HUD state changed rendered output");
+            const auto iconChanged = [&](const std::vector<unsigned char>& current, int left, int top, int width, int height) {
+                for (int y = top; y < top + height; ++y) for (int x = left; x < left + width; ++x)
+                    if (colorAt(first, 1280, 720, x, y) != colorAt(current, 1280, 720, x, y)) return true;
+                return false;
+            };
+            for (const char* movement : {"STAND", "PRONE", "DRIVING", "PASSENGER", "FREE FLY"}) {
+                state.movement = movement;
+                clear(); hud.draw(state, 1280, 720); checkState();
+                require(iconChanged(pixels(1280, 720), 588, 648, 22, 22), "Movement state failed to change its icon");
+            }
+            state.movement = "CROUCH"; state.mode = "INTERACT";
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(iconChanged(pixels(1280, 720), 430, 648, 22, 22), "Interaction mode failed to change its icon");
+            state.mode = "COMBAT";
+            for (int slot = 1; slot < 6; ++slot) {
+                state.slot = slot;
+                clear(); hud.draw(state, 1280, 720); checkState();
+                require(iconChanged(pixels(1280, 720), 1048, 633, 66, 44), "Equipment state failed to change its icon");
+            }
+            state.slot = 0;
             state.selectionSlot = 1;
             state.weaponSwitchDuration = 4;
             state.weaponSwitchRemaining = 3;
@@ -295,6 +320,26 @@ int main(int argc, char** argv) {
         GLint filter; glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &filter);
         require(filter == GL_LINEAR, "HUD changed the scene terrain's texture filtering");
         glBindTexture(GL_TEXTURE_2D, texture); glActiveTexture(GL_TEXTURE3);
+        {
+            StorageFixture fixture;
+            // Straight-alpha PNG: half-opaque white, then transparent white.
+            // This catches bright fringes if file images skip premultiplication.
+            constexpr unsigned char png[]{137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,2,0,0,0,1,
+                8,6,0,0,0,244,34,127,138,0,0,0,17,73,68,65,84,120,156,99,248,255,255,127,195,255,255,255,25,
+                0,32,107,6,123,190,157,75,192,0,0,0,0,73,69,78,68,174,66,96,130};
+            std::ofstream image(fixture.directory / "ui/alpha.png", std::ios::binary);
+            image.write(reinterpret_cast<const char*>(png), sizeof(png)); image.close();
+            std::ofstream css(fixture.directory / "ui/hud-icons.rcss", std::ios::app);
+            css << "\n#health-icon { decorator: image(alpha.png contain); }\n"; css.close();
+            auto inventory = viewer::loadPlayerInventory(fixture.directory);
+            viewer::Hud hud(fixture.directory / "ui", inventory);
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto imagePixels = pixels(1280, 720);
+            require(isColor(colorAt(imagePixels, 1280, 720, 38, 596), {118,53,49}),
+                "File image must preserve partial alpha and HUD tint with premultiplied blending");
+            require(isColor(colorAt(imagePixels, 1280, 720, 51, 596), {0,0,0}),
+                "Transparent file texels must leave the scene unchanged");
+        }
         // Multiplayer returns to its shared menu window and starts another session.
         {
             auto hudInventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());

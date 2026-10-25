@@ -3,38 +3,39 @@
     <title>Game HUD</title>
     <link type="text/rcss" href="hud.rcss" />
     <link type="text/rcss" href="palette.rcss" />
+    <link type="text/rcss" href="hud-icons.rcss" />
 </head>
 <body>
     <div id="compass">
         <div id="compass-scale"></div>
-        <div class="compass-pointer"></div>
+        <div class="compass-pointer hud-icon"></div>
         <div class="compass-center"></div>
         <div id="heading">000°</div>
     </div>
     <div id="navigation">
         <div id="coordinates"><div id="north-coordinate">N 0 m</div><div id="east-coordinate">E 0 m</div></div>
-        <minimap id="minimap"><div id="player-placeholder"></div></minimap>
+        <minimap id="minimap"><div id="player-marker" class="hud-icon"></div></minimap>
         <div id="map-caption" class="map-caption">NO MAP</div>
     </div>
     <div id="vitals">
         <div class="vital-row health">
-            <div class="square"></div><div class="vital-name">HEALTH <span>--</span></div><div class="vital-track"></div>
+            <div id="health-icon" class="hud-icon"></div><div class="vital-name">HEALTH <span>--</span></div><div class="vital-track"></div>
         </div>
         <div class="vital-row stamina">
-            <div class="square"></div><div class="vital-name">STAMINA <span>--</span></div><div class="vital-track"></div>
+            <div id="stamina-icon" class="hud-icon"></div><div class="vital-name">STAMINA <span>--</span></div><div class="vital-track"></div>
         </div>
         <div class="vital-row weariness">
-            <div class="square"></div><div class="vital-name">WEARINESS <span>--</span></div><div class="vital-track"></div>
+            <div id="weariness-icon" class="hud-icon"></div><div class="vital-name">WEARINESS <span>--</span></div><div class="vital-track"></div>
         </div>
     </div>
     <div id="status-strip">
-        <div id="mode-status" class="status-item"><div class="square"></div><div id="mode">COMBAT</div></div>
-        <div id="movement-status" class="status-item"><div class="square"></div><div id="movement">STAND</div></div>
-        <div id="speed-status" class="status-item"><div class="square"></div><div id="speed">0.0 km/h</div></div>
+        <div id="mode-status" class="status-item"><div id="mode-icon" class="hud-icon combat"></div><div id="mode">COMBAT</div></div>
+        <div id="movement-status" class="status-item"><div id="movement-icon" class="hud-icon stand"></div><div id="movement">STAND</div></div>
+        <div id="speed-status" class="status-item"><div id="speed-icon" class="hud-icon"></div><div id="speed">0.0 km/h</div></div>
     </div>
     <div id="weapon">
         <div id="equipment">CONNECTING</div>
-        <div id="weapon-placeholder" class="square"></div>
+        <div id="weapon-icon" class="hud-icon"></div>
         <div class="weapon-divider"></div>
         <div class="ammo"><span id="loaded">--</span> / <span id="reserve">--</span></div>
     </div>

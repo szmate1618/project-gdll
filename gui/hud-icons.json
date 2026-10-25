@@ -1,0 +1,107 @@
+{
+  "archive_url": "https://game-icons.net/archives/ffffff/transparent/game-icons.net.png.zip",
+  "archive_sha256": "488ffcdc5e77faefd19c9d60ce1340130487cddb0f90b91e525ebe972d14315b",
+  "texture_size": 128,
+  "icons": {
+    "health": {
+      "source": "sbed/health-normal.png",
+      "author": "sbed",
+      "page": "https://game-icons.net/1x1/sbed/health-normal.html"
+    },
+    "stamina": {
+      "source": "lorc/run.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/run.html"
+    },
+    "weariness": {
+      "source": "delapouite/tired-eye.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/tired-eye.html"
+    },
+    "combat": {
+      "source": "delapouite/crosshair.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/crosshair.html"
+    },
+    "interact": {
+      "source": "sbed/hand.png",
+      "author": "sbed",
+      "page": "https://game-icons.net/1x1/sbed/hand.html"
+    },
+    "stand": {
+      "source": "delapouite/person.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/person.html"
+    },
+    "crouch": {
+      "source": "delapouite/kneeling.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/kneeling.html"
+    },
+    "prone": {
+      "source": "delapouite/half-body-crawling.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/half-body-crawling.html"
+    },
+    "driving": {
+      "source": "delapouite/steering-wheel.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/steering-wheel.html"
+    },
+    "passenger": {
+      "source": "delapouite/car-seat.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/car-seat.html"
+    },
+    "free-fly": {
+      "source": "delapouite/video-camera.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/video-camera.html"
+    },
+    "speed": {
+      "source": "delapouite/speedometer.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/speedometer.html"
+    },
+    "player": {
+      "source": "delapouite/plain-circle.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/plain-circle.html"
+    },
+    "pistol": {
+      "source": "john-colburn/pistol-gun.png",
+      "author": "John Colburn",
+      "page": "https://game-icons.net/1x1/john-colburn/pistol-gun.html"
+    },
+    "smg": {
+      "source": "skoll/mp5.png",
+      "author": "Skoll",
+      "page": "https://game-icons.net/1x1/skoll/mp5.html"
+    },
+    "shotgun": {
+      "source": "delapouite/sawed-off-shotgun.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/sawed-off-shotgun.html"
+    },
+    "sniper": {
+      "source": "skoll/winchester-rifle.png",
+      "author": "Skoll",
+      "page": "https://game-icons.net/1x1/skoll/winchester-rifle.html"
+    },
+    "grenade": {
+      "source": "lorc/grenade.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/grenade.html"
+    },
+    "fists": {
+      "source": "lorc/punch.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/punch.html"
+    },
+    "compass": {
+      "source": "delapouite/plain-arrow.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/plain-arrow.html"
+    }
+  }
+}

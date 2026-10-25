@@ -8,8 +8,7 @@
 body { color: #f5f6f2; }
 div, span, button { border-color: #f5f6f24d; }
 .compass-rule, .compass-tick { background-color: #f5f6f2b0; }
-.compass-pointer, .compass-center, #player-placeholder,
-.status-item .square, #weapon-placeholder, .selection-icon,
+.compass-center,
 .loadout .pistol, #switch-fill,
 .placement-fill { background-color: #f5f6f2; }
 #minimap { background-color: #3a5144; border-color: #f5f6f299; }
@@ -22,12 +21,6 @@ div, span, button { border-color: #f5f6f24d; }
 .weariness .square { background-color: #e7cd65; }
 .stamina .vital-track { background-color: #59c49c99; }
 .weariness .vital-track { background-color: #e7cd6599; }
-.fists #weapon-placeholder { background-color: #b29a85; }
-.smg #weapon-placeholder { background-color: #889dba; }
-.shotgun #weapon-placeholder { background-color: #bd9c73; }
-.sniper #weapon-placeholder { background-color: #93a88a; }
-.grenade #weapon-placeholder { background-color: #b3ae72; }
-.unconfirmed #weapon-placeholder { background-color: #898d8c; }
 .map-caption, .vital-name span, #capture, .selection-key, .selection-hint,
 .key-label, .close-hint, .panel-meta, .storage-time, .detail-subtitle,
 .backpack-access, #map-unavailable { color: #f5f6f299; }

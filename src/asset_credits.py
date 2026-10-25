@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 
 ASSET_CREDIT_FILES = ("README.txt", "OPENSTREETMAP.txt", "SENTINEL.txt", "COPERNICUS_DEM.txt",
-                      "WEAPONS.txt", "ZOMBIES.txt", "AUDIO.txt",
+                      "WEAPONS.txt", "ZOMBIES.txt", "AUDIO.txt", "HUD_ICONS.txt",
                       "VEGETATION_SOURCES.txt", "GENERATED_ARTWORK.txt")
 SOFTWARE_CREDIT_FILES = ("README.txt", "nlohmann-json.txt", "stb.txt", "meshoptimizer.txt",
                          "PREPARATION_TOOLS.txt", "recastnavigation.txt", "proj.txt")

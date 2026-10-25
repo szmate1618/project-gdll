@@ -36,11 +36,13 @@ void populateWeaponSelection(Rml::ElementDocument& document, const PlayerInvento
     int left = 0;
     for (std::size_t i = 0; i < actions.size(); ++i) {
         const auto& action = actions[i];
+        constexpr std::array<const char*, 6> icons{"pistol", "smg", "shotgun", "sniper", "grenade", "fists"};
+        const auto icon = action.equipment && *action.equipment < icons.size() ? icons[*action.equipment] : "";
         const bool enlarged = static_cast<int>(i) == selected;
         contents += "<div class='selection-slot" + std::string(enlarged ? " selected" : "") +
             (action.skill ? " skill" : "") + (action.name.empty() ? " empty" : "") +
             "' style='left:" + std::to_string(left) + "dp'><div class='selection-key'>" + std::to_string(i) +
-            "</div><div class='selection-icon'></div><div class='selection-name'>" +
+            "</div><div class='selection-icon " + icon + "'></div><div class='selection-name'>" +
             Rml::StringUtilities::EncodeRml(action.name.empty() ? "Unassigned" : action.name) + "</div></div>";
         left += (enlarged ? 112 : 22) + 4;
     }

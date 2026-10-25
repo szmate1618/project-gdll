@@ -70,8 +70,9 @@ OpenAL DLL supplies audio (`--no-audio` to mute). Existing multiplayer gameplay
 and audio limitations are documented in `multiplayer/README.md` in the source
 repository.
 
-The RmlUi HUD uses colored squares for artwork and the built-in Segoe UI font.
-No HUD images or fonts are bundled. Set `GD_HUD_FONT` to an installed `.ttf`
+The RmlUi gameplay HUD uses bundled Game-icons.net icons; see
+`credits/assets/HUD_ICONS.txt`. Menus retain their artwork placeholders.
+It uses the built-in Segoe UI font. No custom font is bundled. Set `GD_HUD_FONT` to an installed `.ttf`
 path to select another system font.
 
 The workflow builds the game, dedicated server and headless session checks. It

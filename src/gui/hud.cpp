@@ -127,7 +127,7 @@ struct Hud::Impl {
             document = context->LoadDocument((directory / "hud.rml").generic_string());
             if (!document) throw std::runtime_error("Cannot load HUD layout: " + directory.string());
             for (const char* id : {"heading", "north-coordinate", "east-coordinate", "movement", "mode", "speed",
-                                    "equipment", "weapon", "loaded", "reserve", "prompt", "capture", "compass-scale", "map-caption", "switch-fill", "switch-countdown"}) {
+                                    "equipment", "weapon", "mode-icon", "movement-icon", "loaded", "reserve", "prompt", "capture", "compass-scale", "map-caption", "switch-fill", "switch-countdown"}) {
                 auto* element = document->GetElementById(id);
                 if (!element) throw std::runtime_error(std::string("Missing HUD element: ") + id);
                 elements.emplace(id, element);
@@ -278,6 +278,15 @@ struct Hud::Impl {
         setText("east-coordinate", "E " + std::to_string(std::lround(state.position.x)) + " m");
         setText("movement", state.movement);
         setText("mode", state.mode);
+        const std::string modeClasses = state.mode == "INTERACT" ? "hud-icon interact" : "hud-icon combat";
+        if (elements.at("mode-icon")->GetClassNames() != modeClasses)
+            elements.at("mode-icon")->SetClassNames(modeClasses);
+        const auto movementClass = state.movement == "CROUCH" ? "crouch" : state.movement == "PRONE" ? "prone" :
+            state.movement == "DRIVING" ? "driving" : state.movement == "PASSENGER" ? "passenger" :
+            state.movement == "FREE FLY" ? "free-fly" : "stand";
+        const std::string movementClasses = std::string("hud-icon ") + movementClass;
+        if (elements.at("movement-icon")->GetClassNames() != movementClasses)
+            elements.at("movement-icon")->SetClassNames(movementClasses);
         setText("speed", speed(state.speedMetersPerSecond));
         setText("equipment", state.equipment);
         const auto ammo = [](std::optional<int> count) {

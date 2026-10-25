@@ -13,8 +13,8 @@ namespace Rml { class Context; }
 namespace viewer {
 class MinimapRoadRenderer;
 
-// Basic RmlUi backend for flat rectangles and text, with rectangular clipping.
-// File textures are rejected; the minimap borrows the scene's terrain texture.
+// RmlUi backend for flat geometry, text and PNG icons, with rectangular clipping.
+// File textures are owned; the minimap borrows the scene's terrain texture.
 class HudRenderInterface final : public Rml::RenderInterface {
 public:
     explicit HudRenderInterface(const std::filesystem::path& shaderDirectory);

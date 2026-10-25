@@ -33,6 +33,10 @@ jobs:
         run: >-
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           -DGD_VIEWER=ON -DGD_MULTIPLAYER=ON -DBUILD_TESTING=OFF
+      - name: Prepare downloaded HUD icons
+        run: |
+          python -m pip install Pillow==11.2.1
+          python tools/prepare_hud_icons.py
       - name: Build all three apps
         run: >-
           cmake --build build --parallel 2
@@ -85,6 +89,10 @@ jobs:
       - name: Install CMake
         # Keep the older pinned dependency projects on the CMake 3 policy rules.
         run: python -m pip install cmake==3.31.6
+      - name: Prepare downloaded HUD icons
+        run: |
+          python -m pip install Pillow==11.2.1
+          python tools/prepare_hud_icons.py
       - name: Bootstrap Windows dependencies
         run: ./build/vcpkg/bootstrap-vcpkg.bat -disableMetrics
       - name: Configure Windows game
@@ -114,6 +122,10 @@ jobs:
           New-Item -ItemType Directory -Force "$package/assets", "$package/multiplayer/client", "$package/licenses"
           Copy-Item build/multiplayer/Release/godollo_client.exe $package
           Copy-Item shaders, ui, storage, skills, vehicles, credits $package -Recurse
+          New-Item -ItemType Directory -Force "$package/data/assets", "$package/gui"
+          Copy-Item data/assets/game-icons "$package/data/assets" -Recurse
+          Remove-Item "$package/data/assets/game-icons/game-icons-white-transparent.zip"
+          Copy-Item gui/hud-icons.json, gui/README.md "$package/gui"
           Copy-Item inventory.toml, skills.toml $package
           Copy-Item assets/test.glb, assets/test.navmesh "$package/assets"
           Copy-Item multiplayer/windows/run-game.cmd $package

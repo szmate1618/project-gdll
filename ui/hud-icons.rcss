@@ -1,0 +1,23 @@
+/* Downloaded artwork: prepare with tools/prepare_hud_icons.py.
+   See gui/hud-icons.json and credits/assets/HUD_ICONS.txt for attribution. */
+.hud-icon, .selection-icon { image-color: #f5f6f2; }
+.compass-pointer { decorator: image(../data/assets/game-icons/hud/compass.png contain); }
+#health-icon { decorator: image(../data/assets/game-icons/hud/health.png contain); image-color: #ec6962; }
+#stamina-icon { decorator: image(../data/assets/game-icons/hud/stamina.png contain); image-color: #59c49c; }
+#weariness-icon { decorator: image(../data/assets/game-icons/hud/weariness.png contain); image-color: #e7cd65; }
+#player-marker { decorator: image(../data/assets/game-icons/hud/player.png contain); }
+#speed-icon { decorator: image(../data/assets/game-icons/hud/speed.png contain); }
+#mode-icon.combat { decorator: image(../data/assets/game-icons/hud/combat.png contain); }
+#mode-icon.interact { decorator: image(../data/assets/game-icons/hud/interact.png contain); }
+#movement-icon.stand { decorator: image(../data/assets/game-icons/hud/stand.png contain); }
+#movement-icon.crouch { decorator: image(../data/assets/game-icons/hud/crouch.png contain); }
+#movement-icon.prone { decorator: image(../data/assets/game-icons/hud/prone.png contain); }
+#movement-icon.driving { decorator: image(../data/assets/game-icons/hud/driving.png contain); }
+#movement-icon.passenger { decorator: image(../data/assets/game-icons/hud/passenger.png contain); }
+#movement-icon.free-fly { decorator: image(../data/assets/game-icons/hud/free-fly.png contain); }
+.pistol #weapon-icon, .selection-icon.pistol { decorator: image(../data/assets/game-icons/hud/pistol.png contain); }
+.smg #weapon-icon, .selection-icon.smg { decorator: image(../data/assets/game-icons/hud/smg.png contain); image-color: #889dba; }
+.shotgun #weapon-icon, .selection-icon.shotgun { decorator: image(../data/assets/game-icons/hud/shotgun.png contain); image-color: #bd9c73; }
+.sniper #weapon-icon, .selection-icon.sniper { decorator: image(../data/assets/game-icons/hud/sniper.png contain); image-color: #93a88a; }
+.grenade #weapon-icon, .selection-icon.grenade { decorator: image(../data/assets/game-icons/hud/grenade.png contain); image-color: #b3ae72; }
+.fists #weapon-icon, .selection-icon.fists { decorator: image(../data/assets/game-icons/hud/fists.png contain); image-color: #b29a85; }

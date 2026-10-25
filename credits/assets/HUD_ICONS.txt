@@ -1,0 +1,18 @@
+HUD ICONS
+
+Icons made by sbed, Lorc, Delapouite, John Colburn and Skoll.
+Available on Game-icons.net: https://game-icons.net
+Licensed under Creative Commons Attribution 3.0 Unported:
+https://creativecommons.org/licenses/by/3.0/
+
+sbed: health-normal, hand.
+Lorc: run, grenade, punch. http://lorcblog.blogspot.com
+Delapouite: tired-eye, crosshair, person, kneeling, half-body-crawling,
+steering-wheel, car-seat, video-camera, speedometer, plain-circle,
+sawed-off-shotgun, plain-arrow. https://delapouite.com
+John Colburn: pistol-gun. http://ninmunanmu.com
+Skoll: mp5, winchester-rifle.
+
+Changes: selected white-on-transparent PNG artwork resized to 128x128;
+in-game image tinting follows the HUD palette. Source mapping and individual
+icon page links are recorded in gui/hud-icons.json.

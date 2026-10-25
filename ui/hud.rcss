@@ -12,23 +12,23 @@ div { display: block; }
 .compass-tick.major { top: 0dp; height: 17dp; }
 .compass-label { position: absolute; top: 23dp; width: 44dp; margin-left: -22dp; text-align: center; font-size: 12dp; }
 .compass-label.covered { visibility: hidden; }
-.compass-pointer { position: absolute; left: 220dp; top: 0dp; width: 5dp; height: 5dp; }
+.compass-pointer { position: absolute; left: 217.5dp; top: -1dp; width: 9dp; height: 9dp; }
 .compass-center { position: absolute; left: 222dp; top: 7dp; width: 1dp; height: 16dp; }
 #heading { position: absolute; top: 29dp; left: 188dp; width: 68dp; text-align: center; font-size: 17dp; }
 #navigation { position: absolute; top: 29dp; right: 25dp; width: 212dp; height: 126dp; }
 #coordinates { position: absolute; left: 0dp; top: 17dp; width: 97dp; font-size: 12dp; line-height: 20dp; }
 #minimap { display: block; position: absolute; right: 0dp; top: 0dp; width: 108dp; height: 108dp; border-width: 1dp; }
-#player-placeholder { position: absolute; left: 51dp; top: 51dp; width: 6dp; height: 6dp; }
+#player-marker { position: absolute; left: 50dp; top: 50dp; width: 8dp; height: 8dp; }
 .map-caption { position: absolute; right: 0dp; top: 114dp; width: 110dp; text-align: center; font-size: 9dp; }
 #vitals { position: absolute; left: 34dp; bottom: 40dp; width: 260dp; height: 94dp; }
 .vital-row { position: relative; height: 34dp; }
-.vital-row .square { position: absolute; left: 0dp; top: 0dp; width: 21dp; height: 21dp; }
+.vital-row .hud-icon { position: absolute; left: 0dp; top: 0dp; width: 21dp; height: 21dp; }
 .vital-name { position: absolute; left: 38dp; top: -2dp; width: 222dp; font-size: 11dp; }
 .vital-name span { float: right; }
 .vital-track { position: absolute; left: 38dp; top: 15dp; width: 220dp; height: 7dp; border-width: 1dp; }
 #status-strip { position: absolute; left: 50%; bottom: 44dp; margin-left: -210dp; width: 434dp; height: 30dp; }
 .status-item { position: absolute; top: 0dp; height: 28dp; }
-.status-item .square { position: absolute; top: 2dp; left: 0dp; }
+.status-item .hud-icon { position: absolute; top: 2dp; left: 0dp; width: 22dp; height: 22dp; }
 #mode-status { left: 0dp; width: 128dp; border-right-width: 1dp; }
 #mode { position: absolute; left: 42dp; top: 5dp; font-size: 14dp; }
 #movement-status { left: 158dp; width: 124dp; border-right-width: 1dp; }
@@ -37,7 +37,7 @@ div { display: block; }
 #speed { position: absolute; left: 41dp; top: 3dp; font-size: 18dp; white-space: nowrap; }
 #weapon { position: absolute; right: 34dp; bottom: 43dp; width: 198dp; height: 65dp; }
 #equipment { position: absolute; left: 0dp; top: 0dp; width: 198dp; font-size: 12dp; white-space: nowrap; overflow: hidden; }
-#weapon-placeholder { position: absolute; left: 3dp; bottom: 5dp; width: 28dp; height: 28dp; }
+#weapon-icon { position: absolute; left: 0dp; bottom: 0dp; width: 66dp; height: 44dp; }
 .weapon-divider { position: absolute; left: 78dp; top: 30dp; width: 1dp; height: 32dp; }
 .ammo { position: absolute; right: 0dp; top: 28dp; font-size: 26dp; white-space: nowrap; }
 #prompt { position: absolute; bottom: 110dp; left: 25%; width: 50%; text-align: center; font-size: 13dp; }
@@ -49,8 +49,8 @@ div { display: block; }
 .selection-slot.selected { width: 112dp; height: 74dp; }
 .selection-key { position: absolute; left: 0dp; top: 4dp; width: 20dp; text-align: center; font-size: 10dp; }
 .selected .selection-key { left: 6dp; font-size: 11dp; }
-.selection-icon { position: absolute; left: 8dp; top: 21dp; width: 4dp; height: 4dp; }
-.selected .selection-icon { left: 10dp; top: 32dp; width: 16dp; height: 16dp; }
+.selection-icon { position: absolute; left: 4dp; top: 15dp; width: 14dp; height: 14dp; }
+.selected .selection-icon { left: 6dp; top: 30dp; width: 24dp; height: 24dp; }
 .selection-name { display: none; }
 .selected .selection-name { display: block; position: absolute; left: 34dp; right: 7dp; top: 28dp; font-size: 11dp; line-height: 14dp; }
 .empty .selection-icon { display: none; }

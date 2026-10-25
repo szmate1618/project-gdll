@@ -9,6 +9,7 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include <stb_image.h>
 
 namespace viewer {
 namespace {
@@ -260,8 +261,26 @@ void HudRenderInterface::ReleaseGeometry(Rml::CompiledGeometryHandle handle) {
 
 Rml::TextureHandle HudRenderInterface::LoadTexture(Rml::Vector2i& dimensions, const Rml::String& source) {
     dimensions = {};
-    std::cerr << "HUD image loading is disabled: " << source << '\n';
-    return 0;
+    int width = 0, height = 0, channels = 0;
+    if (!stbi_info(source.c_str(), &width, &height, &channels) ||
+        width < 1 || height < 1 || width > 4096 || height > 4096) {
+        std::cerr << "Cannot read HUD image: " << source << '\n';
+        return 0;
+    }
+    const std::unique_ptr<unsigned char, decltype(&stbi_image_free)> pixels(
+        stbi_load(source.c_str(), &width, &height, &channels, 4), stbi_image_free);
+    if (!pixels) {
+        std::cerr << "Cannot decode HUD image: " << source << '\n';
+        return 0;
+    }
+    const auto size = static_cast<std::size_t>(width) * height * 4;
+    // Disk PNGs use straight alpha. Font atlases already arrive premultiplied
+    // through GenerateTexture, so apply this conversion only to file images.
+    for (std::size_t i = 0; i < size; i += 4)
+        for (std::size_t channel = 0; channel < 3; ++channel)
+            pixels.get()[i + channel] = static_cast<unsigned char>((pixels.get()[i + channel] * pixels.get()[i + 3] + 127) / 255);
+    dimensions = {width, height};
+    return GenerateTexture({pixels.get(), size}, dimensions);
 }
 
 Rml::TextureHandle HudRenderInterface::GenerateTexture(Rml::Span<const Rml::byte> pixels, Rml::Vector2i dimensions) {
