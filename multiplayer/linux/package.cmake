@@ -28,7 +28,7 @@ set(package "${staging}/godollo-client-linux-x86_64")
 file(MAKE_DIRECTORY "${package}/assets" "${package}/multiplayer/client" "${package}/lib" "${package}/licenses")
 file(COPY "${client}" DESTINATION "${package}")
 file(COPY "${source_root}/shaders" "${source_root}/ui" "${source_root}/storage" "${source_root}/vehicles" "${source_root}/credits" DESTINATION "${package}")
-file(COPY "${source_root}/inventory.toml" DESTINATION "${package}")
+file(COPY "${source_root}/inventory.toml" "${source_root}/skills.toml" "${source_root}/skills" DESTINATION "${package}")
 file(COPY "${source_root}/assets/test.glb" "${source_root}/assets/test.navmesh"
     DESTINATION "${package}/assets")
 foreach(weapon pistol submachine_gun shotgun sniper he_grenade)

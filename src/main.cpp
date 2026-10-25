@@ -546,7 +546,9 @@ void inventoryPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) 
 }
 void cursorCallback(GLFWwindow* window, double x, double y) {
     auto& app = state(window);
-    if (app.hudScreen == viewer::HudScreen::Inventory) { inventoryPointer(window, app.hud, x, y); return; }
+    if (app.hudScreen == viewer::HudScreen::Inventory || app.hudScreen == viewer::HudScreen::Skills) {
+        inventoryPointer(window, app.hud, x, y); return;
+    }
     if (!app.capture || app.hudScreen != viewer::HudScreen::Gameplay) return;
     if (!app.firstMouse && std::isfinite(x) && std::isfinite(y))
         app.interaction.look(app.rig.camera(), static_cast<float>(x - app.lastX), static_cast<float>(app.lastY - y), glfwGetTime());
@@ -591,7 +593,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
 }
 
 void scrollCallback(GLFWwindow* window, double, double y) {
-    if (state(window).hudScreen == viewer::HudScreen::Inventory && state(window).hud)
+    if ((state(window).hudScreen == viewer::HudScreen::Inventory || state(window).hudScreen == viewer::HudScreen::Skills) && state(window).hud)
         state(window).hud->mouseWheel(static_cast<float>(y));
     if (state(window).hudScreen != viewer::HudScreen::Gameplay) return;
     auto& rig = state(window).rig;

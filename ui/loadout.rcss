@@ -1,5 +1,5 @@
 body.loadout { background-color: #29312fed; }
-body.inventory { pointer-events: auto; }
+body.inventory, body.skills { pointer-events: auto; }
 #loadout-frame { position: absolute; left: 50%; top: 50%; margin-left: -606dp; margin-top: -330dp; width: 1212dp; height: 660dp; }
 #loadout-header { position: absolute; top: 0dp; width: 1212dp; height: 48dp; border-bottom: 1dp #f5f6f24d; }
 .page-tab { position: absolute; top: 6dp; height: 40dp; width: 178dp; font-size: 19dp; color: #f5f6f280; }
@@ -23,9 +23,6 @@ body.inventory { pointer-events: auto; }
 .grenade { background-color: #b3ae72; }
 .medkit { background-color: #ec6962; }
 .punch { background-color: #e7cd65; }
-.shove { background-color: #b29a85; }
-.listen { background-color: #93a88a; }
-.step { background-color: #889dba; }
 .backpack-size { color: #59c49c; font-size: 14dp; top: 14dp; }
 /* Slot coordinates use this inner rectangle of each panel, in design dp. */
 .storage-area { position: absolute; left: 20dp; top: 62dp; height: 344dp; }
@@ -55,7 +52,6 @@ body.inventory { pointer-events: auto; }
 .field-value { margin-top: 7dp; font-size: 13dp; }
 #action-hotbar { bottom: 0dp; left: 0dp; width: 1210dp; height: 120dp; }
 #action-hotbar .panel-heading { top: 12dp; font-size: 11dp; }
-.hotbar-note { position: absolute; right: 20dp; top: 13dp; font-size: 10dp; color: #f5f6f299; }
 #hotbar-slots { display: flex; position: absolute; left: 19dp; top: 43dp; width: 1172dp; height: 62dp; }
 .action-slot { position: relative; flex: 1; min-width: 0dp; height: 60dp; margin-right: 8dp; border: 1dp #f5f6f24d; background-color: #29312f66; }
 .action-slot.last { margin-right: 0dp; }
@@ -66,25 +62,27 @@ body.inventory { pointer-events: auto; }
 .assignment-square { position: absolute; left: 8dp; top: 33dp; width: 14dp; height: 14dp; }
 .assignment-name { position: absolute; left: 29dp; right: 5dp; top: 30dp; font-size: 11dp; line-height: 13dp; }
 .empty .assignment-name { left: 8dp; font-size: 10dp; color: #f5f6f259; }
-#skills-list { left: 0dp; width: 518dp; }
-#combo-builder { left: 538dp; width: 298dp; }
-.skill-filters { position: absolute; top: 53dp; left: 20dp; width: 478dp; height: 30dp; }
-.filter { display: inline-block; margin-right: 8dp; padding: 5dp 14dp; font-size: 11dp; color: #f5f6f299; border: 1dp #f5f6f226; }
-.filter.active { color: #f5f6f2; border-color: #59c49c; background-color: #59c49c1f; }
-.skill-entries { position: absolute; left: 20dp; top: 98dp; width: 478dp; }
-.skill-entry { position: relative; width: 476dp; height: 73dp; margin-bottom: 10dp; border: 1dp #f5f6f226; }
-.skill-entry.selected { border-color: #e7cd65; background-color: #e7cd650f; }
-.skill-square { position: absolute; left: 16dp; top: 20dp; width: 28dp; height: 28dp; }
-.skill-name { position: absolute; left: 60dp; top: 9dp; font-size: 16dp; }
-.skill-cost { position: absolute; right: 16dp; top: 13dp; font-size: 10dp; color: #e7cd65; }
-.skill-requirement { position: absolute; left: 60dp; top: 34dp; font-size: 11dp; color: #f5f6f299; }
-.skill-assignment { position: absolute; left: 60dp; top: 54dp; font-size: 9dp; color: #59c49c; }
-.combo-space { position: absolute; top: 65dp; left: 20dp; width: 256dp; height: 362dp; border: 1dp #f5f6f226; background-color: #29312f33; }
-.reserved-label { position: absolute; left: 14dp; top: 14dp; font-size: 9dp; letter-spacing: 1dp; color: #f5f6f266; }
-.combo-caption { position: absolute; top: 153dp; width: 256dp; text-align: center; font-size: 14dp; line-height: 26dp; color: #f5f6f299; }
-.combo-caption span { font-size: 11dp; color: #f5f6f266; }
-.description { height: 67dp; }
-.skill-storage-note { padding-top: 16dp; border-top: 1dp #f5f6f226; font-size: 11dp; color: #59c49c; line-height: 19dp; }
+/* Skills shares the loadout frame, palette and type scale. */
+#skills-list { left: 0dp; width: 366dp; }
+#combo-builder { left: 386dp; width: 438dp; }
+#combo-details { left: 844dp; width: 366dp; }
+.skills-group { position: absolute; left: 20dp; right: 20dp; border: 1dp #f5f6f226; background-color: #29312f33; }
+#melee-skills { top: 54dp; height: 244dp; }
+#saved-combos { top: 314dp; bottom: 20dp; }
+.skills-group-heading { height: 32dp; padding-left: 12dp; line-height: 32dp; font-size: 10dp; letter-spacing: 1dp; color: #59c49c; border-bottom: 1dp #f5f6f226; }
+#melee-skill-entries { position: absolute; left: 0dp; right: 0dp; top: 33dp; bottom: 0dp; overflow-y: auto; }
+.skill-entry { position: relative; height: 56dp; border-bottom: 1dp #f5f6f226; }
+.skill-entry:hover { background-color: #59c49c1f; }
+.skill-square { position: absolute; left: 12dp; top: 12dp; width: 30dp; height: 30dp; border: 1dp #e7cd6580; background-color: #e7cd6526; }
+.skill-name { position: absolute; left: 56dp; right: 12dp; top: 18dp; font-size: 14dp; white-space: nowrap; overflow: hidden; }
+.skills-empty { padding: 18dp 12dp; font-size: 11dp; color: #f5f6f280; }
+#combo-slots { position: absolute; top: 54dp; left: 20dp; right: 20dp; }
+.combo-slot { position: relative; height: 44dp; border: 1dp #f5f6f24d; background-color: #29312f66; }
+.combo-number { position: absolute; top: 0dp; left: 0dp; width: 40dp; height: 44dp; line-height: 44dp; text-align: center; font-size: 14dp; color: #f5f6f280; border-right: 1dp #f5f6f226; }
+.combo-add { position: absolute; left: 41dp; right: 0dp; top: 0dp; height: 44dp; line-height: 44dp; text-align: center; font-size: 12dp; color: #59c49c; }
+.combo-add span { margin-right: 7dp; font-size: 20dp; }
+.combo-arrow { height: 16dp; line-height: 16dp; text-align: center; font-size: 14dp; color: #59c49c80; }
+#save-combo { position: absolute; left: 20dp; right: 20dp; bottom: 20dp; height: 38dp; line-height: 38dp; text-align: center; font-family: hud-system; font-size: 12dp; color: #f5f6f280; border: 1dp #f5f6f24d; background-color: #29312f66; }
 .health #action-hotbar, .map #action-hotbar { display: none; }
 .full-panel { left: 0dp; width: 1210dp; height: 590dp; }
 #satellite-overview { display: block; position: absolute; left: 50%; margin-left: -257dp; top: 54dp; width: 512dp; height: 512dp; border: 1dp #f5f6f24d; background-color: #121b16; }

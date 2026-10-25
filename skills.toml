@@ -1,0 +1,4 @@
+# Melee skills shown in the Skills tab. Each ID must have a matching
+# skills/melee/<id>.skill.toml file. Values are display names.
+[melee]
+punch = "Punch"

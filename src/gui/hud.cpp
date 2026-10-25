@@ -3,6 +3,7 @@
 #include "inventory_view.hpp"
 #include "inventory_interaction.hpp"
 #include "action_hotbar.hpp"
+#include "skills_view.hpp"
 #include "inventory/player_inventory.hpp"
 #include <RmlUi/Core.h>
 #include <algorithm>
@@ -204,6 +205,8 @@ struct Hud::Impl {
                 }
                 if (selected == HudScreen::Inventory)
                     inventoryInteraction = std::make_unique<InventoryInteraction>(*page, inventory);
+                if (selected == HudScreen::Skills)
+                    populateMeleeSkills(*page, loadMeleeSkills(sourceDirectory.parent_path()));
                 if (selected == HudScreen::Map) {
                     auto* map = dynamic_cast<SatelliteMapElement*>(page->GetElementById("satellite-overview"));
                     if (!map) throw std::runtime_error("Missing full satellite map element");
@@ -234,6 +237,15 @@ struct Hud::Impl {
         if (screen != HudScreen::Gameplay) {
             if (screen == HudScreen::Inventory)
                 renderer.render(*context, width, height, [&] { inventoryInteraction->process(pointerEvents, width, height, state.seconds); });
+            else if (screen == HudScreen::Skills)
+                renderer.render(*context, width, height, [&] {
+                    for (const auto& event : pointerEvents) {
+                        if (event.action == InventoryPointerAction::Move)
+                            context->ProcessMouseMove(static_cast<int>(event.x * width), static_cast<int>(event.y * height), 0);
+                        else if (event.action == InventoryPointerAction::Wheel)
+                            context->ProcessMouseWheel(-event.x, 0);
+                    }
+                });
             else renderer.render(*context, width, height);
             pointerEvents.clear();
             return;

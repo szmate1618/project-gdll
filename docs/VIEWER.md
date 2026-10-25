@@ -161,17 +161,28 @@ configurable penalty/bonus values.
 Completed moves persist for the session;
 they are not written to TOML or synchronized over the network.
 
-[skills.rml](../ui/skills.rml) has a skill list, skill details and an empty
-combo-builder section reserved for later design. Both screens use
+[skills.rml](../ui/skills.rml) has available melee actions and saved combos on
+the left, six numbered combo-builder slots in the center, and combo details
+with an inactive Save Combo button on the right. Combo editing, saving and
+execution are layout placeholders; they do not change melee combat.
+[skills.toml](../skills.toml) registers the available melee actions in `[melee]`:
+`punch = "Punch"` uses the empty definition
+[skills/melee/punch.skill.toml](../skills/melee/punch.skill.toml). To list another
+action, add an ID/display-name entry and a matching `skills/melee/<id>.skill.toml`
+file. IDs use lowercase ASCII letters, digits and underscores. Empty definition
+files are valid; missing or malformed registered files are errors. Unregistered
+files are ignored. The list loads when Skills first opens and is cached for the
+session. Display names are shown without stats or attack descriptions.
+Both screens use
 [loadout.rml](../ui/loadout.rml) for the header and identical 0–9 action shortcuts,
-styled by [loadout.rcss](../ui/loadout.rcss) and the HUD stylesheet. Skills
-remain fixed examples. The shared hotbar reads owned weapon IDs and slots from
+styled by [loadout.rcss](../ui/loadout.rcss) and the HUD stylesheet.
+The shared hotbar reads owned weapon IDs and slots from
 [inventory.toml](../inventory.toml), using inventory labels from
 [storage/weapons/*.inventory.toml](../storage/weapons/README.md). Slots 0–4 start
 assigned to pistol, SMG, shotgun, sniper and HE grenade; 5–9 are empty. Item descriptors carry N×M grid
 footprints separately from gameplay settings in `storage/weapons/*.gameplay.toml`.
 Ownership and shortcuts are loaded with the player inventory at startup.
-Hotbar assignment, equipping, skill use, filters and combos remain unimplemented.
+Hotbar assignment, equipping and skill use remain unimplemented.
 Icons and the body reference are colored square placeholders. System fonts and
 the HUD backend are shared; each screen is cached until the session ends.
 

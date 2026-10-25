@@ -91,7 +91,9 @@ void inventoryPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) 
 }
 void mouse(GLFWwindow* window, double x, double y) {
     auto& in = input(window);
-    if (in.hudScreen == viewer::HudScreen::Inventory) { inventoryPointer(window, in.hud, x, y); return; }
+    if (in.hudScreen == viewer::HudScreen::Inventory || in.hudScreen == viewer::HudScreen::Skills) {
+        inventoryPointer(window, in.hud, x, y); return;
+    }
     if (!in.capture || in.hudScreen != viewer::HudScreen::Gameplay) return;
     if (in.firstMouse) { in.firstMouse = false; in.lastX = x; in.lastY = y; return; }
     const float dx = static_cast<float>(x - in.lastX), dy = static_cast<float>(in.lastY - y);
@@ -114,7 +116,8 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
 }
 void scroll(GLFWwindow* window, double, double y) {
     auto& in = input(window);
-    if (in.hudScreen == viewer::HudScreen::Inventory && in.hud) in.hud->mouseWheel(static_cast<float>(y));
+    if ((in.hudScreen == viewer::HudScreen::Inventory || in.hudScreen == viewer::HudScreen::Skills) && in.hud)
+        in.hud->mouseWheel(static_cast<float>(y));
 }
 void focus(GLFWwindow* window, int focused) {
     if (!focused) {

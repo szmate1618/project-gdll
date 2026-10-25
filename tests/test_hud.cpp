@@ -51,6 +51,8 @@ struct StorageFixture {
         std::filesystem::copy(ui, directory / "ui", std::filesystem::copy_options::recursive);
         std::filesystem::copy(ui.parent_path() / "storage", directory / "storage", std::filesystem::copy_options::recursive);
         std::filesystem::copy_file(ui.parent_path() / "inventory.toml", directory / "inventory.toml");
+        std::filesystem::copy_file(ui.parent_path() / "skills.toml", directory / "skills.toml");
+        std::filesystem::copy(ui.parent_path() / "skills", directory / "skills", std::filesystem::copy_options::recursive);
     }
     ~StorageFixture() { std::filesystem::remove_all(directory); }
     void select(const char* fields) const {
@@ -437,6 +439,36 @@ int main(int argc, char** argv) {
             state.screen = viewer::HudScreen::Skills; draw();
             state.screen = viewer::HudScreen::Inventory;
             require(draw() == placed, "Leaving Inventory failed to cancel a pending drag");
+        }
+        // A registered empty definition must add a visible action without
+        // changing the combo placeholders or the shared hotbar.
+        {
+            StorageFixture fixture;
+            auto hudInventory = viewer::loadPlayerInventory(fixture.directory);
+            state.screen = viewer::HudScreen::Skills;
+            std::vector<unsigned char> original;
+            {
+                viewer::Hud hud(fixture.directory / "ui", hudInventory);
+                clear(); hud.draw(state, 1280, 720); checkState();
+                original = pixels(1280, 720);
+                std::ofstream(fixture.directory / "skills.toml") << "[melee]\npunch='Punch'\nkick='Kick'\n";
+                std::ofstream(fixture.directory / "skills/melee/kick.skill.toml");
+                state.screen = viewer::HudScreen::Gameplay;
+                clear(); hud.draw(state, 1280, 720); checkState();
+                state.screen = viewer::HudScreen::Skills;
+                clear(); hud.draw(state, 1280, 720); checkState();
+                require(original == pixels(1280, 720), "Reopening Skills unexpectedly reloaded the catalog");
+            }
+            viewer::Hud hud(fixture.directory / "ui", hudInventory);
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto configured = pixels(1280, 720);
+            std::size_t actionChanges = 0;
+            for (int y = 0; y < 720; ++y) for (int x = 0; x < 1280; ++x) {
+                const bool same = colorAt(original, 1280, 720, x, y) == colorAt(configured, 1280, 720, x, y);
+                if (x >= 54 && x < 380 && y >= 185 && y < 400) actionChanges += !same;
+                else require(same, "Melee registration changed content outside the available skill list");
+            }
+            require(actionChanges > 300, "Newly registered melee skill did not appear in Skills");
         }
         // Use isolated configuration files to check that actual screen geometry
         // changes with selection, and that reopening a cached page performs no IO.

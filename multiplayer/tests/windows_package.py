@@ -12,7 +12,7 @@ def check_contents(package):
     required = [
         "godollo_client.exe", "OpenAL32.dll", "run-game.cmd", "README.md",
         "storage/equipment.toml", "storage/backpacks.toml", "storage/loadout.toml",
-        "assets/test.glb", "assets/test.navmesh", "inventory.toml",
+        "assets/test.glb", "assets/test.navmesh", "inventory.toml", "skills.toml", "skills/melee/punch.skill.toml",
         "shaders/game_menu.vert", "shaders/game_menu.frag",
         "ui/hud.rml", "ui/hud.rcss", "ui/hud.vert", "ui/hud.frag", "licenses/RmlUi.txt",
         "ui/inventory.rml", "ui/skills.rml", "ui/health.rml", "ui/map.rml", "ui/loadout.rml", "ui/loadout.rcss",

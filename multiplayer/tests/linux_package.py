@@ -29,6 +29,9 @@ def check_credits(package):
     for name in ("equipment.toml", "backpacks.toml", "loadout.toml"):
         if not (package / "storage" / name).is_file():
             raise RuntimeError("Package is missing storage resource " + name)
+    for name in ("skills.toml", "skills/melee/punch.skill.toml"):
+        if not (package / name).is_file():
+            raise RuntimeError("Package is missing skill resource " + name)
     for name in ("pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"):
         for suffix in ("inventory.toml", "gameplay.toml", "tags.txt"):
             filename = f"storage/weapons/{name}.{suffix}"

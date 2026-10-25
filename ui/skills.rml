@@ -2,41 +2,35 @@
 <head><title>Skills</title><link type="text/template" href="loadout.rml" /></head>
 <body template="loadout" class="loadout skills">
     <div id="skills-list" class="panel main-panel">
-        <div class="panel-heading">SKILLS</div><div class="panel-meta">LEARNED ACTIONS</div>
-        <div class="skill-filters"><span class="filter active">All</span><span class="filter">Unarmed</span><span class="filter">Utility</span></div>
-        <div class="skill-entries">
-        <div class="skill-entry selected">
-            <div class="skill-square punch"></div><div class="skill-name">Punch</div><div class="skill-cost">8 STAMINA</div>
-            <div class="skill-requirement">Requires / Empty hands</div><div class="skill-assignment">Unassigned</div>
+        <div class="panel-heading">AVAILABLE ACTIONS</div>
+        <div id="melee-skills" class="skills-group">
+            <div class="skills-group-heading">MELEE SKILLS</div>
+            <div id="melee-skill-entries"></div>
         </div>
-        <div class="skill-entry">
-            <div class="skill-square shove"></div><div class="skill-name">Shove</div><div class="skill-cost">12 STAMINA</div>
-            <div class="skill-requirement">Requires / Empty hands</div><div class="skill-assignment">Unassigned</div>
-        </div>
-        <div class="skill-entry">
-            <div class="skill-square listen"></div><div class="skill-name">Listen</div><div class="skill-cost">4 STAMINA</div>
-            <div class="skill-requirement">Requires / Stand still</div><div class="skill-assignment">Unassigned</div>
-        </div>
-        <div class="skill-entry">
-            <div class="skill-square step"></div><div class="skill-name">Quick step</div><div class="skill-cost">10 STAMINA</div>
-            <div class="skill-requirement">Requires / Light load</div><div class="skill-assignment">Unassigned</div>
-        </div>
+        <div id="saved-combos" class="skills-group">
+            <div class="skills-group-heading">SAVED COMBOS</div>
+            <div class="skills-empty">No saved combos</div>
         </div>
     </div>
     <div id="combo-builder" class="panel main-panel">
-        <div class="panel-heading">COMBO BUILDER</div>
-        <div class="combo-space"><div class="reserved-label">RESERVED</div><div class="combo-caption">Combo workspace<br/><span>Layout to follow</span></div></div>
-    </div>
-    <div id="skill-details" class="panel main-panel details-panel">
-        <div class="panel-heading">SKILL DETAILS</div>
-        <div class="detail-square punch"></div><div class="detail-name">Punch</div><div class="detail-subtitle">Unarmed / learned action</div>
-        <div class="detail-fields">
-            <div class="detail-field description"><div class="field-label">DESCRIPTION</div><div class="field-value">An unarmed strike at close range.</div></div>
-            <div class="detail-field"><div class="field-label">STAMINA COST</div><div class="field-value">8 stamina</div></div>
-            <div class="detail-field"><div class="field-label">REQUIREMENTS</div><div class="field-value">Empty hands</div></div>
-            <div class="detail-field"><div class="field-label">ASSIGNMENT</div><div class="field-value">Unassigned</div></div>
-            <div class="skill-storage-note">Learned actions occupy no storage slots.</div>
+        <div class="panel-heading">COMBO BUILDER</div><div class="panel-meta">0 / 6 ACTIONS</div>
+        <div id="combo-slots">
+            <div class="combo-slot"><div class="combo-number">1</div><div class="combo-add"><span>+</span> Add next skill</div></div>
+            <div class="combo-arrow">&#8595;</div>
+            <div class="combo-slot"><div class="combo-number">2</div><div class="combo-add"><span>+</span> Add next skill</div></div>
+            <div class="combo-arrow">&#8595;</div>
+            <div class="combo-slot"><div class="combo-number">3</div><div class="combo-add"><span>+</span> Add next skill</div></div>
+            <div class="combo-arrow">&#8595;</div>
+            <div class="combo-slot"><div class="combo-number">4</div><div class="combo-add"><span>+</span> Add next skill</div></div>
+            <div class="combo-arrow">&#8595;</div>
+            <div class="combo-slot"><div class="combo-number">5</div><div class="combo-add"><span>+</span> Add next skill</div></div>
+            <div class="combo-arrow">&#8595;</div>
+            <div class="combo-slot"><div class="combo-number">6</div><div class="combo-add"><span>+</span> Add next skill</div></div>
         </div>
+    </div>
+    <div id="combo-details" class="panel main-panel">
+        <div class="panel-heading">COMBO DETAILS</div>
+        <button id="save-combo" disabled="disabled">Save Combo</button>
     </div>
 </body>
 </rml>

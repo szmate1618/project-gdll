@@ -15,7 +15,6 @@
         <div id="page-content"></div>
         <div id="action-hotbar" class="panel">
             <div class="panel-heading">ACTION SHORTCUTS</div>
-            <div class="hotbar-note">References to owned items only. Shortcuts provide no extra storage.</div>
             <div id="hotbar-slots"></div>
         </div>
     </div>
