@@ -1,5 +1,4 @@
 #include "renderer.hpp"
-#include "presentation_viewport.hpp"
 #include "door_layer.hpp"
 #include "rain_renderer.hpp"
 #include "blood_mist_renderer.hpp"
@@ -8,8 +7,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <cmath>
-#include <fstream>
-#include <iostream>
 #include <limits>
 #include <numeric>
 #include <sstream>
@@ -264,6 +261,8 @@ void Renderer::release() noexcept {
     glDeleteFramebuffers(1, &framebuffer_);
     glDeleteTextures(1, &colorBuffer_);
     glDeleteRenderbuffers(1, &depthBuffer_);
+    glDeleteFramebuffers(1, &overlayFramebuffer_);
+    glDeleteRenderbuffers(1, &overlayColor_);
     if (program_) glDeleteProgram(program_);
 }
 
@@ -373,6 +372,7 @@ void Renderer::setRain(bool enabled) {
 }
 
 void Renderer::render(const Camera& camera, double animationSeconds, const std::function<void()>& drawOpaque) {
+    overlayActive_ = false;
     sunShadowCpuMs_ = 0;
     sceneStats_ = {sceneDraws_.size(), 0, 0};
     if (width_ <= 0 || height_ <= 0) return;
@@ -478,46 +478,6 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
                     animationSeconds, lighting.nightBlend, rainLighting);
     }
     glBindVertexArray(0);
-}
-
-void Renderer::present(int width, int height) {
-    if (width<=0 || height<=0 || width_<=0 || height_<=0) return;
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer_);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    const auto viewport = presentationViewport(width_, height_, width, height);
-    const int y = height - viewport.y - viewport.height; // OpenGL has a bottom-left origin.
-    if (viewport.width!=width || viewport.height!=height) {
-        constexpr GLfloat black[]{0,0,0,1};
-        glClearBufferfv(GL_COLOR,0,black);
-    }
-    glBlitFramebuffer(0, 0, width_, height_, viewport.x, y, viewport.x+viewport.width, y+viewport.height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-}
-
-void Renderer::writeScreenshot(const std::filesystem::path& path) const {
-    if (path.has_parent_path()) std::filesystem::create_directories(path.parent_path());
-    std::vector<unsigned char> pixels(static_cast<std::size_t>(width_) * static_cast<std::size_t>(height_) * 3);
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer_);
-    glReadBuffer(GL_COLOR_ATTACHMENT0);
-    glPixelStorei(GL_PACK_ALIGNMENT, 1);
-    glReadPixels(0, 0, width_, height_, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
-    checkErrors("screenshot readback");
-    std::ofstream output(path, std::ios::binary);
-    if (!output) throw std::runtime_error("Cannot write screenshot: " + path.string());
-    output << "P6\n" << width_ << ' ' << height_ << "\n255\n";
-    const auto stride = static_cast<std::size_t>(width_) * 3;
-    for (int row = height_ - 1; row >= 0; --row)
-        output.write(reinterpret_cast<const char*>(pixels.data() + static_cast<std::size_t>(row) * stride), static_cast<std::streamsize>(stride));
-    if (!output) throw std::runtime_error("Error writing screenshot: " + path.string());
-    // A deterministic readback confirms a draw produced pixels beyond the sky.
-    std::size_t foreground = 0;
-    const auto background = glm::clamp(backgroundSrgb_, glm::vec3(0), glm::vec3(1));
-    for (std::size_t p = 0; p < pixels.size(); p += 3)
-        if (std::abs(static_cast<int>(pixels[p]) - static_cast<int>(std::lround(background.r * 255))) > 2 ||
-            std::abs(static_cast<int>(pixels[p + 1]) - static_cast<int>(std::lround(background.g * 255))) > 2 ||
-            std::abs(static_cast<int>(pixels[p + 2]) - static_cast<int>(std::lround(background.b * 255))) > 2) ++foreground;
-    std::cout << "Screenshot: " << path << " (" << width_ << 'x' << height_
-              << ", " << foreground << " foreground pixels)\n";
-    if (!foreground) throw std::runtime_error("Render readback contains only background; model may be out of view");
 }
 
 void Renderer::checkErrors(const char* stage) {

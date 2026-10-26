@@ -1312,11 +1312,12 @@ int run(const Options& options) {
     // Hidden captures use a regular hidden window and never occupy the monitor.
     GLFWmonitor* monitor = nullptr;
     int windowWidth = options.width, windowHeight = options.height;
-    if (options.fullscreen && !options.hidden) {
-        monitor = glfwGetPrimaryMonitor();
-        const auto* mode = monitor ? glfwGetVideoMode(monitor) : nullptr;
+    if (options.fullscreen) {
+        auto* primary = glfwGetPrimaryMonitor();
+        const auto* mode = primary ? glfwGetVideoMode(primary) : nullptr;
         if (!mode) throw std::runtime_error("Cannot find a monitor for fullscreen mode");
         windowWidth = mode->width; windowHeight = mode->height;
+        if (!options.hidden) monitor = primary;
         glfwWindowHint(GLFW_RED_BITS,mode->redBits);
         glfwWindowHint(GLFW_GREEN_BITS,mode->greenBits);
         glfwWindowHint(GLFW_BLUE_BITS,mode->blueBits);
@@ -1342,7 +1343,8 @@ int run(const Options& options) {
     app.rig.frame(renderAspect);
     std::cout << (options.fullscreen ? "Fullscreen" : "Windowed") << "; render resolution "
               << (options.fullscreen ? options.width : app.width) << 'x'
-              << (options.fullscreen ? options.height : app.height) << '\n';
+              << (options.fullscreen ? options.height : app.height)
+              << "; GUI resolution " << app.width << 'x' << app.height << '\n';
     if (options.fps || scenarioPlayer) {
         auto preferred = (model.boundsMin + model.boundsMax) * 0.5f;
         preferred.y = model.boundsMax.y + 5.0f;
@@ -1672,7 +1674,8 @@ int run(const Options& options) {
             viewer::weaponViewVisible(heldWeapon.config, heldWeapon.loaded, simulationClock.seconds() < heldWeapon.readyAt))
             weaponOverlay.draw(app.weapons.slot(), renderWidth, renderHeight, flash,
                                app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds()));
-        reticle.draw(app.rig.camera().viewMode(), renderWidth, renderHeight);
+        const auto overlayViewport = renderer.beginOverlay(app.width, app.height);
+        reticle.draw(app.rig.camera().viewMode(), overlayViewport.width, overlayViewport.height);
         viewer::HudState hudState;
         hudState.seconds = simulationClock.seconds();
         hudState.health = app.vitals.health();
@@ -1701,7 +1704,7 @@ int run(const Options& options) {
         hudState.reloadDuration = app.weaponReload.duration();
         if (app.driver.occupied()) hudState.prompt = "Enter: exit vehicle";
         else if (app.interaction.grabbing()) hudState.prompt = "Holding object";
-        hud.draw(hudState, renderWidth, renderHeight, app.width, app.height);
+        hud.draw(hudState, app.width, app.height);
         (void)hud.takeInventoryActions(); // Standalone already applies these operations locally.
         intervalRenderSeconds += glfwGetTime() - renderStart;
         gpuTimer.end();

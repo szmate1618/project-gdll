@@ -10,6 +10,7 @@
 #include <unordered_map>
 
 #include "camera.hpp"
+#include "presentation_viewport.hpp"
 #include "vehicle_lod.hpp"
 #include <map>
 #include "model.hpp"
@@ -96,6 +97,11 @@ public:
     void setExplosionLights(const std::vector<MuzzleFlashLight>& lights);
 
     void updateVehicles(const VehicleLayer& vehicles, std::optional<std::size_t> driver = {});
+    // Upscale the scene into a color-only target at window-framebuffer resolution.
+    // Binds it for GUI drawing and fits the viewport to the scene for the reticle.
+    // The HUD can reset the viewport to the full window; its input then uses
+    // window fractions directly. present()/writeScreenshot() include these draws.
+    PresentationViewport beginOverlay(int width, int height);
     void present(int width, int height);
     void writeScreenshot(const std::filesystem::path& path) const;
     // Borrow an uploaded scene texture. Do not delete it or change its sampler
@@ -329,6 +335,9 @@ private:
     std::filesystem::path shaderDirectory_;
     GLuint program_ = 0, framebuffer_ = 0, colorBuffer_ = 0, depthBuffer_ = 0;
     int width_ = 0, height_ = 0;
+    GLuint overlayFramebuffer_ = 0, overlayColor_ = 0;
+    int overlayWidth_ = 0, overlayHeight_ = 0;
+    bool overlayActive_ = false; // Reset by render(); other callers can present the scene directly.
     GLint modelLocation_, viewLocation_, projectionLocation_, normalLocation_;
     GLint colorLocation_, textureLocation_, hasTextureLocation_, unlitLocation_;
     GLint alphaLocation_, cutoffLocation_, instancedLocation_;

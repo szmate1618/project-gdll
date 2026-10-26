@@ -392,6 +392,7 @@ viewer_warnings(viewer_grenades)
 
 if(GD_VIEWER)
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
+    src/renderer_presentation.cpp
     src/gpu_timer.cpp
     src/box_renderer.cpp
     src/dropped_weapon_renderer.cpp
@@ -995,6 +996,15 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_shadow_renderer)
     add_test(NAME viewer_shadow_renderer COMMAND test_shadow_renderer)
     set_tests_properties(viewer_shadow_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
+    add_executable(test_presentation_renderer tests/test_presentation_renderer.cpp)
+    target_link_libraries(test_presentation_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_presentation_renderer PRIVATE
+        GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_presentation_renderer)
+    add_test(NAME viewer_presentation_renderer COMMAND test_presentation_renderer)
+    set_tests_properties(viewer_presentation_renderer PROPERTIES SKIP_RETURN_CODE 77)
 
     add_executable(test_atmosphere_renderer tests/test_atmosphere_renderer.cpp)
     target_link_libraries(test_atmosphere_renderer PRIVATE viewer_renderer glfw)

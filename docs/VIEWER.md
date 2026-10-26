@@ -16,12 +16,16 @@ Use `--fullscreen` to fill the primary monitor and `--resolution` to select
 ./build/godollo_viewer output/godollo.glb --fullscreen --resolution 960x540
 ```
 
-Fullscreen retains the desktop display mode and renders the scene, held weapon
-and reticle at the selected resolution before scaling to the monitor. Black bars
-preserve 16:9 on other screen shapes. Screenshots use the selected render size.
+Fullscreen retains the desktop display mode and renders the 3D scene and held
+weapon at the selected resolution before scaling to the monitor. The reticle
+and GUI are then drawn at the full window framebuffer resolution, keeping text,
+inventory, and minimap sharp even at `960x540`. Black bars preserve the scene's
+16:9 aspect ratio on other screen shapes; the GUI uses the full window.
+Screenshots include the composed scene and GUI at window framebuffer resolution.
 Without `--fullscreen`, `--resolution` sets the initial window size; normal
-window resizing still adjusts the render target. `--hidden --fullscreen` renders
-at the selected size in a hidden window without covering the monitor.
+window resizing still adjusts the render target. `--hidden --fullscreen` uses a
+desktop-sized hidden window with the same scene/GUI resolutions as fullscreen,
+without covering the monitor.
 
 The viewer also plays positional sound through OpenAL Soft, with a camera
 listener, preloaded effects, streamed ambience, and a bounded nearby-zombie voice
@@ -36,11 +40,11 @@ coordinates, control mode, stance, horizontal speed in km/h and cursor capture.
 The layout is transparent: navigation at the upper right, vitals at the lower
 left, mode/stance/speed along the bottom, and equipment/ammo at the lower right.
 Multiplayer equipment and ammunition follow the server-confirmed
-state. The HUD is drawn into the scene target before presentation, so it also
-appears in screenshots and follows the selected render resolution.
-Inventory input uses the fitted scene rectangle during presentation, including
-black bars when fullscreen and render aspect ratios differ, so clicks and drag
-previews stay aligned with the visible items. HiDPI input remains in window fractions.
+state. In the standalone viewer the HUD is drawn after scene upscaling, at the
+window framebuffer resolution, and appears in screenshots. Inventory input
+follows the full-window GUI, independently of any scene letterboxing; HiDPI
+input remains in window fractions. The multiplayer client draws the scene and
+HUD at its window framebuffer resolution.
 
 The navigation area displays a north-up 300 × 300 m minimap centered on the
 player's horizontal position (the camera in free-fly mode). Driving uses the
@@ -2491,10 +2495,10 @@ The window title updates about once per second with
 `FPS | GPU <average> ms | CPU render <average> ms | CPU sim <average> ms`.
 FPS uses the actual frame
 interval, including any VSync wait. GPU time uses asynchronous
-`GL_TIME_ELAPSED` queries for the scene and enabled collision overlay; CPU
-render time measures time spent submitting those draws, including driver
+`GL_TIME_ELAPSED` queries for the scene, enabled collision overlay, scene upscaling,
+and GUI; CPU render time measures time spent submitting those draws, including driver
 overhead and stalls. Both render timings exclude events, physics updates,
-framebuffer resize, the presentation blit, and the buffer swap/VSync wait.
+scene-target resize, the final presentation blit, and the buffer swap/VSync wait.
 `CPU sim` measures the simulation portion before renderer preparation; it includes
 zombie AI, player/camera updates, door activation and physics. Add `--profile` to
 print those timings plus zombie behavior and preparation times. Preparation
