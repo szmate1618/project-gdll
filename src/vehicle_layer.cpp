@@ -217,10 +217,25 @@ void VehicleLayer::appendContacts(glm::vec3 feet, float radius, float height, fl
         }, &q);
 }
 std::optional<GroundHit> VehicleLayer::groundAt(float x, float z, float minY, float maxY) const {
+    if (!std::isfinite(x) || !std::isfinite(z) || !std::isfinite(minY) || !std::isfinite(maxY) || minY > maxY)
+        return {};
+    struct Query { float x, z, minY, maxY; std::optional<GroundHit> hit; } query{x, z, minY, maxY, {}};
     auto filter = b3DefaultQueryFilter(); filter.maskBits = vehicleBodyCategory;
-    const auto hit = b3World_CastRayClosest(impl_->world->id(), {x, maxY + .001f, z},
-                                           {0, minY - maxY - .002f, 0}, filter);
-    if (!hit.hit || hit.normal.y < .001f || hit.point.y < minY || hit.point.y > maxY) return {};
-    return GroundHit{hit.point.y, vector(hit.normal)};
+    b3World_OverlapAABB(impl_->world->id(), {{x, minY, z}, {x, maxY, z}}, filter,
+        [](b3ShapeId shape, void* context) {
+            auto& query = *static_cast<Query*>(context);
+            const auto bounds = b3Shape_GetAABB(shape);
+            // Ground callers use +/-FLT_MAX for unbounded searches. Clip each
+            // ray to its candidate shape so rotation cannot overflow the ray
+            // and distant endpoints cannot lose the surface height to rounding.
+            const float top = std::min(query.maxY, bounds.upperBound.y) + .001f;
+            const float bottom = std::max(query.minY, bounds.lowerBound.y) - .001f;
+            const auto hit = b3Shape_RayCast(shape, {query.x, top, query.z}, {0, bottom - top, 0});
+            if (hit.hit && hit.normal.y >= .001f && hit.point.y >= query.minY && hit.point.y <= query.maxY &&
+                (!query.hit || hit.point.y > query.hit->height))
+                query.hit = GroundHit{hit.point.y, vector(hit.normal)};
+            return true;
+        }, &query);
+    return query.hit;
 }
 } // namespace viewer
