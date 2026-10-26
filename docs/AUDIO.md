@@ -197,7 +197,8 @@ hearing thresholds or AI state and never calls `ZombieLayer::makeNoise`.
 
 Muting, missing files, playback voice limits, and device failures cannot suppress
 AI noise. Conversely, playing a gunshot, reload, or zombie sound does not itself
-create an AI hearing event. Gunfire's existing simulation behavior is unchanged.
+create an AI hearing event. Standalone and multiplayer firearm handlers separately
+emit AI noise for accepted shots, independently of playback.
 
 ## Checks and code
 

@@ -941,6 +941,9 @@ a simple game model: walls, vegetation, and materials do not attenuate noise.
 The tunable levels in `src/noise.hpp` are **40 dB walking**, **50 dB running**,
 and **55 dB landing**, with a **20 dB hearing threshold**. These make walking
 audible at 10 m, running at roughly 32 m, and landing at roughly 56 m.
+Standalone and multiplayer firearm shots emit **110 dB**, independently of audio
+playback, once per accepted shot including shotgun volleys. Misses and cover do
+not suppress this noise. Grenades emit **130 dB** on detonation, not on throwing.
 
 Only idle, living members of the behavior pool respond to audible noise. They
 store its horizontal direction and enter **looking**, turning in place along

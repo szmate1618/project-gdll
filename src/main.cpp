@@ -671,6 +671,7 @@ bool updateWeapons(AppState& app, double seconds) {
         app.weaponReload.begin(app.weapons, app.inventory, seconds);
     } else if (app.audio) app.audio->shot(app.weapons.slot());
     if (app.zombies && !config.grenade) {
+        app.zombies->makeNoise(app.rig.camera().position(), 110);
         for (const auto direction : viewer::weaponShotDirections(app.weapons.equipped().config, aim.direction()))
             app.zombies->shootWithOcclusion(app.rig.camera().position(), direction,
                                             app.displayedAnimationSeconds, app.world, config.caliber);
@@ -898,6 +899,7 @@ void inputSelfTest(GLFWwindow* window) {
         auto& zombie = zombies.instances.front();
         zombie.transform[3] = {0, 0, 10, 1};
         zombie.restTransform = zombie.restRoot = zombie.transform;
+        zombies.behaviors.create(0, viewer::SimulationClock::instance().seconds());
         AppState shot(world, fixture); shot.zombies = &zombies;
         shot.rig.camera().setPosition({0, .9f, 0}); shot.rig.camera().setOrientation(90, 0);
         shot.weapons.equip(0); shot.weapons.trigger(true);
@@ -907,13 +909,28 @@ void inputSelfTest(GLFWwindow* window) {
         if (zombie.ragdoll || (blocked ? injury != nullptr : !injury || injury->health != 9) ||
             shot.weapons.equipped().loaded != rounds - 1)
             throw std::runtime_error("Single-player shooting occlusion/ammo self-test failed");
+        if (zombies.behaviors.find(0)->state != viewer::ZombieState::looking || zombie.heardNoiseRevision != 1)
+            throw std::runtime_error("A standalone shot must emit AI noise without audio, including behind cover");
+        zombies.behaviors.find(0)->state = viewer::ZombieState::idle;
+        const auto hearingCandidates = zombies.behaviorStats().hearingCandidates;
+        shot.weapons.trigger(false); shot.weapons.trigger(true);
+        if (updateWeapons(shot, 0) || zombie.heardNoiseRevision != 1 ||
+            zombies.behaviorStats().hearingCandidates != hearingCandidates)
+            throw std::runtime_error("A rejected firearm shot must not emit AI noise");
+        shot.weapons.equip(2);
+        shot.rig.camera().setOrientation(-90, 0); // Miss the listener and the wall.
+        shot.weapons.trigger(true);
+        if (!updateWeapons(shot, 0) || zombie.heardNoiseRevision != 2 ||
+            zombies.behaviorStats().hearingCandidates != hearingCandidates + 1)
+            throw std::runtime_error("A missed shotgun volley must emit exactly one AI noise event");
         auto grenadePhysics = std::make_shared<viewer::PhysicsWorld>();
         viewer::Grenades thrown(grenadePhysics);
         shot.grenades = &thrown;
         shot.weapons.equip(4);
         const auto grenadeCount = shot.weapons.equipped().loaded;
         shot.weapons.trigger(true);
-        if (updateWeapons(shot, 0) || thrown.poses().size() != 1 || shot.weapons.equipped().loaded != grenadeCount - 1)
+        if (updateWeapons(shot, 0) || thrown.poses().size() != 1 || shot.weapons.equipped().loaded != grenadeCount - 1 ||
+            zombies.behaviorStats().hearingCandidates != hearingCandidates + 1)
             throw std::runtime_error("Grenade click must spawn a body and consume one grenade without a muzzle flash");
         updateWeapons(shot, 10);
         if (thrown.poses().size() != 1) throw std::runtime_error("Holding left click repeated a grenade throw");
