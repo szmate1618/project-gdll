@@ -7,6 +7,7 @@
 #include "simulation_clock.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
+#include <cstring>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -103,6 +104,34 @@ void protocol() {
     rejects([&] { encode(Hello{"wrong"}); }, "Invalid content hash accepted");
     s.players.pop_back(); s.zombies.resize(maxVisibleZombies + 1);
     rejects([&] { encode(s); }, "Oversized entity count accepted");
+}
+void playerHealthProtocol() {
+    using namespace multiplayer;
+    Snapshot snapshot;
+    PlayerState player; player.id = 1;
+    snapshot.players.push_back(player);
+    for (const float health : {0.f, .125f, 73.625f, 100.f}) {
+        snapshot.players[0].health = health;
+        const auto bytes = encode(snapshot);
+        const auto copy = std::get<Snapshot>(decode(bytes.data(), bytes.size()));
+        require(copy.players.at(0).health == health, "Snapshot lost fractional health or a health boundary");
+    }
+    const auto valid = encode(snapshot);
+    // Health follows header, tick, player count, ID and resolved command fields.
+    constexpr std::size_t healthOffset = 9 + 8 + 4 + 4 + 8;
+    for (const float health : {-0.01f, 100.01f, std::numeric_limits<float>::quiet_NaN(),
+                               std::numeric_limits<float>::infinity()}) {
+        snapshot.players[0].health = health;
+        rejects([&] { encode(snapshot); }, "Invalid player health encoded");
+        auto malformed = valid;
+        std::uint32_t bits = 0;
+        std::memcpy(&bits, &health, sizeof(bits));
+        for (std::size_t i = 0; i < sizeof(bits); ++i)
+            malformed[healthOffset + i] = static_cast<std::uint8_t>(bits >> (8 * i));
+        rejects([&] { decode(malformed.data(), malformed.size()); }, "Invalid player health decoded");
+    }
+    auto oldVersion = valid; oldVersion[4] = 14;
+    rejects([&] { decode(oldVersion.data(), oldVersion.size()); }, "Previous protocol accepted a health snapshot");
 }
 void fragments() {
     using namespace multiplayer;
@@ -670,7 +699,7 @@ void inputRecovery(const std::filesystem::path& asset) {
 }
 int main(int argc, char** argv) {
     try {
-        protocol(); fragments(); prediction(); physicsPoses(); multiplayerPerception(); occludedShooting();
+        protocol(); playerHealthProtocol(); fragments(); prediction(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
         triggerResets(argv[1]); serverCommands(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;

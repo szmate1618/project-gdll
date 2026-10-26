@@ -19,7 +19,7 @@
     </div>
     <div id="vitals">
         <div class="vital-row health">
-            <div id="health-icon" class="hud-icon"></div><div class="vital-name">HEALTH <span>--</span></div><div class="vital-track"></div>
+            <div id="health-icon" class="hud-icon"></div><div class="vital-name">HEALTH <span id="health-value">--</span></div><div class="vital-track"><div id="health-fill"></div></div>
         </div>
         <div class="vital-row stamina">
             <div id="stamina-icon" class="hud-icon"></div><div class="vital-name">STAMINA <span>--</span></div><div class="vital-track"></div>
@@ -48,6 +48,10 @@
     <div id="weapon-switch">
         <div class="switch-label"><span id="switch-label">SWITCHING WEAPON</span><span id="switch-countdown"></span></div>
         <div class="switch-track"><div id="switch-fill"></div></div>
+    </div>
+    <div id="damage-feedback">
+        <div class="damage-edge top-edge"></div><div class="damage-edge bottom-edge"></div>
+        <div class="damage-edge left-edge"></div><div class="damage-edge right-edge"></div>
     </div>
 </body>
 </rml>

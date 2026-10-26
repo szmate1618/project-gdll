@@ -99,12 +99,18 @@ void World::step() {
         player.inventoryDrag.advance(tickSeconds);
         applyInventoryActions(player);
         bodies.push_back(&player.body);
-        targets.push_back({player.controller.feet(), player.controller.eyeHeight(), player.controller.bodyHeight(), id});
+        targets.push_back({player.controller.feet(), player.controller.eyeHeight(), player.controller.bodyHeight(),
+                           id, player.velocity, player.controller.config().radius});
     }
     // Advance living poses from the start-of-tick player state before aim and
     // contacts. Do not move them again between the solve and its snapshot.
     scene_.zombies.updateBehaviorForPlayers(tickSeconds, targets, *scene_.collision, now);
+    for (const auto& hit : scene_.zombies.attackHits()) {
+        const auto player = players_.find(hit.player);
+        if (player != players_.end()) player->second.vitals.applyDamage(hit.damage);
+    }
     for (auto& [id, player] : players_) {
+        auto movementOrigin = player.controller.feet();
         player.weaponReload.update(player.weapons, player.inventory, now);
         player.weapons.syncAmmo(player.inventory);
         const bool completedSwitch = player.weaponSwitch.update(player.weapons, now);
@@ -140,6 +146,8 @@ void World::step() {
             player.pendingInventoryActions.insert(player.pendingInventoryActions.end(), command.inventoryActions.begin(), command.inventoryActions.end());
             applyInventoryActions(player);
             if (command.enterVehicle && vehicleSeats_.toggle(id, player.controller, player.camera)) {
+                // Entering/exiting repositions the capsule without physical travel.
+                movementOrigin = player.controller.feet();
                 player.interaction.cancel(); player.weapons.cancelTrigger();
                 player.triggerNeedsRelease = command.left;
             }
@@ -234,6 +242,7 @@ void World::step() {
             player.held = command;
         }
         scene_.doors->activateNear(player.controller.feet());
+        player.velocity = (player.controller.feet() - movementOrigin) / tickSeconds;
     }
     for (auto& [id,player] : players_) {
         (void)id;
@@ -260,8 +269,9 @@ void World::step() {
         for (auto* body : bodies) body->afterStep();
     });
     for (auto& [id, player] : players_) {
-        (void)id;
         vehicleSeats_.updateSeat(id, player.controller, player.camera);
+        const auto car = vehicleSeats_.car(id);
+        if (car != noVehicle) player.velocity = scene_.vehicles->velocity(car);
     }
     scene_.grenades->update(now, *scene_.collision, &scene_.zombies, now);
     scene_.zombies.synchronizePhysics();
@@ -282,7 +292,7 @@ Snapshot World::snapshot(std::uint32_t id) {
     s.bloodMist = scene_.zombies.bloodMist().recent(viewer::SimulationClock::instance().seconds());
     for (const auto& [playerId, player] : players_) {
         const auto& weapon = player.weapons.equipped();
-        s.players.push_back({playerId, player.resolved, player.controller.movementState(),
+        s.players.push_back({playerId, player.resolved, player.vitals.health(), player.controller.movementState(),
             player.camera.yawDegrees(), player.camera.pitchDegrees(), static_cast<std::uint8_t>(player.weapons.slot()),
             static_cast<std::uint32_t>(weapon.loaded), static_cast<std::uint32_t>(weapon.reserve), player.shots,
             viewer::SimulationClock::instance().seconds() < weapon.readyAt, vehicleSeats_.car(playerId), vehicleSeats_.seat(playerId),player.body.pose(),

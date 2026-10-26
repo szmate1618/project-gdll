@@ -23,6 +23,7 @@
 #include "player_body.hpp"
 #include "player_body_renderer.hpp"
 #include "player_presentation.hpp"
+#include "player_vitals.hpp"
 #include "melee_combat.hpp"
 #include "camera_rig.hpp"
 #include "collision_debug.hpp"
@@ -417,6 +418,8 @@ struct AppState {
     viewer::WeaponSwitch weaponSwitch;
     viewer::WeaponReload weaponReload;
     viewer::WeaponMotion weaponMotion;
+    viewer::PlayerVitals vitals;
+    double lastDamageSeconds = -1;
     viewer::DoorLayer* doors = nullptr;
     viewer::BoxLayer* boxes = nullptr;
     viewer::DroppedWeapons* droppedWeapons = nullptr;
@@ -714,7 +717,13 @@ void updateZombieBehavior(AppState& app, float seconds, double animationSeconds,
     const auto eye = app.driver.occupied() ? app.driver.eyePosition(*app.cars) : app.rig.camera().position();
     const auto feet = app.rig.walking() ? player.feet() : eye - glm::vec3(0, eyeHeight, 0);
     viewer::zombie_profile::Capture capture(profile);
-    app.zombies->updateBehavior(seconds, {feet, eyeHeight, height}, app.world, animationSeconds);
+    viewer::ZombiePlayer target{feet, eyeHeight, height};
+    target.velocity = app.driver.car() ? app.cars->velocity(*app.driver.car()) : app.playerVelocity;
+    target.radius = config.radius;
+    app.zombies->updateBehavior(seconds, target, app.world, animationSeconds);
+    for (const auto& hit : app.zombies->attackHits())
+        if (app.vitals.applyDamage(hit.damage) > 0)
+            app.lastDamageSeconds = viewer::SimulationClock::instance().seconds();
 }
 
 void inputSelfTest(GLFWwindow* window) {
@@ -1649,6 +1658,8 @@ int run(const Options& options) {
         reticle.draw(app.rig.camera().viewMode(), renderWidth, renderHeight);
         viewer::HudState hudState;
         hudState.seconds = simulationClock.seconds();
+        hudState.health = app.vitals.health();
+        hudState.lastDamageSeconds = app.lastDamageSeconds;
         hudState.screen = app.hudScreen;
         hudState.position = app.driver.occupied() ? app.driver.eyePosition(cars) : app.rig.camera().position();
         hudState.yawDegrees = app.rig.camera().yawDegrees();

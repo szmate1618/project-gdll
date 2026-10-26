@@ -92,9 +92,10 @@ Gameplay HUD squares are replaced by downloaded Game-icons.net icons for vitals,
 control modes, stances, vehicles, free fly, speed, player position and weapons.
 The gameplay weapon selector reuses those weapon icons. Inventory and skill-menu
 artwork remains represented by squares. Health, stamina
-and weariness have tinted tracks at 60% opacity with white outlines at 80%, and show
-`--` because those player stats are not yet implemented. No filled amount is
-invented for them. Coordinates use local metres rather than inferred latitude
+and weariness have tinted tracks at 60% opacity with white outlines at 80%.
+Health shows the player's current floating-point value and filled amount;
+successful damage briefly pulses the screen edges red. Stamina and weariness
+still show `--` while their gameplay mechanics are inactive. Coordinates use local metres rather than inferred latitude
 and longitude. Prepare the ignored icon textures under `data/assets/game-icons/`
 with `.venv/bin/python tools/prepare_hud_icons.py`; see [icon sources and credits](../gui/README.md).
 The downloaded archive is reused, and no icon artwork is generated.
@@ -970,8 +971,8 @@ object on the step after expiration. Active zombies within **1.5 m** of the
 player enter **attacking** only when the player is in the normal horizontal FOV
 and a fresh ray to the head/eye height, middle of the body or feet is clear.
 The check stops at the first clear point, using at most three rays against
-current walls, doors and props. They stop moving and currently play idle without
-dealing damage.
+current walls, doors and props. Eligible zombies approach to **1 m** before
+beginning a collision-limited lunge, while retaining the existing idle animation.
 
 Attack eligibility is sampled at **10 Hz**, with stable-ID phases in simulation
 time, independently of normal perception and `--no-zombie-staggering`. Entering
@@ -984,10 +985,35 @@ on a subsequent scheduled check. `ZombieBehaviorStats::attackChecks/attackRays`
 report this work separately from ordinary perception.
 
 `canZombieAttack()` in `zombie_attack` always checks current range, FOV and
-visibility without using either cache. Future damage application must call it
-at the actual hit; an attacking state or cached eligibility alone does not
-authorize damage. It also rejects removed zombies and ragdolls. No zombie damage
-or attack-animation system exists yet.
+visibility without using either cache. Lunge damage calls it at actual player
+contact; an attacking state or cached eligibility alone does not authorize
+damage. It also rejects removed zombies and ragdolls.
+
+Each attack uses a **0.3 s wind-up** withdrawing up to 8 cm, a forward lunge of at most **1.5 m over
+0.15 s**, a **0.4 s return**, and **0.5 s cooldown**. Direction is fixed for the
+cycle. These are timing phases within `attacking`, driven by simulation time.
+The zombie's actual body moves, keeping rendering, shadows, shooting and
+collision in the same frame. Movement respects terrain, walls, doors, props
+and living zombies; swept player-body contact stops the forward lunge and can
+produce one hit. A miss still completes recovery. The return is collision-tested
+and can finish short if its path becomes blocked. No new animation or image
+asset is required.
+
+`PlayerVitals` owns independent float health, stamina and weariness values for
+each player. Health starts at **100**, damage preserves fractions and clamps
+health at zero. Stamina starts at 100 and weariness at zero; neither changes yet.
+Zero health does not introduce death, control restrictions or respawning.
+Standalone applies lunge hit events locally. Multiplayer applies them on the
+server and transmits authoritative health; clients only present the result.
+
+Damage uses the incoming world-space velocities in meters/second:
+`10 * length(zombieVelocity - playerVelocity) / baseLungeSpeed`, where
+`baseLungeSpeed = 1.5 / 0.15 = 10 m/s`. Use the velocity immediately before
+contact, rather than the stopped velocity or displacement divided by a whole
+collision-truncated step. The player velocity comes from the last solved
+simulation step. A stationary player takes 10 damage; moving away along the
+lunge at 3 m/s gives 7 damage, and moving toward it at 3 m/s gives 13.
+The full vector length also accounts for sideways and vertical movement.
 
 `SimulationClock::instance()` provides elapsed in-game seconds throughout the
 viewer. The app advances it once per simulation step using the same capped
@@ -1731,8 +1757,8 @@ predicted eye, and interpolate remote bodies. Nearby zombie collision surfaces
 are shared across every player; simultaneous hits are collected before handing
 the zombie to its planted ragdoll. Repeated hits and late joins use the existing
 versioned corpse-pose replication. Fists cannot be discarded and never create
-firearm recoil, muzzle flashes, or hitscan bullets. Melee targets zombies; player
-health and player-versus-player damage are not part of this prototype.
+firearm recoil, muzzle flashes, or hitscan bullets. Melee targets zombies;
+player-versus-player damage is not part of this prototype.
 
 For a headless CPU comparison of contact preparation and the full physics step,
 including repeated punches, build and run the optional benchmark:
@@ -1829,8 +1855,8 @@ detection. Throws inherit walking velocity and add a small upward arc.
 The 3-second fuse starts on the throw. Detonation removes the body, kills exposed
 zombies within 8 m into ragdolls, pushes exposed dynamic objects outward, emits
 AI noise, and plays a synthesized explosion sound in single player. Solid scene
-geometry, closed doors, and props can shield targets. The existing prototype has
-no player health/damage system. A warm explosion point light uses the same pulse
+geometry, closed doors, and props can shield targets. Explosions currently affect
+zombies and props; they do not apply player damage. A warm explosion point light uses the same pulse
 code as gun muzzles, with a 12 m range and 180 ms quadratic fade. Up to eight
 explosion lights can coexist with the gun muzzle light, including with **F** off.
 Nearby old-forest shrubs bend outward and settle with a short rebound within
@@ -2592,6 +2618,12 @@ and attack caches, and a physical door opening/closing/reopening. It verifies
 immediate uncached hit rejection, 10 Hz cadence at 30/60/144 FPS, deterministic
 ID staggering, no catch-up bursts, and fresh checks when entering range.
 
+`viewer_zombie_lunge` covers swept player contact, collision-limited strikes and
+returns, misses, one-hit cycles, and relative-velocity damage scaling.
+`viewer_player_vitals` checks fractional health, independent players, zero
+clamping and invalid damage. `multiplayer_zombie_attacks` checks server-owned
+damage and health snapshots.
+
 `viewer_character_step` runs both controllers against raised road sheets,
 downward-facing building caps and solid curbs at 2, 8.7, 25, 30, 31 and 45 cm.
 It verifies ascent/descent, standing stability, running at multiple frame rates,
@@ -2733,7 +2765,9 @@ src/zombie_damage.{hpp,cpp} Sparse injury records and health reduction; no geome
 src/zombie_dismemberment.{hpp,cpp} Joint-hit definitions, prepared mesh loading and affine joint tests
 src/zombie_shooting.cpp    Prepared hit geometry, spatial bounds, and shot selection
 src/zombie_behavior.{hpp,cpp} Dense behavior pool, perception and state transitions
-src/zombie_attack.{hpp,cpp} Fresh range/FOV/body-exposure validation for attacks and future hits
+src/zombie_attack.{hpp,cpp} Fresh hit validation and relative-velocity damage
+src/zombie_lunge.{hpp,cpp} Timed collision-limited attack movement and hit events
+src/player_vitals.hpp      Player-owned float health, stamina and weariness
 src/zombie_perception.{hpp,cpp} Simulation-thread sight scheduling and ray classification
 src/zombie_spatial_index.{hpp,cpp} Stable-ID spatial grid for activation, hearing, and shooting
 src/zombie_door_collision.{hpp,cpp} Nearby living capsules blocking hinged door motion

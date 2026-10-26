@@ -95,7 +95,7 @@ std::vector<float> followingDoor(const std::filesystem::path& trace, bool outwar
         std::filesystem::create_directories(trace);
         log.open(trace / (outward ? "following-outward.csv" : "following-inward.csv"));
         require(bool(log), "Cannot write door trace");
-        log << std::setprecision(10) << "step,id,door_angle,x,y,z,yaw_rad,walking,clip,frame,overlap_before,overlap_after,displacement\n";
+        log << std::setprecision(10) << "step,id,door_angle,x,y,z,yaw_rad,walking,clip,frame,overlap_before,overlap_after,displacement,attack_phase\n";
     }
     std::size_t penetrations = 0, latePenetrations = 0;
     float maxOverlap = 0;
@@ -106,9 +106,13 @@ std::vector<float> followingDoor(const std::filesystem::path& trace, bool outwar
         replay.push_back(doors.angle(0));
         std::vector<glm::vec3> previous;
         std::vector<float> before;
-        for (const auto& instance : layer.instances) {
+        std::vector<viewer::ZombieLunge::Phase> attackBefore;
+        for (std::size_t id = 0; id < layer.instances.size(); ++id) {
+            const auto& instance = layer.instances[id];
             previous.emplace_back(instance.restRoot[3]);
             before.push_back(overlap(previous.back(), world));
+            const auto* behavior = layer.behaviors.find(id);
+            attackBefore.push_back(behavior ? behavior->lunge.phase : viewer::ZombieLunge::Phase::ready);
         }
         viewer::SimulationClock::instance().advance(dt);
         layer.updateBehavior(dt, {{0, 0, -12}}, world, (step + 1) * double(dt));
@@ -120,7 +124,12 @@ std::vector<float> followingDoor(const std::filesystem::path& trace, bool outwar
             penetrations += depth > .001f;
             latePenetrations += step > 240 && depth > .001f;
             maxOverlap = std::max(maxOverlap, depth);
-            require(glm::length(feet - previous[id]) <= .0502f,
+            const auto* behavior = layer.behaviors.find(id);
+            const auto attackPhase = behavior ? behavior->lunge.phase : viewer::ZombieLunge::Phase::ready;
+            const bool attackMovement = attackBefore[id] != viewer::ZombieLunge::Phase::ready ||
+                attackPhase != viewer::ZombieLunge::Phase::ready;
+            const float maximumTravel = attackMovement ? viewer::zombieLungeSpeed * dt + .0002f : .0502f;
+            require(glm::length(feet - previous[id]) <= maximumTravel,
                     "Door collision must not teleport or push zombies through the world");
             for (std::size_t other = 0; other < id; ++other)
                 require(glm::length(feet - glm::vec3(layer.instances[other].restRoot[3])) >= .5998f,
@@ -132,7 +141,8 @@ std::vector<float> followingDoor(const std::filesystem::path& trace, bool outwar
             if (log) log << step << ',' << id << ',' << doors.angle(0) << ',' << feet.x << ',' << feet.y << ','
                 << feet.z << ',' << std::atan2(instance.restRoot[2].x, instance.restRoot[2].z) << ','
                 << instance.walking << ',' << (clip ? 2 : 0) << ',' << frame
-                << ',' << before[id] << ',' << depth << ',' << glm::length(feet - previous[id]) << '\n';
+                << ',' << before[id] << ',' << depth << ',' << glm::length(feet - previous[id]) << ','
+                << int(attackPhase) << '\n';
         }
     }
     std::size_t entered = 0;

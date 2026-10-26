@@ -368,8 +368,15 @@ void renderChangesFollowBehavior() {
     layer.renderUpdates().acknowledge(revision);
     require(!layer.instances[0].walking, "Fixture must reach attack range and stop");
     layer.chase(.1f, {0, 0, 10}, world);
+    changes = layer.renderUpdates().since(revision);
+    require(changes.ids && *changes.ids == std::vector<std::size_t>{0} && layer.renderUpdates().boundsChanged(0),
+            "Physical attack wind-up must publish its changed root and bounds");
+    layer.chase(1.f, {0, 0, 10}, world); // Complete this cycle; the cooldown retains a stationary idle pose.
+    revision = layer.renderUpdates().since(revision).revision;
+    layer.renderUpdates().acknowledge(revision);
+    layer.chase(.01f, {0, 0, 10}, world);
     require(!layer.renderUpdates().since(revision).ids,
-            "A stationary active zombie must not dirty renderer data every behavior step");
+            "A stationary attack cooldown must not dirty renderer data every behavior step");
 }
 
 void corpseMembership() {

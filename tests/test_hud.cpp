@@ -169,6 +169,37 @@ int main(int argc, char** argv) {
             if (argc > 1) capture(argv[1], first, 1280, 720);
             clear(); hud.draw(state, 1280, 720); checkState();
             require(first == pixels(1280, 720), "Unchanged HUD state changed rendered output");
+            state.health = 100.f;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto fullHealth = pixels(1280, 720);
+            require(isColor(colorAt(fullHealth, 1280, 720, 270, 605), {236,105,98}),
+                    "Full health must fill the existing health track");
+            state.health = 50.5f;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto injured = pixels(1280, 720);
+            require(isColor(colorAt(injured, 1280, 720, 120, 605), {236,105,98}) &&
+                    !isColor(colorAt(injured, 1280, 720, 250, 605), {236,105,98}),
+                    "Fractional health must fill only the remaining part of the track");
+            if (argc > 1) capture((std::string(argv[1]) + "-vitals.ppm").c_str(), injured, 1280, 720);
+            state.seconds = 5; state.lastDamageSeconds = 5;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto impact = pixels(1280, 720);
+            const auto edge = colorAt(impact, 1280, 720, 4, 360);
+            require(edge[0] > 80 && edge[0] > edge[1] * 2 && edge[0] > edge[2] * 2,
+                    "Successful damage must show a red pulse at the screen edge");
+            require(colorAt(impact, 1280, 720, 640, 360) == colorAt(injured, 1280, 720, 640, 360),
+                    "Damage feedback must leave the center of the scene unobscured");
+            if (argc > 1) capture((std::string(argv[1]) + "-damage.ppm").c_str(), impact, 1280, 720);
+            state.seconds = 6;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(injured == pixels(1280, 720), "Damage feedback must expire without changing health");
+            state.health = 0.f;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(!isColor(colorAt(pixels(1280, 720), 1280, 720, 90, 605), {236,105,98}),
+                    "Zero health must leave an empty health track");
+            state.health.reset(); state.seconds = 0; state.lastDamageSeconds = -1;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(first == pixels(1280, 720), "Unknown health must retain the original placeholder layout");
             const auto iconChanged = [&](const std::vector<unsigned char>& current, int left, int top, int width, int height) {
                 for (int y = top; y < top + height; ++y) for (int x = left; x < left + width; ++x)
                     if (colorAt(first, 1280, 720, x, y) != colorAt(current, 1280, 720, x, y)) return true;

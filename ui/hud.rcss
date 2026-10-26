@@ -26,6 +26,16 @@ div { display: block; }
 .vital-name { position: absolute; left: 38dp; top: -2dp; width: 222dp; font-size: 11dp; }
 .vital-name span { float: right; }
 .vital-track { position: absolute; left: 38dp; top: 15dp; width: 220dp; height: 7dp; border-width: 1dp; }
+#health-fill { width: 0dp; height: 7dp; }
+#damage-feedback { display: none; position: absolute; left: 0dp; top: 0dp; width: 100%; height: 100%; z-index: 20; }
+.damaged #damage-feedback { display: block; }
+.damage-edge { position: absolute; }
+.top-edge, .bottom-edge { left: 0dp; width: 100%; height: 24dp; }
+.top-edge { top: 0dp; }
+.bottom-edge { bottom: 0dp; }
+.left-edge, .right-edge { top: 24dp; bottom: 24dp; width: 24dp; }
+.left-edge { left: 0dp; }
+.right-edge { right: 0dp; }
 #status-strip { position: absolute; left: 50%; bottom: 44dp; margin-left: -210dp; width: 434dp; height: 30dp; }
 .status-item { position: absolute; top: 0dp; height: 28dp; }
 .status-item .hud-icon { position: absolute; top: 2dp; left: 0dp; width: 22dp; height: 22dp; }

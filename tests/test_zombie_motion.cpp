@@ -46,9 +46,13 @@ struct Previous {
     float yaw = 0;
     int clip = 0;
     double lastSwitch = -100;
+    bool attacking = false;
+    viewer::ZombieLunge::Phase attackPhase = viewer::ZombieLunge::Phase::ready;
+    double walkSeconds = 0;
 };
 struct Metrics {
     std::size_t yawJumps = 0, rapidSwitches = 0, smallBackslides = 0, movingFrames = 0, positionJumps = 0;
+    std::size_t attackFrames = 0;
     double maxYaw = 0;
 };
 
@@ -101,7 +105,7 @@ Metrics scenario(const std::string& name, const viewer::AnimatedModel& asset, co
         std::filesystem::create_directories(directory);
         log.open(directory / (name + ".csv"));
         if (!log) throw std::runtime_error("Cannot open motion trace");
-        log << std::setprecision(10) << "step,id,seconds,dt,x,y,z,yaw_deg,walking,running,clip,frame,frame_count,walk_seconds,state,sight,target_x,target_z,displacement,yaw_delta,neighbor_checks,budget_stops\n";
+        log << std::setprecision(10) << "step,id,seconds,dt,x,y,z,yaw_deg,walking,running,clip,frame,frame_count,walk_seconds,state,sight,target_x,target_z,displacement,yaw_delta,neighbor_checks,budget_stops,attack_phase\n";
     }
     Metrics metrics;
     double seconds = 0;
@@ -133,9 +137,27 @@ Metrics scenario(const std::string& name, const viewer::AnimatedModel& asset, co
             const auto feet = glm::vec3(instance.restRoot[3]);
             const float yaw = glm::degrees(std::atan2(instance.restRoot[2].x, instance.restRoot[2].z));
             auto& old = previous[id];
+            const auto* behavior = layer.behaviors.find(id);
+            const auto attackPhase = behavior ? behavior->lunge.phase : viewer::ZombieLunge::Phase::ready;
+            const bool attacking = behavior && behavior->state == viewer::ZombieState::attacking;
+            const bool attackMovement = old.attackPhase != viewer::ZombieLunge::Phase::ready ||
+                attackPhase != viewer::ZombieLunge::Phase::ready;
             const float displacement = glm::length(glm::vec2(feet.x - old.feet.x, feet.z - old.feet.z));
             const float delta = std::abs(std::remainder(yaw - old.yaw, 360.f));
             require(delta <= 180 * dt + .001f, "Locomotion must not snap the body's orientation");
+            if (old.attackPhase == viewer::ZombieLunge::Phase::striking ||
+                    old.attackPhase == viewer::ZombieLunge::Phase::recovering)
+                require(delta < .001f, "A committed strike and return must retain their facing");
+            if (attackPhase != viewer::ZombieLunge::Phase::ready) {
+                require(type == 0 && !instance.walking && !instance.running,
+                        "Physical attacks must retain the existing idle animation");
+                if (old.attackPhase != viewer::ZombieLunge::Phase::ready)
+                    require(instance.walkSeconds == old.walkSeconds,
+                            "Attack travel must not advance walk/run clip time");
+            }
+            if (attackMovement)
+                require(displacement <= viewer::zombieLungeSpeed * dt + .001f,
+                        "Attack travel must respect its configured maximum speed");
             require(std::isfinite(frame) && frame >= 0 && frame < count,
                     "The displayed animation frame must remain valid");
             if (step > 120) {
@@ -145,30 +167,34 @@ Metrics scenario(const std::string& name, const viewer::AnimatedModel& asset, co
                 const auto offset = feet - old.feet;
                 const float backward = offset.x * std::sin(glm::radians(old.yaw)) +
                     offset.z * std::cos(glm::radians(old.yaw));
-                if (displacement > 1e-5f && displacement < .02f && displacement / dt < .1f && backward < -1e-5f) {
+                if (!attackMovement && displacement > 1e-5f && displacement < .02f &&
+                        displacement / dt < .1f && backward < -1e-5f) {
                     ++metrics.smallBackslides;
                     require(delta < .001f, "Tiny backward contact slides must keep facing");
                 }
-                metrics.positionJumps += displacement > 3 * dt + .001f;
+                if (!attackMovement) metrics.positionJumps += displacement > 3 * dt + .001f;
+                metrics.attackFrames += attackMovement;
             }
             if (type != old.clip) {
-                if (step > 120 && seconds - old.lastSwitch < .15) ++metrics.rapidSwitches;
+                if (!attacking && !old.attacking && step > 120 && seconds - old.lastSwitch < .15)
+                    ++metrics.rapidSwitches;
                 old.lastSwitch = seconds;
             }
-            const auto* behavior = layer.behaviors.find(id);
             if (log) log << step << ',' << id << ',' << seconds << ',' << dt << ',' << feet.x << ',' << feet.y << ','
                 << feet.z << ',' << yaw << ',' << instance.walking << ',' << instance.running << ',' << type << ','
                 << frame << ',' << count << ',' << instance.walkSeconds << ',' << (behavior ? int(behavior->state) : -1) << ','
                 << (behavior ? int(behavior->sight) : -1) << ',' << (behavior ? behavior->target.x : 0) << ','
                 << (behavior ? behavior->target.z : 0) << ',' << displacement << ',' << delta << ','
-                << layer.crowdStats().neighborChecks << ',' << layer.crowdStats().budgetStops << '\n';
+                << layer.crowdStats().neighborChecks << ',' << layer.crowdStats().budgetStops << ','
+                << int(attackPhase) << '\n';
             old.feet = feet; old.yaw = yaw; old.clip = type;
+            old.attacking = attacking; old.attackPhase = attackPhase; old.walkSeconds = instance.walkSeconds;
         }
     }
     std::cout << name << ": yaw jumps=" << metrics.yawJumps << ", max yaw=" << metrics.maxYaw
               << ", rapid clip switches=" << metrics.rapidSwitches << ", small backslides=" << metrics.smallBackslides
               << ", moving frames=" << metrics.movingFrames
-              << ", position jumps=" << metrics.positionJumps << '\n';
+              << ", position jumps=" << metrics.positionJumps << ", attack frames=" << metrics.attackFrames << '\n';
     require(metrics.yawJumps == 0 && metrics.rapidSwitches == 0 && metrics.positionJumps == 0,
             "Crowd/door contact must not cause orientation, clip or position flicker");
     if (name == "crowd") require(metrics.smallBackslides > 100, "Keep physical backward crowd slides");

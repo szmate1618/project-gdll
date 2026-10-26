@@ -23,7 +23,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 14; // Inventory ammo stacks and timed reloads.
+constexpr std::uint32_t protocolVersion = 15; // Authoritative player health.
 
 struct Hello { std::string fingerprint; };
 struct Welcome { std::uint32_t player = 0; };
@@ -52,6 +52,7 @@ struct Commands {
 struct PlayerState {
     std::uint32_t id = 0;
     std::uint64_t resolved = 0;
+    float health = 100.f; // Authoritative hit points, in [0, 100].
     viewer::FPSState movement;
     float yaw = -90, pitch = 0;
     std::uint8_t slot = 0;

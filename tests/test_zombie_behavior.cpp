@@ -131,7 +131,7 @@ void perceptionAndStates() {
     layer.chase(5, {0, 0, 10}, clear);
     require(state(layer) == ZombieState::attacking && !layer.instances[0].walking,
             "Attack range stops locomotion and plays idle even with a large step");
-    require(std::abs(layer.instances[0].restRoot[3].z - 8.5f) < 1e-4f, "Stop 1.5 m from the player");
+    require(std::abs(layer.instances[0].restRoot[3].z - 9.f) < 1e-4f, "Approach to 1 m before winding up");
     layer.chase(0.1f, {0, 0, 20}, clear);
     require(state(layer) == ZombieState::chasing && layer.instances[0].walking, "Resume pursuit when player leaves attack range");
     require(layer.instances[0].chaseRevision == 1, "Attack-range transitions do not spam new acquisition grunts");

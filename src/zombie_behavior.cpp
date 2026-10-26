@@ -15,7 +15,7 @@ namespace viewer {
 namespace {
 constexpr float activationDistance = 100.0f;
 constexpr float suspensionDistance = activationDistance * 1.5f;
-constexpr float attackDistance = zombieAttackDistance;
+constexpr float approachDistance = zombieAttackApproachDistance;
 constexpr double attackCheckPeriod = .1;
 constexpr float walkSpeed = 1.2f;
 constexpr float runSpeed = 3.0f;
@@ -53,11 +53,11 @@ glm::vec3 approachDestination(glm::vec3 target, glm::vec3 feet, bool playerVisib
     // Stop short of the last observed target while sight is cached as clear.
     // Use its recorded height too, without tracking an unsampled player jump.
     const float dy = target.y - feet.y;
-    if (!playerVisible || std::abs(dy) >= attackDistance) return target;
+    if (!playerVisible || std::abs(dy) >= approachDistance) return target;
     const glm::vec2 offset(target.x - feet.x, target.z - feet.z);
     const float distance = glm::length(offset);
     if (distance > 1e-4f) {
-        const auto inset = offset / distance * std::sqrt(attackDistance * attackDistance - dy * dy);
+        const auto inset = offset / distance * std::sqrt(approachDistance * approachDistance - dy * dy);
         target.x -= inset.x;
         target.z -= inset.y;
     }
@@ -87,7 +87,7 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
                   float seconds, double now, double animationSeconds,
                   bool staggerPerception, ZombieBehaviorStats& stats, ZombieCrowd& crowd,
                   const std::vector<ZombiePlayer>* players,
-                  bool scenarioFallback) {
+                  bool scenarioFallback, std::vector<ZombieAttackHit>& hits) {
     if (behavior.state == ZombieState::looking && turnZombieToward(instance, behavior.lookDirection, seconds))
         changeState(behavior, ZombieState::idle, now);
     const auto offset = player.feet - glm::vec3(instance.restRoot[3]);
@@ -104,7 +104,7 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
         ++stats.perceptionChecks;
         // Scheduled observations retain none/partial/full for later attack
         // transitions. Every-step chasing only needs the first clear ray.
-        if (players) {
+        if (players && behavior.lunge.phase == ZombieLunge::Phase::ready) {
             // Keep a visible target; otherwise select the nearest visible player.
             ZombieSight bestSight = ZombieSight::none;
             float bestDistance = std::numeric_limits<float>::max();
@@ -143,10 +143,30 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
         return false;
     }
 
+    const auto closeEnough = [&] {
+        const auto delta = player.feet - glm::vec3(instance.restRoot[3]);
+        constexpr float reach = approachDistance + .0001f;
+        return glm::dot(delta, delta) <= reach * reach;
+    };
+    const auto stepAttack = [&] {
+        stepZombieLunge(behavior.lunge, instance, world, crowd, behavior.zombie,
+            players ? players->data() : &player, players ? players->size() : 1,
+            seconds, now, hits, stats.attackRays);
+    };
     auto feet = glm::vec3(instance.restRoot[3]);
-    if (attackEligible(behavior, instance, player, world, now, stats)) {
+    const bool eligible = attackEligible(behavior, instance, player, world, now, stats);
+    if (behavior.lunge.phase != ZombieLunge::Phase::ready) {
+        if (behavior.lunge.phase == ZombieLunge::Phase::windup && !eligible) {
+            cancelZombieLunge(behavior.lunge, now);
+        } else {
+            stepAttack();
+            return true; // A committed strike/recovery does not track a dodging player.
+        }
+    }
+    if (eligible && closeEnough()) {
         changeState(behavior, ZombieState::attacking, now);
         stopZombieLocomotion(instance);
+        if (beginZombieLunge(behavior.lunge, instance, player, now)) stepAttack();
         return true;
     }
     if (behavior.state == ZombieState::attacking)
@@ -157,9 +177,10 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
     const bool arrived = moveZombieToward(instance, asset, destination, speed, seconds, world, animationSeconds,
                                          &crowd, behavior.zombie);
     feet = glm::vec3(instance.restRoot[3]);
-    if (attackEligible(behavior, instance, player, world, now, stats))
+    if (attackEligible(behavior, instance, player, world, now, stats) && closeEnough()) {
         changeState(behavior, ZombieState::attacking, now);
-    else if (arrived && (behavior.sight != ZombieSight::none ||
+        beginZombieLunge(behavior.lunge, instance, player, now);
+    } else if (arrived && (behavior.sight != ZombieSight::none ||
              glm::length(glm::vec2(behavior.target.x - feet.x, behavior.target.z - feet.z)) <= 1e-4f))
         changeState(behavior, ZombieState::idle, now);
     if (behavior.state == ZombieState::idle || behavior.state == ZombieState::attacking) {
@@ -235,6 +256,7 @@ void ZombieLayer::setPerceptionEnabled(bool enabled) {
     if (perceptionEnabled_ == enabled) return;
     perceptionEnabled_ = enabled;
     behaviorStats_ = {};
+    attackHits_.clear();
     if (enabled) return;
     for (const auto& entry : behaviors.entries()) {
         if (entry.zombie >= instances.size()) continue;
@@ -289,6 +311,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
                                     const CollisionWorld& world, double animationSeconds,
                                     const std::vector<ZombiePlayer>* players) {
     zombie_profile::Timer timer(zombie_profile::Stage::behaviorDispatch);
+    attackHits_.clear();
     if (!std::isfinite(seconds) || seconds <= 0) return;
     if (!perceptionEnabled_) {
         behaviorStats_ = {};
@@ -299,12 +322,14 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
         }
         return; // No nearby-player queries or behavior creation in this mode.
     }
-    if (!finite(player.feet) ||
+    if (!finite(player.feet) || !finite(player.velocity) ||
         !std::isfinite(player.eyeHeight) || !std::isfinite(player.height) ||
+        !std::isfinite(player.radius) || player.radius <= 0 ||
         player.eyeHeight <= 0 || player.height < player.eyeHeight) return;
     if (players) {
         for (const auto& p : *players)
-            if (!finite(p.feet) || !std::isfinite(p.eyeHeight) || !std::isfinite(p.height) ||
+            if (!finite(p.feet) || !finite(p.velocity) || !std::isfinite(p.radius) || p.radius <= 0 ||
+                !std::isfinite(p.eyeHeight) || !std::isfinite(p.height) ||
                 p.eyeHeight <= 0 || p.height < p.eyeHeight) return;
     }
     const double now = SimulationClock::instance().seconds();
@@ -312,6 +337,15 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
     ensureSpatialIndex();
     crowd_.beginStep();
     if (players && players->empty()) {
+        for (const auto& entry : behaviors.entries()) {
+            auto& behavior = *behaviors.find(entry.zombie);
+            if (behavior.lunge.phase == ZombieLunge::Phase::ready) continue;
+            cancelZombieLunge(behavior.lunge, now);
+            if (entry.zombie < instances.size()) stopZombieLocomotion(instances[entry.zombie]);
+            changeState(behavior, ZombieState::idle, now);
+            behavior.attackVisible = false;
+            behavior.attackClock = {};
+        }
         updateScenarioRoutes(seconds, world, player, players, true);
         return;
     }
@@ -370,9 +404,18 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
             for (const auto& p : *players) {
                 const auto d = p.feet - glm::vec3(instance.restRoot[3]);
                 if (glm::dot(d, d) < nearest) { nearest = glm::dot(d, d); rangePlayer = p; }
-                if (p.id == behavior.targetPlayer) { selectedPlayer = p; retained = true; }
+                const auto target = behavior.lunge.phase == ZombieLunge::Phase::ready ?
+                    behavior.targetPlayer : behavior.lunge.targetPlayer;
+                if (p.id == target) { selectedPlayer = p; retained = true; }
             }
-            if (!retained) { selectedPlayer = rangePlayer; behavior.perception = {}; behavior.attackClock = {}; behavior.sight = ZombieSight::none; }
+            if (!retained) {
+                selectedPlayer = rangePlayer;
+                behavior.perception = {};
+                behavior.attackClock = {};
+                behavior.sight = ZombieSight::none;
+                if (behavior.lunge.phase == ZombieLunge::Phase::windup)
+                    cancelZombieLunge(behavior.lunge, now);
+            }
         }
         if (distantIdle(behavior, instance, rangePlayer)) {
             if (!scenarioFallback) {
@@ -388,7 +431,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
         const bool wasRunning = instance.running;
         const bool claimed = stepBehavior(behavior, instance, assets[instance.asset], selectedPlayer, world,
                      seconds, now, animationSeconds, staggerPerception_, behaviorStats_, crowd_, players,
-                     scenarioFallback);
+                     scenarioFallback, attackHits_);
         if (claimed && scenarioDestination(id)) abandonScenarioRoute(id);
         const bool moved = beforeTransform != instance.transform;
         if (moved || wasWalking != instance.walking || wasRunning != instance.running || beforeSeconds != instance.walkSeconds)

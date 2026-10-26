@@ -17,6 +17,8 @@ div, span, button { border-color: #f5f6f24d; }
 .weapon-divider { background-color: #f5f6f299; }
 .health .square, .loadout .medkit { background-color: #ec6962; }
 .health .vital-track { background-color: #ec696299; }
+.health-known .health .vital-track { background-color: #2b2d2fed; }
+#health-fill, .damage-edge { background-color: #ec6962; }
 .stamina .square { background-color: #59c49c; }
 .weariness .square { background-color: #e7cd65; }
 .stamina .vital-track { background-color: #59c49c99; }

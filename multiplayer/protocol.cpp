@@ -163,7 +163,9 @@ void payload(Wire& w, Commands& batch) {
 void payload(Wire& w, Snapshot& s) {
     w.integer(s.tick);
     w.list(s.players, maxPlayers, [&](PlayerState& p) {
-        w.integer(p.id); w.integer(p.resolved); movement(w, p.movement);
+        w.integer(p.id); w.integer(p.resolved); w.number(p.health);
+        if (p.health < 0 || p.health > 100) throw std::runtime_error("Invalid player health");
+        movement(w, p.movement);
         w.number(p.yaw); w.number(p.pitch); w.integer(p.slot); w.integer(p.loaded); w.integer(p.reserve); w.integer(p.shots);
         w.flag(p.weaponCoolingDown);
         w.integer(p.vehicle); w.integer(p.seat);

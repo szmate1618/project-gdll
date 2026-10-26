@@ -6,6 +6,7 @@
 #include "skills_view.hpp"
 #include "presentation_viewport.hpp"
 #include "inventory/player_inventory.hpp"
+#include "player_vitals.hpp"
 #include <RmlUi/Core.h>
 #include <algorithm>
 #include <array>
@@ -127,7 +128,7 @@ struct Hud::Impl {
             document = context->LoadDocument((directory / "hud.rml").generic_string());
             if (!document) throw std::runtime_error("Cannot load HUD layout: " + directory.string());
             for (const char* id : {"heading", "north-coordinate", "east-coordinate", "movement", "mode", "speed",
-                                    "equipment", "weapon", "mode-icon", "movement-icon", "loaded", "reserve", "prompt", "capture", "compass-scale", "map-caption", "switch-fill", "switch-countdown", "switch-label"}) {
+                                    "equipment", "weapon", "mode-icon", "movement-icon", "loaded", "reserve", "prompt", "capture", "compass-scale", "map-caption", "switch-fill", "switch-countdown", "switch-label", "health-value", "health-fill", "damage-feedback"}) {
                 auto* element = document->GetElementById(id);
                 if (!element) throw std::runtime_error(std::string("Missing HUD element: ") + id);
                 elements.emplace(id, element);
@@ -256,6 +257,26 @@ struct Hud::Impl {
             return;
         }
         updateCompass(state.yawDegrees);
+        const bool healthKnown = state.health && std::isfinite(*state.health);
+        document->SetClass("health-known", healthKnown);
+        float health = 0;
+        if (healthKnown) {
+            health = std::clamp(*state.health, 0.f, PlayerVitals::maximumHealth);
+            std::ostringstream value;
+            value << std::fixed << std::setprecision(1) << health;
+            auto label = value.str();
+            if (label.size() >= 2 && label.substr(label.size() - 2) == ".0") label.resize(label.size() - 2);
+            setText("health-value", label);
+        } else setText("health-value", "--");
+        elements.at("health-fill")->SetProperty(Rml::PropertyId::Width,
+            Rml::Property(220.f * health / PlayerVitals::maximumHealth, Rml::Unit::DP));
+        constexpr double damagePulseSeconds = .3;
+        const double damageAge = state.seconds - state.lastDamageSeconds;
+        const float damagePulse = state.lastDamageSeconds >= 0 && std::isfinite(damageAge) && damageAge >= 0 ?
+            static_cast<float>(std::clamp(1 - damageAge / damagePulseSeconds, 0.0, 1.0)) : 0.f;
+        document->SetClass("damaged", damagePulse > 0);
+        elements.at("damage-feedback")->SetProperty(Rml::PropertyId::Opacity,
+            Rml::Property(damagePulse * .45f, Rml::Unit::NUMBER));
         document->SetClass("selecting", state.selectionSlot >= 0 && state.selectionSlot < 10);
         if (state.selectionSlot != selectionSlot) {
             selectionSlot = state.selectionSlot;

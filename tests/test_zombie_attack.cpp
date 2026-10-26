@@ -90,6 +90,7 @@ void stateCadenceAndFreshHitChecks() {
     panel(model, 0, 3);
     const viewer::CollisionWorld blocked(model);
     auto layer = pursuer();
+    layer.behaviors.find(0)->lunge.nextAttackSeconds = 1000; // Isolate eligibility from physical attack motion.
     layer.chase(.001f, {0, 0, 1}, clear);
     require(layer.behaviors.find(0)->state == viewer::ZombieState::attacking &&
             layer.behaviorStats().attackChecks == 1 && layer.behaviorStats().attackRays == 1,
@@ -149,6 +150,7 @@ void rateAndStaggering() {
     for (const int fps : {30, 60, 144}) {
         clock.reset();
         auto layer = pursuer();
+        layer.behaviors.find(0)->lunge.nextAttackSeconds = 1000; // Measure visibility scheduling, not hit rays.
         std::size_t checks = 0, rays = 0;
         for (int step = 0; step <= fps; ++step) {
             if (step) clock.advance(1.0 / fps);
@@ -192,6 +194,7 @@ void liveDoorPose() {
     };
     drive(true);
     auto layer = pursuer();
+    layer.behaviors.find(0)->lunge.nextAttackSeconds = 1000; // This fixture exercises live door eligibility.
     layer.chase(.001f, {0, 0, 1}, world);
     require(layer.behaviors.find(0)->state == viewer::ZombieState::attacking, "An open door must allow attack");
     drive(false);

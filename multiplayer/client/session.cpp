@@ -308,6 +308,9 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
     float remoteTravel = 0;
     glm::vec3 visualOffset(0);
     multiplayer::PlayerState ownState;
+#ifdef MP_GRAPHICS
+    double lastDamageSeconds = -1;
+#endif
     std::uint64_t lastInventoryCommand = 0;
     auto weaponDefinitions = scene.initialWeapons;
     while (!graphics.closed() && !in.leave) {
@@ -354,6 +357,11 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 bool found = false;
                 for (const auto& p : snapshot->players) if (p.id == self) {
                     const bool ready = prediction.ready(); const auto before = prediction.eye();
+#ifdef MP_GRAPHICS
+                    // Only accepted, newer snapshots reach here. The first one
+                    // establishes a baseline; repeats cannot restart the flash.
+                    if (ready && p.health < ownState.health) lastDamageSeconds = now;
+#endif
                     if (!ready || p.slot != ownState.slot || p.vehicle != ownState.vehicle || p.seat != ownState.seat) {
                         if (!weaponDefinitions.equip(p.slot))
                             throw std::runtime_error("Server equipped an unavailable weapon");
@@ -533,6 +541,8 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 hudState.reloadRemaining = ownState.reloadRemaining;
                 hudState.reloadDuration = ownState.reloadDuration;
                 if (prediction.ready()) {
+                    hudState.health = ownState.health;
+                    hudState.lastDamageSeconds = lastDamageSeconds;
                     hudState.equipment = weaponDefinitions.equipped().config.name;
                     hudState.slot = ownState.slot;
                     if (ownState.slot != viewer::punchSlot) {

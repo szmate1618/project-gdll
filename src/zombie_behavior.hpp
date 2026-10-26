@@ -1,6 +1,7 @@
 #pragma once
 
 #include "zombie_perception.hpp"
+#include "zombie_lunge.hpp"
 
 #include <glm/glm.hpp>
 #include <cstddef>
@@ -27,6 +28,7 @@ struct ZombieBehavior {
     // Suspend beyond 150 m; resume within 100 m. Retain the last movement target.
     bool perceptionSuspended = false;
     std::uint32_t targetPlayer = 0; // Zero in the original single-player path.
+    ZombieLunge lunge{};
 };
 
 // Dense, unordered pool with expected O(1) membership, lookup and swap removal.
@@ -52,6 +54,8 @@ struct ZombiePlayer {
     float eyeHeight = 1.7f;
     float height = 1.8f;
     std::uint32_t id = 0;
+    glm::vec3 velocity{0}; // Current solved world-space velocity, meters/second.
+    float radius = .30f;
 };
 
 // Horizontal +Z is the character's forward direction; ignores vertical offset.

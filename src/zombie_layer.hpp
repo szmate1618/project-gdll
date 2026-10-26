@@ -128,6 +128,8 @@ struct ZombieLayer {
     // scans. Authored scenario routes, shooting and physics remain independent.
     void setPerceptionEnabled(bool enabled);
     const ZombieBehaviorStats& behaviorStats() const { return behaviorStats_; }
+    // Hits from the latest behavior update only; consume before updating again.
+    const std::vector<ZombieAttackHit>& attackHits() const { return attackHits_; }
     const ZombieCrowdStats& crowdStats() const { return crowd_.stats(); }
     // Only cold scenario loading enables navigation. Ordinary zombies and
     // replicated clients never load a mesh or request routes.
@@ -237,6 +239,7 @@ private:
     bool staggerPerception_ = true;
     bool perceptionEnabled_ = true;
     ZombieBehaviorStats behaviorStats_;
+    std::vector<ZombieAttackHit> attackHits_;
 };
 
 bool hasZombieModels(const std::filesystem::path& source);

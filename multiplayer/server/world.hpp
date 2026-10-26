@@ -11,6 +11,7 @@
 #include "replication.hpp"
 #include "vehicle_seats.hpp"
 #include "player_body.hpp"
+#include "player_vitals.hpp"
 #include "melee_combat.hpp"
 #include "vehicle_zombie_collision.hpp"
 #include <map>
@@ -22,6 +23,8 @@ struct ServerPlayer {
     ServerPlayer(const viewer::Weapons& initialWeapons, const viewer::PlayerInventory& initialInventory,
                  std::shared_ptr<viewer::PhysicsWorld> world);
     viewer::FPSController controller;
+    viewer::PlayerVitals vitals;
+    glm::vec3 velocity{0}; // Measured over the last complete solved server tick, m/s.
     viewer::Camera camera;
     viewer::Weapons weapons;
     viewer::PlayerInventory inventory;

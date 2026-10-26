@@ -104,6 +104,12 @@ if(BUILD_TESTING)
     add_dependencies(test_multiplayer_melee viewer_test_asset)
     add_test(NAME multiplayer_melee COMMAND test_multiplayer_melee "${VIEWER_TEST_ASSET}")
 
+    add_executable(test_multiplayer_zombie_attacks tests/test_zombie_attacks.cpp)
+    target_link_libraries(test_multiplayer_zombie_attacks PRIVATE multiplayer_core)
+    viewer_warnings(test_multiplayer_zombie_attacks)
+    add_dependencies(test_multiplayer_zombie_attacks viewer_test_asset)
+    add_test(NAME multiplayer_zombie_attacks COMMAND test_multiplayer_zombie_attacks "${VIEWER_TEST_ASSET}")
+
     add_executable(test_multiplayer_vehicles tests/test_vehicles.cpp)
     target_link_libraries(test_multiplayer_vehicles PRIVATE multiplayer_core)
     target_include_directories(test_multiplayer_vehicles SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
