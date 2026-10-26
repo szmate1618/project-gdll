@@ -49,6 +49,7 @@ int main(int argc, char** argv) {
     try {
         if (argc != 3) throw std::runtime_error("Test asset and fixture directory arguments missing");
         resources = argv[2];
+        std::filesystem::create_directories(resources);
         const auto copy = std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing;
         for (const auto* directory : {"storage", "vehicles", "skills"})
             std::filesystem::copy(std::filesystem::path(MP_ROOT) / directory, resources / directory, copy);

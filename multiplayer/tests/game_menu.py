@@ -3,7 +3,6 @@ import ctypes as C
 import ctypes.util
 import os
 from pathlib import Path
-import re
 import shutil
 import socket
 import subprocess
@@ -40,6 +39,28 @@ class ClientMessage(C.Structure):
 
 class Event(C.Union):
     _fields_ = [("key", Key), ("message", ClientMessage), ("pad", C.c_long * 24)]
+
+
+class XError(C.Structure):
+    _fields_ = [("type", C.c_int), ("display", C.c_void_p),
+                ("resourceid", Window), ("serial", C.c_ulong),
+                ("error_code", C.c_ubyte), ("request_code", C.c_ubyte), ("minor_code", C.c_ubyte)]
+
+
+ErrorHandler = C.CFUNCTYPE(C.c_int, C.c_void_p, C.POINTER(XError))
+x.XSetErrorHandler.argtypes = [ErrorHandler]
+x.XSetErrorHandler.restype = ErrorHandler
+
+
+@ErrorHandler
+def handle_error(display, error):
+    # Other desktop windows may disappear while owned_window walks the tree.
+    if error.contents.error_code == 3:  # BadWindow
+        return 0
+    return previous_error_handler(display, error)
+
+
+previous_error_handler = x.XSetErrorHandler(handle_error)
 
 
 # Declare pointer arguments explicitly; default ctypes conversions truncate them.
@@ -151,8 +172,11 @@ base = [asset, "--no-trees", "--zombie-count", "0"]
 log = directory / "game.log"
 children = []
 with log.open("w") as output:
+    # Desktop input methods may consume synthetic XSendEvent text without
+    # delivering GLFW character callbacks. Use local XIM for this ASCII test.
     game = subprocess.Popen([client, *base, "--port", str(port), "--no-audio", "--look", "0", "-10"],
-                            stdout=output, stderr=subprocess.STDOUT)
+                            stdout=output, stderr=subprocess.STDOUT,
+                            env=dict(os.environ, XMODIFIERS="@im=none"))
     children.append(game)
     try:
         window = wait_for(lambda: owned_window(game.pid), "Game window not found")
