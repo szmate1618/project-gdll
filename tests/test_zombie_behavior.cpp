@@ -7,6 +7,7 @@
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <vector>
 
 namespace {
 using viewer::ZombieState;
@@ -61,18 +62,33 @@ void clockAndPool() {
     clock.advance(std::numeric_limits<double>::infinity());
     require(clock.seconds() == 2.5, "The singleton tracks only valid simulated time");
     viewer::ZombieBehaviorPool pool;
-    pool.create(10, clock.seconds());
-    pool.create(20, clock.seconds());
-    pool.create(30, clock.seconds()).target = {1, 2, 3};
-    pool.create(20, 100);
+    pool.create(10, clock.seconds(), {0, 0, 0});
+    pool.create(20, clock.seconds(), {1, 0, 1});
+    pool.create(30, clock.seconds(), {2, 0, 2}).target = {1, 2, 3};
+    pool.create(20, 100, {1, 0, 1});
     require(pool.entries().size() == 3 && pool.find(20)->createdSeconds == 2.5,
             "Creation is idle, clock-stamped and unique per ID");
     require(pool.find(20)->state == ZombieState::idle, "New behavior starts idle");
+    std::vector<std::size_t> candidates;
+    pool.query({}, 5, candidates);
+    require(candidates == std::vector<std::size_t>({10, 20, 30}),
+            "Direct creation immediately publishes each stable ID to the behavior grid exactly once");
     require(pool.remove(20) && !pool.contains(20), "Remove membership with the object");
     require(pool.entries()[1].zombie == 30 && pool.find(30)->target == glm::vec3(1, 2, 3),
             "Middle removal moves the last object and repairs its index");
-    require(pool.remove(30) && pool.remove(10) && !pool.remove(10) && pool.entries().empty(),
+    pool.query({}, 5, candidates);
+    require(candidates == std::vector<std::size_t>({10, 30}),
+            "Pool swap removal must erase only the removed stable ID from the behavior grid");
+    pool.create(4096, clock.seconds(), {100, 0, 100});
+    pool.query({}, 5, candidates);
+    require(candidates == std::vector<std::size_t>({10, 30}),
+            "Growing storage for a new high stable ID must preserve existing behavior-grid memberships");
+    pool.query({100, 0, 100}, 1, candidates);
+    require(candidates == std::vector<std::size_t>{4096}, "A newly grown high ID must be queryable at its own feet");
+    require(pool.remove(30) && pool.remove(10) && pool.remove(4096) && !pool.remove(10) && pool.entries().empty(),
             "Removing last and sole entries leaves no stale membership");
+    pool.query({}, std::numeric_limits<double>::infinity(), candidates);
+    require(candidates.empty(), "An empty pool must retain no hearing candidates");
 }
 
 void fovAndActivation() {
@@ -98,9 +114,14 @@ void fovAndActivation() {
     viewer::SimulationClock::instance().advance(0.001);
     layer.chase(0.1f, {0, 0, 0}, world);
     require(!layer.behaviors.contains(0), "Idle object expires at ten seconds despite proximity");
+    std::vector<std::size_t> candidates;
+    layer.behaviors.query({}, std::numeric_limits<double>::infinity(), candidates);
+    require(candidates.empty(), "Idle expiration must remove the behavior's spatial membership");
     layer.chase(0.1f, {0, 0, 0}, world);
     require(state(layer) == ZombieState::idle && layer.behaviors.find(0)->createdSeconds == 10,
             "A nearby zombie can receive a fresh idle behavior on the next step");
+    layer.behaviors.query({}, std::numeric_limits<double>::infinity(), candidates);
+    require(candidates == std::vector<std::size_t>{0}, "Recreated behavior must restore exactly one spatial membership");
 }
 
 void perceptionAndStates() {
@@ -185,6 +206,10 @@ void removalAndInvalidInputs() {
     layer.chase(0.1f, {0, 0, 0}, clear);
     require(!layer.behaviors.contains(1) && layer.behaviors.entries().size() == 2,
             "Ragdolls are removed without skipping the swapped member");
+    std::vector<std::size_t> candidates;
+    layer.behaviors.query({}, std::numeric_limits<double>::infinity(), candidates);
+    require(candidates == std::vector<std::size_t>({0, 2}),
+            "Removing a dead behavior must update hearing membership without losing its swapped-in neighbor");
 }
 
 void hearingThresholdAndEligibility() {
@@ -400,7 +425,7 @@ void perceptionRangeHysteresisAndImmediateResume() {
     // distance predicate before it is tested. Both histories at 150 m matter.
     for (const bool suspended : {false, true}) {
         auto boundary = crowd();
-        auto& behavior = boundary.behaviors.create(0, clock.seconds());
+        auto& behavior = boundary.behaviors.create(0, clock.seconds(), glm::vec3(boundary.instances[0].restRoot[3]));
         behavior.state = ZombieState::chasing;
         behavior.target = {0, 0, 50};
         behavior.perceptionSuspended = suspended;
@@ -411,7 +436,7 @@ void perceptionRangeHysteresisAndImmediateResume() {
     }
     auto boundary = crowd();
     boundary.setPerceptionStaggering(true);
-    auto& behavior = boundary.behaviors.create(0, clock.seconds());
+    auto& behavior = boundary.behaviors.create(0, clock.seconds(), glm::vec3(boundary.instances[0].restRoot[3]));
     behavior.state = ZombieState::chasing;
     behavior.target = {0, 0, 50};
     behavior.perceptionSuspended = true;
@@ -560,6 +585,43 @@ void largePopulationUsesLocalCandidates() {
     require(layer.behaviorStats().hearingCandidates < 20, "Walking noise queries local cells rather than the entire behavior pool");
 }
 
+void sparseBehaviorsBoundLoudHearingWork() {
+    viewer::SimulationClock::instance().reset();
+    viewer::ZombieLayer layer;
+    layer.assets.emplace_back();
+    layer.instances.resize(100000);
+    for (std::size_t id = 0; id < layer.instances.size(); ++id) {
+        auto& instance = layer.instances[id];
+        instance.transform = instance.restTransform = instance.restRoot = glm::translate(glm::mat4(1),
+            glm::vec3(float(id % 400) * 2, 0, float(id / 400) * 2));
+    }
+    for (std::size_t id = 0; id < 4; ++id) {
+        auto& instance = layer.instances[id];
+        instance.transform = instance.restTransform = instance.restRoot = glm::translate(glm::mat4(1),
+            id == 1 ? glm::vec3(200, 0, 5) : glm::vec3(0, 0, 5 + float(id)));
+    }
+    layer.rebuildSpatialIndex();
+    for (std::size_t id = 0; id < 4; ++id)
+        layer.behaviors.create(id, 0, glm::vec3(layer.instances[id].restRoot[3]));
+    layer.behaviors.find(2)->state = ZombieState::chasing;
+    layer.instances[3].ragdoll = true; // A pending dead entry still cannot react before its removal step.
+    layer.makeNoise({}, viewer::walkingFootstepDecibels);
+    require(layer.behaviorStats().hearingCandidates == 3 && state(layer, 0) == ZombieState::looking &&
+            state(layer, 1) == ZombieState::idle,
+            "Quiet noise must query only nearby behavior entries despite many inactive world bodies");
+    const auto beforeLoud = layer.behaviorStats().hearingCandidates;
+    layer.makeNoise({}, 110);
+    require(layer.behaviorStats().hearingCandidates - beforeLoud == 4 && layer.behaviors.entries().size() == 4 &&
+            state(layer, 1) == ZombieState::looking && state(layer, 2) == ZombieState::chasing &&
+            state(layer, 3) == ZombieState::idle && layer.instances[3].heardNoiseRevision == 0,
+            "A world-spanning gunshot must visit only active behaviors and preserve nonidle/dead eligibility rules");
+    layer.behaviors.remove(1);
+    const auto beforeRemoved = layer.behaviorStats().hearingCandidates;
+    layer.makeNoise({}, 110);
+    require(layer.behaviorStats().hearingCandidates - beforeRemoved == 3 && !layer.behaviors.contains(1),
+            "Noise cannot retain or recreate an explicitly removed behavior's spatial membership");
+}
+
 void lookingPerceptionAndShortestTurn() {
     viewer::SimulationClock::instance().reset();
     const viewer::CollisionWorld clear(viewer::Model{});
@@ -581,7 +643,7 @@ void lookingPerceptionAndShortestTurn() {
         instance.transform = instance.restTransform = instance.restRoot =
             glm::rotate(glm::mat4(1), glm::radians(170.0f), {0, 1, 0});
         layer->chase(0.1f, {0, 0, 200}, clear); // Not nearby; add the idle object explicitly.
-        layer->behaviors.create(0, 0);
+        layer->behaviors.create(0, 0, glm::vec3(instance.restRoot[3]));
         const float angle = glm::radians(-170.0f);
         layer->makeNoise({std::sin(angle) * 10, 0, std::cos(angle) * 10}, 50);
     }
@@ -622,6 +684,9 @@ void perceptionDisabled() {
     layer.setPerceptionEnabled(false);
     require(layer.behaviors.entries().empty() && !layer.instances[0].walking && layer.instances[0].locomotionVelocity == glm::vec3(0),
             "Disabling an active pool must discard its behaviors and stop pursuit");
+    std::vector<std::size_t> candidates;
+    layer.behaviors.query({}, std::numeric_limits<double>::infinity(), candidates);
+    require(candidates.empty(), "Disabling perception must also clear the behavior spatial index");
 }
 }
 
@@ -644,6 +709,7 @@ int main() {
         distantLookingFinishesBeforeEviction();
         indexedMovementAndImmediateHearing();
         largePopulationUsesLocalCandidates();
+        sparseBehaviorsBoundLoudHearingWork();
         std::cout << "Zombie behavior tests passed\n";
         return 0;
     } catch (const std::exception& error) {

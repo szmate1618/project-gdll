@@ -34,6 +34,7 @@ void ZombieLayer::rebuildSpatialIndex() {
     rebuildRagdollIndex();
     spatialIndex_.reset(instances.size());
     springRagdollIndex_.reset(instances.size());
+    behaviors.hearingIndex_.reset(instances.size());
     crowd_.reset(instances.size());
     hitGeometry_.clear();
     hitGeometry_.reserve(assets.size());
@@ -60,12 +61,14 @@ void ZombieLayer::updateSpatialMembership(std::size_t id) {
     springRagdollIndex_.erase(id);
     if (instance.removed || instance.ragdoll || instance.asset >= assets.size()) {
         spatialIndex_.erase(id);
+        behaviors.hearingIndex_.erase(id);
         crowd_.erase(id);
         if (!instance.removed && instance.springRagdoll && instance.physicsRagdoll && instance.asset < assets.size())
             springRagdollIndex_.update(id, glm::vec3(instance.transform[3]));
         return;
     }
     const auto feet = glm::vec3(instance.restRoot[3]);
+    if (behaviors.contains(id)) behaviors.hearingIndex_.update(id, feet);
     spatialIndex_.update(id, feet);
     crowd_.update(id, feet);
     auto& bounds = shotBounds_[id];

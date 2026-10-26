@@ -94,7 +94,7 @@ Metrics scenario(const std::string& name, const viewer::AnimatedModel& asset, co
         instance.restRoot = glm::rotate(glm::translate(glm::mat4(1), feet), yaw, {0, 1, 0});
         instance.transform = instance.restTransform = instance.restRoot;
         instance.phase = float(layer.instances.size() % 17) / 17;
-        layer.behaviors.create(layer.instances.size(), 0).state = viewer::ZombieState::chasing;
+        layer.behaviors.create(layer.instances.size(), 0, feet).state = viewer::ZombieState::chasing;
         layer.behaviors.find(layer.instances.size())->target = target;
         layer.instances.push_back(instance);
         previous.push_back({feet, glm::degrees(yaw), 0, -100});

@@ -19,6 +19,10 @@ void ZombieSpatialIndex::reset(std::size_t population) {
     locations_.assign(population, {});
 }
 
+void ZombieSpatialIndex::growPopulation(std::size_t population) {
+    if (population > locations_.size()) locations_.resize(population);
+}
+
 void ZombieSpatialIndex::erase(std::size_t id) {
     if (id >= locations_.size() || !locations_[id].present) return;
     auto& location = locations_[id];
@@ -43,10 +47,15 @@ void ZombieSpatialIndex::update(std::size_t id, glm::vec3 feet) {
     auto& location = locations_[id];
     if (location.present && location.cell == cell) return;
     // Allocate the destination before removing the old membership.
-    auto& destination = cells_[cell];
-    destination.push_back(id);
+    auto [destination, inserted] = cells_.try_emplace(cell);
+    try {
+        destination->second.push_back(id);
+    } catch (...) {
+        if (inserted) cells_.erase(destination);
+        throw;
+    }
     erase(id);
-    location = {cell, destination.size() - 1, true};
+    location = {cell, destination->second.size() - 1, true};
 }
 
 void ZombieSpatialIndex::query(glm::vec3 center, double radius, std::vector<std::size_t>& candidates) const {

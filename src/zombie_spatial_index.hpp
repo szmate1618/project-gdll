@@ -13,6 +13,8 @@ namespace viewer {
 class ZombieSpatialIndex {
 public:
     void reset(std::size_t population);
+    // Expand stable-ID storage without changing any existing bucket membership.
+    void growPopulation(std::size_t population);
     void update(std::size_t id, glm::vec3 feet);
     void erase(std::size_t id);
     std::size_t population() const { return locations_.size(); }

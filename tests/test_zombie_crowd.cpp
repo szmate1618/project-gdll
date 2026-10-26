@@ -113,7 +113,7 @@ void behaviorIntegration() {
     const viewer::CollisionWorld world(viewer::Model{});
     // The blocker is outside activation range and has no behavior object.
     auto layer = layerAt({{0, 0, 0}, {0, 0, 1}});
-    auto& behavior = layer.behaviors.create(0, 0);
+    auto& behavior = layer.behaviors.create(0, 0, glm::vec3(layer.instances[0].restRoot[3]));
     behavior.state = viewer::ZombieState::chasing;
     behavior.target = {0, 0, 10};
     for (int step = 0; step < 20; ++step) layer.chase(0.1f, {0, 0, 300}, world);
@@ -134,8 +134,8 @@ void behaviorIntegration() {
     // Pool insertion/removal history must not affect movement priority.
     auto a = layerAt({{-1, 0, 0}, {1, 0, 0}});
     auto b = layerAt({{-1, 0, 0}, {1, 0, 0}});
-    for (const auto id : {0u, 1u}) a.behaviors.create(id, 0);
-    for (const auto id : {1u, 0u}) b.behaviors.create(id, 0);
+    for (const auto id : {0u, 1u}) a.behaviors.create(id, 0, glm::vec3(a.instances[id].restRoot[3]));
+    for (const auto id : {1u, 0u}) b.behaviors.create(id, 0, glm::vec3(b.instances[id].restRoot[3]));
     for (auto* layerPtr : {&a, &b}) {
         for (const auto id : {0u, 1u}) {
             auto* entry = layerPtr->behaviors.find(id);

@@ -120,7 +120,7 @@ std::unique_ptr<multiplayer::Scene> sceneFixture(const std::filesystem::path& as
     scene->zombies.instances.push_back(actor);
     scene->zombies.setPerceptionStaggering(false);
     scene->zombies.rebuildSpatialIndex();
-    auto& behavior = scene->zombies.behaviors.create(0, 0);
+    auto& behavior = scene->zombies.behaviors.create(0, 0, glm::vec3(actor.restRoot[3]));
     behavior.state = viewer::ZombieState::investigating;
     behavior.target = {13, 0, 8}; behavior.targetPlayer = 1;
     return scene;

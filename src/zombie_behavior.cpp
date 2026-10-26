@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <stdexcept>
 #include <utility>
 
 namespace viewer {
@@ -191,12 +192,18 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
 
 }
 
-ZombieBehavior& ZombieBehaviorPool::create(std::size_t zombie, double now) {
+ZombieBehavior& ZombieBehaviorPool::create(std::size_t zombie, double now, glm::vec3 feet) {
     if (auto* existing = find(zombie)) return *existing;
+    if (zombie == std::numeric_limits<std::size_t>::max())
+        throw std::length_error("Zombie behavior ID exceeds spatial-index capacity");
+    hearingIndex_.growPopulation(zombie + 1);
     entries_.push_back({zombie, ZombieState::idle, now, now, glm::vec3(0)});
     try {
         indices_.emplace(zombie, entries_.size() - 1);
+        hearingIndex_.update(zombie, feet);
     } catch (...) {
+        hearingIndex_.erase(zombie);
+        indices_.erase(zombie);
         entries_.pop_back();
         throw;
     }
@@ -206,6 +213,7 @@ ZombieBehavior& ZombieBehaviorPool::create(std::size_t zombie, double now) {
 bool ZombieBehaviorPool::remove(std::size_t zombie) {
     const auto found = indices_.find(zombie);
     if (found == indices_.end()) return false;
+    hearingIndex_.erase(zombie);
     const auto index = found->second;
     if (index != entries_.size() - 1) {
         entries_[index] = std::move(entries_.back());
@@ -228,6 +236,10 @@ ZombieBehavior* ZombieBehaviorPool::find(std::size_t zombie) {
 const ZombieBehavior* ZombieBehaviorPool::find(std::size_t zombie) const {
     const auto found = indices_.find(zombie);
     return found == indices_.end() ? nullptr : &entries_[found->second];
+}
+
+void ZombieBehaviorPool::query(glm::vec3 center, double radius, std::vector<std::size_t>& candidates) const {
+    hearingIndex_.query(center, radius, candidates);
 }
 
 bool zombiePlayerInFov(glm::vec3 feet, glm::vec3 forward, glm::vec3 playerFeet) {
@@ -273,16 +285,15 @@ void ZombieLayer::makeNoise(glm::vec3 position, float decibels) {
     if (!perceptionEnabled_ || !finite(position) || !std::isfinite(decibels)) return;
     const double now = SimulationClock::instance().seconds();
     if (decibels < zombieHearingThresholdDecibels) return;
-    ensureSpatialIndex();
     // Expand by one threshold ULP: noiseLevelAt returns float and may round a
     // value just below the threshold up. The original level test remains final.
     const float threshold = std::nextafter(zombieHearingThresholdDecibels, -std::numeric_limits<float>::infinity());
     const double radius = std::pow(10.0, (static_cast<double>(decibels) - threshold) / 20.0);
-    spatialIndex_.query(position, radius, spatialCandidates_);
+    behaviors.query(position, radius, spatialCandidates_);
     behaviorStats_.hearingCandidates += spatialCandidates_.size();
     for (const auto id : spatialCandidates_) {
         auto* behavior = behaviors.find(id);
-        if (!behavior || behavior->state != ZombieState::idle) continue;
+        if (!behavior || behavior->state != ZombieState::idle || id >= instances.size()) continue;
         auto& instance = instances[id];
         if (instance.removed || instance.ragdoll || instance.asset >= assets.size()) continue;
         const auto feet = glm::vec3(instance.restRoot[3]);
@@ -370,7 +381,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
             return glm::dot(offset, offset) <= activationDistance * activationDistance;
         };
         if (players ? std::any_of(players->begin(), players->end(), close) : close(player)) {
-            behaviors.create(id, now);
+            behaviors.create(id, now, glm::vec3(instance.restRoot[3]));
             instance.chaseNormalization = glm::inverse(instance.restRoot) * instance.restTransform;
         }
     }

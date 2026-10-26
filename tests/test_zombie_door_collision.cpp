@@ -84,7 +84,7 @@ std::vector<float> followingDoor(const std::filesystem::path& trace, bool outwar
         instance.restRoot = glm::rotate(glm::translate(glm::mat4(1), feet), glm::radians(180.f), {0, 1, 0});
         instance.transform = instance.restTransform = instance.restRoot;
         layer.instances.push_back(instance);
-        auto& behavior = layer.behaviors.create(id, 0);
+        auto& behavior = layer.behaviors.create(id, 0, feet);
         behavior.state = viewer::ZombieState::chasing;
         behavior.target = {0, 0, -12};
     }

@@ -368,7 +368,7 @@ void blockedBehaviorAndAnimation() {
     instance.chaseNormalization[2].x = .2f;
     instance.transform = instance.restTransform = instance.restRoot * instance.chaseNormalization;
     layer.instances.push_back(instance);
-    auto& behavior = layer.behaviors.create(0, 0);
+    auto& behavior = layer.behaviors.create(0, 0, glm::vec3(instance.restRoot[3]));
     behavior.state = viewer::ZombieState::chasing;
     behavior.target = {10, 0, 0};
     for (int step = 0; step < 20; ++step) layer.chase(.1f, {300, 0, 0}, world);

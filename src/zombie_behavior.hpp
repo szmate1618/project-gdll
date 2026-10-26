@@ -2,6 +2,7 @@
 
 #include "zombie_perception.hpp"
 #include "zombie_lunge.hpp"
+#include "zombie_spatial_index.hpp"
 
 #include <glm/glm.hpp>
 #include <cstddef>
@@ -32,19 +33,24 @@ struct ZombieBehavior {
 };
 
 // Dense, unordered pool with expected O(1) membership, lookup and swap removal.
+// The pool owns hearing-grid membership. Creation publishes initial feet;
+// ZombieLayer publishes subsequent physical movement and bulk replacements.
 class ZombieBehaviorPool {
 public:
     // Returned references/pointers are invalidated by pool creation/removal.
-    ZombieBehavior& create(std::size_t zombie, double now);
+    ZombieBehavior& create(std::size_t zombie, double now, glm::vec3 feet);
     bool remove(std::size_t zombie);
     [[nodiscard]] bool contains(std::size_t zombie) const;
     ZombieBehavior* find(std::size_t zombie);
     const ZombieBehavior* find(std::size_t zombie) const;
     const std::vector<ZombieBehavior>& entries() const { return entries_; }
+    void query(glm::vec3 center, double radius, std::vector<std::size_t>& candidates) const;
 
 private:
+    friend struct ZombieLayer;
     std::vector<ZombieBehavior> entries_;
     std::unordered_map<std::size_t, std::size_t> indices_;
+    ZombieSpatialIndex hearingIndex_;
 };
 
 // Player feet and body dimensions in meters. Free-fly uses a virtual body

@@ -38,7 +38,7 @@ void injuryRecordsAndDeath() {
     for (const auto caliber : {ShotCaliber::low, ShotCaliber::high}) {
         for (const bool headshot : {false, true}) {
             auto layer = target();
-            layer.behaviors.create(0, 0);
+            layer.behaviors.create(0, 0, glm::vec3(layer.instances[0].restRoot[3]));
             const float height = headshot ? 1.65f : .9f;
             const int damagePerHit = (caliber == ShotCaliber::low ? 1 : 2) * (headshot ? 2 : 1);
             int health = 10;

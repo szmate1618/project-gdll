@@ -899,7 +899,7 @@ void inputSelfTest(GLFWwindow* window) {
         auto& zombie = zombies.instances.front();
         zombie.transform[3] = {0, 0, 10, 1};
         zombie.restTransform = zombie.restRoot = zombie.transform;
-        zombies.behaviors.create(0, viewer::SimulationClock::instance().seconds());
+        zombies.behaviors.create(0, viewer::SimulationClock::instance().seconds(), glm::vec3(zombie.restRoot[3]));
         AppState shot(world, fixture); shot.zombies = &zombies;
         shot.rig.camera().setPosition({0, .9f, 0}); shot.rig.camera().setOrientation(90, 0);
         shot.weapons.equip(0); shot.weapons.trigger(true);

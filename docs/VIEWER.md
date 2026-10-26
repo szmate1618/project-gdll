@@ -860,11 +860,16 @@ behavior vector has a hash map from instance IDs to slots for fast membership
 and lookup. Removal moves the last member into the vacated slot. Instance IDs
 are stable indices in the crowd; the instance vector must not be reordered.
 
-Activation and hearing query a 20 m X/Z spatial grid, then apply the original
-3D distance and eligibility checks. Locomotion updates cell membership before
-noise handling; dead zombies leave the grid. External code that edits instance
+Activation queries the living population's 20 m X/Z spatial grid. Hearing uses
+a separate grid containing living zombies with behavior entries, then applies
+the original idle-state and exact 3D audibility checks. Behavior creation takes
+the current feet position and indexes it immediately; removal clears membership.
+Locomotion updates both grids before noise handling. Dead zombies leave the
+grids. Loud sounds therefore gather active behavior entries rather than the
+entire living population, while quiet sounds retain local queries.
+External code that edits instance
 feet/transforms, instance normalization, or asset skeleton/clip data directly
-must call `ZombieLayer::rebuildSpatialIndex()`. It refreshes both grid membership
+must call `ZombieLayer::rebuildSpatialIndex()`. It refreshes grid membership
 and prepared shooting geometry. Changing the population or asset count triggers
 a rebuild automatically.
 

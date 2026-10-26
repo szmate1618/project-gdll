@@ -35,7 +35,8 @@ viewer::ZombieLayer pursuer() {
     viewer::ZombieLayer layer;
     layer.assets.emplace_back();
     layer.instances.emplace_back();
-    auto& behavior = layer.behaviors.create(0, viewer::SimulationClock::instance().seconds());
+    auto& behavior = layer.behaviors.create(0, viewer::SimulationClock::instance().seconds(),
+                                            glm::vec3(layer.instances[0].restRoot[3]));
     behavior.state = viewer::ZombieState::chasing;
     behavior.target = {0, 0, 1};
     behavior.sight = viewer::ZombieSight::full;

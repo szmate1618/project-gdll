@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
             viewer::CameraRig rig(world, model.boundsMin, model.boundsMax, 1.5f);
             rig.camera().setPosition({0, 1.7f, 0});
             auto zombies = crowd();
-            zombies.behaviors.create(0, 0);
+            zombies.behaviors.create(0, 0, glm::vec3(zombies.instances[0].restRoot[3]));
             std::vector<std::size_t> ids;
             zombies.queryLivingNear({}, 4, ids);
             require(ids == std::vector<std::size_t>{0}, "Living query applies exact range after grid lookup");
@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
             after.feet.x=.3f;
             const auto event=emitter.update(.05f,before,after,index);
             require(event&&event->noise.kind==viewer::NoiseEvent::Kind::twigSnap,"Dry running contact must produce a crack event");
-            auto zombies=crowd(); zombies.behaviors.create(0,0);
+            auto zombies=crowd(); zombies.behaviors.create(0,0,glm::vec3(zombies.instances[0].restRoot[3]));
             audio.rustle(*event);
             require(zombies.behaviors.find(0)->state==viewer::ZombieState::idle,"Shrub playback emitted gameplay noise");
             zombies.makeNoise(event->noise.position,event->noise.decibels);

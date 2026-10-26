@@ -48,6 +48,27 @@ void candidatesAndMovement() {
     index.query({std::numeric_limits<float>::max(), 0, std::numeric_limits<float>::max()}, 100, candidates);
     require(candidates == std::vector<std::size_t>{0}, "Extreme finite float coordinates must not overflow cell indexing");
 }
+void populationGrowthPreservesMembership() {
+    viewer::ZombieSpatialIndex index;
+    index.reset(3);
+    index.update(0, {1, 0, 1});
+    index.update(2, {2, 0, 2});
+    index.growPopulation(64);
+    std::vector<std::size_t> candidates;
+    index.query({}, std::numeric_limits<double>::infinity(), candidates);
+    require(index.population() == 64 && candidates == std::vector<std::size_t>({0, 2}),
+            "Growing capacity must preserve occupied buckets and leave new IDs absent");
+    index.update(63, {400, 0, 400});
+    index.query({400, 0, 400}, 1, candidates);
+    require(candidates == std::vector<std::size_t>{63}, "A newly grown slot must support normal insertion");
+    index.erase(0); // The old bucket's swapped-in member must retain its repaired slot after growth.
+    index.update(2, {400, 0, 400});
+    index.query({}, 1, candidates);
+    require(candidates.empty(), "Moving an old member after growth must leave no stale source bucket");
+    index.erase(63);
+    index.query({400, 0, 400}, 1, candidates);
+    require(candidates == std::vector<std::size_t>{2}, "Growth must preserve subsequent bucket swap removal");
+}
 void rayCandidates() {
     viewer::ZombieSpatialIndex index;
     index.reset(8);
@@ -73,6 +94,6 @@ void rayCandidates() {
 }
 
 int main() {
-    try { candidatesAndMovement(); rayCandidates(); std::cout << "Zombie spatial index tests passed\n"; return 0; }
+    try { candidatesAndMovement(); populationGrowthPreservesMembership(); rayCandidates(); std::cout << "Zombie spatial index tests passed\n"; return 0; }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

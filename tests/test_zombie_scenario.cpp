@@ -407,7 +407,7 @@ void gameplayOverridesInitialTravel() {
             "A converted behavior actor reacquired scenario navigation");
 
     auto investigate = scripted({{-20,5,0}}, {{20,5,0}});
-    auto& behavior = investigate.behaviors.create(0, 0);
+    auto& behavior = investigate.behaviors.create(0, 0, glm::vec3(investigate.instances[0].restRoot[3]));
     behavior.state = viewer::ZombieState::investigating;
     behavior.target = {-20,5,10};
     investigate.updateBehavior(.1f, viewer::ZombiePlayer{{-20,5,-10}}, world);
