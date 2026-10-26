@@ -169,6 +169,53 @@ glm::vec3 closestTrianglePoint(glm::vec3 p, const Triangle& t, bool* interior=nu
     return glm::vec3(a + ab * v + ac * w);
 }
 
+// Upright capsules project to circles in X/Z. A separating triangle edge can
+// reject a distant miss without constructing closest points in three dimensions.
+// Uncertain cases retain the existing float contact arithmetic below.
+bool capsuleProjectionMiss(glm::vec3 p, glm::vec3 q, const Triangle& t, float reach) {
+    if (!finite(p) || !finite(q) || !std::isfinite(reach) || reach <= 0 ||
+        !std::isfinite(reach * reach)) return false;
+    const glm::dvec3 a(t.a), b(t.b), c(t.c), point(p), end(q);
+    const auto ab = b - a, ac = c - a;
+    const double area = ab.x * ac.z - ab.z * ac.x;
+    if (area == 0) return false;
+    const double winding = area > 0 ? 1. : -1.;
+    const double minimumReach = double(reach) + .025;
+    const double minimumSquared = minimumReach * minimumReach;
+    double sideSquared = 0, edgeSquared = 1;
+    const auto separate = [&](glm::dvec3 u, glm::dvec3 v) {
+        const double dx = v.x - u.x, dz = v.z - u.z;
+        const double side = winding * (dx * (point.z - u.z) - dz * (point.x - u.x));
+        const double length2 = dx * dx + dz * dz, distance2 = side * side;
+        if (side < 0 && distance2 > minimumSquared * length2 &&
+            distance2 * edgeSquared > sideSquared * length2) {
+            sideSquared = distance2; edgeSquared = length2;
+        }
+    };
+    separate(a, b); separate(b, c); separate(c, a);
+    // Kept faces avoid the more expensive numerical checks. A rejected face
+    // still has to pass every guard and the full coordinate-scaled margin.
+    if (sideSquared == 0) return false;
+    const auto bc = c - b;
+    const double longest2 = std::max({glm::dot(ab, ab), glm::dot(ac, ac), glm::dot(bc, bc)});
+    // Bound the conditioning of both the projection and the legacy 3D face
+    // algebra. Remote endpoints can also amplify its barycentric cancellation.
+    if (!(std::abs(area) > .01 * longest2)) return false;
+    const auto pa = point - a, qa = end - a;
+    if (!(std::max(glm::dot(pa, pa), glm::dot(qa, qa)) <= 16 * longest2)) return false;
+    const auto maxAbs = [](glm::dvec3 v) {
+        return std::max({std::abs(v.x), std::abs(v.y), std::abs(v.z)});
+    };
+    const double scale = std::max({1., double(reach), maxAbs(point), maxAbs(end),
+                                   maxAbs(a), maxAbs(b), maxAbs(c)});
+    // Keep float quartic intermediates in the original edge solver in range.
+    if (!(scale <= 0x1p26)) return false;
+    const double margin = std::max(.025, 16 * std::numeric_limits<float>::epsilon() * scale);
+    if (margin > .25 * double(reach)) return false;
+    const double padded = double(reach) + margin;
+    return sideSquared > padded * padded * edgeSquared;
+}
+
 struct ClosestPair { glm::vec3 segment, triangle; };
 
 ClosestPair closestSegments(glm::vec3 p, glm::vec3 q, glm::vec3 a, glm::vec3 b) {
@@ -724,6 +771,7 @@ void CollisionWorld::visitContacts(glm::vec3 feet,float radius,float height,floa
     if (cache) prepareContactCandidates(wallRegion.low,wallRegion.high,*cache);
     const auto visitTriangle=[&](const Triangle& t) {
         const float triangleReach = reach + (t.wall ? wallClearance : 0.f);
+        if (capsuleProjectionMiss(p, q, t, triangleReach)) return true;
         const auto pair = closestSegmentTriangle(p, q, t);
         const auto separation = pair.segment - pair.triangle;
         const float squared = squareLength(separation);
