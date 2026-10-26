@@ -136,9 +136,10 @@ preserves the previous outputs. `--fences-only` rebuilds navigation too;
 `--trees-only` leaves it unchanged because trunks are handled locally at runtime.
 `--no-tree-preparation` still builds navigation.
 
-Scenario loading in the standalone viewer and authoritative server loads one
-shared `.navmesh` beside the selected `.glb` map. Missing or invalid navigation
-data stops scenario startup. Ordinary zombie populations do not require a mesh.
+Scenarios default to idle groups, placed on safe ground without navigation.
+Groups with `movement = "travel"` load one shared `.navmesh` beside the selected
+`.glb` map; missing or invalid navigation data stops travelling-group startup.
+Ordinary zombie populations do not require a mesh.
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --fps
@@ -155,10 +156,12 @@ TOML scenario. All 1,600 paths are calculated before simulation starts:
 ```
 
 The scenario defines named hordes with optional flat `spawn` and `destination`
-rectangles in world X/Z meters (X east, Z south). Scenario format version 3
+rectangles in world X/Z meters (X east, Z south). Scenario format version 4
 accepts meters only; geographic coordinates and the `coordinates` setting are
-rejected. Omitted bounds allow random valid positions across the map.
-Scenario zombies follow their preloaded paths independently of player proximity,
+rejected. `movement` defaults to `"idle"`: omitted spawn bounds choose random
+safe positions, with no destination or path. Use `movement = "travel"` for
+random or authored destinations; `destination` is invalid for idle groups.
+Travelling zombies follow their preloaded paths independently of player proximity,
 then stop. They do not search again when blocked. Player perception can hand an
 actor to original behavior movement permanently, releasing its scenario path.
 See [runtime navigation](docs/ZOMBIE_NAVIGATION_RUNTIME.md) for the configuration,

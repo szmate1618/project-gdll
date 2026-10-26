@@ -1,4 +1,4 @@
-version = 3
+version = 4
 seed = 42
 
 [player]
@@ -9,10 +9,12 @@ orientation = [45.0, 0.0]
 
 [zombies.roamers]
 count = 1000
+movement = "travel"
 # Omitted spawn and destination bounds allow valid positions across the map.
 
 [zombies.crossing_horde]
 count = 600
+movement = "travel"
 # World X/Z meters: X east, Z south; [min_x, min_z, max_x, max_z].
 # Lower right (southeast) to upper left (northwest), inset from the map edges.
 spawn = [2400.0, 2400.0, 2900.0, 2900.0]

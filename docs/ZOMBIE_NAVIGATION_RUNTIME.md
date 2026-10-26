@@ -1,8 +1,10 @@
 # Scenario navmesh navigation and Detour steering
 
-Scenario-configured zombies in the standalone viewer and authoritative
+Travelling scenario groups in the standalone viewer and authoritative
 multiplayer server follow the tree-free navmesh using Detour's local velocity
-sampler. Ordinary behavior zombies retain their original direct movement. The navmesh
+sampler. Groups default to idle and do not request navigation. Normal perception
+can still start their original direct movement. Ordinary behavior zombies also retain
+that direct movement. The navmesh
 branch was merged into local `master` at `dda2085`. This integration reuses the
 Detour-only part of the committed local-steering experiment, without its other
 controllers or benchmark harness.
@@ -21,12 +23,13 @@ roll back files already published. This is not a crash-safe multi-file transacti
 `--fences-only` rebuilds the cache before publishing updated fences.
 `--trees-only` keeps it, and `--no-tree-preparation` still builds it.
 
-With `--scenario`, the standalone viewer and authoritative server load the
-`.navmesh` with the same basename beside the selected `.glb`. One mesh is shared
-by the entire scenario population in that process; each zombie has a separate
-stored path and progress. Missing or invalid navigation data stops scenario
-startup. Ordinary viewer/server populations do not initialize navigation or
-require a mesh. Multiplayer clients never load a mesh.
+With `--scenario`, any group using `movement = "travel"` makes the standalone
+viewer or authoritative server load the `.navmesh` beside the selected `.glb`.
+Travellers share one mesh in that process and retain separate paths/progress;
+idle IDs receive no routes. Missing or invalid navigation data stops startup
+when travel is requested. An entirely idle scenario does not load a navmesh or
+initialize navigation. Ordinary viewer/server populations and multiplayer
+clients also require no mesh.
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --scenario scenarios/test-horde/scenario.toml
@@ -42,7 +45,7 @@ The directory `scenarios/test-horde/` contains one configuration file with
 multiple named hordes:
 
 ```toml
-version = 3
+version = 4
 seed = 42
 
 [player]
@@ -51,9 +54,11 @@ orientation = [45.0, 0.0]
 
 [zombies.roamers]
 count = 1000
+movement = "travel"
 
 [zombies.crossing_horde]
 count = 600
+movement = "travel"
 spawn = [2400.0, 2400.0, 2900.0, 2900.0]
 destination = [-2900.0, -2900.0, -2400.0, -2400.0]
 ```
@@ -64,11 +69,30 @@ plus 600 traveling from the lower-right (southeast) corner to the upper-left
 The player starts 200 m northwest of the crossing horde's nearest spawn corner,
 facing southeast toward its spawn region.
 
-Each `[zombies.NAME]` table requires its own `count`. Spawn and destination are
-independently optional flat rectangle arrays. Omitting either allows random
-valid positions across the map for that endpoint; a supplied rectangle limits
-random positions to its bounds. There is no `"random"` specifier. Counts must
-be positive integers, with at most 100,000 zombies across all hordes.
+Each `[zombies.NAME]` table requires its own `count`. The optional `movement`
+setting accepts `"idle"` (the default) or `"travel"`. `spawn` is an optional flat
+rectangle; omitting it allows random safe positions across the map. Travelling
+groups also accept an optional `destination` rectangle; omitting it selects
+random reachable destinations. A destination on an idle group is an error.
+There is no `"random"` specifier. Counts must be positive integers, with at most
+100,000 zombies across all hordes; the separate multiplayer capacity limit
+still applies.
+
+For a population that waits at its initial positions without any navmesh file:
+
+```toml
+version = 4
+seed = 42
+
+[zombies.residents]
+count = 1000
+# movement = "idle" is the default; optional spawn bounds restrict placement.
+```
+
+Idle means no initial scripted travel. Normal sight/hearing can still trigger
+looking, investigation, chasing and attacks. Idle and travelling groups may
+coexist in one scenario; navigation is initialized and paths planned only for
+the travelling groups.
 
 Rectangles use `[min_x, min_z, max_x, max_z]` in absolute runtime meters,
 X east and Z south. They are relative to the map's recorded origin, independent
@@ -78,9 +102,11 @@ The C++ viewer/server do not require PROJ or geographic metadata to load them.
 The seed is optional; omitting it produces a new random layout each load.
 Seeded loads use a stable horde-name order.
 
-This is scenario format version 3; `version` may be omitted and defaults to 3.
-Explicit older versions are rejected. To migrate a version 2 scenario already
-using world meters, set `version = 3` and remove any `coordinates = "world"`.
+This is scenario format version 4; `version` may be omitted and defaults to 4.
+Explicit older versions are rejected. To preserve a version-3 scenario's
+existing movement, set `version = 4` and add `movement = "travel"` to every
+group, including groups without destination bounds. Version-2 scenarios already
+using world meters need the same changes and removal of `coordinates = "world"`.
 For WGS84 bounds, first convert the region offline using Python's `pyproj` and
 the published map's recorded CRS and origin: project longitude/latitude,
 subtract the projected origin, then use X = east and Z = -north. Choose world
@@ -153,7 +179,8 @@ bounds used east/north offsets: for a georeferenced map convert
 `[west, south, east, north]` to world `[west, -north, east, -south]`.
 For unreferenced maps, also add the old scene-bounds center to X/Z.
 Old `spawn_rectangle_wgs84` bounds require the offline geographic conversion
-above. Set `version = 3` after migrating either old rectangle format.
+above. Set `version = 4` and `movement = "travel"` after migrating either old
+rectangle format when preserving the old routes.
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --scenario scenarios/test-horde/scenario.toml
@@ -161,17 +188,19 @@ above. Set `version = 3` after migrating either old rectangle format.
 ```
 
 The scenario supplies the population instead of the ordinary park/radial
-placement. Spawns must be on safe terrain inside the mesh and any authored
-spawn rectangle, with no body overlap even between hordes. Unbounded spawns
-sample navmesh area across all components. Destinations must be safe points in
+placement. All spawns must be on safe terrain inside any authored spawn rectangle,
+with no body overlap even between idle and travelling groups. Idle groups
+sample scene X/Z bounds and use ground/collision checks without consulting a
+mesh. Travelling spawns must also be inside the mesh; unbounded travelling
+spawns sample navmesh area across all components. Their destinations must be safe points in
 the spawn's connected navmesh component and inside any authored destination
 rectangle. Unbounded destinations sample that entire component by area.
 Sampling has bounded retries; insufficient space, an unreachable destination
 region, failed path searches or exhausted route storage stop loading with an
 error identifying the affected horde when endpoint sampling fails.
-All paths are calculated before the population begins simulation.
+All requested travel paths are calculated before the population begins simulation.
 
-Scenario zombies follow their initial routes regardless of player distance or
+Travelling groups follow their initial routes regardless of player distance or
 whether any players have joined. Original perception remains enabled: noticing
 a player can permanently hand the actor to original investigation/chasing.
 That handoff releases the scenario path. Original behavior uses direct movement
@@ -206,7 +235,8 @@ the navmesh. Nearby actors use the existing full scene/terrain/door/crowd guard;
 distant scenario travelers use the swept approximation described below. Accepted
 movement feeds the next steering update.
 
-`setScenarioDestinations()` performs the cold path requests once.
+`setScenarioRoutes()` performs cold path requests only for IDs with destinations.
+The existing all-traveller `setScenarioDestinations()` interface delegates to it.
 `ZombieNavigation::follow()` follows the stored goal and path; it cannot start a
 search. Stalls and tree/crowd obstruction retain that path without replanning.
 If a double-precision portal corner cannot be reached faithfully by float body

@@ -27,9 +27,10 @@ bool followScenarioRoute(ZombieInstance& instance, glm::vec3 destination, float 
 } // namespace
 
 void ZombieLayer::abandonScenarioRoute(std::size_t id) {
-    if (id >= scenarioRoutes_.size() || scenarioRoutes_[id].overridden) return;
-    scenarioRoutes_[id].overridden = true;
-    scenarioRoutes_[id].travel={};
+    const auto found = scenarioRoutes_.find(id);
+    if (found == scenarioRoutes_.end() || found->second.overridden) return;
+    found->second.overridden = true;
+    found->second.travel = {};
     if (navigation_) navigation_->reset(id);
 }
 
@@ -37,13 +38,13 @@ void ZombieLayer::updateScenarioRoutes(float seconds, const CollisionWorld& worl
                                       const std::vector<ZombiePlayer>* players,bool advanceLooking) {
     zombie_profile::Timer timer(zombie_profile::Stage::scenarioRoutes);
     if (scenarioRoutes_.empty()) return;
-    if (scenarioRoutes_.size() != instances.size()) {
+    if (scenarioPopulation_ != instances.size()) {
         scenarioRoutes_.clear(); // Bulk population replacement invalidates scenario IDs.
+        scenarioPopulation_ = 0;
         if (navigation_) navigation_->resetPopulation(instances.size());
         return;
     }
-    for (std::size_t id = 0; id < scenarioRoutes_.size(); ++id) {
-        auto& route = scenarioRoutes_[id];
+    for (auto& [id, route] : scenarioRoutes_) {
         auto& instance = instances[id];
         if (route.finished || route.overridden) continue;
         const auto beforeTransform = instance.transform;

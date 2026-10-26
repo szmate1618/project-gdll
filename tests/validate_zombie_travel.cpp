@@ -19,6 +19,9 @@ int main(int argc,char** argv) {
         if(mode!="full" && mode!="optimized") throw std::runtime_error("Unknown traveler mode");
         multiplayer::Options options;options.map=argv[1];options.spawn=glm::vec2(std::stof(argv[5]),std::stof(argv[6]));
         const auto config=viewer::loadZombieScenarioConfig(argv[2]);
+        for (const auto& horde : config.hordes)
+            if (horde.movement != viewer::ZombieScenarioMovement::travel)
+                throw std::runtime_error("Travel validation requires movement = 'travel' for every group");
         if(!config.seed) throw std::runtime_error("Validation requires a seeded scenario");
         options.zombieCount=config.count();auto mesh=options.map;mesh.replace_extension(".navmesh");
         const auto population=[&](const auto& assets,const auto& world,const auto& model) {

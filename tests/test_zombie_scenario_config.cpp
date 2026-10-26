@@ -15,11 +15,11 @@ void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
 
-template<class Function>
+template<class Exception = std::runtime_error, class Function>
 void rejects(Function&& function, const char* message) {
     try {
         function();
-    } catch (const std::runtime_error&) {
+    } catch (const Exception&) {
         return;
     }
     throw std::runtime_error(message);
@@ -53,7 +53,7 @@ private:
     std::filesystem::path path_;
 };
 
-const std::string zombieSettings = "[zombies.crossing_horde]\ncount = 1000\n";
+const std::string zombieSettings = "[zombies.crossing_horde]\ncount = 1000\nmovement = 'travel'\n";
 const std::string worldRectangle = "spawn = [-30, -10, 50, 70]\n";
 
 void strictConfigParsing() {
@@ -86,8 +86,8 @@ void strictConfigParsing() {
     require(!fixture.parse(zombieSettings + worldRectangle).hordes.front().destination &&
                 !fixture.parse(zombieSettings + "destination = [1,2,3,4]\n").hordes.front().spawn,
             "Spawn and destination bounds must be independently optional");
-    const auto multiple = fixture.parse("version = 3\nseed = 0\n" + zombieSettings + worldRectangle +
-        "[zombies.other]\ncount = 50\ndestination = [100,200,300,400]\n");
+    const auto multiple = fixture.parse("version = 4\nseed = 0\n" + zombieSettings + worldRectangle +
+        "[zombies.other]\ncount = 50\nmovement = 'travel'\ndestination = [100,200,300,400]\n");
     require(multiple.seed == 0 && multiple.count() == 1050 && multiple.hordes.size() == 2 &&
                 multiple.hordes[0].spawn && !multiple.hordes[0].destination &&
                 !multiple.hordes[1].spawn && multiple.hordes[1].destination,
@@ -98,13 +98,15 @@ void strictConfigParsing() {
     require(fixture.parse("[zombies.limit]\ncount = 100000\n").count() == 100000,
             "The maximum total population must be accepted");
 
-    for (const auto& root : {"version = 3.0\n", "version = '3'\n", "typo = 1\n",
+    for (const auto& root : {"version = 4.0\n", "version = '4'\n", "typo = 1\n",
                              "seed = -1\n", "seed = 4294967296\n", "seed = 42.0\n", "seed = true\n"})
         fixture.invalid(std::string(root) + zombieSettings);
-    for (const auto* version : {"1", "2", "4"})
+    for (const auto* version : {"1", "2", "5"})
         fixture.invalid(std::string("version = ") + version + "\n" + zombieSettings,
-                        "expected version = 3 with world X/Z meters only");
-    for (const auto* version : {"", "version = 3\n"})
+                        "expected version = 4 with world X/Z meters only");
+    fixture.invalid("version = 3\n" + zombieSettings, "movement = 'travel'");
+    fixture.invalid("version = 3\n" + zombieSettings, "set version = 4");
+    for (const auto* version : {"", "version = 4\n"})
         for (const auto* coordinates : {"'wgs84'", "'world'", "'meters'", "true"})
             fixture.invalid(std::string(version) + zombieSettings + "coordinates = " + coordinates + "\n" +
                             "spawn = [19.35,47.60,19.36,47.61]\n",
@@ -131,6 +133,48 @@ void strictConfigParsing() {
     fixture.invalid("[[zombies.horde]]\ncount = 1\n");
     fixture.invalid("seed = 1\n");
     fixture.invalid("this is not TOML");
+}
+
+void movementModes() {
+    const ConfigFixture fixture;
+    const std::string idle = "[zombies.still]\ncount = 100000\n";
+    const auto defaults = fixture.parse(idle);
+    require(defaults.count() == 100000 && !defaults.needsNavigation() &&
+                defaults.hordes.front().movement == viewer::ZombieScenarioMovement::idle &&
+                !defaults.hordes.front().spawn && !defaults.hordes.front().destination,
+            "Omitted movement/version must select version 4 idle without navigation or endpoint bounds");
+    const auto explicitIdle = fixture.parse("version = 4\n" + idle + "movement = 'idle'\n" + worldRectangle);
+    require(!explicitIdle.needsNavigation() && explicitIdle.hordes.front().spawn &&
+                explicitIdle.hordes.front().movement == viewer::ZombieScenarioMovement::idle,
+            "An explicit idle group must allow authored spawn bounds without navigation");
+    const auto travel = fixture.parse(zombieSettings);
+    require(travel.needsNavigation() && travel.hordes.front().movement == viewer::ZombieScenarioMovement::travel &&
+                !travel.hordes.front().spawn && !travel.hordes.front().destination,
+            "Travel must request navigation even when both endpoint regions are omitted");
+    const auto mixed = fixture.parse("[zombies.still]\ncount = 2\n"
+        "[zombies.travelers]\ncount = 3\nmovement = 'travel'\ndestination = [1,2,3,4]\n");
+    require(mixed.count() == 5 && mixed.needsNavigation() && mixed.hordes.size() == 2 &&
+                mixed.hordes[0].movement == viewer::ZombieScenarioMovement::idle &&
+                mixed.hordes[1].movement == viewer::ZombieScenarioMovement::travel,
+            "Mixed scenarios must preserve each group's movement and initialize navigation for travelers");
+    fixture.invalid(idle + "destination = [1,2,3,4]\n", "destination");
+    fixture.invalid(idle + "movement = 'idle'\ndestination = [1,2,3,4]\n", "movement = 'idle'");
+    for (const auto* movement : {"'wander'", "'Idle'", "0", "true", "['idle']", "{ mode = 'idle' }"})
+        fixture.invalid(idle + "movement = " + movement + "\n", "movement must be 'idle' or 'travel'");
+
+    viewer::ZombieScenarioConfig direct;
+    direct.hordes.push_back({"still", 1, std::nullopt, std::nullopt});
+    require(direct.count() == 1 && !direct.needsNavigation(),
+            "Direct C++ configurations must default to idle");
+    direct.hordes.front().destination = viewer::ZombieHordeConfig::Rectangle{1, 2, 3, 4};
+    rejects<std::invalid_argument>([&] { (void)direct.count(); },
+        "Direct C++ idle groups must reject destinations");
+    direct.hordes.front().movement = viewer::ZombieScenarioMovement::travel;
+    require(direct.count() == 1 && direct.needsNavigation(),
+            "Direct C++ travel groups must accept destination bounds");
+    direct.hordes.front().movement = static_cast<viewer::ZombieScenarioMovement>(-1);
+    rejects<std::invalid_argument>([&] { (void)direct.count(); },
+        "Direct C++ groups must reject unsupported movement modes");
 }
 
 void worldCoordinateFrames() {
@@ -164,6 +208,7 @@ void invalidRectangles() {
 int main(int argc, char** argv) {
     try {
         strictConfigParsing();
+        movementModes();
         worldCoordinateFrames();
         invalidRectangles();
         for (int i = 1; i < argc; ++i)

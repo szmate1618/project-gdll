@@ -24,6 +24,9 @@ int main(int argc, char** argv) {
         const std::string modeName=argc==7?argv[6]:"optimized";
         if (modeName!="full" && modeName!="optimized") throw std::runtime_error("Unknown scenario travel mode");
         const auto config=viewer::loadZombieScenarioConfig(argv[2]);
+        for (const auto& horde : config.hordes)
+            if (horde.movement != viewer::ZombieScenarioMovement::travel)
+                throw std::runtime_error("Movement profiling requires movement = 'travel' for every group");
         if (!config.seed) throw std::runtime_error("Repeatable profiling requires a scenario seed");
         options.zombieCount=config.count();
         auto navmesh=options.map; navmesh.replace_extension(".navmesh");

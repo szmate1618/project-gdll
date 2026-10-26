@@ -217,7 +217,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
 
     def test_navigation_metadata_and_scenarios_are_included(self):
         paths = self.navigation_publication()
-        scenario = self.write("scenarios/example/scenario.toml", b"version = 3\n")
+        scenario = self.write("scenarios/example/scenario.toml", b"version = 4\n")
         self.write("scenarios/example/preview.png", b"not needed at runtime")
         self.package()
         with zipfile.ZipFile(self.output) as archive:

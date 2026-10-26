@@ -58,38 +58,60 @@ void ZombieLayer::enableNavigation(std::unique_ptr<ZombieNavigation> navigation)
 void ZombieLayer::setScenarioDestinations(const std::vector<glm::vec3>& destinations) {
     if (!navigation_ || destinations.size() != instances.size())
         throw std::invalid_argument("Scenario destinations require navigation and one destination per zombie");
+    setScenarioRoutes(std::vector<std::optional<glm::vec3>>(destinations.begin(), destinations.end()));
+}
+
+void ZombieLayer::setScenarioRoutes(const std::vector<std::optional<glm::vec3>>& destinations) {
+    if (destinations.size() != instances.size() || (!navigation_ &&
+            std::any_of(destinations.begin(), destinations.end(), [](const auto& goal) { return goal.has_value(); })))
+        throw std::invalid_argument("Scenario routes require one optional destination per zombie and navigation for travel");
     ensureSpatialIndex();
-    std::vector<ScenarioRoute> routes;
-    routes.reserve(destinations.size());
+    std::map<std::size_t, ScenarioRoute> routes;
     for (std::size_t id = 0; id < destinations.size(); ++id) {
+        if (!destinations[id]) continue;
         auto& instance = instances[id];
         if (instance.removed || instance.ragdoll || instance.asset >= assets.size() ||
-            !navigation_->plan(id, glm::vec3(instance.restRoot[3]), destinations[id])) {
-            for (std::size_t planned = 0; planned <= id; ++planned) navigation_->reset(planned);
+            !navigation_->plan(id, glm::vec3(instance.restRoot[3]), *destinations[id])) {
+            for (const auto& [planned, route] : routes) {
+                (void)route;
+                navigation_->reset(planned);
+            }
+            navigation_->reset(id);
             throw std::runtime_error("Cannot preplan scenario route for zombie " + std::to_string(id));
         }
-        routes.push_back({destinations[id], false, false, {}, {}, {}});
+        routes.emplace(id, ScenarioRoute{*destinations[id], false, false, {}, {}, {}});
     }
     for (std::size_t id = 0; id < instances.size(); ++id) {
+        if (!destinations[id]) {
+            if (navigation_) navigation_->reset(id);
+            continue;
+        }
         auto& instance = instances[id];
         instance.chaseNormalization = glm::inverse(instance.restRoot) * instance.restTransform;
         behaviors.remove(id);
     }
     scenarioRoutes_ = std::move(routes);
+    scenarioPopulation_ = instances.size();
 }
 
 void ZombieLayer::setDistantScenarioTravelEnabled(bool enabled) {
     distantScenarioTravel_=enabled;
-    for (auto& route:scenarioRoutes_) route.travel={};
+    for (auto& [id, route] : scenarioRoutes_) {
+        (void)id;
+        route.travel = {};
+    }
 }
 
 const glm::vec3* ZombieLayer::scenarioDestination(std::size_t id) const {
-    return scenarioRoutes_.size() == instances.size() && id < scenarioRoutes_.size() && !scenarioRoutes_[id].overridden
-        ? &scenarioRoutes_[id].destination : nullptr;
+    if (scenarioPopulation_ != instances.size()) return nullptr;
+    const auto found = scenarioRoutes_.find(id);
+    return found != scenarioRoutes_.end() && !found->second.overridden ? &found->second.destination : nullptr;
 }
 
 bool ZombieLayer::scenarioFinished(std::size_t id) const {
-    return scenarioDestination(id) && scenarioRoutes_[id].finished;
+    const auto found = scenarioRoutes_.find(id);
+    return scenarioPopulation_ == instances.size() && found != scenarioRoutes_.end() &&
+        !found->second.overridden && found->second.finished;
 }
 
 void ZombieLayer::queryLivingNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids) {

@@ -75,6 +75,11 @@ std::size_t ZombieScenarioConfig::count() const {
     if (hordes.empty()) throw std::invalid_argument("Zombie scenario requires at least one named horde");
     std::size_t total = 0;
     for (const auto& horde : hordes) {
+        if (horde.movement != ZombieScenarioMovement::idle && horde.movement != ZombieScenarioMovement::travel)
+            throw std::invalid_argument("Zombie horde '" + horde.name + "' movement must be 'idle' or 'travel'");
+        if (horde.movement == ZombieScenarioMovement::idle && horde.destination)
+            throw std::invalid_argument("Zombie horde '" + horde.name +
+                "' cannot define destination with movement = 'idle'; use movement = 'travel' for a route");
         if (!horde.count || horde.count > zombieScenarioMaximumCount)
             throw std::invalid_argument("Zombie horde '" + horde.name + "' count must be between 1 and 100000");
         if (horde.count > zombieScenarioMaximumCount - total)
@@ -82,6 +87,12 @@ std::size_t ZombieScenarioConfig::count() const {
         total += horde.count;
     }
     return total;
+}
+
+bool ZombieScenarioConfig::needsNavigation() const {
+    return std::any_of(hordes.begin(), hordes.end(), [](const ZombieHordeConfig& horde) {
+        return horde.movement == ZombieScenarioMovement::travel;
+    });
 }
 
 ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path) {
@@ -92,8 +103,14 @@ ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path)
         invalid(path, std::string("invalid scenario TOML: ") + error.what());
     }
     checkKeys(document, {"version", "seed", "zombies", "player"}, path);
-    if (document.contains("version") && requiredInteger(document.get("version"), path, "version") != 3)
-        invalid(path, "unsupported scenario version; expected version = 3 with world X/Z meters only");
+    if (document.contains("version")) {
+        const auto version = requiredInteger(document.get("version"), path, "version");
+        if (version == 3)
+            invalid(path, "scenario version 3 requires migration: set version = 4 and add movement = 'travel' "
+                "to each zombie group to preserve its existing routes");
+        if (version != 4)
+            invalid(path, "unsupported scenario version; expected version = 4 with world X/Z meters only");
+    }
     const auto* zombies = document["zombies"].as_table();
     if (!zombies || zombies->empty()) invalid(path, "expected at least one [zombies.HORDE_NAME] table");
 
@@ -117,17 +134,23 @@ ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path)
     for (const auto& [name, node] : *zombies) {
         const auto* table = node.as_table();
         if (!table || name.str().empty())
-            invalid(path, "expected named [zombies.HORDE_NAME] tables; migrate old flat zombie settings to version 3");
+            invalid(path, "expected named [zombies.HORDE_NAME] tables; migrate old flat zombie settings to version 4");
         const auto prefix = "zombies." + std::string(name.str()) + ".";
         if (table->contains("coordinates"))
-            invalid(path, prefix + "coordinates is no longer supported; version 3 uses world X/Z meters only (X east, Z south)");
-        checkKeys(*table, {"count", "spawn", "destination"}, path, prefix);
+            invalid(path, prefix + "coordinates is no longer supported; version 4 uses world X/Z meters only (X east, Z south)");
+        checkKeys(*table, {"count", "spawn", "destination", "movement"}, path, prefix);
         ZombieHordeConfig horde;
         horde.name = name.str();
         const auto count = requiredInteger(table->get("count"), path, prefix + "count");
         if (count < 1 || static_cast<std::uint64_t>(count) > zombieScenarioMaximumCount)
             invalid(path, prefix + "count must be between 1 and 100000");
         horde.count = static_cast<std::size_t>(count);
+        if (const auto* movement = table->get("movement")) {
+            const auto value = movement->value<std::string>();
+            if (!movement->is_string() || !value || (*value != "idle" && *value != "travel"))
+                invalid(path, prefix + "movement must be 'idle' or 'travel'");
+            horde.movement = *value == "travel" ? ZombieScenarioMovement::travel : ZombieScenarioMovement::idle;
+        }
         horde.spawn = rectangle(*table, "spawn", path, prefix);
         horde.destination = rectangle(*table, "destination", path, prefix);
         config.hordes.push_back(std::move(horde));

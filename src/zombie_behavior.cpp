@@ -395,7 +395,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
     std::sort(behaviorOrder_.begin(), behaviorOrder_.end());
     for (const auto id : behaviorOrder_) {
         auto& behavior = *behaviors.find(id);
-        const bool scenarioFallback = scenarioDestination(id) && !scenarioRoutes_[id].finished;
+        const bool scenarioFallback = scenarioDestination(id) && !scenarioFinished(id);
         const bool wasWalking = id < instances.size() && instances[id].walking;
         if (id >= instances.size() || instances[id].removed || instances[id].ragdoll || instances[id].asset >= assets.size() ||
             (behavior.state == ZombieState::idle && now - behavior.idleSinceSeconds >= idleLifetime)) {

@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -248,6 +249,31 @@ void scenarioPopulation(const std::filesystem::path& asset, const std::filesyste
         "Authoritative behavior takeover requested another path or retained scenario ownership");
 }
 
+void idleScenarioPopulation(const std::filesystem::path& asset, const std::filesystem::path& directory) {
+    auto scene = sceneFixture(asset, {});
+    scene->zombies.behaviors.remove(0);
+    scene->zombies.setScenarioRoutes({std::nullopt});
+    scene->mapPath = directory / "idle-without-navigation.glb";
+    const auto initial = scene->zombies.instances[0].restRoot;
+    require(!scene->zombies.navigation() && !scene->zombies.scenarioDestination(0),
+            "An idle scenario fixture must have no navigation ownership");
+    multiplayer::World world(*scene);
+    for (int step = 0; step < 60; ++step) world.step();
+    require(scene->zombies.instances[0].restRoot == initial && scene->zombies.behaviors.entries().empty(),
+            "An idle scenario must remain stationary before any player connects");
+    scene->zombies.setPerceptionEnabled(false);
+    const auto player = world.join();
+    for (int step = 0; step < 60; ++step) world.step();
+    require(scene->zombies.instances[0].restRoot == initial && !scene->zombies.instances[0].walking,
+            "A nearby player must not move an idle scenario while perception is disabled");
+    scene->zombies.setPerceptionEnabled(true);
+    for (int step = 0; step < 20; ++step) world.step();
+    const auto* behavior = scene->zombies.behaviors.find(0);
+    require(behavior && behavior->state == viewer::ZombieState::chasing && behavior->targetPlayer == player &&
+            scene->zombies.instances[0].restRoot[3].x > initial[3].x && !scene->zombies.navigation(),
+            "Ordinary player perception must wake an idle scenario without requiring a navmesh");
+}
+
 void failures(const std::filesystem::path& asset, const std::filesystem::path& directory,
               const std::filesystem::path& cache) {
     auto scene = sceneFixture(asset, {});
@@ -308,6 +334,7 @@ int main(int argc, char** argv) try {
     writeMesh(cache, test_navmesh::convexSquares(16, 16));
     failures(argv[1], directory, cache);
     scenarioPopulation(argv[1], cache);
+    idleScenarioPopulation(argv[1], directory);
     const auto fixture = directory / "map.glb";
     std::filesystem::copy_file(argv[1], fixture);
     writeMesh(directory / "map.navmesh", test_navmesh::convexSquares(16, 16));

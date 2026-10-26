@@ -12,6 +12,8 @@ namespace viewer {
 
 inline constexpr std::size_t zombieScenarioMaximumCount = 100000;
 
+enum class ZombieScenarioMovement { idle, travel };
+
 struct ZombieHordeConfig {
     using Rectangle = std::array<double, 4>;
 
@@ -21,6 +23,7 @@ struct ZombieHordeConfig {
     // An omitted rectangle allows valid positions across the map.
     std::optional<Rectangle> spawn;
     std::optional<Rectangle> destination;
+    ZombieScenarioMovement movement = ZombieScenarioMovement::idle;
 };
 
 struct ZombieScenarioConfig {
@@ -32,11 +35,12 @@ struct ZombieScenarioConfig {
     std::vector<ZombieHordeConfig> hordes;
     std::optional<Player> player;
 
-    // Validates individual counts and the total, including direct C++ callers.
+    // Validates counts and movement settings, including direct C++ callers.
     std::size_t count() const;
+    bool needsNavigation() const;
 };
 
-// Format version 3; an omitted version also selects version 3. All locations
+// Format version 4; an omitted version also selects version 4. All locations
 // use world X/Z meters. Older versions and coordinate-system settings are rejected.
 // Throws std::runtime_error with the file path for malformed/unsupported settings.
 ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path);

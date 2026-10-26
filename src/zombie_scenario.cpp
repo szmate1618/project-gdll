@@ -125,32 +125,38 @@ bool finite(glm::vec3 value) {
 }
 
 ZombieScenarioPopulation generateZombieScenario(const CollisionWorld& world, const Model& scene,
-                                               const navmesh_path::Mesh& mesh,
+                                               const navmesh_path::Mesh* mesh,
                                                const ZombieScenarioConfig& config) {
     const auto count = config.count();
     if (!finite(scene.boundsMin) || !finite(scene.boundsMax) ||
         glm::any(glm::greaterThan(scene.boundsMin, scene.boundsMax)) || !world.stats().triangles)
         throw std::runtime_error("Cannot load zombie scenario: scene has no valid ground bounds");
-    if (mesh.polygons().empty()) throw std::runtime_error("Cannot load zombie scenario: navmesh is empty");
+    const bool needsNavigation = config.needsNavigation();
+    if (needsNavigation && (!mesh || mesh->polygons().empty()))
+        throw std::runtime_error("Cannot load zombie scenario: travel hordes require a nonempty navmesh");
     Random random(config.seed);
-    const NavmeshSampler sampler(mesh);
+    std::optional<NavmeshSampler> sampler;
+    if (needsNavigation) sampler.emplace(*mesh);
     SpawnOccupancy occupancy;
     ZombieScenarioPopulation result;
     result.placements.reserve(count);
     result.destinations.reserve(count);
     std::size_t spawnAttempts = 0, destinationAttempts = 0;
     for (const auto& horde : config.hordes) {
+        const bool travel = horde.movement == ZombieScenarioMovement::travel;
         std::optional<ScenarioCoordinates> spawnCoordinates, destinationCoordinates;
         if (horde.spawn) spawnCoordinates.emplace(*horde.spawn);
+        else if (!travel) spawnCoordinates.emplace(ZombieHordeConfig::Rectangle{
+            scene.boundsMin.x, scene.boundsMin.z, scene.boundsMax.x, scene.boundsMax.z});
         if (horde.destination) destinationCoordinates.emplace(*horde.destination);
         for (std::size_t id = 0; id < horde.count; ++id) {
             std::optional<glm::vec3> spawn;
             std::uint32_t spawnPolygon = navmesh_path::noPolygon;
             for (std::size_t attempt = 0; attempt < perZombieAttempts && spawnAttempts < totalAttemptLimit; ++attempt) {
                 ++spawnAttempts;
-                const auto p = spawnCoordinates ? sampleRectangle(*spawnCoordinates, random) : sampler.sample(random);
-                spawnPolygon = mesh.locate({p.x, p.y});
-                if (spawnPolygon == navmesh_path::noPolygon ||
+                const auto p = spawnCoordinates ? sampleRectangle(*spawnCoordinates, random) : sampler->sample(random);
+                if (travel) spawnPolygon = mesh->locate({p.x, p.y});
+                if ((travel && spawnPolygon == navmesh_path::noPolygon) ||
                     (spawnCoordinates && !spawnCoordinates->contains(p)) || !occupancy.clear(p)) continue;
                 spawn = safeFeet(p, world, scene);
                 if (spawn) break;
@@ -158,41 +164,52 @@ ZombieScenarioPopulation generateZombieScenario(const CollisionWorld& world, con
             if (!spawn)
                 throw std::runtime_error("Cannot place zombie " + std::to_string(id + 1) + " of " +
                     std::to_string(horde.count) + " in horde '" + horde.name +
-                    "': spawn region has insufficient safe nonoverlapping navmesh ground");
+                    "': spawn region has insufficient safe nonoverlapping " + (travel ? "navmesh ground" : "ground"));
             std::optional<glm::vec3> destination;
-            const auto component = mesh.component(spawnPolygon);
-            for (std::size_t attempt = 0; attempt < perZombieAttempts && destinationAttempts < totalAttemptLimit; ++attempt) {
-                ++destinationAttempts;
-                const auto p = destinationCoordinates ? sampleRectangle(*destinationCoordinates, random)
-                                                     : sampler.sample(component, random);
-                const auto polygon = mesh.locate({p.x, p.y});
-                if (polygon == navmesh_path::noPolygon || mesh.component(polygon) != component ||
-                    (destinationCoordinates && !destinationCoordinates->contains(p)) ||
-                    glm::length(p - glm::vec2(spawn->x, spawn->z)) <= 1e-4f) continue;
-                destination = safeFeet(p, world, scene);
-                if (destination) break;
+            if (travel) {
+                const auto component = mesh->component(spawnPolygon);
+                for (std::size_t attempt = 0; attempt < perZombieAttempts && destinationAttempts < totalAttemptLimit; ++attempt) {
+                    ++destinationAttempts;
+                    const auto p = destinationCoordinates ? sampleRectangle(*destinationCoordinates, random)
+                                                         : sampler->sample(component, random);
+                    const auto polygon = mesh->locate({p.x, p.y});
+                    if (polygon == navmesh_path::noPolygon || mesh->component(polygon) != component ||
+                        (destinationCoordinates && !destinationCoordinates->contains(p)) ||
+                        glm::length(p - glm::vec2(spawn->x, spawn->z)) <= 1e-4f) continue;
+                    destination = safeFeet(p, world, scene);
+                    if (destination) break;
+                }
+                if (!destination)
+                    throw std::runtime_error("Cannot pick a safe reachable destination in the destination region for zombie " +
+                        std::to_string(id + 1) + " in horde '" + horde.name + "'");
             }
-            if (!destination)
-                throw std::runtime_error("Cannot pick a safe reachable destination in the destination region for zombie " +
-                    std::to_string(id + 1) + " in horde '" + horde.name + "'");
             occupancy.add({spawn->x, spawn->z});
             result.placements.push_back(glm::rotate(glm::translate(glm::mat4(1), *spawn),
                 float(random.unit() * 6.283185307179586), glm::vec3(0, 1, 0)));
-            result.destinations.push_back(*destination);
+            result.destinations.push_back(destination);
         }
     }
     return result;
+}
+
+ZombieScenarioPopulation generateZombieScenario(const CollisionWorld& world, const Model& scene,
+                                               const navmesh_path::Mesh& mesh,
+                                               const ZombieScenarioConfig& config) {
+    return generateZombieScenario(world, scene, &mesh, config);
 }
 
 ZombieLayer loadZombieScenario(const std::filesystem::path& source,
                               const CollisionWorld& world, const Model& scene,
                               const std::filesystem::path& navmeshPath,
                               const ZombieScenarioConfig& config) {
-    auto navigation = std::make_unique<ZombieNavigation>(navmeshPath, config.count());
-    const auto population = generateZombieScenario(world, scene, navigation->mesh(), config);
+    std::unique_ptr<ZombieNavigation> navigation;
+    if (config.needsNavigation()) navigation = std::make_unique<ZombieNavigation>(navmeshPath, config.count());
+    const auto population = generateZombieScenario(world, scene, navigation ? &navigation->mesh() : nullptr, config);
     auto layer = loadZombieLayer(source, population.placements);
-    layer.enableNavigation(std::move(navigation));
-    layer.setScenarioDestinations(population.destinations);
+    if (navigation) {
+        layer.enableNavigation(std::move(navigation));
+        layer.setScenarioRoutes(population.destinations);
+    }
     return layer;
 }
 } // namespace viewer

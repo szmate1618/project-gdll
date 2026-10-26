@@ -16,6 +16,7 @@
 #include "blood_particles.hpp"
 
 #include <memory>
+#include <map>
 #include <optional>
 #include <unordered_map>
 
@@ -140,6 +141,9 @@ struct ZombieLayer {
     // Travel runs without nearby players. Perception can permanently hand an
     // actor to original behavior movement, releasing its route without a search.
     void setScenarioDestinations(const std::vector<glm::vec3>& destinations);
+    // Optional destinations retain global IDs while only travel members own
+    // route/cache state. All-null input requires no navigation mesh.
+    void setScenarioRoutes(const std::vector<std::optional<glm::vec3>>& destinations);
     // Comparison/diagnostic control. Nearby and ordinary behavior actors always
     // retain full movement; switching modes discards pending traveler segments.
     void setDistantScenarioTravelEnabled(bool enabled);
@@ -212,7 +216,8 @@ private:
         ContactCandidates contactCache;
         TravelerPlan travel;
     };
-    std::vector<ScenarioRoute> scenarioRoutes_;
+    std::map<std::size_t, ScenarioRoute> scenarioRoutes_; // Travel members only, in stable ID order.
+    std::size_t scenarioPopulation_ = 0;
     bool distantScenarioTravel_ = true;
     void updateScenarioRoutes(float seconds, const CollisionWorld& world, const ZombiePlayer& player,
                               const std::vector<ZombiePlayer>* players, bool advanceLooking = false);

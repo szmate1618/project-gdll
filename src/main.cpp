@@ -379,7 +379,7 @@ void printHelp() {
               << "  --zombies PATH      Load individual animated GLB/glTF files from PATH\n"
               << "  --fixed-step        Advance simulation by 1/60 s per frame (benchmark)\n"
               << "  --full-scenario-movement  Disable distant traveler approximations\n"
-              << "  --scenario FILE     Load zombie spawns and preplanned destinations from TOML\n"
+              << "  --scenario FILE     Load idle/travelling zombie groups from TOML\n"
               << "  --zombie-count N    Number of zombies (default 300 in palace gardens, otherwise 1000)\n"
               << "  --zombie-radius M   Use radial placement near spawn/map center (default 100 m)\n"
               << "  --zombie-view       Start with the camera framing the crowd\n"
@@ -1271,7 +1271,7 @@ int run(const Options& options) {
         zombies = viewer::loadZombieScenario(path, collision, model, navmesh, scenario);
         if (options.fullScenarioMovement) zombies->setDistantScenarioTravelEnabled(false);
         std::cout << "Scenario: " << options.scenario << "; " << zombies->instances.size()
-                  << " zombies with preplanned random destinations\n";
+                  << " zombies; " << (scenario.needsNavigation() ? "travel routes preplanned" : "initially idle") << '\n';
     } else if (!options.noZombies && (options.explicitZombies || townSizedTerrain)) {
         const auto path = options.zombies.empty() ? std::filesystem::path(VIEWER_ZOMBIE_ASSETS) : options.zombies;
         if (options.explicitZombies || viewer::hasZombieModels(path)) {

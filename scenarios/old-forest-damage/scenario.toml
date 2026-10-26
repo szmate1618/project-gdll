@@ -1,4 +1,4 @@
-version = 3
+version = 4
 seed = 42
 
 # Hand-picked from forest_patches.json, original orthophoto forest patch
@@ -12,6 +12,7 @@ orientation = [-90.0, 0.0]
 
 [zombies.damage_targets]
 count = 100
+movement = "travel"
 # Start 100..120 m ahead, then walk south toward and past the player.
 # Destinations 100..150 m behind the player give roughly 200..270 m walks.
 # Both rectangles and the player are inside the same forest patch above.

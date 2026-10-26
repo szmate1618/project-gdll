@@ -29,8 +29,8 @@ ServerOptions parseServerOptions(int argc, char** argv) {
     std::vector<char*> sharedArguments;
     sharedArguments.reserve(arguments.size());
     for (auto& argument : arguments) sharedArguments.push_back(argument.data());
-    if (help) std::cout << "Server: --scenario FILE loads zombie spawns and preplanned destinations from TOML.\n"
-                          "Only scenarios load the .navmesh beside the selected map; ordinary AI never requests paths.\n";
+    if (help) std::cout << "Server: --scenario FILE loads idle/travelling zombie groups from TOML.\n"
+                          "Only travelling groups require the map's .navmesh; ordinary AI never requests paths.\n";
     result.scene = parseOptions(static_cast<int>(sharedArguments.size()), sharedArguments.data(), true);
     return result;
 }

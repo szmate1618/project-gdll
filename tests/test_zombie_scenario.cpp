@@ -44,6 +44,7 @@ viewer::ZombieScenarioConfig config(std::size_t count = 1000) {
     result.hordes.emplace_back();
     result.hordes.front().name = "test_horde";
     result.hordes.front().count = count;
+    result.hordes.front().movement = viewer::ZombieScenarioMovement::travel;
     result.seed = 42;
     result.hordes.front().spawn = {{-60,-60,60,60}};
     return result;
@@ -113,6 +114,137 @@ struct Files {
     }
 };
 
+void idlePopulationNeedsOnlyGround() {
+    const auto scene = terrain();
+    const viewer::CollisionWorld world(scene);
+    const Files files;
+    const auto path = files.directory / "idle.toml";
+    std::ofstream(path) << R"(seed = 42
+[zombies.defaulted]
+count = 24
+spawn = [92, -60, 98, 60]
+[zombies.explicit]
+movement = "idle"
+count = 24
+spawn = [-98, -60, -92, 60]
+[zombies.mapwide]
+movement = "idle"
+count = 16
+)";
+    const auto settings = viewer::loadZombieScenarioConfig(path);
+    require(!settings.needsNavigation(), "Default and explicit idle hordes must not require navigation");
+    const auto population = viewer::generateZombieScenario(world, scene, nullptr, settings);
+    const auto repeated = viewer::generateZombieScenario(world, scene, nullptr, settings);
+    require(population.placements.size() == 64 && population.destinations.size() == 64 &&
+            population.placements == repeated.placements,
+            "Idle-only placement must preserve counts and seeded repeatability without a mesh");
+    std::size_t id = 0;
+    for (const auto& horde : settings.hordes) {
+        for (std::size_t member = 0; member < horde.count; ++member, ++id) {
+            const glm::vec3 feet(population.placements[id][3]);
+            require(feet.y == 5 && std::abs(feet.x) <= 100 && std::abs(feet.z) <= 100 &&
+                    !population.destinations[id], "Idle actors must stand on rendered ground without destinations");
+            if (horde.spawn)
+                require(feet.x >= (*horde.spawn)[0] && feet.z >= (*horde.spawn)[1] &&
+                        feet.x <= (*horde.spawn)[2] && feet.z <= (*horde.spawn)[3],
+                        "Idle placement escaped its authored world rectangle");
+            for (std::size_t other = 0; other < id; ++other) {
+                const glm::vec3 previous(population.placements[other][3]);
+                require(glm::length(glm::vec2(feet.x - previous.x, feet.z - previous.z)) >= .6f,
+                        "Idle bodies from separate groups must not overlap");
+            }
+        }
+    }
+    const auto missingMesh = files.directory / "does-not-exist.navmesh";
+    require(!std::filesystem::exists(missingMesh), "Idle loader fixture must not supply a navigation cache");
+    auto layer = viewer::loadZombieScenario(files.asset(), world, scene, missingMesh, settings);
+    require(layer.instances.size() == 64 && !layer.navigation(),
+            "Idle cold loading must succeed without opening or initializing navigation");
+    auto& clock = viewer::SimulationClock::instance();
+    clock.reset();
+    layer.setPerceptionEnabled(false);
+    for (int step = 0; step < 10; ++step) {
+        clock.advance(.1);
+        layer.updateBehaviorForPlayers(.1f, {}, world, clock.seconds());
+    }
+    layer.setPerceptionEnabled(true);
+    for (int step = 0; step < 10; ++step) {
+        clock.advance(.1);
+        layer.updateBehavior(.1f, viewer::ZombiePlayer{{10000, 5, 10000}}, world, clock.seconds());
+    }
+    for (std::size_t actor = 0; actor < layer.instances.size(); ++actor)
+        require(layer.instances[actor].restRoot == population.placements[actor] &&
+                !layer.instances[actor].walking && !layer.scenarioDestination(actor),
+                "Idle scenarios must remain still without a nearby player or autonomous route");
+    layer.setPerceptionStaggering(false);
+    const auto& actor = layer.instances.front();
+    const auto player = glm::vec3(actor.restRoot[3]) + glm::vec3(actor.restRoot[2]) * 10.f;
+    clock.advance(.1);
+    layer.updateBehavior(.1f, viewer::ZombiePlayer{player}, world, clock.seconds());
+    require(layer.behaviors.find(0) && layer.behaviors.find(0)->state == viewer::ZombieState::chasing &&
+            layer.behaviors.find(0)->target == player && !layer.navigation(),
+            "Normal perception must wake an idle scenario actor without requesting navigation");
+    clock.reset();
+}
+
+void mixedMovementPlansOnlyTravelers() {
+    const auto scene = terrain();
+    const viewer::CollisionWorld world(scene);
+    const auto navmesh = mesh();
+    auto settings = config(12);
+    settings.hordes.front().name = "idle_east";
+    settings.hordes.front().movement = viewer::ZombieScenarioMovement::idle;
+    settings.hordes.front().spawn = {{92, -60, 98, 60}}; // Valid ground entirely beyond the mesh.
+    auto travelers = config(8).hordes.front();
+    travelers.name = "travel";
+    settings.hordes.push_back(travelers);
+    auto idleWest = settings.hordes.front();
+    idleWest.name = "idle_west";
+    idleWest.count = 5;
+    idleWest.spawn = {{-98, -60, -92, 60}};
+    settings.hordes.push_back(idleWest);
+    require(settings.needsNavigation(), "Any travelling group must require a navigation cache");
+    const auto population = viewer::generateZombieScenario(world, scene, &navmesh, settings);
+    const Files files;
+    auto layer = viewer::loadZombieScenario(files.asset(), world, scene, files.navmesh(), settings);
+    require(layer.instances.size() == 25 && layer.navigation() &&
+            layer.navigation()->stats().requests == 8 && layer.navigation()->stats().foundPaths == 8,
+            "A mixed scenario must preplan exactly its travelling members before simulation");
+    for (std::size_t id = 0; id < layer.instances.size(); ++id) {
+        const bool travelling = id >= 12 && id < 20;
+        require(bool(population.destinations[id]) == travelling && bool(layer.scenarioDestination(id)) == travelling,
+                "Idle members must leave holes in the stable-ID route table");
+        if (travelling)
+            require(*layer.scenarioDestination(id) == population.destinations[id].value(),
+                    "Mixed cold loading changed a travel destination");
+        else {
+            const glm::vec3 feet(layer.instances[id].restRoot[3]);
+            require(navmesh.locate({feet.x, feet.z}) == viewer::navmesh_path::noPolygon &&
+                    !layer.navigation()->pathFor(id), "Idle spawns outside navigation coverage must remain valid and unplanned");
+        }
+    }
+    layer.setPerceptionEnabled(false);
+    bool moved = false;
+    auto& clock = viewer::SimulationClock::instance();
+    clock.reset();
+    for (int step = 0; step < 10; ++step) {
+        clock.advance(.1);
+        layer.updateBehaviorForPlayers(.1f, {}, world, clock.seconds());
+    }
+    for (std::size_t id = 0; id < layer.instances.size(); ++id) {
+        if (id >= 12 && id < 20) moved |= layer.instances[id].restRoot != population.placements[id];
+        else require(layer.instances[id].restRoot == population.placements[id] && !layer.instances[id].walking,
+                     "Autonomous travel must not move idle groups sharing the population");
+    }
+    require(moved && layer.navigation()->stats().requests == 8,
+            "Mixed autonomous movement must reuse only the cold-planned travel routes");
+    bool rejected = false;
+    try { (void)viewer::loadZombieScenario(files.asset(), world, scene, files.directory / "missing.navmesh", config(1)); }
+    catch (const std::exception&) { rejected = true; }
+    require(rejected, "A travelling scenario must still reject a missing navigation cache");
+    clock.reset();
+}
+
 void randomPopulationAndColdLoad() {
     const auto scene = terrain();
     const viewer::CollisionWorld world(scene, {{{0,0,0}, 4, 15}});
@@ -125,7 +257,7 @@ void randomPopulationAndColdLoad() {
     for (std::size_t i = 0; i < first.placements.size(); ++i) {
         require(first.placements[i] == repeated.placements[i] && first.destinations[i] == repeated.destinations[i],
                 "A seeded scenario is not repeatable");
-        const glm::vec3 p(first.placements[i][3]), target(first.destinations[i]);
+        const glm::vec3 p(first.placements[i][3]), target(first.destinations[i].value());
         require(p.y == 5 && target.y == 5, "Scenario endpoints do not follow the rendered ground");
         require(std::abs(p.x) <= 60 && std::abs(p.z) <= 60, "Spawn escaped its rectangle");
         require(glm::length(glm::vec2(p.x,p.z)) > 4.29f && glm::length(glm::vec2(target.x,target.z)) > 4.29f,
@@ -149,7 +281,7 @@ void randomPopulationAndColdLoad() {
             "Scenario paths were deferred until the first simulation step");
     for (std::size_t id = 0; id < layer.instances.size(); ++id) {
         require(layer.navigation()->pathFor(id) != 0 && layer.scenarioDestination(id), "A loaded scenario zombie has no route");
-        require(*layer.scenarioDestination(id) == first.destinations[id], "Cold loader changed seeded destination selection");
+        require(*layer.scenarioDestination(id) == first.destinations[id].value(), "Cold loader changed seeded destination selection");
     }
 }
 
@@ -161,15 +293,19 @@ void multipleHordesAndOptionalRegions() {
     const auto path = files.directory / "scenario.toml";
     std::ofstream(path) << R"(seed = 42
 [zombies.crossing]
+movement = "travel"
 count = 80
 spawn = [-80, -70, -40, -20]
 destination = [40, 20, 80, 70]
 [zombies.destination_only]
+movement = "travel"
 count = 80
 destination = [-80, 20, -40, 70]
 [zombies.mapwide]
+movement = "travel"
 count = 80
 [zombies.spawn_only]
+movement = "travel"
 count = 80
 spawn = [-80, -70, -40, -20]
 )";
@@ -181,7 +317,7 @@ spawn = [-80, -70, -40, -20]
     for (const auto& horde : settings.hordes) {
         for (std::size_t member = 0; member < horde.count; ++member, ++id) {
             const auto p = glm::vec3(population.placements[id][3]);
-            const auto goal = population.destinations[id];
+            const auto goal = population.destinations[id].value();
             if (horde.spawn)
                 require(p.x >= -80 && p.x <= -40 && p.z >= -70 && p.z <= -20,
                         "Horde spawn escaped its asymmetric world X/Z rectangle");
@@ -206,7 +342,7 @@ spawn = [-80, -70, -40, -20]
     require(layer.instances.size() == 320 && layer.navigation()->stats().foundPaths == 320,
             "Cold loader did not preplan every named horde");
     for (std::size_t member = 0; member < 320; ++member)
-        require(*layer.scenarioDestination(member) == population.destinations[member],
+        require(*layer.scenarioDestination(member) == population.destinations[member].value(),
                 "Cold loading changed a named horde's seeded destinations");
 }
 
@@ -222,7 +358,7 @@ void worldRegionsIgnoreGeographicMetadata() {
     const auto population = viewer::generateZombieScenario(world, scene, mesh(), settings);
     for (std::size_t id = 0; id < horde.count; ++id) {
         const auto p = glm::vec3(population.placements[id][3]);
-        const auto goal = population.destinations[id];
+        const auto goal = population.destinations[id].value();
         require(p.x >= -80 && p.x <= -40 && p.z >= 20 && p.z <= 70 &&
                     goal.x >= 40 && goal.x <= 80 && goal.z >= -70 && goal.z <= -20,
                 "World endpoint rectangles must preserve east/south meter axes");
@@ -247,15 +383,15 @@ void disconnectedDestinationsAndBoundedFailure() {
     auto settings = config(30);
     settings.hordes.front().spawn = viewer::ZombieHordeConfig::Rectangle{-60,-60,-20,60};
     const auto population = viewer::generateZombieScenario(world, scene, islands, settings);
-    for (const auto target : population.destinations)
-        require(target.x <= -2, "A scenario zombie received a destination on another island");
+    for (const auto& target : population.destinations)
+        require(target.value().x <= -2, "A scenario zombie received a destination on another island");
     settings = config(100);
     settings.hordes.front().spawn.reset();
     const auto mapwide = viewer::generateZombieScenario(world, scene, islands, settings);
     std::size_t left = 0, right = 0;
     for (std::size_t id = 0; id < mapwide.placements.size(); ++id) {
         const auto p = glm::vec3(mapwide.placements[id][3]);
-        const auto goal = mapwide.destinations[id];
+        const auto goal = mapwide.destinations[id].value();
         const auto startPolygon = islands.locate({p.x, p.z});
         const auto goalPolygon = islands.locate({goal.x, goal.z});
         require(startPolygon != noPolygon && goalPolygon != noPolygon &&
@@ -458,6 +594,8 @@ void teleportDeathAndCrowd() {
 
 int main() {
     try {
+        idlePopulationNeedsOnlyGround();
+        mixedMovementPlansOnlyTravelers();
         randomPopulationAndColdLoad();
         multipleHordesAndOptionalRegions();
         worldRegionsIgnoreGeographicMetadata();
