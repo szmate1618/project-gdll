@@ -6,6 +6,7 @@
 #include "interior_fixture.hpp"
 #include <box3d/box3d.h>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 
 namespace {
@@ -92,6 +93,31 @@ void accelerationAndGrip() {
     for (const auto& wheel : skid.cars.wheelTraction(0))
         require(wheel.motion == viewer::WheelMotion::Rolling && wheel.friction == viewer::rollingTireFriction,
                 "Settled wheels must recover rolling grip");
+}
+void groundQueries() {
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::VehicleLayer cars(physics);
+    cars.add({0, .68f, 0});
+    const auto roof = cars.groundAt(0, 0, 0, 3);
+    require(roof && std::abs(roof->height - 1.56f) < .002f,
+            "Ground queries must find the parked cabin roof");
+    auto tilted = cars.pose(0);
+    tilted.chassis.rotation = glm::angleAxis(.17f, glm::normalize(glm::vec3(1, 0, 1)));
+    cars.setPose(0, tilted, {});
+    const auto bounded = cars.groundAt(0, 0, -3, 3);
+    require(bounded && bounded->normal.y > .9f, "Tilted cabin must retain upward ground support");
+    const float limit = std::numeric_limits<float>::max();
+    for (const auto interval : {glm::vec2(-limit, 3), glm::vec2(0, limit), glm::vec2(-limit, limit)}) {
+        const auto hit = cars.groundAt(0, 0, interval.x, interval.y);
+        require(hit && std::abs(hit->height - bounded->height) < .0001f &&
+                glm::distance(hit->normal, bounded->normal) < .0001f,
+                "Unbounded ground queries must match local roof height and normal without overflowing");
+    }
+    require(cars.groundAt(0, 0, bounded->height, bounded->height).has_value(),
+            "A roof exactly on the query boundary must remain discoverable");
+    require(!cars.groundAt(0, 0, 3, limit) && !cars.groundAt(0, 0, -limit, -3) &&
+            !cars.groundAt(10, 10, -limit, limit),
+            "Unbounded ground searches must still respect height and horizontal boundaries");
 }
 void crowdedStart() {
     Fixture f; f.tick(120);
@@ -260,6 +286,6 @@ void zombies() {
 }
 }
 int main() {
-    try { suspensionAndDrive(); accelerationAndGrip(); crowdedStart(); reversePerformance(); steeringAndAir(); frameRates(); obstacles(); player(); cameraObstacles(); zombies(); }
+    try { suspensionAndDrive(); accelerationAndGrip(); groundQueries(); crowdedStart(); reversePerformance(); steeringAndAir(); frameRates(); obstacles(); player(); cameraObstacles(); zombies(); }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }
