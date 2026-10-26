@@ -50,8 +50,7 @@ Renderer::ZombieGPUInstance Renderer::zombieGPUInstance(const AnimatedModel& ass
             clip ? static_cast<float>(clip->firstFrame) : 0.0f,
             clip ? static_cast<float>(clip->frameCount) : 0.0f,
             0.0f,
-            clip ? animatedFrame(clip->duration, clip->frameCount, instance.walkSeconds, instance.phase) :
-                   (instance.ragdoll ? 0.0f : -1.0f),
+            -1.0f, // Draw preparation assigns the pose after visibility selection.
             instance.ragdoll ? 1.0f : 0.0f, 0.0f, boneBase};
 }
 

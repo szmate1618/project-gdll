@@ -149,6 +149,7 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
 }
 
 void Renderer::uploadModel(const Model& model, ModelGPU& destination, const std::vector<Primitive>* geometry) {
+    materialState_.reset(); // Uploads may replace the unit-0 binding during a draw.
     destination.materials = model.materials;
     GLint maximumTexture = 0;
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maximumTexture);
@@ -305,13 +306,25 @@ void Renderer::applyMaterial(const ModelGPU& model, int index, bool mirrored) {
     const bool textured = texture >= 0 && static_cast<std::size_t>(texture) < model.textures.size() && model.textures[static_cast<std::size_t>(texture)] != 0;
     if (mat.doubleSided) glDisable(GL_CULL_FACE); else glEnable(GL_CULL_FACE);
     glFrontFace(mirrored ? GL_CW : GL_CCW);
-    glUniform4fv(colorLocation_, 1, glm::value_ptr(mat.baseColor));
-    glUniform1i(hasTextureLocation_, textured);
-    glUniform1i(unlitLocation_, mat.unlit);
-    glUniform1i(alphaLocation_, mat.alphaMode == "MASK" ? 1 : mat.alphaMode == "BLEND" ? 2 : 0);
-    glUniform1f(cutoffLocation_, mat.alphaCutoff);
-    glUniform1f(minifiedCutoffLocation_, mat.minifiedAlphaCutoff);
-    glBindTexture(GL_TEXTURE_2D, textured ? model.textures[static_cast<std::size_t>(texture)] : 0);
+    const MaterialState state{mat.baseColor,
+        textured ? model.textures[static_cast<std::size_t>(texture)] : 0,
+        mat.alphaMode == "MASK" ? 1 : mat.alphaMode == "BLEND" ? 2 : 0,
+        mat.alphaCutoff, mat.minifiedAlphaCutoff, mat.unlit};
+    if (!materialState_ || state.baseColor != materialState_->baseColor)
+        glUniform4fv(colorLocation_, 1, glm::value_ptr(state.baseColor));
+    if (!materialState_ || textured != (materialState_->texture != 0))
+        glUniform1i(hasTextureLocation_, textured);
+    if (!materialState_ || state.unlit != materialState_->unlit)
+        glUniform1i(unlitLocation_, state.unlit);
+    if (!materialState_ || state.alphaMode != materialState_->alphaMode)
+        glUniform1i(alphaLocation_, state.alphaMode);
+    if (!materialState_ || state.alphaCutoff != materialState_->alphaCutoff)
+        glUniform1f(cutoffLocation_, state.alphaCutoff);
+    if (!materialState_ || state.minifiedAlphaCutoff != materialState_->minifiedAlphaCutoff)
+        glUniform1f(minifiedCutoffLocation_, state.minifiedAlphaCutoff);
+    if (!materialState_ || state.texture != materialState_->texture)
+        glBindTexture(GL_TEXTURE_2D, state.texture);
+    materialState_ = state;
 }
 
 void Renderer::draw(const DrawGPU& draw) {
@@ -363,6 +376,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     sunShadowCpuMs_ = 0;
     sceneStats_ = {sceneDraws_.size(), 0, 0};
     if (width_ <= 0 || height_ <= 0) return;
+    materialState_.reset(); // Other renderers and callers can change GL state between frames.
     treeViewEye_ = camera.position();
     treeViewForward_ = camera.direction();
     treeBillboardsForFrame_ = camera.viewMode() == Camera::ViewMode::original && treeBillboardDistance_ > 0;
@@ -394,13 +408,18 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     if (sunlight) shadowView = sunShadowView(camera.position(), lighting.sun.direction,shadowMap_->resolution());
     const bool castShadows = sunlight && shadows_ && shadowPassLocation_ >= 0;
     const auto flashlight = flashlightView(camera, nightLighting_);
-    const bool flashlightCasting = flashlightEnabled_ && lighting.nightBlend > 0 && shadows_ && flashlightShadows_ &&
+    const bool flashlightCasting = flashlightEnabled_ && !vehicleDriver_ && lighting.nightBlend > 0 && shadows_ && flashlightShadows_ &&
         shadowPassLocation_ >= 0 && flashlightShadowsLocation_ >= 0;
     const Frustum flashlightFrustum(flashlight.projectionView());
     const Frustum lightFrustum(shadowView.projectionView());
     prepareZombieDraws(Frustum(projection * view), castShadows ? &lightFrustum : nullptr, camera, projection, animationSeconds, flashlightCasting ? &flashlightFrustum : nullptr);
     if (castShadows) drawSunShadows(shadowView, animationSeconds);
-    if (flashlightCasting) drawFlashlightShadows(flashlight, animationSeconds);
+    if (flashlightCasting) {
+        // First-use shadow-map allocation changes the unit-0 texture binding.
+        materialState_.reset();
+        drawFlashlightShadows(flashlight, animationSeconds);
+    }
+    materialState_.reset();
     applyLighting(camera, shadowView, lighting, flashlight, flashlightCasting);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
     glViewport(0, 0, width_, height_);
@@ -442,6 +461,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         }
     }
     if (!transparentScene_.empty()) {
+        materialState_.reset(); // External opaque draws and effects precede glass.
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(GL_FALSE);

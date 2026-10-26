@@ -625,6 +625,16 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_compile_definitions(benchmark_shadow_resolution PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
     viewer_warnings(benchmark_shadow_resolution)
 
+    add_executable(benchmark_zombie_render_preparation EXCLUDE_FROM_ALL tests/benchmark_zombie_render_preparation.cpp)
+    target_link_libraries(benchmark_zombie_render_preparation PRIVATE viewer_renderer glfw)
+    target_compile_definitions(benchmark_zombie_render_preparation PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
+    viewer_warnings(benchmark_zombie_render_preparation)
+
+    add_executable(benchmark_render_wins EXCLUDE_FROM_ALL tests/benchmark_render_wins.cpp src/frame_profile.cpp)
+    target_link_libraries(benchmark_render_wins PRIVATE viewer_renderer glfw)
+    target_compile_definitions(benchmark_render_wins PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
+    viewer_warnings(benchmark_render_wins)
+
     add_executable(test_muzzle_flash_render tests/test_muzzle_flash_render.cpp)
     target_link_libraries(test_muzzle_flash_render PRIVATE viewer_renderer viewer_weapons glfw)
     target_compile_definitions(test_muzzle_flash_render PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES

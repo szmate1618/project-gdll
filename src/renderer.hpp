@@ -310,6 +310,16 @@ private:
     void applyLighting(const Camera& camera, const SunShadowView& shadowView,
                        const DayNightLighting& lighting, const FlashlightView& flashlight, bool flashlightCasting);
     void releaseZombies() noexcept;
+    struct MaterialState {
+        glm::vec4 baseColor;
+        GLuint texture;
+        int alphaMode;
+        float alphaCutoff, minifiedAlphaCutoff;
+        bool unlit;
+    };
+    // Material uniforms belong to program_; texture is the unit-0 2D binding.
+    // Culling/winding remain explicit because individual layers override them.
+    std::optional<MaterialState> materialState_;
     void applyMaterial(const ModelGPU& model, int index, bool mirrored);
     void draw(const DrawGPU& draw);
     void drawGrenades(const glm::mat4& projectionView);

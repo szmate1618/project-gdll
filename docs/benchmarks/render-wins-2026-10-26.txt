@@ -1,0 +1,153 @@
+Isolated rendering optimizations, 2026-10-26
+Baseline: master 3e02ce9. Candidates change one responsibility each.
+Hardware: AMD Radeon 660M, radeonsi/rembrandt, Mesa 24.2.8.
+Release build; OpenGL 3.3 requested, hardware context reports 4.6; 1280x720.
+
+Method
+All executables were rebuilt from matching source/header layouts and retained
+with their own shader directories. Restored C++ files received fresh mtimes.
+No builds or other tests ran concurrently with the final timing comparisons.
+Map cases alternate baseline/candidate process order over six pairs, with
+48 completed warmup frames and 128 measured frames per view per process.
+GPU timestamps are asynchronous with at most four frames in flight. Warmup
+completion, query draining, captures and file output are outside CPU timers.
+Maps/cameras are static; no AI, audio, player updates or dynamic physics runs.
+Vegetation nearest filtering, card splitting and the 1024 sunlight map remain
+enabled. Both variants use the same settings, assets and 60 Hz animation input.
+
+Numbers are milliseconds. Map absolute values are medians of process-round
+means. Savings are medians of paired percentage changes, so percentages need
+not equal the ratio of the two displayed medians. Positive savings mean faster.
+CPU render includes driver stalls. CPU and GPU overlap: never add them.
+GPU clocks, temperature and background activity are uncontrolled. These are
+workload-specific stage measurements, not end-to-end gameplay FPS.
+
+1. Disabled flashlight calculations and unused driving shadow pass
+The old and new code both have flashlight shadows enabled in driving cases.
+Driving already suppresses the handheld flashlight color; the candidate skips
+its unused shadow map and shader calculations. Headlights retain their light.
+This is an old-code/new-code comparison, not shadows enabled versus disabled.
+Flashlight shadows remain optional and default off.
+
+case | GPU baseline -> candidate | paired saving | faster pairs
+night-forest-driving-shadows | 12.275 -> 10.359 | +18.6% | 6/6
+night-forest-off | 9.306 -> 9.138 | +1.8% | 4/6
+night-forest-on | 9.334 -> 9.272 | +0.6% | 3/6
+night-town-driving-shadows | 6.992 -> 5.043 | +28.9% | 6/6
+night-town-off | 4.483 -> 4.449 | +1.9% | 4/6
+night-town-on | 4.455 -> 4.412 | -0.5% | 2/6
+
+The driving cases improve in all six pairs. The zero-color shader check alone
+has only a small, inconsistent effect in the off controls; no standalone gain
+is established for that guard. Flashlight-on controls are approximately flat.
+
+2. Deferred zombie animation frame calculation
+The fixture updates 100,000 synthetic walk/run actors on a fixed 1/60 s timeline.
+Each of three external process pairs contains eight alternating visible/hidden
+rounds, with 16 warmup and 128 measured updates. Only Renderer::updateZombies()
+is timed. Caller updates, bounds changes, rendering and output are excluded.
+The synthetic marker keeps the real update/preparation APIs without asset load
+or GPU draw cost. This is not a 100,000-active-AI or real-character FPS claim.
+External process runs are independent samples; inner rounds are descriptive.
+
+case | CPU preparation baseline -> candidate | paired saving | faster pairs
+hidden | 6.108 -> 3.821 | +37.6% | 3/3
+visible | 6.374 -> 3.857 | +38.2% | 3/3
+
+Final published walk/run poses and visible captures match exactly. Hidden
+actors do not publish a camera pose. Animation timing is now evaluated and
+validated when a pose is needed for rendering, including shadow-only actors.
+A separate all-map control pair has identical captures and geometry counts.
+
+3. Cached material uniforms and texture binding
+Six uniforms and the resolved unit-0 texture binding are cached. Culling and
+winding remain explicit because individual layers override them. Source draw
+order is unchanged. Uploads, frame/pass boundaries and external opaque draws
+invalidate the relevant state.
+
+case | CPU render baseline -> candidate | paired saving | faster pairs
+aerial | 0.575 -> 0.515 | +13.0% | 4/6
+night-forest-driving-shadows | 9.854 -> 9.270 | +5.3% | 6/6
+night-forest-off | 9.339 -> 8.909 | +4.5% | 5/6
+night-forest-on | 9.512 -> 8.848 | +4.7% | 6/6
+night-town-driving-shadows | 5.818 -> 5.508 | +4.9% | 5/6
+night-town-off | 5.075 -> 4.717 | +5.6% | 6/6
+night-town-on | 5.237 -> 5.022 | +0.8% | 4/6
+old-forest-100m | 0.513 -> 0.551 | -3.1% | 0/6
+old-forest-unrestricted | 10.228 -> 9.849 | +4.7% | 5/6
+open-clearing | 7.459 -> 6.976 | +4.9% | 6/6
+osm:-6:-5:0 | 4.926 -> 4.682 | +4.4% | 5/6
+osm:4:2:0 | 10.763 -> 9.552 | +10.4% | 6/6
+town | 5.974 -> 5.665 | +3.9% | 3/6
+
+Savings repeat in busy forest/clearing and several night views. Daytime town
+results are mixed; they do not establish a repeatable daytime-town gain. The
+seven-town-draw old-forest cutoff case is slightly slower in CPU render. This
+is not a universal speedup. All captures and camera geometry counts match.
+The town fixture retains 903 draws; forest A retains 1,523 town draws.
+Isolated material GPU results are mixed across views. CPU submission savings
+do not establish a universal GPU or whole-frame gain; complete GPU tables and
+per-pair values remain in evaluation-summary.txt/.json beside the raw CSVs.
+
+Combined version
+Three alternating map process pairs use the same protocol and 128 frames per
+view. All captures and camera geometry counts match. CPU/GPU absolute values
+and paired percentages follow the same definitions as the isolated tables.
+
+case | CPU baseline -> combined | CPU paired saving | GPU baseline -> combined | GPU paired saving
+aerial | 0.521 -> 0.537 | -0.0% | 7.864 -> 8.089 | -2.9%
+night-forest-driving-shadows | 9.946 -> 8.934 | +11.5% | 12.270 -> 9.617 | +21.1%
+night-forest-off | 9.871 -> 8.398 | +8.1% | 10.354 -> 8.733 | +6.0%
+night-forest-on | 9.240 -> 9.002 | +5.5% | 9.469 -> 9.168 | +3.2%
+night-town-driving-shadows | 5.938 -> 5.357 | +9.0% | 7.203 -> 5.491 | +23.1%
+night-town-off | 5.000 -> 5.059 | -4.3% | 4.748 -> 4.279 | +3.2%
+night-town-on | 5.189 -> 4.888 | +7.8% | 4.944 -> 4.187 | +15.3%
+old-forest-100m | 0.652 -> 0.587 | +19.7% | 8.631 -> 8.583 | +4.7%
+old-forest-unrestricted | 11.062 -> 10.523 | +3.5% | 13.588 -> 13.586 | -0.3%
+open-clearing | 7.795 -> 7.051 | +10.3% | 7.610 -> 7.076 | +10.4%
+osm:-6:-5:0 | 5.035 -> 4.699 | +6.7% | 10.386 -> 10.511 | -1.2%
+osm:4:2:0 | 10.349 -> 9.542 | +5.9% | 11.293 -> 11.205 | +4.4%
+town | 6.395 -> 5.628 | +7.9% | 6.720 -> 6.346 | +0.3%
+
+The combined preparation fixture retains about 38-39% CPU-stage savings in
+one external control pair; the isolated animation comparison supplies the
+three independent pairs. No preparation pose checksum differs.
+
+Standard zombies-open-100k-v1 controls
+Every measured frame submits all 100,000 actors, ten actual character variants,
+normal LOD3, ten draws and 12,580,000 camera triangles. No sun-shadow casters
+are in range. All captures match; all runs have 384/384 finite GPU samples.
+Values below are median round means, not paired speedup claims.
+
+run | GPU ms | CPU render ms
+baseline-before | 18.799 | 22.357
+flashlight | 22.926 | 27.755
+animation | 21.623 | 26.182
+material | 21.626 | 25.600
+combined | 21.937 | 25.589
+baseline-after | 21.973 | 26.034
+
+The early/late baseline GPU difference is about 17%; it exceeds most variant
+differences. Combined GPU time matches the late baseline. These idle-crowd
+controls establish matching output/population, not a crowd rendering speedup.
+The animation change targets changed walking actors and does not accelerate
+this idle control. Two extra alternating baseline/flashlight crowd pairs retain identical
+captures and populations. Results (median of process-round means):
+gpu_ms: 21.283 -> 21.063 ms; paired saving +1.7%; 2/2 pairs faster.
+cpu_render_ms: 25.067 -> 25.152 ms; paired saving +0.3%; 1/2 pairs faster.
+The follow-up does not reproduce a crowd GPU slowdown. Two pairs do not
+establish a general crowd speedup.
+
+Verification
+Full build succeeded; only the pre-existing unused debugMessage warning.
+Four focused renderer regressions passed. Full CTest: 154/155 initially; the
+multiplayer menu synthetic address-entry test passed on isolated retry. The
+same menu failure exists in older baseline logs. All 155 distinct cases passed.
+
+Artifacts and reproduction
+Tracked harnesses: tests/benchmark_render_wins.cpp and
+tests/benchmark_zombie_render_preparation.cpp; commands in docs/BENCHMARKS.md.
+Raw data, saved executables/shaders, source hashes, isolated patches, captures,
+alternating runner and summarizer: build/benchmarks/render-wins-2026-10-26/.
+pilot-map-flashlight-unfenced/ is retained for provenance and excluded from
+every final result. Map/preparation smoke runs are also excluded.

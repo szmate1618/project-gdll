@@ -122,6 +122,8 @@ the same reported power profile, and include a real-asset ragdoll settling probe
 | Sun shadow-map resolution A/B | `tests/benchmark_shadow_resolution.cpp` / `benchmark_shadow_resolution` | 2048² versus 1024²; total-frame and full sunlight-shadow GPU/CPU timings, captures |
 | Grenades with/without tree contacts | `tests/benchmark_grenade_trees.cpp` / `benchmark_grenade_trees` | CSV stage timings on stdout; microseconds per update |
 | Minimap road overlay | `tests/benchmark_minimap_roads.cpp` / `benchmark_minimap_roads` | HUD-only baseline/roads CSV, CPU/GPU medians and geometry metadata |
+| Map render submission and disabled lights | `tests/benchmark_render_wins.cpp` / `benchmark_render_wins` | Day/night map views, flashlight and driving controls; CPU/GPU CSVs, captures and counts |
+| Changed zombie render preparation | `tests/benchmark_zombie_render_preparation.cpp` / `benchmark_zombie_render_preparation` | CPU-only preparation of 100,000 changed walk/run actors; published-pose checks and capture |
 
 ### Minimap road overlay
 
@@ -202,6 +204,47 @@ their total-frame timestamps must still all be present. CPU shadow timing
 includes query bookkeeping. Run the standard 100,000-zombie control separately.
 
 Recorded example: [sunlight map resolution on Radeon 660M, 2026-10-20](benchmarks/sun-shadow-resolution-2026-10-20.txt).
+
+## Isolated renderer comparisons
+
+```bash
+cmake --build build --target benchmark_render_wins benchmark_zombie_render_preparation -j4
+./build/benchmark_render_wins output/godollo.glb output/trees.instances.json \
+  output/osm/forest_patches.json build/forest_perf/billboard-views.txt \
+  shaders build/benchmarks/render-wins-map 1 128 all
+./build/benchmark_zombie_render_preparation shaders build/benchmarks/render-wins-preparation
+```
+
+The map case accepts `MAP TREES FORESTS CAMERAS SHADERS OUTPUT [ROUNDS=1]
+[FRAMES=96] [CASE_FILTER=all]`. Camera files use the format described above;
+they must match the published map. The case adds grounded old-forest and town
+views, plus forest/town nighttime controls with the flashlight off, on, and
+suppressed while driving with flashlight shadows enabled. The optional filter
+matches a substring such as `night` or `town`. Vegetation retains its normal
+nearest filtering, card splitting and distance policy. No AI, audio, player
+updates or dynamic physics runs. Animation input follows a fixed 60 Hz timeline.
+Warmup completion, bounded asynchronous query draining and captures are outside
+the CPU render timer. Per-view CSVs record GPU and CPU render milliseconds;
+metadata records input/shader fingerprints, cameras and draw counts.
+
+The preparation case uses a synthetic animated four-vertex marker, with 100,000
+instances split between walking and running. Every fixed step changes only
+locomotion time. It times `Renderer::updateZombies()` alone, excluding caller
+updates, spatial bounds changes, drawing and file output. Eight rounds alternate
+visible and hidden camera controls; each has 16 warmup and 128 measured updates.
+Both controls update the same actors. Final published-pose checksums and a
+visible capture verify the submitted result. Diagnostic GPU completion waits
+occur outside the measured CPU loops. This isolates preparation arithmetic;
+the standard real-asset crowd case remains the rendering regression control.
+
+For A/B comparisons, retain each executable with its matching shaders and build
+all header-dependent consumers together. Alternate baseline/candidate process
+order across repeated pairs; avoid concurrent builds or GPU workloads. Treat
+external process runs as the independent samples. These cases measure render
+cost and preparation stages, not gameplay FPS.
+
+Recorded comparison: [three isolated render changes on Radeon 660M,
+2026-10-26](benchmarks/render-wins-2026-10-26.txt).
 
 ## Scenario movement CPU microbenchmark
 

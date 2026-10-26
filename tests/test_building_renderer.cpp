@@ -172,6 +172,43 @@ void checkDoubleSidedSurfaces() {
     viewer::Renderer::checkErrors("double-sided building surfaces");
 }
 
+void checkMaterialTexturesBetweenFrames() {
+    auto texturedCard = [](std::array<std::uint8_t, 4> rgba) {
+        viewer::Model model;
+        viewer::Material surface;
+        surface.unlit = true;
+        surface.baseColorTexture = 0;
+        model.materials.push_back(surface);
+        model.images.push_back({1, 1, {rgba.begin(), rgba.end()}});
+        model.textures.push_back({0});
+        card(model, {0, 3, -20}, {10, 6}, 0);
+        return model;
+    };
+    const auto red = texturedCard({255, 0, 0, 255});
+    const auto green = texturedCard({0, 255, 0, 255});
+    viewer::Renderer first(red, VIEWER_SHADER_DIR), second(green, VIEWER_SHADER_DIR);
+    for (auto* renderer : {&first, &second}) {
+        renderer->setShadows(false);
+        renderer->setHaze(false);
+        renderer->setGroundFog(false);
+        renderer->resize(width, height);
+    }
+    viewer::Camera camera;
+    camera.setPosition({0, 3, 0});
+    camera.look(0, 200);
+    first.render(camera);
+    require(glm::length(pixel(camera, {0, 3, -20}) - glm::vec3(255, 0, 0)) < 3,
+            "First renderer must sample its own red texture");
+    second.render(camera);
+    require(glm::length(pixel(camera, {0, 3, -20}) - glm::vec3(0, 255, 0)) < 3,
+            "Second renderer must sample its own green texture");
+    // Another renderer may leave a different unit-0 binding between frames.
+    first.render(camera);
+    require(glm::length(pixel(camera, {0, 3, -20}) - glm::vec3(255, 0, 0)) < 3,
+            "Repeating an unchanged material must restore its texture after another renderer");
+    viewer::Renderer::checkErrors("material textures between frames");
+}
+
 void checkHingedDoor(const std::filesystem::path& capture = {}) {
     viewer::Model model;
     viewer::Material door, background;
@@ -230,6 +267,7 @@ int main(int argc, char** argv) {
     try {
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << '\n';
         checkDoubleSidedSurfaces();
+        checkMaterialTexturesBetweenFrames();
         checkHingedDoor(argc == 3 ? std::filesystem::path(std::string(argv[2]) + ".hinge.ppm") : std::filesystem::path{});
         for (const bool culling : {true, false}) {
             check(20, 0, true, culling);

@@ -124,7 +124,7 @@ float flashlightVisibility(float facing, float distanceFromLight) {
 }
 
 vec3 flashlight(vec3 normal) {
-    if (uNightBlend <= 0.0) return vec3(0.0);
+    if (uNightBlend <= 0.0 || all(equal(uFlashlightColor, vec3(0.0)))) return vec3(0.0);
     float distanceFromLight = length(vWorldPosition - uFlashlightPosition);
     if (distanceFromLight >= uFlashlightCone.x) return vec3(0.0);
     vec3 fromLight = (vWorldPosition - uFlashlightPosition) / max(distanceFromLight, 0.001);

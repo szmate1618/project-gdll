@@ -7,6 +7,7 @@
 #include <array>
 #include <iostream>
 #include <stdexcept>
+#include <vector>
 
 namespace {
 constexpr int width = 960, height = 640;
@@ -77,6 +78,19 @@ void run() {
             "Headlight beams ignored their configured local positions");
     renderer.writeScreenshot("vehicle-configured-lights.ppm");
     renderer.setFlashlightShadows(true); renderer.render(camera);
+    std::vector<unsigned char> driving(width * height * 4), flashlightOff(driving.size());
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, driving.data());
+    GLint program = 0, flashlightShadows = GL_TRUE;
+    glGetIntegerv(GL_CURRENT_PROGRAM, &program);
+    glGetUniformiv(program, glGetUniformLocation(program, "uFlashlightShadows"), &flashlightShadows);
+    require(flashlightShadows == GL_FALSE, "Driving must not retain an unused flashlight shadow pass");
+    renderer.setFlashlight(false); renderer.render(camera);
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, flashlightOff.data());
+    require(driving == flashlightOff, "Driving must suppress held-flashlight illumination regardless of its toggle");
+    renderer.setFlashlight(true);
+    renderer.updateVehicles(shiftedCars); renderer.render(camera);
+    glGetUniformiv(program, glGetUniformLocation(program, "uFlashlightShadows"), &flashlightShadows);
+    require(flashlightShadows == GL_TRUE, "Leaving the driver seat must restore enabled flashlight shadows");
     GLboolean depth = GL_FALSE; glGetBooleanv(GL_DEPTH_WRITEMASK, &depth);
     require(depth == GL_TRUE, "Vehicle rendering must restore opaque depth writes");
     viewer::Renderer::checkErrors("vehicle box, tires, lights and shadow passes");

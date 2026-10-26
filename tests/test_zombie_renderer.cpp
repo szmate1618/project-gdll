@@ -461,6 +461,54 @@ void renderIncrementalAndFullRefresh() {
     viewer::Renderer::checkErrors("incremental zombie render updates");
 }
 
+void renderHiddenLocomotionChanges() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(makeAsset(1, 2));
+    layer.instances.emplace_back();
+    auto& instance = layer.instances.front();
+    instance.walking = true;
+    instance.walkSeconds = 1.375;
+    viewer::Camera camera;
+    camera.setPosition({0, .8f, 10});
+    camera.setOrientation(-90, 0);
+    const viewer::Model scene;
+    viewer::Renderer renderer(scene, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.resize(width, height);
+    renderer.setZombieDistanceDetail(false);
+    renderer.setShadows(false);
+    renderer.setHaze(false);
+    renderer.setGroundFog(false);
+    renderer.render(camera, .125);
+    const auto walking = colorPixels();
+    if (instance.displayedAnimationFrame != 2.75f || instance.displayedAnimationClip != 1)
+        throw std::runtime_error("Displayed walk pose must use locomotion time, independently of idle time");
+    instance.transform = glm::translate(glm::mat4(1), {100, 0, 0});
+    layer.markRenderChanged(0);
+    renderer.updateZombies(layer);
+    renderer.render(camera, .125);
+    if (renderer.zombieVisibleCount() != 0 || instance.displayedAnimationFrame >= 0)
+        throw std::runtime_error("Hiding a walker must retire its previously displayed pose");
+    instance.running = true;
+    instance.walkSeconds = 1.75;
+    layer.markRenderChanged(0, false);
+    renderer.updateZombies(layer);
+    renderer.render(camera, .125);
+    if (renderer.zombieVisibleCount() != 0 || instance.displayedAnimationFrame >= 0)
+        throw std::runtime_error("Hidden locomotion changes must not publish an undrawn camera pose");
+    instance.transform = glm::mat4(1);
+    layer.markRenderChanged(0);
+    renderer.updateZombies(layer);
+    renderer.render(camera, .125);
+    const auto running = colorPixels();
+    if (renderer.zombieVisibleCount() != 1 || instance.displayedAnimationFrame != 1.75f ||
+        instance.displayedAnimationClip != 2 || running == walking)
+        throw std::runtime_error("A revealed walker must display and publish its latest run pose");
+    renderer.render(camera, 1.125);
+    if (colorPixels() != running || instance.displayedAnimationFrame != 1.75f)
+        throw std::runtime_error("Idle time must not advance a stopped locomotion clip");
+    viewer::Renderer::checkErrors("hidden locomotion pose changes");
+}
+
 void paletteGrowthAndReuse() {
     viewer::ZombiePaletteCache cache(20, 2, 160);
     std::vector<glm::mat4> original(2, glm::translate(glm::mat4(1), {1, 2, 3}));
@@ -823,6 +871,7 @@ int main(int argc, char** argv) {
         paletteVisibilityAndDeferredChanges();
         renderGroupMovementAndPoseChanges();
         renderIncrementalAndFullRefresh();
+        renderHiddenLocomotionChanges();
         paletteGrowthAndReuse();
         if (mode == "--dismemberment") {
             if (argc < 3) throw std::runtime_error("--dismemberment requires one prepared character GLB");
