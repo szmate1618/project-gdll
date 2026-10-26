@@ -1,0 +1,14 @@
+version = 4
+seed = 42
+
+# Standalone viewer scenario: exactly 100,000 initially idle zombies.
+[player]
+# Same starting location as test-horde, facing southeast.
+spawn = [2258.579, 2258.579]
+orientation = [45.0, 0.0]
+
+[zombies.residents]
+count = 100000
+movement = "idle"
+# Omitted spawn bounds select safe, nonoverlapping ground across the map.
+# Normal perception remains enabled; no navmesh or scripted routes are needed.

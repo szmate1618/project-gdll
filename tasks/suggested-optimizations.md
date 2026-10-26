@@ -92,6 +92,15 @@ CPU savings alone do not establish a GPU speedup or guarantee 60 FPS.
 Start in [main.cpp](../src/main.cpp), [tests](../tests/), and
 [viewer diagnostics](../docs/VIEWER.md#verification-and-diagnostics).
 
+## 4. Support multiplayer populations up to 100,000 zombies
+
+**Status:** TODO; feasibility and staged implementation.
+
+See the [multiplayer 100,000-zombie ticket](multiplayer-100k-zombies.md) for
+visibility and update-rate requirements, capacity and replication blockers,
+performance risks, and acceptance checks. The behavior hearing-index rework in
+`f41f836` was done mainly in preparation for this goal.
+
 ## Conditional follow-up: parallel physics
 
 **Priority:** only if awake ragdoll/door physics is a measured bottleneck.

@@ -69,6 +69,23 @@ plus 600 traveling from the lower-right (southeast) corner to the upper-left
 The player starts 200 m northwest of the crossing horde's nearest spawn corner,
 facing southeast toward its spawn region.
 
+### 100,000-zombie viewer scenario
+
+The [100k-horde scenario](../scenarios/100k-horde/scenario.toml) places exactly
+100,000 initially idle zombies on safe, nonoverlapping ground across the map,
+with the same player start and fixed seed as `test-horde`. Run it in the
+standalone viewer:
+
+```bash
+./build/godollo_viewer output/godollo.glb --scenario scenarios/100k-horde/scenario.toml
+```
+
+No navmesh or scripted travel routes are needed. Zombies initially wait at their
+spawn positions; normal sight and hearing can trigger investigation, chasing,
+and attacks. This scenario exceeds the current multiplayer capacity.
+
+### Scenario settings
+
 Each `[zombies.NAME]` table requires its own `count`. The optional `movement`
 setting accepts `"idle"` (the default) or `"travel"`. `spawn` is an optional flat
 rectangle; omitting it allows random safe positions across the map. Travelling
