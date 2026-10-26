@@ -84,6 +84,13 @@ No navmesh or scripted travel routes are needed. Zombies initially wait at their
 spawn positions; normal sight and hearing can trigger investigation, chasing,
 and attacks. This scenario exceeds the current multiplayer capacity.
 
+The [20k-horde scenario](../scenarios/20k-horde/scenario.toml) uses the same
+settings with exactly 20,000 initially idle zombies. To run it fullscreen:
+
+```bash
+./build/godollo_viewer output/godollo.glb --scenario scenarios/20k-horde/scenario.toml --fullscreen
+```
+
 ### Scenario settings
 
 Each `[zombies.NAME]` table requires its own `count`. The optional `movement`
