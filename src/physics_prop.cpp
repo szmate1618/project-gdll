@@ -15,6 +15,8 @@ bool finite(glm::vec3 p) { return std::isfinite(p.x) && std::isfinite(p.y) && st
 PhysicsProp::PhysicsProp(std::shared_ptr<PhysicsWorld> world, b3BodyId body)
     : world_(std::move(world)), body_(body) {}
 bool PhysicsProp::valid() const { return world_ && b3Body_IsValid(body_); }
+bool PhysicsProp::grabbed() const { return valid() && world_->isGrabbed(body_); }
+bool PhysicsProp::awake() const { return valid() && b3Body_IsAwake(body_); }
 bool PhysicsProp::operator==(const PhysicsProp& other) const {
     return world_ == other.world_ && B3_ID_EQUALS(body_,other.body_);
 }

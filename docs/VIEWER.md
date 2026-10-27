@@ -627,6 +627,18 @@ Use `--no-roof-batching` to compare the same view with individual roof draws:
 Use `--no-wall-batching` for the corresponding wall comparison. The two switches
 are independent; source-object visibility and collision remain unchanged.
 
+## Forest ground doodads
+
+The experimental single-player layer streams branches, stones and occasional
+beer bottles around the player in runtime forest polygons, including the
+forested parts of boundary cells. Press **Tab** for Interaction mode, then grab,
+carry and throw them with the ordinary left/right-hand prop controls. Moved
+objects retain their identities across cell boundaries, including destinations
+outside woodland, and their poses are saved beside the map.
+
+Use `--no-doodads` to disable them or `--doodad-save FILE` for a separate save.
+See [placement, streaming and persistence](DOODADS.md) for details and checks.
+
 ## Zombie crowd
 
 The [zombie assets](../assets/zombies/README.md) live separately from the generated

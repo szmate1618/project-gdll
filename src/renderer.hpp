@@ -45,6 +45,7 @@ class GpuTimer;
 class DoorLayer;
 class BoxLayer;
 class VehicleLayer;
+class DoodadLayer;
 
 struct TreeRenderStats {
     std::size_t total = 0, visible = 0, drawCalls = 0;
@@ -89,6 +90,10 @@ public:
     // Refresh cached poses after physics or spawning. The source must outlive
     // this renderer; unchanged revisions retain meshes and visibility bounds.
     void updateBoxes(const BoxLayer& boxes);
+    // Upload each ground-detail mesh once; instances borrow the live layer.
+    void setDoodads(const DoodadLayer& doodads, const std::array<Model,3>& models);
+    void updateDoodads(const DoodadLayer& doodads);
+    std::size_t doodadVisibleCount() const { return doodadVisibleCount_; }
     // Shared model resources; the physics layer must outlive rendering.
     void setDroppedWeapons(const DroppedWeapons& weapons, const std::array<Model,weaponIds.size()>& models);
     void loadGrenadeModel(const std::filesystem::path& path);
@@ -279,6 +284,8 @@ private:
     void beginTownPass(glm::vec3 eye, const glm::mat4& projection, bool sunShadow = false);
     void drawBuildingBatch(const ModelGPU& model, std::size_t batch);
     void drawBoxes(const glm::mat4& projectionView);
+    void drawDoodads(const glm::mat4& projectionView, bool shadowPass = false);
+    void releaseDoodads() noexcept;
     void drawVehicles(const glm::mat4& projectionView, bool shadowPass = false);
     void prepareVehicleDraws(const Camera& camera, const glm::mat4& projection);
     void releaseVehicleAssets() noexcept;
@@ -429,6 +436,18 @@ private:
     VisibilityIndex boxVisibility_;
     const BoxLayer* boxSource_ = nullptr;
     std::uint64_t boxRevision_ = 0;
+    struct DoodadModelGPU {
+        ModelGPU model;
+        std::vector<DrawInstance> draws;
+        GLuint instances = 0;
+        std::vector<glm::mat4> visible;
+    };
+    std::array<DoodadModelGPU,3> doodadModels_;
+    const DoodadLayer* doodadSource_ = nullptr;
+    VisibilityIndex doodadVisibility_;
+    std::vector<std::size_t> visibleDoodads_;
+    std::uint64_t doodadRevision_ = 0;
+    std::size_t doodadVisibleCount_ = 0;
     ModelGPU roofModel_;
     std::vector<std::size_t> roofBatchForDraw_;
     std::vector<bool> roofBatchDrawn_;

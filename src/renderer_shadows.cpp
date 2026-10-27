@@ -72,6 +72,7 @@ void Renderer::drawShadowCasters(const glm::mat4& view, const glm::mat4& project
     }
     drawZombies(seconds, pass);
     drawBoxes(projectionView);
+    drawDoodads(projectionView, true);
     drawGrenades(projectionView);
 
     drawVehicles(projectionView, true);

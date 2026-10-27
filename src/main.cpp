@@ -6,6 +6,9 @@
 #include "physics_world.hpp"
 #include "box_layer.hpp"
 #include "physics_scene.hpp"
+#include "doodad_layer.hpp"
+#include "doodad_state.hpp"
+#include "file_fingerprint.hpp"
 #include "vehicle_player.hpp"
 #include "vehicle_zombie_collision.hpp"
 #include "vehicle_placement.hpp"
@@ -62,6 +65,8 @@ struct Options {
     std::filesystem::path model = VIEWER_DEFAULT_ASSET;
     std::filesystem::path shaders = VIEWER_SHADER_DIR;
     std::filesystem::path screenshot;
+    std::filesystem::path doodadSave;
+    bool noDoodads = false;
     viewer::HudScreen hudScreen = viewer::HudScreen::Gameplay;
     std::filesystem::path trees;
     std::filesystem::path poles;
@@ -217,6 +222,8 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--osm-vegetation")
             throw std::runtime_error("--osm-vegetation was replaced by --vegetation osm");
         else if (argument == "--no-forests") options.noForests = true;
+        else if (argument == "--no-doodads") options.noDoodads = true;
+        else if (argument == "--doodad-save") options.doodadSave = value();
         else if (argument == "--no-fences") options.noFences = true;
         else if (argument == "--no-roof-batching") options.roofBatching = false;
         else if (argument == "--no-wall-batching") options.wallBatching = false;
@@ -351,6 +358,8 @@ void printHelp() {
               << "  --no-trees          Disable individual trees and runtime forests\n"
               << "  --vegetation MODE  Select osm-tuned2 (default), orthophoto, osm, sentinel-astra or none\n"
               << "  --no-forests        Disable runtime forests, keep individual trees\n"
+              << "  --no-doodads        Disable streamed forest branches, stones and bottles\n"
+              << "  --doodad-save FILE  Moved doodad poses (default beside map: .doodads.json)\n"
               << "  --no-fences         Disable fence panels, shadows and collisions\n"
               << "  --poles FILE        Load a mapped pole column JSON explicitly\n"
               << "  --no-poles          Disable pole columns, shadows and collisions\n"
@@ -1258,6 +1267,30 @@ int run(const Options& options) {
     std::cout << "Collision world: " << collisionStats.triangles << " triangles, "
               << collisionStats.buildings << " buildings, " << collisionStats.bvhNodes << " BVH nodes, "
               << collisionStats.trunks << " tree trunks\n";
+    // Source identities suppress procedural spawns; saved destinations may be
+    // outside forests. Keep the state and generator alive through the layer.
+    std::optional<viewer::DoodadState> doodadState;
+    std::optional<viewer::DoodadPlacementGenerator> doodadGenerator;
+    std::unique_ptr<viewer::DoodadLayer> doodads;
+    std::array<viewer::Model,viewer::doodadKindCount> doodadModels;
+    auto doodadSave = options.doodadSave;
+    std::uint64_t savedDoodadRevision = 0;
+    if (forests && !options.noDoodads) {
+        if (doodadSave.empty()) {
+            doodadSave = options.model;
+            doodadSave.replace_extension(".doodads.json");
+        }
+        doodadState.emplace(viewer::fileSha256(options.model)+":"+viewer::fileSha256(vegetation.forests));
+        doodadState->load(doodadSave);
+        savedDoodadRevision = doodadState->revision();
+        doodadGenerator.emplace(*forests,collision);
+        constexpr std::array<const char*,viewer::doodadKindCount> names{"branch","stone","beer_bottle"};
+        for (std::size_t i=0; i<names.size(); ++i)
+            doodadModels[i] = viewer::loadModel(std::filesystem::path(VIEWER_DOODAD_ASSETS)/(std::string(names[i])+".glb"));
+        doodads = std::make_unique<viewer::DoodadLayer>(physics,*doodadGenerator,*doodadState,doodadModels);
+        std::cout << "Doodads: forest-only cells; " << doodadState->changes().size()
+                  << " saved moves; " << doodadSave << '\n';
+    }
     std::optional<viewer::ZombieLayer> zombies;
     std::optional<viewer::ZombieScenarioConfig::Player> scenarioPlayer;
     auto navmesh = options.model;
@@ -1407,6 +1440,10 @@ int run(const Options& options) {
     app.droppedWeapons = &droppedWeapons;
     viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr,
                               zombies ? &*zombies : nullptr, forests ? &*forests : nullptr);
+    if (doodads) {
+        doodads->update(app.rig.camera().position(),physicsScene,doors);
+        renderer.setDoodads(*doodads,doodadModels);
+    }
     renderer.setDroppedWeapons(droppedWeapons,droppedModels);
     renderer.setVehicleAssets(std::filesystem::path(VIEWER_VEHICLES).parent_path() / "assets/vehicles/models");
     renderer.setVehicleDistanceDetail(options.vehicleDistanceDetail);
@@ -1497,6 +1534,7 @@ int run(const Options& options) {
     int frameCount = 0, intervalFrames = 0;
     viewer::PlayerPresentation playerPresentation;
     playerPresentation.reset(app.rig.camera().position(), playerBody.pose());
+    double nextDoodadSave = glfwGetTime()+5;
     while (!glfwWindowShouldClose(window.get())) {
         glfwPollEvents();
         renderer.setFlashlight(app.flashlight);
@@ -1515,6 +1553,7 @@ int run(const Options& options) {
             continue;
         }
         const double simulationStart = glfwGetTime();
+        if (doodads) doodads->update(app.rig.camera().position(),physicsScene,doors);
         const auto previousCameraPosition = playerPresentation.eye(physics->interpolationAlpha());
         bool simulated = false;
         const auto followPlayerBody = [&] {
@@ -1617,6 +1656,16 @@ int run(const Options& options) {
             audio.update(app.rig, zombies ? &*zombies : nullptr, step, &doors);
             playerPresentation.advance(app.rig.camera().position(), playerBody.pose());
         });
+        if (doodads) {
+            doodads->captureChanges();
+            if (now >= nextDoodadSave) {
+                if (savedDoodadRevision != doodadState->revision()) {
+                    doodadState->save(doodadSave);
+                    savedDoodadRevision = doodadState->revision();
+                }
+                nextDoodadSave = now+5;
+            }
+        }
         if (!simulated) audio.service();
         app.displayedAnimationSeconds = options.animationTime.value_or(simulationClock.seconds());
         if (!options.night) {
@@ -1642,6 +1691,7 @@ int run(const Options& options) {
         intervalSimulationSeconds += preparationStart - simulationStart;
         renderer.updateDoors(doors);
         renderer.updateBoxes(boxes);
+        if (doodads) renderer.updateDoodads(*doodads);
         renderer.updateVehicles(cars, app.driver.car());
         renderer.updateGrenades(grenades.poses());
         renderer.updateVegetationBlasts(grenades.explosions(simulationClock.seconds()));
@@ -1803,6 +1853,15 @@ int run(const Options& options) {
         }
     }
     if (options.profile) zombieProfile.print(std::cout);
+    app.interaction.cancel();
+    if (doodads) {
+        doodads->captureChanges();
+        if (savedDoodadRevision != doodadState->revision()) doodadState->save(doodadSave);
+        std::cout << "Last doodad frame: " << renderer.doodadVisibleCount() << '/'
+                  << doodads->instances().size() << " visible; " << doodads->cellCount()
+                  << " cached cells, " << doodads->activeBodyCount() << " physical props; "
+                  << doodadState->changes().size() << " saved poses\n";
+    }
     if (!options.screenshot.empty()) renderer.writeScreenshot(options.screenshot);
     if (trees) {
         const auto& stats = renderer.treeStats();

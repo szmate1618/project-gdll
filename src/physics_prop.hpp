@@ -15,6 +15,8 @@ class PhysicsProp {
 public:
     PhysicsProp(std::shared_ptr<PhysicsWorld> world, b3BodyId body);
     bool valid() const;
+    bool grabbed() const; // Either hand currently constrains this body.
+    bool awake() const; // Streaming keeps an in-flight prop alive until it settles.
     bool operator==(const PhysicsProp& other) const;
     glm::vec3 center() const;
     float mass() const;

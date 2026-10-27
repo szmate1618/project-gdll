@@ -237,6 +237,7 @@ void Renderer::releaseModel(ModelGPU& model) noexcept {
 }
 
 void Renderer::release() noexcept {
+    releaseDoodads();
     releaseDroppedWeapons();
     bloodMist_.reset();
     rain_.reset();
@@ -446,6 +447,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     drawForests(projection * view, false, cameraVisibility_.forests);
     drawZombies(animationSeconds);
     drawBoxes(projection * view);
+    drawDoodads(projection * view);
     drawDroppedWeapons(projection * view);
     drawWoundContents(projection * view);
     drawGrenades(projection * view);

@@ -341,6 +341,7 @@ viewer_warnings(viewer_weapons)
 add_library(viewer_objects STATIC src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp)
 target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics viewer_weapons)
 viewer_warnings(viewer_objects)
+include(cmake/Doodads.cmake)
 
 add_library(viewer_vehicles STATIC src/vehicle_player.cpp src/vehicle_placement.cpp src/vehicle_zombie_collision.cpp)
 target_link_libraries(viewer_vehicles PUBLIC viewer_objects viewer_fps viewer_zombies)
@@ -395,6 +396,7 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/renderer_presentation.cpp
     src/gpu_timer.cpp
     src/box_renderer.cpp
+    src/doodad_renderer.cpp
     src/dropped_weapon_renderer.cpp
     src/grenade_renderer.cpp
     src/vehicle_renderer.cpp src/vehicle_visibility.cpp
@@ -403,7 +405,7 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
     src/zombie_renderer.cpp src/zombie_wound_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/blood_mist_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
-    viewer_vehicle_lods viewer_model viewer_weapon_pose viewer_weapons viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting viewer_grenades OpenGL::GL)
+    viewer_doodads viewer_vehicle_lods viewer_model viewer_weapon_pose viewer_weapons viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting viewer_grenades OpenGL::GL)
 if(WIN32)
     target_link_libraries(viewer_renderer PUBLIC GLEW::GLEW)
 endif()
@@ -438,10 +440,11 @@ target_compile_definitions(godollo_viewer PRIVATE
     VIEWER_WEAPON_CONFIGS="${CMAKE_CURRENT_SOURCE_DIR}/storage/weapons"
     VIEWER_VEHICLES="${CMAKE_CURRENT_SOURCE_DIR}/vehicles"
     VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}"
+    VIEWER_DOODAD_ASSETS="${VIEWER_DOODAD_ASSETS}"
     VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml"
     VIEWER_AUDIO_DIR="${VIEWER_AUDIO_DIR}"
 )
-add_dependencies(godollo_viewer viewer_test_asset viewer_audio_assets viewer_weapon_assets)
+add_dependencies(godollo_viewer viewer_test_asset viewer_audio_assets viewer_weapon_assets viewer_doodad_assets)
 viewer_warnings(godollo_viewer)
 endif()
 
@@ -520,6 +523,15 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING AND GD_VIEWER)
+    add_executable(test_doodad_renderer tests/test_doodad_renderer.cpp)
+    target_link_libraries(test_doodad_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_doodad_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
+        VIEWER_DOODAD_ASSETS="${VIEWER_DOODAD_ASSETS}")
+    add_dependencies(test_doodad_renderer viewer_doodad_assets)
+    viewer_warnings(test_doodad_renderer)
+    add_test(NAME viewer_doodad_renderer COMMAND test_doodad_renderer)
+    set_tests_properties(viewer_doodad_renderer PROPERTIES SKIP_RETURN_CODE 77)
     add_executable(test_hud tests/test_hud.cpp)
     target_link_libraries(test_hud PRIVATE viewer_hud glfw)
     target_compile_definitions(test_hud PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES

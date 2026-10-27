@@ -18,6 +18,12 @@ should frame the full scene without assuming it is at the origin.
 All geometry and texture pixels are created by the local script. No external
 assets, downloads, or attribution are required.
 
+## Ground clutter meshes
+
+[doodads/](doodads/README.md) contains an asymmetric Y-shaped branch, an irregular
+pentagonal stone and a hexagonal beer bottle. The offline builder produces
+standalone GLBs and previews from original procedural geometry.
+
 ## Recorded audio
 
 `audio/` contains curated PCM16 WAV effects used by the viewer, including hearing

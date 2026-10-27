@@ -248,6 +248,7 @@ ForestLayer loadForestLayer(const std::filesystem::path& path,const std::filesys
             if (!record.at("holes").is_array()) throw std::runtime_error("Forest holes must be an array");
             for (const auto& hole:record.at("holes")) polygon.holes.push_back(ring(hole));
             validateForestPolygon(polygon);
+            patch.footprint=polygon;
             patch.oldForest=oldForestPolygon(polygon);
             auto lo=polygon.exterior.front(),hi=lo;
             for (const auto p:polygon.exterior) {lo=glm::min(lo,p);hi=glm::max(hi,p);}
