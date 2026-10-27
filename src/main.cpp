@@ -1350,6 +1350,7 @@ int run(const Options& options) {
     }
     if (zombies) {
         zombies->attachPhysics(physics);
+        zombies->setRagdollCleanupHeight(model.boundsMin.y - 10.f);
         zombies->setPerceptionStaggering(options.zombiePerceptionStaggering);
         zombies->setPerceptionEnabled(options.zombiePerception);
         if (const auto* navigation = zombies->navigation()) {

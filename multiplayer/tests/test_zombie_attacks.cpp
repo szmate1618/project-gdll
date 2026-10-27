@@ -61,6 +61,16 @@ const PlayerState& playerState(const Snapshot& snapshot, std::uint32_t id) {
     return *found;
 }
 
+void escapedRagdollIsRetiredByServer(const Options& options) {
+    Scene scene(options);
+    openScene(scene,false);
+    World world(scene);
+    require(scene.zombies.knockDown(0,{300,0,0},0),"Server escape fixture must activate");
+    for (int tick=0;tick<600 && !scene.zombies.instances[0].removed;++tick) world.step();
+    require(scene.zombies.instances[0].removed && scene.zombies.ragdollCount()==0,
+            "Authoritative server must retire an escaped ragdoll using its loaded scene height");
+}
+
 void stationaryHitsAndIndependentHealth(const Options& options) {
     Scene scene(options);
     openScene(scene);
@@ -213,6 +223,7 @@ int main(int argc, char** argv) {
         options.zombieCount = 0;
         options.trees = options.forests = false;
         stationaryHitsAndIndependentHealth(options);
+        escapedRagdollIsRetiredByServer(options);
         disabledPerceptionStopsDamage(options);
         backlogVelocityMeasuresTheWholeTick(options);
         vehicleExitDoesNotBecomeImpactVelocity(options);

@@ -217,6 +217,21 @@ void degenerateReferenceCannotCreateAnInvalidHinge() {
     world.step(1.0f / 60.0f);
     require(world.count() == 1, "The world must remain usable after rejecting invalid anatomy");
 }
+void escapedDetachedPartCrossesCleanupPlane() {
+    viewer::ZombieRagdollWorld world;
+    const auto handle = world.create({0,-20,0},0,{});
+    require(!world.hasBodyBelow(handle,-30), "Valid below-zero placement must remain above the cleanup plane");
+    world.sever(handle,RagdollPart::head);
+    world.addLinearVelocity(handle,RagdollPart::head,{30,0,0});
+    for (int frame=0;frame<600 && !world.hasBodyBelow(handle,-30);++frame) world.step(1.f/60);
+    require(world.hasBodyBelow(handle,-30), "Detached head leaving its local floor must be detected below the plane");
+    require(world.bodyTransforms(handle)[index(RagdollPart::pelvis)][3].y>-21,
+            "Escape detection must not depend on the main body falling");
+    require(!world.hasBodyBelow(handle,-1000), "An escaped piece must not trigger a deeper cleanup plane");
+    world.destroy(handle);
+    require(!world.hasBodyBelow(handle,-30), "Destroyed handles must not report escaped bodies");
+}
+
 void motionRevisionsSleepWakeAndRemoval() {
     auto simulation = std::make_shared<viewer::PhysicsWorld>();
     viewer::ZombieRagdollWorld world(simulation);
@@ -281,6 +296,7 @@ int main() {
         repeatedActivationsRemainFiniteAndMoving();
         degenerateReferenceCannotCreateAnInvalidHinge();
         motionRevisionsSleepWakeAndRemoval();
+        escapedDetachedPartCrossesCleanupPlane();
         std::cout << "Zombie ragdoll tests passed\n";
         return 0;
     } catch (const std::exception& error) {

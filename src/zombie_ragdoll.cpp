@@ -191,6 +191,11 @@ public:
         for (const auto body : bodies_) if (b3Body_IsAwake(body)) return false;
         return true;
     }
+    bool hasBodyBelow(float cutoffY) const {
+        for (const auto body : bodies_)
+            if (b3Body_ComputeAABB(body).upperBound.y < cutoffY) return true;
+        return false;
+    }
     void translate(glm::vec3 displacement) {
         for (const auto body : bodies_) {
             b3Body_SetTransform(body, toB3Pos(fromB3(b3Body_GetPosition(body)) + displacement), b3Body_GetRotation(body));
@@ -509,6 +514,9 @@ std::uint64_t ZombieRagdollWorld::poseRevision(std::size_t handle) const {
 }
 bool ZombieRagdollWorld::sleeping(std::size_t handle) const {
     return valid(handle) && impl_->entries[handle].ragdoll->sleeping();
+}
+bool ZombieRagdollWorld::hasBodyBelow(std::size_t handle, float cutoffY) const {
+    return valid(handle) && impl_->entries[handle].ragdoll->hasBodyBelow(cutoffY);
 }
 void ZombieRagdollWorld::translate(std::size_t handle, glm::vec3 displacement) {
     if (!valid(handle)) throw std::out_of_range("Invalid ragdoll handle");

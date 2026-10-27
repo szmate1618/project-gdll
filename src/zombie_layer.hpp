@@ -168,6 +168,9 @@ struct ZombieLayer {
     // Attach before the first ragdoll. The app then steps the shared world and
     // calls synchronizePhysics(); standalone update() retains its own stepping.
     void attachPhysics(std::shared_ptr<PhysicsWorld> world);
+    // World Y-up meters; configure from scene.boundsMin.y - 10. Disabled until
+    // configured. Any escaped body (including a severed part) retires its owner.
+    void setRagdollCleanupHeight(float cutoffY);
     void synchronizePhysics();
     void synchronizePhysics(std::size_t zombie);
     bool meleeHit(std::size_t zombie, glm::vec3 impulse, glm::vec3 point, double animationSeconds);
@@ -208,6 +211,7 @@ private:
     friend class ZombieDoorCollision; // Reuse the living-body spatial index for door-local physics proxies.
     struct Physics;
     std::unique_ptr<Physics> physics_;
+    std::optional<float> ragdollCleanupY_;
     std::unique_ptr<ZombieNavigation> navigation_;
     struct ScenarioRoute {
         glm::vec3 destination{0};

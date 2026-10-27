@@ -39,6 +39,7 @@ World::World(Scene& scene) : scene_(scene), vehicleSeats_(scene),
     interiors_(scene.model, *scene.doors, 1), zombieDoors_(scene.physics), melee_(scene.physics) {
     viewer::SimulationClock::instance().reset();
     scene.zombies.attachPhysics(scene.physics);
+    scene.zombies.setRagdollCleanupHeight(scene.model.boundsMin.y - 10.f);
     if (!scene.vehicles->count()) {
         if (scene.vehiclePlacements) {
             viewer::placeVehicles(*scene.vehicles, *scene.vehiclePlacements);

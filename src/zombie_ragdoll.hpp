@@ -41,6 +41,9 @@ public:
     bool valid(std::size_t handle) const;
     std::uint64_t poseRevision(std::size_t handle) const;
     bool sleeping(std::size_t handle) const;
+    // True if any body's entire collider is below cutoffY (world Y-up meters),
+    // including severed parts. The local fallback floor is excluded.
+    bool hasBodyBelow(std::size_t handle, float cutoffY) const;
     // External mutations go through this owner so cached skinning cannot become
     // stale. Translation preserves the handoff reference; removal keeps IDs stable.
     void translate(std::size_t handle, glm::vec3 displacement);

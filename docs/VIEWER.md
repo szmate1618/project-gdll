@@ -893,6 +893,16 @@ streams compact instance transforms for each pass. `Renderer::zombiePaletteStats
 reports the last frame's needed/resident palettes, uploaded palettes, update
 calls/bytes, and retained GPU storage bytes.
 
+The standalone viewer and authoritative server retire escaped physics ragdolls
+below `model.boundsMin.y - 10 m`, using the loaded scene's runtime Y-up bounds.
+If any body's entire collider is below that plane, including a detached part,
+the complete owning corpse is removed through `ZombieLayer::removeRagdoll()`.
+This releases its bodies, joints, fallback floor and owned cavity contents, and
+keeps a stable tombstone while updating rendering/replication membership. Camera
+visibility does not control this cleanup. Unchanged sleeping poses skip repeated escape checks;
+changing the configured cleanup height also checks already-published corpses.
+Standalone physics fixtures leave cleanup disabled until explicitly configured.
+
 There is a small maintenance contract: **changes made outside normal physics
 simulation must go through the ragdoll's owning API**. This includes:
 

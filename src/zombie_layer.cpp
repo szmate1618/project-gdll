@@ -392,9 +392,29 @@ void ZombieLayer::setReplicatedWoundContents(std::vector<glm::mat4> transforms) 
     replicatedWoundContents_ = std::move(transforms);
 }
 
+void ZombieLayer::setRagdollCleanupHeight(float cutoffY) {
+    if (!std::isfinite(cutoffY)) throw std::invalid_argument("Ragdoll cleanup height must be finite");
+    ragdollCleanupY_ = cutoffY;
+    if (!physics_) return;
+    // Configuration can also change after corpses have settled. Check those
+    // once without invalidating their unchanged physics/skin revisions.
+    for (std::size_t slot = 0; slot < ragdollIds_.size();) {
+        const auto id = ragdollIds_[slot];
+        const auto& instance = instances[id];
+        if (instance.physicsRagdoll && physics_->world.hasBodyBelow(instance.ragdollHandle, cutoffY))
+            removeRagdoll(id);
+        else ++slot;
+    }
+}
+
 void ZombieLayer::synchronizePhysics() {
     if (!physics_) return;
-    for (const auto id : ragdollIds_) synchronizePhysics(id);
+    for (std::size_t slot = 0; slot < ragdollIds_.size();) {
+        const auto id = ragdollIds_[slot];
+        synchronizePhysics(id);
+        // Removal swaps the last corpse into this slot; process that owner too.
+        if (slot < ragdollIds_.size() && ragdollIds_[slot] == id) ++slot;
+    }
 }
 
 void ZombieLayer::synchronizePhysics(std::size_t id) {
@@ -403,6 +423,10 @@ void ZombieLayer::synchronizePhysics(std::size_t id) {
     if (instance.removed || !instance.ragdoll || !instance.physicsRagdoll) return;
     const auto revision = physics_->world.poseRevision(instance.ragdollHandle);
     if (revision == instance.physicsPoseRevision) return;
+    if (ragdollCleanupY_ && physics_->world.hasBodyBelow(instance.ragdollHandle, *ragdollCleanupY_)) {
+        removeRagdoll(id);
+        return;
+    }
     instance.transform = physics_->world.rootTransform(instance.ragdollHandle) *
         glm::inverse(instance.restRoot) * instance.restTransform;
     if (instance.asset < assets.size()) updateZombieRagdollSkin(instance, assets[instance.asset], physics_->world);

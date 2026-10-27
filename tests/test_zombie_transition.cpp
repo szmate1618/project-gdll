@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -350,6 +351,71 @@ void layerOwnsPoseInvalidation() {
     require(!layer.shoot({7, 3.9f, 1}, {0, 0, -1}), "Removed corpses must not become living targets again");
 }
 
+void escapedRagdollsReleaseTheirOwners() {
+    auto simulation=std::make_shared<viewer::PhysicsWorld>();
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(humanoid());
+    layer.instances.resize(4);
+    layer.attachPhysics(simulation);
+    // A map whose lowest surface is -20 m permits legitimate below-zero corpses.
+    layer.setRagdollCleanupHeight(-30);
+    for (std::size_t id=0;id<layer.instances.size();++id) {
+        auto& instance=layer.instances[id];
+        instance.restRoot=instance.restTransform=instance.transform=translation({0,-20,float(id)*10});
+        require(layer.knockDown(id,id ? glm::vec3(300,0,0) : glm::vec3(0),0), "Escape fixture must activate");
+    }
+    for (int frame=0;frame<600 && layer.ragdollCount()>1;++frame) layer.update(1.f/60);
+    require(layer.ragdollIds()==std::vector<std::size_t>{0} && !layer.instances[0].removed,
+            "Cleanup must retain the supported corpse and process every swapped escaped owner");
+    for (std::size_t id=1;id<layer.instances.size();++id)
+        require(layer.instances[id].removed && !layer.instances[id].physicsRagdoll && layer.instances[id].ragdollBones.empty(),
+                "Escaped corpse must leave a stable tombstone without a live skin palette");
+    const auto counters=b3World_GetCounters(simulation->id());
+    require(counters.bodyCount==12 && counters.jointCount==10,
+            "Escaped owners must release every body, floor and joint");
+}
+
+void detachedEscapeRetiresOwnerAbovePlane() {
+    auto simulation=std::make_shared<viewer::PhysicsWorld>();
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(humanoid());layer.instances.emplace_back();
+    layer.attachPhysics(simulation);layer.setRagdollCleanupHeight(-10);
+    viewer::ZombieJointCollider joint;
+    joint.bone=layer.assets[0].ragdollBones[std::size_t(viewer::RagdollPart::head)];
+    joint.part=viewer::RagdollPart::head;joint.radius=.1f;
+    layer.dismembermentAssets.resize(1);layer.dismembermentAssets[0].joints.push_back(joint);
+    const auto pose=viewer::sampleZombiePose(layer.assets[0],layer.instances[0],0);
+    const auto head=glm::vec3(pose[std::size_t(joint.bone)][3]);
+    require(layer.shoot(head+glm::vec3(0,0,3),{0,0,-1}) && layer.instances[0].severedJoint==0,
+            "Fixture must sever the head");
+    layer.applyRagdollImpulse(0,viewer::RagdollPart::head,{150,0,0});
+    for (int frame=0;frame<600 && !layer.instances[0].removed;++frame) layer.update(1.f/60);
+    require(layer.instances[0].removed && layer.ragdollCount()==0 && layer.instances[0].transform[3].y>-2,
+            "A detached part below the plane must retire its owner even while its torso stays above");
+    const auto counters=b3World_GetCounters(simulation->id());
+    require(counters.bodyCount==0 && counters.jointCount==0,"Detached escape cleanup must release the complete owner");
+}
+
+void cleanupConfigurationChecksExistingCorpses() {
+    auto simulation=std::make_shared<viewer::PhysicsWorld>();
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(humanoid());layer.instances.emplace_back();layer.attachPhysics(simulation);
+    auto& instance=layer.instances[0];
+    instance.restRoot=instance.restTransform=instance.transform=translation({0,-50,0});
+    require(layer.knockDown(0,{},0),"Configuration fixture must activate");
+    layer.update(1.f/60);
+    require(!instance.removed,"Unconfigured fixtures must retain their existing behavior");
+    layer.setRagdollCleanupHeight(-60);
+    require(!instance.removed,"A safe existing corpse must survive enabling cleanup");
+    bool rejected=false;
+    try { layer.setRagdollCleanupHeight(std::numeric_limits<float>::quiet_NaN()); }
+    catch (const std::invalid_argument&) { rejected=true; }
+    require(rejected,"Cleanup height must reject nonfinite configuration");
+    layer.setRagdollCleanupHeight(-40);
+    require(instance.removed && b3World_GetCounters(simulation->id()).bodyCount==0,
+            "Changing cleanup height must also retire an already-published corpse");
+}
+
 void renderChangesFollowBehavior() {
     viewer::ZombieLayer layer;
     layer.assets.push_back(humanoid());
@@ -524,6 +590,9 @@ int main() {
         unknownRigFollowsFallbackMotion();
         shotWhileWalking();
         layerOwnsPoseInvalidation();
+        escapedRagdollsReleaseTheirOwners();
+        detachedEscapeRetiresOwnerAbovePlane();
+        cleanupConfigurationChecksExistingCorpses();
         renderChangesFollowBehavior();
         corpseMembership();
         headshotFollowsDisplayedPose(false);
