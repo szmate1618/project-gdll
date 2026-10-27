@@ -246,6 +246,10 @@ add_library(viewer_collision STATIC src/collision_world.cpp src/door_collision.c
 target_link_libraries(viewer_collision PUBLIC viewer_model)
 viewer_warnings(viewer_collision)
 
+add_library(viewer_birds STATIC src/bird_flock.cpp src/bird_flight_space.cpp)
+target_link_libraries(viewer_birds PUBLIC viewer_collision viewer_visibility)
+viewer_warnings(viewer_birds)
+
 add_library(viewer_noise STATIC src/noise.cpp src/player_noise.cpp)
 target_include_directories(viewer_noise PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(viewer_noise PUBLIC glm::glm)
@@ -394,6 +398,7 @@ viewer_warnings(viewer_grenades)
 if(GD_VIEWER)
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/renderer_presentation.cpp
+    src/bird_renderer.cpp
     src/gpu_timer.cpp
     src/box_renderer.cpp
     src/doodad_renderer.cpp
@@ -405,7 +410,7 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
     src/zombie_renderer.cpp src/zombie_wound_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/blood_mist_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
-    viewer_doodads viewer_vehicle_lods viewer_model viewer_weapon_pose viewer_weapons viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting viewer_grenades OpenGL::GL)
+    viewer_birds viewer_doodads viewer_vehicle_lods viewer_model viewer_weapon_pose viewer_weapons viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting viewer_grenades OpenGL::GL)
 if(WIN32)
     target_link_libraries(viewer_renderer PUBLIC GLEW::GLEW)
 endif()
@@ -449,6 +454,13 @@ viewer_warnings(godollo_viewer)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(test_bird_flock tests/test_bird_flock.cpp)
+    target_link_libraries(test_bird_flock PRIVATE viewer_birds)
+    viewer_warnings(test_bird_flock)
+    add_test(NAME viewer_bird_flock COMMAND test_bird_flock)
+    add_executable(benchmark_bird_flock EXCLUDE_FROM_ALL tests/benchmark_bird_flock.cpp)
+    target_link_libraries(benchmark_bird_flock PRIVATE viewer_birds)
+    viewer_warnings(benchmark_bird_flock)
     add_executable(test_zombie_steering tests/test_zombie_steering.cpp)
     target_link_libraries(test_zombie_steering PRIVATE viewer_zombie_steering viewer_detour_avoidance)
     viewer_warnings(test_zombie_steering)
@@ -532,6 +544,13 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_doodad_renderer)
     add_test(NAME viewer_doodad_renderer COMMAND test_doodad_renderer)
     set_tests_properties(viewer_doodad_renderer PROPERTIES SKIP_RETURN_CODE 77)
+    add_executable(test_bird_renderer tests/test_bird_renderer.cpp)
+    target_link_libraries(test_bird_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_bird_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_bird_renderer)
+    add_test(NAME viewer_bird_renderer COMMAND test_bird_renderer)
+    set_tests_properties(viewer_bird_renderer PROPERTIES SKIP_RETURN_CODE 77)
     add_executable(test_hud tests/test_hud.cpp)
     target_link_libraries(test_hud PRIVATE viewer_hud glfw)
     target_compile_definitions(test_hud PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES

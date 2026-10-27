@@ -1,5 +1,7 @@
 #include "zombie_update_profile.hpp"
 #include "renderer.hpp"
+#include "bird_flock.hpp"
+#include "bird_renderer.hpp"
 #include "frame_profile.hpp"
 #include "door_layer.hpp"
 #include "player_interaction.hpp"
@@ -92,6 +94,8 @@ struct Options {
     viewer::DayNightCycle dayNight;
     bool explicitDayNight = false;
     bool rain = false;
+    bool noBirds = false, explicitBirds = false;
+    viewer::BirdFlockSettings birds;
     viewer::AudioOptions audio{VIEWER_AUDIO_DIR};
     bool noForests = false;
     viewer::VegetationSelection vegetation;
@@ -130,6 +134,21 @@ Options parseOptions(int argc, char** argv) {
         };
         if (argument == "--help" || argument == "-h") options.help = true;
         else if (argument == "--profile") options.profile = true;
+        else if (argument == "--birds") options.explicitBirds = true;
+        else if (argument == "--no-birds") options.noBirds = true;
+        else if (argument == "--bird-flocks" || argument == "--birds-per-flock") {
+            const auto text = value();
+            std::size_t used = 0;
+            int count;
+            const int maximum = argument == "--bird-flocks" ? 64 : 4096;
+            const auto message = argument + " requires an integer in [1, " + std::to_string(maximum) + "]";
+            try { count = std::stoi(text, &used); }
+            catch (const std::exception&) { throw std::runtime_error(message); }
+            if (used != text.size() || count < 1 || count > maximum) throw std::runtime_error(message);
+            if (argument == "--bird-flocks") options.birds.flockCount = static_cast<std::size_t>(count);
+            else options.birds.birdsPerFlock = static_cast<std::size_t>(count);
+            options.explicitBirds = true;
+        }
         else if (argument == "--hud-screen") {
             const auto screen = value();
             if (screen == "inventory") options.hudScreen = viewer::HudScreen::Inventory;
@@ -313,6 +332,10 @@ Options parseOptions(int argc, char** argv) {
         throw std::runtime_error("Use either --guardrails FILE or --no-guardrails");
     if (options.noZombies && options.explicitZombies)
         throw std::runtime_error("Use zombie options or --no-zombies, not both");
+    if (options.noBirds && options.explicitBirds)
+        throw std::runtime_error("Use bird options or --no-birds, not both");
+    if (options.birds.flockCount * options.birds.birdsPerFlock > 65536)
+        throw std::runtime_error("Bird population must not exceed 65536");
     if (options.noZombies && !options.scenario.empty())
         throw std::runtime_error("--scenario requires zombies; omit --no-zombies");
     if (options.zombieView && options.fps)
@@ -340,6 +363,10 @@ void printHelp() {
               << "  --day-length S      Seconds per full day, default 1200; 0 freezes the hour\n"
               << "  --night             Fixed night with a camera flashlight\n"
               << "  --rain              Enable nearby animated rain streaks\n"
+              << "  --birds             Enable bird flocks even on small test scenes\n"
+              << "  --bird-flocks N     Flock count (default 6, max 64)\n"
+              << "  --birds-per-flock N Birds per flock (default 192, max 4096; total max 65536)\n"
+              << "  --no-birds          Disable automatic bird flocks on town-sized terrain\n"
               << "  --no-audio          Disable playback; AI hearing stays active\n"
               << "  --no-hrtf           Use ordinary positional audio\n"
               << "  --audio-dir DIR     Load PCM16 WAV effects and ambience from DIR\n"
@@ -1409,6 +1436,15 @@ int run(const Options& options) {
     if (placements && app.rig.walking() && !app.rig.enterWalking(app.rig.camera().position()))
         throw std::runtime_error("Unable to find a valid FPS starting position beside parked vehicles");
     app.cars = &cars;
+    std::unique_ptr<viewer::BirdFlocks> birds;
+    std::unique_ptr<viewer::BirdRenderer> birdRenderer;
+    if (!options.noBirds && (options.explicitBirds || townSizedTerrain)) {
+        birds = std::make_unique<viewer::BirdFlocks>(collision, trees ? &*trees : nullptr,
+            model.boundsMin, model.boundsMax, app.rig.camera().position(), options.birds);
+        if (!birds->birds().empty()) birdRenderer = std::make_unique<viewer::BirdRenderer>(options.shaders);
+        std::cout << "Birds: " << birds->birds().size() << " in " << birds->flocks().size()
+                  << " flocks; move or duck when they gather for a dive; cover blocks attacks\n";
+    }
     app.zombies = zombies ? &*zombies : nullptr;
     app.doors = &doors;
     app.boxes = &boxes;
@@ -1556,6 +1592,7 @@ int run(const Options& options) {
         if (doodads) doodads->update(app.rig.camera().position(),physicsScene,doors);
         const auto previousCameraPosition = playerPresentation.eye(physics->interpolationAlpha());
         bool simulated = false;
+        float birdSeconds = 0;
         const auto followPlayerBody = [&] {
             playerBody.follow(app.rig.camera().position(), app.rig.camera().direction(),
                 !app.driver.occupied() && !app.weaponSwitch.pending() && app.weapons.slot() == viewer::punchSlot &&
@@ -1571,6 +1608,7 @@ int run(const Options& options) {
         physics->step(dt, [&](float step) {
             simulated = true;
             simulationClock.advance(step);
+            birdSeconds += step;
             app.displayedAnimationSeconds = options.animationTime.value_or(simulationClock.seconds());
             app.weaponReload.update(app.weapons, app.inventory, simulationClock.seconds());
             app.weapons.syncAmmo(app.inventory);
@@ -1666,6 +1704,14 @@ int run(const Options& options) {
                 nextDoodadSave = now+5;
             }
         }
+        if (birds && birdSeconds > 0) {
+            const auto& player = app.rig.player();
+            const viewer::BirdFlockPlayer target{player.feet(), player.bodyHeight(), player.config().radius,
+                app.rig.walking() && !app.driver.occupied() && app.vitals.health() > 0};
+            const unsigned hits = birds->update(birdSeconds, target);
+            if (app.vitals.applyDamage(static_cast<float>(hits)) > 0)
+                app.lastDamageSeconds = simulationClock.seconds();
+        }
         if (!simulated) audio.service();
         app.displayedAnimationSeconds = options.animationTime.value_or(simulationClock.seconds());
         if (!options.night) {
@@ -1710,6 +1756,9 @@ int run(const Options& options) {
         gpuTimer.begin();
         const double renderStart = glfwGetTime();
         renderer.render(viewCamera, app.displayedAnimationSeconds, [&] {
+            if (birdRenderer)
+                birdRenderer->draw(viewCamera, float(renderWidth) / renderHeight,
+                    app.displayedAnimationSeconds, birds->birds());
             if (!app.driver.occupied() && !app.weaponSwitch.pending() && app.weapons.slot() == viewer::punchSlot &&
                 app.interaction.mode() == viewer::ControlMode::Combat)
                 bodyRenderer.drawPose(presentedBody, viewCamera.projection(float(renderWidth) / renderHeight) *
@@ -1754,6 +1803,14 @@ int run(const Options& options) {
         hudState.reloadDuration = app.weaponReload.duration();
         if (app.driver.occupied()) hudState.prompt = "Enter: exit vehicle";
         else if (app.interaction.grabbing()) hudState.prompt = "Holding object";
+        else if (birds && app.rig.walking() && app.vitals.health() > 0) {
+            for (const auto& flock : birds->flocks()) {
+                if (flock.mode == viewer::BirdFlockMode::gathering || flock.mode == viewer::BirdFlockMode::swooping) {
+                    hudState.prompt = "Birds diving! Move aside, duck or reach cover";
+                    break;
+                }
+            }
+        }
         hud.draw(hudState, app.width, app.height);
         (void)hud.takeInventoryActions(); // Standalone already applies these operations locally.
         intervalRenderSeconds += glfwGetTime() - renderStart;

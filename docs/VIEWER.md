@@ -639,6 +639,49 @@ outside woodland, and their poses are saved beside the map.
 Use `--no-doodads` to disable them or `--doodad-save FILE` for a separate save.
 See [placement, streaming and persistence](DOODADS.md) for details and checks.
 
+## Bird flocks
+
+The standalone viewer automatically adds six flocks of 192 black birds to
+terrain at least 100 m wide and deep. No extra assets or map generation are
+needed. Use `--no-birds` for comparisons, or change the population:
+
+```bash
+./build/godollo_viewer output/godollo.glb --fps --bird-flocks 8 --birds-per-flock 512
+./build/godollo_viewer assets/test.glb --birds --hidden --fixed-step --frames 120
+```
+
+Each flock flies between random 3D waypoints. Shared steering supplies cohesion
+and alignment; four sampled neighbors per bird approximate separation without
+an all-pairs search. A static BVH over the loaded tree canopies and the scene's
+existing collision indexes validate spawn points, waypoints and shared flight
+corridors. Placement uses world meters with Y up. Failed placement attempts have
+a fixed budget, so crowded scenes can produce fewer flocks.
+
+At most one randomly selected bird checks for the player per simulation frame.
+A nearby sighting starts a brief gathering phase and a HUD warning, followed by
+a committed flight through the sighted position toward a point beyond it. Move
+sideways, duck after the flock commits, or reach cover. Birds recover between
+passes instead of following the player continuously. Each swept bird impact
+costs **1 HP**, with at most one hit from that bird per pass; cover also blocks
+damage. Free-fly observers and vehicle occupants are not attacked.
+
+Each bird is three perpendicular square cards: a triangle from above, a flat
+diamond from the side, and a disk with a flat wing diamond from the front. The
+fragment shader makes these masks directly, so no texture files are required.
+Velocity sets orientation and a small wing motion runs on the GPU. Visible birds
+share one instanced draw, write silhouette depth and discard empty card pixels.
+There are no bird rigid bodies, shadow passes or per-bird navigation queries.
+Collision avoidance uses a shared approximate corridor; individual birds can
+clip obstacles at formation edges. This prototype currently runs in the
+standalone viewer; multiplayer replication is not implemented.
+
+`--birds` enables flocks on small fixtures. Counts are limited to 64 flocks,
+4,096 birds per flock and 65,536 birds total. The default seed is repeatable.
+CPU regressions are `viewer_bird_flock`; GPU silhouette, depth and GL-state
+checks are `viewer_bird_renderer`. A fixed-step CPU scaling check is available
+with `cmake --build build --target benchmark_bird_flock -j4` followed by
+`./build/benchmark_bird_flock`.
+
 ## Zombie crowd
 
 The [zombie assets](../assets/zombies/README.md) live separately from the generated
