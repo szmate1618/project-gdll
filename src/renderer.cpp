@@ -1,4 +1,5 @@
 #include "renderer.hpp"
+#include "frame_stage_profile.hpp"
 #include "door_layer.hpp"
 #include "rain_renderer.hpp"
 #include "blood_mist_renderer.hpp"
@@ -413,9 +414,16 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         shadowPassLocation_ >= 0 && flashlightShadowsLocation_ >= 0;
     const Frustum flashlightFrustum(flashlight.projectionView());
     const Frustum lightFrustum(shadowView.projectionView());
-    prepareZombieDraws(Frustum(projection * view), castShadows ? &lightFrustum : nullptr, camera, projection, animationSeconds, flashlightCasting ? &flashlightFrustum : nullptr);
-    if (castShadows) drawSunShadows(shadowView, animationSeconds);
+    {
+        frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombiePreparation);
+        prepareZombieDraws(Frustum(projection * view), castShadows ? &lightFrustum : nullptr, camera, projection, animationSeconds, flashlightCasting ? &flashlightFrustum : nullptr);
+    }
+    if (castShadows) {
+        frame_stage_profile::Timer timer(frame_stage_profile::Stage::shadows);
+        drawSunShadows(shadowView, animationSeconds);
+    }
     if (flashlightCasting) {
+        frame_stage_profile::Timer timer(frame_stage_profile::Stage::shadows);
         // First-use shadow-map allocation changes the unit-0 texture binding.
         materialState_.reset();
         drawFlashlightShadows(flashlight, animationSeconds);
@@ -438,23 +446,33 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     glDisable(GL_BLEND);
     glUniform1i(instancedLocation_, GL_FALSE);
     glUniform1i(animatedLocation_, GL_FALSE);
-    gatherVisibleSceneDraws(projection * view, camera.position(), projection);
-    beginTownPass(camera.position(), projection);
-    for (const auto index : opaqueScene_) {
-        if (drawTownSource(index)) ++sceneStats_.drawCalls;
+    {
+        frame_stage_profile::Timer timer(frame_stage_profile::Stage::town);
+        gatherVisibleSceneDraws(projection * view, camera.position(), projection);
+        beginTownPass(camera.position(), projection);
+        for (const auto index : opaqueScene_) {
+            if (drawTownSource(index)) ++sceneStats_.drawCalls;
+        }
     }
-    drawTrees(projection * view, false, cameraVisibility_);
-    drawForests(projection * view, false, cameraVisibility_.forests);
+    {
+        frame_stage_profile::Timer timer(frame_stage_profile::Stage::vegetation);
+        drawTrees(projection * view, false, cameraVisibility_);
+        drawForests(projection * view, false, cameraVisibility_.forests);
+    }
     drawZombies(animationSeconds);
-    drawBoxes(projection * view);
-    drawDoodads(projection * view);
-    drawDroppedWeapons(projection * view);
-    drawWoundContents(projection * view);
-    drawGrenades(projection * view);
+    {
+        frame_stage_profile::Timer timer(frame_stage_profile::Stage::props);
+        drawBoxes(projection * view);
+        drawDoodads(projection * view);
+        drawDroppedWeapons(projection * view);
+        drawWoundContents(projection * view);
+        drawGrenades(projection * view);
 
-    drawVehicles(projection * view);
+        drawVehicles(projection * view);
+    }
     if (drawOpaque) drawOpaque();
     if (zombieSource_) {
+        frame_stage_profile::Timer timer(frame_stage_profile::Stage::bloodDraws);
         auto bursts = zombieSource_->bloodMist().sample(animationSeconds);
         if (!bursts.empty() || zombieSource_->bloodParticles().hasEffects(animationSeconds)) {
             if (!bloodMist_) bloodMist_ = std::make_unique<BloodMistRenderer>(shaderDirectory_);

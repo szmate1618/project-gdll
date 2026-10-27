@@ -133,6 +133,7 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
             changeState(behavior, ZombieState::chasing, now);
             ++instance.chaseRevision;
             instance.chaseSeconds = now;
+            if (zombie_profile::activeProfile) ++zombie_profile::activeProfile->chaseStarts;
         } else if (behavior.state == ZombieState::idle || behavior.state == ZombieState::looking)
             changeState(behavior, ZombieState::investigating, now);
     }
@@ -322,6 +323,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
                                     const CollisionWorld& world, double animationSeconds,
                                     const std::vector<ZombiePlayer>* players) {
     zombie_profile::Timer timer(zombie_profile::Stage::behaviorDispatch);
+    zombie_profile::PhaseTimer phase(&zombie_profile::Profile::behaviorSeconds);
     attackHits_.clear();
     if (!std::isfinite(seconds) || seconds <= 0) return;
     if (!perceptionEnabled_) {
@@ -329,6 +331,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
         if (!scenarioRoutes_.empty()) {
             ensureSpatialIndex();
             crowd_.beginStep();
+            phase.finish();
             updateScenarioRoutes(seconds, world, player, players);
         }
         return; // No nearby-player queries or behavior creation in this mode.
@@ -357,6 +360,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
             behavior.attackVisible = false;
             behavior.attackClock = {};
         }
+        phase.finish();
         updateScenarioRoutes(seconds, world, player, players, true);
         return;
     }
@@ -443,6 +447,8 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
         const bool claimed = stepBehavior(behavior, instance, assets[instance.asset], selectedPlayer, world,
                      seconds, now, animationSeconds, staggerPerception_, behaviorStats_, crowd_, players,
                      scenarioFallback, attackHits_);
+        if (zombie_profile::activeProfile)
+            ++zombie_profile::activeProfile->behaviorStates[std::size_t(behavior.state)];
         if (claimed && scenarioDestination(id)) abandonScenarioRoute(id);
         const bool moved = beforeTransform != instance.transform;
         if (moved || wasWalking != instance.walking || wasRunning != instance.running || beforeSeconds != instance.walkSeconds)
@@ -456,6 +462,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
             continue;
         }
     }
+    phase.finish();
     updateScenarioRoutes(seconds, world, player, players);
 }
 

@@ -767,6 +767,11 @@ no distance cutoff, so its overview can show the entire crowd; an explicit
 `--zombie-draw-distance` still takes precedence. `--no-zombie-lod` disables mesh
 selection, animation stepping and the distance cutoff for comparison.
 `--no-zombie-shadows` disables only zombie casting for GPU cost comparisons.
+Camera distance rejection first skips occupied zombie groups outside a
+conservative, projection-scaled region, before frustum testing and sorting.
+The exact distance/LOD decision still follows; sun and flashlight candidates
+remain independent of camera distance. Shutdown reports early rejected groups
+separately from individual distance rejections after the frustum query.
 `--profile` prints the existing asynchronous GPU and CPU render timings once per
 second, including during hidden runs. The title also reports `CPU sim` for
 physics, camera movement and zombie behavior before rendering. Console profiling
@@ -774,6 +779,19 @@ separates behavior time and renderer preparation (door/instance/bounds updates),
 and reports the behavior-pool entry count and the last step's perception/sight-ray
 counts. Pool entries track perception/behavior activity, not the total number of
 scenario travelers.
+The zombie breakdown also reports inclusive gameplay-behavior and scenario-travel
+times per simulation step, processed behavior-state counts, and chase starts.
+Inclusive phase times overlap the exclusive query stages; do not add them together.
+Separate coarse timings cover weapons (including shot/hearing work), rigid-body
+physics, wound preparation, zombie physics synchronization, blood effects, and
+audio. CPU render details cover zombie visibility/pose preparation, shadows,
+town and vegetation camera passes, zombie draws across all passes, props,
+effects, overlays, and HUD. These are inclusive CPU wall times: nested stages
+overlap, and driver stalls can occur inside a draw. Those timings are per
+rendered frame, while zombie breakdowns are per
+fixed simulation step: slower rendering can increase the number of steps per
+frame without increasing the cost of each step. These coarse stages cover part
+of simulation outside behavior; they are not a complete simulation breakdown.
 `--frame-profile FILE` writes per-frame GPU and CPU timing CSVs independently
 of `--profile`; use it alone to avoid fine zombie-query timing overhead.
 GPU samples are asynchronous, so CSV row order can differ from frame order;

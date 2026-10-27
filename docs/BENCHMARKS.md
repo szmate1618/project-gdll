@@ -342,6 +342,10 @@ times as normal execution costs.
 
 Measured example: [1,600-zombie real-map substeps, 2026-10-23](benchmarks/zombie-update-substeps-2026-10-23.txt).
 
+The [53,000-actor corridor visibility investigation](benchmarks/corridor-zombie-visibility-2026-10-27.txt)
+separates pursuit from traveler simulation and records an 80-second matched
+camera-distance rejection comparison, with unchanged final captures.
+
 Cumulative optimization results: [contact and coverage experiments, 2026-10-24](benchmarks/contact-coverage-first-four-2026-10-24.txt).
 The real-map harness now also saves `final-poses.bin` for exact cross-version
 final-pose comparisons, and CSVs include certified-region reuse/build counters.

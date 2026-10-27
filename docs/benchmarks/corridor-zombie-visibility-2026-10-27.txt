@@ -1,0 +1,79 @@
+Corridor chase CPU rendering investigation
+Recorded 2026-10-27. Release build; Radeon 660M, Mesa 24.2.8, hardware OpenGL.
+
+Finding and change
+Zombie camera visibility gathered and sorted distant candidates before applying
+the camera draw-distance policy. A short diagnostic run attributed about 7.3 ms
+to the visibility query and another 1.0 ms to LOD selection, despite only about
+100 submitted camera instances. Palette uploads and GL error checking were tiny.
+
+The renderer now supplies a conservative camera region derived from the existing
+distance policy and projection scale. Group and member bounds outside that region
+skip camera frustum/candidate work. Full transformed bounds remain authoritative;
+exact center-distance/LOD decisions still run on surviving candidates. Zoom
+extends the region, and disabled detail/unlimited distance omit it entirely.
+Sun and flashlight membership remain independent of camera distance. Simulation,
+collision, pursuit lifetime and actor activation were not changed.
+
+Matched walking replay
+- Existing published town and vegetation; no generation or map changes.
+- Frozen snapshot of the user's corridor configuration: seed 42, 53,000 actors
+  (52,000 initially idle and 1,000 travelers), cropped density image, player
+  spawn X=-700 Z=300, yaw=-142.5, pitch=0.
+- Hidden hardware rendering at 1280x720; normal shadows/LOD, audio enabled,
+  default day/night cycle, no shooting, no ragdolls. Vehicles and birds retained.
+- Exactly 4,800 fixed 1/60 s steps: 80 simulated seconds per case.
+- First 60 steps stationary; then W+A walking at 3 m/s. If progress over a
+  second falls below 1.5 m, sidestep left for three seconds to bypass buildings.
+  Input replay is in scratch main snapshots, not production gameplay code.
+- Before and after each run the same route, with perception enabled and disabled.
+- Fine zombie profiling enabled in all four cases. It adds overhead: the earlier
+  short control pair measured about 0.77 ms/step of instrumentation. These are
+  matched diagnostic timings, not uninstrumented gameplay performance claims.
+- Table uses medians over frames 3600..4800 inclusive (the final 20 seconds).
+
+Case                         CPU simulation   CPU render   Total CPU work
+Before, perception on           4.884 ms       10.512 ms      15.630 ms
+After, perception on            4.873 ms        6.978 ms      12.068 ms
+Before, perception off          4.100 ms       10.481 ms      14.781 ms
+After, perception off           4.117 ms        7.024 ms      11.356 ms
+
+For the chase case, median CPU render fell 33.6%; render p95 fell from 11.941
+to 7.644 ms. Simulation stayed essentially unchanged. Perception/chasing added
+about 0.8 ms of simulation in this late interval, independently of the render
+improvement. Earlier 6 m/s replays accumulated about 200 chasing actors after
+80 seconds; ordinary gameplay behavior took about 1.2 ms/step there.
+
+Both before/after final screenshot pairs are pixel-identical. The chase pair
+retains 44 camera instances, camera LOD0/1/2/3 counts 6/3/12/23, 20,590 camera
+triangles and 26,430 sun-shadow triangles. Captures were visually inspected.
+
+The original 39-41 FPS gunfire/ragdoll intervals were not reproduced by this
+walking replay. This establishes a substantial CPU render bottleneck and its
+improvement, not that every reported dip has one cause. Off-screen pursuers
+still simulate and may cast shadows. New inclusive behavior/travel timings,
+state counts, and coarse CPU render/simulation stages help distinguish those
+costs in a future interactive trace. Inclusive/nested timings must not be added.
+
+Validation
+- Full Release build.
+- Focused zombie visibility, LOD, movement, behavior, chase and travel tests.
+- Hardware zombie renderer regressions, including camera distance rejection,
+  scoped rendering and independent shadow/palette retention.
+- Visibility tests compare with an independent per-instance scan, including
+  range-boundary contact, wide bounds, moved groups and flashlight-only actors.
+- Required zombies-open-100k-v1 control: all six rounds submitted all 100,000
+  actors, 10 draws and 12,580,000 camera triangles; distance culling disabled.
+  Median of round means: GPU 16.765 ms, CPU render 20.446 ms. This control checks
+  the unlimited-view case; it is not a before/after timing comparison.
+
+Retained local evidence (ignored outputs)
+build/benchmarks/chase-activation-20261027/
+  scenario.toml: frozen relative-path scenario snapshot.
+  summary.json: input SHA-256 fingerprints and frame timing median/p95 values.
+  route_main.cpp, corridor_main.cpp, walk_main.cpp: diagnostic replay snapshots.
+  run_walk.py, run_after.py: sequential matched replay commands.
+  walk-*.csv, walk-*.log, walk-*.ppm: before/after frames, stage logs and captures.
+  render-detail.log: visibility/LOD/palette/error-check attribution.
+  graphics-tests.log, *build.log: graphics regression and build results.
+  open-100k/: CSV rounds, metadata, report and inspected capture.

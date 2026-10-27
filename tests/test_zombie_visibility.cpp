@@ -14,15 +14,19 @@ VisibilityBounds box(glm::vec3 center, glm::vec3 half = glm::vec3(0.5f)) { retur
 
 viewer::ZombieVisibilityStats compare(viewer::ZombieVisibility& groups, const std::vector<VisibilityBounds>& bounds,
                                      const std::vector<bool>& active, const viewer::Frustum& camera, const viewer::Frustum* light = nullptr,
-                                     bool cameraCulling = true, const viewer::Frustum* flashlight = nullptr) {
+                                     bool cameraCulling = true, const viewer::Frustum* flashlight = nullptr,
+                                     const VisibilityBounds* cameraRegion = nullptr) {
     std::vector<viewer::ZombieVisibilityResult> actual, expected;
-    const auto stats = groups.query(camera, light, cameraCulling, actual, flashlight);
+    const auto stats = groups.query(camera, light, cameraCulling, actual, flashlight, cameraRegion);
     // Independent full population query is the original rendering predicate.
     for (std::size_t id = 0; id < bounds.size(); ++id) {
         require(groups.contains(id) == active[id], "Membership must match independently recorded updates/removals");
         if (!active[id]) continue;
         const auto& b = bounds[id];
-        const bool inCamera = !cameraCulling || camera.intersects(b.minimum, b.maximum);
+        bool inCamera = !cameraCulling || camera.intersects(b.minimum, b.maximum);
+        if (cameraRegion) for (int axis = 0; axis < 3; ++axis)
+            if (b.maximum[axis] < cameraRegion->minimum[axis] || b.minimum[axis] > cameraRegion->maximum[axis])
+                inCamera = false;
         const bool inShadow = light && light->intersects(b.minimum, b.maximum);
         const bool inFlashlight = flashlight && flashlight->intersects(b.minimum, b.maximum);
         if (inCamera || inShadow || inFlashlight) expected.push_back({id, inCamera, inShadow, inFlashlight});
@@ -113,6 +117,27 @@ void movementRemovalAndReuse() {
     compare(groups, bounds, active, camera);
 }
 
+void cameraRegionRetainsIndependentLightsAndWideBounds() {
+    const viewer::Frustum camera(glm::ortho(-500.f,500.f,-500.f,500.f,-500.f,500.f));
+    const viewer::Frustum light(glm::ortho(80.f,110.f,-10.f,10.f,-10.f,10.f));
+    const viewer::Frustum flashlight(glm::ortho(8.f,12.f,-10.f,10.f,-10.f,10.f));
+    const auto region=box({0,0,0},{5,5,5});
+    std::vector<VisibilityBounds> bounds{
+        box({0,0,0}),box({10,0,0}),box({100,0,0}),box({101,0,0}),box({200,0,0},{199,1,1}),
+        box({5.5f,0,0})}; // Touching the range boundary remains a candidate.
+    std::vector<bool> active(bounds.size(),true);
+    viewer::ZombieVisibility groups;groups.reset(bounds.size());
+    for (std::size_t i=0;i<bounds.size();++i) groups.update(i,bounds[i]);
+    const auto stats=compare(groups,bounds,active,camera,&light,true,&flashlight,&region);
+    require(stats.cameraRegionRejectedGroups==1 && stats.cameraGroupTests==2,
+            "Far camera groups must skip frustum work while retaining sun/flashlight-only members");
+    compare(groups,bounds,active,camera,&light,false,&flashlight,&region);
+    compare(groups,bounds,active,camera,nullptr,true,nullptr,&region);
+    bounds[4]=box({200,0,0});groups.update(4,bounds[4]);
+    require(compare(groups,bounds,active,camera,nullptr,true,nullptr,&region).cameraRegionRejectedGroups==2,
+            "Shrinking a wide bound must restore early range rejection after refitting");
+}
+
 void randomViewsMatchFullScan() {
     std::mt19937 random(731);
     std::uniform_real_distribution<float> coordinate(-250, 250), extent(0.02f, 15);
@@ -147,6 +172,8 @@ void randomViewsMatchFullScan() {
                                         glm::lookAt(eye, glm::vec3(0), glm::vec3(0, 1, 0)));
         compare(groups, bounds, active, camera, view % 3 == 0 ? nullptr : &light, view % 4 != 0,
                 view % 2 == 0 ? nullptr : &flashlight);
+        const auto region=box({eye.x,0,eye.z},{55,1000,55});
+        compare(groups, bounds, active, camera, &light, true, &flashlight, &region);
     }
 }
 
@@ -194,6 +221,7 @@ int main() {
     try {
         insideOutsideAndBoundaryGroups();
         movementRemovalAndReuse();
+        cameraRegionRetainsIndependentLightsAndWideBounds();
         randomViewsMatchFullScan();
         largeCrowdRejectsGroups();
         std::cout << "Zombie visibility tests passed\n";

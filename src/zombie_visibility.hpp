@@ -17,6 +17,7 @@ struct ZombieVisibilityStats {
     std::size_t cameraGroupTests = 0, shadowGroupTests = 0;
     std::size_t flashlightGroupTests = 0, flashlightInstanceTests = 0;
     std::size_t cameraInstanceTests = 0, shadowInstanceTests = 0;
+    std::size_t cameraRegionRejectedGroups = 0;
 };
 
 // Render-thread grid in X/Z world meters. Membership uses full bound centers;
@@ -31,9 +32,12 @@ public:
     // change to that box, even if the instance remains in the same grid cell.
     void update(std::size_t instance, const VisibilityBounds& bounds);
     void erase(std::size_t instance);
+    // The optional camera region rejects full bounds before frustum tests.
+    // It never restricts either light, even when camera culling is disabled.
     ZombieVisibilityStats query(const Frustum& camera, const Frustum* light,
                                 bool cameraCulling, std::vector<ZombieVisibilityResult>& visible,
-                                const Frustum* flashlight = nullptr);
+                                const Frustum* flashlight = nullptr,
+                                const VisibilityBounds* cameraRegion = nullptr);
 
 private:
     static constexpr std::size_t noGroup = static_cast<std::size_t>(-1);

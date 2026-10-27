@@ -1,4 +1,5 @@
 #include "renderer.hpp"
+#include "frame_stage_profile.hpp"
 #include "zombie_animation.hpp"
 #include "zombie_lod.hpp"
 
@@ -352,92 +353,116 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
         for (auto& mesh : batch.severed) { mesh.cameraInstances.clear(); mesh.shadowInstances.clear(); mesh.flashlightInstances.clear(); }
         batch.palettes->beginFrame();
     }
-    zombieVisibilityStats_ = zombieVisibility_.query(cameraFrustum, lightFrustum, zombieCulling_, visibleZombies_, flashlightFrustum);
-    for (const auto& visible : visibleZombies_) {
-        const auto& source = zombieSource_->instances[visible.instance];
-        auto& batch = zombieBatches_[source.asset];
-        const auto local = zombieBatchLocals_[visible.instance];
-        auto instance = batch.staging[local];
-        const auto& bounds = batch.instanceBounds[local];
-        if (forestViewRange_ && !forestViewRange_->intersects(bounds)) continue;
-        const float distance = glm::length((bounds.minimum + bounds.maximum) * .5f - camera.position());
-        const auto detail = zombieCameraDetail(distance, projection[1][1], zombieDistanceDetail_, zombieDrawDistance_);
-        const bool cameraVisible = visible.camera && detail.visible;
-        if (visible.camera && !detail.visible) ++zombieRenderStats_.distanceCulled;
-        const bool shadowVisible = visible.shadow && zombieShadows_;
-        const bool flashlightVisible = visible.flashlight && zombieShadows_;
-        if (!cameraVisible && !shadowVisible && !flashlightVisible) continue;
-        if (source.ragdoll && batch.skinningBoneCount > 0)
-            instance.boneBase = batch.palettes->request(local, source.ragdollPoseVersion, source.ragdollBones);
-        const auto& asset = zombieSource_->assets[source.asset];
-        const auto* clip = zombieAnimationClip(asset, source);
-        const float duration = clip ? clip->duration : asset.duration;
-        const auto frames = clip ? clip->frameCount : asset.frameCount;
-        const double time = clip ? source.walkSeconds : seconds;
-        const float frame = source.ragdoll ? 0 : animatedFrame(duration, frames, time, source.phase);
-        if (source.severedJoint >= 0) {
-            if (!source.ragdoll || std::size_t(source.severedJoint) >= batch.severed.size())
-                throw std::runtime_error("Invalid severed zombie geometry");
-            auto& mesh = batch.severed[std::size_t(source.severedJoint)];
-            instance.animationFrame = 0;
-            if (cameraVisible) { mesh.cameraInstances.push_back(instance); ++zombieRenderStats_.cameraLevels[0]; }
-            if (shadowVisible) { mesh.shadowInstances.push_back(instance); ++zombieRenderStats_.shadowLevels[0]; }
-            if (flashlightVisible) { mesh.flashlightInstances.push_back(instance); ++zombieRenderStats_.flashlightLevels[0]; }
-            continue;
+    {
+        frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombieQuery);
+        std::optional<VisibilityBounds> cameraRegion;
+        if (const auto radius = zombieCameraDrawRadius(projection[1][1], zombieDistanceDetail_, zombieDrawDistance_)) {
+            const auto eye = camera.position();
+            // Include coordinate-rounding error as well as policy rounding.
+            const float padding = 8 * std::numeric_limits<float>::epsilon() *
+                std::max({1.f, std::abs(eye.x), std::abs(eye.y), std::abs(eye.z)});
+            const glm::vec3 extent(*radius + padding);
+            cameraRegion = VisibilityBounds{eye - extent, eye + extent};
         }
-        auto cameraInstance = instance;
-        if (cameraVisible) {
-            cameraInstance.animationFrame = frame;
-            if (detail.animationHz > 0 && !source.ragdoll) {
-                // Snap to authored baked frames on a lower-rate cycle grid. Both
-                // GPU and hit tests use this same published pose.
-                const auto samples = std::max(1.0f, std::floor(duration * detail.animationHz));
-                const auto bucket = std::floor(frame / static_cast<float>(frames) * samples);
-                cameraInstance.animationFrame = std::floor(bucket / samples * static_cast<float>(frames));
-                cameraInstance.animationStep = 1;
+        zombieVisibilityStats_ = zombieVisibility_.query(cameraFrustum, zombieShadows_ ? lightFrustum : nullptr,
+            zombieCulling_, visibleZombies_, zombieShadows_ ? flashlightFrustum : nullptr,
+            cameraRegion ? &*cameraRegion : nullptr);
+    }
+    {
+        frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombieSelection);
+        for (const auto& visible : visibleZombies_) {
+            const auto& source = zombieSource_->instances[visible.instance];
+            auto& batch = zombieBatches_[source.asset];
+            const auto local = zombieBatchLocals_[visible.instance];
+            auto instance = batch.staging[local];
+            const auto& bounds = batch.instanceBounds[local];
+            if (forestViewRange_ && !forestViewRange_->intersects(bounds)) continue;
+            const float distance = glm::length((bounds.minimum + bounds.maximum) * .5f - camera.position());
+            const auto detail = zombieCameraDetail(distance, projection[1][1], zombieDistanceDetail_, zombieDrawDistance_);
+            const bool cameraVisible = visible.camera && detail.visible;
+            if (visible.camera && !detail.visible) ++zombieRenderStats_.distanceCulled;
+            const bool shadowVisible = visible.shadow && zombieShadows_;
+            const bool flashlightVisible = visible.flashlight && zombieShadows_;
+            if (!cameraVisible && !shadowVisible && !flashlightVisible) continue;
+            if (source.ragdoll && batch.skinningBoneCount > 0)
+                instance.boneBase = batch.palettes->request(local, source.ragdollPoseVersion, source.ragdollBones);
+            const auto& asset = zombieSource_->assets[source.asset];
+            const auto* clip = zombieAnimationClip(asset, source);
+            const float duration = clip ? clip->duration : asset.duration;
+            const auto frames = clip ? clip->frameCount : asset.frameCount;
+            const double time = clip ? source.walkSeconds : seconds;
+            const float frame = source.ragdoll ? 0 : animatedFrame(duration, frames, time, source.phase);
+            if (source.severedJoint >= 0) {
+                if (!source.ragdoll || std::size_t(source.severedJoint) >= batch.severed.size())
+                    throw std::runtime_error("Invalid severed zombie geometry");
+                auto& mesh = batch.severed[std::size_t(source.severedJoint)];
+                instance.animationFrame = 0;
+                if (cameraVisible) { mesh.cameraInstances.push_back(instance); ++zombieRenderStats_.cameraLevels[0]; }
+                if (shadowVisible) { mesh.shadowInstances.push_back(instance); ++zombieRenderStats_.shadowLevels[0]; }
+                if (flashlightVisible) { mesh.flashlightInstances.push_back(instance); ++zombieRenderStats_.flashlightLevels[0]; }
+                continue;
             }
-            displayedZombieSources_.push_back(visible.instance);
-            source.displayedAnimationFrame = cameraInstance.animationFrame;
-            source.displayedAnimationClip = clip == (asset.runClip ? &*asset.runClip : nullptr) && clip ? 2 : clip ? 1 : 0;
-            const auto level = cameraInstance.woundBase > 0 ? 0 : std::min(detail.level, batch.lods.size());
-            auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
-            geometry.cameraInstances.push_back(cameraInstance);
-            ++zombieRenderStats_.cameraLevels[level];
-        }
-        if (shadowVisible) {
-            // Lowest mesh is adequate for the limited-resolution sun map.
-            // Keep the camera pose when available so near silhouettes align.
-            auto shadowInstance = cameraVisible ? cameraInstance : instance;
-            if (!cameraVisible) { shadowInstance.animationFrame = std::floor(frame); shadowInstance.animationStep = 1; }
-            const auto level = zombieDistanceDetail_ ? batch.lods.size() : 0;
-            auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
-            geometry.shadowInstances.push_back(shadowInstance);
-            ++zombieRenderStats_.shadowLevels[level];
-        }
-        if (flashlightVisible) {
-            auto caster = cameraVisible ? cameraInstance : instance;
-            if (!cameraVisible) { caster.animationFrame = std::floor(frame); caster.animationStep = 1; }
-            // Nearby flashlight silhouettes need more detail than sun shadows.
-            const auto level = zombieDistanceDetail_ && distance >= 12 ? std::min(std::size_t(1), batch.lods.size()) : 0;
-            auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
-            geometry.flashlightInstances.push_back(caster);
-            ++zombieRenderStats_.flashlightLevels[level];
+            auto cameraInstance = instance;
+            if (cameraVisible) {
+                cameraInstance.animationFrame = frame;
+                if (detail.animationHz > 0 && !source.ragdoll) {
+                    // Snap to authored baked frames on a lower-rate cycle grid. Both
+                    // GPU and hit tests use this same published pose.
+                    const auto samples = std::max(1.0f, std::floor(duration * detail.animationHz));
+                    const auto bucket = std::floor(frame / static_cast<float>(frames) * samples);
+                    cameraInstance.animationFrame = std::floor(bucket / samples * static_cast<float>(frames));
+                    cameraInstance.animationStep = 1;
+                }
+                displayedZombieSources_.push_back(visible.instance);
+                source.displayedAnimationFrame = cameraInstance.animationFrame;
+                source.displayedAnimationClip = clip == (asset.runClip ? &*asset.runClip : nullptr) && clip ? 2 : clip ? 1 : 0;
+                const auto level = cameraInstance.woundBase > 0 ? 0 : std::min(detail.level, batch.lods.size());
+                auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
+                geometry.cameraInstances.push_back(cameraInstance);
+                ++zombieRenderStats_.cameraLevels[level];
+            }
+            if (shadowVisible) {
+                // Lowest mesh is adequate for the limited-resolution sun map.
+                // Keep the camera pose when available so near silhouettes align.
+                auto shadowInstance = cameraVisible ? cameraInstance : instance;
+                if (!cameraVisible) { shadowInstance.animationFrame = std::floor(frame); shadowInstance.animationStep = 1; }
+                const auto level = zombieDistanceDetail_ ? batch.lods.size() : 0;
+                auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
+                geometry.shadowInstances.push_back(shadowInstance);
+                ++zombieRenderStats_.shadowLevels[level];
+            }
+            if (flashlightVisible) {
+                auto caster = cameraVisible ? cameraInstance : instance;
+                if (!cameraVisible) { caster.animationFrame = std::floor(frame); caster.animationStep = 1; }
+                // Nearby flashlight silhouettes need more detail than sun shadows.
+                const auto level = zombieDistanceDetail_ && distance >= 12 ? std::min(std::size_t(1), batch.lods.size()) : 0;
+                auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
+                geometry.flashlightInstances.push_back(caster);
+                ++zombieRenderStats_.flashlightLevels[level];
+            }
         }
     }
-    for (auto& batch : zombieBatches_) {
-        batch.palettes->flush();
-        const auto& stats = batch.palettes->stats();
-        zombiePaletteStats_.needed += stats.needed;
-        zombiePaletteStats_.uploaded += stats.uploaded;
-        zombiePaletteStats_.uploadCalls += stats.uploadCalls;
-        zombiePaletteStats_.uploadBytes += stats.uploadBytes;
-        zombiePaletteStats_.resident += stats.resident;
-        zombiePaletteStats_.storageBytes += stats.storageBytes;
+    {
+        frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombiePalettes);
+        for (auto& batch : zombieBatches_) {
+            batch.palettes->flush();
+            const auto& stats = batch.palettes->stats();
+            zombiePaletteStats_.needed += stats.needed;
+            zombiePaletteStats_.uploaded += stats.uploaded;
+            zombiePaletteStats_.uploadCalls += stats.uploadCalls;
+            zombiePaletteStats_.uploadBytes += stats.uploadBytes;
+            zombiePaletteStats_.resident += stats.resident;
+            zombiePaletteStats_.storageBytes += stats.storageBytes;
+        }
     }
-    checkErrors("zombie palette update");
+    {
+        frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombieErrorCheck);
+        checkErrors("zombie palette update");
+    }
 }
 
 void Renderer::drawZombies(double seconds, ZombiePass pass) {
+    frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombieDraws);
     const bool shadowPass = pass != ZombiePass::Camera;
     if (!shadowPass) {
         zombieDrawCalls_ = 0;

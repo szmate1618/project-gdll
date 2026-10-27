@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
             std::cout<<"Run "<<run<<" ("<<(detailed?"detailed":"control")<<")\n"<<std::flush;
             std::ofstream rows(output/("run-"+std::to_string(run)+".csv"));
             if (!rows) throw std::runtime_error("Cannot open profile CSV");
-            rows<<std::setprecision(12)<<"frame,detailed,cpu_update_ms";
+            rows<<std::setprecision(12)<<"frame,detailed,cpu_update_ms,gameplay_behavior_ms,scenario_travel_ms,idle,looking,investigating,chasing,attacking,chase_starts";
             for (const auto name:viewer::zombie_profile::names) rows<<','<<name<<"_ms,"<<name<<"_calls,"<<name<<"_dropped";
             rows<<",other_ms,perception_checks,sight_rays,path_requests,validation_reuses,coverage_region_reuses,coverage_region_builds,door_candidates,door_overlaps,crowd_moves,crowd_neighbor_checks,crowd_budget_stops,crowd_empty_sector_skips,walking_region_reuses,simple_traveler_clears,traveler_plans,traveler_fallbacks,traveler_interpolations\n";
             viewer::zombie_profile::Profile aggregate;
@@ -72,7 +72,14 @@ int main(int argc, char** argv) {
                 }
                 const auto ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begin).count();
                 if (!measured) continue;
-                rows<<frame<<','<<detailed<<','<<ms;
+                rows<<frame<<','<<detailed<<','<<ms<<','<<sample.behaviorSeconds*1000<<','<<sample.scenarioSeconds*1000;
+                for (const auto count:sample.behaviorStates) rows<<','<<count;
+                rows<<','<<sample.chaseStarts;
+                aggregate.behaviorSeconds+=sample.behaviorSeconds;
+                aggregate.scenarioSeconds+=sample.scenarioSeconds;
+                aggregate.chaseStarts+=sample.chaseStarts;
+                for (std::size_t i=0;i<sample.behaviorStates.size();++i)
+                    aggregate.behaviorStates[i]+=sample.behaviorStates[i];
                 double stages=0;
                 for (std::size_t i=0;i<sample.stages.size();++i) {
                     const auto& stage=sample.stages[i];

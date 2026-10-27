@@ -17,6 +17,16 @@ int main() {
         require(viewer::zombieCameraDetail(1000, normalProjection, false).visible, "Comparison must retain full crowd");
         require(viewer::zombieCameraDetail(1000, normalProjection, true, 0).visible, "Zero cutoff disables distance removal");
         require(viewer::zombieCameraDetail(300, 114.59f).level == 0, "One-degree scope must retain distant detail");
+        require(!viewer::zombieCameraDrawRadius(normalProjection,false,180) &&
+                !viewer::zombieCameraDrawRadius(normalProjection,true,0),
+                "Unlimited/detail-disabled views must bypass early camera distance rejection");
+        for (const float projection : {normalProjection,11.43f,114.59f}) {
+            const auto radius=viewer::zombieCameraDrawRadius(projection,true,180);
+            require(radius.has_value(),"Finite camera cutoff needs a conservative radius");
+            for (float distance=0;distance<15000;distance+=.25f)
+                if (viewer::zombieCameraDetail(distance,projection).visible)
+                    require(distance<=*radius,"Early camera radius excludes an actor accepted by exact LOD policy");
+        }
         viewer::AnimatedModel asset;
         asset.frameCount = 2; asset.duration = 1; asset.skeleton.resize(1);
         asset.boneFrames = {glm::mat4(1), glm::mat4(1)};

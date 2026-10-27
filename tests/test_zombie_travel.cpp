@@ -67,6 +67,31 @@ void modesAndGround() {
         require(layer.navigation()->stats().requests==1,"Traveler requested a runtime path");
     }
 }
+void profileSeparatesTravelAndPursuit() {
+    const viewer::CollisionWorld world(terrain());
+    const viewer::ZombiePlayer player{{0,0,20}};
+    for (const bool perception : {false,true}) {
+        auto control=traveler({-10,0,-10},{100,0,-10});
+        auto measured=traveler({-10,0,-10},{100,0,-10});
+        control.setPerceptionEnabled(perception);measured.setPerceptionEnabled(perception);
+        control.setPerceptionStaggering(false);measured.setPerceptionStaggering(false);
+        viewer::zombie_profile::Profile profile;
+        for (int frame=0;frame<120;++frame) {
+            viewer::SimulationClock::instance().advance(dt);
+            control.updateBehavior(dt,player,world);
+            { viewer::zombie_profile::Capture capture(&profile);measured.updateBehavior(dt,player,world); }
+            const auto& a=control.instances[0];const auto& b=measured.instances[0];
+            require(a.restRoot==b.restRoot && a.walkSeconds==b.walkSeconds && a.walking==b.walking && a.running==b.running,
+                    "Enabling profiling changed authoritative movement or animation");
+        }
+        require(profile.steps==120,"Profile lost simulation steps");
+        require(profile.behaviorStates[3]==(perception?120u:0u),
+                "Scenario travel was counted as chasing, or pursuit was omitted");
+        require(profile.chaseStarts==(perception?1u:0u),"Chase-start profiling counted ongoing pursuit as activation");
+        require((measured.scenarioDestination(0)!=nullptr)==!perception,
+                "Profile fixture failed to distinguish scenario travel from a perception handoff");
+    }
+}
 void allPlayersAndTransitions() {
     const viewer::CollisionWorld world(terrain());
     auto layer=traveler({-10,0,-10},{100,0,-10});layer.setPerceptionEnabled(false);
@@ -163,7 +188,7 @@ void obstacleFallback() {
 int main() {
     try {
         viewer::SimulationClock::instance().reset();
-        modesAndGround();allPlayersAndTransitions();arrivalAndReplacement();representableCorners();obstacleFallback();
+        modesAndGround();profileSeparatesTravelAndPursuit();allPlayersAndTransitions();arrivalAndReplacement();representableCorners();obstacleFallback();
         std::cout<<"Scenario traveler tests passed\n";return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n';return 1; }
 }

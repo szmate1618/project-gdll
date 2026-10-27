@@ -667,8 +667,14 @@ void renderDistanceLods() {
     if (renderer.zombieRenderStats().cameraLevels[3] != 1 || renderer.zombieRenderStats().cameraTriangles != 1)
         throw std::runtime_error("Far camera must draw the lowest mesh");
     renderAt(200);
-    if (renderer.zombieVisibleCount() != 0 || renderer.zombieRenderStats().distanceCulled != 1)
-        throw std::runtime_error("Far camera must cull beyond the cutoff");
+    if (renderer.zombieVisibleCount() != 0 || renderer.zombieVisibilityStats().cameraRegionRejectedGroups != 1 ||
+        renderer.zombieVisibilityStats().cameraGroupTests != 0)
+        throw std::runtime_error("Far camera must reject the group before camera frustum work");
+    camera.cycleViewMode();
+    renderAt(200);
+    if (renderer.zombieVisibleCount()!=1)
+        throw std::runtime_error("Scope projection must extend the early camera range");
+    camera.cycleViewMode();camera.cycleViewMode();
     // A cut-off ragdoll remains a caster, sharing one palette across mesh LODs.
     auto& corpse = layer.instances[0];
     corpse.ragdoll = true;

@@ -37,6 +37,7 @@ void ZombieLayer::abandonScenarioRoute(std::size_t id) {
 void ZombieLayer::updateScenarioRoutes(float seconds, const CollisionWorld& world,const ZombiePlayer& player,
                                       const std::vector<ZombiePlayer>* players,bool advanceLooking) {
     zombie_profile::Timer timer(zombie_profile::Stage::scenarioRoutes);
+    zombie_profile::PhaseTimer phase(&zombie_profile::Profile::scenarioSeconds);
     if (scenarioRoutes_.empty()) return;
     if (scenarioPopulation_ != instances.size()) {
         scenarioRoutes_.clear(); // Bulk population replacement invalidates scenario IDs.

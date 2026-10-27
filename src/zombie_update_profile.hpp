@@ -33,11 +33,24 @@ struct Profile {
     std::uint64_t steps = 0;
     std::uint64_t doorCandidates = 0, doorOverlaps = 0, walkingRegionReuses = 0, simpleTravelerClears = 0;
     std::uint64_t travelerPlans = 0, travelerFallbacks = 0, travelerInterpolations = 0;
+    // Inclusive phase totals split gameplay pursuit from scenario travel. These
+    // overlap the exclusive stages below and must not be added to them.
+    double behaviorSeconds = 0, scenarioSeconds = 0;
+    std::array<std::uint64_t, 5> behaviorStates{}; // ZombieState order, after each processed behavior.
+    std::uint64_t chaseStarts = 0;
 
     void print(std::ostream& out) const {
         if (!steps) return;
         const double scale = 1000.0 / steps;
         out << "Zombie update breakdown: " << seconds * scale << " ms/step (" << steps << " steps; exclusive stages)\n";
+        out << "  inclusive phases: gameplay behavior " << behaviorSeconds * scale
+            << " ms; scenario travel " << scenarioSeconds * scale << " ms/step\n";
+        out << "  processed behavior states/step: idle " << double(behaviorStates[0])/steps
+            << "; looking " << double(behaviorStates[1])/steps
+            << "; investigating " << double(behaviorStates[2])/steps
+            << "; chasing " << double(behaviorStates[3])/steps
+            << "; attacking " << double(behaviorStates[4])/steps
+            << "; chase starts " << double(chaseStarts)/steps << '\n';
         double measured = 0;
         for (std::size_t i = 0; i < stages.size(); ++i) {
             measured += stages[i].seconds;
@@ -110,6 +123,27 @@ inline const char* timerName() {
 class Timer;
 inline thread_local Profile* activeProfile = nullptr;
 inline thread_local Timer* activeTimer = nullptr;
+
+// A few coarse steady-clock scopes retain whole-phase timing even when a
+// thread migrates. They are independent of exclusive stage accounting.
+class PhaseTimer {
+public:
+    explicit PhaseTimer(double Profile::* seconds) : profile_(activeProfile), seconds_(seconds) {
+        if (profile_) start_ = Clock::now();
+    }
+    ~PhaseTimer() { finish(); }
+    void finish() {
+        if (!profile_) return;
+        profile_->*seconds_ += std::chrono::duration<double>(Clock::now() - start_).count();
+        profile_ = nullptr;
+    }
+    PhaseTimer(const PhaseTimer&) = delete;
+    PhaseTimer& operator=(const PhaseTimer&) = delete;
+private:
+    Profile* profile_;
+    double Profile::* seconds_;
+    Clock::time_point start_{};
+};
 
 // Capture exactly one updateBehavior call. A null target performs no timing.
 class Capture {

@@ -1,4 +1,5 @@
 #include "physics_world.hpp"
+#include "frame_stage_profile.hpp"
 
 #include <box3d/box3d.h>
 #include <algorithm>
@@ -43,7 +44,10 @@ void PhysicsWorld::step(float seconds, const std::function<void(float)>& before,
     int steps = 0;
     while (accumulator_ >= fixedStepSeconds && steps++ < 8) {
         if (before) before(fixedStepSeconds);
-        b3World_Step(world_, fixedStepSeconds, 4);
+        {
+            frame_stage_profile::Timer timer(frame_stage_profile::Stage::physics);
+            b3World_Step(world_, fixedStepSeconds, 4);
+        }
         const auto events = b3World_GetBodyEvents(world_);
         for (int i = 0; i < events.moveCount; ++i) {
             const auto found = motionOwners_.find(b3StoreBodyId(events.moveEvents[i].bodyId));

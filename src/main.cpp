@@ -3,6 +3,7 @@
 #include "bird_flock.hpp"
 #include "bird_renderer.hpp"
 #include "frame_profile.hpp"
+#include "frame_stage_profile.hpp"
 #include "door_layer.hpp"
 #include "player_interaction.hpp"
 #include "physics_world.hpp"
@@ -1566,6 +1567,7 @@ int run(const Options& options) {
     double intervalSimulationSeconds = 0.0;
     double intervalBehaviorSeconds = 0.0;
     viewer::zombie_profile::Profile zombieProfile;
+    viewer::frame_stage_profile::Profile frameStages;
     double intervalPreparationSeconds = 0.0;
     int frameCount = 0, intervalFrames = 0;
     viewer::PlayerPresentation playerPresentation;
@@ -1586,9 +1588,11 @@ int run(const Options& options) {
             intervalSimulationSeconds = intervalBehaviorSeconds = intervalPreparationSeconds = 0.0;
             gpuTimer.takeAverageMilliseconds();
             zombieProfile = {};
+            frameStages = {};
             continue;
         }
         const double simulationStart = glfwGetTime();
+        viewer::frame_stage_profile::Capture frameStageCapture(options.profile ? &frameStages : nullptr);
         if (doodads) doodads->update(app.rig.camera().position(),physicsScene,doors);
         const auto previousCameraPosition = playerPresentation.eye(physics->interpolationAlpha());
         bool simulated = false;
@@ -1599,6 +1603,7 @@ int run(const Options& options) {
                 app.interaction.mode() == viewer::ControlMode::Combat);
         };
         const auto fireWeapons = [&] {
+            viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::weapons);
             if (updateWeapons(app, simulationClock.seconds())) {
                 muzzleSlot = app.weapons.slot();
                 muzzleModelPosition = app.weapons.equipped().config.muzzlePosition;
@@ -1664,7 +1669,10 @@ int run(const Options& options) {
             if (app.driver.driving())
                 cars.drive(*app.driver.car(), float(app.keys[GLFW_KEY_W]) - float(app.keys[GLFW_KEY_S]),
                            float(app.keys[GLFW_KEY_D]) - float(app.keys[GLFW_KEY_A]), app.keys[GLFW_KEY_SPACE]);
-            if (zombies) zombies->prepareWoundPhysics(step, app.displayedAnimationSeconds, &physicsScene);
+            if (zombies) {
+                viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::wounds);
+                zombies->prepareWoundPhysics(step, app.displayedAnimationSeconds, &physicsScene);
+            }
             playerBody.beforeStep(step);
             viewer::prepareVehicleScene(cars, physicsScene);
             for (const auto i : cars.simulatedCars()) {
@@ -1682,7 +1690,10 @@ int run(const Options& options) {
                          app.displayedAnimationSeconds);
             playerBody.afterStep();
             bodyRenderer.captureBody(playerBody, step);
-            if (zombies) zombies->synchronizePhysics();
+            if (zombies) {
+                viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::synchronization);
+                zombies->synchronizePhysics();
+            }
             if (app.driver.occupied()) app.driver.updateCamera(cars, app.rig.camera(), app.world);
             grenades.update(simulationClock.seconds(), collision, zombies ? &*zombies : nullptr, app.displayedAnimationSeconds);
             for (const auto& explosion : grenades.explosions(simulationClock.seconds())) {
@@ -1690,8 +1701,14 @@ int run(const Options& options) {
                 audio.explosion(explosion.position);
                 lastExplosion = explosion.id;
             }
-            if (zombies) zombies->updateBloodEffects(app.displayedAnimationSeconds);
-            audio.update(app.rig, zombies ? &*zombies : nullptr, step, &doors);
+            if (zombies) {
+                viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::blood);
+                zombies->updateBloodEffects(app.displayedAnimationSeconds);
+            }
+            {
+                viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::audio);
+                audio.update(app.rig, zombies ? &*zombies : nullptr, step, &doors);
+            }
             playerPresentation.advance(app.rig.camera().position(), playerBody.pose());
         });
         if (doodads) {
@@ -1768,13 +1785,16 @@ int run(const Options& options) {
         if (app.collisionDebug)
             debug->draw(viewCamera, overlay, renderWidth, renderHeight);
         const auto& heldWeapon = app.weapons.equipped();
-        if (!app.driver.occupied() && !app.weaponSwitch.pending() && heldWeapon.owned && app.interaction.mode() == viewer::ControlMode::Combat &&
-            app.rig.camera().viewMode() == viewer::Camera::ViewMode::original &&
-            viewer::weaponViewVisible(heldWeapon.config, heldWeapon.loaded, simulationClock.seconds() < heldWeapon.readyAt))
-            weaponOverlay.draw(app.weapons.slot(), renderWidth, renderHeight, flash,
-                               app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds()));
-        const auto overlayViewport = renderer.beginOverlay(app.width, app.height);
-        reticle.draw(app.rig.camera().viewMode(), overlayViewport.width, overlayViewport.height);
+        {
+            viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::overlay);
+            if (!app.driver.occupied() && !app.weaponSwitch.pending() && heldWeapon.owned && app.interaction.mode() == viewer::ControlMode::Combat &&
+                app.rig.camera().viewMode() == viewer::Camera::ViewMode::original &&
+                viewer::weaponViewVisible(heldWeapon.config, heldWeapon.loaded, simulationClock.seconds() < heldWeapon.readyAt))
+                weaponOverlay.draw(app.weapons.slot(), renderWidth, renderHeight, flash,
+                                   app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds()));
+            const auto overlayViewport = renderer.beginOverlay(app.width, app.height);
+            reticle.draw(app.rig.camera().viewMode(), overlayViewport.width, overlayViewport.height);
+        }
         viewer::HudState hudState;
         hudState.seconds = simulationClock.seconds();
         hudState.health = app.vitals.health();
@@ -1811,7 +1831,10 @@ int run(const Options& options) {
                 }
             }
         }
-        hud.draw(hudState, app.width, app.height);
+        {
+            viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::hud);
+            hud.draw(hudState, app.width, app.height);
+        }
         (void)hud.takeInventoryActions(); // Standalone already applies these operations locally.
         intervalRenderSeconds += glfwGetTime() - renderStart;
         gpuTimer.end();
@@ -1891,6 +1914,8 @@ int run(const Options& options) {
                               << " bounds" << (updates.full ? " (full refresh)" : " (incremental)");
                 }
                 std::cout << '\n';
+                frameStages.print(std::cout, intervalFrames);
+                frameStages = {};
                 zombieProfile.print(std::cout);
                 zombieProfile = {};
             }
@@ -1909,7 +1934,10 @@ int run(const Options& options) {
             if (frameProfile->pending()) glfwWaitEventsTimeout(.0005);
         }
     }
-    if (options.profile) zombieProfile.print(std::cout);
+    if (options.profile) {
+        frameStages.print(std::cout, intervalFrames);
+        zombieProfile.print(std::cout);
+    }
     app.interaction.cancel();
     if (doodads) {
         doodads->captureChanges();
@@ -1943,7 +1971,9 @@ int run(const Options& options) {
         std::cout << "Zombie detail: camera LOD0/1/2/3 " << stats.cameraLevels[0] << '/' << stats.cameraLevels[1]
                   << '/' << stats.cameraLevels[2] << '/' << stats.cameraLevels[3]
                   << "; " << stats.cameraTriangles << " camera triangles, " << stats.shadowTriangles
-                  << " sun shadow triangles, " << stats.flashlightTriangles << " flashlight triangles; " << stats.distanceCulled << " distance culled\n";
+                  << " sun shadow triangles, " << stats.flashlightTriangles << " flashlight triangles; " << stats.distanceCulled
+                  << " distance culled after frustum; " << renderer.zombieVisibilityStats().cameraRegionRejectedGroups
+                  << " groups rejected by camera distance\n";
     }
     viewer::Renderer::checkErrors("shutdown");
     std::cout << "Rendered " << frameCount << " frames successfully\n";

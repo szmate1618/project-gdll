@@ -115,29 +115,39 @@ std::size_t ZombieVisibility::refit() {
 }
 
 ZombieVisibilityStats ZombieVisibility::query(const Frustum& camera, const Frustum* light,
-                                             bool cameraCulling, std::vector<ZombieVisibilityResult>& visible, const Frustum* flashlight) {
+                                             bool cameraCulling, std::vector<ZombieVisibilityResult>& visible,
+                                             const Frustum* flashlight, const VisibilityBounds* cameraRegion) {
     visible.clear();
     ZombieVisibilityStats stats;
     stats.groups = cells_.size();
     stats.refittedGroups = refit();
     using Relation = Frustum::Relation;
+    const auto inRegion = [&](const VisibilityBounds& bounds) {
+        return !cameraRegion ||
+            (glm::all(glm::lessThanEqual(bounds.minimum, cameraRegion->maximum)) &&
+             glm::all(glm::greaterThanEqual(bounds.maximum, cameraRegion->minimum)));
+    };
     // Visit only occupied groups. Storage for emptied groups is reused as actors
     // travel; historical cell locations do not add to the per-frame query cost.
     for (const auto& entry : cells_) {
         const auto& group = groups_[entry.second];
-        const auto cameraRelation = cameraCulling ? camera.classify(group.bounds.minimum, group.bounds.maximum) : Relation::Inside;
+        const bool cameraCandidate = inRegion(group.bounds);
+        stats.cameraRegionRejectedGroups += !cameraCandidate;
+        const auto cameraRelation = !cameraCandidate ? Relation::Outside :
+            cameraCulling ? camera.classify(group.bounds.minimum, group.bounds.maximum) : Relation::Inside;
         const auto shadowRelation = light ? light->classify(group.bounds.minimum, group.bounds.maximum) : Relation::Outside;
         const auto flashlightRelation = flashlight ? flashlight->classify(group.bounds.minimum, group.bounds.maximum) : Relation::Outside;
         stats.flashlightGroupTests += flashlight != nullptr;
-        stats.cameraGroupTests += cameraCulling;
+        stats.cameraGroupTests += cameraCulling && cameraCandidate;
         stats.shadowGroupTests += light != nullptr;
         if (cameraRelation == Relation::Outside && shadowRelation == Relation::Outside && flashlightRelation == Relation::Outside) continue;
         for (const auto instance : group.members) {
             const auto& bounds = *locations_[instance].bounds;
-            bool inCamera = cameraRelation == Relation::Inside;
+            const bool cameraMember = cameraRelation != Relation::Outside && inRegion(bounds);
+            bool inCamera = cameraMember && cameraRelation == Relation::Inside;
             bool inShadow = shadowRelation == Relation::Inside;
             bool inFlashlight = flashlightRelation == Relation::Inside;
-            if (cameraRelation == Relation::Intersecting) {
+            if (cameraMember && cameraRelation == Relation::Intersecting) {
                 ++stats.cameraInstanceTests;
                 inCamera = camera.intersects(bounds.minimum, bounds.maximum);
             }
