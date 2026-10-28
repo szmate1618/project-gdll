@@ -41,15 +41,24 @@ glm::mat4 BoxPose::transform() const {
 }
 
 struct BoxLayer::Impl {
-    struct Entry { Impl* owner; b3BodyId body; glm::vec3 halfExtents; std::size_t index; glm::vec2 damping; };
+    struct Entry {
+        Impl* owner;
+        b3BodyId body;
+        glm::vec3 halfExtents;
+        std::size_t index;
+        glm::vec2 damping;
+        BoxPose retiredPose{};
+    };
     std::shared_ptr<PhysicsWorld> world;
     std::vector<std::unique_ptr<Entry>> entries;
     std::uint64_t revision = 1;
     std::uint64_t categories = 0;
     ~Impl() {
         for (const auto& e : entries) {
-            world->untrackBodyMotion(e->body);
-            b3DestroyBody(e->body);
+            if (B3_IS_NON_NULL(e->body)) {
+                world->untrackBodyMotion(e->body);
+                b3DestroyBody(e->body);
+            }
         }
     }
 };
@@ -61,7 +70,7 @@ BoxLayer::BoxLayer(std::shared_ptr<PhysicsWorld> world) : impl_(std::make_unique
 BoxLayer::~BoxLayer() = default;
 std::size_t BoxLayer::count() const { return impl_->entries.size(); }
 std::uint64_t BoxLayer::revision() const { return impl_->revision; }
-void BoxLayer::wake() { for (const auto& entry : impl_->entries) b3Body_SetAwake(entry->body,true); }
+void BoxLayer::wake() { for (const auto& entry : impl_->entries) if (B3_IS_NON_NULL(entry->body)) b3Body_SetAwake(entry->body,true); }
 std::shared_ptr<PhysicsWorld> BoxLayer::physicsWorld() const { return impl_->world; }
 PhysicsProp BoxLayer::prop(std::size_t index) const { return {impl_->world,impl_->entries.at(index)->body}; }
 std::optional<std::size_t> BoxLayer::indexOf(const PhysicsProp& prop) const {
@@ -110,9 +119,7 @@ std::size_t BoxLayer::add(glm::vec3 center, glm::vec3 size, const BoxSpawnMotion
     return index;
 }
 void BoxLayer::remove(std::size_t index) {
-    const auto body = impl_->entries.at(index)->body;
-    impl_->world->untrackBodyMotion(body);
-    b3DestroyBody(body);
+    retire(index);
     if (index+1<count()) {
         impl_->entries[index] = std::move(impl_->entries.back());
         impl_->entries[index]->index = index;
@@ -120,8 +127,30 @@ void BoxLayer::remove(std::size_t index) {
     impl_->entries.pop_back();
     ++impl_->revision;
 }
+void BoxLayer::retire(std::size_t index) {
+    auto& entry = *impl_->entries.at(index);
+    if (!active(index)) return;
+    entry.retiredPose = pose(index);
+    impl_->world->untrackBodyMotion(entry.body);
+    b3DestroyBody(entry.body);
+    entry.body = b3_nullBodyId;
+    ++impl_->revision;
+}
+bool BoxLayer::active(std::size_t index) const {
+    return B3_IS_NON_NULL(impl_->entries.at(index)->body);
+}
+bool BoxLayer::belowHeight(std::size_t index, float cutoffY) const {
+    if (!std::isfinite(cutoffY)) throw std::invalid_argument("Box cleanup height must be finite");
+    return active(index) && b3Body_ComputeAABB(impl_->entries.at(index)->body).upperBound.y < cutoffY;
+}
+void BoxLayer::retireBelow(float cutoffY) {
+    if (!std::isfinite(cutoffY)) throw std::invalid_argument("Box cleanup height must be finite");
+    for (std::size_t i = 0; i < count(); ++i)
+        if (belowHeight(i, cutoffY)) retire(i);
+}
 BoxPose BoxLayer::pose(std::size_t index) const {
     const auto& e = *impl_->entries.at(index);
+    if (!active(index)) return {index, e.retiredPose.center, e.halfExtents, e.retiredPose.rotation};
     const auto p = b3Body_GetPosition(e.body);
     const auto q = b3Body_GetRotation(e.body);
     return {index, {p.x, p.y, p.z}, e.halfExtents, {q.s, q.v.x, q.v.y, q.v.z}};
@@ -129,13 +158,14 @@ BoxPose BoxLayer::pose(std::size_t index) const {
 void BoxLayer::setPose(std::size_t index, glm::vec3 center, glm::quat q) {
     if (!finite(center) || !std::isfinite(glm::length(q)) || std::abs(glm::length(q) - 1) > .001f)
         throw std::invalid_argument("Invalid replicated box pose");
+    if (!active(index)) throw std::logic_error("Cannot move a retired box");
     b3Body_SetTransform(impl_->entries.at(index)->body, {center.x, center.y, center.z}, {{q.x, q.y, q.z}, q.w});
     b3Body_SetLinearVelocity(impl_->entries.at(index)->body, b3Vec3_zero);
     b3Body_SetAngularVelocity(impl_->entries.at(index)->body, b3Vec3_zero);
     ++impl_->revision;
 }
 glm::vec3 BoxLayer::velocity(std::size_t index) const {
-    return vector(b3Body_GetLinearVelocity(impl_->entries.at(index)->body));
+    return active(index) ? vector(b3Body_GetLinearVelocity(impl_->entries.at(index)->body)) : glm::vec3(0);
 }
 float BoxLayer::mass(std::size_t index) const { return prop(index).mass(); }
 BoxPointState BoxLayer::pointState(std::size_t index, glm::vec3 localPoint) const { return prop(index).pointState(localPoint); }
@@ -144,7 +174,7 @@ void BoxLayer::dampOnGroundContact(float linearDamping, float angularDamping) {
     std::vector<b3ContactData> contacts;
     for (const auto& entry : impl_->entries) {
         const auto body = entry->body;
-        if (!b3Body_IsAwake(body)) continue;
+        if (B3_IS_NULL(body) || !b3Body_IsAwake(body)) continue;
         const bool held = impl_->world->isGrabbed(body);
         contacts.resize(held ? 0 : b3Body_GetContactCapacity(body));
         const int count = held ? 0 : b3Body_GetContactData(body, contacts.data(), static_cast<int>(contacts.size()));

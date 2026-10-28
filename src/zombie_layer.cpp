@@ -396,6 +396,7 @@ void ZombieLayer::setRagdollCleanupHeight(float cutoffY) {
     if (!std::isfinite(cutoffY)) throw std::invalid_argument("Ragdoll cleanup height must be finite");
     ragdollCleanupY_ = cutoffY;
     if (!physics_) return;
+    physics_->cavities.removeContentsBelow(cutoffY);
     // Configuration can also change after corpses have settled. Check those
     // once without invalidating their unchanged physics/skin revisions.
     for (std::size_t slot = 0; slot < ragdollIds_.size();) {
@@ -409,6 +410,8 @@ void ZombieLayer::setRagdollCleanupHeight(float cutoffY) {
 
 void ZombieLayer::synchronizePhysics() {
     if (!physics_) return;
+    // Loose contents move independently, even when their owning corpse sleeps.
+    if (ragdollCleanupY_) physics_->cavities.removeContentsBelow(*ragdollCleanupY_);
     for (std::size_t slot = 0; slot < ragdollIds_.size();) {
         const auto id = ragdollIds_[slot];
         synchronizePhysics(id);

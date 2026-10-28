@@ -35,6 +35,7 @@ void Renderer::updateBoxes(const BoxLayer& boxes) {
     std::vector<VisibilityBounds> bounds;
     bounds.reserve(boxes.count());
     for (std::size_t i = 0; i < boxes.count(); ++i) {
+        if (!boxes.active(i)) continue;
         const auto pose = boxes.pose(i);
         const auto transform = pose.transform();
         boxTransforms_.push_back(transform);

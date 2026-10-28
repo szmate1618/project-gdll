@@ -157,6 +157,14 @@ void ZombieCavityPhysics::prepare(PhysicsScene* scene) {
     for (const auto& item : impl_->entries)
         for (const auto& entry : item.second) if (entry) scene->prepare(entry->objects,1);
 }
+void ZombieCavityPhysics::removeContentsBelow(float cutoffY) {
+    for (const auto& item : impl_->entries)
+        for (const auto& entry : item.second) if (entry)
+            for (std::size_t i = 0; i < entry->objects.count();) {
+                if (entry->objects.belowHeight(i, cutoffY)) entry->objects.remove(i);
+                else ++i;
+            }
+}
 void ZombieCavityPhysics::remove(std::size_t id) { impl_->entries.erase(id); }
 std::vector<std::pair<std::size_t,ZombieWoundRegion>> ZombieCavityPhysics::ids() const {
     std::vector<std::pair<std::size_t,ZombieWoundRegion>> result;

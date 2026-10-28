@@ -5,6 +5,7 @@
 #include "fps_controller.hpp"
 #include "physics_scene.hpp"
 #include "physics_world.hpp"
+#include "physics_grab.hpp"
 #include <box3d/box3d.h>
 
 #include <iostream>
@@ -23,6 +24,40 @@ struct Fixture {
         scene.prepare(boxes); physics->step(dt); player.update(dt, input, world);
     }
 };
+void escapedBodies() {
+    Fixture f;
+    const auto initialBodies = b3World_GetCounters(f.physics->id()).bodyCount;
+    f.boxes.add({0, -30.25f, 0}, {1, 1, 1}); // Still straddles the plane.
+    f.boxes.add({2, -32, 0}, {1, 1, 1});
+    f.boxes.add({4, -33, 0}, {1, 1, 1});
+    f.boxes.add({6, 1, 0}, {.5f, 1, .5f});
+    const auto escaped = f.boxes.prop(1), survivor = f.boxes.prop(3);
+    {
+        viewer::PhysicsGrab grip(escaped, {}, 100);
+        const auto before = b3World_GetCounters(f.physics->id());
+        const auto revision = f.boxes.revision();
+        f.boxes.retireBelow(-30);
+        require(f.boxes.count() == 4 && f.boxes.active(0) && !f.boxes.active(1) &&
+                !f.boxes.active(2) && f.boxes.active(3), "Cleanup must retain IDs and wait for the entire collider to escape");
+        require(!escaped.valid() && !grip.valid() && survivor.valid() && f.boxes.indexOf(survivor) == 3,
+                "Cleanup must invalidate escaped grips without changing surviving handles");
+        const auto after = b3World_GetCounters(f.physics->id());
+        require(after.bodyCount == before.bodyCount - 2 && after.jointCount == before.jointCount - 1,
+                "Cleanup must destroy bodies and their constraints");
+        require(f.boxes.revision() > revision && f.boxes.pose(1).center.y == -32,
+                "Retirement must publish a render change and retain snapshot metadata");
+        require(f.boxes.query({1,-34,-1},{5,-31,1}).empty(), "Escaped boxes must leave collision queries");
+        const auto stableRevision = f.boxes.revision();
+        f.boxes.retireBelow(-30);
+        require(f.boxes.revision() == stableRevision, "Repeated cleanup must leave tombstones unchanged");
+        f.boxes.wake(); f.boxes.dampOnGroundContact(12,14); f.scene.prepare(f.boxes);
+        f.physics->step(1.f/60);
+    }
+    require(b3World_GetCounters(f.physics->id()).bodyCount == initialBodies + 2, "Releasing an invalid grip must also release its anchor");
+    require(f.boxes.add({8,1,0},{1,1,1}) == 4 && !escaped.valid(), "New boxes must not recycle retired network IDs or old handles");
+    f.boxes.remove(1);
+    require(f.boxes.count() == 4 && f.boxes.active(1), "Dense owner removal must also support retired slots");
+}
 void supportAndJump() {
     Fixture f;
     const auto index = f.boxes.add({0, .245f, 0}, {.8f, .45f, .8f});
@@ -117,7 +152,7 @@ void openDoorway() {
 } // namespace
 int main() {
     try {
-        supportAndJump();
+        escapedBodies(); supportAndJump();
         const auto slow = pushAtRate(1.0f / 30), fast = pushAtRate(1.0f / 120);
         std::cout << "Push endpoints: 30 FPS=" << slow << ", 120 FPS=" << fast << '\n';
         require(std::abs(slow - fast) < .5f, "Walking pushes must behave consistently across frame rates");

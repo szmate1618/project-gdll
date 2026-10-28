@@ -113,6 +113,34 @@ void corpseTransfers(Scene& scene) {
     try { lateJoin.acknowledge({0, 1000}); } catch (const std::runtime_error&) { rejected = true; }
     require(rejected, "Unsent pose acknowledgement accepted");
 }
+void retiredBoxes(Scene& scene, const Options& options) {
+    scene.boxes->add({0,1,0},{1,1,1});
+    scene.boxes->add({2,1,0},{.5f,1,.5f});
+    Replication replication;
+    Snapshot base; base.tick = 60;
+    const auto initial = replication.snapshot(scene,{},base);
+    Scene client(options); Snapshots playback;
+    playback.push(initial,0); playback.apply(client,0);
+    const auto oldBody = client.boxes->prop(0);
+    scene.boxes->setPose(0,{0,-32,0},{1,0,0,0});
+    scene.boxes->retireBelow(-30);
+    base.tick += 60;
+    const auto retired = replication.snapshot(scene,{},base);
+    require(retired.boxes.size() == 2 && retired.boxes[0].removed && !retired.boxes[1].removed,
+            "Server must preserve retired box IDs in snapshots");
+    playback.push(retired,1); playback.apply(client,1);
+    require(!oldBody.valid() && !client.boxes->active(0) && client.boxes->active(1) &&
+            client.boxes->pose(1).halfExtents.x == .25f, "Client retirement must preserve surviving box identities and dimensions");
+    Scene late(options); Snapshots latePlayback;
+    latePlayback.push(retired,0); latePlayback.apply(late,0);
+    require(late.boxes->count() == 2 && !late.boxes->active(0) && late.boxes->active(1),
+            "Late joins must reconstruct removed slots without leaving a live body");
+    require(scene.boxes->add({4,1,0},{1,1,1}) == 2, "Spawn after retirement must append a new ID");
+    base.tick += 60;
+    playback.push(replication.snapshot(scene,{},base),2); playback.apply(client,2);
+    require(client.boxes->count() == 3 && client.boxes->active(2) && !client.boxes->active(0),
+            "Later snapshots must not resurrect retired bodies or shift IDs");
+}
 void turning(Scene& scene) {
     scene.zombies = viewer::ZombieLayer{};
     scene.zombies.assets.emplace_back(); scene.zombies.instances.emplace_back();
@@ -144,7 +172,7 @@ int main(int argc, char** argv) {
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
         pacedSnapshots(); poseProtocol();
         Options options; options.map = argv[1]; options.trees = options.forests = false; options.zombieCount = 0;
-        Scene scene(options); corpseTransfers(scene); turning(scene);
+        Scene scene(options); retiredBoxes(scene, options); corpseTransfers(scene); turning(scene);
         std::cout << "Pacing, independent corpse transfers and rigid interpolation passed\n";
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

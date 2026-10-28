@@ -115,6 +115,7 @@ void Snapshots::apply(Scene& scene, double now) {
     for (const auto& box : b.boxes) {
         if (box.id > scene.boxes->count()) throw std::runtime_error("Server supplied non-dense box IDs");
         if (box.id == scene.boxes->count()) scene.boxes->add(box.center, box.halfExtents * 2.0f);
+        if (box.removed) { scene.boxes->retire(box.id); continue; }
         auto center = box.center; auto rotation = box.rotation;
         if (const auto* before = oldBoxes.at(box.id)) {
             center = glm::mix(before->center, center, t); rotation = glm::slerp(before->rotation, rotation, t);

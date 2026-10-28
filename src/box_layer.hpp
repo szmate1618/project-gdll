@@ -48,6 +48,12 @@ public:
     // Dense removal moves the last box into this slot. Owners must update their
     // matching records and release any grips referencing these two indices.
     void remove(std::size_t index);
+    // Destroy physics while preserving the slot/last pose for stable network IDs.
+    // Retired slots never become active again; count() includes these tombstones.
+    void retire(std::size_t index);
+    bool active(std::size_t index) const;
+    bool belowHeight(std::size_t index, float cutoffY) const; // Complete world AABB below Y.
+    void retireBelow(float cutoffY);
     std::size_t count() const;
     std::uint64_t revision() const;
     void wake();

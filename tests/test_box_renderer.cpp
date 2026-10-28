@@ -59,6 +59,10 @@ void dynamicRendering() {
     renderer.updateBoxes(boxes); renderer.render(camera);
     require(glm::length(pixel(camera, {0, .5f, -5}) - background) < 5, "Moved box must uncover its old pixels");
     require(glm::length(pixel(camera, moved.center) - background) > 40, "Moved box must appear at its current body pose");
+    boxes.retire(0);
+    renderer.updateBoxes(boxes); renderer.render(camera);
+    require(glm::length(pixel(camera, moved.center) - background) < 5,
+            "A retired slot must disappear from rendering even though its last pose is retained");
     renderer.setShadows(true); renderer.render(camera);
     renderer.setNight(true); renderer.setFlashlightShadows(true); renderer.render(camera);
     GLboolean depthWrite = GL_FALSE;

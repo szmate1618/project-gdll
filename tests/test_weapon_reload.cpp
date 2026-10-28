@@ -4,6 +4,7 @@
 #include "collision_world.hpp"
 #include "dropped_weapons.hpp"
 #include "physics_world.hpp"
+#include <box3d/box3d.h>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -42,6 +43,32 @@ viewer::PlayerInventory inventory(std::initializer_list<Stack> stacks) {
         addStack(contents, stack.id, stack.type, stack.quantity, viewer::bodyStorageReference(id, "main"), 0, 0);
     }
     return viewer::PlayerInventory(storage, contents);
+}
+void escapedDroppedWeapons() {
+    auto gun = weapons();
+    std::array<viewer::Model, viewer::weaponIds.size()> models;
+    for (auto& model : models) {
+        model.boundsMin = glm::vec3(-.1f); model.boundsMax = glm::vec3(.1f);
+        model.primitives.emplace_back();
+    }
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::DroppedWeapons dropped(physics, models);
+    viewer::Model empty; viewer::CollisionWorld world(empty); viewer::Camera camera;
+    camera.setPosition({0,-32,0});
+    require(dropped.discard(gun,camera,world,{}), "First weapon must be discarded below the map");
+    require(gun.equip(1) && dropped.discard(gun,camera,world,{}), "Adjacent escaped items must both be removed");
+    require(gun.equip(2), "Surviving item must have distinct metadata");
+    const auto loaded = gun.equipped().loaded;
+    camera.setPosition({0,2,0});
+    require(dropped.discard(gun,camera,world,{}), "Survivor must be above cleanup plane");
+    dropped.removeBelow(-30);
+    require(dropped.count() == 1 && dropped.poses().at(0).slot == 2 &&
+            b3World_GetCounters(physics->id()).bodyCount == 1,
+            "Cleanup must remove every escaped body and preserve the moved item's metadata");
+    require(dropped.pickUp(gun,camera,world) && gun.slot() == 2 && gun.equipped().loaded == loaded,
+            "Surviving dropped weapon must retain its slot and magazine after dense removal");
+    require(dropped.count() == 0 && b3World_GetCounters(physics->id()).bodyCount == 0,
+            "Pickup after cleanup must release the correct remaining body");
 }
 void timingAndInteraction() {
     auto gun = weapons();
@@ -175,7 +202,7 @@ void reloadingCannotCreateDroppedCopies() {
 }
 int main() {
     try {
-        timingAndInteraction(); sourceSelectionAndPartialLoads(); backpackAccess(); grenadeHandLoading(); reloadingCannotCreateDroppedCopies();
+        escapedDroppedWeapons(); timingAndInteraction(); sourceSelectionAndPartialLoads(); backpackAccess(); grenadeHandLoading(); reloadingCannotCreateDroppedCopies();
         std::cout << "Timed inventory reload, source selection and grenade loading checks passed\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

@@ -3,6 +3,8 @@
 #include "zombie_animation.hpp"
 #include "zombie_chase.hpp"
 #include "physics_world.hpp"
+#include "physics_prop.hpp"
+#include "zombie_cavity_physics.hpp"
 
 #include <box3d/box3d.h>
 
@@ -396,6 +398,35 @@ void detachedEscapeRetiresOwnerAbovePlane() {
     require(counters.bodyCount==0 && counters.jointCount==0,"Detached escape cleanup must release the complete owner");
 }
 
+void escapedCavityContents() {
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::ZombieCavityPhysics cavities(physics);
+    viewer::AnimatedModel asset; viewer::ZombieWoundGeometry geometry;
+    geometry.region = viewer::ZombieWoundRegion::head;
+    viewer::ZombieWound wound; wound.revision = 1;
+    cavities.wound(0,asset,geometry,wound,translation({0,2,0}),{});
+    geometry.region = viewer::ZombieWoundRegion::torso;
+    cavities.wound(1,asset,geometry,wound,translation({5,2,0}),{});
+    const auto contents = cavities.contents();
+    require(contents.size() == 7, "Cavity fixture must create head and torso contents");
+    const auto hit = viewer::raycastPhysicsProp(physics,{0,2,1},{0,0,-1},2);
+    require(bool(hit), "Head contents must be independently grabbable");
+    auto filter = b3DefaultQueryFilter(); filter.maskBits = viewer::zombieContentsCategory;
+    const auto raw = b3World_CastRayClosest(physics->id(),{0,2,1},{0,0,-2},filter);
+    require(raw.hit, "Contents body must be in the shared physics broadphase");
+    const auto body = b3Shape_GetBody(raw.shapeId);
+    b3Body_SetTransform(body,{0,-32,0},b3Quat_identity);
+    const auto before = b3World_GetCounters(physics->id());
+    cavities.removeContentsBelow(-30);
+    require(!hit->prop.valid() && cavities.contents().size() == 6 &&
+            b3World_GetCounters(physics->id()).bodyCount == before.bodyCount - 1,
+            "Escaped loose contents must be destroyed independently of their owner");
+    require(cavities.has(0,viewer::ZombieWoundRegion::head) && cavities.has(1,viewer::ZombieWoundRegion::torso),
+            "Loose contents cleanup must preserve both owner cavities");
+    geometry.region = viewer::ZombieWoundRegion::head; ++wound.revision;
+    cavities.wound(0,asset,geometry,wound,translation({0,2,0}),{});
+    require(cavities.contents().size() == 6, "Later wounds must not respawn cleaned-up contents");
+}
 void cleanupConfigurationChecksExistingCorpses() {
     auto simulation=std::make_shared<viewer::PhysicsWorld>();
     viewer::ZombieLayer layer;
@@ -592,7 +623,7 @@ int main() {
         layerOwnsPoseInvalidation();
         escapedRagdollsReleaseTheirOwners();
         detachedEscapeRetiresOwnerAbovePlane();
-        cleanupConfigurationChecksExistingCorpses();
+        escapedCavityContents(); cleanupConfigurationChecksExistingCorpses();
         renderChangesFollowBehavior();
         corpseMembership();
         headshotFollowsDisplayedPose(false);

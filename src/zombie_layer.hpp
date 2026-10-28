@@ -169,7 +169,8 @@ struct ZombieLayer {
     // calls synchronizePhysics(); standalone update() retains its own stepping.
     void attachPhysics(std::shared_ptr<PhysicsWorld> world);
     // World Y-up meters; configure from scene.boundsMin.y - 10. Disabled until
-    // configured. Any escaped body (including a severed part) retires its owner.
+    // configured. Any escaped ragdoll bone retires its owner; loose wound
+    // contents below the same plane are removed independently.
     void setRagdollCleanupHeight(float cutoffY);
     void synchronizePhysics();
     void synchronizePhysics(std::size_t zombie);

@@ -19,6 +19,7 @@ public:
     bool has(std::size_t id, ZombieWoundRegion region) const;
     void prepare(PhysicsScene* scene);
     void remove(std::size_t id);
+    void removeContentsBelow(float cutoffY);
     std::vector<std::pair<std::size_t,ZombieWoundRegion>> ids() const;
     std::vector<glm::mat4> contents() const;
 private:

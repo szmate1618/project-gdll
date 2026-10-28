@@ -22,7 +22,7 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s) {
     }
     for (std::size_t i = 0; i < scene.boxes->count(); ++i) {
         const auto p = scene.boxes->pose(i);
-        s.boxes.push_back({static_cast<std::uint32_t>(i), p.center, p.halfExtents, p.rotation});
+        s.boxes.push_back({static_cast<std::uint32_t>(i), p.center, p.halfExtents, p.rotation, !scene.boxes->active(i)});
     }
     std::vector<std::size_t> candidates;
     scene.zombies.queryLivingNear(feet, 240, candidates);

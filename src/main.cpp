@@ -1624,7 +1624,7 @@ int run(const Options& options) {
             }
             doors.activateNear(app.rig.camera().position());
             for (std::size_t i = 0; i < boxes.count(); ++i)
-                doors.activateNear(boxes.pose(i).center, 8);
+                if (boxes.active(i)) doors.activateNear(boxes.pose(i).center, 8);
             if (zombies)
                 for (const auto id : zombies->ragdollIds())
                     doors.activateNear(glm::vec3(zombies->instances[id].transform[3]));
@@ -1689,6 +1689,8 @@ int run(const Options& options) {
                     app.displayedAnimationSeconds);
             melee.finish(playerBody, zombies ? &*zombies : nullptr,
                          app.displayedAnimationSeconds);
+            boxes.retireBelow(model.boundsMin.y - 10.f);
+            droppedWeapons.removeBelow(model.boundsMin.y - 10.f);
             playerBody.afterStep();
             bodyRenderer.captureBody(playerBody, step);
             if (zombies) {

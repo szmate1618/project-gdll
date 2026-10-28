@@ -23,7 +23,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 15; // Authoritative player health.
+constexpr std::uint32_t protocolVersion = 16; // Retired box slots.
 
 struct Hello { std::string fingerprint; };
 struct Welcome { std::uint32_t player = 0; };
@@ -92,6 +92,7 @@ struct BoxState {
     std::uint32_t id = 0;
     glm::vec3 center{0}, halfExtents{.5f};
     glm::quat rotation{1, 0, 0, 0};
+    bool removed = false;
 };
 struct RigidPose {
     glm::vec3 center{0};

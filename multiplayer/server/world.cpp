@@ -251,7 +251,8 @@ void World::step() {
     }
     physicsScene_.prepare(*scene_.boxes);
     scene_.grenades->prepare(physicsScene_, *scene_.doors);
-    for (std::size_t i = 0; i < scene_.boxes->count(); ++i) scene_.doors->activateNear(scene_.boxes->pose(i).center, 8);
+    for (std::size_t i = 0; i < scene_.boxes->count(); ++i)
+        if (scene_.boxes->active(i)) scene_.doors->activateNear(scene_.boxes->pose(i).center, 8);
     for (const auto id : scene_.zombies.ragdollIds()) scene_.doors->activateNear(glm::vec3(scene_.zombies.instances[id].transform[3]));
     scene_.zombies.prepareWoundPhysics(tickSeconds, now, &physicsScene_);
     scene_.physics->step(tickSeconds, [&](float seconds) {
@@ -275,6 +276,7 @@ void World::step() {
         if (car != noVehicle) player.velocity = scene_.vehicles->velocity(car);
     }
     scene_.grenades->update(now, *scene_.collision, &scene_.zombies, now);
+    scene_.boxes->retireBelow(scene_.model.boundsMin.y - 10.f);
     scene_.zombies.synchronizePhysics();
     for (const auto& noise : noises) scene_.zombies.makeNoise(noise.position, noise.decibels);
     for (const auto& shot : shots) {

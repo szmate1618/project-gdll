@@ -40,11 +40,12 @@ void protocol() {
     player.ammoQuantities = {0, 5, 60};
     player.inventoryPlacements.push_back({"backpack/tactical_backpack/main", 7, 0, 90});
     s.players.push_back(player);
-    s.zombies.push_back({}); s.doors.push_back({3, .5f}); s.boxes.push_back({});
+    s.zombies.push_back({}); s.doors.push_back({3, .5f}); s.boxes.push_back({}); s.boxes.back().removed = true;
     s.grenades.push_back({7, {1, 2, 3}, {1, 0, 0, 0}});
     s.explosions.push_back({6, {4, 5, 6}, .08f});
     const auto bytes = encode(s);
     const auto copy = std::get<Snapshot>(decode(bytes.data(), bytes.size()));
+    require(copy.boxes.at(0).removed, "Snapshot round trip lost retired box state");
     require(copy.tick == 123 && copy.players[0].id == 42 && copy.players[0].movement.feet.x == 12 && copy.players[0].weaponCoolingDown,
         "Snapshot round trip lost state");
     require(copy.players[0].weaponSwitchRemaining == 1.25f && copy.players[0].weaponSwitchDuration == 3.5f,

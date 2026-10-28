@@ -903,6 +903,21 @@ visibility does not control this cleanup. Unchanged sleeping poses skip repeated
 changing the configured cleanup height also checks already-published corpses.
 Standalone physics fixtures leave cleanup disabled until explicitly configured.
 
+The same whole-collider plane also removes loose wound contents, dropped
+equippable weapons and ordinary crates after physics steps. Contents are checked
+independently of the owning zombie's movement, so an escaped piece is removed
+while its owner and surviving contents remain. Later wounds do not replenish
+removed pieces. Dropped-weapon removal also releases its inventory record and
+keeps surviving bodies paired with their weapon/ammunition metadata.
+
+Ordinary crates retain a stable slot and last pose after their physics body and
+constraints are destroyed. Retired slots skip rendering, collision, terrain
+preparation and door activation. Multiplayer protocol 16 carries the removed flag
+so clients and late joins reconstruct the same permanent IDs without live bodies;
+client and server builds must use the same protocol. Disposable contents and
+weapons instead compact their owner's storage. Existing grips become invalid
+when their body is destroyed and release their hand anchors on the next update.
+
 There is a small maintenance contract: **changes made outside normal physics
 simulation must go through the ragdoll's owning API**. This includes:
 

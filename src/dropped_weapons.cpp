@@ -43,10 +43,20 @@ bool DroppedWeapons::discard(Weapons& inventory, const Camera& camera, const Col
 bool DroppedWeapons::pickUp(Weapons& inventory, const Camera& camera, const CollisionWorld& world) {
     const auto hit = bodies_.raycast(camera.position(),camera.direction(),pickupReach);
     if (!hit || !world.lineOfSight(camera.position(),hit->point) || !inventory.pickUp(items_.at(hit->box))) return false;
-    bodies_.remove(hit->box);
-    if (hit->box+1<items_.size()) items_[hit->box] = items_.back();
-    items_.pop_back();
+    remove(hit->box);
     return true;
+}
+void DroppedWeapons::remove(std::size_t index) {
+    bodies_.remove(index);
+    if (index+1<items_.size()) items_[index] = items_.back();
+    items_.pop_back();
+}
+void DroppedWeapons::removeBelow(float cutoffY) {
+    if (!std::isfinite(cutoffY)) throw std::invalid_argument("Dropped weapon cleanup height must be finite");
+    for (std::size_t i = 0; i < items_.size();) {
+        if (bodies_.belowHeight(i, cutoffY)) remove(i);
+        else ++i;
+    }
 }
 void DroppedWeapons::prepare(PhysicsScene& scene, DoorLayer& doors) {
     scene.prepare(bodies_);

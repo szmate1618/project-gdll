@@ -215,7 +215,14 @@ void payload(Wire& w, Snapshot& s) {
         if (std::abs(d.angle) > 4) throw std::runtime_error("Invalid door snapshot");
     });
     w.list(s.boxes, maxBoxes, [&](BoxState& b) {
-        w.integer(b.id); w.vector(b.center); w.vector(b.halfExtents);
+        // IDs use only nine bits. Pack retirement into the high bit to retain
+        // the existing full-fleet snapshot byte budget.
+        constexpr std::uint32_t removedBit = 0x80000000u;
+        if (!w.reading && b.id >= maxBoxes) throw std::runtime_error("Invalid box snapshot ID");
+        std::uint32_t id = b.id | (b.removed ? removedBit : 0);
+        w.integer(id);
+        if (w.reading) { b.id = id & ~removedBit; b.removed = (id & removedBit) != 0; }
+        w.vector(b.center); w.vector(b.halfExtents);
         w.number(b.rotation.w); w.number(b.rotation.x); w.number(b.rotation.y); w.number(b.rotation.z);
         if (b.id >= maxBoxes || glm::any(glm::lessThan(b.halfExtents, glm::vec3(.05f))) ||
             glm::any(glm::greaterThan(b.halfExtents, glm::vec3(2))) || std::abs(glm::length(b.rotation) - 1) > .001f)

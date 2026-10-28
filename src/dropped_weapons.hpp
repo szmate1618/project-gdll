@@ -25,9 +25,11 @@ public:
     bool discard(Weapons& inventory, const Camera& camera, const CollisionWorld& world, glm::vec3 playerVelocity);
     bool pickUp(Weapons& inventory, const Camera& camera, const CollisionWorld& world);
     void prepare(PhysicsScene& scene, DoorLayer& doors);
+    void removeBelow(float cutoffY);
     std::vector<DroppedWeaponPose> poses() const;
     std::size_t count() const { return items_.size(); }
 private:
+    void remove(std::size_t index);
     BoxLayer bodies_;
     std::array<glm::vec3,weaponIds.size()> centers_, sizes_;
     std::vector<WeaponItem> items_;

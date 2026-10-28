@@ -108,6 +108,7 @@ void PhysicsScene::ensureNear(glm::vec3 minimum, glm::vec3 maximum) {
 }
 void PhysicsScene::prepare(const BoxLayer& boxes, float padding) {
     for (std::size_t i = 0; i < boxes.count(); ++i) {
+        if (!boxes.active(i)) continue;
         const auto box = boxes.pose(i);
         // Cover the next frame and neighboring tiles before bodies reach them.
         const auto reach = glm::vec3(glm::length(box.halfExtents) + padding);
