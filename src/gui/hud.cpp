@@ -126,6 +126,7 @@ struct Hud::Impl {
             if (!context) throw std::runtime_error("Cannot create HUD context");
             Rml::Factory::RegisterElementInstancer("minimap", &mapInstancer);
             Rml::Factory::RegisterElementInstancer("satellite-map", &mapInstancer);
+            registerCommandWheelElements();
             document = context->LoadDocument((directory / "hud.rml").generic_string());
             if (!document) throw std::runtime_error("Cannot load HUD layout: " + directory.string());
             for (const char* id : {"heading", "north-coordinate", "east-coordinate", "movement", "mode", "speed",

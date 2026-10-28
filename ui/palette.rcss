@@ -58,10 +58,12 @@ body.loadout { background-color: #2b2d2fed; }
 .combo-arrow { color: #ec696280; }
 .combo-number { color: #ec6962bf; }
 #save-combo { color: #f5f6f280; }
-#command-wheel, .signal-marker { background-color: #2b2d2fed; }
-.command-choice, #command-center { background-color: #383a3cf5; }
+.signal-marker { background-color: #2b2d2fed; }
+/* Faint sector fills keep the gameplay scene visible through the dial. */
+.command-choice { sector-fill: #383a3c26; sector-outline: #f5f6f24d; }
+#command-center { background-color: #383a3c1a; }
 .command-title, .command-choice.selected .command-symbol { color: #ec6962; }
-.command-choice.selected { border-color: #ec6962; background-color: #ec696226; }
+.command-choice.selected { sector-fill: #ec696226; sector-outline: #ec6962; }
 .command-hint, .command-key { color: #f5f6f299; }
 .command-cancel-hint, #command-center-label { color: #f5f6f280; }
 #command-cursor { background-color: #f5f6f2; }

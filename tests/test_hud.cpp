@@ -226,6 +226,14 @@ int main(int argc, char** argv) {
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto centeredWheel = pixels(1280, 720);
             require(centeredWheel != beforeWheel, "Command wheel did not open");
+            require(colorAt(centeredWheel, 1280, 720, 470, 190) == colorAt(beforeWheel, 1280, 720, 470, 190) &&
+                    colorAt(centeredWheel, 1280, 720, 688, 360) == colorAt(beforeWheel, 1280, 720, 688, 360),
+                    "Sector corners and gap around the cancel ring must leave the scene visible");
+            require(colorAt(centeredWheel, 1280, 720, 643, 430) == colorAt(beforeWheel, 1280, 720, 643, 430) &&
+                    colorAt(centeredWheel, 1280, 720, 643, 530) == colorAt(beforeWheel, 1280, 720, 643, 530),
+                    "Outward sector separation must leave a parallel gap near and far from the center");
+            require(colorAt(centeredWheel, 1280, 720, 647, 530) != colorAt(beforeWheel, 1280, 720, 647, 530),
+                    "The full 120-degree sector must extend to its translated straight edge");
             if (argc > 1) capture((std::string(argv[1]) + "-wheel-center.ppm").c_str(), centeredWheel, 1280, 720);
             for (const auto offset : {glm::vec2(0, -100), glm::vec2(100, 60), glm::vec2(-100, 60)}) {
                 state.commandWheelOffset = offset;
@@ -237,8 +245,14 @@ int main(int argc, char** argv) {
                              {viewer::SignalKind::Move, {.95f, .5f}, true},
                              {viewer::SignalKind::Backup, {.2f, .4f}, false}};
             clear(); hud.draw(state, 1280, 720); checkState();
-            require(isColor(colorAt(pixels(1280, 720), 1280, 720, 575, 210), {236,105,98}),
-                    "Selected command must use the shared menu red accent");
+            const auto sectorPixels = pixels(1280, 720);
+            require(isColor(colorAt(sectorPixels, 1280, 720, 640, 165), {236,105,98}),
+                    "Selected sector's curved outer edge must use the shared menu red accent");
+            const auto sectorFill = colorAt(sectorPixels, 1280, 720, 700, 220);
+            require(sectorFill[0] > 20 && sectorFill[0] < 60 && sectorFill[0] > sectorFill[1] * 2,
+                    "Selected sector must tint its interior while retaining HUD transparency");
+            require(colorAt(sectorPixels, 1280, 720, 800, 400) == colorAt(centeredWheel, 1280, 720, 800, 400),
+                    "Selecting Danger must not highlight the Move sector");
             if (argc > 1) capture((std::string(argv[1]) + "-wheel-danger.ppm").c_str(), pixels(1280, 720), 1280, 720);
             clear(); hud.draw(state, 640, 360); checkState();
             if (argc > 1) capture((std::string(argv[1]) + "-wheel-small.ppm").c_str(), pixels(640, 360), 640, 360);

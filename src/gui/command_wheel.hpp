@@ -5,6 +5,9 @@
 
 namespace Rml { class Element; class ElementDocument; }
 namespace viewer {
+// Register the sector element and its palette properties after Rml::Initialise().
+void registerCommandWheelElements();
+
 struct HudSignal {
     SignalKind kind = SignalKind::None;
     glm::vec2 position{0}; // Framebuffer fractions, origin at top left.

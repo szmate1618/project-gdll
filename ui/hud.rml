@@ -53,9 +53,9 @@
     <div id="signal-markers"></div>
     <div id="command-wheel">
         <div class="command-title">TEAM SIGNAL</div>
-        <div id="command-danger" class="command-choice"><div class="command-symbol">!</div><div class="command-label">DANGER</div></div>
-        <div id="command-move" class="command-choice"><div class="command-symbol">→</div><div class="command-label">MOVE THERE</div></div>
-        <div id="command-backup" class="command-choice"><div class="command-symbol">+</div><div class="command-label">BACKUP</div></div>
+        <command-sector id="command-danger" class="command-choice" sector="0"><div class="command-caption"><div class="command-symbol">!</div><div class="command-label">DANGER</div></div></command-sector>
+        <command-sector id="command-move" class="command-choice" sector="1"><div class="command-caption"><div class="command-symbol">→</div><div class="command-label">MOVE THERE</div></div></command-sector>
+        <command-sector id="command-backup" class="command-choice" sector="2"><div class="command-caption"><div class="command-symbol">+</div><div class="command-label">BACKUP</div></div></command-sector>
         <div id="command-center"><div class="command-key">MMB</div><div id="command-center-label">CANCEL</div></div>
         <div id="command-cursor"></div>
         <div class="command-hint">HOLD MIDDLE MOUSE · AIM · RELEASE TO SEND</div>
