@@ -60,8 +60,8 @@ body.loadout { background-color: #2b2d2fed; }
 #save-combo { color: #f5f6f280; }
 .signal-marker { background-color: #2b2d2fed; }
 /* Faint sector fills keep the gameplay scene visible through the dial. */
-.command-choice { sector-fill: #383a3c26; sector-outline: #f5f6f24d; }
-#command-center { background-color: #383a3c1a; }
+.command-choice { sector-fill: #f5f6f226; sector-outline: #f5f6f24d; }
+#command-center { background-color: #f5f6f21a; }
 .command-title, .command-choice.selected .command-symbol { color: #ec6962; }
 .command-choice.selected { sector-fill: #ec696226; sector-outline: #ec6962; }
 .command-hint, .command-key { color: #f5f6f299; }

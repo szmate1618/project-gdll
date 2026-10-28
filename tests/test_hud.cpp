@@ -226,13 +226,13 @@ int main(int argc, char** argv) {
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto centeredWheel = pixels(1280, 720);
             require(centeredWheel != beforeWheel, "Command wheel did not open");
-            require(colorAt(centeredWheel, 1280, 720, 470, 190) == colorAt(beforeWheel, 1280, 720, 470, 190) &&
-                    colorAt(centeredWheel, 1280, 720, 688, 360) == colorAt(beforeWheel, 1280, 720, 688, 360),
+            require(colorAt(centeredWheel, 1280, 720, 555, 275) == colorAt(beforeWheel, 1280, 720, 555, 275) &&
+                    colorAt(centeredWheel, 1280, 720, 664, 360) == colorAt(beforeWheel, 1280, 720, 664, 360),
                     "Sector corners and gap around the cancel ring must leave the scene visible");
-            require(colorAt(centeredWheel, 1280, 720, 643, 430) == colorAt(beforeWheel, 1280, 720, 643, 430) &&
-                    colorAt(centeredWheel, 1280, 720, 643, 530) == colorAt(beforeWheel, 1280, 720, 643, 530),
+            require(colorAt(centeredWheel, 1280, 720, 641, 395) == colorAt(beforeWheel, 1280, 720, 641, 395) &&
+                    colorAt(centeredWheel, 1280, 720, 641, 445) == colorAt(beforeWheel, 1280, 720, 641, 445),
                     "Outward sector separation must leave a parallel gap near and far from the center");
-            require(colorAt(centeredWheel, 1280, 720, 647, 530) != colorAt(beforeWheel, 1280, 720, 647, 530),
+            require(colorAt(centeredWheel, 1280, 720, 643, 445) != colorAt(beforeWheel, 1280, 720, 643, 445),
                     "The full 120-degree sector must extend to its translated straight edge");
             if (argc > 1) capture((std::string(argv[1]) + "-wheel-center.ppm").c_str(), centeredWheel, 1280, 720);
             for (const auto offset : {glm::vec2(0, -100), glm::vec2(100, 60), glm::vec2(-100, 60)}) {
@@ -246,13 +246,15 @@ int main(int argc, char** argv) {
                              {viewer::SignalKind::Backup, {.2f, .4f}, false}};
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto sectorPixels = pixels(1280, 720);
-            require(isColor(colorAt(sectorPixels, 1280, 720, 640, 165), {236,105,98}),
+            require(isColor(colorAt(sectorPixels, 1280, 720, 630, 263), {236,105,98}),
                     "Selected sector's curved outer edge must use the shared menu red accent");
-            const auto sectorFill = colorAt(sectorPixels, 1280, 720, 700, 220);
+            const auto sectorFill = colorAt(sectorPixels, 1280, 720, 670, 290);
             require(sectorFill[0] > 20 && sectorFill[0] < 60 && sectorFill[0] > sectorFill[1] * 2,
                     "Selected sector must tint its interior while retaining HUD transparency");
-            require(colorAt(sectorPixels, 1280, 720, 800, 400) == colorAt(centeredWheel, 1280, 720, 800, 400),
+            require(colorAt(sectorPixels, 1280, 720, 720, 380) == colorAt(centeredWheel, 1280, 720, 720, 380),
                     "Selecting Danger must not highlight the Move sector");
+            require(isColor(colorAt(sectorPixels, 1280, 720, 720, 380), {36,36,36}),
+                    "Unselected sectors must use the faint off-white HUD fill");
             if (argc > 1) capture((std::string(argv[1]) + "-wheel-danger.ppm").c_str(), pixels(1280, 720), 1280, 720);
             clear(); hud.draw(state, 640, 360); checkState();
             if (argc > 1) capture((std::string(argv[1]) + "-wheel-small.ppm").c_str(), pixels(640, 360), 640, 360);

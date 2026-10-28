@@ -1,23 +1,23 @@
-#command-wheel { display: none; position: absolute; left: 50%; top: 50%; margin-left: -190dp; margin-top: -190dp; width: 380dp; height: 380dp; z-index: 10; }
+#command-wheel { display: none; position: absolute; left: 50%; top: 50%; margin-left: -95dp; margin-top: -95dp; width: 190dp; height: 190dp; z-index: 10; }
 .commanding #command-wheel { display: block; }
-.command-title { position: absolute; top: -40dp; width: 380dp; text-align: center; font-size: 12dp; letter-spacing: 3dp; }
-.command-choice { display: block; position: absolute; left: 0dp; top: 0dp; width: 380dp; height: 380dp; }
-/* Move each complete 120-degree sector 6dp outward along its center direction. */
-#command-danger { top: -6dp; }
-#command-move { left: 5.196152dp; top: 3dp; }
-#command-backup { left: -5.196152dp; top: 3dp; }
-.command-caption { position: absolute; width: 128dp; height: 68dp; }
-#command-danger .command-caption { left: 126dp; top: 35dp; }
-#command-move .command-caption { left: 230dp; top: 215dp; }
-#command-backup .command-caption { left: 22dp; top: 215dp; }
-.command-symbol { position: absolute; top: 9dp; left: 51dp; width: 24dp; height: 24dp; line-height: 24dp; text-align: center; font-size: 21dp; }
-.command-label { position: absolute; top: 44dp; width: 128dp; text-align: center; font-size: 10dp; letter-spacing: 1dp; }
-#command-center { position: absolute; left: 148dp; top: 148dp; width: 82dp; height: 82dp; border-width: 1dp; border-radius: 42dp; }
-#command-center-label { position: absolute; top: 48dp; width: 82dp; text-align: center; font-size: 8dp; letter-spacing: 1dp; }
-.command-key { position: absolute; top: 21dp; width: 82dp; text-align: center; font-size: 10dp; }
-#command-cursor { position: absolute; left: 187dp; top: 187dp; width: 6dp; height: 6dp; border-radius: 3dp; }
-.command-hint { position: absolute; top: 408dp; left: -60dp; width: 500dp; text-align: center; font-size: 10dp; letter-spacing: 1dp; }
-.command-cancel-hint { position: absolute; top: 432dp; width: 380dp; text-align: center; font-size: 9dp; }
+.command-title { position: absolute; top: -20dp; width: 190dp; text-align: center; font-size: 6dp; letter-spacing: 1.5dp; }
+.command-choice { display: block; position: absolute; left: 0dp; top: 0dp; width: 190dp; height: 190dp; }
+/* Move each complete 120-degree sector 3dp outward along its center direction. */
+#command-danger { top: -3dp; }
+#command-move { left: 2.59808dp; top: 1.5dp; }
+#command-backup { left: -2.59808dp; top: 1.5dp; }
+.command-caption { position: absolute; width: 64dp; height: 34dp; }
+#command-danger .command-caption { left: 63dp; top: 17.5dp; }
+#command-move .command-caption { left: 115dp; top: 107.5dp; }
+#command-backup .command-caption { left: 11dp; top: 107.5dp; }
+.command-symbol { position: absolute; top: 4.5dp; left: 25.5dp; width: 12dp; height: 12dp; line-height: 12dp; text-align: center; font-size: 10.5dp; }
+.command-label { position: absolute; top: 22dp; width: 64dp; text-align: center; font-size: 5dp; letter-spacing: 0.5dp; }
+#command-center { position: absolute; left: 74dp; top: 74dp; width: 41dp; height: 41dp; border-width: 0.5dp; border-radius: 21dp; }
+#command-center-label { position: absolute; top: 24dp; width: 41dp; text-align: center; font-size: 4dp; letter-spacing: 0.5dp; }
+.command-key { position: absolute; top: 10.5dp; width: 41dp; text-align: center; font-size: 5dp; }
+#command-cursor { position: absolute; left: 93.5dp; top: 93.5dp; width: 3dp; height: 3dp; border-radius: 1.5dp; }
+.command-hint { position: absolute; top: 204dp; left: -30dp; width: 250dp; text-align: center; font-size: 5dp; letter-spacing: 0.5dp; }
+.command-cancel-hint { position: absolute; top: 216dp; width: 190dp; text-align: center; font-size: 4.5dp; }
 #signal-markers { position: absolute; left: 0dp; top: 0dp; width: 100%; height: 100%; }
 .signal-marker { position: absolute; margin-left: -44dp; margin-top: -12dp; width: 86dp; height: 22dp; line-height: 22dp; border-width: 1dp; text-align: center; font-size: 9dp; letter-spacing: 1dp; }
 .signal-marker.edge { border-width: 2dp; margin-top: -13dp; margin-left: -45dp; }
