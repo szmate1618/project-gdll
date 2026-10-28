@@ -347,10 +347,17 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
     displayedZombieSources_.clear();
     for (auto& batch : zombieBatches_) {
         batch.cameraInstances.clear();
+        batch.woundedCameraInstances.clear();
         batch.shadowInstances.clear();
         batch.flashlightInstances.clear();
-        for (auto& lod : batch.lods) { lod.cameraInstances.clear(); lod.shadowInstances.clear(); lod.flashlightInstances.clear(); }
-        for (auto& mesh : batch.severed) { mesh.cameraInstances.clear(); mesh.shadowInstances.clear(); mesh.flashlightInstances.clear(); }
+        for (auto& lod : batch.lods) {
+            lod.cameraInstances.clear(); lod.woundedCameraInstances.clear();
+            lod.shadowInstances.clear(); lod.flashlightInstances.clear();
+        }
+        for (auto& mesh : batch.severed) {
+            mesh.cameraInstances.clear(); mesh.woundedCameraInstances.clear();
+            mesh.shadowInstances.clear(); mesh.flashlightInstances.clear();
+        }
         batch.palettes->beginFrame();
     }
     {
@@ -397,7 +404,7 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
                     throw std::runtime_error("Invalid severed zombie geometry");
                 auto& mesh = batch.severed[std::size_t(source.severedJoint)];
                 instance.animationFrame = 0;
-                if (cameraVisible) { mesh.cameraInstances.push_back(instance); ++zombieRenderStats_.cameraLevels[0]; }
+                if (cameraVisible) { mesh.woundedCameraInstances.push_back(instance); ++zombieRenderStats_.cameraLevels[0]; }
                 if (shadowVisible) { mesh.shadowInstances.push_back(instance); ++zombieRenderStats_.shadowLevels[0]; }
                 if (flashlightVisible) { mesh.flashlightInstances.push_back(instance); ++zombieRenderStats_.flashlightLevels[0]; }
                 continue;
@@ -418,7 +425,8 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
                 source.displayedAnimationClip = clip == (asset.runClip ? &*asset.runClip : nullptr) && clip ? 2 : clip ? 1 : 0;
                 const auto level = cameraInstance.woundBase > 0 ? 0 : std::min(detail.level, batch.lods.size());
                 auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
-                geometry.cameraInstances.push_back(cameraInstance);
+                auto& cameraInstances = cameraInstance.woundBase > 0 ? geometry.woundedCameraInstances : geometry.cameraInstances;
+                cameraInstances.push_back(cameraInstance);
                 ++zombieRenderStats_.cameraLevels[level];
             }
             if (shadowVisible) {
@@ -470,6 +478,27 @@ void Renderer::drawZombies(double seconds, ZombiePass pass) {
     }
     if (zombieBatches_.empty()) return;
     if (!std::isfinite(seconds) || seconds < 0) seconds = 0;
+    // Keep program changes outside the asset/LOD loops. An unwounded crowd
+    // retains one draw per mesh, while mixed geometry uses one per group.
+    if (!shadowPass) drawZombieGroup(seconds, pass, false);
+    drawZombieGroup(seconds, pass, true);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_BUFFER, 0);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_BUFFER, 0);
+    glActiveTexture(GL_TEXTURE5);
+    glBindTexture(GL_TEXTURE_BUFFER, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glUniform1i(animatedLocation_, GL_FALSE);
+    glUniform1i(zombieCullBackfacesLocation_, GL_FALSE);
+    glUniform1i(instancedLocation_, GL_FALSE);
+    glFrontFace(GL_CCW);
+}
+
+void Renderer::drawZombieGroup(double seconds, ZombiePass pass, bool wounds) {
+    const bool shadowPass = pass != ZombiePass::Camera;
+    selectBasicShader(wounds);
     glUniform1i(instancedLocation_, GL_TRUE);
     glUniform1i(animatedLocation_, GL_TRUE);
     glUniform1i(animationLocation_, 1);
@@ -477,11 +506,14 @@ void Renderer::drawZombies(double seconds, ZombiePass pass) {
     const glm::mat4 identity(1);
     glUniformMatrix4fv(modelLocation_, 1, GL_FALSE, glm::value_ptr(identity));
     for (auto& batch : zombieBatches_) {
-        glActiveTexture(GL_TEXTURE5);
-        glBindTexture(GL_TEXTURE_BUFFER, batch.woundTexture);
-        glActiveTexture(GL_TEXTURE0);
+        if (wounds) {
+            glActiveTexture(GL_TEXTURE5);
+            glBindTexture(GL_TEXTURE_BUFFER, batch.woundTexture);
+            glActiveTexture(GL_TEXTURE0);
+        }
         const auto surfaceLevels = 1+batch.lods.size()+batch.severed.size();
-        for (std::size_t level = 0; level < surfaceLevels+batch.closures.size(); ++level) {
+        const auto geometryLevels = wounds ? surfaceLevels+batch.closures.size() : 1+batch.lods.size();
+        for (std::size_t level = 0; level < geometryLevels; ++level) {
             const bool closure = level >= surfaceLevels;
             if (closure && shadowPass) continue;
             const auto variant = closure ? level-surfaceLevels : 0;
@@ -491,15 +523,16 @@ void Renderer::drawZombies(double seconds, ZombiePass pass) {
             if (closure) {
                 const auto& exterior = variant == 0 ? static_cast<ZombieGeometry&>(batch) : batch.severed[variant-1];
                 geometry.cameraInstances.clear();
-                for (const auto& instance : exterior.cameraInstances)
+                for (const auto& instance : exterior.woundedCameraInstances)
                     if (instance.woundBase > 0) geometry.cameraInstances.push_back(instance);
             }
             const auto& visible = pass == ZombiePass::FlashlightShadow ? geometry.flashlightInstances :
-                shadowPass ? geometry.shadowInstances : geometry.cameraInstances;
+                shadowPass ? geometry.shadowInstances :
+                wounds && !closure ? geometry.woundedCameraInstances : geometry.cameraInstances;
             const auto count = static_cast<GLsizei>(visible.size());
             if (!shadowPass && !closure) zombieVisibleCount_ += visible.size();
             if (count == 0) continue;
-            const bool torsoBackfaces = !shadowPass && std::any_of(visible.begin(),visible.end(),
+            const bool torsoBackfaces = !shadowPass && wounds && std::any_of(visible.begin(),visible.end(),
                 [](const auto& instance) { return instance.woundBase > 0; });
             glBindBuffer(GL_ARRAY_BUFFER, geometry.instanceBuffer);
             // Orphan storage before streaming the compact list to avoid overwriting
@@ -541,18 +574,6 @@ void Renderer::drawZombies(double seconds, ZombiePass pass) {
             }
         }
     }
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_BUFFER, 0);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_BUFFER, 0);
-    glActiveTexture(GL_TEXTURE5);
-    glBindTexture(GL_TEXTURE_BUFFER, 0);
-    glActiveTexture(GL_TEXTURE0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glUniform1i(animatedLocation_, GL_FALSE);
-    glUniform1i(zombieCullBackfacesLocation_, GL_FALSE);
-    glUniform1i(instancedLocation_, GL_FALSE);
-    glFrontFace(GL_CCW);
 }
 
 void Renderer::releaseZombies() noexcept {

@@ -1,0 +1,204 @@
+Healthy/wounded zombie shader split — 2026-10-28
+===============================================
+
+Result
+------
+The implemented shader split improves the required healthy 100,000-zombie
+case and a separate control with 100 actors using wound rendering. Median of
+two process results per version, in milliseconds:
+
+Case                     CPU before -> after       GPU before -> after
+Healthy 100k                 21.809 -> 19.722           17.292 -> 14.907
+100 wounded / 99,900 healthy 22.057 -> 19.436           17.768 -> 14.316
+
+Healthy savings: 2.087 ms CPU render (9.6%), 2.385 ms GPU elapsed (13.8%).
+Mixed savings:   2.620 ms CPU render (11.9%), 3.452 ms GPU elapsed (19.4%).
+Both candidate processes beat both baseline processes within each case for
+CPU and GPU timing. Captures and metadata are byte-identical before/after
+within each case; the two different workloads intentionally have different
+geometry and images. These results are from one hardware/driver combination.
+
+Implementation
+--------------
+Both programs compile the same basic.vert/basic.frag sources. ZOMBIE_WOUNDS=0
+removes the wound varying, uniforms, primitive-ID lookup, wound discards and
+cavity/backface handling. The ordinary full program retains all these features.
+Animation, live skinning, alpha masking, lighting and fog remain in both.
+
+During existing visible-instance selection, intact camera exteriors enter one
+list and wounded exteriors enter another. This partitions the original camera
+population without another population scan or a duplicate full-population list.
+Draws group by model, geometry/LOD, wound support and primitive. Healthy draws
+are submitted together with the lean program; wounded draws use the full one.
+One wounded actor therefore cannot move healthy neighbors onto the full shader.
+Severed geometry stays on the full path. Closures select the wounded exterior
+instances with the same mask rule as before. Sun and flashlight caster lists,
+their geometry policy and their full shader path remain independent.
+
+BasicShaderUniforms caches each program's uniform locations. Program switches
+select the matching snapshot and invalidate cached material values. Both camera
+programs receive the same matrices, lighting, visibility and sampler settings;
+zombie drawing restores the full program before later props. The healthy program
+is created on first use, before measured frames. Its resource lifetime follows
+the renderer. The instance format remains 96 bytes. Mesh assets, animation data,
+visibility policy, LOD thresholds and eager severed uploads are preserved.
+
+Submission order changes to healthy then wounded. Exact equal-depth overlaps
+can therefore choose a different opaque surface than the previous source order.
+No unconditional image-equivalence claim is made for arbitrary coincident
+geometry. The tested fixtures and both 100k workloads preserve their output.
+
+Baseline and build isolation
+----------------------------
+Baseline renderer revision: b7da671dd343df6aaaf58b3e0485ea677b3118aa.
+Candidate: working-tree shader split, with unrelated HUD/map work preserved.
+Before editing, the original executable, renderer/static dependency libraries,
+shader files, compiler commands and relevant sources were saved under baseline/.
+
+Both timed versions use the same extended benchmark harness. The baseline
+harness was compiled against the frozen original Renderer header and linked
+against the saved original archives; its compiler dependency file verifies the
+old header path. The original header hash matches the revision's Git object.
+Control sources are in a flat directory with no competing renderer header.
+The candidate uses a successful normal CMake Release build, rebuilding all
+layout-dependent consumers. No old/new Renderer layouts or objects are mixed.
+Flags are the normal -O3 -DNDEBUG C++17 target flags in both versions.
+No build runs during timing, and no assets or map outputs were regenerated.
+
+Workloads
+---------
+Both cases use the standard synthetic 1,200 x 1,200 m field and ten real
+characters, all three prepared LODs, a 500 m placement radius, 1280x720 and
+the same overview camera. The sun map uses the current default 1024-square
+resolution in both builds. Previous diagnostic controls used 2048; those
+absolute timings are not a matched baseline for this report.
+
+Healthy: all 100,000 actors at LOD3, 10 zombie camera draws, 12,580,000 triangles.
+Mixed:   100 actors at LOD0 and 99,900 at LOD3, 30 zombie camera draws including
+         anatomical closures, 12,757,520 triangles.
+Both versions have zero zombie sun-shadow casters in this overview. All model,
+LOD, camera and count metadata match within a case. Every measured frame must
+submit 100,000 actors with the expected LOD counts and no distance removals.
+
+The optional --wounded 100 control applies a nonempty all-zero vertex mask to
+the first 100 stable IDs, evenly distributed across character models. It invokes
+normal wound rendering and forced full-detail wounded meshes without removing
+surfaces or adding injury physics. The independent renderer regression uses
+real removed triangles; this benchmark control isolates render-state costs.
+It does not benchmark a close crowd where healthy and wounded actors share
+LOD0, or a population in which every actor is wounded.
+
+Every invocation uses six rounds with 32 warmup and 64 measured frames per
+round. Simulation and animation follow the same deterministic 60 Hz timeline.
+The real idle update runs with the observer outside activation range and must
+leave the behavior pool empty. There are no active AI pursuers, birds, trees,
+audio, player movement or dynamic physics in these timed cases. Fog is disabled.
+
+Protocol and individual results
+-------------------------------
+Eight sequential processes use mirrored A/B/C/D/D/C/B/A order. Before each,
+the runner checks for known competing benchmark/build processes, pauses five
+seconds and waits for three consecutive zero-GPU-activity samples at 0.5-second
+intervals. Read-only clock/activity/temperature/memory telemetry is sampled
+every 0.5 seconds. No power or clock settings were changed or locked.
+
+Radeon 660M, radeonsi/rembrandt, LLVM 19.1.1, DRM 3.61, Linux 6.11.0-29-generic,
+Mesa 24.2.8-1ubuntu1~24.10.1, OpenGL 4.6 Core. Post-run inspection reports AC
+online and the balanced profile; this is not continuous power logging.
+
+Each row reports the standard summarizer's median of six round means, ms.
+Each process has 384 measured frames and 384 finite GPU samples.
+
+Run / case                  CPU render     GPU elapsed
+0 A healthy before             22.023          17.501
+1 B healthy after              19.752          14.784
+2 C mixed before               22.019          17.869
+3 D mixed after                19.533          14.662
+4 D mixed after                19.340          13.970
+5 C mixed before               22.094          17.668
+6 B healthy after              19.692          15.030
+7 A healthy before             21.594          17.082
+
+The summary table at the top takes the median of the two process results per
+variant. These are two independent process repetitions per variant, not twelve.
+Clock/scheduling variation remains: mixed-after happens to be faster than
+healthy-after despite more geometry. Do not use cross-case absolute differences
+to infer that wounds reduce rendering cost. The matched before/after effect
+is consistent in both cases. CPU render includes driver waits and GPU elapsed
+includes stalls; neither identifies a single hardware mechanism. CPU/GPU work
+overlaps, so these times must not be summed or converted into presented FPS.
+
+Comparison with the October 20 records
+--------------------------------------
+The preferred quieter original-renderer runs in zombies-open-100k-2026-10-20.txt
+record CPU render 17.662-18.468 ms and GPU elapsed 14.190-15.457 ms. The new
+healthy result, 19.722 ms CPU / 14.907 ms GPU, is back within that GPU range,
+but CPU render remains 1.254-2.060 ms higher, about 6.8-11.7% more time.
+Those original runs used a 2048-square sun map; this report uses 1024.
+
+A later October 20 regression control with the same 1024-square sun map
+(sun-shadow-resolution-2026-10-20.txt) records CPU 18.065 ms / GPU 14.040 ms.
+The new healthy result is still 9.2% above that CPU time and 6.2% above that
+GPU time. The shader split therefore does not establish full October 20 parity.
+All these cases submit the same 100k LOD3 actors, 10 draws and 12.58 million
+camera triangles. Historical sessions have uncontrolled clock/background
+conditions, so these remaining absolute gaps do not identify another causal
+feature. The matched improvement measured in this report remains the stronger
+evidence for the implemented change.
+
+System telemetry
+-----------------
+
+Available RAM spans 7.31-8.69 GiB and GPU temperature 49-68 C. Global counters
+record 156 pages swapped in (624 KiB) and no pages out. Memory-pressure avg10
+is zero throughout; one process records 12 us some/full stalls, the others zero.
+This does not show meaningful active RAM/swap pressure. Resource-capacity
+savings from skipping severed uploads are not part of this implementation.
+
+Correctness and build checks
+-----------------------------
+Full cmake --build build -j4 passes, followed by a successful focused rebuild.
+Six focused GPU CTests pass: zombie_renderer, shadow_renderer,
+building_renderer, tree_billboard_renderer, weapon_overlay and
+presentation_renderer. Sixteen remaining viewer renderer CTests also pass.
+The mixed regression independently compares a wound hole against a separate
+asset with the corresponding square's index triangles physically removed.
+It exercises two primitives, healthy/wounded same-LOD splitting, zero masks,
+repeated frames, wound removal/remerging, offscreen wounds, an intact live-skinned
+ragdoll, day/night changes and a lit single-sided prop drawn after zombies.
+
+Real-asset --assets and --dismemberment tests pass on the GPU. Authored
+idle/walk/run, authored ragdolls and severed activation captures match the saved
+original renderer byte-for-byte. Post-physics severed/neck captures differ;
+rerunning the SAME original binary also produces different final/neck captures,
+with identical activation, so those later captures are not deterministic
+bitwise controls. Candidate captures were visually inspected for the crowd,
+authored ragdolls and cut surfaces. No GL errors were reported.
+
+Healthy benchmark capture SHA-256:
+64df6d5b8d42d4ade6788a66a25ae0bf048bf3809f9dc4205dc3ffdcb148d473
+Mixed benchmark capture SHA-256:
+ebed53ec2ed48085ed6eecc72d7c374bbf1e8248073e66db25c3050831bd5be4
+All four captures and metadata files within each case are identical.
+The post-timing host audit finds no remaining benchmark/build processes.
+git diff --check passes; unrelated workspace edits are preserved.
+
+Reproduction and evidence
+-------------------------
+From the repository root:
+  cmake --build build --target benchmark_zombie_crowd -j4
+  ./build/benchmark_zombie_crowd assets/zombies/models build/benchmarks/healthy
+  ./build/benchmark_zombie_crowd assets/zombies/models build/benchmarks/mixed --wounded 100
+  .venv/bin/python tools/summarize_render_benchmark.py build/benchmarks/healthy
+  .venv/bin/python tools/summarize_render_benchmark.py build/benchmarks/mixed
+
+Ignored artifacts: build/benchmarks/zombie-wound-shader-split-20261028/.
+baseline/ and candidate/ retain executables, shader copies and build inputs.
+baseline-build-commands.json and baseline/benchmark_extended.d retain the
+baseline compiler/link invocation and header dependencies. setup.json records
+binary hashes and ordering. run-0-* through run-7-*/ retain raw CSVs, captures,
+metadata and standard reports. summary.json and run-*-telemetry.json retain
+the aggregate and system samples. Build/test logs, real-asset captures and
+their comparison JSONs retain validation, including the original fixture's
+post-physics variation. run_comparison.py and analyze_results.py are local
+experiment helpers; the tracked benchmark and summarizer remain the public API.

@@ -1,0 +1,142 @@
+Open 100k: October 19 renderer versus current — 2026-10-28
+=========================================================
+
+Result
+------
+The October 19 renderer is consistently faster in this comparison. With both
+versions using 2048-square sun maps, median of two process results:
+  October 19: CPU render 19.508 ms; GPU elapsed 14.384 ms.
+  Current:    CPU render 21.267 ms; GPU elapsed 16.282 ms.
+The current build takes 9.0% more CPU render time and 13.2% more GPU elapsed
+time. This is a whole-revision comparison, not identification of a causal feature.
+All six captures are byte-identical and all render/asset metadata match except
+the deliberately varied sun-map resolution in the current-default control.
+
+Historical revision and benchmark backport
+------------------------------------------
+Historical: c1e0d9389bd67a59891b236d6c2530405c38ce09,
+2026-10-19 18:08:27 +0200 (Budapest), the last first-parent commit that day.
+Title: Add firearm recoil, shotgun pump motion and scoped sway.
+Current: b7da671dd343df6aaaf58b3e0485ea677b3118aa.
+
+The standard benchmark was introduced on October 20, after this revision.
+An isolated archive of October 19 therefore receives only:
+- the standard benchmark harness, with its missing shadow-resolution metadata
+  getter replaced by historical SunLighting::shadowResolution;
+- frame_profile.hpp/.cpp from the first standard benchmark commit, 6f0045c;
+- the corresponding CMake target linking viewer_renderer and glfw.
+
+Historical renderer, simulation and shaders are unchanged. Protected source
+hashes were verified against the actual October 19 Git objects. The harness's
+population, timing loops, observer, animation timeline and assertions are
+unchanged. The metadata substitution has no effect on measured rendering.
+
+Builds and matching policy
+--------------------------
+The historical source and all project libraries were freshly built in separate
+directories. Compiler flags match current: /usr/bin/c++, Release, -O3 -DNDEBUG
+-std=c++17 -Wall -Wextra -Wpedantic, GLFW_INCLUDE_NONE and GL_GLEXT_PROTOTYPES.
+No project object files or class-layout consumers were mixed across revisions.
+Cached dependency sources were used offline. October 19 predates both Box3D
+extensions, so its dependency was separately extracted from the pristine pinned
+f555ee42084e0b43cbffa863f40bff8117c08896 Git commit. The patched main cache was
+preserved. Other core dependency pins match. No map or asset generators ran.
+
+The old renderer's native sun-map resolution is 2048, without an override API;
+the current default is 1024. For the primary matched comparison, a separate
+current harness calls the existing setSunShadowResolution(2048) before rendering.
+It was compiled using the current target's exact compiler command and linked
+with matching current headers/libraries. Neither production renderer was edited.
+The unmodified current-default 1024 benchmark is an additional control.
+
+Each binary runs from its own source root, using matching shaders and the same
+absolute zombie-asset directory. Historical basic shaders differ from current
+wound, face-handling and lighting code; modern shaders were not substituted.
+
+Workload and telemetry
+----------------------
+zombies-open-100k-v1: 1280x720; ten actual characters, three prepared LODs;
+six rounds per invocation, 32 warmup and 64 measured frames per round. Fixed
+60 Hz simulation/animation timeline; idle observer outside activation range.
+The behavior pool must remain empty, so this does not run 100,000 individual
+idle AI behaviors. There are no audio, player movement, dynamic physics, birds
+or vegetation workloads. Distance removal is disabled; every measured frame
+submits all 100,000 actors at LOD3: 10 draws and 12,580,000 camera triangles.
+Normal shadows remain enabled; this overview has no zombie shadow casters.
+Fog is disabled. Camera/scene geometry and animation policy are unchanged.
+
+Radeon 660M, radeonsi/rembrandt, LLVM 19.1.1, DRM 3.61,
+Linux 6.11.0-29-generic, Mesa 24.2.8-1ubuntu1~24.10.1, OpenGL 4.6 Core.
+No hardware or power settings were changed. Post-run inspection reported AC
+online and the balanced power profile; that is not continuous power telemetry.
+
+Six sequential invocations use mirrored A/B/C/C/B/A order. No builds run during
+measurement. The runner checks for other benchmark/build processes, pauses five
+seconds, then waits for three consecutive 0% GPU-activity readings at 0.5-second
+intervals. Activity, clock states, temperature, available RAM, swap counters and
+memory-pressure counters are sampled read-only every 0.5 seconds. GPU temperature
+spans 48-67 C. Pre-run idle checks do not imply matched clocks, temperatures or
+absence of all other system activity during draws. No settings were locked.
+
+Results
+-------
+Milliseconds, standard summarizer's median of six round means per invocation.
+Each row has 384 measured frames and 384 finite GPU samples.
+
+Run / version / sun map          CPU render       GPU elapsed
+0 October 19 / 2048                 19.501            14.519
+1 current / 2048                    21.267            16.539
+2 current / 1024                    20.781            15.372
+3 current / 1024                    20.826            15.591
+4 current / 2048                    21.268            16.024
+5 October 19 / 2048                 19.515            14.249
+
+Median of the two process results per variant:
+October 19 / 2048                   19.508            14.384
+Current / 2048                      21.267            16.282
+Current default / 1024              20.803            15.482
+
+Both historical runs are faster than both matched current runs in CPU and GPU
+timing. This supplies a useful faster reference for further investigation.
+The current-default row is context, not an independently isolated estimate of
+shadow-resolution savings. Only two invocations per variant were made, and GPU
+clock/scheduling state was not controlled. CPU render includes driver waits;
+CPU/GPU timing overlaps and must not be summed or converted into presented FPS.
+
+The historical GPU result is back in the 14-15 ms range reported on October 20.
+Its CPU result is still above the earlier quiet 17.7-18.5 ms measurements; those
+absolute CPU numbers are not fully reproduced. This experiment does not assign
+the difference to wounds, birds, visibility, a specific commit, or hardware state.
+
+Memory and process checks
+-------------------------
+Available RAM remained 8.04-9.16 GiB throughout the six invocations. Global swap
+counters recorded 29 pages in total (116 KiB at 4096 bytes/page) and no pages out.
+Memory-pressure avg10 readings remained 0.00; one invocation accumulated about
+72 microseconds of pressure stalls, with zero increments in the other five.
+The data do not show meaningful RAM-capacity or swap pressure during this test.
+High pre-existing swap occupancy alone is not evidence of current swapping.
+
+The final actual-host process audit found no remaining benchmark, build or
+comparison-runner processes. No processes were killed.
+
+Output verification and retained evidence
+-----------------------------------------
+All model/LOD fingerprints, camera/count metadata match after excluding the
+explicit sun-resolution field. All six captures are byte-identical:
+SHA-256 64df6d5b8d42d4ade6788a66a25ae0bf048bf3809f9dc4205dc3ffdcb148d473.
+The overview was visually inspected; all measured rounds completed without GL
+errors. The current workspace and unrelated HUD/map changes were preserved.
+
+Ignored artifacts: build/benchmarks/zombie-100k-oct19-20261028/.
+source-oct19/, build-oct19/, dependency-sources/box3d/ retain the old source,
+complete Release build and pristine dependency. benchmark-backport.patch records
+the harness-only additions; unchanged-historical-renderer.json records protected
+source hashes. setup.json, binary-sha256.json and current-2048-build.json retain
+revisions, commands and hashes; current-harness/ contains the 2048 control source.
+run-0-* through run-5-*/ retain raw CSVs, captures, metadata and standard reports.
+run-*-telemetry.json, memory-pressure-summary.json, summary.json and the final
+process/power-state audits retain the diagnostic data. run_comparison.py is a
+local runner, not a portable benchmark API. Reproduce with separate builds,
+the recorded harness backport, matching headers/libraries/shaders, identical
+assets and matched sun resolution; use the tracked standard CSV summarizer.

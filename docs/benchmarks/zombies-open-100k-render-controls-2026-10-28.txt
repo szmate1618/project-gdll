@@ -1,0 +1,186 @@
+Open 100k: wound shader and unused severed GPU resources — 2026-10-28
+===================================================================
+
+Result
+------
+Removing wound-specific shader code improves this healthy 100,000-zombie
+fixture with the current renderer. With normal resource uploads, median of two
+process results:
+  Current:         CPU render 21.039 ms; GPU elapsed 16.109 ms.
+  No wound shader: CPU render 19.343 ms; GPU elapsed 14.318 ms.
+That saves 1.695 ms (8.1%) CPU render and 1.792 ms (11.1%) GPU elapsed time.
+The shader control also improves timing with unused severed uploads disabled.
+All eight captures and metadata files are byte-identical.
+
+Skipping unused severed GPU uploads reduces peak GPU GTT accounting by roughly
+270-280 MiB, but does not establish an additional frame-time improvement.
+These are diagnostic controls in ignored scratch files. Production rendering,
+wound support and severed uploads have not been changed.
+
+Controls and build isolation
+----------------------------
+Source revision: b7da671dd343df6aaaf58b3e0485ea677b3118aa.
+Four cases form a 2 x 2 comparison:
+  A current:    current shaders; current severed GPU uploads.
+  B no-wounds: wound shader code removed; current severed GPU uploads.
+  C no-severed: current shaders; unused severed GPU uploads omitted.
+  D both:      both controls applied.
+
+The shader control copies all 18 production shader files. Only basic.vert and
+basic.frag change: remove the flat wound-base varying and assignment, wound
+uniforms, per-triangle wound lookup/discard, wound backface/cavity logic and
+cavity coloring. All other shader code, including headlights, is identical.
+The full current C++ instance layout (96 bytes), CPU preparation, visibility,
+LOD selection, wound-related CPU bookkeeping and uniform calls remain enabled.
+Missing control-shader uniform locations are handled by existing code.
+Those glUniform calls still occur, but location -1 makes them ignored by GL;
+the control therefore changes the active shader interface as well as its code.
+
+The upload control changes only the severed-geometry upload call in a scratch
+copy of zombie_renderer.cpp. It retains the vector entries, CPU reservations,
+skinning/frame/duration/count metadata, wound surfaces and bind-bound traversal.
+In particular, the count is initialized to the normal batch capacity so the
+per-frame empty severed lists take the same early-exit path as the baseline.
+It omits GPU meshes, buffers and animation resources for unused severed parts.
+A before/after population scan requires every actor to have no wounds, ragdoll
+or severed joint; these omitted resources are never drawn by this fixture.
+This omission would need a lazy-upload fallback before any production use.
+
+The harness is the current standard benchmark with a 2048-square sun-map
+override, the cold intact-population checks and strengthened O(1) render-count
+checks. Its timing loops and fixed simulation timeline are unchanged.
+All variants share this harness and current matching headers/libraries.
+The two changed translation units use their target's recorded compile commands:
+Release, -O3 -DNDEBUG, C++17. The upload-control object is linked before the
+current renderer archive. Link maps and symbol checks confirm exactly one
+implementation of each affected Renderer method, with the original archive
+object excluded only in the upload-control binary. No historical headers or
+class layouts are mixed. No production source was restored or overwritten.
+
+Workload and protocol
+----------------------
+zombies-open-100k-v1: 1280x720, ten actual characters and three prepared LODs.
+Every measured frame must submit 100,000 LOD3 actors, 10 draws and 12,580,000
+camera triangles, with zero sun-shadow and flashlight triangles. Zombie
+distance removal is disabled. Sun shadows use the normal enabled policy at
+2048-square resolution in every case; this camera has no zombie shadow casters.
+Fog is disabled, and all model/LOD hashes and camera settings match.
+
+Each process runs six rounds, each with 32 warmup and 64 measured frames.
+Animation and simulation advance on the same deterministic 60 Hz timeline.
+The idle observer remains outside activation range and the behavior pool must
+stay empty. There are no birds, trees, audio, player movement or dynamic physics.
+This tests rendering 100,000 intact actors, not 100,000 active AI pursuers.
+
+Eight sequential process invocations use mirrored A/B/C/D/D/C/B/A order.
+Each process starts from its matching copied shader directory and reads the
+same absolute asset directory. No builds run during measurement. Before each
+invocation the runner checks for competing known benchmark/build processes,
+pauses five seconds and waits for three consecutive 0% GPU-activity readings
+at 0.5-second intervals. Read-only telemetry is sampled every 0.5 seconds.
+
+Hardware/driver: AMD Radeon 660M, radeonsi/rembrandt, LLVM 19.1.1, DRM 3.61,
+Linux 6.11.0-29-generic, OpenGL 4.6 Core, Mesa 24.2.8-1ubuntu1~24.10.1.
+No clock or power settings were changed or locked. Post-run inspection reported
+AC online and the balanced power profile; this is not continuous power logging.
+GPU temperature spans 47-68 C. Idle checks do not guarantee matched clocks or
+absence of all background activity while rendering.
+
+Timing results
+--------------
+Milliseconds; each row is the standard summarizer's median of six round means.
+Each process has 384 measured frames and 384 finite GPU samples.
+GTT is peak global GPU-addressable system-memory accounting, in GiB, not a
+per-process allocation total or a direct measure of resident physical pages.
+
+Run / case                  CPU render    GPU elapsed    Peak GTT GiB
+0 A current                    20.618         16.065           2.350
+1 B no-wounds                  19.512         14.003           2.340
+2 C no-severed                 21.525         17.158           2.076
+3 D both                       19.026         14.165           2.071
+4 D both                       19.374         14.085           2.072
+5 C no-severed                 21.213         16.367           2.074
+6 B no-wounds                  19.175         14.632           2.328
+7 A current                    21.459         16.154           2.353
+
+Median of the two process results per case:
+A current                      21.039         16.109           2.351
+B no-wounds                    19.343         14.318           2.334
+C no-severed                   21.369         16.763           2.075
+D both                         19.200         14.125           2.071
+
+Removing wound shader code saves 8.1% CPU / 11.1% GPU with normal uploads
+(A -> B), and 10.2% CPU / 15.7% GPU with severed uploads disabled (C -> D).
+Every shader-off process has lower CPU and GPU time than every shader-on
+process. The direction survives both upload conditions and mirrored ordering.
+
+Skipping severed uploads alone (A -> C) is slightly slower here; with shader
+code removed (B -> D), the difference is only 0.7% CPU / 1.3% GPU faster.
+With two processes per case and visible run variation, these small differences
+do not establish a frame-time benefit or regression from skipping the uploads.
+The median peak GTT reduction is 283 MiB for A -> C and 269 MiB for B -> D.
+This supports a useful resource-footprint reduction, without demonstrating
+that unused allocations caused the measured frame-time gap.
+
+Interpretation and limits
+-------------------------
+The wound-capable shader/interface path contributes material cost in this
+healthy dense-crowd workload on this GPU/driver. This does not isolate which
+removed element causes it: primitive-ID use, extra varyings, branch/register
+effects, compiler behavior and driver validation remain possible mechanisms.
+No assertion is made that healthy actors perform wound texture fetches or lose
+hardware backface culling. Their wound base is zero and ordinary culling remains
+enabled in all controls.
+
+CPU render includes driver waits, and GPU elapsed includes execution stalls.
+The CPU improvement therefore does not establish equivalent CPU instruction
+savings or isolate GPU backpressure from the changed uniform-interface work.
+CPU and GPU overlap; do not sum them or convert them to presented FPS.
+The experiment has two independent process results per case, not twelve.
+
+Shader-only results are close to the separate October 19 matched-2048 result
+(CPU 19.508 ms, GPU 14.384 ms). That is evidence that this feature group can
+explain much of the observed historical gap, not an exact accounting across
+different sessions. The earlier October 23 torso shader control found no
+repeatable cost with roughly 111,000 triangles and 100 visible actors; that
+smaller workload does not exclude the effect measured here at 12.58 million
+triangles. Results are not a general claim about all GPUs or gameplay views.
+
+A production follow-up could keep a lean shader for intact batches and select
+the full wound-capable shader for wounded geometry. It must preserve wound
+masking, cavity backfaces, mixed populations and other users of the shared
+basic shaders. Removing the feature globally is only a diagnostic control.
+
+Memory, processes and output checks
+-----------------------------------
+Available RAM stays 7.83-9.04 GiB across the eight invocations. Global swap
+counters record 26 pages in (104 KiB at 4096 bytes/page), with no pages out.
+Memory-pressure avg10 readings remain 0.00. One process accumulates 314 us of
+some-pressure stalls and 306 us of full-pressure stalls; the others have zero
+increments. This does not show meaningful active RAM/swap pressure.
+Peak global VRAM accounting remains about 0.88 GiB in every case.
+
+All eight runs complete the population/count/idle guards and GL error checks.
+Their metadata files are byte-identical. Every capture has SHA-256:
+64df6d5b8d42d4ade6788a66a25ae0bf048bf3809f9dc4205dc3ffdcb148d473.
+The overview was visually inspected and shows the full crowd on the field.
+The final host process audit finds no remaining benchmark, build or comparison
+runner processes; no processes were killed. Unrelated HUD/map edits are intact.
+
+Retained evidence
+------------------
+Ignored artifacts: build/benchmarks/zombie-100k-render-controls-20261028/.
+setup.json, build-commands.json, binary-sha256.json and build logs record the
+revision and binaries. control-src/ retains both modified translation units;
+skip-severed-upload.patch records the upload control. shaders-current/ retains
+the baseline; shaders-no-wounds/ includes the shader control, source/control
+hash manifest and wound-removal.patch. Link maps retain archive selection.
+case-*/ directories choose the matching shader copy for each case.
+
+run-0-* through run-7-*/ retain raw CSVs, captures, metadata and standard reports.
+summary.json, run-*-telemetry.json, memory-pressure-summary.json and final host
+process/power-state audits retain the measurements. run_comparison.py is the
+local sequencing/telemetry runner, not a portable benchmark API. Reproduction
+requires current matching headers/libraries, both recorded scratch controls,
+the shared 2048 harness, identical assets and matching shader directories.
+Use the tracked tools/summarize_render_benchmark.py on the resulting CSVs.

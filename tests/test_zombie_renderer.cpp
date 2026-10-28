@@ -2,6 +2,8 @@
 #include "renderer.hpp"
 #include "zombie_animation.hpp"
 #include "zombie_lod.hpp"
+#include "box_layer.hpp"
+#include "physics_world.hpp"
 
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -198,6 +200,124 @@ std::vector<unsigned char> colorPixels() {
     glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
     viewer::Renderer::checkErrors("frustum culling comparison readback");
     return pixels;
+}
+
+void renderHealthyAndWoundedBatches() {
+    auto asset = makeAsset(2, 2);
+    // Supply reference vertices for replicated masks without anatomical caps
+    // on these deliberately planar marker squares.
+    asset.ragdollBones[std::size_t(viewer::RagdollPart::torso)] = 0;
+    asset.model.materials[0].unlit = false;
+    asset.model.materials[0].baseColor = {.8f, .9f, .7f, 1};
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(asset);
+    for (const float x : {-2.f, 0.f, 2.f}) {
+        viewer::ZombieInstance instance;
+        instance.transform = glm::translate(glm::mat4(1), {x, 0, 0});
+        layer.instances.push_back(instance);
+    }
+    layer.setRagdollPalette(2, std::vector<glm::mat4>(2, glm::translate(glm::mat4(1), {0, .75f, 0})));
+
+    viewer::ZombieLayer reference;
+    reference.assets.push_back(asset);
+    // Independent pixel oracle: physically omit the red square's two index
+    // triangles for the middle actor, with no wound mask or wound shader.
+    auto missingSquare = asset;
+    auto& indices = missingSquare.model.primitives[0].indices;
+    indices.erase(indices.begin(), indices.begin()+6);
+    reference.assets.push_back(std::move(missingSquare));
+    reference.instances = layer.instances;
+    reference.instances[1].asset = 1;
+
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::BoxLayer boxes(physics);
+    boxes.add({3.3f, .8f, .4f}, {.8f, .8f, .6f});
+    viewer::Camera camera;
+    camera.setPosition({0, .8f, 10});
+    camera.setOrientation(-90, 0);
+    viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    viewer::Renderer oracle(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &reference);
+    for (auto* current : {&renderer, &oracle}) {
+        current->resize(width, height);
+        current->setZombieDistanceDetail(false);
+        current->setHaze(false);
+        current->setGroundFog(false);
+        current->setShadows(false);
+        current->setFlashlight(false);
+        // Boxes draw after zombies, exercising the restored program/material
+        // state as well as the lit marker materials in both zombie groups.
+        current->updateBoxes(boxes);
+    }
+    const auto requirePixels = [](const std::vector<unsigned char>& actual,
+                                  const std::vector<unsigned char>& expected) {
+        if (actual.size() != expected.size()) throw std::runtime_error("Pixel comparison size mismatch");
+        for (std::size_t i=0; i<actual.size(); ++i)
+            if (std::abs(int(actual[i])-int(expected[i])) > 2)
+                throw std::runtime_error("Healthy/wounded grouping changed marker holes, lighting or the following prop");
+    };
+    const std::vector<std::uint8_t> intactMask(2, 0), removedSquare{0x0f, 0};
+    std::vector<unsigned char> previousLighting;
+    for (const bool night : {false, true, false}) {
+        renderer.setNight(night);
+        oracle.setNight(night);
+        layer.setWoundMask(1, {});
+        layer.instances[1].transform = glm::mat4(1);
+        layer.markRenderChanged(1);
+        reference.instances[1].transform = glm::mat4(1);
+        reference.markRenderChanged(1);
+        renderer.updateZombies(layer);
+        renderer.render(camera, 0);
+        const auto healthy = colorPixels();
+        if (renderer.zombieDrawCalls() != 2 || renderer.zombieVisibleCount() != 3 ||
+            renderer.zombieRenderStats().cameraLevels[0] != 3)
+            throw std::runtime_error("Intact living actors and a live-skinned ragdoll must share one batch per primitive");
+        if (!previousLighting.empty() && healthy == previousLighting)
+            throw std::runtime_error("Lit marker and prop fixture must respond to day/night changes");
+        previousLighting = healthy;
+
+        layer.setWoundMask(1, intactMask);
+        renderer.updateZombies(layer);
+        renderer.render(camera, 0);
+        requirePixels(colorPixels(), healthy);
+        if (renderer.zombieDrawCalls() != 4 || renderer.zombieVisibleCount() != 3)
+            throw std::runtime_error("One wounded actor must split its two primitives from same-asset healthy actors");
+
+        layer.setWoundMask(1, removedSquare);
+        renderer.updateZombies(layer);
+        oracle.updateZombies(reference);
+        oracle.render(camera, 0);
+        const auto expectedHole = colorPixels();
+        if (expectedHole == healthy) throw std::runtime_error("Missing-square oracle must visibly remove a marker");
+        for (int repeat=0; repeat<2; ++repeat) {
+            renderer.render(camera, 0);
+            requirePixels(colorPixels(), expectedHole);
+            if (renderer.zombieDrawCalls() != 4 || renderer.zombieVisibleCount() != 3)
+                throw std::runtime_error("Repeated mixed draws must retain both shader groups and every visible actor");
+        }
+
+        layer.instances[1].transform = glm::translate(glm::mat4(1), {1000, 0, 0});
+        reference.instances[1].transform = layer.instances[1].transform;
+        layer.markRenderChanged(1);
+        reference.markRenderChanged(1);
+        renderer.updateZombies(layer);
+        oracle.updateZombies(reference);
+        oracle.render(camera, 0);
+        const auto offscreen = colorPixels();
+        renderer.render(camera, 0);
+        requirePixels(colorPixels(), offscreen);
+        if (renderer.zombieDrawCalls() != 2 || renderer.zombieVisibleCount() != 2)
+            throw std::runtime_error("An offscreen wound must leave the visible healthy batch unsplit");
+
+        layer.setWoundMask(1, {});
+        layer.instances[1].transform = glm::mat4(1);
+        layer.markRenderChanged(1);
+        renderer.updateZombies(layer);
+        renderer.render(camera, 0);
+        requirePixels(colorPixels(), healthy);
+        if (renderer.zombieDrawCalls() != 2)
+            throw std::runtime_error("Removing the wound must merge the camera draw batches again");
+    }
+    viewer::Renderer::checkErrors("healthy and wounded shader grouping");
 }
 
 void renderFrustumCulling() {
@@ -873,6 +993,7 @@ int main(int argc, char** argv) {
     try {
         const std::string mode = argc > 1 ? argv[1] : "";
         renderDistanceLods();
+        renderHealthyAndWoundedBatches();
         renderDistantHeadSurfaces();
         renderFrustumCulling();
         paletteVisibilityAndDeferredChanges();

@@ -1,4 +1,8 @@
 #version 330 core
+#ifndef ZOMBIE_WOUNDS
+#define ZOMBIE_WOUNDS 1
+#endif
+
 in vec3 vNormal;
 in vec2 vUV;
 in vec4 vColor;
@@ -6,10 +10,12 @@ in vec3 vWorldPosition;
 in float vCanopyHeight;
 uniform vec3 uForestVisibility; // World X/Z center, horizontal radius; zero disables.
 flat in vec2 vCanopyLight;
+#if ZOMBIE_WOUNDS
 flat in int vWoundBase;
 uniform usamplerBuffer uZombieWounds;
 uniform int uZombieTriangleOffset;
 uniform bool uZombieCullBackfaces;
+#endif
 
 uniform vec4 uBaseColor;
 uniform sampler2D uBaseTexture;
@@ -177,19 +183,23 @@ float alphaMaskCutoff() {
 }
 
 void main() {
+#if ZOMBIE_WOUNDS
     uint wound = 0u;
     if (!uShadowPass && vWoundBase > 0)
         wound = texelFetch(uZombieWounds, vWoundBase - 1 + uZombieTriangleOffset + gl_PrimitiveID).r;
     if ((wound & 1u) != 0u) discard;
     bool cavityInterior = !gl_FrontFacing && (wound & 2u) != 0u;
     if (!gl_FrontFacing && uZombieCullBackfaces && !cavityInterior) discard;
+#endif
     if (uForestVisibility.z > 0.0) {
         vec2 offset = vWorldPosition.xz - uForestVisibility.xy;
         if (dot(offset, offset) > uForestVisibility.z * uForestVisibility.z) discard;
     }
     vec4 color = uBaseColor * vColor;
     if (uHasTexture && (!uShadowPass || uAlphaMode == 1)) color *= texture(uBaseTexture, vUV);
+#if ZOMBIE_WOUNDS
     if (cavityInterior) color = vec4(0.231, 0.00792, 0.0132, 1.0);
+#endif
     if (uAlphaMode == 1 && color.a < alphaMaskCutoff()) discard;
     if (uShadowPass) {
         fragColor = vec4(0.0);

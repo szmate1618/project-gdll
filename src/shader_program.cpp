@@ -8,12 +8,18 @@
 
 namespace viewer {
 namespace {
-GLuint compileShader(GLenum type, const std::filesystem::path& path) {
+GLuint compileShader(GLenum type, const std::filesystem::path& path, std::string_view definitions) {
     std::ifstream stream(path);
     if (!stream) throw std::runtime_error("Cannot open shader: " + path.string());
     std::ostringstream contents;
     contents << stream.rdbuf();
-    const std::string text = contents.str();
+    std::string text = contents.str();
+    if (!definitions.empty()) {
+        const auto lineEnd = text.find('\n');
+        if (text.compare(0, 8, "#version") != 0 || lineEnd == std::string::npos)
+            throw std::runtime_error("Shader definitions require a leading #version line: " + path.string());
+        text.insert(lineEnd + 1, std::string(definitions) + '\n');
+    }
     const char* source = text.c_str();
     const GLuint shader = glCreateShader(type);
     glShaderSource(shader, 1, &source, nullptr);
@@ -35,11 +41,11 @@ GLuint compileShader(GLenum type, const std::filesystem::path& path) {
 } // namespace
 
 GLuint createShaderProgram(const std::filesystem::path& vertexPath,
-                           const std::filesystem::path& fragmentPath) {
-    const GLuint vertex = compileShader(GL_VERTEX_SHADER, vertexPath);
+                           const std::filesystem::path& fragmentPath, std::string_view definitions) {
+    const GLuint vertex = compileShader(GL_VERTEX_SHADER, vertexPath, definitions);
     GLuint fragment = 0, program = 0;
     try {
-        fragment = compileShader(GL_FRAGMENT_SHADER, fragmentPath);
+        fragment = compileShader(GL_FRAGMENT_SHADER, fragmentPath, definitions);
         program = glCreateProgram();
         glAttachShader(program, vertex);
         glAttachShader(program, fragment);

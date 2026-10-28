@@ -1,6 +1,7 @@
 #pragma once
 
 #include "opengl.hpp"
+#include "basic_shader_uniforms.hpp"
 #include <array>
 #include <filesystem>
 #include <functional>
@@ -69,7 +70,9 @@ struct SceneRenderStats {
 
 struct ForestRenderStats { std::size_t patches = 0, volumes = 0, detailedPatches = 0, drawCalls = 0; };
 
-class Renderer {
+// The private base is the active program's location snapshot. It keeps shared
+// draw helpers independent of whether the current basic program supports wounds.
+class Renderer : private BasicShaderUniforms {
 public:
     Renderer(const Model& model, const std::filesystem::path& shaderDirectory,
              const TreeLayer* trees = nullptr, const ZombieLayer* zombies = nullptr,
@@ -250,7 +253,10 @@ private:
         GLsizei count = 0;
         GLint frameCount = 0;
         float duration = 0;
-        std::vector<ZombieGPUInstance> cameraInstances, shadowInstances, flashlightInstances;
+        // Camera exteriors are partitioned while selecting visible instances.
+        // Shadow lists retain their independent geometry and masking policy.
+        std::vector<ZombieGPUInstance> cameraInstances, woundedCameraInstances;
+        std::vector<ZombieGPUInstance> shadowInstances, flashlightInstances;
     };
     struct ZombieBatch : ZombieGeometry {
         struct WoundRow { std::size_t offset; std::uint64_t revision; int severedJoint; };
@@ -315,6 +321,7 @@ private:
                             const Camera& camera, const glm::mat4& projection, double seconds, const Frustum* flashlightFrustum);
     enum class ZombiePass { Camera, SunShadow, FlashlightShadow };
     void drawZombies(double seconds, ZombiePass pass = ZombiePass::Camera);
+    void drawZombieGroup(double seconds, ZombiePass pass, bool wounds);
     void drawSunShadows(const SunShadowView& shadowView, double seconds);
     void drawFlashlightShadows(const FlashlightView& view, double seconds);
     void drawShadowCasters(const glm::mat4& view, const glm::mat4& projection, double seconds,
@@ -330,9 +337,11 @@ private:
         float alphaCutoff, minifiedAlphaCutoff;
         bool unlit;
     };
-    // Material uniforms belong to program_; texture is the unit-0 2D binding.
+    // Material uniforms belong to the active program; texture is the unit-0 2D binding.
     // Culling/winding remain explicit because individual layers override them.
     std::optional<MaterialState> materialState_;
+    void selectBasicShader(bool wounds);
+    void applyBasicSamplersAndVisibility();
     void applyMaterial(const ModelGPU& model, int index, bool mirrored);
     void draw(const DrawGPU& draw);
     void drawGrenades(const glm::mat4& projectionView);
@@ -341,38 +350,15 @@ private:
     const Material& material(const ModelGPU& model, int index) const;
     std::filesystem::path shaderDirectory_;
     GLuint program_ = 0, framebuffer_ = 0, colorBuffer_ = 0, depthBuffer_ = 0;
+    GLuint healthyZombieProgram_ = 0, activeBasicProgram_ = 0;
+    BasicShaderUniforms woundUniforms_, healthyZombieUniforms_;
     int width_ = 0, height_ = 0;
     GLuint overlayFramebuffer_ = 0, overlayColor_ = 0;
     int overlayWidth_ = 0, overlayHeight_ = 0;
     bool overlayActive_ = false; // Reset by render(); other callers can present the scene directly.
-    GLint modelLocation_, viewLocation_, projectionLocation_, normalLocation_;
-    GLint colorLocation_, textureLocation_, hasTextureLocation_, unlitLocation_;
-    GLint alphaLocation_, cutoffLocation_, instancedLocation_;
-    GLint minifiedCutoffLocation_;
-    GLint treeCanopyLocation_;
-    GLint animatedLocation_, animationLocation_, animationFrameLocation_;
-    GLint animationCountLocation_, animationVerticesLocation_;
-    GLint skinningLocation_, skinningBonesLocation_, skinningBoneCountLocation_;
-    GLint zombieWoundsLocation_ = -1, zombieTriangleOffsetLocation_ = -1;
-    GLint zombieCullBackfacesLocation_ = -1;
-    GLint shadowPassLocation_, shadowsLocation_, shadowMapLocation_, sunMatrixLocation_;
-    GLint eyeLocation_, sunDirectionLocation_, sunColorLocation_, skyAmbientLocation_, groundAmbientLocation_;
-    GLint shadowDistanceLocation_, shadowFadeLocation_;
-    GLint hazeColorLocation_, hazeDensityLocation_, hazeStartLocation_;
-    GLint groundFogLocation_;
-    GLint nightBlendLocation_, unlitLightLocation_;
-    GLint headlightsLocation_, headlightDirectionLocation_;
-    std::array<GLint, 2> headlightPositions_;
-    GLint flashlightPositionLocation_, flashlightShadowsLocation_, flashlightShadowMapLocation_;
-    GLint flashlightMatrixLocation_, flashlightShadowDistancesLocation_;
-    GLint flashlightDirectionLocation_, flashlightColorLocation_, flashlightConeLocation_;
-    GLint muzzleFlashPositionLocation_, muzzleFlashColorLocation_, muzzleFlashRangeLocation_;
     MuzzleFlashLight muzzleFlash_;
-    static constexpr std::size_t maxExplosionLights = 8; // Matches basic.frag.
     std::array<MuzzleFlashLight, maxExplosionLights> explosionLights_{};
     std::size_t explosionLightCount_ = 0;
-    GLint explosionCountLocation_ = -1;
-    std::array<GLint, maxExplosionLights> explosionPositionLocations_{}, explosionColorLocations_{}, explosionRangeLocations_{};
     Atmosphere atmosphere_;
     bool haze_ = true;
     bool groundFog_ = true;
@@ -483,7 +469,6 @@ private:
     glm::vec3 treeViewForward_{0,0,-1};
     bool treeBillboardsForFrame_ = true;
     float treeBillboardDistance_ = 100;
-    GLint treeBillboardModeLocation_ = -1, treeBillboardPivotLocation_ = -1;
     TreeRenderStats treeStats_;
     bool treeCulling_ = true;
     bool treeShadows_ = true;
@@ -494,7 +479,6 @@ private:
     OldForestVisibility oldForestVisibility_;
     float oldForestDistance_ = OldForestVisibility::distance;
     std::optional<HorizontalVisibilityRange> forestViewRange_;
-    GLint forestVisibilityLocation_ = -1;
     std::vector<std::size_t> visibleForests_;
     std::vector<bool> forestDetail_, forestVolumeVisible_;
     VisibilityIndex forestVisibility_;

@@ -1,4 +1,8 @@
 #version 330 core
+#ifndef ZOMBIE_WOUNDS
+#define ZOMBIE_WOUNDS 1
+#endif
+
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUV;
@@ -41,7 +45,9 @@ out vec4 vColor;
 out vec3 vWorldPosition;
 out float vCanopyHeight;
 flat out vec2 vCanopyLight;
+#if ZOMBIE_WOUNDS
 flat out int vWoundBase;
+#endif
 
 vec3 turnToward(vec3 point, vec3 from, vec3 toward) {
     float cosine = clamp(dot(from, toward), -1.0, 1.0);
@@ -54,7 +60,9 @@ vec3 turnToward(vec3 point, vec3 from, vec3 toward) {
 }
 
 void main() {
+#if ZOMBIE_WOUNDS
     vWoundBase = uAnimated ? int(aInstanceInfo.w) : 0;
+#endif
     vec3 position = aPosition;
     vec3 normal = aNormal;
     if (uAnimated && aSkinningAndStep.x > 0.5 && uSkinningEnabled && uSkinningBoneCount > 0) {

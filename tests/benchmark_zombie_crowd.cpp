@@ -4,11 +4,15 @@
 #include "simulation_clock.hpp"
 #include <GLFW/glfw3.h>
 #include <algorithm>
+#include <charconv>
 #include <chrono>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
+#include <optional>
 #include <stdexcept>
+#include <string_view>
 
 namespace {
 using Clock = std::chrono::steady_clock;
@@ -75,20 +79,26 @@ void drain(viewer::FrameProfile& profile, std::size_t limit = 0) {
     }
 }
 
-void checkPopulation(const viewer::Renderer& renderer) {
+void checkPopulation(const viewer::Renderer& renderer, std::size_t wounded) {
     if (renderer.zombieCount() != population || renderer.zombieVisibleCount() != population ||
-        renderer.zombieRenderStats().distanceCulled != 0)
+        renderer.zombieRenderStats().distanceCulled != 0 ||
+        renderer.zombieRenderStats().cameraLevels != std::array<std::size_t,4>{wounded,0,0,population-wounded} ||
+        (!wounded && renderer.zombieDrawCalls() != 10))
         throw std::runtime_error("Standard benchmark must submit all 100,000 zombies; no distance/frustum shortcut is allowed");
 }
 
 void metadata(const std::filesystem::path& output, const std::filesystem::path& assets,
-              const viewer::ZombieLayer& zombies, const viewer::Camera& camera, const viewer::Renderer& renderer) {
+              const viewer::ZombieLayer& zombies, const viewer::Camera& camera, const viewer::Renderer& renderer,
+              std::size_t wounded) {
     std::ofstream file(output / "metadata.txt");
     if (!file) throw std::runtime_error("Cannot write benchmark metadata");
-    file << "scenario=zombies-open-100k-v1\nresolution=" << width << 'x' << height
+    file << "scenario=" << (wounded ? "zombies-open-100k-wounded-v1" : "zombies-open-100k-v1")
+         << "\nresolution=" << width << 'x' << height
          << "\nsun_shadow_resolution=" << renderer.sunShadowResolution()
          << "\nfield_m=1200x1200\nplacement_radius_m=" << radius << "\npopulation=" << population
-         << "\nassets=" << zombies.assets.size() << "\nrounds=" << rounds << "\nframes_per_round=" << frames
+         << "\nassets=" << zombies.assets.size() << "\nwounded_actors=" << wounded
+         << "\nwound_mask=" << (wounded ? "all-zero vertex mask; full wound rendering without removed geometry or physics" : "none")
+         << "\nrounds=" << rounds << "\nframes_per_round=" << frames
          << "\ncomparison_variants=" << variants
          << "\nrendered=" << renderer.zombieVisibleCount() << "\ndraw_calls=" << renderer.zombieDrawCalls()
          << "\ntriangles=" << renderer.zombieRenderStats().cameraTriangles << "\ncamera_lod_counts=";
@@ -118,11 +128,27 @@ void metadata(const std::filesystem::path& output, const std::filesystem::path& 
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc!=3) {
-        std::cerr << "Usage: benchmark_zombie_crowd ZOMBIE_MODEL_DIRECTORY OUTPUT_DIRECTORY\n";
+    constexpr auto usage = "Usage: benchmark_zombie_crowd ZOMBIE_MODEL_DIRECTORY OUTPUT_DIRECTORY"
+                           " [--wounded N] [--shadow-resolution N]\n";
+    if (argc<3) {
+        std::cerr << usage;
         return 1;
     }
     try {
+        std::size_t wounded = 0;
+        std::optional<int> shadowResolution;
+        for (int argument=3; argument<argc; argument+=2) {
+            if (argument+1 >= argc) throw std::runtime_error(usage);
+            const std::string_view option(argv[argument]), input(argv[argument+1]);
+            std::size_t value = 0;
+            const auto parsed = std::from_chars(input.data(),input.data()+input.size(),value);
+            if (parsed.ec != std::errc{} || parsed.ptr != input.data()+input.size())
+                throw std::runtime_error("Benchmark options require nonnegative integer values");
+            if (option == "--wounded" && value <= population) wounded = value;
+            else if (option == "--shadow-resolution" && value > 0 && value <= std::size_t(std::numeric_limits<int>::max()))
+                shadowResolution = static_cast<int>(value);
+            else throw std::runtime_error(usage);
+        }
         const std::filesystem::path assets(argv[1]), output(argv[2]);
         std::filesystem::create_directories(output);
         const auto scene = openField(); const viewer::CollisionWorld world(scene);
@@ -130,18 +156,32 @@ int main(int argc, char** argv) {
         if (zombies.assets.size()!=10 || zombies.lodAssets.size()!=10 ||
             std::any_of(zombies.lodAssets.begin(),zombies.lodAssets.end(),[](const auto& levels){return levels.size()!=3;}))
             throw std::runtime_error("Standard case requires all ten character variants and three prepared LODs; see assets/zombies/README.md");
+        // A nonempty zero mask exercises wound rendering without shooting,
+        // physics or removed surfaces. Wounded actors retain the normal full
+        // mesh policy; the remaining overview population stays at LOD3.
+        std::vector<std::vector<std::uint8_t>> masks(zombies.assets.size());
+        if (wounded) {
+            for (std::size_t asset=0; asset<zombies.assets.size(); ++asset) {
+                std::size_t vertices = 0;
+                for (const auto& primitive : zombies.assets[asset].model.primitives) vertices += primitive.vertices.size();
+                masks[asset].resize((vertices+7)/8);
+            }
+            for (std::size_t id=0; id<wounded; ++id) zombies.setWoundMask(id,masks[zombies.instances[id].asset]);
+        }
         viewer::Camera camera; camera.frame(zombies.boundsMin,zombies.boundsMax,float(width)/height);
         Window window;
-        std::cout << "GPU " << glGetString(GL_RENDERER) << "\nScenario zombies-open-100k-v1\n" << std::flush;
+        std::cout << "GPU " << glGetString(GL_RENDERER) << "\nScenario "
+                  << (wounded ? "zombies-open-100k-wounded-v1" : "zombies-open-100k-v1") << '\n' << std::flush;
         viewer::Renderer renderer(scene,"shaders",nullptr,&zombies);
         renderer.resize(width,height); renderer.setZombieDrawDistance(0);
+        if (shadowResolution) renderer.setSunShadowResolution(*shadowResolution);
         renderer.setHaze(false); renderer.setGroundFog(false);
-        renderer.render(camera,.5); checkPopulation(renderer);
-        metadata(output,assets,zombies,camera,renderer);
+        renderer.render(camera,.5); checkPopulation(renderer,wounded);
+        metadata(output,assets,zombies,camera,renderer,wounded);
         for (int variant=0;variant<variants;++variant) {
             const bool enabled = variant!=0;
             selectVariant(renderer,enabled);
-            renderer.render(camera,.5); checkPopulation(renderer);
+            renderer.render(camera,.5); checkPopulation(renderer,wounded);
             renderer.writeScreenshot(output / (enabled ? "tree-hiz.ppm" : "baseline.ppm"));
         }
         const viewer::ZombiePlayer observer{{0,0,halfField+100}};
@@ -166,7 +206,7 @@ int main(int argc, char** argv) {
                 const auto rendered=Clock::now(); profile.endGpu();
                 profile.record({static_cast<std::uint64_t>(frame),milliseconds(renderStart,rendered),
                     milliseconds(start,updated),milliseconds(updated,prepared),0,0});
-                checkPopulation(renderer);
+                checkPopulation(renderer,wounded);
             }
             drain(profile); viewer::Renderer::checkErrors("100,000 zombie benchmark");
             std::cout << "round=" << round << " variant=" << name << " rendered=" << renderer.zombieVisibleCount()

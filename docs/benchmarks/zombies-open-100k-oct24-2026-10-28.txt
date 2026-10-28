@@ -1,0 +1,101 @@
+Open 100k: October 24 build versus current — 2026-10-28
+======================================================
+
+Result
+------
+The October 24 build is not materially faster in this comparison. Median of
+two process results: CPU render 21.932 ms historical versus 21.897 ms current;
+GPU elapsed 17.119 ms versus 16.974 ms. Differences are smaller than observed
+within-version variation. This experiment does not reproduce a substantial
+rendering slowdown between October 24 and current HEAD.
+
+Revisions and isolation
+-----------------------
+Historical: 602233122e9bbfaa8228a9a823ca1b16fc47a205, the last first-parent
+commit on October 24, committed 2026-10-24 22:39:28 +0200 (Budapest).
+Current: b7da671dd343df6aaaf58b3e0485ea677b3118aa.
+
+The historical tracked source was extracted into a new ignored directory and
+fully compiled with a separate binary directory. No existing project object
+files were reused, and workspace changes were preserved. Both targets were
+rebuilt successfully in Release with /usr/bin/c++, -O3 -DNDEBUG -std=c++17,
+-Wall -Wextra -Wpedantic, GLFW_INCLUDE_NONE and GL_GLEXT_PROTOTYPES.
+Dependency pins and Box3D patches match; cached dependency sources were reused
+with disconnected FetchContent. Only benchmark_zombie_crowd was built: no map
+or asset generators ran. Historical multiplayer targets were disabled without
+changing the benchmark target's compiler definitions or flags.
+
+The benchmark harness and frame_profile.hpp/.cpp are byte-identical between
+the revisions. Each executable ran from its own source root with matching
+historical shaders and absolute shared zombie-asset/output paths. Shared
+basic.frag differs by a zero-flashlight-color early exit; both versions already
+exit the flashlight path in this daytime case. The changed reticle shader is
+unused by the harness. Captures verify identical output despite these changes.
+
+Protocol
+--------
+Unmodified tracked zombies-open-100k-v1: 1280x720, ten actual characters with
+three prepared LODs, six rounds per invocation, 32 warmup and 64 measured frames
+per round. Idle behavior uses an observer outside activation range and a fixed
+60 Hz timeline. Distance removal is disabled. All 100,000 actors are submitted
+at LOD3: 10 draws and 12,580,000 camera triangles, no zombie shadow casters.
+Normal shadows use 1024-square sun maps; fog is disabled. There are no audio,
+player movement, dynamic physics, birds or vegetation workloads.
+
+Hardware: Radeon 660M, radeonsi/rembrandt, LLVM 19.1.1, DRM 3.61,
+Linux 6.11.0-29-generic, Mesa 24.2.8-1ubuntu1~24.10.1, OpenGL 4.6 Core.
+No power/hardware settings changed; GPU performance level remained auto.
+Runs were sequential, without concurrent builds. The runner checked for other
+benchmark/build processes, paused five seconds, then waited for three consecutive
+0% GPU-activity samples at 0.5-second intervals before every invocation.
+Read-only activity, clock-state, temperature and load samples were retained.
+GPU temperatures ranged from 53 to 67 C. Idle samples do not establish matched
+clocks or absence of all background GPU activity during timed rendering.
+
+Results
+-------
+Milliseconds, standard summarizer's median of six round means per invocation.
+Each invocation has 384 measured frames and 384 finite GPU samples.
+
+Run / version                 CPU render       GPU elapsed
+0 October 24                      22.087            17.158
+1 current                         22.347            17.617
+2 current                         21.448            16.330
+3 October 24                      21.777            17.079
+
+Median of the two process results per version:
+October 24                        21.932            17.119
+Current                           21.897            16.974
+
+Current CPU render is 0.034 ms lower, while its own two runs differ by 0.898 ms.
+The measured aggregate GPU difference is 0.145 ms; current's two runs differ by
+1.287 ms. These results do not establish a small code speedup or regression.
+CPU rendering includes driver waits, and CPU/GPU work overlaps. Do not sum
+their timings or convert them directly to presented gameplay FPS.
+
+Verification and interpretation
+-------------------------------
+All model/LOD fingerprints, camera/count metadata and all four captures are
+byte-identical. Capture SHA-256:
+64df6d5b8d42d4ade6788a66a25ae0bf048bf3809f9dc4205dc3ffdcb148d473.
+The overview was visually inspected; all rounds completed without GL errors.
+The final actual-host process audit found no remaining benchmark, build or
+comparison-runner processes. No processes were killed.
+
+This compares complete historical/current revisions, not an isolated feature.
+The build from four calendar days earlier also takes about 22 ms CPU today.
+The older October 20 measurements near 18 ms CPU remain unreproduced by these
+builds; this comparison does not resolve their difference in code or hardware state.
+
+Retained evidence
+-----------------
+Ignored artifacts: build/benchmarks/zombie-100k-oct24-20261028/.
+source-oct24/ and build-oct24/ retain the historical source and Release build.
+setup.json records exact revisions/offline configuration; source-sha256.json
+and binary-sha256.json record input hashes. run-0-* through run-3-*/ contain raw
+frame CSVs, metadata, captures and standard reports; run-*.log and
+run-*-telemetry.json retain output and hardware samples. summary.json stores
+aggregate timings and image hashes; post-run-process-audit.json is empty.
+run_comparison.py is a local diagnostic runner, not a portable benchmark API.
+Reproduce with the tracked harness and standard summarizer, separate builds,
+matching per-revision headers/libraries/shaders and the same asset directory.

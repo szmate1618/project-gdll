@@ -39,72 +39,8 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
     : shaderDirectory_(shaderDirectory), sceneVisibility_(model) {
     try {
         program_ = createShaderProgram(shaderDirectory / "basic.vert", shaderDirectory / "basic.frag");
-        modelLocation_ = glGetUniformLocation(program_, "uModel");
-        viewLocation_ = glGetUniformLocation(program_, "uView");
-        projectionLocation_ = glGetUniformLocation(program_, "uProjection");
-        normalLocation_ = glGetUniformLocation(program_, "uNormalMatrix");
-        colorLocation_ = glGetUniformLocation(program_, "uBaseColor");
-        textureLocation_ = glGetUniformLocation(program_, "uBaseTexture");
-        hasTextureLocation_ = glGetUniformLocation(program_, "uHasTexture");
-        unlitLocation_ = glGetUniformLocation(program_, "uUnlit");
-        alphaLocation_ = glGetUniformLocation(program_, "uAlphaMode");
-        cutoffLocation_ = glGetUniformLocation(program_, "uAlphaCutoff");
-        minifiedCutoffLocation_ = glGetUniformLocation(program_, "uMinifiedAlphaCutoff");
-        instancedLocation_ = glGetUniformLocation(program_, "uInstanced");
-        treeCanopyLocation_ = glGetUniformLocation(program_, "uTreeCanopyShading");
-        treeBillboardModeLocation_ = glGetUniformLocation(program_, "uTreeBillboardMode");
-        treeBillboardPivotLocation_ = glGetUniformLocation(program_, "uTreeBillboardPivot");
-        animatedLocation_ = glGetUniformLocation(program_, "uAnimated");
-        animationLocation_ = glGetUniformLocation(program_, "uAnimation");
-        animationFrameLocation_ = glGetUniformLocation(program_, "uAnimationFrame");
-        animationCountLocation_ = glGetUniformLocation(program_, "uAnimationCount");
-        animationVerticesLocation_ = glGetUniformLocation(program_, "uAnimationVertices");
-        skinningLocation_ = glGetUniformLocation(program_, "uSkinningEnabled");
-        skinningBonesLocation_ = glGetUniformLocation(program_, "uSkinningBones");
-        skinningBoneCountLocation_ = glGetUniformLocation(program_, "uSkinningBoneCount");
-        zombieWoundsLocation_ = glGetUniformLocation(program_, "uZombieWounds");
-        zombieTriangleOffsetLocation_ = glGetUniformLocation(program_, "uZombieTriangleOffset");
-        zombieCullBackfacesLocation_ = glGetUniformLocation(program_, "uZombieCullBackfaces");
-        shadowPassLocation_ = glGetUniformLocation(program_, "uShadowPass");
-        shadowsLocation_ = glGetUniformLocation(program_, "uShadows");
-        shadowMapLocation_ = glGetUniformLocation(program_, "uShadowMap");
-        sunMatrixLocation_ = glGetUniformLocation(program_, "uSunMatrix");
-        eyeLocation_ = glGetUniformLocation(program_, "uEye");
-        forestVisibilityLocation_ = glGetUniformLocation(program_, "uForestVisibility");
-        sunDirectionLocation_ = glGetUniformLocation(program_, "uSunDirection");
-        sunColorLocation_ = glGetUniformLocation(program_, "uSunColor");
-        skyAmbientLocation_ = glGetUniformLocation(program_, "uSkyAmbient");
-        groundAmbientLocation_ = glGetUniformLocation(program_, "uGroundAmbient");
-        shadowDistanceLocation_ = glGetUniformLocation(program_, "uShadowDistance");
-        shadowFadeLocation_ = glGetUniformLocation(program_, "uShadowFadeStart");
-        hazeColorLocation_ = glGetUniformLocation(program_, "uHazeColor");
-        hazeDensityLocation_ = glGetUniformLocation(program_, "uHazeDensity");
-        hazeStartLocation_ = glGetUniformLocation(program_, "uHazeStart");
-        groundFogLocation_ = glGetUniformLocation(program_, "uGroundFog");
-        nightBlendLocation_ = glGetUniformLocation(program_, "uNightBlend");
-        unlitLightLocation_ = glGetUniformLocation(program_, "uUnlitLight");
-        headlightsLocation_ = glGetUniformLocation(program_, "uHeadlights");
-        headlightDirectionLocation_ = glGetUniformLocation(program_, "uHeadlightDirection");
-        headlightPositions_[0] = glGetUniformLocation(program_, "uHeadlightPosition[0]");
-        headlightPositions_[1] = glGetUniformLocation(program_, "uHeadlightPosition[1]");
-        flashlightPositionLocation_ = glGetUniformLocation(program_, "uFlashlightPosition");
-        flashlightShadowsLocation_ = glGetUniformLocation(program_, "uFlashlightShadows");
-        flashlightShadowMapLocation_ = glGetUniformLocation(program_, "uFlashlightShadowMap");
-        flashlightMatrixLocation_ = glGetUniformLocation(program_, "uFlashlightMatrix");
-        flashlightShadowDistancesLocation_ = glGetUniformLocation(program_, "uFlashlightShadowDistances");
-        flashlightDirectionLocation_ = glGetUniformLocation(program_, "uFlashlightDirection");
-        flashlightColorLocation_ = glGetUniformLocation(program_, "uFlashlightColor");
-        flashlightConeLocation_ = glGetUniformLocation(program_, "uFlashlightCone");
-        muzzleFlashPositionLocation_ = glGetUniformLocation(program_, "uMuzzleFlashPosition");
-        muzzleFlashColorLocation_ = glGetUniformLocation(program_, "uMuzzleFlashColor");
-        muzzleFlashRangeLocation_ = glGetUniformLocation(program_, "uMuzzleFlashRange");
-        explosionCountLocation_ = glGetUniformLocation(program_, "uExplosionCount");
-        for (std::size_t i = 0; i < maxExplosionLights; ++i) {
-            const auto index = "[" + std::to_string(i) + "]";
-            explosionPositionLocations_[i] = glGetUniformLocation(program_, ("uExplosionPositions" + index).c_str());
-            explosionColorLocations_[i] = glGetUniformLocation(program_, ("uExplosionColors" + index).c_str());
-            explosionRangeLocations_[i] = glGetUniformLocation(program_, ("uExplosionRanges" + index).c_str());
-        }
+        woundUniforms_ = BasicShaderUniforms(program_);
+        static_cast<BasicShaderUniforms&>(*this) = woundUniforms_;
         fallback_.baseColor = glm::vec4(0.65f, 0.68f, 0.72f, 1.0f);
         uploadModel(model, model_);
         uploadRoofBatches(model);
@@ -265,7 +201,9 @@ void Renderer::release() noexcept {
     glDeleteRenderbuffers(1, &depthBuffer_);
     glDeleteFramebuffers(1, &overlayFramebuffer_);
     glDeleteRenderbuffers(1, &overlayColor_);
+    if (healthyZombieProgram_) glDeleteProgram(healthyZombieProgram_);
     if (program_) glDeleteProgram(program_);
+    healthyZombieProgram_ = activeBasicProgram_ = program_ = 0;
 }
 
 const Material& Renderer::material(const ModelGPU& model, int index) const {
@@ -373,6 +311,48 @@ void Renderer::setRain(bool enabled) {
     rainEnabled_ = enabled;
 }
 
+void Renderer::selectBasicShader(bool wounds) {
+    if (!wounds && !healthyZombieProgram_) {
+        healthyZombieProgram_ = createShaderProgram(shaderDirectory_ / "basic.vert", shaderDirectory_ / "basic.frag",
+                                                    "#define ZOMBIE_WOUNDS 0");
+        try {
+            healthyZombieUniforms_ = BasicShaderUniforms(healthyZombieProgram_);
+        } catch (...) {
+            glDeleteProgram(healthyZombieProgram_);
+            healthyZombieProgram_ = 0;
+            throw;
+        }
+    }
+    const auto selected = wounds ? program_ : healthyZombieProgram_;
+    if (selected != activeBasicProgram_) {
+        static_cast<BasicShaderUniforms&>(*this) = wounds ? woundUniforms_ : healthyZombieUniforms_;
+        activeBasicProgram_ = selected;
+        materialState_.reset(); // Cached values belong to the previous program.
+    }
+    // Other renderers can bind their own programs between basic draws.
+    glUseProgram(selected);
+}
+
+void Renderer::applyBasicSamplersAndVisibility() {
+    glActiveTexture(GL_TEXTURE0);
+    glUniform1i(textureLocation_, 0);
+    if (forestViewRange_)
+        glUniform3f(forestVisibilityLocation_, forestViewRange_->center.x,
+                    forestViewRange_->center.y, forestViewRange_->radius);
+    else glUniform3f(forestVisibilityLocation_, 0, 0, 0);
+    // Assign active sampler types distinct units, including empty scenes.
+    glUniform1i(animationLocation_, 1);
+    glUniform1i(skinningBonesLocation_, 2);
+    glUniform1i(shadowMapLocation_, 3);
+    glUniform1i(flashlightShadowMapLocation_, 4);
+    glUniform1i(zombieWoundsLocation_, 5);
+    glUniform1i(instancedLocation_, GL_FALSE);
+    glUniform1i(animatedLocation_, GL_FALSE);
+    glUniform1i(treeCanopyLocation_, GL_FALSE);
+    glUniform1i(treeBillboardModeLocation_, 0);
+    glUniform1i(zombieCullBackfacesLocation_, GL_FALSE);
+}
+
 void Renderer::render(const Camera& camera, double animationSeconds, const std::function<void()>& drawOpaque) {
     overlayActive_ = false;
     sunShadowCpuMs_ = 0;
@@ -382,24 +362,11 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     treeViewEye_ = camera.position();
     treeViewForward_ = camera.direction();
     treeBillboardsForFrame_ = camera.viewMode() == Camera::ViewMode::original && treeBillboardDistance_ > 0;
-    glUseProgram(program_);
-    glActiveTexture(GL_TEXTURE0);
-    glUniform1i(textureLocation_, 0);
+    selectBasicShader(true);
     forestViewRange_ = oldForestDistance_ > 0 && camera.viewMode() == Camera::ViewMode::original
         ? oldForestVisibility_.rangeAt(camera.position()) : std::nullopt;
-    if (forestViewRange_) {
-        forestViewRange_->radius = oldForestDistance_;
-        glUniform3f(forestVisibilityLocation_, forestViewRange_->center.x,
-                    forestViewRange_->center.y, forestViewRange_->radius);
-    }
-    else glUniform3f(forestVisibilityLocation_, 0, 0, 0);
-    // Assign all active sampler types distinct units in both passes, including
-    // empty scenes. Units 3/4 belong to the sun/flashlight depth comparisons.
-    glUniform1i(animationLocation_, 1);
-    glUniform1i(skinningBonesLocation_, 2);
-    glUniform1i(shadowMapLocation_, 3);
-    glUniform1i(flashlightShadowMapLocation_, 4);
-    glUniform1i(zombieWoundsLocation_, 5);
+    if (forestViewRange_) forestViewRange_->radius = oldForestDistance_;
+    applyBasicSamplersAndVisibility();
     SunShadowView shadowView;
     const auto lighting = lightingForFrame();
     const auto view = camera.view();
@@ -429,6 +396,16 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         drawFlashlightShadows(flashlight, animationSeconds);
     }
     materialState_.reset();
+    if (!zombieBatches_.empty()) {
+        // Each linked program owns its uniform values. Prepare the same camera
+        // lighting for healthy zombies without copying state back from OpenGL.
+        selectBasicShader(false);
+        applyBasicSamplersAndVisibility();
+        applyLighting(camera, shadowView, lighting, flashlight, flashlightCasting);
+        glUniformMatrix4fv(viewLocation_, 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, glm::value_ptr(projection));
+        selectBasicShader(true);
+    }
     applyLighting(camera, shadowView, lighting, flashlight, flashlightCasting);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
     glViewport(0, 0, width_, height_);
@@ -438,7 +415,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     glClearColor(backgroundSrgb_.r, backgroundSrgb_.g, backgroundSrgb_.b, 1.0f);
     glDepthMask(GL_TRUE);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glUseProgram(program_);
+    selectBasicShader(true);
     glUniformMatrix4fv(viewLocation_, 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, glm::value_ptr(projection));
     glActiveTexture(GL_TEXTURE0);

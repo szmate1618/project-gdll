@@ -401,7 +401,7 @@ target_link_libraries(viewer_grenades PUBLIC viewer_physics viewer_zombies viewe
 viewer_warnings(viewer_grenades)
 
 if(GD_VIEWER)
-add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
+add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp src/basic_shader_uniforms.cpp
     src/renderer_presentation.cpp
     src/boid/bird_renderer.cpp
     src/gpu_timer.cpp

@@ -60,6 +60,19 @@ Use a hardware OpenGL 3.3 context with display access. Assets stay local and are
 not redistributed; see [zombie asset setup](../assets/zombies/README.md) if the
 original characters or LODs are missing. No online download occurs in this case.
 
+Optional `--wounded N` selects the separate `zombies-open-100k-wounded-v1`
+control. It gives the first N stable actor IDs a nonempty all-zero vertex mask,
+exercising wound rendering and the normal full-detail wounded mesh policy
+without removed surfaces or physics. The other actors retain their normal LODs;
+all 100,000 must still render. This measures a mixed render workload, not injury
+simulation. `--shadow-resolution N` overrides the sun-map size for matched
+historical comparisons; omitting it retains the renderer default. Both settings
+and actual geometry counts are recorded in metadata. For example:
+
+```bash
+./build/benchmark_zombie_crowd assets/zombies/models build/benchmarks/zombies-mixed-100k --wounded 100
+```
+
 The normal renderer produces six baseline rounds, each with 32 warmup frames and
 64 measured frames. On the Hi-Z experimental branch, the same executable also
 alternates baseline and `tree-hiz` rounds. **Hi-Z currently affects only vegetation**;
@@ -88,6 +101,17 @@ GPU clock, temperature and background load can still introduce variation.
 
 Recorded example: [Radeon 660M, 2026-10-20](benchmarks/zombies-open-100k-2026-10-20.txt).
 This is a dated example, not a performance threshold for other machines.
+The [pre-bird historical-build comparison](benchmarks/zombies-open-100k-before-birds-2026-10-28.txt)
+reruns the exact parent of bird-flock introduction against the current renderer.
+The [October 24 build comparison](benchmarks/zombies-open-100k-oct24-2026-10-28.txt)
+reruns the last October 24 commit against the October 28 renderer.
+The [October 19 renderer comparison](benchmarks/zombies-open-100k-oct19-2026-10-28.txt)
+backports only the harness and matches the historical 2048-square sun map.
+The [wound shader and severed-resource controls](benchmarks/zombies-open-100k-render-controls-2026-10-28.txt)
+test two causes of that gap with four current-renderer variants and identical captures.
+The [production healthy/wounded shader split](benchmarks/zombie-wound-shader-split-2026-10-28.txt)
+compares the implemented draw partition against the original renderer in healthy
+and mixed 100,000-actor cases.
 
 ## Interpreting GPU time under CPU load
 

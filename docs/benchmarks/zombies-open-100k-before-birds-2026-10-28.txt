@@ -1,0 +1,137 @@
+Open 100k: pre-bird historical build versus current — 2026-10-28
+==============================================================
+
+Result
+------
+The pre-bird build also takes about 21 ms CPU render time under today's
+conditions. The comparison does not reproduce a large slowdown introduced
+after birds were added. Small differences remain within observed run drift.
+Every measured frame submits all 100,000 actors; all eight captures and
+metadata files are byte-identical.
+
+Revisions and build isolation
+----------------------------
+Pre-bird: 6e89cec77af99e304a453a2f2f3b368736c09e0d,
+  Add streamed forest doodads with persistent movable props.
+  Exact parent of first bird commit 1a9eaafc6f11b26a2d3c4e5378dc6f860998fdb3.
+Current: b7da671dd343df6aaaf58b3e0485ea677b3118aa,
+  Cull zombie visibility through coarse spatial blocks.
+
+The historical revision was extracted into a new ignored source directory and
+compiled in a separate build directory. No checkout, reset, source restoration,
+or reuse of project object files was involved. Existing dependencies were reused
+as source inputs, with FetchContent fully disconnected. Dependency pins and
+Box3D patches are identical. Only benchmark_zombie_crowd was built, so no map,
+audio, weapon or doodad asset generators ran. The current target was rebuilt too.
+
+Both targets use /usr/bin/c++, Release, -O3 -DNDEBUG -std=c++17,
+-Wall -Wextra -Wpedantic, GLFW_INCLUDE_NONE and GL_GLEXT_PROTOTYPES.
+Historical configuration disables optional multiplayer targets; the benchmark's
+compile flags and definitions match the current target. Historical headers and
+libraries come from its own build, avoiding cross-revision class-layout mixing.
+
+The benchmark harness, frame_profile.hpp/.cpp, and all 16 shared shader files
+are byte-identical between the two sources. Each binary ran with its own source
+directory as cwd, so literal "shaders" resolves to the matching shader directory.
+Both read the same absolute assets/zombies/models path and write separate outputs.
+
+Workload and hardware
+---------------------
+Unmodified tracked tests/benchmark_zombie_crowd.cpp: zombies-open-100k-v1,
+1280x720, six rounds per invocation, 32 warmup and 64 measured frames per round.
+All ten characters and three prepared LODs are required. Distance removal is off;
+the overview selects LOD3, producing 10 draws and 12,580,000 camera triangles.
+Camera eye is (907.057, 681.195, 907.066); yaw -135, pitch -27.9384 degrees.
+The existing deterministic 60 Hz animation/simulation timeline is unchanged.
+The idle observer is outside activation range; there is no player movement,
+audio, dynamic physics or vegetation. Normal sun shadows use 1024-square maps,
+but this overview has zero zombie sun/flashlight casters. Fog is disabled.
+
+AMD Radeon 660M, radeonsi/rembrandt, LLVM 19.1.1, DRM 3.61,
+Linux 6.11.0-29-generic, Mesa 24.2.8-1ubuntu1~24.10.1, OpenGL 4.6 Core.
+No hardware/power settings changed. GPU performance level remained auto.
+No builds ran alongside timing, and benchmark invocations were sequential.
+
+Measurements
+------------
+All values below are milliseconds, using the standard summarizer's median of
+six round means. Each invocation has 384 measured frames and 384 finite GPU
+samples. CPU render includes driver waits; CPU and GPU overlap and must not
+be added or directly translated into presented gameplay FPS.
+
+Run / version                    CPU render       GPU elapsed
+0 pre-bird                           21.112            16.793
+1 current                            21.880            17.079
+2 current                            21.863            16.976
+3 pre-bird                           21.726            16.956
+
+Some initial pre-run GPU activity samples were nonzero. These results are
+retained, and a second balanced sequence adds a five-second pause and waits for
+three consecutive 0% GPU-activity readings, sampled 0.5 seconds apart, before
+each invocation. All four later invocations met this condition.
+
+Run / version                    CPU render       GPU elapsed
+4 current                            21.223            16.521
+5 pre-bird                           21.130            16.535
+6 pre-bird                           21.322            16.571
+7 current                            21.813            16.932
+
+Median of the two later process results per version:
+  pre-bird: CPU render 21.226 ms; GPU elapsed 16.553 ms.
+  current:  CPU render 21.518 ms; GPU elapsed 16.726 ms.
+The current values are 1.4% and 1.0% higher, respectively. The two later current
+CPU results themselves differ by 0.591 ms, exceeding the aggregate 0.292 ms
+version difference. These data do not establish a small code regression or gain.
+
+Read-only GPU telemetry records activity, clock states and temperature every
+0.5 seconds, plus pre/post-run samples. GPU temperatures span 49-67 C across
+the experiment. Some waiting periods contain brief nonzero activity before
+the required three idle samples. Idle pre-samples do not prove absence of other
+system activity during measurements, and clock samples are not synchronized
+to draws. No claim of matched clocks, temperatures or power limits is made.
+
+Background-process checks
+-------------------------
+Actual host process lists were inspected outside the sandbox PID namespace.
+The first check found only the intentional comparison runner between runs,
+with GPU activity at 0%. A second check of /proc executable paths found only
+the historical benchmark actively launched by that runner; no older benchmark,
+viewer or repository diagnostic binaries were found. After completion, the
+host audit found no remaining benchmark, build or comparison-runner processes.
+No processes were killed. These checks do not inventory every possible GPU client.
+
+Interpretation
+--------------
+The standard benchmark does not instantiate bird flocks or BirdRenderer. Bird
+creation, update and draw callbacks live in the viewer's main.cpp, which this
+harness does not link. Core Renderer has no bird ownership/dispatch, and the
+first bird commit changed no shared basic/shadow shader. Added bird static-library
+dependencies do not themselves run bird code or construct bird GPU resources.
+
+This compares complete revisions, including intervening zombie visibility and
+profiling changes. It is not an isolated measurement of bird gameplay cost.
+The older quiet October 20 measurements around 18 ms CPU are not reproduced by
+either binary here. The gap from those older results remains unexplained by
+this experiment; the pre-bird revision already measures around 21 ms today.
+
+Evidence and reproduction
+-------------------------
+All model/LOD fingerprints, camera/count metadata and captures match across
+eight invocations. Capture SHA-256:
+64df6d5b8d42d4ade6788a66a25ae0bf048bf3809f9dc4205dc3ffdcb148d473.
+The overview was visually inspected. All rounds completed without GL errors.
+
+Ignored artifacts: build/benchmarks/zombie-100k-before-birds-20261028/.
+  source-before/, build-before/: historical source and separate Release build.
+  setup.json, input-sha256.json: revisions, offline CMake arguments and hashes.
+  run-0-* through run-7-*/: raw frames, metadata, captures and standard reports.
+  run-*-telemetry.json: read-only device samples; run-*.log: benchmark output.
+  summary.json: aggregate timings and capture hashes.
+  post-run-process-audit.json: empty final host benchmark/build process list.
+  run_comparison.py / run_settled.py: retained local diagnostic runners.
+
+For another checkout, build the tracked benchmark separately at each revision
+with matching headers/libraries/shaders and the same asset directory. Run from
+each source root, supply absolute input/output paths, alternate versions, and
+summarize each output with tools/summarize_render_benchmark.py. Preserve counts,
+captures and metadata. Local scripts and binaries are not portable benchmark APIs.
