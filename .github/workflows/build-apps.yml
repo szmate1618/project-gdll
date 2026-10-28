@@ -107,11 +107,11 @@ jobs:
       - name: Build Windows game and session checks
         run: >-
           cmake --build build --config Release --parallel 2
-          --target godollo_client godollo_server viewer_test_asset test_scene_fingerprint test_game_sessions
+          --target godollo_client godollo_server viewer_test_asset test_scene_fingerprint test_game_sessions test_boid_simulation test_multiplayer_birds
       - name: Check Windows sessions and cross-platform scene fingerprint
         run: >-
           ctest --test-dir build -C Release
-          -R '^multiplayer_(fingerprint|game_sessions|game_modes|loopback)$'
+          -R '^(viewer_boid_simulation|multiplayer_(fingerprint|game_sessions|game_modes|loopback|birds))$'
           --output-on-failure --no-tests=error
       - name: Check executable startup
         run: ./build/multiplayer/Release/godollo_client.exe --help

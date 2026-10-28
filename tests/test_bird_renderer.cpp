@@ -1,5 +1,5 @@
-#include "bird_flock.hpp"
-#include "bird_renderer.hpp"
+#include "boid/bird_flock.hpp"
+#include "boid/bird_renderer.hpp"
 #include "collision_world.hpp"
 
 #include <GLFW/glfw3.h>

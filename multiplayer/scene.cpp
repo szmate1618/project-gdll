@@ -41,6 +41,8 @@ Options parseOptions(int argc, char** argv, bool server) {
             if (std::abs(x) > 1e7 || std::abs(z) > 1e7) throw std::runtime_error("Spawn outside local frame");
             o.spawn = glm::vec2(x, z);
         } else if (arg == "--zombies") o.zombieAssets = next(i);
+        else if (arg == "--birds") o.birds = true;
+        else if (arg == "--no-birds") o.birds = false;
         else if (arg == "--no-zombie-perception" && server) o.zombiePerception = false;
         else if (arg == "--zombie-count") {
             const auto n = number(i);
@@ -90,6 +92,7 @@ Options parseOptions(int argc, char** argv, bool server) {
                 << "\nShared: --spawn X Z --zombies PATH --zombie-count N --zombie-radius METERS\n"
                    "        --vegetation osm-tuned2|orthophoto|osm|sentinel-astra|none\n"
                    "        --no-trees --no-forests --seconds N --lag-ms N --loss-percent N\n"
+                   "        --birds enables server-owned deterministic flocks; --no-birds disables them\n"
                    "        --time-of-day H --day-length S (0 freezes time)\n";
             std::exit(0);
         } else if (!arg.empty() && arg[0] != '-' && !map) { o.map = arg; map = true; }
@@ -202,6 +205,7 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
         throw std::runtime_error("No safe spawn near requested location");
     spawnEye = player.eyePosition();
     const auto extent = model.boundsMax - model.boundsMin;
+    birdsEnabled = o.birds;
     const std::size_t count = populationLoader || (extent.x >= 100 && extent.z >= 100) ? o.zombieCount : 0;
     if (count) {
         if (std::filesystem::is_directory(o.zombieAssets))

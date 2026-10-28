@@ -10,6 +10,7 @@
 #include "zombie_door_collision.hpp"
 #include "replication.hpp"
 #include "vehicle_seats.hpp"
+#include "birds.hpp"
 #include "player_body.hpp"
 #include "player_vitals.hpp"
 #include "melee_combat.hpp"
@@ -39,6 +40,7 @@ struct ServerPlayer {
     Command held;
     std::uint64_t resolved = 0, lastPacketTick = 0, shots = 0;
     Replication replication;
+    std::optional<std::uint64_t> birdTick;
     bool started = false, triggerNeedsRelease = false, reloadRequested = false;
 };
 class World {
@@ -52,10 +54,14 @@ public:
     std::optional<CorpsePose> nextPose(std::uint32_t id) const;
     void poseSent(std::uint32_t id, const CorpsePose& pose);
     void acknowledgePose(std::uint32_t id, const PoseAck& ack);
+    std::optional<BirdFrame> birdFrame(std::uint32_t id) const;
+    void birdFrameSent(std::uint32_t id, std::uint64_t tick);
+    void requestBirdCheckpoint(std::uint32_t id);
     std::uint64_t tick() const { return tick_; }
     const std::map<std::uint32_t, ServerPlayer>& players() const { return players_; }
 private:
     Scene& scene_;
+    ServerBirds birds_;
     VehicleSeats vehicleSeats_;
     viewer::PhysicsScene physicsScene_;
     viewer::InteriorObjects interiors_;

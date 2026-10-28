@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bird_flight_space.hpp"
+#include "presentation.hpp"
 
 #include <cstdint>
 #include <vector>
@@ -23,12 +24,7 @@ struct BirdFlockPlayer {
     bool targetable = true;
 };
 
-struct FlockBird {
-    glm::vec3 position{0}, velocity{0};
-    float phase = 0; // Stable wing-flap variation, radians.
-};
-
-enum class BirdFlockMode { wandering, gathering, swooping, recovering };
+using BirdFlockMode = boid::Mode;
 struct BirdFlockState {
     std::size_t firstBird = 0, birdCount = 0;
     glm::vec3 center{0}, velocity{0}, target{0};
@@ -53,41 +49,45 @@ public:
     BirdFlocks(const CollisionWorld& world, const TreeLayer* trees,
                glm::vec3 boundsMin, glm::vec3 boundsMax, glm::vec3 preferredCenter,
                BirdFlockSettings settings = {});
-    // Returns whole HP lost (one per bird impact). Invalid dt does no work;
-    // frames longer than .1 seconds are clamped to keep the prototype stable.
+    // Standalone scheduler: accumulate frame time into exact 60 Hz boid steps.
+    // Other simulations keep their existing timestep and numeric representation.
     unsigned update(float dt, const BirdFlockPlayer& player);
+    // Authority step: one global perception budget, damage indexed by player.
+    std::vector<unsigned> step(const std::vector<BirdFlockPlayer>& players);
+    const boid::Simulation& simulation() const { return simulation_; }
+    const std::vector<boid::Command>& commands() const { return commands_; }
     const std::vector<FlockBird>& birds() const { return birds_; }
     const std::vector<BirdFlockState>& flocks() const { return flocks_; }
     const BirdFlockStats& stats() const { return stats_; }
 
 private:
     struct BirdData {
-        glm::vec3 offset{0};
         std::uint32_t hitPass = ~std::uint32_t(0);
-        float nextHit = 0;
-        bool passedPlayer = false;
+        std::uint64_t nextHit = 0;
     };
     struct FlockData {
-        glm::vec3 aim{0}, exit{0}, attackDirection{0,0,1};
-        float nextWaypoint = 0, nextAttack = 0;
-        std::uint32_t pass = 0;
+        std::uint64_t nextWaypoint = 0, nextAttack = 0;
         bool routeActive = false;
     };
-    float randomUnit();
-    glm::vec3 randomOffset(float radius, float height);
-    bool waypoint(glm::vec3 point, float radius);
-    bool corridor(glm::vec3 from, glm::vec3 to, float radius);
-    bool chooseWander(std::size_t flock);
-    void recover(std::size_t flock);
-    void detectPlayer(const BirdFlockPlayer& player);
+    std::uint32_t randomInteger();
+    boid::Vec3 randomOffset(std::int32_t radius, std::int32_t height);
+    bool waypoint(boid::Vec3 point, std::int32_t radius);
+    bool corridor(boid::Vec3 from, boid::Vec3 to, std::int32_t radius);
+    bool chooseWander(std::size_t flock, boid::Control& control);
+    void recover(std::size_t flock, boid::Control& control);
+    void detectPlayer(const BirdFlockPlayer& player, std::vector<boid::Control>& plans);
+    void refreshPresentation();
     BirdFlightSpace space_;
     std::vector<FlockBird> birds_;
     std::vector<BirdData> birdData_;
     std::vector<BirdFlockState> flocks_;
     std::vector<FlockData> flockData_;
-    glm::vec3 minimum_{0}, maximum_{0}, preferred_{0};
+    boid::Simulation simulation_;
+    std::vector<boid::Command> commands_;
+    std::vector<boid::Control> plans_;
+    boid::Vec3 minimum_{}, maximum_{}, preferred_{};
     std::uint32_t random_;
-    float seconds_ = 0;
+    double pendingSeconds_ = 0;
     BirdFlockStats stats_;
 };
 } // namespace viewer

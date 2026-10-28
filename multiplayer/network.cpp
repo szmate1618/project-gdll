@@ -146,6 +146,8 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
 bool Network::send(HSteamNetConnection c, const Message& message, bool reliable) {
     std::lock_guard<std::recursive_mutex> lock(runtimeMutex);
     if (!connections_.count(c)) return false;
+    if (std::holds_alternative<BirdFrame>(message) && !reliable)
+        throw std::invalid_argument("Boid commands require ordered reliable delivery");
     auto bytes = encode(message);
     if (std::holds_alternative<CorpsePose>(message)) {
         if (!reliable) throw std::invalid_argument("Corpse poses require reliable bulk delivery");

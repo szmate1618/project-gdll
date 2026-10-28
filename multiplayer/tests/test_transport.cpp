@@ -1,4 +1,5 @@
 #include "network.hpp"
+#include "boid/replica.hpp"
 #include "server/replication.hpp"
 #include "player_body.hpp"
 #include "physics_world.hpp"
@@ -32,6 +33,18 @@ int main(int argc, char** argv) {
             for (std::size_t i = 0; i < state.doors.size(); ++i) state.doors[i].id = static_cast<std::uint32_t>(i);
             for (std::size_t i = 0; i < state.boxes.size(); ++i) state.boxes[i].id = static_cast<std::uint32_t>(i);
         }
+        viewer::boid::Checkpoint checkpoint; checkpoint.seed=123;
+        for (std::uint32_t flock=0;flock<6;++flock) {
+            viewer::boid::Flock f; f.firstBird=static_cast<std::uint32_t>(checkpoint.birds.size()); f.birdCount=192;
+            f.center={static_cast<std::int32_t>(flock)*10000,25000,0}; f.velocity={3000,0,0}; f.control.target={50000,25000,0};
+            checkpoint.flocks.push_back(f);
+            for (int i=0;i<192;++i) {
+                viewer::boid::Bird b; b.position=f.center+viewer::boid::birdOffset(checkpoint.seed,static_cast<std::uint32_t>(checkpoint.birds.size()));
+                b.velocity=f.velocity; checkpoint.birds.push_back(b);
+            }
+        }
+        viewer::boid::Simulation birdSimulation(checkpoint); viewer::boid::Replica birds;
+        bool sentBirdCheckpoint=false; std::size_t birdFrames=0;
         using Clock = std::chrono::steady_clock;
         const auto start = Clock::now(); auto next = start;
         std::size_t snapshots = 0, poses = 0;
@@ -45,6 +58,10 @@ int main(int argc, char** argv) {
                     network.send(peer, multiplayer::Hello{std::string(64, 'a')}, true);
             for (const auto& [connection, message] : messages) {
                 if (server && std::holds_alternative<multiplayer::Hello>(message)) peer = connection;
+                if (const auto* frame=std::get_if<multiplayer::BirdFrame>(&message)) {
+                    if (!birds.receive(*frame)) throw std::runtime_error("Reliable bird command stream diverged under packet loss");
+                    ++birdFrames;
+                }
                 if (const auto* snapshot = std::get_if<multiplayer::Snapshot>(&message)) {
                     ++snapshots; latest = std::max(latest, snapshot->tick);
                     if (snapshot->players.size()!=multiplayer::maxPlayers) throw std::runtime_error("Transport lost physical players");
@@ -67,6 +84,25 @@ int main(int argc, char** argv) {
             const auto now = Clock::now();
             if (server && peer != k_HSteamNetConnection_Invalid && now >= next) {
                 ++state.tick; network.send(peer, state, false);
+                if (!sentBirdCheckpoint) {
+                    multiplayer::BirdFrame initial; initial.hasCheckpoint=true; initial.checkpoint=birdSimulation.state();
+                    initial.tick=initial.checkpoint.tick; initial.checksum=birdSimulation.checksum();
+                    if (!network.send(peer,initial,true)) throw std::runtime_error("Cannot send initial bird checkpoint");
+                    sentBirdCheckpoint=true;
+                }
+                multiplayer::BirdFrame birdFrame;
+                for (int i=0;i<3;++i) {
+                    std::vector<viewer::boid::Command> commands;
+                    const auto tick=birdSimulation.state().tick+1;
+                    if (tick%60==0) {
+                        auto control=birdSimulation.state().flocks[0].control;
+                        control.target.x=tick%120? -50000:50000;
+                        commands.push_back({tick,0,control}); birdFrame.commands.push_back(commands.back());
+                    }
+                    birdSimulation.step(commands);
+                }
+                birdFrame.tick=birdSimulation.state().tick; birdFrame.checksum=birdSimulation.checksum();
+                if (!network.send(peer,birdFrame,true)) throw std::runtime_error("Cannot send bird command watermark");
                 next = now + std::chrono::milliseconds(50);
                 if (!large) for (std::size_t i = inFlight.size(); i < multiplayer::Replication::maxPoseTransfers; ++i) {
                     while (inFlight.count(nextPose)) nextPose = (nextPose + 1) % 40;
@@ -81,6 +117,9 @@ int main(int argc, char** argv) {
         if (!server && (snapshots < (large ? 4u : 30u) || latest < 40 || (!large && poses < 12)))
             throw std::runtime_error("Snapshot/bulk delivery stalled: snapshots=" + std::to_string(snapshots) +
                 " latest=" + std::to_string(latest) + " poses=" + std::to_string(poses));
+        if (!server && (birdFrames<20 || !birds.ready() || birds.simulation().state().tick<100))
+            throw std::runtime_error("Reliable bird checkpoint/command playback stalled");
+        std::cout<<"bird_frames="<<birdFrames<<' ';
         std::cout << "snapshots=" << snapshots << " latest=" << latest << " poses=" << poses << '\n';
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

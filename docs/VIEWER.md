@@ -657,7 +657,9 @@ existing collision indexes validate spawn points, waypoints and shared flight
 corridors. Placement uses world meters with Y up. Failed placement attempts have
 a fixed budget, so crowded scenes can produce fewer flocks.
 
-At most one randomly selected bird checks for the player per simulation frame.
+Boid movement uses integer millimetres and fixed 60 Hz steps. Only the boids
+use fixed-point arithmetic; scene queries and rendering retain their float
+interfaces. At most one randomly selected bird checks for a player per boid tick.
 A nearby sighting starts a brief gathering phase and a HUD warning, followed by
 a committed flight through the sighted position toward a point beyond it. Move
 sideways, duck after the flock commits, or reach cover. Birds recover between
@@ -672,12 +674,16 @@ Velocity sets orientation and a small wing motion runs on the GPU. Visible birds
 share one instanced draw, write silhouette depth and discard empty card pixels.
 There are no bird rigid bodies, shadow passes or per-bird navigation queries.
 Collision avoidance uses a shared approximate corridor; individual birds can
-clip obstacles at formation edges. This prototype currently runs in the
-standalone viewer; multiplayer replication is not implemented.
+clip obstacles at formation edges. Multiplayer servers can enable the same
+simulation with `--birds`. Clients replay integer flock commands, with an
+initial checkpoint and recovery checkpoints when needed; individual bird
+positions are not streamed during normal play. See [BOIDS.md](BOIDS.md) for
+timing, replay, protocol and numerical rules.
 
 `--birds` enables flocks on small fixtures. Counts are limited to 64 flocks,
 4,096 birds per flock and 65,536 birds total. The default seed is repeatable.
-CPU regressions are `viewer_bird_flock`; GPU silhouette, depth and GL-state
+CPU regressions are `viewer_bird_flock`, `viewer_boid_simulation` and
+`multiplayer_birds`; GPU silhouette, depth and GL-state
 checks are `viewer_bird_renderer`. A fixed-step CPU scaling check is available
 with `cmake --build build --target benchmark_bird_flock -j4` followed by
 `./build/benchmark_bird_flock`.

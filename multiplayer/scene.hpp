@@ -33,6 +33,7 @@ struct Options {
     float zombieRadius = 100;
     bool trees = true, forests = true, headless = false, hidden = false, bot = false;
     bool audio = true;
+    bool birds = false; // Server opt-in during the deterministic flock experiment.
     bool zombiePerception = true; // Authoritative server setting; not world identity.
     bool explicitLook = false;
     glm::vec2 look{-90, 0}; // Client yaw/pitch in degrees; independent of world identity.
@@ -70,6 +71,7 @@ struct Scene {
     glm::vec2 spawnOrientation{-90, 0};
 
     viewer::DayNightCycle dayNight;
+    bool birdsEnabled = false;
     std::string fingerprint;
     const viewer::Weapons initialWeapons;
     const viewer::PlayerInventory initialInventory;

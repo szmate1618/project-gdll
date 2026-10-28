@@ -246,8 +246,13 @@ add_library(viewer_collision STATIC src/collision_world.cpp src/door_collision.c
 target_link_libraries(viewer_collision PUBLIC viewer_model)
 viewer_warnings(viewer_collision)
 
-add_library(viewer_birds STATIC src/bird_flock.cpp src/bird_flight_space.cpp)
-target_link_libraries(viewer_birds PUBLIC viewer_collision viewer_visibility)
+add_library(viewer_boids STATIC src/boid/simulation.cpp src/boid/replica.cpp)
+target_include_directories(viewer_boids PUBLIC src)
+target_link_libraries(viewer_boids PUBLIC glm::glm)
+viewer_warnings(viewer_boids)
+
+add_library(viewer_birds STATIC src/boid/bird_flock.cpp src/boid/bird_flight_space.cpp)
+target_link_libraries(viewer_birds PUBLIC viewer_boids viewer_collision viewer_visibility)
 viewer_warnings(viewer_birds)
 
 add_library(viewer_noise STATIC src/noise.cpp src/player_noise.cpp)
@@ -398,7 +403,7 @@ viewer_warnings(viewer_grenades)
 if(GD_VIEWER)
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp
     src/renderer_presentation.cpp
-    src/bird_renderer.cpp
+    src/boid/bird_renderer.cpp
     src/gpu_timer.cpp
     src/box_renderer.cpp
     src/doodad_renderer.cpp
@@ -454,6 +459,10 @@ viewer_warnings(godollo_viewer)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(test_boid_simulation tests/test_boid_simulation.cpp)
+    target_link_libraries(test_boid_simulation PRIVATE viewer_boids)
+    viewer_warnings(test_boid_simulation)
+    add_test(NAME viewer_boid_simulation COMMAND test_boid_simulation)
     add_executable(test_bird_flock tests/test_bird_flock.cpp)
     target_link_libraries(test_bird_flock PRIVATE viewer_birds)
     viewer_warnings(test_bird_flock)

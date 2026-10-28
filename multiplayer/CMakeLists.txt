@@ -34,11 +34,11 @@ else()
 endif()
 
 add_library(multiplayer_core STATIC protocol.cpp scene.cpp resources.cpp asset_validation.cpp network.cpp fragments.cpp
-    outgoing_snapshots.cpp server/world.cpp server/vehicle_seats.cpp server/replication.cpp client/prediction.cpp client/snapshots.cpp)
+    outgoing_snapshots.cpp server/birds.cpp server/world.cpp server/vehicle_seats.cpp server/replication.cpp client/prediction.cpp client/snapshots.cpp)
 target_include_directories(multiplayer_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(multiplayer_core SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 target_link_libraries(multiplayer_core PUBLIC viewer_fps viewer_zombies viewer_interaction
-    viewer_objects viewer_vehicles viewer_forests viewer_vegetation viewer_poles viewer_guardrails viewer_weapons viewer_inventory viewer_grenades viewer_undergrowth ${mp_transport})
+    viewer_objects viewer_vehicles viewer_forests viewer_vegetation viewer_poles viewer_guardrails viewer_weapons viewer_inventory viewer_grenades viewer_undergrowth viewer_birds ${mp_transport})
 target_compile_definitions(multiplayer_core PUBLIC
     MP_ROOT="${PROJECT_SOURCE_DIR}")
 target_compile_definitions(multiplayer_core PRIVATE MP_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}")
@@ -75,6 +75,14 @@ endif()
 viewer_warnings(godollo_client)
 
 if(BUILD_TESTING)
+    add_executable(benchmark_bird_network EXCLUDE_FROM_ALL "${PROJECT_SOURCE_DIR}/tests/benchmark_bird_network.cpp")
+    target_link_libraries(benchmark_bird_network PRIVATE multiplayer_core)
+    viewer_warnings(benchmark_bird_network)
+    add_executable(test_multiplayer_birds tests/test_birds.cpp)
+    target_link_libraries(test_multiplayer_birds PRIVATE multiplayer_core)
+    viewer_warnings(test_multiplayer_birds)
+    add_dependencies(test_multiplayer_birds viewer_test_asset)
+    add_test(NAME multiplayer_birds COMMAND test_multiplayer_birds "${VIEWER_TEST_ASSET}")
     add_executable(test_game_sessions tests/test_game_sessions.cpp client/session.cpp client/options.cpp)
     target_link_libraries(test_game_sessions PRIVATE multiplayer_server_runtime)
     viewer_warnings(test_game_sessions)

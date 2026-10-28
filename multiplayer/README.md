@@ -11,6 +11,29 @@ interpolation. The game builds on Linux and Windows; Windows compilation,
 headless session checks and ZIP validation run in GitHub Actions. Interactive
 Windows rendering still needs validation on Windows hardware.
 
+## Deterministic bird flocks
+
+Birds are opt-in during this experiment. Start a server or local hosted session
+with `--birds`; joining clients receive the flock state automatically:
+
+```bash
+./build/multiplayer/godollo_server output/godollo.glb --birds
+./build/multiplayer/godollo_client --connect 127.0.0.1:27020
+./build/multiplayer/godollo_client output/godollo.glb --single-player --birds
+```
+
+Only boid movement uses fixed-point math. The server chooses routes and attacks,
+checks scene geometry and applies damage. Clients replay the same 60 Hz integer
+steps from tick-stamped flock controls. A reliable ordered stream publishes
+complete tick ranges at 20 Hz; clients wait for those ranges and interpolate
+bird presentation using the existing remote-render clock. Movement prediction
+for players and the numerical behavior of other systems are unchanged.
+
+Full movement checkpoints are sent on join, checksum mismatch, or when retained
+command history cannot cover a client. Normal updates contain commands and a
+tick/checksum, with no per-bird poses. Protocol 17 requires matching application
+versions. Details and focused checks are in [BOIDS.md](../docs/BOIDS.md).
+
 ## Build
 
 Use the existing viewer dependencies, plus protobuf headers and its compiler.

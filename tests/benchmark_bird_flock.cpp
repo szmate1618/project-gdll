@@ -1,4 +1,4 @@
-#include "bird_flock.hpp"
+#include "boid/bird_flock.hpp"
 #include "collision_world.hpp"
 
 #include <chrono>

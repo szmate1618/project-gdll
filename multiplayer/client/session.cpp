@@ -2,6 +2,7 @@
 #include "network.hpp"
 #include "prediction.hpp"
 #include "snapshots.hpp"
+#include "boid/replica.hpp"
 #include "camera.hpp"
 #include "weapon_motion.hpp"
 #include "action_selection.hpp"
@@ -11,6 +12,7 @@
 #ifdef MP_GRAPHICS
 #include "players.hpp"
 #include "renderer.hpp"
+#include "boid/bird_renderer.hpp"
 #include "reticle_overlay.hpp"
 #include "gui/hud.hpp"
 #include "minimap.hpp"
@@ -166,6 +168,7 @@ struct Graphics {
     bool ownsWindow = false;
 #ifdef MP_GRAPHICS
     std::unique_ptr<viewer::Renderer> renderer;
+    std::unique_ptr<viewer::BirdRenderer> birds;
     std::unique_ptr<viewer::ReticleOverlay> reticle;
     std::unique_ptr<viewer::Hud> hud;
     float speedMetersPerSecond = 0;
@@ -178,7 +181,7 @@ struct Graphics {
     std::unique_ptr<multiplayer::PlayerRenderer> players;
     std::unique_ptr<viewer::PlayerBodyRenderer> body;
     ~Graphics() {
-        audio.reset(); body.reset(); players.reset(); weapon.reset(); hud.reset(); reticle.reset(); renderer.reset();
+        audio.reset(); birds.reset(); body.reset(); players.reset(); weapon.reset(); hud.reset(); reticle.reset(); renderer.reset();
         if (window) {
             glfwSetWindowUserPointer(window, nullptr);
             glfwSetKeyCallback(window, nullptr); glfwSetCursorPosCallback(window, nullptr);
@@ -222,6 +225,7 @@ struct Graphics {
         renderer->loadGrenadeModel(multiplayer::weaponModelDirectory() / "he_grenade.glb");
         players = std::make_unique<multiplayer::PlayerRenderer>();
         body = std::make_unique<viewer::PlayerBodyRenderer>(shaders);
+        birds = std::make_unique<viewer::BirdRenderer>(shaders);
         viewer::AudioOptions audioOptions;
         audioOptions.directory = multiplayer::audioDirectory();
         audioOptions.enabled = sound;
@@ -290,6 +294,9 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
     for (auto& instance : scene.zombies.instances) instance.removed = true;
     multiplayer::Prediction prediction;
     multiplayer::Snapshots snapshots;
+    viewer::boid::Replica birds;
+    bool birdCheckpointRequested=false;
+    std::size_t receivedBirdFrames=0;
     Input in; in.camera.setPosition(scene.spawnEye); in.camera.setOrientation(options.look.x, options.look.y);
     std::optional<viewer::PlayerInventory> inventory;
     Graphics graphics;
@@ -436,6 +443,15 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 snapshots.pushPose(scene, *pose);
                 if (!network.send(connection, multiplayer::PoseAck{pose->id, pose->version}, true))
                     throw std::runtime_error("Cannot acknowledge corpse pose");
+            } else if (const auto* frame=std::get_if<multiplayer::BirdFrame>(&message)) {
+                if (!self) throw std::runtime_error("Bird frame before welcome");
+                if (birds.receive(*frame)) {
+                    ++receivedBirdFrames;
+                    if (frame->hasCheckpoint) birdCheckpointRequested=false;
+                } else if (!birdCheckpointRequested) {
+                    if (!network.send(connection,multiplayer::BirdResync{},true)) throw std::runtime_error("Cannot request boid checkpoint");
+                    birdCheckpointRequested=true;
+                }
             } else throw std::runtime_error("Unexpected server message");
         }
         if (now - lastSnapshot > (prediction.ready() ? 5 : 15)) throw std::runtime_error(prediction.ready() ? "Connection lost: server stopped responding (snapshot timeout)" :
@@ -512,6 +528,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 }
                 graphics.body->capturePose(ownBody,static_cast<float>(dt));
                 renderer.render(viewCamera, snapshots.animationSeconds(), [&] {
+                    graphics.birds->draw(viewCamera,float(width)/height,snapshots.animationSeconds(),birds.sample(snapshots.animationSeconds()));
                     graphics.players->draw(viewCamera, snapshots.players(), self, width, height);
                     graphics.body->drawPose(ownBody,viewCamera.projection(float(width)/height)*viewCamera.view(),width,height);
                 });
@@ -551,6 +568,11 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                     }
                 }
                 if (in.driver.occupied()) hudState.prompt = "Enter: exit vehicle";
+                else if (birds.ready() && ownState.health>0)
+                    for (const auto& flock:birds.simulation().state().flocks)
+                        if (flock.control.mode==viewer::boid::Mode::gathering || flock.control.mode==viewer::boid::Mode::swooping) {
+                            hudState.prompt="Birds diving! Move aside, duck or reach cover"; break;
+                        }
                 graphics.hud->draw(hudState, width, height);
                 renderer.present(width, height); glfwSwapBuffers(graphics.window);
                 viewer::Renderer::checkErrors("multiplayer frame");
@@ -583,7 +605,8 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
     const auto feet = prediction.controller().feet();
     std::cout << "CLIENT player=" << self << " snapshots=" << received << " max_players=" << mostPlayers
         << " resolved=" << ownState.resolved << " outstanding=" << prediction.outstanding()
-        << " feet=" << feet.x << ',' << feet.y << ',' << feet.z << " remote_travel=" << remoteTravel << '\n';
+        << " feet=" << feet.x << ',' << feet.y << ',' << feet.z << " remote_travel=" << remoteTravel
+        << " bird_frames="<<receivedBirdFrames<<" bird_tick="<<birds.simulation().state().tick<<'\n';
     if (!prediction.ready() && !feedback) throw std::runtime_error("Session ended before spawn");
     if (!prediction.ready()) return 0;
     network.send(connection, multiplayer::Goodbye{}, true);

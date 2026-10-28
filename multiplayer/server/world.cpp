@@ -34,7 +34,7 @@ ServerPlayer::ServerPlayer(const viewer::Weapons& initialWeapons, const viewer::
     weapons.syncAmmo(inventory);
     held.slot = static_cast<std::uint8_t>(weapons.slot());
 }
-World::World(Scene& scene) : scene_(scene), vehicleSeats_(scene),
+World::World(Scene& scene) : scene_(scene), birds_(scene), vehicleSeats_(scene),
     physicsScene_(scene.physics, *scene.collision, scene.model.boundsMin, scene.model.boundsMax),
     interiors_(scene.model, *scene.doors, 1), zombieDoors_(scene.physics), melee_(scene.physics) {
     viewer::SimulationClock::instance().reset();
@@ -286,7 +286,23 @@ void World::step() {
             scene_.zombies.shootWithOcclusion(shot.origin, direction, now, *scene_.collision, shot.caliber);
         }
     }
+    if (birds_.active()) {
+        std::vector<viewer::BirdFlockPlayer> birdPlayers;
+        for (const auto& [id,player]:players_)
+            birdPlayers.push_back({player.controller.feet(),player.controller.bodyHeight(),player.controller.config().radius,
+                player.vitals.health()>0 && vehicleSeats_.car(id)==noVehicle});
+        const auto birdHits=birds_.step(birdPlayers);
+        std::size_t birdPlayer=0;
+        for (auto& [id,player]:players_) {
+            (void)id; player.vitals.applyDamage(static_cast<float>(birdHits[birdPlayer++]));
+        }
+    }
 }
+std::optional<BirdFrame> World::birdFrame(std::uint32_t id) const {
+    return birds_.frame(players_.at(id).birdTick);
+}
+void World::birdFrameSent(std::uint32_t id, std::uint64_t tick) { players_.at(id).birdTick=tick; }
+void World::requestBirdCheckpoint(std::uint32_t id) { players_.at(id).birdTick.reset(); }
 Snapshot World::snapshot(std::uint32_t id) {
     auto& observer = players_.at(id);
     Snapshot s; s.tick = tick_;

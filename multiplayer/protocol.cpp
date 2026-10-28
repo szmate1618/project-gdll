@@ -142,6 +142,48 @@ void payload(Wire& w, Welcome& welcome) {
     w.integer(welcome.player);
     if (!welcome.player) throw std::runtime_error("Invalid player ID");
 }
+// Signed fixed-point values use explicit zigzag encoding, independent of
+// signed shifts, machine endianness and compiler struct padding.
+void fixed(Wire& w, std::int32_t& value) {
+    std::uint32_t bits=0;
+    if (!w.reading) bits=value<0?static_cast<std::uint32_t>(-std::int64_t(value)*2-1):static_cast<std::uint32_t>(value)*2;
+    w.integer(bits);
+    if (w.reading) value=static_cast<std::int32_t>((bits&1)?-std::int64_t(bits/2)-1:std::int64_t(bits/2));
+}
+void fixed(Wire& w, viewer::boid::Vec3& value) { fixed(w,value.x); fixed(w,value.y); fixed(w,value.z); }
+void control(Wire& w, viewer::boid::Control& c) {
+    fixed(w,c.target); fixed(w,c.aim); fixed(w,c.exit); fixed(w,c.attackDirection);
+    auto mode=static_cast<std::uint8_t>(c.mode); w.integer(mode); c.mode=static_cast<viewer::boid::Mode>(mode);
+    w.integer(c.remainingTicks); w.integer(c.pass); viewer::boid::validate(c);
+}
+void payload(Wire&, BirdResync&) {}
+void payload(Wire& w, BirdFrame& frame) {
+    w.integer(frame.tick); w.integer(frame.checksum); w.flag(frame.hasCheckpoint);
+    if (frame.tick>UINT64_MAX-36000) throw std::runtime_error("Invalid boid frame tick");
+    if (frame.hasCheckpoint) {
+        auto& c=frame.checkpoint;
+        w.integer(c.version); w.integer(c.seed); w.integer(c.tick);
+        w.list(c.birds,maxNetworkBirds,[&](viewer::boid::Bird& b) {
+            fixed(w,b.position); fixed(w,b.velocity); fixed(w,b.positionRemainder); fixed(w,b.velocityRemainder); w.flag(b.passedPlayer);
+        });
+        w.list(c.flocks,viewer::boid::maxFlocks,[&](viewer::boid::Flock& f) {
+            w.integer(f.firstBird); w.integer(f.birdCount); fixed(w,f.center); fixed(w,f.velocity); control(w,f.control);
+        });
+        viewer::boid::validate(c);
+        if (c.tick!=frame.tick) throw std::runtime_error("Boid checkpoint tick mismatch");
+    }
+    w.list(frame.commands,maxBirdCommands,[&](viewer::boid::Command& c) {
+        w.integer(c.tick); w.integer(c.flock); control(w,c.control);
+        if (!c.tick || c.tick>frame.tick || c.flock>=viewer::boid::maxFlocks)
+            throw std::runtime_error("Invalid boid command envelope");
+    });
+    if (frame.hasCheckpoint && !frame.commands.empty()) throw std::runtime_error("Checkpoint carries boid commands");
+    std::uint64_t previous=0;
+    for (const auto& c:frame.commands) {
+        if (c.tick<previous) throw std::runtime_error("Unordered boid commands");
+        previous=c.tick;
+    }
+}
 void payload(Wire&, Goodbye&) {}
 void payload(Wire& w, Fragment& fragment) {
     w.integer(fragment.message); w.integer(fragment.totalBytes); w.integer(fragment.index);
@@ -303,12 +345,13 @@ Message decode(const void* data, std::size_t bytes) {
     Wire w; w.input = static_cast<const std::uint8_t*>(data); w.size = bytes; w.reading = true;
     std::uint32_t magic = 0, version = 0; std::uint8_t type = 0;
     w.integer(magic); w.integer(version); w.integer(type);
-    if (magic != 0x4c4c4447 || version != protocolVersion || type > 7) throw std::runtime_error("Incompatible multiplayer protocol");
+    if (magic != 0x4c4c4447 || version != protocolVersion || type > 9) throw std::runtime_error("Incompatible multiplayer protocol");
     Message result;
     switch (type) { case 0: result = Hello{}; break; case 1: result = Welcome{}; break;
         case 2: result = Commands{}; break; case 3: result = Snapshot{}; break;
         case 4: result = Goodbye{}; break; case 5: result = Fragment{}; break;
-        case 6: result = CorpsePose{}; break; case 7: result = PoseAck{}; break; }
+        case 6: result = CorpsePose{}; break; case 7: result = PoseAck{}; break;
+        case 8: result = BirdFrame{}; break; case 9: result = BirdResync{}; break; }
     std::visit([&](auto& value) { payload(w, value); }, result);
     if (w.offset != bytes) throw std::runtime_error("Trailing multiplayer message data");
     return result;

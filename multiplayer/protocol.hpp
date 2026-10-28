@@ -8,6 +8,7 @@
 #include "player_body_pose.hpp"
 
 #include "vehicle_config.hpp"
+#include "boid/simulation.hpp"
 #include <glm/gtc/quaternion.hpp>
 #include <cstdint>
 #include <string>
@@ -23,7 +24,10 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 16; // Retired box slots.
+constexpr std::uint32_t protocolVersion = 17; // Deterministic boid command stream.
+constexpr std::size_t maxNetworkBirds = 4096, maxBirdCommands = 1024;
+using BirdFrame = viewer::boid::Frame;
+struct BirdResync {};
 
 struct Hello { std::string fingerprint; };
 struct Welcome { std::uint32_t player = 0; };
@@ -119,7 +123,7 @@ struct Snapshot {
 
     std::vector<VehicleState> vehicles;
 };
-using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment, CorpsePose, PoseAck>;
+using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment, CorpsePose, PoseAck, BirdFrame, BirdResync>;
 std::vector<std::uint8_t> encode(const Message& message);
 Message decode(const void* data, std::size_t bytes);
 } // namespace multiplayer

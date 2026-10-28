@@ -1,4 +1,4 @@
-#include "bird_flock.hpp"
+#include "boid/bird_flock.hpp"
 #include "collision_world.hpp"
 #include "player_vitals.hpp"
 #include "tree_layer.hpp"
@@ -205,7 +205,7 @@ void committedAttackAndDamage() {
     const auto committed = flocks.flocks().front().target;
     player.feet = flocks.birds().front().position - glm::vec3(0, .9f, 0);
     viewer::PlayerVitals vitals;
-    const auto hit = flocks.update(.001f, player);
+    const auto hit = flocks.update(1.f / 60, player);
     require(hit == 1 && vitals.applyDamage(static_cast<float>(hit)) == 1 && vitals.health() == 99,
             "One overlapping bird must cause exactly one HP of damage");
     require(flocks.flocks().front().target == committed,
