@@ -666,6 +666,16 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_compile_definitions(benchmark_zombie_crowd PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
     viewer_warnings(benchmark_zombie_crowd)
 
+    add_executable(benchmark_zombie_lod_quality EXCLUDE_FROM_ALL
+        tests/benchmark_zombie_lod_quality.cpp src/shader_program.cpp)
+    target_include_directories(benchmark_zombie_lod_quality SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+    target_link_libraries(benchmark_zombie_lod_quality PRIVATE viewer_zombies glfw OpenGL::GL)
+    if(WIN32)
+        target_link_libraries(benchmark_zombie_lod_quality PRIVATE GLEW::GLEW)
+    endif()
+    target_compile_definitions(benchmark_zombie_lod_quality PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
+    viewer_warnings(benchmark_zombie_lod_quality)
+
     add_executable(benchmark_tree_card_split EXCLUDE_FROM_ALL tests/benchmark_tree_card_split.cpp src/frame_profile.cpp)
     target_link_libraries(benchmark_tree_card_split PRIVATE viewer_renderer viewer_fps viewer_undergrowth glfw)
     target_compile_definitions(benchmark_tree_card_split PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)

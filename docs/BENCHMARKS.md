@@ -149,6 +149,48 @@ the same reported power profile, and include a real-asset ragdoll settling probe
 | Map render submission and disabled lights | `tests/benchmark_render_wins.cpp` / `benchmark_render_wins` | Day/night map views, flashlight and driving controls; CPU/GPU CSVs, captures and counts |
 | Changed zombie render preparation | `tests/benchmark_zombie_render_preparation.cpp` / `benchmark_zombie_render_preparation` | CPU-only preparation of 100,000 changed walk/run actors; published-pose checks and capture |
 | Zombie visibility blocks | `tests/benchmark_zombie_visibility.cpp` / `benchmark_zombie_visibility` | CPU-only maintenance/query CSVs, exact visibility checks and result checksums |
+| Zombie LOD image quality | `tests/benchmark_zombie_lod_quality.cpp` / `benchmark_zombie_lod_quality`, `tools/analyze_zombie_lod_quality.py` | Matched poses and views, native color/depth captures, silhouette metrics and interactive report |
+
+### Zombie LOD image quality
+
+This opt-in capture compares the original characters, current LOD1/2/3 and
+scratch 35%, 25%, 15% and 10% triangle candidates. Production assets and
+`lods.json` are not replaced. All ten characters are sampled from eight yaw
+angles and eight phases of idle, walk and run at 12 m and 35 m forward depth.
+Those are the normal-FOV entry distances for LOD1 and LOD2. The camera is level
+at 1.65 m; all variants share the original asset's 1.8 m normalization.
+
+```bash
+cmake -S . -B build
+cmake --build build --target zombie_mesh_simplify benchmark_zombie_lod_quality -j4
+.venv/bin/python tools/prepare_zombie_lod_comparison.py \
+  --output build/benchmarks/zombie-lod-quality/assets
+./build/benchmark_zombie_lod_quality \
+  build/benchmarks/zombie-lod-quality/assets/manifest.json \
+  build/benchmarks/zombie-lod-quality/captures shaders
+.venv/bin/python tools/analyze_zombie_lod_quality.py \
+  build/benchmarks/zombie-lod-quality/captures/samples.csv
+```
+
+The hardware-GL capture uses the normal baked-animation loader and basic
+shaders, authored sRGB materials and default sunlight. Shadows, scene geometry,
+fog and postprocessing are absent. A 192-square crop preserves the pixel scale
+of the normal 1280x720, 60-degree vertical projection. Native color images have
+no antialiasing; separate depth masks use four-times linear sampling for
+subpixel silhouette comparisons. All meshes use the same displayed stepped
+pose, isolating geometry changes from animation-rate changes.
+
+The analyzer requires local NumPy, Pillow and SciPy. It writes an interactive
+`analysis/report.html`, per-character contact sheets, per-view metrics and
+aggregate CSV/JSON. Boundary distances are symmetric nearest silhouette-edge
+distances in native scene pixels; masks are not registered or realigned.
+Color errors cover foreground pixels rather than empty background. The report
+also compares candidates with the current LOD. Its eight-pose cycle is a visual
+inspection aid, not a full-rate playback or transition test. Neither an image
+metric nor an exploratory half-pixel budget establishes human indistinguishability.
+This measures appearance and geometry counts, not end-to-end frame-time gains.
+
+Recorded comparison: [LOD1/LOD2 image quality, 2026-10-28](benchmarks/zombie-lod-quality-2026-10-28.txt).
 
 ### Zombie visibility blocks
 

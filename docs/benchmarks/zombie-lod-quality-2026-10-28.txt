@@ -1,0 +1,110 @@
+Zombie LOD1/LOD2 image-quality comparison — 2026-10-28
+====================================================
+
+Result
+------
+There is some room for a moderate reduction, but the current near thresholds
+are not obviously excessive. A wholesale halving of either mesh introduces
+larger silhouette changes at its entry distance.
+
+At 12 m, a 35%-of-original candidate cuts current LOD1 triangles by about 30%,
+but raises the median per-view silhouette edge-p95 from 0.50 to 0.75 pixels.
+The 25% candidate cuts about 50%, with a larger increase to 1.12 pixels.
+At 35 m, the 15% candidate cuts current LOD2 triangles by about 25%, with a
+smaller increase from 0.50 to 0.56 pixels. The 10% candidate cuts about 50%,
+raising that measure to 0.79 pixels and producing more noticeable thin-limb
+and hand changes in some views.
+
+The 15% LOD2 candidate is the stronger starting point for an in-game trial.
+The 35% LOD1 candidate is a possible quality/performance tradeoff, while the
+25% candidate is too aggressive for an appearance-preserving change at 12 m.
+These are engineering/visual judgments about these assets, not user-study
+thresholds. No production LOD asset, manifest or distance policy was changed.
+
+Aggregate results
+-----------------
+Every row covers 1,920 matched character/clip/phase/angle combinations.
+Triangles are the mean across ten assets. Edge distances are in native scene
+pixels, measured against the original mesh at exactly the same displayed pose.
+
+Depth  Variant            Mean tris  Median edge-p95  Across-view p95  Median IoU
+12 m   Current LOD1 50%       924.0            0.500            0.707      0.9754
+12 m   Candidate 35%          646.4            0.750            1.031      0.9500
+12 m   Candidate 25%          461.4            1.118            1.458      0.9209
+35 m   Current LOD2 20%       368.5            0.500            0.707      0.8960
+35 m   Candidate 15%          276.1            0.559            0.791      0.8586
+35 m   Candidate 10%          183.9            0.791            1.250      0.7907
+
+First compute the 95th percentile of symmetric nearest boundary-point distance
+within each image pair. The median and across-view p95 above then summarize
+those 1,920 per-view values. Boundaries include silhouette gaps and holes.
+The metric is not vertex displacement or an analytic geometric error bound.
+
+Compared with the current LOD rather than the original, candidate 35% at 12 m
+has median edge-p95 0.559 pixels and across-view p95 0.901. Candidate 15% at
+35 m has median 0.354 and across-view p95 0.559. Added error can therefore be
+distinguished from differences already present in the current meshes.
+
+Some isolated boundary errors are much larger than p95. Even current LOD1 has
+a worst symmetric nearest-boundary distance of 6.10 pixels in one sampled view.
+Those local outliers are retained in metrics.csv; they are not hidden by the
+aggregate table. Inspect representative and worst-case images together.
+
+Workload and protocol
+---------------------
+10 actual characters x 3 clips (idle/walk/run) x 8 phases x 8 yaw angles x
+2 depths (12/35 m) = 3,840 matched views. Each view has eight mesh variants:
+original, current LOD1/2/3, and new 35/25/15/10% candidates: 30,720 renders.
+All source rigs, nodes and animation data are preserved. Candidates 35/25%
+retain LOD1's existing 0.03 simplifier error limit; candidates 15/10% retain
+LOD2's 0.08 limit. No error-limit inflation was required to reach their counts.
+
+Camera: level, eye Y=1.65 m, normal 60-degree vertical FOV, 1280x720 projection.
+Depth means forward Z distance, slightly less than eye-to-bounds-center range.
+Every variant uses the original asset's idle-bound normalization to 1.8 m.
+The original idle foreground measured 93.25 pixels high at 12 m and 32 at 35 m
+in the first-character validation capture.
+
+Color captures are the same 192x192 crop at full-scene top-left (544,304), with
+native raster sampling and authored sRGB materials. Silhouette depth captures
+use four-times linear resolution over the identical crop. Boundary distances
+are divided by four. Images are never individually fitted, registered or
+realigned. Default sunlight is fixed; blending, dithering, shadows, scene
+geometry, haze, fog and postprocessing are absent.
+
+The capture uses loadZombieModel and the production basic vertex/fragment
+shaders with the intact shader definition. It runs the shared baked-vertex
+animation path. All variants use the identical displayed frame on the normal
+15 Hz grid at 12 m and 10 Hz grid at 35 m, so this isolates geometry quality.
+The eight-pose report cycle is not full-rate playback or a transition test.
+
+Hardware: AMD Radeon 660M, radeonsi/rembrandt, LLVM 19.1.1, DRM 3.61,
+Linux 6.11.0-29-generic, Mesa 24.2.8, OpenGL 4.6 Core context.
+No frame-time or FPS improvement was measured. Geometry/vertex-count savings
+do not establish an equivalent frame-time gain.
+
+Verification and retained evidence
+----------------------------------
+The focused CMake capture target built successfully. All 30,720 hardware
+captures completed without GL errors, empty masks or clipped-border failures.
+All 61,440 image/mask files exist, all 80 asset/variant combinations have
+384 records, and all 3,840 matched groups have identical animation-frame IDs.
+Production lods.json retains its original hash.
+
+The analyzer passed identical-image and known-quarter-pixel-shift checks,
+synthetic complete-report generation, Python compilation and generated-script
+syntax checks. The preparation tool passed synthetic generation, preserved
+input/fingerprint checks and rejection of a production-directory destination.
+The local HTML preview was blocked by the browser's file-protocol policy;
+comparison PNGs were inspected directly instead.
+
+Tracked reproduction: tests/benchmark_zombie_lod_quality.cpp,
+tools/prepare_zombie_lod_comparison.py, tools/analyze_zombie_lod_quality.py,
+and the workflow in docs/BENCHMARKS.md.
+
+Ignored artifacts: build/benchmarks/zombie-lod-quality-20261028/.
+assets/manifest.json records every model hash, path, triangle/vertex count and
+candidate setting. shaders/ retains matching shader snapshots. setup.json
+records source/binary hashes. captures/metadata.json and samples.csv record
+the hardware, camera, sample identities and displayed frames. captures/analysis/
+contains report.html, metrics.csv, summary.csv/json and comparison images.
