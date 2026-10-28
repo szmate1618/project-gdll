@@ -1,0 +1,85 @@
+Zombie shooting broadphase grid traversal — 2026-10-28
+
+Scope
+-----
+ZombieSpatialIndex::queryRay only. This is a CPU microbenchmark, not a rendered
+FPS measurement. Actual hit-region, pose, wound, world-occlusion and equal-hit
+selection logic remain unchanged.
+
+Approach
+--------
+Track occupied-cell counts per X/Z coordinate as buckets appear/disappear.
+The ordered endpoints give current bounds without inspecting every cell per
+shot. Clip the unbounded forward ray to the padded occupied rectangle, then
+walk strips along its dominant horizontal axis. In each strip, look up only
+minor-axis cells reached while crossing its padded interval. Exact cell slab
+checks and the existing stable-ID sort preserve the previous candidates.
+Corner touches, vertical rays and negative coordinates remain inclusive.
+
+When the estimated walk costs more than scanning the occupied cells, scan those
+cells instead. Also retain the scan for nonrepresentable adjacent cell keys and
+infinite padding. A distant zombie does not impose an arbitrary shooting cap,
+and an enormous empty gap cannot cause an enormous grid walk. Projected strip
+ranges are expanded for floating-point roundoff before exact slab filtering.
+
+Reproduce
+---------
+cmake -S . -B build
+cmake --build build --target benchmark_zombie_spatial_rays -j4
+./build/benchmark_zombie_spatial_rays > build/zombie-ray-results.csv
+
+Source: tests/benchmark_zombie_spatial_rays.cpp. No map/assets/display required.
+Compiler GCC 14.2, C++17, -O3 -DNDEBUG. AMD Ryzen 5 7535HS, pinned to CPU 0.
+Control sources/headers saved from b9cc9d3, flattened into an isolated directory;
+control and current standalone executables compiled with their matching headers.
+The optional CMake executable was also built and exercised. All builds used the
+same compiler/optimization settings. No physics timestep applies to this harness.
+
+Three paired invocations, order control/current, current/control, control/current.
+Each invocation has one warmup plus five measured rounds of 1,024 queries/case.
+Reported values are medians of the three invocation means. CPU clock/load varied;
+these figures describe the component workload, not a guaranteed gameplay gain.
+Local raw output: build/zombie-ray-comparison/{control,current}-{1,2,3}.csv.
+
+Layout: approximately square grid centered at zero, stable IDs in row order.
+Dense: 100,000 actors, 4 m spacing (multiple actors per 20 m grid cell).
+Spread: 100,000 actors, 20 m spacing (approximately one per cell).
+Sparse: 1,000 actors, 1,000,000 m spacing (exercises bounded scan fallback).
+Rays start at (0.125,1,0.125), use 128 headings, padding 1.5 m, and include
+vertical rays every sixteenth query. Timers include output sorting; candidate-ID
+checksum computation is outside the timer. Every old/new checksum matched.
+
+Query timings (microseconds/call)
+                                Control       Current       Speedup
+Dense 100k                       43.963        17.062         2.58x
+Spread 100k                    1275.168        23.649        53.92x
+Sparse 1k                         5.424         5.409         1.00x
+
+Maintenance cost
+----------------
+Full-population 20 m X translations, alternating original/shifted positions;
+five batches per invocation. Includes bucket allocation/removal and bound upkeep.
+This deliberately forces every actor across a cell boundary in each batch.
+
+Update timings (nanoseconds/actor)
+                                Control       Current
+Dense 100k                       41.714        43.302
+Spread 100k                     111.411       151.960
+Sparse 1k                       103.953       174.270
+
+Bound upkeep adds work when occupied cells appear/disappear; unchanged-cell
+updates return before touching those maps. Hearing also uses this shared index
+class, so it pays the same bucket-change maintenance cost. Radius-query behavior
+and membership remain unchanged.
+
+Verification
+------------
+Successful full CMake rebuild and benchmark-target build. Seventeen focused CPU
+CTests passed: spatial index, shooting, dismemberment, transition, behavior,
+crowd, movement, perception, chase, motion, attacks/lunges and multiplayer core,
+replication, zombie attacks, melee and server navigation. The spatial test checks
+an independent full-population candidate oracle across 1,000 random rays, exact
+cell edges/corners, vertical/near-vertical rays, large padding, distant origins,
+movement, removals, population growth/reset and extreme finite coordinates.
+Existing shooting tests preserve distant hits, occlusion and equal-distance ID
+order. No renderer changes were needed for this optimization.

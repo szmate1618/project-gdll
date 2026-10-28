@@ -659,6 +659,10 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_compile_definitions(benchmark_shadow_resolution PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
     viewer_warnings(benchmark_shadow_resolution)
 
+    add_executable(benchmark_zombie_spatial_rays EXCLUDE_FROM_ALL tests/benchmark_zombie_spatial_rays.cpp)
+    target_link_libraries(benchmark_zombie_spatial_rays PRIVATE viewer_zombies)
+    viewer_warnings(benchmark_zombie_spatial_rays)
+
     add_executable(benchmark_zombie_render_preparation EXCLUDE_FROM_ALL tests/benchmark_zombie_render_preparation.cpp)
     target_link_libraries(benchmark_zombie_render_preparation PRIVATE viewer_renderer glfw)
     target_compile_definitions(benchmark_zombie_render_preparation PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)

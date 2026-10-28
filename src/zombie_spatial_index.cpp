@@ -7,7 +7,30 @@
 #include <stdexcept>
 
 namespace viewer {
-namespace { constexpr double cellSize = 20.0; }
+namespace {
+constexpr double cellSize = 20.0;
+void removeCoordinate(std::map<double, std::size_t>& counts, double coordinate) {
+    const auto found = counts.find(coordinate);
+    if (--found->second == 0) counts.erase(found);
+}
+bool clipRayAxis(double origin, double direction, double low, double high, double& near, double& far) {
+    if (direction == 0) return origin >= low && origin <= high;
+    const double a = (low - origin) / direction, b = (high - origin) / direction;
+    near = std::max(near, std::min(a, b));
+    far = std::min(far, std::max(a, b));
+    return near <= far;
+}
+// Include both cells at a touching boundary. Widen calculated projections for
+// division/translation roundoff; the final slab test removes extra candidates.
+std::pair<double, double> cellRange(double a, double b, double padding, double error) {
+    return {std::ceil((std::min(a,b) - padding - error) / cellSize) - 1,
+            std::floor((std::max(a,b) + padding + error) / cellSize)};
+}
+double projectionError(double origin, double direction, double near, double far, double padding) {
+    return 16 * std::numeric_limits<double>::epsilon() *
+        (std::abs(origin) + std::max(std::abs(near * direction), std::abs(far * direction)) + padding + cellSize);
+}
+}
 
 std::size_t ZombieSpatialIndex::Hash::operator()(const Cell& cell) const {
     const auto x = std::hash<double>{}(cell.x), z = std::hash<double>{}(cell.z);
@@ -16,6 +39,7 @@ std::size_t ZombieSpatialIndex::Hash::operator()(const Cell& cell) const {
 
 void ZombieSpatialIndex::reset(std::size_t population) {
     cells_.clear();
+    columns_.clear(); rows_.clear();
     locations_.assign(population, {});
 }
 
@@ -32,7 +56,11 @@ void ZombieSpatialIndex::erase(std::size_t id) {
     bucket[location.slot] = moved;
     locations_[moved].slot = location.slot;
     bucket.pop_back();
-    if (bucket.empty()) cells_.erase(found);
+    if (bucket.empty()) {
+        removeCoordinate(columns_, location.cell.x);
+        removeCoordinate(rows_, location.cell.z);
+        cells_.erase(found);
+    }
     location.present = false;
 }
 
@@ -48,9 +76,16 @@ void ZombieSpatialIndex::update(std::size_t id, glm::vec3 feet) {
     if (location.present && location.cell == cell) return;
     // Allocate the destination before removing the old membership.
     auto [destination, inserted] = cells_.try_emplace(cell);
+    bool addedColumn = false, addedRow = false;
     try {
+        if (inserted) {
+            ++columns_[cell.x]; addedColumn = true;
+            ++rows_[cell.z]; addedRow = true;
+        }
         destination->second.push_back(id);
     } catch (...) {
+        if (addedColumn) removeCoordinate(columns_, cell.x);
+        if (addedRow) removeCoordinate(rows_, cell.z);
         if (inserted) cells_.erase(destination);
         throw;
     }
@@ -91,24 +126,68 @@ void ZombieSpatialIndex::queryRay(glm::vec3 origin, glm::vec3 direction, double 
     if (!std::isfinite(origin.x) || !std::isfinite(origin.y) || !std::isfinite(origin.z) ||
         !std::isfinite(direction.x) || !std::isfinite(direction.y) || !std::isfinite(direction.z) ||
         std::isnan(padding) || padding < 0 || glm::dot(direction, direction) == 0) return;
-    // Test occupied cells instead of marching arbitrarily far through empty
-    // space. This handles vertical rays and sparse/extreme coordinates too.
-    for (const auto& entry : cells_) {
+    if (cells_.empty()) return;
+    const auto intersects = [&](const Cell& cell) {
         double near = 0, far = std::numeric_limits<double>::infinity();
-        for (const int axis : {0, 2}) {
-            const double coordinate = axis == 0 ? entry.first.x : entry.first.z;
-            const double low = coordinate * cellSize - padding;
-            const double high = (coordinate + 1) * cellSize + padding;
-            if (direction[axis] == 0) {
-                if (origin[axis] < low || origin[axis] > high) { far = -1; break; }
-            } else {
-                const double a = (low - origin[axis]) / direction[axis];
-                const double b = (high - origin[axis]) / direction[axis];
-                near = std::max(near, std::min(a, b));
-                far = std::min(far, std::max(a, b));
+        return clipRayAxis(origin.x, direction.x, cell.x * cellSize - padding,
+                           (cell.x + 1) * cellSize + padding, near, far) &&
+               clipRayAxis(origin.z, direction.z, cell.z * cellSize - padding,
+                           (cell.z + 1) * cellSize + padding, near, far);
+    };
+    const auto scan = [&] {
+        for (const auto& entry : cells_)
+            if (intersects(entry.first))
+                candidates.insert(candidates.end(), entry.second.begin(), entry.second.end());
+    };
+    // Walk along the dominant horizontal axis. Each strip contributes only the
+    // other-axis cells reached while the ray crosses its padded bounds. This
+    // visits each cell once, including corner/boundary touches and vertical rays.
+    const bool xMajor = std::abs(direction.x) >= std::abs(direction.z);
+    const auto& majorCounts = xMajor ? columns_ : rows_;
+    const auto& minorCounts = xMajor ? rows_ : columns_;
+    const double o = xMajor ? origin.x : origin.z, d = xMajor ? direction.x : direction.z;
+    const double otherO = xMajor ? origin.z : origin.x, otherD = xMajor ? direction.z : direction.x;
+    const double majorLow = majorCounts.begin()->first, majorHigh = majorCounts.rbegin()->first;
+    const double minorLow = minorCounts.begin()->first, minorHigh = minorCounts.rbegin()->first;
+    // At huge coordinates adjacent integer cell keys cease to be representable.
+    // Retain the occupied-cell slab path there, and for infinite padding.
+    constexpr double walkLimit = 0x1p50;
+    if (!std::isfinite(padding) || std::max({std::abs(majorLow),std::abs(majorHigh),
+        std::abs(minorLow),std::abs(minorHigh),std::abs(o/cellSize),std::abs(otherO/cellSize)}) > walkLimit) {
+        scan();
+    } else {
+        double near = 0, far = std::numeric_limits<double>::infinity();
+        if (!clipRayAxis(o,d,majorLow*cellSize-padding,(majorHigh+1)*cellSize+padding,near,far) ||
+            !clipRayAxis(otherO,otherD,minorLow*cellSize-padding,(minorHigh+1)*cellSize+padding,near,far)) return;
+        // A vertical ray is a point in X/Z; avoid 0 * infinite ray parameters.
+        if (d == 0) near = far = 0;
+        auto [first,last] = cellRange(std::fma(near,d,o),std::fma(far,d,o),padding,
+                                     projectionError(o,d,near,far,padding));
+        first = std::max(first,majorLow); last = std::min(last,majorHigh);
+        if (first > last) return;
+        const double strips = last-first+1;
+        // Sparse worlds, very wide padding and rays along long thin populations
+        // are cheaper to scan than to walk. This also bounds every integer loop.
+        const double work = strips * (4 + std::ceil(4*padding/cellSize));
+        if (!std::isfinite(work) || work > static_cast<double>(cells_.size())) {
+            scan();
+        } else {
+            for (std::size_t i=0; i<static_cast<std::size_t>(strips); ++i) {
+                const double major = first+static_cast<double>(i);
+                double enter = near, exit = far;
+                if (!clipRayAxis(o,d,major*cellSize-padding,(major+1)*cellSize+padding,enter,exit)) continue;
+                auto [low,high] = cellRange(std::fma(enter,otherD,otherO),std::fma(exit,otherD,otherO),padding,
+                                           projectionError(otherO,otherD,enter,exit,padding));
+                low = std::max(low,minorLow); high = std::min(high,minorHigh);
+                for (std::size_t j=0; j<static_cast<std::size_t>(std::max(0.0,high-low+1)); ++j) {
+                    const double minor = low+static_cast<double>(j);
+                    const Cell cell = xMajor ? Cell{major,minor} : Cell{minor,major};
+                    const auto found = cells_.find(cell);
+                    if (found != cells_.end() && intersects(cell))
+                        candidates.insert(candidates.end(), found->second.begin(), found->second.end());
+                }
             }
         }
-        if (near <= far) candidates.insert(candidates.end(), entry.second.begin(), entry.second.end());
     }
     std::sort(candidates.begin(), candidates.end()); // Preserve original equal-hit tie order.
 }

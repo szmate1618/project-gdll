@@ -4,6 +4,7 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <random>
 #include <stdexcept>
 
 namespace {
@@ -91,9 +92,74 @@ void rayCandidates() {
     index.queryRay({}, {1, 0, 0}, -1, candidates);
     require(candidates.empty(), "Invalid padding must produce no candidates");
 }
+// Independent full-population slab oracle for the conservative cell candidates.
+std::vector<std::size_t> rayReference(const std::vector<glm::vec3>& positions,
+                                     glm::vec3 origin, glm::vec3 direction, double padding) {
+    std::vector<std::size_t> result;
+    for (std::size_t id=0; id<positions.size(); ++id) {
+        if (!std::isfinite(positions[id].x)) continue;
+        double enter = 0, leave = std::numeric_limits<double>::infinity();
+        for (const int axis : {0,2}) {
+            const double cell = std::floor(double(positions[id][axis])/20);
+            const double lo = cell*20-padding, hi = (cell+1)*20+padding;
+            if (direction[axis] == 0) {
+                if (origin[axis]<lo || origin[axis]>hi) leave=-1;
+            } else {
+                const double a = (lo-origin[axis])/direction[axis], b = (hi-origin[axis])/direction[axis];
+                enter = std::max(enter,std::min(a,b)); leave = std::min(leave,std::max(a,b));
+            }
+        }
+        if (enter<=leave) result.push_back(id);
+    }
+    return result;
+}
+void rayWalkMatchesFullScan() {
+    std::vector<glm::vec3> positions;
+    for (int x=-32; x<32; ++x)
+        for (int z=-32; z<32; ++z) positions.push_back({x*20.f+.25f,0,z*20.f+.25f});
+    viewer::ZombieSpatialIndex index; index.reset(positions.size());
+    for (std::size_t id=0; id<positions.size(); ++id) index.update(id,positions[id]);
+    std::vector<std::size_t> candidates;
+    const auto check = [&](glm::vec3 origin, glm::vec3 direction, double padding) {
+        index.queryRay(origin,direction,padding,candidates);
+        require(candidates == rayReference(positions,origin,direction,padding),
+                "Ray walk must match all occupied-cell candidates, with no misses or duplicates");
+    };
+    for (const auto origin : {glm::vec3(0),{20,0,-20},{-640,0,640},{1e12f,0,-1e12f}})
+        for (const auto direction : {glm::vec3(1,0,0),{-1,0,0},{0,0,1},{0,0,-1},
+                                    {1,0,1},{-1,0,1},{1,0,-1},{-1,0,-1},{0,1,0},{1e-12f,1,1}})
+            for (const double padding : {0.,.02,5.,20.,60.,1e6,std::numeric_limits<double>::infinity()})
+                check(origin,direction,padding);
+    std::mt19937 random(38191);
+    std::uniform_real_distribution<float> coordinate(-2000,2000), component(-1,1);
+    for (int ray=0; ray<1000; ++ray)
+        check({coordinate(random),coordinate(random),coordinate(random)},
+              {component(random),component(random),component(random)},(ray%5)*.75);
+    // Exercise endpoint bookkeeping after removal, movement and population growth.
+    for (std::size_t id=0; id<64; ++id) {
+        positions[id] = {2000+float(id)*20,0,-2000}; index.update(id,positions[id]);
+    }
+    check({-1000,0,0},{1,0,-1},2);
+    for (std::size_t id=0; id<64; ++id) {
+        index.erase(id); positions[id].x = std::numeric_limits<float>::quiet_NaN();
+    }
+    check({2000,0,-2000},{-1,0,1},.02);
+    index.reset(1); index.update(0,{1,0,1}); index.erase(0);
+    index.queryRay({}, {1,0,1}, 1,candidates);
+    require(candidates.empty(), "Removing the last cell must clear occupied bounds");
+    index.growPopulation(positions.size());
+    for (std::size_t id=0; id<positions.size(); ++id) index.update(id,positions[id]);
+    check({0,0,0},{1,0,1},0);
+    index.reset(2);
+    index.update(0,{std::numeric_limits<float>::max(),0,0});
+    index.update(1,{-std::numeric_limits<float>::max(),0,0});
+    index.queryRay({}, {1,0,0},0,candidates);
+    require(candidates == std::vector<std::size_t>{0}, "Extreme sparse rays must remain unbounded without grid-loop overflow");
+}
+
 }
 
 int main() {
-    try { candidatesAndMovement(); populationGrowthPreservesMembership(); rayCandidates(); std::cout << "Zombie spatial index tests passed\n"; return 0; }
+    try { candidatesAndMovement(); populationGrowthPreservesMembership(); rayCandidates(); rayWalkMatchesFullScan(); std::cout << "Zombie spatial index tests passed\n"; return 0; }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

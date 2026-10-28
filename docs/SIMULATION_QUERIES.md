@@ -61,7 +61,7 @@ create work in frames where the event never occurs.
 | Query | Trigger and current implementation | Reuse consideration |
 | --- | --- | --- |
 | Zombies that can hear a noise | Each `ZombieLayer::makeNoise` event: radius query through the separate grid of living zombies with behavior entries, then idle-state and exact attenuation checks | The behavior pool owns membership; movement and explicit bulk rebuilds update positions. Broad sounds examine only active entries; short sounds retain local cell queries. Preserve event order, levels and state changes. Do not merge their effects into one observation. |
-| Shot target and world occlusion | Each accepted bullet/pellet: `ZombieSpatialIndex::queryRay`, conservative shooting bounds, then exact pose/hit checks and a world visibility segment | Pellets may share conservative candidates, but directions, hit poses and intervening deaths differ. The current ray query visits occupied zombie cells; it does not already use a ray-walk through cells. |
+| Shot target and world occlusion | Each accepted bullet/pellet: `ZombieSpatialIndex::queryRay`, conservative shooting bounds, then exact pose/hit checks and a world visibility segment | Pellets may share conservative candidates, but directions, hit poses and intervening deaths differ. The ray query walks padded grid strips inside current occupied bounds, with an occupied-cell scan when a sparse/extreme walk would cost more. It remains unbounded in shooting distance. |
 | Zombie blast victims | Each explosion: `queryLivingNear` then center distance, world line of sight and ragdoll activation | Query once for the blast event. Validate IDs after each mutation; different explosions can change survivors and rigid bodies. |
 | Rigid bodies affected by a blast | Each explosion: Box3D AABB overlap, deduplicate bodies, distance and world line of sight | Already event-local candidate gathering. Keep body ownership and collision-category filtering. |
 | Box/door selection for grabbing | Interaction press: nearest box/door rays and world line of sight | `PlayerInteraction::press` selects with a ray, then the selected interaction handler repeats its ray. Passing the selected hit through the same event could remove duplication without a frame cache. |
@@ -75,6 +75,16 @@ Sources: [zombie_behavior.cpp](../src/zombie_behavior.cpp),
 [object_interaction.cpp](../src/object_interaction.cpp),
 [door_interaction.cpp](../src/door_interaction.cpp),
 [interior_objects.cpp](../src/interior_objects.cpp).
+
+The shooting grid keeps occupied X/Z endpoint counts as buckets change, so a
+bullet can clip its unbounded ray to the current occupied area without a full
+cell scan. Its padded strip walk retains touching boundaries and stable ID order.
+A work estimate selects the occupied-cell scan for sparse layouts or very wide
+padding; extreme coordinates retain the slab path. The CPU-only
+[ray benchmark](../tests/benchmark_zombie_spatial_rays.cpp) measures both queries
+and the added bucket-change maintenance. See the
+[comparison report](benchmarks/zombie-ray-grid-2026-10-28.txt) for workloads,
+results and limitations.
 
 Camera, sun-shadow, flashlight and vegetation LoD visibility queries are rendering
 queries, outside this simulation inventory. Their result sets do not define

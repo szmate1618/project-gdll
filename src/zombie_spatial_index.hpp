@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <cstddef>
+#include <map>
 #include <unordered_map>
 #include <vector>
 
@@ -20,7 +21,9 @@ public:
     std::size_t population() const { return locations_.size(); }
     void query(glm::vec3 center, double radius, std::vector<std::size_t>& candidates) const;
     // Unbounded forward ray through X/Z occupied cells, expanded by the maximum
-    // horizontal hit-region reach from indexed feet. No camera/range restriction.
+    // horizontal hit-region reach from indexed feet. Walks intersected grid
+    // strips inside occupied bounds; sparse/extreme queries scan occupied cells
+    // when that costs less. No camera/range restriction.
     void queryRay(glm::vec3 origin, glm::vec3 direction, double padding,
                   std::vector<std::size_t>& candidates) const;
 
@@ -34,5 +37,8 @@ private:
     struct Location { Cell cell; std::size_t slot = 0; bool present = false; };
     std::unordered_map<Cell, std::vector<std::size_t>, Hash> cells_;
     std::vector<Location> locations_;
+    // Counts of occupied cells per axis, maintained only as buckets appear or
+    // disappear. Ordered endpoints bound ray walks without scanning the crowd.
+    std::map<double, std::size_t> columns_, rows_;
 };
 } // namespace viewer
