@@ -1,5 +1,6 @@
 #include "zombie_scenario.hpp"
 #include "scenario_coordinates.hpp"
+#include "scenario_density.hpp"
 #include "zombie_navigation.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -33,6 +34,45 @@ private:
 glm::vec2 sampleRectangle(const ScenarioCoordinates& coordinates, Random& random) {
     const double x = random.unit(), y = random.unit();
     return coordinates.sample(x, y);
+}
+
+glm::vec2 sampleDensity(const ScenarioDensity& density, Random& random) {
+    // Keep RNG evaluation order explicit for repeatability across compilers.
+    const double selection = random.unit(), x = random.unit(), z = random.unit();
+    return density.sample(selection, x, z);
+}
+
+// Try the intended target, then increasingly distant rings. This is a bounded
+// discrete search, not an exact geometric nearest-point query. Every probe uses
+// the same constraints and consumes the existing endpoint attempt budgets.
+template<class ValidPosition>
+std::optional<glm::vec3> nearbyPosition(glm::vec2 target, float searchRadius, Random& random,
+    std::size_t& attempts, std::size_t& totalAttempts, const ValidPosition& valid) {
+    const auto available = [&] { return attempts < perZombieAttempts && totalAttempts < totalAttemptLimit; };
+    const auto probe = [&](glm::vec2 point) {
+        ++attempts;
+        ++totalAttempts;
+        return valid(point);
+    };
+    if (!available()) return std::nullopt;
+    if (auto feet = probe(target)) return feet;
+    if (searchRadius == 0 || !available()) return std::nullopt;
+    constexpr double tau = 6.283185307179586;
+    double phase = random.unit() * tau;
+    for (double distance = std::min(.25, double(searchRadius)); available();) {
+        const int probes = int(std::clamp(std::ceil(tau * distance / .5), 8.0, 64.0));
+        for (int i = 0; i < probes && available(); ++i) {
+            const double angle = phase + tau * i / probes;
+            const glm::vec2 point(glm::dvec2(target) + distance * glm::dvec2(std::cos(angle), std::sin(angle)));
+            // Float rounding must not extend the authored maximum adjustment.
+            if (glm::distance(glm::dvec2(point), glm::dvec2(target)) > searchRadius) continue;
+            if (auto feet = probe(point)) return feet;
+        }
+        if (distance == searchRadius) break;
+        distance = std::min(double(searchRadius), distance * 1.5);
+        phase += 2.399963229728653; // Rotate rings to avoid aligned radial gaps.
+    }
+    return std::nullopt;
 }
 
 class SpawnOccupancy {
@@ -142,46 +182,66 @@ ZombieScenarioPopulation generateZombieScenario(const CollisionWorld& world, con
     result.placements.reserve(count);
     result.destinations.reserve(count);
     std::size_t spawnAttempts = 0, destinationAttempts = 0;
+    const ZombieHordeConfig::Rectangle mapBounds{scene.boundsMin.x, scene.boundsMin.z,
+                                                scene.boundsMax.x, scene.boundsMax.z};
     for (const auto& horde : config.hordes) {
         const bool travel = horde.movement == ZombieScenarioMovement::travel;
-        std::optional<ScenarioCoordinates> spawnCoordinates, destinationCoordinates;
-        if (horde.spawn) spawnCoordinates.emplace(*horde.spawn);
-        else if (!travel) spawnCoordinates.emplace(ZombieHordeConfig::Rectangle{
-            scene.boundsMin.x, scene.boundsMin.z, scene.boundsMax.x, scene.boundsMax.z});
-        if (horde.destination) destinationCoordinates.emplace(*horde.destination);
+        const auto spawnBounds = horde.spawn.value_or(mapBounds);
+        const auto destinationBounds = horde.destination.value_or(mapBounds);
+        const ScenarioCoordinates spawnCoordinates(spawnBounds), destinationCoordinates(destinationBounds);
+        std::optional<ScenarioDensity> spawnDensity, destinationDensity;
+        try {
+            if (!horde.spawnDensity.empty()) spawnDensity.emplace(horde.spawnDensity, spawnBounds);
+            if (!horde.destinationDensity.empty()) destinationDensity.emplace(horde.destinationDensity, destinationBounds);
+        } catch (const std::exception& error) {
+            throw std::runtime_error("Zombie horde '" + horde.name + "': " + error.what());
+        }
+        const auto densityDescription = [](const std::filesystem::path& path) {
+            return path.empty() ? std::string{} : " using density image '" + path.u8string() + "'";
+        };
         for (std::size_t id = 0; id < horde.count; ++id) {
             std::optional<glm::vec3> spawn;
             std::uint32_t spawnPolygon = navmesh_path::noPolygon;
-            for (std::size_t attempt = 0; attempt < perZombieAttempts && spawnAttempts < totalAttemptLimit; ++attempt) {
-                ++spawnAttempts;
-                const auto p = spawnCoordinates ? sampleRectangle(*spawnCoordinates, random) : sampler->sample(random);
-                if (travel) spawnPolygon = mesh->locate({p.x, p.y});
-                if ((travel && spawnPolygon == navmesh_path::noPolygon) ||
-                    (spawnCoordinates && !spawnCoordinates->contains(p)) || !occupancy.clear(p)) continue;
-                spawn = safeFeet(p, world, scene);
+            std::size_t attempts = 0;
+            while (attempts < perZombieAttempts && spawnAttempts < totalAttemptLimit) {
+                const auto target = spawnDensity ? sampleDensity(*spawnDensity, random) :
+                    (horde.spawn || !travel ? sampleRectangle(spawnCoordinates, random) : sampler->sample(random));
+                spawn = nearbyPosition(target, horde.placementSearchRadius, random, attempts, spawnAttempts,
+                    [&](glm::vec2 p) -> std::optional<glm::vec3> {
+                        if (!spawnCoordinates.contains(p) || (spawnDensity && !spawnDensity->allows(p)) ||
+                            !occupancy.clear(p)) return std::nullopt;
+                        if (travel && mesh->locate({p.x, p.y}) == navmesh_path::noPolygon) return std::nullopt;
+                        return safeFeet(p, world, scene);
+                    });
                 if (spawn) break;
             }
             if (!spawn)
                 throw std::runtime_error("Cannot place zombie " + std::to_string(id + 1) + " of " +
                     std::to_string(horde.count) + " in horde '" + horde.name +
-                    "': spawn region has insufficient safe nonoverlapping " + (travel ? "navmesh ground" : "ground"));
+                    "': sampling/nearby search exhausted; spawn region has insufficient safe nonoverlapping " +
+                    (travel ? "navmesh ground" : "ground") + densityDescription(horde.spawnDensity));
             std::optional<glm::vec3> destination;
             if (travel) {
+                spawnPolygon = mesh->locate({spawn->x, spawn->z});
                 const auto component = mesh->component(spawnPolygon);
-                for (std::size_t attempt = 0; attempt < perZombieAttempts && destinationAttempts < totalAttemptLimit; ++attempt) {
-                    ++destinationAttempts;
-                    const auto p = destinationCoordinates ? sampleRectangle(*destinationCoordinates, random)
-                                                         : sampler->sample(component, random);
-                    const auto polygon = mesh->locate({p.x, p.y});
-                    if (polygon == navmesh_path::noPolygon || mesh->component(polygon) != component ||
-                        (destinationCoordinates && !destinationCoordinates->contains(p)) ||
-                        glm::length(p - glm::vec2(spawn->x, spawn->z)) <= 1e-4f) continue;
-                    destination = safeFeet(p, world, scene);
+                attempts = 0;
+                while (attempts < perZombieAttempts && destinationAttempts < totalAttemptLimit) {
+                    const auto target = destinationDensity ? sampleDensity(*destinationDensity, random) :
+                        (horde.destination ? sampleRectangle(destinationCoordinates, random) : sampler->sample(component, random));
+                    destination = nearbyPosition(target, horde.placementSearchRadius, random, attempts, destinationAttempts,
+                        [&](glm::vec2 p) -> std::optional<glm::vec3> {
+                            if (!destinationCoordinates.contains(p) || (destinationDensity && !destinationDensity->allows(p)) ||
+                                glm::length(p - glm::vec2(spawn->x, spawn->z)) <= 1e-4f) return std::nullopt;
+                            const auto polygon = mesh->locate({p.x, p.y});
+                            if (polygon == navmesh_path::noPolygon || mesh->component(polygon) != component) return std::nullopt;
+                            return safeFeet(p, world, scene);
+                        });
                     if (destination) break;
                 }
                 if (!destination)
                     throw std::runtime_error("Cannot pick a safe reachable destination in the destination region for zombie " +
-                        std::to_string(id + 1) + " in horde '" + horde.name + "'");
+                        std::to_string(id + 1) + " in horde '" + horde.name +
+                        "': sampling/nearby search exhausted" + densityDescription(horde.destinationDensity));
             }
             occupancy.add({spawn->x, spawn->z});
             result.placements.push_back(glm::rotate(glm::translate(glm::mat4(1), *spawn),

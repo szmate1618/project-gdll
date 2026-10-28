@@ -101,9 +101,9 @@ void strictConfigParsing() {
     for (const auto& root : {"version = 4.0\n", "version = '4'\n", "typo = 1\n",
                              "seed = -1\n", "seed = 4294967296\n", "seed = 42.0\n", "seed = true\n"})
         fixture.invalid(std::string(root) + zombieSettings);
-    for (const auto* version : {"1", "2", "5"})
+    for (const auto* version : {"1", "2", "6"})
         fixture.invalid(std::string("version = ") + version + "\n" + zombieSettings,
-                        "expected version = 4 with world X/Z meters only");
+                        "expected version = 4 or 5 with world X/Z meters only");
     fixture.invalid("version = 3\n" + zombieSettings, "movement = 'travel'");
     fixture.invalid("version = 3\n" + zombieSettings, "set version = 4");
     for (const auto* version : {"", "version = 4\n"})
@@ -142,7 +142,7 @@ void movementModes() {
     require(defaults.count() == 100000 && !defaults.needsNavigation() &&
                 defaults.hordes.front().movement == viewer::ZombieScenarioMovement::idle &&
                 !defaults.hordes.front().spawn && !defaults.hordes.front().destination,
-            "Omitted movement/version must select version 4 idle without navigation or endpoint bounds");
+            "Omitted movement/version must select idle without navigation or endpoint bounds");
     const auto explicitIdle = fixture.parse("version = 4\n" + idle + "movement = 'idle'\n" + worldRectangle);
     require(!explicitIdle.needsNavigation() && explicitIdle.hordes.front().spawn &&
                 explicitIdle.hordes.front().movement == viewer::ZombieScenarioMovement::idle,
@@ -177,6 +177,42 @@ void movementModes() {
         "Direct C++ groups must reject unsupported movement modes");
 }
 
+void densityAndNearbySettings() {
+    const ConfigFixture fixture;
+    const auto defaults = fixture.parse(zombieSettings);
+    require(defaults.hordes.front().placementSearchRadius == 100,
+            "Current scenarios must default to a 100 meter nearby search, including uniform targets");
+    require(fixture.parse("version = 4\n" + zombieSettings).hordes.front().placementSearchRadius == 0,
+            "Version 4 must preserve its original placement behavior");
+    const auto weighted = fixture.parse("version = 5\n" + zombieSettings +
+        "spawn_density = 'density/spawn.png'\ndestination_density = '../shared/end.png'\nplacement_search_radius = 12.5\n");
+    const auto& horde = weighted.hordes.front();
+    require(horde.spawnDensity == std::filesystem::current_path() / "scenario-config-test-fixtures/density/spawn.png" &&
+            horde.destinationDensity == std::filesystem::current_path() / "scenario-config-test-fixtures/../shared/end.png" &&
+            horde.placementSearchRadius == 12.5f && !horde.spawn && !horde.destination,
+            "Density paths must resolve relative to their scenario, independently of rectangle settings");
+    require(fixture.parse(zombieSettings + "placement_search_radius = 0\n").hordes.front().placementSearchRadius == 0,
+            "A zero radius must disable nearby adjustment");
+    for (const auto* key : {"spawn_density", "destination_density"}) {
+        for (const auto* value : {"''", "1", "true", "[]", "'/absolute.png'", "'C:/image.png'", "'density\\image.png'"})
+            fixture.invalid(zombieSettings + key + " = " + value + "\n", key);
+        fixture.invalid("version = 4\n" + zombieSettings + key + " = 'image.png'\n", "require version = 5");
+    }
+    for (const auto* value : {"-1", "inf", "nan", "true", "'100'", "1e100"})
+        fixture.invalid(zombieSettings + "placement_search_radius = " + value + "\n", "placement_search_radius");
+    fixture.invalid("version = 4\n" + zombieSettings + "placement_search_radius = 100\n", "require version = 5");
+    fixture.invalid("[zombies.idle]\ncount = 1\ndestination_density = 'image.png'\n", "movement = 'idle'");
+    auto direct = defaults;
+    direct.hordes.front().placementSearchRadius = std::numeric_limits<float>::quiet_NaN();
+    rejects<std::invalid_argument>([&] { (void)direct.count(); }, "Direct callers must reject nonfinite search radii");
+    direct.hordes.front().placementSearchRadius = -1;
+    rejects<std::invalid_argument>([&] { (void)direct.count(); }, "Direct callers must reject negative search radii");
+    direct.hordes.front().placementSearchRadius = 100;
+    direct.hordes.front().movement = viewer::ZombieScenarioMovement::idle;
+    direct.hordes.front().destinationDensity = "image.png";
+    rejects<std::invalid_argument>([&] { (void)direct.count(); }, "Direct idle groups must reject destination density maps");
+}
+
 void worldCoordinateFrames() {
     const viewer::ZombieHordeConfig::Rectangle rectangle{-30, -10, 50, 70};
     const viewer::ScenarioCoordinates local(rectangle);
@@ -209,6 +245,7 @@ int main(int argc, char** argv) {
     try {
         strictConfigParsing();
         movementModes();
+        densityAndNearbySettings();
         worldCoordinateFrames();
         invalidRectangles();
         for (int i = 1; i < argc; ++i)

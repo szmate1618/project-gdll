@@ -1,0 +1,22 @@
+version = 5
+seed = 42
+
+[player]
+# Clear ground with a view northwest into the density corridor.
+spawn = [-700.0, 300.0]
+orientation = [-142.5, 0.0]
+
+# All groups use the default 100 m nearby-placement search. Omitted rectangles
+# cover the whole map; the density image is stretched across its X/Z bounds.
+[zombies.residents]
+count = 2000
+movement = "idle"
+
+[zombies.gray_scott]
+count = 50000
+movement = "idle"
+spawn_density = "../density/gray_scott_corridors_cropped.png"
+
+[zombies.travelers]
+count = 1000
+movement = "travel"

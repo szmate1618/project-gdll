@@ -126,8 +126,10 @@ The C++ viewer/server do not require PROJ or geographic metadata to load them.
 The seed is optional; omitting it produces a new random layout each load.
 Seeded loads use a stable horde-name order.
 
-This is scenario format version 4; `version` may be omitted and defaults to 4.
-Explicit older versions are rejected. To preserve a version-3 scenario's
+The current scenario format is version 5; `version` may be omitted and defaults
+to 5. Explicit version 4 remains supported with its original uniform sampling
+and no nearby placement search. Version 4 rejects the new density/search fields.
+To preserve a version-3 scenario's
 existing movement, set `version = 4` and add `movement = "travel"` to every
 group, including groups without destination bounds. Version-2 scenarios already
 using world meters need the same changes and removal of `coordinates = "world"`.
@@ -138,6 +140,85 @@ rectangle bounds around the projected region; geographic rectangles generally
 do not project to axis-aligned world rectangles, so this can enlarge the region.
 Remove `coordinates = "wgs84"` after conversion. Python map/asset preparation
 continues to use `pyproj`.
+
+### Density maps and nearby placement (version 5)
+
+Each group optionally accepts `spawn_density`, `destination_density`, and
+`placement_search_radius`:
+
+```toml
+version = 5
+seed = 42
+
+[zombies.horde]
+count = 600
+movement = "travel"
+spawn = [2400.0, 2400.0, 2900.0, 2900.0]
+spawn_density = "../density/gray_scott_corridors_cropped.png"
+# No destination rectangle: stretch the image across the whole map.
+destination_density = "../density/gray_scott_corridors_cropped.png"
+placement_search_radius = 100.0 # Meters; default 100, zero disables adjustment.
+```
+
+Image paths are relative to the scenario TOML, using portable `/` separators.
+PNG images may contain 8-bit or 16-bit grayscale, including RGB exports whose
+channels are equal. Any alpha must be fully opaque. Images are limited to
+16,777,216 pixels. Raw grayscale values are relative probability weights, with
+no gamma correction: black prohibits placement, and twice the brightness gives
+twice the sampling weight. The group `count` still determines its population.
+Missing, undecodable, colored, transparent, or all-black images fail loading.
+
+Each image is stretched independently over its endpoint rectangle, or the
+scene's X/Z bounds when that rectangle is omitted. Image left/right correspond
+to minimum/maximum X, and top/bottom to minimum/maximum Z (north/south). The
+image edges cover the bounds without preserving aspect ratio or tiling. A
+weighted pixel is selected from cumulative weights, then a uniform point is
+chosen inside that pixel's mapped area. Without an image, existing uniform
+sampling applies: within the rectangle, across safe map ground for idle spawns,
+or over navmesh area for unbounded travelling endpoints.
+
+Nearby adjustment applies to **both uniform and weighted spawns and
+destinations**. The intended point is tried first. An invalid point starts a
+search on expanding rings from 0.25 m (or the smaller configured radius) to the
+maximum radius, with a seeded random starting angle and at most 64 probes per
+ring. Rings grow by a factor of 1.5 and rotate between rings. This bounded
+discrete search prefers nearby positions but does not guarantee the exact
+nearest valid point or detection of tiny gaps. It can concentrate placements
+along obstacle edges, so the final distribution approximates the input density.
+
+Every nearby probe repeats the terrain, slope, building, and obstacle checks.
+It must stay inside the endpoint bounds and positive-density pixels. Spawns
+must also avoid bodies across all groups; travelling spawns require navmesh
+ground. Destinations must lie on the final spawn's connected navmesh component
+and differ from the spawn; destinations may be shared by multiple zombies.
+`destination_density`, like `destination`, requires `movement = "travel"`.
+
+If repair finds no valid point, another weighted or uniform target is sampled.
+Every target and nearby validation probe consumes the same attempt budgets:
+4,096 per zombie per endpoint, and separate scenario-wide limits of 1,000,000
+spawn and 1,000,000 destination probes. Exhaustion fails scenario loading with
+the group, endpoint, and density image path when applicable; the population is
+never silently reduced or placed in zero-density pixels. Fixed seeds reproduce
+sampling and repair for unchanged assets. Version 4 skips adjustment and retains
+its original random-number sequence.
+
+The tracked `scenarios/density/gray_scott_corridors.png` is the original,
+unmodified user-supplied ChatGPT image. Its solid white frame is removed in
+`scenarios/density/gray_scott_corridors_cropped.png`, the density input used by
+the scenario. The crop keeps original pixel bounds `[10, 9, 610, 609)` and
+preserves all retained pixel values, producing a 600 × 600 image. The accompanying
+[`gray-scott-corridors` scenario](../scenarios/gray-scott-corridors/scenario.toml)
+contains 2,000 uniformly placed idle zombies, 50,000 idle zombies weighted by
+that image across the map, and 1,000 mapwide travellers. The travellers require
+the map's navigation companions. This population is for the standalone viewer;
+it exceeds the current multiplayer capacity. Scenario density image references are included
+in multiplayer asset packages.
+
+```bash
+./build/godollo_viewer output/godollo.glb --scenario scenarios/gray-scott-corridors/scenario.toml
+```
+
+### Player starting position
 
 An optional `[player]` table supplies a ground-level starting location and
 orientation. Existing scenarios can omit it:

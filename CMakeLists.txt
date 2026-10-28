@@ -315,7 +315,7 @@ viewer_warnings(viewer_forests)
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp
     src/zombie_layer.cpp src/zombie_lod.cpp src/zombie_lod_assets.cpp src/zombie_hit.cpp src/zombie_damage.cpp src/zombie_dismemberment.cpp src/zombie_shooting.cpp src/zombie_chase.cpp src/zombie_attack.cpp src/zombie_lunge.cpp src/zombie_behavior.cpp src/zombie_animation.cpp
     src/melee_combat.cpp src/melee_contact_mesh.cpp src/zombie_bone_collision.cpp src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp src/zombie_spatial_index.cpp src/zombie_crowd.cpp src/zombie_movement.cpp src/zombie_door_collision.cpp src/zombie_perception.cpp src/zombie_render_updates.cpp
-    src/zombie_navigation.cpp src/zombie_scenario.cpp src/zombie_scenario_routes.cpp src/zombie_travel.cpp src/zombie_hit_capsules.cpp
+    src/zombie_navigation.cpp src/zombie_scenario.cpp src/scenario_density.cpp src/zombie_scenario_routes.cpp src/zombie_travel.cpp src/zombie_hit_capsules.cpp
     src/zombie_wounds.cpp src/zombie_wound_surface.cpp src/zombie_cavity_physics.cpp
     src/blood_mist.cpp src/blood_particles.cpp src/zombie_blood.cpp)
 target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise viewer_physics viewer_objects viewer_fingerprints
@@ -508,11 +508,19 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/scenarios/100k-horde/scenario.toml"
         "${CMAKE_CURRENT_SOURCE_DIR}/scenarios/20k-horde/scenario.toml"
         "${CMAKE_CURRENT_SOURCE_DIR}/scenarios/old-forest-damage/scenario.toml"
-        "${CMAKE_CURRENT_SOURCE_DIR}/scenarios/car-park-horde/scenario.toml")
+        "${CMAKE_CURRENT_SOURCE_DIR}/scenarios/car-park-horde/scenario.toml"
+        "${CMAKE_CURRENT_SOURCE_DIR}/scenarios/gray-scott-corridors/scenario.toml")
     add_executable(test_zombie_scenario tests/test_zombie_scenario.cpp)
     target_link_libraries(test_zombie_scenario PRIVATE viewer_zombies)
     viewer_warnings(test_zombie_scenario)
     add_test(NAME viewer_zombie_scenario COMMAND test_zombie_scenario)
+    add_executable(test_scenario_density tests/test_scenario_density.cpp)
+    target_link_libraries(test_scenario_density PRIVATE viewer_zombies)
+    target_include_directories(test_scenario_density SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+    viewer_warnings(test_scenario_density)
+    add_test(NAME viewer_scenario_density COMMAND test_scenario_density
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/scenario_density/weights16.png"
+        "${CMAKE_CURRENT_SOURCE_DIR}/scenarios/density/gray_scott_corridors_cropped.png")
 
     add_executable(test_vehicle_zombie_collision tests/test_vehicle_zombie_collision.cpp)
     target_include_directories(test_vehicle_zombie_collision PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")

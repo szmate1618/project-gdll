@@ -24,6 +24,11 @@ struct ZombieHordeConfig {
     std::optional<Rectangle> spawn;
     std::optional<Rectangle> destination;
     ZombieScenarioMovement movement = ZombieScenarioMovement::idle;
+    // Resolved relative to the scenario file by the TOML loader. Empty means uniform.
+    std::filesystem::path spawnDensity{};
+    std::filesystem::path destinationDensity{};
+    // Maximum horizontal adjustment in meters, for uniform and weighted targets.
+    float placementSearchRadius = 100.0f;
 };
 
 struct ZombieScenarioConfig {
@@ -40,8 +45,8 @@ struct ZombieScenarioConfig {
     bool needsNavigation() const;
 };
 
-// Format version 4; an omitted version also selects version 4. All locations
-// use world X/Z meters. Older versions and coordinate-system settings are rejected.
+// Format version 5 (also the default). Explicit version 4 retains uniform
+// sampling without nearby adjustment. All locations use world X/Z meters.
 // Throws std::runtime_error with the file path for malformed/unsupported settings.
 ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path);
 

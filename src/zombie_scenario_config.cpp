@@ -69,6 +69,17 @@ std::optional<ZombieHordeConfig::Rectangle> rectangle(const toml::table& table, 
     return bounds;
 }
 
+std::filesystem::path densityPath(const toml::table& table, const char* key,
+    const std::filesystem::path& path, const std::string& prefix) {
+    const auto* node = table.get(key);
+    if (!node) return {};
+    const auto value = node->value<std::string>();
+    if (!node->is_string() || !value || value->empty() || value->find_first_of("\\:") != std::string::npos ||
+        value->find('\0') != std::string::npos || std::filesystem::u8path(*value).is_absolute())
+        invalid(path, prefix + key + " must be a nonempty portable relative PNG path");
+    return path.parent_path() / std::filesystem::u8path(*value);
+}
+
 } // namespace
 
 std::size_t ZombieScenarioConfig::count() const {
@@ -77,9 +88,12 @@ std::size_t ZombieScenarioConfig::count() const {
     for (const auto& horde : hordes) {
         if (horde.movement != ZombieScenarioMovement::idle && horde.movement != ZombieScenarioMovement::travel)
             throw std::invalid_argument("Zombie horde '" + horde.name + "' movement must be 'idle' or 'travel'");
-        if (horde.movement == ZombieScenarioMovement::idle && horde.destination)
+        if (horde.movement == ZombieScenarioMovement::idle && (horde.destination || !horde.destinationDensity.empty()))
             throw std::invalid_argument("Zombie horde '" + horde.name +
                 "' cannot define destination with movement = 'idle'; use movement = 'travel' for a route");
+        if (!std::isfinite(horde.placementSearchRadius) || horde.placementSearchRadius < 0)
+            throw std::invalid_argument("Zombie horde '" + horde.name +
+                "' placement_search_radius must be finite and nonnegative");
         if (!horde.count || horde.count > zombieScenarioMaximumCount)
             throw std::invalid_argument("Zombie horde '" + horde.name + "' count must be between 1 and 100000");
         if (horde.count > zombieScenarioMaximumCount - total)
@@ -103,13 +117,14 @@ ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path)
         invalid(path, std::string("invalid scenario TOML: ") + error.what());
     }
     checkKeys(document, {"version", "seed", "zombies", "player"}, path);
+    std::int64_t version = 5;
     if (document.contains("version")) {
-        const auto version = requiredInteger(document.get("version"), path, "version");
+        version = requiredInteger(document.get("version"), path, "version");
         if (version == 3)
             invalid(path, "scenario version 3 requires migration: set version = 4 and add movement = 'travel' "
                 "to each zombie group to preserve its existing routes");
-        if (version != 4)
-            invalid(path, "unsupported scenario version; expected version = 4 with world X/Z meters only");
+        if (version != 4 && version != 5)
+            invalid(path, "unsupported scenario version; expected version = 4 or 5 with world X/Z meters only");
     }
     const auto* zombies = document["zombies"].as_table();
     if (!zombies || zombies->empty()) invalid(path, "expected at least one [zombies.HORDE_NAME] table");
@@ -137,8 +152,12 @@ ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path)
             invalid(path, "expected named [zombies.HORDE_NAME] tables; migrate old flat zombie settings to version 4");
         const auto prefix = "zombies." + std::string(name.str()) + ".";
         if (table->contains("coordinates"))
-            invalid(path, prefix + "coordinates is no longer supported; version 4 uses world X/Z meters only (X east, Z south)");
-        checkKeys(*table, {"count", "spawn", "destination", "movement"}, path, prefix);
+            invalid(path, prefix + "coordinates is no longer supported; scenarios use world X/Z meters only (X east, Z south)");
+        checkKeys(*table, {"count", "spawn", "destination", "movement", "spawn_density",
+                          "destination_density", "placement_search_radius"}, path, prefix);
+        if (version == 4 && (table->contains("spawn_density") || table->contains("destination_density") ||
+                             table->contains("placement_search_radius")))
+            invalid(path, prefix + "density maps and placement_search_radius require version = 5");
         ZombieHordeConfig horde;
         horde.name = name.str();
         const auto count = requiredInteger(table->get("count"), path, prefix + "count");
@@ -153,6 +172,16 @@ ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path)
         }
         horde.spawn = rectangle(*table, "spawn", path, prefix);
         horde.destination = rectangle(*table, "destination", path, prefix);
+        horde.spawnDensity = densityPath(*table, "spawn_density", path, prefix);
+        horde.destinationDensity = densityPath(*table, "destination_density", path, prefix);
+        if (version == 4) horde.placementSearchRadius = 0;
+        if (const auto* setting = table->get("placement_search_radius")) {
+            const auto value = setting->value<double>();
+            if ((!setting->is_integer() && !setting->is_floating_point()) || !value ||
+                !std::isfinite(*value) || *value < 0 || *value > std::numeric_limits<float>::max() / 4.0)
+                invalid(path, prefix + "placement_search_radius must be a finite nonnegative distance in meters");
+            horde.placementSearchRadius = static_cast<float>(*value);
+        }
         config.hordes.push_back(std::move(horde));
     }
     try { (void)config.count(); }

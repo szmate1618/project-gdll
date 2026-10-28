@@ -10,6 +10,7 @@ from pathlib import Path, PureWindowsPath
 import struct
 import sys
 import tempfile
+import tomllib
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -241,8 +242,15 @@ def package_assets(root, map_path, output, zombies, *, trees=True, forests=True,
         raise ValueError("Output must be a .zip file")
     assets = collect_assets(root, map_path, zombies, trees=trees, forests=forests, vegetation=vegetation)
     navigation = collect_navigation(assets, map_path)
-    scenarios = [assets.add(path).relative_to(root).as_posix()
-                 for path in sorted((root / "scenarios").rglob("scenario.toml"))]
+    scenarios = []
+    for path in sorted((root / "scenarios").rglob("scenario.toml")):
+        scenarios.append(assets.add(path).relative_to(root).as_posix())
+        with path.open("rb") as stream:
+            scenario = tomllib.load(stream)
+        for group in scenario.get("zombies", {}).values():
+            for key in ("spawn_density", "destination_density"):
+                if key in group:
+                    assets.add(assets.reference(path.parent, group[key]))
     launch, generated = pack_instructions(map_path.relative_to(root).as_posix(),
                                         zombies.relative_to(root).as_posix() if zombies else None,
                                         vegetation, trees, forests)

@@ -15,6 +15,9 @@ struct ZombieScenarioPopulation {
 // bounds, without touching navigation. Travel hordes use the navmesh and choose
 // reachable destinations in their spawn's component. Bodies cannot overlap
 // across either kind of horde. A null mesh is valid for idle-only scenarios.
+// Optional density PNGs weight targets within the corresponding rectangle (or
+// scene bounds). Nearby repair preserves all endpoint constraints and uses the
+// same bounded attempt budgets, including for uniform placement.
 ZombieScenarioPopulation generateZombieScenario(const CollisionWorld& world, const Model& scene,
                                                const navmesh_path::Mesh* mesh,
                                                const ZombieScenarioConfig& config);

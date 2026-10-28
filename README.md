@@ -156,11 +156,17 @@ TOML scenario. All 1,600 paths are calculated before simulation starts:
 ```
 
 The scenario defines named hordes with optional flat `spawn` and `destination`
-rectangles in world X/Z meters (X east, Z south). Scenario format version 4
+rectangles in world X/Z meters (X east, Z south). Scenario format version 5
 accepts meters only; geographic coordinates and the `coordinates` setting are
 rejected. `movement` defaults to `"idle"`: omitted spawn bounds choose random
 safe positions, with no destination or path. Use `movement = "travel"` for
 random or authored destinations; `destination` is invalid for idle groups.
+Optional `spawn_density` and `destination_density` grayscale PNGs weight placement
+across those rectangles or the whole map. Invalid uniform or weighted endpoints
+search nearby valid positions within `placement_search_radius` (default 100 m).
+Explicit version 4 scenarios retain their original sampling without adjustment.
+The [Gray–Scott scenario](scenarios/gray-scott-corridors/scenario.toml) combines
+2,000 uniform idle zombies, 50,000 density-weighted idle zombies, and 1,000 travellers.
 Travelling zombies follow their preloaded paths independently of player proximity,
 then stop. They do not search again when blocked. Player perception can hand an
 actor to original behavior movement permanently, releasing its scenario path.
