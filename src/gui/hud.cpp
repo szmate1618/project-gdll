@@ -94,6 +94,7 @@ struct Hud::Impl {
     std::array<Rml::ElementDocument*, 4> screens{};
     PlayerInventory& inventory;
     std::unique_ptr<InventoryInteraction> inventoryInteraction;
+    std::unique_ptr<CommandWheelView> commandWheel;
     std::vector<InventoryPointerEvent> pointerEvents;
     bool hasSatelliteImage = false;
     std::filesystem::path sourceDirectory;
@@ -148,6 +149,7 @@ struct Hud::Impl {
                 directions[i] = document->GetElementById("direction-" + std::to_string(i));
                 elements.emplace("direction-" + std::to_string(i), directions[i]);
             }
+            commandWheel = std::make_unique<CommandWheelView>(*document);
             document->Show();
             std::cout << "HUD system font: " << path << '\n';
         } catch (...) {
@@ -157,6 +159,7 @@ struct Hud::Impl {
     }
     ~Impl() { shutdown(); }
     void shutdown() {
+        commandWheel.reset();
         inventoryInteraction.reset();
         if (initialized) { Rml::Shutdown(); initialized = false; hudActive = false; }
         Rml::SetRenderInterface(nullptr);
@@ -256,6 +259,7 @@ struct Hud::Impl {
             pointerEvents.clear();
             return;
         }
+        commandWheel->update(state.commandWheelOpen, state.commandWheelOffset, state.signals);
         updateCompass(state.yawDegrees);
         const bool healthKnown = state.health && std::isfinite(*state.health);
         document->SetClass("health-known", healthKnown);

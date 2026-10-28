@@ -64,6 +64,9 @@ int main(int argc, char** argv) {
                 }
                 if (const auto* snapshot = std::get_if<multiplayer::Snapshot>(&message)) {
                     ++snapshots; latest = std::max(latest, snapshot->tick);
+                    if (snapshot->signals.size() != 2 || snapshot->signals[0].kind != multiplayer::SignalKind::Danger ||
+                        snapshot->signals[1].id != snapshot->signals[0].id)
+                        throw std::runtime_error("Transport lost concurrent team signals");
                     if (snapshot->players.size()!=multiplayer::maxPlayers) throw std::runtime_error("Transport lost physical players");
                     for (const auto& p : snapshot->players)
                         if (p.slot!=viewer::punchSlot || !p.melee.enabled || p.melee.striking!=2 || !viewer::validPlayerBodyPose(p.melee))
@@ -83,7 +86,10 @@ int main(int argc, char** argv) {
             }
             const auto now = Clock::now();
             if (server && peer != k_HSteamNetConnection_Invalid && now >= next) {
-                ++state.tick; network.send(peer, state, false);
+                ++state.tick;
+                state.signals = {{1, multiplayer::SignalKind::Danger, {1,2,3}, state.tick + 360},
+                                 {1, multiplayer::SignalKind::Backup, {3,2,1}, state.tick + 300}};
+                network.send(peer, state, false);
                 if (!sentBirdCheckpoint) {
                     multiplayer::BirdFrame initial; initial.hasCheckpoint=true; initial.checkpoint=birdSimulation.state();
                     initial.tick=initial.checkpoint.tick; initial.checksum=birdSimulation.checksum();

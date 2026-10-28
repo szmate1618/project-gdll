@@ -3,6 +3,7 @@
 #include "inventory/player_inventory.hpp"
 
 #include "fps_controller.hpp"
+#include "command_wheel.hpp"
 #include "grenades.hpp"
 #include "blood_mist.hpp"
 #include "player_body_pose.hpp"
@@ -24,7 +25,17 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 17; // Deterministic boid command stream.
+constexpr std::uint32_t protocolVersion = 18; // Team signals in commands and snapshots.
+constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
+constexpr std::size_t maxSignalsPerPlayer = signalLifetimeTicks / signalCooldownTicks;
+constexpr std::size_t maxSignals = maxPlayers * maxSignalsPerPlayer;
+using SignalKind = viewer::SignalKind;
+struct SignalState {
+    std::uint32_t id = 0; // Sender; multiple signals may share this player ID.
+    SignalKind kind = SignalKind::None;
+    glm::vec3 position{0}; // Runtime metres, X east/Y up/Z south.
+    std::uint64_t expires = 0; // Authoritative server tick.
+};
 constexpr std::size_t maxNetworkBirds = 4096, maxBirdCommands = 1024;
 using BirdFrame = viewer::boid::Frame;
 struct BirdResync {};
@@ -48,6 +59,7 @@ struct Command {
     std::uint8_t slot = 0;
     bool enterVehicle = false; // One Enter press; deduplicated with the command sequence.
     std::vector<viewer::InventoryDragAction> inventoryActions{};
+    SignalKind signal = SignalKind::None; // One-shot, resolved with this command's aim.
 };
 struct Commands {
     std::vector<Command> commands;
@@ -122,6 +134,7 @@ struct Snapshot {
     std::vector<viewer::BloodMistBurst> bloodMist{};
 
     std::vector<VehicleState> vehicles;
+    std::vector<SignalState> signals;
 };
 using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment, CorpsePose, PoseAck, BirdFrame, BirdResync>;
 std::vector<std::uint8_t> encode(const Message& message);

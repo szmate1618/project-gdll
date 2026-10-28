@@ -220,6 +220,31 @@ int main(int argc, char** argv) {
                 require(iconChanged(pixels(1280, 720), 1048, 633, 66, 44), "Equipment state failed to change its icon");
             }
             state.slot = 0;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto beforeWheel = pixels(1280, 720);
+            state.commandWheelOpen = true;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto centeredWheel = pixels(1280, 720);
+            require(centeredWheel != beforeWheel, "Command wheel did not open");
+            if (argc > 1) capture((std::string(argv[1]) + "-wheel-center.ppm").c_str(), centeredWheel, 1280, 720);
+            for (const auto offset : {glm::vec2(0, -100), glm::vec2(100, 60), glm::vec2(-100, 60)}) {
+                state.commandWheelOffset = offset;
+                clear(); hud.draw(state, 1280, 720); checkState();
+                require(pixels(1280, 720) != centeredWheel, "Command sector and cursor did not respond to aim");
+            }
+            state.commandWheelOffset = {0, -100};
+            state.signals = {{viewer::SignalKind::Danger, {.7f, .25f}, false},
+                             {viewer::SignalKind::Move, {.95f, .5f}, true},
+                             {viewer::SignalKind::Backup, {.2f, .4f}, false}};
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(isColor(colorAt(pixels(1280, 720), 1280, 720, 575, 210), {236,105,98}),
+                    "Selected command must use the shared menu red accent");
+            if (argc > 1) capture((std::string(argv[1]) + "-wheel-danger.ppm").c_str(), pixels(1280, 720), 1280, 720);
+            clear(); hud.draw(state, 640, 360); checkState();
+            if (argc > 1) capture((std::string(argv[1]) + "-wheel-small.ppm").c_str(), pixels(640, 360), 640, 360);
+            state.commandWheelOpen = false; state.signals.clear();
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(pixels(1280, 720) == beforeWheel, "Closing wheel and expiring markers must restore gameplay HUD");
             state.selectionSlot = 1;
             state.weaponSwitchDuration = 4;
             state.weaponSwitchRemaining = 3;

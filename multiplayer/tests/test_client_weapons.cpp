@@ -334,7 +334,65 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_PRESS,0);
             require(command(in,window,false,0).left,"A fresh click after switch completion must fire");
             button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_RELEASE,0);
-            glfwSetWindowShouldClose(window,true);
+            button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS, 0);
+            require(in.wheelOpen && !in.actionSelection.open(), "Middle mouse did not open the command wheel");
+            break;
+        case 40: {
+            capture("command-wheel-center");
+            const auto yaw = in.camera.yawDegrees(), pitch = in.camera.pitchDegrees();
+            in.firstMouse = false; in.lastX = in.lastY = 100;
+            mouse(window, 100, 0);
+            require(in.camera.yawDegrees() == yaw && in.camera.pitchDegrees() == pitch &&
+                    multiplayer::signalWheelSelection(in.wheelOffset) == multiplayer::SignalKind::Danger,
+                    "Command wheel moved the camera or selected the wrong sector");
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+            key(window, GLFW_KEY_R, 0, GLFW_PRESS, 0);
+            scroll(window, 0, -1);
+            const auto suppressed = command(in, window, false, 0);
+            require(!suppressed.left && !suppressed.right && !suppressed.reload && !in.actionSelection.open(),
+                    "Wheel passed fire, scope, reload or hotbar input through");
+            break;
+        }
+        case 41: {
+            capture("command-wheel-danger");
+            button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE, 0);
+            const auto sent = command(in, window, false, 0);
+            require(!in.wheelOpen && sent.signal == multiplayer::SignalKind::Danger && !sent.left &&
+                    command(in, window, false, 0).signal == multiplayer::SignalKind::None,
+                    "Release must send one command and keep held firing suppressed");
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+            command(in, window, false, 0);
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+            require(command(in, window, false, 0).left, "Fresh click did not rearm after the wheel closed");
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+            button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS, 0);
+            button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE, 0);
+            require(command(in, window, false, 0).signal == multiplayer::SignalKind::None, "Center release sent a command");
+            button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS, 0);
+            in.wheelOffset = {100, 60};
+            break;
+        }
+        case 42:
+            capture("command-wheel-move");
+            key(window, GLFW_KEY_ESCAPE, 0, GLFW_PRESS, 0);
+            button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE, 0);
+            require(!in.wheelOpen && !in.leave && command(in, window, false, 0).signal == multiplayer::SignalKind::None,
+                    "Escape must cancel the wheel before leaving the session");
+            button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS, 0);
+            key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
+            button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE, 0);
+            require(!in.wheelOpen && in.pendingSignal == multiplayer::SignalKind::None,
+                    "Opening inventory did not cancel the wheel");
+            key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
+            button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS, 0);
+            focus(window, GLFW_FALSE);
+            button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE, 0);
+            require(!in.wheelOpen && in.pendingSignal == multiplayer::SignalKind::None,
+                    "Focus loss submitted a command");
+            key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
+            glfwSetWindowShouldClose(window, true);
             break;
     }
     // This fixture also scripts external authoritative equipment changes.
@@ -363,6 +421,11 @@ int main(int argc, char** argv) {
         std::filesystem::copy_file(source / "skills.toml", fixture / "skills.toml", std::filesystem::copy_options::overwrite_existing);
         std::filesystem::copy(source / "shaders", fixture / "shaders", copy);
         std::filesystem::copy(source / "ui", fixture / "ui", copy);
+        const auto icons = source / "data/assets/game-icons/hud";
+        if (std::filesystem::is_directory(icons)) {
+            std::filesystem::create_directories(fixture / "data/assets/game-icons");
+            std::filesystem::copy(icons, fixture / "data/assets/game-icons/hud", copy);
+        }
         std::filesystem::create_directories(fixture / "multiplayer/client");
         for (const auto* shader : {"players.vert", "players.frag"})
             std::filesystem::copy_file(source / "multiplayer/client" / shader, fixture / "multiplayer/client" / shader,
@@ -386,7 +449,7 @@ int main(int argc, char** argv) {
         char hidden[] = "--hidden", seconds[] = "--seconds", duration[] = "5";
         char dayLength[] = "--day-length";
         char* args[] = {program, argv[1], noTrees, count, zero, hidden, seconds, duration, dayLength, zero};
-        require(multiplayer::runClientSession(multiplayer::parseOptions(10, args, false)) == 0 && frame == 40, "Graphical client did not finish all weapon states");
+        require(multiplayer::runClientSession(multiplayer::parseOptions(10, args, false)) == 0 && frame == 43, "Graphical client did not finish all weapon and command wheel states");
         const std::array<std::size_t, 5> weaponFrames{1, 3, 4, 5, 12};
         for (std::size_t a = 0; a < weaponFrames.size(); ++a)
             for (std::size_t b = a+1; b < weaponFrames.size(); ++b)

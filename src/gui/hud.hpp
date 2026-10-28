@@ -1,6 +1,7 @@
 #pragma once
 
 #include "inventory/inventory_action.hpp"
+#include "command_wheel.hpp"
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -31,6 +32,9 @@ struct HudState {
     int selectionSlot = -1; // Hotbar preview 0..9; -1 hides the selector.
     double weaponSwitchRemaining = 0, weaponSwitchDuration = 0; // Seconds; zero hides progress.
     double reloadRemaining = 0, reloadDuration = 0; // Includes ammunition storage access.
+    bool commandWheelOpen = false;
+    glm::vec2 commandWheelOffset{0}; // Design dp, positive Y down.
+    std::vector<HudSignal> signals;
 };
 
 // Owns the application's RmlUi lifetime. One HUD at a time, on the GL thread.

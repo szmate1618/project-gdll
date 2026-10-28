@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <map>
 #include <set>
 #include <stdexcept>
 #include <type_traits>
@@ -121,6 +122,9 @@ void command(Wire& w, Command& c) {
         case viewer::InventoryDragActionKind::Cancel: w.text(action.item, 128); break;
         }
     });
+    auto signal = static_cast<std::uint8_t>(c.signal); w.integer(signal);
+    if (signal > 3) throw std::runtime_error("Invalid signal command");
+    c.signal = static_cast<SignalKind>(signal);
     if (c.sequence == 0 || std::abs(c.movement.forward) > 1 || std::abs(c.movement.right) > 1 ||
         std::abs(c.movement.yawDegrees) > 180 || std::abs(c.pitch) > 89 || c.slot > viewer::punchSlot ||
         std::abs(c.drag.x) > 2000 || std::abs(c.drag.y) > 2000)
@@ -304,6 +308,18 @@ void payload(Wire& w, Snapshot& s) {
         for (auto& wheel : v.wheels) pose(wheel);
         if (v.id >= maxVehicles || v.type >= viewer::maxVehicleTypes) throw std::runtime_error("Invalid vehicle ID");
     });
+    w.list(s.signals, maxSignals, [&](SignalState& signal) {
+        w.integer(signal.id);
+        auto kind = static_cast<std::uint8_t>(signal.kind); w.integer(kind);
+        w.vector(signal.position); w.integer(signal.expires);
+        if (!signal.id || kind < 1 || kind > 3 || signal.expires <= s.tick || signal.expires - s.tick > signalLifetimeTicks)
+            throw std::runtime_error("Invalid signal snapshot");
+        signal.kind = static_cast<SignalKind>(kind);
+    });
+    std::map<std::uint32_t, std::size_t> signalCounts;
+    for (const auto& signal : s.signals)
+        if (++signalCounts[signal.id] > maxSignalsPerPlayer) throw std::runtime_error("Too many signals from one player");
+    if (signalCounts.size() > maxPlayers) throw std::runtime_error("Too many signal senders");
     uniqueIds(s.vehicles);
     std::set<std::pair<std::uint32_t, std::uint8_t>> occupied;
     for (const auto& p : s.players) if (p.vehicle != noVehicle) {

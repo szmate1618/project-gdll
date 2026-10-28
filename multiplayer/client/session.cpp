@@ -2,6 +2,7 @@
 #include "network.hpp"
 #include "prediction.hpp"
 #include "snapshots.hpp"
+#include "signals.hpp"
 #include "boid/replica.hpp"
 #include "camera.hpp"
 #include "weapon_motion.hpp"
@@ -45,6 +46,10 @@ struct Input {
     bool enterVehicle = false, toggleDrivingCamera = false;
     bool capture = true, firstMouse = true, interaction = false, prone = false, reload = false;
     bool leftPressed = false, rightPressed = false, leftHeld = false;
+    bool rightHeld = false, wheelOpen = false, signalMouseSuppressed = false;
+    glm::vec2 wheelOffset{0}; // Design dp; same scale as the shared HUD.
+    multiplayer::SignalKind pendingSignal = multiplayer::SignalKind::None;
+    void cancelSignal() { wheelOpen = false; pendingSignal = multiplayer::SignalKind::None; }
     bool canScope = false;
     bool flashlight = true;
     bool leave = false;
@@ -69,6 +74,7 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         const auto requested = code == GLFW_KEY_ESCAPE ? viewer::HudScreen::Gameplay : screens[code - GLFW_KEY_F1];
         in.hudScreen = in.hudScreen == requested ? viewer::HudScreen::Gameplay : requested;
         in.firstMouse = true; in.drag = {};
+        in.cancelSignal();
         in.actionSelection.close();
         in.leftPressed = in.rightPressed = in.prone = in.reload = in.enterVehicle = in.toggleDrivingCamera = false;
         if (in.hud) in.hud->cancelInventoryDrag();
@@ -77,6 +83,8 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         return;
     }
     if (in.hudScreen != viewer::HudScreen::Gameplay) return;
+    if (code == GLFW_KEY_ESCAPE && in.wheelOpen) { in.cancelSignal(); return; }
+    if (in.wheelOpen && code != GLFW_KEY_F12 && code != GLFW_KEY_LEFT_ALT) return;
     if (code == GLFW_KEY_ESCAPE && in.actionSelection.open()) { in.actionSelection.close(); return; }
     if (code == GLFW_KEY_ESCAPE) in.leave = true;
     if (code == GLFW_KEY_ENTER && in.capture) in.enterVehicle = true;
@@ -94,6 +102,7 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         in.leftPressed = false;
     }
     if (code == GLFW_KEY_LEFT_ALT || code == GLFW_KEY_F12) {
+        in.cancelSignal();
         in.capture = !in.capture; in.firstMouse = true; in.drag = {};
         in.actionSelection.close();
         in.leftPressed = in.rightPressed = false;
@@ -113,6 +122,14 @@ void mouse(GLFWwindow* window, double x, double y) {
     if (in.firstMouse) { in.firstMouse = false; in.lastX = x; in.lastY = y; return; }
     const float dx = static_cast<float>(x - in.lastX), dy = static_cast<float>(in.lastY - y);
     in.lastX = x; in.lastY = y;
+    if (in.wheelOpen) {
+        int width, height; glfwGetWindowSize(window, &width, &height);
+        const float scale = std::min(float(width) / 1280, float(height) / 720);
+        if (scale > 0) in.wheelOffset += glm::vec2(dx, -dy) / scale;
+        const float length = glm::length(in.wheelOffset);
+        if (length > 120) in.wheelOffset *= 120 / length;
+        return;
+    }
     in.camera.look(dx, dy);
     in.drag = glm::clamp(in.drag + glm::vec2(dx, dy), glm::vec2(-2000), glm::vec2(2000));
 }
@@ -122,13 +139,26 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
         in.leftHeld = action == GLFW_PRESS;
         if (action == GLFW_RELEASE) in.suppressLeftUntilRelease = false;
     }
+    if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT) in.rightHeld = action == GLFW_PRESS;
+    if (buttonCode == GLFW_MOUSE_BUTTON_MIDDLE) {
+        if (action == GLFW_PRESS && in.capture && !in.driver.occupied() && in.hudScreen == viewer::HudScreen::Gameplay) {
+            in.wheelOpen = true; in.wheelOffset = {}; in.drag = {};
+            in.actionSelection.close();
+            in.leftPressed = in.rightPressed = in.reload = false;
+            in.signalMouseSuppressed = true;
+        } else if (action == GLFW_RELEASE && in.wheelOpen) {
+            in.pendingSignal = multiplayer::signalWheelSelection(in.wheelOffset);
+            in.wheelOpen = false;
+        }
+        return;
+    }
     if (in.hudScreen == viewer::HudScreen::Inventory) {
         double x, y; glfwGetCursorPos(window, &x, &y);
         inventoryPointer(window, in.hud, x, y);
         if (in.hud) in.hud->pointerButton(buttonCode, action == GLFW_PRESS);
         return;
     }
-    if (!in.capture || in.driver.occupied() || action != GLFW_PRESS || in.hudScreen != viewer::HudScreen::Gameplay) return;
+    if (!in.capture || in.driver.occupied() || in.wheelOpen || in.signalMouseSuppressed || action != GLFW_PRESS || in.hudScreen != viewer::HudScreen::Gameplay) return;
     if (buttonCode == GLFW_MOUSE_BUTTON_LEFT && in.actionSelection.open()) {
         const auto target = in.actionSelection.confirm(in.actions, in.equippedSlot);
         if (target && !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot) in.slot = static_cast<std::uint8_t>(*target);
@@ -145,6 +175,7 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
 }
 void scroll(GLFWwindow* window, double, double y) {
     auto& in = input(window);
+    if (in.wheelOpen) return;
     if ((in.hudScreen == viewer::HudScreen::Inventory || in.hudScreen == viewer::HudScreen::Skills) && in.hud)
         in.hud->mouseWheel(static_cast<float>(y));
     if (in.hudScreen == viewer::HudScreen::Gameplay && in.capture && !in.driver.occupied() && !in.interaction && std::isfinite(y) && y != 0) {
@@ -155,6 +186,7 @@ void scroll(GLFWwindow* window, double, double y) {
 void focus(GLFWwindow* window, int focused) {
     if (!focused) {
         auto& in = input(window); in.capture = false; in.firstMouse = true;
+        in.cancelSignal(); in.rightHeld = false;
         in.actionSelection.close();
         if (in.hud) in.hud->cancelInventoryDrag();
         in.drag = {}; in.prone = in.reload = in.enterVehicle = in.toggleDrivingCamera = false;
@@ -269,9 +301,12 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
     c.movement.run = held(GLFW_KEY_LEFT_SHIFT); c.movement.jump = held(GLFW_KEY_SPACE); c.movement.crouch = held(GLFW_KEY_LEFT_CONTROL);
     c.movement.toggleProne = in.prone; in.prone = false;
     c.reload = in.reload; in.reload = false; c.drag = in.drag; in.drag = {};
-    c.left = !in.actionSelection.open() && !in.suppressLeftUntilRelease && !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot &&
+    c.signal = in.pendingSignal; in.pendingSignal = multiplayer::SignalKind::None;
+    if (!in.wheelOpen && !in.leftHeld && !in.rightHeld) in.signalMouseSuppressed = false;
+    c.left = !in.wheelOpen && !in.signalMouseSuppressed && !in.actionSelection.open() && !in.suppressLeftUntilRelease && !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot &&
         (in.leftPressed || in.leftHeld);
-    c.right = c.interaction && (in.rightPressed || glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
+    c.right = !in.wheelOpen && !in.signalMouseSuppressed && c.interaction &&
+        (in.rightPressed || glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
     in.leftPressed = in.rightPressed = false;
 #endif
     return c;
@@ -395,6 +430,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                     const bool walking=p.vehicle==multiplayer::noVehicle && ownState.vehicle==multiplayer::noVehicle;
                     in.driver.followCar(p.vehicle==multiplayer::noVehicle?std::optional<std::size_t>{}:p.vehicle,
                                         *scene.vehicles,in.camera,p.seat==multiplayer::noVehicleSeat?0:p.seat);
+                    if (in.driver.occupied()) in.cancelSignal();
                     ownState=p; found=true;
                     bool inventoryIdle = !p.inventoryDragging && in.inventoryActions.empty() && p.resolved >= lastInventoryCommand;
 #ifdef MP_GRAPHICS
@@ -553,6 +589,18 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 } else hudState.speedMetersPerSecond = graphics.speedMetersPerSecond;
                 hudState.mouseCaptured = in.capture;
                 hudState.selectionSlot = in.actionSelection.selected();
+                hudState.commandWheelOpen = in.wheelOpen;
+                hudState.commandWheelOffset = in.wheelOffset;
+                if (!snapshots.empty()) {
+                    const float scale = std::min(float(width) / 1280, float(height) / 720);
+                    const auto matrix = viewCamera.projection(float(width) / height) * viewCamera.view();
+                    for (const auto& signal : snapshots.latest().signals) {
+                        const auto placement = multiplayer::signalPlacement(viewCamera, signal.position + glm::vec3(0, 1, 0),
+                            width, height, 56 * scale);
+                        const auto clip = matrix * glm::vec4(placement.position, 1);
+                        hudState.signals.push_back({signal.kind, {clip.x / clip.w * .5f + .5f, .5f - clip.y / clip.w * .5f}, placement.atEdge});
+                    }
+                }
                 hudState.weaponSwitchRemaining = ownState.weaponSwitchRemaining;
                 hudState.weaponSwitchDuration = ownState.weaponSwitchDuration;
                 hudState.reloadRemaining = ownState.reloadRemaining;

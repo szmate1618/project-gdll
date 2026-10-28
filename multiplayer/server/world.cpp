@@ -1,4 +1,5 @@
 #include "world.hpp"
+#include "signals.hpp"
 #include "simulation_clock.hpp"
 #include "zombie_animation.hpp"
 #include "vehicle_player.hpp"
@@ -112,6 +113,8 @@ void World::step() {
     }
     for (auto& [id, player] : players_) {
         auto movementOrigin = player.controller.feet();
+        player.signals.erase(std::remove_if(player.signals.begin(), player.signals.end(),
+            [&](const SignalState& signal) { return signal.expires <= tick_; }), player.signals.end());
         player.weaponReload.update(player.weapons, player.inventory, now);
         player.weapons.syncAmmo(player.inventory);
         const bool completedSwitch = player.weaponSwitch.update(player.weapons, now);
@@ -125,6 +128,7 @@ void World::step() {
             bool consumed = false;
             command.movement.toggleProne = false; command.reload = false; command.drag = {};
             command.inventoryActions.clear();
+            command.signal = SignalKind::None;
             command.enterVehicle = false;
             if (player.started && !player.pending.empty()) {
                 const auto first = player.pending.begin();
@@ -173,6 +177,12 @@ void World::step() {
             const auto playerVelocity = (player.controller.feet() - previousFeet) / (tickSeconds / inputs);
             noises.insert(noises.end(), player.controller.noises().begin(), player.controller.noises().end());
             player.camera.setPosition(player.controller.eyePosition());
+            if (consumed && command.signal != SignalKind::None && tick_ >= player.nextSignalTick) {
+                const auto target = command.signal == SignalKind::Backup ?
+                    std::optional<glm::vec3>(player.controller.feet()) : signalRayTarget(*scene_.collision, player.camera);
+                player.nextSignalTick = tick_ + signalCooldownTicks;
+                if (target) player.signals.push_back({id, command.signal, *target, tick_ + signalLifetimeTicks});
+            }
             player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
             const bool mode = player.interaction.mode() == viewer::ControlMode::Interaction;
             if (mode != command.interaction) player.interaction.toggleMode();
@@ -310,6 +320,7 @@ Snapshot World::snapshot(std::uint32_t id) {
     s.explosions = scene_.grenades->explosions(viewer::SimulationClock::instance().seconds());
     s.bloodMist = scene_.zombies.bloodMist().recent(viewer::SimulationClock::instance().seconds());
     for (const auto& [playerId, player] : players_) {
+        s.signals.insert(s.signals.end(), player.signals.begin(), player.signals.end());
         const auto& weapon = player.weapons.equipped();
         s.players.push_back({playerId, player.resolved, player.vitals.health(), player.controller.movementState(),
             player.camera.yawDegrees(), player.camera.pitchDegrees(), static_cast<std::uint8_t>(player.weapons.slot()),

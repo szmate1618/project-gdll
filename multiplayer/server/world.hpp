@@ -40,6 +40,8 @@ struct ServerPlayer {
     Command held;
     std::uint64_t resolved = 0, lastPacketTick = 0, shots = 0;
     Replication replication;
+    std::vector<SignalState> signals;
+    std::uint64_t nextSignalTick = 0;
     std::optional<std::uint64_t> birdTick;
     bool started = false, triggerNeedsRelease = false, reloadRequested = false;
 };

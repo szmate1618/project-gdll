@@ -58,6 +58,16 @@ body.loadout { background-color: #2b2d2fed; }
 .combo-arrow { color: #ec696280; }
 .combo-number { color: #ec6962bf; }
 #save-combo { color: #f5f6f280; }
+#command-wheel, .signal-marker { background-color: #2b2d2fed; }
+.command-choice, #command-center { background-color: #383a3cf5; }
+.command-title, .command-choice.selected .command-symbol { color: #ec6962; }
+.command-choice.selected { border-color: #ec6962; background-color: #ec696226; }
+.command-hint, .command-key { color: #f5f6f299; }
+.command-cancel-hint, #command-center-label { color: #f5f6f280; }
+#command-cursor { background-color: #f5f6f2; }
+.signal-marker.danger { border-color: #ec6962; color: #ec6962; }
+.signal-marker.move { border-color: #59c49c; color: #59c49c; }
+.signal-marker.backup { border-color: #e7cd65; color: #e7cd65; }
 #satellite-overview { background-color: #2b2d2f; border-color: #f5f6f24d; }
 .inventory-ghost { border-color: #ec6962; background-color: #ec696240; }
 .inventory-ghost.valid { border-color: #59c49c; background-color: #59c49c26; }

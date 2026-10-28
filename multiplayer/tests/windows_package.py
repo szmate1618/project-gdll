@@ -14,7 +14,7 @@ def check_contents(package):
         "storage/equipment.toml", "storage/backpacks.toml", "storage/loadout.toml",
         "assets/test.glb", "assets/test.navmesh", "inventory.toml", "skills.toml", "skills/melee/punch.skill.toml",
         "shaders/game_menu.vert", "shaders/game_menu.frag",
-        "ui/hud.rml", "ui/hud.rcss", "ui/palette.rcss", "ui/hud-icons.rcss", "ui/hud.vert", "ui/hud.frag", "licenses/RmlUi.txt",
+        "ui/hud.rml", "ui/hud.rcss", "ui/command-wheel.rcss", "ui/palette.rcss", "ui/hud-icons.rcss", "ui/hud.vert", "ui/hud.frag", "licenses/RmlUi.txt",
         "gui/hud-icons.json", "data/assets/game-icons/hud/health.png", "data/assets/game-icons/hud/pistol.png",
         "data/assets/game-icons/license.txt", "credits/assets/HUD_ICONS.txt",
         "ui/inventory.rml", "ui/skills.rml", "ui/health.rml", "ui/map.rml", "ui/loadout.rml", "ui/loadout.rcss",

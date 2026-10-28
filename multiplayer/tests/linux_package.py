@@ -24,7 +24,7 @@ def check_credits(package):
         "AUDIO.txt": "Michel Baradari",
         "HUD_ICONS.txt": "Game-icons.net",
     }
-    for name in ("hud.rml", "hud.rcss", "palette.rcss", "hud-icons.rcss", "hud.vert", "hud.frag", "inventory.rml", "skills.rml", "health.rml", "map.rml", "loadout.rml", "loadout.rcss"):
+    for name in ("hud.rml", "hud.rcss", "command-wheel.rcss", "palette.rcss", "hud-icons.rcss", "hud.vert", "hud.frag", "inventory.rml", "skills.rml", "health.rml", "map.rml", "loadout.rml", "loadout.rcss"):
         if not (package / "ui" / name).is_file():
             raise RuntimeError("Package is missing HUD resource " + name)
     icons = json.loads((package / "gui/hud-icons.json").read_text())["icons"]

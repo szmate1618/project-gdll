@@ -2,6 +2,7 @@
 <head>
     <title>Game HUD</title>
     <link type="text/rcss" href="hud.rcss" />
+    <link type="text/rcss" href="command-wheel.rcss" />
     <link type="text/rcss" href="palette.rcss" />
     <link type="text/rcss" href="hud-icons.rcss" />
 </head>
@@ -48,6 +49,17 @@
     <div id="weapon-switch">
         <div class="switch-label"><span id="switch-label">SWITCHING WEAPON</span><span id="switch-countdown"></span></div>
         <div class="switch-track"><div id="switch-fill"></div></div>
+    </div>
+    <div id="signal-markers"></div>
+    <div id="command-wheel">
+        <div class="command-title">TEAM SIGNAL</div>
+        <div id="command-danger" class="command-choice"><div class="command-symbol">!</div><div class="command-label">DANGER</div></div>
+        <div id="command-move" class="command-choice"><div class="command-symbol">→</div><div class="command-label">MOVE THERE</div></div>
+        <div id="command-backup" class="command-choice"><div class="command-symbol">+</div><div class="command-label">BACKUP</div></div>
+        <div id="command-center"><div class="command-key">MMB</div><div id="command-center-label">CANCEL</div></div>
+        <div id="command-cursor"></div>
+        <div class="command-hint">HOLD MIDDLE MOUSE · AIM · RELEASE TO SEND</div>
+        <div class="command-cancel-hint">RETURN TO CENTER OR PRESS ESC TO CANCEL</div>
     </div>
     <div id="damage-feedback">
         <div class="damage-edge top-edge"></div><div class="damage-edge bottom-edge"></div>

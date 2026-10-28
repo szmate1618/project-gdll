@@ -1,0 +1,18 @@
+#command-wheel { display: none; position: absolute; left: 50%; top: 50%; margin-left: -190dp; margin-top: -190dp; width: 378dp; height: 378dp; border-width: 1dp; border-radius: 190dp; z-index: 10; }
+.commanding #command-wheel { display: block; }
+.command-title { position: absolute; top: -40dp; width: 380dp; text-align: center; font-size: 12dp; letter-spacing: 3dp; }
+.command-choice { position: absolute; width: 128dp; height: 68dp; border-width: 1dp; border-radius: 3dp; }
+#command-danger { left: 124dp; top: 35dp; }
+#command-move { left: 226dp; top: 216dp; }
+#command-backup { left: 22dp; top: 216dp; }
+.command-symbol { position: absolute; top: 9dp; left: 51dp; width: 24dp; height: 24dp; line-height: 24dp; text-align: center; font-size: 21dp; }
+.command-label { position: absolute; top: 44dp; width: 128dp; text-align: center; font-size: 10dp; letter-spacing: 1dp; }
+#command-center { position: absolute; left: 148dp; top: 148dp; width: 82dp; height: 82dp; border-width: 1dp; border-radius: 42dp; }
+#command-center-label { position: absolute; top: 48dp; width: 82dp; text-align: center; font-size: 8dp; letter-spacing: 1dp; }
+.command-key { position: absolute; top: 21dp; width: 82dp; text-align: center; font-size: 10dp; }
+#command-cursor { position: absolute; left: 187dp; top: 187dp; width: 6dp; height: 6dp; border-radius: 3dp; }
+.command-hint { position: absolute; top: 408dp; left: -60dp; width: 500dp; text-align: center; font-size: 10dp; letter-spacing: 1dp; }
+.command-cancel-hint { position: absolute; top: 432dp; width: 380dp; text-align: center; font-size: 9dp; }
+#signal-markers { position: absolute; left: 0dp; top: 0dp; width: 100%; height: 100%; }
+.signal-marker { position: absolute; margin-left: -44dp; margin-top: -12dp; width: 86dp; height: 22dp; line-height: 22dp; border-width: 1dp; text-align: center; font-size: 9dp; letter-spacing: 1dp; }
+.signal-marker.edge { border-width: 2dp; margin-top: -13dp; margin-left: -45dp; }

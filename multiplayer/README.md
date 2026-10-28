@@ -31,8 +31,27 @@ for players and the numerical behavior of other systems are unchanged.
 
 Full movement checkpoints are sent on join, checksum mismatch, or when retained
 command history cannot cover a client. Normal updates contain commands and a
-tick/checksum, with no per-bird poses. Protocol 17 requires matching application
+tick/checksum, with no per-bird poses. Protocol 18 requires matching application
 versions. Details and focused checks are in [BOIDS.md](../docs/BOIDS.md).
+
+## Team command wheel
+
+In Single Player, Host Game and Join Game, hold **middle mouse** on foot to
+open the command wheel. Move toward **Danger**, **Move there**, or **Backup**,
+then release to send. Return to the center or press **Escape** to cancel.
+Opening a loadout screen, releasing mouse capture, or losing focus also cancels.
+While the wheel is open, mouse movement selects a command and firing, scope,
+reload and hotbar input are suppressed. Held fire requires release before rearming.
+
+Danger and Move there mark the first opaque camera-ray hit within 500 metres;
+aiming into the sky creates no ping. Backup marks the sender's feet. The server
+accepts at most one ping per second; pings last six seconds and expire
+independently. All players, including late joiners, see the active set. Markers
+outside the view sit at the screen edge. Disconnecting removes that player's pings.
+
+The wheel and labels use the shared RmlUi HUD runtime, font, scaling, and
+[palette](../ui/palette.rcss); [command-wheel.rcss](../ui/command-wheel.rcss)
+owns their layout. The legacy standalone `godollo_viewer` has no team signaling input.
 
 ## Build
 

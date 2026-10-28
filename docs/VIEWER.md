@@ -94,7 +94,10 @@ the loaded map; newer processed raster caches are never consulted.
 
 Gameplay HUD squares are replaced by downloaded Game-icons.net icons for vitals,
 control modes, stances, vehicles, free fly, speed, player position and weapons.
-The gameplay weapon selector reuses those weapon icons. Inventory and skill-menu
+The gameplay weapon selector reuses those weapon icons. The game application's
+[team command wheel](../multiplayer/README.md#team-command-wheel) shares this HUD
+and the loadout palette; hold middle mouse on foot to select a signal.
+Inventory and skill-menu
 artwork remains represented by squares. Health, stamina
 and weariness have tinted tracks at 60% opacity with white outlines at 80%.
 Health shows the player's current floating-point value and filled amount;

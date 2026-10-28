@@ -34,7 +34,7 @@ else()
 endif()
 
 add_library(multiplayer_core STATIC protocol.cpp scene.cpp resources.cpp asset_validation.cpp network.cpp fragments.cpp
-    outgoing_snapshots.cpp server/birds.cpp server/world.cpp server/vehicle_seats.cpp server/replication.cpp client/prediction.cpp client/snapshots.cpp)
+    outgoing_snapshots.cpp signals.cpp server/birds.cpp server/world.cpp server/vehicle_seats.cpp server/replication.cpp client/prediction.cpp client/snapshots.cpp)
 target_include_directories(multiplayer_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(multiplayer_core SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 target_link_libraries(multiplayer_core PUBLIC viewer_fps viewer_zombies viewer_interaction
@@ -75,6 +75,11 @@ endif()
 viewer_warnings(godollo_client)
 
 if(BUILD_TESTING)
+    add_executable(test_signals tests/test_signals.cpp)
+    target_link_libraries(test_signals PRIVATE multiplayer_core)
+    viewer_warnings(test_signals)
+    add_dependencies(test_signals viewer_test_asset)
+    add_test(NAME multiplayer_signals COMMAND test_signals "${VIEWER_TEST_ASSET}")
     add_executable(benchmark_bird_network EXCLUDE_FROM_ALL "${PROJECT_SOURCE_DIR}/tests/benchmark_bird_network.cpp")
     target_link_libraries(benchmark_bird_network PRIVATE multiplayer_core)
     viewer_warnings(benchmark_bird_network)
