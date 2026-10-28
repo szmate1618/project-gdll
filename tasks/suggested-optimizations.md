@@ -8,6 +8,24 @@ Already implemented: an explicit corpse-ID list for door activation,
 synchronization and counting; incremental renderer preparation for changed
 zombies. See [viewer documentation](../docs/VIEWER.md) for their APIs and behavior.
 
+Recent completed fixes from the corridor performance investigation:
+
+- `f7f2aeb`: reject distant zombie camera groups before visibility sorting;
+  preserve independent shadow visibility.
+- `453dece`: retire escaped ragdolls below the loaded scene minimum Y minus
+  10 m, including an escaped detached bone.
+- `b9cc9d3`: independently remove escaped loose wound contents, dropped weapons
+  and ordinary crates. A loose content piece does not remove its owning corpse;
+  crates retain stable multiplayer IDs after their bodies are destroyed.
+- `d7d38d0`: accelerate shooting rays through occupied grid strips, retaining a
+  bounded scan fallback. See the [ray comparison](../docs/benchmarks/zombie-ray-grid-2026-10-28.txt).
+
+The open work below includes the remaining investigation findings. Sections 5,
+6 and 7 correspond to investigation issues #5, #2 and #3 respectively; the
+section numbers here continue this backlog's existing numbering. The existing
+changed-corpse synchronization and profiling follow-ups in sections 2 and 3
+also remain open.
+
 ## 1. Skip unchanged gameplay spatial updates
 
 **Status:** implemented for behavior and scenario-route updates on 2026-10-24.
@@ -100,6 +118,151 @@ See the [multiplayer 100,000-zombie ticket](multiplayer-100k-zombies.md) for
 visibility and update-rate requirements, capacity and replication blockers,
 performance risks, and acceptance checks. The behavior hearing-index rework in
 `f41f836` was done mainly in preparation for this goal.
+
+## 5. Bound static physics streaming and measure construction hitches
+
+**Status:** TODO; investigation issue #5.
+**Priority:** measure next during sustained movement. **Target:** main-thread
+collider construction, retained memory and physics broadphase size.
+
+[PhysicsScene::ensureNear](../src/physics_scene.cpp) imports full-height 16 x 16 m
+map columns synchronously when props, grenades, cars, doodads or enabled physical
+fists request nearby collision. New triangle batches become two mesh windings;
+unique nearby trunks become capsule bodies. The imported cells, triangle/trunk
+IDs, mesh data and bodies currently remain until scene destruction. Throwing an
+object toward a wall can therefore import its static mesh before contact;
+repeated impacts reuse it. Ordinary walking also activates nearby doors, but
+does not by itself require these Box3D map meshes when no physical consumer is
+present. The walking/query collision index is a separate system.
+
+- [ ] Count imported/retained cells, triangles, trunks, bodies and mesh storage;
+  time face queries, mesh construction and body/shape creation separately.
+  Compare first visits with warm revisits on at least a 60-second movement route.
+  Separate construction spikes from retained static-body costs; static bodies
+  do not have the integration cost of perpetually falling dynamic bodies.
+- [ ] Give collider chunks explicit ownership and cross-cell dependencies.
+  Current global triangle/trunk deduplication assigns geometry to whichever
+  cell imports it first. Simply deleting distant cell bodies can remove a wall
+  or ground surface that a neighbouring retained cell still needs. Track shared
+  chunk references and destroy a chunk only after its last dependency expires.
+- [ ] Gather required regions from every physical consumer, including sleeping
+  props, held objects, enabled player bodies, vehicles and loose contents.
+  Preserve velocity lookahead. Camera visibility or player distance alone must
+  not remove collision under a retained physical object. Keep ragdoll fallback
+  floors and collision-category rules separate from these streamed map meshes.
+- [ ] Evict unneeded cells/chunks after a grace period and a wider retention
+  margin. Release mesh data after destroying its shapes/bodies, and retire
+  deduplication records consistently so revisits can rebuild complete collision.
+  Memory should follow current physical interest plus the warm cache, rather
+  than every location visited; persistent props may legitimately pin regions.
+- [ ] If measurements still show construction hitches, prefetch ahead of moving
+  consumers and budget optional work. Required collision must be ready before
+  the physics step; a budget must never let an object advance through missing
+  walls or floors. Consider cached/prepared collider data if mesh building is
+  the dominant cost, preserving source fingerprints.
+
+Acceptance: synthetic cross-cell walls/ground and shared trunks survive partial
+unload and reload without holes or duplicate contacts; sleeping and held props
+retain support; fast throws/cars meet colliders in time; teleports and multiple
+players prepare all required regions. Route/revisit measurements show reclaimed
+unused bodies/storage and report construction spikes and steady physics time
+separately. Do not regenerate the user's town to validate this work.
+
+Start in [physics_scene.hpp/.cpp](../src/physics_scene.hpp),
+[main.cpp](../src/main.cpp), [doodad_layer.cpp](../src/doodad_layer.cpp),
+[vehicle_player.cpp](../src/vehicle_player.cpp),
+[zombie_cavity_physics.cpp](../src/zombie_cavity_physics.cpp), and
+[server world.cpp](../multiplayer/server/world.cpp).
+
+## 6. Stop repeating unchanged activated-door work
+
+**Status:** TODO; investigation issue #2.
+**Priority:** after profiling a route through many doorways.
+**Target:** door render updates and zombie/door contact preparation.
+
+Activated door bodies persist and can sleep. However,
+[DoorLayer::poses](../src/door_layer.cpp) still visits activated doors, and
+[ZombieDoorCollision::prepare](../src/zombie_door_collision.cpp) performs a
+zombie spatial query for every activated door every physics tick. Returning to
+an idle area does not shrink that retained door set.
+
+- [ ] Measure retained versus awake/changed doors, emitted render poses, spatial
+  queries and zombie blocker creation/removal over a long traversal and return.
+- [ ] Publish changed door poses from physics movement events and explicit
+  owning APIs. Preserve final sleep poses, wakeups, forced/replicated angles,
+  and movement across multiple fixed substeps.
+- [ ] Cache conservative doorway candidate membership and invalidate it when
+  relevant zombies move, arrive, die or leave, or a door is newly activated.
+  Sleeping doors still need correct blockers: a moving zombie can enter an
+  unchanged doorway. Door-pose changes alone are not sufficient invalidation.
+- [ ] Deduplicate zombies shared by nearby doors and retain stable blocker
+  ownership. Keep door angles/state persistent; do not delete collision based
+  only on camera distance or make doors close when revisited.
+
+Acceptance: idle retained doors cause no repeated pose uploads or identical
+neighbour searches; moving zombies, sleeping doors, newly activated doors,
+shared doorways, death/removal, manual movement and multiplayer updates remain
+correct. Compare the same route and door states before/after, including many
+settled doors and a few active interactions.
+
+Start in [door_layer.hpp/.cpp](../src/door_layer.hpp),
+[physics_world.cpp](../src/physics_world.cpp),
+[zombie_door_collision.cpp](../src/zombie_door_collision.cpp), and
+[door renderer](../src/renderer.cpp).
+
+## 7. Restore distance scaling for wounded zombie geometry
+
+**Status:** TODO; investigation issue #3.
+**Priority:** when many visible wounded actors make geometry cost significant.
+**Target:** camera-pass triangle count and GPU/CPU rendering cost.
+
+[zombie_renderer.cpp](../src/zombie_renderer.cpp) forces camera mesh level zero
+when `woundBase > 0`. Such actors bypass normal mesh LoD selection while within
+the camera draw range. The earlier distance-culling fix does not remove this
+cost for wounded actors that remain visible; shadow selection is independent.
+
+- [ ] Benchmark many visible wounded living actors and corpses against matching
+  unwounded populations. Record LoD counts, triangles, draw calls, CPU render
+  time and asynchronous GPU time, including normal and zoomed views.
+- [ ] Prepare wound-aware lower-detail geometry or an appropriate distant
+  representation. Original wound masks use stable source triangle/vertex IDs;
+  do not apply those IDs directly to unrelated simplified geometry.
+- [ ] Preserve visible wound/severing state, cavity closures, skinning and
+  multiplayer masks across LoD changes. Rendering choices must not change
+  authoritative hit geometry or damage. Avoid obvious healed wounds or
+  reappearing severed parts when distance/zoom changes.
+
+Acceptance: captures at useful near/far and transition views preserve damage;
+large wounded populations regain distance-dependent geometry cost. Include
+camera, sun/flashlight shadows and the standard
+[100,000-zombie rendering control](../docs/BENCHMARKS.md).
+
+Start in [zombie_renderer.cpp](../src/zombie_renderer.cpp),
+[zombie_wounds.hpp/.cpp](../src/zombie_wounds.hpp),
+[zombie_wound_surface.cpp](../src/zombie_wound_surface.cpp), and
+[zombie LoD preparation](../tools/prepare_zombie_lods.py).
+
+## 8. Audit escaped streamed-doodad bodies
+
+**Status:** TODO; related lifecycle gap found while tracing physics streaming.
+**Target:** falling forest props that cannot reach the ordinary sleep retirement.
+
+[doodad_layer.cpp](../src/doodad_layer.cpp) owns a separate box layer. Its current
+retirement requires distance beyond 6 m, an unheld prop and a sleeping body. A
+prop that escapes collision and stays awake may bypass that retirement. The
+`b9cc9d3` cleanup covers ordinary crates, dropped weapons and wound contents;
+it does not automatically delete this owner's bodies or persistence records.
+
+- [ ] Reproduce an escaped branch/stone/bottle and verify whether its body and
+  repeated scene-preparation work persist after leaving the streaming region.
+- [ ] If confirmed, apply the same whole-collider scene-minimum-minus-10 m rule
+  through the doodad owner, repairing dense body IDs and invalidating grips.
+  Define a persistent removed state so cell reload/save/load cannot resurrect
+  the escaped prop or promote it into another falling body indefinitely.
+
+Acceptance: escaped awake props release bodies and constraints, survive save/
+reload in their intended removed state, and do not respawn on revisits. Ordinary
+moved, sleeping, airborne and held doodads retain their existing behavior.
 
 ## Conditional follow-up: parallel physics
 

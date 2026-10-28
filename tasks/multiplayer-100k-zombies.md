@@ -90,10 +90,12 @@ benchmarks measure narrower workloads.
   runtime navigation setup. Preserve existing scenario behavior and ground,
   obstacle, overlap and provenance checks. Start in
   [zombie_scenario.cpp](../src/zombie_scenario.cpp).
-- [ ] **Address remaining shooting and simulation costs.** The hearing index
-  does not fix `ZombieSpatialIndex::queryRay`, which still visits every occupied
-  world cell for each bullet/pellet. Investigate accelerated ray traversal while
-  preserving inactive-zombie hits, occlusion, exact poses and deterministic ties.
+- [ ] **Measure remaining shooting and simulation costs.** Accelerated
+  `ZombieSpatialIndex::queryRay` traversal was implemented in `d7d38d0`; see the
+  [component comparison](../docs/benchmarks/zombie-ray-grid-2026-10-28.txt).
+  Continue measuring simultaneous gunfire, exact hit poses and world occlusion
+  at the target population/player count. Track the remaining
+  [physics streaming, door and wounded-geometry work](suggested-optimizations.md#5-bound-static-physics-streaming-and-measure-construction-hitches).
   Distant pursuers can retain movement toward remembered targets after sight
   suspends, so the active population can grow over time. Several separated
   players, crowded convergence, simultaneous gunfire, awake ragdolls and vehicle
