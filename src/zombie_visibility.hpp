@@ -39,6 +39,8 @@ public:
     void erase(std::size_t instance);
     // The optional camera region rejects full bounds before frustum tests.
     // It never restricts either light, even when camera culling is disabled.
+    // Results contain unique stable IDs and independent pass flags in ascending
+    // ID order, regardless of spatial membership or traversal history.
     ZombieVisibilityStats query(const Frustum& camera, const Frustum* light,
                                 bool cameraCulling, std::vector<ZombieVisibilityResult>& visible,
                                 const Frustum* flashlight = nullptr,
@@ -72,6 +74,7 @@ private:
     void attachGroup(std::size_t group);
     void detachGroup(std::size_t group);
     void refit(ZombieVisibilityStats& stats);
+    void orderVisible(std::vector<ZombieVisibilityResult>& visible);
     std::unordered_map<Cell, std::size_t, Hash> cells_;
     std::unordered_map<Cell, std::size_t, Hash> blocks_;
     std::vector<Location> locations_;
@@ -79,6 +82,9 @@ private:
     std::vector<std::size_t> freeGroups_, dirtyGroups_;
     std::vector<Block> blockGroups_;
     std::vector<std::size_t> freeBlocks_, dirtyBlocks_;
+    // Owned by this render-thread index and reused for radix ordering. Reset
+    // releases its capacity when replacing the population.
+    std::vector<ZombieVisibilityResult> sortScratch_;
 };
 
 } // namespace viewer

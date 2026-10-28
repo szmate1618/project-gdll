@@ -837,7 +837,14 @@ and geometry extending beyond the cell. A group outside the frustum skips all
 members; a group wholly inside accepts all members; only boundary groups need
 individual tests. Camera, sunlight, and flashlight classification are independent, retaining
 offscreen shadow casters. Results retain original instance-ID order before asset
-batching, so draw ordering and palette assignment remain stable.
+batching, so draw ordering and palette assignment remain stable. Lists of at most
+256 results use comparison sorting; larger lists use byte-wise radix sorting
+with scratch storage reused by the visibility index. Ordering also keeps the
+following instance-state reads mostly sequential; the
+[sort-removal benchmark](benchmarks/zombie-visibility-no-sort-2026-10-29.txt)
+records the rendering cost of losing that locality, and the
+[radix comparison](benchmarks/zombie-visibility-radix-2026-10-29.txt) measures
+cheaper ordering while retaining it.
 
 `Renderer::updateZombies()` marks groups dirty when an instance's bounds change,
 moves membership across cell boundaries, and removes corpse tombstones. Before

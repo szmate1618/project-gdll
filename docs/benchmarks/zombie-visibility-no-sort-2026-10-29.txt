@@ -1,0 +1,168 @@
+Zombie visibility result ordering experiment — 2026-10-29
+========================================================
+
+Decision
+--------
+Reject the removal of the final stable-source-ID visibility sort. Removing it
+substantially accelerates the isolated query, but makes the complete 100,000-
+zombie render slower. Keep the production sort and its ordering contract.
+The failed implementation and its test changes are preserved as an experiment.
+
+Median of two process results per version, milliseconds:
+
+Workload                  CPU render sorted -> unsorted   GPU elapsed
+100k open crowd                    20.323 -> 28.536       15.649 -> 20.236
+Gray-Scott corridors                3.270 ->  3.459        4.272 ->  4.453
+
+Crowd CPU render increases 8.212 ms (40.4%); GPU elapsed increases 4.587 ms
+(29.3%). Corridor increases are 0.189 ms (5.8%) and 0.181 ms (4.2%).
+The diagnostic control localizes the large crowd loss to CPU instance selection
+after querying: 10.529 -> 25.072 ms, outweighing the removed sort's 5.517 ms.
+
+Change and isolation
+--------------------
+Baseline revision: 5fc39cf4fa1ff121fd11b3a4064f68c78a4ba1d0.
+The candidate deletes only the final std::sort by instance ID and its coarse
+timer from ZombieVisibility::query. Camera/sun/flashlight membership, distance
+policy, coarse blocks and bounds maintenance are unchanged. The experimental
+header permits unspecified traversal order. No runtime switch is introduced.
+
+The common CPU harness and regressions were first changed to compare ID-keyed
+membership and masks, reject duplicates/out-of-range IDs, and use an order-
+independent per-frame checksum. The sorted baseline was then built and saved
+before removing the production sort. Both versions use that same harness.
+Candidate builds succeeded before testing or timing. Saved shader copies match.
+No generation or asset preparation was performed for this experiment.
+
+CPU query control
+-----------------
+Four sequential processes use sorted/unsorted/unsorted/sorted order, pinned to
+CPU 0. Each fixture uses four rounds of 30 warmup and 120 measured 60 Hz frames.
+Each process result is the median of four round means; the table then takes
+the median of two process results. Times include bounds maintenance and query,
+excluding fixture construction, animation/pose calculations and oracle checks.
+
+Fixture                 Query sorted -> unsorted   Update+query       Saving
+Dense 100k                  3.279811 -> 0.263379   3.281112 -> 0.264605  91.9%
+Spread 53k, stationary      0.055254 -> 0.043179   0.056494 -> 0.044341  21.5%
+Spread 53k, moving 1k       0.175999 -> 0.165781   0.194577 -> 0.184823   5.0%
+Separated 1k                0.025652 -> 0.021405   0.026854 -> 0.022563  16.0%
+
+All exact first/last-frame oracles and all round checksums match across both
+versions, including the separate phase-enabled runs. Insertion-order, query-
+history and remove/reinsert regressions also passed. Small absolute differences
+in sparse fixtures have appreciable process variation; this is a query-only
+benefit and does not predict the consumer's cost.
+
+Full-render protocol
+--------------------
+Radeon 660M, radeonsi/rembrandt, LLVM 19.1.1, DRM 3.61, Linux 6.11.0-29-generic,
+Mesa 24.2.8-1ubuntu1~24.10.1. Crowd: standard ten-asset 100k open field, 1280x720,
+sun map 1024, all actors LOD3, 10 camera draws and 12,580,000 camera triangles,
+zero zombie sun casters. Six rounds each have 32 warmup and 64 measured frames;
+per-process values are medians of six round means (384 finite GPU samples).
+Simulation and animation follow the standard deterministic 60 Hz timeline.
+
+Corridor: the generated map and gray-scott-corridors scenario, --fixed-step
+--frames 240, no audio/doodads/birds, no haze/ground fog, frozen day clock.
+Discard the first 60 chronological frames, then take each process's median of
+frames 61..240 (180 finite GPU samples). Each workload uses four sequential
+processes in sorted/unsorted/unsorted/sorted order. Aggregate by taking the
+median of the two process results per version, not by pooling all frame rows.
+
+Every full-render process (ms; preparation is Renderer::updateZombies):
+
+Case/order      Version    CPU render    GPU      Simulation  Preparation CPU work
+Crowd 0         sorted       21.583    17.277       0.044       0.0017     21.629
+Crowd 1         unsorted     29.067    20.562       0.038       0.0016     29.108
+Crowd 2         unsorted     28.004    19.910       0.038       0.0016     28.044
+Crowd 3         sorted       19.064    14.021       0.039       0.0016     19.105
+Corridor 0      sorted        3.257     4.274       2.265       0.207       5.800
+Corridor 1      unsorted      3.473     4.378       2.512       0.232       6.209
+Corridor 2      unsorted      3.445     4.528       2.426       0.228       6.238
+Corridor 3      sorted        3.283     4.270       2.330       0.214       5.821
+
+The crowd baseline drifts by 2.519 ms CPU and 3.256 ms GPU between endpoints,
+but both unsorted processes are slower than even the slower sorted process.
+Both corridor candidates are also slower than both controls; its simulation
+cost changes too, so its smaller difference cannot establish a render-only cause.
+
+Matched phase diagnostic
+------------------------
+A scratch copy of the same crowd harness enables the existing coarse stage
+Capture only during measured rendering. It is compiled once and linked twice
+with the same current headers and libraries. The sole differing query object
+comes from saved sources whose diff is exactly the sort/timer deletion.
+Four additional processes use the same ABBA protocol and 6x64 measurements.
+Each phase uses median of six round means, then median of two processes.
+
+Phase, inclusive CPU ms/frame             Sorted       Unsorted
+Zombie visibility/pose preparation        18.395900     27.270075
+  Query                                   7.268060      1.565813
+    Bounds refit                          0.001395      0.001340
+    Traversal/tests                       1.706248      1.560093
+    Final ID sort                         5.517255      0
+  LOD/instance selection                 10.528550     25.072300
+  Palette flush                           0.003094      0.002881
+Zombie draws, all passes                   0.828134      0.813105
+
+Diagnostic process       CPU render    GPU     Query    Selection   Draw CPU
+0 sorted                  19.344     14.869    7.339     10.581       0.817
+1 unsorted                28.139     17.695    1.559     25.075       0.814
+2 unsorted                28.115     19.355    1.572     25.070       0.812
+3 sorted                  19.201     14.253    7.197     10.476       0.840
+
+The selection penalty repeats with little variation. Selection gathers source
+instances, per-batch indices, staging and bounds by result ID, and writes poses
+and per-asset camera lists. Stable IDs provide sequential access; traversal
+order scatters those accesses. This supports CPU data locality as the mechanism,
+without proving a particular cache-miss count. No ragdolls request bone palettes
+in this fixture. Phase clocks are diagnostic and remain outside primary results.
+
+Whole-render GPU timestamps bracket renderer.render, including CPU selection
+before draw submission. They may include GPU idle time waiting for submission;
+these results do not isolate GPU shader execution, overdraw or texture locality.
+Nearly unchanged CPU draw-submission time does not measure GPU draw execution.
+
+Telemetry and output checks
+---------------------------
+No builds or other known benchmarks ran concurrently. An independent LoD
+benchmark was allowed to finish before these runs. Before each invocation the
+runner waited five seconds and then for three zero-GPU samples at 0.5 s spacing.
+Some earlier pre-run samples were nonzero. Clocks/power were neither locked nor
+changed. Telemetry at 0.5 s intervals cannot rule out all scheduling variation.
+
+Primary run ranges: temperature 55..67 C, available RAM 17.05..19.36 GiB.
+Peak GTT: crowd 1.91..1.95 GiB, corridor 2.42..2.48 GiB. Total swap-in was
+1,178 pages (4.60 MiB at 4,096 bytes/page), zero swap-out. Maximum memory PSI
+increments were 1,277 us some / 271 us full; sampled avg10 stayed zero. Firefox
+was absent before all eight processes. These do not indicate capacity pressure.
+
+All four crowd captures are byte-identical, SHA256 64df6d5b8d42d4ade6788a66a25ae0bf048bf3809f9dc4205dc3ffdcb148d473.
+All four corridor captures are byte-identical, SHA256 3f7ee10a9b940266a3e778fba8631a7df5692d7d9f0e5c887308e7b3cfcfefb8.
+Crowd metadata match byte-for-byte; all four diagnostic captures/metadata match
+too. Corridor final counts match: 107/53,000 zombies, 20 draws, camera LOD
+0/0/25/82, 19,261 camera triangles, 14,928 sun triangles, 7 post-frustum distance
+removals and 32,716 groups rejected by camera distance. Tree/forest/town counts
+also match. Equal final captures do not prove equality for every possible scene.
+
+Preservation and verification
+------------------------------
+Ignored artifacts: build/benchmarks/zombie-visibility-no-sort-20261029/.
+experiment.patch preserves the implementation, header and experimental test/
+harness changes. baseline/, candidate/ and diagnostic/ preserve binaries and
+sources; run_*.py, raw CSV/logs/captures, telemetry, cpu-audit-summary.json,
+gpu-summary.json and diagnostic-summary.json preserve the procedures/results.
+cpu-summary.json additionally retains the original pooled-round summary; the
+numbers above use the explicitly documented per-process hierarchy instead.
+
+The experimental candidate passed five focused CPU suites and the rebuilt
+zombie/shadow renderer GPU suites. After restoring the production sort, header
+and tests, the viewer, two benchmark targets and seven test targets rebuilt
+successfully. Restored CPU suites passed 5/5 (visibility, visibility refit,
+zombie LOD, render updates and zombie visibility); restored GPU suites passed
+2/2 (zombie and shadow renderers). Useful crowd and corridor captures were
+inspected. Saved binary hashes and 41 frozen source/shader hashes rechecked
+successfully. The final host process audit found no benchmark/build/viewer or
+Firefox processes. No production code or test change from this experiment is
+retained; only the report and explanatory documentation remain live.

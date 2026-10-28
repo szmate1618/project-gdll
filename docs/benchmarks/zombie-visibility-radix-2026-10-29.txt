@@ -1,0 +1,184 @@
+Zombie visibility radix ordering — 2026-10-29
+============================================
+
+Result: keep radix ordering
+---------------------------
+Replacing comparison sorting with byte radix ordering for larger result lists
+reduces the isolated dense-100k query from 3.188820 to 1.194211 ms (62.6%),
+while preserving exactly the original ascending source IDs and pass masks.
+The complete 100k render also improves in both matched process pairs.
+
+Median of two process results per version, milliseconds:
+
+Workload                 CPU render comparison -> radix    GPU elapsed
+100k open crowd                    19.609 -> 16.919        15.178 -> 13.323
+Gray-Scott corridors                3.630 ->  3.231         4.668 ->  4.194
+
+Crowd savings are 2.691 ms CPU render (13.7%) and 1.855 ms whole-render GPU
+elapsed (12.2%). Both radix processes beat both comparison processes for both
+timers. Corridor CPU render is 11.0% lower, but simulation also shifts from
+2.575 to 2.271 ms; its broader host variation prevents attributing that entire
+gain to radix ordering. These are results on one integrated GPU/driver system.
+
+Implementation
+--------------
+Baseline revision: 5fc39cf4fa1ff121fd11b3a4064f68c78a4ba1d0, using std::sort.
+The candidate keeps comparison sorting for at most 256 visible results. Larger
+lists use stable least-significant-byte radix passes with 256 counting buckets,
+copying each result's ID and independent camera/sun/flashlight flags together.
+Pass count derives from the population's maximum possible size_t ID rather
+than visible count; 100,000 actors need three bytes. IDs are not narrowed.
+
+The index owns and reuses an O(visible-count) scratch vector. reset releases
+its capacity when replacing a population. This adds scratch RAM proportional
+to the largest result list since reset. No runtime selection option or new
+caller responsibility is added. The API explicitly retains ascending unique
+IDs independent of traversal history. Culling, bounds refitting, grouping,
+LOD policy, renderer selection and shaders retain their existing behavior.
+
+This preserves the ordering that the preceding no-sort experiment found useful
+for consumer locality; see zombie-visibility-no-sort-2026-10-29.txt. That failed
+experiment removed ordering entirely and is a separate control, not this
+candidate's baseline.
+
+Build isolation and validation
+------------------------------
+Before editing, baseline binaries, shaders and relevant sources were saved.
+The scratch member changes class layout, so all measured consumers were rebuilt
+for the candidate. No historical and current class layouts are mixed. Both
+versions use the unchanged benchmark harness and the normal Release build.
+No assets or map outputs were regenerated. An initial executable-mode setup
+failure occurred before a timed invocation; its log is retained separately.
+
+After the successful candidate build, focused CPU suites passed 5/5: visibility,
+visibility refit, zombie LOD, zombie render updates and zombie visibility. GPU
+suites passed 2/2: zombie renderer and shadow renderer. The new regression uses
+an independent full-population oracle for exact ordered IDs and all pass masks.
+It covers shuffled insertion, sparse high IDs, 255/256 and 65,535/65,536 digit
+boundaries, 256/257 result thresholds, camera/light unions, empty/small results
+following large results, erase/reinsert and reset after pending removal work.
+
+CPU protocol and results
+------------------------
+Four sequential processes use comparison/radix/radix/comparison order, pinned
+to CPU 0. Each fixture uses four rounds of 30 warmup and 120 measured 60 Hz
+frames. Per-process values are medians of four round means; aggregate values
+are medians of two process results per version. Timed update+query includes
+bounds maintenance; setup, pose calculations and exact oracle checks are outside.
+
+Fixture                 Query comparison -> radix   Update+query     Saving
+Dense 100k                  3.188820 -> 1.194211   3.190060 -> 1.195454  62.5%
+Spread 53k, stationary      0.062996 -> 0.050012   0.064212 -> 0.051175  20.3%
+Spread 53k, moving 1k       0.192205 -> 0.174206   0.211966 -> 0.192898   9.0%
+Separated 1k                0.022994 -> 0.022284   0.024167 -> 0.023407   3.1%
+
+Individual process query medians, ms, in execution order:
+
+Fixture                  0 comparison    1 radix    2 radix    3 comparison
+Dense 100k                   3.151981     1.203807   1.184614      3.225658
+Spread 53k, stationary       0.074544     0.050317   0.049706      0.051448
+Spread 53k, moving 1k        0.186442     0.174834   0.173578      0.197967
+Separated 1k                 0.021299     0.022224   0.022343      0.024689
+
+The dense gain repeats in both pairs. Sparse cases have smaller absolute
+differences and substantial process variation, especially stationary 53k.
+Separated 1k returns one actor and retains comparison sorting in both versions;
+its sub-microsecond aggregate difference is not a radix gain.
+
+Every round retains the same original order-sensitive checksum, counts and
+pass masks across both binaries, including the separate phase-enabled runs:
+dense 14644279794708637411; stationary 498458097362621667;
+moving 12684378125181218342; separated 923438105785128867.
+The harness also verifies exact IDs/order/masks against the independent full
+population oracle on the first and last measured frames of every round.
+
+Separate --profile invocations enable only the existing coarse phase clocks.
+These are single-process diagnostics, not additional default-performance runs.
+Each number is a median of four 120-frame round means, milliseconds:
+
+Fixture                  Refit comparison/radix  Traverse comparison/radix  Sort comparison/radix
+Dense 100k                   0.001204/0.001246       0.333767/0.304359          2.941075/0.958960
+Spread 53k, stationary       0.001162/0.001177       0.044587/0.044403          0.013117/0.010103
+Spread 53k, moving 1k        0.134040/0.130437       0.051823/0.050599          0.014356/0.007779
+Separated 1k                 0.001155/0.001183       0.022763/0.022254          0.001173/0.001204
+
+Full-render protocol
+--------------------
+Radeon 660M, radeonsi/rembrandt, LLVM 19.1.1, DRM 3.61, Linux 6.11.0-29-generic,
+Mesa 24.2.8-1ubuntu1~24.10.1. The standard ten-asset 100k overview uses 1280x720,
+sun map 1024, all LOD3,
+10 camera draws and 12,580,000 camera triangles, with zero zombie sun casters.
+Each of four ABBA processes uses six rounds of 32 warmup and 64 measured frames
+at deterministic 60 Hz. Aggregate the median of six round means per process,
+then the median of two process results per version.
+
+The generated map with gray-scott-corridors uses --fixed-step --frames 240,
+no audio/doodads/birds, no haze/ground fog and a frozen day clock. Discard the
+first 60 chronological frames, then take each process's median of frames
+61..240; aggregate the two process results per version. It has its own ABBA.
+
+Runners guard against known competing builds/benchmarks, wait five seconds
+and then require three zero-GPU samples 0.5 seconds apart. Telemetry samples
+clock/activity, temperature, RAM, swap, GTT and memory pressure every 0.5 seconds.
+An independent LoD capture completed before CPU timing began. GPU timing
+starts only after the host guard is quiet. No clock/power setting is locked.
+
+All eight invocations completed successfully. Crowd has 384 finite GPU samples
+per process; corridor has 180 retained finite GPU samples. Individual results,
+milliseconds; preparation is Renderer::updateZombies outside CPU render:
+
+Case/order    Version       CPU render    GPU    Simulation Preparation CPU work
+Crowd 0       comparison      19.615    15.317      0.040       0.0016    19.659
+Crowd 1       radix           16.691    13.070      0.041       0.0018    16.737
+Crowd 2       radix           17.147    13.577      0.045       0.0017    17.198
+Crowd 3       comparison      19.604    15.039      0.042       0.0016    19.646
+Corridor 0    comparison       3.705     4.872      2.692       0.267      6.875
+Corridor 1    radix            3.119     4.457      2.194       0.196      5.688
+Corridor 2    radix            3.342     3.932      2.349       0.213      5.893
+Corridor 3    comparison       3.554     4.465      2.458       0.242      6.321
+
+The crowd CPU baseline endpoints differ by only 0.011 ms. Its candidate gain
+survives the observed process spread. Corridor simulation, preparation and GPU
+timing vary materially; the small query-level sort savings cannot explain its
+whole measured gain. No detailed full-render stage clocks were enabled here.
+
+FrameProfile's GPU timestamps bracket renderer.render, including CPU visibility
+and instance preparation before draw submission. The interval can include GPU
+idle time waiting for CPU submission. A lower interval does not establish a
+corresponding reduction in GPU shader execution time. The CPU query reduction,
+preserved ordering and full crowd CPU-render result support keeping this change.
+
+Output and host checks
+----------------------
+All four crowd captures match byte-for-byte, SHA256
+64df6d5b8d42d4ade6788a66a25ae0bf048bf3809f9dc4205dc3ffdcb148d473.
+Crowd metadata match byte-for-byte, including 100,000 actors, LOD counts,
+10 draws, triangle count and sun resolution. All four corridor captures match,
+SHA256 3f7ee10a9b940266a3e778fba8631a7df5692d7d9f0e5c887308e7b3cfcfefb8.
+Its final counts match: 107/53,000 zombies, 20 draws, camera LOD0/1/2/3
+0/0/25/82, 19,261 camera triangles, 14,928 sun triangles, 7 post-frustum distance
+removals and 32,716 groups rejected by camera distance. Other scene counts match.
+Equal final captures do not prove every possible scene or intermediate frame.
+
+Observed temperature range is 54..66 C; available RAM is 17.04..19.17 GiB.
+Peak GTT is 1.94..1.95 GiB for crowd and 2.43..2.48 GiB for corridor. Three
+4,096-byte swap-in pages (12 KiB total), zero swap-out, and maximum memory PSI
+increments of 713 us some / 453 us full show little capacity pressure; sampled
+avg10 stayed zero. Firefox was absent before all eight runs. One corridor
+pre-run activity sample was nonzero before the required three idle samples.
+These checks do not control all scheduling, integrated-GPU clock or power drift.
+
+Artifacts
+---------
+Ignored artifact root: build/benchmarks/zombie-visibility-radix-20261029/.
+setup.json, implementation.patch, baseline/ and candidate/ retain setup,
+source/shader snapshots and frozen executables. run_cpu.py/run_gpu.py retain
+the procedures; analyze_cpu.py/analyze_gpu.py retain aggregation and validation.
+cpu-summary.json, raw CSV/logs, separate phase captures and build/test logs
+retain the CPU evidence. gpu-summary.json and the per-process standard summary
+files retain the full-render aggregates. The GPU runner preserves raw round/
+frame data, captures and telemetry without overwriting earlier results.
+Useful candidate crowd and corridor captures were visually inspected. All 52
+frozen-binary/source/shader and live-source hash checks pass; implementation.patch
+still matches the measured candidate. The final actual-host process audit found
+no benchmark/build/viewer or Firefox processes. Whitespace checks pass.

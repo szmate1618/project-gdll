@@ -218,6 +218,12 @@ This isolates visibility CPU cost; the required real-asset open 100k case above
 remains the rendering regression control.
 
 Recorded comparison: [visibility blocks, 2026-10-28](benchmarks/zombie-visibility-blocks-2026-10-28.txt).
+The [sort-removal experiment](benchmarks/zombie-visibility-no-sort-2026-10-29.txt)
+compares query savings against downstream instance preparation and full rendering;
+the source-ID sort remains enabled after the experiment.
+The [radix comparison](benchmarks/zombie-visibility-radix-2026-10-29.txt)
+preserves the same ordered IDs and pass masks, using radix passes for larger
+result lists and comparison sorting for small ones.
 
 ### Minimap road overlay
 

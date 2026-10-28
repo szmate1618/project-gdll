@@ -2,6 +2,7 @@
 #include "frame_stage_profile.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <functional>
 #include <limits>
@@ -47,6 +48,7 @@ void ZombieVisibility::reset(std::size_t population) {
     blockGroups_.clear();
     freeBlocks_.clear();
     dirtyBlocks_.clear();
+    std::vector<ZombieVisibilityResult>().swap(sortScratch_);
 }
 
 bool ZombieVisibility::contains(std::size_t instance) const {
@@ -195,6 +197,37 @@ void ZombieVisibility::refit(ZombieVisibilityStats& stats) {
     dirtyBlocks_.clear();
 }
 
+void ZombieVisibility::orderVisible(std::vector<ZombieVisibilityResult>& visible) {
+    // Sparse camera/light unions avoid scratch setup and counting 256 buckets
+    // per digit. Larger unions retain source-ID order with linear radix passes.
+    constexpr std::size_t comparisonSortLimit = 256;
+    if (visible.size() <= comparisonSortLimit) {
+        std::sort(visible.begin(), visible.end(), [](const auto& a, const auto& b) { return a.instance < b.instance; });
+        return;
+    }
+    sortScratch_.resize(visible.size());
+    auto* input = &visible;
+    auto* output = &sortScratch_;
+    // IDs are indices into locations_; this bound avoids unnecessary high-byte
+    // passes without narrowing size_t. A population of 100,000 uses three.
+    for (std::size_t remaining = locations_.size() - 1, shift = 0; remaining; remaining >>= 8, shift += 8) {
+        std::array<std::size_t, 256> offsets{};
+        for (const auto& result : *input) ++offsets[(result.instance >> shift) & 0xffu];
+        std::size_t prefix = 0;
+        for (auto& offset : offsets) {
+            const auto count = offset;
+            offset = prefix;
+            prefix += count;
+        }
+        // Forward scattering preserves lower-byte order and copies each ID's
+        // independent pass flags together with it.
+        for (const auto& result : *input)
+            (*output)[offsets[(result.instance >> shift) & 0xffu]++] = result;
+        std::swap(input, output);
+    }
+    if (input != &visible) visible.swap(sortScratch_);
+}
+
 ZombieVisibilityStats ZombieVisibility::query(const Frustum& camera, const Frustum* light,
                                              bool cameraCulling, std::vector<ZombieVisibilityResult>& visible,
                                              const Frustum* flashlight, const VisibilityBounds* cameraRegion) {
@@ -270,7 +303,7 @@ ZombieVisibilityStats ZombieVisibility::query(const Frustum& camera, const Frust
     // or first-time GPU palette slot assignment. Preserve stable source IDs.
     {
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombieSort);
-        std::sort(visible.begin(), visible.end(), [](const auto& a, const auto& b) { return a.instance < b.instance; });
+        orderVisible(visible);
     }
     return stats;
 }

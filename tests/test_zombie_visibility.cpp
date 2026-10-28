@@ -297,6 +297,64 @@ void randomViewsMatchFullScan() {
     }
 }
 
+void orderingRetainsMasksAcrossDigitBoundaries() {
+    const viewer::Frustum broad(glm::ortho(-1000.f,1000.f,-100.f,100.f,-100.f,100.f));
+    const viewer::Frustum camera(glm::ortho(-230.f,-170.f,-100.f,100.f,-100.f,100.f));
+    const viewer::Frustum sun(glm::ortho(-30.f,230.f,-100.f,100.f,-100.f,100.f));
+    const viewer::Frustum flashlight(glm::ortho(170.f,430.f,-100.f,100.f,-100.f,100.f));
+    const auto emptyRegion=box({1000,0,0},{1,100,100});
+    std::mt19937 random(913);
+    viewer::ZombieVisibility groups;
+    std::vector<VisibilityBounds> bounds;
+    std::vector<bool> active;
+    // Large visible lists cross two- and three-byte ID ranges. The larger
+    // population is sparse, so result count cannot bound the largest key.
+    for (const std::size_t population:{256u,257u,512u,66064u}) {
+        groups.reset(population);
+        bounds.assign(population,box({1000,0,0}));
+        active.assign(population,false);
+        std::vector<std::size_t> ids;
+        if (population<=512) {
+            for (std::size_t id=0;id<population;++id) ids.push_back(id);
+        } else {
+            for (std::size_t i=0;i<520;++i) ids.push_back(i*127);
+            for (const std::size_t id:{255u,256u,65535u,65536u,66063u}) ids.push_back(id);
+        }
+        std::shuffle(ids.begin(),ids.end(),random);
+        for (const auto id:ids) {
+            bounds[id]=box({float(id%5)*200-200,0,float((id/5)%3)*10});
+            active[id]=true;groups.update(id,bounds[id]);
+        }
+        compare(groups,bounds,active,broad,&sun,true,&flashlight);
+        // Independent light-only results carry different masks through sorting.
+        compare(groups,bounds,active,camera,&sun,true,&flashlight);
+        compare(groups,bounds,active,camera); // Small list after a large query.
+        compare(groups,bounds,active,broad,nullptr,true,nullptr,&emptyRegion);
+        compare(groups,bounds,active,broad,&sun,true,&flashlight);
+
+        for (std::size_t i=0;i<ids.size();i+=3) {
+            groups.erase(ids[i]);active[ids[i]]=false;
+        }
+        compare(groups,bounds,active,broad,&sun,true,&flashlight);
+        for (std::size_t i=ids.size();i-- > 0;) if (!active[ids[i]]) {
+            const auto id=ids[i];
+            bounds[id]=box({600-float(id%5)*200,0,-float((id/5)%3)*10});
+            active[id]=true;groups.update(id,bounds[id]);
+        }
+        compare(groups,bounds,active,camera,&sun,true,&flashlight);
+        compare(groups,bounds,active,broad,&sun,true,&flashlight);
+    }
+    // A smaller population after a large sorted result must discard old keys,
+    // including when reset interrupts pending removal/refit work.
+    groups.erase(65536);
+    groups.reset(1);
+    bounds.assign(1,box({0,0,0}));active.assign(1,true);
+    groups.update(0,bounds[0]);
+    compare(groups,bounds,active,broad,&sun,true,&flashlight);
+    groups.erase(0);active[0]=false;
+    compare(groups,bounds,active,broad,&sun,true,&flashlight);
+}
+
 void largeCrowdRejectsGroups() {
     std::vector<VisibilityBounds> bounds(10000);
     std::vector<bool> active(bounds.size(), true);
@@ -347,6 +405,7 @@ int main() {
         smallViewSkipsDistantCells();
         distantBlockFacesRetainTouchingMembers();
         randomViewsMatchFullScan();
+        orderingRetainsMasksAcrossDigitBoundaries();
         largeCrowdRejectsGroups();
         std::cout << "Zombie visibility tests passed\n";
         return 0;
