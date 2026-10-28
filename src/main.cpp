@@ -1917,6 +1917,15 @@ int run(const Options& options) {
                               << " bounds" << (updates.full ? " (full refresh)" : " (incremental)");
                 }
                 std::cout << '\n';
+                if (zombies) {
+                    const auto& visibility = renderer.zombieVisibilityStats();
+                    std::cout << "Zombie visibility: " << visibility.blocks << " blocks; visited "
+                              << visibility.visitedGroups << '/' << visibility.groups << " groups; refitted "
+                              << visibility.refittedGroups << " groups, " << visibility.refittedMembers
+                              << " members, " << visibility.refittedBlocks << " blocks; camera/sun/flashlight group tests "
+                              << visibility.cameraGroupTests << '/' << visibility.shadowGroupTests << '/'
+                              << visibility.flashlightGroupTests << '\n';
+                }
                 frameStages.print(std::cout, intervalFrames);
                 frameStages = {};
                 zombieProfile.print(std::cout);

@@ -1,4 +1,5 @@
 #include "zombie_visibility.hpp"
+#include "frame_stage_profile.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -7,7 +8,29 @@
 #include <stdexcept>
 
 namespace viewer {
-namespace { constexpr double cellSize = 20.0; }
+namespace {
+constexpr double cellSize = 20.0;
+constexpr double blockCells = 8.0;
+VisibilityBounds emptyBounds() {
+    return {glm::vec3(std::numeric_limits<float>::max()), glm::vec3(std::numeric_limits<float>::lowest())};
+}
+void include(VisibilityBounds& target, const VisibilityBounds& bounds) {
+    target.minimum = glm::min(target.minimum, bounds.minimum);
+    target.maximum = glm::max(target.maximum, bounds.maximum);
+}
+void padBlockBounds(VisibilityBounds& bounds) {
+    // Parent center/half-size arithmetic can round an enclosing face inward,
+    // especially far from the origin. Widen only the coarse bounds; exact
+    // member predicates retain their existing clip-plane tolerance.
+    const double limit = std::numeric_limits<float>::max();
+    for (int axis = 0; axis < 3; ++axis) {
+        const double scale = std::max({1.0, std::abs(double(bounds.minimum[axis])), std::abs(double(bounds.maximum[axis]))});
+        const double padding = 32 * std::numeric_limits<float>::epsilon() * scale;
+        bounds.minimum[axis] = static_cast<float>(std::max(-limit, double(bounds.minimum[axis]) - padding));
+        bounds.maximum[axis] = static_cast<float>(std::min(limit, double(bounds.maximum[axis]) + padding));
+    }
+}
+}
 
 std::size_t ZombieVisibility::Hash::operator()(const Cell& cell) const {
     const auto x = std::hash<double>{}(cell.x), z = std::hash<double>{}(cell.z);
@@ -20,6 +43,10 @@ void ZombieVisibility::reset(std::size_t population) {
     groups_.clear();
     freeGroups_.clear();
     dirtyGroups_.clear();
+    blocks_.clear();
+    blockGroups_.clear();
+    freeBlocks_.clear();
+    dirtyBlocks_.clear();
 }
 
 bool ZombieVisibility::contains(std::size_t instance) const {
@@ -31,6 +58,49 @@ void ZombieVisibility::markDirty(std::size_t group) {
         dirtyGroups_.push_back(group);
         groups_[group].dirty = true;
     }
+    const auto block = groups_[group].block;
+    if (!blockGroups_[block].dirty) {
+        dirtyBlocks_.push_back(block);
+        blockGroups_[block].dirty = true;
+    }
+}
+
+void ZombieVisibility::attachGroup(std::size_t index) {
+    auto& group = groups_[index];
+    const Cell cell{std::floor(group.cell.x / blockCells), std::floor(group.cell.z / blockCells)};
+    auto found = blocks_.find(cell);
+    std::size_t block;
+    if (found != blocks_.end()) block = found->second;
+    else {
+        if (freeBlocks_.empty()) {
+            block = blockGroups_.size();
+            blockGroups_.push_back({});
+        } else {
+            block = freeBlocks_.back();
+            freeBlocks_.pop_back();
+        }
+        // Preserve a reused block's queued dirty flag, just as for fine cells.
+        blockGroups_[block].cell = cell;
+        blocks_.emplace(cell, block);
+    }
+    auto& parent = blockGroups_[block];
+    group.block = block;
+    group.blockSlot = parent.groups.size();
+    parent.groups.push_back(index);
+}
+
+void ZombieVisibility::detachGroup(std::size_t index) {
+    auto& group = groups_[index];
+    auto& block = blockGroups_[group.block];
+    const auto moved = block.groups.back();
+    block.groups[group.blockSlot] = moved;
+    groups_[moved].blockSlot = group.blockSlot;
+    block.groups.pop_back();
+    if (block.groups.empty()) {
+        blocks_.erase(block.cell);
+        freeBlocks_.push_back(group.block);
+    }
+    group.block = noGroup;
 }
 
 void ZombieVisibility::erase(std::size_t instance) {
@@ -46,6 +116,7 @@ void ZombieVisibility::erase(std::size_t instance) {
     markDirty(index);
     if (group.members.empty()) {
         cells_.erase(group.cell);
+        detachGroup(index);
         freeGroups_.push_back(index);
     }
 }
@@ -81,6 +152,7 @@ void ZombieVisibility::update(std::size_t instance, const VisibilityBounds& boun
         // A reused slot may already be queued for refit after removal. Retain
         // its dirty flag, preventing duplicate entries in the pending list.
         cells_.emplace(cell, index);
+        attachGroup(index);
     }
     auto& group = groups_[index];
     group.members.push_back(instance);
@@ -88,8 +160,7 @@ void ZombieVisibility::update(std::size_t instance, const VisibilityBounds& boun
     markDirty(index);
 }
 
-std::size_t ZombieVisibility::refit() {
-    std::size_t count = 0;
+void ZombieVisibility::refit(ZombieVisibilityStats& stats) {
     for (const auto index : dirtyGroups_) {
         auto& group = groups_[index];
         group.dirty = false;
@@ -101,17 +172,27 @@ std::size_t ZombieVisibility::refit() {
         // dense cells from retaining population-sized member buffers forever.
         if (group.members.capacity() > std::max(std::size_t(8), group.members.size() * 4))
             std::vector<std::size_t>(group.members).swap(group.members);
-        group.bounds = {glm::vec3(std::numeric_limits<float>::max()),
-                        glm::vec3(std::numeric_limits<float>::lowest())};
-        for (const auto instance : group.members) {
-            const auto& bounds = *locations_[instance].bounds;
-            group.bounds.minimum = glm::min(group.bounds.minimum, bounds.minimum);
-            group.bounds.maximum = glm::max(group.bounds.maximum, bounds.maximum);
-        }
-        ++count;
+        group.bounds = emptyBounds();
+        for (const auto instance : group.members) include(group.bounds, *locations_[instance].bounds);
+        stats.refittedMembers += group.members.size();
+        ++stats.refittedGroups;
     }
     dirtyGroups_.clear();
-    return count;
+    // Children are current before any parent is refitted. A parent encloses
+    // actual geometry, including bounds extending outside its nominal cells.
+    for (const auto index : dirtyBlocks_) {
+        auto& block = blockGroups_[index];
+        block.dirty = false;
+        if (block.groups.empty()) {
+            std::vector<std::size_t>().swap(block.groups);
+            continue;
+        }
+        block.bounds = emptyBounds();
+        for (const auto group : block.groups) include(block.bounds, groups_[group].bounds);
+        padBlockBounds(block.bounds);
+        ++stats.refittedBlocks;
+    }
+    dirtyBlocks_.clear();
 }
 
 ZombieVisibilityStats ZombieVisibility::query(const Frustum& camera, const Frustum* light,
@@ -120,51 +201,77 @@ ZombieVisibilityStats ZombieVisibility::query(const Frustum& camera, const Frust
     visible.clear();
     ZombieVisibilityStats stats;
     stats.groups = cells_.size();
-    stats.refittedGroups = refit();
-    using Relation = Frustum::Relation;
-    const auto inRegion = [&](const VisibilityBounds& bounds) {
-        return !cameraRegion ||
-            (glm::all(glm::lessThanEqual(bounds.minimum, cameraRegion->maximum)) &&
-             glm::all(glm::greaterThanEqual(bounds.maximum, cameraRegion->minimum)));
-    };
-    // Visit only occupied groups. Storage for emptied groups is reused as actors
-    // travel; historical cell locations do not add to the per-frame query cost.
-    for (const auto& entry : cells_) {
-        const auto& group = groups_[entry.second];
-        const bool cameraCandidate = inRegion(group.bounds);
-        stats.cameraRegionRejectedGroups += !cameraCandidate;
-        const auto cameraRelation = !cameraCandidate ? Relation::Outside :
-            cameraCulling ? camera.classify(group.bounds.minimum, group.bounds.maximum) : Relation::Inside;
-        const auto shadowRelation = light ? light->classify(group.bounds.minimum, group.bounds.maximum) : Relation::Outside;
-        const auto flashlightRelation = flashlight ? flashlight->classify(group.bounds.minimum, group.bounds.maximum) : Relation::Outside;
-        stats.flashlightGroupTests += flashlight != nullptr;
-        stats.cameraGroupTests += cameraCulling && cameraCandidate;
-        stats.shadowGroupTests += light != nullptr;
-        if (cameraRelation == Relation::Outside && shadowRelation == Relation::Outside && flashlightRelation == Relation::Outside) continue;
-        for (const auto instance : group.members) {
-            const auto& bounds = *locations_[instance].bounds;
-            const bool cameraMember = cameraRelation != Relation::Outside && inRegion(bounds);
-            bool inCamera = cameraMember && cameraRelation == Relation::Inside;
-            bool inShadow = shadowRelation == Relation::Inside;
-            bool inFlashlight = flashlightRelation == Relation::Inside;
-            if (cameraMember && cameraRelation == Relation::Intersecting) {
-                ++stats.cameraInstanceTests;
-                inCamera = camera.intersects(bounds.minimum, bounds.maximum);
+    stats.blocks = blocks_.size();
+    {
+        frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombieRefit);
+        refit(stats);
+    }
+    {
+        frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombieTraversal);
+        using Relation = Frustum::Relation;
+        const auto inRegion = [&](const VisibilityBounds& bounds) {
+            return !cameraRegion ||
+                (glm::all(glm::lessThanEqual(bounds.minimum, cameraRegion->maximum)) &&
+                 glm::all(glm::greaterThanEqual(bounds.maximum, cameraRegion->minimum)));
+        };
+        // Only occupied blocks are visited. A rejection skips all child groups;
+        // camera distance never restricts either light's independent traversal.
+        for (const auto& entry : blocks_) {
+            const auto& block = blockGroups_[entry.second];
+            const bool blockCameraCandidate = inRegion(block.bounds);
+            if (!blockCameraCandidate) stats.cameraRegionRejectedGroups += block.groups.size();
+            const auto blockCamera = !blockCameraCandidate ? Relation::Outside :
+                cameraCulling ? camera.classify(block.bounds.minimum, block.bounds.maximum) : Relation::Inside;
+            const auto blockShadow = light ? light->classify(block.bounds.minimum, block.bounds.maximum) : Relation::Outside;
+            const auto blockFlashlight = flashlight ? flashlight->classify(block.bounds.minimum, block.bounds.maximum) : Relation::Outside;
+            stats.cameraBlockTests += cameraCulling && blockCameraCandidate;
+            stats.shadowBlockTests += light != nullptr;
+            stats.flashlightBlockTests += flashlight != nullptr;
+            if (blockCamera == Relation::Outside && blockShadow == Relation::Outside && blockFlashlight == Relation::Outside) continue;
+            for (const auto index : block.groups) {
+                ++stats.visitedGroups;
+                const auto& group = groups_[index];
+                const bool cameraCandidate = blockCameraCandidate && inRegion(group.bounds);
+                if (blockCameraCandidate && !cameraCandidate) ++stats.cameraRegionRejectedGroups;
+                const auto cameraRelation = !cameraCandidate ? Relation::Outside : blockCamera == Relation::Intersecting ?
+                    camera.classify(group.bounds.minimum, group.bounds.maximum) : blockCamera;
+                const auto shadowRelation = blockShadow == Relation::Intersecting ?
+                    light->classify(group.bounds.minimum, group.bounds.maximum) : blockShadow;
+                const auto flashlightRelation = blockFlashlight == Relation::Intersecting ?
+                    flashlight->classify(group.bounds.minimum, group.bounds.maximum) : blockFlashlight;
+                stats.cameraGroupTests += cameraCandidate && blockCamera == Relation::Intersecting;
+                stats.shadowGroupTests += blockShadow == Relation::Intersecting;
+                stats.flashlightGroupTests += blockFlashlight == Relation::Intersecting;
+                if (cameraRelation == Relation::Outside && shadowRelation == Relation::Outside && flashlightRelation == Relation::Outside) continue;
+                for (const auto instance : group.members) {
+                    const auto& bounds = *locations_[instance].bounds;
+                    const bool cameraMember = cameraRelation != Relation::Outside && inRegion(bounds);
+                    bool inCamera = cameraMember && cameraRelation == Relation::Inside;
+                    bool inShadow = shadowRelation == Relation::Inside;
+                    bool inFlashlight = flashlightRelation == Relation::Inside;
+                    if (cameraMember && cameraRelation == Relation::Intersecting) {
+                        ++stats.cameraInstanceTests;
+                        inCamera = camera.intersects(bounds.minimum, bounds.maximum);
+                    }
+                    if (shadowRelation == Relation::Intersecting) {
+                        ++stats.shadowInstanceTests;
+                        inShadow = light->intersects(bounds.minimum, bounds.maximum);
+                    }
+                    if (flashlightRelation == Relation::Intersecting) {
+                        ++stats.flashlightInstanceTests;
+                        inFlashlight = flashlight->intersects(bounds.minimum, bounds.maximum);
+                    }
+                    if (inCamera || inShadow || inFlashlight) visible.push_back({instance, inCamera, inShadow, inFlashlight});
+                }
             }
-            if (shadowRelation == Relation::Intersecting) {
-                ++stats.shadowInstanceTests;
-                inShadow = light->intersects(bounds.minimum, bounds.maximum);
-            }
-            if (flashlightRelation == Relation::Intersecting) {
-                ++stats.flashlightInstanceTests;
-                inFlashlight = flashlight->intersects(bounds.minimum, bounds.maximum);
-            }
-            if (inCamera || inShadow || inFlashlight) visible.push_back({instance, inCamera, inShadow, inFlashlight});
         }
     }
     // Hash/group and swap-removal ordering must not change batch draw ordering
     // or first-time GPU palette slot assignment. Preserve stable source IDs.
-    std::sort(visible.begin(), visible.end(), [](const auto& a, const auto& b) { return a.instance < b.instance; });
+    {
+        frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombieSort);
+        std::sort(visible.begin(), visible.end(), [](const auto& a, const auto& b) { return a.instance < b.instance; });
+    }
     return stats;
 }
 

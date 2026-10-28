@@ -14,16 +14,21 @@ struct ZombieVisibilityResult {
 };
 struct ZombieVisibilityStats {
     std::size_t groups = 0, refittedGroups = 0;
+    std::size_t blocks = 0, visitedGroups = 0, refittedBlocks = 0, refittedMembers = 0;
+    std::size_t cameraBlockTests = 0, shadowBlockTests = 0, flashlightBlockTests = 0;
     std::size_t cameraGroupTests = 0, shadowGroupTests = 0;
     std::size_t flashlightGroupTests = 0, flashlightInstanceTests = 0;
     std::size_t cameraInstanceTests = 0, shadowInstanceTests = 0;
+    // Fine groups rejected by the camera region at either level. Blocks rejected
+    // by frusta are not descended merely to count additional region rejections.
     std::size_t cameraRegionRejectedGroups = 0;
 };
 
 // Render-thread grid in X/Z world meters. Membership uses full bound centers;
 // each group encloses its members' entire boxes, including geometry outside the
-// cell. Queries refit dirty groups before independently testing the camera,
-// sunlight, and optional flashlight volumes.
+// cell. A second level groups 8 x 8 cells into blocks enclosing full member
+// bounds. Queries refit dirty groups/blocks before independently testing the
+// camera, sunlight, and optional flashlight volumes.
 class ZombieVisibility {
 public:
     void reset(std::size_t population);
@@ -54,14 +59,26 @@ private:
         Cell cell;
         VisibilityBounds bounds;
         std::vector<std::size_t> members;
+        std::size_t block = noGroup, blockSlot = 0;
+        bool dirty = false;
+    };
+    struct Block {
+        Cell cell;
+        VisibilityBounds bounds;
+        std::vector<std::size_t> groups;
         bool dirty = false;
     };
     void markDirty(std::size_t group);
-    std::size_t refit();
+    void attachGroup(std::size_t group);
+    void detachGroup(std::size_t group);
+    void refit(ZombieVisibilityStats& stats);
     std::unordered_map<Cell, std::size_t, Hash> cells_;
+    std::unordered_map<Cell, std::size_t, Hash> blocks_;
     std::vector<Location> locations_;
     std::vector<Group> groups_;
     std::vector<std::size_t> freeGroups_, dirtyGroups_;
+    std::vector<Block> blockGroups_;
+    std::vector<std::size_t> freeBlocks_, dirtyBlocks_;
 };
 
 } // namespace viewer

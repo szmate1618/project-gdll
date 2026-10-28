@@ -778,9 +778,15 @@ selection, animation stepping and the distance cutoff for comparison.
 `--no-zombie-shadows` disables only zombie casting for GPU cost comparisons.
 Camera distance rejection first skips occupied zombie groups outside a
 conservative, projection-scaled region, before frustum testing and sorting.
+The visibility grid groups 8 x 8 of its 20 m cells into 160 m blocks. Each block
+encloses its children's full geometry bounds; rejecting a block skips its cells.
+Changed cells and their parents are refitted before querying, while stationary
+bounds are retained. Camera, sun-shadow and flashlight tests remain independent.
 The exact distance/LOD decision still follows; sun and flashlight candidates
 remain independent of camera distance. Shutdown reports early rejected groups
-separately from individual distance rejections after the frustum query.
+separately from individual distance rejections after the frustum query. Early
+counts include groups skipped by a whole block's camera-region rejection;
+frustum-rejected blocks are not descended solely to count more range rejections.
 `--profile` prints the existing asynchronous GPU and CPU render timings once per
 second, including during hidden runs. The title also reports `CPU sim` for
 physics, camera movement and zombie behavior before rendering. Console profiling
@@ -797,10 +803,14 @@ audio. CPU render details cover zombie visibility/pose preparation, shadows,
 town and vegetation camera passes, zombie draws across all passes, props,
 effects, overlays, and HUD. These are inclusive CPU wall times: nested stages
 overlap, and driver stalls can occur inside a draw. Those timings are per
-rendered frame, while zombie breakdowns are per
-fixed simulation step: slower rendering can increase the number of steps per
-frame without increasing the cost of each step. These coarse stages cover part
-of simulation outside behavior; they are not a complete simulation breakdown.
+rendered frame. Zombie visibility additionally separates bounds refitting,
+traversal/tests, and sorting with three coarse timers, enabled only by profiling.
+Its counters report the last frame's occupied blocks, visited/total fine groups,
+refitted groups/members/blocks, and actual fine-group tests for each view.
+The zombie breakdown is per fixed simulation step: slower rendering can increase
+the number of steps per frame without increasing the cost of each step. These
+coarse stages cover part of simulation outside behavior; they are not a complete
+simulation breakdown.
 `--frame-profile FILE` writes per-frame GPU and CPU timing CSVs independently
 of `--profile`; use it alone to avoid fine zombie-query timing overhead.
 GPU samples are asynchronous, so CSV row order can differ from frame order;

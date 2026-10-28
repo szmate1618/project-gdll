@@ -124,6 +124,34 @@ the same reported power profile, and include a real-asset ragdoll settling probe
 | Minimap road overlay | `tests/benchmark_minimap_roads.cpp` / `benchmark_minimap_roads` | HUD-only baseline/roads CSV, CPU/GPU medians and geometry metadata |
 | Map render submission and disabled lights | `tests/benchmark_render_wins.cpp` / `benchmark_render_wins` | Day/night map views, flashlight and driving controls; CPU/GPU CSVs, captures and counts |
 | Changed zombie render preparation | `tests/benchmark_zombie_render_preparation.cpp` / `benchmark_zombie_render_preparation` | CPU-only preparation of 100,000 changed walk/run actors; published-pose checks and capture |
+| Zombie visibility blocks | `tests/benchmark_zombie_visibility.cpp` / `benchmark_zombie_visibility` | CPU-only maintenance/query CSVs, exact visibility checks and result checksums |
+
+### Zombie visibility blocks
+
+```bash
+cmake --build build --target benchmark_zombie_visibility -j4
+mkdir -p build/benchmarks/zombie-visibility
+./build/benchmark_zombie_visibility build/benchmarks/zombie-visibility/timings.csv
+./build/benchmark_zombie_visibility build/benchmarks/zombie-visibility/phases.csv --profile
+```
+
+This CPU-only synthetic benchmark needs no map, assets or display. Cases cover
+53,000 spread actors with either zero or 1,000 movers, a fully visible dense
+100,000-actor crowd, and 1,000 actors separated by large distances. Each case
+restarts four rounds with 30 warmup and 120 measured frames on the same fixed
+60 Hz timeline. Movers cross fine-cell boundaries during measurement.
+
+CSV rows report per-round mean milliseconds for index updates, queries and their
+combined cost. Queries include dirty-bound refitting; setup, pose arithmetic,
+result consumption and correctness checks are outside timers. First and final
+measured frames must match a full-population oracle for exact IDs, pass masks
+and ordering. Every measured frame contributes to a result checksum for
+baseline/candidate comparisons. Optional `--profile` adds coarse refit,
+traversal/test and sorting timings; use default runs for performance comparisons.
+This isolates visibility CPU cost; the required real-asset open 100k case above
+remains the rendering regression control.
+
+Recorded comparison: [visibility blocks, 2026-10-28](benchmarks/zombie-visibility-blocks-2026-10-28.txt).
 
 ### Minimap road overlay
 

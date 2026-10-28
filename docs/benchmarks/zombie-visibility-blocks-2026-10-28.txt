@@ -1,0 +1,151 @@
+Zombie visibility coarse blocks — 2026-10-28
+==========================================
+
+Decision
+--------
+Keep the extra visibility level. Grouping 8 x 8 existing 20 m cells into 160 m
+blocks substantially reduces distant-cell traversal in the corridor workload.
+Camera distance/LOD, independent sun/flashlight visibility, exact member tests,
+and stable source-ID ordering are preserved. This changes rendering queries,
+not AI, collision membership or simulation cadence.
+
+Each parent encloses its children's complete geometry bounds, including bounds
+extending beyond nominal cells. Dirty children refit before dirty parents.
+Parent bounds receive coordinate-scaled outward numerical padding, recomputed
+from raw child bounds each time; member predicates remain unchanged. Empty
+cells/blocks release membership and reuse storage without retaining historical
+locations in traversal.
+
+Three opt-in coarse timers separate bounds refitting, traversal/tests and sorting.
+Counters expose occupied blocks, visited fine groups and refitted groups/members.
+Camera-region rejection counts include proven whole-block rejections; blocks
+already rejected by frusta are not descended merely to count more range rejects.
+
+Build and measurement controls
+------------------------------
+Base revision: c1486f6. Release / C++17 / -O3 -DNDEBUG, existing local assets.
+Baseline viewer and open-100k executables were rebuilt and saved before changing
+visibility layouts. Existing HUD/map workspace edits were present in both builds.
+CPU control sources use their matching saved header in a flat scratch directory;
+only the same three optional coarse timer scopes were added to that control.
+Final candidate binaries were rebuilt after numerical padding and regressions.
+
+GPU: AMD Radeon 660M, radeonsi/rembrandt, LLVM 19.1.1, DRM 3.61,
+Linux 6.11.0-29-generic; Mesa 24.2.8-1ubuntu1~24.10.1, OpenGL 4.6 Core.
+No hardware or power-profile settings were changed. Clocks/power were not sampled.
+Absolute timings vary with hardware state; these numbers are not portable limits.
+CPU and GPU experiments ran sequentially, without concurrent builds.
+
+Synthetic CPU comparison
+------------------------
+Tracked harness: tests/benchmark_zombie_visibility.cpp.
+Two runs per binary in baseline/candidate/candidate/baseline order, pinned to CPU 0.
+Each invocation runs four rounds per case, with 30 warmup and 120 measured frames
+on a fixed 60 Hz timeline. Movers travel at 3 m/s and cross fine-cell boundaries.
+Reported values are medians of eight round means per binary, milliseconds.
+Default runs have phase profiling disabled. Timers include index updates plus
+queries/refits, but exclude initial construction, pose arithmetic, result hashing
+and correctness checks. Thus they measure visibility upkeep, not full simulation.
+
+Case                         Baseline total    Blocks total    Change
+53,000 spread, stationary           1.2905          0.0513      -96.0%
+53,000 spread, 1,000 movers         1.3425          0.1864      -86.1%
+100,000 dense, fully visible        3.3823          2.9332      -13.3%
+1,000 widely separated              0.0214          0.0224       +4.5%
+
+The separated case has roughly one occupied child per parent and demonstrates
+the limit: no useful aggregation, with about one extra microsecond of total cost.
+
+Separate diagnostic --profile runs, median of four round means, ms/query:
+Case / variant                   Refit    Traversal/tests       Sort
+53k movers / baseline           0.0163             1.2983     0.0186
+53k movers / blocks             0.1234             0.0475     0.0135
+Dense 100k / baseline            0.0012             0.6000     2.8379
+Dense 100k / blocks              0.0012             0.2819     2.7067
+
+The extra parent refits cost real work, but traversal savings dominate the moving
+spread case. Sorting dominates when the entire dense population is visible.
+Diagnostic phase runs are separate measurements, not components to add to the
+unprofiled performance table.
+
+Real corridor viewer
+--------------------
+scenarios/gray-scott-corridors/scenario.toml: 53,000 actors, 1,000 travelers.
+Scenario player spawn/orientation, stationary player, 1280x720, frozen noon.
+Normal zombie camera distance/LOD and independent shadows remain enabled.
+Use --hidden --fixed-step --frames 240 --no-audio --no-doodads --no-birds
+--no-haze --no-ground-fog --day-length 0 --frame-profile FILE.
+Haze/fog are disabled for inspectable captures. No --profile in performance runs.
+The player remains stationary; this is not an interactive walking-route replay.
+All runs advance the same four seconds of simulation. Discard frames 1..60;
+each row below is a median of the remaining 180 frames, in execution order.
+
+Run                 CPU render    CPU simulation    CPU work    GPU elapsed
+0 baseline              7.380             2.415      10.126          6.975
+1 blocks                3.721             2.848       6.938          4.305
+2 blocks                3.596             2.590       6.496          4.512
+3 baseline              6.985             2.283       9.548          6.548
+
+Median of the two run medians: CPU render 7.183 -> 3.658 ms (-49.1%);
+CPU work 9.837 -> 6.717 ms (-31.7%). CPU work includes simulation and preparation.
+GPU and CPU overlap; do not add their values. The GPU elapsed reduction does not
+establish a shader improvement: rendering counts/captures are unchanged, and
+CPU-load-dependent GPU elapsed time is documented separately in
+cpu-gpu-overlap-2026-10-22.txt. Hidden fixed-step timings do not establish normal
+presentation/VSync FPS or a speedup for every interactive route.
+
+A separate candidate --profile sample visited 189 of 32,878 fine groups under
+1,444 occupied blocks. It refitted 1,004 groups / 1,589 members / 710 parents.
+Reported query phases were approximately 0.55 ms refitting, 0.27 ms traversal
+and 0.008 ms sorting. These diagnostic clocks run alongside detailed simulation
+profiling and must not be substituted for the unprofiled frame measurements.
+
+All final corridor counts match: 107 camera zombies, 20 zombie draws, 19,261
+camera triangles, 14,928 sun-shadow triangles; town 3,737 instances / 620 draws,
+trees 7,332 instances, 53 forest volumes. All four final captures are byte-identical
+and the clear view was visually inspected, including zombies, trees and buildings.
+
+Required real-asset open 100k control
+------------------------------------
+zombies-open-100k-v1, all ten actual characters and three prepared mesh LODs.
+Four invocations in baseline/candidate/candidate/baseline order. Every invocation
+uses the standard six rounds, 32 warmup and 64 measured frames per round.
+Normal shadows, 1024-square sun map; overview submits all actors at LOD3.
+Report values use the standard summarizer's median of six round means, ms.
+
+Run                 CPU render    GPU elapsed
+0 baseline             21.697         17.339
+1 blocks               21.518         17.372
+2 blocks               21.653         18.169
+3 baseline             21.342         17.783
+
+No clear whole-render improvement or regression is established by these small
+differences. Every measured frame submitted all 100,000 actors, 10 draws and
+12,580,000 camera triangles. Camera/LOD counts, asset fingerprints and all four
+captures match. There are no vegetation or dynamic-physics workloads in this case.
+
+Correctness and retained evidence
+---------------------------------
+Five focused CPU suites passed after rebuild: viewer_visibility,
+viewer_visibility_refit, viewer_zombie_lod, viewer_zombie_render_updates and
+viewer_zombie_visibility. The hardware viewer_zombie_renderer suite also passed.
+The focused visibility suite passed AddressSanitizer and UndefinedBehaviorSanitizer
+(leak detection disabled for the sanitizer run). No GL errors were reported.
+
+Tests cover exact IDs/pass masks/order against a full-population oracle,
+independent camera/sun/flashlight visibility, overhanging geometry, changed bounds,
+negative/exact block boundaries, removals, empty/reused slots, reset and sparse
+40,000-cell rejection. A regression around +/-10,000,000 m checks touching clip
+planes on X/Z for camera and both lights, exercising parent rounding allowance.
+The renderer assertion now verifies coarse rejection before fine-group visits.
+Synthetic first/final measured frames match the full-population oracle; result
+checksums across all measured frames agree between baseline/candidate runs.
+
+Ignored artifacts: build/benchmarks/zombie-visibility-blocks-20261028/.
+Final measurements: final-cpu-*.csv, corridor-paired-*.csv/.log/.ppm,
+open-100k-*/ (metadata, raw CSVs, captures and standard summary reports).
+summary.json retains timing aggregates and matching capture SHA-256 hashes.
+Control sources/headers, binaries, build logs, sanitizer executable and local
+run_cpu.py/run_gpu.py are retained there; earlier pilot files are not used above.
+The tracked CPU harness and docs/BENCHMARKS.md provide portable reproduction.
+Local scripts/control binaries are diagnostic artifacts, not supported APIs.

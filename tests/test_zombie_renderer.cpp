@@ -340,9 +340,10 @@ void renderGroupMovementAndPoseChanges() {
     if (!renderer.zombieUpdateStats().full || renderer.zombieUpdateStats().instances != 40)
         throw std::runtime_error("Initial upload must initialize the entire population once");
     auto stats = renderer.zombieVisibilityStats();
-    if (stats.groups != 1 || stats.cameraGroupTests != 1 || stats.cameraInstanceTests != 0 ||
+    if (stats.groups != 1 || stats.blocks != 1 || stats.cameraBlockTests != 1 ||
+        stats.visitedGroups != 0 || stats.cameraGroupTests != 0 || stats.cameraInstanceTests != 0 ||
         renderer.zombieVisibleCount() != 0)
-        throw std::runtime_error("Offscreen groups must reject all asset variants with one group test");
+        throw std::runtime_error("An offscreen block must reject all asset variants before visiting its groups");
     layer.instances[1].transform = glm::translate(glm::mat4(1), {1, 0, 0});
     layer.markRenderChanged(1);
     layer.instances[2].transform = glm::translate(glm::mat4(1), {2, 0, 0});
