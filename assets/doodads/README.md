@@ -17,6 +17,11 @@ Materials use flat normals, single-sided opaque surfaces and no textures. The
 bottle uses amber coloring and a dark, closed top face suggesting its mouth;
 there is no hollow interior or extra cap geometry.
 
+Branch colors are hand-picked from the [dry-tree images](../dry_tree/README.md):
+weathered gray-brown bark with muted gray-tan cut ends. Stones use a dark
+olive-gray chosen by eye to sit near the old-forest floor's apparent brightness.
+These are fixed material colors; the builder does not sample images or terrain.
+
 The reproducible source is [doodad_geometry.py](../../src/doodad_geometry.py);
 [doodad_assets.py](../../src/doodad_assets.py) handles validation and export.
 Generated GLBs follow the repository's existing binary ignore rule. Build them

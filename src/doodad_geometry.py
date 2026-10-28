@@ -92,8 +92,10 @@ def branch_model():
             "cross_section_sides": 3,
         },
         "parts": [
-            _part("Branch_Bark", positions, roof + bottom, (0.31, 0.16, 0.070)),
-            _part("Branch_Cut_Ends", positions, cuts, (0.57, 0.35, 0.16)),
+            # Fixed linear material colors, picked by eye from the dry-tree
+            # images: weathered gray-brown bark and subdued gray-tan cuts.
+            _part("Branch_Bark", positions, roof + bottom, (0.15, 0.125, 0.10)),
+            _part("Branch_Cut_Ends", positions, cuts, (0.22, 0.18, 0.13)),
         ],
     }
 
@@ -133,7 +135,9 @@ def stone_model():
             "description": "Irregular pentagonal frustum with a smaller offset top",
             "cross_section_sides": 5,
         },
-        "parts": [_part("Stone", positions, triangles, (0.46, 0.47, 0.43))],
+        # Hand-picked dark olive-gray, close to the old-forest floor's apparent
+        # brightness. This stays a fixed color; no terrain/image sampling.
+        "parts": [_part("Stone", positions, triangles, (0.045, 0.065, 0.035))],
     }
 
 
