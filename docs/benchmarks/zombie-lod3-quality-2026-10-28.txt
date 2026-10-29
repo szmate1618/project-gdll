@@ -1,0 +1,127 @@
+Zombie LOD3 quality and 100k rendering controls — 2026-10-28
+=========================================================
+
+Decision
+--------
+Keep the current 7%-of-original LOD3 globally. The 5% candidate reduces mean
+triangles from 125.8 to 89.2 (29.1%), but loses additional limb/head coverage
+at its 80 m entry distance and sometimes contributes no native color at 180 m.
+The 3% and 2% candidates degrade more. A 5% farther-distance option would be
+an explicit quality tradeoff, not an appearance-preserving replacement.
+Production geometry, lods.json and runtime LOD thresholds were not changed.
+
+The 10% control is a finer comparison mesh, averaging 183.9 triangles. It shows
+detail already lost by current LOD3. It is not a production setting change.
+A hand-authored silhouette/deformation-focused mesh is a promising next
+experiment; no custom mesh was authored in this comparison.
+
+Quality results
+---------------
+All ten actual characters; idle/walk/run; eight phases per clip; eight yaw
+angles; 80/120/180 m forward depth. There are 5,760 matched views and seven
+variants per view (original, current LOD2/3, 10/5/3/2% candidates): 40,320 renders.
+Each table row covers 1,920 views. All candidates retain LOD3's existing 0.16
+simplification error limit, with original rig/animation bytes preserved.
+
+Depth Variant         Mean tris  Median edge-p95  Across-view p95  Native coverage
+ 80 m Finer 10%          183.9            0.354            0.500            81.6%
+ 80 m Current LOD3 7%    125.8            0.559            1.000            75.0%
+ 80 m Candidate 5%        89.2            0.901            1.755            67.7%
+ 80 m Candidate 3%        52.8            1.500            2.658            56.2%
+ 80 m Candidate 2%        35.4            2.582            3.881            45.7%
+120 m Current LOD3 7%    125.8            0.354            0.665            72.2%
+120 m Candidate 5%        89.2            0.559            1.118            63.6%
+120 m Candidate 3%        52.8            1.000            1.899            53.3%
+120 m Candidate 2%        35.4            1.731            2.574            43.8%
+180 m Current LOD3 7%    125.8            0.255            0.500            75.0%
+180 m Candidate 5%        89.2            0.500            0.791            66.7%
+180 m Candidate 3%        52.8            0.749            1.340            55.6%
+180 m Candidate 2%        35.4            1.250            1.833            42.9%
+
+Edge distances are native scene pixels relative to the original mesh. First
+compute per-view p95 symmetric nearest silhouette-boundary distance, then
+summarize those values across views. Boundaries include gaps/holes. This is a
+sampled image metric, not a vertex error bound or human perception threshold.
+
+Native coverage is the median ratio of visibly colored pixel counts to the
+original. Pixels differ by more than one RGB byte from the flat background.
+It is separate from supersampled depth coverage: small figures can have valid
+depth at subpixel sample positions while contributing no native color pixels.
+At 180 m this happens for candidate 5% in 2/1,920 views, candidate 3% in 4 views
+and candidate 2% in 6 views. Original and current LOD3 have no such cases.
+One verified 5% case is Female_B, walk phase 0.25, yaw 135 degrees, 180 m:
+all 4,096 native image pixels equal the background RGB (31,38,48), while the
+original has three non-background pixels and current LOD3 has two.
+
+The first-character idle heights are 14.00, 9.25 and 6.25 native pixels at
+80/120/180 m: 1.8 m height, 720p and 60-degree vertical FOV. Projection gives
+about 9.4 pixels at 180 m at native 1080p.
+Compared directly with current LOD3, candidate 5% edge-p95 medians at the three
+depths are 0.354/0.250/0.250 pixels; across-view p95 is 0.750/0.512/0.405.
+The modest aggregate added error includes visibly missing limbs in some views.
+
+100,000-zombie rendering control
+-------------------------------
+Four sequential standard zombies-open-100k-v1 processes in current/5%/5%/current
+order. Same rebuilt executable, production shaders, hardware and settings; only
+the scratch manifest's LOD3 geometry changes. All 100,000 actors are submitted
+in ten draws, with source/rig/LOD1/LOD2 fingerprints preserved. Camera triangles
+change from 12,580,000 to 8,920,000. No zombie shadow triangles are submitted
+in this overview; sun shadows retain the normal 1024-square map.
+
+Each process runs six rounds, each with 32 warmup and 64 measured frames on the
+same deterministic 60 Hz timeline. GPU queries remain asynchronous. Startup,
+query draining and presentation are outside render timers. The observer keeps
+the behavior pool idle; this is not 100,000 active pursuers.
+
+Run       Mesh       CPU render ms  GPU elapsed ms  GPU frame p95 ms
+0         Current           18.987          14.609             21.787
+1         5%                16.613          11.241             15.886
+2         5%                16.338          12.916             18.052
+3         Current           18.475          12.314             19.520
+
+CPU/GPU columns use median of six round means; GPU frame p95 uses all measured
+frames. Median of two process results: CPU render 18.731 -> 16.475 ms (-12.0%).
+CPU render includes driver waits; this does not isolate CPU instruction cost.
+GPU time is inconclusive for a stable percentage improvement: the baseline
+before/after drift (2.295 ms) exceeds the difference between variant medians
+(1.383 ms), and the second candidate is slower than the final baseline.
+Clocks, temperatures, power and unrelated system activity were not controlled.
+Our captures, analysis and builds did not run concurrently with these timings.
+CPU and GPU overlap; do not sum them or translate them to presented FPS.
+
+Repeated screenshots are byte-identical within each variant. Between current
+and 5% captures, 4,226 native pixels differ. This is a visual/performance tradeoff,
+not an optimization with identical output. The overview was inspected and
+shows the crowd across the field.
+
+Verification and reproduction
+------------------------------
+Hardware: Radeon 660M, radeonsi/rembrandt, LLVM 19.1.1, DRM 3.61,
+Linux 6.11.0-29-generic; OpenGL 4.6 Core, Mesa 24.2.8-1ubuntu1~24.10.1.
+Both focused capture and standard crowd targets built successfully. All quality
+and crowd runs passed their GL, population, pose, empty-mask and capture guards.
+All 80,640 quality color/mask files exist. Production lods.json retains its hash.
+
+The quality capture reads distances from its manifest and uses the public LOD
+policy for displayed frame cadence (5 Hz here). The 64-square crop at full-scene
+top-left (608,336) preserves the normal 1280x720 projection and pixel alignment.
+Depth masks use four-times linear sampling. Default sunlight/materials are fixed;
+scene geometry, shadows, blending, dithering, fog and postprocessing are absent.
+Distances are forward depth; 180 m deliberately bypasses camera distance culling.
+
+Tight-mask analysis exactly matches prior full-mask measurements on retained
+near captures, including every old first-asset summary field. Quarter-pixel
+fixtures, near/far manifest compatibility, Python/script syntax and whitespace
+checks passed. Pose cycling is not continuous playback or a transition test.
+PNGs were inspected directly; no local-file browser-policy workaround was used.
+
+Use docs/BENCHMARKS.md, adding --family far during preparation and choosing a
+separate output directory. Runtime assets stay local. Ignored evidence:
+build/benchmarks/zombie-lod3-quality-20261028/.
+assets/manifest.json and shaders/ identify quality inputs; captures/metadata.json,
+samples.csv and analysis/ retain images and metrics. setup.json records hashes.
+crowd-assets/ retains contained validated scratch assets (source/sidecar symlinks
+and contained geometry hard links). crowd-run-0-* through crowd-run-3-* retain
+raw CSVs, metadata, captures and summaries; crowd-summary.json records run order,
+summaries and screenshot checksums.

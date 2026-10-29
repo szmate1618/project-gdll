@@ -1,0 +1,117 @@
+Slim 1 active LOD3 for all ten types: 100k benchmark, 2026-10-29
+===============================================================
+
+Result and active assets
+------------------------
+All ten zombie types now use Slim 1 for LOD3: 60 triangles / 60 shared vertices
+per type, starting at the existing normal-FOV 80 m threshold with 5 Hz poses.
+LOD1/2 entries and all 20 geometry files remain byte-identical. Source GLBs,
+rigs, animations, collision/severed assets and the 180 m draw cutoff are unchanged.
+The normal tools/prepare_zombie_lods.py command now generates this LOD3 profile
+by default and reuses valid near levels. Its final lods.json write is atomic.
+
+The old ten LOD3 GLBs and exact old lods.json were simply copied to:
+data/asset-archives/zombie-lod3-before-slim1-20261029T003852Z
+This is an ignored local data/ backup, outside Git control. No archive system
+was added. Old content-addressed files also remain in the active cache.
+
+The four matched processes show lower render costs with Slim 1:
+  CPU render: 15.824 -> 12.895 ms, reduction 18.5%.
+  GPU elapsed:12.310 ->  8.149 ms, reduction 33.8%.
+These are medians of the two process results per geometry. CPU render includes
+driver stalls and overlaps GPU work; do not add these columns or derive presented
+FPS from their sum. This is an idle animated overview, not 100k active pursuers.
+
+Runs in order (milliseconds)
+----------------------------
+Run                  CPUrender GPUelapsed GPUframeP95
+crowd-0-baseline       15.823   12.404     18.807
+crowd-1-slim1          13.058    8.956     10.846
+crowd-2-slim1          12.732    7.342     10.526
+crowd-3-baseline       15.825   12.215     17.450
+
+Each process uses six rounds with 32 warmup and 64 measured frames per round:
+384 measured frames/process, 1536 total. Each process result is the median of
+six round means; GPUframeP95 uses its 384 individual measured frames. The render
+uses a deterministic 60 Hz simulation timeline. Startup, asset loading, query
+draining and presentation are outside the measured render intervals. GPU
+queries stay asynchronous; normal shader/lighting/shadow policy is retained.
+
+Both versions submit all 100000 actors in 10 draws at LOD3, with distance culling
+disabled. Camera triangles fall 12580000 -> 6000000 (52.3%); geometry vertex counts
+fall 16.32M -> 6.00M (63.2%). Population, camera, resolution, shadow counts/resolution
+and animation policy match. No shadow zombie triangles are submitted in this
+overview. Same rebuilt binary and shader fingerprints were verified across all
+four runs; no other GPU captures or heavy builds ran concurrently with timings.
+
+GPU baseline before/after drift is 0.189 ms, smaller than the 4.161 ms median effect.
+Slim1 repeats vary 8.956-> 7.342 ms, so the exact percentage is not a hardware
+constant. CPU baseline drift is 0.0026 ms; candidate difference 0.326 ms. Clocks,
+temperatures, power and unrelated system activity were not externally controlled.
+Both candidate runs are faster than both baseline runs. Screenshots repeat
+byte-identically within each geometry; 9566 pixels differ between old and new.
+The crowd capture was inspected and shows the full field rather than a wall.
+
+Geometry, colors and renderer correctness
+----------------------------------------
+Slim1 uses ten open triangular columns. Torso diameters are 15% smaller than
+standard; only terminal hand/foot rings shrink 30% about wrist/ankle anchors.
+Female D omits unused right finger bones in its skin; fitting now tolerates
+those optional bones while requiring actual limb start/end joints.
+
+Color comes from source-derived linear vertex colors. Male C uses its verified
+off-white vest; the other nine retain sampled authored colors. The coarse
+endpoint interpolation can miss light clothing patches (notably Female D/E),
+which is a retained appearance approximation rather than an exact texture copy.
+Both female/male 80 m contact sheets were visually inspected. All 5760 image-quality
+renders passed GL errors, nonempty masks and crop checks. This is 5760 renders,
+1920 matched original/previousLOD3/newLOD3 views across all 10 types, 8 yaws, 8 phases
+and idle/walk/run at 80 m. Native 720p, 60-degree projection; 4x linear depth masks.
+
+Fitted prisms can extend beyond original mesh bounds. Renderer upload now unions
+baked animation and bind bounds across all loaded LODs before initializing
+instance/live-pose bounds. Mesh-local bind units remain separate from animated
+scene meters; original physics placement is unchanged. A focused GPU regression
+keeps outlying LOD geometry visible when the original is outside the frustum,
+compares culling with unculled pixels, and checks the same case with a live pose.
+
+Verification
+------------
+Successful rebuilds: test_animated_model, test_zombie_lod, test_zombie_renderer,
+benchmark_zombie_crowd, benchmark_zombie_lod_quality, godollo_viewer and
+godollo_client. CTest viewer_animated_model, viewer_zombie_lod and GPU
+viewer_zombie_renderer pass. Five focused Python prism tests pass, including
+all ten source/output fingerprints, exact preserved rig/animation/binary prefixes,
+normalized normals/weights, colors and Slim1 geometry. Historical Male C outputs
+remain byte-identical. Python syntax checks and git diff --check pass.
+
+Both healthy 100k candidate processes loaded all ten sources and three LODs each,
+with no original-mesh fallback. Per-frame population/LOD/draw guards and GL-error
+checks pass. All four processes have 384 GPU samples. The active manifest is
+9dd261ea70af0f3d281b4534ba66b5948525a956919b808d108847f918872915
+The original backup manifest is
+06038de5f87a1e95e69ab8e6d795a37e09f4857c20421cb4c05213db298cabfe
+Generated models and backups remain ignored. No unrelated HUD/map changes were
+staged or altered by this work.
+
+Evidence and reproduction
+-------------------------
+Root: build/benchmarks/zombie-prism-slim1-rollout-20261029/
+  setup.json                 input paths, manifest/binary/shader fingerprints
+  backup-path.txt            exact backup directory
+  candidates/manifest.json   per-type generation fingerprints and color policy
+  quality-manifest.json      original/previousLOD3/activeSlim1 at 80 m
+  quality/samples.csv, metadata.json, images/
+  active-female-lod3.png, active-male-lod3.png
+  crowd-0-baseline/, crowd-1-slim1/, crowd-2-slim1/, crowd-3-baseline/
+    baseline-round-0..5.csv, metadata.txt, baseline.ppm, capture.png, summary.csv
+  crowd-summary.json         process summaries, aggregate effect/drift, image checks
+
+The retained baseline asset fixture is
+build/benchmarks/zombie-lod3-quality-20261028/crowd-assets/baseline
+Its manifest equals the backed-up original manifest; source, LOD1/2 and all
+hitbox/capsule/severed dependencies were verified against the active originals.
+The candidate directory is assets/zombies/models. Run benchmark_zombie_crowd
+with each directory and a fresh output folder in old/new/new/old order. Use
+tools/summarize_render_benchmark.py to reproduce each process summary. Keep
+GPU comparisons sequential and free of concurrent capture/build work.

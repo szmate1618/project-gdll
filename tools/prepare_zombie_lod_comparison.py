@@ -15,8 +15,10 @@ from src.glb import read_glb
 from src.zombie_lod import LEVELS, generate_lod
 
 # Keep each family's existing error limit; only its requested triangle ratio changes.
-CANDIDATES = (('candidate35', .35, .03), ('candidate25', .25, .03),
-              ('candidate15', .15, .08), ('candidate10', .10, .08))
+NEAR_CANDIDATES = (('candidate35', .35, .03), ('candidate25', .25, .03),
+                   ('candidate15', .15, .08), ('candidate10', .10, .08))
+FAR_CANDIDATES = (('candidate10', .10, .16), ('candidate5', .05, .16),
+                  ('candidate3', .03, .16), ('candidate2', .02, .16))
 
 
 def sha256(data):
@@ -44,9 +46,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--models', type=Path, default=ROOT / 'assets/zombies/models')
     parser.add_argument('--helper', type=Path, default=ROOT / 'build/zombie_mesh_simplify')
+    parser.add_argument('--family', choices=('near', 'far'), default='near',
+                        help='Near compares LOD1/2; far compares LOD3 at 80, 120 and 180 m')
     parser.add_argument('--output', type=Path, required=True,
                         help='Scratch directory outside the production model directory')
     args = parser.parse_args()
+    candidates = FAR_CANDIDATES if args.family == 'far' else NEAR_CANDIDATES
     models, helper, output = args.models.resolve(), args.helper.resolve(), args.output.resolve()
     if output.is_relative_to(models):
         parser.error('--output must be outside the production model directory')
@@ -64,8 +69,11 @@ def main():
                 'helper_sha256': sha256(helper.read_bytes()),
                 'source_manifest_sha256': sha256(current_bytes),
                 'candidate_settings': [{'variant': name, 'ratio': ratio, 'error_limit': error}
-                                       for name, ratio, error in CANDIDATES],
+                                       for name, ratio, error in candidates],
                 'records': [], 'clip_names': {}}
+    if args.family == 'far':
+        manifest['capture'] = {'family': 'far', 'distances_m': [80, 120, 180],
+                               'current_lod': 'lod3', 'animation_hz': 5}
     for source in paths:
         data = source.read_bytes()
         document, binary = read_glb(data)
@@ -76,11 +84,14 @@ def main():
         original_counts = geometry_counts(document)
         manifest['clip_names'][source.name] = [a.get('name', '') for a in document.get('animations', [])]
 
-        def add_record(variant, path, raw, ratio, error, counts):
-            manifest['records'].append({'source_name': source.name, 'variant': variant,
+        def add_record(variant, path, raw, ratio, error, counts, method=None):
+            record = {'source_name': source.name, 'variant': variant,
                 'path': str(path), 'requested_ratio': ratio, 'error_limit': error,
                 'achieved_triangle_ratio': counts['triangles'] / original_counts['triangles'],
-                'sha256': sha256(raw), 'source_sha256': source_sha, **counts})
+                'sha256': sha256(raw), 'source_sha256': source_sha, **counts}
+            if method:
+                record['method'] = method
+            manifest['records'].append(record)
 
         add_record('original', source, data, 1., None, original_counts)
         for level, ((ratio, error), lod) in enumerate(zip(LEVELS, entry['levels']), 1):
@@ -89,8 +100,12 @@ def main():
             counts = geometry_counts(read_glb(raw)[0])
             if sha256(raw) != lod['sha256'] or any(counts[k] != lod[k] for k in counts):
                 raise ValueError('Production LOD fingerprint/count mismatch: ' + str(path))
-            add_record('lod' + str(level), path, raw, ratio, error, counts)
-        for name, ratio, error in CANDIDATES:
+            if args.family == 'near' or level >= 2:
+                method = lod.get('method', 'meshoptimizer')
+                add_record('lod' + str(level), path, raw,
+                           None if method == 'prism-slim1' else ratio,
+                           None if method == 'prism-slim1' else error, counts, method)
+        for name, ratio, error in candidates:
             raw, counts = generate_lod(data, helper, ratio, error)
             reduced, reduced_binary = read_glb(raw)
             if geometry_counts(reduced) != counts or reduced_binary[:len(binary)] != binary:

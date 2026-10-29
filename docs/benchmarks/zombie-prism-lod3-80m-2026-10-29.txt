@@ -1,0 +1,162 @@
+Both prism colorings as LOD3 at 80 m, 2026-10-29
+================================================
+
+Recommendation
+--------------
+Testing the prism as a direct replacement for LOD3 at 80 m is better supported
+than adding it as a farther LOD4. The earlier LOD3-to-prism switch rejection
+addresses a different transition; replacing LOD3 uses LOD2 as the predecessor.
+For this character the proxy improves median original-relative silhouette IoU
+from 0.700 to 0.727, and maximum-edge across-view p99 from 2.609 to 1.750 pixels.
+It uses 60 triangles / 60 vertices versus current LOD3's 114 / 141, reductions
+of 47.4% and 57.4%. This is a promising quality/cost tradeoff, not a win on every
+metric or evidence of the same frame-time percentage improvement.
+
+Both color variants were tested. Earlier sampled colors give lower full-source
+common-support RGB RMSE than the off-white vest in 1496/2304 views (64.9%).
+The off-white vest gives lower RGB RMSE against matched LOD2 and the 10 Hz
+LOD2 predecessor in 1482/2304 views (64.3%). These statements compare the two
+prism colorings, not either prism with current LOD3. The solid off-white is
+visually closer to a light vest but fills skin/dark garment openings.
+Retain both for visual review; a mostly-white vest with the source skin/dark
+regions remains a useful refinement. The original coloring here means the
+first proxy's nearest-sample vertex colors, not the full original mesh texture.
+
+The LOD2 transition remains a tradeoff. At matched pose, prism median boundary
+p95 is 0.626 pixels versus current LOD3's 0.500, while extreme-edge p99 improves
+from 2.357 to 1.750 pixels. Including the actual 10-to-5 Hz pose-rate change,
+across-view boundary-p95 p95 is 1.250 pixels for both, and maximum-edge p99 is
+2.572 for prism versus 2.792 for current LOD3. Median transition IoU is lower
+for prism (0.677 versus 0.730); median common-support RGB difference is higher
+(0.150 off-white / 0.158 earlier versus current 0.139). A better original
+silhouette does not automatically make the LOD2 switch closer in every respect.
+
+This one-character survey supports an experimental 80 m replacement. Before
+making it a global default, check all characters, continuous native-size motion
+across the boundary, and actual hardware crowd timing. Runtime LODs, production
+assets and the draw cutoff are unchanged in this experiment.
+
+Protocol
+--------
+ZombieMale_C.glb normalized to the original's 1.8 m idle bounds. Default 1280x720
+scene, 60-degree vertical FOV, nominal distance 80 m to aim point (0,1.65,0).
+Eight yaw angles, eight phases per idle/walk/run clip, elevations -15/0/+15
+degrees, four native raster offsets (0,0),(.5,0),(0,.5),(.5,.5).
+2304 matched views x six variants = 13824 color/mask renders, 27648 PNGs.
+Thirteen pair comparisons per view = 29952 metric rows; 52 pooled/elevation
+summaries. No perceptual pass/fail criterion or new switch budget is applied.
+
+Variants:
+  original       original geometry, matched 5 Hz pose: 1650 tris / 3402 verts
+  lod2           current LOD2, matched 5 Hz pose:       330 tris / 481 verts
+  lod2_10hz      current LOD2, actual predecessor rate: same geometry, 10 Hz
+  lod3           current LOD3, 5 Hz:                   114 tris / 141 verts
+  prism_original earlier sampled proxy colors, 5 Hz:   60 tris / 60 verts
+  prism_white    off-white vest proxy, 5 Hz:           60 tris / 60 verts
+
+LOD2 at 5 Hz isolates geometry. The separate LOD2 at 10 Hz samples its normal
+pre-boundary stepping rate at the same nominal 80 m camera and phase. Both rates
+use the production floor(duration*Hz) cycle grid, then floor to a baked frame.
+The 10 Hz and 5 Hz displayed frames differ in 1632/2304 views: idle 576/768,
+walk 576/768, run 480/768. Independently rounded grids need not nest.
+This is a sampled boundary comparison, not a continuous camera crossing.
+
+Color uses native un-antialiased RGB; depth masks have four-times linear
+sampling for subpixel edges. Color/shape capture uses the production VAT
+shader/default sunlight, no world geometry, fog, shadows or postprocessing.
+The GPU is AMD Radeon 660M (radeonsi), hardware OpenGL 4.6 / Mesa 24.2.8.
+The two proxy colorings have identical depth masks in all 2304 views.
+
+Results: 2304 views per pooled comparison
+----------------------------------------
+IoUmed: median silhouette overlap, higher is better.
+Edge95med: median of per-view symmetric boundary p95, native pixels.
+Edge95p95: across-view p95 of per-view boundary p95, native pixels.
+Max99: across-view p99 of per-view maximum boundary error, native pixels.
+RGBcommonMed: median sRGB-byte RMSE /255 on a common support shared by all six
+variants in that view: union of their supersampled masks reduced to touched
+native pixels. RGBorigMaskMed uses only the original's touched native pixels.
+These same-support metrics permit fairer color comparison than different
+pairwise foreground unions; neither is a perceptual color-accuracy score.
+
+Reference: original
+Candidate             IoUmed Edge95med Edge95p95 Max99  RGBcommonMed RGBorigMaskMed
+lod3                  0.700   0.500     0.791    2.609   0.1425       0.1536
+prism_original        0.727   0.559     0.791    1.750   0.1368       0.1468
+prism_white           0.727   0.559     0.791    1.750   0.1436       0.1541
+
+Reference: lod2
+Candidate             IoUmed Edge95med Edge95p95 Max99  RGBcommonMed RGBorigMaskMed
+lod3                  0.758   0.500     0.559    2.357   0.1314       0.1415
+prism_original        0.692   0.626     0.789    1.750   0.1556       0.1670
+prism_white           0.692   0.626     0.789    1.750   0.1463       0.1574
+
+Reference: lod2_10hz
+Candidate             IoUmed Edge95med Edge95p95 Max99  RGBcommonMed RGBorigMaskMed
+lod3                  0.730   0.500     1.250    2.792   0.1391       0.1484
+prism_original        0.677   0.707     1.250    2.572   0.1584       0.1689
+prism_white           0.677   0.707     1.250    2.572   0.1504       0.1601
+
+The proxy silhouette area has median 115.8% of original, current LOD3 72.4%.
+Native color-pixel coverage ratios are respectively 117.6% and 73.5%. Neither
+proxy nor any reference disappears completely at native resolution in a sampled
+view. The original-reference boundary p95 median is slightly worse for prism
+(0.559 versus 0.500 pixels), and across-view p95 is tied at 0.791 pixels.
+
+Original-mask-only RGB ranking also favors earlier proxy colors in 1478/2304
+views (64.1%). Common-support median RMSE against original is current LOD3
+0.1425, earlier proxy 0.1368, off-white proxy 0.1436. Off-white is therefore
+roughly comparable to current LOD3 on this aggregate color metric, but changes
+the light/dark pattern. Shape, color and temporal effects are reported separately.
+
+Evidence and reproduction
+-------------------------
+Root: build/benchmarks/zombie-prism-lod3-80m-20261029/
+  assets/comparison.json         camera grid, six records and fingerprints
+  protocol.json                  comparison scope and controls
+  shaders/                       pinned shader copies
+  captures/samples.csv / metadata.json
+  captures/analysis/report.html
+  captures/analysis/summary.json, summary.csv, metrics.csv
+  captures/analysis/front-comparison.png  compact front view, both colorings
+  captures/analysis/preview.png           three clips/views, matched poses
+  captures/analysis/angles-poses.png      all eight yaws, selected clip phases
+  captures/analysis/boundary-comparison.png sampled 10 Hz LOD2 boundary view
+  validation.json
+
+Build benchmark_zombie_lod_quality, then run with exact retained inputs:
+./build/benchmark_zombie_lod_quality ROOT/assets/comparison.json ROOT/captures ROOT/shaders
+.venv/bin/python tools/analyze_zombie_prism_lod3.py ROOT/captures/samples.csv
+Use a new output directory for a new comparison. Input paths in the saved
+manifest are machine-local; the records preserve exact source/LOD/proxy hashes.
+The new capture option is per-record animation_hz, with zero/default selecting
+the nominal-distance policy. The dedicated analyzer validates the forced rates
+and allows differing frames only for the 10 Hz predecessor.
+
+SHA256:
+Original: 7e0d1a569ae23f32935cbf3545ef6ed9e55a7def284a6e3307c78b851eae0ef1
+LOD2: 74737e34a2b5926f6f736d9e665acb80d73f174e3168f6ff17016fe3d492f05e
+LOD3: 8b356eb70478a5ca744e1be3a704ba27ebec5b4013fe404c87ac907d5877fff6
+Earlier proxy: 3f30d14634bd73a653c04d1f8950a7b795ee2ce8a4500854fa0a28a6585e065f
+White proxy: 07d36e7b69c1785602124e6b692546492b63eb8afd7872cc0a2cf45490c5e434
+Production lods.json unchanged:
+06038de5f87a1e95e69ab8e6d795a37e09f4857c20421cb4c05213db298cabfe
+Metadata pins manifest and shader fingerprints.
+
+Validation
+----------
+Capture target rebuilt successfully before the hardware run. All 13824 renders
+passed GL errors, nonempty supersampled foreground and crop-border checks.
+The six-variant Cartesian product is complete; all 27648 color/mask paths are
+unique and present. Inputs, pinned shaders and manifest hashes match.
+All original/current-LOD3/white color/mask files (13824 files) are byte-identical
+to the prior 80 m survey, confirming default capture behavior was preserved.
+All 2304 old/white proxy mask pairs are byte-identical. Rate grids and differing
+frame counts were independently checked against production quantization.
+
+Analyzer synthetic checks verify known common-support RGB errors and ranking,
+allow the intended predecessor-frame difference, and reject mismatched 5 Hz
+frames or missing complete groups. It rejects distances other than 80 m.
+Python compilation, scoped source review and git diff --check passed. Preview
+and boundary PNGs were visually inspected. No production policy change, global
+character generation, crowd timing is part of this experiment.

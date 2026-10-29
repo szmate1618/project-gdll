@@ -34,6 +34,20 @@ void includeBounds(VisibilityBounds& bounds, const VisibilityBounds& other) {
     bounds.maximum = glm::max(bounds.maximum, other.maximum);
 }
 
+void includeZombieGeometryBounds(const AnimatedModel& asset, VisibilityBounds& animation,
+                                VisibilityBounds& bind) {
+    for (const auto& primitive : asset.model.primitives)
+        for (const auto& vertex : primitive.vertices) {
+            bind.minimum = glm::min(bind.minimum, vertex.position);
+            bind.maximum = glm::max(bind.maximum, vertex.position);
+        }
+    for (const auto& primitive : asset.animation)
+        for (const auto& vertex : primitive.frames) {
+            animation.minimum = glm::min(animation.minimum, glm::vec3(vertex.position));
+            animation.maximum = glm::max(animation.maximum, glm::vec3(vertex.position));
+        }
+}
+
 VisibilityBounds transformedBounds(const VisibilityBounds& bounds, const glm::mat4& transform) {
     const auto center = glm::vec3(transform * glm::vec4((bounds.minimum + bounds.maximum) * 0.5f, 1));
     const auto half = (bounds.maximum - bounds.minimum) * 0.5f;
@@ -114,16 +128,12 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
         batch.woundLimit = std::min(std::size_t(maximumTexels), std::size_t(1 << 24));
         batch.animationBounds = emptyBounds();
         batch.bindBounds = emptyBounds();
-        for (const auto& primitive : source.model.primitives)
-            for (const auto& vertex : primitive.vertices) {
-                batch.bindBounds.minimum = glm::min(batch.bindBounds.minimum, vertex.position);
-                batch.bindBounds.maximum = glm::max(batch.bindBounds.maximum, vertex.position);
-            }
-        for (const auto& primitive : source.animation)
-            for (const auto& vertex : primitive.frames) {
-                batch.animationBounds.minimum = glm::min(batch.animationBounds.minimum, glm::vec3(vertex.position));
-                batch.animationBounds.maximum = glm::max(batch.animationBounds.maximum, glm::vec3(vertex.position));
-            }
+        includeZombieGeometryBounds(source, batch.animationBounds, batch.bindBounds);
+        // Fitted LODs can extend beyond the original mesh. Include every level
+        // before publishing living bounds, and retain its bind extent for live poses.
+        if (i < zombies.lodAssets.size())
+            for (const auto& lod : zombies.lodAssets[i])
+                includeZombieGeometryBounds(lod, batch.animationBounds, batch.bindBounds);
         // Baked frames are scene-space meters; skinned bind vertices can still
         // be mesh-local centimeters. Keep these boxes separate. Live skinning
         // transforms the bind box through the palette before using it below.

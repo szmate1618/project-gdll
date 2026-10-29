@@ -1,0 +1,188 @@
+Prism Slim: smaller torso and terminal ends, 2026-10-29
+======================================================
+
+Result
+------
+Prefer the slim geometry over the previous standard prism for the next 80 m
+LOD3 integration trial on this character. Both requested colors are saved as
+new models; standard controls remain intact. Slim preserves 60 vertices and
+60 triangles, with ten open columns and no caps. Runtime policy is unchanged.
+
+At 80 m, original-reference median silhouette IoU improves from standard 0.7275
+to slim 0.7556 (current LOD3 0.7005). Median area/original improves from 1.1582
+to 1.0146. Median edge p95 improves 0.559 to 0.500 native pixels; across-view
+p95 improves 0.7906 to 0.7060. Max-edge across-view p99 is nearly unchanged,
+1.750 to 1.745 pixels (current LOD3 2.609). Slim has better original-relative
+IoU in 2052/2304 matched views (89.1%), worse in 252. Every yaw and elevation
+median improves. Absolute area error improves in 2068 views (89.8%).
+
+Against matched 5 Hz LOD2, IoU improves from 0.6922 to 0.7346; slim is better
+in 2256/2304 views (97.9%). Against the 10 Hz LOD2 predecessor, IoU improves
+0.6768 to 0.7177; slim is better in 2108/2304 views (91.5%). Current LOD3 remains
+slightly closer to LOD2 in median IoU (0.7303 including rate change), so the
+replacement improves source fidelity while retaining a transition tradeoff.
+
+Geometry requested
+------------------
+Torso: both rings' transverse offsets about their fitted centers scale by 0.85,
+reducing width/depth diameters 15%; axial positions and torso height stay fixed.
+Hand/foot ends: only the distal lower-arm/lower-leg ring vertices scale by 0.7
+about their wrist/ankle bind joints, including terminal overhang. Elbow/knee
+rings, upper limbs and head stay fixed. Exactly 18 vertex positions change;
+42 remain identical. The original two-ring columns become more tapered toward
+the smaller tips; there are no separate hand/foot meshes to resize independently.
+
+Both colorings preserve their corresponding standard COLOR_0 arrays exactly.
+Normals are recomputed after geometry changes. Bone joints/weights, indices,
+original rig/animation document and full source binary prefix remain unchanged.
+The standard CLI/API paths still reproduce both historical GLBs byte-for-byte.
+
+Color results
+-------------
+Within the new eight-variant report, median common-support RGB RMSE against
+original is standard sampled 0.1368, standard white 0.1436, slim sampled 0.1336,
+slim white 0.1345, current LOD3 0.1425. Slim improves over its standard same-color
+control in 74.0% of sampled-color views and 80.2% of white-vest views.
+
+The two slim colors are closer in aggregate than the standard colors. Earlier
+sampled colors have lower original-reference RGB error in 1237/2304 views (53.7%);
+white wins 1067 (46.3%). Median error differs by only about 0.0009. The white vest
+still has a larger light region than the torn source garment, particularly at
+the back; it gives a smaller color jump from LOD2 than the sampled-color proxy.
+Against the 10 Hz predecessor, common-support medians are slim white 0.1416,
+slim sampled 0.1548, current LOD3 0.1391. These byte-space RGB errors describe
+images, not human perception or a guaranteed visual ranking.
+
+A residual cost of narrowing: original native-color missing-fraction p95 grows
+from standard 0.1765 to slim 0.2400, still below current LOD3 0.3935. Some thin
+pixels disappear even as overall shape improves. All eight variants remain
+visible in every sampled native view; paired colorings have identical depth
+masks for both standard and slim geometries.
+
+Vertex colors and animation
+---------------------------
+Appearance uses glTF COLOR_0 vertex colors sampled from the source texture
+at preparation time. The off-white version assigns the torso's six vertices
+one source-derived sRGB color (208,205,201). The prism material has no base-color
+texture. Original source images remain in the retained GLB binary but are unused
+by that primitive. Animation still uses the normal shared VAT texture buffers.
+
+These Male_C loops retain their complete approximately 30 Hz baked data:
+  idle: 220 frames / 7.3333 s
+  walk: 64 frames / 2.1333 s
+  run: 58 frames / 1.9333 s
+LOD3 selects poses on its 5 Hz grid; the survey samples 8 cycle phases per clip.
+No separate texture-versus-vertex-color timing or crowd performance measurement
+is part of this experiment. Geometry counts do not imply the same percentage
+frame-time gain.
+
+Capture protocol
+----------------
+One ZombieMale_C character, native 1280x720 with 60-degree vertical FOV, nominal
+80 m eye-to-aim distance about (0,1.65,0). Eight yaw angles, eight phases per
+idle/walk/run, three elevations (-15,0,+15 degrees), four native raster offsets.
+2304 matched views x 8 variants = 18432 renders, each with native color and 4x
+linear depth mask: 36864 PNGs. The analyzer makes 22 pair comparisons per view:
+50688 metric rows, 88 pooled/elevation summaries, plus yaw summaries and paired
+standard-to-slim improvement counts. All candidates use matched 5 Hz frames;
+a separate forced 10 Hz LOD2 reference captures the predecessor's sampled rate.
+
+A separate 12 m inspection captures original and all four prism variants at level
+zero-jitter camera, all 8 yaws/8 phases/3 clips:960 renders with 15 Hz stepping. This
+closeup is for checking geometry and appearance, not an 80 m transition test.
+
+Capture target was successfully rebuilt before both hardware runs. Normal VAT
+shader/default sunlight, no world geometry/fog/shadows/AA/postprocessing. GPU:
+AMD Radeon 660M, radeonsi/rembrandt, hardware OpenGL 4.6/Mesa 24.2.8. The survey is
+not continuous motion, a human acceptance study or steep top-down validation.
+
+Metrics (pooled 2304 views per row)
+---------------------------------
+IoUmed: median original/reference silhouette overlap; larger is better.
+AreaRatio: median candidate/reference supersampled area; target 1.
+Edge95med: median of per-view symmetric boundary p95, native pixels.
+Edge95p95: across-view p95 of each view's boundary p95, native pixels.
+Max99: across-view p99 of maximum symmetric boundary error, native pixels.
+RGBcommonMed: median RGB RMSE/255 on identical per-view support shared by all 8
+variants (union of their supersampled masks reduced to touched native pixels).
+Color support differs from the earlier six-variant report, so use within-report
+comparisons. Original-mask-only errors are also retained in the raw summaries.
+
+Reference: original
+Candidate              IoUmed AreaRatio Edge95med Edge95p95 Max99 RGBcommonMed
+lod3                   0.7005  0.7241    0.500     0.791    2.609  0.1425
+prism_original         0.7275  1.1582    0.559     0.791    1.750  0.1368
+prism_white            0.7275  1.1582    0.559     0.791    1.750  0.1436
+prism_slim_original    0.7556  1.0146    0.500     0.706    1.745  0.1336
+prism_slim_white       0.7556  1.0146    0.500     0.706    1.745  0.1345
+
+Reference: lod2
+Candidate              IoUmed AreaRatio Edge95med Edge95p95 Max99 RGBcommonMed
+lod3                   0.7579  0.7851    0.500     0.559    2.357  0.1313
+prism_original         0.6922  1.2650    0.626     0.789    1.750  0.1556
+prism_white            0.6922  1.2650    0.626     0.789    1.750  0.1463
+prism_slim_original    0.7346  1.1082    0.500     0.600    1.521  0.1522
+prism_slim_white       0.7346  1.1082    0.500     0.600    1.521  0.1370
+
+Reference: lod2_10hz
+Candidate              IoUmed AreaRatio Edge95med Edge95p95 Max99 RGBcommonMed
+lod3                   0.7303  0.7879    0.500     1.250    2.792  0.1391
+prism_original         0.6768  1.2631    0.707     1.250    2.572  0.1583
+prism_white            0.6768  1.2631    0.707     1.250    2.572  0.1504
+prism_slim_original    0.7177  1.1032    0.500     1.235    2.372  0.1548
+prism_slim_white       0.7177  1.1032    0.500     1.235    2.372  0.1416
+
+Artifacts and reproduction
+--------------------------
+Root: build/benchmarks/zombie-prism-slim-20261029/
+  assets/ZombieMale_C-prism-slim-original-colors.glb / .json
+  assets/ZombieMale_C-prism-slim-white-vest.glb / .json
+  assets/comparison.json, assets/closeup.json, protocol.json
+  shaders/                                pinned shader copies
+  captures/samples.csv / metadata.json
+  captures/analysis/report.html
+  captures/analysis/summary.json, summary.csv, metrics.csv, angle-summary.csv
+  captures/analysis/preview.png, front-comparison.png, angles-poses.png
+  captures/analysis/boundary-comparison.png
+  closeup/samples.csv / metadata.json
+  slim-closeup-comparison.png              front/side/back with both colorings
+  validation.json
+
+Generate with the existing tool:
+.venv/bin/python tools/prepare_zombie_prism_lod.py --profile slim --color sampled --output PATH
+.venv/bin/python tools/prepare_zombie_prism_lod.py --profile slim --color white-vest --output PATH
+Capture using ROOT/assets/comparison.json and ROOT/shaders in a fresh output
+folder with benchmark_zombie_lod_quality; analyze its samples.csv using
+.venv/bin/python tools/analyze_zombie_prism_lod3.py PATH/samples.csv
+Default profile/color remain standard/white-vest. The saved capture manifest
+contains exact local paths, input hashes, camera grid and forced predecessor rate.
+
+SHA256:
+Slim sampled: 02db63d1d1cd7f24282fd97aadc00135c2a3da0d299ae4d7094daa446df6c621
+Slim white: 34e8fd5d7b62e284adc1c7cc2fc2b955df6eeef6ef74a16a0a798c4cc0eb58fa
+Standard sampled: 3f30d14634bd73a653c04d1f8950a7b795ee2ce8a4500854fa0a28a6585e065f
+Standard white: 07d36e7b69c1785602124e6b692546492b63eb8afd7872cc0a2cf45490c5e434
+Production lods.json unchanged:
+06038de5f87a1e95e69ab8e6d795a37e09f4857c20421cb4c05213db298cabfe
+Capture metadata pins input manifest and shader fingerprints. Git base at setup:
+e4e2f979560a30da0dc1a6909ea5da49f1aacba9, with existing experiment changes.
+
+Verification
+------------
+Three focused Python regressions pass: historical/default reproduction, exact
+requested torso/tip changes with fixed proximal parts, and preserved color/rig/
+weights/open topology. Independent geometry audit confirms 18/42 changed/fixed
+positions, requested scale factors, normalized normals and exact regeneration.
+
+Both GPU captures pass GL-error, foreground and crop-border guards. The 80 m
+camera Cartesian product is complete; all 36864 unique color/mask files exist;
+inputs, shaders and manifests match hashes. All 27648 color/mask files for the
+six previous control variants are byte-identical to the previous 80 m experiment.
+Slim sampled/white depth masks match in all 2304 views. Original production
+manifest fingerprint is unchanged; no prior artifact was overwritten.
+
+Analyzer synthetic six/eight-variant CLIs pass known IoU/color metrics, reject
+partial slim pairs/depth mismatch/missing groups, and preserve old six-variant
+metrics on a retained real view. New preview, boundary and 12 m closeup PNGs were
+inspected. Python compilation, scoped diff review and git diff --check pass.
+No runtime policy update, global character generation, performance claim was made.

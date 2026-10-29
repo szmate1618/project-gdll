@@ -1,0 +1,162 @@
+White-vest open-prism zombie: LOD4 distance survey, 2026-10-29
+
+Decision
+--------
+The 60-triangle / 60-vertex Male_C proxy is a plausible geometry candidate at
+160-180 m in the default 1280x720 / 60-degree vertical-FOV camera. It meets the
+exploratory original-reference geometry budgets at every sampled elevation from
+160 through 240 m. This does not establish a clean LOD3-to-LOD4 switch: no tested
+distance from 80 through 320 m meets the switch budgets across all elevations.
+Keep the runtime policy unchanged until the silhouette/coverage mismatch between
+current LOD3 and the proxy is addressed and the transition is checked again.
+
+At 180 m the proxy's median supersampled area is 115.1% of original, while
+current LOD3 is 71.8%. Median native color coverage is respectively 116.7% and
+75.0% of original. The paired proxy/LOD3 native coverage ratio has median 1.571.
+This proxy preserves more limbs but visibly broadens the figure at the switch.
+Increasing distance is not a clean fix: native raster dropout appears beyond
+200 m. Default gameplay draw cutoff is 180 m, so farther results require an
+extended/unlimited draw distance. These +/-15-degree views do not validate
+steep overview/top-down views, where open ends can matter more.
+
+Torso color
+-----------
+The torso now uses source-derived off-white sRGB (208,205,201), linear RGB
+(0.630757,0.610496,0.584078): the median of 110 brighter neutral mid-torso
+texture samples. It reads as a light vest instead of the previous pink/brown
+corner sampling. Only the six torso COLOR_0 rows changed. Positions, normals,
+joints, weights, indices, remaining 54 color rows, rig and animation are identical.
+The previous prototype is retained. Geometry remains ten uncapped triangular
+columns, 60 shared vertices, 60 triangles, 20 open rims / 60 boundary edges.
+
+This is a mostly-white torso approximation, not a faithful torn-vest color map.
+The original also contains exposed neck/back/waist skin and garment openings.
+The new all-white column does not reduce aggregate RGB error against original:
+192 matched smoke views at 180 m give median foreground RGB RMSE 0.124 -> 0.152
+and p95 0.213 -> 0.235. At 12 m the medians are 0.162 -> 0.167. The source vest
+color and visual intent are retained; color-region fitting still needs work.
+These byte-space sRGB metrics are descriptive, not perceptual acceptance scores.
+
+Protocol fixed before capture analysis
+--------------------------------------
+One character: ZombieMale_C.glb. References: original 1650 triangles / 3402
+vertices and current LOD3 114 triangles / 141 vertices. Proxy: 60 / 60, saving
+47.4% triangles and 57.4% vertices versus this character's current LOD3.
+Those counts do not establish an FPS gain or an all-ten-character result.
+
+10 distances: 80,100,120,140,160,180,200,240,280,320 m.
+8 yaw angles: 0,45,...315 degrees.
+8 cycle phases: 0,1/8,...7/8 of idle,walk,run.
+3 camera elevations: -15,0,+15 degrees.
+4 native pixel offsets: (0,0),(.5,0),(0,.5),(.5,.5).
+23,040 matched views; three variants -> 69,120 renders and 138,240 PNGs.
+The analyzer makes three pairwise comparisons per view: 69,120 metric rows.
+
+Primary comparison: prism versus current LOD3. Secondary comparisons: each
+versus original. Exploratory budgets, declared before analysis:
+- Across-view p95 of per-view symmetric silhouette-boundary p95 <=0.5 pixels.
+- Across-view p99 of per-view maximum silhouette-boundary error <=1 pixel.
+- No view where reference has native color pixels but candidate has none.
+A stable tested threshold requires every sampled elevation and every farther
+tested distance to meet all budgets. No primary threshold passed. Color/shading
+changes are reported separately and are not certified by these geometry limits.
+
+Camera is normal 1280x720, 60-degree vertical FOV, no AA; original idle height
+normalized to 1.8 m. Eye rotates about aim point (0,1.65,0), with distance measured
+to that point. Production LOD instead measures actor-bound-center distance.
+All captures use the nominal-distance stepped frame, 5 Hz throughout this sweep;
+80 m is therefore a forced LOD3 reference at every elevation. All variants share
+the exact displayed baked frame. No continuous movement or simulation is timed.
+
+64x64 integer-aligned color crops at x=608,y=336 retain native scene pixels.
+Separate depth silhouettes use 4x linear resolution; boundary sampling is thus
+quantized to 0.25 native pixels. The same native projection offset is used for
+both resolutions. Normal production VAT shaders/default sunlight, authored
+sRGB source textures, no scene geometry/fog/shadows/postprocessing. GPU:
+AMD Radeon 660M, radeonsi, Mesa 24.2.8, hardware OpenGL4.6.
+
+Results: prism versus current LOD3, pooled 2304 views per distance
+----------------------------------------------------------------
+Edge95 = across-view p95 of each view's boundary p95, native pixels.
+Max99 = across-view p99 of each view's maximum boundary error, native pixels.
+Changed95 = p95 native pixels with >1-byte channel difference in foreground union.
+Coverage = median paired prism/LOD3 native color-pixel count ratio.
+Lost = LOD3 visible but prism entirely invisible native-color views.
+
+    m    Edge95     Max99  Changed95  Coverage   Lost
+   80     1.118     3.130        48     1.600       0
+  100     1.000     2.500        31     1.600       0
+  120     0.791     2.136        22     1.615       0
+  140     0.750     1.901        17     1.625       0
+  160     0.707     1.601        14     1.600       0
+  180     0.574     1.600        11     1.571       0
+  200     0.604     1.521        10     1.500       0
+  240     0.588     1.344         7     1.500       0
+  280     0.559     1.118         5     1.500       4
+  320     0.582     1.246         4     1.500      13
+
+At 180 m, no source, LOD3 or proxy view has zero native color pixels. At 240 m,
+LOD3 is invisible in 16/2304 views and proxy in 0. At 280 m: 119 and 4; at 320 m: 354
+and 53. Some newly invisible proxy cases occur at 280/320 m (4/13), despite its
+larger median coverage. Two distant variants disappearing cannot validate a
+safe switch. The original-reference geometry result at 140 m passes pooled
+limits, but not every elevation; 160 m is the first all-elevation passing sample.
+
+Projection and model caveats
+----------------------------
+The trial range is conditional on this one character and native 720p scene.
+A native 1080p scene has 1.5x the projected pixel height at equal distance;
+approximately 1.5x distance gives the same pixel size, but was not rendered here.
+A 720p scene upscaled into a 1080p window retains 720p scene sampling.
+A same-pose A/B blink illustrates switching; eight poses per clip are a survey,
+not continuous animation or a camera-approach sequence. No human perception
+study or frame-time timing was performed. Runtime LODs and assets are unchanged.
+
+Artifacts and reproduction
+--------------------------
+Root: build/benchmarks/zombie-lod4-distance-20261029/
+  protocol.json                         predeclared budgets and scope
+  assets/comparison.json                exact camera grid and input fingerprints
+  assets/ZombieMale_C-open-prisms-white-vest.glb / .json
+  shaders/                              pinned shader copies
+  smoke/                                12/180 m color/camera controls
+  captures/samples.csv / metadata.json
+  captures/analysis/report.html, summary.json/csv, metrics.csv
+  captures/analysis/overview.png, switch-blink.gif
+  white-vest-comparison.png              old/new torso versus original
+  white-vest-angles.png                  front/side/back in two poses
+  white-vest-180m-comparison.png          native/enlarged, two poses/views
+  capture-validation.json, color-comparison-metrics.json
+
+Build benchmark_zombie_lod_quality, then run:
+./build/benchmark_zombie_lod_quality ROOT/assets/comparison.json ROOT/captures ROOT/shaders
+.venv/bin/python tools/analyze_zombie_lod4_distance.py ROOT/captures/samples.csv
+Use a fresh output directory or the retained exact inputs. The scratch manifest
+is specific to this machine's asset locations. The reusable capture reads the
+camera grid from the manifest; docs/BENCHMARKS.md records its format.
+
+Input fingerprints (SHA256)
+--------------------------
+original: 7e0d1a569ae23f32935cbf3545ef6ed9e55a7def284a6e3307c78b851eae0ef1
+current LOD3: 8b356eb70478a5ca744e1be3a704ba27ebec5b4013fe404c87ac907d5877fff6
+previous proxy: 3f30d14634bd73a653c04d1f8950a7b795ee2ce8a4500854fa0a28a6585e065f
+white-vest proxy: 07d36e7b69c1785602124e6b692546492b63eb8afd7872cc0a2cf45490c5e434
+production lods.json: 06038de5f87a1e95e69ab8e6d795a37e09f4857c20421cb4c05213db298cabfe
+Capture metadata pins the comparison manifest and shader hashes.
+
+Validation
+----------
+Successful rebuild before all captures. Hardware GPU capture completed with no
+GL errors, empty supersampled masks or crop-border contacts. All 69,120 rows form
+the expected Cartesian product; image/mask paths are unique and present; input,
+shader and manifest hashes match. 1152 old/new smoke masks are byte-identical;
+768 original/LOD3 colors are byte-identical. Nine half-pixel jitter controls shift
+the 4x masks by exactly two pixels; 18 far-versus-near crop color/mask pairs are
+identical. Original production manifest fingerprint is unchanged.
+
+Analyzer synthetic checks verify a known 1 px edge shift, exact changed/missing
+native pixels and duplicate rejection. Metadata completeness guard passes real
+captures and rejects a removed whole matched group and wrong sample count.
+Focused viewer_zombie_lod test passed after successful target rebuild. Python
+compilation and git diff --check passed. PNG comparisons and blink frames were
+visually inspected. No runtime policy update in this experiment.

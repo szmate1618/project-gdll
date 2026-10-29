@@ -165,14 +165,26 @@ cmake --build build --target zombie_mesh_simplify -j4
 
 CMake downloads the pinned, SHA-256 checked [meshoptimizer v1.3](https://github.com/zeux/meshoptimizer/tree/v1.3)
 source archive into `build/_archives/` on first setup. The preparation command
-uses local inputs and performs no downloads. It targets 50%, 20% and 7% of the
-original triangles; topology and error limits can stop reduction earlier. The
-attribute metric considers normals, UV/color values and joint-space weights.
-Every retained vertex keeps its original position, normal, UV, joint IDs and
-weights. Nodes, skins, inverse binds, scene transforms and all animation clips
-remain unchanged. Original unused binary ranges are retained in the generated
+uses local inputs and performs no downloads. LOD1 and LOD2 target 50% and 20%
+of the original triangles; topology and error limits can stop reduction earlier.
+The attribute metric considers normals, UV/color values and joint-space weights.
+These levels retain the original vertex attributes. Existing LOD1/2 files are
+reused when their source and output fingerprints match.
+
+LOD3 uses the Slim 1 prism profile for all ten types: ten uncapped triangular
+columns, 60 triangles and 60 shared vertices per character. It retains the
+existing 80 m normal-FOV threshold and 5 Hz pose policy. Both torso rings are
+15% narrower; only the hand/foot terminal rings shrink 30% about wrist/ankle
+anchors. The upper limbs and proximal elbow/knee rings stay fixed. Lower
+columns consequently taper toward their smaller tips. Source-derived linear
+vertex colors replace base-color texture sampling; Male C keeps its verified
+off-white vest, and the other types use their sampled authored colors.
+
+All three levels preserve nodes, skins, inverse binds, scene transforms and
+all animation clips. Original unused binary ranges are retained in the generated
 GLBs to preserve animation/accessor bytes; runtime vertex/animation buffers
-contain only the compacted meshes.
+contain only the prepared meshes. Fitted LOD geometry is included in renderer
+visibility bounds along with the original, including live-pose bind bounds.
 
 Generated files live under `models/lod1/`, `models/lod2/`, and `models/lod3/`.
 Content-addressed filenames keep the previously published set usable during an

@@ -1,0 +1,189 @@
+Prism Slim 2: narrower and lower upper rear torso corners, 2026-10-29
+===================================================================
+
+Decision
+--------
+Keep Slim 1 as the stronger overall fit for this character at 80 m. Slim 2
+implements the requested edit and is retained in both colorings, but introduces
+a small aggregate regression and can expose a gap below the head in some poses.
+Both remain 60 vertices / 60 triangles with ten uncapped triangular columns.
+No production model, LOD threshold or runtime policy is changed.
+
+Original-relative silhouette IoU median falls from Slim 1 0.755572 to Slim 2
+0.749610. Slim 2 is better in 616/2304 views (26.7%), worse in 1668 (72.4%), tied
+in 20. The standard prism was 0.727463 and current LOD3 is 0.700485, so Slim 2 is
+still better on this aggregate than those earlier geometries. Area/original
+moves from 1.014628 to 0.985959; similar total area does not imply better overlap.
+Median edge p95 stays 0.500px. Across-view p95 slightly worsens 0.705996->0.707107;
+maximum-edge across-view p99 stays 1.744934px.
+
+Matched-LOD2 IoU median falls 0.734645->0.729672, across-view edge p95 grows
+0.600112->0.649722px. Including the 10 Hz predecessor to 5 Hz successor step,
+IoU median falls 0.717741->0.709926, with edge-p95 across-view p95 changing
+1.235154->1.239113px. Both LOD2 comparisons improve in 664 views, worsen in 1620,
+and tie in 20. The narrowing/lowering is not an improvement in overall switching
+quality. All variants remain visible at native resolution in every sampled view.
+
+Exact geometry edit
+-------------------
+Slim 2 starts from Slim 1: original torso transverse scale 0.85 and terminal
+hand/foot-end scale 0.7 remain. Only upper-rear torso POSITION rows 52/53 change.
+Their separation becomes 85% of Slim 1 about the pair's midpoint, then both are
+translated down the torso axis by 10% of its pre-change fitted axial height.
+Torso height is 67.707049cm in source bind units, giving a 6.770705cm shift along
+axis. The source faces +Z: front apex 51 remains unchanged. The other 58 positions,
+all vertex colors, joints, weights, indices, rig and animation bytes are retained.
+Only normals are recomputed for the changed geometry.
+
+Metadata records the edited indices, original/new pair midpoints, axis, height,
+scale and translation. The upper rim is now tilted; its stored fitted center is
+explicitly labeled a pre-edit reference, and the actual vertex centroid is also
+recorded. No cap, extra vertex or neck piece is added.
+
+The API accepts profile='standard'|'slim'|'slim2', color_mode='sampled'|'white_vest';
+defaults and legacy slim=True remain compatible. CLI --profile slim2 combines
+with --color sampled or --color white-vest. Old standard and Slim 1 GLB bytes
+still reproduce their four historical fingerprints exactly.
+
+Color and angle results
+-----------------------
+Both colors are frozen from the matching Slim 1 variant. Original-reference
+common-support median RGB RMSE grows from sampled 0.133610 to 0.134500 and from
+white 0.134506 to 0.137000. White Slim 2 has higher error in 1492/2304 views (64.8%).
+Sampled-color changes improve many small cases but include a few larger losses;
+its mean error grows by 0.001033. Against the 10 Hz LOD2 predecessor, white grows
+0.141611->0.143394 and sampled 0.154793->0.154525; metrics are mixed, not a global
+color improvement. Slim 2's original-mask-only medians are sampled 0.144617 and
+white 0.148705 versus Slim 1's 0.143985 and 0.145269.
+
+Original-relative IoU medians regress in every clip:
+  idle: 0.76427->0.75871
+  walk: 0.75564->0.74720
+  run: 0.73491->0.73064
+All three elevation medians regress. At +15 degrees, 644/768 views worsen;
+at -15 degrees, 448/768 worsen. Side yaw 90 improves mean IoU by 0.00242, while
+270 degrees is nearly tied. Front yaw 0 loses 284/288 views (mean delta -0.01437);
+rear yaw 180 loses 260/288 (mean delta -0.01706). The loss is concentrated around
+upper torso coverage rather than a uniform benefit from a smaller footprint.
+Original native-color missing-fraction p95 increases 0.240000->0.259259.
+
+Neck-gap diagnostic
+-------------------
+A visually verified example is 12 m, walk phase 0.125, yaw 180 degrees, level camera,
+zero pixel offset: source and Slim 1 retain projected head/body connection at
+supersampled depth, while Slim 2 shows background below the head. The comparative
+PNG is slim2-neck-gap-comparison.png. This is a rendering gap from the requested
+upper rear-edge edit; no neck geometry was added to compensate.
+
+A separate 8-connected 4x-depth-mask diagnostic counts whether the component
+containing the topmost foreground pixel differs from the largest-area foreground
+component. At 80 m it triggers in original 0/2304, Slim 1 32/2304 and Slim 2 372/2304;
+340 are newly separated and none restored. This aggregate is a top-component
+diagnostic, not a verified anatomical label for every view. Raw per-view flags
+and its definition are saved in top-component-diagnostic.csv/json.
+
+Protocol and metrics
+--------------------
+One ZombieMale_C character, native 1280x720 and 60-degree vertical FOV, nominal
+80 m eye-to-aim distance about (0,1.65,0). Eight yaw angles, eight phases per each
+idle/walk/run clip, elevations -15/0/+15 degrees, four native subpixel offsets.
+2304 matched views x 10 variants = 23040 renders, each native RGB plus 4x linear
+depth mask: 46080 PNGs. The analyzer produces 31 pair comparisons/view = 71424
+metric rows, 124 pooled/elevation summaries, plus angle/clip and paired successor
+improvement tables. References are original, matched 5 Hz LOD2 and forced 10 Hz LOD2;
+all other variants use the same nominal 80 m 5 Hz displayed frame. This samples a
+rate transition; it is not continuous animation or a camera-approach test.
+
+Variants: original, LOD2, LOD2_10Hz, current LOD3, both standard prism colors,
+both Slim 1 colors and both Slim 2 colors. A separate 12 m inspection contains
+source and both Slim 1/Slim 2 colors, eight phases/yaws and three clips, level/no-jitter:
+960 renders, with matched 15 Hz frames. The renderer uses hardware AMD Radeon 660M,
+normal VAT shader/default sunlight, no scene/fog/shadows/AA/postprocessing.
+The capture target was successfully rebuilt before rendering.
+
+IoUmed is median silhouette overlap; higher is better. AreaRatio is median
+candidate/reference supersampled area (target 1). Edge95med is the median of
+per-view symmetric boundary p95. Edge95p95 is across-view p95 of those per-view
+values. Max99 is across-view p99 of each view's maximum edge error. All edge
+units are native scene pixels. RGBcommonMed is median RGB RMSE/255 on identical
+per-view support shared by all ten variants. The old eight-variant report used
+a different support; compare candidates within this report. Original-mask-only
+errors are retained separately. No image metric is a human acceptance threshold.
+
+Reference: original
+Candidate              IoUmed AreaRatio Edge95med Edge95p95 Max99 RGBcommonMed
+lod3                   0.7005  0.7241    0.500     0.791    2.609  0.1425
+prism_slim_original    0.7556  1.0146    0.500     0.706    1.745  0.1336
+prism_slim_white       0.7556  1.0146    0.500     0.706    1.745  0.1345
+prism_slim2_original   0.7496  0.9860    0.500     0.707    1.745  0.1345
+prism_slim2_white      0.7496  0.9860    0.500     0.707    1.745  0.1370
+
+Reference: lod2
+Candidate              IoUmed AreaRatio Edge95med Edge95p95 Max99 RGBcommonMed
+lod3                   0.7579  0.7851    0.500     0.559    2.357  0.1313
+prism_slim_original    0.7346  1.1082    0.500     0.600    1.521  0.1522
+prism_slim_white       0.7346  1.1082    0.500     0.600    1.521  0.1370
+prism_slim2_original   0.7297  1.0763    0.500     0.650    1.521  0.1519
+prism_slim2_white      0.7297  1.0763    0.500     0.650    1.521  0.1387
+
+Reference: lod2_10hz
+Candidate              IoUmed AreaRatio Edge95med Edge95p95 Max99 RGBcommonMed
+lod3                   0.7303  0.7879    0.500     1.250    2.792  0.1391
+prism_slim_original    0.7177  1.1032    0.500     1.235    2.372  0.1548
+prism_slim_white       0.7177  1.1032    0.500     1.235    2.372  0.1416
+prism_slim2_original   0.7099  1.0742    0.500     1.239    2.372  0.1545
+prism_slim2_white      0.7099  1.0742    0.500     1.239    2.372  0.1434
+
+Artifacts and reproduction
+--------------------------
+Root: build/benchmarks/zombie-prism-slim2-20261029/
+  assets/ZombieMale_C-prism-slim2-original-colors.glb / .json
+  assets/ZombieMale_C-prism-slim2-white-vest.glb / .json
+  assets/comparison.json, closeup.json, protocol.json
+  shaders/                                  pinned shader copies
+  captures/samples.csv / metadata.json
+  captures/analysis/report.html, summary.json/csv, metrics.csv
+  captures/analysis/angle-summary.csv, clip-summary.csv
+  captures/analysis/preview.png, front-comparison.png, angles-poses.png
+  captures/analysis/boundary-comparison.png
+  closeup/samples.csv / metadata.json
+  slim2-closeup-comparison.png, slim2-neck-gap-comparison.png
+  top-component-diagnostic.csv/json, validation.json
+
+Generate with tools/prepare_zombie_prism_lod.py --profile slim2 --color sampled
+(or white-vest) --output PATH, using .venv/bin/python. Capture the retained
+manifest with benchmark_zombie_lod_quality in a fresh output directory, then
+analyze samples.csv with tools/analyze_zombie_prism_lod3.py. The ten-variant
+profile requires the Slim 1 baseline pair; six/eight-variant inputs remain valid.
+
+SHA256:
+Slim2 sampled: 7e15c56d904c505ed7648f7b8faf501933199191a8d7c9cc2f9c4616bd6a6b1e
+Slim2 white: 4532a0357022f62f701f2dd1430bfa063ff42ad6c7200aebc0f38c8ea3bc8a83
+Slim1 sampled: 02db63d1d1cd7f24282fd97aadc00135c2a3da0d299ae4d7094daa446df6c621
+Slim1 white: 34e8fd5d7b62e284adc1c7cc2fc2b955df6eeef6ef74a16a0a798c4cc0eb58fa
+Production lods.json remains:
+06038de5f87a1e95e69ab8e6d795a37e09f4857c20421cb4c05213db298cabfe
+Input manifest and shader fingerprints are pinned in capture metadata.
+
+Verification
+------------
+Four focused Python regressions pass: previous/default fingerprints and legacy
+API compatibility, Slim 1 geometry invariants, exact two-rear-corner Slim 2 edit,
+and all profiles' fixed colors/rig/weights/open topology. Independent geometry
+audit confirms exactly 52/53 changed, other 58 byte-identical, requested separation
+and translation, unit normals, 60 vertices/60 triangles/20 open rims/zero caps.
+Slim 2 regeneration is byte-identical for each color mode.
+
+Both hardware captures pass GL-error, nonempty foreground and crop-border
+guards. The full 2304-view, ten-variant product is complete. All 46080 unique color/
+mask files exist. The 36864 color/mask control files are byte-identical to the
+previous eight-variant experiment; 1152 closeup controls also match exactly.
+Both Slim 2 colors have identical depth masks in 2304/2304 views, as do the other
+geometry color pairs. All input, shader and manifest hashes match. Prior models
+and reports remain intact; production policy is unchanged.
+
+Analyzer synthetic six/eight/ten-profile CLIs pass known geometry/color metrics and reject
+partial profiles, missing predecessors, frame mismatches and depth differences
+between same-shape colorings. Source/capture/preview/gap images were inspected.
+Python compilation, scoped code review and git diff --check pass. No global
+character generation, continuous crossing, crowd timing was performed.

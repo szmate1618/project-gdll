@@ -4,6 +4,7 @@
 #include "file_fingerprint.hpp"
 #include "shader_program.hpp"
 #include "sun_lighting.hpp"
+#include "zombie_lod.hpp"
 
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -25,10 +26,10 @@
 
 namespace {
 using Json = nlohmann::json;
-constexpr int sceneWidth = 1280, sceneHeight = 720, cropSize = 192, maskScale = 4;
-constexpr int cropX = (sceneWidth - cropSize) / 2, cropY = (sceneHeight - cropSize) / 2 + 40;
+constexpr int sceneWidth = 1280, sceneHeight = 720, maskScale = 4;
 constexpr int angles = 8, poses = 8;
-constexpr std::array<float, 2> distances{12, 35};
+
+struct CaptureRegion { int size, x, y; };
 
 void checkGL(const char* where) {
     if (const auto error = glGetError(); error != GL_NO_ERROR)
@@ -91,8 +92,8 @@ struct Mesh {
 
 class Capture {
 public:
-    Capture(const viewer::AnimatedModel& asset, const std::filesystem::path& shaders)
-        : asset_(asset), program_(viewer::createShaderProgram(shaders / "basic.vert", shaders / "basic.frag",
+    Capture(const viewer::AnimatedModel& asset, const std::filesystem::path& shaders, const CaptureRegion& region)
+        : asset_(asset), regionSize_(region.size), program_(viewer::createShaderProgram(shaders / "basic.vert", shaders / "basic.frag",
                                                              "#define ZOMBIE_WOUNDS 0")) {
         glUseProgram(program_);
         integer("uInstanced", 1); integer("uAnimated", 1);
@@ -108,11 +109,11 @@ public:
         // Crop below the reticle to include the feet from the normal eye height.
         // This preserves pixel size/alignment without drawing the full viewport.
         auto crop = glm::mat4(1);
-        crop[0][0] = float(sceneWidth) / cropSize;
-        crop[1][1] = float(sceneHeight) / cropSize;
-        crop[3][0] = float(sceneWidth - 2 * cropX - cropSize) / cropSize;
-        crop[3][1] = float(2 * cropY + cropSize - sceneHeight) / cropSize;
-        matrix("uProjection", crop * glm::perspective(glm::radians(60.f), float(sceneWidth) / sceneHeight, .1f, 10000.f));
+        crop[0][0] = float(sceneWidth) / region.size;
+        crop[1][1] = float(sceneHeight) / region.size;
+        crop[3][0] = float(sceneWidth - 2 * region.x - region.size) / region.size;
+        crop[3][1] = float(2 * region.y + region.size - sceneHeight) / region.size;
+        projection_ = crop * glm::perspective(glm::radians(60.f), float(sceneWidth) / sceneHeight, .1f, 10000.f);
         textures_.resize(asset.model.textures.size());
         glGenTextures(static_cast<GLsizei>(textures_.size()), textures_.data());
         for (std::size_t i = 0; i < textures_.size(); ++i) {
@@ -171,11 +172,20 @@ public:
         glDeleteTextures(static_cast<GLsizei>(textures_.size()), textures_.data()); glDeleteProgram(program_);
     }
     void draw(const Target& target, const glm::mat4& transform, float distance,
-              const viewer::BakedAnimationClip& clip, float frame, bool silhouette) const {
+              const viewer::BakedAnimationClip& clip, float frame, bool silhouette,
+              float elevation, const std::array<float, 2>& pixelOffset) const {
         target.bind(); glUseProgram(program_);
-        const glm::vec3 eye{0, 1.65f, distance};
+        const float tilt = glm::radians(elevation);
+        const glm::vec3 aim{0, 1.65f, 0};
+        const glm::vec3 eye = aim + glm::vec3(0, distance * std::sin(tilt), distance * std::cos(tilt));
         vector("uEye", eye);
-        matrix("uView", glm::lookAt(eye, eye + glm::vec3(0, 0, -1), {0, 1, 0}));
+        matrix("uView", glm::lookAt(eye, aim, {0, 1, 0}));
+        // Offsets are in native scene pixels, also when rendering the 4x mask.
+        // Positive Y is down in the saved, top-left image coordinate system.
+        auto jitter = glm::mat4(1);
+        jitter[3][0] = 2 * pixelOffset[0] / regionSize_;
+        jitter[3][1] = -2 * pixelOffset[1] / regionSize_;
+        matrix("uProjection", jitter * projection_);
         integer("uShadowPass", silhouette ? 1 : 0);
         for (GLuint column = 0; column < 4; ++column) glVertexAttrib4fv(4 + column, glm::value_ptr(transform[column]));
         glVertexAttrib4f(8, 0, static_cast<float>(clip.firstFrame), static_cast<float>(clip.frameCount), 0);
@@ -205,6 +215,8 @@ private:
     void vector(const char* name, const glm::vec3& value) const { glUniform3fv(location(name), 1, glm::value_ptr(value)); }
     void matrix(const char* name, const glm::mat4& value) const { glUniformMatrix4fv(location(name), 1, GL_FALSE, glm::value_ptr(value)); }
     const viewer::AnimatedModel& asset_;
+    int regionSize_;
+    glm::mat4 projection_{1};
     GLuint program_;
     std::vector<Mesh> meshes_;
     std::vector<GLuint> textures_;
@@ -257,6 +269,23 @@ int main(int argc, char** argv) {
         const auto shaders = std::filesystem::absolute(argv[3]);
         std::ifstream input(manifestPath);
         Json manifest; input >> manifest;
+        const auto settings = manifest.value("capture", Json::object());
+        const auto distances = settings.value("distances_m", std::vector<float>{12, 35});
+        if (distances.empty() || std::any_of(distances.begin(), distances.end(), [](float value) {
+                return !std::isfinite(value) || value <= 0 || std::floor(value) != value;
+            })) throw std::runtime_error("Comparison distances must be positive whole meters");
+        const auto elevations = settings.value("elevations_degrees", std::vector<float>{0});
+        const auto pixelOffsets = settings.value("pixel_offsets", std::vector<std::array<float, 2>>{{0, 0}});
+        if (elevations.empty() || std::any_of(elevations.begin(), elevations.end(), [](float value) {
+                return !std::isfinite(value) || std::abs(value) >= 89;
+            })) throw std::runtime_error("Camera elevations must be finite and between -89 and 89 degrees");
+        if (pixelOffsets.empty() || std::any_of(pixelOffsets.begin(), pixelOffsets.end(), [](const auto& value) {
+                return !std::isfinite(value[0]) || !std::isfinite(value[1]);
+            })) throw std::runtime_error("Pixel offsets must be finite pairs");
+        // Distant actors occupy at most about 14 pixels vertically. A smaller
+        // integer-aligned crop avoids copying empty background at the same scale.
+        const bool far = *std::min_element(distances.begin(), distances.end()) >= 80;
+        const CaptureRegion region = far ? CaptureRegion{64, 608, 336} : CaptureRegion{192, 544, 304};
         std::map<std::string, std::vector<Json>> sources;
         for (const auto& record : manifest.at("records")) sources[record.at("source_name").get<std::string>()].push_back(record);
         std::filesystem::create_directories(output / "images");
@@ -266,15 +295,20 @@ int main(int argc, char** argv) {
         const auto gpu = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
         if (std::string(gpu).find("llvmpipe") != std::string::npos || std::string(gpu).find("softpipe") != std::string::npos)
             throw std::runtime_error("Hardware comparison requires a hardware GPU");
-        Target color(cropSize), mask(cropSize * maskScale);
-        Json metadata{{"scenario", "zombie-lod-quality-v1"}, {"gpu", gpu},
+        Target color(region.size), mask(region.size * maskScale);
+        Json metadata{{"scenario", "zombie-lod-quality-v2"}, {"gpu", gpu},
             {"opengl", reinterpret_cast<const char*>(glGetString(GL_VERSION))},
-            {"scene_width", sceneWidth}, {"scene_height", sceneHeight}, {"crop_size", cropSize},
+            {"scene_width", sceneWidth}, {"scene_height", sceneHeight}, {"crop_size", region.size},
+            {"crop_x", region.x}, {"crop_y", region.y},
             {"mask_scale", maskScale}, {"vertical_fov_degrees", 60}, {"normalized_idle_height_m", 1.8},
             {"camera_eye_height_m", 1.65}, {"distances_m", distances}, {"angles", angles}, {"poses_per_clip", poses},
-            {"animation", "Matched stepped baked frame for original and all candidates; 15 Hz grid at 12 m, 10 Hz at 35 m"},
+            {"elevations_degrees", elevations}, {"pixel_offsets", pixelOffsets},
+            {"camera_distance", "Eye-to-aim distance; aim is (0,1.65,0); elevation rotates eye about aim"},
+            {"pixel_offset_units", "Native scene pixels, positive right/down; same projection shift at color and mask resolutions"},
+            {"family", settings.value("family", "near")},
+            {"animation", "Nominal-distance stepped frame shared by default; per-record animation_hz overrides allow animation-rate transition comparisons"},
             {"lighting", "Default SunLighting, authored sRGB textures/materials; no shadows, haze, fog, scene or postprocessing"},
-            {"projection", "192x192 crop at x=544,y=304 of normal 1280x720 60-degree vertical projection; no image registration"},
+            {"projection", "Integer-aligned crop of normal 1280x720 60-degree vertical projection; no image registration or rescaling"},
             {"mask", "Separate 4x depth silhouette capture; distances in metrics must be divided by mask_scale"},
             {"scope", "Geometry appearance experiment, not a human-perception study or GPU timing benchmark"},
             {"manifest_sha256", viewer::fileSha256(manifestPath)}};
@@ -282,7 +316,7 @@ int main(int argc, char** argv) {
         std::ofstream(output / "metadata.json") << metadata.dump(2) << '\n';
         std::ofstream csv(output / "samples.csv");
         if (!csv) throw std::runtime_error("Cannot write sample CSV");
-        csv << "asset,clip,phase,angle,distance,variant,triangles,vertices,width,height,crop_x,crop_y,image,mask,mask_scale,animation_frame\n";
+        csv << "asset,clip,phase,angle,distance,variant,triangles,vertices,width,height,crop_x,crop_y,image,mask,mask_scale,animation_frame,current_lod,animation_hz,elevation,pixel_offset_x,pixel_offset_y,pixel_phase\n";
         std::size_t count = 0;
         for (const auto& [sourceName, records] : sources) {
             const auto original = std::find_if(records.begin(), records.end(), [](const auto& r) { return r.at("variant") == "original"; });
@@ -295,7 +329,10 @@ int main(int argc, char** argv) {
                     throw std::runtime_error("Model fingerprint mismatch: " + path);
                 const auto asset = viewer::loadZombieModel(path);
                 const auto variant = record.at("variant").get<std::string>();
-                Capture capture(asset, shaders);
+                const float animationHzOverride = record.value("animation_hz", 0.f);
+                if (!std::isfinite(animationHzOverride) || animationHzOverride < 0)
+                    throw std::runtime_error("Animation-rate override must be non-negative and finite");
+                Capture capture(asset, shaders, region);
                 const std::array<viewer::BakedAnimationClip, 3> clips{{
                     {"idle", asset.duration, asset.frameCount, 0, {}},
                     *asset.walkClip, *asset.runClip}};
@@ -303,23 +340,30 @@ int main(int argc, char** argv) {
                     const auto& clip = clips[c];
                     const std::string clipName = c == 0 ? "idle" : c == 1 ? "walk" : "run";
                     for (int pose = 0; pose < poses; ++pose) for (int angle = 0; angle < angles; ++angle)
-                        for (const float distance : distances) {
-                            const float phase = float(pose) / poses;
-                            const float samples = std::max(1.f, std::floor(clip.duration * (distance < 35 ? 15.f : 10.f)));
-                            const float frame = std::floor(std::floor(phase * samples) / samples * static_cast<float>(clip.frameCount));
-                            const auto transform = glm::rotate(glm::mat4(1), glm::radians(float(angle) * 45), glm::vec3(0, 1, 0)) * normalize;
-                            const std::string name = std::filesystem::path(sourceName).stem().string() + "-" + clipName +
-                                "-p" + std::to_string(pose) + "-a" + std::to_string(angle * 45) + "-d" +
-                                std::to_string(static_cast<int>(distance)) + "-" + variant;
-                            const std::string image = "images/" + name + ".png", silhouette = "images/" + name + "-mask.png";
-                            capture.draw(color, transform, distance, clip, frame, false); saveColor(output / image, color.size);
-                            capture.draw(mask, transform, distance, clip, frame, true); saveMask(output / silhouette, mask.size);
-                            csv << sourceName << ',' << clipName << ',' << phase << ',' << angle * 45 << ',' << distance << ',' << variant << ','
-                                << record.at("triangles") << ',' << record.at("vertices") << ',' << cropSize << ',' << cropSize << ','
-                                << cropX << ',' << cropY << ',' << image << ',' << silhouette << ','
-                                << maskScale << ',' << frame << '\n';
-                            ++count;
-                        }
+                        for (const float distance : distances) for (std::size_t e = 0; e < elevations.size(); ++e)
+                            for (std::size_t s = 0; s < pixelOffsets.size(); ++s) {
+                                const float phase = float(pose) / poses;
+                                const auto detail = viewer::zombieCameraDetail(distance, std::sqrt(3.f));
+                                const float animationHz = animationHzOverride > 0 ? animationHzOverride : detail.animationHz;
+                                if (animationHz <= 0) throw std::runtime_error("Quality captures require a stepped-animation LOD distance");
+                                const float samples = std::max(1.f, std::floor(clip.duration * animationHz));
+                                const float frame = std::floor(std::floor(phase * samples) / samples * static_cast<float>(clip.frameCount));
+                                const auto transform = glm::rotate(glm::mat4(1), glm::radians(float(angle) * 45), glm::vec3(0, 1, 0)) * normalize;
+                                const std::string name = std::filesystem::path(sourceName).stem().string() + "-" + clipName +
+                                    "-p" + std::to_string(pose) + "-a" + std::to_string(angle * 45) + "-d" +
+                                    std::to_string(static_cast<int>(distance)) + "-" + variant;
+                                const std::string viewName = name + (elevations.size() > 1 || pixelOffsets.size() > 1 ?
+                                    "-e" + std::to_string(e) + "-s" + std::to_string(s) : "");
+                                const std::string image = "images/" + viewName + ".png", silhouette = "images/" + viewName + "-mask.png";
+                                capture.draw(color, transform, distance, clip, frame, false, elevations[e], pixelOffsets[s]); saveColor(output / image, color.size);
+                                capture.draw(mask, transform, distance, clip, frame, true, elevations[e], pixelOffsets[s]); saveMask(output / silhouette, mask.size);
+                                csv << sourceName << ',' << clipName << ',' << phase << ',' << angle * 45 << ',' << distance << ',' << variant << ','
+                                    << record.at("triangles") << ',' << record.at("vertices") << ',' << region.size << ',' << region.size << ','
+                                    << region.x << ',' << region.y << ',' << image << ',' << silhouette << ','
+                                    << maskScale << ',' << frame << ",lod" << detail.level << ',' << animationHz << ','
+                                    << elevations[e] << ',' << pixelOffsets[s][0] << ',' << pixelOffsets[s][1] << ',' << s << '\n';
+                                ++count;
+                            }
                 }
                 csv.flush();
                 std::cout << sourceName << ' ' << variant << " complete; samples=" << count << '\n' << std::flush;

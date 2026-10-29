@@ -818,6 +818,65 @@ void renderDistanceLods() {
     viewer::Renderer::checkErrors("distance LOD rendering");
 }
 
+void renderOutlyingLodBounds() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(makeAsset(1, 2));
+    auto& base = layer.assets.front();
+    // As in authored assets, bind vertices use centimeters and VAT uses meters.
+    for (auto& vertex : base.model.primitives[0].vertices) vertex.position *= 100;
+    layer.lodAssets.resize(1);
+    layer.lodAssets[0] = {base, base, base};
+    auto& lod = layer.lodAssets[0].back();
+    auto& primitive = lod.model.primitives[0];
+    for (std::size_t frameVertex = 0; frameVertex < lod.animation[0].frames.size(); ++frameVertex) {
+        const auto vertex = frameVertex % primitive.vertices.size();
+        // Enlarge the markers so the far-LOD capture resolves them clearly.
+        const auto offset = primitive.vertices[vertex].position * .04f + glm::vec3(-100, 0, 0);
+        lod.animation[0].frames[frameVertex].position += glm::vec4(offset, 0);
+    }
+    for (auto& vertex : primitive.vertices)
+        vertex.position = vertex.position * 5.f + glm::vec3(-10000, 0, 0);
+    layer.instances.emplace_back();
+    layer.instances[0].transform = glm::translate(glm::mat4(1), {100, 0, 0});
+    viewer::Camera camera;
+    camera.setPosition({0, .75f, 100});
+    camera.setOrientation(-90, 0);
+    viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.resize(width, height);
+    renderer.setZombieDrawDistance(0);
+    renderer.setShadows(false); renderer.setHaze(false); renderer.setGroundFog(false);
+    const auto checkVisible = [&] {
+        renderer.render(camera, 0);
+        if (renderer.zombieVisibleCount() != 1 || renderer.zombieRenderStats().cameraLevels[3] != 1)
+            throw std::runtime_error("An outlying LOD must remain visible when the original mesh is outside the frustum");
+        const auto pixels = colorPixels();
+        std::size_t red = 0, blue = 0;
+        for (std::size_t i = 0; i < pixels.size(); i += 3) {
+            red += pixels[i] == 255 && pixels[i + 1] == 0 && pixels[i + 2] == 0;
+            blue += pixels[i] == 0 && pixels[i + 1] == 0 && pixels[i + 2] == 255;
+        }
+        if (red < 4 || blue < 4)
+            throw std::runtime_error("Outlying LOD markers must actually reach the capture");
+        renderer.setZombieCulling(false);
+        renderer.render(camera, 0);
+        if (colorPixels() != pixels)
+            throw std::runtime_error("LOD bounds culling must match drawing without culling");
+        renderer.setZombieCulling(true);
+    };
+    checkVisible();
+
+    // Now both original and LOD baked bounds are outside the view. Only the
+    // live palette applied to the outlying LOD bind vertices brings it back.
+    auto& instance = layer.instances[0];
+    instance.transform = glm::translate(glm::mat4(1), {300, 0, 0});
+    auto bone = glm::scale(glm::mat4(1), glm::vec3(.01f));
+    bone[3] = {-200, .75f, 0, 1};
+    layer.setRagdollPalette(0, std::vector<glm::mat4>(base.skeleton.size(), bone));
+    renderer.updateZombies(layer);
+    checkVisible();
+    viewer::Renderer::checkErrors("outlying zombie LOD bounds");
+}
+
 void renderAuthoredAssets(const std::filesystem::path& directory, const std::filesystem::path& screenshot) {
     viewer::ZombieLayer layer;
     std::vector<std::filesystem::path> paths;
@@ -993,6 +1052,7 @@ int main(int argc, char** argv) {
     try {
         const std::string mode = argc > 1 ? argv[1] : "";
         renderDistanceLods();
+        renderOutlyingLodBounds();
         renderHealthyAndWoundedBatches();
         renderDistantHeadSurfaces();
         renderFrustumCulling();

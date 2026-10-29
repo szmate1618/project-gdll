@@ -159,6 +159,9 @@ scratch 35%, 25%, 15% and 10% triangle candidates. Production assets and
 angles and eight phases of idle, walk and run at 12 m and 35 m forward depth.
 Those are the normal-FOV entry distances for LOD1 and LOD2. The camera is level
 at 1.65 m; all variants share the original asset's 1.8 m normalization.
+The optional `--family far` preparation compares LOD3 at 80, 120 and 180 m,
+using the active LOD3, 5/3/2% candidates and a finer 10% control. The automatic
+meshoptimizer candidates use the historical LOD3 0.16 simplification error limit.
 
 ```bash
 cmake -S . -B build
@@ -172,11 +175,16 @@ cmake --build build --target zombie_mesh_simplify benchmark_zombie_lod_quality -
   build/benchmarks/zombie-lod-quality/captures/samples.csv
 ```
 
+For the far comparison, pass `--family far` to preparation and use a separate
+output directory. Its manifest supplies the three capture distances; the capture
+program records the actual current LOD and animation rate from the public policy.
+
 The hardware-GL capture uses the normal baked-animation loader and basic
 shaders, authored sRGB materials and default sunlight. Shadows, scene geometry,
-fog and postprocessing are absent. A 192-square crop preserves the pixel scale
-of the normal 1280x720, 60-degree vertical projection. Native color images have
-no antialiasing; separate depth masks use four-times linear sampling for
+fog and postprocessing are absent. Integer-aligned crops (192-square near,
+64-square far) preserve the pixel scale of the normal 1280x720, 60-degree vertical
+projection. Native color images have no antialiasing; separate depth masks use
+four-times linear sampling for
 subpixel silhouette comparisons. All meshes use the same displayed stepped
 pose, isolating geometry changes from animation-rate changes.
 
@@ -185,12 +193,125 @@ The analyzer requires local NumPy, Pillow and SciPy. It writes an interactive
 aggregate CSV/JSON. Boundary distances are symmetric nearest silhouette-edge
 distances in native scene pixels; masks are not registered or realigned.
 Color errors cover foreground pixels rather than empty background. The report
-also compares candidates with the current LOD. Its eight-pose cycle is a visual
+also records native color coverage and missing reference pixels, which help
+identify thin features lost when distant geometry is rasterized. Candidates are
+also compared with the current LOD. The eight-pose cycle is a visual
 inspection aid, not a full-rate playback or transition test. Neither an image
 metric nor an exploratory half-pixel budget establishes human indistinguishability.
 This measures appearance and geometry counts, not end-to-end frame-time gains.
 
 Recorded comparison: [LOD1/LOD2 image quality, 2026-10-28](benchmarks/zombie-lod-quality-2026-10-28.txt).
+The [LOD3 quality and 100k controls](benchmarks/zombie-lod3-quality-2026-10-28.txt)
+cover 80/120/180 m, finer and coarser controls, native coverage loss and a
+matched four-process rendering comparison.
+
+The one-character open-column prototype is generated with
+`tools/prepare_zombie_prism_lod.py --output build/benchmarks/zombie-prism-lod/assets/ZombieMale_C-open-prisms.glb`
+(run with `.venv/bin/python`). It fits ten uncapped triangular columns to the
+existing rig: 60 triangles and 60 shared vertices, with source colors baked to
+vertex colors. The source rig/animation bytes remain intact. Lower columns
+approximate hand/sole extents; no separate hands, feet or end caps are added.
+Its comparison variant is `prism`; RGB differences include the approximate
+material/color representation, so inspect silhouette and proportions separately.
+The torso uses the median of brighter neutral mid-torso texture samples to
+retain this character's off-white vest; limb and head colors use nearby samples.
+
+For a LOD4 distance survey, a comparison manifest can set additional camera
+conditions (defaults remain level elevation and zero pixel offset):
+
+```json
+"capture": {
+  "family": "lod4-distance",
+  "distances_m": [80, 100, 120, 140, 160, 180, 200, 240, 280, 320],
+  "elevations_degrees": [-15, 0, 15],
+  "pixel_offsets": [[0, 0], [0.5, 0], [0, 0.5], [0.5, 0.5]]
+}
+```
+
+Distance is eye-to-aim distance about `(0, 1.65, 0)`. Positive elevation raises
+the camera; positive pixel offsets shift the projected figure right/down in
+native scene pixels, including when drawing the supersampled mask. Animation
+rate follows the nominal distance, so the 80 m reference is forced to LOD3/5 Hz
+at every elevation. Production selection instead measures actor-bound-center
+distance. These modest elevations do not validate top-down views.
+
+With `original`, `lod3` and `prism` records, analyze this extended CSV using
+`tools/analyze_zombie_lod4_distance.py captures/samples.csv` (with `.venv/bin/python`).
+It pairs all camera conditions, measures the LOD3-to-prism switch as well as
+original-reference quality, and writes per-view metrics, summaries, a native-size
+comparison and a same-pose A/B blink. The fixed geometric budgets and native
+visibility guard are exploratory; color/shading changes are reported separately.
+The sampled poses and blink do not establish continuous-motion acceptability.
+Distances beyond the default 180 m cutoff require extended/unlimited draw distance.
+The [white-vest LOD4 distance survey](benchmarks/zombie-lod4-distance-2026-10-29.txt)
+records 23,040 matched views: the proxy fits the original reasonably at 160-180 m,
+but no tested distance through 320 m passes the current-LOD3 switch budgets.
+The revised vest color, coverage mismatch and native raster dropout are recorded
+separately; runtime LOD policy remains unchanged.
+
+A direct LOD3 replacement is a different comparison: use the existing LOD2 as
+the transition reference at 80 m. A capture record may specify `"animation_hz": 10`
+to force the LOD2 predecessor's stepped rate, while records without an override
+share the nominal-distance rate (5 Hz at 80 m). Zero selects the default policy.
+The focused `tools/analyze_zombie_prism_lod3.py` compares the earlier sampled
+colors and off-white vest with current LOD3, including matched-pose LOD2 and
+separate 10-to-5 Hz sampled transition comparisons. It also reports RGB errors
+on a common foreground support so color rankings use the same pixels.
+The [80 m comparison of both prism colorings](benchmarks/zombie-prism-lod3-80m-2026-10-29.txt)
+records 2,304 matched views. The prism is a promising direct LOD3 replacement
+for the tested character, with improved original silhouette overlap and fewer
+triangles, while LOD2 transition metrics show a mixed quality tradeoff. Earlier
+colors fit the full original better on aggregate; off-white fits LOD2 better
+than the earlier proxy coloring. Neither result establishes a global default.
+
+The `slim` prism profile narrows both torso rings by 15% in width/depth without
+changing their axial height. It scales only the four terminal hand/foot rings
+by 0.7 about their wrist/ankle joints, including terminal overhang; elbow/knee
+rings, upper limbs and head stay fixed. With two rings per lower segment, this
+changes the taper toward the smaller tip. Both profiles retain 60 vertices,
+60 triangles and open ends. Vertex colors are frozen between corresponding
+standard/slim variants; normals are recomputed for the new geometry.
+
+```bash
+.venv/bin/python tools/prepare_zombie_prism_lod.py --profile slim --color sampled \
+  --output build/benchmarks/zombie-prism-slim/assets/ZombieMale_C-prism-slim-original-colors.glb
+.venv/bin/python tools/prepare_zombie_prism_lod.py --profile slim --color white-vest \
+  --output build/benchmarks/zombie-prism-slim/assets/ZombieMale_C-prism-slim-white-vest.glb
+```
+
+The 80 m analyzer accepts a complete additional pair of `prism_slim_original`
+and `prism_slim_white` records. It adds paired standard-to-slim improvement
+counts and per-angle summaries. Its common RGB support then includes all eight
+variants, so compare color rankings within that report rather than mixing its
+absolute RGB values with the earlier six-variant report.
+The [Prism Slim comparison](benchmarks/zombie-prism-slim-2026-10-29.txt) records
+both new color variants, 2,304 matched 80 m views and a separate 12 m inspection.
+Median silhouette overlap improves from standard 0.727 to slim 0.756; projected
+area improves from 115.8% to 101.5% of original. The report retains thin-pixel
+losses, transition tradeoffs and per-angle results alongside those improvements.
+
+`--profile slim2` starts from `slim` and changes only the two upper rear torso
+corners. Their separation shrinks another 15% about their midpoint, and both
+move down by 10% of the original fitted torso height along its axis. The source
+faces +Z: the unchanged single +Z corner is at the front, and the edited pair
+is at the rear. The upper rim becomes tilted; no cap or vertex is added. The
+same `sampled` and `white-vest` color options apply, with frozen vertex colors.
+The analyzer accepts `prism_slim2_original` / `prism_slim2_white` records together
+with the Slim 1 baseline pair, and adds paired Slim 2-versus-Slim 1 comparisons
+by angle, clip and elevation. All ten variants share one common RGB support.
+The [Prism Slim 2 comparison](benchmarks/zombie-prism-slim2-2026-10-29.txt) records
+2,304 matched views and a separate 12 m inspection. Median original-relative
+overlap falls from Slim 1's 0.756 to 0.750, with losses strongest from the front
+and rear. Lowering the rear edge also exposes a neck gap in some poses. Slim 1
+remains the better overall fit in this experiment; both Slim 2 color variants
+are retained for review.
+
+Slim 1 is now the active LOD3 for all ten types; the normal asset-preparation
+command retains valid LOD1/2 and regenerates Slim 1 LOD3. The [rollout and matched
+100k benchmark](benchmarks/zombie-prism-slim1-rollout-2026-10-29.txt) records the
+ignored backup copy, per-type color policy, conservative LOD bounds and four
+old/new/new/old processes. CPU render median falls 15.82 to 12.90 ms; GPU median
+falls 12.31 to 8.15 ms, with all 100,000 actors and ten draws retained.
 
 ### Zombie visibility blocks
 
