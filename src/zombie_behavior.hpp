@@ -13,6 +13,12 @@
 namespace viewer {
 
 enum class ZombieState { idle, looking, investigating, chasing, attacking };
+struct ZombieReactionEvent {
+    std::size_t zombie = 0;
+    glm::vec3 position{0};
+    double seconds = 0;
+    bool chase = false;
+};
 
 struct ZombieBehavior {
     // ID is the stable index in ZombieLayer::instances (never compact that list).

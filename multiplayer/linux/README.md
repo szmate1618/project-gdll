@@ -65,9 +65,9 @@ The content ZIP also supplies `play-town.sh`: use `./play-town.sh` (or
 and disabled-layer options. It accepts extra arguments such as `--single-player`
 or `--host`. Use the server's spawn, zombie-count/radius, and vegetation options. The CI build
 does not generate or bundle the large town, tree, or zombie assets. Gameplay
-retains the multiplayer prototype's current limitations. Local shrub rustles
-have audio; use `--no-audio` to mute. Remote shrub sounds and other game audio
-are not yet routed in multiplayer.
+retains the multiplayer prototype's current limitations. Gameplay audio and
+wind ambience use OpenAL; use `--no-audio` to mute. Audio needs matching
+protocol-20 clients and servers.
 
 To package a local Linux build, run `cmake -P multiplayer/linux/package.cmake`.
 Set `-DBUILD_DIR=/path/to/build` before `-P` for another build directory.

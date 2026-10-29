@@ -60,8 +60,8 @@ Use `--audio-dir DIR` to replace the sound directory. Supply these names:
 | `wind.wav` | Continuous background ambience |
 | `rain.wav` | Additional continuous ambience with `--rain` |
 
-There are no pain, injury, damage, or death audio cues. Weapon reloads remain
-instantaneous in gameplay; their sounds do not introduce a new reload delay.
+There are no pain, injury, damage, or death audio cues. Reload playback begins
+when a reload starts; gameplay timing follows weapon handling and storage access.
 
 All files must be RIFF/WAVE **signed 16-bit PCM**, with sample rates from 8 to
 192 kHz. Effects must be **mono** and no longer than ten seconds. Ambience can
@@ -200,10 +200,51 @@ AI noise. Conversely, playing a gunshot, reload, or zombie sound does not itself
 create an AI hearing event. Standalone and multiplayer firearm handlers separately
 emit AI noise for accepted shots, independently of playback.
 
+## Multiplayer playback
+
+The graphical game client shares the same clips, HRTF playback, 24-effect pool,
+eight zombie voices and 40 m world-sound range. Wind is streamed locally.
+`--no-audio` skips playback and audio candidate queries; AI hearing is unchanged.
+
+Own firearm shots, reloads and empty clicks use presentation-only prediction.
+The predictor tracks pending magazine consumption and weapon cooldowns, shares
+the authoritative reload eligibility calculation, and retires predictions when
+commands are acknowledged. It never changes gameplay ammo or hit results.
+Confirmation and movement reconciliation never replay sounds. A rejected
+prediction may already have been heard. Recoil and hit effects remain confirmed.
+
+Own footsteps, landings, door latches and shrub contacts also play locally.
+Other players' footsteps/landings and shrub contacts are reconstructed from
+interpolated movement, with initial baselines and teleport/vehicle resets.
+No movement-sound packets are sent.
+
+Every 0.2 s, the client samples at most ten tracked zombie IDs to fill a small
+audible candidate set. Candidates stay while alive and within range, so moving
+the sample cursor cannot constantly restart moan timers. The existing local
+scheduler chooses ordinary moans and zombie footsteps. This is approximate
+selection rather than an exact nearest-population query; a sparse random sample
+can leave audible actors silent temporarily. Moans never enter the protocol.
+
+Server sounds cover remote firearm shots/reloads, door latches, and actual
+zombie hearing/chase reactions. Gameplay records bounded reaction notifications
+where they occur; there is no extra population scan. A history of at most 128
+events repeats for 30 server ticks (0.5 s) in snapshots, selected within 40 m of
+each listener. An originating player never receives its own predicted actions.
+Clients deduplicate event IDs, suppress pre-join history, and discard events more
+than 18 ticks (0.3 s) old in the newest accepted snapshot. A receive backlog is
+coalesced before playback. Loss beyond that short history drops a sound rather
+than replaying a burst. Explosion sounds reuse grenade IDs/ages; door slams use
+the existing angle/speed tracker. These are presentation cues, independent of
+AI noise and perception.
+
+Protocol 20 requires matching rebuilt peers. Audio is positional with distance
+attenuation; wall occlusion, room acoustics and voice chat are not implemented.
+
 ## Checks and code
 
 ```bash
 ctest --test-dir build -R '^viewer_(audio.*|scene_audio|weapons|player_noise|zombie_behavior)$' --output-on-failure
+ctest --test-dir build -R '^multiplayer_(sounds|client_audio|game_sessions|client_weapons)$' --output-on-failure
 .venv/bin/python -m unittest discover -s tests -p 'test_audio_assets.py' -v
 ```
 
@@ -227,6 +268,10 @@ or asset quality.
 - `src/door_audio.hpp/.cpp`: Presentation-only slam detection.
 - `src/undergrowth.hpp/.cpp`: Indexed contact volumes, swept movement and AI noise events.
 - `src/undergrowth_audio.hpp/.cpp`: Recorded shrub effect selection and playback.
+- `multiplayer/client/audio_playback.hpp/.cpp`: Local playback and bounded ambient candidates.
+- `multiplayer/client/weapon_audio.hpp/.cpp`: Immediate action sound prediction.
+- `multiplayer/client/sound_cues.hpp/.cpp`: Repeated snapshot event filtering/deduplication.
+- `multiplayer/server/sounds.hpp/.cpp`: Bounded, range-filtered authoritative event history.
 - `tools/create_audio_assets.py`: Original synthesized landing and ambience.
 - `tools/prepare_audio_assets.py`: Hash-checked recording preparation.
 - `assets/audio/`: Curated WAVs, credits, and provenance manifest.

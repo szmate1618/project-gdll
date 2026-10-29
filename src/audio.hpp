@@ -20,7 +20,7 @@ struct AudioOptions {
     std::filesystem::path directory;
     bool enabled = true;
     bool rain = false;
-    bool ambience = true; // Multiplayer currently uses only local shrub effects.
+    bool ambience = true; // Wind and optional rain streams; independent of world effects.
     bool hrtf = true;
     float gain = 0.6f;
     std::size_t effectVoices = 24, zombieVoices = 8;

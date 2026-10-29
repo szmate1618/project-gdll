@@ -311,7 +311,7 @@ and data URIs are supported. Zombie assets may have at most 128 skeleton nodes
 (including non-joint scene nodes); incompatible rigs fail before hosting.
 Weapon definitions and starting inventory are loaded once per scene and copied
 for each joining player, so changing files cannot change a running session.
-The current wire protocol is version 16; rebuild both client and server together.
+The current wire protocol is version 20; rebuild both client and server together.
 Player health starts at 100 and is authoritative, including fractional damage
 from collision-limited zombie lunges. Clients show health and a brief damage
 pulse without simulating attacks. Stamina and weariness are stored but inactive.
@@ -487,7 +487,7 @@ retained/resubmitted normally but never replayed as walking movement. Lighting
 uses the shared server tick and matching day/night settings, including parked
 headlights at night.
 
-Protocol 19 uses a persistent client population with partial zombie updates.
+Zombie replication uses a persistent client population with partial updates.
 The server visits occupied 20 m spatial cells in approximate distance order,
 then tests full animated bounds against the client's camera and zoom-dependent
 draw distance. A view margin retains actors during turns; nearby offscreen
@@ -601,15 +601,26 @@ first/third person driving views.
 
 This is a first playable networking foundation, with eight-player admission and
 512 interior boxes per session. Capacity/performance at those limits is not a
-benchmark claim. Local predicted shrub rustles play through OpenAL (`--no-audio`
-disables playback); shrub noise for zombie hearing is calculated on the server.
-Remote shrub sounds and other multiplayer audio are not implemented yet.
+benchmark claim. Audio uses the viewer's OpenAL backend and sound assets;
+`--no-audio` disables playback. Own gunfire, reloads, empty clicks, footsteps,
+landings and shrub rustles play from fresh local prediction, without waiting for
+server confirmation or replaying during reconciliation. Other players' footsteps,
+landings and shrub sounds are synthesized from their interpolated movement.
+Ordinary zombie moans/steps are scheduled locally for a small random sample of
+audible tracked zombies; no moan or footstep events are transmitted. Wind ambience
+is local too.
+Remote shots/reloads, door latches and zombie hearing/chase reactions use a bounded
+half-second history of server events, filtered to 40 m and excluding the originating
+player's own predicted actions. Clients deduplicate IDs, discard cues older than
+0.3 s in the latest received state, and suppress startup history. Explosions reuse
+existing grenade events; door slams are inferred from replicated door motion.
+Audio never emits AI noise or changes authoritative gameplay. See
+[audio behavior and limits](../docs/AUDIO.md#multiplayer-playback).
 Historical shot lag compensation, player-player
 collision, dynamic-prop prediction, general state delta compression, persistence and public
 server authentication are not implemented. Shots use the current server pose
 and respect map/door/prop occlusion. Dynamic objects remain server-owned, so
-moving through or pushing them can cause client movement corrections. Existing
-prototype zombie attack states do not yet apply player damage.
+moving through or pushing them can cause client movement corrections.
 Corpse poses still cost bandwidth and may update less frequently on slow links;
 their packing and update frequency need profiling before scaling up. Essential
 snapshots still use unreliable fragments, so loss can drop a complete world

@@ -149,6 +149,10 @@ void perceptionAndStates() {
     layer.chase(0.1f, {0, 0, 10}, clear);
     require(state(layer) == ZombieState::chasing, "Three rays upgrade idle directly to chasing");
     require(layer.instances[0].chaseRevision == 1, "Initial chase acquisition publishes one presentation notification");
+    const auto chaseEvents = layer.takeReactionEvents();
+    require(chaseEvents.size() == 1 && chaseEvents[0].zombie == 0 && chaseEvents[0].chase,
+            "Chase acquisition did not publish a drainable reaction event");
+    require(layer.takeReactionEvents().empty(), "Draining reaction events replayed an old acquisition");
     layer.chase(5, {0, 0, 10}, clear);
     require(state(layer) == ZombieState::attacking && !layer.instances[0].walking,
             "Attack range stops locomotion and plays idle even with a large step");
@@ -156,6 +160,7 @@ void perceptionAndStates() {
     layer.chase(0.1f, {0, 0, 20}, clear);
     require(state(layer) == ZombieState::chasing && layer.instances[0].walking, "Resume pursuit when player leaves attack range");
     require(layer.instances[0].chaseRevision == 1, "Attack-range transitions do not spam new acquisition grunts");
+    require(layer.takeReactionEvents().empty(), "Attack-range transitions emitted repeated chase events");
 }
 
 void targetMemoryAndEveryIdleTimeout() {
@@ -227,6 +232,9 @@ void hearingThresholdAndEligibility() {
     require(state(layer, 0) == ZombieState::looking, "Walking noise is audible at exactly 10 m");
     require(layer.instances[0].heardNoiseRevision == 1 && layer.instances[1].heardNoiseRevision == 0 &&
             layer.instances[6].heardNoiseRevision == 0, "Only accepted living hearing reactions publish audio notifications");
+    const auto heardEvents = layer.takeReactionEvents();
+    require(heardEvents.size() == 1 && heardEvents[0].zombie == 0 && !heardEvents[0].chase,
+            "Hearing reaction events included an ineligible zombie");
     require(state(layer, 1) == ZombieState::idle && state(layer, 2) == ZombieState::idle,
             "Walking noise beyond 10 m is inaudible; propagation includes height");
     require(state(layer, 3) == ZombieState::investigating && state(layer, 4) == ZombieState::chasing &&

@@ -94,6 +94,7 @@ void World::submit(std::uint32_t id, const Commands& commands) {
 }
 void World::step() {
     ++tick_;
+    sounds_.expire(tick_);
     auto& clock = viewer::SimulationClock::instance();
     clock.advance(tickSeconds);
     const double now = clock.seconds();
@@ -210,6 +211,8 @@ void World::step() {
                         }
                         if (conflict) player.interaction.cancel();
                         if (const auto door = player.interaction.grabbedDoor()) {
+                            if (std::abs(scene_.doors->angle(*door)) <= .025f)
+                                sounds_.emit(tick_, SoundKind::doorLatch, id, scene_.doors->panel(*door).center);
                             // shortcut: stop populating before the fixed protocol prop budget; raise/version it for larger sessions.
                             if (scene_.boxes->count() + 64 < maxBoxes)
                                 interiors_.populate(*door, *scene_.collision, physicsScene_, *scene_.boxes);
@@ -223,7 +226,8 @@ void World::step() {
             const bool switchedWeapon = player.weaponSwitch.begin(player.weapons, player.inventory, command.slot, now);
             if (command.reload && !player.weaponSwitch.pending()) player.reloadRequested = true;
             if (player.reloadRequested && !player.weaponSwitch.pending() && !player.inventory.held() && player.pendingInventoryActions.empty()) {
-                player.weaponReload.begin(player.weapons, player.inventory, now);
+                if (player.weaponReload.begin(player.weapons, player.inventory, now) && player.weapons.slot() < 4)
+                    sounds_.emit(tick_, SoundKind::reload, id, player.camera.position(), static_cast<std::uint8_t>(player.weapons.slot()));
                 player.reloadRequested = false;
             }
             // Resetting Weapons must not turn an already-held button into a new press.
@@ -250,6 +254,8 @@ void World::step() {
                     return melee_.punch(player.body, player.body.eyePosition(), player.camera.direction(), *scene_.collision);
                 }) == viewer::WeaponFireResult::fired) {
                 ++player.shots;
+                if (player.weapons.slot() < 4)
+                    sounds_.emit(tick_, SoundKind::shot, id, player.camera.position(), static_cast<std::uint8_t>(player.weapons.slot()));
                 if (config.grenade) {
                     if (!scene_.grenades->throwFrom(player.camera.position(), player.camera.direction(), playerVelocity,
                             now, *config.grenade, *scene_.collision)) throw std::logic_error("Accepted grenade throw failed");
@@ -303,6 +309,9 @@ void World::step() {
             scene_.zombies.shootWithOcclusion(shot.origin, direction, now, *scene_.collision, shot.caliber);
         }
     }
+    for (const auto& reaction : scene_.zombies.takeReactionEvents())
+        sounds_.emit(tick_, reaction.chase ? SoundKind::chase : SoundKind::heard,
+                     static_cast<std::uint32_t>(reaction.zombie), reaction.position);
     if (birds_.active()) {
         std::vector<viewer::BirdFlockPlayer> birdPlayers;
         for (const auto& [id,player]:players_)
@@ -323,6 +332,7 @@ void World::requestBirdCheckpoint(std::uint32_t id) { players_.at(id).birdTick.r
 Snapshot World::snapshot(std::uint32_t id) {
     auto& observer = players_.at(id);
     Snapshot s; s.tick = tick_;
+    s.sounds = sounds_.forListener(tick_, id, observer.camera.position());
     s.grenades = scene_.grenades->poses();
     s.explosions = scene_.grenades->explosions(viewer::SimulationClock::instance().seconds());
     s.bloodMist = scene_.zombies.bloodMist().recent(viewer::SimulationClock::instance().seconds());

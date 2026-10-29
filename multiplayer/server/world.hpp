@@ -11,6 +11,7 @@
 #include "replication.hpp"
 #include "vehicle_seats.hpp"
 #include "birds.hpp"
+#include "sounds.hpp"
 #include "player_body.hpp"
 #include "player_vitals.hpp"
 #include "melee_combat.hpp"
@@ -78,5 +79,6 @@ private:
     std::map<std::uint32_t, ServerPlayer> players_;
     std::uint32_t nextPlayer_ = 1;
     std::uint64_t tick_ = 0;
+    ServerSounds sounds_;
 };
 } // namespace multiplayer

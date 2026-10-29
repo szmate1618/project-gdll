@@ -6,6 +6,13 @@
 
 namespace viewer {
 class PlayerInventory;
+struct WeaponReloadPlan {
+    std::string source;
+    int rounds = 0;
+    double duration = 0;
+};
+// Read-only eligibility/selection shared with immediate client sound prediction.
+std::optional<WeaponReloadPlan> planWeaponReload(const WeaponState& weapon, const PlayerInventory& inventory);
 
 // One reload uses one stored ammo stack. Its source, transfer quantity and
 // access time are selected when the operation starts; ammo moves on completion.

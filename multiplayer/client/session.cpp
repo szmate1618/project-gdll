@@ -20,7 +20,7 @@
 #include "minimap.hpp"
 #include "weapon_overlay.hpp"
 #include "player_body_renderer.hpp"
-#include "undergrowth_audio.hpp"
+#include "audio_playback.hpp"
 #include <GLFW/glfw3.h>
 #else
 struct GLFWwindow;
@@ -213,8 +213,7 @@ struct Graphics {
     std::unique_ptr<viewer::Hud> hud;
     float speedMetersPerSecond = 0;
     std::unique_ptr<viewer::WeaponOverlay> weapon;
-    std::unique_ptr<viewer::AudioSystem> audio;
-    viewer::UndergrowthEmitter undergrowth;
+    std::unique_ptr<multiplayer::ClientAudio> audio;
     viewer::MuzzleFlash muzzleFlash;
     std::size_t muzzleSlot = 0;
     glm::vec3 muzzleModelPosition{0};
@@ -271,8 +270,7 @@ struct Graphics {
         viewer::AudioOptions audioOptions;
         audioOptions.directory = multiplayer::audioDirectory();
         audioOptions.enabled = sound;
-        audioOptions.ambience = false;
-        audio = std::make_unique<viewer::AudioSystem>(audioOptions);
+        audio = std::make_unique<multiplayer::ClientAudio>(audioOptions);
     }
     void bindInput(Input& in) {
         in.hud = hud.get();
@@ -393,6 +391,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
         }
 #ifdef MP_GRAPHICS
         const auto simulationStart = Clock::now();
+        bool newAudioSnapshot = false;
 #endif
         const auto messages = network.receive();
         for (const auto& event : network.events) {
@@ -406,12 +405,12 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
             if (const auto* welcome = std::get_if<multiplayer::Welcome>(&message)) {
                 if (self) throw std::runtime_error("Duplicate welcome");
                 self = welcome->player;
-#ifdef MP_GRAPHICS
-                graphics.undergrowth = viewer::UndergrowthEmitter(self);
-#endif
                 std::cout << "Connected as player " << self << std::endl;
             } else if (const auto* snapshot = std::get_if<multiplayer::Snapshot>(&message)) {
                 if (!self || !snapshots.push(*snapshot, now)) continue;
+#ifdef MP_GRAPHICS
+                newAudioSnapshot = true;
+#endif
                 lastSnapshot = now; ++received; mostPlayers = std::max(mostPlayers, snapshot->players.size());
                 for (const auto& p : snapshot->players) if (p.id != self) {
                     const auto origin = remoteOrigins.emplace(p.id, p.movement.feet).first->second;
@@ -519,6 +518,11 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 }
             } else throw std::runtime_error("Unexpected server message");
         }
+#ifdef MP_GRAPHICS
+        // Consume the newest accepted state once: a receive backlog must not
+        // replay a burst of already stale audio from intermediate snapshots.
+        if (newAudioSnapshot && graphics.audio) graphics.audio->receive(snapshots.latest(), self);
+#endif
         if (now - lastSnapshot > (prediction.ready() ? 5 : 15)) throw std::runtime_error(prediction.ready() ? "Connection lost: server stopped responding (snapshot timeout)" :
                                      "Could not join: server did not provide player state within 15 seconds");
         if (prediction.ready()) {
@@ -538,10 +542,13 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 // Fresh prediction only: reconciliation replays must stay silent.
                 if (graphics.audio) {
                     const bool running = nextCommand.movement.run && controller.stance() == viewer::PlayerStance::Standing;
-                    if (const auto event = graphics.undergrowth.update(multiplayer::tickSeconds, shrubBefore,
-                            {controller.feet(), controller.bodyHeight(), controller.config().radius, controller.grounded(), running},
-                            scene.undergrowth))
-                        viewer::playUndergrowth(*graphics.audio, *event);
+                    graphics.audio->weaponCommand(predicted, now, weaponDefinitions, *inventory);
+                    if (!in.driver.occupied()) {
+                        graphics.audio->localMovement(controller, shrubBefore, scene.undergrowth, running, self);
+                        auto soundCamera = in.camera;
+                        soundCamera.setPosition(controller.eyePosition());
+                        graphics.audio->localDoor(predicted, soundCamera, scene);
+                    }
                 }
 #endif
                 auto outgoing = prediction.commandsToSend(); outgoing.snapshotTick = snapshots.latest().tick;
@@ -582,8 +589,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
         if (options.bot) in.camera.setOrientation(0, 0);
 #ifdef MP_GRAPHICS
         if (graphics.window && (!feedback || prediction.ready())) {
-            graphics.audio->setListener(in.camera.position(), in.camera.direction());
-            graphics.audio->update();
+            graphics.audio->update(in.camera, scene, snapshots, self, static_cast<float>(dt), now);
             int width = 0, height = 0; glfwGetFramebufferSize(graphics.window, &width, &height);
             if (width > 0 && height > 0) {
                 intervalSimulationSeconds += std::chrono::duration<double>(Clock::now() - simulationStart).count();

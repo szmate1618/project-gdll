@@ -392,6 +392,18 @@ void payload(Wire& w, Snapshot& s) {
         if (++signalCounts[signal.id] > maxSignalsPerPlayer) throw std::runtime_error("Too many signals from one player");
     if (signalCounts.size() > maxPlayers) throw std::runtime_error("Too many signal senders");
     uniqueIds(s.vehicles);
+    std::set<std::uint64_t> soundIds;
+    w.list(s.sounds, maxSoundEvents, [&](SoundEvent& sound) {
+        w.integer(sound.id); w.integer(sound.tick);
+        auto kind = static_cast<std::uint8_t>(sound.kind); w.integer(kind);
+        w.integer(sound.source); w.integer(sound.weapon); w.vector(sound.position);
+        if (kind > static_cast<std::uint8_t>(SoundKind::chase)) throw std::runtime_error("Invalid sound kind");
+        sound.kind = static_cast<SoundKind>(kind);
+        if (!sound.id || sound.tick > s.tick || s.tick - sound.tick > soundHistoryTicks ||
+            !soundIds.insert(sound.id).second || (playerSound(sound.kind) ? !sound.source : sound.source >= maxZombies) ||
+            ((sound.kind == SoundKind::shot || sound.kind == SoundKind::reload) ? sound.weapon >= 4 : sound.weapon != 0))
+            throw std::runtime_error("Invalid sound event");
+    });
     std::set<std::pair<std::uint32_t, std::uint8_t>> occupied;
     for (const auto& p : s.players) if (p.vehicle != noVehicle) {
         if (!occupied.emplace(p.vehicle, p.seat).second || std::none_of(s.vehicles.begin(), s.vehicles.end(),

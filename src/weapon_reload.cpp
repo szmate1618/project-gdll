@@ -5,11 +5,9 @@
 #include <cmath>
 
 namespace viewer {
-bool WeaponReload::begin(Weapons& weapons, const PlayerInventory& inventory, double seconds) {
-    if (pending_ || weapons.reloading_ || !std::isfinite(seconds)) return false;
-    const auto& weapon = weapons.equipped();
+std::optional<WeaponReloadPlan> planWeaponReload(const WeaponState& weapon, const PlayerInventory& inventory) {
     const int missing = weapon.config.magazineCapacity - weapon.loaded;
-    if (!weapon.owned || missing <= 0) return false;
+    if (!weapon.owned || missing <= 0) return std::nullopt;
     struct Source { std::string id; int quantity; double access; };
     std::optional<Source> best;
     for (const auto& [id, item] : inventory.items()) {
@@ -28,10 +26,16 @@ bool WeaponReload::begin(Weapons& weapons, const PlayerInventory& inventory, dou
                 (enough ? quantity < best->quantity : quantity > best->quantity)))))
             best = Source{id, quantity, access};
     }
-    if (!best) return false;
+    if (!best) return std::nullopt;
     const double duration = weapon.config.reloadTimeSeconds + best->access;
-    if (!std::isfinite(seconds + duration)) return false;
-    pending_ = Pending{weapons.slot(), best->id, std::min(missing, best->quantity), seconds + duration, duration};
+    return WeaponReloadPlan{best->id, std::min(missing, best->quantity), duration};
+}
+
+bool WeaponReload::begin(Weapons& weapons, const PlayerInventory& inventory, double seconds) {
+    if (pending_ || weapons.reloading_ || !std::isfinite(seconds)) return false;
+    const auto plan = planWeaponReload(weapons.equipped(), inventory);
+    if (!plan || !std::isfinite(seconds + plan->duration)) return false;
+    pending_ = Pending{weapons.slot(), plan->source, plan->rounds, seconds + plan->duration, plan->duration};
     weapons.reloading_ = true;
     weapons.cancelTrigger();
     return true;

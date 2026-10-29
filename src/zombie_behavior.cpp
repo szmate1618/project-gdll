@@ -282,6 +282,16 @@ void ZombieLayer::setPerceptionEnabled(bool enabled) {
     behaviorOrder_.clear();
 }
 
+void ZombieLayer::recordReaction(std::size_t id, double now, bool chase) {
+    if (reactionEvents_.size() == 256) reactionEvents_.pop_front();
+    reactionEvents_.push_back({id, glm::vec3(instances[id].restRoot[3]) + glm::vec3(0, 1.5f, 0), now, chase});
+}
+std::vector<ZombieReactionEvent> ZombieLayer::takeReactionEvents() {
+    std::vector<ZombieReactionEvent> result(reactionEvents_.begin(), reactionEvents_.end());
+    reactionEvents_.clear();
+    return result;
+}
+
 void ZombieLayer::makeNoise(glm::vec3 position, float decibels) {
     if (!perceptionEnabled_ || !finite(position) || !std::isfinite(decibels)) return;
     const double now = SimulationClock::instance().seconds();
@@ -306,6 +316,7 @@ void ZombieLayer::makeNoise(glm::vec3 position, float decibels) {
         changeState(*behavior, ZombieState::looking, now);
         ++instance.heardNoiseRevision;
         instance.heardNoiseSeconds = now;
+        recordReaction(id, now, false);
         if (instance.walking) markRenderChanged(id, false);
         stopZombieLocomotion(instance);
     }
@@ -444,9 +455,11 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
         const auto beforeRoot = instance.restRoot;
         const auto beforeSeconds = instance.walkSeconds;
         const bool wasRunning = instance.running;
+        const auto previousChase = instance.chaseRevision;
         const bool claimed = stepBehavior(behavior, instance, assets[instance.asset], selectedPlayer, world,
                      seconds, now, animationSeconds, staggerPerception_, behaviorStats_, crowd_, players,
                      scenarioFallback, attackHits_);
+        if (instance.chaseRevision != previousChase) recordReaction(id, now, true);
         if (zombie_profile::activeProfile)
             ++zombie_profile::activeProfile->behaviorStates[std::size_t(behavior.state)];
         if (claimed && scenarioDestination(id)) abandonScenarioRoute(id);

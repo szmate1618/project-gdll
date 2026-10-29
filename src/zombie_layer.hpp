@@ -17,6 +17,7 @@
 #include "blood_particles.hpp"
 
 #include <memory>
+#include <deque>
 #include <map>
 #include <optional>
 #include <unordered_map>
@@ -120,6 +121,9 @@ struct ZombieLayer {
     // Silent noise at a world position, with a source level in dB at one meter.
     // Only idle, living zombies already in the behavior pool can hear it.
     void makeNoise(glm::vec3 position, float decibels);
+    // Bounded presentation notifications, independent of AI noise propagation.
+    // A consumer drains these; an absent consumer retains at most 256 events.
+    std::vector<ZombieReactionEvent> takeReactionEvents();
     // Exact 3D feet query using the living-body index, independent of camera
     // visibility and behavior activation. Reuses the caller's output storage.
     void queryLivingNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids);
@@ -203,6 +207,8 @@ struct ZombieLayer {
     const ZombieRenderUpdates& renderUpdates() const { return renderUpdates_; }
 
 private:
+    void recordReaction(std::size_t id, double now, bool chase);
+    std::deque<ZombieReactionEvent> reactionEvents_;
     void emitBloodParticles(const ZombieShotHit& hit, glm::vec3 point, glm::vec3 direction,
                             double seconds, const CollisionWorld* world);
     void activateRagdoll(std::size_t zombie, std::vector<glm::mat4> pose, glm::vec3 velocity, double animationSeconds,
