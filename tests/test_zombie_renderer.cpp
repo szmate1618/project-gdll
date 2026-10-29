@@ -574,11 +574,16 @@ void renderIncrementalAndFullRefresh() {
     replacement.instances.resize(2);
     replacement.instances[0].transform = glm::translate(glm::mat4(1), {100, 0, 0});
     replacement.instances[1].transform = glm::translate(glm::mat4(1), {-1, 0, 0});
+    replacement.instances[1].walking = replacement.instances[1].running = true;
+    replacement.instances[1].phase = .125f;
+    replacement.instances[1].walkSeconds = 1;
     layer = std::move(replacement);
     first.updateZombies(layer);
     first.render(camera, .25);
     if (!first.zombieUpdateStats().full || first.zombieVisibleCount() != 1)
         throw std::runtime_error("Layer replacement must discard cached placements at the same address");
+    if (layer.instances[1].displayedAnimationFrame != 1.25f || layer.instances[1].displayedAnimationClip != 2)
+        throw std::runtime_error("Layer replacement must also replace cached clip, clock and phase at the same address");
     viewer::Renderer::checkErrors("incremental zombie render updates");
 }
 
@@ -616,6 +621,17 @@ void renderHiddenLocomotionChanges() {
     renderer.render(camera, .125);
     if (renderer.zombieVisibleCount() != 0 || instance.displayedAnimationFrame >= 0)
         throw std::runtime_error("Hidden locomotion changes must not publish an undrawn camera pose");
+    // Reveal through camera movement alone: an instance update on reentry
+    // would mask a stale animation cache left by the bounds=false notification.
+    camera.setPosition({100, .8f, 10});
+    renderer.render(camera, .125);
+    if (renderer.zombieVisibleCount() != 1 || instance.displayedAnimationFrame != 1.75f ||
+        instance.displayedAnimationClip != 2 || colorPixels() == walking)
+        throw std::runtime_error("Camera-only reentry must retain a hidden actor's latest clip and clock");
+    camera.setPosition({0, .8f, 10});
+    renderer.render(camera, .125);
+    if (renderer.zombieVisibleCount() != 0 || instance.displayedAnimationFrame >= 0)
+        throw std::runtime_error("Hiding the revealed actor must retire its newly published pose");
     instance.transform = glm::mat4(1);
     layer.markRenderChanged(0);
     renderer.updateZombies(layer);
@@ -627,6 +643,42 @@ void renderHiddenLocomotionChanges() {
     renderer.render(camera, 1.125);
     if (colorPixels() != running || instance.displayedAnimationFrame != 1.75f)
         throw std::runtime_error("Idle time must not advance a stopped locomotion clip");
+    const auto refreshAnimation = [&] {
+        layer.markRenderChanged(0, false);
+        renderer.updateZombies(layer);
+        if (renderer.zombieUpdateStats().instances != 1 || renderer.zombieUpdateStats().bounds != 0 ||
+            renderer.zombieUpdateStats().full)
+            throw std::runtime_error("Animation-only notifications must refresh state without touching bounds");
+    };
+    const auto requireFrame = [&](double idleSeconds, float frame, int clip) {
+        renderer.render(camera, idleSeconds);
+        if (instance.displayedAnimationFrame != frame || instance.displayedAnimationClip != clip ||
+            renderer.zombieVisibilityStats().refittedGroups != 0)
+            throw std::runtime_error("Cached animation fields must update independently of spatial bounds");
+    };
+    instance.walkSeconds = .5;
+    instance.phase = .25f;
+    refreshAnimation();
+    requireFrame(50, 1, 2);
+    if (colorPixels() == running) throw std::runtime_error("Changed run clock and phase must move the rendered pose");
+    instance.walking = false; // A retained running flag must not select locomotion.
+    refreshAnimation();
+    requireFrame(.125, .75f, 0);
+    const auto idle = colorPixels();
+    renderer.updateZombies(layer);
+    if (renderer.zombieUpdateStats().instances != 0)
+        throw std::runtime_error("Unchanged cached animation state must skip preparation");
+    requireFrame(.5, 1.5f, 0);
+    if (colorPixels() == idle) throw std::runtime_error("Idle rendering must advance without a source-state notification");
+    instance.walking = true;
+    instance.running = false;
+    instance.walkSeconds = .375;
+    instance.phase = .5f;
+    refreshAnimation();
+    requireFrame(100, 2.25f, 1);
+    instance.walkSeconds = .875;
+    refreshAnimation();
+    requireFrame(200, .25f, 1);
     viewer::Renderer::checkErrors("hidden locomotion pose changes");
 }
 

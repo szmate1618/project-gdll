@@ -869,6 +869,19 @@ memory. Measure downstream preparation and full rendering as well as the query:
 removing sorting can make the query faster while losing more time to scattered
 instance reads afterward.
 
+Selection reads a compact renderer-owned record for each source ID: asset/local
+indices, bounds center, locomotion time, selected clip and ragdoll/severed flags.
+The gameplay instance remains authoritative. Existing render notifications refresh
+this cache, including animation-only changes; full refreshes also replace cached
+clip timings. Cold gameplay records are still used to publish displayed poses
+and obtain live ragdoll palettes. GPU instance records remain 96 bytes.
+
+Idle clip time is reduced once per asset per rendered frame, then each actor's
+own phase is applied. Locomotion keeps independent clocks. The shared base stays
+unwrapped until phase addition to retain the original floating-point result at
+cycle boundaries. See the [render-state and idle-timing comparison](benchmarks/zombie-render-state-2026-10-29.txt)
+for before/after costs and the added work when every actor changes.
+
 `Renderer::updateZombies()` marks groups dirty when an instance's bounds change,
 moves membership across cell boundaries, and removes corpse tombstones. Before
 the next camera/shadow query, dirty groups rebuild their aggregate boxes once,
@@ -2741,6 +2754,9 @@ remaining checks run without a display.
 `viewer_zombie_animation_buffer` checks half encodings, source preservation,
 fallback and conservative rounded bounds without a GPU. The rendering regression
 also checks rounded camera/sun bounds, FP32 fallback and full-precision live palettes.
+Animation-only cache updates are tested through camera-only reentry and layer
+replacement. `viewer_animated_model` checks shared timing against literal frame-bit
+goldens, including a shared base that rounds to the frame count before phase wrapping.
 
 `viewer_zombie_crowd` checks swept contacts, sliding, opposing movers, separate
 floors, inactive blockers, animation stopping, ragdoll release, grid updates,

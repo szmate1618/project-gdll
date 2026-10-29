@@ -4,6 +4,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -263,6 +264,60 @@ void testPoseSampling(Files& files) {
     expectInvalid(model, std::numeric_limits<float>::quiet_NaN());
 }
 
+void testSharedFrameTiming() {
+    const auto bits = [](float value) {
+        std::uint32_t result = 0;
+        std::memcpy(&result, &value, sizeof(result));
+        return result;
+    };
+    struct Golden {
+        float duration;
+        std::size_t count;
+        double seconds;
+        float phase;
+        std::uint32_t base, frame;
+    };
+    // Literal frame bits verified against the frozen pre-optimization library.
+    // At the cycle edge, wrapping base 2 to 0 BEFORE adding .3 changes the result.
+    const Golden samples[] = {
+        {1, 2, std::nextafter(1., 0.), .3f, 0x40000000, 0x3f199998},
+        {1, 2, std::nextafter(1., 0.), .1f, 0x40000000, 0x3e4cccd0},
+        {1, 2, .125, .3f, 0x3e800000, 0x3f59999a},
+        {1.5f, 3, .875, .37f, 0x3fe00000, 0x40370a3e},
+        {1.5f, 3, 1.375, .125f, 0x40300000, 0x3e000000},
+        {1.5f, 3, 1099511627776.25, .125f, 0x40200000, 0x40380000},
+        {1.5f, 3, std::numeric_limits<double>::max(), .5f, 0x3f800000, 0x40200000},
+        {1.5f, 3, -1, .125f, 0, 0x3ec00000},
+        {1.5f, 3, std::numeric_limits<double>::infinity(), .125f, 0, 0x3ec00000},
+        {1.5f, 3, std::numeric_limits<double>::quiet_NaN(), .125f, 0, 0x3ec00000},
+        {1, 2, 0, -.25f, 0, 0x3fc00000},
+        {1, 2, 0, 1.25f, 0, 0x3f000000}
+    };
+    for (const auto& sample : samples) {
+        const auto base = viewer::animatedFrameBase(sample.duration, sample.count, sample.seconds);
+        require(bits(base) == sample.base, "Shared clip time must retain the original unwrapped float base");
+        require(bits(viewer::animatedFrameFromBase(base, sample.count, sample.phase)) == sample.frame &&
+                bits(viewer::animatedFrame(sample.duration, sample.count, sample.seconds, sample.phase)) == sample.frame,
+                "Shared and independent timing must preserve the original frame bits");
+    }
+    const auto rejects = [](auto&& operation) {
+        try { operation(); }
+        catch (const std::runtime_error&) { return; }
+        throw std::runtime_error("Malformed shared animation timing must be rejected");
+    };
+    for (const auto count : {std::size_t(0), std::size_t(1), std::numeric_limits<std::size_t>::max()}) {
+        rejects([&] { viewer::animatedFrameBase(1, count, 0); });
+        rejects([&] { viewer::animatedFrameFromBase(0, count, 0); });
+    }
+    for (const auto duration : {0.f, -1.f, std::numeric_limits<float>::infinity(),
+                                std::numeric_limits<float>::quiet_NaN()})
+        rejects([&] { viewer::animatedFrameBase(duration, 2, 0); });
+    for (const auto invalid : {std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()}) {
+        rejects([&] { viewer::animatedFrameFromBase(0, 2, invalid); });
+        rejects([&] { viewer::animatedFrameFromBase(invalid, 2, 0); });
+    }
+}
+
 void testInterpolation(Files& files) {
     Fixture rotation;
     rotation.track("idle", 0, "rotation", {0, 1}, {0, 0, 0, 1, 0, 0, 1, 0});
@@ -399,6 +454,7 @@ int main(int argc, char** argv) {
         Files files;
         testSkinAndHierarchy(files);
         testPoseSampling(files);
+        testSharedFrameTiming();
         testInterpolation(files);
         testValidation(files);
         testLocomotionClips(files);

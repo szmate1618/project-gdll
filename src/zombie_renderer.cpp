@@ -94,6 +94,7 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
     zombieVisibility_.reset(zombies.instances.size());
     zombieBatchLocals_.resize(zombies.instances.size());
     zombieBatchAssets_.resize(zombies.instances.size());
+    zombieRenderStates_.resize(zombies.instances.size());
     zombieCount_ = zombies.instances.size();
     visibleZombies_.reserve(zombies.instances.size());
     for (std::size_t i = 0; i < zombies.assets.size(); ++i) {
@@ -293,6 +294,13 @@ void Renderer::updateZombies(const ZombieLayer& zombies) {
     zombieSource_ = &zombies;
     zombieUpdateStats_ = {0, 0, full};
     if (full) {
+        for (std::size_t asset = 0; asset < zombies.assets.size(); ++asset) {
+            const auto& source = zombies.assets[asset];
+            auto& timings = zombieBatches_[asset].clipTimings;
+            timings[0] = {source.duration, source.frameCount};
+            timings[1] = source.walkClip ? ZombieClipTiming{source.walkClip->duration, source.walkClip->frameCount} : timings[0];
+            timings[2] = source.runClip ? ZombieClipTiming{source.runClip->duration, source.runClip->frameCount} : timings[0];
+        }
         for (std::size_t id = 0; id < zombies.instances.size(); ++id)
             updateZombieInstance(id, true, true);
     } else if (update.ids) {
@@ -312,6 +320,16 @@ void Renderer::updateZombieInstance(std::size_t id, bool boundsChanged, bool ful
     const auto local = zombieBatchLocals_[id];
     const auto& source = zombieSource_->instances[id];
     if (source.asset != asset) throw std::runtime_error("Zombie asset changed after renderer upload");
+    auto& render = zombieRenderStates_[id];
+    render.asset = asset;
+    render.local = local;
+    render.walkSeconds = source.walkSeconds;
+    render.severedJoint = source.severedJoint;
+    render.ragdoll = source.ragdoll;
+    const auto& model = zombieSource_->assets[asset];
+    const auto* clip = zombieAnimationClip(model, source);
+    render.clip = !clip ? ZombieRenderClip::Idle :
+        model.runClip && clip == &*model.runClip ? ZombieRenderClip::Run : ZombieRenderClip::Walk;
     ++zombieUpdateStats_.instances;
     if (source.removed) {
         updateZombieWound(id, batch, batch.staging[local]);
@@ -346,6 +364,7 @@ void Renderer::updateZombieInstance(std::size_t id, bool boundsChanged, bool ful
         auto& previous = batch.instanceBounds[local];
         const bool changed = bounds.minimum != previous.minimum || bounds.maximum != previous.maximum;
         previous = bounds;
+        render.center = (previous.minimum + previous.maximum) * .5f;
         if (changed || !zombieVisibility_.contains(id)) zombieVisibility_.update(id, previous);
     }
 }
@@ -362,6 +381,8 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
     for (const auto id : displayedZombieSources_) zombieSource_->instances[id].displayedAnimationFrame = -1;
     displayedZombieSources_.clear();
     for (auto& batch : zombieBatches_) {
+        const auto& idle = batch.clipTimings[static_cast<std::size_t>(ZombieRenderClip::Idle)];
+        batch.idleFrameBase = animatedFrameBase(idle.duration, idle.frameCount, seconds);
         batch.cameraInstances.clear();
         batch.woundedCameraInstances.clear();
         batch.shadowInstances.clear();
@@ -394,31 +415,32 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
     {
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombieSelection);
         for (const auto& visible : visibleZombies_) {
-            const auto& source = zombieSource_->instances[visible.instance];
-            auto& batch = zombieBatches_[source.asset];
-            const auto local = zombieBatchLocals_[visible.instance];
+            const auto& render = zombieRenderStates_[visible.instance];
+            auto& batch = zombieBatches_[render.asset];
+            const auto local = render.local;
             auto instance = batch.staging[local];
-            const auto& bounds = batch.instanceBounds[local];
-            if (forestViewRange_ && !forestViewRange_->intersects(bounds)) continue;
-            const float distance = glm::length((bounds.minimum + bounds.maximum) * .5f - camera.position());
+            if (forestViewRange_ && !forestViewRange_->intersects(batch.instanceBounds[local])) continue;
+            const float distance = glm::length(render.center - camera.position());
             const auto detail = zombieCameraDetail(distance, projection[1][1], zombieDistanceDetail_, zombieDrawDistance_);
             const bool cameraVisible = visible.camera && detail.visible;
             if (visible.camera && !detail.visible) ++zombieRenderStats_.distanceCulled;
             const bool shadowVisible = visible.shadow && zombieShadows_;
             const bool flashlightVisible = visible.flashlight && zombieShadows_;
             if (!cameraVisible && !shadowVisible && !flashlightVisible) continue;
-            if (source.ragdoll && batch.skinningBoneCount > 0)
+            if (render.ragdoll && batch.skinningBoneCount > 0) {
+                const auto& source = zombieSource_->instances[visible.instance];
                 instance.boneBase = batch.palettes->request(local, source.ragdollPoseVersion, source.ragdollBones);
-            const auto& asset = zombieSource_->assets[source.asset];
-            const auto* clip = zombieAnimationClip(asset, source);
-            const float duration = clip ? clip->duration : asset.duration;
-            const auto frames = clip ? clip->frameCount : asset.frameCount;
-            const double time = clip ? source.walkSeconds : seconds;
-            const float frame = source.ragdoll ? 0 : animatedFrame(duration, frames, time, source.phase);
-            if (source.severedJoint >= 0) {
-                if (!source.ragdoll || std::size_t(source.severedJoint) >= batch.severed.size())
+            }
+            const auto& timing = batch.clipTimings[static_cast<std::size_t>(render.clip)];
+            const float duration = timing.duration;
+            const auto frames = timing.frameCount;
+            const float frame = render.ragdoll ? 0 : render.clip == ZombieRenderClip::Idle ?
+                animatedFrameFromBase(batch.idleFrameBase, frames, instance.phase) :
+                animatedFrame(duration, frames, render.walkSeconds, instance.phase);
+            if (render.severedJoint >= 0) {
+                if (!render.ragdoll || std::size_t(render.severedJoint) >= batch.severed.size())
                     throw std::runtime_error("Invalid severed zombie geometry");
-                auto& mesh = batch.severed[std::size_t(source.severedJoint)];
+                auto& mesh = batch.severed[std::size_t(render.severedJoint)];
                 instance.animationFrame = 0;
                 if (cameraVisible) { mesh.woundedCameraInstances.push_back(instance); ++zombieRenderStats_.cameraLevels[0]; }
                 if (shadowVisible) { mesh.shadowInstances.push_back(instance); ++zombieRenderStats_.shadowLevels[0]; }
@@ -428,7 +450,7 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
             auto cameraInstance = instance;
             if (cameraVisible) {
                 cameraInstance.animationFrame = frame;
-                if (detail.animationHz > 0 && !source.ragdoll) {
+                if (detail.animationHz > 0 && !render.ragdoll) {
                     // Snap to authored baked frames on a lower-rate cycle grid. Both
                     // GPU and hit tests use this same published pose.
                     const auto samples = std::max(1.0f, std::floor(duration * detail.animationHz));
@@ -437,8 +459,9 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
                     cameraInstance.animationStep = 1;
                 }
                 displayedZombieSources_.push_back(visible.instance);
+                const auto& source = zombieSource_->instances[visible.instance];
                 source.displayedAnimationFrame = cameraInstance.animationFrame;
-                source.displayedAnimationClip = clip == (asset.runClip ? &*asset.runClip : nullptr) && clip ? 2 : clip ? 1 : 0;
+                source.displayedAnimationClip = static_cast<int>(render.clip);
                 const auto level = cameraInstance.woundBase > 0 ? 0 : std::min(detail.level, batch.lods.size());
                 auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
                 auto& cameraInstances = cameraInstance.woundBase > 0 ? geometry.woundedCameraInstances : geometry.cameraInstances;

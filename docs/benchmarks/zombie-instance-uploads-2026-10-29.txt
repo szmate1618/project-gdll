@@ -1,0 +1,217 @@
+Zombie instance upload investigation, 2026-10-29
+================================================
+
+Result
+-------
+The 100k healthy case uploads 9.6 MB of instance data per camera frame. Its
+measured allocation/upload calls take about 0.77 ms of CPU time. Visible actor
+selection, animation/LOD decisions and CPU list construction together take
+about 8.8 ms. The latter timer does not isolate arithmetic from memory access
+or record copying.
+
+Neither allocating only visible capacity nor combining allocation and upload
+produced a consistent completed-frame improvement across healthy, wounded and
+corridor cases. No production rendering change was adopted. Retaining static
+matrices remains a separate, untested option, with a sub-millisecond transfer
+budget in this particular 100k case rather than a demonstrated large gain.
+
+Current data path
+------------------
+Revision 3d8ac85, with the existing unrelated HUD/map edits present in all builds.
+Current Slim1 LOD3 and FP16 animation storage are enabled. Shader bytes, assets,
+world precision, animation policy, stable IDs and source-ID order are unchanged.
+
+Renderer::ZombieGPUInstance contains a 64-byte FP32 matrix and eight floats
+(32 bytes): phase, clip first/count, wound offset, frame, skinning/step flags
+and bone-palette offset. Total: 96 bytes. See src/renderer.hpp:232.
+
+Selection rebuilds independent compact lists for camera, sun and flashlight,
+partitioned by asset/LOD/healthy/wounded/severed geometry. Camera wound closures
+also receive instance records. Each nonempty list orphans its geometry's buffer
+at full asset-population capacity, then writes visibleCount*96 bytes with
+glBufferSubData. This happens once per geometry/list, before its primitive
+loop, rather than once per primitive draw. See src/zombie_renderer.cpp:395,553.
+
+Measured per-frame counts:
+Case                       Lists  Requested capacity   Actual written bytes
+Healthy 100k                10         9,600,000              9,600,000
+100 wounded +99,900 healthy  30        28,800,000              9,609,600
+Corridor, retained frames    30        15,264,000                 21,792
+
+Corridor writes are 107 camera plus 120 sun records. The requested capacity is
+about 700 times the write volume, but is not an additional 15 MB transfer.
+Null-data allocation requests do not establish physical memory commitment,
+zero-filling or time spent copying that capacity.
+
+Experiments and controls
+-------------------------
+Only ignored scratch sources/executables changed during the measurements.
+The build freezes current binaries, archives, objects, headers and shaders,
+then replaces only zombie_renderer.cpp.o in a scratch archive. Every other
+archive member is byte-checked unchanged; compiler dependencies use current
+compatible headers, without historical headers beside the control sources.
+
+Modes:
+0 full-separate: existing full-population glBufferData(NULL), then SubData.
+1 visible-separate: allocate visible byte count, then the same SubData write.
+2 visible-combined: glBufferData(visibleBytes,visibleData) in one call.
+3 retain-identical: compare the actual last uploaded payload by buffer ID and
+  skip both calls when size and bytes match. Clear caches on mode changes and
+  buffer-name reuse. Used only with a fixed camera, roots and render time.
+
+Modes 0 and 1 have exactly the same API sizes/calls in the healthy all-visible
+case, providing a negative control for run variation. All modes preserve
+orphaning when streaming changed data; no unsafe overwrite of in-flight draws
+is introduced. Counters distinguish allocation requests, data writes and calls.
+
+The frozen mode-3 control still builds the existing CPU lists and compares all
+96 bytes per record. It is not a shippable animated cache or a universal upper
+bound for a revision-based matrix cache: comparing 9.6 MB can replace much of
+the CPU memory traffic that the avoided upload performed.
+
+Diagnostics: each healthy/mixed process uses ABC+CBA, six blocks of 16 warmup
+and 32 measured frames, with coarse CPU stages and per-upload call timers.
+Primary healthy/mixed: six balanced permutations ABC,CBA,BCA,ACB,CAB,BAC,
+18 blocks of 32 warmup and 64 measured frames, one Renderer. Call clocks and
+coarse stage capture are disabled; counters remain enabled.
+Frozen: ABBA repeated twice, eight blocks, 32 warmup/64 measured, render time
+fixed at 0.5 s. Simulation still advances deterministically at 1/60 s; no AI
+activates and roots stay still in these open-area fixtures.
+Corridor: six processes in ABCCBA order, --fixed-step --frames 240; discard
+frames 1..60 and compare frames 61..240. Sun maps are 1024 square. Normal shaders
+and shadow policy remain enabled, with audio/birds/doodads and fog disabled.
+
+GPU timing remains asynchronous. Completed crowd block wall includes normal
+query pacing, frame recording and final drain, with warmup completion outside
+the measurement. Presentation is absent; these are offscreen costs, not FPS.
+CPU/GPU intervals overlap and must not be added. No other builds/captures or
+independent analysis ran alongside timings. Idle guards and telemetry precede
+all 11 processes. Hardware: Radeon 660M, radeonsi/LLVM19.1.1, Linux6.11.0-29.
+
+Diagnostic CPU results
+-----------------------
+Means of the baseline's 64 measured frames, milliseconds/frame:
+Case             NULL allocation  SubData write  Sum       Zombie draw stage
+Healthy 100k         0.012161        0.761023     0.773184       0.820197
+Mixed 100k           0.035397        0.798972     0.834369       0.953043
+
+Healthy coarse visibility query: 2.730649 ms; selection/list preparation:
+8.756085 ms. Mixed query: 2.713821 ms; selection/list preparation: 8.976644 ms.
+Coarse stages are inclusive; child and parent timings must not be summed.
+The GL-call sum above is disjoint; it is already inside the draw stage.
+
+Healthy upload totals are 0.732149 ms for mode1 and 0.755811 ms for mode2.
+The mode0/mode1 difference despite identical API work illustrates timing noise.
+Mixed totals are 0.803785 ms for mode1 and 0.779573 ms for mode2. These small
+profiled differences are not sufficient evidence for a rendering optimization.
+
+Animated 100k completed-frame controls
+---------------------------------------
+Median of six block means per mode, milliseconds:
+Case/mode          CPU render   Completed wall/frame   GPU interval
+Healthy full         12.963903       13.432257            8.619885
+Healthy visible      13.025171       13.478056            8.645933
+Healthy combined     12.877279       13.330245            8.983880
+Mixed full           12.936653       13.543285            9.421920
+Mixed visible        13.093254       13.633971            9.361942
+Mixed combined       13.236830       13.751289            8.709647
+
+Each consecutive balanced triple supplies a paired comparison. Healthy combined
+wins completed wall in only 3/6 triples; median paired saving is 0.008510 ms.
+The identical-work visible-size negative control also wins 3/6, with median
+paired saving -0.006035 ms. Thus the healthy combined aggregate is not a
+repeatable gain. Both mixed candidates increase CPU render time in all six
+triples; completed wall improves in only 2/6 for either. Mixed combined's median
+paired wall saving is -0.154276 ms. GPU intervals alone tell a different story
+and do not establish better throughput.
+
+All healthy frames submit 100000 actors/10 draws/6,000,000 triangles at LOD3.
+Mixed frames submit 100 wounded LOD0 and 99900 healthy LOD3 actors,30 draws,
+6,184,100 triangles. No zombie shadow triangles are drawn in the overview.
+
+Frozen identical-record control
+--------------------------------
+Median of four block means per mode, milliseconds:
+Mode               CPU render  Completed wall/frame   GPU interval
+Full upload         12.873561       13.284880             8.400342
+Retain identical    12.709938       13.197776             8.754938
+
+The cache has zero allocation/write calls and bytes in every measured block
+after warmup; ten list submissions still occur. However, only 2/4 adjacent pairs
+improve completed wall, with median paired saving -0.003017 ms. This validates
+safe upload elimination for identical records, not a reliable throughput gain.
+Whole-record comparison cost and unchanged CPU selection remain in this control;
+it cannot rule out a cheaper revision-based static-matrix cache.
+
+Corridor controls
+------------------
+Median of two process medians per mode, milliseconds:
+Mode               CPU render     CPU work     GPU interval
+Full upload          3.233743       5.872329       4.231430
+Visible capacity     3.275351       5.982364       4.117258
+Combined upload      3.215200       5.766571       4.111050
+
+The baseline CPU render medians drift 3.292337 -> 3.175149 ms across ABCCBA,
+while combined's CPU render aggregate is only 0.018543 ms below the baseline. These results
+do not establish a corridor gain. Every retained frame's capacity requests
+fall 15,264,000 -> 21,792 bytes with modes 1/2, but actual writes remain 21,792.
+Final geometry matches in all six processes: 107/53000 zombies, 20 draws,
+LOD0/1/2/3=0/0/25/82,13,809 camera and 7,200 sun triangles; town/trees/forests and
+camera-distance group counters also match. All six final images are identical.
+
+Recommendation and implementation constraints
+----------------------------------------------
+Keep the current production upload path. Simple request-size/call-count changes
+have no demonstrated benefit here. Point 3's actual data-volume opportunity is
+the unchanged matrix portion: retaining 64B and streaming 32B metadata would cut
+100k payload 9.6 -> 3.2 MB/pass. If the measured transfer cost scaled linearly,
+that component could save about 0.5 ms; this is an estimate, not a measured gain,
+and does not include cache bookkeeping, changed visibility or CPU packing costs.
+
+A sensible prototype would retain FP32 matrix attributes and keep dynamic
+metadata streamed. Cache identity must include geometry, camera/sun/flashlight,
+and healthy/wounded/closure grouping, with matching source-ID compact order.
+Membership/order changes and changed transforms must invalidate the matrix data.
+The current shared buffer is overwritten by successive passes, so remembering
+only the previous camera list is insufficient. Preserve in-flight ownership,
+full-refresh and missed-update invalidation, wound/slot reuse, independent shadow
+poses, CPU displayed-frame publication and all full-precision world transforms.
+
+A resident matrix texture table plus exact source-ID remaps avoids compact-matrix
+list rewrites, but adds four matrix texture fetches per vertex. It could trade
+CPU savings for GPU cost and requires its own benchmark. It is not the preferred
+first prototype on the evidence above.
+
+The larger measured CPU stage is visible-instance selection/list preparation.
+Investigating compact frequently-read render fields and shared per-asset timing
+work has a larger budget than instance uploads. Baked vertex poses remain baked:
+this stage chooses frames/LOD and constructs draw lists, rather than deforming
+every mesh vertex on the CPU. The 8.8 ms stage still needs further isolation
+before assigning that cost to a particular calculation or memory-copy operation.
+
+Verification and retained evidence
+-----------------------------------
+Both scratch executables compile against current headers/frozen archives.
+Every hardware process completes with GL-error, population/LOD/draw/triangle and
+capture guards. All frame timings are finite; mode0/1 healthy API tuples match;
+frozen mode3 counters prove zero writes; viewer frame IDs/pass rows join exactly.
+Current captures also match the previously validated FP16 crowd/corridor images.
+
+All 259 recorded asset/map/scenario hashes, frozen inputs/probe hashes and every
+pre-existing dirty workspace file remain unchanged. No swapping or memory PSI
+stalls occur across the 11 processes; RAM available stays at least 16.83 GiB and
+sampled temperatures 47..64 C. GPU clocks remain automatic; whole-process 0.5 s
+samples cannot attribute a difference to a particular upload operation.
+
+Artifacts: build/benchmarks/zombie-instance-upload-20261029/
+  setup.json,input-sha256.json       revision, untouched workspace/input hashes
+  frozen/,shaders/                  original objects, archives, binaries, shaders
+  instance_upload_probe.hpp,probe_renderer.cpp  isolated counters/strategies
+  probe_crowd.cpp,build_probe.py,run_probe.py    fixture/build/run protocol
+  diagnostic-healthy/,diagnostic-mixed/         per-call and inclusive CPU stages
+  primary-healthy/,primary-mixed/               balanced animated comparisons
+  frozen-healthy/                              exact-record reuse control
+  viewer-*-mode-*                              map CSVs, upload counts, captures
+  *-telemetry.json                             recorded host state
+  analyze_probe.py,probe-summary.json,analyze-validation.log
+  build-commands.json,probe-sha256.json,*.link.map

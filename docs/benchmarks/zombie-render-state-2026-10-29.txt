@@ -1,0 +1,221 @@
+Compact zombie render state and shared idle timing, 2026-10-29
+==============================================================
+
+Result
+-------
+Keep both changes. In the standard healthy 100k case, median CPU render cost
+falls 13.178 -> 10.692 -> 9.469 ms (baseline, compact state, plus shared idle
+clock), 28.1% lower overall. The mixed case with 100 wounded actors improves
+13.219 -> 10.736 -> 9.690 ms, 26.7% lower overall. Images, submitted geometry and
+published pose snapshots match. No LOD, animation-rate, precision or GPU-instance
+format change is involved.
+
+The corridor case does not establish a render-time gain: 3.157 -> 3.260 ->
+3.180 ms, within process variation. Its final candidate update stage increases
+about 0.033 ms. In a separate stress fixture updating animation data for every
+one of 100000 actors, maintaining the cache costs an extra 0.18..0.21 ms/update
+(about 5..6%). This is a real tradeoff, not a universal improvement for every
+workload. Server-only simulation does not construct this renderer cache.
+
+Implementation
+---------------
+Stage A adds a renderer-owned source-ID-indexed ZombieRenderState array. Each
+record is 48 bytes on this build, compared with 440 bytes for the authoritative
+ZombieInstance. It holds asset/local indices, exact bounds center, locomotion
+clock, selected clip, severed index and ragdoll flag. The source gameplay array
+remains authoritative and is not moved or replaced. Additional CPU storage is
+about 4.8 MB for 100000 actors, plus small per-asset timing constants.
+
+Existing incremental update notifications refresh the cached fields, including
+animation-only bounds=false updates. Full refreshes and same-address layer
+replacement refresh all records and clip constants. Bounds centers retain the
+same float arithmetic and are refreshed with the existing bounds-update path.
+Selection preserves original source-ID order and reads cached state/staging;
+large gameplay-record accesses remain for camera-pose publication and live
+ragdoll palette vectors/revisions. The first stage includes caching clip choice,
+clip duration/count and bounds center; its saving cannot be attributed solely
+to memory layout.
+
+Stage B computes the shared idle time base once per asset per rendered frame,
+then applies each actor's existing phase. Walk/run retain each actor's independent
+walkSeconds, and ragdolls retain frame zero. The shared helper and full
+animatedFrame use the same canonical operation sequence: double fmod/division/
+multiplication, conversion to float, then float phase addition and wrap.
+The base remains unwrapped: it can round to frameCount just before a cycle ends,
+and wrapping it early changes the final float bits for nonbinary phases.
+
+The original GPU records remain 96 bytes and are still compacted/uploaded for
+camera, sun and flashlight independently. FP16 baked animation storage, FP32
+world matrices/bone palettes, geometry, wound handling, shadows, 12/35/80 m LOD
+thresholds, zoom policy, 5 Hz distant poses and 180 m draw cutoff are unchanged.
+No renderer data cache changes authoritative gameplay, simulation cadence or
+multiplayer protocol data.
+
+Controls and method
+--------------------
+Reference revision 3d8ac85 with current Slim1 LOD3. Existing unrelated HUD/map
+workspace edits are present in every build. Three full variants are retained:
+  baseline  original renderer/animation timing
+  compact   cached renderer state, unchanged per-actor animatedFrame calls
+  timing    compact plus per-asset shared idle frame base
+
+Each freeze retains executables, static archives, original link objects,
+source, shaders and all project src headers. Diagnostic executables compile
+against their OWN variant's frozen headers and link only its libraries; compiler
+dependencies reject live-header leakage. This avoids mixing private Renderer
+layouts after adding cached state. Consumers used in measured executables and executed tests were rebuilt;
+no historical mtimes were restored.
+
+Primary comparisons run ABC/CBA in separate processes for each of healthy 100k,
+mixed 100k and the actual corridor:18 processes total. Crowd processes use six
+rounds of 32 warmup/64 measured frames on a reset deterministic 60 Hz timeline,
+384 finite GPU samples/process. Process statistics are medians of six round
+means; aggregates are medians of two processes per variant. The crowd stays
+idle rather than simulating 100000 active pursuers.
+
+Corridor runs use --fixed-step --frames 240, discard frames 1..60 and retain 180.
+Aggregates are medians of two process medians per variant. Sun maps are 1024
+square; normal shader/shadow policies are retained. Bird/audio/doodad work and
+fog are disabled consistently. No town or zombie assets were regenerated.
+
+Coarse diagnostics run two rounds, 32 warmup/64 measured, one process per variant
+and healthy/mixed case (six processes). Stage timers surround measured render
+calls. Four whole-population frame/clip hashes per process are collected outside
+CPU/GPU timestamps, with per-frame geometry counts and normal captures.
+Diagnostics are separate from the primary measurements.
+
+The preparation stress control runs baseline/final/final/baseline: four processes,
+each with eight 128-frame rounds for both visible and hidden views (2048 timed
+updates/process). Every actor receives changing walk/run time and an animation-only
+notification. Renderer::updateZombies alone is measured; rendering, caller edits
+and diagnostic glFinish are outside that timer. It quantifies cache maintenance,
+not end-to-end moving-crowd rendering.
+
+Hardware: Radeon 660M, radeonsi/LLVM 19.1.1, Linux 6.11.0-29. Idle/competing-work
+guards and telemetry precede each process. GPU queries stay asynchronous; no
+builds, other GPU experiments or timing analyses run during measurements.
+Presentation/VSync is outside the timers. CPU render can include driver stalls;
+CPU/GPU overlap, so do not add columns or translate them directly to FPS.
+
+Primary results
+----------------
+Median costs, milliseconds:
+Workload/variant     CPU render   GPU elapsed   CPU preparation
+Healthy baseline     13.177971     7.817768        0.001584
+Healthy compact      10.692392     7.717920        0.001572
+Healthy timing        9.469336     6.336418        0.001586
+Mixed baseline       13.219093     8.723115        0.001606
+Mixed compact        10.735694     7.376177        0.001576
+Mixed timing          9.689711     7.445829        0.001568
+Corridor baseline     3.156575     4.334050        0.206960
+Corridor compact      3.260029     4.162648        0.237761
+Corridor timing       3.180007     4.227405        0.240275
+
+The compact-only CPU saving is 18.86% healthy/18.79% mixed. Shared idle reduction
+adds another 1.223 ms healthy and 1.046 ms mixed relative to compact. Both final
+100k processes are faster than both baselines. GPU elapsed also improves against
+baseline, but shaders/work are unchanged; CPU load/overlap, scheduling and clocks
+can affect this integrated GPU. Do not attribute that difference to less vertex
+or fragment work. See cpu-gpu-overlap-2026-10-22.txt.
+
+Chronological CPU render/GPU elapsed, milliseconds:
+Healthy baseline     13.116448 / 7.636590
+Healthy compact      10.629592 / 7.717477
+Healthy timing        9.439701 / 6.455676
+Healthy timing        9.498971 / 6.217160
+Healthy compact      10.755191 / 7.718364
+Healthy baseline     13.239495 / 7.998946
+Mixed baseline       13.214028 / 8.797178
+Mixed compact        10.547750 / 7.922665
+Mixed timing          9.601277 / 7.541755
+Mixed timing          9.778145 / 7.349904
+Mixed compact        10.923637 / 6.829689
+Mixed baseline       13.224157 / 8.649051
+Corridor baseline     3.069082 / 4.430180
+Corridor compact      3.357530 / 4.125695
+Corridor timing       3.070966 / 4.417435
+Corridor timing       3.289048 / 4.037375
+Corridor compact      3.162527 / 4.199600
+Corridor baseline     3.244068 / 4.237920
+
+Corridor final CPU work is 5.937 versus 5.722 ms baseline (+3.75%); its unrelated
+simulation stage also rises 2.265 -> 2.433 ms. Final render differs by only
++0.023 ms, within the 0.175 ms baseline before/after drift. Small map-view gains
+are not established; the all-changed update benchmark below demonstrates some
+cache maintenance cost independently of that variation.
+
+Selection diagnostics and maintenance cost
+------------------------------------------
+Inclusive selection/list preparation, milliseconds/frame:
+                 Baseline       Compact       Timing
+Healthy           8.6227         6.3523         5.0911
+Mixed             8.6324         6.3854         5.0713
+
+The combined reduction in this stage is about41%. It includes reads, cached
+clip selection, distance/LOD decisions, exact frame arithmetic and copying;
+it does not identify the remaining dominant operation. Child/parent timers are
+inclusive and must not be summed.
+
+All 100000 actor clocks changed: update-only milliseconds:
+                 Baseline        Timing       Added cost
+Visible          3.455484        3.661060        0.205576 (+5.95%)
+Hidden           3.472011        3.656558        0.184547 (+5.32%)
+
+This fixture deliberately forces 100000 updates every step. It preserves the
+same published poses and counts. The added work is the price of keeping the
+render cache current; these measurements do not establish the full-frame result
+for 100000 moving pursuers. The large overview savings above are for stationary
+animated actors whose preparation is unchanged between frames.
+
+Correctness and verification
+-----------------------------
+All primary screenshots, metadata and final geometry counts match across variants.
+Diagnostics additionally match per-frame counts and all 100000 published frame/clip
+snapshots at all four sampled points. Preparation control pose checksums and
+captures match. Every recorded frame has finite CPU/GPU measurements.
+Healthy stays 100000 actors/10 draws/6,000,000 triangles, all LOD3; mixed stays
+100 LOD0 wounded+99900 LOD3 healthy, 30 draws/6,184,100 triangles. Corridor final
+counts stay 107/53000 visible, 20 draws, LOD0/1/2/3=0/0/25/82, 13,809 camera and 7200
+sun triangles, with unchanged town/tree/forest/group-rejection counters.
+
+Fresh builds succeed for viewer/client, standard crowd/preparation benchmarks,
+animated-model/LOD/render-update/FP16 tests and zombie/shadow rendering tests.
+Four focused CPU CTests pass: animated_model,zombie_lod,zombie_render_updates,
+zombie_animation_buffer. Three gameplay CTests pass: zombie_shooting,
+zombie_hit_capsules,zombie_transition. Hardware zombie_renderer/shadow_renderer
+pass for both compact and final variants. The final authored-asset GPU test
+also passes all ten idle/walk/run rigs and live ragdolls.
+
+Regressions cover bounds=false clip/time/phase changes, camera-only reentry
+after hidden updates, advancing idle time without source notifications, missed
+consumers and layer replacement at the same address. Twelve independent frame
+bit goldens cover shared/full timing, early-wrap rounding, exact wrap, nonbinary
+phases, very large time, negative/nonfinite time and out-of-cycle phases, plus
+invalid timing validation. Ten golden frame outputs were first checked against
+the frozen baseline library; the other two have exact closed-form results.
+
+Across 28 benchmark processes, recorded RAM availability stays above 16.68 GiB;
+no swap-out or memory-pressure stalls occur. Primary runs read nine swap pages
+(36 KiB) system-wide; preparation/diagnostics read none. Sampled GPU temperatures
+span 46..64 C. Clocks remain automatic and are not normalized. All 259 recorded
+asset/map/scenario fingerprints and frozen variant inputs remain unchanged.
+Unrelated existing worktree changes were preserved.
+
+Evidence and reproduction
+---------------------------
+Root: build/benchmarks/zombie-render-state-20261029/
+  baseline/,compact/,timing/      frozen executables, headers, objects, libraries,
+                                 shader/source snapshots and SHA-256 manifests
+  freeze_variant.py              per-variant freeze after successful full rebuild
+  stage_profile_crowd.cpp         common diagnostic source, compiled per own layout
+  build_diagnostic.py             frozen-header/library/dependency verification
+  run_benchmarks.py               sequential primary/preparation/diagnostic phases
+  primary-baseline-compact-timing/ raw 18-process CSVs, captures, telemetry, summary.json
+  preparation-baseline-timing/   changed-animation ABBA CPU control
+  diagnostic/                    six profiles, per-frame counts, pose hashes
+  analyze_results.py             suite validation/statistics; analysis logs
+  verify_frame_goldens.cpp,verify_shared_frames.cpp  baseline/current literal checks
+  setup.json,input-sha256.json    revision, initial dirty-worktree/input hashes
+  *build.log,authored*.ppm,authored-test.log
+
+No generated assets/binaries are added to Git.

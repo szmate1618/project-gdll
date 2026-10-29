@@ -80,6 +80,11 @@ AnimatedModel loadIdleModel(const std::filesystem::path& path,
 // or ambiguous matching clips fail loading rather than silently being ignored.
 AnimatedModel loadZombieModel(const std::filesystem::path& path);
 
+// Reduce shared clip time in double precision before applying each actor's phase.
+// The float base may round to frameCount: keep it unwrapped so adding the phase
+// retains the same rounding as animatedFrame. Use the same frameCount below.
+float animatedFrameBase(float duration, std::size_t frameCount, double seconds);
+float animatedFrameFromBase(float base, std::size_t frameCount, float phase);
 float animatedFrame(float duration, std::size_t frameCount, double seconds, float phase = 0);
 
 // Match the displayed baked pose, including per-instance cycle phase. Linear

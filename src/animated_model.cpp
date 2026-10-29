@@ -675,25 +675,50 @@ void appendClip(AnimatedModel& output, AnimatedModel clip, std::optional<BakedAn
     destination = BakedAnimationClip{clip.clipName, clip.duration, clip.frameCount, firstFrame, std::move(clip.boneFrames)};
 }
 
+void validateFrameTiming(float duration, std::size_t frameCount) {
+    if (frameCount < 2 || frameCount > static_cast<std::size_t>(std::numeric_limits<int>::max()) ||
+        !std::isfinite(duration) || duration <= 0) fail("Invalid baked animation timing");
+}
+
+// Callers validate the clip before reducing time. Do not wrap the float result:
+// rounding can produce frameCount just before the end of a cycle.
+float reducedFrameBase(float duration, std::size_t frameCount, double seconds) {
+    if (!std::isfinite(seconds) || seconds < 0) seconds = 0;
+    return static_cast<float>(std::fmod(seconds, duration) / duration * frameCount);
+}
+
+float frameWithPhase(float base, std::size_t frameCount, float phase) {
+    const float count = static_cast<float>(frameCount);
+    const float shifted = base + phase * count;
+    const float frame = shifted - count * std::floor(shifted / count);
+    if (!std::isfinite(frame) || frame < 0 || frame >= count) fail("Animation phase is out of range");
+    return frame;
+}
+
 }  // namespace
 
 std::size_t AnimatedModel::totalFrameCount() const {
     return frameCount + (walkClip ? walkClip->frameCount : 0) + (runClip ? runClip->frameCount : 0);
 }
 
-float animatedFrame(float duration, std::size_t frameCount, double seconds, float phase) {
-    if (frameCount < 2 || frameCount > static_cast<std::size_t>(std::numeric_limits<int>::max()) ||
-        !std::isfinite(duration) || duration <= 0) fail("Invalid baked animation timing");
+float animatedFrameBase(float duration, std::size_t frameCount, double seconds) {
+    validateFrameTiming(duration, frameCount);
+    return reducedFrameBase(duration, frameCount, seconds);
+}
+
+float animatedFrameFromBase(float base, std::size_t frameCount, float phase) {
+    if (frameCount < 2 || frameCount > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+        fail("Invalid baked animation timing");
     if (!std::isfinite(phase)) fail("Animation phase must be finite");
-    if (!std::isfinite(seconds) || seconds < 0) seconds = 0;
+    return frameWithPhase(base, frameCount, phase);
+}
+
+float animatedFrame(float duration, std::size_t frameCount, double seconds, float phase) {
+    validateFrameTiming(duration, frameCount);
+    if (!std::isfinite(phase)) fail("Animation phase must be finite");
     // Keep the renderer's double-precision time reduction and the shader's
     // float-precision phase/modulo operations, including the last-to-first blend.
-    const float count = static_cast<float>(frameCount);
-    const float base = static_cast<float>(std::fmod(seconds, duration) / duration * frameCount);
-    const float shifted = base + phase * count;
-    const float frame = shifted - count * std::floor(shifted / count);
-    if (!std::isfinite(frame) || frame < 0 || frame >= count) fail("Animation phase is out of range");
-    return frame;
+    return frameWithPhase(reducedFrameBase(duration, frameCount, seconds), frameCount, phase);
 }
 
 std::vector<glm::mat4> sampleAnimatedPose(const AnimatedModel& model, double seconds, float phase,

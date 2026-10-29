@@ -242,6 +242,20 @@ private:
     };
     static ZombieGPUInstance zombieGPUInstance(const AnimatedModel& asset, const ZombieInstance& instance,
                                                float boneBase = -1.0f);
+    enum class ZombieRenderClip : std::uint8_t { Idle, Walk, Run };
+    struct ZombieRenderState {
+        std::size_t asset = 0, local = 0;
+        glm::vec3 center{0};
+        double walkSeconds = 0;
+        int severedJoint = -1;
+        ZombieRenderClip clip = ZombieRenderClip::Idle;
+        bool ragdoll = false;
+    };
+    static_assert(sizeof(ZombieRenderState) <= 48, "Zombie selection state must remain compact");
+    struct ZombieClipTiming {
+        float duration = 0;
+        std::size_t frameCount = 0;
+    };
     struct ZombieGeometry {
         ModelGPU model;
         GLuint instanceBuffer = 0;
@@ -272,6 +286,8 @@ private:
         std::vector<ZombieGeometry> closures;
         std::vector<std::size_t> sourceIndices;
         std::vector<ZombieGPUInstance> staging;
+        std::array<ZombieClipTiming, 3> clipTimings; // Idle, walk, run; fixed asset data.
+        float idleFrameBase = 0; // Shared render time before each actor's phase.
         std::unique_ptr<ZombiePaletteCache> palettes;
         VisibilityBounds animationBounds, bindBounds;
         std::vector<VisibilityBounds> instanceBounds;
@@ -493,6 +509,9 @@ private:
     ZombieVisibility zombieVisibility_;
     std::vector<std::size_t> zombieBatchLocals_;
     std::vector<std::size_t> zombieBatchAssets_;
+    // Source-ID order matches visibility results. Refresh through the existing
+    // render notifications; selection avoids gathering the larger gameplay state.
+    std::vector<ZombieRenderState> zombieRenderStates_;
     std::vector<ZombieVisibilityResult> visibleZombies_;
     ZombieVisibilityStats zombieVisibilityStats_;
     // Borrowed until the next update; the fixed population must outlive render().

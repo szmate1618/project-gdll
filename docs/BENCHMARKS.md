@@ -118,6 +118,12 @@ executable alongside the October 19 rebuild and current renderer at matched sett
 The [FP16 animation storage comparison](benchmarks/zombie-animation-fp16-2026-10-29.txt)
 checks memory, pose accuracy, native captures and matched healthy/mixed/corridor
 timings while retaining FP32 CPU poses and live bone palettes.
+The [instance upload investigation](benchmarks/zombie-instance-uploads-2026-10-29.txt)
+separates allocation requests from written bytes, measures upload CPU cost, and
+compares visible-capacity, combined-upload and frozen-record reuse controls.
+The [compact render-state and shared idle-timing comparison](benchmarks/zombie-render-state-2026-10-29.txt)
+separates the two CPU changes, checks exact poses and includes a control where
+all 100,000 actors' animation state changes every step.
 
 ## Interpreting GPU time under CPU load
 
