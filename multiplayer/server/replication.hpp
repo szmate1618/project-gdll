@@ -3,7 +3,6 @@
 #include <map>
 #include <list>
 #include <optional>
-#include <set>
 
 namespace multiplayer {
 // Per-peer interest and bulk transfer state. Essential snapshots never carry
@@ -25,7 +24,7 @@ public:
     std::optional<CorpsePose> nextPose(const Scene& scene) const;
     void sent(const CorpsePose& pose);
     void acknowledge(const PoseAck& ack);
-    std::size_t interestedCount() const { return interested_.size(); }
+    std::size_t interestedCount() const { return interestedIds_.size(); }
 private:
     struct SetupState {
         ZombieSetup current;
@@ -34,11 +33,16 @@ private:
         bool sentMotion = false, queued = false;
         std::list<std::size_t>::iterator pending;
     };
-    std::map<std::size_t, SetupState> setups_;
+    SetupState* findSetup(std::size_t id);
+    // World IDs map to dense setup records, storing record index + 1 so zero
+    // denotes an unseen actor. Cached records retain metadata for re-entry.
+    std::vector<std::uint32_t> setupSlots_;
+    std::vector<SetupState> setups_;
     std::list<std::size_t> pendingSetups_;
     std::size_t setupTransfers_ = 0;
-    std::vector<std::size_t> selected_, interestedCorpses_;
-    std::set<std::size_t> interested_;
+    std::vector<std::size_t> selected_, interestedIds_, interestedCorpses_;
+    // Sparse clearing visits the preceding interest list, never all world IDs.
+    std::vector<std::uint8_t> interested_;
     std::map<std::size_t, std::uint64_t> acknowledged_, inFlight_;
     std::size_t nextPoseId_ = 0;
 };

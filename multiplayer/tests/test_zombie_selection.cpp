@@ -103,6 +103,45 @@ void affineSetup(Scene& scene) {
                     "Setup lost normalization while separating a rotated root");
 }
 
+void interestReentry(Scene& scene) {
+    placements(scene, {{230, 0, 0}, {1000, 0, 0}, {2000, 0, 0}});
+    Replication replication;
+    Snapshot frame; frame.tick = 3;
+    replication.snapshot(scene, {20, 0, 0}, frame);
+    const auto initial = replication.nextSetups(scene);
+    require(initial && initial->zombies.size() == 1 && initial->zombies[0].id == 0,
+            "Initial interest did not establish the nearby actor");
+    acknowledge(replication, *initial);
+    frame.tick = 6;
+    require(replication.snapshot(scene, {20, 0, 0}, frame).zombies.size() == 1,
+            "Acknowledged initial actor did not receive motion");
+
+    frame.tick = 9;
+    replication.snapshot(scene, {1000, 0, 0}, frame);
+    const auto departed = replication.nextSetups(scene);
+    require(departed && departed->zombies.size() == 1 && departed->zombies[0].id == 1,
+            "Moving interest retained the departed actor's setup work");
+    replication.setupsSent(*departed);
+    frame.tick = 12;
+    const auto empty = replication.snapshot(scene, {}, frame);
+    require(empty.zombies.empty() && replication.interestedCount() == 0 && !replication.nextSetups(scene),
+            "Departed interest retained hysteresis or pending setup membership");
+    ZombieSetupAck lateAck;
+    lateAck.zombies.push_back({1, departed->zombies[0].version});
+    replication.acknowledgeSetups(lateAck);
+
+    frame.tick = 15;
+    const auto returned = replication.snapshot(scene, {20, 0, 0}, frame);
+    require(returned.zombies.size() == 1 && returned.zombies[0].id == 0 && !replication.nextSetups(scene),
+            "Re-entry lost cached setup or failed to resume motion");
+    for (const auto unknown : {2u, static_cast<unsigned>(maxZombies - 1)}) {
+        bool rejected = false;
+        try { replication.acknowledgeSetups(ZombieSetupAck{{{unknown, 1}}}); }
+        catch (const std::exception&) { rejected = true; }
+        require(rejected, "Unknown setup acknowledgement was accepted");
+    }
+}
+
 void capacityAndCadence(Scene& scene) {
     std::vector<glm::vec3> feet(maxZombies);
     for (std::size_t id = 0; id < feet.size(); ++id)
@@ -196,7 +235,7 @@ int main(int argc, char** argv) {
         Options options; options.map = argv[1]; options.zombieCount = 0;
         options.trees = options.forests = false;
         Scene scene(options);
-        cellOrder(); visibility(scene); boundsAcrossCells(scene); affineSetup(scene);
+        cellOrder(); visibility(scene); boundsAcrossCells(scene); affineSetup(scene); interestReentry(scene);
         capacityAndCadence(scene); adversarialIds(scene);
         std::cout << "Cell ordering, visibility, 100k/10k capacity and idle update tiers passed\n";
         return 0;

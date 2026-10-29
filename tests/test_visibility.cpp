@@ -300,6 +300,47 @@ void testBoundariesAndDegenerateFrusta() {
             "Stable infinite projection disabled temporal plane hints");
 }
 
+void testIntersectionPredicate() {
+    const viewer::Frustum unit(glm::mat4(1));
+    for (int axis = 0; axis < 3; ++axis) for (const float side : {-1.f, 1.f}) {
+        glm::vec3 point(0);
+        point[axis] = side;
+        require(unit.intersects(point, point), "Boolean frustum test rejected a clip-plane point");
+        point[axis] = side * 1.005f;
+        require(unit.intersects(point, point), "Boolean frustum test lost the 1 cm tolerance");
+        point[axis] = side * 1.01f;
+        require(unit.intersects(point, point), "Boolean frustum test rejected the tolerance boundary");
+        point[axis] = side * std::nextafter(1.01f, std::numeric_limits<float>::infinity());
+        require(!unit.intersects(point, point), "Boolean frustum test exceeded the tolerance by one float step");
+        point[axis] = side * 1.02f;
+        require(!unit.intersects(point, point), "Boolean frustum test retained a point beyond tolerance");
+        const auto crossing = box(point, glm::vec3(.03f));
+        require(unit.intersects(crossing.minimum, crossing.maximum),
+                "Boolean frustum test rejected bounds crossing a plane with an outside center");
+    }
+
+    // The boolean fast path must agree with full classification for perspective,
+    // shadow, infinite and degenerate projections, including oblique planes.
+    const auto view = glm::lookAt(glm::vec3(35, 12, 45), glm::vec3(-5, 2, -10), glm::vec3(0, 1, 0));
+    auto invalid = glm::mat4(1);
+    invalid[0][0] = std::numeric_limits<float>::quiet_NaN();
+    auto bounds = scene();
+    bounds.push_back({glm::vec3(-1000000), glm::vec3(1000000)});
+    bounds.push_back(box({0, 0, -1000000}));
+    bounds.push_back(box({0, 0, 0}, glm::vec3(0)));
+    for (const auto& matrix : std::vector<glm::mat4>{
+             glm::mat4(1), glm::mat4(0), invalid, perspective(), perspective(8, .35f) * view,
+             perspective(105, 3.2f, 2, 240) * view,
+             glm::ortho(-35.f, 35.f, -20.f, 20.f, 1.f, 180.f) * view,
+             glm::infinitePerspective(glm::radians(60.f), 1.f, .1f) * view}) {
+        const viewer::Frustum frustum(matrix);
+        for (const auto& bound : bounds)
+            require(frustum.intersects(bound.minimum, bound.maximum) ==
+                        (frustum.classify(bound.minimum, bound.maximum) != viewer::Frustum::Relation::Outside),
+                    "Boolean frustum test disagreed with full classification");
+    }
+}
+
 void testHorizontalRangeAndFrustumBypass() {
     // Known circle overlaps exercise tangency, geometry rooted beyond the
     // range, and vertically unlimited range while the frustum is disabled.
@@ -383,6 +424,7 @@ int main() {
         testDiscontinuityFallbackAndRecovery();
         testAppendEmptyAndAabbQueries();
         testBoundariesAndDegenerateFrusta();
+        testIntersectionPredicate();
         testHorizontalRangeAndFrustumBypass();
         std::cout << "Visibility temporal coherence tests passed\n";
         return 0;

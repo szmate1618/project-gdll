@@ -30,9 +30,7 @@ public:
     // Extracts OpenGL clip planes from a projection * view matrix.
     explicit Frustum(const glm::mat4& projectionView);
     Relation classify(const glm::vec3& minimum, const glm::vec3& maximum) const;
-    bool intersects(const glm::vec3& minimum, const glm::vec3& maximum) const {
-        return classify(minimum, maximum) != Relation::Outside;
-    }
+    bool intersects(const glm::vec3& minimum, const glm::vec3& maximum) const;
 
 private:
     friend class VisibilityIndex;
@@ -41,6 +39,7 @@ private:
                       std::uint8_t* lastRejectingPlane, std::size_t& testedPlanes,
                       std::size_t& temporalRejects) const;
     std::array<glm::vec4, 6> planes_{};
+    std::array<glm::vec3, 6> absoluteNormals_{};
 };
 
 struct VisibilityStats {

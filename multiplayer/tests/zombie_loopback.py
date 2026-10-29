@@ -87,8 +87,9 @@ def summary(text, name):
     if not line:
         raise RuntimeError(f"{name} did not publish its final client summary:\n{text}")
     fields = dict(re.findall(r"\b([a-z_]+)=(\d+)", line[0]))
-    if int(fields.get("snapshots", 0)) < 20:
-        raise RuntimeError(f"{name} did not receive recurring snapshots:\n{text}")
+    count = int(fields.get("snapshots", 0))
+    if count < 20:
+        raise RuntimeError(f"{name} received {count} snapshots; expected at least 20:\n{text}")
     if not 0 < int(fields.get("zombies", 0)) <= 10000:
         raise RuntimeError(f"{name} did not retain a bounded, nonempty zombie set:\n{text}")
     if int(fields.get("max_players", 0)) < 2:
@@ -160,8 +161,11 @@ def main():
                     raise RuntimeError(f"{name} did not finish:\n{diagnostics()}") from error
                 if process.returncode:
                     raise RuntimeError(f"{name} exited with {process.returncode}:\n{diagnostics()}")
-            first_id, first_line = summary(logs["first"].read_text(errors="replace"), "first client")
-            late_id, late_line = summary(logs["late"].read_text(errors="replace"), "late client")
+            try:
+                first_id, first_line = summary(logs["first"].read_text(errors="replace"), "first client")
+                late_id, late_line = summary(logs["late"].read_text(errors="replace"), "late client")
+            except RuntimeError as error:
+                raise RuntimeError(f"{error}\nAll logs in {run}:\n{diagnostics()}") from error
             if not first_id or first_id == late_id:
                 raise RuntimeError("Late join did not establish independent client identity:\n" + diagnostics())
             print(first_line)

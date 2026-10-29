@@ -5,8 +5,16 @@
 #include <stdexcept>
 
 namespace multiplayer {
+Replication::SetupState* Replication::findSetup(std::size_t id) {
+    if (id >= setupSlots_.size() || !setupSlots_[id]) return nullptr;
+    return &setups_[setupSlots_[id] - 1];
+}
+
 Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
         const std::optional<ReplicationView>& view) {
+    const auto population = scene.zombies.instances.size();
+    if (setupSlots_.size() < population) setupSlots_.resize(population);
+    if (interested_.size() < population) interested_.resize(population);
     for (std::size_t i = 0; i < scene.vehicles->count(); ++i) {
         if (i >= maxVehicles) throw std::runtime_error("Vehicle replication budget exceeded");
         const auto pose = scene.vehicles->pose(i);
@@ -31,7 +39,6 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
     const std::optional<glm::vec3> sun = glm::any(glm::greaterThan(lighting.sun.color, glm::vec3(0))) ?
         std::optional<glm::vec3>(lighting.sun.direction) : std::nullopt;
     selectZombieInterest(scene.zombies, feet, view, interested_, selected_, sun);
-    std::set<std::size_t> interested;
     interestedCorpses_.clear();
     s.zombies.clear();
     s.woundContents.clear();
@@ -40,15 +47,24 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
     const auto baseBytes = encode(s).size();
     const auto available = maxMessageBytes - baseBytes;
     const auto sampleLimit = std::min(maxZombieUpdatesPerSnapshot, available / 22);
+    const std::vector<std::uint8_t> emptyMask;
+    auto* setupSlots = setupSlots_.data();
+    auto* cachedSetups = setups_.data();
     for (std::size_t rank = 0; rank < selected_.size(); ++rank) {
         const auto id = selected_[rank];
         const auto& instance = scene.zombies.instances[id];
-        interested.insert(id);
         if (instance.ragdoll) interestedCorpses_.push_back(id);
-        auto [entry, created] = setups_.try_emplace(id);
-        auto& state = entry->second;
+        auto& slot = setupSlots[id];
+        const bool created = slot == 0;
+        if (created) {
+            setups_.emplace_back();
+            slot = static_cast<std::uint32_t>(setups_.size());
+            // Payload growth can relocate records; the separate ID table stays
+            // fixed during selection. Borrow the record only after refreshing.
+            cachedSetups = setups_.data();
+        }
+        auto& state = cachedSetups[slot - 1];
         const auto* wound = scene.zombies.wounds().find(id);
-        const std::vector<std::uint8_t> emptyMask;
         const auto& mask = wound ? wound->vertexMask : emptyMask;
         if (created) {
             state.current.id = static_cast<std::uint32_t>(id);
@@ -79,7 +95,7 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
             state.pending = std::prev(pendingSetups_.end());
             state.queued = true;
         }
-        if (!interested_.count(id)) state.sentMotion = false;
+        if (!interested_[id]) state.sentMotion = false;
         if (!state.acknowledged || s.zombies.size() == sampleLimit) continue;
         const auto period = static_cast<std::uint8_t>(rank < 256 ? 3 : rank < 1024 ? 12 : 60);
         const auto mode = static_cast<std::uint8_t>(instance.walking | (instance.running << 1) | (instance.ragdoll << 2));
@@ -102,12 +118,14 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
         s.zombies.push_back(std::move(sample));
         state.sentMotion = true; state.lastMotionTick = s.tick; state.lastMode = mode; state.lastPeriod = period;
     }
-    interested_ = std::move(interested);
+    for (const auto id : interestedIds_) interested_[id] = 0;
+    for (const auto id : selected_) interested_[id] = 1;
+    interestedIds_ = selected_;
     // Expired interest does not need setup delivery. Already acknowledged
     // metadata remains cached for re-entry, and active reliable sends still ack.
     for (auto it = pendingSetups_.begin(); it != pendingSetups_.end();) {
-        if (interested_.count(*it)) { ++it; continue; }
-        setups_.at(*it).queued = false;
+        if (interested_[*it]) { ++it; continue; }
+        cachedSetups[setupSlots[*it] - 1].queued = false;
         it = pendingSetups_.erase(it);
     }
     std::sort(interestedCorpses_.begin(), interestedCorpses_.end());
@@ -122,7 +140,7 @@ std::optional<ZombieSetups> Replication::nextSetups(const Scene&) const {
     ZombieSetups batch;
     std::size_t bytes = 13;
     for (const auto id : pendingSetups_) {
-        const auto& state = setups_.at(id);
+        const auto& state = setups_[setupSlots_[id] - 1];
         if (state.inFlight || state.acknowledged >= state.current.version) continue;
         const auto cost = 88 + state.current.woundMask.size();
         if (bytes + cost > maxSetupBytes) break;
@@ -136,7 +154,9 @@ std::optional<ZombieSetups> Replication::nextSetups(const Scene&) const {
 
 void Replication::setupsSent(const ZombieSetups& batch) {
     for (const auto& setup : batch.zombies) {
-        auto& state = setups_.at(setup.id);
+        auto* cached = findSetup(setup.id);
+        if (!cached) throw std::logic_error("Unknown zombie setup transfer");
+        auto& state = *cached;
         if (state.inFlight || state.current.version != setup.version || setupTransfers_ >= 128)
             throw std::logic_error("Zombie setup transfer already active or full");
         state.inFlight = setup.version;
@@ -146,9 +166,9 @@ void Replication::setupsSent(const ZombieSetups& batch) {
 
 void Replication::acknowledgeSetups(const ZombieSetupAck& ack) {
     for (const auto& receipt : ack.zombies) {
-        const auto found = setups_.find(receipt.id);
-        if (found == setups_.end()) throw std::runtime_error("Unknown zombie setup acknowledgement");
-        auto& state = found->second;
+        auto* cached = findSetup(receipt.id);
+        if (!cached) throw std::runtime_error("Unknown zombie setup acknowledgement");
+        auto& state = *cached;
         if (receipt.version <= state.acknowledged) continue;
         if (!state.inFlight || receipt.version != state.inFlight)
             throw std::runtime_error("Client acknowledged an unsent zombie setup");
@@ -168,7 +188,7 @@ std::optional<CorpsePose> Replication::nextPose(const Scene& scene) const {
     const auto startOffset = static_cast<std::size_t>(start - interestedCorpses_.begin());
     for (std::size_t offset = 0; offset < interestedCorpses_.size(); ++offset) {
         const auto id = interestedCorpses_[(startOffset + offset) % interestedCorpses_.size()];
-        if (inFlight_.count(id) || !setups_.at(id).acknowledged) continue;
+        if (inFlight_.count(id) || !setups_[setupSlots_[id] - 1].acknowledged) continue;
         const auto& instance = scene.zombies.instances.at(id);
         if (!instance.ragdoll || instance.removed) continue;
         const auto ack = acknowledged_.find(id);

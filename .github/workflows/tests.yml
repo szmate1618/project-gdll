@@ -62,5 +62,6 @@ jobs:
           path: |
             build/test-results.xml
             build/Testing/Temporary/LastTest.log
+            build/multiplayer/zombie-loopback-fixture/**/*.log
           if-no-files-found: ignore
           retention-days: 7

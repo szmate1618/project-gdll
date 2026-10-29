@@ -14,8 +14,17 @@ namespace {
 constexpr float nearbyThreatRadius = 30;
 
 float boxDistanceSquared(const viewer::VisibilityBounds& bounds, glm::vec3 point) {
-    const auto delta = point - glm::clamp(point, bounds.minimum, bounds.maximum);
-    return glm::dot(delta, delta);
+    const float x = point.x - std::min(std::max(point.x, bounds.minimum.x), bounds.maximum.x);
+    const float y = point.y - std::min(std::max(point.y, bounds.minimum.y), bounds.maximum.y);
+    const float z = point.z - std::min(std::max(point.z, bounds.minimum.z), bounds.maximum.z);
+    return (x * x + y * y) + z * z;
+}
+
+float boundsCenterDistance(const viewer::VisibilityBounds& bounds, glm::vec3 point) {
+    const float x = point.x - (bounds.minimum.x + bounds.maximum.x) * .5f;
+    const float y = point.y - (bounds.minimum.y + bounds.maximum.y) * .5f;
+    const float z = point.z - (bounds.minimum.z + bounds.maximum.z) * .5f;
+    return std::sqrt((x * x + y * y) + z * z);
 }
 
 viewer::Frustum expandedFrustum(const ReplicationView& view, float marginDegrees) {
@@ -45,7 +54,7 @@ float volumeRadius(const glm::mat4& projectionView, glm::vec3 center) {
 }
 
 void selectZombieInterest(viewer::ZombieLayer& zombies, glm::vec3 feet,
-        const std::optional<ReplicationView>& view, const std::set<std::size_t>& previous,
+        const std::optional<ReplicationView>& view, const std::vector<std::uint8_t>& previous,
         std::vector<std::size_t>& selected, const std::optional<glm::vec3>& sunDirection) {
     selected.clear();
     selected.reserve(maxVisibleZombies);
@@ -77,22 +86,24 @@ void selectZombieInterest(viewer::ZombieLayer& zombies, glm::vec3 feet,
         const auto& instance = zombies.instances[id];
         if (instance.removed || instance.asset >= zombies.assets.size()) return true;
         const auto& bounds = zombies.replicationBounds(id);
-        const bool known = previous.count(id) != 0;
+        const bool known = id < previous.size() && previous[id] != 0;
         bool include;
         if (!view) {
             const float distance = known ? 240.f : 220.f;
             include = boxDistanceSquared(bounds, feet) <= distance * distance;
         } else {
-            const auto& frustum = known ? *retained : *entering;
-            const auto boundCenter = (bounds.minimum + bounds.maximum) * .5f;
-            const auto detail = viewer::zombieCameraDetail(glm::distance(boundCenter, center), projectionScale,
-                true, view->maxDistance * (known ? 1.15f : 1.05f));
-            include = boxDistanceSquared(bounds, feet) <= nearbyThreatRadius * nearbyThreatRadius ||
-                (detail.visible && frustum.intersects(bounds.minimum, bounds.maximum));
+            include = boxDistanceSquared(bounds, feet) <= nearbyThreatRadius * nearbyThreatRadius;
             if (!include) {
-                const glm::vec3 padding(2);
+                const auto& frustum = known ? *retained : *entering;
+                const auto detail = viewer::zombieCameraDetail(boundsCenterDistance(bounds, center), projectionScale,
+                    true, view->maxDistance * (known ? 1.15f : 1.05f));
+                include = detail.visible && frustum.intersects(bounds.minimum, bounds.maximum);
+            }
+            if (!include) {
+                const glm::vec3 minimum(bounds.minimum.x - 2, bounds.minimum.y - 2, bounds.minimum.z - 2);
+                const glm::vec3 maximum(bounds.maximum.x + 2, bounds.maximum.y + 2, bounds.maximum.z + 2);
                 for (const auto& shadow : shadows)
-                    if (shadow.intersects(bounds.minimum - padding, bounds.maximum + padding)) { include = true; break; }
+                    if (shadow.intersects(minimum, maximum)) { include = true; break; }
             }
         }
         if (include) selected.push_back(id);

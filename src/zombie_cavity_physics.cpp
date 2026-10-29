@@ -185,7 +185,7 @@ std::vector<glm::mat4> ZombieCavityPhysics::contents() const {
 std::vector<glm::mat4> ZombieCavityPhysics::contentsForIds(const std::vector<std::size_t>& ids,
         std::size_t maxCount) const {
     std::vector<glm::mat4> result;
-    if (!maxCount) return result;
+    if (!maxCount || impl_->entries.empty()) return result;
     result.reserve(maxCount);
     for (const auto id : ids) {
         const auto found = impl_->entries.find(id);

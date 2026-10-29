@@ -25,16 +25,38 @@ Frustum::Frustum(const glm::mat4& projectionView) {
     const auto rows = glm::transpose(projectionView);
     planes_ = {rows[3] + rows[0], rows[3] - rows[0], rows[3] + rows[1], rows[3] - rows[1],
                rows[3] + rows[2], rows[3] - rows[2]};
-    for (auto& plane : planes_) {
+    for (std::size_t i = 0; i < planes_.size(); ++i) {
+        auto& plane = planes_[i];
         const float length = glm::length(glm::vec3(plane));
         if (std::isfinite(length) && length > 0 && std::isfinite(plane.w)) plane /= length;
         else plane = glm::vec4(0, 0, 0, 1); // Degenerate planes cannot safely reject anything.
+        absoluteNormals_[i] = {std::abs(plane.x), std::abs(plane.y), std::abs(plane.z)};
     }
 }
 
 Frustum::Relation Frustum::classify(const glm::vec3& minimum, const glm::vec3& maximum) const {
     std::size_t testedPlanes = 0, temporalRejects = 0;
     return classify<false>(minimum, maximum, nullptr, testedPlanes, temporalRejects);
+}
+
+bool Frustum::intersects(const glm::vec3& minimum, const glm::vec3& maximum) const {
+    const float centerX = (minimum.x + maximum.x) * 0.5f;
+    const float centerY = (minimum.y + maximum.y) * 0.5f;
+    const float centerZ = (minimum.z + maximum.z) * 0.5f;
+    const float halfX = (maximum.x - minimum.x) * 0.5f;
+    const float halfY = (maximum.y - minimum.y) * 0.5f;
+    const float halfZ = (maximum.z - minimum.z) * 0.5f;
+    // Match classify's plane order, arithmetic and 1 cm tolerance without
+    // computing containment or query statistics for a boolean overlap test.
+    constexpr float tolerance = 0.01f;
+    const auto* absoluteNormal = absoluteNormals_.data();
+    for (const auto& plane : planes_) {
+        const auto& normal = *absoluteNormal++;
+        const float distance = (plane.x * centerX + plane.y * centerY) + plane.z * centerZ + plane.w;
+        const float radius = (normal.x * halfX + normal.y * halfY) + normal.z * halfZ;
+        if (distance + radius < -tolerance) return false;
+    }
+    return true;
 }
 
 template<bool Temporal>

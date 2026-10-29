@@ -6,6 +6,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 #include <iostream>
+#include <set>
 #include <stdexcept>
 
 namespace {
