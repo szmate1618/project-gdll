@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
 #ifdef MP_GRAPHICS
         std::unique_ptr<multiplayer::GameMenu> menu;
         if (!game.scene.headless) {
-            menu = std::make_unique<multiplayer::GameMenu>(game.scene.hidden);
+            menu = std::make_unique<multiplayer::GameMenu>(game.scene.display, game.scene.hidden);
             menu->address = game.scene.address; menu->port = std::to_string(game.scene.port);
         }
 #endif

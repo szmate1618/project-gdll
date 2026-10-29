@@ -9,7 +9,7 @@ namespace multiplayer {
 // its context; all GLFW and GL work remains on the application thread.
 class GameMenu {
 public:
-    explicit GameMenu(bool hidden);
+    GameMenu(const ClientDisplay& display, bool hidden);
     ~GameMenu();
     GameMenu(const GameMenu&) = delete;
     GameMenu& operator=(const GameMenu&) = delete;

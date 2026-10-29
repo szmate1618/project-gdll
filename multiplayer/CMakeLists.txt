@@ -60,7 +60,7 @@ viewer_warnings(godollo_server)
 add_executable(godollo_client client/main.cpp client/session.cpp client/options.cpp)
 target_link_libraries(godollo_client PRIVATE multiplayer_server_runtime)
 if(GD_VIEWER)
-    target_sources(godollo_client PRIVATE client/menu.cpp client/players.cpp client/audio_playback.cpp "${PROJECT_SOURCE_DIR}/src/reticle_overlay.cpp")
+    target_sources(godollo_client PRIVATE client/menu.cpp client/players.cpp client/window.cpp client/audio_playback.cpp "${PROJECT_SOURCE_DIR}/src/reticle_overlay.cpp")
     target_link_libraries(godollo_client PRIVATE viewer_renderer viewer_hud viewer_undergrowth_audio viewer_audio_cues glfw)
     target_compile_definitions(godollo_client PRIVATE MP_GRAPHICS GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
     add_dependencies(godollo_client viewer_weapon_assets viewer_audio_assets)
@@ -197,7 +197,7 @@ if(BUILD_TESTING)
         add_test(NAME multiplayer_players_render COMMAND test_players_render)
         set_tests_properties(multiplayer_players_render PROPERTIES SKIP_RETURN_CODE 77)
 
-        add_executable(test_client_weapons tests/test_client_weapons.cpp client/players.cpp client/audio_playback.cpp
+        add_executable(test_client_weapons tests/test_client_weapons.cpp client/players.cpp client/window.cpp client/audio_playback.cpp
             "${PROJECT_SOURCE_DIR}/src/reticle_overlay.cpp")
         target_link_libraries(test_client_weapons PRIVATE multiplayer_core viewer_renderer viewer_hud viewer_undergrowth_audio viewer_audio_cues glfw)
         target_compile_definitions(test_client_weapons PRIVATE MP_GRAPHICS GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
@@ -207,6 +207,10 @@ if(BUILD_TESTING)
         add_test(NAME multiplayer_client_weapons COMMAND test_client_weapons "${VIEWER_TEST_ASSET}"
             "${CMAKE_CURRENT_BINARY_DIR}/client-weapon-fixture")
         set_tests_properties(multiplayer_client_weapons PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 15
+            ENVIRONMENT "ALSOFT_DRIVERS=null;ALSOFT_LOGLEVEL=0")
+        add_test(NAME multiplayer_client_display COMMAND test_client_weapons "${VIEWER_TEST_ASSET}"
+            "${CMAKE_CURRENT_BINARY_DIR}/client-display-fixture" --scaled)
+        set_tests_properties(multiplayer_client_display PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 15
             ENVIRONMENT "ALSOFT_DRIVERS=null;ALSOFT_LOGLEVEL=0")
     endif()
     add_executable(test_scene_fingerprint tests/test_scene_fingerprint.cpp)

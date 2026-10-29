@@ -1,4 +1,5 @@
 #include "menu.hpp"
+#include "window.hpp"
 #include "resources.hpp"
 #include "shader_program.hpp"
 #include <GLFW/glfw3.h>
@@ -44,13 +45,8 @@ std::array<unsigned char, 5> glyph(char c) {
 GameMenu& menu(GLFWwindow* window) { return *static_cast<GameMenu*>(glfwGetWindowUserPointer(window)); }
 GameMode mode(int row) { return static_cast<GameMode>(row + 1); }
 }
-GameMenu::GameMenu(bool hidden) {
-    if (!glfwInit()) throw std::runtime_error("Cannot initialize GLFW; --headless is available for network checks");
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    if (hidden) glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    window_ = glfwCreateWindow(1280, 720, "Godollo", nullptr, nullptr);
-    if (!window_) { glfwTerminate(); throw std::runtime_error("Cannot create OpenGL 3.3 window"); }
+GameMenu::GameMenu(const ClientDisplay& display, bool hidden) {
+    window_ = createClientWindow(display, hidden);
     try {
         glfwMakeContextCurrent(window_); glfwSwapInterval(1); viewer::initializeOpenGL();
         const auto shaders = resourceRoot() / "shaders";

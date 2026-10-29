@@ -98,6 +98,26 @@ Clients receive positions through existing snapshots
 and do not need a navmesh or scenario file. See the [scenario configuration](../docs/ZOMBIE_NAVIGATION_RUNTIME.md#test-horde-scenario)
 for format-4 world X/Z meter rectangles, idle defaults and destination behavior.
 
+## Display controls
+
+Client display controls work in Single Player, Host Game and Join Game:
+
+```sh
+./build/multiplayer/godollo_client output/godollo.glb --single-player --fullscreen --resolution 960x540
+```
+
+`--fullscreen` uses the primary monitor's current desktop mode for the menu and
+game. `--resolution` selects a fixed 3D target: `960x540`, `1280x720` or
+`1920x1080`. The world and held weapon are scaled to fit without stretching;
+different aspect ratios have black bars. The HUD, inventory/map screens and
+crosshair are drawn at the window framebuffer resolution. Mouse input stays in
+window coordinates. Screenshots include the final native-resolution GUI.
+Without a resolution override, windowed rendering follows the resized window;
+fullscreen defaults to a 1280x720 3D target. An explicit resolution also works in
+a resizable window. These are local settings and do not need to match the server.
+`--hidden --fullscreen` uses a hidden desktop-sized window without occupying the
+monitor, for captures and checks.
+
 ## Linux client package
 
 The **Build apps** workflow also uploads `godollo-client-linux-x86_64`, a tarball

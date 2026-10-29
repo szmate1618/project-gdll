@@ -24,7 +24,7 @@ GameOptions parseGameOptions(int argc, char** argv) {
         if (argument == "--connect" || argument == "--port" || argument == "--zombies" ||
             argument == "--zombie-count" || argument == "--zombie-radius" || argument == "--vegetation" ||
             argument == "--seconds" || argument == "--lag-ms" || argument == "--loss-percent" ||
-            argument == "--time-of-day" || argument == "--day-length" || argument == "--screenshot") {
+            argument == "--time-of-day" || argument == "--day-length" || argument == "--screenshot" || argument == "--resolution") {
             if (i + 1 < argc) shared.push_back(argv[++i]);
         } else if (argument == "--spawn" || argument == "--look") {
             for (int j = 0; j < 2 && i + 1 < argc; ++j) shared.push_back(argv[++i]);

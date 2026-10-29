@@ -12,7 +12,9 @@ int frame = 0;
 bool departed = false;
 viewer::PlayerBodyPose punchPose;
 constexpr HSteamNetConnection testConnection = 1;
-constexpr int frameWidth = 1280, frameHeight = 720;
+constexpr int frameWidth = 1280;
+int frameHeight = 720;
+bool scaledDisplay = false;
 
 void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
@@ -53,6 +55,9 @@ Network::~Network() = default;
 HSteamNetConnection Network::connect(const std::string&) { return testConnection; }
 bool Network::send(HSteamNetConnection, const Message& message, bool) {
     if (std::holds_alternative<Goodbye>(message)) departed = true;
+    if (scaledDisplay) if (const auto* commands = std::get_if<Commands>(&message); commands && commands->view)
+        require(std::abs(commands->view->aspect - 16.f/9) < .0001f,
+                "Replication used the letterboxed window aspect instead of the rendered camera aspect");
     return true;
 }
 std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
@@ -410,7 +415,9 @@ int main(int argc, char** argv) {
     if (!glfwInit()) return 77;
     glfwTerminate();
     try {
-        require(argc == 3, "Expected test map and fixture directory");
+        require(argc == 3 || (argc == 4 && std::string(argv[3]) == "--scaled"), "Expected test map and fixture directory, optionally --scaled");
+        scaledDisplay = argc == 4;
+        if (scaledDisplay) frameHeight = 800;
         fixture = argv[2];
         std::filesystem::create_directories(fixture);
         const std::filesystem::path source(MP_ROOT);
@@ -449,7 +456,29 @@ int main(int argc, char** argv) {
         char hidden[] = "--hidden", seconds[] = "--seconds", duration[] = "5";
         char dayLength[] = "--day-length";
         char* args[] = {program, argv[1], noTrees, count, zero, hidden, seconds, duration, dayLength, zero};
-        require(multiplayer::runClientSession(multiplayer::parseOptions(10, args, false)) == 0 && frame == 43, "Graphical client did not finish all weapon and command wheel states");
+        auto clientOptions = multiplayer::parseOptions(10, args, false);
+        const auto releaseWindow = [](GLFWwindow* window) { if (window) { glfwDestroyWindow(window); glfwTerminate(); } };
+        std::unique_ptr<GLFWwindow, decltype(releaseWindow)> sharedWindow(nullptr, releaseWindow);
+        if (scaledDisplay) {
+            clientOptions.display.fullscreen = true;
+            clientOptions.display.resolution = glm::ivec2(960, 540);
+            sharedWindow.reset(multiplayer::createClientWindow(clientOptions.display, true));
+            require(glfwGetWindowMonitor(sharedWindow.get()) == nullptr, "Hidden fullscreen capture occupied the monitor");
+            glfwSetWindowSize(sharedWindow.get(), frameWidth, frameHeight);
+            glfwPollEvents();
+            clientOptions.screenshot = fixture / "scaled-window.ppm";
+        }
+        require(multiplayer::runClientSession(clientOptions, sharedWindow.get()) == 0 && frame == 43, "Graphical client did not finish all weapon and command wheel states");
+        if (scaledDisplay) {
+            std::ifstream screenshot(clientOptions.screenshot);
+            std::string magic; int width = 0, height = 0;
+            screenshot >> magic >> width >> height;
+            require(magic == "P6" && width == frameWidth && height == frameHeight,
+                    "Upscaled screenshot did not preserve native GUI resolution");
+            const auto& pixels = frames.front();
+            require(pixels[0] == 0 && pixels[1] == 0 && pixels[2] == 0,
+                    "Different scene/window aspects did not leave an undistorted fitted scene");
+        }
         const std::array<std::size_t, 5> weaponFrames{1, 3, 4, 5, 12};
         for (std::size_t a = 0; a < weaponFrames.size(); ++a)
             for (std::size_t b = a+1; b < weaponFrames.size(); ++b)

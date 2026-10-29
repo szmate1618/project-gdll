@@ -21,6 +21,7 @@
 #include "weapon_overlay.hpp"
 #include "player_body_renderer.hpp"
 #include "audio_playback.hpp"
+#include "window.hpp"
 #include <GLFW/glfw3.h>
 #else
 struct GLFWwindow;
@@ -232,21 +233,20 @@ struct Graphics {
         }
         if (ownsWindow) { glfwDestroyWindow(window); glfwTerminate(); }
     }
-    void initialize(multiplayer::Scene& scene, Input& in, bool hidden, bool sound, GLFWwindow* sharedWindow, viewer::PlayerInventory& inventory) {
+    void initialize(multiplayer::Scene& scene, Input& in, const multiplayer::Options& options, GLFWwindow* sharedWindow, viewer::PlayerInventory& inventory) {
         in.actions = viewer::actionShortcuts(inventory);
         window = sharedWindow;
         if (!window) {
-            if (!glfwInit()) throw std::runtime_error("Cannot initialize GLFW; --headless is available for network checks");
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-            glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-            if (hidden) glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-            window = glfwCreateWindow(1280, 720, "Godollo", nullptr, nullptr);
-            if (!window) { glfwTerminate(); throw std::runtime_error("Cannot create OpenGL 3.3 window"); }
+            window = multiplayer::createClientWindow(options.display, options.hidden);
             ownsWindow = true;
         }
         glfwMakeContextCurrent(window); glfwSwapInterval(1);
         viewer::initializeOpenGL();
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << std::endl;
+        int width = 0, height = 0; glfwGetFramebufferSize(window, &width, &height);
+        const auto renderSize = options.display.renderSize({width, height});
+        std::cout << (options.display.fullscreen ? "Fullscreen" : "Windowed") << "; render resolution "
+                  << renderSize.x << 'x' << renderSize.y << "; GUI resolution " << width << 'x' << height << '\n';
         bindInput(in);
         const auto shaders = multiplayer::resourceRoot() / "shaders";
         renderer = std::make_unique<viewer::Renderer>(scene.model, shaders, scene.trees ? &*scene.trees : nullptr,
@@ -269,7 +269,7 @@ struct Graphics {
         birds = std::make_unique<viewer::BirdRenderer>(shaders);
         viewer::AudioOptions audioOptions;
         audioOptions.directory = multiplayer::audioDirectory();
-        audioOptions.enabled = sound;
+        audioOptions.enabled = options.audio;
         audio = std::make_unique<multiplayer::ClientAudio>(audioOptions);
     }
     void bindInput(Input& in) {
@@ -283,7 +283,7 @@ struct Graphics {
     }
 #else
     void bindInput(Input&) {}
-    void initialize(multiplayer::Scene&, Input&, bool, bool, GLFWwindow*, viewer::PlayerInventory&) { throw std::runtime_error("This build supports --headless clients only"); }
+    void initialize(multiplayer::Scene&, Input&, const multiplayer::Options&, GLFWwindow*, viewer::PlayerInventory&) { throw std::runtime_error("This build supports --headless clients only"); }
 #endif
     bool closed() const {
 #ifdef MP_GRAPHICS
@@ -351,7 +351,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
     Graphics graphics;
     if (!options.headless) {
         inventory.emplace(viewer::loadPlayerInventory(multiplayer::resourceRoot()));
-        graphics.initialize(scene, in, options.hidden, options.audio, window, *inventory);
+        graphics.initialize(scene, in, options, window, *inventory);
     }
     multiplayer::Network network(options.fakeLagMs, options.fakeLossPercent);
     const auto connection = network.connect(options.address);
@@ -563,7 +563,8 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                     int viewWidth = 0, viewHeight = 0;
                     glfwGetFramebufferSize(graphics.window, &viewWidth, &viewHeight);
                     if (viewWidth > 0 && viewHeight > 0) {
-                        view.aspect = std::clamp(float(viewWidth) / float(viewHeight), .2f, 8.f);
+                        const auto renderSize = options.display.renderSize({viewWidth, viewHeight});
+                        view.aspect = std::clamp(float(renderSize.x) / float(renderSize.y), .2f, 8.f);
                         view.verticalFov = glm::degrees(2.f * std::atan(1.f / camera.projection(view.aspect)[1][1]));
                     }
                     view.eye = camera.position();
@@ -592,6 +593,9 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
             graphics.audio->update(in.camera, scene, snapshots, self, static_cast<float>(dt), now);
             int width = 0, height = 0; glfwGetFramebufferSize(graphics.window, &width, &height);
             if (width > 0 && height > 0) {
+                const auto renderSize = options.display.renderSize({width, height});
+                const int renderWidth = renderSize.x, renderHeight = renderSize.y;
+                const float renderAspect = float(renderWidth) / renderHeight;
                 intervalSimulationSeconds += std::chrono::duration<double>(Clock::now() - simulationStart).count();
                 auto& renderer = *graphics.renderer;
                 renderer.setFlashlight(in.flashlight);
@@ -603,7 +607,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 flash.position = graphics.weapon->muzzlePosition(graphics.muzzleSlot, graphics.muzzleModelPosition,
                     in.weaponMotion.pose(graphics.muzzleSlot, now));
                 renderer.setMuzzleFlash(flash.transformed(glm::inverse(viewCamera.view())));
-                renderer.resize(width, height); renderer.updateDoors(*scene.doors); renderer.updateBoxes(*scene.boxes);
+                renderer.resize(renderWidth, renderHeight); renderer.updateDoors(*scene.doors); renderer.updateBoxes(*scene.boxes);
                 renderer.updateVehicles(*scene.vehicles, in.driver.car());
                 renderer.setDayNightLighting(viewer::dayNightLighting(scene.dayNight.hourAt(snapshots.animationSeconds())));
                 renderer.updateZombies(scene.zombies);
@@ -622,16 +626,17 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 graphics.gpuTimer->begin();
                 const auto renderStart = Clock::now();
                 renderer.render(viewCamera, snapshots.animationSeconds(), [&] {
-                    graphics.birds->draw(viewCamera,float(width)/height,snapshots.animationSeconds(),birds.sample(snapshots.animationSeconds()));
-                    graphics.players->draw(viewCamera, snapshots.players(), self, width, height);
-                    graphics.body->drawPose(ownBody,viewCamera.projection(float(width)/height)*viewCamera.view(),width,height);
+                    graphics.birds->draw(viewCamera,renderAspect,snapshots.animationSeconds(),birds.sample(snapshots.animationSeconds()));
+                    graphics.players->draw(viewCamera, snapshots.players(), self, renderWidth, renderHeight);
+                    graphics.body->drawPose(ownBody,viewCamera.projection(renderAspect)*viewCamera.view(),renderWidth,renderHeight);
                 });
                 if (prediction.ready() && !in.driver.occupied() && !in.interaction &&
                     in.camera.viewMode() == viewer::Camera::ViewMode::original &&
                     !in.weaponSwitching && viewer::weaponViewVisible(weaponDefinitions.equipped().config, ownState.loaded, ownState.weaponCoolingDown))
-                    graphics.weapon->draw(ownState.slot, width, height, flash,
+                    graphics.weapon->draw(ownState.slot, renderWidth, renderHeight, flash,
                                           in.weaponMotion.pose(ownState.slot, now));
-                if (!in.driver.occupied()) graphics.reticle->draw(in.camera.viewMode(), width, height);
+                const auto overlayViewport = renderer.beginOverlay(width, height);
+                if (!in.driver.occupied()) graphics.reticle->draw(in.camera.viewMode(), overlayViewport.width, overlayViewport.height);
                 viewer::HudState hudState;
                 hudState.seconds = now;
                 hudState.screen = in.hudScreen;
@@ -660,12 +665,15 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 hudState.commandWheelOffset = in.wheelOffset;
                 if (!snapshots.empty()) {
                     const float scale = std::min(float(width) / 1280, float(height) / 720);
-                    const auto matrix = viewCamera.projection(float(width) / height) * viewCamera.view();
+                    const auto matrix = viewCamera.projection(renderAspect) * viewCamera.view();
                     for (const auto& signal : snapshots.latest().signals) {
                         const auto placement = multiplayer::signalPlacement(viewCamera, signal.position + glm::vec3(0, 1, 0),
-                            width, height, 56 * scale);
+                            overlayViewport.width, overlayViewport.height, 56 * scale);
                         const auto clip = matrix * glm::vec4(placement.position, 1);
-                        hudState.signals.push_back({signal.kind, {clip.x / clip.w * .5f + .5f, .5f - clip.y / clip.w * .5f}, placement.atEdge});
+                        const glm::vec2 point{clip.x / clip.w * .5f + .5f, .5f - clip.y / clip.w * .5f};
+                        hudState.signals.push_back({signal.kind,
+                            {(overlayViewport.x + point.x * overlayViewport.width) / width,
+                             (overlayViewport.y + point.y * overlayViewport.height) / height}, placement.atEdge});
                     }
                 }
                 hudState.weaponSwitchRemaining = ownState.weaponSwitchRemaining;

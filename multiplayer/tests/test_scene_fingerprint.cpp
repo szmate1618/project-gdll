@@ -56,6 +56,23 @@ int main(int argc, char** argv) {
         require(multiplayer::sceneFingerprint(options, 7, {1.5f, -2.25f, -0.0f}, {first}) == fingerprint,
                 "Signed zero changed the scene fingerprint");
         auto changed = options;
+        changed.display.fullscreen = true;
+        changed.display.resolution = glm::ivec2(960, 540);
+        require(multiplayer::sceneFingerprint(changed, 7, spawn, {first}) == fingerprint,
+                "Local display settings changed the shared scene fingerprint");
+        for (const char* value : {"960x540", "1280x720", "1920x1080"}) {
+            const char* args[] = {"client", "--fullscreen", "--resolution", value};
+            require(multiplayer::parseOptions(4, const_cast<char**>(args), false).display.resolution.has_value(),
+                    "A supported resolution was rejected");
+        }
+        for (const char* value : {"", "0x0", "960X540", "1280x720junk", "800x600"}) {
+            const char* args[] = {"client", "--resolution", value};
+            bool rejected = false;
+            try { (void)multiplayer::parseOptions(3, const_cast<char**>(args), false); }
+            catch (const std::runtime_error&) { rejected = true; }
+            require(rejected, "Invalid render resolution was accepted");
+        }
+        changed = options;
         changed.cars = false;
         require(multiplayer::sceneFingerprint(changed, 7, spawn, {first}) != fingerprint,
                 "Disabled cars were not fingerprinted without a sidecar");

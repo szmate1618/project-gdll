@@ -43,8 +43,10 @@ Multiplayer equipment and ammunition follow the server-confirmed
 state. In the standalone viewer the HUD is drawn after scene upscaling, at the
 window framebuffer resolution, and appears in screenshots. Inventory input
 follows the full-window GUI, independently of any scene letterboxing; HiDPI
-input remains in window fractions. The multiplayer client draws the scene and
-HUD at its window framebuffer resolution.
+input remains in window fractions. The multiplayer client defaults to drawing
+the scene and HUD at its window framebuffer resolution. Its `--fullscreen` and
+`--resolution` controls can use a fixed 3D target with the same scene upscaling
+and native-resolution HUD; see [client display controls](../multiplayer/README.md#display-controls).
 
 The navigation area displays a north-up 300 × 300 m minimap centered on the
 player's horizontal position (the camera in free-fly mode). Driving uses the

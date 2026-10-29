@@ -77,6 +77,14 @@ Options parseOptions(int argc, char** argv, bool server) {
             if (n < 0 || n > 50) throw std::runtime_error("Invalid artificial loss");
             o.fakeLossPercent = static_cast<float>(n);
         } else if (arg == "--headless" && !server) o.headless = true;
+        else if (arg == "--fullscreen" && !server) o.display.fullscreen = true;
+        else if (arg == "--resolution" && !server) {
+            const auto value = next(i);
+            if (value == "960x540") o.display.resolution = glm::ivec2(960, 540);
+            else if (value == "1280x720") o.display.resolution = glm::ivec2(1280, 720);
+            else if (value == "1920x1080") o.display.resolution = glm::ivec2(1920, 1080);
+            else throw std::runtime_error("--resolution requires 960x540, 1280x720 or 1920x1080");
+        }
         else if (arg == "--no-audio" && !server) o.audio = false;
         else if (arg == "--hidden" && !server) o.hidden = true;
         else if (arg == "--look" && !server) {
@@ -89,7 +97,7 @@ Options parseOptions(int argc, char** argv, bool server) {
         else if (arg == "--screenshot" && !server) o.screenshot = next(i);
         else if (arg == "--help") {
             std::cout << (server ? "godollo_server" : "godollo_client") << " [map.glb] "
-                << (server ? "[--port 27020] [--no-zombie-perception]" : "[--connect 127.0.0.1:27020] [--headless] [--hidden] [--bot] [--no-audio] [--look YAW PITCH] [--screenshot FILE]")
+                << (server ? "[--port 27020] [--no-zombie-perception]" : "[--connect 127.0.0.1:27020] [--fullscreen] [--resolution WxH] [--headless] [--hidden] [--bot] [--no-audio] [--look YAW PITCH] [--screenshot FILE]")
                 << "\nShared: --spawn X Z --zombies PATH --zombie-count N --zombie-radius METERS\n"
                    "        --vegetation osm-tuned2|orthophoto|osm|sentinel-astra|none\n"
                    "        --no-trees --no-forests --no-cars --seconds N --lag-ms N --loss-percent N\n"

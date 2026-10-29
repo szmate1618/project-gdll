@@ -16,6 +16,7 @@
 #include "vehicle_layer.hpp"
 #include "vehicle_placement.hpp"
 #include "day_night.hpp"
+#include "client/display.hpp"
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -34,6 +35,7 @@ struct Options {
     bool trees = true, forests = true, headless = false, hidden = false, bot = false;
     bool cars = true;
     bool audio = true;
+    ClientDisplay display; // Client presentation only; excluded from scene identity.
     bool birds = false; // Server opt-in during the deterministic flock experiment.
     bool zombiePerception = true; // Authoritative server setting; not world identity.
     bool explicitLook = false;

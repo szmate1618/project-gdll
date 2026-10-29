@@ -70,6 +70,11 @@ OpenAL DLL supplies audio (`--no-audio` to mute). Existing multiplayer gameplay
 and audio limitations are documented in `multiplayer/README.md` in the source
 repository.
 
+Use `--fullscreen --resolution 960x540` for fullscreen with an upscaled scene and
+native-resolution HUD. Supported 3D presets are `960x540`, `1280x720` and
+`1920x1080`; the override also works in a resizable window. Fullscreen defaults
+to a 1280x720 scene when no resolution is supplied. Display settings are local.
+
 The RmlUi gameplay HUD uses bundled Game-icons.net icons; see
 `credits/assets/HUD_ICONS.txt`. Menus retain their artwork placeholders.
 It uses the built-in Segoe UI font. No custom font is bundled. Set `GD_HUD_FONT` to an installed `.ttf`

@@ -63,6 +63,16 @@ void parser() {
     require(parse({"game"}).mode == GameMode::Menu, "Default must open menu");
     require(parse({"game", "--single-player"}).mode == GameMode::SinglePlayer, "Missing single-player flag");
     require(!parse({"game", "--single-player", "--no-cars"}).scene.cars, "Single-player lost --no-cars");
+    const auto display = parse({"game", "--single-player", "--fullscreen", "--resolution", "960x540"});
+    require(display.scene.display.fullscreen && display.scene.display.renderSize({1920, 1200}) == glm::ivec2(960, 540),
+            "Display options were lost in the game-mode parser");
+    require(parse({"game"}).scene.display.renderSize({1440, 900}) == glm::ivec2(1440, 900),
+            "Default window rendering must follow the framebuffer");
+    require(parse({"game", "--fullscreen"}).scene.display.renderSize({1920, 1200}) == glm::ivec2(1280, 720),
+            "Fullscreen must default to a separate 720p render target");
+    bool badResolution = false;
+    try { parse({"game", "--resolution", "--host"}); } catch (const std::exception&) { badResolution = true; }
+    require(badResolution, "A resolution value was interpreted as a game-mode flag");
     const auto host = parse({"game", "--host", "--port", "27022"});
     require(host.mode == GameMode::Host && host.scene.port == 27022, "Host port was lost");
     require(parse({"game", "--connect", "127.0.0.1:27022"}).mode == GameMode::Join, "Join flag changed");
