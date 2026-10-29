@@ -736,6 +736,15 @@ Shared vertex animation buffers hold the resulting positions and normals; the
 GPU interpolates adjacent samples and loops using elapsed time. Every zombie
 has its own phase offset. Meshes, textures, and animation samples are shared by
 all instances of a variant, with one instanced draw per character primitive.
+
+GPU animation storage uses two RGBA16F texels per vertex sample (16 bytes).
+Packing happens once during upload; shaders decode to floats and retain their
+existing interpolation and lighting arithmetic. CPU animation samples, world
+transforms and live ragdoll bone palettes remain FP32. A primitive retains FP32
+storage if a component is nonfinite or outside the finite half range, or a
+nonzero normal would round to zero. Animated culling bounds enclose both original
+and half-rounded positions across all LODs.
+
 The title reports visible/total zombie counts, and shutdown logs the visible
 count and instanced draw count. Camera-frustum culling compacts each character
 batch before upload and drawing. Bounds include every idle/walk/run sample and
@@ -2729,6 +2738,10 @@ primitives through the actual shader. It requires
 an accessible OpenGL display and reports a skip when none is available. The
 remaining checks run without a display.
 
+`viewer_zombie_animation_buffer` checks half encodings, source preservation,
+fallback and conservative rounded bounds without a GPU. The rendering regression
+also checks rounded camera/sun bounds, FP32 fallback and full-precision live palettes.
+
 `viewer_zombie_crowd` checks swept contacts, sliding, opposing movers, separate
 floors, inactive blockers, animation stopping, ragdoll release, grid updates,
 stable movement priority, and conservative overload handling. Two replays of a
@@ -2949,6 +2962,7 @@ src/zombie_ragdoll_pose.{hpp,cpp} Animated-pose handoff and physics-to-skin mapp
 src/zombie_palette_cache.{hpp,cpp} Persistent GPU palettes and coalesced dirty uploads
 src/zombie_visibility.{hpp,cpp} Dynamic group bounds and camera/shadow culling
 src/zombie_render_updates.{hpp,cpp} Deduplicated instance changes and render publication cursors
+src/zombie_animation_buffer.{hpp,cpp} Half-precision baked GPU samples and conservative bounds
 src/zombie_renderer.cpp    Shared animation buffers, skinning data, and GPU instancing
 src/camera.{hpp,cpp}        Perspective free-fly camera
 src/camera_rig.{hpp,cpp}    Runtime camera mode switching

@@ -163,6 +163,10 @@ add_library(viewer_zombie_visibility STATIC src/zombie_visibility.cpp)
 target_link_libraries(viewer_zombie_visibility PUBLIC viewer_visibility)
 viewer_warnings(viewer_zombie_visibility)
 
+add_library(viewer_zombie_animation_buffer STATIC src/zombie_animation_buffer.cpp)
+target_link_libraries(viewer_zombie_animation_buffer PUBLIC viewer_model)
+viewer_warnings(viewer_zombie_animation_buffer)
+
 add_library(viewer_building_batches STATIC src/building_batch.cpp)
 target_link_libraries(viewer_building_batches PUBLIC viewer_visibility)
 viewer_warnings(viewer_building_batches)
@@ -416,6 +420,7 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp src
     src/zombie_renderer.cpp src/zombie_wound_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/blood_mist_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
     viewer_birds viewer_doodads viewer_vehicle_lods viewer_model viewer_weapon_pose viewer_weapons viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting viewer_grenades OpenGL::GL)
+target_link_libraries(viewer_renderer PRIVATE viewer_zombie_animation_buffer)
 if(WIN32)
     target_link_libraries(viewer_renderer PUBLIC GLEW::GLEW)
 endif()
@@ -1027,6 +1032,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_zombie_visibility PRIVATE viewer_zombie_visibility)
     viewer_warnings(test_zombie_visibility)
     add_test(NAME viewer_zombie_visibility COMMAND test_zombie_visibility)
+
+    add_executable(test_zombie_animation_buffer tests/test_zombie_animation_buffer.cpp)
+    target_link_libraries(test_zombie_animation_buffer PRIVATE viewer_zombie_animation_buffer)
+    viewer_warnings(test_zombie_animation_buffer)
+    add_test(NAME viewer_zombie_animation_buffer COMMAND test_zombie_animation_buffer)
 
     # Exercise real vertex attributes and skinning palette lookups. Machines
     # without an accessible OpenGL display skip this graphics-only regression.

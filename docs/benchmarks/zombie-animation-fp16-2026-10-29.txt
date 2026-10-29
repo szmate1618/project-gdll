@@ -1,0 +1,196 @@
+Baked zombie animation FP16 storage, 2026-10-29
+==============================================
+
+Implementation and scope
+------------------------
+The production renderer packs baked position/normal pairs into two RGBA16F
+texture-buffer texels during upload. A sample uses 16 bytes instead of 32.
+Shader source, addressing, frame selection, interpolation and lighting arithmetic
+are unchanged. CPU canonical animation arrays, world/instance transforms, IDs,
+collision poses and live bone palettes remain FP32. Packing is transient startup
+work; no second retained CPU animation representation was added.
+
+A primitive retains RGBA32F if any component is nonfinite/outside finite half
+range or a nonzero normal would round to zero. No clipping/saturation is used.
+Living animation bounds union original and half-decoded extrema after all LODs
+are included. Half conversion is monotonic, so these bounds enclose every stored
+endpoint and its linear interpolation; live bind bounds remain separate.
+
+Memory and numerical accuracy
+------------------------------
+The audit loaded all ten types with their three prepared LODs and ten severed
+variants each: 240 primitives, 22,324,680 baked samples. GPU animation bytes fall
+714,389,760 -> 357,194,880 (681.30 -> 340.65 MiB, exactly 50%). This is animation
+storage, not total GPU memory or process RAM. Every audited primitive uses FP16;
+none require fallback. Observed whole-process GTT peaks also fall about 0.3 GiB.
+
+All clip frames and per-clip wrap segments were audited using each original
+asset's actual 1.8 m normalization, shared by its LOD/severed meshes. Endpoints
+plus quarter/mid/three-quarter interpolation use float shader-style operations;
+errors below are Euclidean world-meter distances. Normal angles use double
+normalized atan2(cross length,dot) to avoid small-angle acos rounding artifacts.
+
+                            Maximum          RMS
+Position, endpoints         0.627703 mm       0.251982 mm
+Position, interpolated      0.613121 mm       0.200523 mm
+Normal angle, endpoints     0.023340 degrees  0.006813 degrees
+Normal angle, interpolated  0.021467 degrees  0.005363 degrees
+
+CPU float32 sample hashes remain unchanged. Endpoint and interpolated normals
+never become zero or cross the 1e-6 raw-length threshold. The audit also checks
+both original and decoded normal segments' analytic nearest-origin fractions,
+including clip wraps; this guards cancellation that endpoint checks alone miss.
+These are measured errors for these assets, not bounds for arbitrary future rigs.
+
+Visual comparison
+------------------
+Both frozen production renderers captured all ten types at 4/16/45/100 m
+(LOD0/1/2/3), idle/walk/run, four fractional phases and two yaws: 960 matched
+pairs, 1,920 renders. The harness uses the actual Renderer and loader, native
+1280x720 projection and depth masks, with shadows/fog disabled for this isolated
+comparison. It verifies pose, clip, visible count, submitted mesh and crop bounds.
+Distances deliberately avoid LOD thresholds. No alignment or supersampling is used.
+The separate benchmark_zombie_lod_quality program uploads its own RGBA32F data,
+so it would not validate this production storage change.
+
+Across 3,491,420 reference foreground pixels, masks lose 1,199 and add 1,188
+pixels. Foreground-union RGB MAE is 0.184875/255, RMSE 4.104640/255. Individual
+changed edge pixels can have large color differences; these averages do not
+establish pixel identity. The maximum mask XOR is 26 pixels in a near view.
+LOD3 masks match in 236/240 views; the other four differ by one pixel each.
+Maximum symmetric raster-boundary distance is sqrt(5) pixels, which measures
+nearest occupied pixels around thin silhouettes, not geometric vertex motion.
+Native worst-case pairs and the full crowd/corridor captures were inspected;
+there are small raster changes without an obvious pose or lighting defect.
+
+Primary performance comparison
+-------------------------------
+Hardware: AMD Radeon 660M, radeonsi/LLVM 19.1.1, Linux kernel 6.11.0-29-generic.
+The FP32 renderer is from revision 741b3ca with current Slim1 LOD3 assets; FP16
+changes only the upload format and conservative bounds. Existing unrelated
+HUD/map workspace edits are present in both builds. Frozen binaries/libraries/
+shaders are retained. All 259 recorded asset/map/scenario input hashes remain unchanged.
+
+Three workloads each run FP32/FP16/FP16/FP32 sequentially, 12 processes total.
+Crowd processes use six rounds x 32 warmup + 64 measured frames (384 measured
+frames/process), the standard fixed 60 Hz animation/simulation timeline and
+asynchronous GPU queries. Corridor processes use --fixed-step --frames 240,
+discard frames 1..60 and retain 180. Sun maps are 1024 square; shadows and shader
+policy are normal in these primary comparisons. No concurrent builds, captures
+or independent analysis ran during timings. An idle guard precedes every process.
+
+Crowd process statistics are medians of six round means; corridor statistics are
+medians of the retained frames. Aggregates are medians of two process statistics.
+All GPU samples are finite. CPU includes driver stalls; CPU/GPU overlap, so do
+not add columns or infer presented FPS.
+
+Workload        FP32 CPU  FP16 CPU   FP32 GPU  FP16 GPU   milliseconds
+Healthy 100k     13.233    13.128      7.849     8.222
+Wounded 100      13.200    13.191      8.540     8.825
+Corridor 53k       3.426     3.566      4.178     4.719
+
+Chronological process results (CPU render / GPU elapsed, milliseconds):
+Healthy FP32       13.2349 / 7.6366
+Healthy FP16       13.1163 / 7.8270
+Healthy FP16       13.1402 / 8.6171
+Healthy FP32       13.2305 / 8.0613
+Mixed FP32         13.2237 / 8.6275
+Mixed FP16         13.3264 / 8.0113
+Mixed FP16         13.0547 / 9.6390
+Mixed FP32         13.1757 / 8.4524
+Corridor FP32       3.4172 / 4.2105
+Corridor FP16       3.2273 / 4.3368
+Corridor FP16       3.9048 / 5.1007
+Corridor FP32       3.4355 / 4.1448
+
+These results do not establish a speed gain. Healthy/mixed CPU costs are almost
+flat; raw GPU aggregates are 4.75%/3.34% slower. Corridor CPU/GPU aggregates are
+4.08%/12.95% slower. The first mixed FP16 run beats both FP32 controls, while the
+second is much slower. The second corridor FP16 run also increases unrelated
+simulation/preparation time. Sparse 500 ms clock samples range widely in auto
+mode and cannot normalize individual GPU queries. Available RAM remains above
+16 GiB, with no swap-out; one corridor process reads 128 KiB from swap. Host
+variation is material; it does not prove a format-specific regression or a win.
+
+Healthy runs submit all 100,000 actors, 10 draws, 6,000,000 camera triangles at LOD3,
+with zero zombie shadow triangles. Mixed runs submit 100 wounded original meshes
+and 99,900 healthy LOD3 actors, 30 draws, 6,184,100 triangles. Per-frame crowd guards
+check population/counts. Corridor final submitted counts also match: 107/53,000
+visible, 20 zombie draws, LOD0/1/2/3=0/0/25/82, 13,809 camera and 7,200 sun triangles.
+One broadphase distance-rejection counter changes 32715 -> 32716 with enlarged
+bounds; actual submitted geometry is unchanged. Captures are byte-identical
+within each format. Between formats, 950 crowd and 244 corridor pixels change.
+
+Paired format diagnostic
+-------------------------
+A separate single-process control holds two production Renderers in one context,
+sharing one CPU ZombieLayer. One uses RGBA16F; the other uses RGBA32F containing
+exactly the same half-decoded values. Geometry rounding therefore cannot explain
+format timing differences. All 16 captures match byte-for-byte, with unchanged
+100,000 actors / 10 draws / 6,000,000 triangles.
+
+The order is ABBABAAB repeated twice, 16 blocks total, each with 32 warmup and
+64 measured frames. Warmup fences finish before each measurement; normal frame
+queries remain asynchronous with the standard work-in-flight cap. Completed
+block wall time includes frame waits, CSV recording and the final query drain;
+presentation is absent. These are diagnostic offscreen costs, not presented FPS.
+
+Median of eight block means per format, milliseconds:
+                         RGBA32F decoded-half   RGBA16F
+CPU render                    13.138745          13.001387
+GPU interval                   7.121479           8.532150
+Completed wall/frame          13.595664          13.444528
+
+Completed wall/frame is 1.11% lower in the FP16 aggregate. Six of eight adjacent
+pairs favor FP16; the median paired saving is 0.173982 ms, range -0.284283 to
++0.556053 ms. Five pairs favor FP16 CPU render time. GPU intervals favor FP16
+in only two pairs; their median paired saving is -0.695400 ms. This does not
+establish a reliable speed gain, and the GPU increase must not be hidden.
+
+The control samples clocks every 100 ms and joins them to measurement events.
+Pooled median clocks are 760 MHz for FP32 and 693 MHz for FP16; medians of the
+eight block clock medians are 846 and 683.5 MHz. Five of the six slower-FP16 GPU
+pairs also have lower FP16 block-median clocks; counterexamples remain.
+Temperatures overlap (FP32 57..64 C, FP16 56..63 C). This supports automatic
+clock/pacing variation as a contributor, without isolating intrinsic format
+fetch cost or proving clocks are the only cause. Sparse samples cannot normalize
+individual GPU timings. CPU cost exceeds GPU intervals here, and completed wall
+time does not regress in this control. Two GPU copies coexist, increasing
+resident memory; this diagnostic cannot replace the single-renderer primary runs.
+
+Decision
+---------
+Keep FP16 storage for the measured 340.65 MiB animation-memory saving and small
+pose error. No reliable frame-time improvement is established by this experiment.
+Raw GPU intervals often increase; a benefit in GPU-bound scenes or on other
+hardware remains unproven. World precision, live skinning precision and animation
+policy are unchanged. No diagnostic environment switches enter production code.
+
+Verification and evidence
+--------------------------
+Successful builds: new CPU test, test_zombie_renderer, test_shadow_renderer,
+test_animated_model, test_zombie_lod, test_zombie_visibility,
+test_zombie_render_updates, benchmark_zombie_crowd, godollo_viewer, godollo_client.
+Five focused CPU CTests and hardware viewer_zombie_renderer/viewer_shadow_renderer
+pass. The authored-asset renderer test also passes for all ten idle/walk/run rigs
+and live ragdolls. Regressions cover expanded camera/LOD/sun bounds, rendered
+culling-on/off equality, finite overflow fallback, unchanged live FP32 palettes,
+known half encodings, source preservation and interpolated bounds.
+
+Artifacts: build/benchmarks/zombie-animation-fp16-20261029/
+  baseline/,candidate/       frozen executables, libraries, shaders, source, hashes
+  input-sha256.json          asset/map/scenario fingerprints
+  run_primary.py            sequential 12-process protocol and telemetry
+  healthy-*,mixed-*,corridor-*  raw timing CSVs, logs, captures, telemetry
+  primary-summary.json       summaries, count/image checks, telemetry
+  precision_capture.cpp     real-Renderer native capture fixture
+  build_precision.py,run_precision.py  frozen-library builds/sequential captures
+  precision-baseline/,precision-candidate/ 960 native color/depth samples each
+  analyze_captures.py,precision-analysis/  metrics, worst cases, native comparisons
+  numeric_audit.cpp,numeric/audit.json,numeric/primitives.csv
+  format_control.cpp,env_renderer.cpp  isolated decoded-values format control
+  build_format_control.py,run_format_control.py,analyze_format_control.py
+  format-paired-abba/        16 block CSVs,captures,events,summary and clocks
+  *build.log,*test.log       build and authored-asset regression logs
+
+Generated evidence remains ignored. Unrelated HUD/map changes were preserved.

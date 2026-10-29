@@ -1,6 +1,7 @@
 #include "renderer.hpp"
 #include "frame_stage_profile.hpp"
 #include "zombie_animation.hpp"
+#include "zombie_animation_buffer.hpp"
 #include "zombie_lod.hpp"
 
 #include <cmath>
@@ -134,6 +135,9 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
         if (i < zombies.lodAssets.size())
             for (const auto& lod : zombies.lodAssets[i])
                 includeZombieGeometryBounds(lod, batch.animationBounds, batch.bindBounds);
+        // The GPU may round baked positions to FP16. Enclose both canonical
+        // CPU poses and decoded GPU endpoints before publishing culling bounds.
+        batch.animationBounds = zombieAnimationHalfBounds(batch.animationBounds);
         // Baked frames are scene-space meters; skinned bind vertices can still
         // be mesh-local centimeters. Keep these boxes separate. Live skinning
         // transforms the bind box through the palette before using it below.
@@ -265,11 +269,13 @@ void Renderer::uploadZombieGeometry(const AnimatedModel& source, ZombieGeometry&
                               reinterpret_cast<const void*>(offsetof(SkinVertexGPU, weights1)));
         glGenBuffers(1, &geometry.animationBuffers[p]);
         glBindBuffer(GL_TEXTURE_BUFFER, geometry.animationBuffers[p]);
-        glBufferData(GL_TEXTURE_BUFFER, static_cast<GLsizeiptr>(frames.size() * sizeof(AnimationVertex)),
-                     frames.data(), GL_STATIC_DRAW);
+        const auto packed = packZombieAnimation(frames);
+        const auto bytes = frames.size() * (packed ? sizeof(PackedZombieAnimationSample) : sizeof(AnimationVertex));
+        const void* data = packed ? static_cast<const void*>(packed->data()) : static_cast<const void*>(frames.data());
+        glBufferData(GL_TEXTURE_BUFFER, static_cast<GLsizeiptr>(bytes), data, GL_STATIC_DRAW);
         glGenTextures(1, &geometry.animationTextures[p]);
         glBindTexture(GL_TEXTURE_BUFFER, geometry.animationTextures[p]);
-        glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, geometry.animationBuffers[p]);
+        glTexBuffer(GL_TEXTURE_BUFFER, packed ? GL_RGBA16F : GL_RGBA32F, geometry.animationBuffers[p]);
     }
 }
 

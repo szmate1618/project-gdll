@@ -877,6 +877,93 @@ void renderOutlyingLodBounds() {
     viewer::Renderer::checkErrors("outlying zombie LOD bounds");
 }
 
+void renderHalfRoundedAnimationBounds() {
+    auto base=makeAsset(1,2);
+    const auto vertices=base.model.primitives[0].vertices.size();
+    for (std::size_t index=0;index<base.animation[0].frames.size();++index) {
+        const auto corner=index%4, marker=(index%vertices)/4, frame=index/vertices;
+        base.animation[0].frames[index].position={32, (corner<2 ? -1.f : 1.f)+float(marker)*3+float(frame%2)*.5f,0,1};
+    }
+    auto rounded=base;
+    for (std::size_t index=0;index<rounded.animation[0].frames.size();++index)
+        rounded.animation[0].frames[index].position.x=index%4==0 || index%4==3 ? 32.01f : 32.02f;
+    // Amplify half rounding: original world X ends at 20, stored half X at
+    // 31.25. The camera's left face lies near 25, leaving a visible clipped strip.
+    const auto transform=glm::scale(glm::translate(glm::mat4(1),{-32000,0,0}),{1000,1,1});
+    viewer::Camera camera;
+    camera.setPosition({102,1,100});camera.setOrientation(-90,0);
+    const viewer::VisibilityBounds original{{0,-1,0},{20.01f,4.5f,0}}, stored{{0,-1,0},{31.25f,4.5f,0}};
+    const viewer::Frustum frustum(camera.projection(float(width)/height)*camera.view());
+    if (frustum.intersects(original.minimum,original.maximum) || !frustum.intersects(stored.minimum,stored.maximum))
+        throw std::runtime_error("Half-bounds fixture must cross the camera face only after rounding");
+    for (const bool lodOnly:{true,false}) {
+        viewer::ZombieLayer layer;
+        layer.assets.push_back(lodOnly ? base : rounded);
+        if (lodOnly) layer.lodAssets={{base,base,rounded}};
+        layer.instances.emplace_back();layer.instances[0].transform=transform;
+        viewer::Renderer renderer(viewer::Model{},VIEWER_SHADER_DIR,nullptr,&layer);
+        renderer.resize(width,height);renderer.setZombieDrawDistance(0);renderer.setZombieDistanceDetail(lodOnly);
+        renderer.setShadows(false);renderer.setHaze(false);renderer.setGroundFog(false);
+        // LOD3 tests its independently expanded bounds. Full-detail playback
+        // additionally tests both frame endpoints and their interpolated pose.
+        for (const double seconds:{0.,.25,.5,.75}) {
+            renderer.render(camera,seconds);
+            if (renderer.zombieVisibleCount()!=1 || renderer.zombieRenderStats().cameraLevels[lodOnly ? 3 : 0]!=1)
+                throw std::runtime_error("Decoded half positions must expand original and LOD rendering bounds");
+            const auto pixels=colorPixels();
+            std::size_t red=0,blue=0;
+            for (std::size_t index=0;index<pixels.size();index+=3) {
+                red+=pixels[index]==255 && pixels[index+1]==0 && pixels[index+2]==0;
+                blue+=pixels[index]==0 && pixels[index+1]==0 && pixels[index+2]==255;
+            }
+            if (red<4 || blue<4) throw std::runtime_error("Half-rounded geometry must actually reach the camera capture");
+            renderer.setZombieCulling(false);renderer.render(camera,seconds);
+            if (colorPixels()!=pixels) throw std::runtime_error("Half bounds culling changed decoded camera geometry");
+            renderer.setZombieCulling(true);
+        }
+        if (lodOnly) {
+            viewer::SunLighting sunlight;sunlight.direction={0,1,1};
+            auto shadowCamera=camera;
+            shadowCamera.setPosition({147,1,50});shadowCamera.setOrientation(90,0);
+            const viewer::Frustum light(viewer::sunShadowView(shadowCamera.position(),sunlight.direction).projectionView());
+            if (light.intersects(original.minimum,original.maximum) || !light.intersects(stored.minimum,stored.maximum))
+                throw std::runtime_error("Half-bounds fixture must cross the independent light face only after rounding");
+            renderer.setLighting(sunlight);renderer.setShadows(true);renderer.render(shadowCamera,0);
+            if (renderer.zombieVisibleCount()!=0 || renderer.zombieRenderStats().shadowLevels[3]!=1)
+                throw std::runtime_error("Rounded LOD bounds must retain an offscreen sunlight caster");
+        }
+        viewer::Renderer::checkErrors("half-rounded zombie animation bounds");
+    }
+}
+
+void renderAnimationFloatFallbackAndLivePalette() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(makeAsset(1,2));
+    for (auto& sample:layer.assets[0].animation[0].frames) sample.position.x+=70000;
+    layer.instances.emplace_back();
+    layer.instances[0].transform=glm::translate(glm::mat4(1),{-70000,0,0});
+    viewer::Camera camera;camera.setPosition({0,.8f,10});camera.setOrientation(-90,0);
+    viewer::Renderer renderer(viewer::Model{},VIEWER_SHADER_DIR,nullptr,&layer);
+    renderer.resize(width,height);renderer.setZombieDistanceDetail(false);renderer.setShadows(false);
+    renderer.setHaze(false);renderer.setGroundFog(false);renderer.render(camera,0);
+    const auto baked=colorPixels();
+    std::size_t red=0,blue=0;
+    for (std::size_t index=0;index<baked.size();index+=3) {
+        red+=baked[index]==255 && baked[index+1]==0 && baked[index+2]==0;
+        blue+=baked[index]==0 && baked[index+1]==0 && baked[index+2]==255;
+    }
+    if (renderer.zombieVisibleCount()!=1 || red<4 || blue<4)
+        throw std::runtime_error("Finite animation outside half range must retain visible float32 geometry");
+    layer.setRagdollPalette(0,std::vector<glm::mat4>(2,glm::translate(glm::mat4(1),{70000,.75f,0})));
+    renderer.updateZombies(layer);renderer.render(camera,0);
+    if (colorPixels()!=baked || renderer.zombiePaletteStats().uploadBytes!=2*sizeof(glm::mat4))
+        throw std::runtime_error("Live bone palettes must retain full float32 coordinates and matrix storage");
+    renderer.render(camera,0);
+    if (renderer.zombiePaletteStats().uploaded!=0 || colorPixels()!=baked)
+        throw std::runtime_error("Unchanged full-precision palettes must remain resident");
+    viewer::Renderer::checkErrors("float32 animation fallback and live palettes");
+}
+
 void renderAuthoredAssets(const std::filesystem::path& directory, const std::filesystem::path& screenshot) {
     viewer::ZombieLayer layer;
     std::vector<std::filesystem::path> paths;
@@ -1053,6 +1140,8 @@ int main(int argc, char** argv) {
         const std::string mode = argc > 1 ? argv[1] : "";
         renderDistanceLods();
         renderOutlyingLodBounds();
+        renderHalfRoundedAnimationBounds();
+        renderAnimationFloatFallbackAndLivePalette();
         renderHealthyAndWoundedBatches();
         renderDistantHeadSurfaces();
         renderFrustumCulling();

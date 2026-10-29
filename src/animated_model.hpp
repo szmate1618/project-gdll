@@ -9,7 +9,8 @@
 
 namespace viewer {
 
-// Two RGBA32F texture-buffer texels per vertex, in scene-world coordinates.
+// Canonical FP32 baked samples in asset scene-space meters, before the zombie's
+// instance/world transform. The renderer may pack GPU storage to two RGBA16F texels.
 struct AnimationVertex {
     glm::vec4 position{0.0f};
     glm::vec4 normal{0.0f};

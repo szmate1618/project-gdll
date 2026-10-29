@@ -115,6 +115,9 @@ and mixed 100,000-actor cases.
 The [October 19/20 source and retained-binary audit](benchmarks/zombie-oct19-oct20-same-session-2026-10-28.txt)
 separates revision dates from measurement dates and reruns the saved October 20
 executable alongside the October 19 rebuild and current renderer at matched settings.
+The [FP16 animation storage comparison](benchmarks/zombie-animation-fp16-2026-10-29.txt)
+checks memory, pose accuracy, native captures and matched healthy/mixed/corridor
+timings while retaining FP32 CPU poses and live bone palettes.
 
 ## Interpreting GPU time under CPU load
 
