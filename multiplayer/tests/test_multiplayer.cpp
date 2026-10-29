@@ -5,6 +5,7 @@
 #include "server/world.hpp"
 #include "zombie_animation.hpp"
 #include "simulation_clock.hpp"
+#include "zombie_replication_fixture.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 #include <cstring>
@@ -103,7 +104,7 @@ void protocol() {
     s.players.push_back(player);
     rejects([&] { encode(s); }, "Duplicate entity ID accepted");
     rejects([&] { encode(Hello{"wrong"}); }, "Invalid content hash accepted");
-    s.players.pop_back(); s.zombies.resize(maxVisibleZombies + 1);
+    s.players.pop_back(); s.zombies.resize(maxZombieUpdatesPerSnapshot + 1);
     rejects([&] { encode(s); }, "Oversized entity count accepted");
 }
 void playerHealthProtocol() {
@@ -136,7 +137,7 @@ void playerHealthProtocol() {
 }
 void fragments() {
     using namespace multiplayer;
-    Snapshot snapshot; snapshot.tick = 100; snapshot.zombies.resize(200);
+    Snapshot snapshot; snapshot.tick = 100; snapshot.zombies.resize(maxZombieUpdatesPerSnapshot);
     for (std::size_t i = 0; i < snapshot.zombies.size(); ++i) snapshot.zombies[i].id = static_cast<std::uint32_t>(i);
     const auto bytes = encode(snapshot);
     require(bytes.size() > 16500, "Fragment test no longer covers GNS reliable-promotion threshold");
@@ -298,7 +299,7 @@ void serverCommands(const std::filesystem::path& asset) {
         "Duplicate commands repeated a shot or consumed extra ammo");
     Command future; future.sequence = 1000;
     rejects([&] { world.submit(first, Commands{{future}}); }, "Client bypassed command budget");
-    const auto snap = world.snapshot(first);
+    const auto snap = test_replication::readySnapshot(world, first);
     require(snap.tick == 30 && snap.players.size() == 2, "Server snapshot omitted players");
     require(snap.zombies.size() == 1 && snap.zombies[0].dead, "Server did not replicate an authoritative kill");
     const auto pose = world.nextPose(first);
@@ -315,13 +316,15 @@ void serverCommands(const std::filesystem::path& asset) {
     rejects([&] { world.submit(first, Commands{{}, snap.tick + 1}); }, "Future snapshot acknowledgement accepted");
     world.leave(second); const auto third = world.join();
     require(third != second && world.snapshot(first).players.size() == 2, "Disconnect reused a stale player identity");
-    world.snapshot(third);
+    test_replication::readySnapshot(world, third);
     require(world.nextPose(third).has_value(), "Late join inherited another client's pose acknowledgement");
     Snapshots playback;
     require(playback.push(snap, 0), "Initial server snapshot rejected");
     Scene client(options); client.zombies = crowd(); client.zombies.instances.resize(1);
     client.zombies.assets[0].skeleton.resize(1);
+    test_replication::installSetups(playback, client, scene);
     Snapshots reordered;
+    test_replication::installSetups(reordered, client, scene);
     reordered.pushPose(client, *pose); // Reliable bulk and welcome/state may arrive in either order.
     require(reordered.empty() && reordered.push(snap, 0), "Early pose blocked initial world state");
     reordered.apply(client, 0);
@@ -368,6 +371,32 @@ void serverCommands(const std::filesystem::path& asset) {
         world.submit(first, Commands{{c}}); world.step();
     }
     require(player.shots > automaticShots + 1, "Holding an automatic trigger stopped firing");
+}
+void replicationViewOrdering(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
+    Scene scene(options); World world(scene);
+    const auto observer = world.join();
+    const auto& player = world.players().at(observer);
+    const auto eye = player.camera.position();
+    const auto send = [&](std::uint64_t sequence, float yaw, glm::vec3 position) {
+        Command command; command.sequence = sequence;
+        ReplicationView view; view.eye = position; view.yaw = yaw;
+        Commands commands; commands.commands.push_back(command); commands.view = view;
+        world.submit(observer, commands);
+    };
+    send(2, 70, eye);
+    require(player.replicationView && player.replicationView->yaw == 70 && player.lastViewSequence == 2,
+            "A current camera view was not accepted with its command sequence");
+    send(1, -120, eye);
+    require(player.replicationView->yaw == 70 && player.lastViewSequence == 2,
+            "A reordered command rewound the replication view");
+    send(3, -30, eye + glm::vec3(100, 0, 0));
+    require(player.replicationView->yaw == 70 && player.lastViewSequence == 2,
+            "An out-of-range client camera changed server interest");
+    send(4, 90, eye);
+    require(player.replicationView->yaw == 90 && player.lastViewSequence == 4,
+            "A rejected camera prevented the next valid view update");
 }
 void triggerResets(const std::filesystem::path& asset) {
     using namespace multiplayer;
@@ -702,7 +731,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); playerHealthProtocol(); fragments(); prediction(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        triggerResets(argv[1]); serverCommands(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]);
+        triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

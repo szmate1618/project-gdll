@@ -25,6 +25,7 @@
 struct GLFWwindow;
 #endif
 #include <chrono>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <iostream>
@@ -316,7 +317,9 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                                   const SessionFeedback& feedback, const std::function<void()>& checkServer) {
     std::unique_ptr<Scene> loaded;
     if (feedback) {
-        auto loading = std::async(std::launch::async, [&] { return std::make_unique<Scene>(options); });
+        auto loading = std::async(std::launch::async, [&] {
+            return std::make_unique<Scene>(options, ZombiePopulationLoader{}, std::nullopt, SceneRole::Replica);
+        });
         bool cancelled = false;
         while (loading.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready) {
             if (!feedback(cancelled ? "Cancelling - finishing scene preparation..." : "Loading scene...")) cancelled = true;
@@ -324,7 +327,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
         }
         loaded = loading.get();
         if (cancelled) return 0;
-    } else loaded = std::make_unique<Scene>(options);
+    } else loaded = std::make_unique<Scene>(options, ZombiePopulationLoader{}, std::nullopt, SceneRole::Replica);
     auto& scene = *loaded;
     for (auto& instance : scene.zombies.instances) instance.removed = true;
     multiplayer::Prediction prediction;
@@ -475,6 +478,13 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                     if (ready && walking && glm::length(correction) < 2) visualOffset += correction; else visualOffset = {};
                 }
                 if (!found) throw std::runtime_error("Server omitted local player state");
+            } else if (const auto* setups = std::get_if<multiplayer::ZombieSetups>(&message)) {
+                // Bulk setup delivery can precede Welcome on the other lane.
+                // The loaded scene is sufficient to validate and retain it.
+                snapshots.pushSetups(scene, *setups);
+                multiplayer::ZombieSetupAck ack;
+                for (const auto& setup : setups->zombies) ack.zombies.push_back({setup.id, setup.version});
+                if (!network.send(connection, ack, true)) throw std::runtime_error("Cannot acknowledge zombie setup");
             } else if (const auto* pose = std::get_if<multiplayer::CorpsePose>(&message)) {
                 snapshots.pushPose(scene, *pose);
                 if (!network.send(connection, multiplayer::PoseAck{pose->id, pose->version}, true))
@@ -516,6 +526,26 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 }
 #endif
                 auto outgoing = prediction.commandsToSend(); outgoing.snapshotTick = snapshots.latest().tick;
+                multiplayer::ReplicationView view;
+                view.eye = prediction.eye();
+                view.yaw = nextCommand.movement.yawDegrees;
+                view.pitch = nextCommand.pitch;
+#ifdef MP_GRAPHICS
+                if (graphics.window) {
+                    const auto camera = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, now,
+                        !in.driver.occupied() && !in.interaction);
+                    int viewWidth = 0, viewHeight = 0;
+                    glfwGetFramebufferSize(graphics.window, &viewWidth, &viewHeight);
+                    if (viewWidth > 0 && viewHeight > 0) {
+                        view.aspect = std::clamp(float(viewWidth) / float(viewHeight), .2f, 8.f);
+                        view.verticalFov = glm::degrees(2.f * std::atan(1.f / camera.projection(view.aspect)[1][1]));
+                    }
+                    view.eye = camera.position();
+                    view.yaw = camera.yawDegrees();
+                    view.pitch = camera.pitchDegrees();
+                }
+#endif
+                outgoing.view = view;
                 network.send(connection, outgoing, false);
                 accumulator -= 1.0 / 60;
             }
@@ -654,7 +684,8 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
     std::cout << "CLIENT player=" << self << " snapshots=" << received << " max_players=" << mostPlayers
         << " resolved=" << ownState.resolved << " outstanding=" << prediction.outstanding()
         << " feet=" << feet.x << ',' << feet.y << ',' << feet.z << " remote_travel=" << remoteTravel
-        << " bird_frames="<<receivedBirdFrames<<" bird_tick="<<birds.simulation().state().tick<<'\n';
+        << " bird_frames="<<receivedBirdFrames<<" bird_tick="<<birds.simulation().state().tick
+        << " zombies=" << snapshots.trackedZombieIds().size() << '\n';
     if (!prediction.ready() && !feedback) throw std::runtime_error("Session ended before spawn");
     if (!prediction.ready()) return 0;
     network.send(connection, multiplayer::Goodbye{}, true);

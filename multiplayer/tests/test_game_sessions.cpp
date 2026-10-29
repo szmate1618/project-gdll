@@ -1,8 +1,11 @@
 #include "client/options.hpp"
 #include "client/session.hpp"
 #include "server/runtime.hpp"
+#include "server/world.hpp"
 #include "network.hpp"
+#include <atomic>
 #include <chrono>
+#include <exception>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -65,6 +68,63 @@ void parser() {
     bool rejected = false;
     try { parse({"game", "--single-player", "--host"}); } catch (const std::exception&) { rejected = true; }
     require(rejected, "Conflicting modes accepted");
+}
+void setupBeforeWelcome(const multiplayer::Options& options) {
+    multiplayer::Scene scene(options);
+    multiplayer::World world(scene);
+    multiplayer::Network server;
+    server.listen(0, true, 1);
+    std::atomic<bool> stop{false}, acknowledgedBeforeWelcome{false};
+    std::exception_ptr serverError;
+    std::thread worker([&] {
+        try {
+            HSteamNetConnection peer = k_HSteamNetConnection_Invalid;
+            std::optional<multiplayer::Snapshot> initial;
+            auto nextSnapshot = Clock::now();
+            while (!stop) {
+                const auto messages = server.receive();
+                for (const auto& [connection, message] : messages) {
+                    if (const auto* hello = std::get_if<multiplayer::Hello>(&message)) {
+                        require(hello->fingerprint == scene.fingerprint, "Setup-order fixture fingerprint differs");
+                        peer = connection;
+                        const auto id = world.join();
+                        require(id == 1, "Setup-order fixture assigned unexpected player ID");
+                        initial = world.snapshot(id);
+                        // Lane 1 may outrun a delayed/retransmitted Welcome on
+                        // lane 0. Force that order without timing or packet-loss
+                        // assumptions by withholding Welcome until setup ack.
+                        require(server.send(peer, multiplayer::ZombieSetups{}, true),
+                            "Cannot send setup-order fixture metadata");
+                    } else if (const auto* ack = std::get_if<multiplayer::ZombieSetupAck>(&message)) {
+                        require(ack->zombies.empty() && !acknowledgedBeforeWelcome,
+                            "Setup-order fixture received unexpected setup acknowledgement");
+                        acknowledgedBeforeWelcome = true;
+                        require(server.send(peer, multiplayer::Welcome{1}, true),
+                            "Cannot send delayed fixture welcome");
+                    } else if (std::holds_alternative<multiplayer::Goodbye>(message)) {
+                        server.close(connection, "Setup-order fixture departure");
+                        peer = k_HSteamNetConnection_Invalid;
+                    }
+                }
+                if (acknowledgedBeforeWelcome && peer != k_HSteamNetConnection_Invalid && Clock::now() >= nextSnapshot) {
+                    require(initial && server.send(peer, *initial, false), "Cannot send setup-order fixture snapshot");
+                    nextSnapshot = Clock::now() + std::chrono::milliseconds(20);
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        } catch (...) { serverError = std::current_exception(); }
+    });
+    auto client = options;
+    client.address = "127.0.0.1:" + std::to_string(server.listeningPort());
+    client.headless = true; client.bot = true; client.seconds = .35;
+    std::exception_ptr clientError;
+    try { require(multiplayer::runClientSession(client) == 0, "Setup-order client session failed"); }
+    catch (...) { clientError = std::current_exception(); }
+    stop = true;
+    worker.join();
+    if (serverError) std::rethrow_exception(serverError);
+    if (clientError) std::rethrow_exception(clientError);
+    require(acknowledgedBeforeWelcome, "Client did not acknowledge setup before Welcome");
 }
 }
 int main(int argc, char** argv) {
@@ -129,6 +189,7 @@ int main(int argc, char** argv) {
             client.headless = true; client.bot = true; client.seconds = .25;
             require(multiplayer::runClientSession(client) == 0, "Repeated client session failed");
         }
+        setupBeforeWelcome(options.scene);
         {
             auto invalid = options; invalid.scene.map = "missing-session-map.glb";
             multiplayer::LocalServer server(invalid, {});

@@ -22,6 +22,10 @@ public:
     void removeContentsBelow(float cutoffY);
     std::vector<std::pair<std::size_t,ZombieWoundRegion>> ids() const;
     std::vector<glm::mat4> contents() const;
+    // Gather only interested owners, in caller order, with a strict transport
+    // budget. Does not enumerate unrelated world cavities or allocate them.
+    std::vector<glm::mat4> contentsForIds(const std::vector<std::size_t>& ids,
+                                       std::size_t maxCount) const;
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

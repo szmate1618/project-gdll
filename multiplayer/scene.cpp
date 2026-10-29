@@ -145,11 +145,12 @@ viewer::Model loadSessionMap(const std::filesystem::path& path) {
 }
 }
 Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
-             const std::optional<viewer::ZombieScenarioConfig::Player>& playerSpawn) :
+             const std::optional<viewer::ZombieScenarioConfig::Player>& playerSpawn, SceneRole role) :
     mapPath(o.map), model(loadSessionMap(o.map)), physics(std::make_shared<viewer::PhysicsWorld>()),
     dayNight(o.dayNight),
     initialWeapons(resourceRoot() / "storage/weapons", resourceRoot() / "inventory.toml", true),
     initialInventory(viewer::loadPlayerInventory(resourceRoot())) {
+    if (o.zombieCount > maxZombies) throw std::runtime_error("Zombie population exceeds multiplayer capacity");
     std::vector<std::filesystem::path> content{o.map};
     const auto adjacent = [&](const char* name) { return o.map.parent_path() / name; };
     if (std::filesystem::exists(adjacent("poles.instances.json"))) {
@@ -211,12 +212,19 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
         if (std::filesystem::is_directory(o.zombieAssets))
             for (const auto& entry : std::filesystem::directory_iterator(o.zombieAssets))
                 if (entry.path().extension() == ".gltf") throw std::runtime_error("Multiplayer requires self-contained GLB zombie assets");
-        zombies = populationLoader ? populationLoader(o.zombieAssets, *collision, model) :
-            viewer::loadZombieLayer(o.zombieAssets, *collision, model, spawn, count, o.zombieRadius);
+        if (role == SceneRole::Replica) {
+            // Positions arrive over the network. Hidden slots need no placement
+            // search or population-sized simulation indexes on the client.
+            zombies = viewer::loadZombieLayer(o.zombieAssets,
+                std::vector<glm::mat4>(count, glm::mat4(1)), true);
+        } else {
+            zombies = populationLoader ? populationLoader(o.zombieAssets, *collision, model) :
+                viewer::loadZombieLayer(o.zombieAssets, *collision, model, spawn, count, o.zombieRadius);
+        }
         if (populationLoader && zombies.instances.size() != count)
             throw std::runtime_error("Scenario population does not match the requested zombie count");
         validateSessionZombies(zombies);
-        zombies.setPerceptionEnabled(o.zombiePerception);
+        zombies.setPerceptionEnabled(role == SceneRole::Authority && o.zombiePerception);
         for (const auto& prepared : zombies.dismembermentAssets)
             content.insert(content.end(), prepared.resources.begin(), prepared.resources.end());
         for (const auto& prepared : zombies.capsuleAssets)

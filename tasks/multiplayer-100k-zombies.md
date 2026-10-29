@@ -1,6 +1,7 @@
 # TODO: Support multiplayer populations up to 100,000 zombies
 
-**Status:** proposed; investigate feasibility, then implement in measured stages.
+**Status:** experimental protocol implementation; full-town performance
+evaluation remains open.
 
 ## Goal
 
@@ -13,9 +14,10 @@ pursuers or transmit/render every zombie for every player at once.
 
 Send state primarily for zombies visible to each client, with a conservative
 view margin to avoid pop-in during turns. Nearby moving/attacking zombies need
-frequent updates; distant visible zombies can update less often, and unchanged
-idle zombies need state on entry/change rather than repeated transforms. The
-server must continue authoritative gameplay for relevant offscreen zombies.
+frequent updates; distant visible zombies can update less often. Idle zombies
+use the same selected-tier update schedule, keeping timeout-based client
+presence simple. The server must continue authoritative gameplay for relevant
+offscreen zombies.
 
 ## Preparation already completed
 
@@ -35,55 +37,43 @@ benchmarks measure narrower workloads.
 
 ## Required work and foreseeable issues
 
-- [ ] **Separate world capacity from per-client budgets.** Multiplayer currently
-  permits 1,024 zombies globally and 256 interested zombies per snapshot. Audit
-  CLI/scenario validation, ID validation, caches and population-dependent loops
-  before raising capacity. IDs are already 32-bit. Keep message/transfer budgets
-  bounded; do not blanket-replace unrelated inventory or vehicle limits.
-  Start in [protocol.hpp](../multiplayer/protocol.hpp),
+- [x] **Separate world capacity from per-client budgets.** The experiment permits
+  100,000 authoritative zombies, 10,000 selected/tracked per client and at most
+  1,024 motion samples per world message. CLI/scenario and ID validation use the
+  world capacity; transport, inventory, vehicle and bone limits stay separate.
+  See [protocol.hpp](../multiplayer/protocol.hpp),
   [scene.cpp](../multiplayer/scene.cpp) and
   [server/runtime.cpp](../multiplayer/server/runtime.cpp).
-- [ ] **Fix client storage and playback scaling.** Inline corpse caches would
-  occupy about 18.3 MiB at 100,000 with current 64-bit layouts, exceeding common
-  thread stacks. Move them to heap or sparse storage. Replace population-sized
-  temporary lookups and the full population scan in each playback application
-  with work bounded by known/interested/changed IDs. Audit repeated applications
-  on both snapshot reception and rendering. Start in
+- [x] **Fix client storage and playback scaling.** Per-ID metadata, motion history
+  and pose caches live on the heap and allocate payloads lazily. Playback visits
+  only the sorted tracked-ID list, including timeout and oldest-entry eviction,
+  instead of scanning the full population on every application. See
   [snapshots.hpp](../multiplayer/client/snapshots.hpp) and
   [snapshots.cpp](../multiplayer/client/snapshots.cpp).
-- [ ] **Support persistent state and variable update rates.** Current snapshots
-  hide omitted zombies, so simply omitting an unchanged or unscheduled actor
-  would make it disappear. Add explicit enter/forget membership, partial state
-  updates, per-entity timestamps and stale-update protection. Make membership
-  delivery reliable or acknowledged/repeated, including leave/re-entry and late
-  joins. Preserve smooth interpolation and complete corpse root/palette pairs.
-  Starting network rates could be 20 Hz near, 5 Hz at medium distance and 1 Hz
-  far away; tune these through measurement. Network cadence is separate from
-  the existing 60 Hz authoritative simulation and client rendering.
-- [ ] **Add visibility-aware interest selection.** Aim yaw/pitch alone does not
-  describe the actual camera: account for aspect ratio, scope FOV and vehicle
-  camera positions. Query spatial candidates, apply a conservative view frustum
-  and retention margin, then prioritize within a byte budget. Handle rapid turns,
-  zoom changes and approaching threats. Exact wall-occlusion filtering is a
-  separate cost to evaluate. A fixed nearest-256 cutoff can hide visible actors
-  as local density increases; establish a deliberate density/overflow policy.
-- [ ] **Bound corpse and wound replication by interest.** `nextPose()` currently
-  scans the entire population cap even when no corpse needs transmission.
-  Snapshot selection also appends all world corpse IDs before sorting, and
-  cavity contents are sent globally. Use relevant corpse/contents sets instead.
-  Preserve versioned poses, acknowledgements, coalescing and bounded in-flight
-  transfers. Zombies, wound masks, contents, players, vehicles and props share
-  the 256 KiB message budget. Start in
+- [x] **Support persistent state and variable update rates.** Omitted updates
+  preserve client replicas, with five-second presence expiry, reliable setup
+  acknowledgements and stale-update protection. Per-actor histories interpolate
+  the [compact samples and cadence](#proposed-compact-zombie-format); complete
+  physics root/palette pairs remain independent. Network cadence is separate
+  from 60 Hz authoritative simulation and client rendering.
+- [x] **Add visibility-aware interest selection.** Client camera eye, yaw/pitch,
+  aspect ratio and scope FOV drive conservative camera/range selection, with
+  retention margins, nearby offscreen threats and sun/flashlight caster volumes.
+  Occupied cells are ordered by proximity and actor selection stops at 10,000.
+  Dense-view visual quality and exact wall occlusion remain evaluation work.
+- [x] **Bound corpse and wound replication by interest.** Pose selection walks
+  interested corpse IDs rather than the entire population cap. Reliable setup
+  revisions carry wound changes; cavity contents are gathered only for selected
+  owners and capped at 256 matrices within the remaining message budget.
+  Versioned poses, acknowledgements, coalescing and in-flight bounds are retained.
+  All populations still share the 256 KiB world-message budget. See
   [server/replication.cpp](../multiplayer/server/replication.cpp) and
   [outgoing_snapshots.cpp](../multiplayer/outgoing_snapshots.cpp).
-- [ ] **Avoid unnecessary client population generation.** Clients currently
-  construct their own ordinary radial placements before authoritative snapshots
-  arrive; the default placement area cannot fit 100,000. Initialize authoritative
-  IDs/assets without requiring clients to generate safe positions or routes.
-  Preserve stable IDs, asset normalization, fingerprints and late-join behavior.
-  Measure startup time, peak RAM, renderer reservations and GPU buffers. With
-  current layouts, instance records alone use about 42 MiB per 100,000 actors,
-  before indexes, caches and rendering resources; meshes remain shared.
+- [x] **Avoid unnecessary client population generation.** Replica scenes load
+  shared assets and hidden stable-ID slots without safe-ground placement,
+  navigation or authoritative spatial-index construction. Stable IDs, complete
+  normalization and resource fingerprints remain checked. Startup/peak memory
+  and renderer/GPU reservations still require representative measurements.
 - [ ] **Add explicit idle-population scenario semantics.** Omitting spawn and
   destination bounds currently samples both randomly and preplans every route.
   Introduce an explicit way to generate placements without destinations or
@@ -101,6 +91,95 @@ benchmarks measure narrower workloads.
   players, crowded convergence, simultaneous gunfire, awake ragdolls and vehicle
   impacts can exceed the cost of an initially idle population. Visibility must
   not disable authoritative attacks or collision.
+
+## Proposed compact zombie format
+
+The experimental protocol implementation uses the same compact record for
+ordinarily animated living zombies at every update rate, including the nearest
+group at 20 Hz. Authoritative simulation precision is unchanged; packing and
+quantization apply only when encoding network samples. Clients decode into
+float32 before interpolation and rendering. Full-population performance remains
+subject to the evaluation below.
+
+| Recurring field | Encoding | Bytes |
+| --- | --- | ---: |
+| Stable zombie ID | Unsigned 32-bit integer | 4 |
+| State flags | Packed animation/pose, cadence and format flags | 1 |
+| Feet position X/Y/Z | Three signed 24-bit fixed-point coordinates | 9 |
+| Facing yaw | Unsigned 8-bit circular angle | 1 |
+| Locomotion animation time | Float32 `walkSeconds` | 4 |
+| **Total ordinary record** | | **19** |
+
+Flag bits 0-2 carry walking/running/physics mode; bit 3 selects float32 XYZ;
+bits 4-5 identify the 3/12/60-tick cadence. Bits 6-7 are reserved and rejected
+when set. The cadence lets playback choose its history delay without guessing
+from packet loss.
+
+Position uses the shared map/session runtime frame: X east, Y up, Z south,
+in meters, with the existing map origin rather than a moving player origin.
+Encode each coordinate in millimeters, round to nearest, and write its three
+bytes explicitly in little-endian order. Use float64 intermediates for scaling
+and rounding before range-checked integer conversion. Decode with explicit sign
+extension.
+The signed range is -8,388.608 through +8,388.607 meters per axis, with at most
+0.5 mm quantization error before float32 reconstruction. Validate the range;
+out-of-range positions require an explicitly tagged float32 position variant
+(22 bytes with the other fields above), never clipping or integer wraparound.
+The format flags precede coordinates so the decoder can select their width.
+
+Encode yaw as 256 evenly spaced headings: 1.40625 degrees per step and at most
+0.703125 degrees rounding error. Use nearest rounding and shortest-path angular
+interpolation across the wrap. This representation requires an upright living
+root; a full 3D rotation requires a separately identified pose representation.
+
+Establish asset identity, idle phase and the complete fixed model normalization
+reliably when an instance enters replication. Preserve scale, origin offset,
+reflection and shear; do not assume this normalization is identity. For living
+zombies, reconstruct `transform = translation(position) * rotation(yaw) *
+normalization`. Retain the float32 locomotion clock to preserve walking/running
+timing; idle animation uses the shared clock and its established phase.
+
+Each motion sample is complete given that established metadata, without a
+dependency on the last sent motion sample. The common authoritative sample tick
+belongs in batch metadata outside the 19-byte record. Omission preserves the
+previous state. Five seconds without a newer ordinary sample hides the actor;
+reliable setup and physics-pose messages alone never restore presence. The
+tracked-ID list is capped at 10,000 and kept in ascending ID order; excess
+arrivals evict the oldest entries. Stale samples are rejected, and per-actor
+history accommodates its update interval instead of assuming the global 100 ms
+playback delay covers every cadence.
+
+Visit occupied 20 m spatial cells nearest first, with deterministic cell ties,
+then apply camera/range eligibility tests. Stop at 10,000 selected actors.
+Members inside a cell retain bucket order; this deliberately approximates
+individual distance ranking. Apply cumulative cutoffs to that selection:
+
+| Distance rank | Maximum group size | Network rate |
+| --- | ---: | ---: |
+| 1-256 | 256 | 20 Hz |
+| 257-1,024 | 768 | 5 Hz |
+| 1,025 onward | Remaining interested actors | 1 Hz |
+
+Stagger the slower groups across send passes. Idle actors receive ordinary
+updates at the same tier rates. Initial and changed animation/physics modes are
+sent promptly; wounds and physics poses use reliable delivery. Visibility,
+nearby offscreen threats and dense-crowd overflow remain subject to the interest
+and byte-budget requirements above; this schedule does not restrict server
+gameplay simulation.
+
+For a budgeting workload where all 10,000 actors are interested and require
+recurring updates, the groups contain 256, 768 and 8,976 actors. That is
+`256 * 20 + 768 * 5 + 8976 * 1 = 17,936` records per second, or **340,784 bytes/s
+(2.726272 Mbit/s) per client** at 19 bytes each. This estimate excludes batch and
+transport headers, initial metadata, membership, wounds, ragdoll poses and
+float32 position fallbacks. Idle actors are included in this recurring cost.
+
+Loose ragdolls and spring-held melee ragdolls retain the separate complete,
+versioned full-3D pose channel. A one-byte yaw cannot describe their independent
+limb motion. Establish their fixed model/handoff metadata once where possible;
+compressing changing body/bone poses is separate work. The current `CorpsePose`
+name and snapshot `dead` flag also cover melee spring ragdolls; the compact flag
+therefore denotes physics-pose mode, including those active hit reactions.
 
 ## Acceptance and performance evaluation
 

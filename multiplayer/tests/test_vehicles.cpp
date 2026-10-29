@@ -1,4 +1,5 @@
 #include "server/world.hpp"
+#include "zombie_replication_fixture.hpp"
 #include "client/prediction.hpp"
 #include "client/snapshots.hpp"
 #include "vehicle_player.hpp"
@@ -106,7 +107,7 @@ void parkedPopulation(const Options& o, const std::filesystem::path& directory) 
     // Exercise all independent population caps together. Increasing vehicle
     // capacity must still fit the existing bounded fragment/message budget.
     Snapshot full;
-    full.vehicles.resize(maxVehicles);full.zombies.resize(maxVisibleZombies);full.boxes.resize(maxBoxes);
+    full.vehicles.resize(maxVehicles);full.zombies.resize(maxZombieUpdatesPerSnapshot);full.boxes.resize(maxBoxes);
     full.doors.resize(maxDoors);full.players.resize(maxPlayers);
     for(std::size_t i=0;i<full.vehicles.size();++i) full.vehicles[i].id=static_cast<std::uint32_t>(i);
     for(std::size_t i=0;i<full.zombies.size();++i) full.zombies[i].id=static_cast<std::uint32_t>(i);
@@ -294,7 +295,7 @@ void zombieImpacts(const Options& o) {
         scene.vehicles->drive(0, 0, 0, false);
         scene.vehicles->applyImpulse(0, {0, 0, -1100 * speed}, chassis.center);
         world.step();
-        const auto snapshot = wire(world.snapshot(observer));
+        const auto snapshot = wire(test_replication::readySnapshot(world, observer));
         require(snapshot.zombies.size() == 1, "Observer lost the impacted zombie");
         if (speed < 5) {
             require(!snapshot.zombies[0].dead && scene.zombies.instances[0].restRoot[3].z < contactFeet.z-.01f,

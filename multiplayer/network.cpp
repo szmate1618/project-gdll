@@ -149,8 +149,8 @@ bool Network::send(HSteamNetConnection c, const Message& message, bool reliable)
     if (std::holds_alternative<BirdFrame>(message) && !reliable)
         throw std::invalid_argument("Boid commands require ordered reliable delivery");
     auto bytes = encode(message);
-    if (std::holds_alternative<CorpsePose>(message)) {
-        if (!reliable) throw std::invalid_argument("Corpse poses require reliable bulk delivery");
+    if (std::holds_alternative<CorpsePose>(message) || std::holds_alternative<ZombieSetups>(message)) {
+        if (!reliable) throw std::invalid_argument("Zombie setup and physics poses require reliable bulk delivery");
         SteamNetConnectionRealTimeStatus_t status{};
         SteamNetConnectionRealTimeLaneStatus_t lanes[2]{};
         if (sockets_->GetConnectionRealTimeStatus(c, &status, 2, lanes) != k_EResultOK ||

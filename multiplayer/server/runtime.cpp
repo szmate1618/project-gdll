@@ -57,6 +57,11 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
     };
     const auto sendState = [&](HSteamNetConnection c, std::uint32_t id) {
         network.send(c, world.snapshot(id), false);
+        for (std::size_t i = 0; i < 4; ++i) {
+            const auto setups = world.nextSetups(id);
+            if (!setups || !network.send(c, *setups, true)) break;
+            world.setupsSent(id, *setups);
+        }
         if (const auto frame=world.birdFrame(id); frame && network.send(c,*frame,true))
             world.birdFrameSent(id,frame->tick);
         for (std::size_t i = 0; i < multiplayer::Replication::maxPoseTransfers; ++i) {
@@ -92,6 +97,8 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
                     world.submit(peer.id, *commands);
                 else if (const auto* ack = std::get_if<multiplayer::PoseAck>(&message); ack && peer.id)
                     world.acknowledgePose(peer.id, *ack);
+                else if (const auto* ack = std::get_if<multiplayer::ZombieSetupAck>(&message); ack && peer.id)
+                    world.acknowledgeSetups(peer.id, *ack);
                 else if (std::holds_alternative<multiplayer::BirdResync>(message) && peer.id)
                     world.requestBirdCheckpoint(peer.id);
                 else throw std::runtime_error("Unexpected client message");

@@ -73,6 +73,7 @@ struct Wire {
         auto count = static_cast<std::uint32_t>(values.size());
         integer(count);
         if (count > limit) throw std::runtime_error("Too many multiplayer records");
+        if (reading && count > size - offset) throw std::runtime_error("Truncated multiplayer list");
         if (reading) values.resize(count);
         for (auto& value : values) item(value);
     }
@@ -205,6 +206,81 @@ void payload(Wire& w, Commands& batch) {
         if (c.sequence <= previous) throw std::runtime_error("Unordered commands");
         previous = c.sequence;
     }
+    bool hasView = batch.view.has_value();
+    w.flag(hasView);
+    if (!hasView) { batch.view.reset(); return; }
+    if (w.reading) batch.view.emplace();
+    auto& view = *batch.view;
+    w.vector(view.eye); w.number(view.yaw); w.number(view.pitch);
+    w.number(view.verticalFov); w.number(view.aspect); w.number(view.maxDistance);
+    if (std::abs(view.yaw) > 180 || std::abs(view.pitch) > 89 ||
+        view.verticalFov < 1 || view.verticalFov > 150 || view.aspect < .2f || view.aspect > 8 ||
+        view.maxDistance < 1 || view.maxDistance > 10000)
+        throw std::runtime_error("Invalid replication view");
+}
+
+// Signed millimetres occupy three bytes in two's-complement form. Conversion
+// uses wide arithmetic; no signed shifts or implementation-defined extension.
+void signed24(Wire& w, std::int32_t& value) {
+    std::uint32_t bits = w.reading ? 0 : static_cast<std::uint32_t>(value) & 0xffffffu;
+    for (int byte = 0; byte < 3; ++byte) {
+        auto part = static_cast<std::uint8_t>(bits >> (byte * 8));
+        w.integer(part);
+        if (w.reading) bits |= std::uint32_t(part) << (byte * 8);
+    }
+    if (w.reading) value = static_cast<std::int32_t>((bits & 0x800000u) ?
+        std::int64_t(bits) - 0x1000000 : std::int64_t(bits));
+}
+std::uint8_t zombieCadence(std::uint8_t period) {
+    if (period == 3) return 0;
+    if (period == 12) return 1;
+    if (period == 60) return 2;
+    throw std::runtime_error("Invalid zombie update cadence");
+}
+void zombieMotion(Wire& w, ZombieState& z) {
+    constexpr double tau = 6.28318530717958647692;
+    constexpr std::uint8_t floatPosition = 8;
+    glm::vec3 position{0};
+    std::array<std::int32_t, 3> millimetres{};
+    std::uint8_t flags = 0, heading = 0;
+    if (!w.reading) {
+        for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r)
+            if (!std::isfinite(z.root[c][r]) || std::abs(z.root[c][r]) > 1e8f)
+                throw std::runtime_error("Invalid zombie root");
+        const double yaw = std::atan2(double(z.root[2].x), double(z.root[2].z));
+        const auto rigid = glm::rotate(glm::mat4(1), static_cast<float>(yaw), glm::vec3(0, 1, 0));
+        for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r)
+            if (c != 3 && std::abs(z.root[c][r] - rigid[c][r]) > .001f)
+                throw std::runtime_error("Compact zombie root must be upright and rigid");
+        if (std::abs(z.root[3][3] - 1) > .001f) throw std::runtime_error("Invalid zombie root translation");
+        position = glm::vec3(z.root[3]);
+        bool fallback = false;
+        for (int axis = 0; axis < 3; ++axis) {
+            const auto rounded = std::llround(double(position[axis]) * 1000);
+            if (rounded < -8388608 || rounded > 8388607) fallback = true;
+            else millimetres[axis] = static_cast<std::int32_t>(rounded);
+        }
+        const auto rounded = std::llround(yaw * 256 / tau);
+        heading = static_cast<std::uint8_t>((rounded % 256 + 256) % 256);
+        flags = static_cast<std::uint8_t>((z.walking ? 1 : 0) | (z.running ? 2 : 0) |
+            (z.dead ? 4 : 0) | (fallback ? floatPosition : 0) | (zombieCadence(z.updatePeriodTicks) << 4));
+    }
+    w.integer(z.id); w.integer(flags);
+    if (flags & 0xc0u || (flags >> 4) == 3) throw std::runtime_error("Invalid zombie motion flags");
+    if (flags & floatPosition) w.vector(position);
+    else for (int axis = 0; axis < 3; ++axis) {
+        signed24(w, millimetres[axis]);
+        if (w.reading) position[axis] = static_cast<float>(double(millimetres[axis]) / 1000);
+    }
+    w.integer(heading); w.number(z.walkSeconds);
+    if (z.id >= maxZombies || z.walkSeconds < 0) throw std::runtime_error("Invalid zombie motion");
+    if (w.reading) {
+        z.walking = (flags & 1) != 0; z.running = (flags & 2) != 0; z.dead = (flags & 4) != 0;
+        z.updatePeriodTicks = std::array<std::uint8_t, 3>{3, 12, 60}.at(flags >> 4);
+        z.root = glm::rotate(glm::translate(glm::mat4(1), position),
+            static_cast<float>(double(heading) * tau / 256), glm::vec3(0, 1, 0));
+        z.transform = z.root;
+    }
 }
 void payload(Wire& w, Snapshot& s) {
     w.integer(s.tick);
@@ -249,13 +325,7 @@ void payload(Wire& w, Snapshot& s) {
             (p.vehicle == noVehicle && p.seat != noVehicleSeat))
             throw std::runtime_error("Invalid player snapshot");
     });
-    w.list(s.zombies, maxVisibleZombies, [&](ZombieState& z) {
-        w.integer(z.id); w.integer(z.asset); w.matrix(z.transform); w.matrix(z.root);
-        w.number(z.phase); w.number(z.walkSeconds); w.flag(z.walking); w.flag(z.running); w.flag(z.dead);
-        w.list(z.woundMask, 1024, [&](std::uint8_t& value) { w.integer(value); });
-        if (z.id >= maxZombies || z.asset >= maxZombies || z.phase < 0 || z.phase >= 1 || z.walkSeconds < 0)
-            throw std::runtime_error("Invalid zombie snapshot");
-    });
+    w.list(s.zombies, maxZombieUpdatesPerSnapshot, [&](ZombieState& z) { zombieMotion(w, z); });
     w.list(s.doors, maxDoors, [&](DoorState& d) {
         w.integer(d.id); w.number(d.angle);
         if (std::abs(d.angle) > 4) throw std::runtime_error("Invalid door snapshot");
@@ -285,7 +355,8 @@ void payload(Wire& w, Snapshot& s) {
     });
     uniqueIds(s.players); uniqueIds(s.zombies); uniqueIds(s.doors); uniqueIds(s.boxes);
     uniqueIds(s.grenades); uniqueIds(s.explosions);
-    w.list(s.woundContents, maxZombies*viewer::ZombieCavityPhysics::maxObjectCount, [&](glm::mat4& transform) { w.matrix(transform); });
+    w.list(s.woundContents, 1024 * viewer::ZombieCavityPhysics::maxObjectCount,
+        [&](glm::mat4& transform) { w.matrix(transform); });
     w.list(s.bloodMist, viewer::BloodMist::capacity, [&](viewer::BloodMistBurst& burst) {
         w.integer(burst.id); w.vector(burst.position); w.number(burst.age);
         auto size = static_cast<std::uint8_t>(burst.size);
@@ -346,6 +417,29 @@ void payload(Wire& w, PoseAck& ack) {
     w.integer(ack.id); w.integer(ack.version);
     if (ack.id >= maxZombies || !ack.version) throw std::runtime_error("Invalid corpse acknowledgement");
 }
+void payload(Wire& w, ZombieSetups& batch) {
+    w.list(batch.zombies, maxZombieSetupsPerBatch, [&](ZombieSetup& z) {
+        w.integer(z.id); w.integer(z.asset); w.integer(z.version);
+        w.matrix(z.normalization); w.number(z.phase);
+        w.list(z.woundMask, 1024, [&](std::uint8_t& value) { w.integer(value); });
+        if (z.id >= maxZombies || z.asset >= maxZombies || !z.version || z.phase < 0 || z.phase >= 1)
+            throw std::runtime_error("Invalid zombie setup");
+        if (z.normalization[0][3] != 0 || z.normalization[1][3] != 0 ||
+            z.normalization[2][3] != 0 || z.normalization[3][3] != 1)
+            throw std::runtime_error("Zombie normalization must be affine");
+        const double determinant = glm::determinant(glm::dmat3(z.normalization));
+        if (!std::isfinite(determinant) || determinant == 0)
+            throw std::runtime_error("Zombie normalization must be invertible");
+    });
+    uniqueIds(batch.zombies);
+}
+void payload(Wire& w, ZombieSetupAck& ack) {
+    w.list(ack.zombies, maxZombieSetupsPerBatch, [&](ZombieSetupReceipt& receipt) {
+        w.integer(receipt.id); w.integer(receipt.version);
+        if (receipt.id >= maxZombies || !receipt.version) throw std::runtime_error("Invalid zombie setup acknowledgement");
+    });
+    uniqueIds(ack.zombies);
+}
 }
 std::vector<std::uint8_t> encode(const Message& message) {
     Wire w;
@@ -361,13 +455,14 @@ Message decode(const void* data, std::size_t bytes) {
     Wire w; w.input = static_cast<const std::uint8_t*>(data); w.size = bytes; w.reading = true;
     std::uint32_t magic = 0, version = 0; std::uint8_t type = 0;
     w.integer(magic); w.integer(version); w.integer(type);
-    if (magic != 0x4c4c4447 || version != protocolVersion || type > 9) throw std::runtime_error("Incompatible multiplayer protocol");
+    if (magic != 0x4c4c4447 || version != protocolVersion || type > 11) throw std::runtime_error("Incompatible multiplayer protocol");
     Message result;
     switch (type) { case 0: result = Hello{}; break; case 1: result = Welcome{}; break;
         case 2: result = Commands{}; break; case 3: result = Snapshot{}; break;
         case 4: result = Goodbye{}; break; case 5: result = Fragment{}; break;
         case 6: result = CorpsePose{}; break; case 7: result = PoseAck{}; break;
-        case 8: result = BirdFrame{}; break; case 9: result = BirdResync{}; break; }
+        case 8: result = BirdFrame{}; break; case 9: result = BirdResync{}; break;
+        case 10: result = ZombieSetups{}; break; case 11: result = ZombieSetupAck{}; break; }
     std::visit([&](auto& value) { payload(w, value); }, result);
     if (w.offset != bytes) throw std::runtime_error("Trailing multiplayer message data");
     return result;

@@ -1,5 +1,6 @@
 #include "server/options.hpp"
 #include "server/world.hpp"
+#include "zombie_replication_fixture.hpp"
 #include "zombie_navigation.hpp"
 #include "zombie_navmesh_paths.hpp"
 #include "../../tests/navmesh_fixture.hpp"
@@ -162,7 +163,7 @@ glm::vec3 scenarioTreeMotion(const std::filesystem::path& asset) {
     require(minimum >= double(viewer::ZombieCrowd::bodyRadius) + trunk.radius,
         "Accepted authoritative swept movement intersected a trunk");
     const auto player = world.join();
-    const auto snapshot = world.snapshot(player);
+    const auto snapshot = test_replication::readySnapshot(world, player);
     require(snapshot.zombies.size() == 1 && snapshot.zombies[0].id == 0 &&
         snapshot.zombies[0].root == scene->zombies.instances[0].restRoot &&
         snapshot.zombies[0].transform == scene->zombies.instances[0].transform,
@@ -237,7 +238,7 @@ void scenarioPopulation(const std::filesystem::path& asset, const std::filesyste
     require(std::abs(traveled - 4.8f) < .02f,
         "Scenario zombies did not follow their routes before any player connected");
     const auto player = world.join();
-    const auto snapshot = world.snapshot(player);
+    const auto snapshot = test_replication::readySnapshot(world, player);
     require(snapshot.zombies.size() == 1 && snapshot.zombies[0].root == scene.zombies.instances[0].restRoot,
         "Scenario movement was absent from authoritative zombie snapshots");
     for (int step = 0; step < 30; ++step) world.step();
@@ -283,7 +284,7 @@ void failures(const std::filesystem::path& asset, const std::filesystem::path& d
         const auto player = world.join();
         for (int step = 0; step < 20; ++step) world.step();
         require(scene->zombies.navigation() == nullptr &&
-                    scene->zombies.instances[0].restRoot[3].x > 3 && world.snapshot(player).zombies.size() == 1,
+                    scene->zombies.instances[0].restRoot[3].x > 3 && test_replication::readySnapshot(world, player).zombies.size() == 1,
                 "Ordinary behavior required a navmesh or stopped original direct movement");
     }
     // Even an allocated navigation object must never be used by ordinary AI.

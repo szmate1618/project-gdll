@@ -11,6 +11,7 @@
 #include "zombie_damage.hpp"
 #include "zombie_dismemberment.hpp"
 #include "zombie_render_updates.hpp"
+#include "zombie_bounds.hpp"
 #include "zombie_wounds.hpp"
 #include "blood_mist.hpp"
 #include "blood_particles.hpp"
@@ -111,6 +112,7 @@ struct ZombieLayer {
     // Sparse wounded actors only. Call before advancing the shared physics world.
     void prepareWoundPhysics(float seconds, double animationSeconds, PhysicsScene* scene = nullptr);
     std::vector<glm::mat4> woundContents() const;
+    std::vector<glm::mat4> woundContents(const std::vector<std::size_t>& ids, std::size_t maxCount) const;
     void setWoundMask(std::size_t zombie, const std::vector<std::uint8_t>& mask);
     void setReplicatedWoundContents(std::vector<glm::mat4> transforms);
     std::size_t explode(glm::vec3 origin, float radius, double animationSeconds, const CollisionWorld& world);
@@ -121,6 +123,12 @@ struct ZombieLayer {
     // Exact 3D feet query using the living-body index, independent of camera
     // visibility and behavior activation. Reuses the caller's output storage.
     void queryLivingNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids);
+    // All displayable actors, including loose and spring-held ragdolls. Visits
+    // approximately near-to-far occupied cells and stops on false. Full bounds
+    // are maintained by owning mutations, independently of camera visibility.
+    void visitReplicationNear(glm::vec3 center, float radius,
+                              const std::function<bool(std::size_t)>& visitor);
+    const VisibilityBounds& replicationBounds(std::size_t id) const { return replicationWorldBounds_.at(id); }
     // Living zombies plus spring-held ragdolls; both use spatial acceleration.
     void queryMeleeNear(glm::vec3 center, float radius, std::vector<std::size_t>& ids);
     // Disable only for comparison/tests of the original every-step perception.
@@ -235,10 +243,15 @@ private:
     std::unordered_map<std::size_t, std::size_t> ragdollSlots_;
     void ensureSpatialIndex();
     void updateSpatialMembership(std::size_t id);
+    void updateReplicationMembership(std::size_t id);
     std::optional<ZombieShotHit> findShotTarget(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                                               std::vector<glm::mat4>& selectedPose);
     ZombieSpatialIndex spatialIndex_;
     ZombieSpatialIndex springRagdollIndex_;
+    ZombieSpatialIndex replicationIndex_;
+    std::vector<std::array<VisibilityBounds, 2>> replicationAssetBounds_;
+    std::vector<VisibilityBounds> replicationWorldBounds_;
+    float replicationPadding_ = 0;
     ZombieCrowd crowd_;
     std::vector<std::size_t> behaviorOrder_;
     std::vector<ZombieHitGeometry> hitGeometry_;
@@ -264,6 +277,6 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
 
 // Explicit safe placements, used by scenario generation before asset loading.
 ZombieLayer loadZombieLayer(const std::filesystem::path& source,
-                           const std::vector<glm::mat4>& placements);
+                           const std::vector<glm::mat4>& placements, bool replica = false);
 
 } // namespace viewer

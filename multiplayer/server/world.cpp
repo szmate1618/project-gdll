@@ -78,6 +78,13 @@ void World::leave(std::uint32_t id) {
 void World::submit(std::uint32_t id, const Commands& commands) {
     auto& player = players_.at(id);
     if (commands.snapshotTick > tick_) throw std::runtime_error("Client acknowledged a future snapshot");
+    if (commands.view && !commands.commands.empty() &&
+        commands.commands.back().sequence > player.lastViewSequence &&
+        commands.commands.back().sequence >= player.resolved &&
+        glm::distance(commands.view->eye, player.camera.position()) <= 30.f) {
+        player.replicationView = commands.view;
+        player.lastViewSequence = commands.commands.back().sequence;
+    }
     for (const auto& c : commands.commands) {
         if (c.sequence <= player.resolved) continue;
         if (c.sequence - player.resolved > 180) throw std::runtime_error("Client command window exceeded");
@@ -340,7 +347,13 @@ Snapshot World::snapshot(std::uint32_t id) {
                 s.players.back().inventoryPlacements.push_back(player.inventory.placements().at(itemId));
             }
     }
-    return observer.replication.snapshot(scene_, observer.controller.feet(), std::move(s));
+    auto view = observer.replicationView.value_or(ReplicationView{});
+    if (!observer.replicationView || glm::distance(view.eye, observer.camera.position()) > 30.f) {
+        view.eye = observer.camera.position();
+        view.yaw = observer.camera.yawDegrees();
+        view.pitch = observer.camera.pitchDegrees();
+    }
+    return observer.replication.snapshot(scene_, observer.controller.feet(), std::move(s), view);
 }
 std::optional<CorpsePose> World::nextPose(std::uint32_t id) const {
     return players_.at(id).replication.nextPose(scene_);
@@ -350,5 +363,14 @@ void World::poseSent(std::uint32_t id, const CorpsePose& pose) {
 }
 void World::acknowledgePose(std::uint32_t id, const PoseAck& ack) {
     players_.at(id).replication.acknowledge(ack);
+}
+std::optional<ZombieSetups> World::nextSetups(std::uint32_t id) const {
+    return players_.at(id).replication.nextSetups(scene_);
+}
+void World::setupsSent(std::uint32_t id, const ZombieSetups& setups) {
+    players_.at(id).replication.setupsSent(setups);
+}
+void World::acknowledgeSetups(std::uint32_t id, const ZombieSetupAck& ack) {
+    players_.at(id).replication.acknowledgeSetups(ack);
 }
 } // namespace multiplayer

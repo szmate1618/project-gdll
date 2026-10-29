@@ -1,18 +1,101 @@
 #include "snapshots.hpp"
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <iterator>
 #include <unordered_map>
 #include <stdexcept>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace multiplayer {
+Snapshots::ZombieReplica& Snapshots::zombie(std::uint32_t id) {
+    if (id >= maxZombies) throw std::runtime_error("Zombie ID exceeds session capacity");
+    if (zombies_.size() <= id) zombies_.resize(static_cast<std::size_t>(id) + 1);
+    auto& replica = zombies_[id];
+    if (!replica) replica = std::make_unique<ZombieReplica>();
+    return *replica;
+}
+void Snapshots::forgetZombie(std::uint32_t id) {
+    auto& replica = *zombies_[id];
+    replica.tracked = false;
+    replica.samples.clear();
+    replica.renderTick = 0;
+    // Setup and complete physics poses survive display-buffer retirement.
+    hiddenZombieIds_.push_back(id);
+}
+void Snapshots::trackZombies(const Snapshot& snapshot, double receivedSeconds) {
+    std::vector<std::uint32_t> added;
+    added.reserve(snapshot.zombies.size());
+    for (const auto& state : snapshot.zombies) {
+        auto& replica = zombie(state.id);
+        if (!replica.samples.empty() && replica.samples.back().tick >= snapshot.tick) continue;
+        if (!replica.tracked) {
+            replica.tracked = true;
+            replica.samples.reserve(3);
+            added.push_back(state.id);
+        }
+        replica.received = receivedSeconds;
+        if (replica.samples.size() == 3) replica.samples.erase(replica.samples.begin());
+        replica.samples.push_back({snapshot.tick, state});
+    }
+    if (added.empty()) return;
+    std::sort(added.begin(), added.end());
+    added.erase(std::unique(added.begin(), added.end()), added.end());
+    std::vector<std::uint32_t> merged;
+    merged.reserve(trackedZombieIds_.size() + added.size());
+    std::set_union(trackedZombieIds_.begin(), trackedZombieIds_.end(),
+        added.begin(), added.end(), std::back_inserter(merged));
+    if (merged.size() > maxVisibleZombies) {
+        // Only membership changes require this selection. Prefer the newest
+        // presence samples; ticks and stable IDs make equal-time ties explicit.
+        const auto newer = [&](std::uint32_t left, std::uint32_t right) {
+            const auto& a = *zombies_[left]; const auto& b = *zombies_[right];
+            if (a.received != b.received) return a.received > b.received;
+            if (a.samples.back().tick != b.samples.back().tick)
+                return a.samples.back().tick > b.samples.back().tick;
+            return left < right;
+        };
+        auto keptEnd = merged.begin() + static_cast<std::ptrdiff_t>(maxVisibleZombies);
+        std::nth_element(merged.begin(), keptEnd, merged.end(), newer);
+        for (auto it = keptEnd; it != merged.end(); ++it) forgetZombie(*it);
+        merged.erase(keptEnd, merged.end());
+        std::sort(merged.begin(), merged.end());
+    }
+    trackedZombieIds_ = std::move(merged);
+}
 bool Snapshots::push(Snapshot snapshot, double receivedSeconds) {
     if (!frames_.empty() && snapshot.tick <= frames_.back().tick) return false;
+    if (!std::isfinite(receivedSeconds) || snapshot.zombies.size() > maxZombieUpdatesPerSnapshot)
+        throw std::runtime_error("Invalid zombie update batch");
+    for (const auto& state : snapshot.zombies)
+        if (state.id >= maxZombies || (state.updatePeriodTicks != 3 && state.updatePeriodTicks != 12 && state.updatePeriodTicks != 60))
+            throw std::runtime_error("Invalid zombie motion sample");
+    trackZombies(snapshot, receivedSeconds);
     frames_.push_back(std::move(snapshot));
     if (frames_.size() > 32) frames_.pop_front();
     received_ = receivedSeconds;
     return true;
+}
+void Snapshots::pushSetups(Scene& scene, const ZombieSetups& setups) {
+    if (setups.zombies.size() > maxZombieSetupsPerBatch) throw std::runtime_error("Zombie setup batch exceeds capacity");
+    // Validate before changing caches, including calls from CPU-only fixtures.
+    for (const auto& setup : setups.zombies) {
+        if (setup.id >= scene.zombies.instances.size() || setup.asset >= scene.zombies.assets.size() ||
+            setup.asset != scene.zombies.instances[setup.id].asset || !setup.version ||
+            !std::isfinite(setup.phase) || setup.phase < 0 || setup.phase >= 1 || setup.woundMask.size() > 1024)
+            throw std::runtime_error("Zombie setup does not match session assets");
+        for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r)
+            if (!std::isfinite(setup.normalization[c][r])) throw std::runtime_error("Nonfinite zombie normalization");
+        if (setup.normalization[0][3] != 0 || setup.normalization[1][3] != 0 ||
+            setup.normalization[2][3] != 0 || setup.normalization[3][3] != 1 ||
+            glm::determinant(glm::dmat3(setup.normalization)) == 0)
+            throw std::runtime_error("Zombie normalization is not an invertible affine map");
+    }
+    for (const auto& setup : setups.zombies) {
+        auto& cached = zombie(setup.id).setup;
+        if (!cached || cached->version < setup.version) cached = setup;
+    }
 }
 void Snapshots::pushPose(const Scene& scene, const CorpsePose& pose) {
     if (pose.id >= scene.zombies.instances.size() || pose.asset >= scene.zombies.assets.size() ||
@@ -22,7 +105,7 @@ void Snapshots::pushPose(const Scene& scene, const CorpsePose& pose) {
     if (pose.severedJoint >= 0 && (pose.asset >= scene.zombies.dismembermentAssets.size() ||
         std::size_t(pose.severedJoint) >= scene.zombies.dismembermentAssets[pose.asset].meshes.size()))
         throw std::runtime_error("Corpse separation does not match session assets");
-    auto& cached = poses_.at(pose.id);
+    auto& cached = zombie(pose.id).pose;
     if (!cached || cached->version < pose.version) cached = pose;
 }
 std::vector<viewer::GrenadeExplosion> Snapshots::explosions(double now) const {
@@ -122,54 +205,88 @@ void Snapshots::apply(Scene& scene, double now) {
         }
         scene.boxes->setPose(box.id, center, rotation);
     }
-    std::array<const ZombieState*, maxZombies> previous{}, current{};
-    for (const auto& z : a.zombies) previous.at(z.id) = &z;
-    for (const auto& z : b.zombies) current.at(z.id) = &z;
     scene.zombies.setReplicatedWoundContents(b.woundContents);
     scene.zombies.setReplicatedBloodMist(b.bloodMist,double(b.tick)/60);
-    for (std::size_t id = 0; id < scene.zombies.instances.size(); ++id) {
+    applyZombies(scene, now, latestTick + std::max(0.0, now - received_) * 60);
+}
+void Snapshots::applyZombies(Scene& scene, double now, double estimatedServerTick) {
+    auto kept = trackedZombieIds_.begin();
+    for (const auto id : trackedZombieIds_) {
+        if (now - zombies_[id]->received >= zombieTimeoutSeconds) forgetZombie(id);
+        else *kept++ = id;
+    }
+    trackedZombieIds_.erase(kept, trackedZombieIds_.end());
+    std::sort(hiddenZombieIds_.begin(), hiddenZombieIds_.end());
+    hiddenZombieIds_.erase(std::unique(hiddenZombieIds_.begin(), hiddenZombieIds_.end()), hiddenZombieIds_.end());
+    auto& changed = publishZombieIds_;
+    changed.clear();
+    changed.reserve(trackedZombieIds_.size() + hiddenZombieIds_.size());
+    std::set_union(trackedZombieIds_.begin(), trackedZombieIds_.end(),
+        hiddenZombieIds_.begin(), hiddenZombieIds_.end(), std::back_inserter(changed));
+    hiddenZombieIds_.clear();
+    for (const auto id : changed) {
+        if (id >= scene.zombies.instances.size()) throw std::runtime_error("Unknown zombie ID");
+        auto& replica = *zombies_[id];
         auto& instance = scene.zombies.instances[id];
-        const auto* z = current[id];
-        if (!z) {
+        if (!replica.tracked || !replica.setup) {
             if (!instance.removed) { instance.removed = true; scene.zombies.markRenderChanged(id); }
             continue;
         }
-        if (z->asset != instance.asset || z->asset >= scene.zombies.assets.size()) throw std::runtime_error("Zombie asset mismatch");
-        instance.removed = false;
-        scene.zombies.setWoundMask(id, z->woundMask);
-        instance.transform = z->transform; instance.restRoot = z->root;
-        instance.phase = z->phase; instance.walkSeconds = z->walkSeconds;
-        instance.walking = z->walking; instance.running = z->running; instance.ragdoll = z->dead;
-        instance.displayedAnimationFrame = -1;
-        const auto* before = previous[id];
-        if (before && !before->dead && !z->dead) {
-            // Root motion is rigid. Keep the asset normalization (including its
-            // translation, reflection or shear) outside quaternion interpolation.
-            const auto rotation = glm::slerp(glm::normalize(glm::quat_cast(glm::mat3(before->root))),
-                glm::normalize(glm::quat_cast(glm::mat3(z->root))), t);
-            auto root = glm::mat4_cast(rotation);
-            root[3] = glm::mix(before->root[3], z->root[3], t);
-            instance.restRoot = root;
-            instance.transform = root * glm::inverse(z->root) * z->transform;
-            instance.walkSeconds = glm::mix(before->walkSeconds, z->walkSeconds, t);
+        const auto& setup = *replica.setup;
+        if (setup.asset != instance.asset || setup.asset >= scene.zombies.assets.size()) throw std::runtime_error("Zombie asset mismatch");
+        if (replica.appliedSetupVersion != setup.version) {
+            if (!setup.woundMask.empty() || scene.zombies.wounds().find(id))
+                scene.zombies.setWoundMask(id, setup.woundMask);
+            replica.appliedSetupVersion = setup.version;
         }
-        if (z->dead) {
-            const auto& pose = poses_[id];
+        const auto& samples = replica.samples;
+        const auto& latest = samples.back();
+        // Slow actors need their own history window. Moving between tiers may
+        // hold this clock briefly, but can never move presentation backwards.
+        const double delay = std::max(6.0, double(latest.state.updatePeriodTicks));
+        replica.renderTick = std::max(replica.renderTick, std::clamp(estimatedServerTick - delay,
+            double(samples.front().tick), double(latest.tick)));
+        const ZombieSample* before = &samples.front();
+        const ZombieSample* current = before;
+        for (std::size_t i = 1; i < samples.size(); ++i) {
+            current = &samples[i];
+            if (double(current->tick) >= replica.renderTick) break;
+            before = current;
+        }
+        const auto& z = current->state;
+        const float t = current->tick == before->tick ? 1.f : float(std::clamp(
+            (replica.renderTick - double(before->tick)) / double(current->tick - before->tick), 0.0, 1.0));
+        instance.removed = false;
+        instance.restRoot = z.root;
+        instance.phase = setup.phase; instance.walkSeconds = z.walkSeconds;
+        instance.walking = z.walking; instance.running = z.running; instance.ragdoll = z.dead;
+        instance.displayedAnimationFrame = -1;
+        if (!before->state.dead && !z.dead) {
+            const auto rotation = glm::slerp(glm::normalize(glm::quat_cast(glm::mat3(before->state.root))),
+                glm::normalize(glm::quat_cast(glm::mat3(z.root))), t);
+            auto root = glm::mat4_cast(rotation);
+            root[3] = glm::mix(before->state.root[3], z.root[3], t);
+            instance.restRoot = root;
+            instance.walkSeconds = glm::mix(before->state.walkSeconds, z.walkSeconds, t);
+        }
+        instance.transform = instance.restRoot * setup.normalization;
+        instance.restTransform = instance.transform;
+        if (z.dead) {
+            const auto& pose = replica.pose;
             // Until its first complete pose arrives a corpse stays hidden. Never
             // pair a newer root with an older palette or blend affine bone
             // matrices, which may legitimately contain baked scale and shear.
             if (!pose) instance.removed = true;
             else {
                 instance.transform = pose->transform; instance.restRoot = pose->root;
-                if (appliedPoseVersions_[id] != pose->version) {
+                if (replica.appliedPoseVersion != pose->version) {
                     instance.severedJoint = pose->severedJoint;
                     scene.zombies.setRagdollPalette(id, pose->bones);
-                    appliedPoseVersions_[id] = pose->version;
+                    replica.appliedPoseVersion = pose->version;
                 }
             }
         }
         scene.zombies.markRenderChanged(id);
     }
-    for (const auto& z : b.zombies) if (z.id >= scene.zombies.instances.size()) throw std::runtime_error("Unknown zombie ID");
 }
 } // namespace multiplayer

@@ -181,4 +181,21 @@ std::vector<glm::mat4> ZombieCavityPhysics::contents() const {
                 result.push_back(entry->objects.pose(i).transform());
     return result;
 }
+
+std::vector<glm::mat4> ZombieCavityPhysics::contentsForIds(const std::vector<std::size_t>& ids,
+        std::size_t maxCount) const {
+    std::vector<glm::mat4> result;
+    if (!maxCount) return result;
+    result.reserve(maxCount);
+    for (const auto id : ids) {
+        const auto found = impl_->entries.find(id);
+        if (found == impl_->entries.end()) continue;
+        for (const auto& entry : found->second) if (entry)
+            for (std::size_t i = 0; i < entry->objects.count(); ++i) {
+                result.push_back(entry->objects.pose(i).transform());
+                if (result.size() == maxCount) return result;
+            }
+    }
+    return result;
+}
 } // namespace viewer

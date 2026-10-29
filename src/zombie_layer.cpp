@@ -140,6 +140,7 @@ void ZombieLayer::queryMeleeNear(glm::vec3 center, float radius, std::vector<std
 void ZombieLayer::markRenderChanged(std::size_t id, bool bounds) {
     zombie_profile::Timer timer(zombie_profile::Stage::renderNotifications);
     if (id >= instances.size()) throw std::out_of_range("Invalid zombie render ID");
+    if (bounds) updateReplicationMembership(id);
     renderUpdates_.mark(id, bounds);
 }
 
@@ -381,8 +382,26 @@ std::vector<glm::mat4> ZombieLayer::woundContents() const {
     return physics_ ? physics_->cavities.contents() : std::vector<glm::mat4>{};
 }
 
+std::vector<glm::mat4> ZombieLayer::woundContents(const std::vector<std::size_t>& ids,
+        std::size_t maxCount) const {
+    if (replicatedWoundContents_) {
+        const auto count = std::min(maxCount, replicatedWoundContents_->size());
+        return {replicatedWoundContents_->begin(), replicatedWoundContents_->begin() + count};
+    }
+    return physics_ ? physics_->cavities.contentsForIds(ids, maxCount) : std::vector<glm::mat4>{};
+}
+
 void ZombieLayer::setWoundMask(std::size_t id, const std::vector<std::uint8_t>& mask) {
-    ensureSpatialIndex();
+    // Applying replicated appearance must not initialize the authoritative
+    // crowd, shooting and navigation indexes for every hidden client slot.
+    if (woundGeometry_.size() != assets.size()) {
+        std::vector<ZombieWoundRegions> prepared;
+        prepared.reserve(assets.size());
+        for (const auto& model : assets)
+            prepared.push_back({prepareZombieWoundRegion(model, ZombieWoundRegion::torso),
+                                prepareZombieWoundRegion(model, ZombieWoundRegion::head)});
+        woundGeometry_ = std::move(prepared);
+    }
     const auto asset = instances.at(id).asset;
     const auto& regions = woundGeometry_.at(asset);
     const auto& geometry = regions[0].referenceVertices.empty() ? regions[1] : regions[0];
@@ -514,7 +533,7 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
 }
 
 ZombieLayer loadZombieLayer(const std::filesystem::path& source,
-                           const std::vector<glm::mat4>& placements) {
+                           const std::vector<glm::mat4>& placements, bool replica) {
     ZombieLayer result;
     const auto count = placements.size();
     if (count == 0) return result;
@@ -567,6 +586,7 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
         instance.restTransform = transform;
         instance.restRoot = restRoot;
         instance.phase = phase;
+        instance.removed = replica;
         result.instances.push_back(std::move(instance));
         const auto& model = result.assets[asset].model;
         for (int corner = 0; corner < 8; ++corner) {
@@ -578,7 +598,8 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
             result.boundsMax = glm::max(result.boundsMax, worldPoint);
         }
     }
-    result.rebuildSpatialIndex();
+    if (replica) result.invalidateRenderData();
+    else result.rebuildSpatialIndex();
     return result;
 }
 

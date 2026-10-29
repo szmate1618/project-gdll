@@ -327,7 +327,9 @@ Scene options:
 - `--spawn X Z`: local east/south coordinates in meters; default is map center.
 - `--zombies PATH --zombie-count N --zombie-radius METERS`: default is the existing
   zombie pack, 100 zombies within 100 m. Small scenes under 100 m in either
-  horizontal dimension have no zombies. Maximum population is 1,024.
+  horizontal dimension have no zombies. Maximum authoritative population is
+  100,000; each client synchronizes at most 10,000. Large populations still need
+  enough safe placement ground and a suitable radius or idle scenario.
 - `--no-trees`: omit detected trees and runtime forests on both peers.
 - `--no-forests`: omit runtime forest generation on both peers.
 - Server-only `--no-zombie-perception`: skip zombie activation scans, behavior
@@ -473,15 +475,46 @@ retained/resubmitted normally but never replayed as walking movement. Lighting
 uses the shared server tick and matching day/night settings, including parked
 headlights at night.
 
-Living zombies use the existing spatial index for interest queries. Entry/exit
-radii are 220/240 m in all directions; offscreen threats still simulate.
-Snapshots prioritize the nearest 256 zombies and stay under 256 KiB without
-corpse palettes. Doors are replicated near the observer; the bounded set of
-interior boxes is sent in full, including to late joiners. Geometry keeps the
-runtime X-east/Y-up/Z-south meter frame and player positions denote feet.
+Protocol 19 uses a persistent client population with partial zombie updates.
+The server visits occupied 20 m spatial cells in approximate distance order,
+then tests full animated bounds against the client's camera and zoom-dependent
+draw distance. A view margin retains actors during turns; nearby offscreen
+threats within 30 m remain eligible. At most 10,000 actors enter one client's
+selected set. The first 256 update at 20 Hz, the next 768 at 5 Hz, and the
+remainder at 1 Hz, with slower records staggered across send passes. Idle actors
+use the same schedule. Cell order is approximate; members inside one cell are
+not sorted by individual distance. Camera selection never disables server AI,
+attacks, collision or physics.
+
+Ordinary zombie records occupy 19 bytes: a 32-bit ID, one byte of state/cadence
+flags, three signed 24-bit millimeter coordinates, one byte of yaw and float32
+locomotion time. Coordinates use the shared runtime map origin; simulation
+precision remains unchanged. Coordinates outside the fixed-point range use an
+explicit 22-byte float32-position record. Asset identity, complete affine model
+normalization, idle phase and wounds use versioned reliable setup messages;
+motion starts after the setup acknowledgement. Setup changes coalesce and each
+peer has at most 128 unacknowledged setup records, in batches of up to 64 and
+16 KiB. Motion batches contain at most 1,024 records and also respect the shared
+256 KiB world-message budget. Cavity contents are restricted to selected owners
+and at most 256 matrices within the remaining budget.
+Setup packets can arrive before the welcome message on their independent
+transport lane; clients validate and cache them before player initialization.
+
+Clients load hidden ID slots and shared assets without generating placements
+or navigation. Playback keeps per-ID sample histories on the heap and visits
+only the tracked IDs in ascending order. A missing record leaves its previous
+state intact; five seconds without a newer ordinary update hides the actor.
+The oldest entries are evicted if new arrivals would exceed 10,000 tracked IDs.
+Slow actors use their own interpolation delay; pose and setup messages alone
+do not restore an expired actor. Doors are replicated near the observer; the
+bounded set of interior boxes is sent in full, including to late joiners.
+Geometry keeps the runtime X-east/Y-up/Z-south meter frame and positions denote
+feet. See the [compact format and scaling task](../tasks/multiplayer-100k-zombies.md#proposed-compact-zombie-format)
+for field precision and the remaining performance evaluation.
 Corpse poses carry independently versioned roots and palettes on a separate
 reliable transport lane. Each peer has at most four unacknowledged poses and a
-32 KiB bulk transport budget. Changes while a pose is in flight coalesce to the
+32 KiB bulk transport budget shared with zombie setup messages. Changes while
+a pose is in flight coalesce to the
 latest version; round-robin selection prevents moving corpses starving others.
 Protocol version 6 includes the prepared joint-separation index in each complete
 corpse pose, so the mesh variant and bone palette are applied together. Joint

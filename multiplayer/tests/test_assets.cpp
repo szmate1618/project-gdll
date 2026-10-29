@@ -1,6 +1,7 @@
 #include "asset_validation.hpp"
 #include "scene.hpp"
 #include <json.hpp>
+#include <algorithm>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -99,6 +100,17 @@ int main(int argc, char** argv) {
         options.zombieAssets = boundary;
         multiplayer::Scene atLimit(options);
         require(atLimit.zombies.assets[0].skeleton.size() == multiplayer::maxBones, "Compatible boundary skeleton rejected");
+        // This tiny map cannot safely place 100,000 bodies. A replica must load
+        // only shared assets and hidden ID slots, without a placement search.
+        options.zombieCount = multiplayer::maxZombies;
+        multiplayer::Scene replica(options, {}, std::nullopt, multiplayer::SceneRole::Replica);
+        require(replica.zombies.instances.size() == 100000 &&
+            std::all_of(replica.zombies.instances.begin(), replica.zombies.instances.end(),
+                [](const auto& instance) { return instance.removed; }) && !replica.zombies.navigation(),
+            "Large replica initialization generated visible placements or navigation");
+        options.zombieCount = multiplayer::maxZombies + 1;
+        rejects([&] { multiplayer::Scene tooLarge(options, {}, std::nullopt, multiplayer::SceneRole::Replica); },
+                "Zombie population exceeds multiplayer capacity");
         std::cout << "Self-contained GLB and skeleton startup validation passed\n";
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

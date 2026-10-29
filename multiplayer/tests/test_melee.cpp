@@ -2,6 +2,7 @@
 #include "client/snapshots.hpp"
 #include "player_body_pose.hpp"
 #include "box_layer.hpp"
+#include "zombie_replication_fixture.hpp"
 #include <box3d/box3d.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -83,7 +84,7 @@ void poseProtocol() {
     for (std::size_t n=0;n<bytes.size();++n) {
         rejects([&]{decode(valid.data(),n);},"Truncated melee pose was accepted");
     }
-    Snapshot full; full.vehicles.resize(maxVehicles); full.zombies.resize(maxVisibleZombies);
+    Snapshot full; full.vehicles.resize(maxVehicles); full.zombies.resize(maxZombieUpdatesPerSnapshot);
     full.doors.resize(maxDoors); full.boxes.resize(maxBoxes); full.players.resize(maxPlayers,player);
     for (std::size_t i=0;i<full.vehicles.size();++i) full.vehicles[i].id=static_cast<std::uint32_t>(i);
     for (std::size_t i=0;i<full.zombies.size();++i) full.zombies[i].id=static_cast<std::uint32_t>(i);
@@ -112,7 +113,7 @@ void authoritativeHits(const Options& options) {
             "Holding or resending a punch generated duplicate actions");
     require(scene.zombies.ragdollCount()==2 && scene.zombies.instances[0].springRagdoll && scene.zombies.instances[1].springRagdoll,
             "Two clients did not hit their zombies through shared physical contacts");
-    auto snapshot=wire(world.snapshot(first));
+    auto snapshot=wire(test_replication::readySnapshot(world, first));
     require(snapshot.players[0].melee.enabled && snapshot.players[1].melee.enabled && snapshot.zombies[0].dead && snapshot.zombies[1].dead,
             "Physical player poses or hit outcomes were absent from the observer snapshot");
     for (auto id : {first,second}) world.submit(id,Commands{{fists(92)}});
@@ -126,7 +127,8 @@ void authoritativeHits(const Options& options) {
             "Fresh punches must alternate hands and reuse the held ragdolls");
     const auto late=world.join();
     Scene client(options); openScene(client); Snapshots playback;
-    playback.push(wire(world.snapshot(late)),0);
+    test_replication::installSetups(playback, client, scene);
+    playback.push(wire(test_replication::readySnapshot(world, late)),0);
     for (int n=0;n<2;++n) {
         const auto pose=world.nextPose(late); require(pose.has_value(),"Late join lost a melee zombie pose");
         playback.pushPose(client,*pose); world.poseSent(late,*pose); world.acknowledgePose(late,{pose->id,pose->version});
@@ -186,18 +188,24 @@ void movingTargetContactsMatchSnapshot(const Options& options) {
     scene.zombies.rebuildSpatialIndex(); scene.zombies.setPerceptionEnabled(true);
     auto filter=b3DefaultQueryFilter();
     filter.categoryBits=viewer::playerBodyCategory; filter.maskBits=viewer::meleeZombieCategory;
+    int published=0;
     for(int tick=0;tick<5;++tick) {
         const float previous=zombie.restRoot[3].z;
         world.step();
         require(zombie.restRoot[3].z>previous+.02f && !zombie.ragdoll,
                 "Moving-target fixture must keep approaching throughout the contact checks");
-        const auto snapshot=wire(world.snapshot(id));
-        require(snapshot.zombies.size()==1 && snapshot.zombies[0].root==zombie.restRoot,
-                "Moving target snapshot lost its current root");
+        const auto snapshot=wire(test_replication::readySnapshot(world,id));
+        if (!snapshot.zombies.empty()) {
+            ++published;
+            require(snapshot.zombies.size()==1 &&
+                    glm::distance(glm::vec3(snapshot.zombies[0].root[3]),glm::vec3(zombie.restRoot[3]))<.00051f,
+                    "Moving target snapshot exceeded millimetre position quantization");
+        }
         const auto ray=b3World_CastRayClosest(scene.physics->id(),{0,1,0},{0,0,-3},filter);
-        require(ray.hit && std::abs(ray.point.z-(snapshot.zombies[0].root[3].z+.16f))<.0001f,
-                "Melee contact surfaces must match the moving target's published pose in the same tick");
+        require(ray.hit && std::abs(ray.point.z-(zombie.restRoot[3].z+.16f))<.0001f,
+                "Melee contact surfaces must retain the full-precision moving pose between network updates");
     }
+    require(published>=2,"Moving target did not publish recurring 20 Hz samples");
 }
 viewer::PlayerBodyPose runningPunchPose(const Options& options,bool batched,bool directStart) {
     Scene scene(options); openScene(scene); scene.zombies.instances.clear(); scene.zombies.rebuildSpatialIndex();

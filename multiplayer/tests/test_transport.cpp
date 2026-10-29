@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
             state.players[p].slot=static_cast<std::uint8_t>(viewer::punchSlot);
             state.players[p].melee=body.pose();
         }
-        state.zombies.resize(large ? multiplayer::maxVisibleZombies : 40);
+        state.zombies.resize(large ? multiplayer::maxZombieUpdatesPerSnapshot : 40);
         for (std::size_t i = 0; i < state.zombies.size(); ++i) {
             state.zombies[i].id = static_cast<std::uint32_t>(i); state.zombies[i].dead = !large;
         }

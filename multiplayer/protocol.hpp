@@ -16,16 +16,19 @@
 #include <variant>
 #include <vector>
 #include <array>
+#include <optional>
 
 namespace multiplayer {
 constexpr float tickSeconds = 1.0f / 60;
-constexpr std::size_t maxPlayers = 8, maxZombies = 1024, maxVisibleZombies = 256;
+constexpr std::size_t maxPlayers = 8, maxZombies = 100000, maxVisibleZombies = 10000;
+constexpr std::size_t maxZombieUpdatesPerSnapshot = 1024, maxZombieSetupsPerBatch = 64;
+constexpr double zombieTimeoutSeconds = 5;
 constexpr std::size_t maxBoxes = 512, maxDoors = 4096, maxBones = 128;
 constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 18; // Team signals in commands and snapshots.
+constexpr std::uint32_t protocolVersion = 19; // Compact, independently scheduled zombie replicas.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
 constexpr std::size_t maxSignalsPerPlayer = signalLifetimeTicks / signalCooldownTicks;
 constexpr std::size_t maxSignals = maxPlayers * maxSignalsPerPlayer;
@@ -61,9 +64,15 @@ struct Command {
     std::vector<viewer::InventoryDragAction> inventoryActions{};
     SignalKind signal = SignalKind::None; // One-shot, resolved with this command's aim.
 };
+struct ReplicationView {
+    glm::vec3 eye{0}; // Runtime X east/Y up/Z south metres.
+    float yaw = -90, pitch = 0;
+    float verticalFov = 60, aspect = 16.f / 9, maxDistance = 180;
+};
 struct Commands {
     std::vector<Command> commands;
     std::uint64_t snapshotTick = 0; // Last complete essential snapshot received.
+    std::optional<ReplicationView> view{};
 };
 struct PlayerState {
     std::uint32_t id = 0;
@@ -91,7 +100,20 @@ struct ZombieState {
     float phase = 0, walkSeconds = 0;
     bool walking = false, running = false, dead = false;
     std::vector<std::uint8_t> woundMask{};
+    // The wire carries only ID, packed flags/cadence, root position/yaw and
+    // walkSeconds. Asset, phase, normalization and wounds arrive via setup.
+    std::uint8_t updatePeriodTicks = 3; // 3/12/60 authoritative ticks: 20/5/1 Hz.
 };
+struct ZombieSetup {
+    std::uint32_t id = 0, asset = 0;
+    std::uint64_t version = 0;
+    glm::mat4 normalization{1}; // Complete fixed asset-to-character affine map.
+    float phase = 0;
+    std::vector<std::uint8_t> woundMask{};
+};
+struct ZombieSetups { std::vector<ZombieSetup> zombies; };
+struct ZombieSetupReceipt { std::uint32_t id = 0; std::uint64_t version = 0; };
+struct ZombieSetupAck { std::vector<ZombieSetupReceipt> zombies; };
 // A complete, coherent corpse pose, delivered independently of essential state.
 // Versions increase for each zombie; an acknowledgement releases a bounded
 // transfer slot. Intermediate versions are coalesced while a transfer is active.
@@ -121,7 +143,8 @@ struct VehicleState {
     std::array<RigidPose, 4> wheels;
     glm::vec3 velocity{0};
 };
-// Self-contained interested-entity set. Absence hides a zombie; it does not kill it.
+// Zombies are partial updates to persistent replicas; absence means no update.
+// Other entity lists retain their existing complete-snapshot semantics.
 struct Snapshot {
     std::uint64_t tick = 0;
     std::vector<PlayerState> players;
@@ -136,7 +159,8 @@ struct Snapshot {
     std::vector<VehicleState> vehicles;
     std::vector<SignalState> signals;
 };
-using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment, CorpsePose, PoseAck, BirdFrame, BirdResync>;
+using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment, CorpsePose, PoseAck, BirdFrame, BirdResync,
+                             ZombieSetups, ZombieSetupAck>;
 std::vector<std::uint8_t> encode(const Message& message);
 Message decode(const void* data, std::size_t bytes);
 } // namespace multiplayer

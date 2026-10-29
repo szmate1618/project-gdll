@@ -40,6 +40,8 @@ struct ServerPlayer {
     Command held;
     std::uint64_t resolved = 0, lastPacketTick = 0, shots = 0;
     Replication replication;
+    std::optional<ReplicationView> replicationView;
+    std::uint64_t lastViewSequence = 0;
     std::vector<SignalState> signals;
     std::uint64_t nextSignalTick = 0;
     std::optional<std::uint64_t> birdTick;
@@ -56,6 +58,9 @@ public:
     std::optional<CorpsePose> nextPose(std::uint32_t id) const;
     void poseSent(std::uint32_t id, const CorpsePose& pose);
     void acknowledgePose(std::uint32_t id, const PoseAck& ack);
+    std::optional<ZombieSetups> nextSetups(std::uint32_t id) const;
+    void setupsSent(std::uint32_t id, const ZombieSetups& setups);
+    void acknowledgeSetups(std::uint32_t id, const ZombieSetupAck& ack);
     std::optional<BirdFrame> birdFrame(std::uint32_t id) const;
     void birdFrameSent(std::uint32_t id, std::uint64_t tick);
     void requestBirdCheckpoint(std::uint32_t id);

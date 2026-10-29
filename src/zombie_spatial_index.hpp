@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <unordered_map>
 #include <vector>
@@ -20,6 +21,12 @@ public:
     void erase(std::size_t id);
     std::size_t population() const { return locations_.size(); }
     void query(glm::vec3 center, double radius, std::vector<std::size_t>& candidates) const;
+    // Visit occupied cells nearest first by their horizontal box distance.
+    // Members retain bucket order; a false visitor result stops immediately.
+    // This orders cells, never the complete actor population. Eligibility and
+    // exact bounds/range tests remain the caller's responsibility.
+    void visitCellsNear(glm::vec3 center, double radius,
+                        const std::function<bool(std::size_t)>& visitor) const;
     // Unbounded forward ray through X/Z occupied cells, expanded by the maximum
     // horizontal hit-region reach from indexed feet. Walks intersected grid
     // strips inside occupied bounds; sparse/extreme queries scan occupied cells

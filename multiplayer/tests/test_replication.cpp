@@ -2,6 +2,7 @@
 #include "fragments.hpp"
 #include "server/replication.hpp"
 #include "client/snapshots.hpp"
+#include "zombie_replication_fixture.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 #include <iostream>
@@ -14,7 +15,7 @@ void pacedSnapshots() {
     OutgoingSnapshots outgoing;
     // A valid large snapshot at the protocol's maximum prop/door capacities.
     Snapshot snapshot; snapshot.tick = 1;
-    snapshot.zombies.resize(maxVisibleZombies);
+    snapshot.zombies.resize(maxZombieUpdatesPerSnapshot);
     for (std::size_t i = 0; i < snapshot.zombies.size(); ++i) snapshot.zombies[i].id = static_cast<std::uint32_t>(i);
     snapshot.doors.resize(maxDoors);
     for (std::size_t i = 0; i < snapshot.doors.size(); ++i) snapshot.doors[i].id = static_cast<std::uint32_t>(i);
@@ -76,7 +77,7 @@ void corpseTransfers(Scene& scene) {
     }
     Replication replication;
     Snapshot base; base.tick = 1; base.players.push_back({}); base.players[0].id = 1;
-    const auto essential = replication.snapshot(scene, {0, 0, 0}, base);
+    const auto essential = test_replication::readySnapshot(replication, scene, {0, 0, 0}, base);
     require(essential.zombies.size() == 40 && encode(essential).size() < 7000,
         "Bulk corpse palettes inflated essential state");
     std::vector<CorpsePose> active;
@@ -106,7 +107,7 @@ void corpseTransfers(Scene& scene) {
     }
     require(seen.size() == 37 && seen.count(0), "Moving corpses starved other corpse transfers");
     Replication lateJoin;
-    lateJoin.snapshot(scene, {0, 0, 0}, base);
+    test_replication::readySnapshot(lateJoin, scene, {0, 0, 0}, base);
     require(lateJoin.nextPose(scene).has_value(), "Late join lost initial corpse poses");
     // Unknown/future acknowledgements must not release transfer slots.
     bool rejected = false;
@@ -153,7 +154,10 @@ void turning(Scene& scene) {
     b.zombies[0].root = glm::rotate(glm::mat4(1), glm::radians(90.0f), glm::vec3(0, 1, 0));
     b.zombies[0].root[3] = {10, 0, 0, 1};
     b.zombies[0].transform = b.zombies[0].root * normalization;
-    Snapshots playback; playback.push(a, 0); playback.apply(scene, 0);
+    Snapshots playback;
+    ZombieSetup setup; setup.version = 1; setup.normalization = normalization;
+    playback.pushSetups(scene, ZombieSetups{{setup}});
+    playback.push(a, 0); playback.apply(scene, 0);
     playback.push(b, .5); playback.apply(scene, .5);
     const auto& instance = scene.zombies.instances[0];
     require(std::abs(glm::length(glm::vec3(instance.transform[0])) - 2) < .0001f &&

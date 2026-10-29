@@ -43,6 +43,8 @@ void validateSessionGlb(const std::filesystem::path& path) {
     }
 }
 void validateSessionZombies(const viewer::ZombieLayer& zombies) {
+    if (zombies.instances.size() > maxZombies)
+        throw std::runtime_error("Zombie population exceeds multiplayer capacity");
     for (std::size_t i = 0; i < zombies.assets.size(); ++i)
         if (zombies.assets[i].skeleton.size() > maxBones)
             throw std::runtime_error("Zombie asset " + std::to_string(i) + " has " +

@@ -48,11 +48,13 @@ std::string sceneFingerprint(const Options& options, std::size_t count, glm::vec
                              const std::vector<std::filesystem::path>& content);
 using ZombiePopulationLoader = std::function<viewer::ZombieLayer(
     const std::filesystem::path&, const viewer::CollisionWorld&, const viewer::Model&)>;
-// Shared CPU scene preparation. The server may supply authoritative population
-// placement; clients construct the default population and consume snapshot poses.
+enum class SceneRole { Authority, Replica };
+// Clients load shared assets and hidden stable-ID slots, without generating
+// authoritative placements, spatial indexes or navigation routes.
 struct Scene {
     explicit Scene(const Options& options, const ZombiePopulationLoader& populationLoader = {},
-                   const std::optional<viewer::ZombieScenarioConfig::Player>& player = std::nullopt);
+                   const std::optional<viewer::ZombieScenarioConfig::Player>& player = std::nullopt,
+                   SceneRole role = SceneRole::Authority);
     std::filesystem::path mapPath;
     viewer::Model model;
     std::shared_ptr<viewer::PhysicsWorld> physics;

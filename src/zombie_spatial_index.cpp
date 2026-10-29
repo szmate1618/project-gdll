@@ -120,6 +120,49 @@ void ZombieSpatialIndex::query(glm::vec3 center, double radius, std::vector<std:
     }
     std::sort(candidates.begin(), candidates.end());
 }
+
+void ZombieSpatialIndex::visitCellsNear(glm::vec3 center, double radius,
+        const std::function<bool(std::size_t)>& visitor) const {
+    if (!std::isfinite(center.x) || !std::isfinite(center.y) || !std::isfinite(center.z) ||
+        std::isnan(radius) || radius < 0 || cells_.empty()) return;
+    struct Candidate {
+        Cell cell;
+        const std::vector<std::size_t>* members;
+        double distance;
+    };
+    std::vector<Candidate> ordered;
+    const auto append = [&](const Cell& cell, const std::vector<std::size_t>& members) {
+        const double x = std::clamp(double(center.x), cell.x * cellSize, (cell.x + 1) * cellSize);
+        const double z = std::clamp(double(center.z), cell.z * cellSize, (cell.z + 1) * cellSize);
+        const double dx = double(center.x) - x, dz = double(center.z) - z;
+        const double distance = dx * dx + dz * dz;
+        if (distance <= radius * radius) ordered.push_back({cell, &members, distance});
+    };
+    const Cell low{std::floor((double(center.x) - radius) / cellSize),
+                   std::floor((double(center.z) - radius) / cellSize)};
+    const Cell high{std::floor((double(center.x) + radius) / cellSize),
+                    std::floor((double(center.z) + radius) / cellSize)};
+    const double width = high.x - low.x + 1, depth = high.z - low.z + 1;
+    if (std::isfinite(width * depth) && width * depth <= double(cells_.size())) {
+        for (std::size_t x = 0; x < static_cast<std::size_t>(width); ++x)
+            for (std::size_t z = 0; z < static_cast<std::size_t>(depth); ++z) {
+                const Cell cell{low.x + double(x), low.z + double(z)};
+                const auto found = cells_.find(cell);
+                if (found != cells_.end()) append(cell, found->second);
+            }
+    } else {
+        ordered.reserve(cells_.size());
+        for (const auto& entry : cells_) append(entry.first, entry.second);
+    }
+    std::sort(ordered.begin(), ordered.end(), [](const Candidate& a, const Candidate& b) {
+        if (a.distance != b.distance) return a.distance < b.distance;
+        return a.cell.x != b.cell.x ? a.cell.x < b.cell.x : a.cell.z < b.cell.z;
+    });
+    for (const auto& cell : ordered)
+        for (const auto id : *cell.members)
+            if (!visitor(id)) return;
+}
+
 void ZombieSpatialIndex::queryRay(glm::vec3 origin, glm::vec3 direction, double padding,
                                  std::vector<std::size_t>& candidates) const {
     candidates.clear();

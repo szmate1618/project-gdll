@@ -34,11 +34,11 @@ else()
 endif()
 
 add_library(multiplayer_core STATIC protocol.cpp scene.cpp resources.cpp asset_validation.cpp network.cpp fragments.cpp
-    outgoing_snapshots.cpp signals.cpp server/birds.cpp server/world.cpp server/vehicle_seats.cpp server/replication.cpp client/prediction.cpp client/snapshots.cpp)
+    outgoing_snapshots.cpp signals.cpp server/birds.cpp server/world.cpp server/vehicle_seats.cpp server/replication.cpp server/zombie_selection.cpp client/prediction.cpp client/snapshots.cpp)
 target_include_directories(multiplayer_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(multiplayer_core SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 target_link_libraries(multiplayer_core PUBLIC viewer_fps viewer_zombies viewer_interaction
-    viewer_objects viewer_vehicles viewer_forests viewer_vegetation viewer_poles viewer_guardrails viewer_weapons viewer_inventory viewer_grenades viewer_undergrowth viewer_birds ${mp_transport})
+    viewer_objects viewer_vehicles viewer_forests viewer_vegetation viewer_poles viewer_guardrails viewer_weapons viewer_inventory viewer_grenades viewer_undergrowth viewer_birds viewer_sun_lighting ${mp_transport})
 target_compile_definitions(multiplayer_core PUBLIC
     MP_ROOT="${PROJECT_SOURCE_DIR}")
 target_compile_definitions(multiplayer_core PRIVATE MP_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}")
@@ -75,6 +75,29 @@ endif()
 viewer_warnings(godollo_client)
 
 if(BUILD_TESTING)
+    add_executable(test_compact_zombie_protocol tests/test_compact_zombie_protocol.cpp)
+    target_link_libraries(test_compact_zombie_protocol PRIVATE multiplayer_core)
+    viewer_warnings(test_compact_zombie_protocol)
+    add_test(NAME multiplayer_compact_zombie_protocol COMMAND test_compact_zombie_protocol)
+
+    add_executable(test_zombie_playback tests/test_zombie_playback.cpp)
+    target_link_libraries(test_zombie_playback PRIVATE multiplayer_core)
+    viewer_warnings(test_zombie_playback)
+    add_dependencies(test_zombie_playback viewer_test_asset)
+    add_test(NAME multiplayer_zombie_playback COMMAND test_zombie_playback "${VIEWER_TEST_ASSET}")
+
+    add_executable(test_zombie_selection tests/test_zombie_selection.cpp)
+    target_link_libraries(test_zombie_selection PRIVATE multiplayer_core)
+    viewer_warnings(test_zombie_selection)
+    add_dependencies(test_zombie_selection viewer_test_asset)
+    add_test(NAME multiplayer_zombie_selection COMMAND test_zombie_selection "${VIEWER_TEST_ASSET}")
+
+    add_test(NAME multiplayer_zombie_loopback COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/zombie_loopback.py"
+        "$<TARGET_FILE:godollo_server>" "$<TARGET_FILE:godollo_client>"
+        "${CMAKE_CURRENT_BINARY_DIR}/zombie-loopback-fixture")
+    set_tests_properties(multiplayer_zombie_loopback PROPERTIES TIMEOUT 90)
+
     add_executable(test_signals tests/test_signals.cpp)
     target_link_libraries(test_signals PRIVATE multiplayer_core)
     viewer_warnings(test_signals)
