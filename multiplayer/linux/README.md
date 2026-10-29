@@ -56,6 +56,10 @@ after extracting the client into a fresh folder. The host can create it with
 ./run-client.sh output/godollo.glb
 ```
 
+For a performance comparison without cars, add `--no-cars`. With Single Player,
+`./play-town.sh --single-player --no-cars` disables them on the embedded server
+and client; separate servers and clients must all use the same setting.
+
 The content ZIP also supplies `play-town.sh`: use `./play-town.sh` (or
 `sh play-town.sh`) to open the town menu with that pack's exact map, vegetation
 and disabled-layer options. It accepts extra arguments such as `--single-player`

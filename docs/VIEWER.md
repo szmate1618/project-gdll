@@ -1547,6 +1547,9 @@ This fallback type uses the same fixed seed. For six nearby parked cars and a
 ./build/godollo_viewer output/godollo.glb --scenario scenarios/car-park-horde/scenario.toml
 ```
 
+Use `--no-cars` to disable both the parked population and the fallback car
+for performance comparisons.
+
 Use `--fps` or `--spawn X Z`, walk near a configured seat entry point, and press
 **Enter** when its car/seat action appears in the title.
 The front-left seat drives; the other seats allow mouse look and Enter to leave.

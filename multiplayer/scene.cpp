@@ -64,6 +64,7 @@ Options parseOptions(int argc, char** argv, bool server) {
             throw std::runtime_error("--forests was removed; use --vegetation");
         else if (arg == "--no-trees") o.trees = o.forests = false;
         else if (arg == "--no-forests") o.forests = false;
+        else if (arg == "--no-cars") o.cars = false;
         else if (arg == "--seconds") {
             o.seconds = number(i);
             if (o.seconds <= 0 || o.seconds > 86400) throw std::runtime_error("Invalid duration");
@@ -91,7 +92,7 @@ Options parseOptions(int argc, char** argv, bool server) {
                 << (server ? "[--port 27020] [--no-zombie-perception]" : "[--connect 127.0.0.1:27020] [--headless] [--hidden] [--bot] [--no-audio] [--look YAW PITCH] [--screenshot FILE]")
                 << "\nShared: --spawn X Z --zombies PATH --zombie-count N --zombie-radius METERS\n"
                    "        --vegetation osm-tuned2|orthophoto|osm|sentinel-astra|none\n"
-                   "        --no-trees --no-forests --seconds N --lag-ms N --loss-percent N\n"
+                   "        --no-trees --no-forests --no-cars --seconds N --lag-ms N --loss-percent N\n"
                    "        --birds enables server-owned deterministic flocks; --no-birds disables them\n"
                    "        --time-of-day H --day-length S (0 freezes time)\n";
             std::exit(0);
@@ -124,6 +125,9 @@ std::string sceneFingerprint(const Options& o, std::size_t count, glm::vec3 spaw
     number(static_cast<float>(o.dayNight.startHour)); number(static_cast<float>(o.dayNight.dayLengthSeconds));
     identity.push_back(o.trees && o.vegetation.source != viewer::VegetationSource::None ? '\1' : '\0');
     identity.push_back(o.forests && o.vegetation.source != viewer::VegetationSource::None ? '\1' : '\0');
+    // Preserve the default session identity; disabled cars must also differ
+    // on maps without a placement sidecar (which normally spawn a fallback car).
+    if (!o.cars) identity += "no-cars";
     // File hashes are fixed-width hex strings; paths are deliberately excluded.
     for (const auto& file : content) identity += viewer::fileSha256(file);
     unsigned char digest[EVP_MAX_MD_SIZE]; unsigned int bytes = 0;
@@ -166,8 +170,13 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
     grenades = std::make_unique<viewer::Grenades>(physics);
 
     vehicles = std::make_unique<viewer::VehicleLayer>(physics, viewer::loadVehicleConfigs(resourceRoot() / "vehicles"));
-    vehiclePlacements = viewer::loadVehiclePlacements(o.map);
-    if (vehiclePlacements) content.push_back(adjacent("abandoned_cars.instances.json"));
+    if (o.cars) {
+        vehiclePlacements = viewer::loadVehiclePlacements(o.map);
+        if (vehiclePlacements) content.push_back(adjacent("abandoned_cars.instances.json"));
+    } else {
+        // An explicitly empty population also suppresses the server's fallback car.
+        vehiclePlacements.emplace();
+    }
     const auto vegetation = viewer::vegetationPaths(o.vegetation, o.map, resourceRoot() / "forest_patches.json");
     if (o.trees && !vegetation.trees.empty() &&
             (vegetation.requireTrees || std::filesystem::exists(vegetation.trees))) {

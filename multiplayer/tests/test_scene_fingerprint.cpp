@@ -35,6 +35,11 @@ int main(int argc, char** argv) {
             require(rejected, "Multiplayer accepted conflicting vegetation presets");
         }
         multiplayer::Options options;
+        for (const bool server : {false, true}) {
+            const char* args[] = {"game", "--no-cars"};
+            require(!multiplayer::parseOptions(2, const_cast<char**>(args), server).cars,
+                    "Client/server ignored --no-cars");
+        }
         options.forests = false;
         const glm::vec3 spawn{1.5f, -2.25f, 0};
         const auto fingerprint = multiplayer::sceneFingerprint(options, 7, spawn, {first});
@@ -51,6 +56,10 @@ int main(int argc, char** argv) {
         require(multiplayer::sceneFingerprint(options, 7, {1.5f, -2.25f, -0.0f}, {first}) == fingerprint,
                 "Signed zero changed the scene fingerprint");
         auto changed = options;
+        changed.cars = false;
+        require(multiplayer::sceneFingerprint(changed, 7, spawn, {first}) != fingerprint,
+                "Disabled cars were not fingerprinted without a sidecar");
+        changed = options;
         changed.zombieRadius = 101;
         require(multiplayer::sceneFingerprint(changed, 7, spawn, {first}) != fingerprint, "Radius was not fingerprinted");
         require(multiplayer::sceneFingerprint(options, 8, spawn, {first}) != fingerprint, "Count was not fingerprinted");

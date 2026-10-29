@@ -372,6 +372,10 @@ rerandomize the population. Up to 1,024 cars fit the runtime/wire population lim
 The existing 256 KiB snapshot budget still bounds all entity populations together.
 Full car poses are currently included in every snapshot, so large populations
 increase network traffic; vehicle interest filtering is not implemented yet.
+Use `--no-cars` to disable parked cars and the fallback car for performance
+comparisons. Single Player and Host Game apply it to the embedded server too;
+when running separate clients and a server, pass it to all of them so their
+scene fingerprints match.
 If the sidecar is absent, the server places one random shared car near the initial
 spawn when clear supported terrain is available within 25 m. An empty sidecar
 suppresses this fallback. Walk beside a car's configured entry point and press

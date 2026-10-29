@@ -89,6 +89,17 @@ void parkedPopulation(const Options& o, const std::filesystem::path& directory) 
     const auto observer=world.join();
     const auto state=wire(world.snapshot(observer));
     require(state.vehicles.size()==1000,"Full parked population was not replicated");
+    auto disabled = selected; disabled.cars = false;
+    Scene withoutCars(disabled);
+    World emptyWorld(withoutCars);
+    const auto emptyObserver = emptyWorld.join();
+    require(withoutCars.vehicles->count() == 0 && emptyWorld.snapshot(emptyObserver).vehicles.empty(),
+            "--no-cars did not suppress the parked population and its replication");
+    require(withoutCars.fingerprint != server.fingerprint, "--no-cars matches a car-enabled session");
+    disabled.map = o.map;
+    Scene withoutFallback(disabled);
+    World fallbackWorld(withoutFallback);
+    require(withoutFallback.vehicles->count() == 0, "--no-cars spawned a fallback car without a sidecar");
     Snapshots playback;playback.push(state,0);playback.apply(client,0);
     require(client.vehicles->count()==1000,"Late join lost parked cars");
     require(client.vehicles->simulatedCars().empty(),"Client allocated physics for replicated cars");

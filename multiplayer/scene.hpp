@@ -32,6 +32,7 @@ struct Options {
     std::size_t zombieCount = 100;
     float zombieRadius = 100;
     bool trees = true, forests = true, headless = false, hidden = false, bot = false;
+    bool cars = true;
     bool audio = true;
     bool birds = false; // Server opt-in during the deterministic flock experiment.
     bool zombiePerception = true; // Authoritative server setting; not world identity.

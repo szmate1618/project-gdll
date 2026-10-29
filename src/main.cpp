@@ -112,7 +112,7 @@ struct Options {
     bool zombiePerceptionStaggering = true;
     bool zombiePerception = true;
 
-    bool vehicleDistanceDetail = true, vehicleInstancing = true;
+    bool noCars = false, vehicleDistanceDetail = true, vehicleInstancing = true;
     bool zombieDistanceDetail = true, zombieShadows = true, profile = false;
     std::filesystem::path frameProfile;
     bool flashlightShadows = false;
@@ -176,6 +176,7 @@ Options parseOptions(int argc, char** argv) {
         }
 
         else if (argument == "--no-vehicle-instancing") options.vehicleInstancing = false;
+        else if (argument == "--no-cars") options.noCars = true;
         else if (argument == "--no-vehicle-lod") options.vehicleDistanceDetail = false;
         else if (argument == "--no-zombie-lod") options.zombieDistanceDetail = false;
         else if (argument == "--flashlight-shadows") options.flashlightShadows = true;
@@ -400,6 +401,7 @@ void printHelp() {
               << "  --no-tree-nearest-filtering Restore authored vegetation filtering (usually trilinear)\n"
 
               << "  --no-vehicle-instancing Draw vehicles individually for comparison\n"
+              << "  --no-cars           Disable parked cars and the fallback car\n"
               << "  --no-vehicle-lod    Keep near vehicle meshes and disable their distance cutoff\n"
               << "  --no-zombie-lod     Disable zombie mesh LOD, distance cutoff and stepped animation\n"
               << "  --zombie-draw-distance M Camera cutoff at normal FOV (180 m; overview unlimited; 0 disables)\n"
@@ -1422,12 +1424,13 @@ int run(const Options& options) {
     if (options.zombieView && zombies)
         app.rig.camera().frame(zombies->boundsMin, zombies->boundsMax, renderAspect);
     viewer::VehicleLayer cars(physics, viewer::loadVehicleConfigs(VIEWER_VEHICLES));
-    const auto placements = viewer::loadVehiclePlacements(options.model);
+    const auto placements = options.noCars ? std::optional<std::vector<viewer::VehiclePlacement>>{} :
+        viewer::loadVehiclePlacements(options.model);
     if (placements) {
         viewer::placeVehicles(cars, *placements);
         std::cout << "Loaded " << cars.count() << " parked cars with repeatable vehicle types (seed "
                   << viewer::vehiclePlacementSeed << ")\n";
-    } else {
+    } else if (!options.noCars) {
         const auto carOrigin = app.rig.walking() ? app.rig.camera().position() :
             glm::vec3((model.boundsMin.x + model.boundsMax.x) * .5f, model.boundsMax.y + 2, (model.boundsMin.z + model.boundsMax.z) * .5f);
         std::mt19937 random(viewer::vehiclePlacementSeed);

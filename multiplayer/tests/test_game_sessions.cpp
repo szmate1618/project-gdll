@@ -61,6 +61,7 @@ void parser() {
     using multiplayer::GameMode;
     require(parse({"game"}).mode == GameMode::Menu, "Default must open menu");
     require(parse({"game", "--single-player"}).mode == GameMode::SinglePlayer, "Missing single-player flag");
+    require(!parse({"game", "--single-player", "--no-cars"}).scene.cars, "Single-player lost --no-cars");
     const auto host = parse({"game", "--host", "--port", "27022"});
     require(host.mode == GameMode::Host && host.scene.port == 27022, "Host port was lost");
     require(parse({"game", "--connect", "127.0.0.1:27022"}).mode == GameMode::Join, "Join flag changed");
