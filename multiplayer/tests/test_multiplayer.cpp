@@ -611,7 +611,8 @@ void serverGrenades(const std::filesystem::path& asset) {
     moving.tick = 11; delayed.push(moving, 20);
     Snapshot detonated; detonated.tick = 12; detonated.explosions.push_back({1, {0, 1, 0}, 0});
     delayed.push(detonated, 20);
-    delayed.apply(scene, 20);
+    Scene replica(options, {}, std::nullopt, SceneRole::Replica);
+    delayed.apply(replica, 20);
     require(delayed.grenades().empty() && !delayed.explosionLights(20).empty(),
             "An interpolated grenade must disappear on the same frame as its confirmed explosion light");
 }

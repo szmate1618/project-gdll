@@ -35,7 +35,7 @@ endif()
 
 add_library(multiplayer_core STATIC protocol.cpp scene.cpp resources.cpp asset_validation.cpp network.cpp fragments.cpp
     outgoing_snapshots.cpp signals.cpp server/birds.cpp server/world.cpp server/vehicle_seats.cpp server/replication.cpp server/zombie_selection.cpp
-    server/sounds.cpp client/prediction.cpp client/snapshots.cpp client/ragdoll_interpolation.cpp
+    server/sounds.cpp server/vehicle_replication.cpp client/prediction.cpp client/snapshots.cpp client/vehicle_playback.cpp client/ragdoll_interpolation.cpp
     client/ragdoll_playback.cpp client/zombie_prediction.cpp client/firearm_hits.cpp client/weapon_audio.cpp client/sound_cues.cpp)
 target_include_directories(multiplayer_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(multiplayer_core SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
@@ -191,6 +191,15 @@ if(BUILD_TESTING)
     viewer_warnings(test_replication)
     add_dependencies(test_replication viewer_test_asset)
     add_test(NAME multiplayer_replication COMMAND test_replication "${VIEWER_TEST_ASSET}")
+    add_executable(test_vehicle_replication tests/test_vehicle_replication.cpp)
+    target_link_libraries(test_vehicle_replication PRIVATE multiplayer_core)
+    viewer_warnings(test_vehicle_replication)
+    add_test(NAME multiplayer_vehicle_replication COMMAND test_vehicle_replication)
+    add_executable(test_vehicle_playback tests/test_vehicle_playback.cpp)
+    target_link_libraries(test_vehicle_playback PRIVATE multiplayer_core)
+    viewer_warnings(test_vehicle_playback)
+    add_dependencies(test_vehicle_playback viewer_test_asset)
+    add_test(NAME multiplayer_vehicle_playback COMMAND test_vehicle_playback "${VIEWER_TEST_ASSET}")
     add_executable(test_multiplayer_assets tests/test_assets.cpp)
     target_link_libraries(test_multiplayer_assets PRIVATE multiplayer_core)
     target_include_directories(test_multiplayer_assets SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")

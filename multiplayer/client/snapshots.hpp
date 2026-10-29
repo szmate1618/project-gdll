@@ -1,6 +1,7 @@
 #pragma once
 #include "scene.hpp"
 #include "ragdoll_playback.hpp"
+#include "vehicle_playback.hpp"
 #include "zombie_prediction.hpp"
 #include <deque>
 #include <memory>
@@ -39,6 +40,7 @@ private:
     std::deque<Snapshot> frames_;
     std::vector<PlayerState> players_;
     std::vector<viewer::GrenadePose> grenades_;
+    VehiclePlayback vehicles_;
     double received_ = 0, renderTick_ = 0, transitSeconds_ = 0;
     // Direct stable-ID lookup lives on the heap. Replica payloads are allocated
     // lazily; frame work visits only the sorted, bounded tracked-ID list.

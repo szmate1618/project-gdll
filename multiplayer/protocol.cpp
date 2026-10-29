@@ -443,8 +443,9 @@ void payload(Wire& w, Snapshot& s) {
     });
     std::set<std::pair<std::uint32_t, std::uint8_t>> occupied;
     for (const auto& p : s.players) if (p.vehicle != noVehicle) {
-        if (!occupied.emplace(p.vehicle, p.seat).second || std::none_of(s.vehicles.begin(), s.vehicles.end(),
-                [&](const auto& v) { return v.id == p.vehicle; }))
+        // The car may already be cached from an earlier partial update.
+        // Playback checks its existence and configured seat against that cache.
+        if (!occupied.emplace(p.vehicle, p.seat).second)
             throw std::runtime_error("Invalid vehicle occupancy");
     }
 }

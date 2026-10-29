@@ -103,6 +103,7 @@ void World::leave(std::uint32_t id) {
 void World::submit(std::uint32_t id, const Commands& commands) {
     auto& player = players_.at(id);
     if (commands.snapshotTick > tick_) throw std::runtime_error("Client acknowledged a future snapshot");
+    player.replication.acknowledgeSnapshot(commands.snapshotTick);
     if (commands.view && !commands.commands.empty() &&
         commands.commands.back().sequence > player.lastViewSequence &&
         commands.commands.back().sequence >= player.resolved &&

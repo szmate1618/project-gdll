@@ -73,7 +73,7 @@ or `--host`. Use the server's spawn, zombie-count/radius, and vegetation options
 does not generate or bundle the large town, tree, or zombie assets. Gameplay
 retains the multiplayer prototype's current limitations. Gameplay audio and
 wind ambience use OpenAL; use `--no-audio` to mute. Audio needs matching
-protocol-20 clients and servers.
+protocol-22 clients and servers.
 
 To package a local Linux build, run `cmake -P multiplayer/linux/package.cmake`.
 Set `-DBUILD_DIR=/path/to/build` before `-P` for another build directory.

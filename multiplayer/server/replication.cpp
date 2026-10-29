@@ -15,17 +15,7 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
     const auto population = scene.zombies.instances.size();
     if (setupSlots_.size() < population) setupSlots_.resize(population);
     if (interested_.size() < population) interested_.resize(population);
-    for (std::size_t i = 0; i < scene.vehicles->count(); ++i) {
-        if (i >= maxVehicles) throw std::runtime_error("Vehicle replication budget exceeded");
-        const auto pose = scene.vehicles->pose(i);
-        VehicleState state; state.id = static_cast<std::uint32_t>(i);
-        state.type = static_cast<std::uint32_t>(scene.vehicles->type(i));
-        state.chassis = {pose.chassis.center, pose.chassis.rotation};
-        state.velocity = scene.vehicles->velocity(i);
-        for (std::size_t w = 0; w < state.wheels.size(); ++w)
-            state.wheels[w] = {glm::vec3(pose.wheels[w][3]), glm::normalize(glm::quat_cast(glm::mat3(pose.wheels[w])))};
-        s.vehicles.push_back(state);
-    }
+    vehicles_.append(*scene.vehicles, s.tick, s.vehicles);
     for (const auto door : scene.doors->activeDoors()) {
         const auto offset = scene.doors->panel(door).center - feet;
         if (glm::dot(offset, offset) < 240.0f * 240 && s.doors.size() < maxDoors)
@@ -43,7 +33,7 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
     s.zombies.clear();
     s.woundContents.clear();
     // Reserve for the largest (float-position escape) ordinary record. The
-    // other entity populations keep their existing complete-snapshot contract.
+    // complete player/door/box lists and pending vehicle updates share the budget.
     const auto baseBytes = encode(s).size();
     const auto available = maxMessageBytes - baseBytes;
     const auto sampleLimit = std::min(maxZombieUpdatesPerSnapshot, available / 22);

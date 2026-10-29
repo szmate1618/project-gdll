@@ -56,7 +56,8 @@ void protocolChecks() {
     s.players.back().seat = 4;
     rejects([&] { encode(s); }, "A fifth seat was accepted");
     s.players.pop_back(); s.players[0].vehicle = 1;
-    rejects([&] { encode(s); }, "Driver referred to an absent car");
+    require(wire(s).players[0].vehicle == 1,
+            "Occupancy must allow a car retained from earlier partial updates");
     s.players[0].vehicle = 0; s.vehicles[0].wheels[2].rotation = {0, 0, 0, 0};
     rejects([&] { encode(s); }, "Invalid wheel quaternion accepted");
     Command c; c.sequence = 1; c.enterVehicle = true;
@@ -89,6 +90,19 @@ void parkedPopulation(const Options& o, const std::filesystem::path& directory) 
     const auto observer=world.join();
     const auto state=wire(world.snapshot(observer));
     require(state.vehicles.size()==1000,"Full parked population was not replicated");
+    // The complete initial population retries until a positive snapshot receipt.
+    for (int tick = 0; tick < 3; ++tick) world.step();
+    const auto baseline = wire(world.snapshot(observer));
+    require(baseline.vehicles.size() == 1000, "Unreceived parked population was not retried");
+    world.submit(observer, Commands{{}, baseline.tick});
+    world.step();
+    const auto quiet = wire(world.snapshot(observer));
+    require(quiet.vehicles.empty(), "Acknowledged parked cars still filled ordinary snapshots");
+    require(encode(quiet).size() < encode(state).size() / 10,
+            "Stationary fleet traffic was not removed after acknowledgement");
+    const auto lateObserver = world.join();
+    const auto late = wire(world.snapshot(lateObserver));
+    require(late.vehicles.size() == 1000, "Late join inherited the first peer's fleet receipts");
     auto disabled = selected; disabled.cars = false;
     Scene withoutCars(disabled);
     World emptyWorld(withoutCars);
@@ -101,6 +115,7 @@ void parkedPopulation(const Options& o, const std::filesystem::path& directory) 
     World fallbackWorld(withoutFallback);
     require(withoutFallback.vehicles->count() == 0, "--no-cars spawned a fallback car without a sidecar");
     Snapshots playback;playback.push(state,0);playback.apply(client,0);
+    playback.push(quiet, double(quiet.tick) / 60); playback.apply(client, double(quiet.tick) / 60);
     require(client.vehicles->count()==1000,"Late join lost parked cars");
     require(client.vehicles->simulatedCars().empty(),"Client allocated physics for replicated cars");
     std::set<std::size_t> types;
@@ -127,6 +142,63 @@ void parkedPopulation(const Options& o, const std::filesystem::path& directory) 
     for(std::size_t i=0;i<full.players.size();++i) full.players[i].id=static_cast<std::uint32_t>(i+1);
     require(encode(full).size()<=maxMessageBytes && wire(full).vehicles.size()==maxVehicles,
             "Maximum legal population no longer fits a complete snapshot");
+}
+void acknowledgedUpdates(const Options& o) {
+    Scene server(o), client(o); openGround(server);
+    server.vehicles->add({0, .8f, 0}); server.vehicles->add({12, .8f, 0});
+    World world(server); const auto observer = world.join();
+    for (int tick = 0; tick < 3; ++tick) world.step();
+    Snapshots playback;
+    const auto receive = [&](const Snapshot& state) {
+        const auto copy = wire(state);
+        const double now = double(copy.tick) / 60;
+        require(playback.push(copy, now), "New car snapshot was rejected");
+        playback.apply(client, now);
+        world.submit(observer, Commands{{}, copy.tick});
+    };
+    receive(world.snapshot(observer));
+    for (int tick = 0; tick < 3; ++tick) world.step();
+    require(world.snapshot(observer).vehicles.empty(), "Initial fleet receipt was not forwarded");
+
+    auto pose = server.vehicles->pose(1);
+    pose.chassis.center.z = -3;
+    for (auto& wheel : pose.wheels) wheel[3].z -= 3;
+    server.vehicles->setPose(1, pose, {0, 0, -2});
+    world.step();
+    const auto moving = world.snapshot(observer);
+    require(moving.vehicles.size() == 1 && moving.vehicles[0].id == 1,
+            "Moving one car resent the parked fleet");
+    receive(moving);
+
+    pose.chassis.center.z = -6;
+    for (auto& wheel : pose.wheels) wheel[3].z -= 3;
+    server.vehicles->setPose(1, pose, {});
+    world.step();
+    const auto lostFinal = world.snapshot(observer); // Deliberately never delivered.
+    require(lostFinal.vehicles.size() == 1 && lostFinal.vehicles[0].velocity == glm::vec3(0),
+            "Stopping car did not publish a final pose");
+    world.submit(observer, Commands{{}, moving.tick});
+    world.step();
+    const auto retry = world.snapshot(observer);
+    require(retry.vehicles.size() == 1 && retry.vehicles[0].chassis.center.z == -6,
+            "An older receipt suppressed the lost final pose");
+    receive(retry);
+    world.step();
+    const auto quiet = world.snapshot(observer);
+    require(quiet.vehicles.empty(), "Confirmed stopped car never became silent");
+    receive(quiet);
+    playback.apply(client, double(quiet.tick) / 60 + 1);
+    require(client.vehicles->count() == 2 && client.vehicles->pose(0).chassis.center.z == 0 &&
+            client.vehicles->pose(1).chassis.center.z == -6 && client.vehicles->velocity(1) == glm::vec3(0),
+            "Partial playback lost a retained car or its confirmed final stop");
+    for (std::size_t wheel = 0; wheel < pose.wheels.size(); ++wheel)
+        require(glm::distance(glm::vec3(client.vehicles->pose(1).wheels[wheel][3]),
+                              glm::vec3(pose.wheels[wheel][3])) < .001f,
+                "Final stopped wheel poses were not retained");
+    const auto lateObserver = world.join();
+    const auto late = world.snapshot(lateObserver);
+    require(late.vehicles.size() == 2 && late.vehicles[1].chassis.center.z == -6,
+            "Late join lost a car moved before it connected");
 }
 void ownershipAndDriving(const Options& o) {
     Scene scene(o); openGround(scene); scene.vehicles->add({0, .8f, 0});
@@ -345,7 +417,9 @@ void physicsParity(const Options& o) {
 int main(int argc, char** argv) {
     try {
         require(argc == 3, "Expected test map and scratch directory");
-        protocolChecks(); const auto o = options(argv[1]); ownershipAndDriving(o); passengerOnly(o); passengers(o); interpolation(o); zombieImpacts(o); physicsParity(o); parkedPopulation(o,argv[2]);
+        protocolChecks(); const auto o = options(argv[1]);
+        acknowledgedUpdates(o); ownershipAndDriving(o); passengerOnly(o); passengers(o);
+        interpolation(o); zombieImpacts(o); physicsParity(o); parkedPopulation(o,argv[2]);
         std::cout << "Multiplayer vehicle ownership, physics, late join, timeout, camera and wire checks passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

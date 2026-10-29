@@ -30,7 +30,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 21; // Command-bound trusted firearm hit reports.
+constexpr std::uint32_t protocolVersion = 22; // Persistent, acknowledged partial vehicle updates.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
 constexpr std::size_t maxSignalsPerPlayer = signalLifetimeTicks / signalCooldownTicks;
@@ -156,8 +156,8 @@ struct VehicleState {
     std::array<RigidPose, 4> wheels;
     glm::vec3 velocity{0};
 };
-// Zombies are partial updates to persistent replicas; absence means no update.
-// Other entity lists retain their existing complete-snapshot semantics.
+// Zombies and vehicles are partial updates to persistent replicas; absence means
+// no update. Other entity lists retain their complete-snapshot semantics.
 struct Snapshot {
     std::uint64_t tick = 0;
     std::vector<PlayerState> players;

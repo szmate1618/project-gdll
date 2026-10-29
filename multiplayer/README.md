@@ -407,7 +407,7 @@ The shot origin remains the server player's camera; distant sniper targets need
 no special origin allowance. The server trusts the reported intersection and
 does not repeat the ray test against a newer zombie pose. This policy suits
 trusted cooperative sessions; it does not independently prove client hit claims.
-Protocol version 21 requires matching client/server builds. Melee, grenades and
+Protocol version 22 requires matching client/server builds. Melee, grenades and
 standalone viewer shooting keep their existing authoritative collision paths.
 
 At level load both peers validate the optional `abandoned_cars.instances.json`
@@ -418,8 +418,9 @@ and standalone loads; the fallback car uses the same seed. Clients
 receive those types and poses from the server, including on late join; they never
 rerandomize the population. Up to 1,024 cars fit the runtime/wire population limit.
 The existing 256 KiB snapshot budget still bounds all entity populations together.
-Full car poses are currently included in every snapshot, so large populations
-increase network traffic; vehicle interest filtering is not implemented yet.
+Joining clients receive the full current car population. Thereafter, snapshots
+contain only changed car poses or velocity, repeated until a complete snapshot
+acknowledges that state. Unchanged parked cars generate no recurring pose traffic.
 Use `--no-cars` to disable parked cars and the fallback car for performance
 comparisons. Single Player and Host Game apply it to the embedded server too;
 when running separate clients and a server, pass it to all of them so their
@@ -521,8 +522,19 @@ animation clock. Firearm hit selection uses the client's displayed pose as
 described above, without historical rewind.
 Cars replicate rigid chassis and individual wheel poses plus chassis velocity;
 wheel steering, suspension travel and rotation remain visible to every client.
-All cars are included in essential snapshots (up to 1,024), including random
-parked placements loaded beside the map. The driver camera follows the same interpolated pose as
+All cars (up to 1,024) are introduced with their current authoritative types and
+poses, including parked placements loaded beside the map and cars moved before
+a late join. Each peer retains that population; omitted records leave its state
+intact. Pose or velocity changes repeat in essential snapshots until the existing
+complete-snapshot acknowledgement confirms them. Newer changes replace pending
+older states, so packet loss or coalescing cannot lose a final stop or build an
+unbounded queue. After the final stopped pose is confirmed, a parked car stays
+silent until it changes again. Moving, coasting and externally pushed cars all
+retain their updates; driver occupancy alone does not control replication.
+Clients keep bounded per-car histories and interpolate chassis, wheels and
+velocity at the shared playback time, including across snapshots omitting that
+car. Protocol 22 requires matching rebuilt clients and servers.
+The driver camera follows the same interpolated pose as
 the rendered car. Vehicle motion is server-authoritative and is not locally
 predicted, so driving response includes network latency. Driving commands are
 retained/resubmitted normally but never replayed as walking movement. Lighting
@@ -656,7 +668,9 @@ test connects two real clients under artificial packet loss and latency,
 exercises late join, and checks content mismatch rejection.
 Vehicle regressions cover exclusive seats, duplicate Enter commands, blocked
 moving exits, timeout braking, disconnect/re-entry, late-join wheel poses,
-interpolation, zombie push/ragdoll replication, and equivalence to single-player
+interpolation, silent parked fleets, lost initial/final state retries, reordered
+acknowledgements, velocity-only changes, sparse playback, zombie push/ragdoll
+replication, and equivalence to single-player
 physics. The graphical client regression also exercises Enter, Alt, F12 and
 first/third person driving views.
 
