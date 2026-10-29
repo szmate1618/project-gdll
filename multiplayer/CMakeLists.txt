@@ -36,7 +36,7 @@ endif()
 add_library(multiplayer_core STATIC protocol.cpp scene.cpp resources.cpp asset_validation.cpp network.cpp fragments.cpp
     outgoing_snapshots.cpp signals.cpp server/birds.cpp server/world.cpp server/vehicle_seats.cpp server/replication.cpp server/zombie_selection.cpp
     server/sounds.cpp client/prediction.cpp client/snapshots.cpp client/ragdoll_interpolation.cpp
-    client/ragdoll_playback.cpp client/zombie_prediction.cpp client/weapon_audio.cpp client/sound_cues.cpp)
+    client/ragdoll_playback.cpp client/zombie_prediction.cpp client/firearm_hits.cpp client/weapon_audio.cpp client/sound_cues.cpp)
 target_include_directories(multiplayer_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(multiplayer_core SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 target_link_libraries(multiplayer_core PUBLIC viewer_fps viewer_zombies viewer_interaction
@@ -102,6 +102,17 @@ if(BUILD_TESTING)
     target_link_libraries(test_zombie_prediction PRIVATE multiplayer_core)
     viewer_warnings(test_zombie_prediction)
     add_test(NAME multiplayer_zombie_prediction COMMAND test_zombie_prediction)
+
+    add_executable(test_firearm_hits tests/test_firearm_hits.cpp)
+    target_link_libraries(test_firearm_hits PRIVATE multiplayer_core)
+    viewer_warnings(test_firearm_hits)
+    add_test(NAME multiplayer_firearm_hits COMMAND test_firearm_hits)
+
+    add_executable(test_trusted_hits tests/test_trusted_hits.cpp)
+    target_link_libraries(test_trusted_hits PRIVATE multiplayer_core)
+    viewer_warnings(test_trusted_hits)
+    add_dependencies(test_trusted_hits viewer_test_asset)
+    add_test(NAME multiplayer_trusted_hits COMMAND test_trusted_hits "${VIEWER_TEST_ASSET}")
 
     add_executable(test_zombie_selection tests/test_zombie_selection.cpp)
     target_link_libraries(test_zombie_selection PRIVATE multiplayer_core)

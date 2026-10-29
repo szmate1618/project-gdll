@@ -104,6 +104,19 @@ struct ZombieLayer {
                ShotCaliber caliber = ShotCaliber::low);
     bool shootWithOcclusion(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                             const CollisionWorld& world, ShotCaliber caliber = ShotCaliber::low);
+    // Read-only narrow phase for a candidate from the renderer's existing index.
+    // Explicit displayed state preserves the root and clip actually presented;
+    // lazy shared geometry preparation does not create any spatial index.
+    std::optional<ZombieShotTrace> traceShot(std::size_t id, const ZombieInstance& displayed,
+        glm::vec3 origin, glm::vec3 direction, double seconds) const;
+    // An explicit null mask means the displayed surface was intact, even if a
+    // newer replicated mask has already changed the source layer.
+    std::optional<ZombieShotTrace> traceShot(std::size_t id, const ZombieInstance& displayed,
+        glm::vec3 origin, glm::vec3 direction, double seconds, const ZombieWound* displayedWound) const;
+    // Server-owned effects for a trusted client intersection. Does not retest
+    // its ray against the newer authoritative pose or current occluders.
+    bool applyReportedShot(const ZombieHitClaim& claim, glm::vec3 origin, glm::vec3 direction,
+        double seconds, const CollisionWorld& world, ShotCaliber caliber);
     const ZombieDamage& damage() const { return damage_; }
     const ZombieWounds& wounds() const { return wounds_; }
     const BloodMist& bloodMist() const { return bloodMist_; }
@@ -217,11 +230,13 @@ private:
                          int severedJoint = -1, ShotCaliber caliber = ShotCaliber::low);
     bool shootImpl(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                    const CollisionWorld* occlusion, ShotCaliber caliber);
+    bool applyShotHit(const ZombieShotHit& hit, std::vector<glm::mat4> pose, glm::vec3 point,
+                     glm::vec3 direction, double seconds, const CollisionWorld* world, ShotCaliber caliber);
     ZombieDamage damage_;
     ZombieWounds wounds_;
     BloodMist bloodMist_;
     BloodParticles bloodParticles_;
-    std::vector<ZombieWoundRegions> woundGeometry_;
+    mutable std::vector<ZombieWoundRegions> woundGeometry_;
     std::optional<std::vector<glm::mat4>> replicatedWoundContents_;
     void updateBehaviorImpl(float seconds, const ZombiePlayer& player, const CollisionWorld& world,
                             double animationSeconds, const std::vector<ZombiePlayer>* players);
@@ -250,10 +265,15 @@ private:
     std::vector<std::size_t> ragdollIds_;
     std::unordered_map<std::size_t, std::size_t> ragdollSlots_;
     void ensureSpatialIndex();
+    void prepareHitGeometry() const;
+    void ensureHitGeometry() const;
     void updateSpatialMembership(std::size_t id);
     void updateReplicationMembership(std::size_t id);
     std::optional<ZombieShotHit> findShotTarget(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                                               std::vector<glm::mat4>& selectedPose);
+    std::optional<ZombieShotHit> traceShotInstance(std::size_t id, const ZombieInstance& instance,
+        glm::vec3 origin, glm::vec3 direction, double seconds, std::vector<glm::mat4>& pose,
+        int& bone, const ZombieWound* wound, ZombieShootingStats* stats) const;
     ZombieSpatialIndex spatialIndex_;
     ZombieSpatialIndex springRagdollIndex_;
     ZombieSpatialIndex replicationIndex_;
@@ -262,7 +282,7 @@ private:
     float replicationPadding_ = 0;
     ZombieCrowd crowd_;
     std::vector<std::size_t> behaviorOrder_;
-    std::vector<ZombieHitGeometry> hitGeometry_;
+    mutable std::vector<ZombieHitGeometry> hitGeometry_;
     std::vector<ZombieHitBounds> shotBounds_;
     double shotPadding_ = 0;
     ZombieShootingStats shootingStats_;

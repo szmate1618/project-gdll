@@ -393,6 +393,40 @@ void largeCrowdRejectsGroups() {
     groups.update(0, bounds[0]);
     compare(groups, bounds, active, camera);
 }
+
+void rayQueriesUseExistingRefittedBounds() {
+    std::vector<VisibilityBounds> bounds{
+        box({0, 0, 0}), box({0, 0, -4}), box({0, 0, 4}),
+        box({160, 0, 0}), box({20, 4, 0}), box({400, 0, 0}, {401, .1f, .1f})};
+    viewer::ZombieVisibility groups;
+    groups.reset(bounds.size());
+    for (std::size_t id = bounds.size(); id-- > 0;) groups.update(id, bounds[id]);
+    std::vector<std::size_t> hits;
+    groups.queryRay({0, 0, 2}, {0, 0, -2}, hits);
+    require(hits == std::vector<std::size_t>({0, 1, 5}),
+        "Forward ray must include intersected boxes in ID order and reject geometry behind its origin");
+    groups.queryRay({0, 0, 0}, {1, 0, 0}, hits);
+    require(hits == std::vector<std::size_t>({0, 3, 5}),
+        "Horizontal ray must reject vertically separated geometry and retain overhanging bounds");
+    groups.queryRay({-.5f, -1, .5f}, {0, 1, 0}, hits);
+    require(hits == std::vector<std::size_t>({0}),
+        "Ray touching an exact box edge must remain a conservative candidate");
+    // No camera query occurs between updates and these rays: both hierarchy
+    // levels must refit themselves, including a change of cell/block.
+    bounds[0] = box({320, 0, 0}); groups.update(0, bounds[0]);
+    bounds[3] = box({0, 0, 0}); groups.update(3, bounds[3]);
+    groups.erase(5);
+    groups.queryRay({0, 0, 2}, {0, 0, -1}, hits);
+    require(hits == std::vector<std::size_t>({1, 3}),
+        "Ray query retained stale bounds or membership after moving and removing actors");
+    groups.queryRay({0, 0, 0}, {0, 0, 0}, hits);
+    require(hits.empty(), "Zero-direction ray retained prior results");
+    groups.queryRay({0, 0, 0}, {std::numeric_limits<float>::infinity(), 0, 0}, hits);
+    require(hits.empty(), "Invalid ray retained prior results");
+    groups.reset(0);
+    groups.queryRay({0, 0, 0}, {1, 0, 0}, hits);
+    require(hits.empty(), "Reset retained historical ray candidates");
+}
 }
 
 int main() {
@@ -407,6 +441,7 @@ int main() {
         randomViewsMatchFullScan();
         orderingRetainsMasksAcrossDigitBoundaries();
         largeCrowdRejectsGroups();
+        rayQueriesUseExistingRefittedBounds();
         std::cout << "Zombie visibility tests passed\n";
         return 0;
     } catch (const std::exception& error) {

@@ -198,32 +198,78 @@ bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animat
     const auto hit = findShotTarget(origin, direction, animationSeconds, selectedPose);
     if (!hit) return false;
     if (occlusion && !occlusion->lineOfSight(origin, origin + direction * hit->distance)) return false;
+    return applyShotHit(*hit, std::move(selectedPose), origin + direction * hit->distance,
+                        direction, animationSeconds, occlusion, caliber);
+}
+
+bool ZombieLayer::applyReportedShot(const ZombieHitClaim& claim, glm::vec3 origin, glm::vec3 direction,
+                                    double seconds, const CollisionWorld& world, ShotCaliber caliber) {
+    if (claim.zombie >= instances.size() || !finite(origin) || !finite(direction) || !finite(claim.point) ||
+        !std::isfinite(seconds) || claim.bone < -1 || claim.joint < -1) return false;
+    const float length = glm::length(direction);
+    if (!std::isfinite(length) || length < 1e-6f) return false;
+    direction /= length;
+    const auto& instance = instances[claim.zombie];
+    if (instance.removed || instance.ragdoll || instance.asset >= assets.size()) return false;
+    const auto& asset = assets[instance.asset];
+    if (claim.bone >= 0 && std::size_t(claim.bone) >= asset.skeleton.size()) return false;
+    ensureHitGeometry();
+    const auto& geometry = hitGeometry_[instance.asset];
+    if (claim.joint >= 0 && (std::size_t(claim.joint) >= geometry.joints.size() ||
+            claim.bone != geometry.joints[std::size_t(claim.joint)].bone || claim.woundRegion)) return false;
+    if (claim.woundRegion) {
+        const auto region = std::size_t(*claim.woundRegion);
+        if (region >= woundGeometry_[instance.asset].size()) return false;
+        const auto& wound = woundGeometry_[instance.asset][region];
+        if (wound.bone < 0 || claim.bone != wound.bone ||
+            claim.headshot != (*claim.woundRegion == ZombieWoundRegion::head)) return false;
+    }
+    auto pose = sampleZombiePose(asset, instance, seconds);
+    const auto frame = claim.bone < 0 ? glm::dmat4(instance.restRoot) :
+        glm::dmat4(instance.transform) * glm::dmat4(pose.at(std::size_t(claim.bone)));
+    const auto point = glm::vec3(frame * glm::dvec4(claim.point, 1));
+    if (!finite(point)) return false;
+    // This checks actor-local plausibility only. The trusted intersection need
+    // not still lie on the old firing ray after the zombie has moved or turned.
+    const auto bounds = zombieShotBounds(instance, geometry);
+    constexpr float margin = .1f;
+    if (glm::any(glm::lessThan(point, bounds.minimum - glm::vec3(margin))) ||
+        glm::any(glm::greaterThan(point, bounds.maximum + glm::vec3(margin)))) return false;
+    const float distance = glm::length(point - origin);
+    if (!std::isfinite(distance)) return false;
+    const ZombieShotHit hit{claim.zombie, distance, claim.headshot, claim.joint, claim.woundRegion};
+    return applyShotHit(hit, std::move(pose), point, direction, seconds, &world, caliber);
+}
+
+bool ZombieLayer::applyShotHit(const ZombieShotHit& hit, std::vector<glm::mat4> selectedPose,
+                               glm::vec3 point, glm::vec3 direction, double animationSeconds,
+                               const CollisionWorld* occlusion, ShotCaliber caliber) {
     bool openedWound = false;
-    if (hit->woundRegion && (*hit->woundRegion != ZombieWoundRegion::head || caliber == ShotCaliber::high)) {
-        const auto& instance = instances[hit->zombie];
+    if (hit.woundRegion && (*hit.woundRegion != ZombieWoundRegion::head || caliber == ShotCaliber::high)) {
+        const auto& instance = instances[hit.zombie];
         const auto& asset = assets[instance.asset];
-        const auto& geometry = woundGeometry_[instance.asset][std::size_t(*hit->woundRegion)];
-        if (wounds_.hit(hit->zombie, asset, geometry, instance, selectedPose, origin + direction * hit->distance)) {
+        const auto& geometry = woundGeometry_[instance.asset][std::size_t(*hit.woundRegion)];
+        if (wounds_.hit(hit.zombie, asset, geometry, instance, selectedPose, point)) {
             openedWound = true;
             if (!physics_) physics_ = std::make_unique<Physics>();
             for (const auto& region : woundGeometry_[instance.asset]) {
-                if (region.region != geometry.region && !physics_->cavities.has(hit->zombie,region.region)) continue;
+                if (region.region != geometry.region && !physics_->cavities.has(hit.zombie,region.region)) continue;
                 const auto frame = instance.transform * selectedPose[region.bone] *
                     glm::inverse(asset.skeleton[region.bone].referenceWorld) * region.referenceFrame;
-                physics_->cavities.wound(hit->zombie, asset, region, *wounds_.find(hit->zombie), frame, instance.locomotionVelocity);
+                physics_->cavities.wound(hit.zombie, asset, region, *wounds_.find(hit.zombie), frame, instance.locomotionVelocity);
             }
-            markRenderChanged(hit->zombie, false);
+            markRenderChanged(hit.zombie, false);
         }
     }
-    if (hit->joint >= 0)
-        activateRagdoll(hit->zombie, std::move(selectedPose), direction * 4.0f, animationSeconds,
-                        hit->joint, caliber);
-    else if (damage_.hit(hit->zombie, caliber, hit->headshot) == 0)
-        activateRagdoll(hit->zombie, std::move(selectedPose), direction * 4.0f, animationSeconds);
-    const auto mistSize = openedWound ? BloodMistSize::large : hit->joint >= 0 ? BloodMistSize::medium : BloodMistSize::small;
+    if (hit.joint >= 0)
+        activateRagdoll(hit.zombie, std::move(selectedPose), direction * 4.0f, animationSeconds,
+                        hit.joint, caliber);
+    else if (damage_.hit(hit.zombie, caliber, hit.headshot) == 0)
+        activateRagdoll(hit.zombie, std::move(selectedPose), direction * 4.0f, animationSeconds);
+    const auto mistSize = openedWound ? BloodMistSize::large : hit.joint >= 0 ? BloodMistSize::medium : BloodMistSize::small;
     // Offset slightly toward the incoming bullet so the billboard clears the surface.
-    bloodMist_.emit(origin+direction*std::max(0.0f,hit->distance-.025f),mistSize,animationSeconds);
-    emitBloodParticles(*hit,origin+direction*hit->distance,direction,animationSeconds,occlusion);
+    bloodMist_.emit(point-direction*std::min(.025f,hit.distance),mistSize,animationSeconds);
+    emitBloodParticles(hit,point,direction,animationSeconds,occlusion);
     return true;
 }
 

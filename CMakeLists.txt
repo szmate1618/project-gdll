@@ -319,7 +319,7 @@ viewer_warnings(viewer_forests)
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp
     src/zombie_layer.cpp src/zombie_bounds.cpp src/zombie_lod.cpp src/zombie_lod_assets.cpp src/zombie_hit.cpp src/zombie_damage.cpp src/zombie_dismemberment.cpp src/zombie_shooting.cpp src/zombie_chase.cpp src/zombie_attack.cpp src/zombie_lunge.cpp src/zombie_behavior.cpp src/zombie_animation.cpp
     src/melee_combat.cpp src/melee_contact_mesh.cpp src/zombie_bone_collision.cpp src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp src/zombie_spatial_index.cpp src/zombie_crowd.cpp src/zombie_movement.cpp src/zombie_door_collision.cpp src/zombie_perception.cpp src/zombie_render_updates.cpp
-    src/zombie_navigation.cpp src/zombie_scenario.cpp src/scenario_density.cpp src/zombie_scenario_routes.cpp src/zombie_travel.cpp src/zombie_hit_capsules.cpp
+    src/zombie_navigation.cpp src/zombie_scenario.cpp src/scenario_density.cpp src/zombie_scenario_routes.cpp src/zombie_travel.cpp src/zombie_hit_capsules.cpp src/zombie_shot_query.cpp
     src/zombie_wounds.cpp src/zombie_wound_surface.cpp src/zombie_cavity_physics.cpp
     src/blood_mist.cpp src/blood_particles.cpp src/zombie_blood.cpp)
 target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise viewer_physics viewer_objects viewer_fingerprints
@@ -1002,7 +1002,7 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_door_walking)
     add_test(NAME viewer_door_walking COMMAND test_door_walking)
 
-    foreach(suite animated_model zombie_lod zombie_placement zombie_chase zombie_crowd zombie_movement zombie_motion zombie_door_collision zombie_attack zombie_lunge zombie_behavior zombie_shooting zombie_hit_capsules zombie_damage zombie_dismemberment zombie_spatial_index zombie_perception zombie_ragdoll zombie_transition zombie_render_updates player_vitals)
+    foreach(suite animated_model zombie_lod zombie_placement zombie_chase zombie_crowd zombie_movement zombie_motion zombie_door_collision zombie_attack zombie_lunge zombie_behavior zombie_shooting zombie_hit_capsules zombie_reported_hits zombie_damage zombie_dismemberment zombie_spatial_index zombie_perception zombie_ragdoll zombie_transition zombie_render_updates player_vitals)
         add_executable(test_${suite} tests/test_${suite}.cpp)
         target_link_libraries(test_${suite} PRIVATE viewer_zombies)
         target_include_directories(test_${suite} SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")

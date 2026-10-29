@@ -20,6 +20,15 @@ template<class F> void rejects(F run, const char* message) {
     try { run(); } catch (const std::exception&) { rejected = true; }
     require(rejected, message);
 }
+void reportFire(multiplayer::Command& command) {
+    if (command.left && command.slot < 4) command.firearmShot = multiplayer::FirearmShot{command.slot, {}};
+    else command.firearmShot.reset();
+}
+multiplayer::FirearmHit headReport() {
+    multiplayer::FirearmHit report;
+    report.hit.zombie = 0; report.hit.headshot = true; report.hit.point = {0, 1.7f, 0};
+    return report;
+}
 viewer::Model ground() {
     viewer::Model model;
     viewer::Primitive p;
@@ -292,6 +301,7 @@ void serverCommands(const std::filesystem::path& asset) {
     World world(scene);
     const auto first = world.join(), second = world.join();
     Command c; c.sequence = 1; c.left = true; c.movement.yawDegrees = 0;
+    c.firearmShot = FirearmShot{0, {headReport()}};
     for (int copy = 0; copy < 5; ++copy) world.submit(first, Commands{{c}});
     for (int tick = 0; tick < 30; ++tick) world.step();
     const auto& player = world.players().at(first);
@@ -347,6 +357,7 @@ void serverCommands(const std::filesystem::path& asset) {
 
     const auto shots = player.shots;
     for (c.sequence = 2; c.sequence <= 121; ++c.sequence) {
+        reportFire(c);
         world.submit(first, Commands{{c}}); world.step();
     }
     require(player.shots == shots + 1 && player.weapons.equipped().loaded == 10,
@@ -357,6 +368,7 @@ void serverCommands(const std::filesystem::path& asset) {
     world.submit(first, Commands{{c}}); world.step(); ++c.sequence;
     require(player.shots == shots + 2, "Releasing and pressing the trigger did not fire again");
     c.slot = 1;
+    reportFire(c);
     const auto delay = viewer::weaponSwitchTiming(scene.initialInventory, player.weapons.equipped().config, player.weapons.state(1).config);
     const int switchTicks = static_cast<int>(std::ceil(delay->total() / tickSeconds)) + 5;
     for (int tick = 0; tick < switchTicks; ++tick, ++c.sequence) {
@@ -411,6 +423,7 @@ void triggerResets(const std::filesystem::path& asset) {
         const auto advance = [&](Command command, int ticks = 1) {
             for (int tick = 0; tick < ticks; ++tick) {
                 command.sequence = ++sequence;
+                reportFire(command);
                 world.submit(id, Commands{{command}}); world.step();
             }
         };
@@ -459,6 +472,7 @@ void catchUpWeapons(const std::filesystem::path& asset) {
             c.movement.yawDegrees = sequence == 1 ? 0 : 180;
             c.reload = !switchWeapon && sequence == 2;
             c.slot = switchWeapon && sequence > 1 ? 1 : 0;
+            if (c.left) c.firearmShot = FirearmShot{0, {headReport()}};
             batch.commands.push_back(c);
         }
         world.submit(id, batch); world.submit(id, batch);
@@ -492,6 +506,7 @@ void queuedInputTimeout(const std::filesystem::path& asset) {
     for (std::uint64_t sequence = 1; sequence <= 32; ++sequence) {
         Command c; c.sequence = sequence; c.movement.forward = 1; c.movement.yawDegrees = 0;
         c.movement.toggleProne = sequence == 29; c.left = sequence == 31; c.reload = sequence == 32;
+        reportFire(c);
         batch.commands.push_back(c);
     }
     world.submit(id, batch);
@@ -610,6 +625,7 @@ void serverInventoryAmmo(const std::filesystem::path& asset) {
     std::uint64_t sequence = 0;
     const auto submit = [&](Command command) {
         command.sequence = ++sequence;
+        reportFire(command);
         world.submit(id, Commands{{command}}); world.submit(id, Commands{{command}});
         world.step();
     };
@@ -675,6 +691,7 @@ void inputRecovery(const std::filesystem::path& asset) {
         Command c; c.movement.forward = cycle < 300 ? 1 : -1; c.movement.yawDegrees = 0;
         c.movement.toggleProne = cycle == 68;
         c.left = cycle == 70; c.reload = cycle == 76;
+        reportFire(c);
         client.advance(c, *scene.collision);
         transit.push_back(client.commandsToSend());
         if (transit.size() > 3) {

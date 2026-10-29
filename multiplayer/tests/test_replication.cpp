@@ -147,7 +147,7 @@ void turning(Scene& scene) {
     scene.zombies = viewer::ZombieLayer{};
     scene.zombies.assets.emplace_back(); scene.zombies.instances.emplace_back();
     // Normalization deliberately contains a reflection, nonuniform scale and
-    // shear: interpolation must preserve the whole fixed affine transform.
+    // shear: immediate playback must preserve the whole fixed affine transform.
     auto normalization = glm::scale(glm::mat4(1), glm::vec3(-2, 3, 4));
     normalization[1].x = .3f; normalization[3] = {1, 2, 3, 1};
     Snapshot a; a.tick = 60; a.zombies.emplace_back(); a.zombies[0].transform = normalization;
@@ -166,10 +166,10 @@ void turning(Scene& scene) {
         "Turning changed zombie size");
     require(std::abs(glm::determinant(glm::mat3(instance.transform)) + 24) < .001f,
         "Turning lost asset reflection/shear");
-    require(std::abs(instance.restRoot[3].x - 8) < .001f, "Root position was not interpolated");
+    require(std::abs(instance.restRoot[3].x - 10) < .001f, "Latest root position retained a playback delay");
     const auto forward = glm::normalize(glm::vec3(instance.restRoot[2]));
-    require(std::abs(forward.x - std::sin(glm::radians(72.0f))) < .001f,
-        "Turning did not follow the interpolated rigid rotation");
+    require(std::abs(forward.x - 1) < .001f,
+        "Latest rigid turn retained a playback delay");
 }
 }
 int main(int argc, char** argv) {
@@ -178,7 +178,7 @@ int main(int argc, char** argv) {
         pacedSnapshots(); poseProtocol();
         Options options; options.map = argv[1]; options.trees = options.forests = false; options.zombieCount = 0;
         Scene scene(options); retiredBoxes(scene, options); corpseTransfers(scene); turning(scene);
-        std::cout << "Pacing, independent corpse transfers and rigid interpolation passed\n";
+        std::cout << "Pacing, independent corpse transfers and immediate rigid playback passed\n";
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

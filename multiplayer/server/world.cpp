@@ -11,6 +11,31 @@
 
 namespace multiplayer {
 namespace {
+bool validFirearmReport(const Scene& scene, const ServerPlayer& player, const Command& command) {
+    if (!command.firearmShot || command.firearmShot->slot != player.weapons.slot()) return false;
+    const auto& reports = command.firearmShot->hits;
+    const auto pellets = static_cast<std::size_t>(player.weapons.equipped().config.pellets);
+    if (reports.size() > pellets || reports.size() > maxFirearmHits) return false;
+    std::array<bool, maxFirearmHits> seen{};
+    for (const auto& report : reports) {
+        const auto& hit = report.hit;
+        if (report.pellet >= pellets || report.pellet >= maxFirearmHits || seen[report.pellet] ||
+            hit.zombie >= scene.zombies.instances.size() || hit.bone < -1 || hit.joint < -1 ||
+            !std::isfinite(hit.point.x) || !std::isfinite(hit.point.y) || !std::isfinite(hit.point.z) ||
+            glm::any(glm::greaterThan(glm::abs(hit.point), glm::vec3(1e6f)))) return false;
+        seen[report.pellet] = true;
+        const auto& instance = scene.zombies.instances[hit.zombie];
+        // A target may have died since the client rendered it. Its report then
+        // applies no damage, while the otherwise valid firing event still uses ammo.
+        if (instance.asset >= scene.zombies.assets.size()) return false;
+        if (hit.bone >= 0 && std::size_t(hit.bone) >= scene.zombies.assets[instance.asset].skeleton.size()) return false;
+        if (hit.joint >= 0 && (instance.asset >= scene.zombies.dismembermentAssets.size() ||
+            std::size_t(hit.joint) >= scene.zombies.dismembermentAssets[instance.asset].joints.size())) return false;
+        if (hit.woundRegion && *hit.woundRegion != viewer::ZombieWoundRegion::torso &&
+            *hit.woundRegion != viewer::ZombieWoundRegion::head) return false;
+    }
+    return true;
+}
 void applyInventoryActions(ServerPlayer& player) {
     while (!player.pendingInventoryActions.empty()) {
         const auto& action = player.pendingInventoryActions.front();
@@ -100,7 +125,12 @@ void World::step() {
     const double now = clock.seconds();
     std::vector<viewer::ZombiePlayer> targets;
     std::vector<viewer::NoiseEvent> noises;
-    struct Shot { glm::vec3 origin; std::vector<glm::vec3> directions; viewer::ShotCaliber caliber; };
+    struct Shot {
+        glm::vec3 origin;
+        std::vector<glm::vec3> directions;
+        viewer::ShotCaliber caliber;
+        std::vector<FirearmHit> hits;
+    };
     std::vector<Shot> shots;
     std::vector<viewer::PlayerBody*> bodies;
     bodies.reserve(players_.size());
@@ -133,6 +163,7 @@ void World::step() {
         const int inputs = player.pending.size() > 3 ? 2 : 1;
         for (int input = 0; input < inputs; ++input) {
             auto command = player.held;
+            command.firearmShot.reset(); // A held/synthesized input cannot repeat an old hit report.
             bool consumed = false;
             command.movement.toggleProne = false; command.reload = false; command.drag = {};
             command.inventoryActions.clear();
@@ -246,7 +277,8 @@ void World::step() {
                 player.triggerNeedsRelease |= command.left;
             }
             if (canThrow && player.weapons.fireAttempt(now, [&] {
-                    if (player.weapons.slot() != viewer::punchSlot) return true;
+                    if (player.weapons.slot() != viewer::punchSlot)
+                        return config.grenade || (consumed && validFirearmReport(scene_, player, command));
                     if (!player.body.canPunch()) return false;
                     // Start before a later queued command can switch or disable
                     // the body. Refresh shared aim surfaces before accepting.
@@ -261,7 +293,8 @@ void World::step() {
                             now, *config.grenade, *scene_.collision)) throw std::logic_error("Accepted grenade throw failed");
                     player.weaponReload.begin(player.weapons, player.inventory, now);
                 } else if (player.weapons.slot() != viewer::punchSlot)
-                    shots.push_back({player.camera.position(), viewer::weaponShotDirections(config, player.camera.direction()), config.caliber});
+                    shots.push_back({player.camera.position(), viewer::weaponShotDirections(config, player.camera.direction()),
+                        config.caliber, command.firearmShot->hits});
             }
             player.held = command;
         }
@@ -304,10 +337,12 @@ void World::step() {
     for (const auto& noise : noises) scene_.zombies.makeNoise(noise.position, noise.decibels);
     for (const auto& shot : shots) {
         scene_.zombies.makeNoise(shot.origin, 110);
-        // Match the current prototype's server-tick hit pose; bounded historical hit testing can be added independently.
-        for (const auto direction : shot.directions) {
-            scene_.zombies.shootWithOcclusion(shot.origin, direction, now, *scene_.collision, shot.caliber);
-        }
+        // Intersection comes from the displayed client pose. Weapon identity,
+        // origin, pellet directions and caliber were captured when this command
+        // fired, before any later input could switch weapons or change aim.
+        for (const auto& report : shot.hits)
+            scene_.zombies.applyReportedShot(report.hit, shot.origin, shot.directions[report.pellet],
+                                            now, *scene_.collision, shot.caliber);
     }
     for (const auto& reaction : scene_.zombies.takeReactionEvents())
         sounds_.emit(tick_, reaction.chase ? SoundKind::chase : SoundKind::heard,

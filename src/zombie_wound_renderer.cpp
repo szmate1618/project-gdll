@@ -34,6 +34,10 @@ void Renderer::updateZombieWound(std::size_t id, ZombieBatch& batch, ZombieGPUIn
                              static_cast<GLint>(batch.woundLimit));
     if (mask.size() > batch.woundStride || batch.woundStride == 0)
         throw std::runtime_error("Zombie wound mask does not match its geometry");
+    ZombieWound displayedWound;
+    displayedWound.revision = wound->revision;
+    displayedWound.removedTriangles = wound->removedTriangles;
+    displayedWound.vertexMask = wound->vertexMask;
     bool grew = false;
     if (row == batch.woundRows.end()) {
         if (batch.freeWoundRows.empty()) {
@@ -50,7 +54,7 @@ void Renderer::updateZombieWound(std::size_t id, ZombieBatch& batch, ZombieGPUIn
         }
         const auto offset = batch.freeWoundRows.back();
         batch.freeWoundRows.pop_back();
-        row = batch.woundRows.emplace(id, ZombieBatch::WoundRow{offset, 0, -1}).first;
+        row = batch.woundRows.emplace(id, ZombieBatch::WoundRow{offset, 0, -1, {}}).first;
     }
     const auto offset = row->second.offset;
     std::copy(mask.begin(), mask.end(), batch.woundBytes.begin() + offset);
@@ -67,6 +71,7 @@ void Renderer::updateZombieWound(std::size_t id, ZombieBatch& batch, ZombieGPUIn
     glBindBuffer(GL_TEXTURE_BUFFER, 0);
     row->second.revision = wound->revision;
     row->second.severedJoint = source.severedJoint;
+    row->second.displayedWound = std::move(displayedWound);
     instance.woundBase = float(offset + 1);
 }
 

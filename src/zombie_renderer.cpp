@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 #include "frame_stage_profile.hpp"
+#include "collision_world.hpp"
 #include "zombie_animation.hpp"
 #include "zombie_animation_buffer.hpp"
 #include "zombie_lod.hpp"
@@ -307,6 +308,7 @@ void Renderer::updateZombieInstance(std::size_t id, bool boundsChanged, bool ful
     auto& render = zombieRenderStates_[id];
     render.asset = asset;
     render.local = local;
+    render.displayedFrame = -1;
     render.severedJoint = source.severedJoint;
     render.ragdoll = source.ragdoll;
     const auto& model = zombieSource_->assets[asset];
@@ -398,7 +400,7 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
     {
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombieSelection);
         for (const auto& visible : visibleZombies_) {
-            const auto& render = zombieRenderStates_[visible.instance];
+            auto& render = zombieRenderStates_[visible.instance];
             auto& batch = zombieBatches_[render.asset];
             const auto local = render.local;
             auto instance = batch.staging[local];
@@ -442,6 +444,7 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
                     cameraInstance.animationStep = 1;
                 }
                 nextDisplayedZombieSources_.push_back(visible.instance);
+                render.displayedFrame = cameraInstance.animationFrame;
                 const auto& source = zombieSource_->instances[visible.instance];
                 const auto clip = static_cast<int>(render.clip);
                 // Another renderer can publish a different pose into this layer.
@@ -484,6 +487,7 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
         for (const auto id : displayedZombieSources_) {
             while (current != nextDisplayedZombieSources_.end() && *current < id) ++current;
             if (current != nextDisplayedZombieSources_.end() && *current == id) continue;
+            zombieRenderStates_[id].displayedFrame = -1;
             const auto& source = zombieSource_->instances[id];
             if (source.displayedAnimationFrame != -1) {
                 source.displayedAnimationFrame = -1;
@@ -509,6 +513,51 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombieErrorCheck);
         checkErrors("zombie palette update");
     }
+}
+
+std::optional<ZombieShotTrace> Renderer::traceZombieShot(glm::vec3 origin, glm::vec3 direction,
+                                                       const CollisionWorld& world) {
+    if (!zombieSource_) return std::nullopt;
+    for (int axis = 0; axis < 3; ++axis)
+        if (!std::isfinite(origin[axis]) || !std::isfinite(direction[axis])) return std::nullopt;
+    const double length = glm::length(glm::dvec3(direction));
+    if (length < 1e-12) return std::nullopt;
+    direction = glm::vec3(glm::dvec3(direction) / length);
+    zombieVisibility_.queryRay(origin, direction, zombieShotCandidates_);
+    std::optional<ZombieShotTrace> nearest;
+    for (const auto id : zombieShotCandidates_) {
+        const auto& render = zombieRenderStates_[id];
+        if (render.ragdoll || render.displayedFrame < 0) continue;
+        const auto& batch = zombieBatches_[render.asset];
+        const auto& cached = batch.staging[render.local];
+        const auto& source = zombieSource_->instances[id];
+        const auto currentModel = glm::dmat4(source.restTransform);
+        if (!std::isfinite(glm::determinant(currentModel)) || glm::determinant(currentModel) == 0) continue;
+        ZombieInstance displayed;
+        displayed.asset = render.asset;
+        displayed.transform = displayed.restTransform = cached.transform;
+        // Fixed affine asset normalization cancels here. Preserve its scale,
+        // shear and reflection while recovering the old rigid gameplay root.
+        displayed.restRoot = glm::mat4(glm::dmat4(cached.transform) * glm::inverse(currentModel) *
+                                      glm::dmat4(source.restRoot));
+        displayed.displayedAnimationFrame = render.displayedFrame;
+        displayed.displayedAnimationClip = static_cast<int>(render.clip);
+        displayed.walking = render.clip != ZombieRenderClip::Idle;
+        displayed.running = render.clip == ZombieRenderClip::Run;
+        const auto& timing = zombieBatches_[render.asset].clipTimings[static_cast<std::size_t>(render.clip)];
+        const double seconds = timing.frameCount ? double(render.displayedFrame) * timing.duration / timing.frameCount : 0;
+        displayed.walkSeconds = displayed.idleSeconds = seconds;
+        const ZombieWound* displayedWound = nullptr;
+        if (cached.woundBase > 0) {
+            const auto row = batch.woundRows.find(id);
+            if (row == batch.woundRows.end()) continue;
+            displayedWound = &row->second.displayedWound;
+        }
+        const auto hit = zombieSource_->traceShot(id, displayed, origin, direction, seconds, displayedWound);
+        if (hit && (!nearest || hit->distance < nearest->distance)) nearest = hit;
+    }
+    if (nearest && !world.lineOfSight(origin, origin + direction * nearest->distance)) return std::nullopt;
+    return nearest;
 }
 
 void Renderer::drawZombies(double seconds, ZombiePass pass) {

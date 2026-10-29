@@ -31,6 +31,21 @@ void padBlockBounds(VisibilityBounds& bounds) {
         bounds.maximum[axis] = static_cast<float>(std::min(limit, double(bounds.maximum[axis]) + padding));
     }
 }
+bool rayIntersects(const VisibilityBounds& bounds, glm::vec3 origin, glm::vec3 direction) {
+    double near = 0, far = std::numeric_limits<double>::infinity();
+    for (int axis = 0; axis < 3; ++axis) {
+        if (direction[axis] == 0) {
+            if (origin[axis] < bounds.minimum[axis] || origin[axis] > bounds.maximum[axis]) return false;
+            continue;
+        }
+        const double first = (double(bounds.minimum[axis]) - origin[axis]) / direction[axis];
+        const double second = (double(bounds.maximum[axis]) - origin[axis]) / direction[axis];
+        near = std::max(near, std::min(first, second));
+        far = std::min(far, std::max(first, second));
+        if (near > far) return false;
+    }
+    return true;
+}
 }
 
 std::size_t ZombieVisibility::Hash::operator()(const Cell& cell) const {
@@ -226,6 +241,27 @@ void ZombieVisibility::orderVisible(std::vector<ZombieVisibilityResult>& visible
         std::swap(input, output);
     }
     if (input != &visible) visible.swap(sortScratch_);
+}
+
+void ZombieVisibility::queryRay(glm::vec3 origin, glm::vec3 direction,
+                                std::vector<std::size_t>& candidates) {
+    candidates.clear();
+    for (int axis = 0; axis < 3; ++axis)
+        if (!std::isfinite(origin[axis]) || !std::isfinite(direction[axis])) return;
+    if (direction == glm::vec3(0)) return;
+    ZombieVisibilityStats stats;
+    refit(stats);
+    for (const auto& entry : blocks_) {
+        const auto& block = blockGroups_[entry.second];
+        if (!rayIntersects(block.bounds, origin, direction)) continue;
+        for (const auto groupId : block.groups) {
+            const auto& group = groups_[groupId];
+            if (!rayIntersects(group.bounds, origin, direction)) continue;
+            for (const auto id : group.members)
+                if (rayIntersects(*locations_[id].bounds, origin, direction)) candidates.push_back(id);
+        }
+    }
+    std::sort(candidates.begin(), candidates.end());
 }
 
 ZombieVisibilityStats ZombieVisibility::query(const Frustum& camera, const Frustum* light,

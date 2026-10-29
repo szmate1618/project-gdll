@@ -6,6 +6,7 @@
 
 #include <glm/glm.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <vector>
 
@@ -25,6 +26,21 @@ struct ZombieShotHit {
     bool headshot;
     int joint = -1;
     std::optional<ZombieWoundRegion> woundRegion;
+};
+
+// Trusted intersection result, independent of the firing weapon and damage.
+// Point uses the living anatomical bone's local source units, transformed by
+// instance.transform * boneWorld; bone -1 instead uses runtime restRoot meters.
+struct ZombieHitClaim {
+    std::uint32_t zombie = 0;
+    std::int16_t bone = -1, joint = -1;
+    bool headshot = false;
+    std::optional<ZombieWoundRegion> woundRegion;
+    glm::vec3 point{0};
+};
+struct ZombieShotTrace {
+    ZombieHitClaim claim;
+    float distance = 0; // World meters along the normalized query ray.
 };
 
 struct ZombieHitBounds { glm::vec3 minimum{0}, maximum{0}; };

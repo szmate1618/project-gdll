@@ -47,6 +47,10 @@ public:
                                 bool cameraCulling, std::vector<ZombieVisibilityResult>& visible,
                                 const Frustum* flashlight = nullptr,
                                 const VisibilityBounds* cameraRegion = nullptr);
+    // Forward ray through the same current block/group/member bounds. Refits
+    // pending updates and returns unique IDs in ascending order; the caller
+    // performs exact hit tests. Direction need not be normalized.
+    void queryRay(glm::vec3 origin, glm::vec3 direction, std::vector<std::size_t>& candidates);
 
 private:
     static constexpr std::size_t noGroup = static_cast<std::size_t>(-1);

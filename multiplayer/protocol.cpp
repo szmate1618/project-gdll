@@ -89,6 +89,36 @@ void movement(Wire& w, viewer::FPSState& s) {
     s.stance = static_cast<viewer::PlayerStance>(stance); s.takeoffStance = static_cast<viewer::PlayerStance>(takeoff);
     w.flag(s.grounded); w.flag(s.jumpHeld); w.flag(s.jumpQueued); w.flag(s.proneRequested); w.flag(s.proneQueued);
 }
+void firearmShot(Wire& w, FirearmShot& shot) {
+    w.integer(shot.slot);
+    if (shot.slot >= 4) throw std::runtime_error("Invalid firearm report weapon slot");
+    std::array<bool, maxFirearmHits> pellets{};
+    w.list(shot.hits, maxFirearmHits, [&](FirearmHit& report) {
+        w.integer(report.pellet);
+        auto& hit = report.hit;
+        w.integer(hit.zombie); w.flag(hit.headshot); w.vector(hit.point);
+        const auto index = [&](std::int16_t& value) {
+            if (!w.reading && (value < -1 || value >= static_cast<std::int16_t>(maxBones)))
+                throw std::runtime_error("Invalid firearm hit joint or bone");
+            auto encoded = static_cast<std::uint16_t>(value + 1);
+            w.integer(encoded);
+            if (encoded > maxBones) throw std::runtime_error("Invalid firearm hit joint or bone");
+            value = static_cast<std::int16_t>(encoded) - 1;
+        };
+        index(hit.bone); index(hit.joint);
+        if (!w.reading && hit.woundRegion && *hit.woundRegion != viewer::ZombieWoundRegion::torso &&
+            *hit.woundRegion != viewer::ZombieWoundRegion::head)
+            throw std::runtime_error("Invalid firearm wound region");
+        std::uint8_t region = hit.woundRegion ? static_cast<std::uint8_t>(*hit.woundRegion) + 1 : 0;
+        w.integer(region);
+        if (region > 2) throw std::runtime_error("Invalid firearm wound region");
+        hit.woundRegion = region ? std::optional<viewer::ZombieWoundRegion>(static_cast<viewer::ZombieWoundRegion>(region - 1)) : std::nullopt;
+        if (report.pellet >= maxFirearmHits || pellets[report.pellet] || hit.zombie >= maxZombies ||
+            glm::any(glm::greaterThan(glm::abs(hit.point), glm::vec3(1e6f))))
+            throw std::runtime_error("Invalid or duplicate firearm hit report");
+        pellets[report.pellet] = true;
+    });
+}
 void command(Wire& w, Command& c) {
     w.integer(c.sequence); w.number(c.movement.forward); w.number(c.movement.right);
     w.number(c.movement.yawDegrees); w.number(c.pitch);
@@ -126,6 +156,13 @@ void command(Wire& w, Command& c) {
     auto signal = static_cast<std::uint8_t>(c.signal); w.integer(signal);
     if (signal > 3) throw std::runtime_error("Invalid signal command");
     c.signal = static_cast<SignalKind>(signal);
+    bool hasShot = c.firearmShot.has_value();
+    w.flag(hasShot);
+    if (hasShot) {
+        if (w.reading) c.firearmShot.emplace();
+        firearmShot(w, *c.firearmShot);
+        if (!c.left) throw std::runtime_error("Firearm report without firing input");
+    } else c.firearmShot.reset();
     if (c.sequence == 0 || std::abs(c.movement.forward) > 1 || std::abs(c.movement.right) > 1 ||
         std::abs(c.movement.yawDegrees) > 180 || std::abs(c.pitch) > 89 || c.slot > viewer::punchSlot ||
         std::abs(c.drag.x) > 2000 || std::abs(c.drag.y) > 2000)

@@ -2,6 +2,7 @@
 #include "network.hpp"
 #include "prediction.hpp"
 #include "snapshots.hpp"
+#include "firearm_hits.hpp"
 #include "signals.hpp"
 #include "boid/replica.hpp"
 #include "camera.hpp"
@@ -527,9 +528,25 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                                      "Could not join: server did not provide player state within 15 seconds");
         if (prediction.ready()) {
             accumulator += dt;
-            while (accumulator >= 1.0 / 60) {
-                const auto nextCommand = command(in, graphics.window, options.bot, now);
 #ifdef MP_GRAPHICS
+            std::optional<multiplayer::FirearmShot> frameFirearmShot;
+#endif
+            while (accumulator >= 1.0 / 60) {
+                auto nextCommand = command(in, graphics.window, options.bot, now);
+#ifdef MP_GRAPHICS
+                const auto& equipped = weaponDefinitions.equipped();
+                if (graphics.renderer && nextCommand.left && !nextCommand.interaction && !nextCommand.reload &&
+                    !in.driver.occupied() && in.equippedSlot < viewer::punchSlot && !equipped.config.grenade) {
+                    const auto aim = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, now, true);
+                    // The renderer retains its last displayed transforms/frames,
+                    // even when newly received state has already moved replicas.
+                    if (!frameFirearmShot)
+                        frameFirearmShot = reportFirearmHits(static_cast<std::uint8_t>(in.equippedSlot),
+                            equipped.config, aim.position(), aim.direction(), [&](glm::vec3 origin, glm::vec3 direction) {
+                                return graphics.renderer->traceZombieShot(origin, direction, *scene.collision);
+                            });
+                    nextCommand.firearmShot = frameFirearmShot;
+                }
                 const auto& controller = prediction.controller();
                 const viewer::UndergrowthMotion shrubBefore{controller.feet(), controller.bodyHeight(),
                     controller.config().radius, controller.grounded(), false};

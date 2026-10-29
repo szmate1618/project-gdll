@@ -115,6 +115,7 @@ void authority(const Options& options) {
     World world(scene);
     const auto shooter = world.join(), listener = world.join();
     Command shot; shot.sequence = 1; shot.left = true;
+    shot.firearmShot = FirearmShot{};
     Command release; release.sequence = 2;
     Command idle; idle.sequence = 3;
     world.submit(shooter, Commands{{shot, release, idle}});

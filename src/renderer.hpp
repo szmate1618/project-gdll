@@ -90,6 +90,11 @@ public:
     // after owning API/physics changes and keep the layer alive during rendering.
     // Direct edits require ZombieLayer::markRenderChanged()/invalidateRenderData().
     void updateZombies(const ZombieLayer& zombies);
+    // Read-only firearm query against the last camera draw, using the existing
+    // zombie visibility grid. Source playback may advance before the next draw;
+    // cached transforms and exact displayed animation frames remain authoritative.
+    std::optional<ZombieShotTrace> traceZombieShot(glm::vec3 origin, glm::vec3 direction,
+                                                 const CollisionWorld& world);
     void updateDoors(const DoorLayer& doors);
     // Refresh cached poses after physics or spawning. The source must outlive
     // this renderer; unchanged revisions retain meshes and visibility bounds.
@@ -248,11 +253,12 @@ private:
         std::size_t asset = 0, local = 0;
         glm::vec3 center{0};
         double animationSeconds = -1; // Selected clip clock; negative idle uses the shared clock.
+        float displayedFrame = -1; // Last camera pose; source snapshots can already be newer.
         int severedJoint = -1;
         ZombieRenderClip clip = ZombieRenderClip::Idle;
         bool ragdoll = false;
     };
-    static_assert(sizeof(ZombieRenderState) <= 48, "Zombie selection state must remain compact");
+    static_assert(sizeof(ZombieRenderState) <= 56, "Zombie selection state must remain compact");
     struct ZombieClipTiming {
         float duration = 0;
         std::size_t frameCount = 0;
@@ -274,7 +280,14 @@ private:
         std::vector<ZombieGPUInstance> shadowInstances, flashlightInstances;
     };
     struct ZombieBatch : ZombieGeometry {
-        struct WoundRow { std::size_t offset; std::uint64_t revision; int severedJoint; };
+        struct WoundRow {
+            std::size_t offset;
+            std::uint64_t revision;
+            int severedJoint;
+            // Sparse hit-query copy of the GPU mask, excluding severed-mesh
+            // correspondence vertices. Changes only when this row is uploaded.
+            ZombieWound displayedWound;
+        };
         GLuint woundBuffer = 0, woundTexture = 0;
         std::size_t woundStride = 0, woundLimit = 0;
         std::vector<std::uint8_t> woundBytes;
@@ -514,6 +527,7 @@ private:
     // render notifications; selection avoids gathering the larger gameplay state.
     std::vector<ZombieRenderState> zombieRenderStates_;
     std::vector<ZombieVisibilityResult> visibleZombies_;
+    std::vector<std::size_t> zombieShotCandidates_;
     ZombieVisibilityStats zombieVisibilityStats_;
     // Borrowed until the next update; the fixed population must outlive render().
     const ZombieLayer* zombieSource_ = nullptr;

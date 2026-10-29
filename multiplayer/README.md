@@ -390,6 +390,26 @@ physical torso and arms replace that simple body. Local hands show the newest
 server-confirmed pose, translated to the predicted eye; they do not wait for the
 remote interpolation buffer. Punches therefore include network latency.
 
+Firearm zombie intersections are trusted client reports. A fresh firing input
+captures pellet hits against the last rendered zombie transforms and exact
+displayed animation frames, including predicted movement and animation LoD.
+The ray query reuses the renderer's two-level zombie visibility grid and checks
+client scene occlusion; it adds no spatial index or historical pose buffer.
+Reports contain pellet IDs, zombie IDs, hit classifications and bone-local
+contact points. A present report with no hits records a miss.
+
+Reports travel inside numbered input commands, so retransmission cannot apply
+a hit twice. The server accepts shots using its equipped weapon, switching and
+reload timers, ammunition and firing interval. It validates the weapon slot,
+pellet count and contact data, then applies server-defined damage and reconstructs
+the contact under the current bone pose for wounds, blood and ragdoll reactions.
+The shot origin remains the server player's camera; distant sniper targets need
+no special origin allowance. The server trusts the reported intersection and
+does not repeat the ray test against a newer zombie pose. This policy suits
+trusted cooperative sessions; it does not independently prove client hit claims.
+Protocol version 21 requires matching client/server builds. Melee, grenades and
+standalone viewer shooting keep their existing authoritative collision paths.
+
 At level load both peers validate the optional `abandoned_cars.instances.json`
 beside the map and include its exact bytes in the content fingerprint. The server
 spawns every parked car and chooses its type with fixed pseudorandom seed 42.
@@ -496,9 +516,9 @@ use buffered snapshot interpolation. Living zombies predict their current root
 and animation clocks without a playback delay; ragdolls retain buffered pose
 playback. Fixed asset normalization stays separate from root motion, preserving
 size through turns. Remote players draw in the opaque pass before glass and rain.
-The server does not render, so authoritative hit/ragdoll poses come from its
-animation clock. Firearm hits still test the current server pose without
-historical rewind.
+The server does not render, so ragdoll handoff and damage reactions use its
+animation clock. Firearm hit selection uses the client's displayed pose as
+described above, without historical rewind.
 Cars replicate rigid chassis and individual wheel poses plus chassis velocity;
 wheel steering, suspension travel and rotation remain visible to every client.
 All cars are included in essential snapshots (up to 1,024), including random
@@ -555,7 +575,7 @@ of 100 ms and the advertised update interval, capped at one second: 100 ms for
 20 Hz actors, 200 ms for 5 Hz actors and one second for 1 Hz actors. Beyond that
 horizon the predicted pose holds. Small corrections ease over about 50 ms;
 discontinuities reset prediction. This changes client presentation only, without
-new wire fields or changes to server simulation or hit testing.
+changes to its motion wire fields or server movement simulation.
 
 Corpse poses carry independently versioned roots and palettes on a separate
 reliable transport lane. Each peer has at most four unacknowledged poses and a

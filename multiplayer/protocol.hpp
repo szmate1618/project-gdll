@@ -8,6 +8,7 @@
 #include "blood_mist.hpp"
 #include "sound_events.hpp"
 #include "player_body_pose.hpp"
+#include "zombie_hit.hpp"
 
 #include "vehicle_config.hpp"
 #include "boid/simulation.hpp"
@@ -29,7 +30,8 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 20; // Bounded, independently deduplicated sound events.
+constexpr std::uint32_t protocolVersion = 21; // Command-bound trusted firearm hit reports.
+constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
 constexpr std::size_t maxSignalsPerPlayer = signalLifetimeTicks / signalCooldownTicks;
 constexpr std::size_t maxSignals = maxPlayers * maxSignalsPerPlayer;
@@ -54,6 +56,14 @@ struct Fragment {
     std::uint16_t index = 0;
     std::vector<std::uint8_t> bytes;
 };
+struct FirearmHit {
+    std::uint8_t pellet = 0;
+    viewer::ZombieHitClaim hit;
+};
+struct FirearmShot {
+    std::uint8_t slot = 0; // Expected equipped slot; server owns its actual configuration.
+    std::vector<FirearmHit> hits; // Empty is an explicit miss, never a server ray-test request.
+};
 struct Command {
     std::uint64_t sequence = 0;
     viewer::FPSInput movement;
@@ -64,6 +74,8 @@ struct Command {
     bool enterVehicle = false; // One Enter press; deduplicated with the command sequence.
     std::vector<viewer::InventoryDragAction> inventoryActions{};
     SignalKind signal = SignalKind::None; // One-shot, resolved with this command's aim.
+    // Reports share this command's sequence and are retried/deduplicated with it.
+    std::optional<FirearmShot> firearmShot;
 };
 struct ReplicationView {
     glm::vec3 eye{0}; // Runtime X east/Y up/Z south metres.

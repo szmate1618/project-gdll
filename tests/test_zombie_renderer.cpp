@@ -4,6 +4,7 @@
 #include "zombie_lod.hpp"
 #include "box_layer.hpp"
 #include "physics_world.hpp"
+#include "collision_world.hpp"
 
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -739,6 +740,112 @@ void renderExplicitIdleClock() {
     viewer::Renderer::checkErrors("explicit zombie idle clocks");
 }
 
+void traceLastRenderedZombiePose() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(makeAsset(1, 2));
+    auto& asset = layer.assets.front();
+    for (const float height : {.75f, 1.1f})
+        for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
+            asset.boneFrames.push_back(glm::translate(glm::mat4(1), {0, height, 0}));
+    for (const float height : {.2f, .6f, 1.f})
+        for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
+            asset.walkClip->boneFrames.push_back(glm::translate(glm::mat4(1), {0, height, 0}));
+    layer.capsuleAssets.resize(1);
+    viewer::ZombieBoneCapsule capsule;
+    capsule.bone = 0; capsule.a = capsule.b = markerCenter(0, 0); capsule.radius = .12f;
+    layer.capsuleAssets[0].capsules.push_back(capsule);
+    layer.instances.resize(3);
+    layer.instances[0].transform = layer.instances[0].restTransform = layer.instances[0].restRoot =
+        glm::translate(glm::mat4(1), {0, 0, -3});
+    layer.instances[2].transform = layer.instances[2].restTransform = layer.instances[2].restRoot =
+        glm::translate(glm::mat4(1), {1000, 0, 0});
+    viewer::Camera camera;
+    camera.setPosition({0, .925f, 10}); camera.setOrientation(-90, 0);
+    viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.resize(width, height); renderer.setZombieDistanceDetail(false); renderer.setShadows(false);
+    renderer.setHaze(false); renderer.setGroundFog(false);
+    const viewer::CollisionWorld empty(viewer::Model{});
+    const glm::vec3 origin(-.38f, .925f, 10), direction(0, 0, -1);
+    if (renderer.traceZombieShot(origin, direction, empty))
+        throw std::runtime_error("A zombie cannot be claimed before its first camera draw");
+    renderer.render(camera, .25);
+    auto hit = renderer.traceZombieShot(origin, direction * 3.f, empty);
+    if (!hit || hit->claim.zombie != 1 || std::abs(hit->distance - 9.88f) > .001f)
+        throw std::runtime_error("Displayed hit query must select the nearest actor rather than the lowest stable ID");
+    // Snapshot playback can replace the source before this renderer is updated.
+    // Both cached placement and the exact displayed frame must survive that gap.
+    auto& moved = layer.instances[1];
+    moved.transform = moved.restTransform = moved.restRoot = glm::translate(glm::mat4(1), {100, 0, 0});
+    moved.walking = true; moved.walkSeconds = .375; moved.displayedAnimationFrame = -1;
+    hit = renderer.traceZombieShot(origin, direction, empty);
+    if (!hit || hit->claim.zombie != 1 || std::abs(hit->claim.point.y) > .001f ||
+        std::abs(hit->distance - 9.88f) > .001f || moved.displayedAnimationFrame != -1 ||
+        layer.damage().injury(1))
+        throw std::runtime_error("Read-only hit query must use the last rendered pose after source playback advances");
+    viewer::Model wall;
+    wall.materials.emplace_back();
+    auto& primitive = wall.primitives.emplace_back();
+    for (const auto position : {glm::vec3(-2, -1, 5), glm::vec3(2, -1, 5),
+                                glm::vec3(2, 3, 5), glm::vec3(-2, 3, 5)}) {
+        viewer::Vertex vertex; vertex.position = position; primitive.vertices.push_back(vertex);
+    }
+    primitive.indices = {0, 1, 2, 0, 2, 3};
+    wall.draws.push_back({0, glm::mat4(1), "wall"});
+    const viewer::CollisionWorld blocked(wall);
+    if (renderer.traceZombieShot(origin, direction, blocked))
+        throw std::runtime_error("Client hit query must reject a displayed zombie behind scene geometry");
+    if (renderer.traceZombieShot({999.62f, .925f, 10}, direction, empty))
+        throw std::runtime_error("Actors outside the last camera draw must not receive client hit claims");
+    camera.setOrientation(90, 0);
+    renderer.render(camera, .25);
+    if (renderer.traceZombieShot(origin, direction, empty))
+        throw std::runtime_error("An actor leaving the camera draw must retire its cached hit pose");
+    viewer::Renderer::checkErrors("last-rendered zombie hit queries");
+}
+
+void traceLastRenderedWoundMask() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(makeAsset(1, 2));
+    auto& asset = layer.assets.front();
+    asset.ragdollBones[std::size_t(viewer::RagdollPart::torso)] = 0;
+    asset.skeleton[0].name = "torso";
+    for (const float height : {.75f, 1.1f})
+        for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
+            asset.boneFrames.push_back(glm::translate(glm::mat4(1), {0, height, 0}));
+    layer.capsuleAssets.resize(1);
+    viewer::ZombieBoneCapsule capsule;
+    capsule.bone = 0; capsule.a = capsule.b = markerCenter(0, 0); capsule.radius = .12f;
+    layer.capsuleAssets[0].capsules.push_back(capsule);
+    layer.instances.emplace_back();
+    viewer::Camera camera;
+    camera.setPosition({0, .925f, 10}); camera.setOrientation(-90, 0);
+    viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.resize(width, height); renderer.setZombieDistanceDetail(false); renderer.setShadows(false);
+    renderer.setHaze(false); renderer.setGroundFog(false);
+    const viewer::CollisionWorld empty(viewer::Model{});
+    const glm::vec3 origin(-.38f, .925f, 10), direction(0, 0, -1);
+    const auto hits = [&] { return renderer.traceZombieShot(origin, direction, empty).has_value(); };
+    const auto draw = [&] { renderer.updateZombies(layer); renderer.render(camera, .25); };
+    draw();
+    if (!hits()) throw std::runtime_error("Intact displayed torso must accept its surface hit");
+    layer.setWoundMask(0, {0x0f});
+    if (!hits()) throw std::runtime_error("An unrendered new wound must not remove the previously displayed surface");
+    draw();
+    if (hits()) throw std::runtime_error("A displayed wound must remove its hit surface");
+    layer.setWoundMask(0, {0});
+    if (hits()) throw std::runtime_error("An unrendered wound revision must not replace the cached displayed hole");
+    draw();
+    if (!hits()) throw std::runtime_error("Updating an existing sparse wound row must restore its displayed surface");
+    layer.setWoundMask(0, {0x0f});
+    if (!hits()) throw std::runtime_error("A sparse displayed mask must retain its own values after source mutation");
+    draw();
+    layer.setWoundMask(0, {});
+    if (hits()) throw std::runtime_error("Removing the source wound must retain the displayed hole until its next draw");
+    draw();
+    if (!hits()) throw std::runtime_error("Retiring the sparse wound row must restore intact hit geometry");
+    viewer::Renderer::checkErrors("last-rendered zombie wound masks");
+}
+
 void renderPosePublicationChanges() {
     viewer::ZombieLayer layer;
     layer.assets.push_back(makeAsset(1,2));
@@ -1332,6 +1439,8 @@ int main(int argc, char** argv) {
         renderIncrementalAndFullRefresh();
         renderHiddenLocomotionChanges();
         renderExplicitIdleClock();
+        traceLastRenderedZombiePose();
+        traceLastRenderedWoundMask();
         renderPosePublicationChanges();
         paletteGrowthAndReuse();
         if (mode == "--dismemberment") {
