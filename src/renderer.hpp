@@ -247,7 +247,7 @@ private:
     struct ZombieRenderState {
         std::size_t asset = 0, local = 0;
         glm::vec3 center{0};
-        double walkSeconds = 0;
+        double animationSeconds = -1; // Selected clip clock; negative idle uses the shared clock.
         int severedJoint = -1;
         ZombieRenderClip clip = ZombieRenderClip::Idle;
         bool ragdoll = false;

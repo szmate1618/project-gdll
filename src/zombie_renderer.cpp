@@ -307,13 +307,13 @@ void Renderer::updateZombieInstance(std::size_t id, bool boundsChanged, bool ful
     auto& render = zombieRenderStates_[id];
     render.asset = asset;
     render.local = local;
-    render.walkSeconds = source.walkSeconds;
     render.severedJoint = source.severedJoint;
     render.ragdoll = source.ragdoll;
     const auto& model = zombieSource_->assets[asset];
     const auto* clip = zombieAnimationClip(model, source);
     render.clip = !clip ? ZombieRenderClip::Idle :
         model.runClip && clip == &*model.runClip ? ZombieRenderClip::Run : ZombieRenderClip::Walk;
+    render.animationSeconds = clip ? source.walkSeconds : source.idleSeconds;
     ++zombieUpdateStats_.instances;
     if (source.removed) {
         updateZombieWound(id, batch, batch.staging[local]);
@@ -417,9 +417,9 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
             const auto& timing = batch.clipTimings[static_cast<std::size_t>(render.clip)];
             const float duration = timing.duration;
             const auto frames = timing.frameCount;
-            const float frame = render.ragdoll ? 0 : render.clip == ZombieRenderClip::Idle ?
+            const float frame = render.ragdoll ? 0 : render.clip == ZombieRenderClip::Idle && render.animationSeconds < 0 ?
                 animatedFrameFromBase(batch.idleFrameBase, frames, instance.phase) :
-                animatedFrame(duration, frames, render.walkSeconds, instance.phase);
+                animatedFrame(duration, frames, render.animationSeconds, instance.phase);
             if (render.severedJoint >= 0) {
                 if (!render.ragdoll || std::size_t(render.severedJoint) >= batch.severed.size())
                     throw std::runtime_error("Invalid severed zombie geometry");

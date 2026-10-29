@@ -42,6 +42,7 @@ std::vector<glm::mat4> sampleZombiePose(const AnimatedModel& asset, const Zombie
     const auto* clip = zombieAnimationClip(asset, instance);
     const float duration = clip ? clip->duration : asset.duration;
     const float phaseOffset = secondsOffset != 0 && duration > 0 ? secondsOffset / duration : 0;
-    return sampleAnimatedPose(asset, clip ? instance.walkSeconds : idleSeconds, instance.phase + phaseOffset, clip);
+    const double seconds = clip ? instance.walkSeconds : instance.idleSeconds >= 0 ? instance.idleSeconds : idleSeconds;
+    return sampleAnimatedPose(asset, seconds, instance.phase + phaseOffset, clip);
 }
 } // namespace viewer

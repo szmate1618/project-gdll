@@ -407,7 +407,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 self = welcome->player;
                 std::cout << "Connected as player " << self << std::endl;
             } else if (const auto* snapshot = std::get_if<multiplayer::Snapshot>(&message)) {
-                if (!self || !snapshots.push(*snapshot, now)) continue;
+                if (!self || !snapshots.push(*snapshot, now, network.estimatedOneWaySeconds(connection))) continue;
 #ifdef MP_GRAPHICS
                 newAudioSnapshot = true;
 #endif

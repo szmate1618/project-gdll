@@ -684,6 +684,61 @@ void renderHiddenLocomotionChanges() {
     viewer::Renderer::checkErrors("hidden locomotion pose changes");
 }
 
+void renderExplicitIdleClock() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(makeAsset(1, 2));
+    auto& asset = layer.assets.front();
+    for (const float height : {.75f, 1.1f})
+        for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
+            asset.boneFrames.push_back(glm::translate(glm::mat4(1), {0, height, 0}));
+    for (const float height : {.2f, .6f, 1.f})
+        for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
+            asset.walkClip->boneFrames.push_back(glm::translate(glm::mat4(1), {0, height, 0}));
+    layer.instances.emplace_back();
+    auto& instance = layer.instances.front();
+    instance.idleSeconds = .25;
+    if (std::abs(viewer::sampleZombiePose(asset, instance, 0)[0][3].y - .925f) > .0001f)
+        throw std::runtime_error("CPU idle sampling must honor an actor's explicit clock before its first draw");
+    viewer::Camera camera;
+    camera.setPosition({0, .8f, 10}); camera.setOrientation(-90, 0);
+    viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.resize(width, height); renderer.setZombieDistanceDetail(false);
+    renderer.setShadows(false); renderer.setHaze(false); renderer.setGroundFog(false);
+    renderer.render(camera, 0);
+    const auto predictedIdle = colorPixels();
+    if (instance.displayedAnimationFrame != .5f || instance.displayedAnimationClip != 0 ||
+        std::abs(viewer::sampleZombiePose(asset, instance, 0)[0][3].y - .925f) > .0001f)
+        throw std::runtime_error("GPU and CPU idle poses must agree on the actor's explicit clock");
+    renderer.render(camera, .75);
+    if (colorPixels() != predictedIdle || instance.displayedAnimationFrame != .5f)
+        throw std::runtime_error("The shared world clock must not advance an explicitly timed idle pose");
+    instance.idleSeconds = .5;
+    layer.markRenderChanged(0, false); renderer.updateZombies(layer);
+    renderer.render(camera, .75);
+    if (instance.displayedAnimationFrame != 1 || colorPixels() == predictedIdle)
+        throw std::runtime_error("An idle-clock update must refresh the rendered pose without changing bounds");
+    instance.idleSeconds = -1;
+    layer.markRenderChanged(0, false); renderer.updateZombies(layer);
+    renderer.render(camera, .25);
+    if (colorPixels() != predictedIdle || instance.displayedAnimationFrame != .5f)
+        throw std::runtime_error("Removing an explicit idle clock must restore the shared animation clock");
+    instance.walking = true; instance.walkSeconds = .375; instance.idleSeconds = .9;
+    instance.displayedAnimationFrame = -1;
+    if (std::abs(viewer::sampleZombiePose(asset, instance, 0)[0][3].y - .5f) > .0001f)
+        throw std::runtime_error("An explicit idle clock must not change CPU locomotion sampling");
+    layer.markRenderChanged(0, false); renderer.updateZombies(layer);
+    renderer.render(camera, 0);
+    const auto walking = colorPixels();
+    if (instance.displayedAnimationFrame != .75f || instance.displayedAnimationClip != 1)
+        throw std::runtime_error("An explicit idle clock must not change the displayed locomotion pose");
+    instance.idleSeconds = 0;
+    layer.markRenderChanged(0, false); renderer.updateZombies(layer);
+    renderer.render(camera, .75);
+    if (colorPixels() != walking)
+        throw std::runtime_error("Changing either idle clock must leave a stopped locomotion clock unchanged");
+    viewer::Renderer::checkErrors("explicit zombie idle clocks");
+}
+
 void renderPosePublicationChanges() {
     viewer::ZombieLayer layer;
     layer.assets.push_back(makeAsset(1,2));
@@ -1276,6 +1331,7 @@ int main(int argc, char** argv) {
         renderGroupMovementAndPoseChanges();
         renderIncrementalAndFullRefresh();
         renderHiddenLocomotionChanges();
+        renderExplicitIdleClock();
         renderPosePublicationChanges();
         paletteGrowthAndReuse();
         if (mode == "--dismemberment") {

@@ -18,6 +18,7 @@ const std::filesystem::path& resourceRoot() { return resources; }
 Network::Network(float, float) {}
 Network::~Network() = default;
 HSteamNetConnection Network::connect(const std::string&) { return connection; }
+double Network::estimatedOneWaySeconds(HSteamNetConnection) const { return 0; }
 std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
     events.clear();
     if (departed) {

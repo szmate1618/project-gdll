@@ -68,24 +68,62 @@ void persistenceAndExpiry(Scene& scene) {
     playback.apply(scene, 10.2);
     require(scene.zombies.instances[0].removed, "Rejected stale motion extended presence timeout");
 }
-void independentSlowHistory(Scene& scene) {
+void independentSlowPrediction(Scene& scene) {
     reset(scene, 1);
     Snapshots playback;
     playback.pushSetups(scene, ZombieSetups{{setup(0)}});
-    playback.push(motion(60, 0, 0, 60), 0); playback.apply(scene, 0);
-    playback.push(motion(120, 0, 10, 60, false, 1), 1); playback.apply(scene, 1);
+    playback.push(motion(60, 0, 0, 60, false, .25f), 0); playback.apply(scene, 0);
+    playback.push(motion(120, 0, 3, 60, false, 1.25f), 1); playback.apply(scene, 1);
+    require(std::abs(scene.zombies.instances[0].restRoot[3].x - 3) < .001f,
+        "One-Hz zombie retained an interpolation delay on receiving motion");
     Snapshot empty; empty.tick = 123;
     playback.push(empty, 1.05); playback.apply(scene, 1.5);
-    require(std::abs(scene.zombies.instances[0].restRoot[3].x - 5) < .001f &&
-            std::abs(scene.zombies.instances[0].walkSeconds - .5) < .001,
-        "One-Hz zombie did not interpolate independently of empty world snapshots");
+    require(std::abs(scene.zombies.instances[0].restRoot[3].x - 4.5f) < .001f &&
+            std::abs(scene.zombies.instances[0].walkSeconds - 1.75) < .001,
+        "One-Hz zombie did not predict independently of empty world snapshots");
     for (int i = 0; i < 35; ++i) {
         empty.tick = static_cast<std::uint64_t>(126 + i * 3);
         playback.push(empty, 1.1 + i * .05);
         playback.apply(scene, 1.1 + i * .05);
     }
-    require(!scene.zombies.instances[0].removed && scene.zombies.instances[0].restRoot[3].x == 10,
-        "Trimming world history discarded persistent actor history");
+    require(!scene.zombies.instances[0].removed &&
+            std::abs(scene.zombies.instances[0].restRoot[3].x - 6) < .001f,
+        "Sparse zombie prediction did not hold at its bounded horizon");
+}
+void nearbyPredictionAndTransit(Scene& scene) {
+    reset(scene, 1);
+    Snapshots playback;
+    auto metadata = setup(0);
+    metadata.normalization = glm::scale(glm::mat4(1), {-2, 3, 4});
+    metadata.normalization[1].x = .3f;
+    playback.pushSetups(scene, ZombieSetups{{metadata}});
+    playback.push(motion(60, 0, 0, 3, false, .25f), 0);
+    playback.apply(scene, 0);
+    playback.push(motion(63, 0, .15f, 3, false, .275f), .05, .02);
+    playback.apply(scene, .05);
+    const auto& instance = scene.zombies.instances[0];
+    require(std::abs(instance.restRoot[3].x - .21f) < .001f &&
+            std::abs(instance.walkSeconds - .285) < .001 &&
+            std::abs(instance.idleSeconds - 1.07) < .001,
+        "Nearby prediction did not include incoming transit or the measured clip rate");
+    require(std::abs(playback.animationSeconds() - 1) < .001,
+        "Living prediction changed the separate buffered world clock");
+    playback.apply(scene, .075);
+    require(std::abs(instance.restRoot[3].x - .285f) < .001f &&
+            std::abs(instance.walkSeconds - .2975) < .001 &&
+            std::abs(glm::determinant(glm::mat3(instance.transform)) + 24) < .001,
+        "Predicted frame motion lost clip synchronization or affine normalization");
+    playback.apply(scene, .5);
+    require(std::abs(instance.restRoot[3].x - .45f) < .001f &&
+            std::abs(instance.walkSeconds - .325) < .001 &&
+            std::abs(instance.idleSeconds - 1.15) < .001,
+        "Packet starvation did not freeze position and both animation clocks together");
+    const auto last = instance.restRoot;
+    require(!playback.push(motion(62, 0, 10), .51, .5), "Stale motion changed prediction");
+    playback.apply(scene, .51);
+    require(instance.restRoot == last, "Rejected snapshot changed the prediction clock");
+    rejects([&] { playback.push(motion(66, 0, .3f), .6, -1); },
+        "Negative network transit estimate was accepted");
 }
 void metadataAndNormalization(Scene& scene) {
     reset(scene, 1);
@@ -101,13 +139,13 @@ void metadataAndNormalization(Scene& scene) {
     next.zombies[0].root[3] = {10, 0, 0, 1};
     playback.push(next, .5); playback.apply(scene, .5);
     const auto& instance = scene.zombies.instances[0];
-    require(std::abs(instance.restRoot[3].x - 8) < .001f &&
+    require(std::abs(instance.restRoot[3].x - 10) < .001f &&
             std::abs(glm::length(glm::vec3(instance.transform[0])) - 2) < .001f &&
             std::abs(glm::determinant(glm::mat3(instance.transform)) + 24) < .001f,
-        "Compact interpolation changed root position or fixed affine normalization");
+        "Immediate motion publication changed root position or fixed affine normalization");
     const auto forward = glm::normalize(glm::vec3(instance.restRoot[2]));
-    require(std::abs(forward.x - std::sin(glm::radians(72.f))) < .001f,
-        "Quaternion playback did not interpolate the rigid root turn");
+    require(std::abs(forward.x - 1) < .001f,
+        "Latest rigid root turn retained a playback delay");
     auto wounded = first; wounded.version = 2; wounded.phase = .75f; wounded.woundMask = {1};
     playback.pushSetups(scene, ZombieSetups{{wounded}}); playback.apply(scene, .5);
     require(instance.phase == .75f && scene.zombies.wounds().find(0) &&
@@ -259,7 +297,8 @@ int main(int argc, char** argv) {
         Options options; options.map = argv[1]; options.trees = options.forests = false; options.zombieCount = 0;
         Scene scene(options);
         persistenceAndExpiry(scene);
-        independentSlowHistory(scene);
+        independentSlowPrediction(scene);
+        nearbyPredictionAndTransit(scene);
         metadataAndNormalization(scene);
         completePhysicsPoses(scene);
         smoothPhysicsPoses(scene);

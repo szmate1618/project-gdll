@@ -19,8 +19,7 @@ Snapshots::ZombieReplica& Snapshots::zombie(std::uint32_t id) {
 void Snapshots::forgetZombie(std::uint32_t id) {
     auto& replica = *zombies_[id];
     replica.tracked = false;
-    replica.samples.clear();
-    replica.renderTick = 0;
+    replica.motion.reset();
     replica.poses.resetHistory();
     // Setup and complete physics poses survive display-buffer retirement.
     hiddenZombieIds_.push_back(id);
@@ -30,16 +29,14 @@ void Snapshots::trackZombies(const Snapshot& snapshot, double receivedSeconds) {
     added.reserve(snapshot.zombies.size());
     for (const auto& state : snapshot.zombies) {
         auto& replica = zombie(state.id);
-        if (!replica.samples.empty() && replica.samples.back().tick >= snapshot.tick) continue;
+        if (!replica.motion.empty() && replica.motion.latestTick() >= snapshot.tick) continue;
         if (!replica.tracked) {
             replica.tracked = true;
-            replica.samples.reserve(3);
             replica.poses.resetHistory();
             added.push_back(state.id);
         }
         replica.received = receivedSeconds;
-        if (replica.samples.size() == 3) replica.samples.erase(replica.samples.begin());
-        replica.samples.push_back({snapshot.tick, state});
+        replica.motion.push(snapshot.tick, state);
     }
     if (added.empty()) return;
     std::sort(added.begin(), added.end());
@@ -54,8 +51,8 @@ void Snapshots::trackZombies(const Snapshot& snapshot, double receivedSeconds) {
         const auto newer = [&](std::uint32_t left, std::uint32_t right) {
             const auto& a = *zombies_[left]; const auto& b = *zombies_[right];
             if (a.received != b.received) return a.received > b.received;
-            if (a.samples.back().tick != b.samples.back().tick)
-                return a.samples.back().tick > b.samples.back().tick;
+            if (a.motion.latestTick() != b.motion.latestTick())
+                return a.motion.latestTick() > b.motion.latestTick();
             return left < right;
         };
         auto keptEnd = merged.begin() + static_cast<std::ptrdiff_t>(maxVisibleZombies);
@@ -66,9 +63,10 @@ void Snapshots::trackZombies(const Snapshot& snapshot, double receivedSeconds) {
     }
     trackedZombieIds_ = std::move(merged);
 }
-bool Snapshots::push(Snapshot snapshot, double receivedSeconds) {
+bool Snapshots::push(Snapshot snapshot, double receivedSeconds, double transitSeconds) {
     if (!frames_.empty() && snapshot.tick <= frames_.back().tick) return false;
-    if (!std::isfinite(receivedSeconds) || snapshot.zombies.size() > maxZombieUpdatesPerSnapshot)
+    if (!std::isfinite(receivedSeconds) || !std::isfinite(transitSeconds) || transitSeconds < 0 ||
+        snapshot.zombies.size() > maxZombieUpdatesPerSnapshot)
         throw std::runtime_error("Invalid zombie update batch");
     for (const auto& state : snapshot.zombies)
         if (state.id >= maxZombies || (state.updatePeriodTicks != 3 && state.updatePeriodTicks != 12 && state.updatePeriodTicks != 60))
@@ -77,6 +75,7 @@ bool Snapshots::push(Snapshot snapshot, double receivedSeconds) {
     frames_.push_back(std::move(snapshot));
     if (frames_.size() > 32) frames_.pop_front();
     received_ = receivedSeconds;
+    transitSeconds_ = std::min(transitSeconds, .5);
     return true;
 }
 void Snapshots::pushSetups(Scene& scene, const ZombieSetups& setups) {
@@ -210,7 +209,9 @@ void Snapshots::apply(Scene& scene, double now) {
     }
     scene.zombies.setReplicatedWoundContents(b.woundContents);
     scene.zombies.setReplicatedBloodMist(b.bloodMist,double(b.tick)/60);
-    applyZombies(scene, now, latestTick + std::max(0.0, now - received_) * 60);
+    // Only living zombies use the estimated current server time. Other world
+    // playback retains its existing buffer; RTT/2 estimates incoming transit.
+    applyZombies(scene, now, latestTick + (std::max(0.0, now - received_) + transitSeconds_) * 60);
 }
 void Snapshots::applyZombies(Scene& scene, double now, double estimatedServerTick) {
     auto kept = trackedZombieIds_.begin();
@@ -242,35 +243,18 @@ void Snapshots::applyZombies(Scene& scene, double now, double estimatedServerTic
                 scene.zombies.setWoundMask(id, setup.woundMask);
             replica.appliedSetupVersion = setup.version;
         }
-        const auto& samples = replica.samples;
-        const auto& latest = samples.back();
-        // Slow actors need their own history window. Moving between tiers may
-        // hold this clock briefly, but can never move presentation backwards.
-        const double delay = std::max(6.0, double(latest.state.updatePeriodTicks));
-        replica.renderTick = std::max(replica.renderTick, std::clamp(estimatedServerTick - delay,
-            double(samples.front().tick), double(latest.tick)));
-        const ZombieSample* before = &samples.front();
-        const ZombieSample* current = before;
-        for (std::size_t i = 1; i < samples.size(); ++i) {
-            current = &samples[i];
-            if (double(current->tick) >= replica.renderTick) break;
-            before = current;
-        }
-        const auto& z = current->state;
-        const float t = current->tick == before->tick ? 1.f : float(std::clamp(
-            (replica.renderTick - double(before->tick)) / double(current->tick - before->tick), 0.0, 1.0));
+        const auto& z = replica.motion.latest();
         instance.removed = false;
         instance.restRoot = z.root;
         instance.phase = setup.phase; instance.walkSeconds = z.walkSeconds;
         instance.walking = z.walking; instance.running = z.running; instance.ragdoll = z.dead;
+        instance.idleSeconds = -1;
         instance.displayedAnimationFrame = -1;
-        if (!before->state.dead && !z.dead) {
-            const auto rotation = glm::slerp(glm::normalize(glm::quat_cast(glm::mat3(before->state.root))),
-                glm::normalize(glm::quat_cast(glm::mat3(z.root))), t);
-            auto root = glm::mat4_cast(rotation);
-            root[3] = glm::mix(before->state.root[3], z.root[3], t);
-            instance.restRoot = root;
-            instance.walkSeconds = glm::mix(before->state.walkSeconds, z.walkSeconds, t);
+        if (!z.dead) {
+            const auto predicted = replica.motion.sample(estimatedServerTick, now);
+            instance.restRoot = predicted.root;
+            instance.walkSeconds = predicted.walkSeconds;
+            instance.idleSeconds = predicted.idleSeconds;
         }
         instance.transform = instance.restRoot * setup.normalization;
         instance.restTransform = instance.transform;

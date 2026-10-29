@@ -53,6 +53,7 @@ std::filesystem::path audioDirectory() { return VIEWER_AUDIO_DIR; }
 Network::Network(float, float) {}
 Network::~Network() = default;
 HSteamNetConnection Network::connect(const std::string&) { return testConnection; }
+double Network::estimatedOneWaySeconds(HSteamNetConnection) const { return 0; }
 bool Network::send(HSteamNetConnection, const Message& message, bool) {
     if (std::holds_alternative<Goodbye>(message)) departed = true;
     if (scaledDisplay) if (const auto* commands = std::get_if<Commands>(&message); commands && commands->view)

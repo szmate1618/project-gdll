@@ -143,6 +143,15 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
     events.clear(); events.swap(pendingEvents_);
     return result;
 }
+double Network::estimatedOneWaySeconds(HSteamNetConnection c) const {
+    std::lock_guard<std::recursive_mutex> lock(runtimeMutex);
+    if (!connections_.count(c)) return 0;
+    SteamNetConnectionRealTimeStatus_t status{};
+    if (sockets_->GetConnectionRealTimeStatus(c, &status, 0, nullptr) != k_EResultOK ||
+        status.m_eState != k_ESteamNetworkingConnectionState_Connected || status.m_nPing <= 0)
+        return 0;
+    return std::min(.5, double(status.m_nPing) / 2000);
+}
 bool Network::send(HSteamNetConnection c, const Message& message, bool reliable) {
     std::lock_guard<std::recursive_mutex> lock(runtimeMutex);
     if (!connections_.count(c)) return false;

@@ -18,6 +18,9 @@ public:
     std::uint16_t listeningPort() const;
     HSteamNetConnection connect(const std::string& address);
     std::vector<std::pair<HSteamNetConnection, Message>> receive();
+    // Half the transport's smoothed RTT, in seconds, capped at 0.5; unavailable
+    // measurements return zero. Asymmetric links need not match this estimate.
+    double estimatedOneWaySeconds(HSteamNetConnection connection) const;
     std::vector<Event> events;
     // Unreliable large messages are accepted into a bounded, replaceable queue.
     // CorpsePose must be reliable and uses the lower-priority bulk lane.

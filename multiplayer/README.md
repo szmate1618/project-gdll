@@ -491,12 +491,14 @@ capacity, capped at 16 KiB. Incomplete received snapshots do not block newer
 complete ones.
 
 The local client predicts movement, restores the complete authoritative
-movement state, and replays unresolved inputs. Other players, zombies, doors
-and boxes use buffered snapshot interpolation. Zombie root rotation uses
-quaternions with the fixed asset normalization kept separate, preserving size
-through turns. Remote players draw in the opaque pass before glass and rain.
-The server does not render, so
-authoritative hit/ragdoll poses come from its animation clock.
+movement state, and replays unresolved inputs. Other players, doors and boxes
+use buffered snapshot interpolation. Living zombies predict their current root
+and animation clocks without a playback delay; ragdolls retain buffered pose
+playback. Fixed asset normalization stays separate from root motion, preserving
+size through turns. Remote players draw in the opaque pass before glass and rain.
+The server does not render, so authoritative hit/ragdoll poses come from its
+animation clock. Firearm hits still test the current server pose without
+historical rewind.
 Cars replicate rigid chassis and individual wheel poses plus chassis velocity;
 wheel steering, suspension travel and rotation remain visible to every client.
 All cars are included in essential snapshots (up to 1,024), including random
@@ -537,12 +539,24 @@ or navigation. Playback keeps per-ID sample histories on the heap and visits
 only the tracked IDs in ascending order. A missing record leaves its previous
 state intact; five seconds without a newer ordinary update hides the actor.
 The oldest entries are evicted if new arrivals would exceed 10,000 tracked IDs.
-Slow actors use their own interpolation delay; pose and setup messages alone
-do not restore an expired actor. Doors are replicated near the observer; the
-bounded set of interior boxes is sent in full, including to late joiners.
+Pose and setup messages alone do not restore an expired actor. Doors are
+replicated near the observer; the bounded set of interior boxes is sent in full,
+including to late joiners.
 Geometry keeps the runtime X-east/Y-up/Z-south meter frame and positions denote
 feet. See the [compact format and scaling task](../tasks/multiplayer-100k-zombies.md#proposed-compact-zombie-format)
 for field precision and the remaining performance evaluation.
+
+Living-zombie prediction derives root velocity, shortest yaw motion and the
+locomotion-clock rate from authoritative motion samples. Estimated server time
+includes half the transport's smoothed round-trip time; this is an approximation
+on asymmetric links. Position and animation advance together, with each actor's
+idle clock sharing the prediction horizon. Extrapolation is bounded to the larger
+of 100 ms and the advertised update interval, capped at one second: 100 ms for
+20 Hz actors, 200 ms for 5 Hz actors and one second for 1 Hz actors. Beyond that
+horizon the predicted pose holds. Small corrections ease over about 50 ms;
+discontinuities reset prediction. This changes client presentation only, without
+new wire fields or changes to server simulation or hit testing.
+
 Corpse poses carry independently versioned roots and palettes on a separate
 reliable transport lane. Each peer has at most four unacknowledged poses and a
 32 KiB bulk transport budget shared with zombie setup messages. Changes while

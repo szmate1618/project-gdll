@@ -45,6 +45,8 @@ struct ZombieInstance {
     bool running = false; // Select the authored run clip during pursuit.
     glm::mat4 chaseNormalization{1}; // Captured on activation; preserve asset scale/offset.
     double walkSeconds = 0; // Locomotion clip time; advances only while travelling.
+    // Presentation-only idle clock override in seconds; negative uses the shared render clock.
+    double idleSeconds = -1;
     // Actual world-space feet displacement per second after scene/crowd collision.
     // Carried into every physics body at death, independently of clip motion.
     glm::vec3 locomotionVelocity{0};
