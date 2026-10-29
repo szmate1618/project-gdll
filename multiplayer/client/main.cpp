@@ -85,11 +85,13 @@ int main(int argc, char** argv) {
                     if (!cancelled) options.address = "127.0.0.1:" + std::to_string(state.port);
                     else { stopServer(); mode = multiplayer::GameMode::Menu; continue; }
                 }
+                std::function<std::optional<double>()> serverSimulationMilliseconds;
+                if (server) serverSimulationMilliseconds = [&] { return server->state().simulationMilliseconds; };
                 multiplayer::runClientSession(options, window, feedback, [&] {
                     if (!server) return;
                     const auto state = server->state();
                     if (state.finished) throw std::runtime_error(state.error.empty() ? "Local server stopped" : state.error);
-                });
+                }, serverSimulationMilliseconds);
                 message = "Session ended.";
                 stopServer();
             } catch (const std::exception& error) {

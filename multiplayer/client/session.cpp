@@ -13,6 +13,7 @@
 #ifdef MP_GRAPHICS
 #include "players.hpp"
 #include "renderer.hpp"
+#include "gpu_timer.hpp"
 #include "boid/bird_renderer.hpp"
 #include "reticle_overlay.hpp"
 #include "gui/hud.hpp"
@@ -33,6 +34,8 @@ struct GLFWwindow;
 #include <map>
 #include <thread>
 #include <future>
+#include <iomanip>
+#include <sstream>
 
 namespace {
 struct Input {
@@ -204,6 +207,7 @@ struct Graphics {
     bool ownsWindow = false;
 #ifdef MP_GRAPHICS
     std::unique_ptr<viewer::Renderer> renderer;
+    std::unique_ptr<viewer::GpuTimer> gpuTimer;
     std::unique_ptr<viewer::BirdRenderer> birds;
     std::unique_ptr<viewer::ReticleOverlay> reticle;
     std::unique_ptr<viewer::Hud> hud;
@@ -217,6 +221,7 @@ struct Graphics {
     std::unique_ptr<multiplayer::PlayerRenderer> players;
     std::unique_ptr<viewer::PlayerBodyRenderer> body;
     ~Graphics() {
+        gpuTimer.reset();
         audio.reset(); birds.reset(); body.reset(); players.reset(); weapon.reset(); hud.reset(); reticle.reset(); renderer.reset();
         if (window) {
             glfwSetWindowUserPointer(window, nullptr);
@@ -247,6 +252,7 @@ struct Graphics {
         const auto shaders = multiplayer::resourceRoot() / "shaders";
         renderer = std::make_unique<viewer::Renderer>(scene.model, shaders, scene.trees ? &*scene.trees : nullptr,
             &scene.zombies, scene.forests ? &*scene.forests : nullptr);
+        gpuTimer = std::make_unique<viewer::GpuTimer>();
         renderer->setVehicleAssets(multiplayer::resourceRoot() / "assets/vehicles/models");
         reticle = std::make_unique<viewer::ReticleOverlay>(shaders);
         hud = std::make_unique<viewer::Hud>(multiplayer::resourceRoot() / "ui", inventory);
@@ -317,7 +323,11 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
 }
 }
 int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
-                                  const SessionFeedback& feedback, const std::function<void()>& checkServer) {
+                                  const SessionFeedback& feedback, const std::function<void()>& checkServer,
+                                  const std::function<std::optional<double>()>& serverSimulationMilliseconds) {
+#ifndef MP_GRAPHICS
+    (void)serverSimulationMilliseconds;
+#endif
     std::unique_ptr<Scene> loaded;
     if (feedback) {
         auto loading = std::async(std::launch::async, [&] {
@@ -358,6 +368,9 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
     multiplayer::PlayerState ownState;
 #ifdef MP_GRAPHICS
     double lastDamageSeconds = -1;
+    auto titleTime = start;
+    std::size_t intervalFrames = 0;
+    double intervalRenderSeconds = 0, intervalSimulationSeconds = 0;
 #endif
     std::uint64_t lastInventoryCommand = 0;
     auto weaponDefinitions = scene.initialWeapons;
@@ -378,6 +391,9 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
             if (!feedback("Connecting - waiting for player state...")) break;
             graphics.bindInput(in);
         }
+#ifdef MP_GRAPHICS
+        const auto simulationStart = Clock::now();
+#endif
         const auto messages = network.receive();
         for (const auto& event : network.events) {
             if (event.state == k_ESteamNetworkingConnectionState_Connected) {
@@ -570,6 +586,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
             graphics.audio->update();
             int width = 0, height = 0; glfwGetFramebufferSize(graphics.window, &width, &height);
             if (width > 0 && height > 0) {
+                intervalSimulationSeconds += std::chrono::duration<double>(Clock::now() - simulationStart).count();
                 auto& renderer = *graphics.renderer;
                 renderer.setFlashlight(in.flashlight);
                 renderer.updateGrenades(snapshots.grenades());
@@ -596,6 +613,8 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                     }
                 }
                 graphics.body->capturePose(ownBody,static_cast<float>(dt));
+                graphics.gpuTimer->begin();
+                const auto renderStart = Clock::now();
                 renderer.render(viewCamera, snapshots.animationSeconds(), [&] {
                     graphics.birds->draw(viewCamera,float(width)/height,snapshots.animationSeconds(),birds.sample(snapshots.animationSeconds()));
                     graphics.players->draw(viewCamera, snapshots.players(), self, width, height);
@@ -664,21 +683,48 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                             hudState.prompt="Birds diving! Move aside, duck or reach cover"; break;
                         }
                 graphics.hud->draw(hudState, width, height);
+                intervalRenderSeconds += std::chrono::duration<double>(Clock::now() - renderStart).count();
+                graphics.gpuTimer->end();
+                // Presentation and VSync waits stay outside the render timers.
                 renderer.present(width, height); glfwSwapBuffers(graphics.window);
                 viewer::Renderer::checkErrors("multiplayer frame");
-                const auto entry = !in.driver.occupied() && prediction.ready() ?
-                    viewer::vehicleEntry(*scene.vehicles, in.camera.position(), *scene.collision,
-                        [&](std::size_t car, std::size_t seat) {
-                            for (const auto& p : snapshots.latest().players)
-                                if (p.vehicle == car && p.seat == seat) return false;
-                            return true;
-                        }) : std::optional<viewer::VehicleSeatRef>{};
-                const auto title = "Godollo | Player " + std::to_string(self) + " | " +
-                    (in.driver.occupied() ? (in.driver.driving() ? "Driving | WASD, Space brake, Enter exit, Alt camera" : "Passenger | Mouse look, Enter exit") :
-                     in.interaction ? "Interaction" : "Combat") + (ownState.slot==viewer::punchSlot ? " | Fists: left click punch" :
-                        " | Ammo " + std::to_string(ownState.loaded) + "/" + std::to_string(ownState.reserve))
-                    + (entry ? " | " + viewer::vehicleEntryLabel(*scene.vehicles, *entry) : "");
-                glfwSetWindowTitle(graphics.window, title.c_str());
+                if (!intervalFrames) titleTime = clockNow;
+                ++intervalFrames;
+                const double intervalSeconds = std::chrono::duration<double>(Clock::now() - titleTime).count();
+                if (intervalSeconds >= 1.0) {
+                    const auto fps = static_cast<int>(static_cast<double>(intervalFrames) / intervalSeconds);
+                    const auto milliseconds = [](double value) {
+                        std::ostringstream text;
+                        text << std::fixed << std::setprecision(2) << value << " ms";
+                        return text.str();
+                    };
+                    const auto gpuMilliseconds = graphics.gpuTimer->takeAverageMilliseconds();
+                    const auto gpuTime = gpuMilliseconds ? milliseconds(*gpuMilliseconds) :
+                        graphics.gpuTimer->supported() ? std::string("pending") : std::string("unavailable");
+                    const double frameScale = 1000.0 / static_cast<double>(intervalFrames);
+                    const auto serverMilliseconds = serverSimulationMilliseconds ?
+                        serverSimulationMilliseconds() : std::nullopt;
+                    const auto entry = !in.driver.occupied() && prediction.ready() ?
+                        viewer::vehicleEntry(*scene.vehicles, in.camera.position(), *scene.collision,
+                            [&](std::size_t car, std::size_t seat) {
+                                for (const auto& p : snapshots.latest().players)
+                                    if (p.vehicle == car && p.seat == seat) return false;
+                                return true;
+                            }) : std::optional<viewer::VehicleSeatRef>{};
+                    const auto title = "Godollo | Player " + std::to_string(self) + " | " +
+                        (in.driver.occupied() ? (in.driver.driving() ? "Driving | WASD, Space brake, Enter exit, Alt camera" : "Passenger | Mouse look, Enter exit") :
+                         in.interaction ? "Interaction" : "Combat") + (ownState.slot==viewer::punchSlot ? " | Fists: left click punch" :
+                            " | Ammo " + std::to_string(ownState.loaded) + "/" + std::to_string(ownState.reserve))
+                        + (entry ? " | " + viewer::vehicleEntryLabel(*scene.vehicles, *entry) : "")
+                        + " | " + std::to_string(fps) + " FPS | GPU " + gpuTime
+                        + " | CPU render " + milliseconds(intervalRenderSeconds * frameScale)
+                        + " | CPU sim " + milliseconds(intervalSimulationSeconds * frameScale)
+                        + (serverSimulationMilliseconds ? " | Server sim " +
+                            (serverMilliseconds ? milliseconds(*serverMilliseconds) + "/tick" : "pending") : "");
+                    glfwSetWindowTitle(graphics.window, title.c_str());
+                    intervalFrames = 0;
+                    intervalRenderSeconds = intervalSimulationSeconds = 0;
+                }
             }
         } else
 #endif

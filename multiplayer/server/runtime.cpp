@@ -10,7 +10,8 @@
 namespace multiplayer {
 void runServer(ServerOptions serverOptions, const ServerSettings& settings,
                const std::function<bool()>& shouldStop,
-               const std::function<void(std::uint16_t)>& ready) {
+               const std::function<void(std::uint16_t)>& ready,
+               const std::function<void(double)>& simulationMilliseconds) {
     if (shouldStop()) return;
     auto& options = serverOptions.scene;
     auto navmesh = options.map;
@@ -71,6 +72,9 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
         }
     };
     const auto start = Clock::now(); auto next = start;
+    auto timingStart = start;
+    double simulationSeconds = 0;
+    std::size_t simulationTicks = 0;
     const auto step = std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(1.0 / 60));
     std::cout << "Listening on UDP " << network.listeningPort() << " (maximum " << settings.capacity << " players)" << std::endl;
     while (!shouldStop() && (!options.seconds || std::chrono::duration<double>(Clock::now() - start).count() < options.seconds)) {
@@ -113,9 +117,20 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
         }
         int steps = 0;
         while (next <= now && steps++ < 8) {
+            const auto tickStart = simulationMilliseconds ? Clock::now() : Clock::time_point{};
             world.step(); next += step;
+            if (simulationMilliseconds) {
+                simulationSeconds += std::chrono::duration<double>(Clock::now() - tickStart).count();
+                ++simulationTicks;
+            }
             if (world.tick() % 3 == 0)
                 for (const auto& [c, peer] : peers) if (peer.id) sendState(c, peer.id);
+        }
+        if (simulationMilliseconds && simulationTicks && now - timingStart >= std::chrono::seconds(1)) {
+            simulationMilliseconds(simulationSeconds * 1000 / static_cast<double>(simulationTicks));
+            simulationSeconds = 0;
+            simulationTicks = 0;
+            timingStart = now;
         }
         // Bound catch-up work under overload; gameplay dt remains fixed.
         if (next + std::chrono::milliseconds(500) < now) next = now;
@@ -130,6 +145,9 @@ LocalServer::LocalServer(ServerOptions options, ServerSettings settings) {
             runServer(options, settings, [this] { return stop_.load(); }, [this](std::uint16_t port) {
                 std::lock_guard<std::mutex> lock(mutex_);
                 state_.port = port;
+            }, [this](double milliseconds) {
+                std::lock_guard<std::mutex> lock(mutex_);
+                state_.simulationMilliseconds = milliseconds;
             });
         } catch (const std::exception& error) {
             std::lock_guard<std::mutex> lock(mutex_);

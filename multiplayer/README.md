@@ -356,7 +356,15 @@ cycle scope.
 Tab switches Combat/Interaction. In Interaction, hold either mouse button to
 grab a nearby prop; left mouse also grabs doors. Mouse motion and walking move
 the grip. F12 releases/recaptures the mouse; Escape returns to the game menu. Losing focus releases
-controls. Ammo and mode appear in the window title. Remote players are simple
+controls. The window title shows ammo, mode, rendered FPS, GPU render time,
+CPU render time and client simulation time, refreshed about once per second.
+CPU times are mean wall milliseconds per rendered frame; client simulation
+includes network state processing, prediction/reconciliation and playback.
+Render timings exclude presentation/VSync waits, and GPU queries never wait for
+results. Single Player and Host Game also show the embedded server's mean
+simulation milliseconds per tick, excluding networking and sleep. Client and
+server run concurrently; these timings must not be added together.
+Remote players are simple
 colored bodies whose height follows their stance. With fists equipped, their
 physical torso and arms replace that simple body. Local hands show the newest
 server-confirmed pose, translated to the predicted eye; they do not wait for the

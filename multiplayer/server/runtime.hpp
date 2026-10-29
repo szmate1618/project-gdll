@@ -3,6 +3,7 @@
 #include <atomic>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <thread>
 
 namespace multiplayer {
@@ -14,11 +15,17 @@ struct ServerSettings {
 // ready is called only after scene validation and successful socket binding.
 void runServer(ServerOptions options, const ServerSettings& settings,
                const std::function<bool()>& shouldStop,
-               const std::function<void(std::uint16_t)>& ready = {});
+               const std::function<void(std::uint16_t)>& ready = {},
+               const std::function<void(double)>& simulationMilliseconds = {});
 
 class LocalServer {
 public:
-    struct State { std::uint16_t port = 0; bool finished = false; std::string error; };
+    struct State {
+        std::uint16_t port = 0;
+        bool finished = false;
+        std::string error;
+        std::optional<double> simulationMilliseconds; // Mean world.step wall time per tick; excludes networking/sleep.
+    };
     LocalServer(ServerOptions options, ServerSettings settings);
     ~LocalServer();
     LocalServer(const LocalServer&) = delete;

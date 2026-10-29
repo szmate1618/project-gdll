@@ -5,6 +5,7 @@
 #include "network.hpp"
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <exception>
 #include <iostream>
 #include <memory>
@@ -143,6 +144,13 @@ int main(int argc, char** argv) {
             Peer local(port, fingerprint);
             waitFor([&] { local.poll(); return local.id && local.snapshots; }, "Private player failed to join");
             require(local.population == 1, "Single-player population is not one");
+            if (cycle == 0) {
+                waitFor([&] { local.poll(); return server.state().simulationMilliseconds.has_value(); },
+                        "Local server did not publish simulation timing");
+                const auto milliseconds = *server.state().simulationMilliseconds;
+                require(std::isfinite(milliseconds) && milliseconds >= 0,
+                        "Local server published invalid simulation timing");
+            }
             {
                 Peer other(port, fingerprint);
                 waitFor([&] { local.poll(); other.poll(); return !other.ended.empty(); }, "Second local client was not rejected");
