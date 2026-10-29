@@ -21,6 +21,7 @@ void Snapshots::forgetZombie(std::uint32_t id) {
     replica.tracked = false;
     replica.samples.clear();
     replica.renderTick = 0;
+    replica.poses.resetHistory();
     // Setup and complete physics poses survive display-buffer retirement.
     hiddenZombieIds_.push_back(id);
 }
@@ -33,6 +34,7 @@ void Snapshots::trackZombies(const Snapshot& snapshot, double receivedSeconds) {
         if (!replica.tracked) {
             replica.tracked = true;
             replica.samples.reserve(3);
+            replica.poses.resetHistory();
             added.push_back(state.id);
         }
         replica.received = receivedSeconds;
@@ -97,7 +99,7 @@ void Snapshots::pushSetups(Scene& scene, const ZombieSetups& setups) {
         if (!cached || cached->version < setup.version) cached = setup;
     }
 }
-void Snapshots::pushPose(const Scene& scene, const CorpsePose& pose) {
+void Snapshots::pushPose(const Scene& scene, const CorpsePose& pose, double receivedSeconds) {
     if (pose.id >= scene.zombies.instances.size() || pose.asset >= scene.zombies.assets.size() ||
         pose.asset != scene.zombies.instances[pose.id].asset || !pose.version ||
         pose.bones.size() != scene.zombies.assets[pose.asset].skeleton.size())
@@ -105,8 +107,9 @@ void Snapshots::pushPose(const Scene& scene, const CorpsePose& pose) {
     if (pose.severedJoint >= 0 && (pose.asset >= scene.zombies.dismembermentAssets.size() ||
         std::size_t(pose.severedJoint) >= scene.zombies.dismembermentAssets[pose.asset].meshes.size()))
         throw std::runtime_error("Corpse separation does not match session assets");
-    auto& cached = zombie(pose.id).pose;
-    if (!cached || cached->version < pose.version) cached = pose;
+    auto& replica = zombie(pose.id);
+    replica.poses.push(pose, receivedSeconds);
+    if (!replica.tracked) replica.poses.resetHistory();
 }
 std::vector<viewer::GrenadeExplosion> Snapshots::explosions(double now) const {
     std::vector<viewer::GrenadeExplosion> result;
@@ -272,17 +275,16 @@ void Snapshots::applyZombies(Scene& scene, double now, double estimatedServerTic
         instance.transform = instance.restRoot * setup.normalization;
         instance.restTransform = instance.transform;
         if (z.dead) {
-            const auto& pose = replica.pose;
-            // Until its first complete pose arrives a corpse stays hidden. Never
-            // pair a newer root with an older palette or blend affine bone
-            // matrices, which may legitimately contain baked scale and shear.
+            const auto* pose = replica.poses.sample(scene.zombies.assets[setup.asset], now);
+            // Roots and palettes share one playback time. Joint-world rigid
+            // motion is interpolated while fixed affine bind geometry survives.
             if (!pose) instance.removed = true;
             else {
                 instance.transform = pose->transform; instance.restRoot = pose->root;
-                if (replica.appliedPoseVersion != pose->version) {
+                if (replica.appliedPoseRevision != replica.poses.revision()) {
                     instance.severedJoint = pose->severedJoint;
                     scene.zombies.setRagdollPalette(id, pose->bones);
-                    replica.appliedPoseVersion = pose->version;
+                    replica.appliedPoseRevision = replica.poses.revision();
                 }
             }
         }

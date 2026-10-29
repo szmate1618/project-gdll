@@ -1,5 +1,6 @@
 #pragma once
 #include "scene.hpp"
+#include "ragdoll_playback.hpp"
 #include <deque>
 #include <memory>
 
@@ -8,7 +9,7 @@ class Snapshots {
 public:
     bool push(Snapshot snapshot, double receivedSeconds);
     void pushSetups(Scene& scene, const ZombieSetups& setups);
-    void pushPose(const Scene& scene, const CorpsePose& pose);
+    void pushPose(const Scene& scene, const CorpsePose& pose, double receivedSeconds);
     const Snapshot& latest() const { return frames_.back(); }
     bool empty() const { return frames_.empty(); }
     void apply(Scene& scene, double now);
@@ -28,10 +29,10 @@ private:
     };
     struct ZombieReplica {
         std::optional<ZombieSetup> setup;
-        std::optional<CorpsePose> pose;
+        RagdollPlayback poses;
         std::vector<ZombieSample> samples;
         double received = 0, renderTick = 0;
-        std::uint64_t appliedSetupVersion = 0, appliedPoseVersion = 0;
+        std::uint64_t appliedSetupVersion = 0, appliedPoseRevision = 0;
         bool tracked = false;
     };
     ZombieReplica& zombie(std::uint32_t id);

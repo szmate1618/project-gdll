@@ -556,9 +556,16 @@ The essential/bulk lanes share bandwidth at 4:1 when both are busy, so bulk
 retries cannot block essential delivery and bulk still makes progress. An
 explicit pose acknowledgement releases a transfer slot; snapshot acknowledgements
 cannot suppress an unreceived palette. Late joins receive their own initial
-poses. Clients retain complete root/palette pairs outside the display buffer and
-apply them together without blending affine bone matrices. Corpses stay hidden
-until their first complete pose arrives.
+poses. Clients retain complete root/palette pairs outside the display buffer.
+Ragdoll playback buffers up to four receive-time samples with a 100 ms delay,
+increased to match observed intervals up to 500 ms. It interpolates world joint positions
+and rotations while preserving fixed scale, reflection and shear, then rebuilds
+the skinning palette under the matching interpolated character transform. It
+holds the last pose when updates stop; a new pose after a gap above 500 ms eases
+in over 100 ms. Re-entry uses the latest cached pose without blending across the
+absence. Mesh separation changes apply their complete pose immediately. Corpses
+stay hidden until their first complete pose arrives. This changes client playback
+only; pose transfer limits and the wire format are unchanged.
 
 Physical melee runs at the shared server physics rate. The server validates
 fist ownership, individual clicks and the 0.5 s cooldown. It builds one set of

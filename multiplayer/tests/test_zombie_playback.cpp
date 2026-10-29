@@ -131,23 +131,88 @@ void completePhysicsPoses(Scene& scene) {
     require(scene.zombies.instances[0].removed, "Physics actor displayed without its first complete pose");
     CorpsePose pose; pose.version = 1; pose.bones.resize(1, glm::mat4(1));
     pose.transform[3] = {3, 0, 0, 1}; pose.bones[0][0].x = 2;
-    playback.pushPose(scene, pose); playback.apply(scene, .01);
+    playback.pushPose(scene, pose, .01); playback.apply(scene, .01);
     require(!scene.zombies.instances[0].removed && scene.zombies.instances[0].transform[3].x == 3 &&
             scene.zombies.instances[0].ragdollBones[0][0].x == 2,
         "First physics root and palette were not applied together");
     auto next = pose; next.version = 2; next.transform[3].x = 7; next.bones[0][1].x = .6f;
-    playback.pushPose(scene, next); playback.pushPose(scene, pose); playback.apply(scene, .02);
+    playback.pushPose(scene, next, .02); playback.pushPose(scene, pose, .02); playback.apply(scene, .2);
     require(scene.zombies.instances[0].transform[3].x == 7 &&
             scene.zombies.instances[0].ragdollBones[0][1].x == .6f,
         "Physics palettes were blended, reordered or paired with an old root");
     playback.apply(scene, 5);
     next.version = 3; next.transform[3].x = 11;
-    playback.pushPose(scene, next); playback.apply(scene, 6);
+    playback.pushPose(scene, next, 6); playback.apply(scene, 6);
     require(scene.zombies.instances[0].removed && playback.trackedZombieIds().empty(),
         "A pose-only message resurrected an expired actor");
     playback.push(motion(420, 0, 1, 3, true), 6.1); playback.apply(scene, 6.1);
     require(!scene.zombies.instances[0].removed && scene.zombies.instances[0].transform[3].x == 11,
         "Re-entering actor lost its retained complete physics pose");
+}
+void smoothPhysicsPoses(Scene& scene) {
+    reset(scene, 1);
+    Snapshots playback;
+    playback.pushSetups(scene, ZombieSetups{{setup(0)}});
+    playback.push(motion(60, 0, 0, 3, true), 0);
+    CorpsePose first; first.version = 1;
+    first.bones.push_back(glm::translate(glm::mat4(1), {2, 0, 0}));
+    playback.pushPose(scene, first, 0); playback.apply(scene, 0);
+    auto next = first; next.version = 2; next.transform[3].x = 10;
+    playback.pushPose(scene, next, .2); playback.apply(scene, .2);
+    auto& instance = scene.zombies.instances[0];
+    require(instance.transform[3].x == 0, "New ragdoll sample snapped ahead of buffered playback");
+    playback.apply(scene, .3);
+    require(std::abs(instance.transform[3].x - 5) < .001f &&
+            std::abs((instance.transform * instance.ragdollBones[0])[3].x - 7) < .001f,
+        "Sparse ragdoll poses did not interpolate root and skin together");
+    playback.apply(scene, .35);
+    require(std::abs(instance.transform[3].x - 7.5f) < .001f,
+        "Same-version interpolated palette was not published on the next render frame");
+    playback.pushPose(scene, first, .36); playback.apply(scene, .36);
+    require(std::abs(instance.transform[3].x - 8) < .001f,
+        "Stale pose reset interpolation or overwrote newer motion");
+    playback.apply(scene, .4);
+    const auto settledVersion = instance.ragdollPoseVersion;
+    playback.apply(scene, .6);
+    require(instance.transform == next.transform && instance.ragdollPoseVersion == settledVersion,
+        "Starved ragdoll extrapolated or kept uploading its settled palette");
+    next.version = 3; next.transform[3].x = 20;
+    playback.pushPose(scene, next, 2); playback.apply(scene, 2);
+    require(instance.transform[3].x == 10, "Waking corpse snapped to a late pose");
+    playback.apply(scene, 2.05);
+    require(std::abs(instance.transform[3].x - 15) < .001f,
+        "Waking corpse interpolated across its idle interval instead of catching up");
+    playback.apply(scene, 2.1);
+    require(instance.transform == next.transform, "Waking corpse failed to reach its new complete pose");
+}
+void changingPhysicsCadence(Scene& scene) {
+    reset(scene, 1);
+    Snapshots playback;
+    playback.pushSetups(scene, ZombieSetups{{setup(0)}});
+    playback.push(motion(60, 0, 0, 3, true), 0);
+    CorpsePose pose; pose.version = 1; pose.bones.emplace_back(1);
+    playback.pushPose(scene, pose, 0); playback.apply(scene, 0);
+    pose.version = 2; pose.transform[3].x = 1;
+    playback.pushPose(scene, pose, .05); playback.apply(scene, .125);
+    auto& instance = scene.zombies.instances[0];
+    require(std::abs(instance.transform[3].x - .5f) < .001f,
+        "Twenty-Hz ragdoll did not interpolate between its first two samples");
+    playback.apply(scene, .2);
+    pose.version = 3; pose.transform[3].x = 6;
+    playback.pushPose(scene, pose, .3); playback.apply(scene, .3);
+    require(instance.transform[3].x == 1,
+        "Slower ragdoll cadence rewound presentation or jumped ahead");
+    playback.apply(scene, .4);
+    require(std::abs(instance.transform[3].x - 3) < .001f,
+        "Slower ragdoll cadence did not adapt its interpolation window");
+    pose.version = 4; pose.transform[3].x = 8;
+    playback.pushPose(scene, pose, .4);
+    pose.version = 5; pose.transform[3].x = 10;
+    playback.pushPose(scene, pose, .4); playback.apply(scene, .45);
+    require(std::abs(instance.transform[3].x - 8) < .001f,
+        "Same-poll ragdoll samples did not coalesce to the newest complete pose");
+    playback.apply(scene, .6);
+    require(instance.transform == pose.transform, "Same-poll ragdoll playback failed to settle");
 }
 void populationCapacityAndOrder(Scene& scene) {
     reset(scene, maxZombies);
@@ -197,6 +262,8 @@ int main(int argc, char** argv) {
         independentSlowHistory(scene);
         metadataAndNormalization(scene);
         completePhysicsPoses(scene);
+        smoothPhysicsPoses(scene);
+        changingPhysicsCadence(scene);
         populationCapacityAndOrder(scene);
         std::cout << "Persistent sparse zombie playback, setup versions, expiry and ID order passed\n";
         return 0;

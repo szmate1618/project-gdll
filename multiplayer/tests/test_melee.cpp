@@ -131,7 +131,7 @@ void authoritativeHits(const Options& options) {
     playback.push(wire(test_replication::readySnapshot(world, late)),0);
     for (int n=0;n<2;++n) {
         const auto pose=world.nextPose(late); require(pose.has_value(),"Late join lost a melee zombie pose");
-        playback.pushPose(client,*pose); world.poseSent(late,*pose); world.acknowledgePose(late,{pose->id,pose->version});
+        playback.pushPose(client,*pose,0); world.poseSent(late,*pose); world.acknowledgePose(late,{pose->id,pose->version});
     }
     playback.apply(client,0);
     require(playback.players()[0].melee.enabled && !client.zombies.instances[0].removed && client.zombies.instances[0].ragdoll,

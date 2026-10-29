@@ -504,7 +504,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 for (const auto& setup : setups->zombies) ack.zombies.push_back({setup.id, setup.version});
                 if (!network.send(connection, ack, true)) throw std::runtime_error("Cannot acknowledge zombie setup");
             } else if (const auto* pose = std::get_if<multiplayer::CorpsePose>(&message)) {
-                snapshots.pushPose(scene, *pose);
+                snapshots.pushPose(scene, *pose, now);
                 if (!network.send(connection, multiplayer::PoseAck{pose->id, pose->version}, true))
                     throw std::runtime_error("Cannot acknowledge corpse pose");
             } else if (const auto* frame=std::get_if<multiplayer::BirdFrame>(&message)) {

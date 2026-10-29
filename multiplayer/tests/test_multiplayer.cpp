@@ -325,14 +325,14 @@ void serverCommands(const std::filesystem::path& asset) {
     test_replication::installSetups(playback, client, scene);
     Snapshots reordered;
     test_replication::installSetups(reordered, client, scene);
-    reordered.pushPose(client, *pose); // Reliable bulk and welcome/state may arrive in either order.
+    reordered.pushPose(client, *pose, 0); // Reliable bulk and welcome/state may arrive in either order.
     require(reordered.empty() && reordered.push(snap, 0), "Early pose blocked initial world state");
     reordered.apply(client, 0);
     require(!client.zombies.instances[0].removed && client.zombies.instances[0].ragdoll,
         "Pose received before world state was discarded");
     playback.apply(client, 0);
     require(client.zombies.instances[0].removed, "Corpse rendered before its complete pose arrived");
-    playback.pushPose(client, *pose);
+    playback.pushPose(client, *pose, 0);
     unchanged.tick += 3;
     require(playback.push(unchanged, .05), "New essential state rejected");
     playback.apply(client, .1);
@@ -340,8 +340,8 @@ void serverCommands(const std::filesystem::path& asset) {
         client.zombies.instances[0].transform == pose->transform,
         "Late-join independent corpse pose lost its root/frame");
     auto newer = *pose; ++newer.version; newer.transform[3].y += 1;
-    playback.pushPose(client, newer);
-    playback.pushPose(client, *pose);
+    playback.pushPose(client, newer, .1);
+    playback.pushPose(client, *pose, .1);
     playback.apply(client, .2);
     require(client.zombies.instances[0].transform == newer.transform, "Old pose overwrote newer pose");
 
