@@ -1,0 +1,268 @@
+Night-town opaque-sort pacing control — 2026-10-29
+=================================================
+
+Finding and scope
+-----------------
+The preceding town-source-order-radix-2026-10-29.txt comparison found a large
+CPU sort saving, but nighttime-town whole-render GPU intervals rose by roughly
+0.11..0.22 ms. Source-ID order, shaders, counts and captures matched. This
+diagnostic asks whether that increase repeats when both sorters alternate in
+one renderer/context, which timestamp components change, and whether phase-
+aligned automatic GPU clock samples help explain the result.
+
+The CPU sort saving repeats in all 16 adjacent block pairs. The predeclared
+paired GPU estimator is near zero: radix is 0.0115 ms slower at the median,
+but individual process results range from 0.204 ms slower to 0.0425 ms faster.
+One process reproduces the earlier GPU increase, mainly in the opaque interval.
+This does not establish a stable GPU regression or identify its hardware cause.
+Production code is unchanged by this probe.
+
+Build and source isolation
+--------------------------
+Production revision: 78cddef58093a2f7365eb19d60a43131e4930019.
+The ignored renderer_probe.cpp copies the current renderer translation unit.
+An external render-thread-only probe state chooses comparison sorting or the
+unchanged current radix function for opaque source IDs. It also adds local CPU
+sort/gather clocks, two internal GPU timestamp positions and untimed validation.
+Transparent sorting, render order, materials, shaders and geometry policies
+retain their existing behavior. There is no production runtime switch.
+
+The scratch harness and renderer object compile with the corresponding normal
+CMake target flags, against current production headers. Linkage uses current
+libraries and places the replacement renderer object before the renderer archive.
+Compiler dependency files verify the current Renderer header; the linker map
+verifies that the original renderer.cpp archive member is not also linked.
+The copied radix function matches the production body. No historical/current
+class layouts are mixed. Build commands, dependencies, linker map and hashes
+are retained. The build succeeded before any timed run.
+
+Workload and block sequence
+---------------------------
+One fixed night-town-on actual-map view is used initially. It retains the
+standard 1280x720 rendering, nearest vegetation filtering, 100 m old-forest
+policy and held flashlight. The nighttime configuration disables sunlight;
+this case does not enable flashlight shadow casting. No AI, audio, player
+updates, dynamic physics or presentation runs. Animation input follows the
+same deterministic 60 Hz timeline for each block. Assets/map are not regenerated.
+
+Each process creates one context and Renderer and keeps them for eight blocks.
+Each block verifies ordered opaque and transparent IDs outside timing, runs
+48 warmup frames followed by an untimed completion fence, then measures 128
+frames. Final query draining completes before capture/verification or changing
+the sorter. Source-ID hashes are never calculated in measured rendering.
+
+Process 0: comparison, radix, radix, comparison, radix, comparison, comparison, radix.
+Process 1: radix, comparison, comparison, radix, comparison, radix, radix, comparison.
+Process 2: same as process 1.
+Process 3: same as process 0.
+
+This is the harness's ABBA/BAAB/BAAB/ABBA process order, with each eight-block
+sequence balancing both directions of the four adjacent comparison/radix pairs.
+Each process has 1,024 measured frames; the full control has 4,096.
+The scope is this fixed nighttime view, not off/driving or daytime controls.
+
+Timing components
+-----------------
+Four asynchronous GPU timestamps are placed at:
+t0: immediately before renderer.render.
+t1: after CPU scene gathering/sorting, before the opaque town pass.
+t2: after opaque town submission.
+t3: immediately after renderer.render.
+
+Reported GPU intervals are whole=t3-t0, preGather=t1-t0, opaque=t2-t1,
+postGather=t3-t1 and tail=t3-t2. Per-frame checks require whole=preGather+
+postGather and postGather=opaque+tail within CSV rounding tolerance. The post-
+gather interval excludes the initial gather gap, but still includes CPU draw
+submission stalls. Opaque is an elapsed town-pass interval, not active GPU
+instruction time; tail is all remaining renderer work, not one shader category.
+
+Queries use at most four pending slots. Results are read only after end-query
+availability; slot waits and final draining are outside CPU render/sort/gather
+timers. Per-frame counters are snapshotted at submission. Block wall time spans
+measurement_begin through measurement_gpu_end, including instrumentation, slot
+waits and final measured-query drain; wall milliseconds/frame is supplementary.
+
+Pairing and validation
+----------------------
+For each block, average its 128 frame samples. Pair adjacent blocks (0,1),
+(2,3), (4,5), (6,7), normalize differences as comparison-minus-radix, and take
+the median of four paired differences per process. The primary aggregate is
+the median of the four independent process results. Positive differences mean
+a radix saving. Per-sorter levels are separately the median of four block
+means per process, then median across processes; they need not subtract to
+exactly the same value as the paired estimator. All block/pair/process values
+are retained, rather than pooling frames or treating blocks as independent runs.
+
+Analysis requires the exact block schedule, 128 unique frame IDs per block,
+finite nonnegative timing samples, both GPU component identities, and matching
+untimed opaque/transparent counts and ordered-ID hashes. Per-frame geometry
+counters must agree with their block snapshot. Captures must match across all
+blocks and processes. Event times and the reported block wall duration are
+checked against the same CLOCK_MONOTONIC instants.
+
+Telemetry and event alignment
+-----------------------------
+Before each invocation, the runner checks for known competing benchmarks,
+builds/tests and heavy LoD preparation, waits five seconds, then requires three
+zero-GPU-activity samples 0.5 seconds apart. It changes no power or clock setting.
+During each process, telemetry samples GPU activity/clock state, temperature,
+available RAM, swap, GTT and memory pressure nominally every 50 ms. Append-only
+JSONL is flushed per sample and synchronized after completion; overwrites are
+refused. Actual sample intervals and read durations are retained for auditing.
+
+The harness flushes explicit warmup/verification/measurement/drain/capture
+markers using CLOCK_MONOTONIC nanoseconds, with separate UTC timestamps.
+Analysis keeps two distinct clock windows for each measured block:
+- CPU submission window: measurement_begin..measurement_end; excludes drain.
+- Conservative GPU-work window: measurement_begin..measurement_gpu_end; includes
+  final measured-query drain but excludes warmup and capture.
+
+Samples join by their monotonic timestamp and fully contained read interval;
+boundary-straddling reads are counted separately. Raw event tags are hints;
+completed markers determine the final joins. Even these phase-aligned 50 ms
+samples cannot establish GPU frequency during every individual draw. The GPU-
+work window includes CPU gaps, query collection and possibly idle time too.
+
+Observer effects and inference limits
+-------------------------------------
+This control deliberately changes the measurement environment: four GPU markers
+replace the original whole-frame pair, custom CPU clocks/state snapshots run,
+one shared current Renderer class is used for both sorters, working buffers are
+retained, and telemetry runs more frequently. These can change driver behavior,
+cache/allocator state, submission pacing and automatic boost behavior. Both
+sorters incur the same probe machinery, but absence of a prior effect here would
+not prove that the original separate-executable result was imaginary.
+
+No frequencies are locked and no observer/pacing restoration control is included
+in this initial experiment. The results below distinguish observations from
+possible clock, shared-resource and CPU-feeding explanations.
+
+Paired results
+--------------
+All four processes completed successfully with all 4,096 finite measured frames.
+Positive values below mean comparison-minus-radix savings, milliseconds/frame.
+Each process row is the median of its four adjacent-pair differences:
+
+Process/order  GPU whole   GPU opaque  CPU render  CPU gather  CPU sort   Wall/frame
+0 ABBA         -0.009012   -0.011946    0.245825    0.298030   0.323048    0.006189
+1 BAAB         -0.204006   -0.204461   -0.416573    0.051851   0.293808   -0.259193
+2 BAAB         -0.013943    0.000346    0.252315    0.354758   0.372610    0.078285
+3 ABBA          0.042497    0.043534    0.368519    0.468448   0.448224    0.314344
+Median         -0.011477   -0.005800    0.249070    0.326394   0.347829    0.042237
+
+Component         Median paired saving  Process-median range     Positive pairs
+GPU whole             -0.011477          -0.204006.. 0.042497          7/16
+GPU preGather          0.000176          -0.000358.. 0.000625         10/16
+GPU postGather        -0.011613          -0.203648.. 0.042236          7/16
+GPU opaque            -0.005800          -0.204461.. 0.043534          7/16
+GPU tail              -0.002880          -0.010072.. 0.002881          7/16
+CPU render             0.249070          -0.416573.. 0.368519         11/16
+CPU gather             0.326394           0.051851.. 0.468448         14/16
+CPU sort               0.347829           0.293808.. 0.448224         16/16
+Wall/frame             0.042237          -0.259193.. 0.314344          8/16
+
+Individual sort savings range 0.252..0.527 ms across all 16 pairs. Whole-GPU
+pair savings range -0.457..+0.220 ms, CPU render -0.811..+1.114 ms, and wall/
+frame -0.731..+0.656 ms. Thus the local CPU sort benefit is consistent, while
+the complete render/GPU/throughput result depends strongly on block/process
+state. Wall/frame improves in only half the pairs; this is not a robust FPS gain.
+
+For transparency, the separately defined per-sorter level estimator gives:
+
+Component              Comparison level    Radix level
+GPU whole                  3.227800          3.338476
+GPU preGather              0.002377          0.002309
+GPU postGather             3.225531          3.336146
+GPU opaque                 2.456606          2.565261
+GPU tail                   0.758135          0.760967
+CPU render                 3.101886          3.165191
+CPU gather                 1.277054          1.075632
+CPU sort                   0.424839          0.092537
+Wall/frame                 3.504630          3.629338
+
+These are medians of each sorter's four block means per process, then medians
+across processes. The +0.111 ms whole-GPU level difference and +0.063 ms CPU-
+render difference are retained rather than hidden. They answer a different
+question from the predeclared adjacent-pair estimator: block order/state and
+nonlinear medians change the subtraction. Neither estimator alone identifies
+why later blocks often slow down. All raw block and pair values remain saved.
+
+What the GPU markers establish
+------------------------------
+GPU preGather is about 0.0023 ms while host gather takes about 1.1..1.28 ms.
+The CPU gather duration is therefore not directly appearing as the same elapsed
+GPU gap in this probe. GPU command batching and queued overlap can hide host
+work from that interval. The earlier suggestion that enclosing gather in the
+timestamp pair directly explains the larger GPU reading is not supported here.
+
+Process 1's radix penalty remains after gather: paired whole +0.204 ms,
+opaque +0.204 ms, with only about +0.00036 ms in preGather. CPU sort still saves
+0.294 ms, but CPU render is 0.417 ms slower. Post-gather/opaque markers still
+include CPU dispatch gaps, driver behavior and GPU execution at its current
+clock; they do not isolate shader cycles or distinguish those mechanisms.
+
+Clock evidence and remaining uncertainty
+----------------------------------------
+Hardware is the Radeon 660M / radeonsi-rembrandt / LLVM 19.1.1, DRM 3.61,
+Linux 6.11.0-29-generic, Mesa 24.2.8-1ubuntu1~24.10.1 system used previously.
+Power mode is auto in every sample. CPU-submission windows contain 289 fully
+contained samples; conservative GPU-work windows contain 294, typically 8..11
+per block. No read overlaps a window boundary in this run.
+
+Both sorters' pooled median sampled clock is 1,899 MHz in either window.
+GPU-work windows have 13/146 comparison samples and 25/148 radix samples below
+1,899 MHz. Three of the 16 radix blocks have lower median clocks (1,811,
+1,888 and 1,742 MHz); none of the comparison blocks do. Some slow radix blocks
+therefore coincide with lower sampled clocks. But process 3 block 4 also slows
+down while every joined clock sample is 1,899 MHz. These observations do not
+prove exact draw frequencies or make GPU clocks a complete causal explanation.
+
+Observed temperature is 47..64 C, available RAM 17.89..19.06 GiB and peak GTT
+1.40..1.46 GiB. Four swap-in pages total 16 KiB; there is no swap-out. Maximum
+memory PSI increments are 42 us some / 16 us full, with avg10 zero. Firefox is
+absent before all runs. Sampling intervals span 49.319..50.763 ms; individual
+telemetry reads span 0.589..2.742 ms, with per-process medians 1.27..1.39 ms.
+The observer itself can therefore affect pacing; there is no observer-off control.
+
+The evidence confirms the CPU sort saving and variable whole-render behavior.
+It does not prove that the earlier increase was noise, thermal throttling,
+shared-cache/bandwidth contention or a clock-management defect. Automatic GPU/
+CPU state, CPU feeding and retained-buffer/driver history remain possible
+contributors. This probe covers night-town-on; the off and driving cases were
+not run.
+
+Follow-up: town-night-throughput-2026-10-29.txt removes per-frame probes and
+sampling, times longer blocks and includes final GPU completion. Its paired
+medians favor radix in all four processes, with 11 of 16 individual pairs
+favorable; the predeclared clear-improvement threshold is not met. These are
+offscreen completed-frame throughput results, not interactive presentation FPS.
+
+Output and final verification
+-----------------------------
+All 32 captures match, and match the preceding primary night-town-on capture:
+SHA256 e083c5ef580dbd519a8f1a1d24aa23b420766cf48facffb3546f55acd16577cf.
+Ordered-ID hashes match for 9,076 opaque and five transparent sources. Every
+measured frame retains 9,081 visible town sources, 903 town calls, 11,246 trees,
+six tree calls, two forest calls and zero vehicle calls. GPU component residuals
+are below 9e-16 ms; block wall/event residuals are zero at retained precision.
+
+The useful fixed-night capture was visually inspected. All 29 binary/source/
+shader and production-snapshot checks pass. Dependency and linker-map checks
+confirm the replacement object and current header/layout. The final actual-host
+audit found no benchmark/build/viewer or Firefox process; measured production
+sources remain unchanged. Whitespace checks pass.
+
+Artifacts and reproduction
+--------------------------
+Ignored root: build/benchmarks/town-night-sort-control-20261029/.
+renderer_probe.cpp, probe.hpp and night_sort_control.cpp contain the isolated
+probe; production sources remain untouched. build_probe.py rebuilds it against
+the current matching headers/libraries. Retain build-commands.json, dependency
+files, link.map, probe-sha256.json, setup.json, frozen cameras and shaders.
+
+The harness CLI is:
+night_sort_control MAP TREES FORESTS CAMERAS SHADERS OUTPUT night-town-on ABBA
+(BAAB reverses the starting sorter). run_probe.py runs the four guarded process
+repetitions. analyze_probe.py validates and summarizes completed results, with
+no benchmark launch. Raw frames.csv, blocks.csv, events.jsonl, captures, process
+logs and event-tagged telemetry remain available beside the derived summary.

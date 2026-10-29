@@ -112,6 +112,9 @@ test two causes of that gap with four current-renderer variants and identical ca
 The [production healthy/wounded shader split](benchmarks/zombie-wound-shader-split-2026-10-28.txt)
 compares the implemented draw partition against the original renderer in healthy
 and mixed 100,000-actor cases.
+The [October 19/20 source and retained-binary audit](benchmarks/zombie-oct19-oct20-same-session-2026-10-28.txt)
+separates revision dates from measurement dates and reruns the saved October 20
+executable alongside the October 19 rebuild and current renderer at matched settings.
 
 ## Interpreting GPU time under CPU load
 
@@ -455,6 +458,12 @@ call count. Warmup, GPU waits, transparent sorting and drawing are outside this
 stage. Keep these diagnostic runs separate from default rendering comparisons.
 The [opaque town ordering comparison](benchmarks/town-source-order-radix-2026-10-29.txt)
 records the radix experiment, all standard map-view controls and the 100k case.
+The [fixed-night alternating control](benchmarks/town-night-sort-control-2026-10-29.txt)
+uses both sorters in one renderer and adds GPU timestamps after gathering to
+investigate the earlier nighttime intervals separately from CPU sort cost.
+The [completed-frame throughput control](benchmarks/town-night-throughput-2026-10-29.txt)
+removes per-frame timing and sampling, and includes GPU completion at each
+block's end in its wall-clock result.
 
 The preparation case uses a synthetic animated four-vertex marker, with 100,000
 instances split between walking and running. Every fixed step changes only

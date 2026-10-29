@@ -299,8 +299,10 @@ ZombieVisibilityStats ZombieVisibility::query(const Frustum& camera, const Frust
             }
         }
     }
-    // Hash/group and swap-removal ordering must not change batch draw ordering
-    // or first-time GPU palette slot assignment. Preserve stable source IDs.
+    // Restore initial source-ID order for mostly sequential instance, staging
+    // and bounds reads in the renderer. Spatial/swap-removal order loses locality.
+    // Retain this order through batch selection; it also stabilizes draw order
+    // and first-time GPU palette slot assignment.
     {
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombieSort);
         orderVisible(visible);

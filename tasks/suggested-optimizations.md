@@ -264,6 +264,46 @@ Acceptance: escaped awake props release bodies and constraints, survive save/
 reload in their intended removed state, and do not respawn on revisits. Ordinary
 moved, sleeping, airborne and held doodads retain their existing behavior.
 
+## 9. Investigate remaining render sorting, especially ragdoll palettes
+
+**Status:** TODO; profile before changing algorithms.
+**Priority:** when many visible ragdolls have changing poses.
+**Target:** dirty palette-slot ordering, packing and GPU upload overhead.
+
+`ZombiePaletteCache::flush()` comparison-sorts dirty slot IDs to merge adjacent
+uploads. Healthy actors and unchanged settled corpses do not populate this list,
+so the idle 100k crowd alone cannot establish a useful optimization here.
+
+- [ ] Measure dirty slots per asset and separate sorting, palette packing and
+  upload costs. Record upload calls/bytes and completed-frame throughput.
+- [ ] Compare healthy crowds, many settled corpses, a few moving ragdolls and
+  many simultaneously changing ragdolls, including mixed assets and visibility.
+- [ ] If sorting is material, compare radix sorting or reuse of existing order
+  with the current comparison sort. Preserve dirty-slot deduplication, adjacent
+  upload coalescing, pose revisions, slot reuse/growth and corpse ownership.
+  Avoid redundant uploads for unchanged resident poses and corpses absent from
+  every camera/light render pass.
+- [ ] Preserve zombies' initial instance-array/source-ID order for downstream
+  memory locality, including within asset/LoD batches. Measure consumers and
+  full rendering as well as the isolated sorter before changing that order.
+- [ ] Audit remaining distance sorts for town/vehicle glass and blood effects
+  only where measured counts/cost justify it. Any float-key radix replacement
+  must preserve back-to-front blending and each path's existing tie guarantees.
+  Individual trees already use linear depth-band bucket ordering; profile their
+  visibility and instance preparation separately before replacing that path.
+
+Acceptance: correct displayed poses and palette ownership through sleep/wake,
+visibility changes, removal and slot reuse; unchanged blending and captures;
+repeatable improvement beyond run variation without regressions in small lists
+or settled-corpse scenes. Retain asynchronous GPU timing and relevant standard
+rendering controls. See the [benchmark guide](../docs/BENCHMARKS.md).
+
+Start in [zombie_palette_cache.cpp](../src/zombie_palette_cache.cpp),
+[zombie_renderer.cpp](../src/zombie_renderer.cpp),
+[vehicle_renderer.cpp](../src/vehicle_renderer.cpp),
+[blood_mist_renderer.cpp](../src/blood_mist_renderer.cpp), and
+[tree_depth_order.cpp](../src/tree_depth_order.cpp).
+
 ## Conditional follow-up: parallel physics
 
 **Priority:** only if awake ragdoll/door physics is a measured bottleneck.

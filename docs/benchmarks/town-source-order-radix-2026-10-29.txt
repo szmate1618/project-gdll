@@ -179,6 +179,14 @@ be dismissed as proven noise. Unlocked clocks and whole-render timestamps do
 not distinguish GPU execution from scheduling/submission effects. No general
 GPU performance improvement or equivalence is claimed from this session.
 
+Follow-up: town-night-sort-control-2026-10-29.txt alternates both sorters in one
+renderer and adds GPU timestamps after gathering. Its paired CPU-sort saving
+repeats in all 16 pairs, while GPU changes vary across processes. The observed
+GPU interval before gathering completes is only about 0.0023 ms, so the CPU
+gather duration is not directly reflected in GPU elapsed time in that control.
+The follow-up records clock observations and measurement limits; the original
+separate-process results above remain unchanged.
+
 Actual-sort diagnostic results
 ------------------------------
 One separate process per version, median of six 64-frame round means, ms/frame:

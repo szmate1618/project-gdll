@@ -41,6 +41,8 @@ public:
     // It never restricts either light, even when camera culling is disabled.
     // Results contain unique stable IDs and independent pass flags in ascending
     // ID order, regardless of spatial membership or traversal history.
+    // Preserve this initial instance-array order for memory locality in the
+    // renderer's source-state, staging and bounds reads, including within batches.
     ZombieVisibilityStats query(const Frustum& camera, const Frustum* light,
                                 bool cameraCulling, std::vector<ZombieVisibilityResult>& visible,
                                 const Frustum* flashlight = nullptr,

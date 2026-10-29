@@ -853,6 +853,13 @@ records the rendering cost of losing that locality, and the
 [radix comparison](benchmarks/zombie-visibility-radix-2026-10-29.txt) measures
 cheaper ordering while retaining it.
 
+Preserve zombies' initial instance-array order (ascending stable source IDs)
+through visible selection and within each asset/LoD batch when optimizing this
+path. It keeps source-state, staging and bounds reads mostly sequential in
+memory. Measure downstream preparation and full rendering as well as the query:
+removing sorting can make the query faster while losing more time to scattered
+instance reads afterward.
+
 `Renderer::updateZombies()` marks groups dirty when an instance's bounds change,
 moves membership across cell boundaries, and removes corpse tombstones. Before
 the next camera/shadow query, dirty groups rebuild their aggregate boxes once,

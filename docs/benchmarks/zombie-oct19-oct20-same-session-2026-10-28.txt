@@ -1,0 +1,165 @@
+October 19/20 source and retained-binary comparison — 2026-10-28
+================================================================
+
+Finding
+-------
+There is no zombie-rendering optimization between the last October 19 revision
+and the original fast October 20 benchmark revision. The earlier comparison
+mixed source dates with measurement dates: October 19 source was rebuilt and
+measured on October 28, while the faster October 20 records were measured on
+October 20 itself.
+
+Six new mirrored runs compare the October 19 rebuild, a retained October 20
+original executable, and the committed shader split in one session. All use
+2048-square sun maps. Median of two process results, milliseconds:
+
+Binary                              CPU render        GPU elapsed
+October 19 rebuild                     19.176             13.935
+Retained October 20 original            19.285             14.435
+Current shader split, 08e3694           19.239             13.423
+
+CPU differences are smaller than observed run variation. Current CPU rendering
+is effectively comparable with both old binaries in this session. The retained
+October 20 executable also does not reproduce the earlier 17.662-18.468 ms CPU
+records today. The repository history does not identify a missing October 20
+code optimization responsible for that historical absolute timing difference.
+Runtime conditions outside these source changes remain a hypothesis; this
+experiment does not isolate a particular clock, power or background-load cause.
+
+Commit audit
+------------
+Start: c1e0d9389bd67a59891b236d6c2530405c38ce09, October 19 18:08 +0200.
+Original fast benchmark revision: 6f0045c160042498fe3a0b7854fe7483b88c4236,
+October 20 12:15 +0200.
+
+Only two commits intervene:
+- 9aab8b3, October 20 10:59: undergrowth sounds/hearing. The new work is in
+  player/audio/vegetation wiring absent from the standard treeless, audio-free
+  benchmark. It adds no work to this fixture's rendering path.
+- 6f0045c, October 20 12:15: adds the standard benchmark, timing recorder,
+  report generator, tests and documentation.
+
+The renderer implementation/header, zombie renderer/layer/behavior, animation,
+LOD, camera, model, visibility, shadow map, sunlight and both basic shader files
+have identical Git blobs across these revisions. Compiler optimization settings
+and dependency pins do not change. The later 51fa9c8 commit at 12:19 changes only
+the benchmark report to record quieter reruns; it changes no executable code.
+
+Later October 20 commits add tree-card splitting (ab96e67, 15:06), 1024 sunlight
+maps (451dccb, 22:34), nearest vegetation filtering (239261f, 22:38) and BVH
+rejecting-plane hints (4080057, 23:45). They occur after the first fast records.
+They cannot explain an October 19-to-noon-October 20 speedup in zombie code.
+
+Retained executable and build provenance
+-----------------------------------------
+The retained original was found in the ignored benchmark archive at:
+  build/benchmarks/binaries/original/benchmark_zombie_crowd
+Its adjacent shaders/ directory contains ten files, all byte-identical to
+6f0045c. The executable has an October 20 modification timestamp. Its SHA-256:
+1ee5692d20bcbb5f30f9c654ab22943a6ea0a74bf5b442bd022b209e6f117900
+
+The original benchmark record identifies its original renderer as 6f0045c and
+describes saved binaries with matching shaders. These retained artifacts support
+that attribution; there is no complete historical build manifest proving every
+compiler/link option or tying the hash to each historical timing row. Both the
+retained binary and October 19 rebuild identify GCC 14.2.0. The retained binary
+was executed directly, with its own shaders; no new October 20 build was made.
+
+The retained executable predates sun-resolution metadata. Disassembly of its
+Renderer constructor verifies a 2048 argument to ShadowMap's constructor; this
+is independently checked rather than fabricating a missing metadata field.
+The October 19 diagnostic backport matches the first October 20 harness except
+for its added metadata-only sun-resolution line. Both FrameProfile sources are
+identical to 6f0045c. The current program uses the existing --shadow-resolution
+2048 option. No executable or shader files were changed during these runs;
+their pre/post hashes match. No builds or asset generators ran.
+
+Protocol, workload and results
+-------------------------------
+Order: October 19 / retained October 20 / current / current / retained October 20 /
+October 19. Every process uses six rounds of 32 warmup and 64 measured frames
+with the same deterministic 60 Hz simulation/animation timeline. Each yields
+384 measured frames and 384 finite GPU samples. The standard summarizer reports
+the median of six round means per process, then this report takes the median
+of the two process results per binary.
+
+Run / binary                        CPU render        GPU elapsed
+0 October 19                           19.089             14.286
+1 retained October 20                  18.898             13.754
+2 current                              18.951             13.422
+3 current                              19.526             13.424
+4 retained October 20                  19.672             15.116
+5 October 19                           19.264             13.584
+
+All runs use the Radeon 660M, Mesa 24.2.8-1ubuntu1~24.10.1, OpenGL 4.6 Core,
+1280x720, the same assets/camera, 100,000 LOD3 actors, 10 camera draws and
+12,580,000 camera triangles. Zombie distance removal is disabled. No zombie
+sun-shadow casters, active AI behaviors, audio, player movement or dynamic
+physics are present. Asset fingerprints and every common metadata field match;
+newer optional fields remain explicitly absent in old metadata.
+
+All six captures are byte-identical, SHA-256:
+64df6d5b8d42d4ade6788a66a25ae0bf048bf3809f9dc4205dc3ffdcb148d473
+All rounds complete their population checks and GL error checks.
+
+Before each process the runner checks for competing known build/benchmark jobs,
+pauses five seconds and waits for three consecutive zero GPU-activity readings
+at 0.5-second intervals. Read-only telemetry runs every 0.5 seconds. No clocks
+or power settings were locked. Post-run inspection reports AC online/balanced;
+that is not continuous power logging. Temperature spans 48-67 C and available
+RAM 7.50-9.47 GiB. There are two process repetitions per binary; GPU/CPU overlap,
+driver waits and scheduling variability prevent precise general speed claims.
+
+Global telemetry records 104,816 swap-out pages, about 409 MiB, during startup
+of the first October 19 invocation. These increments finish before its initial
+capture, which precedes warmup and measured rounds. Later sampled counters in
+that invocation show zero swap-out and one page in. The full session records
+116 swap-in pages (464 KiB). Full-invocation memory pressure includes startup;
+it must not be assigned wholesale to measured rendering. Raw telemetry and
+capture timestamps preserve this distinction without claiming exact per-frame
+pressure instrumentation. The final host audit finds no remaining benchmark
+or build processes.
+
+Single retained-October-20 run after closing Firefox
+----------------------------------------------------
+At the user's request, Firefox's dedicated user-session application scope was
+stopped, and all 48 processes in that scope were confirmed exited. Direct signal
+and desktop-interface requests from this environment were blocked by its Snap
+policy; the session manager performed the shutdown. No other apps were closed.
+
+Exactly one invocation of the same retained October 20 executable then ran
+with its own shaders and native 2048 sun map: the usual six rounds of 32 warmup
+and 64 measured frames, fixed 60 Hz timeline, 384 finite GPU samples.
+
+Observation                          CPU render        GPU elapsed
+Earlier Firefox-open, two-run median    19.285             14.435
+Firefox closed, one later process       18.568             13.140
+
+The later result is 0.717 ms (3.7%) lower CPU render and 1.295 ms (9.0%) lower
+GPU elapsed than the preceding two-run median. It is also below both preceding
+process results, whose ranges were CPU 18.898-19.672 / GPU 13.754-15.116 ms.
+This is one later observation after app shutdown, not a paired, repeated
+Firefox-open/closed experiment; it cannot isolate the whole difference to
+Firefox. No extra benchmark invocations were made for this request.
+
+Available RAM increased from 9.32 GiB immediately before shutdown to 15.48 GiB
+immediately after it, and settled at 18.80-19.73 GiB during the benchmark.
+The preceding Firefox-open runs had 8.30-9.45 GiB available. The new invocation
+records zero swap-in and swap-out pages. All 100,000 LOD3 actors, 10 draws and
+12,580,000 triangles remain submitted. Its capture hash is unchanged from the
+six-run comparison above. Firefox and benchmark processes remain stopped.
+
+Artifacts: build/benchmarks/zombie-oct20-firefox-closed-20261028/ retains the
+shutdown/process snapshots, before/after memory snapshots, invocation setup,
+raw CSVs, metadata, capture, standard report, aggregate and sampled telemetry.
+
+Evidence
+--------
+Ignored artifacts: build/benchmarks/zombie-oct19-oct20-same-session-20261028/.
+setup.json records binary paths, arguments, pre-run hashes and ordering.
+hot-path-git-blobs.json records source identities. retained-binary-provenance.json
+and retained-oct20-shadow-constructor.txt retain executable/compiler/shader
+checks and the shadow-size disassembly. run-0-* through run-5-*/ retain raw CSVs,
+captures, metadata and standard reports. summary.json and run-*-telemetry.json
+retain aggregation and startup/post-capture memory samples. The runner and
+analyzer are local diagnostic helpers, not a new public benchmark interface.

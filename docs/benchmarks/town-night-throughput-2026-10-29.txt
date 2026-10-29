@@ -1,0 +1,199 @@
+Night-town opaque-sort wall-throughput control — 2026-10-29
+==========================================================
+
+Result
+------
+The measurements favor radix: the predeclared paired estimator saves
+0.103784 ms per retired frame, or 2.68% of the comparison level. All four
+process paired medians favor radix, as do 11 of 16 adjacent block pairs.
+The result misses the predeclared clear-gain threshold of 12 positive pairs.
+Its classification is mixed/favorable, not proof of equality or non-regression.
+No clear repeat throughput regression was observed.
+
+Keep the town radix sorter as an engineering judgment based on the favorable
+four-process direction and its previously repeated CPU sort saving. This is
+not the policy's clear-gain classification or a claim of equivalent performance.
+
+Separately aggregated flat levels are 3.869393 -> 3.690472 ms/frame, equivalent
+to 258.44 -> 270.97 completed offscreen frames/second. They are retained beside
+the paired result rather than substituted for it. Individual pair savings span
+-0.582663..+0.611767 ms/frame, so the variation remains material.
+
+Predeclared estimator and decision rule
+---------------------------------------
+Average elapsed wall time over each 512-frame block. Pair adjacent comparison/
+radix blocks, normalize as comparison-minus-radix ms/frame, take the median of
+four pair differences per process, then median across four processes. Positive
+values mean radix saves time. Flat levels independently take the median of four
+blocks per sorter/process, then median across processes. Percent paired saving
+uses the aggregate comparison flat level as denominator.
+
+Before measurement, a clear gain/regression required all three conditions:
+1. At least 1% median paired change in the corresponding direction.
+2. All four process paired medians with that sign.
+3. At least 12 of 16 adjacent pairs with that sign.
+
+This is an operational practical threshold, not a significance/equivalence test.
+The regression action was to suggest reverting only the town sorter. Mixed or
+below-threshold outcomes required judgment; they were not automatically called
+equal or safe. Here conditions 1 and 2 favor radix, but condition 3 is 11/16.
+
+Build and measured workload
+---------------------------
+Production revision: 80d4ddf2006d95f13341038f6c39e2924b890637.
+The ignored renderer_control.cpp selects the original comparison sorter or the
+unchanged production radix body through external render-thread state. It adds
+no custom phase clocks or GPU timing markers. The harness and replacement
+renderer object use the current matching Renderer header and CMake libraries;
+dependency/linker-map checks exclude a second original renderer.cpp object.
+No executable production behavior or runtime switch is changed by this diagnostic.
+
+One context/Renderer per process renders the same actual-map night-town-on
+camera at 1280x720, with normal nearest vegetation, original haze/ground fog,
+100 m old-forest policy and held flashlight. Sunlight and flashlight shadow
+casting are inactive in this case. No AI, audio, player updates, simulation or
+presentation runs. Animation input follows the same deterministic 60 Hz cycle.
+Map/tree/forest and camera fingerprints are the retained inputs used by the
+preceding controls. No generation or asset changes occur in this experiment.
+
+Each block performs untimed ordered-ID/count/capture checks, then 128 warmup
+renderer.render+glFlush calls and an untimed glFinish. Measurement is exactly:
+read CLOCK_MONOTONIC; repeat 512 renderer.render+glFlush calls; glFinish; read
+CLOCK_MONOTONIC again. The final GPU retirement wait is inside elapsed time.
+Captures, hashes, counters, events and output writing stay outside the interval.
+There are no per-frame clocks, GPU timestamp queries or explicit frame fences.
+
+Queue policy differs from the preceding timestamp probes: glFlush submits every
+frame, while the driver provides implicit backpressure. No four-frame pending-
+query cap is imposed. This measures completed offscreen render throughput with
+CPU/GPU overlap, not presentation FPS, input latency or general gameplay FPS.
+Its absolute frame times are not interchangeable with earlier GPU intervals.
+
+Each process has eight balanced blocks (4,096 measured frames). ABBA expands to
+comparison/radix/radix/comparison/radix/comparison/comparison/radix; BAAB reverses
+the sorter names. Four processes use ABBA, BAAB, BAAB, ABBA. Total measured work
+is 16,384 frames. Before each process the runner checks known competing work,
+waits five seconds and requires three zero-GPU-activity checks 0.5 seconds apart.
+It collects only before/after snapshots and blocks while the child runs: no
+sampling thread, event polling, clock/memory reads or other local analysis runs
+during the child. No power or clock settings are changed.
+
+All block wall times
+---------------------
+C=comparison; R=radix. Each interval retires 512 frames. Values are milliseconds.
+
+Process  Block Mode   Total wall ms    ms/frame
+0 ABBA     0    C      2201.275984      4.299367
+0 ABBA     1    R      2226.085850      4.347824
+0 ABBA     2    R      2118.289987      4.137285
+0 ABBA     3    C      2185.188719      4.267947
+0 ABBA     4    R      2228.399608      4.352343
+0 ABBA     5    C      2188.698086      4.274801
+0 ABBA     6    C      2219.712912      4.335377
+0 ABBA     7    R      1964.847555      3.837593
+1 BAAB     0    R      1886.148824      3.683884
+1 BAAB     1    C      1951.748776      3.812009
+1 BAAB     2    C      1923.224672      3.756298
+1 BAAB     3    R      1889.558599      3.690544
+1 BAAB     4    C      1991.510263      3.889668
+1 BAAB     5    R      1931.147419      3.771772
+1 BAAB     6    R      1889.745033      3.690908
+1 BAAB     7    C      2005.300915      3.916603
+2 BAAB     0    R      1641.595971      3.206242
+2 BAAB     1    C      1954.820531      3.818009
+2 BAAB     2    C      2009.367384      3.924546
+2 BAAB     3    R      1907.368659      3.725329
+2 BAAB     4    C      1980.680205      3.868516
+2 BAAB     5    R      2057.603904      4.018758
+2 BAAB     6    R      1852.291948      3.617758
+2 BAAB     7    C      2000.578528      3.907380
+3 ABBA     0    C      1614.441126      3.153205
+3 ABBA     1    R      1912.764660      3.735868
+3 ABBA     2    R      1865.501070      3.643557
+3 ABBA     3    C      1990.706803      3.888099
+3 ABBA     4    R      1879.653701      3.671199
+3 ABBA     5    C      2120.672758      4.141939
+3 ABBA     6    C      1860.510130      3.633809
+3 ABBA     7    R      1899.128849      3.709236
+
+All paired results and process levels
+-------------------------------------
+Savings are C-R; each pair uses adjacent blocks, regardless of submission order.
+
+Process Pair  C block/R block   Saving ms/frame   Saving % of pair C
+0         0       0/1             -0.048457            -1.127
+0         1       3/2              0.130662             3.061
+0         2       5/4             -0.077542            -1.814
+0         3       6/7              0.497784            11.482
+1         0       1/0              0.128125             3.361
+1         1       2/3              0.065754             1.751
+1         2       4/5              0.117896             3.031
+1         3       7/6              0.225695             5.763
+2         0       1/0              0.611767            16.023
+2         1       2/3              0.199216             5.076
+2         2       4/5             -0.150242            -3.884
+2         3       7/6              0.289622             7.412
+3         0       0/1             -0.582663           -18.478
+3         1       3/2              0.244542             6.290
+3         2       5/4              0.470740            11.365
+3         3       6/7             -0.075427            -2.076
+
+Process       Flat C ms/frame   Flat R ms/frame   Median paired saving
+0 ABBA          4.287084          4.242555             0.041102
+1 BAAB          3.850839          3.690726             0.123011
+2 BAAB          3.887948          3.671544             0.244419
+3 ABBA          3.760954          3.690217             0.084558
+Median          3.869393          3.690472             0.103784
+
+Every process median favors radix; process savings span 0.041102..0.244419 ms.
+Both starting orders include slower radix pairs, including the -18.5% pair in
+process 3. Conversely process 2 starts with a 16.0% radix-favoring pair. These
+large block differences show why one pair or pooled frame times are inadequate.
+The test does not isolate an in-block clock/temperature history or identify
+the cause of the earlier timestamp increase. It provides favorable wall-time
+evidence while preserving the operational rule's mixed classification.
+
+Validation and boundary observations
+-------------------------------------
+All four children exit successfully. All 64 before/after captures match and
+match the preceding primary night-town-on image. Capture SHA256:
+e083c5ef580dbd519a8f1a1d24aa23b420766cf48facffb3546f55acd16577cf.
+All blocks retain identical ordered hashes for 9,076 opaque and five transparent
+IDs, 9,081 visible town sources, 903 town calls, 11,246 trees, six tree calls,
+two forest calls and zero vehicle calls. Camera coordinates/policy/fingerprint,
+normalized metadata and executable hashes match across all processes.
+
+All block intervals exactly match their authoritative measured_start_ns/end_ns
+at retained precision; ms/frame and reciprocal retired-FPS checks pass. Event
+markers bracket but lie outside those two clock reads. The metadata contains
+two warmup keys: numeric 128 and an exact descriptive line spelling out the
+same 128-call warmup policy. The analyzer was corrected after completion to
+accept only that exact ordered pair, use its numeric value, and reject every
+other duplicate key. Both raw lines remain in the normalized metadata hash.
+Measured sources, raw metadata and executable were not modified or rerun.
+
+Hardware: Radeon 660M/radeonsi-rembrandt, LLVM 19.1.1, DRM 3.61,
+Linux 6.11.0-29-generic, Mesa 24.2.8-1ubuntu1~24.10.1. Before/after samples
+span 55..61 C and 18.46..18.96 GiB available RAM. Power mode is auto. These
+boundary values do not characterize temperatures, clocks or memory peaks during
+the blocks. Swap-in totals 44 pages (176 KiB), no swap-out; memory PSI deltas
+are at most 1,925 us some / 1,631 us full over a complete child invocation,
+including loading/warmup/captures. Firefox is absent at both boundaries.
+
+Artifacts
+---------
+Ignored root: build/benchmarks/town-night-throughput-20261029/.
+renderer_control.cpp, control.hpp and night_throughput.cpp preserve the isolated
+implementation. Build commands, dependency files/linker map, setup.json, frozen
+inputs/shaders and measured executable preserve provenance. run_throughput.py
+and analyze_throughput.py retain procedures, validation and the predeclared rule.
+Raw blocks.csv, metadata, event logs, captures and before/after snapshots remain
+unchanged; summary.json contains all block/pair/process results.
+Executable SHA256: 0c855a8e7b6e4e13575d323f5fa504b942f18c1745cdde9156bbbbcab0198821.
+Normalized metadata SHA256: 3defffcdafdc7cc3034a1083e7f368dc7e8e3cd86a8d5670cfbd35ff4e255edd.
+The useful new capture was visually inspected and matches the preceding paired
+control byte-for-byte. All 26 binary/source/shader/current-Renderer checks pass;
+dependency/linker-map checks confirm the replacement object/current header.
+The final actual-host audit found no benchmark/build/viewer or Firefox process.
+No executable production change was made. Separate zombie-locality documentation
+comments were added only after timing. Whitespace checks pass.
