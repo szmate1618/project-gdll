@@ -97,6 +97,8 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
     zombieRenderStates_.resize(zombies.instances.size());
     zombieCount_ = zombies.instances.size();
     visibleZombies_.reserve(zombies.instances.size());
+    displayedZombieSources_.reserve(zombies.instances.size());
+    nextDisplayedZombieSources_.reserve(zombies.instances.size());
     for (std::size_t i = 0; i < zombies.assets.size(); ++i) {
         const auto& source = zombies.assets[i];
         auto& batch = zombieBatches_[i];
@@ -378,8 +380,7 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
     if (!std::isfinite(seconds) || seconds < 0) seconds = 0;
     // Keep the last published camera pose until a new frame replaces it, even
     // when owning simulation updates occur between input and rendering.
-    for (const auto id : displayedZombieSources_) zombieSource_->instances[id].displayedAnimationFrame = -1;
-    displayedZombieSources_.clear();
+    nextDisplayedZombieSources_.clear();
     for (auto& batch : zombieBatches_) {
         const auto& idle = batch.clipTimings[static_cast<std::size_t>(ZombieRenderClip::Idle)];
         batch.idleFrameBase = animatedFrameBase(idle.duration, idle.frameCount, seconds);
@@ -458,10 +459,16 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
                     cameraInstance.animationFrame = std::floor(bucket / samples * static_cast<float>(frames));
                     cameraInstance.animationStep = 1;
                 }
-                displayedZombieSources_.push_back(visible.instance);
+                nextDisplayedZombieSources_.push_back(visible.instance);
                 const auto& source = zombieSource_->instances[visible.instance];
-                source.displayedAnimationFrame = cameraInstance.animationFrame;
-                source.displayedAnimationClip = static_cast<int>(render.clip);
+                const auto clip = static_cast<int>(render.clip);
+                // Another renderer can publish a different pose into this layer.
+                // Compare authoritative fields rather than a private last value.
+                if (source.displayedAnimationFrame != cameraInstance.animationFrame || source.displayedAnimationClip != clip) {
+                    source.displayedAnimationFrame = cameraInstance.animationFrame;
+                    source.displayedAnimationClip = clip;
+                    ++zombieRenderStats_.posePublications;
+                }
                 const auto level = cameraInstance.woundBase > 0 ? 0 : std::min(detail.level, batch.lods.size());
                 auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
                 auto& cameraInstances = cameraInstance.woundBase > 0 ? geometry.woundedCameraInstances : geometry.cameraInstances;
@@ -488,6 +495,20 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
                 ++zombieRenderStats_.flashlightLevels[level];
             }
         }
+        // Only actors that left this renderer's camera list need retirement.
+        // Visibility already returns unique ascending source IDs, so merge the
+        // two retained lists without another sort or a population-wide clear.
+        auto current = nextDisplayedZombieSources_.begin();
+        for (const auto id : displayedZombieSources_) {
+            while (current != nextDisplayedZombieSources_.end() && *current < id) ++current;
+            if (current != nextDisplayedZombieSources_.end() && *current == id) continue;
+            const auto& source = zombieSource_->instances[id];
+            if (source.displayedAnimationFrame != -1) {
+                source.displayedAnimationFrame = -1;
+                ++zombieRenderStats_.poseRetirements;
+            }
+        }
+        displayedZombieSources_.swap(nextDisplayedZombieSources_);
     }
     {
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombiePalettes);

@@ -57,6 +57,7 @@ struct TreeRenderStats {
 struct ZombieRenderStats {
     std::array<std::size_t, 4> cameraLevels{}, shadowLevels{}, flashlightLevels{};
     std::size_t cameraTriangles = 0, shadowTriangles = 0, flashlightTriangles = 0, distanceCulled = 0;
+    std::size_t posePublications = 0, poseRetirements = 0;
 };
 
 struct ZombieUpdateStats {
@@ -520,6 +521,8 @@ private:
     ZombieUpdateStats zombieUpdateStats_;
     ZombiePaletteStats zombiePaletteStats_;
     std::vector<std::size_t> displayedZombieSources_;
+    // Reused next-frame camera list; both lists stay in ascending source-ID order.
+    std::vector<std::size_t> nextDisplayedZombieSources_;
     ZombieRenderStats zombieRenderStats_;
     bool zombieCulling_ = true;
     bool zombieDistanceDetail_ = true, zombieShadows_ = true;

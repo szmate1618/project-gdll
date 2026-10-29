@@ -1,0 +1,178 @@
+Conditional zombie pose publication and squared-distance experiment, 2026-10-29
+=============================================================================
+
+Result
+------
+Keep conditional camera-pose publication (idea 3). In matched standard 100k
+benchmarks it reduces CPU render cost 9.433 -> 8.988 ms for healthy actors
+(4.7%) and 9.852 -> 9.099 ms with 100 wounded actors (7.6%). A separate
+completed-block control, without per-frame timing or telemetry sampling,
+reduces healthy rendering wall time 9.705 -> 9.172 ms/frame (5.5%).
+
+Do not retain the squared-distance LOD policy (idea 4). It preserved the
+original decisions, including float boundaries, but had inconsistent additional
+CPU savings. Completed-block cost changed only 9.172 -> 9.158 ms/frame, a
+0.013 ms (0.14%) improvement, smaller than process variation. Production keeps
+the original distance/LOD arithmetic. The experiment and frozen binaries are
+retained under the artifact directory below.
+
+Neither change establishes a corridor rendering improvement. Final retained
+CPU render cost is 3.276 versus 3.207 ms baseline (+0.069 ms), within the
+baseline's 3.089..3.325 ms before/after range. These results concern rendering,
+not the frequency or behavior of simulation updates.
+
+Retained implementation
+-----------------------
+Previously every render cleared displayedAnimationFrame for every actor in the
+previous camera list, then republished frame and clip for every current actor.
+The new path compares the actual authoritative pose fields and writes only when
+either changes. A linear merge of the sorted previous/current camera lists
+retires only departed actors. Retirement sets frame to -1 and retains the clip.
+Both lists reuse reserved storage; one additional source-ID list costs about
+0.8 MB for 100000 actors on this 64-bit build.
+
+Comparison uses ZombieInstance fields, rather than a private last-pose cache:
+two Renderer instances can publish different poses into the same ZombieLayer.
+The last renderer must restore fields another renderer changed or retired.
+The previous pose also remains available between simulation updates and the
+next render, for shooting and ragdoll handoff.
+
+The sorted source-ID ordering, 48-byte render cache, 96-byte GPU record, FP16
+baked animation, original pose sampling, LOD choices, shadows and wounded-mesh
+routing remain unchanged. Live ragdoll palettes still use their existing path.
+ZombieRenderStats exposes posePublications and poseRetirements, counting actors
+whose authoritative fields actually changed in the current render.
+
+Discarded experiment
+--------------------
+The prepared distance policy cached three LOD transitions and the first
+invisible squared distance until projection scale, enablement or cutoff changed.
+Simply squaring 12/35/80/180 can move a float boundary: the old rule computes
+sqrt(distanceSquared) * sqrt(3) / projectionScale with intermediate rounding.
+The experimental constructor searched ordered positive IEEE binary32 values
+using the unchanged scalar rule, preserving those exact transitions. Per-actor
+selection then used squared-distance comparisons. Unsupported settings retained
+the scalar fallback; flashlight selection preserved its separate raw 12 m rule.
+
+Tests compared mesh level, animation rate and visibility against the original
+scalar rule over projection/cutoff combinations, random float bit patterns,
+boundary neighborhoods, signed zero, infinities and NaNs. Those tests and GPU
+checks passed before the experiment was removed. The extra policy/cache code
+and its tests were removed together; no unused optimization API remains.
+
+Method and controls
+--------------------
+Baseline is the current checkout at 42e81f7, including the pre-existing HUD/map
+work held unchanged across variants. The sequence is baseline -> poses -> lod,
+where lod means pose publication plus the experimental distance policy.
+Each build was frozen with its own binaries, static libraries, objects, source,
+shaders and headers. Helper dependency files verify their matching frozen
+headers; no live or historical mismatched Renderer layout is used.
+
+Primary order is ABC/CBA separately for healthy 100k, mixed 100k/100 wounded,
+and the Gray-Scott corridor. Crowd results are medians of six round means per
+process, then medians of two processes. Animation advances on the same
+deterministic 60 Hz simulation timeline. Corridor runs use --fixed-step
+--frames 240, retaining frames 61..240, with the same map/scenario/camera.
+All variants use the same assets, shaders, geometry and rendering settings.
+
+Hardware: AMD Radeon 660M, radeonsi/LLVM 19.1.1, Linux 6.11.0-29. Normal automatic
+GPU clocks are retained. Competing-work and idle checks precede each process;
+Firefox is absent. No builds, analyses or other GPU experiments run alongside
+timed processes. Primary/diagnostic telemetry samples outside the render timers.
+CPU and asynchronous GPU intervals overlap; do not add the columns or infer
+presented FPS from them. See cpu-gpu-overlap-2026-10-22.txt.
+
+Telemetry shows small swap-ins during primary/diagnostic runs (320/20 KiB
+respectively), no swap-outs, and zero memory-pressure avg10 throughout. One
+mixed experimental-LOD process accumulated about 12 ms of memory-pressure stall
+time. Completed-block runs had no swap activity or pressure increase. All 259
+input fingerprints and all three frozen manifests passed the final hash audit.
+
+Primary results, milliseconds
+-----------------------------
+Workload/variant       CPU render   GPU elapsed   CPU preparation
+Healthy baseline        9.432502     6.692012        0.001547
+Healthy poses           8.987578     6.474256        0.001548
+Healthy poses+LOD       9.112216     6.635375        0.001542
+Mixed baseline          9.851845     6.740119        0.001581
+Mixed poses             9.098658     6.991614        0.001627
+Mixed poses+LOD         8.996586     6.227188        0.001567
+Corridor baseline       3.207037     4.195500        0.223320
+Corridor poses          3.276460     4.090180        0.237690
+Corridor poses+LOD      3.242238     4.164377        0.232399
+
+The distance experiment is 1.39% slower than poses alone in healthy CPU render,
+1.12% faster in mixed, and 1.04% faster in corridor. These small, inconsistent
+differences do not establish a benefit worth the additional policy machinery.
+Mixed GPU elapsed is higher for the retained change despite lower CPU render;
+submitted work is identical. The completed-block control below checks actual
+completion rather than relying on one side of overlapping CPU/GPU intervals.
+
+Completed-block control, healthy 100k
+-------------------------------------
+Each process runs four blocks, each with 128 warmup and 512 measured frames.
+The measured loop only updates simulation, prepares the renderer, renders and
+glFlushes. Two wall-clock reads surround the entire block, including a final
+glFinish. FrameProfile, per-frame timestamps, stage capture, pose hashes,
+counter output, screenshots and background telemetry sampling are absent from
+the measured loop. Captures and hashes are taken after completion.
+
+Order/process             Median ms/frame
+Baseline first              9.721614
+Poses first                 9.129565
+Poses+LOD first             9.058809
+Poses+LOD second            9.258149
+Poses second                9.213497
+Baseline second             9.688240
+
+Median of two processes: baseline 9.704927, poses 9.171531, poses+LOD 9.158479.
+Both poses-only processes outperform both baseline processes. The extra LOD
+policy differs by less than its own approximately 0.199 ms process spread.
+This is completed offscreen throughput; presentation/VSync is not measured.
+
+Publication diagnostics and correctness
+---------------------------------------
+Separate two-round diagnostic passes show 8181.8125 actual publications/frame
+on average, versus the former unconditional publication of all 100000 visible
+actors. About 91.8% require no pose write in this stepped idle fixture; there
+are no camera exits here. This is not a promise that near continuous animation
+or changing cameras will skip the same proportion of writes.
+
+Inclusive visibility/pose preparation: healthy 8.421 -> 7.917 ms; mixed
+8.203 -> 7.767 ms. The narrower selection timer is not directly comparable:
+the baseline's unconditional clearing loop was outside it, whereas the new
+retirement merge is inside it. Use full CPU render and completed-block timings
+to assess the retained change. Bounds/animation update-only code is unchanged;
+the previous all-changed preparation stress test was not repeated.
+
+Primary captures/metadata/counts match exactly in healthy and mixed cases;
+corridor captures and final geometry counters also match. Diagnostic geometry
+counters match every measured frame; all four whole-population published-pose
+snapshots per workload match across variants. Completed-block captures, pose
+hashes and geometry match in all four blocks across all six processes.
+
+Regression coverage includes unchanged-time zero writes, staggered far-pose
+advances, partial camera exit/reentry, updates preserving the previous pose
+until rendering, hidden clip changes, exact culled/unculled pixels, and two
+renderers restoring another renderer's overwritten or retired poses.
+Rebuilt zombie/shadow rendering tests pass. Real-asset tests verify all ten
+authored rigs in idle/walk/run and live ragdolls; the capture was inspected.
+Viewer and multiplayer client rebuild successfully. Final checks are recorded
+in final-build.log and final-tests.log under the artifact directory.
+
+Artifacts
+----------
+build/benchmarks/zombie-pose-publication-lod-20261029/
+  baseline/, poses/, lod/: frozen variants with SHA-256 manifests
+  primary-baseline-poses-lod/: primary data, telemetry and summary.json
+  diagnostic/: stage data, publication counters, pose hashes and summary.json
+  throughput-baseline-poses-lod/: completed-block data and summary.json
+  experiment.patch: complete task diff before removing idea 4
+  input-sha256.json, setup.json: asset and pre-existing-work fingerprints
+  authored.ppm, authored-ragdolls.ppm: authored-rig validation captures
+  authored-final.ppm, authored-final-ragdolls.ppm: identical final retained build
+  freeze_variant.py, build_diagnostic.py, run_benchmarks.py, analyze_results.py
+
+The artifacts are ignored experiment outputs; no generated assets or binaries
+are added to version control.

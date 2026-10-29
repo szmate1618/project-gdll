@@ -124,6 +124,9 @@ compares visible-capacity, combined-upload and frozen-record reuse controls.
 The [compact render-state and shared idle-timing comparison](benchmarks/zombie-render-state-2026-10-29.txt)
 separates the two CPU changes, checks exact poses and includes a control where
 all 100,000 actors' animation state changes every step.
+The [pose-publication and squared-distance experiment](benchmarks/zombie-pose-publication-lod-2026-10-29.txt)
+retains conditional camera-pose writes after a completed-throughput check;
+the squared-distance LOD policy showed no consistent additional benefit.
 
 ## Interpreting GPU time under CPU load
 

@@ -612,14 +612,16 @@ void renderHiddenLocomotionChanges() {
     layer.markRenderChanged(0);
     renderer.updateZombies(layer);
     renderer.render(camera, .125);
-    if (renderer.zombieVisibleCount() != 0 || instance.displayedAnimationFrame >= 0)
+    if (renderer.zombieVisibleCount() != 0 || instance.displayedAnimationFrame >= 0 || instance.displayedAnimationClip != 1 ||
+        renderer.zombieRenderStats().poseRetirements != 1 || renderer.zombieRenderStats().posePublications != 0)
         throw std::runtime_error("Hiding a walker must retire its previously displayed pose");
     instance.running = true;
     instance.walkSeconds = 1.75;
     layer.markRenderChanged(0, false);
     renderer.updateZombies(layer);
     renderer.render(camera, .125);
-    if (renderer.zombieVisibleCount() != 0 || instance.displayedAnimationFrame >= 0)
+    if (renderer.zombieVisibleCount() != 0 || instance.displayedAnimationFrame >= 0 || instance.displayedAnimationClip != 1 ||
+        renderer.zombieRenderStats().poseRetirements != 0 || renderer.zombieRenderStats().posePublications != 0)
         throw std::runtime_error("Hidden locomotion changes must not publish an undrawn camera pose");
     // Reveal through camera movement alone: an instance update on reentry
     // would mask a stale animation cache left by the bounds=false notification.
@@ -630,7 +632,7 @@ void renderHiddenLocomotionChanges() {
         throw std::runtime_error("Camera-only reentry must retain a hidden actor's latest clip and clock");
     camera.setPosition({0, .8f, 10});
     renderer.render(camera, .125);
-    if (renderer.zombieVisibleCount() != 0 || instance.displayedAnimationFrame >= 0)
+    if (renderer.zombieVisibleCount() != 0 || instance.displayedAnimationFrame >= 0 || instance.displayedAnimationClip != 2)
         throw std::runtime_error("Hiding the revealed actor must retire its newly published pose");
     instance.transform = glm::mat4(1);
     layer.markRenderChanged(0);
@@ -680,6 +682,79 @@ void renderHiddenLocomotionChanges() {
     refreshAnimation();
     requireFrame(200, .25f, 1);
     viewer::Renderer::checkErrors("hidden locomotion pose changes");
+}
+
+void renderPosePublicationChanges() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(makeAsset(1,2));
+    layer.lodAssets.resize(1);
+    for (int level=0;level<3;++level) layer.lodAssets[0].push_back(layer.assets[0]);
+    for (std::size_t id=0;id<4;++id) {
+        viewer::ZombieInstance instance;
+        instance.phase=float(id)*.25f;
+        instance.transform=glm::translate(glm::mat4(1),{id==3 ? 1000.f : -3.f+3.f*float(id),0,0});
+        layer.instances.push_back(instance);
+    }
+    viewer::Camera camera;
+    camera.setPosition({0,.8f,100});camera.setOrientation(-90,0);
+    const auto configure=[](viewer::Renderer& renderer) {
+        renderer.resize(width,height);renderer.setShadows(false);
+        renderer.setHaze(false);renderer.setGroundFog(false);
+    };
+    const auto requireCounts=[](const viewer::Renderer& renderer,std::size_t publications,std::size_t retirements) {
+        const auto& stats=renderer.zombieRenderStats();
+        if (stats.posePublications!=publications || stats.poseRetirements!=retirements)
+            throw std::runtime_error("Pose publication must count only actors whose authoritative fields changed");
+    };
+    viewer::Renderer first(viewer::Model{},VIEWER_SHADER_DIR,nullptr,&layer);
+    configure(first);first.render(camera,0);
+    if (first.zombieVisibleCount()!=3 || first.zombieRenderStats().cameraLevels[3]!=3 ||
+        layer.instances[0].displayedAnimationFrame!=0 || layer.instances[1].displayedAnimationFrame!=0 ||
+        layer.instances[2].displayedAnimationFrame!=0 || layer.instances[3].displayedAnimationFrame!=-1)
+        throw std::runtime_error("Publication fixture must show three independently phased actors at far LOD");
+    requireCounts(first,3,0);
+    const auto initial=colorPixels();
+    first.render(camera,0);requireCounts(first,0,0);
+    if (colorPixels()!=initial) throw std::runtime_error("Skipping unchanged publication must preserve rendered poses");
+    // At 5 Hz with this two-frame idle clip, only the phase-.5 actor enters
+    // the second baked frame. Advancing inside that same step changes none.
+    first.render(camera,.11);requireCounts(first,1,0);
+    if (layer.instances[0].displayedAnimationFrame!=0 || layer.instances[1].displayedAnimationFrame!=0 ||
+        layer.instances[2].displayedAnimationFrame!=1)
+        throw std::runtime_error("Far animation must publish only the actor whose stepped pose advanced");
+    first.render(camera,.12);requireCounts(first,0,0);
+    layer.instances[0].transform=glm::translate(glm::mat4(1),{1000,0,0});
+    layer.instances[3].transform=glm::translate(glm::mat4(1),{-3,0,0});
+    layer.markRenderChanged(0);layer.markRenderChanged(3);first.updateZombies(layer);
+    if (layer.instances[0].displayedAnimationFrame!=0 || layer.instances[3].displayedAnimationFrame!=-1)
+        throw std::runtime_error("Renderer preparation must preserve the last displayed pose until rendering");
+    first.render(camera,.12);requireCounts(first,1,1);
+    if (layer.instances[0].displayedAnimationFrame!=-1 || layer.instances[3].displayedAnimationFrame!=1)
+        throw std::runtime_error("Partial camera exit and entry must retire and publish only their own source IDs");
+    const auto crossed=colorPixels();
+    first.setZombieCulling(false);first.render(camera,.12);requireCounts(first,0,0);
+    if (colorPixels()!=crossed) throw std::runtime_error("Incremental publication must preserve exact culled/unculled pixels");
+    first.setZombieCulling(true);
+
+    viewer::Renderer second(viewer::Model{},VIEWER_SHADER_DIR,nullptr,&layer);
+    configure(second);
+    auto otherCamera=camera;otherCamera.setPosition({78,.8f,100});
+    second.render(otherCamera,.81);requireCounts(second,1,0);
+    if (second.zombieVisibleCount()!=1 || layer.instances[2].displayedAnimationFrame!=0)
+        throw std::runtime_error("Second renderer must publish its different time for the one overlapping actor");
+    second.render(otherCamera,.81);requireCounts(second,0,0);
+    first.render(camera,.12);requireCounts(first,1,0);
+    if (layer.instances[2].displayedAnimationFrame!=1)
+        throw std::runtime_error("A renderer must restore the actual pose changed by another renderer");
+    otherCamera.setPosition({-78,.8f,100});
+    second.render(otherCamera,.81);requireCounts(second,1,1);
+    if (second.zombieVisibleCount()!=1 || layer.instances[2].displayedAnimationFrame!=-1 ||
+        layer.instances[3].displayedAnimationFrame!=0)
+        throw std::runtime_error("A second camera must merge its own entry/exit IDs without stale pose caching");
+    first.render(camera,.12);requireCounts(first,2,0);
+    if (layer.instances[2].displayedAnimationFrame!=1 || layer.instances[3].displayedAnimationFrame!=1)
+        throw std::runtime_error("Last writer must restore both a retired pose and another renderer's changed pose");
+    viewer::Renderer::checkErrors("incremental displayed zombie pose publication");
 }
 
 void paletteGrowthAndReuse() {
@@ -1201,6 +1276,7 @@ int main(int argc, char** argv) {
         renderGroupMovementAndPoseChanges();
         renderIncrementalAndFullRefresh();
         renderHiddenLocomotionChanges();
+        renderPosePublicationChanges();
         paletteGrowthAndReuse();
         if (mode == "--dismemberment") {
             if (argc < 3) throw std::runtime_error("--dismemberment requires one prepared character GLB");

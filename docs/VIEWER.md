@@ -876,6 +876,14 @@ this cache, including animation-only changes; full refreshes also replace cached
 clip timings. Cold gameplay records are still used to publish displayed poses
 and obtain live ragdoll palettes. GPU instance records remain 96 bytes.
 
+Camera poses are published only when their authoritative frame or clip changes.
+A merge of the previous/current sorted camera lists retires departed actors,
+preserving their last clip and setting the displayed frame to -1. Both lists
+reuse storage. Comparing the actual layer fields also lets multiple renderers
+restore poses overwritten by another camera; simulation updates keep the last
+displayed pose available until the next render. See the
+[pose-publication benchmark](benchmarks/zombie-pose-publication-lod-2026-10-29.txt).
+
 Idle clip time is reduced once per asset per rendered frame, then each actor's
 own phase is applied. Locomotion keeps independent clocks. The shared base stays
 unwrapped until phase addition to retain the original floating-point result at
