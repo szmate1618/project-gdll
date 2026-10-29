@@ -1,0 +1,232 @@
+Opaque town source-ID radix ordering — 2026-10-29
+================================================
+
+Result: keep the opaque sorter change
+------------------------------------
+This experiment replaces comparison sorting of larger opaque town result lists
+with byte radix sorting, while retaining ascending source IDs. The actual-map
+town sort phase falls from 0.462395 to 0.077541 ms/frame (83.2%). Primary town
+CPU render falls from 4.989 to 4.557 ms (8.7%), with savings in both ABBA pairs.
+Town GPU elapsed is effectively unchanged, 4.487 -> 4.513 ms. The standard
+100k empty-town control is unchanged: CPU 16.985 -> 17.006 ms (+0.12%).
+Keep the CPU optimization; these results do not establish a general GPU gain.
+Nighttime-town GPU intervals increase in both repetitions, as detailed below.
+
+Implementation
+--------------
+Baseline revision: e4e2f979560a30da0dc1a6909ea5da49f1aacba9, with common opt-in
+sort instrumentation added before building both versions. The baseline keeps
+std::sort; the candidate uses it for at most 256 opaque IDs and otherwise uses
+stable least-significant-byte radix passes with 256 counting buckets. The
+significant-byte bound comes from the fixed scene population, preserving full
+size_t IDs even when few results contain high source indices.
+
+Renderer owns and reuses an O(opaque-result-count) scratch vector for its fixed
+scene lifetime. This adds RAM proportional to the largest opaque list rendered.
+Ascending source order is preserved for opaque surfaces, including coplanar
+overlaps. Transparent back-to-front order and equal-depth source ties retain
+their existing comparison sort. Visibility membership, material handling,
+building batching, shadows and zombie ordering are unchanged. No runtime sorter
+selection option is introduced.
+
+The new coarse Stage::townSort surrounds only opaque source-ID sorting in the
+real gatherVisibleSceneDraws path. benchmark_render_wins accepts an optional
+trailing --profile after all positional arguments. It captures measured render
+frames only and writes opaque-sort-stages.csv with view, round, frames,
+opaque_sort_ms (mean ms/frame) and sort_calls (raw measured calls). Both timed
+versions use this same harness and instrumentation. Primary runs leave capture
+disabled; phase-enabled diagnostics are evaluated separately.
+
+Build isolation and correctness
+-------------------------------
+Baseline/candidate executables, sources and shaders were frozen separately.
+The added scratch member changes Renderer layout, so every measured consumer
+and all six focused test binaries were successfully rebuilt for the candidate.
+No old/new Renderer layouts are mixed. No map or asset generation was run.
+
+The model-visibility CPU suite passed 1/1. Hardware GPU suites passed 5/5:
+roof, wall, zombie, shadow and building rendering. The new building regression
+uses independent pixel expectations for coplanar opaque ownership across
+255/256 and 65,535/65,536 source IDs, glass depth order and equal-depth ties.
+It also checks culling on/off, small and large result lists, repeated rendering
+and scratch reuse. Large fixtures retain high IDs without thousands of GPU
+draws by excluding distant shared-quad fillers through existing detail range.
+
+Actual inputs and cameras
+-------------------------
+The live map, tree placement and forest patch hashes exactly match the retained
+2026-10-26 documented-camera run. The frozen standard camera file is byte-
+identical too. Map SHA256:
+a98d8bd007c07260533749aefff16cb00de54cf104dd4cf38438dcc4bf3992c5.
+inputs.json retains all paths, sizes, fingerprints and camera provenance.
+
+Primary map comparisons use all standard benchmark_render_wins views: two
+forest interiors, aerial, open clearing, grounded old-forest views with/without
+the 100 m range, the derived town view, and three nighttime flashlight/driving
+controls for both forest and town. The same published map/frame is used for
+every run. Normal nearest vegetation filtering, card splitting and rendering
+policies remain enabled. The sun map is 1024 square and rendering is 1280x720.
+
+Separate diagnostics use two retained actual-map cameras:
+sort-town:   eye (-526.465, 0.127522, 296.095), yaw -90, pitch 0.
+sort-aerial: eye (2249.35, 241.585, -1250.22), yaw 0, pitch -89.
+The preceding documented run reported 9,081 visible town sources at the town
+view and seven at aerial. The latter is a sparse comparison-path control.
+Those counters include transparent sources and are not opaque-sort item counts.
+
+Primary protocol
+----------------
+Four standard 100k-crowd processes run comparison/radix/radix/comparison (ABBA).
+Each has six rounds of 32 warmup and 64 measured frames with the standard
+deterministic 60 Hz simulation/animation timeline. The required workload has
+100,000 LOD3 actors, ten camera draws, 12,580,000 camera triangles and zero
+zombie sun casters. This synthetic empty-town control measures shared-renderer
+regressions; it is not evidence of a town-sort benefit.
+
+Four all-view map processes then run their own ABBA. Each of the 13 views uses
+six rounds of 48 fenced warmup and 64 measured frames. Cameras/maps are static;
+animation input follows deterministic 60 Hz without AI, audio, player updates,
+dynamic physics or presentation. Warmup fence completion and bounded async GPU
+query waits remain outside CPU rendering timers. No coarse stage capture runs
+in the primary comparison.
+
+The tracked summarizer takes each process's median of six round means per
+view; cross-process aggregation takes the median of two process results per
+version. Frame rows are not pooled across independent processes. Each primary
+view/process must retain 384 finite GPU samples. Counts, view metadata, input
+fingerprints and per-view captures are checked independently. Map metadata
+comparison ignores only the intentionally different saved shader-directory path.
+
+Actual-sort diagnostic protocol
+-------------------------------
+Two additional processes, comparison then radix, use the same map harness with
+--profile and only sort-town/sort-aerial. Each view has six rounds of 48 fenced
+warmup and 64 measured frames. Each sort-phase mean must contain exactly 64
+calls. Report medians of six round means for each view/version. These are
+single-process diagnostic controls, not additional primary timing repetitions.
+They measure the actual renderer's sort phase, rather than a generic synthetic
+100k integer sort. Final captures and geometry counts must match independently.
+
+Host controls and timing limits
+-------------------------------
+The runner refuses to overwrite retained outputs and guards against known
+competing benchmarks/builds and heavy LoD preparation. Before every invocation
+it waits five seconds, then requires three zero-GPU samples 0.5 seconds apart.
+Read-only telemetry samples activity/clocks, temperature, available RAM, swap,
+GTT and memory pressure every 0.5 seconds. Clock and power settings are not
+locked. These checks cannot remove all scheduling or integrated-GPU variation.
+
+GPU timestamps bracket renderer.render and may include CPU submission gaps.
+A changed whole-render interval does not by itself establish a corresponding
+change in GPU shader execution. Small full-frame differences need comparison
+with process variation and the independently captured opaque-sort phase.
+
+Completed primary results
+-------------------------
+Radeon 660M, radeonsi/rembrandt, LLVM 19.1.1, DRM 3.61, Linux 6.11.0-29-generic,
+Mesa 24.2.8-1ubuntu1~24.10.1. All ten processes completed successfully. Every
+primary view/process has all 384 finite GPU samples. Median of two process
+results per version, milliseconds; each process uses six round means:
+
+Map view                       CPU comparison -> radix  GPU comparison -> radix
+osm:4:2:0                           8.642 -> 7.789           8.851 -> 8.294
+osm:-6:-5:0                         4.127 -> 3.782           7.820 -> 7.812
+aerial                              0.315 -> 0.316           6.285 -> 6.256
+open-clearing                       5.723 -> 5.573           5.353 -> 5.528
+old-forest-100m                      0.295 -> 0.339           6.322 -> 6.335
+old-forest-unrestricted              9.438 -> 8.441           9.626 -> 9.123
+town                                4.989 -> 4.557           4.487 -> 4.513
+night-forest-off                    6.674 -> 6.406           6.728 -> 6.507
+night-forest-on                     6.867 -> 6.627           6.916 -> 6.773
+night-forest-driving-shadows        7.277 -> 7.376           7.603 -> 7.524
+night-town-off                      3.725 -> 3.742           3.257 -> 3.455
+night-town-on                       3.938 -> 3.793           3.438 -> 3.660
+night-town-driving-shadows          4.190 -> 3.935           3.938 -> 4.052
+
+Individual process results, milliseconds, in execution order within workload:
+
+Case/order    Version       CPU render    GPU elapsed
+Crowd 0       comparison      17.367         13.827
+Crowd 1       radix           17.023         13.179
+Crowd 2       radix           16.989         13.208
+Crowd 3       comparison      16.603         12.915
+Town 0        comparison       4.649          4.362
+Town 1        radix            4.292          4.422
+Town 2        radix            4.823          4.604
+Town 3        comparison       5.330          4.611
+Aerial 0      comparison       0.317          6.285
+Aerial 1      radix            0.322          6.298
+Aerial 2      radix            0.310          6.214
+Aerial 3      comparison       0.314          6.284
+
+Town CPU savings repeat in the adjacent comparison/radix pairs: 0.357 and
+0.507 ms. Baseline endpoints also drift by 0.681 ms, so not every candidate
+beats every baseline. The separate sort-phase result supports the CPU saving
+without assigning the full render difference to a single tightly controlled
+hardware state. The 100k GPU aggregate is 13.371 -> 13.194 ms (-1.3%); that
+small movement lies within its baseline process spread and is not a town gain.
+
+Old-forest-100m and aerial each have seven visible town sources and execute the
+same small-list comparison sort in both versions. Their CPU movements cannot
+be direct radix work savings or costs. The old-forest-100m 0.043 ms increase,
+with GPU unchanged around 6.32 ms, illustrates whole-render variation or other
+indirect effects that this experiment does not isolate.
+
+Nighttime GPU movements are mixed: forest intervals decrease, while town off/
+on/driving increase by 6.1%/6.5%/2.9%. In each nighttime-town view both radix
+GPU process medians exceed both comparison medians; these increases should not
+be dismissed as proven noise. Unlocked clocks and whole-render timestamps do
+not distinguish GPU execution from scheduling/submission effects. No general
+GPU performance improvement or equivalence is claimed from this session.
+
+Actual-sort diagnostic results
+------------------------------
+One separate process per version, median of six 64-frame round means, ms/frame:
+
+View           Comparison      Radix       Saving
+sort-town       0.462395       0.077541     0.384854 (83.2%)
+sort-aerial     0.001616       0.001566     0.000050
+
+Every diagnostic mean contains exactly 64 measured sort calls. Town's six
+comparison means range 0.351..0.622 ms; radix means range 0.0715..0.1415 ms.
+The reduction exceeds the observed phase variation. Aerial retains comparison
+sorting, so its roughly 50 ns difference is not a radix gain. Diagnostics use
+the explicitly saved camera poses, including rounded town coordinates from
+the retained metadata; compare their captures within this diagnostic pair.
+
+Output and telemetry checks
+---------------------------
+All 13 primary-map captures match byte-for-byte across all four processes.
+geometry.csv, views.csv, input cameras, input fingerprints and normalized
+metadata also match. Normalization removes only shader_directory. Both
+diagnostic captures/counts/cameras/metadata match within the diagnostic pair.
+The four standard 100k captures and metadata match; its capture SHA256 is
+64df6d5b8d42d4ade6788a66a25ae0bf048bf3809f9dc4205dc3ffdcb148d473.
+Primary town SHA256: 54a55f1d0b9115b119fec174b0beed034ba5906bbe4695e2c13be11a272fa0ff.
+Primary aerial SHA256: 3beb291909fd43b86f41b782a4d71e6916a349d3bd85e9dbd4506cde370cbf73.
+Town retains 9,081 visible sources/903 draws; aerial and old-forest-100m retain
+seven/seven. Other scene counters match across every round and version.
+Equal tested captures do not prove equality for every possible scene.
+
+Across all ten processes: 48..68 C, available RAM 17.89..19.13 GiB, peak GTT
+1.94..1.97 GiB for crowd and 1.38..1.39 GiB for map. Swap-in totals 117 pages
+(468 KiB at 4,096 bytes/page), with no swap-out. Maximum per-process memory PSI
+increments are 3,769 us some / 3,705 us full; sampled avg10 stays zero. Firefox
+is absent before all invocations. Some pre-run GPU samples are nonzero before
+the required three zero samples. Capacity pressure appears small; clock/power
+and scheduling variation remain uncontrolled.
+
+Artifacts
+---------
+Ignored root: build/benchmarks/town-source-order-radix-20261029/.
+setup.json and inputs.json preserve setup/provenance. baseline/ and candidate/
+contain frozen executables, source snapshots and shaders. input-cameras.txt and
+sort-cameras.txt preserve the actual view inputs. run_gpu.py retains the guarded
+eight-primary/two-diagnostic procedure; analyze_gpu.py validates raw data and
+keeps primary aggregation separate from diagnostic phase measurements. summary.json
+and the standard per-process summaries preserve aggregates. Raw CSVs, logs,
+captures, telemetry and build/test logs are retained for review. Candidate town,
+night-town-on, aerial and old-forest-unrestricted captures were visually inspected.
+All 57 frozen-binary/source/shader and live-source checks pass; implementation.patch
+matches the measured candidate. The final actual-host process audit found no
+benchmark/build/viewer or Firefox processes. Whitespace checks pass.

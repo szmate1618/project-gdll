@@ -13,14 +13,14 @@ enum class Stage : std::size_t {
     weapons, physics, wounds, synchronization, blood, audio,
     zombiePreparation, zombieQuery, zombieRefit, zombieTraversal, zombieSort,
     zombieSelection, zombiePalettes, zombieErrorCheck,
-    shadows, town, vegetation, zombieDraws, props, bloodDraws, overlay, hud, count
+    shadows, town, townSort, vegetation, zombieDraws, props, bloodDraws, overlay, hud, count
 };
 inline constexpr std::array<const char*, std::size_t(Stage::count)> names{{
     "weapons", "rigid-body physics", "wound preparation", "zombie physics sync", "blood effects", "audio",
     "zombie visibility/pose preparation", "zombie visibility query", "zombie visibility bounds refitting",
     "zombie visibility traversal/tests", "zombie visibility sorting",
     "zombie LOD selection", "zombie palette uploads", "zombie GL error check",
-    "shadow rendering", "town camera pass", "vegetation camera pass",
+    "shadow rendering", "town camera pass", "town opaque source-ID sorting", "vegetation camera pass",
     "zombie draws (all passes)", "props/vehicles camera pass", "blood rendering", "scene/weapon overlays", "HUD"
 }};
 struct Measurement { double seconds = 0; std::uint64_t calls = 0; };

@@ -590,6 +590,13 @@ count of physical buildings. Use `--no-town-culling` for a same-camera draw
 comparison. This does not affect collision. Buildings retain their facade detail
 LoD; there is no town occlusion culling.
 
+Before the camera pass submits opaque geometry, it restores ascending source-ID
+order so coplanar surfaces keep the same depth winner. Up to 256 opaque entries
+use comparison sorting; larger lists use byte-wise radix sorting with scratch
+storage reused by the renderer. Glass retains its far-to-near distance ordering.
+The [town ordering benchmark](benchmarks/town-source-order-radix-2026-10-29.txt)
+records sorting cost, full-render timings and matching captures.
+
 ```bash
 ./build/godollo_viewer output/godollo.glb --fps --no-town-culling
 ```

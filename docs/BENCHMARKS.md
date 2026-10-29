@@ -316,7 +316,7 @@ cmake --build build --target benchmark_render_wins benchmark_zombie_render_prepa
 ```
 
 The map case accepts `MAP TREES FORESTS CAMERAS SHADERS OUTPUT [ROUNDS=1]
-[FRAMES=96] [CASE_FILTER=all]`. Camera files use the format described above;
+[FRAMES=96] [CASE_FILTER=all] [--profile]`. Camera files use the format described above;
 they must match the published map. The case adds grounded old-forest and town
 views, plus forest/town nighttime controls with the flashlight off, on, and
 suppressed while driving with flashlight shadows enabled. The optional filter
@@ -326,6 +326,14 @@ updates or dynamic physics runs. Animation input follows a fixed 60 Hz timeline.
 Warmup completion, bounded asynchronous query draining and captures are outside
 the CPU render timer. Per-view CSVs record GPU and CPU render milliseconds;
 metadata records input/shader fingerprints, cameras and draw counts.
+
+For a separate opaque-ordering diagnostic, supply all three optional positional
+values and append `--profile`. This also writes `opaque-sort-stages.csv` with
+per-round mean CPU milliseconds for opaque source-ID sorting and the measured
+call count. Warmup, GPU waits, transparent sorting and drawing are outside this
+stage. Keep these diagnostic runs separate from default rendering comparisons.
+The [opaque town ordering comparison](benchmarks/town-source-order-radix-2026-10-29.txt)
+records the radix experiment, all standard map-view controls and the 100k case.
 
 The preparation case uses a synthetic animated four-vertex marker, with 100,000
 instances split between walking and running. Every fixed step changes only

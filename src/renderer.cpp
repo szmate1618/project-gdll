@@ -6,6 +6,7 @@
 #include "shader_program.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cmath>
 #include <limits>
@@ -275,6 +276,35 @@ void Renderer::draw(const DrawGPU& draw) {
     glDrawElements(GL_TRIANGLES, mesh.count, GL_UNSIGNED_INT, nullptr);
 }
 
+void Renderer::sortOpaqueScene() {
+    // Small visible lists avoid scratch setup and counting 256 buckets per
+    // digit. Larger lists preserve source order with linear radix passes.
+    constexpr std::size_t comparisonSortLimit = 256;
+    if (opaqueScene_.size() <= comparisonSortLimit) {
+        std::sort(opaqueScene_.begin(), opaqueScene_.end());
+        return;
+    }
+    opaqueSortScratch_.resize(opaqueScene_.size());
+    auto* input = &opaqueScene_;
+    auto* output = &opaqueSortScratch_;
+    // Source IDs index sceneDraws_; process only significant population bytes
+    // while retaining the full size_t key.
+    for (std::size_t remaining = sceneDraws_.size() - 1, shift = 0; remaining; remaining >>= 8, shift += 8) {
+        std::array<std::size_t, 256> offsets{};
+        for (const auto id : *input) ++offsets[(id >> shift) & 0xffu];
+        std::size_t prefix = 0;
+        for (auto& offset : offsets) {
+            const auto count = offset;
+            offset = prefix;
+            prefix += count;
+        }
+        // Forward scattering preserves the ordering of lower bytes.
+        for (const auto id : *input) (*output)[offsets[(id >> shift) & 0xffu]++] = id;
+        std::swap(input, output);
+    }
+    if (input != &opaqueScene_) opaqueScene_.swap(opaqueSortScratch_);
+}
+
 void Renderer::gatherVisibleSceneDraws(const glm::mat4& projectionView, const glm::vec3& eye,
                                       const glm::mat4& projection) {
     if (sceneCulling_ || forestViewRange_)
@@ -294,7 +324,10 @@ void Renderer::gatherVisibleSceneDraws(const glm::mat4& projectionView, const gl
         (material(model_, mesh.material).alphaMode == "BLEND" ? transparentScene_ : opaqueScene_).push_back(index);
     }
     // Preserve source order for opaque surfaces, including coplanar geometry.
-    std::sort(opaqueScene_.begin(), opaqueScene_.end());
+    {
+        frame_stage_profile::Timer timer(frame_stage_profile::Stage::townSort);
+        sortOpaqueScene();
+    }
     std::sort(transparentScene_.begin(), transparentScene_.end(), [this, &eye](const auto a, const auto b) {
         const auto da = sceneDraws_[a].center - eye;
         const auto db = sceneDraws_[b].center - eye;

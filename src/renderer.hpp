@@ -347,6 +347,7 @@ private:
     void drawGrenades(const glm::mat4& projectionView);
     void gatherVisibleSceneDraws(const glm::mat4& projectionView, const glm::vec3& eye,
                                 const glm::mat4& projection);
+    void sortOpaqueScene();
     const Material& material(const ModelGPU& model, int index) const;
     std::filesystem::path shaderDirectory_;
     GLuint program_ = 0, framebuffer_ = 0, colorBuffer_ = 0, depthBuffer_ = 0;
@@ -448,6 +449,9 @@ private:
     glm::mat4 wallBatchProjection_{1};
     std::vector<DrawGPU> sceneDraws_;
     std::vector<std::size_t> visibleScene_, opaqueScene_, transparentScene_;
+    // Render-thread scratch owned for the fixed scene's lifetime, reused when
+    // radix-ordering the opaque source IDs.
+    std::vector<std::size_t> opaqueSortScratch_;
     ModelVisibility sceneVisibility_;
     // Plane-order hints belong to each view; alternating camera/light volumes
     // and billboard/authored bounds must not overwrite one another's history.

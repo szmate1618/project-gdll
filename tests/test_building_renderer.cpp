@@ -9,6 +9,7 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <vector>
 
 namespace {
 constexpr int width = 640, height = 480;
@@ -209,6 +210,96 @@ void checkMaterialTexturesBetweenFrames() {
     viewer::Renderer::checkErrors("material textures between frames");
 }
 
+viewer::Model orderingFixture(std::size_t population) {
+    viewer::Model model;
+    model.materials.resize(7);
+    const std::array<glm::vec4, 7> colors{{{1,1,1,1}, {1,0,0,1}, {0,1,0,1}, {0,0,1,1},
+                                         {.2f,.2f,.2f,1}, {0,0,1,.5f}, {1,0,0,.5f}}};
+    for (std::size_t material=0;material<colors.size();++material) {
+        model.materials[material].unlit=true;
+        model.materials[material].baseColor=colors[material];
+        if (material>=5) model.materials[material].alphaMode="BLEND";
+        card(model,{0,0,0},{1,1},static_cast<int>(material));
+    }
+    model.draws.clear();
+    // Preserve high source indices without thousands of GPU draws. Existing
+    // detail-distance filtering excludes these distant shared-quad instances,
+    // including when frustum culling is disabled.
+    model.draws.assign(population,{4,glm::translate(glm::mat4(1),{100000,0,-20}),"ordering_filler",1});
+    const auto place=[&](std::size_t index,std::size_t primitive,glm::vec3 center,glm::vec2 size) {
+        const auto transform=glm::scale(glm::translate(glm::mat4(1),center),glm::vec3(size,1));
+        model.draws[index]={primitive,transform,"ordering_surface"};
+    };
+    place(0,0,{0,3,-24},{20,16});
+    for (std::size_t index=1;index<=320;++index)
+        place(index,4,{float(index%17)*.02f-.16f,-2,-20},{.015f,.015f});
+    // Later coplanar cards have a smaller X center, encouraging the spatial
+    // query to return them first. Ascending source IDs must still own depth.
+    place(255,1,{-3,3,-20},{2,2});
+    place(256,2,{-3.25f,3,-20},{2,2});
+    place(population-3,3,{3,3,-20},{2,2});
+    place(population-2,2,{2.75f,3,-20},{2,2});
+    // Near red precedes far blue in source order; glass must sort by depth.
+    place(100,6,{0,3,-18},{2,2});
+    place(population-1,5,{0,3,-21},{2,2});
+    // Equal-depth glass instead keeps ascending source order: blue then red.
+    place(254,5,{0,6,-18},{2,2});
+    place(population-4,6,{0,6,-18},{2,2});
+    return model;
+}
+
+std::vector<unsigned char> colorPixels() {
+    std::vector<unsigned char> result(width*height*3);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    glPixelStorei(GL_PACK_ALIGNMENT,1);
+    glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,result.data());
+    return result;
+}
+
+void checkSceneOrdering() {
+    viewer::Camera camera;
+    camera.setPosition({0,3,0});
+    camera.setOrientation(-90,0);
+    auto scoped=camera;
+    scoped.cycleViewMode();
+    // Two and three significant ID bytes, including 255/256 and 65535/65536.
+    for (const std::size_t population:{512u,65538u}) {
+        viewer::Renderer renderer(orderingFixture(population),VIEWER_SHADER_DIR);
+        renderer.setShadows(false);
+        renderer.setHaze(false);
+        renderer.setGroundFog(false);
+        renderer.resize(width,height);
+        renderer.setSceneCulling(true);
+        renderer.render(scoped);
+        require(renderer.sceneStats().visible<256,"Scoped ordering fixture must exercise a small visible list");
+        const auto small=colorPixels();
+        renderer.render(camera);
+        require(renderer.sceneStats().visible==325,"Ordering fixture must retain all 325 eligible sources");
+        require(glm::length(pixel(camera,{-3,3,-20})-glm::vec3(255,0,0))<3,
+                "Lower source ID must retain the red coplanar surface across 255/256");
+        require(glm::length(pixel(camera,{3,3,-20})-glm::vec3(0,0,255))<3,
+                "Lower high source ID must retain the blue coplanar surface");
+        // White, then half-opacity blue, then half-opacity red gives this
+        // independently rounded sRGB framebuffer blend in both glass cases.
+        for (const auto point:{glm::vec3(0,3,-18),glm::vec3(0,6,-18)})
+            require(glm::length(pixel(camera,point)-glm::vec3(191,64,128))<3,
+                    "Glass depth ordering and equal-depth source ties must remain unchanged");
+        const auto large=colorPixels();
+        renderer.setSceneCulling(false);
+        renderer.render(camera);
+        require(renderer.sceneStats().visible==325 && colorPixels()==large,
+                "Unculled source order must match spatial-query rendering exactly");
+        renderer.render(scoped);
+        require(colorPixels()==small,"Unculled scoped rendering must preserve opaque and glass pixels");
+        renderer.setSceneCulling(true);
+        renderer.render(scoped);
+        require(colorPixels()==small,"A small query after a large query must discard old ordering entries");
+        renderer.render(camera);
+        require(colorPixels()==large,"Repeated large queries must preserve source order after scratch reuse");
+        viewer::Renderer::checkErrors("opaque and glass source ordering");
+    }
+}
+
 void checkHingedDoor(const std::filesystem::path& capture = {}) {
     viewer::Model model;
     viewer::Material door, background;
@@ -268,6 +359,7 @@ int main(int argc, char** argv) {
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << '\n';
         checkDoubleSidedSurfaces();
         checkMaterialTexturesBetweenFrames();
+        checkSceneOrdering();
         checkHingedDoor(argc == 3 ? std::filesystem::path(std::string(argv[2]) + ".hinge.ppm") : std::filesystem::path{});
         for (const bool culling : {true, false}) {
             check(20, 0, true, culling);

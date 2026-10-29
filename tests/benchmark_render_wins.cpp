@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 #include "frame_profile.hpp"
+#include "frame_stage_profile.hpp"
 #include "file_fingerprint.hpp"
 #include "physics_world.hpp"
 #include "vehicle_layer.hpp"
@@ -8,6 +9,7 @@
 #include <algorithm>
 #include <chrono>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <stdexcept>
 
@@ -123,11 +125,14 @@ int positive(const char* text) {
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc < 7 || argc > 10) {
-        std::cerr << "Usage: benchmark_render_wins MAP TREES FORESTS CAMERAS SHADERS OUTPUT [ROUNDS=1] [FRAMES=96] [CASE_FILTER=all]\n";
+    if (argc < 7 || argc > 11) {
+        std::cerr << "Usage: benchmark_render_wins MAP TREES FORESTS CAMERAS SHADERS OUTPUT [ROUNDS=1] [FRAMES=96] [CASE_FILTER=all] [--profile]\n";
         return 1;
     }
     try {
+        const bool profileStages = argc == 11;
+        if (profileStages && std::string(argv[10]) != "--profile")
+            throw std::runtime_error("The final optional argument must be --profile");
         const int rounds = argc > 7 ? positive(argv[7]) : 1, frames = argc > 8 ? positive(argv[8]) : 96;
         const std::string filter = argc > 9 ? argv[9] : "all";
         const std::filesystem::path shaders(argv[5]), output(argv[6]);
@@ -151,7 +156,8 @@ int main(int argc, char** argv) {
         std::ofstream settings(output / "metadata.txt");
         settings << "scenario=render-wins-map-v1\nGPU=" << glGetString(GL_RENDERER) << "\nGL=" << glGetString(GL_VERSION)
                  << "\nresolution=" << width << 'x' << height << "\nrounds=" << rounds << "\nframes=" << frames
-                 << "\nwarmup=" << warmup << "\nshader_directory=" << shaders.generic_string()
+                 << "\nwarmup=" << warmup << "\nprofile_stages=" << profileStages
+                 << "\nshader_directory=" << shaders.generic_string()
                  << "\nfiltering=nearest texels and nearest mip levels\ncard_splitting=enabled\nsun_resolution=" << renderer.sunShadowResolution()
                  << "\nworkload=static map/camera; no AI/audio/player updates/dynamic physics/presentation"
                  << "\nclock=deterministic 60 Hz animation input; no simulation steps"
@@ -163,6 +169,12 @@ int main(int argc, char** argv) {
             settings << "sha256 " << file << ' ' << viewer::fileSha256(shaders / file) << '\n';
         std::ofstream counters(output / "geometry.csv");
         counters << "view,round,trees,tree_calls,tree_triangles,town_visible,town_calls,forest_calls,vehicle_calls\n";
+        std::ofstream stageOutput;
+        if (profileStages) {
+            stageOutput.open(output / "opaque-sort-stages.csv");
+            if (!stageOutput) throw std::runtime_error("Cannot write opaque-sort stage timings");
+            stageOutput << "view,round,frames,opaque_sort_ms,sort_calls\n" << std::setprecision(9);
+        }
         std::ofstream metadata(output / "views.csv");
         metadata << "view,x,y,z,yaw,pitch,forest_distance,night,flashlight,flashlight_shadows,driving\n";
         for (const auto& view : views) {
@@ -180,16 +192,27 @@ int main(int argc, char** argv) {
                 for (int frame = 0; frame < warmup; ++frame) { renderer.render(view.camera, frame / 60.0); glfwPollEvents(); }
                 finishWarmup(); // Untimed warmup must not spill into measured submission.
                 viewer::FrameProfile profile(output / (view.name + "-round-" + std::to_string(round) + ".csv"));
+                viewer::frame_stage_profile::Profile stages;
                 for (int frame = 0; frame < frames; ++frame) {
                     drain(profile, 3);
                     profile.beginGpu();
                     const auto start = Clock::now();
-                    renderer.render(view.camera, (frame + warmup) / 60.0);
+                    {
+                        viewer::frame_stage_profile::Capture capture(profileStages ? &stages : nullptr);
+                        renderer.render(view.camera, (frame + warmup) / 60.0);
+                    }
                     const auto end = Clock::now();
                     profile.endGpu();
                     profile.record({static_cast<std::uint64_t>(frame), std::chrono::duration<double, std::milli>(end - start).count(), 0, 0, 0, 0});
                 }
                 drain(profile);
+                if (profileStages) {
+                    const auto& sort = stages.stages[std::size_t(viewer::frame_stage_profile::Stage::townSort)];
+                    if (sort.calls != static_cast<std::uint64_t>(frames))
+                        throw std::runtime_error("Missing measured opaque-sort samples");
+                    stageOutput << view.name << ',' << round << ',' << frames << ','
+                                << sort.seconds * 1000 / frames << ',' << sort.calls << '\n' << std::flush;
+                }
                 const auto stats = renderer.treeStats();
                 counters << view.name << ',' << round << ',' << stats.visible << ',' << stats.drawCalls << ',' << stats.triangles << ','
                          << renderer.sceneStats().visible << ',' << renderer.sceneStats().drawCalls << ',' << renderer.forestStats().drawCalls << ','
