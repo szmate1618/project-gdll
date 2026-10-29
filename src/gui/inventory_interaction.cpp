@@ -139,7 +139,7 @@ void InventoryInteraction::cancel() {
     ghost_->SetProperty("display", "none");
     progress_->SetProperty("display", "none");
 }
-void InventoryInteraction::process(const std::vector<InventoryPointerEvent>& events, int width, int height,
+void InventoryInteraction::process(const std::vector<HudPointerEvent>& events, int width, int height,
     const PresentationViewport& presentation, double seconds) {
     const double elapsed = lastSeconds_ && std::isfinite(seconds) && seconds >= *lastSeconds_ ? seconds - *lastSeconds_ : 0;
     if (std::isfinite(seconds)) lastSeconds_ = seconds;
@@ -155,7 +155,7 @@ void InventoryInteraction::process(const std::vector<InventoryPointerEvent>& eve
     updatePointer();
     for (const auto& event : events) {
         switch (event.action) {
-        case InventoryPointerAction::Move:
+        case HudPointerAction::Move:
             normalizedX_ = event.x; normalizedY_ = event.y;
             updatePointer();
             if (pressed_ && !dragCandidate_.empty()) {
@@ -165,8 +165,9 @@ void InventoryInteraction::process(const std::vector<InventoryPointerEvent>& eve
                 if (dx * dx + dy * dy >= threshold * threshold) beginDrag();
             }
             break;
-        case InventoryPointerAction::Cancel: cancel(); advancePending = false; break;
-        case InventoryPointerAction::Wheel:
+        case HudPointerAction::RightPress:
+        case HudPointerAction::Cancel: cancel(); advancePending = false; break;
+        case HudPointerAction::Wheel:
             // A deliberate wheel turn while holding an item also starts its drag.
             if (pressed_ && event.x != 0) beginDrag();
             if (drag_.held() && !drag_.pending()) {
@@ -177,7 +178,7 @@ void InventoryInteraction::process(const std::vector<InventoryPointerEvent>& eve
                 }
             }
             break;
-        case InventoryPointerAction::Press: {
+        case HudPointerAction::Press: {
             if (drag_.pending()) break;
             pressed_ = true;
             dragCandidate_.clear();
@@ -194,7 +195,7 @@ void InventoryInteraction::process(const std::vector<InventoryPointerEvent>& eve
             }
             break;
         }
-        case InventoryPointerAction::Release:
+        case HudPointerAction::Release:
             if (pressed_ && drag_.held() && !drag_.pending()) {
                 const auto hovered = hit();
                 const auto item = drag_.held()->item;

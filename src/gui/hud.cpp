@@ -4,6 +4,7 @@
 #include "inventory_interaction.hpp"
 #include "action_hotbar.hpp"
 #include "skills_view.hpp"
+#include "gui/map_view.hpp"
 #include "presentation_viewport.hpp"
 #include "inventory/player_inventory.hpp"
 #include "player_vitals.hpp"
@@ -43,17 +44,14 @@ private:
 
 class SatelliteMapElement final : public Rml::Element {
 public:
-    explicit SatelliteMapElement(const Rml::String& tag) : Rml::Element(tag), fullImage_(tag == "satellite-map") {}
+    explicit SatelliteMapElement(const Rml::String& tag) : Rml::Element(tag) {}
     HudRenderInterface* renderer = nullptr; // Owned by the HUD; outlives this element.
 protected:
     void OnRender() override {
         if (!renderer) return;
         const auto offset = GetAbsoluteOffset(Rml::BoxArea::Content), size = GetBox().GetSize(Rml::BoxArea::Content);
-        if (fullImage_) renderer->drawSatelliteMap(offset, size);
-        else renderer->drawMinimap(offset, size);
+        renderer->drawMinimap(offset, size);
     }
-private:
-    bool fullImage_;
 };
 
 std::filesystem::path systemFont() {
@@ -94,8 +92,10 @@ struct Hud::Impl {
     std::array<Rml::ElementDocument*, 4> screens{};
     PlayerInventory& inventory;
     std::unique_ptr<InventoryInteraction> inventoryInteraction;
+    std::unique_ptr<MapViewUi> mapView;
+    std::optional<MinimapSource> mapSource;
     std::unique_ptr<CommandWheelView> commandWheel;
-    std::vector<InventoryPointerEvent> pointerEvents;
+    std::vector<HudPointerEvent> pointerEvents;
     bool hasSatelliteImage = false;
     std::filesystem::path sourceDirectory;
     HudScreen screen = HudScreen::Gameplay;
@@ -125,7 +125,7 @@ struct Hud::Impl {
             context = Rml::CreateContext("game-hud", {1280, 720});
             if (!context) throw std::runtime_error("Cannot create HUD context");
             Rml::Factory::RegisterElementInstancer("minimap", &mapInstancer);
-            Rml::Factory::RegisterElementInstancer("satellite-map", &mapInstancer);
+            registerMapViewElement();
             registerCommandWheelElements();
             document = context->LoadDocument((directory / "hud.rml").generic_string());
             if (!document) throw std::runtime_error("Cannot load HUD layout: " + directory.string());
@@ -161,6 +161,7 @@ struct Hud::Impl {
     ~Impl() { shutdown(); }
     void shutdown() {
         commandWheel.reset();
+        mapView.reset();
         inventoryInteraction.reset();
         if (initialized) { Rml::Shutdown(); initialized = false; hudActive = false; }
         Rml::SetRenderInterface(nullptr);
@@ -214,9 +215,8 @@ struct Hud::Impl {
                 if (selected == HudScreen::Skills)
                     populateMeleeSkills(*page, loadMeleeSkills(sourceDirectory.parent_path()));
                 if (selected == HudScreen::Map) {
-                    auto* map = dynamic_cast<SatelliteMapElement*>(page->GetElementById("satellite-overview"));
-                    if (!map) throw std::runtime_error("Missing full satellite map element");
-                    map->renderer = &renderer;
+                    mapView = std::make_unique<MapViewUi>(*page, renderer);
+                    mapView->setSource(mapSource);
                     page->SetClass("has-satellite", hasSatelliteImage);
                 }
             }
@@ -227,6 +227,7 @@ struct Hud::Impl {
             inventoryInteraction->cancel();
             pointerEvents.clear();
         }
+        if (screen == HudScreen::Map) { mapView->cancel(); pointerEvents.clear(); }
         screenDocument(screen)->Hide();
         nextDocument->Show();
         screen = next;
@@ -245,14 +246,16 @@ struct Hud::Impl {
         if (screen != HudScreen::Gameplay) {
             if (screen == HudScreen::Inventory)
                 renderer.render(*context, width, height, [&] { inventoryInteraction->process(pointerEvents, width, height, presentation, state.seconds); });
+            else if (screen == HudScreen::Map)
+                renderer.render(*context, width, height, [&] { mapView->process(pointerEvents, width, height, presentation, state); });
             else if (screen == HudScreen::Skills)
                 renderer.render(*context, width, height, [&] {
                     for (const auto& event : pointerEvents) {
-                        if (event.action == InventoryPointerAction::Move) {
+                        if (event.action == HudPointerAction::Move) {
                             const auto point = presentation.scenePointer(event.x, event.y, width, height);
                             context->ProcessMouseMove(static_cast<int>(point.x), static_cast<int>(point.y), 0);
                         }
-                        else if (event.action == InventoryPointerAction::Wheel)
+                        else if (event.action == HudPointerAction::Wheel)
                             context->ProcessMouseWheel(-event.x, 0);
                     }
                 });
@@ -346,16 +349,17 @@ void Hud::pointerMove(float x, float y) {
     if (!std::isfinite(x) || !std::isfinite(y)) return;
     // Preserve the pointer path: moving away and back between rendered frames
     // must still be distinguishable from a click without dragging.
-    impl_->pointerEvents.push_back({InventoryPointerAction::Move, x, y});
+    impl_->pointerEvents.push_back({HudPointerAction::Move, x, y});
 }
 void Hud::pointerButton(int button, bool pressed) {
-    if (button == 0) impl_->pointerEvents.push_back({pressed ? InventoryPointerAction::Press : InventoryPointerAction::Release});
-    else if (button == 1 && pressed) cancelInventoryDrag();
+    if (button == 0) impl_->pointerEvents.push_back({pressed ? HudPointerAction::Press : HudPointerAction::Release});
+    else if (button == 1 && pressed) impl_->pointerEvents.push_back({HudPointerAction::RightPress});
 }
 void Hud::mouseWheel(float notches) {
-    if (std::isfinite(notches)) impl_->pointerEvents.push_back({InventoryPointerAction::Wheel, std::clamp(notches, -32.f, 32.f)});
+    if (std::isfinite(notches)) impl_->pointerEvents.push_back({HudPointerAction::Wheel, std::clamp(notches, -32.f, 32.f)});
 }
-void Hud::cancelInventoryDrag() { impl_->pointerEvents.push_back({InventoryPointerAction::Cancel}); }
+void Hud::cancelInventoryDrag() { cancelPointerInteraction(); }
+void Hud::cancelPointerInteraction() { impl_->pointerEvents.push_back({HudPointerAction::Cancel}); }
 std::vector<InventoryDragAction> Hud::takeInventoryActions() {
     return impl_->inventoryInteraction ? impl_->inventoryInteraction->takeActions() : std::vector<InventoryDragAction>{};
 }
@@ -368,6 +372,8 @@ void Hud::refreshInventoryLayout() {
 void Hud::setMinimap(const MinimapSource& source, unsigned int texture) {
     impl_->renderer.setMinimap(source, texture);
     impl_->hasSatelliteImage = texture != 0;
+    impl_->mapSource = texture ? std::optional<MinimapSource>(source) : std::nullopt;
+    if (impl_->mapView) impl_->mapView->setSource(impl_->mapSource);
     if (auto* map = impl_->screens[3]) map->SetClass("has-satellite", impl_->hasSatelliteImage);
     impl_->setText("map-caption", texture ? "" : "NO MAP");
 }

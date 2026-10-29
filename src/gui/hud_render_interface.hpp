@@ -24,7 +24,7 @@ public:
     void setMinimapRoads(const Model& model);
     void setMinimapPosition(glm::vec2 position) { minimapPosition_ = position; }
     void drawMinimap(Rml::Vector2f offset, Rml::Vector2f size);
-    void drawSatelliteMap(Rml::Vector2f offset, Rml::Vector2f size);
+    void drawSatelliteMap(Rml::Vector2f offset, Rml::Vector2f size, glm::vec2 uvOrigin, glm::vec2 uvExtent);
     Rml::CompiledGeometryHandle CompileGeometry(Rml::Span<const Rml::Vertex> vertices,
                                                Rml::Span<const int> indices) override;
     void RenderGeometry(Rml::CompiledGeometryHandle geometry, Rml::Vector2f translation,

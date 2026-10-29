@@ -3,7 +3,17 @@
 <body template="loadout" class="loadout map">
     <div id="map-panel" class="panel main-panel full-panel">
         <div class="panel-heading">MAP</div><div class="panel-meta">SENTINEL RGB</div>
+        <div id="map-tools">
+            <button id="map-measure">MEASURE</button>
+            <button id="map-from-me">FROM ME</button>
+            <button id="map-clear">CLEAR</button>
+            <button id="map-center">CENTER ON ME</button>
+            <div id="map-total">HORIZONTAL DISTANCE</div>
+            <div id="map-preview-total"></div>
+            <div id="map-player-label"></div>
+        </div>
         <satellite-map id="satellite-overview"></satellite-map>
+        <div id="map-hint"></div>
         <div id="map-unavailable">NO MAP AVAILABLE</div>
     </div>
 </body>

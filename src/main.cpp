@@ -516,7 +516,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         app.keys.fill(false); app.proneToggleQueued = false; app.firstMouse = true;
         app.actionSelection.close();
         app.weapons.cancelTrigger(); app.interaction.cancel();
-        if (app.hud) app.hud->cancelInventoryDrag();
+        if (app.hud) app.hud->cancelPointerInteraction();
         if (!app.hidden) glfwSetInputMode(window, GLFW_CURSOR,
             app.capture && app.hudScreen == viewer::HudScreen::Gameplay ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
         return;
@@ -591,15 +591,15 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     }
 }
 
-void inventoryPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
+void hudPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
     int width, height;
     glfwGetWindowSize(window, &width, &height);
     if (hud && width > 0 && height > 0) hud->pointerMove(float(x / width), float(y / height));
 }
 void cursorCallback(GLFWwindow* window, double x, double y) {
     auto& app = state(window);
-    if (app.hudScreen == viewer::HudScreen::Inventory || app.hudScreen == viewer::HudScreen::Skills) {
-        inventoryPointer(window, app.hud, x, y); return;
+    if (app.hudScreen == viewer::HudScreen::Inventory || app.hudScreen == viewer::HudScreen::Skills || app.hudScreen == viewer::HudScreen::Map) {
+        hudPointer(window, app.hud, x, y); return;
     }
     if (!app.capture || app.hudScreen != viewer::HudScreen::Gameplay) return;
     if (!app.firstMouse && std::isfinite(x) && std::isfinite(y))
@@ -611,9 +611,9 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     auto& app = state(window);
-    if (app.hudScreen == viewer::HudScreen::Inventory) {
+    if (app.hudScreen == viewer::HudScreen::Inventory || app.hudScreen == viewer::HudScreen::Map) {
         double x, y; glfwGetCursorPos(window, &x, &y);
-        inventoryPointer(window, app.hud, x, y);
+        hudPointer(window, app.hud, x, y);
         if (app.hud) app.hud->pointerButton(button, action == GLFW_PRESS);
         return;
     }
@@ -651,8 +651,11 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
 }
 
 void scrollCallback(GLFWwindow* window, double, double y) {
-    if ((state(window).hudScreen == viewer::HudScreen::Inventory || state(window).hudScreen == viewer::HudScreen::Skills) && state(window).hud)
+    if ((state(window).hudScreen == viewer::HudScreen::Inventory || state(window).hudScreen == viewer::HudScreen::Skills || state(window).hudScreen == viewer::HudScreen::Map) && state(window).hud) {
+        double x, cursorY; glfwGetCursorPos(window, &x, &cursorY);
+        hudPointer(window, state(window).hud, x, cursorY);
         state(window).hud->mouseWheel(static_cast<float>(y));
+    }
     if (state(window).hudScreen != viewer::HudScreen::Gameplay) return;
     auto& app = state(window);
     if (app.capture && !app.driver.occupied() && app.interaction.mode() == viewer::ControlMode::Combat) {
@@ -668,7 +671,7 @@ void scrollCallback(GLFWwindow* window, double, double y) {
 
 void focusCallback(GLFWwindow* window, int focused) {
     if (!focused) {
-        if (state(window).hud) state(window).hud->cancelInventoryDrag();
+        if (state(window).hud) state(window).hud->cancelPointerInteraction();
         state(window).keys.fill(false);
         state(window).proneToggleQueued = false;
         state(window).firstMouse = true;

@@ -155,13 +155,8 @@ void HudRenderInterface::drawSatelliteImage(Rml::Vector2f offset, Rml::Vector2f 
     glUniform1i(minimapLocation_, 0);
 }
 
-void HudRenderInterface::drawSatelliteMap(Rml::Vector2f offset, Rml::Vector2f size) {
-    if (!minimapTexture_ || size.x <= 0 || size.y <= 0) return;
-    const float scale = std::min(size.x / minimap_.imageSize.x, size.y / minimap_.imageSize.y);
-    const Rml::Vector2f fitted{minimap_.imageSize.x * scale, minimap_.imageSize.y * scale};
-    offset += (size - fitted) * .5f;
-    // Display all native UVs, with original RGB colors and no road pass.
-    drawSatelliteImage(offset, fitted, {0, 0}, {1, 0}, {0, 1}, 1.f);
+void HudRenderInterface::drawSatelliteMap(Rml::Vector2f offset, Rml::Vector2f size, glm::vec2 origin, glm::vec2 extent) {
+    drawSatelliteImage(offset, size, origin, {extent.x, 0}, {0, extent.y}, 1.f);
 }
 
 void HudRenderInterface::drawMinimap(Rml::Vector2f offset, Rml::Vector2f size) {

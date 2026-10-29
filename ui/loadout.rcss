@@ -78,6 +78,15 @@ body.inventory, body.skills { pointer-events: auto; }
 .full-panel { left: 0dp; width: 1210dp; height: 590dp; }
 #satellite-overview { display: block; position: absolute; left: 50%; margin-left: -257dp; top: 54dp; width: 512dp; height: 512dp; border-width: 1dp; }
 #map-unavailable { position: absolute; left: 0dp; top: 298dp; width: 1210dp; text-align: center; font-size: 13dp; }
+#map-tools { display: none; position: absolute; left: 20dp; top: 54dp; width: 300dp; }
+.has-satellite #map-tools { display: block; }
+#map-tools button { display: block; width: 280dp; height: 34dp; margin-bottom: 8dp; font-family: hud-system; font-size: 11dp; line-height: 34dp; border-width: 1dp; text-align: center; }
+#map-total { margin-top: 18dp; font-size: 12dp; line-height: 22dp; }
+#map-preview-total { font-size: 12dp; line-height: 22dp; }
+#map-player-label { margin-top: 18dp; font-size: 12dp; }
+#map-hint { position: absolute; left: 20dp; right: 20dp; bottom: 7dp; font-size: 10dp; text-align: center; }
+.map-distance-label { position: absolute; height: 18dp; font-size: 10dp; line-height: 18dp; text-align: center; pointer-events: none; }
+#satellite-overview { overflow: hidden; }
 .has-satellite #map-unavailable { display: none; }
 
 .inventory-ghost { position: absolute; z-index: 100; box-sizing: border-box; border-width: 2dp; pointer-events: none; overflow: hidden; font-size: 9dp; }

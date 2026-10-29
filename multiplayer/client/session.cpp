@@ -78,7 +78,7 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         in.cancelSignal();
         in.actionSelection.close();
         in.leftPressed = in.rightPressed = in.prone = in.reload = in.enterVehicle = in.toggleDrivingCamera = false;
-        if (in.hud) in.hud->cancelInventoryDrag();
+        if (in.hud) in.hud->cancelPointerInteraction();
         glfwSetInputMode(window, GLFW_CURSOR,
             in.capture && in.hudScreen == viewer::HudScreen::Gameplay ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
         return;
@@ -110,14 +110,14 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         glfwSetInputMode(window, GLFW_CURSOR, in.capture ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
     }
 }
-void inventoryPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
+void hudPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
     int width, height; glfwGetWindowSize(window, &width, &height);
     if (hud && width > 0 && height > 0) hud->pointerMove(float(x / width), float(y / height));
 }
 void mouse(GLFWwindow* window, double x, double y) {
     auto& in = input(window);
-    if (in.hudScreen == viewer::HudScreen::Inventory || in.hudScreen == viewer::HudScreen::Skills) {
-        inventoryPointer(window, in.hud, x, y); return;
+    if (in.hudScreen == viewer::HudScreen::Inventory || in.hudScreen == viewer::HudScreen::Skills || in.hudScreen == viewer::HudScreen::Map) {
+        hudPointer(window, in.hud, x, y); return;
     }
     if (!in.capture || in.hudScreen != viewer::HudScreen::Gameplay) return;
     if (in.firstMouse) { in.firstMouse = false; in.lastX = x; in.lastY = y; return; }
@@ -153,9 +153,9 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
         }
         return;
     }
-    if (in.hudScreen == viewer::HudScreen::Inventory) {
+    if (in.hudScreen == viewer::HudScreen::Inventory || in.hudScreen == viewer::HudScreen::Map) {
         double x, y; glfwGetCursorPos(window, &x, &y);
-        inventoryPointer(window, in.hud, x, y);
+        hudPointer(window, in.hud, x, y);
         if (in.hud) in.hud->pointerButton(buttonCode, action == GLFW_PRESS);
         return;
     }
@@ -177,8 +177,11 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
 void scroll(GLFWwindow* window, double, double y) {
     auto& in = input(window);
     if (in.wheelOpen) return;
-    if ((in.hudScreen == viewer::HudScreen::Inventory || in.hudScreen == viewer::HudScreen::Skills) && in.hud)
+    if ((in.hudScreen == viewer::HudScreen::Inventory || in.hudScreen == viewer::HudScreen::Skills || in.hudScreen == viewer::HudScreen::Map) && in.hud) {
+        double x, cursorY; glfwGetCursorPos(window, &x, &cursorY);
+        hudPointer(window, in.hud, x, cursorY);
         in.hud->mouseWheel(static_cast<float>(y));
+    }
     if (in.hudScreen == viewer::HudScreen::Gameplay && in.capture && !in.driver.occupied() && !in.interaction && std::isfinite(y) && y != 0) {
         in.actionSelection.cycle(y < 0 ? 1 : -1, in.actions, in.equippedSlot);
         in.leftPressed = false;
@@ -189,7 +192,7 @@ void focus(GLFWwindow* window, int focused) {
         auto& in = input(window); in.capture = false; in.firstMouse = true;
         in.cancelSignal(); in.rightHeld = false;
         in.actionSelection.close();
-        if (in.hud) in.hud->cancelInventoryDrag();
+        if (in.hud) in.hud->cancelPointerInteraction();
         in.drag = {}; in.prone = in.reload = in.enterVehicle = in.toggleDrivingCamera = false;
         in.leftPressed = in.rightPressed = in.leftHeld = false;
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
@@ -609,6 +612,15 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 hudState.screen = in.hudScreen;
                 hudState.position = in.driver.occupied() ? in.driver.eyePosition(*scene.vehicles) : in.camera.position();
                 hudState.yawDegrees = in.camera.yawDegrees();
+                hudState.showLocalMapPlayer = prediction.ready();
+                if (in.hudScreen == viewer::HudScreen::Map) {
+                    for (const auto& player : snapshots.players()) {
+                        if (player.id == self) continue;
+                        const auto position = player.movement.feet;
+                        hudState.mapPlayers.push_back({{position.x, position.z}, player.yaw,
+                            "PLAYER " + std::to_string(player.id), false});
+                    }
+                }
                 const auto stance = prediction.controller().stance();
                 hudState.movement = in.driver.occupied() ? (in.driver.driving() ? "DRIVING" : "PASSENGER") :
                     stance == viewer::PlayerStance::Prone ? "PRONE" : stance == viewer::PlayerStance::Crouched ? "CROUCH" : "STAND";

@@ -230,9 +230,36 @@ After building `test_hud`, capture the screens without loading town data:
 [health.rml](../ui/health.rml) is an empty content panel. [map.rml](../ui/map.rml)
 shows the entire published Sentinel image, fitted without cropping or changing
 its aspect ratio. It borrows the same terrain texture as the minimap, uses
-nearest filtering and original RGB colors, and draws no roads or player marker.
+nearest filtering and original RGB colors, and draws no road overlay.
 Health and Map omit the action hotbar. Scenes without satellite imagery show
 `NO MAP AVAILABLE`.
+
+On the F4 map, wheel scrolling zooms around the pointer (up to 32×), and a
+left-button drag pans without placing a measurement point. Zooming out fully
+fits the original image again. The view stays where you leave it while players
+move; **Center on me** explicitly recenters it, subject to the image boundaries.
+Your filled green triangle indicates position and facing direction. The client
+also shows light triangles for players in its existing interpolated snapshots;
+hovering a marker identifies it. Hollow edge triangles point toward offscreen
+players rather than showing their facing direction. These controls and markers
+are viewer/client presentation only: no measurement state is sent over the
+network, and neither the protocol nor server replication changes.
+
+Select **Measure**, then click successive corners to draw connected straight
+segments. A dashed preview follows the pointer, with committed distance and
+preview distance shown separately. Click the last point again to finish (at
+least two points); right-click while drawing removes one point, and removing
+the starting point cancels. **From me** starts a new measurement at your current
+position, which stays fixed as you move. Distances sum horizontal runtime metres,
+without terrain slopes, road snapping, or pathfinding. Point numbers and segment
+lengths appear where they fit without overlapping.
+
+Drag a finished point to adjust it. **Clear** removes the measurement and
+**New measurement** replaces it. Esc, F4, or switching screens discards an
+unfinished line, while a finished line and the zoom/pan view survive reopening
+within the same HUD session. Losing focus also cancels unfinished drawing;
+closing or losing focus during a point adjustment restores that point. A drag
+threshold of four design pixels prevents panning from adding measurement points.
 
 For reproducible in-game captures, use `--hud-screen inventory`,
 `--hud-screen skills`, `--hud-screen health` or `--hud-screen map` with the

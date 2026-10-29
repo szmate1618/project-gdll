@@ -70,7 +70,10 @@ body.loadout { background-color: #2b2d2fed; }
 .signal-marker.danger { border-color: #ec6962; color: #ec6962; }
 .signal-marker.move { border-color: #59c49c; color: #59c49c; }
 .signal-marker.backup { border-color: #e7cd65; color: #e7cd65; }
-#satellite-overview { background-color: #2b2d2f; border-color: #f5f6f24d; }
+#satellite-overview { background-color: #2b2d2f; border-color: #f5f6f24d; map-line-color: #e7cd65; map-self-color: #59c49c; map-player-color: #f5f6f2; }
+#map-tools button, .map-distance-label { color: #f5f6f2; background-color: #2b2d2fed; border-color: #f5f6f24d; }
+#map-tools button.active { color: #e7cd65; border-color: #e7cd65; }
+#map-hint { color: #f5f6f299; }
 .inventory-ghost { border-color: #ec6962; background-color: #ec696240; }
 .inventory-ghost.valid { border-color: #59c49c; background-color: #59c49c26; }
 .inventory-ghost.swap { border-color: #e7cd65; background-color: #e7cd6526; }

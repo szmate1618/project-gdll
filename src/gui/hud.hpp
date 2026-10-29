@@ -2,6 +2,7 @@
 
 #include "inventory/inventory_action.hpp"
 #include "command_wheel.hpp"
+#include "../map_view.hpp"
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -35,6 +36,8 @@ struct HudState {
     bool commandWheelOpen = false;
     glm::vec2 commandWheelOffset{0}; // Design dp, positive Y down.
     std::vector<HudSignal> signals;
+    std::vector<MapPlayer> mapPlayers; // Existing client snapshots only; no map replication.
+    bool showLocalMapPlayer = true;
 };
 
 // Owns the application's RmlUi lifetime. One HUD at a time, on the GL thread.
@@ -49,12 +52,13 @@ public:
     // Presentation size is the destination framebuffer size; omit it when the
     // scene fills that framebuffer. Input uses the same fitted image as present().
     void draw(const HudState& state, int width, int height, int presentationWidth = 0, int presentationHeight = 0);
-    // Queue inventory input on the GL thread. Window fractions also work with
+    // Queue HUD input on the GL thread. Window fractions also work with
     // HiDPI displays, letterboxing and a different render resolution.
     void pointerMove(float normalizedX, float normalizedY);
-    void pointerButton(int button, bool pressed); // 0: left, 1: right/cancel.
+    void pointerButton(int button, bool pressed); // 0: left, 1: right.
     void mouseWheel(float notches);
     void cancelInventoryDrag();
+    void cancelPointerInteraction(); // Screen switch/focus loss, including map gestures.
     std::vector<InventoryDragAction> takeInventoryActions();
     bool inventoryDragging() const; // Includes completed actions awaiting delivery.
     void refreshInventoryLayout(); // Call after applying an idle authoritative placement snapshot.

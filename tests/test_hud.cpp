@@ -404,6 +404,69 @@ int main(int argc, char** argv) {
         require(filter == GL_LINEAR, "HUD changed the scene terrain's texture filtering");
         glBindTexture(GL_TEXTURE_2D, texture); glActiveTexture(GL_TEXTURE3);
         {
+            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            viewer::Hud hud(VIEWER_HUD_DIR,inventory);
+            hud.setMinimap(*mapSource,mapTexture);
+            viewer::HudState mapState;
+            mapState.screen = viewer::HudScreen::Map;
+            mapState.mapPlayers = {{{100,-75},0,"PLAYER 2",false},{{-100,75},90,"PLAYER 3",false}};
+            const auto draw = [&] { clear(); hud.draw(mapState,1280,720); checkState(); };
+            const auto move = [&](float x,float y) { hud.pointerMove(x/1280,y/720); };
+            const auto click = [&](float x,float y) { move(x,y); hud.pointerButton(0,true); hud.pointerButton(0,false); draw(); };
+            draw();
+            const auto emptyMap = pixels(1280,720);
+            click(100,169); // Measure; controls are outside the imagery.
+            click(450,260); click(750,260);
+            move(750,520); draw();
+            if (argc > 1) capture((std::string(argv[1])+"-map-preview.ppm").c_str(),pixels(1280,720),1280,720);
+            click(750,520);
+            require(isColor(colorAt(pixels(1280,720),1280,720,600,260),{231,205,101}) &&
+                    isColor(colorAt(pixels(1280,720),1280,720,750,400),{231,205,101}),
+                    "Multi-segment measurement did not draw both placed segments");
+            hud.pointerButton(1,true); draw();
+            require(!isColor(colorAt(pixels(1280,720),1280,720,750,400),{231,205,101}),
+                    "Map right click did not undo the last segment");
+            click(750,520); click(750,520); // Last-point click finishes.
+            move(1000,300); draw();
+            const auto finished = pixels(1280,720);
+            if (argc > 1) capture((std::string(argv[1])+"-map-measure.ppm").c_str(),finished,1280,720);
+            hud.pointerButton(1,true); draw();
+            require(finished==pixels(1280,720),"Right click changed a finished measurement");
+            mapState.screen = viewer::HudScreen::Gameplay; draw();
+            mapState.screen = viewer::HudScreen::Map; draw();
+            require(finished==pixels(1280,720),"Finished measurement did not survive reopening map");
+            move(750,520); hud.pointerButton(0,true); move(800,560); hud.pointerButton(0,false); draw();
+            require(finished!=pixels(1280,720),"Finished point could not be adjusted through HUD input");
+            move(650,350); hud.mouseWheel(4); draw();
+            const auto zoomed = pixels(1280,720);
+            if (argc > 1) capture((std::string(argv[1])+"-map-zoom.ppm").c_str(),zoomed,1280,720);
+            move(600,350); hud.pointerButton(0,true); move(650,350); hud.pointerButton(0,false); draw();
+            require(zoomed!=pixels(1280,720),"Map drag did not pan the zoomed image");
+            click(100,253); // Clear (third toolbar button).
+            move(640,400); hud.mouseWheel(-32); draw();
+            move(1000,300); draw();
+            require(emptyMap==pixels(1280,720),"Clear/zoom-out did not restore the initial map");
+            click(100,169); click(450,260); click(750,260);
+            mapState.screen = viewer::HudScreen::Gameplay; draw();
+            mapState.screen = viewer::HudScreen::Map; draw();
+            move(1000,300); draw();
+            require(emptyMap==pixels(1280,720),"Unfinished map measurement survived closing the screen");
+            // A different presentation aspect ratio must use the same fitted
+            // scene transform for map clicks as for the inventory.
+            const auto fit = viewer::presentationViewport(640,360,1920,1200);
+            const auto fittedMove = [&](float x,float y) {
+                hud.pointerMove((fit.x+x*fit.width/1280)/1920,(fit.y+y*fit.height/720)/1200);
+            };
+            const auto fittedDraw = [&] { clear(); hud.draw(mapState,640,360,1920,1200); checkState(); };
+            const auto fittedClick = [&](float x,float y) { fittedMove(x,y); hud.pointerButton(0,true); hud.pointerButton(0,false); fittedDraw(); };
+            fittedDraw(); fittedClick(100,169); fittedClick(450,260); fittedClick(750,260);
+            require(isColor(colorAt(pixels(640,360),640,360,300,130),{231,205,101}),
+                    "Letterboxed/scaled map input placed measurement in the wrong location");
+            hud.cancelPointerInteraction(); fittedDraw();
+            require(!isColor(colorAt(pixels(640,360),640,360,300,130),{231,205,101}),
+                    "Focus cancellation left unfinished map geometry");
+        }
+        {
             StorageFixture fixture;
             // Straight-alpha PNG: half-opaque white, then transparent white.
             // This catches bright fringes if file images skip premultiplication.
@@ -486,7 +549,11 @@ int main(int argc, char** argv) {
             hud.setMinimapRoads(minimapRoadFixture());
             state.position = {1000, 0, 1000};
             clear(); hud.draw(state, 1280, 720); checkState();
-            require(fullMap == pixels(1280, 720), "Full map drew roads or followed player movement");
+            const auto movedMap = pixels(1280,720);
+            require(fullMap != movedMap, "Full map player marker did not follow player movement");
+            require(isColor(colorAt(movedMap,1280,720,400,180),{220,30,20}) &&
+                    isColor(colorAt(movedMap,1280,720,870,640),{220,210,20}),
+                    "Full map imagery followed the player or drew roads");
             if (argc > 1) capture((std::string(argv[1]) + "-map.ppm").c_str(), fullMap, 1280, 720);
             clear(); hud.draw(state, 640, 360); checkState();
             require(isColor(colorAt(pixels(640, 360), 640, 360, 200, 90), {220,30,20}),

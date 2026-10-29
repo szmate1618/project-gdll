@@ -2,22 +2,17 @@
 
 #include "inventory/inventory_drag.hpp"
 #include "inventory/inventory_action.hpp"
+#include "hud_pointer.hpp"
 #include <vector>
 
 namespace Rml { class Element; class ElementDocument; }
 namespace viewer {
 struct PresentationViewport;
-enum class InventoryPointerAction { Move, Press, Release, Cancel, Wheel };
-struct InventoryPointerEvent {
-    InventoryPointerAction action;
-    float x = 0, y = 0; // Move: window fractions. Wheel: x is signed notches.
-};
-
 // RmlUi adapter for storage dragging. Borrows the document and player inventory. Input is consumed on the rendering thread.
 class InventoryInteraction {
 public:
     InventoryInteraction(Rml::ElementDocument& document, PlayerInventory& inventory);
-    void process(const std::vector<InventoryPointerEvent>& events, int width, int height,
+    void process(const std::vector<HudPointerEvent>& events, int width, int height,
         const PresentationViewport& presentation, double seconds);
     void cancel();
     std::vector<InventoryDragAction> takeActions();
