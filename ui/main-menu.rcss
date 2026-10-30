@@ -32,21 +32,6 @@ input { tab-index: auto; }
 .creating #choose-screen, .loading #choose-screen { display: none; }
 .creating #character-screen, .loading #loading-screen { display: block; }
 .creating #menu-message, .loading #menu-message { display: none; }
-#character-details { position: absolute; left: 60dp; top: 120dp; width: 250dp; height: 435dp; }
-#character-details div, #character-back { position: absolute; }
-#character-heading { top: 25dp; }
-#character-size { top: 60dp; }
-#paint-hint { top: 115dp; }
-#orbit-hint { top: 145dp; }
-#face-label { top: 215dp; }
-#face-name { top: 245dp; width: 240dp; word-break: break-word; }
-.swatch { width: 28dp; height: 28dp; }
-#base-swatch { top: 300dp; background-color: #46b2be; }
-#paint-swatch { top: 340dp; background-color: #eb4370; }
-#base-label { top: 308dp; left: 40dp; }
-#paint-label { top: 348dp; left: 40dp; }
-#character-back { left: 0dp; top: 390dp; width: 220dp; height: 45dp; padding-left: 18dp; line-height: 41dp; }
-#character-preview { position: absolute; left: 330dp; top: 120dp; width: 570dp; height: 435dp; }
 #loading-heading { position: absolute; left: 60dp; top: 145dp; }
 #loading-message { position: absolute; left: 60dp; right: 60dp; top: 185dp; white-space: pre-wrap; word-break: break-word; max-height: 280dp; overflow: auto; }
 #loading-cancel { position: absolute; left: 60dp; top: 500dp; height: 40dp; padding: 8dp 12dp; }

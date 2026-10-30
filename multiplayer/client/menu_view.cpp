@@ -1,4 +1,5 @@
 #include "menu_view.hpp"
+#include "character_editor.hpp"
 #include "gui/ui_runtime.hpp"
 #include <RmlUi/Core.h>
 #include <RmlUi/Core/Elements/ElementFormControlInput.h>
@@ -45,6 +46,7 @@ struct MenuView::Impl final : Rml::EventListener {
     Rml::Context* context = nullptr;
     Rml::ElementDocument* document = nullptr;
     Rml::ElementFormControlInput *port = nullptr, *address = nullptr;
+    std::unique_ptr<CharacterEditor> editor;
     MenuScreen screen = MenuScreen::Choose;
     MenuCommand command = MenuCommand::None;
     int selected = 0, width = 0, height = 0;
@@ -73,6 +75,7 @@ struct MenuView::Impl final : Rml::EventListener {
         } catch (...) { Rml::RemoveContext("main-menu"); context = nullptr; throw; }
     }
     ~Impl() override {
+        editor.reset();
         // Remove listeners while their owner is still alive.
         document->RemoveEventListener("click", this);
         document->RemoveEventListener("mouseover", this);
@@ -115,8 +118,7 @@ struct MenuView::Impl final : Rml::EventListener {
         if (auto* focused = context->GetFocusElement()) focused->Blur();
     }
     bool editing() const {
-        const auto* focus = context->GetFocusElement();
-        return focus == port || focus == address;
+        return dynamic_cast<Rml::ElementFormControlInput*>(context->GetFocusElement()) != nullptr;
     }
     void focusField(Rml::ElementFormControlInput& field) {
         field.Focus();
@@ -127,18 +129,22 @@ struct MenuView::Impl final : Rml::EventListener {
         const int code = input.code, mods = modifiers(input.mods);
         const bool pressed = input.action != GLFW_RELEASE;
         if (pressed && code == GLFW_KEY_F6) { if (input.action == GLFW_PRESS) theme(!modern); return; }
-        if (screen != MenuScreen::Choose) {
-            if (pressed && code == GLFW_KEY_ESCAPE)
-                command = screen == MenuScreen::Character ? MenuCommand::Back : MenuCommand::Cancel;
+        if (screen == MenuScreen::Loading) {
+            if (pressed && code == GLFW_KEY_ESCAPE) command = MenuCommand::Cancel;
             return;
         }
         if (pressed && code == GLFW_KEY_TAB) {
-            auto* focus = context->GetFocusElement();
-            if (input.mods & GLFW_MOD_SHIFT) {
-                if (focus == port) blur(); else if (focus == address) focusField(*port); else focusField(*address);
-            } else {
-                if (focus == port) focusField(*address); else if (focus == address) blur(); else focusField(*port);
+            std::vector<Rml::ElementFormControlInput*> fields{port, address};
+            if (screen == MenuScreen::Character) {
+                fields.clear();
+                for (const auto* id : {"base-color", "brush-color", "face-color"})
+                    fields.push_back(dynamic_cast<Rml::ElementFormControlInput*>(&element(id)));
             }
+            const auto found = std::find(fields.begin(), fields.end(), context->GetFocusElement());
+            const int previous = found == fields.end() ? int(fields.size()) : int(found - fields.begin());
+            const int count = int(fields.size()) + 1;
+            const int next = (previous + ((input.mods & GLFW_MOD_SHIFT) ? count - 1 : 1)) % count;
+            if (next == int(fields.size())) blur(); else focusField(*fields[next]);
             return;
         }
         if (editing()) {
@@ -150,6 +156,10 @@ struct MenuView::Impl final : Rml::EventListener {
             return;
         }
         if (!pressed) return;
+        if (screen == MenuScreen::Character) {
+            if (code == GLFW_KEY_ESCAPE) command = MenuCommand::Back;
+            return;
+        }
         if (code == GLFW_KEY_ESCAPE) command = MenuCommand::Quit;
         else if (code == GLFW_KEY_UP) select((selected + 4) % 5);
         else if (code == GLFW_KEY_DOWN) select((selected + 1) % 5);
@@ -161,7 +171,7 @@ struct MenuView::Impl final : Rml::EventListener {
             switch (input.kind) {
             case Input::Key: key(input); break;
             case Input::Character:
-                if (screen == MenuScreen::Choose && editing() && input.codepoint >= 32 && input.codepoint <= 126)
+                if (screen != MenuScreen::Loading && editing() && input.codepoint >= 32 && input.codepoint <= 126)
                     context->ProcessTextInput(Rml::Character(input.codepoint));
                 break;
             case Input::Move: context->ProcessMouseMove(int(input.x * width), int(input.y * height), 0); break;
@@ -178,6 +188,9 @@ struct MenuView::Impl final : Rml::EventListener {
 
 MenuView::MenuView(const std::filesystem::path& directory) : impl_(std::make_unique<Impl>(directory)) {}
 MenuView::~MenuView() = default;
+void MenuView::editCharacter(CharacterCreation& creation) {
+    if (!impl_->editor) impl_->editor = std::make_unique<CharacterEditor>(*impl_->document, creation);
+}
 void MenuView::connection(const std::string& port, const std::string& address) {
     impl_->port->SetValue(port); impl_->address->SetValue(address);
 }
@@ -193,6 +206,7 @@ void MenuView::draw(MenuScreen screen, const std::string& message, const std::st
     setText(self.element("menu-message"), message);
     setText(self.element("loading-message"), message);
     setText(self.element("face-name"), face);
+    if (screen == MenuScreen::Character && self.editor) self.editor->refresh();
     if (self.width != width || self.height != height) {
         self.width = width; self.height = height;
         self.context->SetDimensions({width, height});

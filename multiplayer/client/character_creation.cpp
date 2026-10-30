@@ -1,4 +1,5 @@
 #include "character_creation.hpp"
+#include "character_profile.hpp"
 #include "resources.hpp"
 #include "shader_program.hpp"
 #include "json.hpp"
@@ -16,27 +17,44 @@
 namespace multiplayer {
 namespace {
 struct Vertex { glm::vec3 position, normal; glm::vec2 uv; float face; };
-std::pair<std::string, viewer::ImageData> randomFace() {
+std::vector<CharacterFace> faceCatalog() {
     const auto& root = resourceRoot();
     std::ifstream stream(root / "gui/character-faces.json");
     if (!stream) throw std::runtime_error("Cannot read character face selection");
     const auto entries = nlohmann::json::parse(stream).at("icons");
-    if (entries.empty()) throw std::runtime_error("Character face selection is empty");
-    std::mt19937 random(std::random_device{}());
-    auto chosen = entries.begin();
-    std::advance(chosen, std::uniform_int_distribution<std::size_t>(0, entries.size() - 1)(random));
-    const auto path = root / "data/assets/game-icons/character-faces" / (chosen.key() + ".png");
+    if (entries.size() != 20) throw std::runtime_error("Character creation requires 20 face icons");
+    std::vector<CharacterFace> faces;
+    for (auto entry = entries.begin(); entry != entries.end(); ++entry)
+        faces.push_back({entry.key(), entry.value().at("name").get<std::string>(),
+                         root / "data/assets/game-icons/character-faces" / (entry.key() + ".png")});
+    return faces;
+}
+viewer::ImageData loadFace(const std::filesystem::path& path) {
     int width = 0, height = 0, channels = 0;
     const std::unique_ptr<unsigned char, decltype(&stbi_image_free)> pixels(
         stbi_load(path.u8string().c_str(), &width, &height, &channels, 4), stbi_image_free);
-    if (!pixels) throw std::runtime_error("Character face textures missing. Run tools/prepare_hud_icons.py");
+    if (!pixels || width <= 0 || height <= 0 || width > 1024 || height > 1024)
+        throw std::runtime_error("Character face textures missing. Run tools/prepare_hud_icons.py");
     viewer::ImageData image; image.width = width; image.height = height;
     image.rgba.assign(pixels.get(), pixels.get() + static_cast<std::size_t>(width) * height * 4);
-    return {chosen.value().at("name").get<std::string>(), std::move(image)};
+    return image;
 }
 }
-CharacterCreation::CharacterCreation() {
-    auto face = randomFace(); faceName_ = std::move(face.first); canvas_.applyFace(face.second);
+CharacterCreation::CharacterCreation(std::filesystem::path profilePath) : faces_(faceCatalog()), profilePath_(std::move(profilePath)) {
+    std::mt19937 random(std::random_device{}());
+    faceIndex_ = std::uniform_int_distribution<std::size_t>(0, faces_.size() - 1)(random);
+    try {
+        if (profilePath_.empty()) profilePath_ = characterProfilePath();
+        CharacterCanvas loaded; std::string id;
+        if (loadCharacterProfile(profilePath_, loaded, id)) {
+            const auto face = std::find_if(faces_.begin(), faces_.end(), [&](const auto& face) { return face.id == id; });
+            if (face == faces_.end()) throw std::runtime_error("Saved face icon is unavailable");
+            canvas_ = std::move(loaded); faceIndex_ = std::size_t(face - faces_.begin());
+            status_ = "Saved character loaded";
+        }
+    } catch (const std::exception& error) { status_ = std::string("Could not load saved character: ") + error.what(); }
+    faceName_ = faces_[faceIndex_].name;
+    canvas_.applyFace(loadFace(faces_[faceIndex_].image));
     const auto path = resourceRoot() / "multiplayer/client";
     std::vector<Vertex> vertices;
     const std::array<glm::vec2, 4> corners{{{0,0}, {1,0}, {1,1}, {0,1}}};
@@ -78,6 +96,39 @@ void CharacterCreation::uploadImages() {
         glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, CharacterCanvas::resolution, CharacterCanvas::resolution,
             1, GL_RGBA, GL_UNSIGNED_BYTE, canvas_.images()[i].rgba.data());
 }
+void CharacterCreation::changed() { status_ = "Unsaved changes"; }
+void CharacterCreation::selectFace(std::size_t index) {
+    const auto& face = faces_.at(index);
+    const auto icon = loadFace(face.image);
+    canvas_.applyFace(icon); faceIndex_ = index; faceName_ = face.name;
+    uploadImages(); changed(); releasePointer();
+}
+CharacterCanvas::Color CharacterCreation::color(CharacterColorTarget target) const {
+    if (target == CharacterColorTarget::Base) return canvas_.base();
+    if (target == CharacterColorTarget::Brush) return canvas_.brush();
+    return canvas_.ink();
+}
+void CharacterCreation::setColor(CharacterColorTarget target, CharacterCanvas::Color color) {
+    color[3] = 255;
+    if (this->color(target) == color) return;
+    if (target == CharacterColorTarget::Base) canvas_.setBaseColor(color);
+    else if (target == CharacterColorTarget::Brush) canvas_.setBrushColor(color);
+    else canvas_.setFaceColor(color);
+    if (target != CharacterColorTarget::Brush) uploadImages();
+    changed(); releasePointer();
+}
+void CharacterCreation::reset() {
+    canvas_.reset(); selectFace(0);
+    yaw_ = .4f; pitch_ = .15f;
+}
+bool CharacterCreation::save() {
+    try {
+        if (profilePath_.empty()) profilePath_ = characterProfilePath();
+        saveCharacterProfile(profilePath_, canvas_, faces_[faceIndex_].id);
+        status_ = "Character saved locally";
+        return true;
+    } catch (const std::exception& error) { status_ = std::string("Save failed: ") + error.what(); return false; }
+}
 void CharacterCreation::releasePointer() { orbiting_ = false; previousPaint_.reset(); }
 void CharacterCreation::draw(glm::ivec4 viewport, glm::vec2 pointer, bool paint, bool orbit) {
     if (viewport.z <= 0 || viewport.w <= 0) { releasePointer(); return; }
@@ -106,7 +157,7 @@ void CharacterCreation::draw(glm::ivec4 viewport, glm::vec2 pointer, bool paint,
         bool changed = false;
         for (int i = 1; i <= steps; ++i)
             changed = canvas_.paint(glm::mix(start, hit->position, float(i) / steps)) || changed;
-        if (changed) uploadImages();
+        if (changed) { uploadImages(); this->changed(); }
         previousPaint_ = hit->position;
     } else previousPaint_.reset();
     glViewport(viewport.x, viewport.y, viewport.z, viewport.w);

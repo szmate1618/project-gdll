@@ -53,6 +53,22 @@ void check() {
     require(pixel(stamped, 0, 192,32) == Canvas::baseColor, "Transparent face quadrant overwrote the base");
     require(pixel(stamped, 0, 64,128) == Canvas::baseColor, "Face was stretched down the body");
     require(pixel(stamped, 1, 64,32) == Canvas::baseColor, "Front face stamp appeared on the back");
+    const Canvas::Color green{30, 200, 50, 255}, red{240, 30, 20, 255}, yellow{240, 220, 20, 255};
+    stamped.setBrushColor(green); stamped.paint({0,.9f,.2f});
+    stamped.setBaseColor(red); stamped.setFaceColor(yellow);
+    require(pixel(stamped, 0, 128,128) == green, "Changing base/icon colors must preserve brush strokes");
+    require(pixel(stamped, 1, 128,128) == red, "Changing the base must recolor unpainted sides");
+    require(pixel(stamped, 0, 64,32) == yellow, "Face icon must use the selected tint");
+    viewer::ImageData transparent = icon; transparent.rgba.assign(16, 0);
+    stamped.applyFace(transparent);
+    require(pixel(stamped, 0, 64,32) == red, "Changing icons must remove the previous stamp");
+    require(pixel(stamped, 0, 128,128) == green, "Changing icons must preserve brush strokes");
+    stamped.setBrushColor(yellow); stamped.paint({0,.5f,.2f});
+    require(pixel(stamped, 0, 128,128) == green, "Brush color changes must not recolor old strokes");
+    require(pixel(stamped, 0, 128,185) == yellow, "New strokes must use the selected brush color");
+    stamped.reset();
+    require(pixel(stamped, 0, 128,128) == Canvas::baseColor && stamped.brush() == Canvas::paintColor && stamped.ink() == Canvas::faceColor,
+            "Reset must clear paint and restore the default colors");
 }
 }
 int main() {

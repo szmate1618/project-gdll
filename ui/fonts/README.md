@@ -5,6 +5,7 @@
 is the top row. Lowercase characters use the original uppercase shapes, and
 unsupported printable ASCII uses the original marker. No third-party font is
 used for these glyphs.
+The hash sign is an added 5×7 glyph for the character editor's hex color fields.
 
 Rebuild the checked-in font from the repository root:
 

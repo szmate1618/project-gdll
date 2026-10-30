@@ -176,7 +176,7 @@ with log.open("w") as output:
     # delivering GLFW character callbacks. Use local XIM for this ASCII test.
     game = subprocess.Popen([client, *base, "--port", str(port), "--no-audio", "--look", "0", "-10"],
                             stdout=output, stderr=subprocess.STDOUT,
-                            env=dict(os.environ, XMODIFIERS="@im=none"))
+                            env=dict(os.environ, XMODIFIERS="@im=none", GD_CHARACTER_PROFILE=str(directory / "character.json")))
     children.append(game)
     try:
         window = wait_for(lambda: owned_window(game.pid), "Game window not found")

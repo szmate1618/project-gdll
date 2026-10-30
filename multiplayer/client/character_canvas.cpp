@@ -28,12 +28,42 @@ glm::vec3 CharacterCanvas::surfacePoint(int face, glm::vec2 uv) {
     return s.origin + s.across * uv.x + s.down * uv.y;
 }
 CharacterCanvas::CharacterCanvas() {
+    for (auto& image : painting_) {
+        image.width = image.height = resolution;
+        image.rgba.resize(resolution * resolution * 4, 0);
+    }
+    rebuild();
+}
+void CharacterCanvas::setBaseColor(Color color) { color[3] = 255; base_ = color; rebuild(); }
+void CharacterCanvas::setFaceColor(Color color) { color[3] = 255; ink_ = color; rebuild(); }
+void CharacterCanvas::reset() {
+    base_ = baseColor; brush_ = paintColor; ink_ = faceColor;
+    for (auto& image : painting_) std::fill(image.rgba.begin(), image.rgba.end(), 0);
+    rebuild();
+}
+void CharacterCanvas::restorePainting(const std::array<viewer::ImageData, faceCount>& painting) {
+    for (const auto& image : painting) {
+        if (image.width != resolution || image.height != resolution || image.rgba.size() != resolution * resolution * 4)
+            throw std::runtime_error("Invalid character paint layer dimensions");
+        for (std::size_t i = 3; i < image.rgba.size(); i += 4)
+            if (image.rgba[i] != 0 && image.rgba[i] != 255) throw std::runtime_error("Invalid character paint alpha");
+    }
+    painting_ = painting;
+    rebuild();
+}
+void CharacterCanvas::rebuild() {
     for (auto& image : images_) {
         image.width = image.height = resolution;
         image.rgba.resize(resolution * resolution * 4);
         for (std::size_t i = 0; i < image.rgba.size(); i += 4)
-            std::copy(baseColor.begin(), baseColor.end(), image.rgba.begin() + static_cast<std::ptrdiff_t>(i));
+            std::copy(base_.begin(), base_.end(), image.rgba.begin() + static_cast<std::ptrdiff_t>(i));
     }
+    if (icon_) stampFace();
+    for (int face = 0; face < faceCount; ++face)
+        for (std::size_t i = 0; i < painting_[face].rgba.size(); i += 4)
+            if (painting_[face].rgba[i + 3])
+                std::copy_n(painting_[face].rgba.begin() + static_cast<std::ptrdiff_t>(i), 4,
+                            images_[face].rgba.begin() + static_cast<std::ptrdiff_t>(i));
 }
 std::optional<CharacterCanvas::Hit> CharacterCanvas::intersect(glm::vec3 origin, glm::vec3 direction) {
     const float length = glm::length(direction);
@@ -60,6 +90,11 @@ void CharacterCanvas::applyFace(const viewer::ImageData& icon) {
     if (icon.width <= 0 || icon.height <= 0 ||
         icon.rgba.size() != static_cast<std::size_t>(icon.width) * icon.height * 4)
         throw std::runtime_error("Invalid character face image");
+    icon_ = icon;
+    rebuild();
+}
+void CharacterCanvas::stampFace() {
+    const auto& icon = *icon_;
     // Square 42 cm stamp centered 1.45 m above the feet on the +Z face.
     constexpr float size = .42f, top = 1.45f + size * .5f;
     auto& destination = images_[0].rgba;
@@ -70,9 +105,8 @@ void CharacterCanvas::applyFace(const viewer::ImageData& icon) {
         const auto source = (static_cast<std::size_t>(int(v * icon.height)) * icon.width + int(u * icon.width)) * 4;
         const unsigned alpha = icon.rgba[source + 3];
         const auto target = offset(x, y);
-        constexpr std::array<unsigned, 3> ink{18, 28, 36};
         for (int c = 0; c < 3; ++c)
-            destination[target + c] = static_cast<std::uint8_t>((ink[c] * alpha + destination[target + c] * (255 - alpha) + 127) / 255);
+            destination[target + c] = static_cast<std::uint8_t>((ink_[c] * alpha + destination[target + c] * (255 - alpha) + 127) / 255);
     }
 }
 bool CharacterCanvas::paint(glm::vec3 center) {
@@ -88,14 +122,15 @@ bool CharacterCanvas::paint(glm::vec3 center) {
         const int x1 = std::min(resolution - 1, int(std::floor((u + ru) * resolution)));
         const int y0 = std::max(0, int(std::floor((v - rv) * resolution)));
         const int y1 = std::min(resolution - 1, int(std::floor((v + rv) * resolution)));
-        auto& pixels = images_[face].rgba;
+        auto& pixels = painting_[face].rgba;
         for (int y = y0; y <= y1; ++y) for (int x = x0; x <= x1; ++x) {
             const auto p = surfacePoint(face, {(x + .5f) / resolution, (y + .5f) / resolution});
             const auto difference = p - center;
             if (glm::dot(difference, difference) > brushRadius * brushRadius) continue;
             const auto pixel = offset(x, y);
-            if (std::equal(paintColor.begin(), paintColor.end(), pixels.begin() + static_cast<std::ptrdiff_t>(pixel))) continue;
-            std::copy(paintColor.begin(), paintColor.end(), pixels.begin() + static_cast<std::ptrdiff_t>(pixel));
+            if (std::equal(brush_.begin(), brush_.end(), pixels.begin() + static_cast<std::ptrdiff_t>(pixel))) continue;
+            std::copy(brush_.begin(), brush_.end(), pixels.begin() + static_cast<std::ptrdiff_t>(pixel));
+            std::copy(brush_.begin(), brush_.end(), images_[face].rgba.begin() + static_cast<std::ptrdiff_t>(pixel));
             changed = true;
         }
     }

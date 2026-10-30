@@ -22,8 +22,8 @@ GameMenu::GameMenu(const ClientDisplay& display, bool hidden) {
     }
 }
 GameMenu::~GameMenu() {
-    characterCreation_.reset();
     view_.reset();
+    characterCreation_.reset();
     glfwDestroyWindow(window_); glfwTerminate();
 }
 void GameMenu::handleCommand() {
@@ -80,8 +80,11 @@ GameMode GameMenu::choose(const std::string& message) {
     glfwSetWindowTitle(window_, "Godollo | Choose a game mode");
     while (!closed() && choice_ == GameMode::Menu) {
         glfwPollEvents();
-        if (creating_ && !characterCreation_) {
-            try { characterCreation_ = std::make_unique<CharacterCreation>(); }
+        if (creating_) {
+            try {
+                if (!characterCreation_) characterCreation_ = std::make_unique<CharacterCreation>();
+                view_->editCharacter(*characterCreation_);
+            }
             catch (const std::exception& error) {
                 status = error.what(); std::cerr << "Character creation: " << status << '\n';
                 leaveCharacterCreation();

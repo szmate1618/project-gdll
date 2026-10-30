@@ -1,9 +1,13 @@
 #include "client/menu_view.hpp"
+#include "client/character_creation.hpp"
+#include "client/character_profile.hpp"
 #include "gui/hud.hpp"
 #include "inventory/inventory_config.hpp"
 #include "opengl.hpp"
 #include <GLFW/glfw3.h>
 #include <array>
+#include <chrono>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
 
@@ -23,7 +27,7 @@ bool near(std::array<unsigned char, 3> actual, std::array<int, 3> expected) {
 }
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
     if (!glfwInit()) return 77;
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -36,6 +40,7 @@ int main() {
         viewer::initializeOpenGL();
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << '\n';
         const std::filesystem::path ui = VIEWER_HUD_DIR;
+        std::unique_ptr<multiplayer::CharacterCreation> creation; // Must outlive the borrowed editor binding.
         multiplayer::MenuView menu(ui);
         const auto draw = [&](multiplayer::MenuScreen screen = multiplayer::MenuScreen::Choose) {
             menu.draw(screen, "Status <&> stays literal", "TEST FACE", 960, 600);
@@ -86,11 +91,72 @@ int main() {
         require(menu.takeCommand() == multiplayer::MenuCommand::SinglePlayer, "RmlUi buttons must handle pointer clicks");
         draw(multiplayer::MenuScreen::Character);
         const auto preview = menu.previewViewport();
-        require(preview.x > 300 && preview.y >= 0 && preview.z > 500 && preview.w > 400 &&
+        require(preview.x > 300 && preview.y >= 0 && preview.z > 250 && preview.w > 300 &&
                 preview.x + preview.z <= 960 && preview.y + preview.w <= 600,
                 "Character viewport must come from the visible layout");
         key(GLFW_KEY_ESCAPE); draw(multiplayer::MenuScreen::Character);
         require(menu.takeCommand() == multiplayer::MenuCommand::Back, "Character preview must support Escape");
+        const auto directory = std::filesystem::path(argc > 1 ? argv[1] : "build") /
+            ("editor-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        const auto profile = directory / "character.json";
+        creation = std::make_unique<multiplayer::CharacterCreation>(profile);
+        menu.editCharacter(*creation);
+        draw(multiplayer::MenuScreen::Character);
+        require(creation->faces().size() == 20, "Editor must expose all 20 face icons");
+        // Edit three native color fields, then select the final icon through its
+        // visible grid position (four columns, five rows).
+        for (const char* value : {"123456", "ABCDEF", "FEDCBA"}) {
+            key(GLFW_KEY_TAB); key(GLFW_KEY_A, GLFW_MOD_CONTROL); type(value); draw(multiplayer::MenuScreen::Character);
+        }
+        require(creation->color(multiplayer::CharacterColorTarget::Base) == multiplayer::CharacterCanvas::Color{0x12,0x34,0x56,255} &&
+                creation->color(multiplayer::CharacterColorTarget::Brush) == multiplayer::CharacterCanvas::Color{0xab,0xcd,0xef,255} &&
+                creation->color(multiplayer::CharacterColorTarget::Face) == multiplayer::CharacterCanvas::Color{0xfe,0xdc,0xba,255},
+                "Base, brush and face inputs must control independent colors");
+        key(GLFW_KEY_A, GLFW_MOD_CONTROL); type("ZZZZZZ"); draw(multiplayer::MenuScreen::Character);
+        const auto click = [&](float x, float y) {
+            menu.pointer(x / 960, y / 600); menu.button(0, true, 0); menu.button(0, false, 0);
+            draw(multiplayer::MenuScreen::Character);
+        };
+        click(840, 538);
+        require(!std::filesystem::exists(profile), "Invalid color input must prevent saving");
+        // A preset repairs the field without changing the other two selectors.
+        click(60 + 16 + 3 * 26 + 10, 130 + 216 + 52 + 10);
+        require(creation->color(multiplayer::CharacterColorTarget::Face) == multiplayer::CharacterCanvas::Color{245,246,242,255},
+                "Color presets must update their selected role");
+        click(660 + 16 + 3 * 52 + 23, 130 + 48 + 4 * 52 + 23);
+        require(creation->faceIndex() == 19, "The last of 20 face icons must be clickable");
+        click(840, 538);
+        require(std::filesystem::is_regular_file(profile), "Save button must persist the local character");
+        {
+            multiplayer::CharacterCreation restored(profile);
+            require(restored.faceIndex() == 19 && restored.color(multiplayer::CharacterColorTarget::Base) == creation->color(multiplayer::CharacterColorTarget::Base),
+                    "A new editor must restore the saved face and colors");
+        }
+        click(250, 538);
+        require(creation->faceIndex() == 0 && creation->color(multiplayer::CharacterColorTarget::Base) == multiplayer::CharacterCanvas::baseColor,
+                "Reset button must restore the default appearance");
+        multiplayer::CharacterCanvas saved; std::string savedFace;
+        multiplayer::loadCharacterProfile(profile, saved, savedFace);
+        require(savedFace == creation->faces()[19].id, "Reset must leave the previous save intact until Save is clicked");
+        if (argc > 2) {
+            // Read the GPU buffer directly for dependable visual QA captures,
+            // independent of compositor/front-buffer screenshot timing.
+            const auto capture = [&](const char* suffix) {
+                glDisable(GL_SCISSOR_TEST); glDepthMask(GL_TRUE);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                draw(multiplayer::MenuScreen::Character);
+                creation->draw(menu.previewViewport(), {-1,-1}, false, false);
+                std::vector<unsigned char> image(960 * 600 * 3);
+                glPixelStorei(GL_PACK_ALIGNMENT, 1);
+                glReadPixels(0, 0, 960, 600, GL_RGB, GL_UNSIGNED_BYTE, image.data());
+                std::ofstream output(std::string(argv[2]) + suffix + ".ppm", std::ios::binary);
+                output << "P6\n960 600\n255\n";
+                for (int y = 599; y >= 0; --y) output.write(reinterpret_cast<const char*>(image.data() + y * 960 * 3), 960 * 3);
+                require(bool(output), "Cannot save editor QA capture");
+            };
+            capture("-modern"); key(GLFW_KEY_F6); capture("-classic"); key(GLFW_KEY_F6); draw(multiplayer::MenuScreen::Character);
+        }
+        std::filesystem::remove_all(directory);
         draw(); key(GLFW_KEY_F6); draw();
         require(near(color(5, 5), {6, 10, 14}), "Classic must remain available after sessions and character preview");
         // A wider framebuffer moves the centered layout; hit testing must use

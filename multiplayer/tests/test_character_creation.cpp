@@ -3,6 +3,7 @@
 #include "resources.hpp"
 #include <GLFW/glfw3.h>
 #include <algorithm>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -23,7 +24,9 @@ void save(const std::filesystem::path& path, const std::vector<unsigned char>& i
     if (!file) throw std::runtime_error("Cannot save character preview capture");
 }
 void check(const std::filesystem::path& capture) {
-    multiplayer::CharacterCreation creation;
+    const auto profile = std::filesystem::path("character-creation-test-" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".json");
+    multiplayer::CharacterCreation creation(profile);
     const auto draw = [&](glm::vec2 pointer, bool paint = false, bool orbit = false) {
         glClearColor(.045f,.065f,.085f,1); glClearDepth(1); glDepthMask(GL_TRUE);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -43,6 +46,14 @@ void check(const std::filesystem::path& capture) {
     draw({-1,-1}, true);
     if (pixels() != painted) throw std::runtime_error("Painting outside the preview changed the box");
     if (!capture.empty()) save(capture.string() + "-painted.ppm", painted);
+    if (!creation.save()) throw std::runtime_error("Painted character failed to save");
+    {
+        multiplayer::CharacterCreation restored(profile);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        restored.draw({0,0,width,height}, {-1,-1}, false, false);
+        if (pixels() != painted) throw std::runtime_error("Saved character did not restore the rendered paint and icon");
+    }
+    std::filesystem::remove(profile);
     draw({.5f,.5f}, false, true); draw({.8f,.5f}, false, true);
     draw({-1,-1});
     if (pixels() == painted) throw std::runtime_error("Right drag failed to rotate the character");

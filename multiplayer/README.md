@@ -36,19 +36,42 @@ The bundled [pixel font](../ui/fonts/README.md) uses the original glyph shapes;
 Modern retains it in the heading and uses the HUD system font for controls.
 Both Linux and Windows packages include the menu and font resources.
 
-## Character creation preview
+## Character creation
 
-Choose **Character creation** (key **4**) in the client menu. The screen renders
-the standing player placeholder at 0.6 × 1.8 × 0.4 metres, with a turquoise base
-and one random face from the [20 selected Game-icons.net stamps](../gui/character-faces.json).
-The face occupies a fixed 42 cm square near the top of the front face.
+Choose **Character creation** (key **4**) in the client menu. Both themes use
+RmlUi controls beside the standing 0.6 × 1.8 × 0.4 metre player preview.
 
-Hold **left mouse** and drag to paint pink. The camera ray through the cursor
-selects the nearest box surface; a sphere of radius 4.5 cm paints the intersecting surface
-pixels, including across adjacent edges. **Right drag** rotates the preview.
-Press **Escape** or click **Back** to return to the menu. The preview survives
-menu visits during this launch; saving and applying it to networked players
-are not implemented yet. Quit is now key **5**.
+- **Base color**, **Brush color**, and **Face icon color** have preset swatches
+  and editable six-digit RGB hex values. Tab moves through these fields;
+  Enter/Escape ends editing. An incomplete/invalid color disables Save.
+- Choose any of the [20 Game-icons.net face stamps](../gui/character-faces.json)
+  from the visible grid. The stamp occupies a fixed 42 cm square near the top
+  of the front face.
+- **Left drag** paints with the selected brush; **right drag** rotates the box.
+  A sphere of radius 4.5 cm paints across adjacent edges. Base/icon changes
+  preserve painting through a separate paint image per side. Brush color only
+  affects new painting; there is no stroke history or undo system.
+- **Reset** clears painting, restores the three default colors and selects the
+  first face icon. **Save** stores the face, colors and six paint layers locally,
+  restoring them on the next launch. Reset changes the draft; Save replaces the
+  stored appearance. **Escape/Back** returns to the main menu, retaining the
+  current draft during this launch.
+
+The initial unsaved character uses a turquoise base, pink brush, dark icon ink
+and a random face. Local profiles are stored in
+`$XDG_DATA_HOME/godollo/character.json` (falling back to
+`~/.local/share/godollo/character.json`) on Linux, or
+`%LOCALAPPDATA%/Godollo/character.json` on Windows. `GD_CHARACTER_PROFILE` can
+select another file. The versioned JSON stores compact runs of painted pixels;
+Save validates a temporary file before atomically replacing the previous save.
+A malformed profile reports an error in the editor and leaves the saved file
+intact until the user chooses Save.
+
+The appearance is currently used by the local editor preview; applying it to
+in-game/networked players remains separate work. The RmlUi binding lives in
+[character_editor.cpp](client/character_editor.cpp), with styles in
+[character-editor.rcss](../ui/character-editor.rcss). Painting and compositing
+remain in `CharacterCanvas`; profile serialization lives in `character_profile`.
 
 Prepare the faces with `.venv/bin/python tools/prepare_hud_icons.py`; this reuses
 the cached, fingerprint-checked HUD icon archive. Linux and Windows client

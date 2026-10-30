@@ -6,6 +6,7 @@
 #include <glm/vec4.hpp>
 
 namespace multiplayer {
+class CharacterCreation;
 enum class MenuScreen { Choose, Character, Loading };
 enum class MenuCommand { None, SinglePlayer, Host, Join, Character, Quit, Back, Cancel };
 
@@ -15,6 +16,7 @@ public:
     explicit MenuView(const std::filesystem::path& directory);
     ~MenuView();
     void connection(const std::string& port, const std::string& address);
+    void editCharacter(CharacterCreation& creation); // Borrows the menu-owned preview until view destruction.
     std::string port() const;
     std::string address() const;
     void draw(MenuScreen screen, const std::string& message, const std::string& face, int width, int height);

@@ -1,0 +1,57 @@
+/* Three color controls, live box preview and all 20 icons share both themes. */
+#character-details { position: absolute; left: 60dp; top: 130dp; width: 240dp; height: 300dp; box-sizing: border-box; border-width: 1dp; }
+.editor-heading { position: absolute; top: 16dp; left: 16dp; font-size: 11dp; letter-spacing: 1dp; }
+.color-setting { position: absolute; left: 16dp; width: 208dp; height: 76dp; }
+#base-setting { top: 48dp; }
+#brush-setting { top: 132dp; }
+#face-setting { top: 216dp; }
+.color-setting label { position: absolute; top: 0dp; left: 0dp; font-size: 10dp; }
+.color-setting input { position: absolute; left: 36dp; top: 18dp; width: 172dp; height: 27dp; padding: 4dp 9dp; border-width: 1dp; font-size: 12dp; }
+.color-sample { position: absolute; left: 0dp; top: 18dp; width: 26dp; height: 27dp; border-width: 1dp; box-sizing: border-box; }
+.color-palette { position: absolute; top: 52dp; left: 0dp; width: 208dp; height: 20dp; }
+.color-chip { display: inline-block; width: 20dp; height: 20dp; margin-right: 6dp; border-width: 1dp; border-color: #f5f6f240; }
+.color-chip:hover { border-width: 2dp; border-color: #f5f6f2; }
+#character-preview { position: absolute; left: 320dp; top: 130dp; width: 320dp; height: 375dp; border-width: 1dp; box-sizing: border-box; }
+#faces-panel { position: absolute; left: 660dp; top: 130dp; width: 240dp; height: 375dp; border-width: 1dp; box-sizing: border-box; }
+#face-count { position: absolute; right: 16dp; top: 17dp; font-size: 9dp; }
+#face-options { position: absolute; left: 16dp; top: 48dp; width: 208dp; display: flex; flex-wrap: wrap; }
+.face-option { position: relative; width: 46dp; height: 46dp; margin-right: 6dp; margin-bottom: 6dp; border-width: 1dp; box-sizing: border-box; }
+.face-option img { position: absolute; left: 6dp; top: 6dp; width: 32dp; height: 32dp; image-color: #f5f6f2; }
+.face-option:hover { border-color: #f5f6f2; }
+#face-name { position: absolute; left: 16dp; right: 16dp; top: 322dp; font-size: 12dp; line-height: 18dp; word-break: break-word; }
+#paint-hint, #orbit-hint, #character-size { position: absolute; left: 60dp; font-size: 10dp; }
+#paint-hint { top: 449dp; }
+#orbit-hint { top: 469dp; }
+#character-size { top: 490dp; }
+#character-back, #character-reset, #character-save { position: absolute; top: 520dp; height: 36dp; padding: 8dp 16dp; font-size: 12dp; border-width: 1dp; text-align: center; }
+#character-back { left: 60dp; width: 140dp; }
+#character-reset { left: 212dp; width: 88dp; }
+#character-save { right: 60dp; width: 112dp; }
+#character-status { position: absolute; top: 530dp; left: 320dp; right: 190dp; max-height: 46dp; font-size: 11dp; word-break: break-word; }
+.modern #character-details, .modern #faces-panel, .modern #character-preview { border-color: #f5f6f226; }
+.modern #character-preview { background-color: #242628; }
+.modern .color-setting label, .modern #face-count, .modern #character-size { color: #f5f6f280; }
+.modern #paint-hint, .modern #orbit-hint, .modern #character-status { color: #f5f6f2bf; }
+.modern .color-setting input { background-color: #2b2d2f; border-color: #f5f6f24d; caret-color: #f5f6f2; }
+.modern .color-setting input:focus { border-color: #f5f6f2b0; }
+.modern .face-option, .modern #character-back, .modern #character-reset, .modern #character-save { background-color: #2b2d2f66; border-color: #f5f6f24d; }
+.modern .face-option.selected { border-color: #f5f6f2; background-color: #f5f6f21a; }
+.modern #character-save { background-color: #f5f6f226; border-color: #f5f6f299; }
+.modern #character-back:hover, .modern #character-reset:hover, .modern #character-save:hover { background-color: #f5f6f21a; }
+.modern #character-save:disabled { color: #f5f6f259; border-color: #f5f6f226; background-color: #2b2d2f66; }
+.modern .color-setting input.invalid, .modern #character-status.invalid { border-color: #ec6962; color: #ec6962; }
+.classic #character-details, .classic #faces-panel { background-color: #0f1f26; border-color: #338c7366; }
+.classic #character-preview { background-color: #0b1116; border-color: #338c7366; }
+.classic .editor-heading, .classic .color-setting label { font-size: 15dp; letter-spacing: 0dp; }
+.classic .color-setting input, .classic #face-name, .classic #character-status { font-size: 15dp; }
+.classic .color-setting input { background-color: #142633; border-color: #338c7380; caret-color: #d9e6f0; }
+.classic .color-setting input:focus { background-color: #144d33; }
+.classic #face-count { font-size: 12dp; top: 19dp; }
+.classic #face-name { line-height: 18dp; }
+.classic .face-option, .classic #character-back, .classic #character-reset { background-color: #142633; border-color: #338c7380; }
+.classic .face-option.selected, .classic #character-save { background-color: #1f4d42; border-color: #338c73; }
+.classic #character-back, .classic #character-reset, .classic #character-save { font-size: 15dp; }
+.classic #character-back:hover, .classic #character-reset:hover, .classic #character-save:hover { background-color: #286654; }
+.classic #character-save:disabled { color: #d9e6f059; border-color: #338c7340; background-color: #142633; }
+.classic #paint-hint, .classic #orbit-hint, .classic #character-size { font-size: 13dp; }
+.classic .color-setting input.invalid, .classic #character-status.invalid { border-color: #eb4370; color: #eb4370; }
