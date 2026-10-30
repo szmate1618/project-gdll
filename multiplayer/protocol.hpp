@@ -31,7 +31,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 25; // Timestamped five-Hz ragdoll prediction.
+constexpr std::uint32_t protocolVersion = 26; // Non-looping authored zombie attacks.
 constexpr std::uint64_t ragdollUpdateTicks = 12; // 5 Hz at the authoritative 60 Hz tick.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
@@ -120,6 +120,8 @@ struct ZombieState {
     // The wire carries only ID, packed flags/cadence, root position/yaw and
     // walkSeconds. Asset, phase, normalization and wounds arrive via setup.
     std::uint8_t updatePeriodTicks = 3; // 3/12/60 authoritative ticks: 20/5/1 Hz.
+    std::uint8_t attackClip = 0; // 0 none, 1 left, 2 right.
+    float attackSeconds = 0;
 };
 struct ZombieSetup {
     std::uint32_t id = 0, asset = 0;

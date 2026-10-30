@@ -530,7 +530,7 @@ The shot origin remains the server player's camera; distant sniper targets need
 no special origin allowance. The server trusts the reported intersection and
 does not repeat the ray test against a newer zombie pose. This policy suits
 trusted cooperative sessions; it does not independently prove client hit claims.
-Protocol version 25 requires matching client/server builds. Melee, grenades and
+Protocol version 26 requires matching client/server builds. Melee, grenades and
 standalone viewer shooting keep their existing authoritative collision paths.
 
 Own firearm sound, recoil, scope kick and muzzle light share one immediate local
@@ -775,6 +775,12 @@ of 100 ms and the advertised update interval, capped at one second: 100 ms for
 horizon the predicted pose holds. Small corrections ease over about 50 ms;
 discontinuities reset prediction. This changes client presentation only, without
 changes to its motion wire fields or server movement simulation.
+
+Authored zombie attacks replicate a left/right variant and elapsed clip time in
+ordinary motion samples. Clients advance that non-looping clock on the estimated
+server timeline; only the server resolves swept hand contacts and health damage.
+Attack mode changes are urgent updates, and ordinary non-attacking records keep
+their existing size. Assets without authored attacks retain the lunge fallback.
 
 Corpse poses carry independently versioned roots and palettes on a separate
 reliable transport lane. Each peer has at most four unacknowledged poses and a

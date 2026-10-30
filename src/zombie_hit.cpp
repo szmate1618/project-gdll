@@ -113,6 +113,8 @@ ZombieHitGeometry prepareZombieHitGeometry(const AnimatedModel& asset, const std
     frames(asset.boneFrames, asset.frameCount);
     if (asset.walkClip) frames(asset.walkClip->boneFrames, asset.walkClip->frameCount);
     if (asset.runClip) frames(asset.runClip->boneFrames, asset.runClip->frameCount);
+    if (asset.attackLeftClip) frames(asset.attackLeftClip->boneFrames, asset.attackLeftClip->frameCount);
+    if (asset.attackRightClip) frames(asset.attackRightClip->boneFrames, asset.attackRightClip->frameCount);
     return geometry;
 }
 

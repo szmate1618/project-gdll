@@ -39,7 +39,9 @@ struct ZombieInstance {
     // Last camera pose, published by rendering for exact hit/ragdoll handoff.
     // Derived display state only; the simulation remains single-threaded.
     mutable float displayedAnimationFrame = -1;
-    mutable int displayedAnimationClip = 0; // 0 idle, 1 walk, 2 run.
+    mutable int displayedAnimationClip = 0; // 0 idle, 1 walk, 2 run, 3/4 left/right attack.
+    std::uint8_t attackClip = 0; // 0 none, 1 left, 2 right; simulation-owned presentation.
+    double attackSeconds = 0; // Non-looping clip clock, independent of random idle phase.
     float phase = 0; // Fraction of the idle cycle, independent of frame rate.
     bool walking = false;
     bool running = false; // Select the authored run clip during pursuit.

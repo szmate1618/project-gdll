@@ -226,6 +226,15 @@ void Snapshots::applyZombies(Scene& scene, double now, double estimatedServerTic
         instance.restRoot = z.root;
         instance.phase = setup.phase; instance.walkSeconds = z.walkSeconds;
         instance.walking = z.walking; instance.running = z.running; instance.ragdoll = z.dead;
+        instance.attackClip = z.dead ? 0 : z.attackClip;
+        instance.attackSeconds = z.attackSeconds;
+        if (instance.attackClip) {
+            const auto& asset = scene.zombies.assets[setup.asset];
+            const auto& clip = instance.attackClip == 1 ? asset.attackLeftClip : asset.attackRightClip;
+            if (!clip) throw std::runtime_error("Server selected an unavailable attack animation");
+            instance.attackSeconds = std::min(double(clip->duration), double(z.attackSeconds) +
+                std::max(0.0, (estimatedServerTick - double(replica.motion.latestTick())) / 60));
+        }
         instance.idleSeconds = -1;
         instance.displayedAnimationFrame = -1;
         if (!z.dead) {

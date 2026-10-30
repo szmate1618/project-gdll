@@ -87,6 +87,41 @@ def fixture():
 
 
 class ZombieAssetTests(unittest.TestCase):
+    def test_attack_preparation_preserves_verified_static_collision_fits(self):
+        rig, original = fixture()
+
+        def clip(relative):
+            result = copy.deepcopy(original)
+            result[0]["animations"][0]["name"] = Path(relative).stem
+            return result
+
+        names = ("idle_220f", "walk_64f", "running_58f", "attack_left_70f", "attack_right_70f")
+        baseline = merge_animations(rig, [clip(f"ZombieFemale@{name}.gltf") for name in names[:3]])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            companion = root / "models/ZombieFemale_A.capsules.json"
+            companion.parent.mkdir()
+            old_hash = hashlib.sha256(baseline).hexdigest()
+            text = '{\n  "source_sha256": "' + old_hash + '",\n  "bones": []\n}\n'
+            companion.write_text(text)
+            with patch("tools.download_zombies.Sources") as sources, patch("builtins.print"):
+                sources.return_value.gltf.side_effect = lambda path: clip(path) if "animations-gltf" in path else rig
+                sources.return_value.records = {}
+                prepare_pack(root, offline=True)
+                output = root / "models/ZombieFemale_A.glb"
+                doc, _ = read_glb(output.read_bytes())
+                self.assertEqual([a["name"] for a in doc["animations"]],
+                                 [f"ZombieFemale@{name}" for name in names])
+                new_hash = hashlib.sha256(output.read_bytes()).hexdigest()
+                self.assertEqual(companion.read_text(), text.replace(old_hash, new_hash))
+                # Reruns retain the exact companion bytes; unrelated stale fits fail.
+                prepare_pack(root, offline=True)
+                companion.write_text(text.replace(old_hash, "0" * 64))
+                previous = output.read_bytes()
+                with self.assertRaisesRegex(ValueError, "unchanged three-clip rig"):
+                    prepare_pack(root, offline=True)
+                self.assertEqual(output.read_bytes(), previous)
+
     def test_three_clips_keep_independent_accessors_and_targets(self):
         rig, idle = fixture()
         walk, run = copy.deepcopy(idle), copy.deepcopy(idle)

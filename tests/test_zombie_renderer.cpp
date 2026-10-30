@@ -1357,6 +1357,52 @@ void renderAuthoredAssets(const std::filesystem::path& directory, const std::fil
     }
 }
 
+void renderAuthoredAttacks(const std::filesystem::path& path, const std::filesystem::path& screenshot) {
+    constexpr std::array<double, 5> times{0, .6, .9, 1.25, 2.3333333};
+    std::vector<glm::mat4> placements;
+    for (int row = 0; row < 2; ++row) for (int column = 0; column < 5; ++column)
+        placements.push_back(glm::translate(glm::mat4(1), {float(column - 2) * 2.2f, 0, -float(row) * 3}));
+    auto layer = viewer::loadZombieLayer(path, placements);
+    const auto& asset = layer.assets[0];
+    if (!asset.attackLeftClip || !asset.attackRightClip) throw std::runtime_error("Expected both authored attacks");
+    for (std::size_t id = 0; id < layer.instances.size(); ++id) {
+        auto& zombie = layer.instances[id];
+        zombie.attackClip = id < 5 ? 1 : 2;
+        zombie.attackSeconds = times[id % 5];
+        zombie.phase = .73f;
+    }
+    viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.resize(1280, 720); renderer.setHaze(false); renderer.setGroundFog(false);
+    renderer.setZombieDistanceDetail(false);
+    viewer::Camera camera; camera.setPosition({0, 5.8f, 10}); camera.setOrientation(-90, -22);
+    renderer.updateZombies(layer); renderer.render(camera, 100);
+    if (renderer.zombieVisibleCount() != 10) throw std::runtime_error("Attack preview omitted actors");
+    for (std::size_t id = 0; id < layer.instances.size(); ++id) {
+        auto& zombie = layer.instances[id];
+        const auto& clip = id < 5 ? *asset.attackLeftClip : *asset.attackRightClip;
+        const auto expected = viewer::clampedAnimationFrame(clip.duration, clip.frameCount, times[id % 5]);
+        if (zombie.displayedAnimationClip != (id < 5 ? 3 : 4) || std::abs(zombie.displayedAnimationFrame - expected) > .0001f)
+            throw std::runtime_error("Rendered attack used the wrong clip, clock or random phase");
+        const auto displayed = viewer::sampleZombiePose(asset, zombie, 100);
+        const auto reference = viewer::sampleAnimatedPose(asset, times[id % 5], 0, &clip);
+        for (std::size_t b = 0; b < displayed.size(); ++b)
+            if (glm::distance(glm::vec3(displayed[b][3]), glm::vec3(reference[b][3])) > .0002f)
+                throw std::runtime_error("Rendered attack and hit-test skeleton disagree");
+    }
+    if (!screenshot.empty()) renderer.writeScreenshot(screenshot);
+    for (std::size_t id = 0; id < layer.instances.size(); ++id) {
+        layer.instances[id].attackSeconds = 100;
+        layer.markRenderChanged(id, false);
+    }
+    renderer.updateZombies(layer); renderer.render(camera, 200);
+    for (const auto& zombie : layer.instances) {
+        const auto& clip = zombie.attackClip == 1 ? *asset.attackLeftClip : *asset.attackRightClip;
+        if (zombie.displayedAnimationFrame != float(clip.frameCount - 1))
+            throw std::runtime_error("Completed attack wrapped to its first frame");
+    }
+    viewer::Renderer::checkErrors("authored zombie attack rendering");
+}
+
 } // namespace
 
 // Exercises the runtime path using already-prepared local assets. This does not
@@ -1450,7 +1496,10 @@ int main(int argc, char** argv) {
         traceLastRenderedWoundMask();
         renderPosePublicationChanges();
         paletteGrowthAndReuse();
-        if (mode == "--dismemberment") {
+        if (mode == "--attacks") {
+            if (argc < 3) throw std::runtime_error("--attacks requires a prepared character GLB");
+            renderAuthoredAttacks(argv[2], argc > 3 ? argv[3] : "");
+        } else if (mode == "--dismemberment") {
             if (argc < 3) throw std::runtime_error("--dismemberment requires one prepared character GLB");
             renderJointSeparations(argv[2], argc > 3 ? argv[3] : "");
         } else if (mode == "--assets") {

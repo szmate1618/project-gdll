@@ -4,6 +4,7 @@
 #include "noise.hpp"
 #include "zombie_chase.hpp"
 #include "zombie_attack.hpp"
+#include "zombie_melee_attack.hpp"
 #include "zombie_layer.hpp"
 
 #include <algorithm>
@@ -150,16 +151,24 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
         constexpr float reach = approachDistance + .0001f;
         return glm::dot(delta, delta) <= reach * reach;
     };
+    const auto beginAttack = [&] {
+        return hasZombieMeleeAttack(asset) ? beginZombieMeleeAttack(behavior.lunge, instance, asset, player, now) :
+            beginZombieLunge(behavior.lunge, instance, player, now);
+    };
     const auto stepAttack = [&] {
-        stepZombieLunge(behavior.lunge, instance, world, crowd, behavior.zombie,
-            players ? players->data() : &player, players ? players->size() : 1,
-            seconds, now, hits, stats.attackRays);
+        if (behavior.lunge.animated)
+            stepZombieMeleeAttack(behavior.lunge, instance, asset, world, behavior.zombie,
+                players ? players->data() : &player, players ? players->size() : 1,
+                seconds, now, hits, stats.attackRays);
+        else stepZombieLunge(behavior.lunge, instance, world, crowd, behavior.zombie,
+                players ? players->data() : &player, players ? players->size() : 1,
+                seconds, now, hits, stats.attackRays);
     };
     auto feet = glm::vec3(instance.restRoot[3]);
     const bool eligible = attackEligible(behavior, instance, player, world, now, stats);
     if (behavior.lunge.phase != ZombieLunge::Phase::ready) {
         if (behavior.lunge.phase == ZombieLunge::Phase::windup && !eligible) {
-            cancelZombieLunge(behavior.lunge, now);
+            cancelZombieLunge(behavior.lunge, now, &instance);
         } else {
             stepAttack();
             return true; // A committed strike/recovery does not track a dodging player.
@@ -168,7 +177,7 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
     if (eligible && closeEnough()) {
         changeState(behavior, ZombieState::attacking, now);
         stopZombieLocomotion(instance);
-        if (beginZombieLunge(behavior.lunge, instance, player, now)) stepAttack();
+        if (beginAttack()) stepAttack();
         return true;
     }
     if (behavior.state == ZombieState::attacking)
@@ -181,7 +190,7 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
     feet = glm::vec3(instance.restRoot[3]);
     if (attackEligible(behavior, instance, player, world, now, stats) && closeEnough()) {
         changeState(behavior, ZombieState::attacking, now);
-        beginZombieLunge(behavior.lunge, instance, player, now);
+        beginAttack();
     } else if (arrived && (behavior.sight != ZombieSight::none ||
              glm::length(glm::vec2(behavior.target.x - feet.x, behavior.target.z - feet.z)) <= 1e-4f))
         changeState(behavior, ZombieState::idle, now);
@@ -275,7 +284,8 @@ void ZombieLayer::setPerceptionEnabled(bool enabled) {
         if (entry.zombie >= instances.size()) continue;
         auto& instance = instances[entry.zombie];
         if (instance.removed || instance.ragdoll) continue;
-        if (instance.walking) markRenderChanged(entry.zombie, false);
+        if (instance.walking || instance.attackClip) markRenderChanged(entry.zombie, false);
+        instance.attackClip = 0;
         stopZombieLocomotion(instance);
     }
     behaviors = ZombieBehaviorPool{};
@@ -365,8 +375,11 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
         for (const auto& entry : behaviors.entries()) {
             auto& behavior = *behaviors.find(entry.zombie);
             if (behavior.lunge.phase == ZombieLunge::Phase::ready) continue;
-            cancelZombieLunge(behavior.lunge, now);
-            if (entry.zombie < instances.size()) stopZombieLocomotion(instances[entry.zombie]);
+            if (entry.zombie < instances.size()) {
+                cancelZombieLunge(behavior.lunge, now, &instances[entry.zombie]);
+                stopZombieLocomotion(instances[entry.zombie]);
+                markRenderChanged(entry.zombie, false);
+            }
             changeState(behavior, ZombieState::idle, now);
             behavior.attackVisible = false;
             behavior.attackClock = {};
@@ -422,6 +435,8 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
             continue;
         }
         auto& instance = instances[id];
+        const auto previousAttackClip = instance.attackClip;
+        const auto previousAttackSeconds = instance.attackSeconds;
         auto selectedPlayer = player;
         auto rangePlayer = player;
         if (players) {
@@ -440,7 +455,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
                 behavior.attackClock = {};
                 behavior.sight = ZombieSight::none;
                 if (behavior.lunge.phase == ZombieLunge::Phase::windup)
-                    cancelZombieLunge(behavior.lunge, now);
+                    cancelZombieLunge(behavior.lunge, now, &instance);
             }
         }
         if (distantIdle(behavior, instance, rangePlayer)) {
@@ -464,7 +479,8 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
             ++zombie_profile::activeProfile->behaviorStates[std::size_t(behavior.state)];
         if (claimed && scenarioDestination(id)) abandonScenarioRoute(id);
         const bool moved = beforeTransform != instance.transform;
-        if (moved || wasWalking != instance.walking || wasRunning != instance.running || beforeSeconds != instance.walkSeconds)
+        if (moved || wasWalking != instance.walking || wasRunning != instance.running || beforeSeconds != instance.walkSeconds ||
+            previousAttackClip != instance.attackClip || previousAttackSeconds != instance.attackSeconds)
             markRenderChanged(id, moved);
         if(moved || beforeRoot!=instance.restRoot || instance.removed || instance.ragdoll || instance.asset>=assets.size())
             updateSpatialMembership(id);

@@ -161,6 +161,25 @@ void metadataAndNormalization(Scene& scene) {
     bad = setup(0, 4); bad.normalization[0][3] = 1;
     rejects([&] { playback.pushSetups(scene, ZombieSetups{{bad}}); }, "Projective normalization was accepted");
 }
+void authoredAttackPlayback(Scene& scene) {
+    reset(scene, 1);
+    auto& asset = scene.zombies.assets[0];
+    asset.attackLeftClip = viewer::BakedAnimationClip{"attack_left", 2.3333333f, 71, 0, {}, false};
+    Snapshots playback;
+    playback.pushSetups(scene, ZombieSetups{{setup(0)}});
+    auto snapshot = motion(60, 0, 0);
+    snapshot.zombies[0].walking = false;
+    snapshot.zombies[0].attackClip = 1; snapshot.zombies[0].attackSeconds = .4f;
+    playback.push(snapshot, 0, .025); playback.apply(scene, .05);
+    auto& zombie = scene.zombies.instances[0];
+    require(zombie.attackClip == 1 && std::abs(zombie.attackSeconds - .475) < .0001 && !zombie.walking,
+        "Attack variant/clock was not reconstructed on the unbuffered server timeline");
+    playback.apply(scene, 3);
+    require(std::abs(zombie.attackSeconds - asset.attackLeftClip->duration) < .0001,
+        "Starved attack playback wrapped instead of holding its final frame");
+    playback.push(motion(66, 0, .1f, 3, false, .1f), 3.01); playback.apply(scene, 3.01);
+    require(zombie.attackClip == 0, "Locomotion retained an obsolete attack animation");
+}
 void completePhysicsPoses(Scene& scene) {
     reset(scene, 1);
     Snapshots playback;
@@ -290,7 +309,7 @@ int main(int argc, char** argv) {
         independentSlowPrediction(scene);
         nearbyPredictionAndTransit(scene);
         metadataAndNormalization(scene);
-        completePhysicsPoses(scene);
+        authoredAttackPlayback(scene); completePhysicsPoses(scene);
         smoothPhysicsPoses(scene);
         changingPhysicsCadence(scene);
         populationCapacityAndOrder(scene);

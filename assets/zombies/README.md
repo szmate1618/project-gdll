@@ -28,10 +28,10 @@ python3 tools/download_zombies.py --offline
 `source/` preserves the original glTF files, buffers, and shared palette PNGs.
 The importer downloads the ten `ZombieFemale_A` through `ZombieFemale_E` and
 `ZombieMale_A` through `ZombieMale_E` rigs and their matching `idle_220f`,
-`walk_64f`, and `running_58f` clips for each skeleton. Other animations remain
-available in the creator's complete pack. `models/` contains one self-contained
-GLB per character with all three clips and an embedded palette. Both directories
-are ignored by Git. Run the downloader once online to add missing locomotion
+`walk_64f`, `running_58f`, `attack_left_70f`, and `attack_right_70f` clips for
+each skeleton. `models/` contains one self-contained GLB per character with
+all five clips and an embedded palette. Both directories
+are ignored by Git. Run the downloader once online to add missing animation
 sources to an older cache; subsequent rebuilds can use `--offline`.
 
 The source models use centimeters and Y-up. Preparation adds a parent scale of
@@ -42,6 +42,14 @@ skeleton parent relationships; animation data, buffer views, and accessors are
 remapped into each character without replacing its mesh or bind matrices. Clips
 keep their original names and separate sampler/accessor ranges. `sources.json`
 records hashes for all source clips and the clip names in each runtime model.
+
+Attacks last 2.33 seconds and are baked with their final endpoint for playback
+that runs once. The normal shared vertex-animation buffers also contain these
+frames; nearby attackers use swept hand spheres for damage. After adding clips,
+rebuild LoDs with `python3 tools/prepare_zombie_lods.py`. Existing capsule and
+joint-hit definitions keep their geometry: preparation refreshes their source
+hash only after reproducing the exact former three-clip GLB they describe.
+Other stale collision definitions still fail validation.
 
 Downloads and output GLBs are written to temporary files before publication.
 Subsequent runs verify cached or downloaded originals against `sources.json`.
@@ -126,7 +134,7 @@ and airborne spin are unchanged.
 
 All humanoid ragdoll deaths also inherit a separate estimated linear velocity
 per physics body from the preceding 1/30 second of animation. This is computed
-once at death from the selected idle/walk/run clip, in world meters/second,
+once at death from the selected idle/walk/run/attack clip, in world meters/second,
 capped at 20 m/s. It follows the displayed pose when available and adds to the
 shot/blast launch; detached parts inherit it before their extra impulse/spin.
 Every body also inherits the actual world-space walking/running velocity from
@@ -150,6 +158,8 @@ Runtime checks (without generating assets):
 
 ```bash
 ./build/test_zombie_dismemberment assets/zombies/models/ZombieMale_A.glb
+./build/test_zombie_melee_attack assets/zombies/models
+./build/test_zombie_renderer --attacks assets/zombies/models/ZombieMale_A.glb build/attacks.ppm
 ./build/test_zombie_renderer --dismemberment assets/zombies/models/ZombieMale_A.glb build/dismemberment.ppm
 ```
 

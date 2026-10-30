@@ -38,9 +38,22 @@ void openScene(Scene& scene, bool perception = true) {
     scene.spawnOrientation = {-90, 0};
     scene.vehicles->add({60, .68f, 60}); // Prevent a fallback car near the attack fixture.
 
-    // The attack depends on upright bodies and physical movement, not authored
-    // animation or mesh assets. Its local +Z faces the first player's spawn.
-    scene.zombies.assets.emplace_back();
+    // A tiny authored left/right swing exercises the baked-animation contact
+    // path without depending on downloaded meshes. Local +Z faces the player.
+    auto& asset = scene.zombies.assets.emplace_back();
+    asset.skeleton.resize(2);
+    asset.skeleton[0].name = "bip L Hand"; asset.skeleton[1].name = "bip R Hand";
+    for (bool right : {false, true}) {
+        viewer::BakedAnimationClip clip;
+        clip.duration = 1; clip.frameCount = 5; clip.loop = false;
+        for (auto point : {glm::vec3(-.4f, 1, -.1f), {-.4f, 1, 0}, {0, 1, 1.1f},
+                           {.4f, 1, .1f}, {-.4f, 1, -.1f}}) {
+            if (right) point.x = -point.x;
+            clip.boneFrames.push_back(glm::translate(glm::mat4(1), right ? glm::vec3(0) : point));
+            clip.boneFrames.push_back(glm::translate(glm::mat4(1), right ? point : glm::vec3(0)));
+        }
+        (right ? asset.attackRightClip : asset.attackLeftClip) = clip;
+    }
     viewer::ZombieInstance zombie;
     zombie.restRoot = zombie.restTransform = zombie.transform =
         glm::translate(glm::mat4(1), glm::vec3(0, 0, -1));

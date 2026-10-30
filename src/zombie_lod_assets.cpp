@@ -14,12 +14,13 @@ void validateRig(const AnimatedModel& base, const AnimatedModel& lod) {
         const auto& a = base.skeleton[i]; const auto& b = lod.skeleton[i];
         same = a.name == b.name && a.parent == b.parent && a.referenceWorld == b.referenceWorld && a.inverseBind == b.inverseBind;
     }
-    for (const auto& pair : {std::pair{&base.walkClip, &lod.walkClip}, std::pair{&base.runClip, &lod.runClip}}) {
+    for (const auto& pair : {std::pair{&base.walkClip, &lod.walkClip}, std::pair{&base.runClip, &lod.runClip},
+                            std::pair{&base.attackLeftClip, &lod.attackLeftClip}, std::pair{&base.attackRightClip, &lod.attackRightClip}}) {
         if (pair.first->has_value() != pair.second->has_value()) same = false;
         else if (*pair.first) {
             const auto& a = **pair.first; const auto& b = **pair.second;
             same = same && a.name == b.name && a.duration == b.duration && a.frameCount == b.frameCount &&
-                a.firstFrame == b.firstFrame && a.boneFrames == b.boneFrames;
+                a.firstFrame == b.firstFrame && a.boneFrames == b.boneFrames && a.loop == b.loop;
         }
     }
     if (!same) throw std::runtime_error("LOD rig or animation differs from the original");

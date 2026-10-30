@@ -46,6 +46,7 @@ void ZombiePrediction::push(std::uint64_t tick, const ZombieState& state) {
         const auto displacement = glm::vec3(state.root[3] - old.state.root[3]);
         const bool compatible = !old.state.dead && !state.dead &&
             state.walking == old.state.walking && state.running == old.state.running &&
+            !state.attackClip && !old.state.attackClip &&
             interval <= std::max(.2, 2 * std::max(horizon(old.state), horizon(state))) &&
             glm::length(displacement) <= maximumSpeed * interval;
         if (compatible) {

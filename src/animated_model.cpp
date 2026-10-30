@@ -437,7 +437,7 @@ bool hasTriangles(const tinygltf::Model& source, const tinygltf::Primitive& prim
     return false;
 }
 
-AnimatedModel bake(const tinygltf::Model& source, Model base, const std::string& requestedClip) {
+AnimatedModel bake(const tinygltf::Model& source, Model base, const std::string& requestedClip, bool loop = true) {
     const tinygltf::Animation* selected = nullptr;
     int bestMatch = 0;
     bool ambiguous = false;
@@ -465,6 +465,7 @@ AnimatedModel bake(const tinygltf::Model& source, Model base, const std::string&
     const auto tracks = readTracks(source, *selected, start, output.duration);
     if (output.duration > 120) fail("Idle clips longer than 120 seconds exceed the animation baking limit");
     output.frameCount = std::max<std::size_t>(2, static_cast<std::size_t>(std::ceil(output.duration * 30.0f)));
+    if (!loop) ++output.frameCount;
     output.model.images = std::move(base.images);
     output.model.textures = std::move(base.textures);
     output.model.materials = std::move(base.materials);
@@ -566,7 +567,7 @@ AnimatedModel bake(const tinygltf::Model& source, Model base, const std::string&
     std::vector<int> orientation(bindings.size(), 0);
     for (std::size_t frame = 0; frame < output.frameCount; ++frame) {
         auto poses = initial;
-        const float time = start + output.duration * static_cast<float>(frame) / static_cast<float>(output.frameCount);
+        const float time = start + output.duration * static_cast<float>(frame) / static_cast<float>(output.frameCount - (loop ? 0 : 1));
         for (const auto& track : tracks) {
             const auto value = track.sample(time);
             if (track.path == "translation") poses[track.node].translation = value;
@@ -698,7 +699,8 @@ float frameWithPhase(float base, std::size_t frameCount, float phase) {
 }  // namespace
 
 std::size_t AnimatedModel::totalFrameCount() const {
-    return frameCount + (walkClip ? walkClip->frameCount : 0) + (runClip ? runClip->frameCount : 0);
+    return frameCount + (walkClip ? walkClip->frameCount : 0) + (runClip ? runClip->frameCount : 0) +
+        (attackLeftClip ? attackLeftClip->frameCount : 0) + (attackRightClip ? attackRightClip->frameCount : 0);
 }
 
 float animatedFrameBase(float duration, std::size_t frameCount, double seconds) {
@@ -721,6 +723,12 @@ float animatedFrame(float duration, std::size_t frameCount, double seconds, floa
     return frameWithPhase(reducedFrameBase(duration, frameCount, seconds), frameCount, phase);
 }
 
+float clampedAnimationFrame(float duration, std::size_t frameCount, double seconds) {
+    validateFrameTiming(duration, frameCount);
+    if (!std::isfinite(seconds)) fail("Animation time must be finite");
+    return static_cast<float>(std::clamp(seconds / duration, 0.0, 1.0) * double(frameCount - 1));
+}
+
 std::vector<glm::mat4> sampleAnimatedPose(const AnimatedModel& model, double seconds, float phase,
                                         const BakedAnimationClip* clip) {
     const auto& frames = clip ? clip->boneFrames : model.boneFrames;
@@ -732,9 +740,10 @@ std::vector<glm::mat4> sampleAnimatedPose(const AnimatedModel& model, double sec
         return pose;
     }
     if (frames.size() != product(count, model.skeleton.size())) fail("Invalid baked bone animation");
-    const float frame = animatedFrame(clip ? clip->duration : model.duration, count, seconds, phase);
+    const float frame = clip && !clip->loop ? clampedAnimationFrame(clip->duration, count, seconds) :
+        animatedFrame(clip ? clip->duration : model.duration, count, seconds, phase);
     const auto first = static_cast<std::size_t>(std::floor(frame));
-    const auto second = (first + 1) % count;
+    const auto second = clip && !clip->loop ? std::min(first + 1, count - 1) : (first + 1) % count;
     const float fraction = frame - static_cast<float>(first);
     for (std::size_t bone = 0; bone < model.skeleton.size(); ++bone) {
         const auto& a = frames[first * model.skeleton.size() + bone];
@@ -760,7 +769,21 @@ AnimatedModel loadAnimated(const std::filesystem::path& path, const std::string&
         if (locomotion) {
             const auto walk = locomotionName(source, false), run = locomotionName(source, true);
             if (!walk.empty()) appendClip(output, bake(source, model, walk), output.walkClip);
-            if (!run.empty()) appendClip(output, bake(source, std::move(model), run), output.runClip);
+            if (!run.empty()) appendClip(output, bake(source, model, run), output.runClip);
+            for (const bool right : {false, true}) {
+                const std::string token = right ? "@attack_right_" : "@attack_left_";
+                std::string name;
+                for (const auto& animation : source.animations) {
+                    if (lower(animation.name).find(token) == std::string::npos) continue;
+                    if (!name.empty()) fail("Multiple attack animations match " + token);
+                    name = animation.name;
+                }
+                if (!name.empty()) {
+                    auto& clip = right ? output.attackRightClip : output.attackLeftClip;
+                    appendClip(output, bake(source, model, name, false), clip);
+                    clip->loop = false;
+                }
+            }
         }
         return output;
     } catch (const std::exception& error) {

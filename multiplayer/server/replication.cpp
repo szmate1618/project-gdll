@@ -37,7 +37,7 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
     // complete player/door/box lists and pending vehicle updates share the budget.
     const auto baseBytes = encode(s).size();
     const auto available = maxMessageBytes - baseBytes;
-    const auto sampleLimit = std::min(maxZombieUpdatesPerSnapshot, available / 22);
+    const auto sampleLimit = std::min(maxZombieUpdatesPerSnapshot, available / 26);
     const std::vector<std::uint8_t> emptyMask;
     auto* setupSlots = setupSlots_.data();
     auto* cachedSetups = setups_.data();
@@ -89,7 +89,7 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
         if (!interested_[id]) state.sentMotion = false;
         if (!state.acknowledged || s.zombies.size() == sampleLimit) continue;
         const auto period = static_cast<std::uint8_t>(rank < 256 ? 3 : rank < 1024 ? 12 : 60);
-        const auto mode = static_cast<std::uint8_t>(instance.walking | (instance.running << 1) | (instance.ragdoll << 2));
+        const auto mode = static_cast<std::uint8_t>(instance.walking | (instance.running << 1) | (instance.ragdoll << 2) | (instance.attackClip << 3));
         const bool urgent = !state.sentMotion || state.lastMode != mode || period < state.lastPeriod;
         const auto passes = std::uint64_t(period / 3);
         // Rank balances every cadence bucket even for adversarial stable IDs
@@ -105,6 +105,8 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
         sample.transform = instance.transform; sample.root = instance.restRoot;
         sample.phase = instance.phase; sample.walkSeconds = static_cast<float>(instance.walkSeconds);
         sample.walking = instance.walking; sample.running = instance.running; sample.dead = instance.ragdoll;
+        sample.attackClip = instance.ragdoll ? 0 : instance.attackClip;
+        sample.attackSeconds = static_cast<float>(instance.attackSeconds);
         sample.updatePeriodTicks = period;
         s.zombies.push_back(std::move(sample));
         state.sentMotion = true; state.lastMotionTick = s.tick; state.lastMode = mode; state.lastPeriod = period;
@@ -120,7 +122,7 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
         it = pendingSetups_.erase(it);
     }
     std::sort(interestedCorpses_.begin(), interestedCorpses_.end());
-    const auto contentsLimit = std::min<std::size_t>(256, (available - s.zombies.size() * 22) / 64);
+    const auto contentsLimit = std::min<std::size_t>(256, (available - s.zombies.size() * 26) / 64);
     s.woundContents = scene.zombies.woundContents(selected_, contentsLimit);
     return s;
 }

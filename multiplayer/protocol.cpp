@@ -301,6 +301,8 @@ void zombieMotion(Wire& w, ZombieState& z) {
     std::array<std::int32_t, 3> millimetres{};
     std::uint8_t flags = 0, heading = 0;
     if (!w.reading) {
+        if (z.attackClip > 2 || (z.attackClip && (z.dead || z.walking || z.running)))
+            throw std::runtime_error("Invalid zombie attack mode");
         for (int c = 0; c < 4; ++c) for (int r = 0; r < 4; ++r)
             if (!std::isfinite(z.root[c][r]) || std::abs(z.root[c][r]) > 1e8f)
                 throw std::runtime_error("Invalid zombie root");
@@ -320,20 +322,26 @@ void zombieMotion(Wire& w, ZombieState& z) {
         const auto rounded = std::llround(yaw * 256 / tau);
         heading = static_cast<std::uint8_t>((rounded % 256 + 256) % 256);
         flags = static_cast<std::uint8_t>((z.walking ? 1 : 0) | (z.running ? 2 : 0) |
-            (z.dead ? 4 : 0) | (fallback ? floatPosition : 0) | (zombieCadence(z.updatePeriodTicks) << 4));
+            (z.dead ? 4 : 0) | (fallback ? floatPosition : 0) | (zombieCadence(z.updatePeriodTicks) << 4) | (z.attackClip << 6));
     }
     w.integer(z.id); w.integer(flags);
-    if (flags & 0xc0u || (flags >> 4) == 3) throw std::runtime_error("Invalid zombie motion flags");
+    if ((flags >> 6) == 3 || ((flags >> 4) & 3) == 3) throw std::runtime_error("Invalid zombie motion flags");
     if (flags & floatPosition) w.vector(position);
     else for (int axis = 0; axis < 3; ++axis) {
         signed24(w, millimetres[axis]);
         if (w.reading) position[axis] = static_cast<float>(double(millimetres[axis]) / 1000);
     }
     w.integer(heading); w.number(z.walkSeconds);
+    if (w.reading) z.attackClip = flags >> 6;
+    if (z.attackClip) {
+        w.number(z.attackSeconds);
+        if (z.attackSeconds < 0 || z.attackSeconds > 120 || (flags & 7))
+            throw std::runtime_error("Invalid zombie attack clock");
+    }
     if (z.id >= maxZombies || z.walkSeconds < 0) throw std::runtime_error("Invalid zombie motion");
     if (w.reading) {
         z.walking = (flags & 1) != 0; z.running = (flags & 2) != 0; z.dead = (flags & 4) != 0;
-        z.updatePeriodTicks = std::array<std::uint8_t, 3>{3, 12, 60}.at(flags >> 4);
+        z.updatePeriodTicks = std::array<std::uint8_t, 3>{3, 12, 60}.at((flags >> 4) & 3);
         z.root = glm::rotate(glm::translate(glm::mat4(1), position),
             static_cast<float>(double(heading) * tau / 256), glm::vec3(0, 1, 0));
         z.transform = z.root;

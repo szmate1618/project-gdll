@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download Denys Almaral's free demo rigs and matching idle/walk/run clips.
+"""Download Denys Almaral's free demo rigs and matching idle/walk/run/attack clips.
 
 Original files stay unchanged under assets/zombies/source. The generated GLBs
 embed the palette, remap animation targets by node name, and convert cm to m by
@@ -13,6 +13,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import struct
 import tempfile
@@ -222,12 +223,32 @@ def prepare_pack(output_dir: Path, offline: bool) -> None:
     for gender in ("Female", "Male"):
         prefix = f"Zombie{gender}"
         clips = [sources.gltf(f"animations-gltf/gltf_{prefix}/{prefix}@{clip}.gltf")
-                 for clip in ("idle_220f", "walk_64f", "running_58f")]
+                 for clip in ("idle_220f", "walk_64f", "running_58f", "attack_left_70f", "attack_right_70f")]
         for letter in "ABCDE":
             name = f"{prefix}_{letter}"
             rig = sources.gltf(f"rig-gltf_joined/{name}_joined.gltf")
             data = merge_animations(rig, clips)
             output = output_dir / "models" / f"{name}.glb"
+            # Existing collision fits and severed meshes describe the unchanged
+            # rig geometry. Rebind their provenance only after reproducing the
+            # exact former three-clip GLB they were prepared against. A stale or
+            # otherwise modified source still fails instead of losing validation.
+            for suffix in (".capsules.json", ".hitboxes.json"):
+                companion = output.with_suffix(suffix)
+                if not companion.is_file():
+                    continue
+                definition_text = companion.read_text()
+                definition = json.loads(definition_text)
+                if definition.get("source_sha256") == sha256(data):
+                    continue
+                baseline = merge_animations(rig, clips[:3])
+                if definition.get("source_sha256") != sha256(baseline):
+                    raise ValueError(f"Collision companion does not match the unchanged three-clip rig: {companion}")
+                updated, replacements = re.subn(r'("source_sha256"\s*:\s*")[0-9a-f]{64}("\s*)',
+                                                lambda match: match[1] + sha256(data) + match[2], definition_text, count=1)
+                if replacements != 1:
+                    raise ValueError(f"Collision companion has no replaceable source fingerprint: {companion}")
+                prepared[companion] = updated.encode()
             prepared[output] = data
             outputs[f"models/{name}.glb"] = {"bytes": len(data), "sha256": sha256(data),
                                              "animation": clips[0][0]["animations"][0]["name"],

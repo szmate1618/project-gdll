@@ -2,7 +2,7 @@
   "schema": "godollo.zombie_joint_hits",
   "version": 1,
   "units": "meters",
-  "source_sha256": "214213b42a32f08775e6ed048a005205b6c7ff7acb8cf2a6dbd5b6639db62722",
+  "source_sha256": "1aed7270e58cb6293937cc209ca562223e4a47bb35d381f79297204bc74d6392",
   "description": "Prepared joint separation variants; two capped assemblies, weights isolated across each cut.",
   "joints": [
     {

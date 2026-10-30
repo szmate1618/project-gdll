@@ -56,8 +56,19 @@ void compactMotion() {
         require(roundTrip(snapshot).zombies[0].updatePeriodTicks == period,
                 "Motion cadence was not preserved");
     }
+    for (std::uint8_t side : {std::uint8_t(1), std::uint8_t(2)}) {
+        auto attack = snapshot;
+        auto& z = attack.zombies[0];
+        z.walking = z.running = z.dead = false; z.attackClip = side; z.attackSeconds = .875f;
+        const auto decoded = roundTrip(attack).zombies[0];
+        require(decoded.attackClip == side && decoded.attackSeconds == .875f && !decoded.walking &&
+                encode(attack).size() == emptySize + 23,
+            "Authored attack lost its variant/clock or inflated non-attacking records");
+        z.walking = true;
+        rejects([&] { encode(attack); }, "Walking and attacking were accepted together");
+    }
     auto malformed = bytes;
-    malformed[firstRecord + 4] |= 0x80;
+    malformed[firstRecord + 4] |= 0xc0;
     rejects([&] { decode(malformed.data(), malformed.size()); }, "Unknown zombie flags were accepted");
     malformed = bytes;
     malformed[firstRecord + 4] |= 0x30;

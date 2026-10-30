@@ -251,7 +251,7 @@ private:
     };
     static ZombieGPUInstance zombieGPUInstance(const AnimatedModel& asset, const ZombieInstance& instance,
                                                float boneBase = -1.0f);
-    enum class ZombieRenderClip : std::uint8_t { Idle, Walk, Run };
+    enum class ZombieRenderClip : std::uint8_t { Idle, Walk, Run, AttackLeft, AttackRight };
     struct ZombieRenderState {
         std::size_t asset = 0, local = 0;
         glm::vec3 center{0};
@@ -303,7 +303,7 @@ private:
         std::vector<ZombieGeometry> closures;
         std::vector<std::size_t> sourceIndices;
         std::vector<ZombieGPUInstance> staging;
-        std::array<ZombieClipTiming, 3> clipTimings; // Idle, walk, run; fixed asset data.
+        std::array<ZombieClipTiming, 5> clipTimings; // Idle, walk, run, left/right attack.
         float idleFrameBase = 0; // Shared render time before each actor's phase.
         std::unique_ptr<ZombiePaletteCache> palettes;
         VisibilityBounds animationBounds, bindBounds;

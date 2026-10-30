@@ -285,6 +285,8 @@ void Renderer::updateZombies(const ZombieLayer& zombies) {
             timings[0] = {source.duration, source.frameCount};
             timings[1] = source.walkClip ? ZombieClipTiming{source.walkClip->duration, source.walkClip->frameCount} : timings[0];
             timings[2] = source.runClip ? ZombieClipTiming{source.runClip->duration, source.runClip->frameCount} : timings[0];
+            timings[3] = source.attackLeftClip ? ZombieClipTiming{source.attackLeftClip->duration, source.attackLeftClip->frameCount} : timings[0];
+            timings[4] = source.attackRightClip ? ZombieClipTiming{source.attackRightClip->duration, source.attackRightClip->frameCount} : timings[0];
         }
         for (std::size_t id = 0; id < zombies.instances.size(); ++id)
             updateZombieInstance(id, true, true);
@@ -313,9 +315,8 @@ void Renderer::updateZombieInstance(std::size_t id, bool boundsChanged, bool ful
     render.ragdoll = source.ragdoll;
     const auto& model = zombieSource_->assets[asset];
     const auto* clip = zombieAnimationClip(model, source);
-    render.clip = !clip ? ZombieRenderClip::Idle :
-        model.runClip && clip == &*model.runClip ? ZombieRenderClip::Run : ZombieRenderClip::Walk;
-    render.animationSeconds = clip ? source.walkSeconds : source.idleSeconds;
+    render.clip = static_cast<ZombieRenderClip>(zombieAnimationClipId(model, source));
+    render.animationSeconds = source.attackClip ? source.attackSeconds : clip ? source.walkSeconds : source.idleSeconds;
     ++zombieUpdateStats_.instances;
     if (source.removed) {
         updateZombieWound(id, batch, batch.staging[local]);
@@ -419,7 +420,9 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
             const auto& timing = batch.clipTimings[static_cast<std::size_t>(render.clip)];
             const float duration = timing.duration;
             const auto frames = timing.frameCount;
-            const float frame = render.ragdoll ? 0 : render.clip == ZombieRenderClip::Idle && render.animationSeconds < 0 ?
+            const bool attack = render.clip == ZombieRenderClip::AttackLeft || render.clip == ZombieRenderClip::AttackRight;
+            const float frame = render.ragdoll ? 0 : attack ? clampedAnimationFrame(duration, frames, render.animationSeconds) :
+                render.clip == ZombieRenderClip::Idle && render.animationSeconds < 0 ?
                 animatedFrameFromBase(batch.idleFrameBase, frames, instance.phase) :
                 animatedFrame(duration, frames, render.animationSeconds, instance.phase);
             if (render.severedJoint >= 0) {
@@ -435,7 +438,7 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
             auto cameraInstance = instance;
             if (cameraVisible) {
                 cameraInstance.animationFrame = frame;
-                if (detail.animationHz > 0 && !render.ragdoll) {
+                if (detail.animationHz > 0 && !render.ragdoll && !attack) {
                     // Snap to authored baked frames on a lower-rate cycle grid. Both
                     // GPU and hit tests use this same published pose.
                     const auto samples = std::max(1.0f, std::floor(duration * detail.animationHz));
@@ -542,11 +545,13 @@ std::optional<ZombieShotTrace> Renderer::traceZombieShot(glm::vec3 origin, glm::
                                       glm::dmat4(source.restRoot));
         displayed.displayedAnimationFrame = render.displayedFrame;
         displayed.displayedAnimationClip = static_cast<int>(render.clip);
-        displayed.walking = render.clip != ZombieRenderClip::Idle;
+        displayed.walking = render.clip == ZombieRenderClip::Walk || render.clip == ZombieRenderClip::Run;
         displayed.running = render.clip == ZombieRenderClip::Run;
+        displayed.attackClip = render.clip == ZombieRenderClip::AttackLeft ? 1 : render.clip == ZombieRenderClip::AttackRight ? 2 : 0;
         const auto& timing = zombieBatches_[render.asset].clipTimings[static_cast<std::size_t>(render.clip)];
-        const double seconds = timing.frameCount ? double(render.displayedFrame) * timing.duration / timing.frameCount : 0;
-        displayed.walkSeconds = displayed.idleSeconds = seconds;
+        const auto intervals = timing.frameCount - (displayed.attackClip && timing.frameCount ? 1 : 0);
+        const double seconds = intervals ? double(render.displayedFrame) * timing.duration / intervals : 0;
+        displayed.attackSeconds = displayed.walkSeconds = displayed.idleSeconds = seconds;
         const ZombieWound* displayedWound = nullptr;
         if (cached.woundBase > 0) {
             const auto row = batch.woundRows.find(id);

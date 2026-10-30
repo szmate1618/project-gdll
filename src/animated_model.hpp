@@ -42,6 +42,7 @@ struct BakedAnimationClip {
     // Offset into each AnimatedPrimitive::frames, measured in frames (not vertices).
     std::size_t firstFrame = 0;
     std::vector<glm::mat4> boneFrames;
+    bool loop = true; // Attacks include their endpoint and play once.
 };
 
 struct AnimatedModel {
@@ -62,9 +63,10 @@ struct AnimatedModel {
     std::string clipName;
     float duration = 0.0f;
     std::size_t frameCount = 0;
-    // Idle stays at offset zero. Optional locomotion frames follow in each
+    // Idle stays at offset zero. Optional locomotion and attack frames follow in each
     // primitive's shared vertex buffer; bind geometry and materials remain shared.
     std::optional<BakedAnimationClip> walkClip, runClip;
+    std::optional<BakedAnimationClip> attackLeftClip, attackRightClip;
     std::size_t totalFrameCount() const;
 };
 
@@ -76,7 +78,7 @@ struct AnimatedModel {
 AnimatedModel loadIdleModel(const std::filesystem::path& path,
                             const std::string& clipName = "");
 
-// Also bake optional walk/run clips. Missing clips retain idle playback; malformed
+// Also bake optional walk/run and left/right attack clips. Missing clips retain idle playback; malformed
 // or ambiguous matching clips fail loading rather than silently being ignored.
 AnimatedModel loadZombieModel(const std::filesystem::path& path);
 
@@ -86,6 +88,7 @@ AnimatedModel loadZombieModel(const std::filesystem::path& path);
 float animatedFrameBase(float duration, std::size_t frameCount, double seconds);
 float animatedFrameFromBase(float base, std::size_t frameCount, float phase);
 float animatedFrame(float duration, std::size_t frameCount, double seconds, float phase = 0);
+float clampedAnimationFrame(float duration, std::size_t frameCount, double seconds);
 
 // Match the displayed baked pose, including per-instance cycle phase. Linear
 // matrix interpolation preserves the shader's interpolated vertex positions;

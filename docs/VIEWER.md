@@ -793,7 +793,7 @@ and half-rounded positions across all LODs.
 
 The title reports visible/total zombie counts, and shutdown logs the visible
 count and instanced draw count. Camera-frustum culling compacts each character
-batch before upload and drawing. Bounds include every idle/walk/run sample and
+batch before upload and drawing. Bounds include every idle/walk/run/attack sample and
 live ragdoll bone transforms, so animated limbs crossing the view edge remain
 visible. Mesh-local bind bounds (possibly centimeters) are transformed through
 the ragdoll palette before use; living bounds use scene-space baked frames.
@@ -1199,7 +1199,7 @@ player enter **attacking** only when the player is in the normal horizontal FOV
 and a fresh ray to the head/eye height, middle of the body or feet is clear.
 The check stops at the first clear point, using at most three rays against
 current walls, doors and props. Eligible zombies approach to **1 m** before
-beginning a collision-limited lunge, while retaining the existing idle animation.
+playing an authored left/right hand attack, keeping their physical root stationary.
 
 Attack eligibility is sampled at **10 Hz**, with stable-ID phases in simulation
 time, independently of normal perception and `--no-zombie-staggering`. Entering
@@ -1212,19 +1212,30 @@ on a subsequent scheduled check. `ZombieBehaviorStats::attackChecks/attackRays`
 report this work separately from ordinary perception.
 
 `canZombieAttack()` in `zombie_attack` always checks current range, FOV and
-visibility without using either cache. Lunge damage calls it at actual player
+visibility without using either cache. Attack damage calls it at actual player
 contact; an attacking state or cached eligibility alone does not authorize
 damage. It also rejects removed zombies and ragdolls.
 
-Each attack uses a **0.3 s wind-up** withdrawing up to 8 cm, a forward lunge of at most **1.5 m over
-0.15 s**, a **0.4 s return**, and **0.5 s cooldown**. Direction is fixed for the
-cycle. These are timing phases within `attacking`, driven by simulation time.
-The zombie's actual body moves, keeping rendering, shadows, shooting and
-collision in the same frame. Movement respects terrain, walls, doors, props
-and living zombies; swept player-body contact stops the forward lunge and can
-produce one hit. A miss still completes recovery. The return is collision-tested
-and can finish short if its path becomes blocked. No new animation or image
-asset is required.
+Prepared zombie assets include the pack's `attack_left_70f` and
+`attack_right_70f` clips for both skeleton types. Attacks alternate hands and play
+once over their authored **2.33 seconds**, followed by a **0.5 s cooldown**.
+Playback starts at frame zero, independently of the random idle phase, and clamps
+to its exact final frame. Rendering, shadows, shooting and ragdoll handoff share
+the selected clip and pose. No active-ragdoll arm controller is used.
+
+A **10 cm sphere** follows the attacking hand joint. During the forward swing
+(25–55% of the clip), its path is swept against current player body capsules in
+at most 1/120-second animation segments. The first contact consumes the swing
+and inflicts **10 health damage** only after fresh range/FOV/visibility checks.
+Scene contacts and hand/torso visibility prevent strikes through walls, current
+doors and props. Windup, recovery and idle contacts cannot injure. Dodging,
+crouching and separate floors use current body dimensions and positions. A miss
+still plays recovery. Disabling perception cancels the clip and further damage.
+
+Custom rigs without both attack clips and named hand bones retain the original
+collision-limited body lunge: 0.3 s windup, at most 1.5 m over 0.15 s, 0.4 s
+return, then 0.5 s cooldown. That fallback retains its idle animation and
+velocity-scaled body-contact damage.
 
 `PlayerVitals` owns independent float health, stamina and weariness values for
 each player. Health starts at **100**, damage preserves fractions and clamps
@@ -1233,7 +1244,7 @@ Zero health does not introduce death, control restrictions or respawning.
 Standalone applies lunge hit events locally. Multiplayer applies them on the
 server and transmits authoritative health; clients only present the result.
 
-Damage uses the incoming world-space velocities in meters/second:
+The custom-rig lunge fallback uses incoming world-space velocities in meters/second:
 `10 * length(zombieVelocity - playerVelocity) / baseLungeSpeed`, where
 `baseLungeSpeed = 1.5 / 0.15 = 10 m/s`. Use the velocity immediately before
 contact, rather than the stopped velocity or displacement divided by a whole

@@ -390,6 +390,20 @@ void testLocomotionClips(Files& files) {
     require(near(pose[0][3].y, 1.5f), "Locomotion skeleton sampling must match the authored translation");
     require(near(model.animation[0].frames[30 * 3].position.y, 1), "Walk must follow idle in the vertex buffer");
     require(near(model.animation[0].frames[60 * 3].position.y, 5), "Run must follow walk in the vertex buffer");
+    auto left = walk; left["name"] = "Zombie@attack_left_70f";
+    auto right = run; right["name"] = "Zombie@attack_right_70f";
+    fixture.document["animations"] = Json::array({idle, walk, run, left, right});
+    const auto attacks = viewer::loadZombieModel(files.write("attacks", fixture));
+    require(attacks.attackLeftClip && attacks.attackRightClip && !attacks.attackLeftClip->loop && !attacks.attackRightClip->loop,
+        "Authored attacks must load as non-looping clips");
+    require(attacks.attackLeftClip->frameCount == 31 && attacks.attackRightClip->frameCount == 61 &&
+            attacks.attackLeftClip->firstFrame == 120 && attacks.attackRightClip->firstFrame == 151 &&
+            attacks.totalFrameCount() == 212,
+        "Attack clips must retain their final frame and occupy separate shared-buffer ranges");
+    const auto endpoint = viewer::sampleAnimatedPose(attacks, 100, .8f, &*attacks.attackLeftClip);
+    require(near(endpoint[0][3].y, 3), "Attack endpoint wrapped or used the random locomotion phase");
+    require(near(attacks.animation[0].frames[(151 - 1) * 3].position.y, 3),
+        "Baked attack vertices omitted the exact final pose");
     fixture.document["animations"] = Json::array({idle});
     const auto idleOnly = viewer::loadZombieModel(files.write("idle-only", fixture));
     require(!idleOnly.walkClip && !idleOnly.runClip, "Idle-only custom assets must still load");

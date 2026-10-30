@@ -3,7 +3,7 @@
   "version": 1,
   "units": "meters",
   "space": "bone_reference_meters",
-  "source_sha256": "9f4c49c9b211fa27d6985c04595e3d6864e6981cbeee91f34c0ed32e6663425e",
+  "source_sha256": "d6313d3effa96ae224c7190ebb4f6d5094da7151db862a904216c3649632e2f6",
   "description": "Prepared once from skin influences; robust near-full surface fit. Helper bones without attached surface are disabled. Female A/E skirt regions use estimated pelvis/thigh anatomy.",
   "bones": [
     {

@@ -12,17 +12,18 @@ from src.zombie_prism_lod import generate_prism_lod, production_prism_color_mode
 
 
 SOURCE = Path(__file__).resolve().parents[1] / 'assets/zombies/models/ZombieMale_C.glb'
+# Hashes include all five clips; geometry and rig preservation are checked below.
 PRODUCTION_HASHES = {
-    'ZombieFemale_A': '87269d12f8d3f7c87c2ee643633727e672ebbbcb396d024d73b45b908eca77a8',
-    'ZombieFemale_B': '16ed0085ff1c1c3d65dcde4bc5b614aaec1561810f4963eff8cf5d27ff9d5058',
-    'ZombieFemale_C': '0cb258e6d141bbb91a37c441adb294fa39083dd5c9b9bd016a8d73067f087cc2',
-    'ZombieFemale_D': 'ad6648f968e513ca138d57117481a8919b3ecd89a458f1e60f5fbb4e33434e53',
-    'ZombieFemale_E': 'b2059878c0ba0cdb9032186991fd379d39aaba5d65de12d9bdfa05d84c8cdfa7',
-    'ZombieMale_A': 'a8eddd9d49d685d14b975f49ea2f7c385dee7004f9cb729c167ed66691d040d3',
-    'ZombieMale_B': '2cb4302d024c72ff47baffe41f6f1a97606df8c444f34819b6ba756fe5a18a7d',
-    'ZombieMale_C': '34e8fd5d7b62e284adc1c7cc2fc2b955df6eeef6ef74a16a0a798c4cc0eb58fa',
-    'ZombieMale_D': 'ab23351429228b6739316fd61c3e769d36370f50798804038772357eab7db04c',
-    'ZombieMale_E': '9b7f68dfd3380bad0ab1bfaaec8fa04953767f7d823468019ad2f211d14795a5',
+    'ZombieFemale_A': 'f29ec01e07b1eaf7a4412f5eb6e85b7db84d166f5763a8cad8367094c03ad6fb',
+    'ZombieFemale_B': '1b159506d30113f774bd2a220f2f96fcf552ffd3bf338a73b5dddc268e6648a8',
+    'ZombieFemale_C': '4f087327fe12f98c7847088cfeed9051c39f667a63e1a4588479472463a0b551',
+    'ZombieFemale_D': '992e402724143a7e64578e9938373b6651025bc5f17b75a6fe4fdd0ee257ff45',
+    'ZombieFemale_E': '2009f00d2c520a65fb254c401f7879918f89dab9d5cc944fbc2e63d3847d733d',
+    'ZombieMale_A': 'a74a03cf201b134e2d2a9d9761f572f9f586dda49cb7e572ba65dd3789de31b4',
+    'ZombieMale_B': 'dbd5b24fbbd20b2fad32a7435e75e79535ad585a78bd79ce3fab1c2f381b4ec2',
+    'ZombieMale_C': '2064ee8fd96fb70cf73c2392924ef9fbe7da219b455d5fe8c527dda4e6659638',
+    'ZombieMale_D': '491266a6557979a60086857b48ae42bdd41a550460cf8d4c6eb068b3b693452b',
+    'ZombieMale_E': 'f2c96e08e9cec71c9bc70b7383c597008784becae31fbd25ee9cb1bd2dedf1d0',
 }
 
 
@@ -43,14 +44,14 @@ class ZombiePrismLodTests(unittest.TestCase):
                 arrays['indices'] = accessor_array(document, binary, primitive['indices']).reshape(-1, 3)
                 cls.models[color, profile] = (output, metadata, document, binary, arrays)
 
-    def test_standard_and_slim_profiles_reproduce_all_previous_assets(self):
+    def test_standard_and_slim_profiles_reproduce_five_clip_assets(self):
         hashes = {
-            ('sampled', 'standard'): '3f30d14634bd73a653c04d1f8950a7b795ee2ce8a4500854fa0a28a6585e065f',
-            ('white_vest', 'standard'): '07d36e7b69c1785602124e6b692546492b63eb8afd7872cc0a2cf45490c5e434',
-            ('sampled', 'slim'): '02db63d1d1cd7f24282fd97aadc00135c2a3da0d299ae4d7094daa446df6c621',
-            ('white_vest', 'slim'): '34e8fd5d7b62e284adc1c7cc2fc2b955df6eeef6ef74a16a0a798c4cc0eb58fa',
-            ('sampled', 'slim2'): '7e15c56d904c505ed7648f7b8faf501933199191a8d7c9cc2f9c4616bd6a6b1e',
-            ('white_vest', 'slim2'): '4532a0357022f62f701f2dd1430bfa063ff42ad6c7200aebc0f38c8ea3bc8a83',
+            ('sampled', 'standard'): '628965ad441a16cae30f05823c742374090084c568554c922732df325ee58c60',
+            ('white_vest', 'standard'): 'cf0c124603541920fb374d5aea5f8739b6321e383cfd35a1562061c7eb1ca9d3',
+            ('sampled', 'slim'): '81aeae02c33000ea5bae02688a7cc29a6f7720179added127e5c4a196ea58b9e',
+            ('white_vest', 'slim'): '2064ee8fd96fb70cf73c2392924ef9fbe7da219b455d5fe8c527dda4e6659638',
+            ('sampled', 'slim2'): 'bf2a4b56297268b254bb3985bb6b076bfa9e22a8c197e8f954d84d9a4b1e41bb',
+            ('white_vest', 'slim2'): 'ebef11428dc2249a284f4ac77021aa3cded78c6655a4a9ab2ea86267bae3bf4b',
         }
         for key, expected in hashes.items():
             self.assertEqual(hashlib.sha256(self.models[key][0]).hexdigest(), expected)
