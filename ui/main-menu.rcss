@@ -4,7 +4,7 @@ body { width: 100%; height: 100%; margin: 0px; font-family: hud-system; font-wei
 button, input { box-sizing: border-box; }
 button { text-align: left; cursor: pointer; }
 input { tab-index: auto; }
-#menu-title { position: absolute; left: 60dp; top: 55dp; font-family: menu-pixel; font-size: 40dp; line-height: 40dp; }
+#menu-title { position: absolute; left: 60dp; top: 55dp; font-size: 40dp; line-height: 40dp; }
 #header-rule { position: absolute; left: 60dp; top: 100dp; width: 840dp; height: 2dp; }
 #menu-actions { position: absolute; left: 60dp; top: 135dp; width: 380dp; }
 .menu-action { display: block; position: relative; width: 100%; height: 45dp; margin-bottom: 10dp; }

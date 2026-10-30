@@ -33,7 +33,7 @@ styles. [MenuView](client/menu_view.hpp) owns UI interaction; `GameMenu` owns
 the window and session actions. The HUD and menu share one RmlUi runtime with
 separate contexts, allowing loading feedback while the HUD exists.
 The bundled [pixel font](../ui/fonts/README.md) uses the original glyph shapes;
-Modern retains it in the heading and uses the HUD system font for controls.
+Classic retains it; Modern uses the HUD system font for headings and controls.
 Both Linux and Windows packages include the menu and font resources.
 
 ## Characters
