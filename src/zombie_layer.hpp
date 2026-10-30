@@ -64,6 +64,7 @@ struct ZombieInstance {
     std::size_t ragdollHandle = 0;
     bool physicsRagdoll = false;
     bool ragdollSleeping = false; // Replicated stop marker, including sleep-only transitions.
+    bool blastRagdoll = false; // Explosion-created corpse; retained through its physics lifetime.
     int severedJoint = -1; // Index in the original asset's joint manifest; persists on corpses.
     bool springRagdoll = false; // Melee pose springs and persistent rigid bone-mesh contacts.
     std::uint64_t physicsPoseRevision = 0;

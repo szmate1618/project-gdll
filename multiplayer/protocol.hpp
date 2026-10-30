@@ -33,6 +33,7 @@ constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
 constexpr std::uint32_t protocolVersion = 26; // Non-looping authored zombie attacks.
 constexpr std::uint64_t ragdollUpdateTicks = 12; // 5 Hz at the authoritative 60 Hz tick.
+constexpr std::uint64_t blastRagdollUpdateTicks = 6; // 10 Hz for explosion-created ragdolls.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
 constexpr std::size_t maxSignalsPerPlayer = signalLifetimeTicks / signalCooldownTicks;

@@ -67,11 +67,13 @@ void poseProtocol() {
     try { encode(pose); } catch (const std::runtime_error&) { rejected = true; }
     require(rejected, "Bulk pose bypassed the skeleton budget");
 }
-void fiveHzPoseCadence(Scene& scene) {
+void poseCadence(Scene& scene, bool blast) {
     scene.zombies = viewer::ZombieLayer{};
     scene.zombies.assets.emplace_back().skeleton.resize(1);
     scene.zombies.instances.emplace_back();
     scene.zombies.setRagdollPalette(0, {glm::mat4(1)});
+    scene.zombies.instances[0].blastRagdoll = blast;
+    const std::uint64_t period = blast ? 6 : 12;
     Replication replication;
     Snapshot state; state.tick = 120;
     test_replication::readySnapshot(replication, scene, {0, 0, 0}, state);
@@ -79,12 +81,22 @@ void fiveHzPoseCadence(Scene& scene) {
     require(first && first->tick == 120, "Initial pose lacks its authoritative timestamp");
     replication.sent(*first); replication.acknowledge({first->id, first->version});
     ++scene.zombies.instances[0].ragdollPoseVersion;
-    state.tick = 131; replication.snapshot(scene, {0, 0, 0}, state);
-    require(!replication.nextPose(scene), "Ragdoll exceeded five-Hz update cadence");
-    state.tick = 132; replication.snapshot(scene, {0, 0, 0}, state);
+    state.tick = 120 + period - 1; replication.snapshot(scene, {0, 0, 0}, state);
+    require(!replication.nextPose(scene), "Ragdoll exceeded its configured update cadence");
+    state.tick = 120 + period; replication.snapshot(scene, {0, 0, 0}, state);
     const auto next = replication.nextPose(scene);
-    require(next && next->tick == 132 && next->version > first->version,
-        "Five-Hz update did not send the newest complete pose");
+    require(next && next->tick == state.tick && next->version > first->version,
+        "Five/ten-Hz update did not send the newest complete pose");
+    replication.sent(*next); replication.acknowledge({next->id, next->version});
+    auto& instance = scene.zombies.instances[0];
+    instance.ragdollSleeping = true;
+    ++instance.ragdollPoseVersion;
+    state.tick += period; replication.snapshot(scene, {0, 0, 0}, state);
+    const auto settled = replication.nextPose(scene);
+    require(settled && settled->sleeping, "Both cadences must deliver the final sleeping pose");
+    replication.sent(*settled); replication.acknowledge({settled->id, settled->version});
+    state.tick += period; replication.snapshot(scene, {0, 0, 0}, state);
+    require(!replication.nextPose(scene), "Settled unchanged ragdolls must stop sending at both cadences");
     scene.zombies = viewer::ZombieLayer{};
 }
 void corpseTransfers(Scene& scene) {
@@ -200,7 +212,8 @@ int main(int argc, char** argv) {
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
         pacedSnapshots(); poseProtocol();
         Options options; options.map = argv[1]; options.trees = options.forests = false; options.zombieCount = 0;
-        Scene scene(options); retiredBoxes(scene, options); fiveHzPoseCadence(scene); corpseTransfers(scene); turning(scene);
+        Scene scene(options); retiredBoxes(scene, options);
+        poseCadence(scene, false); poseCadence(scene, true); corpseTransfers(scene); turning(scene);
         std::cout << "Pacing, independent corpse transfers and immediate rigid playback passed\n";
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

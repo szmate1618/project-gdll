@@ -182,9 +182,10 @@ std::optional<CorpsePose> Replication::nextPose(const Scene& scene) const {
     for (std::size_t offset = 0; offset < interestedCorpses_.size(); ++offset) {
         const auto id = interestedCorpses_[(startOffset + offset) % interestedCorpses_.size()];
         if (inFlight_.count(id) || !setups_[setupSlots_[id] - 1].acknowledged) continue;
-        const auto last = lastPoseTicks_.find(id);
-        if (last != lastPoseTicks_.end() && poseTick_ - last->second < ragdollUpdateTicks) continue;
         const auto& instance = scene.zombies.instances.at(id);
+        const auto period = instance.blastRagdoll ? blastRagdollUpdateTicks : ragdollUpdateTicks;
+        const auto last = lastPoseTicks_.find(id);
+        if (last != lastPoseTicks_.end() && poseTick_ - last->second < period) continue;
         if (!instance.ragdoll || instance.removed) continue;
         const auto ack = acknowledged_.find(id);
         if (ack != acknowledged_.end() && ack->second >= instance.ragdollPoseVersion) continue;

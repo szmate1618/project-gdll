@@ -797,7 +797,8 @@ explicit pose acknowledgement releases a transfer slot; snapshot acknowledgement
 cannot suppress an unreceived palette. Late joins receive their own initial
 poses. Clients retain complete root/palette pairs outside the display buffer.
 Ragdoll poses carry authoritative simulation ticks and a sleeping flag. Changed
-poses are sent at most five times per second per actor, retaining the bounded,
+poses are sent at most five times per second per actor, or ten times per second
+for ragdolls created by explosions, retaining the bounded,
 acknowledged reliable bulk transport described above. Clients display the newest
 pose immediately and extrapolate world joint translations and rotations from the
 last two server-timestamped poses, including estimated network transit time.

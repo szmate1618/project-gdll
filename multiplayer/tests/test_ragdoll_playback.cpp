@@ -170,10 +170,10 @@ void incompatiblePosesStayCoherent() {
     snaps(pair.before, changed);
 }
 
-void predictionKeepsJointPivotAndAffineShape() {
+void predictionKeepsJointPivotAndAffineShape(std::uint64_t period) {
     CorpsePose before, after;
     before.version = 1; before.tick = 60;
-    after.version = 2; after.tick = 72;
+    after.version = 2; after.tick = before.tick + period;
     viewer::AnimatedModel asset; asset.skeleton.resize(1);
     asset.skeleton[0].inverseBind = glm::translate(glm::mat4(1), {-4, -3, 0});
     before.transform = after.transform = shape({-2, 3, 4});
@@ -182,7 +182,8 @@ void predictionKeepsJointPivotAndAffineShape() {
         boneShape * asset.skeleton[0].inverseBind);
     after.bones.push_back(glm::inverse(after.transform) * rigid({1, 2, 0}, 30, {0, 0, 1}) *
         boneShape * asset.skeleton[0].inverseBind);
-    const auto predicted = multiplayer::predictRagdollPose(before, after, asset, .2);
+    const double interval = double(period) / 60;
+    const auto predicted = multiplayer::predictRagdollPose(before, after, asset, interval);
     const auto world = predicted.transform * predicted.bones[0] * glm::inverse(asset.skeleton[0].inverseBind);
     const auto expected = rigid({1, 2, 0}, 60, {0, 0, 1}) * boneShape;
     near(world[3], {1, 2, 0, 1}, "Prediction rotated a joint around the mesh origin");
@@ -191,7 +192,7 @@ void predictionKeepsJointPivotAndAffineShape() {
     sameShape(world, boneShape);
     sameShape(predicted.transform, after.transform);
     after.sleeping = true;
-    require(same(multiplayer::predictRagdollPose(before, after, asset, .2), after),
+    require(same(multiplayer::predictRagdollPose(before, after, asset, interval), after),
         "Sleeping pose continued predicting");
 }
 }
@@ -199,7 +200,7 @@ void predictionKeepsJointPivotAndAffineShape() {
 int main() {
     try {
         exactEndpoints(); independentWorldMotion(); halfTurnKeepsVolume(); offOriginJointPivot(); incompatiblePosesStayCoherent();
-        predictionKeepsJointPivotAndAffineShape();
+        for (const std::uint64_t period : {6, 12}) predictionKeepsJointPivotAndAffineShape(period);
         std::cout << "Affine ragdoll interpolation and coherent pose fallback passed\n";
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

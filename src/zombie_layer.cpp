@@ -298,6 +298,7 @@ std::size_t ZombieLayer::explode(glm::vec3 origin, float radius, double animatio
         const auto outward = offset + glm::vec3(0, .5f, 0);
         const auto direction = glm::length(outward) > .001f ? glm::normalize(outward) : glm::vec3(0, 1, 0);
         activateRagdoll(id, std::move(pose), direction * (8.0f * (1 - distance / radius)), animationSeconds);
+        instances[id].blastRagdoll = true;
         ++killed;
     }
     return killed;
@@ -539,6 +540,7 @@ void ZombieLayer::removeRagdoll(std::size_t zombie) {
     unregisterRagdoll(zombie);
     instance.removed = true;
     instance.ragdoll = instance.physicsRagdoll = instance.springRagdoll = instance.walking = false;
+    instance.blastRagdoll = false;
     instance.ragdollBones.clear();
     instance.activationPose.clear();
     ++instance.ragdollPoseVersion;

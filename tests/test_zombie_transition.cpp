@@ -673,6 +673,8 @@ void animationMotionOnDeath(int clip, bool published, int death, bool loopStart 
         require(layer.shoot(center + glm::vec3(0, 0, 3), {0, 0, -1}, loopStart ? 0 : .25) && instance.severedJoint == 0,
                 "Motion fixture must die from dismemberment");
     }
+    require(instance.blastRagdoll == (death == 1),
+            "Only explosion deaths must request the faster ragdoll replication cadence");
     std::vector<float> velocities;
     b3World_OverlapAABB(simulation->id(), {{690, -10, -2610}, {710, 20, -2590}}, b3DefaultQueryFilter(),
         [](b3ShapeId shape, void* context) {
