@@ -635,7 +635,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 in.toggleDrivingCamera = false;
             }
             if (in.driver.occupied()) in.driver.updateCamera(*scene.vehicles, in.camera, *scene.collision);
-            else in.camera.setPosition(prediction.eye() + visualOffset);
+            else in.camera.setPosition(prediction.presentedEye(static_cast<float>(accumulator * 60)) + visualOffset);
         }
         if (options.bot) in.camera.setOrientation(0, 0);
 #ifdef MP_GRAPHICS

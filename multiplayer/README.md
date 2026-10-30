@@ -530,10 +530,28 @@ prefix. Queued essential data is bounded to roughly 10 ms of estimated link
 capacity, capped at 16 KiB. Incomplete received snapshots do not block newer
 complete ones.
 
-The local client predicts movement, restores the complete authoritative
-movement state, and replays unresolved inputs. Other players, doors and boxes
-use buffered snapshot interpolation. Living zombies predict their current root
-and animation clocks without a playback delay; ragdolls retain buffered pose
+On foot, the local client predicts movement at 60 Hz using local collision checks
+without waiting for a server response. It retains unacknowledged inputs; each new
+authoritative snapshot restores the complete confirmed movement state and
+replays those inputs to recover the current predicted position.
+
+The camera interpolates position every rendered frame between the last two
+predicted movement steps, using the remaining fraction of the client's fixed-step
+accumulator. This smooths movement above 60 FPS and at uneven frame intervals,
+adding one local movement tick (about 16.7 ms) of presentation delay. Movement
+and collision simulation continue from the current predicted state. Mouse
+orientation is applied directly each frame and has no interpolation delay.
+
+Small server corrections shift both camera interpolation endpoints together and
+ease through the existing visual offset. Replaying inputs does not advance the
+interpolation history. Initial spawn, corrections of at least two meters, and
+vehicle transitions reset that history so the camera does not blend across a
+teleport or seat change. See [movement prediction](client/prediction.cpp) and
+the [client session loop](client/session.cpp).
+
+Other players, doors and boxes use buffered snapshot interpolation. Living
+zombies predict their current root and animation clocks without a playback delay;
+ragdolls retain buffered pose
 playback. Fixed asset normalization stays separate from root motion, preserving
 size through turns. Remote players draw in the opaque pass before glass and rain.
 The server does not render, so ragdoll handoff and damage reactions use its
@@ -553,10 +571,12 @@ retain their updates; driver occupancy alone does not control replication.
 Clients keep bounded per-car histories and interpolate chassis, wheels and
 velocity at the shared playback time, including across snapshots omitting that
 car. Protocol 23 requires matching rebuilt clients and servers.
-The driver camera follows the same interpolated pose as
-the rendered car. Vehicle motion is server-authoritative and is not locally
-predicted, so driving response includes network latency. Driving commands are
-retained/resubmitted normally but never replayed as walking movement. Lighting
+The driver camera follows the same interpolated pose as the rendered car,
+using a playback clock six server ticks (100 ms) behind incoming snapshot time.
+Vehicle motion is server-authoritative and is not locally predicted, so driving
+response includes that buffer plus network and server-update delays. Mouse look
+remains local. Driving commands are retained/resubmitted normally but never
+replayed as walking movement. Lighting
 uses the shared server tick and matching day/night settings, including parked
 headlights at night.
 

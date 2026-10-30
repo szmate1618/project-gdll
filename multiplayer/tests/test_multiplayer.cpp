@@ -7,6 +7,8 @@
 #include "simulation_clock.hpp"
 #include "zombie_replication_fixture.hpp"
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -221,6 +223,83 @@ void prediction() {
             decoded.commands.back().firearmShot && decoded.commands.back().firearmShot->predictedMist &&
             decoded.commands.back().firearmShot->muzzlePosition == glm::vec3(1, 2, 3),
             "Local mist or muzzle metadata was lost from the stored/retried shot command");
+}
+void predictionPresentation() {
+    using namespace multiplayer;
+    const auto model = ground(); viewer::CollisionWorld collision(model);
+    viewer::FPSController server;
+    require(server.spawn({10, 1.7f, 0}, collision), "Presentation spawn failed");
+    PlayerState state; state.movement = server.movementState();
+    Prediction client; client.reconcile(state, collision);
+    const auto start = client.eye();
+    require(client.presentedEye(0) == start && client.presentedEye(1) == start,
+        "First spawn interpolated from an uninitialized position");
+
+    Command walk; walk.movement.forward = 1; walk.movement.yawDegrees = 0;
+    double accumulator = 0, elapsed = 0;
+    // Uneven render intervals above 60 FPS must still follow a constant-speed
+    // path, one command tick behind, including frames with no movement step.
+    constexpr double step = 1.0 / 60;
+    constexpr std::array<double, 3> frameSeconds{1.0 / 144, 1.0 / 100, 1.0 / 240};
+    for (int frame = 0; frame < 60; ++frame) {
+        const double dt = frameSeconds[frame % frameSeconds.size()];
+        elapsed += dt; accumulator += dt;
+        while (accumulator >= step) {
+            client.advance(walk, collision);
+            accumulator -= step;
+        }
+        const auto simulationEye = client.eye();
+        const auto shown = client.presentedEye(static_cast<float>(accumulator / step));
+        const float expectedX = start.x + 3.f * static_cast<float>(std::max(0.0, elapsed - step));
+        require(std::abs(shown.x - expectedX) < .0001f,
+            "Camera retained fixed-step movement jumps between render frames");
+        require(client.eye() == simulationEye, "Sampling presentation moved the gameplay controller");
+    }
+    const auto beforeReplay = client.presentedEye(.25f);
+    client.reconcile(state, collision); // All commands remain pending and replay.
+    require(glm::distance(client.presentedEye(.25f), beforeReplay) < .0001f,
+        "Reconciliation replay replaced the camera's interpolation history");
+
+    state.resolved = client.nextSequence() - 1;
+    state.movement = client.controller().movementState();
+    state.movement.feet.x += .25f;
+    const auto beforeEye = client.eye();
+    const auto beforeCorrection = client.presentedEye(.25f);
+    client.reconcile(state, collision);
+    const auto visualOffset = beforeEye - client.eye();
+    require(glm::distance(client.presentedEye(.25f) + visualOffset, beforeCorrection) < .0001f,
+        "Small server correction jumped the interpolated camera before easing");
+
+    const auto beforeCatchUp = client.eye();
+    client.advance(walk, collision);
+    const auto penultimateEye = client.eye();
+    client.advance(walk, collision);
+    require(glm::distance(client.presentedEye(0), penultimateEye) < .0001f &&
+            client.presentedEye(1).x > beforeCatchUp.x,
+        "Catch-up commands did not retain the two most recent predicted steps");
+    require(client.presentedEye(-1) == client.presentedEye(0) &&
+            client.presentedEye(2) == client.eye(), "Presentation extrapolated outside solved positions");
+
+    state.resolved = client.nextSequence() - 1;
+    state.movement = client.controller().movementState();
+    state.movement.feet.x += 10;
+    client.reconcile(state, collision);
+    require(client.presentedEye(0) == client.eye(), "Large server correction interpolated through a teleport");
+
+    client.advance(walk, collision);
+    state.resolved = client.nextSequence() - 1;
+    state.movement = client.controller().movementState();
+    state.vehicle = 0;
+    client.reconcile(state, collision);
+    require(client.presentedEye(0) == client.eye(), "Entering a vehicle retained walking interpolation");
+    const auto seatedEye = client.eye();
+    client.advance(walk, collision);
+    require(client.presentedEye(.5f) == seatedEye, "Seated input predicted walking movement");
+    state.resolved = client.nextSequence() - 1;
+    state.vehicle = noVehicle;
+    state.movement.feet.x += .5f;
+    client.reconcile(state, collision);
+    require(client.presentedEye(0) == client.eye(), "Vehicle exit interpolated from the old seat position");
 }
 void physicsPoses() {
     auto physics = std::make_shared<viewer::PhysicsWorld>();
@@ -760,7 +839,7 @@ void inputRecovery(const std::filesystem::path& asset) {
 }
 int main(int argc, char** argv) {
     try {
-        protocol(); playerHealthProtocol(); fragments(); prediction(); physicsPoses(); multiplayerPerception(); occludedShooting();
+        protocol(); playerHealthProtocol(); fragments(); prediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
         triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
