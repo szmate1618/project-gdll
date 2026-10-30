@@ -336,18 +336,25 @@ void passengers(const Options& o) {
             "Passenger Enter did not release only its own seat beside a stopped car");
 }
 
-void interpolation(const Options& o) {
+void extrapolation(const Options& o) {
     Scene scene(o);
     Snapshot a; a.tick = 10; a.vehicles.push_back({});
     a.vehicles[0].chassis.center = {0, 1, 0};
     for (auto& wheel : a.vehicles[0].wheels) wheel.center = {0, .5f, 0};
     Snapshot b = a; b.tick = 22; b.vehicles[0].chassis.center.x = 12;
+    b.vehicles[0].velocity = {6, 0, 0};
     b.vehicles[0].chassis.rotation = glm::angleAxis(1.f, glm::vec3(0, 1, 0));
     for (auto& wheel : b.vehicles[0].wheels) { wheel.center.x = 12; wheel.rotation = b.vehicles[0].chassis.rotation; }
     Snapshots playback; playback.push(wire(a), 0); playback.push(wire(b), .2); playback.apply(scene, .2);
     const auto pose = scene.vehicles->pose(0);
-    require(std::abs(pose.chassis.center.x - 6) < .001f && std::abs(pose.wheels[0][3].x - 6) < .001f &&
-            std::abs(glm::length(pose.chassis.rotation) - 1) < .001f, "Car and wheels must interpolate as coherent rigid poses");
+    require(std::abs(pose.chassis.center.x - 12) < .001f && std::abs(pose.wheels[0][3].x - 12) < .001f &&
+            std::abs(glm::length(pose.chassis.rotation) - 1) < .001f, "Car and wheels must publish the latest rigid poses");
+    playback.apply(scene, .225);
+    const auto predicted = scene.vehicles->pose(0);
+    require(std::abs(predicted.chassis.center.x - 12.15f) < .001f &&
+            std::abs(predicted.wheels[0][3].x - 12.15f) < .001f &&
+            std::abs(glm::dot(predicted.chassis.rotation, glm::angleAxis(1.125f, glm::vec3(0, 1, 0)))) > .99999f,
+            "Remote car and wheels must extrapolate position and orientation without a playback buffer");
     require(!playback.push(a, .3), "Old car state replaced a newer snapshot");
     viewer::VehiclePlayer driver; viewer::Camera camera;
     driver.followCar(0, *scene.vehicles, camera);
@@ -419,7 +426,7 @@ int main(int argc, char** argv) {
         require(argc == 3, "Expected test map and scratch directory");
         protocolChecks(); const auto o = options(argv[1]);
         acknowledgedUpdates(o); ownershipAndDriving(o); passengerOnly(o); passengers(o);
-        interpolation(o); zombieImpacts(o); physicsParity(o); parkedPopulation(o,argv[2]);
+        extrapolation(o); zombieImpacts(o); physicsParity(o); parkedPopulation(o,argv[2]);
         std::cout << "Multiplayer vehicle ownership, physics, late join, timeout, camera and wire checks passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

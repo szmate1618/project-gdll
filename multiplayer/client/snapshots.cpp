@@ -128,7 +128,7 @@ std::vector<viewer::MuzzleFlashLight> Snapshots::explosionLights(double now) con
     }
     return result;
 }
-void Snapshots::apply(Scene& scene, double now, std::uint32_t localPlayer) {
+void Snapshots::apply(Scene& scene, double now) {
     if (frames_.empty()) return;
     const double latestTick = static_cast<double>(frames_.back().tick);
     // RTT/2 estimates incoming transit for unbuffered presentation.
@@ -161,13 +161,8 @@ void Snapshots::apply(Scene& scene, double now, std::uint32_t localPlayer) {
         }
         break;
     }
-    std::optional<VehiclePlayback::Driver> driver;
-    for (const auto& player : frames_.back().players)
-        if (player.id == localPlayer && player.vehicle != noVehicle && player.seat == 0)
-            driver = VehiclePlayback::Driver{player.vehicle, estimatedServerTick};
-    // Chassis and wheels share either buffered playback or, for the local
-    // driver, position/orientation extrapolation. Neither advances client physics.
-    vehicles_.apply(*scene.vehicles, renderTick_, driver);
+    // All chassis, wheels and seat cameras share unbuffered predicted poses.
+    vehicles_.apply(*scene.vehicles, estimatedServerTick);
     for (const auto& player : frames_.back().players) if (player.vehicle != noVehicle)
         (void)scene.vehicles->config(player.vehicle).seats.at(player.seat);
     std::unordered_map<std::uint32_t, float> oldAngles;

@@ -40,7 +40,7 @@ VehicleState car(std::uint32_t id, float x) {
     return state;
 }
 
-void coherentInterpolationAndStop() {
+void confirmedPosesAndStop() {
     auto world = std::make_shared<viewer::PhysicsWorld>();
     viewer::VehicleLayer vehicles(world);
     VehiclePlayback playback;
@@ -52,19 +52,18 @@ void coherentInterpolationAndStop() {
         wheel.rotation = glm::angleAxis(glm::half_pi<float>(), glm::vec3(1, 0, 0));
     playback.push(60, {first});
     playback.push(72, {last});
-    playback.apply(vehicles, 66);
+    playback.apply(vehicles, 72);
     const auto pose = vehicles.pose(0);
-    near(pose.chassis.center.x, 6, "Chassis did not interpolate between its own samples");
-    near(vehicles.velocity(0).x, 6, "Velocity used a different playback time");
-    const float diagonal = std::sqrt(.5f);
+    near(pose.chassis.center.x, 12, "Car retained a buffered chassis position");
+    near(vehicles.velocity(0).x, 12, "Car did not publish its latest confirmed velocity");
     const auto forward = pose.chassis.rotation * glm::vec3(0, 0, -1);
-    near(forward.x, -diagonal, "Chassis rotation did not follow the short quaternion arc");
-    near(forward.z, -diagonal, "Chassis rotation lost its interpolation angle");
+    near(forward.x, -1, "Car did not publish its latest confirmed chassis rotation");
+    near(forward.z, 0, "Chassis rotation lost its confirmed angle");
     for (std::size_t i = 0; i < pose.wheels.size(); ++i) {
-        near(pose.wheels[i][3].x, 6 + float(i), "Suspension position did not follow the chassis clock");
+        near(pose.wheels[i][3].x, 12 + float(i), "Suspension position did not follow the chassis clock");
         const auto up = glm::mat3(pose.wheels[i]) * glm::vec3(0, 1, 0);
-        near(up.y, diagonal, "Wheel rotation did not interpolate independently of the chassis");
-        near(up.z, diagonal, "Wheel spin lost its quaternion interpolation");
+        near(up.y, 0, "Wheel did not retain its latest confirmed rotation");
+        near(up.z, 1, "Wheel spin lost its confirmed orientation");
     }
     last.velocity = {};
     playback.push(75, {last});
@@ -79,7 +78,7 @@ void coherentInterpolationAndStop() {
         "An omitted parked car was removed, simulated or moved again");
 }
 
-void linearDriverExtrapolation() {
+void linearExtrapolation() {
     auto world = std::make_shared<viewer::PhysicsWorld>();
     viewer::VehicleLayer vehicles(world);
     VehiclePlayback playback;
@@ -88,8 +87,10 @@ void linearDriverExtrapolation() {
     moving.chassis.rotation = glm::angleAxis(.4f, glm::vec3(0, 1, 0));
     auto first = car(0, 0); first.chassis.rotation = moving.chassis.rotation;
     playback.push(60, {first, car(1, 10)});
-    playback.push(63, {moving, car(1, 12)});
-    playback.apply(vehicles, 61.5, VehiclePlayback::Driver{0, 64.5});
+    auto remote = car(1, 12); remote.velocity = {-4, 0, 0};
+    remote.chassis.rotation = glm::angleAxis(-.05f, glm::vec3(0, 1, 0));
+    playback.push(63, {moving, remote});
+    playback.apply(vehicles, 64.5);
     const auto pose = vehicles.pose(0);
     near(pose.chassis.center.x, .45f, "Driver used buffered position instead of current linear prediction");
     near(pose.chassis.center.y, 1.025f, "Driver prediction lost vertical linear velocity");
@@ -100,35 +101,35 @@ void linearDriverExtrapolation() {
         require(glm::distance(glm::vec3(pose.wheels[i][3]) - pose.chassis.center,
                     moving.wheels[i].center - moving.chassis.center) < .001f,
             "Predicted wheels drifted away from their chassis");
-    near(vehicles.pose(1).chassis.center.x, 11, "Driver prediction removed the remote car's playback buffer");
-    playback.apply(vehicles, 61.5, VehiclePlayback::Driver{0, 65.1});
+    near(vehicles.pose(1).chassis.center.x, 11.9f, "Remote car did not extrapolate its own linear velocity");
+    rotationNear(vehicles.pose(1).chassis.rotation, glm::angleAxis(-.075f, glm::vec3(0, 1, 0)),
+        "Remote car did not extrapolate its own angular velocity");
+    playback.apply(vehicles, 65.1);
     near(vehicles.pose(0).chassis.center.x, .51f, "Driver position did not advance between server updates");
-    playback.apply(vehicles, 61.5);
-    near(vehicles.pose(0).chassis.center.x, .15f, "Leaving prediction failed to restore an unchanged buffered tick");
-    playback.apply(vehicles, 61.5, VehiclePlayback::Driver{0, 1000});
+    playback.apply(vehicles, 1000);
     near(vehicles.pose(0).chassis.center.x, 1.8f, "Packet loss allowed unbounded driving extrapolation");
-    playback.apply(vehicles, 61.5, VehiclePlayback::Driver{0, 2000});
+    playback.apply(vehicles, 2000);
     near(vehicles.pose(0).chassis.center.x, 1.8f, "Driver continued drifting beyond its prediction horizon");
     playback.push(66, {car(0, .6f)}); // An authoritative stop replaces the extrapolation immediately.
-    playback.apply(vehicles, 64.5, VehiclePlayback::Driver{0, 67.5});
+    playback.apply(vehicles, 67.5);
     near(vehicles.pose(0).chassis.center.x, .6f, "Authoritative stop retained predicted travel");
     playback.push(69, {});
     playback.push(68, {moving}); // A reordered motion update cannot restart the stopped car.
-    playback.apply(vehicles, 67.5, VehiclePlayback::Driver{0, 72});
+    playback.apply(vehicles, 72);
     near(vehicles.pose(0).chassis.center.x, .6f, "Sparse or stale updates restarted stopped prediction");
     require(vehicles.simulatedCars().empty(), "Driver extrapolation activated client vehicle physics");
-    rejects([&] { playback.apply(vehicles, 67.5, VehiclePlayback::Driver{0, std::numeric_limits<double>::quiet_NaN()}); },
-        "Nonfinite driver prediction time was accepted");
+    rejects([&] { playback.apply(vehicles, std::numeric_limits<double>::quiet_NaN()); },
+        "Nonfinite vehicle prediction time was accepted");
 }
 
-void angularDriverExtrapolation() {
+void angularExtrapolation() {
     auto world = std::make_shared<viewer::PhysicsWorld>();
     viewer::VehicleLayer vehicles(world);
     VehiclePlayback playback;
     auto first = car(0, 0);
     first.chassis.rotation = glm::angleAxis(glm::half_pi<float>(), glm::vec3(0, 1, 0));
     playback.push(60, {first});
-    playback.apply(vehicles, 60, VehiclePlayback::Driver{0, 62});
+    playback.apply(vehicles, 62);
     rotationNear(vehicles.pose(0).chassis.rotation, first.chassis.rotation,
         "First orientation sample guessed angular motion without a previous sample");
     // A world-space turn around a tilted axis exercises yaw, pitch and roll,
@@ -142,7 +143,7 @@ void angularDriverExtrapolation() {
     next.chassis.rotation = -atAngle(3); // Quaternion sign must not change the inferred turn.
     next.wheels[0].rotation = glm::angleAxis(.7f, glm::vec3(1, 0, 0));
     playback.push(63, {next});
-    playback.apply(vehicles, 61.5, VehiclePlayback::Driver{0, 64.5});
+    playback.apply(vehicles, 64.5);
     const auto pose = vehicles.pose(0);
     rotationNear(pose.chassis.rotation, atAngle(4.5f), "Driver did not extrapolate full chassis orientation");
     near(pose.chassis.center.x, .45f, "Angular prediction changed the chassis translation");
@@ -154,25 +155,25 @@ void angularDriverExtrapolation() {
         rotationNear(glm::quat_cast(glm::mat3(pose.wheels[wheel])), extraTurn * next.wheels[wheel].rotation,
             "Predicted chassis turn lost the wheel's relative orientation");
     }
-    playback.apply(vehicles, 63, VehiclePlayback::Driver{0, 65}); // Retires the older pose sample.
-    rotationNear(vehicles.pose(0).chassis.rotation, atAngle(5), "History retirement lost measured angular velocity");
+    playback.apply(vehicles, 65);
+    rotationNear(vehicles.pose(0).chassis.rotation, atAngle(5), "A render frame lost measured angular velocity");
     next.chassis.rotation = atAngle(6); next.chassis.center.x = .6f;
     playback.push(66, {next});
-    playback.apply(vehicles, 63, VehiclePlayback::Driver{0, 67.5});
+    playback.apply(vehicles, 67.5);
     rotationNear(vehicles.pose(0).chassis.rotation, atAngle(7.5f), "New samples reset a steady angular prediction");
     playback.push(65, {first});
-    playback.apply(vehicles, 63, VehiclePlayback::Driver{0, 67.5});
+    playback.apply(vehicles, 67.5);
     rotationNear(vehicles.pose(0).chassis.rotation, atAngle(7.5f), "Reordered snapshot changed angular velocity");
     for (const double tick : {1000.0, 2000.0}) {
-        playback.apply(vehicles, 66, VehiclePlayback::Driver{0, tick});
+        playback.apply(vehicles, tick);
         rotationNear(vehicles.pose(0).chassis.rotation, atAngle(21), "Packet loss allowed unbounded angular extrapolation");
     }
     playback.push(69, {});
-    playback.apply(vehicles, 66, VehiclePlayback::Driver{0, 72});
+    playback.apply(vehicles, 2000);
     rotationNear(vehicles.pose(0).chassis.rotation, atAngle(6), "Omitted unchanged car continued predicted rotation");
     next.chassis.center.x = .9f;
     playback.push(72, {next});
-    playback.apply(vehicles, 69, VehiclePlayback::Driver{0, 75});
+    playback.apply(vehicles, 75);
     rotationNear(vehicles.pose(0).chassis.rotation, atAngle(6), "Confirmed rotation stop retained old angular velocity");
 }
 
@@ -185,7 +186,7 @@ void angularPredictionBoundaries() {
         first.chassis.rotation = glm::angleAxis(glm::radians(179.f), glm::vec3(0, 1, 0));
         next.chassis.rotation = glm::angleAxis(glm::radians(-179.f), glm::vec3(0, 1, 0));
         playback.push(60, {first}); playback.push(60 + interval, {next});
-        playback.apply(vehicles, 60, VehiclePlayback::Driver{0, 61.5 + interval});
+        playback.apply(vehicles, 61.5 + interval);
         const float expected = interval == 3 ? -178.f : -179.f;
         rotationNear(vehicles.pose(0).chassis.rotation,
             glm::angleAxis(glm::radians(expected), glm::vec3(0, 1, 0)),
@@ -194,12 +195,12 @@ void angularPredictionBoundaries() {
     VehiclePlayback jump;
     auto next = car(0, 0); next.chassis.rotation = glm::angleAxis(glm::half_pi<float>(), glm::vec3(1, 0, 0));
     jump.push(60, {car(0, 0)}); jump.push(63, {next});
-    jump.apply(vehicles, 60, VehiclePlayback::Driver{0, 66});
+    jump.apply(vehicles, 66);
     rotationNear(vehicles.pose(0).chassis.rotation, next.chassis.rotation,
         "An orientation discontinuity produced a rapid predicted spin");
 }
 
-void independentSparseHistoriesAndReordering() {
+void independentSparseStatesAndReordering() {
     auto world = std::make_shared<viewer::PhysicsWorld>();
     viewer::VehicleLayer vehicles(world);
     VehiclePlayback playback;
@@ -209,11 +210,11 @@ void independentSparseHistoriesAndReordering() {
     playback.push(72, {car(5, 512)});
     playback.apply(vehicles, 66);
     require(vehicles.count() == 6, "Sparse existing IDs changed the cached population");
-    near(vehicles.pose(5).chassis.center.x, 506, "High sparse ID lost its independent interpolation history");
+    near(vehicles.pose(5).chassis.center.x, 512, "High sparse ID did not receive its latest confirmed pose");
     near(vehicles.pose(0).chassis.center.x, 0, "An unrelated car update moved a parked car");
     playback.push(75, {car(0, 15)});
     playback.apply(vehicles, 73.5);
-    near(vehicles.pose(0).chassis.center.x, 7.5f, "A second car used the first car's update interval");
+    near(vehicles.pose(0).chassis.center.x, 15, "A second car did not receive its latest confirmed pose");
     near(vehicles.pose(5).chassis.center.x, 512, "Omitting one moving car discarded its last pose");
     playback.push(74, {car(0, 999)});
     playback.apply(vehicles, 75);
@@ -229,13 +230,15 @@ void parkedIntervalBeforeMovement() {
     playback.push(300, {});
     playback.push(597, {});
     playback.apply(vehicles, 594);
-    playback.push(600, {car(0, 20.6f)});
-    playback.apply(vehicles, 594);
-    near(vehicles.pose(0).chassis.center.x, 20, "New motion was smeared backward across a long parked interval");
-    playback.apply(vehicles, 598.5);
-    near(vehicles.pose(0).chassis.center.x, 20.3f, "First movement did not start after the last unchanged snapshot");
+    auto moving = car(0, 20.6f); moving.velocity = {6, 0, 0};
+    moving.chassis.rotation = glm::angleAxis(.05f, glm::vec3(0, 1, 0));
+    playback.push(600, {moving});
     playback.apply(vehicles, 600);
-    near(vehicles.pose(0).chassis.center.x, 20.6f, "A previously parked car did not reach its new pose");
+    near(vehicles.pose(0).chassis.center.x, 20.6f, "New motion started from a historical parked position");
+    playback.apply(vehicles, 601.5);
+    near(vehicles.pose(0).chassis.center.x, 20.75f, "A previously parked car did not extrapolate its new velocity");
+    rotationNear(vehicles.pose(0).chassis.rotation, glm::angleAxis(.075f, glm::vec3(0, 1, 0)),
+        "Resumed angular prediction used the full parked interval instead of the last confirmation");
 }
 
 void batchValidationIsAtomic() {
@@ -277,11 +280,11 @@ void sparseSnapshotsAndOccupancy(const Options& options) {
     playback.push(first, 0);
     playback.push(moved, .2);
     playback.apply(scene, .2);
-    near(scene.vehicles->pose(0).chassis.center.x, 6, "Shared world buffer no longer interpolates car motion");
+    near(scene.vehicles->pose(0).chassis.center.x, 12, "Remote car retained the shared world's playback buffer");
     Snapshot omitted; omitted.tick = 75;
     playback.push(omitted, .25);
     playback.apply(scene, .25);
-    near(scene.vehicles->pose(0).chassis.center.x, 9, "An omitted snapshot shortened an in-progress car interpolation");
+    near(scene.vehicles->pose(0).chassis.center.x, 12, "An omitted snapshot moved a stopped car");
     for (std::uint64_t tick = 78; tick <= 210; tick += 3) {
         omitted.tick = tick;
         const double now = double(tick - 60) / 60;
@@ -308,7 +311,7 @@ void sparseSnapshotsAndOccupancy(const Options& options) {
     playback.push(seated, 2.65);
     rejects([&] { playback.apply(scene, 2.65); }, "Occupancy referred to a car absent from persistent state");
 }
-void localDriverSnapshots(const Options& options) {
+void occupantSnapshots(const Options& options) {
     Scene scene(options);
     Snapshots playback;
     Snapshot first; first.tick = 60;
@@ -322,13 +325,13 @@ void localDriverSnapshots(const Options& options) {
     moved.vehicles[0].chassis.rotation = glm::angleAxis(.05f, glm::vec3(0, 1, 0));
     for (auto& vehicle : moved.vehicles) vehicle.velocity = {6, 0, 0};
     playback.push(moved, .05, .05);
-    playback.apply(scene, .05, 1);
+    playback.apply(scene, .05);
     near(scene.vehicles->pose(0).chassis.center.x, .6f, "Local driver prediction omitted incoming transit");
-    near(scene.vehicles->pose(1).chassis.center.x, 10, "A remote driver bypassed the world buffer");
+    near(scene.vehicles->pose(1).chassis.center.x, 10.6f, "Remote car prediction omitted incoming transit");
     viewer::VehiclePlayer occupied; viewer::Camera camera;
     occupied.followCar(0, *scene.vehicles, camera);
     camera.setOrientation(25, 7);
-    playback.apply(scene, .075, 1);
+    playback.apply(scene, .075);
     occupied.updateCamera(*scene.vehicles, camera, *scene.collision);
     near(scene.vehicles->pose(0).chassis.center.x, .75f, "Driver prediction did not run between snapshots");
     require(glm::distance(camera.position(), viewer::vehicleSeat(*scene.vehicles, 0, 0)) < .001f,
@@ -338,17 +341,27 @@ void localDriverSnapshots(const Options& options) {
 
     auto passenger = moved; passenger.tick = 66; passenger.players[0].seat = 1;
     passenger.vehicles = {car(0, .6f)};
+    passenger.vehicles[0].velocity = {6, 0, 0};
+    passenger.vehicles[0].chassis.rotation = glm::angleAxis(.1f, glm::vec3(0, 1, 0));
     playback.push(passenger, .1, .05);
-    playback.apply(scene, .1, 1);
-    near(scene.vehicles->pose(0).chassis.center.x, 0, "Passenger retained local driver extrapolation");
-    playback.apply(scene, .1, 2);
-    near(scene.vehicles->pose(1).chassis.center.x, 10.9f, "Prediction selected the wrong local player's car");
+    playback.apply(scene, .1);
+    near(scene.vehicles->pose(0).chassis.center.x, .9f, "Passenger car retained buffered playback");
+    near(scene.vehicles->pose(1).chassis.center.x, 10.9f, "Unoccupied remote car stopped extrapolating");
+    occupied.followCar(0, *scene.vehicles, camera, 1);
+    camera.setOrientation(25, 7);
+    playback.apply(scene, .125);
+    occupied.updateCamera(*scene.vehicles, camera, *scene.collision);
+    near(scene.vehicles->pose(0).chassis.center.x, 1.05f, "Passenger car did not advance between snapshots");
+    require(glm::distance(camera.position(), viewer::vehicleSeat(*scene.vehicles, 0, 1)) < .001f,
+        "Passenger camera did not follow its predicted seat");
+    near(camera.yawDegrees(), 25 - glm::degrees(.025f), "Predicted passenger turn lost relative mouse yaw");
+    near(camera.pitchDegrees(), 7, "Predicted passenger turn overwrote mouse pitch");
     auto exited = passenger; exited.tick = 69;
     exited.players[0].vehicle = noVehicle; exited.players[0].seat = noVehicleSeat;
     exited.vehicles.clear();
     playback.push(exited, .15, .05);
-    playback.apply(scene, .15, 1);
-    near(scene.vehicles->pose(0).chassis.center.x, .3f, "Exiting a car failed to restore buffered playback");
+    playback.apply(scene, .15);
+    near(scene.vehicles->pose(0).chassis.center.x, 1.2f, "Exiting a car stopped remote position extrapolation");
     require(scene.vehicles->simulatedCars().empty(), "Snapshot prediction allocated detailed vehicle physics");
 }
 } // namespace
@@ -356,17 +369,17 @@ void localDriverSnapshots(const Options& options) {
 int main(int argc, char** argv) {
     try {
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        coherentInterpolationAndStop();
-        linearDriverExtrapolation();
-        angularDriverExtrapolation();
+        confirmedPosesAndStop();
+        linearExtrapolation();
+        angularExtrapolation();
         angularPredictionBoundaries();
-        independentSparseHistoriesAndReordering();
+        independentSparseStatesAndReordering();
         parkedIntervalBeforeMovement();
         batchValidationIsAtomic();
         Options options; options.map = argv[1]; options.trees = options.forests = false; options.zombieCount = 0;
         sparseSnapshotsAndOccupancy(options);
-        localDriverSnapshots(options);
-        std::cout << "Sparse vehicle histories, rigid interpolation, local driver extrapolation and occupancy passed\n";
+        occupantSnapshots(options);
+        std::cout << "Sparse vehicle states, linear/angular extrapolation and driver/passenger cameras passed\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n'; return 1;

@@ -418,7 +418,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                     const auto origin = remoteOrigins.emplace(p.id, p.movement.feet).first->second;
                     remoteTravel = std::max(remoteTravel, glm::length(p.movement.feet - origin));
                 }
-                snapshots.apply(scene, now, self);
+                snapshots.apply(scene, now);
                 bool found = false;
                 for (const auto& p : snapshot->players) if (p.id == self) {
                     const bool ready = prediction.ready(); const auto before = prediction.eye();
@@ -615,7 +615,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 accumulator -= 1.0 / 60;
             }
         }
-        snapshots.apply(scene, now, self);
+        snapshots.apply(scene, now);
 #ifdef MP_GRAPHICS
         if (graphics.window && !snapshots.empty()) {
             // Shots share one event decision for sound, remote recoil and flash.

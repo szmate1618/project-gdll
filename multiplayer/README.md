@@ -568,12 +568,11 @@ older states, so packet loss or coalescing cannot lose a final stop or build an
 unbounded queue. After the final stopped pose is confirmed, a parked car stays
 silent until it changes again. Moving, coasting and externally pushed cars all
 retain their updates; driver occupancy alone does not control replication.
-Clients keep bounded per-car histories and interpolate chassis, wheels and
-velocity at the shared playback time, including across snapshots omitting that
-car. Protocol 23 requires matching rebuilt clients and servers.
+Clients keep each car's latest confirmed state, including across snapshots
+omitting that car. Protocol 23 requires matching rebuilt clients and servers.
 
-The locally driven car bypasses the six-tick (100 ms) playback buffer. Every
-rendered frame extrapolates its latest confirmed chassis position with the
+All cars bypass the six-tick (100 ms) world playback buffer. Every rendered
+frame extrapolates each car's latest confirmed chassis position with the
 reported linear velocity and estimated current server time (including RTT/2
 incoming transit). Chassis orientation extrapolates measured angular velocity
 from consecutive authoritative orientations, following the shorter quaternion
@@ -583,13 +582,15 @@ newer complete snapshot holds its confirmed orientation.
 
 All four wheels follow the predicted chassis translation and rotation while
 retaining their latest confirmed relative steering, spin and suspension poses.
-The driver camera follows that displayed car in either camera mode, with local
-mouse look and world-up camera orientation. Position and orientation
-extrapolation hold at 250 ms of unconfirmed motion if updates stop arriving.
+Driver and passenger cameras follow their seats on the same displayed car,
+including the driver's third-person view, with local mouse look and world-up
+camera orientation. Position and orientation extrapolation hold at 250 ms of
+unconfirmed motion if updates stop arriving.
 No vehicle physics runs on the client. New snapshots directly correct the
 prediction, so abrupt motion changes can jump.
 
-Remote cars and passenger views retain the 100 ms interpolation buffer. Physics
+Cars use this prediction regardless of driver occupancy, including coasting and
+externally pushed cars. Parked cars reuse their last published pose. Physics
 runs at 60 Hz and snapshots arrive at 20 Hz. Throttle, steering and braking
 remain server-authoritative, so their response still includes network and
 server-update delays. Mouse look remains local. Driving commands are
