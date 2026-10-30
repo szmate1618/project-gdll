@@ -1,5 +1,6 @@
 """Check the extracted Windows game from outside its package and checkout."""
 import argparse
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -17,6 +18,8 @@ def check_contents(package):
         "ui/hud.rml", "ui/hud.rcss", "ui/command-wheel.rcss", "ui/palette.rcss", "ui/hud-icons.rcss", "ui/hud.vert", "ui/hud.frag", "licenses/RmlUi.txt",
         "gui/hud-icons.json", "data/assets/game-icons/hud/health.png", "data/assets/game-icons/hud/pistol.png",
         "data/assets/game-icons/license.txt", "credits/assets/HUD_ICONS.txt",
+        "gui/character-faces.json", "credits/assets/CHARACTER_FACES.txt",
+        "multiplayer/client/character_creation.vert", "multiplayer/client/character_creation.frag",
         "ui/inventory.rml", "ui/skills.rml", "ui/health.rml", "ui/map.rml", "ui/loadout.rml", "ui/loadout.rcss",
         "multiplayer/client/players.vert", "multiplayer/client/players.frag",
         "credits/assets/README.txt", "licenses/GameNetworkingSockets.txt",
@@ -24,6 +27,12 @@ def check_contents(package):
     for name in required:
         if not (package / name).is_file():
             raise RuntimeError("Package is missing " + name)
+    faces = json.loads((package / "gui/character-faces.json").read_text())["icons"]
+    if len(faces) != 20:
+        raise RuntimeError("Character creation requires the 20 selected face stamps")
+    for name in faces:
+        if not (package / "data/assets/game-icons/character-faces" / (name + ".png")).is_file():
+            raise RuntimeError("Package is missing character face " + name)
     if not list((package / "vehicles").glob("*.toml")):
         raise RuntimeError("Package is missing vehicle definitions")
     for name in ("pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"):

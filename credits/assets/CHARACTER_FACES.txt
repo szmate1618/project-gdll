@@ -1,0 +1,18 @@
+CHARACTER FACE STAMPS
+
+Icons by Lorc, Delapouite and Skoll, available on Game-icons.net:
+https://game-icons.net
+Licensed under Creative Commons Attribution 3.0 Unported:
+https://creativecommons.org/licenses/by/3.0/
+
+Lorc: delighted, smitten, mouth-watering, surprised, suspicious, worried-eyes,
+gluttonous-smile, imp-laugh, sharp-smile, six-eyes, sly, diamonds-smile,
+bird-mask, fox-head. http://lorcblog.blogspot.com
+Delapouite: angry-eyes, tired-eye, tongue, snail-eyes, clown.
+https://delapouite.com
+Skoll: evil-eyes.
+
+Changes: white-on-transparent PNGs resized to 256x256, tinted and composited
+onto the character texture. Individual source pages are in
+gui/character-faces.json. The full license accompanies the prepared icons in
+data/assets/game-icons/license.txt.

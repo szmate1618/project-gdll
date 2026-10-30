@@ -1,0 +1,125 @@
+{
+  "texture_size": 256,
+  "icons": {
+    "delighted": {
+      "name": "Delighted",
+      "source": "lorc/delighted.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/delighted.html"
+    },
+    "smitten": {
+      "name": "Smitten",
+      "source": "lorc/smitten.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/smitten.html"
+    },
+    "mouth-watering": {
+      "name": "Mouth watering",
+      "source": "lorc/mouth-watering.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/mouth-watering.html"
+    },
+    "angry-eyes": {
+      "name": "Angry eyes",
+      "source": "delapouite/angry-eyes.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/angry-eyes.html"
+    },
+    "surprised": {
+      "name": "Surprised",
+      "source": "lorc/surprised.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/surprised.html"
+    },
+    "suspicious": {
+      "name": "Suspicious",
+      "source": "lorc/suspicious.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/suspicious.html"
+    },
+    "worried-eyes": {
+      "name": "Worried eyes",
+      "source": "lorc/worried-eyes.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/worried-eyes.html"
+    },
+    "tired-eye": {
+      "name": "Tired eye",
+      "source": "delapouite/tired-eye.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/tired-eye.html"
+    },
+    "tongue": {
+      "name": "Tongue",
+      "source": "delapouite/tongue.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/tongue.html"
+    },
+    "gluttonous-smile": {
+      "name": "Gluttonous smile",
+      "source": "lorc/gluttonous-smile.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/gluttonous-smile.html"
+    },
+    "imp-laugh": {
+      "name": "Imp laugh",
+      "source": "lorc/imp-laugh.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/imp-laugh.html"
+    },
+    "sharp-smile": {
+      "name": "Sharp smile",
+      "source": "lorc/sharp-smile.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/sharp-smile.html"
+    },
+    "snail-eyes": {
+      "name": "Snail eyes",
+      "source": "delapouite/snail-eyes.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/snail-eyes.html"
+    },
+    "evil-eyes": {
+      "name": "Evil eyes",
+      "source": "skoll/evil-eyes.png",
+      "author": "Skoll",
+      "page": "https://game-icons.net/1x1/skoll/evil-eyes.html"
+    },
+    "six-eyes": {
+      "name": "Six eyes",
+      "source": "lorc/six-eyes.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/six-eyes.html"
+    },
+    "sly": {
+      "name": "Sly",
+      "source": "lorc/sly.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/sly.html"
+    },
+    "diamonds-smile": {
+      "name": "Diamonds smile",
+      "source": "lorc/diamonds-smile.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/diamonds-smile.html"
+    },
+    "bird-mask": {
+      "name": "Bird mask",
+      "source": "lorc/bird-mask.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/bird-mask.html"
+    },
+    "fox-head": {
+      "name": "Fox head",
+      "source": "lorc/fox-head.png",
+      "author": "Lorc",
+      "page": "https://game-icons.net/1x1/lorc/fox-head.html"
+    },
+    "clown": {
+      "name": "Clown",
+      "source": "delapouite/clown.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/clown.html"
+    }
+  }
+}

@@ -1,4 +1,5 @@
 #include "players.hpp"
+#include "player_dimensions.hpp"
 #include "resources.hpp"
 #include "box_layer.hpp"
 #include "shader_program.hpp"
@@ -50,11 +51,11 @@ void PlayerRenderer::draw(const viewer::Camera& camera, const std::vector<Player
             }
             continue;
         }
-        const float heightMeters = p.movement.stance == viewer::PlayerStance::Standing ? 1.8f :
+        const float heightMeters = p.movement.stance == viewer::PlayerStance::Standing ? standingPlayerSize.y :
             p.movement.stance == viewer::PlayerStance::Crouched ? 1.1f : .6f;
         const auto model = glm::translate(glm::mat4(1), p.movement.feet + glm::vec3(0, heightMeters * .5f, 0)) *
             glm::rotate(glm::mat4(1), glm::radians(-p.yaw), glm::vec3(0, 1, 0)) *
-            glm::scale(glm::mat4(1), glm::vec3(.6f, heightMeters, .4f));
+            glm::scale(glm::mat4(1), glm::vec3(standingPlayerSize.x, heightMeters, standingPlayerSize.z));
         const auto m = vp * model;
         glUniformMatrix4fv(matrix_, 1, GL_FALSE, glm::value_ptr(m));
         glUniform3f(color_, .15f + .12f * (p.id % 4), .65f, .95f);

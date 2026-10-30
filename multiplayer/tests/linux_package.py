@@ -23,6 +23,7 @@ def check_credits(package):
         "ZOMBIES.txt": "Denys Almaral",
         "AUDIO.txt": "Michel Baradari",
         "HUD_ICONS.txt": "Game-icons.net",
+        "CHARACTER_FACES.txt": "Game-icons.net",
     }
     for name in ("hud.rml", "hud.rcss", "command-wheel.rcss", "palette.rcss", "hud-icons.rcss", "hud.vert", "hud.frag", "inventory.rml", "skills.rml", "health.rml", "map.rml", "loadout.rml", "loadout.rcss"):
         if not (package / "ui" / name).is_file():
@@ -31,6 +32,15 @@ def check_credits(package):
     for name in icons:
         if not (package / "data/assets/game-icons/hud" / (name + ".png")).is_file():
             raise RuntimeError("Package is missing HUD icon " + name)
+    faces = json.loads((package / "gui/character-faces.json").read_text())["icons"]
+    if len(faces) != 20:
+        raise RuntimeError("Character creation requires the 20 selected face stamps")
+    for name in faces:
+        if not (package / "data/assets/game-icons/character-faces" / (name + ".png")).is_file():
+            raise RuntimeError("Package is missing character face " + name)
+    for name in ("character_creation.vert", "character_creation.frag"):
+        if not (package / "multiplayer/client" / name).is_file():
+            raise RuntimeError("Package is missing character preview shader " + name)
     for name in ("equipment.toml", "backpacks.toml", "loadout.toml"):
         if not (package / "storage" / name).is_file():
             raise RuntimeError("Package is missing storage resource " + name)

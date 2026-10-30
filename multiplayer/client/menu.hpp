@@ -1,10 +1,12 @@
 #pragma once
 #include "opengl.hpp"
 #include "options.hpp"
+#include <memory>
 #include <string>
 #include <vector>
 struct GLFWwindow;
 namespace multiplayer {
+class CharacterCreation;
 // Owns the application window and the small menu renderer. Gameplay borrows
 // its context; all GLFW and GL work remains on the application thread.
 class GameMenu {
@@ -22,6 +24,8 @@ public:
 private:
     struct Vertex { float x, y, r, g, b; };
     void callbacks();
+    void activate(int row);
+    void leaveCharacterCreation();
     void draw(const std::string& message, bool loading);
     void rectangle(float x, float y, float w, float h, float r, float g, float b);
     void text(float x, float y, const std::string& value, float scale = 2);
@@ -32,6 +36,8 @@ private:
     GLuint program_ = 0, vao_ = 0, buffer_ = 0;
     int selected_ = 0, editing_ = 0; // 1: host port, 2: join address
     bool loading_ = false, cancelled_ = false;
+    bool creating_ = false;
+    std::unique_ptr<CharacterCreation> characterCreation_;
     GameMode choice_ = GameMode::Menu;
     std::vector<Vertex> vertices_;
 };

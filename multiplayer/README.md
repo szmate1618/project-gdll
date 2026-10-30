@@ -11,6 +11,25 @@ interpolation. The game builds on Linux and Windows; Windows compilation,
 headless session checks and ZIP validation run in GitHub Actions. Interactive
 Windows rendering still needs validation on Windows hardware.
 
+## Character creation preview
+
+Choose **Character creation** (key **4**) in the client menu. The screen renders
+the standing player placeholder at 0.6 × 1.8 × 0.4 metres, with a turquoise base
+and one random face from the [20 selected Game-icons.net stamps](../gui/character-faces.json).
+The face occupies a fixed 42 cm square near the top of the front face.
+
+Hold **left mouse** and drag to paint pink. The camera ray through the cursor
+selects the nearest box surface; a sphere of radius 4.5 cm paints the intersecting surface
+pixels, including across adjacent edges. **Right drag** rotates the preview.
+Press **Escape** or click **Back** to return to the menu. The preview survives
+menu visits during this launch; saving and applying it to networked players
+are not implemented yet. Quit is now key **5**.
+
+Prepare the faces with `.venv/bin/python tools/prepare_hud_icons.py`; this reuses
+the cached, fingerprint-checked HUD icon archive. Linux and Windows client
+packages include the face textures, selection manifest, shaders and credits.
+The standalone viewer and dedicated server have no character editor.
+
 ## Deterministic bird flocks
 
 Birds are opt-in during this experiment. Start a server or local hosted session

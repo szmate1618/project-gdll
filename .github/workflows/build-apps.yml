@@ -125,7 +125,7 @@ jobs:
           New-Item -ItemType Directory -Force "$package/data/assets", "$package/gui"
           Copy-Item data/assets/game-icons "$package/data/assets" -Recurse
           Remove-Item "$package/data/assets/game-icons/game-icons-white-transparent.zip"
-          Copy-Item gui/hud-icons.json, gui/README.md "$package/gui"
+          Copy-Item gui/hud-icons.json, gui/character-faces.json, gui/README.md "$package/gui"
           Copy-Item inventory.toml, skills.toml $package
           Copy-Item assets/test.glb, assets/test.navmesh "$package/assets"
           Copy-Item multiplayer/windows/run-game.cmd $package
@@ -133,7 +133,7 @@ jobs:
           Copy-Item assets/weapons/README.md "$package/assets/weapons"
           Copy-Item build/audio "$package/assets" -Recurse
           Copy-Item build/multiplayer/Release/OpenAL32.dll $package
-          Copy-Item multiplayer/client/players.vert, multiplayer/client/players.frag "$package/multiplayer/client"
+          Copy-Item multiplayer/client/players.vert, multiplayer/client/players.frag, multiplayer/client/character_creation.vert, multiplayer/client/character_creation.frag "$package/multiplayer/client"
           Copy-Item multiplayer/windows/README.md "$package/README.md"
           Get-ChildItem build/vcpkg_installed/x64-windows-static-md/share/*/copyright | ForEach-Object {
             Copy-Item $_.FullName "$package/licenses/$($_.Directory.Name).txt"

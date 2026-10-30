@@ -1,4 +1,4 @@
-# HUD icons
+# Game icons
 
 The gameplay HUD uses downloaded [Game-icons.net](https://game-icons.net)
 white-on-transparent PNGs. The icon pack, its license and the prepared textures
@@ -13,6 +13,9 @@ Prepare them from the repository root:
 
 This requires the existing Pillow dependency. The script reuses the downloaded
 archive, verifies its SHA-256, and downsizes the selected artwork to 128×128.
+It also prepares the 20 character-creation faces listed in
+[`character-faces.json`](character-faces.json) as 256×256 transparent PNGs under
+`data/assets/game-icons/character-faces/`. Both sets use the same pinned archive.
 It downloads the pack only when absent. `hud-icons.json` records the source,
 author and original page for each selection. It does not contain artwork.
 
@@ -30,3 +33,4 @@ Icons made by sbed, Lorc, Delapouite, John Colburn and Skoll. Available on
 [Game-icons.net](https://game-icons.net), licensed under
 [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
 See [the shipped attribution](../credits/assets/HUD_ICONS.txt).
+The character stamps have their own [attribution](../credits/assets/CHARACTER_FACES.txt).

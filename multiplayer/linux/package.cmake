@@ -29,12 +29,13 @@ file(MAKE_DIRECTORY "${package}/assets" "${package}/multiplayer/client" "${packa
 file(COPY "${client}" DESTINATION "${package}")
 file(COPY "${source_root}/shaders" "${source_root}/ui" "${source_root}/storage" "${source_root}/vehicles" "${source_root}/credits" DESTINATION "${package}")
 file(COPY "${source_root}/inventory.toml" "${source_root}/skills.toml" "${source_root}/skills" DESTINATION "${package}")
-if(NOT EXISTS "${source_root}/data/assets/game-icons/hud/health.png")
-    message(FATAL_ERROR "Run tools/prepare_hud_icons.py before packaging HUD icons")
+if(NOT EXISTS "${source_root}/data/assets/game-icons/hud/health.png" OR
+   NOT EXISTS "${source_root}/data/assets/game-icons/character-faces/clown.png")
+    message(FATAL_ERROR "Run tools/prepare_hud_icons.py before packaging icons and character faces")
 endif()
-file(COPY "${source_root}/data/assets/game-icons/hud" "${source_root}/data/assets/game-icons/license.txt"
+file(COPY "${source_root}/data/assets/game-icons/hud" "${source_root}/data/assets/game-icons/character-faces" "${source_root}/data/assets/game-icons/license.txt"
     DESTINATION "${package}/data/assets/game-icons")
-file(COPY "${source_root}/gui/hud-icons.json" "${source_root}/gui/README.md" DESTINATION "${package}/gui")
+file(COPY "${source_root}/gui/hud-icons.json" "${source_root}/gui/character-faces.json" "${source_root}/gui/README.md" DESTINATION "${package}/gui")
 file(COPY "${source_root}/assets/test.glb" "${source_root}/assets/test.navmesh"
     DESTINATION "${package}/assets")
 foreach(weapon pistol submachine_gun shotgun sniper he_grenade)
@@ -43,6 +44,7 @@ endforeach()
 file(COPY "${source_root}/assets/weapons/README.md" DESTINATION "${package}/assets/weapons")
 file(COPY "${BUILD_DIR}/audio/" DESTINATION "${package}/assets/audio")
 file(COPY "${source_root}/multiplayer/client/players.vert" "${source_root}/multiplayer/client/players.frag"
+    "${source_root}/multiplayer/client/character_creation.vert" "${source_root}/multiplayer/client/character_creation.frag"
     DESTINATION "${package}/multiplayer/client")
 file(COPY "${CMAKE_CURRENT_LIST_DIR}/run-client.sh" DESTINATION "${package}"
     FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)

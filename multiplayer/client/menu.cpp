@@ -1,4 +1,6 @@
 #include "menu.hpp"
+#include "character_creation.hpp"
+#include "presentation_viewport.hpp"
 #include "window.hpp"
 #include "resources.hpp"
 #include "shader_program.hpp"
@@ -8,6 +10,7 @@
 #include <cctype>
 #include <cstddef>
 #include <stdexcept>
+#include <iostream>
 
 namespace multiplayer {
 namespace {
@@ -43,7 +46,7 @@ std::array<unsigned char, 5> glyph(char c) {
     }
 }
 GameMenu& menu(GLFWwindow* window) { return *static_cast<GameMenu*>(glfwGetWindowUserPointer(window)); }
-GameMode mode(int row) { return static_cast<GameMode>(row + 1); }
+constexpr int menuRows = 5;
 }
 GameMenu::GameMenu(const ClientDisplay& display, bool hidden) {
     window_ = createClientWindow(display, hidden);
@@ -62,8 +65,20 @@ GameMenu::GameMenu(const ClientDisplay& display, bool hidden) {
     }
 }
 GameMenu::~GameMenu() {
+    characterCreation_.reset();
     glDeleteBuffers(1, &buffer_); glDeleteVertexArrays(1, &vao_); glDeleteProgram(program_);
     glfwDestroyWindow(window_); glfwTerminate();
+}
+void GameMenu::activate(int row) {
+    if (row == 3) {
+        editing_ = 0; creating_ = true;
+        glfwSetWindowTitle(window_, "Godollo | Character creation");
+    } else choice_ = row == 4 ? GameMode::Quit : static_cast<GameMode>(row + 1);
+}
+void GameMenu::leaveCharacterCreation() {
+    creating_ = false;
+    if (characterCreation_) characterCreation_->releasePointer();
+    glfwSetWindowTitle(window_, "Godollo | Choose a game mode");
 }
 bool GameMenu::closed() const { return glfwWindowShouldClose(window_); }
 void GameMenu::callbacks() {
@@ -76,20 +91,24 @@ void GameMenu::key(GLFWwindow* window, int code, int, int action, int) {
     if (action != GLFW_PRESS && action != GLFW_REPEAT) return;
     auto& self = menu(window);
     if (self.loading_) { if (code == GLFW_KEY_ESCAPE) self.cancelled_ = true; return; }
+    if (self.creating_) {
+        if (code == GLFW_KEY_ESCAPE) self.leaveCharacterCreation();
+        return;
+    }
     if (code == GLFW_KEY_ESCAPE) { if (self.editing_) self.editing_ = 0; else self.choice_ = GameMode::Quit; }
     else if (code == GLFW_KEY_TAB) self.editing_ = (self.editing_ + 1) % 3;
     else if (self.editing_) {
         auto& value = self.editing_ == 1 ? self.port : self.address;
         if (code == GLFW_KEY_BACKSPACE && !value.empty()) value.pop_back();
         if (code == GLFW_KEY_ENTER) self.editing_ = 0;
-    } else if (code == GLFW_KEY_UP) self.selected_ = (self.selected_ + 3) % 4;
-    else if (code == GLFW_KEY_DOWN) self.selected_ = (self.selected_ + 1) % 4;
-    else if (code == GLFW_KEY_ENTER) self.choice_ = mode(self.selected_);
-    else if (code >= GLFW_KEY_1 && code <= GLFW_KEY_4) self.choice_ = mode(code - GLFW_KEY_1);
+    } else if (code == GLFW_KEY_UP) self.selected_ = (self.selected_ + menuRows - 1) % menuRows;
+    else if (code == GLFW_KEY_DOWN) self.selected_ = (self.selected_ + 1) % menuRows;
+    else if (code == GLFW_KEY_ENTER) self.activate(self.selected_);
+    else if (code >= GLFW_KEY_1 && code <= GLFW_KEY_5) self.activate(code - GLFW_KEY_1);
 }
 void GameMenu::character(GLFWwindow* window, unsigned int c) {
     auto& self = menu(window);
-    if (self.loading_ || !self.editing_ || c < 32 || c > 126) return;
+    if (self.loading_ || self.creating_ || !self.editing_ || c < 32 || c > 126) return;
     auto& value = self.editing_ == 1 ? self.port : self.address;
     if (value.size() < (self.editing_ == 1 ? 5u : 64u)) value += static_cast<char>(c);
 }
@@ -99,22 +118,36 @@ void GameMenu::click(GLFWwindow* window, int button, int action, int) {
     if (self.loading_) return;
     double x, y; int width, height;
     glfwGetCursorPos(window, &x, &y); glfwGetWindowSize(window, &width, &height);
-    const double scale = std::min(width / 960.0, height / 600.0);
-    x = (x - (width - 960 * scale) / 2) / scale;
-    y = (y - (height - 600 * scale) / 2) / scale;
+    const auto fitted = viewer::presentationViewport(960, 600, width, height);
+    if (!fitted.width || !fitted.height) return;
+    const auto position = fitted.scenePointer(float(x) / width, float(y) / height, 960, 600);
+    x = position.x; y = position.y;
+    if (self.creating_) {
+        if (x >= 60 && x <= 280 && y >= 510 && y <= 555) self.leaveCharacterCreation();
+        return;
+    }
     self.editing_ = 0;
-    if (x >= 60 && x <= 440 && y >= 135 && y < 355) {
+    if (x >= 60 && x <= 440 && y >= 135 && y < 135 + menuRows * 55) {
         const int row = static_cast<int>((y - 135) / 55);
-        if (y - (135 + row * 55) < 45) self.choice_ = mode(row);
+        if (y - (135 + row * 55) < 45) self.activate(row);
     }
     if (x >= 490 && x <= 900 && y >= 190 && y <= 230) self.editing_ = 1;
     if (x >= 490 && x <= 900 && y >= 285 && y <= 325) self.editing_ = 2;
 }
 GameMode GameMenu::choose(const std::string& message) {
     choice_ = GameMode::Menu; loading_ = false; cancelled_ = false; callbacks();
+    std::string status = message;
     glfwSetWindowTitle(window_, "Godollo | Choose a game mode");
     while (!closed() && choice_ == GameMode::Menu) {
-        glfwPollEvents(); draw(message, false); glfwWaitEventsTimeout(.016);
+        glfwPollEvents();
+        if (creating_ && !characterCreation_) {
+            try { characterCreation_ = std::make_unique<CharacterCreation>(); }
+            catch (const std::exception& error) {
+                status = error.what(); std::cerr << "Character creation: " << status << '\n';
+                leaveCharacterCreation();
+            }
+        }
+        draw(status, false); glfwWaitEventsTimeout(.016);
     }
     return closed() ? GameMode::Quit : choice_;
 }
@@ -144,19 +177,33 @@ void GameMenu::draw(const std::string& message, bool loading) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDisable(GL_SCISSOR_TEST); glDisable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE); glDisable(GL_BLEND);
     glDepthMask(GL_TRUE); glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glClearDepth(1);
     glClearColor(.025f,.04f,.055f,1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    const float scale = std::min(width / 960.f, height / 600.f);
-    glViewport(static_cast<int>((width - 960 * scale) / 2), static_cast<int>((height - 600 * scale) / 2),
-               static_cast<int>(960 * scale), static_cast<int>(600 * scale));
+    const auto fitted = viewer::presentationViewport(960, 600, width, height);
+    glViewport(fitted.x, height - fitted.y - fitted.height, fitted.width, fitted.height);
     vertices_.clear();
     rectangle(60, 100, 840, 2, .2f, .55f, .45f);
-    text(60, 55, "GODOLLO", 4);
+    text(60, 55, creating_ ? "CHARACTER CREATION" : "GODOLLO", creating_ ? 3 : 4);
     if (loading) {
         text(60, 150, message, 2);
         text(60, 510, "ESC - CANCEL / RETURN TO MENU", 1.5f);
+    } else if (creating_) {
+        text(60, 145, "YOUR CHARACTER", 2);
+        text(60, 180, "0.6 X 1.8 X 0.4 M", 1.5f);
+        text(60, 235, "LEFT DRAG TO PAINT", 1.5f);
+        text(60, 265, "RIGHT DRAG TO ROTATE", 1.5f);
+        text(60, 335, "FACE", 1.5f);
+        text(60, 365, characterCreation_->faceName(), 1.5f);
+        rectangle(60, 420, 28, 28, 70/255.f, 178/255.f, 190/255.f);
+        text(100, 428, "BASE", 1.5f);
+        rectangle(60, 460, 28, 28, 235/255.f, 67/255.f, 112/255.f);
+        text(100, 468, "PAINT", 1.5f);
+        rectangle(60, 510, 220, 45, .12f, .3f, .26f);
+        text(78, 525, "ESC - BACK", 1.5f);
+        rectangle(330, 120, 570, 435, .045f, .065f, .085f);
     } else {
-        const std::array<const char*, 4> labels{"1  SINGLE PLAYER", "2  HOST GAME", "3  JOIN GAME", "4  QUIT"};
-        for (int row = 0; row < 4; ++row) {
+        const std::array<const char*, menuRows> labels{"1  SINGLE PLAYER", "2  HOST GAME", "3  JOIN GAME", "4  CHARACTER CREATION", "5  QUIT"};
+        for (int row = 0; row < menuRows; ++row) {
             const bool selected = selected_ == row;
             rectangle(60, 135.f + row * 55, 380, 45, selected ? .12f : .06f, selected ? .3f : .12f, selected ? .26f : .15f);
             text(78, 150.f + row * 55, labels[row]);
@@ -168,15 +215,28 @@ void GameMenu::draw(const std::string& message, bool loading) {
         text(490, 260, "JOIN: NUMERIC IP:PORT", 1.5f);
         rectangle(490, 285, 410, 40, .08f, editing_ == 2 ? .3f : .15f, .2f);
         text(505, 298, address + (editing_ == 2 ? "_" : ""), 1.5f);
-        text(60, 385, "SINGLE PLAYER IS PRIVATE AND WORKS OFFLINE.", 1.5f);
-        text(60, 415, "CLICK OR USE 1-4 / ARROWS + ENTER. TAB EDITS FIELDS.", 1.5f);
-        text(60, 445, "ESC DURING PLAY LEAVES THE SESSION.", 1.5f);
-        text(60, 490, message, 1.5f);
+        text(60, 435, "SINGLE PLAYER IS PRIVATE AND WORKS OFFLINE.", 1.5f);
+        text(60, 460, "CLICK OR USE 1-5 / ARROWS + ENTER. TAB EDITS FIELDS.", 1.5f);
+        text(60, 485, "ESC DURING PLAY LEAVES THE SESSION.", 1.5f);
+        text(60, 520, message, 1.5f);
     }
     glUseProgram(program_); glBindVertexArray(vao_); glBindBuffer(GL_ARRAY_BUFFER, buffer_);
     glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(vertices_.size() * sizeof(Vertex)), vertices_.data(), GL_STREAM_DRAW);
     glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertices_.size()));
     glBindVertexArray(0); glUseProgram(0);
+    if (creating_) {
+        const int left = fitted.x + int(330.f * fitted.width / 960);
+        const int top = fitted.y + int(120.f * fitted.height / 600);
+        const int previewWidth = int(570.f * fitted.width / 960), previewHeight = int(435.f * fitted.height / 600);
+        double x = 0, y = 0; int windowWidth = 0, windowHeight = 0;
+        glfwGetCursorPos(window_, &x, &y); glfwGetWindowSize(window_, &windowWidth, &windowHeight);
+        const glm::vec2 pointer{windowWidth > 0 ? (float(x) / windowWidth * width - left) / std::max(previewWidth, 1) : -1,
+                                windowHeight > 0 ? (float(y) / windowHeight * height - top) / std::max(previewHeight, 1) : -1};
+        const bool focused = glfwGetWindowAttrib(window_, GLFW_FOCUSED);
+        characterCreation_->draw({left, height - top - previewHeight, previewWidth, previewHeight}, pointer,
+            focused && glfwGetMouseButton(window_, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS,
+            focused && glfwGetMouseButton(window_, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
+    }
     glfwSwapBuffers(window_);
     if (depth) glEnable(GL_DEPTH_TEST);
     if (cull) glEnable(GL_CULL_FACE);

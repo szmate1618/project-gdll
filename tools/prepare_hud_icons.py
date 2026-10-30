@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download the pinned Game-icons.net pack and prepare the selected HUD PNGs."""
+"""Prepare HUD icons and character faces from the pinned Game-icons.net pack."""
 import hashlib
 from io import BytesIO
 import json
@@ -11,6 +11,18 @@ from zipfile import ZipFile
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def prepare_images(pack, manifest, destination):
+    destination.mkdir(exist_ok=True)
+    size = manifest["texture_size"]
+    for name, icon in manifest["icons"].items():
+        source = "icons/ffffff/transparent/1x1/" + icon["source"]
+        with Image.open(BytesIO(pack.read(source))) as image:
+            image = image.convert("RGBA").resize((size, size), Image.Resampling.LANCZOS)
+            temporary_image = destination / (name + ".tmp")
+            image.save(temporary_image, format="PNG", optimize=True)
+            temporary_image.replace(destination / (name + ".png"))
 
 
 def prepare(root=ROOT):
@@ -31,19 +43,12 @@ def prepare(root=ROOT):
     if hashlib.sha256(archive.read_bytes()).hexdigest() != manifest["archive_sha256"]:
         raise ValueError("Cached Game-icons.net archive differs from gui/hud-icons.json")
 
-    destination = directory / "hud"
-    destination.mkdir(exist_ok=True)
-    size = manifest["texture_size"]
+    faces = json.loads((root / "gui/character-faces.json").read_text())
     with ZipFile(archive) as pack:
         (directory / "license.txt").write_bytes(pack.read("icons/license.txt"))
-        for name, icon in manifest["icons"].items():
-            source = "icons/ffffff/transparent/1x1/" + icon["source"]
-            with Image.open(BytesIO(pack.read(source))) as image:
-                image = image.convert("RGBA").resize((size, size), Image.Resampling.LANCZOS)
-                temporary_image = destination / (name + ".tmp")
-                image.save(temporary_image, format="PNG", optimize=True)
-                temporary_image.replace(destination / (name + ".png"))
-    print(f"Prepared {len(manifest['icons'])} HUD icons in {destination}")
+        prepare_images(pack, manifest, directory / "hud")
+        prepare_images(pack, faces, directory / "character-faces")
+    print(f"Prepared {len(manifest['icons'])} HUD icons and {len(faces['icons'])} character faces in {directory}")
 
 
 if __name__ == "__main__":
