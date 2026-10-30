@@ -617,6 +617,13 @@ Geometry keeps the runtime X-east/Y-up/Z-south meter frame and positions denote
 feet. See the [compact format and scaling task](../tasks/multiplayer-100k-zombies.md#proposed-compact-zombie-format)
 for field precision and the remaining performance evaluation.
 
+The multiplayer client interpolates living-zombie animation every rendered frame
+through LOD1 (below 35 m at the normal 60-degree vertical field of view), keeping
+the reduced LOD1 mesh. LOD2 and LOD3 retain approximately 10 Hz and 5 Hz animation.
+Zoom scales these thresholds with apparent size. The standalone viewer uses
+the same animation rates. These presentation rates are independent of the server's
+20/5/1 Hz motion updates; displayed poses also drive client hit selection.
+
 Living-zombie prediction derives root velocity, shortest yaw motion and the
 locomotion-clock rate from authoritative motion samples. Estimated server time
 includes half the transport's smoothed round-trip time; this is an approximation

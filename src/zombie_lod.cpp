@@ -21,7 +21,7 @@ ZombieDetail zombieCameraDetail(float distance, float projectionScale, bool enab
     result.visible = maximumDistance <= 0 || effective <= maximumDistance;
     if (effective >= 80) result = {3, 5, result.visible};
     else if (effective >= 35) result = {2, 10, result.visible};
-    else if (effective >= 12) result = {1, 15, result.visible};
+    else if (effective >= 12) result = {1, 0, result.visible};
     return result;
 }
 }

@@ -11,6 +11,8 @@ int main() {
         constexpr float normalProjection = 1.7320508f;
         require(viewer::zombieCameraDetail(5, normalProjection).level == 0, "Close zombie must retain original mesh");
         require(viewer::zombieCameraDetail(20, normalProjection).level == 1, "Medium zombie must use LOD1");
+        require(viewer::zombieCameraDetail(20, normalProjection).animationHz == 0,
+            "LOD1 animation must retain continuous interpolation");
         require(viewer::zombieCameraDetail(60, normalProjection).level == 2, "Distant zombie must use LOD2");
         require(viewer::zombieCameraDetail(120, normalProjection).animationHz == 5, "Far animation must use 5 Hz");
         require(!viewer::zombieCameraDetail(200, normalProjection).visible, "Far camera zombie must be culled");

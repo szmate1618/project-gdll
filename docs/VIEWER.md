@@ -794,19 +794,20 @@ At the normal 60-degree vertical field of view, the automatic defaults are:
 | Camera distance | Mesh | Animation |
 | --- | --- | --- |
 | Below 12 m | Original | Continuous interpolation of 30 Hz baked poses |
-| 12–35 m | LOD1, about 50% triangles | About 15 Hz, single pose |
+| 12–35 m | LOD1, about 50% triangles | Continuous interpolation of 30 Hz baked poses |
 | 35–80 m | LOD2, about 20% triangles | About 10 Hz, single pose |
 | 80–180 m | LOD3, about 7% triangles | About 5 Hz, single pose |
 | Beyond 180 m | Camera draw omitted | Simulation continues |
 
 Distances use the conservative animated world-bounds center. Zoom scales these
 thresholds with projected size, keeping original detail for distant scoped
-targets and extending the camera cutoff. Animation steps snap to the existing
-baked frames on a lower-rate cycle grid; they avoid interpolation and the second
-pose's texture fetches. Near playback remains smooth. Stored animation clips
-are preserved at every LOD; this is a rendering rate reduction, not removal of
+targets and extending the camera cutoff. From 35 m onward, animation steps snap
+to the existing baked frames on a lower-rate cycle grid; they avoid interpolation
+and the second pose's texture fetches. Playback below 35 m remains smooth in both
+the viewer and multiplayer client. Stored animation clips are preserved at every
+LOD; this is a rendering rate reduction, not removal of
 animation data. The renderer publishes the exact camera frame/clip for head hit
-tests and ragdoll handoff, so a shot uses the displayed stepped pose.
+tests and ragdoll handoff, so a shot matches the displayed pose.
 
 Sun shadows use LOD3 independently of camera detail and camera distance cutoff.
 An offscreen or distance-culled zombie can still cast into the existing light

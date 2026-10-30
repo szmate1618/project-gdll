@@ -1067,15 +1067,22 @@ void renderDistanceLods() {
     renderAt(20);
     if (renderer.zombieRenderStats().cameraLevels[1] != 1 || markerPixels(0) == 0 || markerPixels(2) != 0)
         throw std::runtime_error("LOD1 must draw its red marker mesh");
-    if (layer.instances[0].displayedAnimationFrame != 0 ||
-        viewer::sampleZombiePose(base, layer.instances[0], .25)[0][3].y != .75f)
-        throw std::runtime_error("Stepped GPU pose and hit/ragdoll pose must agree");
+    if (layer.instances[0].displayedAnimationFrame != .5f ||
+        std::abs(viewer::sampleZombiePose(base, layer.instances[0], .25)[0][3].y - .925f) > .0001f)
+        throw std::runtime_error("Smooth LOD1 must publish the interpolated hit/ragdoll pose");
+    renderer.render(camera, .26);
+    if (std::abs(layer.instances[0].displayedAnimationFrame - .52f) > .0001f)
+        throw std::runtime_error("Smooth LOD1 animation must advance on consecutive render frames");
     renderAt(60);
     if (renderer.zombieRenderStats().cameraLevels[2] != 1 || markerPixels(2) == 0 || markerPixels(0) != 0)
         throw std::runtime_error("LOD2 must draw its blue marker mesh");
+    if (layer.instances[0].displayedAnimationFrame != 0)
+        throw std::runtime_error("Smooth LOD1 must preserve stepped LOD2 animation");
     renderAt(120);
     if (renderer.zombieRenderStats().cameraLevels[3] != 1 || renderer.zombieRenderStats().cameraTriangles != 1)
         throw std::runtime_error("Far camera must draw the lowest mesh");
+    if (layer.instances[0].displayedAnimationFrame != 0)
+        throw std::runtime_error("Smooth LOD1 must preserve stepped LOD3 animation");
     renderAt(200);
     if (renderer.zombieVisibleCount() != 0 || renderer.zombieVisibilityStats().cameraRegionRejectedGroups != 1 ||
         renderer.zombieVisibilityStats().cameraGroupTests != 0)
