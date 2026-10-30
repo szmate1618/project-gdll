@@ -226,13 +226,13 @@ int main(int argc, char** argv) {
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto centeredWheel = pixels(1280, 720);
             require(centeredWheel != beforeWheel, "Command wheel did not open");
-            require(colorAt(centeredWheel, 1280, 720, 555, 275) == colorAt(beforeWheel, 1280, 720, 555, 275) &&
-                    colorAt(centeredWheel, 1280, 720, 664, 360) == colorAt(beforeWheel, 1280, 720, 664, 360),
+            require(colorAt(centeredWheel, 1280, 720, 510, 220) == colorAt(beforeWheel, 1280, 720, 510, 220) &&
+                    colorAt(centeredWheel, 1280, 720, 675, 360) == colorAt(beforeWheel, 1280, 720, 675, 360),
                     "Sector corners and gap around the cancel ring must leave the scene visible");
-            require(colorAt(centeredWheel, 1280, 720, 641, 395) == colorAt(beforeWheel, 1280, 720, 641, 395) &&
-                    colorAt(centeredWheel, 1280, 720, 641, 445) == colorAt(beforeWheel, 1280, 720, 641, 445),
+            require(colorAt(centeredWheel, 1280, 720, 641, 420) == colorAt(beforeWheel, 1280, 720, 641, 420) &&
+                    colorAt(centeredWheel, 1280, 720, 641, 490) == colorAt(beforeWheel, 1280, 720, 641, 490),
                     "Outward sector separation must leave a parallel gap near and far from the center");
-            require(colorAt(centeredWheel, 1280, 720, 643, 445) != colorAt(beforeWheel, 1280, 720, 643, 445),
+            require(colorAt(centeredWheel, 1280, 720, 644, 490) != colorAt(beforeWheel, 1280, 720, 644, 490),
                     "The full 120-degree sector must extend to its translated straight edge");
             if (argc > 1) capture((std::string(argv[1]) + "-wheel-center.ppm").c_str(), centeredWheel, 1280, 720);
             for (const auto offset : {glm::vec2(0, -100), glm::vec2(100, 60), glm::vec2(-100, 60)}) {
@@ -246,17 +246,23 @@ int main(int argc, char** argv) {
                              {viewer::SignalKind::Backup, {.2f, .4f}, false}};
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto sectorPixels = pixels(1280, 720);
-            require(isColor(colorAt(sectorPixels, 1280, 720, 630, 263), {236,105,98}),
+            require(isColor(colorAt(sectorPixels, 1280, 720, 640, 208), {236,105,98}),
                     "Selected sector's curved outer edge must use the shared menu red accent");
             const auto sectorFill = colorAt(sectorPixels, 1280, 720, 670, 290);
             require(sectorFill[0] > 45 && sectorFill[0] < 80 && std::abs(int(sectorFill[0]) - sectorFill[1]) <= 1 &&
                     std::abs(int(sectorFill[0]) - sectorFill[2]) <= 1,
                     "Selected sector must brighten neutrally while retaining HUD transparency");
-            require(colorAt(sectorPixels, 1280, 720, 720, 380) == colorAt(centeredWheel, 1280, 720, 720, 380),
+            require(colorAt(sectorPixels, 1280, 720, 750, 400) == colorAt(centeredWheel, 1280, 720, 750, 400),
                     "Selecting Danger must not highlight the Move sector");
-            require(isColor(colorAt(sectorPixels, 1280, 720, 720, 380), {36,36,36}),
+            require(isColor(colorAt(sectorPixels, 1280, 720, 750, 400), {36,36,36}),
                     "Unselected sectors must use the faint off-white HUD fill");
             if (argc > 1) capture((std::string(argv[1]) + "-wheel-danger.ppm").c_str(), pixels(1280, 720), 1280, 720);
+            state.weaponSwitchDuration = 2; state.weaponSwitchRemaining = 1;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(isColor(colorAt(pixels(1280,720),1280,720,550,600),{245,246,242}),
+                    "Weapon-switch progress must remain visible below the command-wheel instructions");
+            if (argc > 1) capture((std::string(argv[1]) + "-wheel-switch.ppm").c_str(), pixels(1280,720),1280,720);
+            state.weaponSwitchDuration = state.weaponSwitchRemaining = 0;
             clear(); hud.draw(state, 640, 360); checkState();
             if (argc > 1) capture((std::string(argv[1]) + "-wheel-small.ppm").c_str(), pixels(640, 360), 640, 360);
             state.commandWheelOpen = false; state.signals.clear();
@@ -425,6 +431,9 @@ int main(int argc, char** argv) {
             click(100,169); // Measure; controls are outside the imagery.
             require(isColor(colorAt(pixels(1280,720),1280,720,55,160),{236,105,98}),
                     "The active map tool must carry a thin coral left edge");
+            move(450,260); draw();
+            require(isColor(colorAt(pixels(1280,720),1280,720,100,186),{236,105,98}),
+                    "A focused map button must retain its coral bottom edge when the pointer leaves");
             click(450,260); click(750,260);
             move(750,520); draw();
             if (argc > 1) capture((std::string(argv[1])+"-map-preview.ppm").c_str(),pixels(1280,720),1280,720);
@@ -453,7 +462,7 @@ int main(int argc, char** argv) {
             require(zoomed!=pixels(1280,720),"Map drag did not pan the zoomed image");
             click(100,253); // Clear (third toolbar button).
             move(640,400); hud.mouseWheel(-32); draw();
-            move(1000,300); draw();
+            click(1000,300); // Release toolbar focus before comparing with the idle map.
             require(emptyMap==pixels(1280,720),"Clear/zoom-out did not restore the initial map");
             click(100,169); click(450,260); click(750,260);
             mapState.screen = viewer::HudScreen::Gameplay; draw();
@@ -564,6 +573,9 @@ int main(int argc, char** argv) {
             state.screen = viewer::HudScreen::Skills;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto skills = pixels(1280, 720);
+            for (const auto& point : {std::array{1245,200}, std::array{100,549}, std::array{900,549}})
+                require(colorAt(inventory,1280,720,point[0],point[1]) == colorAt(skills,1280,720,point[0],point[1]),
+                        "Inventory and Skills panels must share their outer right and bottom edges");
             if (argc > 1) capture((std::string(argv[1]) + "-skills.ppm").c_str(), skills, 1280, 720);
             std::size_t pageChanges = 0;
             for (int y = 0; y < 720; ++y) for (int x = 0; x < 1280; ++x) {

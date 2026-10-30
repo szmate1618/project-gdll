@@ -1,6 +1,5 @@
 /* Skills uses the loadout tabs/hotbar and the character studio's quiet controls.
    Combo controls remain presentation placeholders. */
-.skills .main-panel { box-sizing: border-box; }
 #skills-list { left: 0dp; width: 346dp; }
 #combo-builder { left: 366dp; width: 470dp; }
 #skill-details { left: 856dp; width: 354dp; }
@@ -17,7 +16,7 @@
 .skill-name { position: absolute; left: 56dp; right: 12dp; top: 18dp; font-size: 14dp; white-space: nowrap; overflow: hidden; }
 .skills-empty { padding: 18dp 12dp; font-size: 11dp; color: #f5f6f280; }
 #combo-name-label { position: absolute; left: 20dp; top: 44dp; font-size: 9dp; letter-spacing: 1dp; color: #f5f6f299; }
-#combo-name { position: absolute; left: 20dp; top: 61dp; width: 428dp; height: 30dp; box-sizing: border-box; padding: 5dp 10dp; border-width: 1dp; border-color: #f5f6f24d; background-color: #2b2d2f; font-family: hud-system; font-size: 14dp; line-height: 18dp; color: #f5f6f280; }
+#combo-name { position: absolute; left: 20dp; top: 61dp; width: 430dp; height: 30dp; box-sizing: border-box; padding: 5dp 10dp; border-width: 1dp; border-color: #f5f6f24d; background-color: #2b2d2f; font-family: hud-system; font-size: 14dp; line-height: 18dp; color: #f5f6f280; }
 #combo-slots { position: absolute; top: 105dp; left: 20dp; right: 20dp; }
 .combo-slot { position: relative; height: 38dp; margin-bottom: 8dp; box-sizing: border-box; border-width: 1dp; border-color: #f5f6f226; background-color: #2b2d2f66; }
 .combo-number { position: absolute; top: 0dp; left: 0dp; width: 40dp; height: 36dp; line-height: 36dp; text-align: center; font-size: 12dp; border-right-width: 1dp; border-color: #f5f6f226; color: #f5f6f2bf; }
@@ -29,8 +28,4 @@
 .skills-button.inactive { color: #f5f6f259; border-color: #f5f6f226; background-color: #2b2d2f66; pointer-events: none; cursor: default; }
 #reset-combo { left: 20dp; width: 164dp; }
 #save-combo { left: 196dp; right: 20dp; }
-.skill-details-icon { position: absolute; left: 20dp; top: 66dp; width: 44dp; height: 44dp; background-color: #f5f6f226; }
-.skill-details-name { position: absolute; left: 82dp; right: 18dp; top: 71dp; font-size: 20dp; line-height: 25dp; }
-.skill-details-fields { position: absolute; left: 20dp; right: 20dp; top: 153dp; }
-.skill-detail { height: 58dp; padding-top: 3dp; border-top-width: 1dp; border-color: #f5f6f226; }
 #add-combo-action { left: 20dp; right: 20dp; }

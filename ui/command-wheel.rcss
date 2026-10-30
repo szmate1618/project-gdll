@@ -1,23 +1,23 @@
-#command-wheel { display: none; position: absolute; left: 50%; top: 50%; margin-left: -95dp; margin-top: -95dp; width: 190dp; height: 190dp; z-index: 10; }
+#command-wheel { display: none; position: absolute; left: 50%; top: 50%; margin-left: -150dp; margin-top: -150dp; width: 300dp; height: 300dp; z-index: 10; }
 .commanding #command-wheel { display: block; }
-.command-title { position: absolute; top: -20dp; width: 190dp; text-align: center; font-size: 6dp; letter-spacing: 1.5dp; }
-.command-choice { display: block; position: absolute; left: 0dp; top: 0dp; width: 190dp; height: 190dp; }
+.command-title { position: absolute; top: -28dp; width: 300dp; text-align: center; font-size: 11dp; line-height: 14dp; letter-spacing: 1.5dp; }
+.command-choice { display: block; position: absolute; left: 0dp; top: 0dp; width: 300dp; height: 300dp; }
 /* Move each complete 120-degree sector 3dp outward along its center direction. */
 #command-danger { top: -3dp; }
 #command-move { left: 2.59808dp; top: 1.5dp; }
 #command-backup { left: -2.59808dp; top: 1.5dp; }
-.command-caption { position: absolute; width: 64dp; height: 34dp; }
-#command-danger .command-caption { left: 63dp; top: 17.5dp; }
-#command-move .command-caption { left: 115dp; top: 107.5dp; }
-#command-backup .command-caption { left: 11dp; top: 107.5dp; }
-.command-symbol { position: absolute; top: 4.5dp; left: 25.5dp; width: 12dp; height: 12dp; line-height: 12dp; text-align: center; font-size: 10.5dp; }
-.command-label { position: absolute; top: 22dp; width: 64dp; text-align: center; font-size: 5dp; letter-spacing: 0.5dp; }
-#command-center { position: absolute; left: 74dp; top: 74dp; width: 41dp; height: 41dp; border-width: 0.5dp; border-radius: 21dp; }
-#command-center-label { position: absolute; top: 24dp; width: 41dp; text-align: center; font-size: 4dp; letter-spacing: 0.5dp; }
-.command-key { position: absolute; top: 10.5dp; width: 41dp; text-align: center; font-size: 5dp; }
-#command-cursor { position: absolute; left: 93.5dp; top: 93.5dp; width: 3dp; height: 3dp; border-radius: 1.5dp; }
-.command-hint { position: absolute; top: 204dp; left: -30dp; width: 250dp; text-align: center; font-size: 5dp; letter-spacing: 0.5dp; }
-.command-cancel-hint { position: absolute; top: 216dp; width: 190dp; text-align: center; font-size: 4.5dp; }
+.command-caption { position: absolute; width: 102dp; height: 54dp; }
+#command-danger .command-caption { left: 99dp; top: 28dp; }
+#command-move .command-caption { left: 181dp; top: 170dp; }
+#command-backup .command-caption { left: 17dp; top: 170dp; }
+.command-symbol { position: absolute; top: 5dp; left: 40dp; width: 22dp; height: 24dp; line-height: 24dp; text-align: center; font-size: 18dp; }
+.command-label { position: absolute; top: 34dp; width: 102dp; text-align: center; font-size: 11dp; line-height: 14dp; letter-spacing: 0.5dp; }
+#command-center { position: absolute; left: 117dp; top: 117dp; width: 64dp; height: 64dp; border-width: 1dp; border-radius: 33dp; }
+#command-center-label { position: absolute; top: 37dp; width: 64dp; text-align: center; font-size: 9dp; line-height: 12dp; letter-spacing: 0.5dp; }
+.command-key { position: absolute; top: 17dp; width: 64dp; text-align: center; font-size: 10dp; line-height: 12dp; }
+#command-cursor { position: absolute; left: 148.5dp; top: 148.5dp; width: 3dp; height: 3dp; border-radius: 1.5dp; }
+.command-hint { position: absolute; top: 318dp; left: -80dp; width: 460dp; text-align: center; font-size: 10dp; line-height: 14dp; letter-spacing: 0.5dp; }
+.command-cancel-hint { position: absolute; top: 338dp; left: -80dp; width: 460dp; text-align: center; font-size: 10dp; line-height: 14dp; }
 #signal-markers { position: absolute; left: 0dp; top: 0dp; width: 100%; height: 100%; }
 .signal-marker { position: absolute; margin-left: -44dp; margin-top: -12dp; width: 86dp; height: 22dp; line-height: 22dp; border-width: 1dp; text-align: center; font-size: 9dp; letter-spacing: 1dp; }
 .signal-marker.edge { border-width: 2dp; margin-top: -13dp; margin-left: -45dp; }

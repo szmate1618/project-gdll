@@ -96,12 +96,13 @@ void CommandWheelView::update(bool open, glm::vec2 offset, const std::vector<Hud
         if (center_->GetInnerRML() != label) center_->SetInnerRML(label);
         const float length = std::hypot(offset.x, offset.y);
         if (!std::isfinite(length)) offset = {};
-        else if (length > 0) offset *= 22.5f / length;
-        // Indicate direction on the center ring without covering command labels.
+        else if (length > 0) offset *= 36.f / length;
+        // Indicate direction just outside the 64dp cancel ring, without
+        // changing the input selector's dead zone or covering command labels.
         cursor_->SetProperty(Rml::PropertyId::Display,
             Rml::Property(selected == SignalKind::None ? Rml::Style::Display::None : Rml::Style::Display::Block));
-        cursor_->SetProperty(Rml::PropertyId::Left, Rml::Property(93.5f + offset.x, Rml::Unit::DP));
-        cursor_->SetProperty(Rml::PropertyId::Top, Rml::Property(93.5f + offset.y, Rml::Unit::DP));
+        cursor_->SetProperty(Rml::PropertyId::Left, Rml::Property(148.5f + offset.x, Rml::Unit::DP));
+        cursor_->SetProperty(Rml::PropertyId::Top, Rml::Property(148.5f + offset.y, Rml::Unit::DP));
     }
     // Reuse marker elements across frames; positions may change every camera update.
     while (markers.size() < signals.size()) {

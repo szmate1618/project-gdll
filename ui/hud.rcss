@@ -70,6 +70,8 @@ div { display: block; }
 .selected.empty .selection-name { top: 30dp; }
 .selection-hint { position: absolute; top: 82dp; width: 346dp; font-size: 8dp; letter-spacing: 1dp; }
 #weapon-switch { display: none; position: absolute; bottom: 155dp; left: 50%; margin-left: -160dp; width: 320dp; height: 36dp; }
+/* Keep progress below the enlarged wheel's two instruction lines. */
+.commanding #weapon-switch { bottom: 110dp; }
 .switching #weapon-switch { display: block; }
 .switch-label { font-size: 10dp; letter-spacing: 1dp; }
 #switch-countdown { float: right; }

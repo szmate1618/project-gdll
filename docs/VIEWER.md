@@ -151,10 +151,11 @@ visible; simulation continues. F8 and F9 now select free-fly and walking modes.
 F10 toggles the standalone viewer's collision overlay. The same four screens
 are available in the graphical multiplayer client.
 
-Map tool buttons brighten on hover and mark the active measurement tool with
-a coral left edge. The radial signal dial brightens the selected wedge with a
-thin coral outer arc; its fill stays neutral and translucent. The gameplay
-hotbar selector marks the selected slot with a small coral bar.
+Map tool buttons brighten on hover, retain a coral bottom edge while focused,
+and mark the active measurement tool with a coral left edge. The radial signal
+dial uses a 300dp circle with 9–11dp labels and hints, a neutral heading, and a
+coral outer arc on the selected wedge; its fill stays neutral and translucent.
+The gameplay hotbar selector marks the selected slot with a small coral bar.
 
 [inventory.rml](../ui/inventory.rml) builds body storage and the backpack from
 [storage/loadout.toml](../storage/loadout.toml) and the equipment/backpack catalogs
@@ -214,6 +215,8 @@ Group headings, step numbers and hover fills stay neutral, with coral reserved
 for navigation highlights. Skills-specific layout and colors live in
 [skills.rcss](../ui/skills.rcss). Combo editing, saving and execution remain
 layout placeholders; they do not change melee combat.
+Inventory and Skills share the same details title, icon tile and field spacing,
+and their main panels use the same outer sizing convention.
 [skills.toml](../skills.toml) registers the available melee actions in `[melee]`:
 `punch = "Punch"` uses the empty definition
 [skills/melee/punch.skill.toml](../skills/melee/punch.skill.toml). To list another

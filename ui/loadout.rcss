@@ -10,7 +10,7 @@ body.loadout { pointer-events: auto; }
 .inventory #inventory-tab, .skills #skills-tab, .health #health-tab, .map #map-tab { border-bottom-width: 2dp; }
 .close-hint { position: absolute; right: 0dp; top: 12dp; font-size: 11dp; }
 .panel { position: absolute; border-width: 1dp; }
-.main-panel { top: 68dp; height: 450dp; }
+.main-panel { box-sizing: content-box; top: 68dp; height: 450dp; }
 .panel-heading { position: absolute; left: 20dp; top: 17dp; font-size: 12dp; letter-spacing: 2dp; }
 .panel-meta { position: absolute; right: 20dp; top: 18dp; font-size: 10dp; }
 #body-storage { left: 0dp; width: 388dp; }

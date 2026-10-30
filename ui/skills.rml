@@ -29,10 +29,10 @@
     </div>
     <div id="skill-details" class="panel main-panel">
         <div class="panel-heading">ACTION DETAILS</div>
-        <div class="skill-details-icon"></div><div class="skill-details-name">No action selected</div>
-        <div class="skill-details-fields">
-            <div class="skill-detail"><div class="field-label">TYPE</div><div class="field-value">—</div></div>
-            <div class="skill-detail"><div class="field-label">AVAILABLE</div><div class="field-value">—</div></div>
+        <div class="detail-square unselected"></div><div class="detail-name">No action selected</div>
+        <div class="detail-fields">
+            <div class="detail-field"><div class="field-label">TYPE</div><div class="field-value">—</div></div>
+            <div class="detail-field"><div class="field-label">AVAILABLE</div><div class="field-value">—</div></div>
         </div>
         <button id="add-combo-action" class="skills-button inactive" disabled="disabled">ADD TO COMBO</button>
     </div>
