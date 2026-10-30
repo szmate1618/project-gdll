@@ -1,6 +1,7 @@
 #pragma once
 #include "character_canvas.hpp"
 #include "character_faces.hpp"
+#include "character_library.hpp"
 #include "opengl.hpp"
 #include <filesystem>
 #include <string>
@@ -25,16 +26,29 @@ public:
     void setColor(CharacterColorTarget target, CharacterCanvas::Color color);
     void reset();
     bool save();
+    const CharacterLibrary& library() const { return library_; }
+    const std::string& selectedId() const { return selected_; }
+    const std::string& name() const { return name_; }
+    bool dirty() const { return dirty_; }
+    bool hasCharacter() const { return hasCharacter_; }
+    void setName(const std::string& name);
+    void newCharacter();
+    void selectCharacter(const std::string& id);
+    void discardChanges();
+    void useCharacter();
+    void retireCharacter();
     const std::string& status() const { return status_; }
 private:
     void changed();
     void uploadImages();
+    CharacterLibrary library_;
     CharacterCanvas canvas_;
     std::string faceName_;
     std::vector<CharacterFace> faces_;
     std::size_t faceIndex_ = 0;
     std::string status_;
-    std::filesystem::path profilePath_;
+    std::string selected_, name_;
+    bool dirty_ = false, hasCharacter_ = false;
     GLuint program_ = 0, vao_ = 0, buffer_ = 0, texture_ = 0;
     GLint matrix_ = -1, brush_ = -1, hover_ = -1;
     float yaw_ = .4f, pitch_ = .15f;

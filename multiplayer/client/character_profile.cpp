@@ -31,16 +31,16 @@ Json rgb(CharacterCanvas::Color color) { return {color[0], color[1], color[2]}; 
 } // namespace
 
 std::filesystem::path characterProfilePath() {
-    if (const char* path = std::getenv("GD_CHARACTER_PROFILE")) return std::filesystem::u8path(path);
+    if (const char* path = std::getenv("GD_CHARACTER_PROFILE"); path && *path) return std::filesystem::u8path(path);
 #ifdef _WIN32
-    if (const wchar_t* directory = _wgetenv(L"LOCALAPPDATA")) return std::filesystem::path(directory) / L"Godollo/character.json";
+    if (const wchar_t* directory = _wgetenv(L"LOCALAPPDATA"); directory && *directory) return std::filesystem::path(directory) / L"Godollo/character.json";
 #else
-    if (const char* directory = std::getenv("XDG_DATA_HOME")) return std::filesystem::u8path(directory) / "godollo/character.json";
-    if (const char* directory = std::getenv("HOME")) return std::filesystem::u8path(directory) / ".local/share/godollo/character.json";
+    if (const char* directory = std::getenv("XDG_DATA_HOME"); directory && *directory) return std::filesystem::u8path(directory) / "godollo/character.json";
+    if (const char* directory = std::getenv("HOME"); directory && *directory) return std::filesystem::u8path(directory) / ".local/share/godollo/character.json";
 #endif
     throw std::runtime_error("Cannot locate local character storage. Set GD_CHARACTER_PROFILE.");
 }
-bool loadCharacterProfile(const std::filesystem::path& path, CharacterCanvas& canvas, std::string& faceId) {
+bool loadCharacterProfile(const std::filesystem::path& path, CharacterCanvas& canvas, std::string& faceId, std::string* name) {
     if (!std::filesystem::exists(path)) return false;
     if (std::filesystem::file_size(path) > 32 * 1024 * 1024) throw std::runtime_error("Character profile is too large");
     std::ifstream input(path, std::ios::binary);
@@ -72,10 +72,13 @@ bool loadCharacterProfile(const std::filesystem::path& path, CharacterCanvas& ca
         }
     }
     loaded.restorePainting(layers);
+    const auto savedName = document.value("name", std::string("Survivor"));
+    if (savedName.size() > 128) throw std::runtime_error("Character name is too long");
     canvas = std::move(loaded); faceId = id;
+    if (name) *name = savedName;
     return true;
 }
-void saveCharacterProfile(const std::filesystem::path& path, const CharacterCanvas& canvas, const std::string& faceId) {
+void saveCharacterProfile(const std::filesystem::path& path, const CharacterCanvas& canvas, const std::string& faceId, const std::string& name) {
     Json faces = Json::array();
     for (const auto& layer : canvas.painting()) {
         auto runs = Json::array();
@@ -89,9 +92,10 @@ void saveCharacterProfile(const std::filesystem::path& path, const CharacterCanv
         }
         faces.push_back(std::move(runs));
     }
-    const Json document{{"schema", "godollo.character"}, {"version", 1}, {"resolution", CharacterCanvas::resolution},
+    Json document{{"schema", "godollo.character"}, {"version", 1}, {"resolution", CharacterCanvas::resolution},
                         {"face", faceId}, {"base", rgb(canvas.base())}, {"brush", rgb(canvas.brush())},
                         {"ink", rgb(canvas.ink())}, {"paint", std::move(faces)}};
+    if (!name.empty()) document["name"] = name;
     if (!path.parent_path().empty()) std::filesystem::create_directories(path.parent_path());
     const auto temporary = std::filesystem::u8path(path.u8string() + ".tmp");
     {
@@ -101,6 +105,9 @@ void saveCharacterProfile(const std::filesystem::path& path, const CharacterCanv
     }
     CharacterCanvas verified; std::string verifiedFace;
     loadCharacterProfile(temporary, verified, verifiedFace);
+    replaceCharacterFile(temporary, path);
+}
+void replaceCharacterFile(const std::filesystem::path& temporary, const std::filesystem::path& path) {
 #ifdef _WIN32
     if (!MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
         throw std::runtime_error("Cannot replace character profile");

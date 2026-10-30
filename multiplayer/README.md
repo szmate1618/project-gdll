@@ -36,36 +36,62 @@ The bundled [pixel font](../ui/fonts/README.md) uses the original glyph shapes;
 Modern retains it in the heading and uses the HUD system font for controls.
 Both Linux and Windows packages include the menu and font resources.
 
-## Character creation
+## Characters
 
-Choose **Character creation** (key **4**) in the client menu. Both themes use
-RmlUi controls beside the standing 0.6 × 1.8 × 0.4 metre player preview.
+Choose **Characters** (key **4**) to open the roster beside the existing editor.
+Both Classic and Modern styles support the same workflow:
 
-- **Base color**, **Brush color**, and **Face icon color** have preset swatches
-  and editable six-digit RGB hex values. Tab moves through these fields;
-  Enter/Escape ends editing. An incomplete/invalid color disables Save.
-- Choose any of the [20 Game-icons.net face stamps](../gui/character-faces.json)
-  from the visible grid. The stamp occupies a fixed 42 cm square near the top
-  of the front face.
-- **Left drag** paints with the selected brush; **right drag** rotates the box.
-  A sphere of radius 4.5 cm paints across adjacent edges. Base/icon changes
-  preserve painting through a separate paint image per side. Brush color only
-  affects new painting; there is no stroke history or undo system.
-- **Reset** clears painting, restores the three default colors and selects the
-  first face icon. **Save** stores the face, colors and six paint layers locally,
-  restoring them on the next launch. Reset changes the draft; Save replaces the
-  stored appearance. **Escape/Back** returns to the main menu, retaining the
-  current draft during this launch.
+- **New character** opens a fresh draft. Enter a name (up to 32 characters),
+  customize it, then choose **Save character**. Names must be distinct within
+  the current list; changing a name keeps the same stable save ID.
+- Click a saved roster entry to edit it. **Save changes** updates that character;
+  **Cancel** restores its saved appearance. Saving or inspecting a character
+  does not change which one is used for gameplay.
+- **Use character** selects a saved, clean character for the next session. The
+  roster marks it **IN USE**. The menu requires an active character before
+  Single Player, Host, or Join can start.
+- Switching entries, starting a new draft, retiring, or returning to the menu
+  with unsaved edits offers **Keep editing**, **Discard changes**, and
+  **Save and continue**. Failed saves keep the draft and the prompt open.
+- **Retire...** asks for confirmation and moves the selected save into the retired
+  folder. It removes the current row without deleting the file. Retiring the
+  active character clears the game selection; choose another before playing.
 
-The initial unsaved character uses a turquoise base, pink brush, dark icon ink
-and a random face. Local profiles are stored in
-`$XDG_DATA_HOME/godollo/character.json` (falling back to
-`~/.local/share/godollo/character.json`) on Linux, or
-`%LOCALAPPDATA%/Godollo/character.json` on Windows. `GD_CHARACTER_PROFILE` can
-select another file. The versioned JSON stores compact runs of painted pixels;
-Save validates a temporary file before atomically replacing the previous save.
-A malformed profile reports an error in the editor and leaves the saved file
-intact until the user chooses Save.
+**Base color**, **Brush color**, and **Face icon color** have preset swatches
+and RGB hex fields. Choose any of the [20 face stamps](../gui/character-faces.json).
+**Left drag** paints on the 0.6 × 1.8 × 0.4 metre box; **right drag** rotates it.
+The 4.5 cm sphere brush wraps across edges. Base/icon changes preserve painting
+through one independent paint image per side. Brush color affects new painting.
+**Reset** clears paint and restores the default colors and first icon, retaining
+the name. The reset is a draft change until Save.
+
+**Tab / Shift+Tab** cycle through name and color fields; **Enter/Escape** ends
+field editing. **Ctrl+S** saves and **Ctrl+N** starts a new draft. Escape outside
+a field requests Back; inside a confirmation it cancels. Tab cycles dialog
+buttons and Enter activates the focused choice, initially Cancel/Keep editing.
+The 3D preview is rendered in RmlUi document order, so dialogs cover it and
+prevent painting through them.
+
+The library is beside the former single save:
+
+| Platform | Base directory |
+| --- | --- |
+| Linux | `$XDG_DATA_HOME/godollo`, falling back to `~/.local/share/godollo` |
+| Windows | `%LOCALAPPDATA%/Godollo` |
+
+`characters/current/<id>.json` contains each named character's icon, colors and
+six paint layers. `characters/retired/<id>.json` retains retired saves unchanged.
+`characters/library.json` records the active ID. Profile saves use the existing
+versioned JSON format with an optional name, compact painted-pixel runs and
+validated atomic replacement. The library selection has its own versioned schema.
+
+On first opening, a valid old `character.json` is copied to
+`characters/current/legacy.json`, named **Survivor** if it had no name, and selected
+for gameplay. The original file is kept intact. Import runs only before the
+library is initialized, so retiring the imported character does not bring it
+back on restart. Malformed saves are reported and retained. `GD_CHARACTER_PROFILE`
+can select another legacy/base path; its parent contains the `characters` folder.
+Sessions continue to read an unmigrated single save when no library exists yet.
 
 Each client uploads its saved appearance once after joining a session. The
 server validates and retains it for the active player, distributes it to every
@@ -87,7 +113,8 @@ The appearance is cosmetic and is separate from collision and map fingerprints.
 Protocol 24 requires matching rebuilt clients and servers. The RmlUi binding lives in
 [character_editor.cpp](client/character_editor.cpp), with styles in
 [character-editor.rcss](../ui/character-editor.rcss). Painting and compositing
-remain in `CharacterCanvas`; profile serialization lives in `character_profile`.
+remain in `CharacterCanvas`; profile serialization lives in `character_profile` and collection/selection handling
+lives in `character_library`. The embedded preview is in `character_preview`.
 
 Prepare the faces with `.venv/bin/python tools/prepare_hud_icons.py`; this reuses
 the cached, fingerprint-checked HUD icon archive. Linux and Windows client

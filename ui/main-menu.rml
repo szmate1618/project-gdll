@@ -22,7 +22,7 @@
                 <button id="play-single" class="menu-action selected"><span class="action-key">1</span><span class="action-name">SINGLE PLAYER</span><span class="action-detail">A private, offline session</span></button>
                 <button id="play-host" class="menu-action"><span class="action-key">2</span><span class="action-name">HOST GAME</span><span class="action-detail">Start a session with friends</span></button>
                 <button id="play-join" class="menu-action"><span class="action-key">3</span><span class="action-name">JOIN GAME</span><span class="action-detail">Connect to an existing server</span></button>
-                <button id="create-character" class="menu-action"><span class="action-key">4</span><span class="action-name">CHARACTER CREATION</span><span class="action-detail">Paint and inspect your character</span></button>
+                <button id="create-character" class="menu-action"><span class="action-key">4</span><span class="action-name">CHARACTERS</span><span class="action-detail">Choose, create and edit your characters</span></button>
                 <button id="quit-game" class="menu-action"><span class="action-key">5</span><span class="action-name">QUIT</span></button>
             </div>
             <div id="connection-panel" class="panel">
@@ -38,41 +38,38 @@
             <div id="controls-hint">CLICK OR USE 1-5 / ARROWS + ENTER. TAB EDITS FIELDS.</div>
             <div id="session-hint">ESC DURING PLAY LEAVES THE SESSION.</div>
         </div>
-        <div id="character-screen">
+        <div id="character-screen" class="empty">
+            <div id="character-roster" class="panel">
+                <div class="editor-heading">YOUR CHARACTERS</div>
+                <button id="character-new">+ NEW CHARACTER</button>
+                <div id="character-list"></div>
+                <button id="character-retire">RETIRE...</button>
+            </div>
+            <label id="character-name-label" for="character-name">CHARACTER NAME</label>
+            <input id="character-name" type="text" maxlength="32" value="" />
+            <character-preview id="character-preview" class="panel"></character-preview>
+            <div id="character-empty"><div>No character selected</div><button id="empty-create">CREATE A CHARACTER</button></div>
             <div id="character-details" class="panel">
                 <div class="editor-heading">COLORS</div>
-                <div id="base-setting" class="color-setting">
-                    <label for="base-color">BASE COLOR</label>
-                    <div id="base-sample" class="color-sample"></div>
-                    <input id="base-color" type="text" maxlength="7" value="#46B2BE" />
-                    <div id="base-palette" class="color-palette"></div>
-                </div>
-                <div id="brush-setting" class="color-setting">
-                    <label for="brush-color">BRUSH COLOR</label>
-                    <div id="brush-sample" class="color-sample"></div>
-                    <input id="brush-color" type="text" maxlength="7" value="#EB4370" />
-                    <div id="brush-palette" class="color-palette"></div>
-                </div>
-                <div id="face-setting" class="color-setting">
-                    <label for="face-color">FACE ICON COLOR</label>
-                    <div id="face-sample" class="color-sample"></div>
-                    <input id="face-color" type="text" maxlength="7" value="#121C24" />
-                    <div id="face-palette" class="color-palette"></div>
-                </div>
+                <div id="base-setting" class="color-setting"><label for="base-color">BASE COLOR</label><div id="base-sample" class="color-sample"></div><input id="base-color" type="text" maxlength="7" value="#46B2BE" /><div id="base-palette" class="color-palette"></div></div>
+                <div id="brush-setting" class="color-setting"><label for="brush-color">BRUSH COLOR</label><div id="brush-sample" class="color-sample"></div><input id="brush-color" type="text" maxlength="7" value="#EB4370" /><div id="brush-palette" class="color-palette"></div></div>
+                <div id="face-setting" class="color-setting"><label for="face-color">FACE ICON COLOR</label><div id="face-sample" class="color-sample"></div><input id="face-color" type="text" maxlength="7" value="#121C24" /><div id="face-palette" class="color-palette"></div></div>
             </div>
-            <div id="character-preview" class="panel"></div>
-            <div id="faces-panel" class="panel">
-                <div class="editor-heading">FACE ICON</div><div id="face-count">20 ICONS</div>
-                <div id="face-options"></div>
-                <div id="face-name"></div>
-            </div>
-            <div id="paint-hint">LEFT DRAG TO PAINT</div>
-            <div id="orbit-hint">RIGHT DRAG TO ROTATE</div>
-            <div id="character-size">0.6 X 1.8 X 0.4 M</div>
-            <button id="character-back">ESC - BACK</button>
+            <div id="faces-panel" class="panel"><div class="editor-heading">FACE ICON</div><div id="face-count">20 ICONS</div><div id="face-options"></div><div id="face-name"></div></div>
+            <div id="paint-hint">LEFT DRAG TO PAINT / RIGHT DRAG TO ROTATE</div>
+            <div id="active-character"></div>
+            <button id="character-back">BACK TO MENU</button>
             <button id="character-reset">RESET</button>
-            <button id="character-save">SAVE</button>
+            <button id="character-use">USE CHARACTER</button>
+            <button id="character-cancel">CANCEL</button>
+            <button id="character-save">SAVE CHANGES</button>
             <div id="character-status"></div>
+            <div id="character-dialog">
+                <div id="dialog-panel" class="panel">
+                    <div id="dialog-title"></div><div id="dialog-message"></div><div id="dialog-detail"></div>
+                    <button id="dialog-cancel">KEEP EDITING</button><button id="dialog-discard">DISCARD CHANGES</button><button id="dialog-save">SAVE AND CONTINUE</button>
+                </div>
+            </div>
         </div>
         <div id="loading-screen">
             <div id="loading-heading">PREPARING SESSION</div>

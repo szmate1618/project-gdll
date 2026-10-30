@@ -1,4 +1,5 @@
 #include "client/character_profile.hpp"
+#include "client/character_library.hpp"
 #include "client/character_skin.hpp"
 #include "json.hpp"
 #include <chrono>
@@ -57,6 +58,16 @@ void check(const std::filesystem::path& path) {
     for (const auto& side : replaced.images()) for (std::size_t pixel = 0; pixel < side.rgba.size(); pixel += 4)
         for (int channel = 0; channel < 3; ++channel)
             require(appearance.rgb[offset++] == side.rgba[pixel + channel], "Session upload differs from the saved editor appearance");
+    multiplayer::CharacterLibrary collection(path);
+    auto other = replaced; other.setBaseColor({9,8,7,255});
+    const auto selected = collection.save("", "Another survivor", other, "smitten");
+    require(multiplayer::loadSavedCharacterAppearance(root, path).rgb == appearance.rgb,
+            "Saving a different character must not change the appearance uploaded for a session");
+    collection.use(selected.id);
+    const auto nextSession = multiplayer::loadSavedCharacterAppearance(root, path);
+    const auto backCorner = std::size_t(256 * 256 * 3);
+    require(nextSession.rgb[backCorner] == 9 && nextSession.rgb[backCorner + 1] == 8 && nextSession.rgb[backCorner + 2] == 7,
+            "Sessions must upload the explicitly chosen roster character");
     std::ifstream input(path);
     auto document = nlohmann::json::parse(input);
     const auto valid = document;

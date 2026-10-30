@@ -1,5 +1,6 @@
 #include "character_skin.hpp"
 #include "character_profile.hpp"
+#include "character_library.hpp"
 #include "character_faces.hpp"
 #include <algorithm>
 #include <stdexcept>
@@ -20,7 +21,8 @@ CharacterAppearance loadSavedCharacterAppearance(const std::filesystem::path& ro
     CharacterCanvas canvas; std::string face;
     const auto faces = loadCharacterFaces(root);
     auto icon = faces.begin();
-    if (loadCharacterProfile(profile, canvas, face)) {
+    const auto active = activeCharacterProfile(profile);
+    if (active && loadCharacterProfile(*active, canvas, face)) {
         icon = std::find_if(faces.begin(), faces.end(), [&](const auto& candidate) { return candidate.id == face; });
         if (icon == faces.end()) throw std::runtime_error("Saved character face is unavailable");
     }

@@ -1,57 +1,83 @@
-/* Three color controls, live box preview and all 20 icons share both themes. */
-#character-details { position: absolute; left: 60dp; top: 130dp; width: 240dp; height: 300dp; box-sizing: border-box; border-width: 1dp; }
-.editor-heading { position: absolute; top: 16dp; left: 16dp; font-size: 11dp; letter-spacing: 1dp; }
-.color-setting { position: absolute; left: 16dp; width: 208dp; height: 76dp; }
-#base-setting { top: 48dp; }
-#brush-setting { top: 132dp; }
-#face-setting { top: 216dp; }
-.color-setting label { position: absolute; top: 0dp; left: 0dp; font-size: 10dp; }
-.color-setting input { position: absolute; left: 36dp; top: 18dp; width: 172dp; height: 27dp; padding: 4dp 9dp; border-width: 1dp; font-size: 12dp; }
-.color-sample { position: absolute; left: 0dp; top: 18dp; width: 26dp; height: 27dp; border-width: 1dp; box-sizing: border-box; }
-.color-palette { position: absolute; top: 52dp; left: 0dp; width: 208dp; height: 20dp; }
-.color-chip { display: inline-block; width: 20dp; height: 20dp; margin-right: 6dp; border-width: 1dp; border-color: #f5f6f240; }
-.color-chip:hover { border-width: 2dp; border-color: #f5f6f2; }
-#character-preview { position: absolute; left: 320dp; top: 130dp; width: 320dp; height: 375dp; border-width: 1dp; box-sizing: border-box; }
-#faces-panel { position: absolute; left: 660dp; top: 130dp; width: 240dp; height: 375dp; border-width: 1dp; box-sizing: border-box; }
-#face-count { position: absolute; right: 16dp; top: 17dp; font-size: 9dp; }
-#face-options { position: absolute; left: 16dp; top: 48dp; width: 208dp; display: flex; flex-wrap: wrap; }
-.face-option { position: relative; width: 46dp; height: 46dp; margin-right: 6dp; margin-bottom: 6dp; border-width: 1dp; box-sizing: border-box; }
-.face-option img { position: absolute; left: 6dp; top: 6dp; width: 32dp; height: 32dp; image-color: #f5f6f2; }
+/* Roster and studio share one screen; draft selection and game selection differ. */
+#character-roster { position: absolute; left: 60dp; top: 125dp; width: 190dp; height: 380dp; border-width: 1dp; box-sizing: border-box; }
+.editor-heading { position: absolute; left: 12dp; top: 12dp; font-size: 10dp; letter-spacing: 1dp; }
+#character-new { position: absolute; left: 10dp; right: 10dp; top: 37dp; height: 30dp; border-width: 1dp; text-align: center; font-size: 10dp; line-height: 26dp; }
+#character-list { position: absolute; left: 10dp; right: 10dp; top: 77dp; height: 252dp; overflow-y: auto; }
+.roster-character { display: block; position: relative; width: 100%; height: 78dp; margin-bottom: 7dp; border-width: 1dp; box-sizing: border-box; }
+.roster-avatar { position: absolute; left: 10dp; top: 9dp; width: 19dp; height: 57dp; }
+.roster-avatar img { position: absolute; left: 3dp; top: 7dp; width: 13dp; height: 13dp; }
+.roster-avatar-side { position: absolute; left: 16dp; top: 0dp; width: 3dp; height: 57dp; background-color: #00000033; }
+.roster-name { max-height: 32dp; overflow: hidden; position: absolute; top: 17dp; left: 40dp; right: 6dp; font-family: hud-system; font-size: 12dp; line-height: 16dp; word-break: break-word; }
+.roster-active { position: absolute; top: 54dp; left: 40dp; font-size: 9dp; }
+.roster-empty { padding: 12dp 4dp; font-size: 11dp; line-height: 19dp; }
+#character-retire { position: absolute; left: 10dp; right: 10dp; bottom: 10dp; height: 29dp; text-align: center; font-size: 10dp; border-width: 1dp; line-height: 25dp; }
+#character-name-label { position: absolute; left: 270dp; top: 126dp; font-size: 10dp; }
+#character-name { position: absolute; left: 270dp; top: 145dp; width: 310dp; height: 30dp; padding: 5dp 10dp; border-width: 1dp; font-family: hud-system; font-size: 14dp; }
+#character-preview { display: block; position: absolute; left: 270dp; top: 185dp; width: 310dp; height: 320dp; border-width: 1dp; box-sizing: border-box; }
+#character-empty { display: none; position: absolute; left: 285dp; top: 310dp; width: 280dp; text-align: center; font-size: 12dp; }
+#empty-create { display: block; margin: 20dp auto; height: 36dp; padding: 8dp 12dp; border-width: 1dp; font-size: 11dp; }
+.empty #character-empty { display: block; }
+.empty #character-details, .empty #faces-panel, .empty #character-name-label, .empty #character-name, .empty #paint-hint, .empty #character-reset { visibility: hidden; }
+#character-details { position: absolute; left: 600dp; top: 125dp; width: 300dp; height: 178dp; border-width: 1dp; box-sizing: border-box; }
+.color-setting { position: absolute; left: 12dp; width: 274dp; height: 42dp; }
+#base-setting { top: 33dp; } #brush-setting { top: 80dp; } #face-setting { top: 127dp; }
+.color-setting label { position: absolute; left: 0dp; top: 0dp; font-size: 9dp; }
+.color-sample { position: absolute; left: 0dp; top: 16dp; width: 21dp; height: 21dp; border-width: 1dp; box-sizing: border-box; }
+.color-setting input { position: absolute; left: 27dp; top: 16dp; width: 85dp; height: 21dp; padding: 2dp 4dp; border-width: 1dp; font-size: 11dp; }
+.color-palette { position: absolute; left: 122dp; top: 17dp; width: 152dp; height: 20dp; }
+.color-chip { display: inline-block; width: 15dp; height: 19dp; margin-right: 4dp; border-width: 1dp; border-color: #f5f6f240; }
+.color-chip:hover { border-color: #f5f6f2; }
+#faces-panel { position: absolute; left: 600dp; top: 313dp; width: 300dp; height: 192dp; border-width: 1dp; box-sizing: border-box; }
+#face-count { position: absolute; right: 12dp; top: 13dp; font-size: 9dp; }
+#face-options { position: absolute; left: 12dp; top: 33dp; width: 274dp; display: flex; flex-wrap: wrap; }
+.face-option { position: relative; width: 34dp; height: 34dp; margin-right: 5dp; margin-bottom: 5dp; border-width: 1dp; box-sizing: border-box; }
+.face-option img { position: absolute; left: 4dp; top: 4dp; width: 24dp; height: 24dp; image-color: #f5f6f2; }
 .face-option:hover { border-color: #f5f6f2; }
-#face-name { position: absolute; left: 16dp; right: 16dp; top: 322dp; font-size: 12dp; line-height: 18dp; word-break: break-word; }
-#paint-hint, #orbit-hint, #character-size { position: absolute; left: 60dp; font-size: 10dp; }
-#paint-hint { top: 449dp; }
-#orbit-hint { top: 469dp; }
-#character-size { top: 490dp; }
-#character-back, #character-reset, #character-save { position: absolute; top: 520dp; height: 36dp; padding: 8dp 16dp; font-size: 12dp; border-width: 1dp; text-align: center; }
-#character-back { left: 60dp; width: 140dp; }
-#character-reset { left: 212dp; width: 88dp; }
-#character-save { right: 60dp; width: 112dp; }
-#character-status { position: absolute; top: 530dp; left: 320dp; right: 190dp; max-height: 46dp; font-size: 11dp; word-break: break-word; }
-.modern #character-details, .modern #faces-panel, .modern #character-preview { border-color: #f5f6f226; }
+#face-name { position: absolute; left: 12dp; right: 12dp; bottom: 10dp; font-size: 11dp; white-space: nowrap; overflow: hidden; }
+#paint-hint { position: absolute; left: 270dp; top: 510dp; font-size: 8dp; }
+#active-character { position: absolute; left: 60dp; top: 514dp; width: 190dp; font-family: hud-system; font-size: 10dp; line-height: 14dp; }
+#character-back, #character-reset, #character-use, #character-cancel, #character-save { position: absolute; top: 545dp; height: 32dp; padding: 6dp 8dp; border-width: 1dp; font-size: 10dp; text-align: center; }
+#character-back { left: 60dp; width: 112dp; }
+#character-reset { left: 270dp; width: 100dp; }
+#character-use { left: 382dp; width: 125dp; }
+#character-cancel { left: 600dp; width: 84dp; }
+#character-save { left: 696dp; width: 204dp; }
+#character-status { position: absolute; left: 270dp; top: 525dp; right: 60dp; font-family: hud-system; font-size: 10dp; line-height: 15dp; max-height: 18dp; overflow: hidden; }
+#character-dialog { display: none; position: absolute; left: 0dp; top: 0dp; width: 960dp; height: 600dp; z-index: 100; background-color: #111315bd; }
+.has-dialog #character-dialog { display: block; }
+#dialog-panel { position: absolute; left: 180dp; top: 185dp; width: 600dp; height: 235dp; border-width: 1dp; box-sizing: border-box; }
+#dialog-title { position: absolute; left: 22dp; right: 22dp; top: 22dp; font-family: hud-system; font-size: 20dp; line-height: 26dp; word-break: break-word; }
+#dialog-message { position: absolute; left: 22dp; right: 22dp; top: 78dp; font-family: hud-system; font-size: 13dp; line-height: 19dp; }
+#dialog-detail { position: absolute; left: 22dp; right: 22dp; top: 126dp; font-family: hud-system; font-size: 11dp; line-height: 16dp; }
+#dialog-cancel, #dialog-discard, #dialog-save { position: absolute; top: 181dp; width: 176dp; height: 32dp; padding: 6dp 4dp; border-width: 1dp; font-size: 10dp; text-align: center; }
+#dialog-cancel { left: 22dp; } #dialog-discard { left: 210dp; } #dialog-save { left: 398dp; }
+.hidden { display: none; }
+.modern #character-roster, .modern #character-details, .modern #faces-panel, .modern #character-preview, .modern #dialog-panel { border-color: #f5f6f226; }
 .modern #character-preview { background-color: #242628; }
-.modern .color-setting label, .modern #face-count, .modern #character-size { color: #f5f6f280; }
-.modern #paint-hint, .modern #orbit-hint, .modern #character-status { color: #f5f6f2bf; }
-.modern .color-setting input { background-color: #2b2d2f; border-color: #f5f6f24d; caret-color: #f5f6f2; }
-.modern .color-setting input:focus { border-color: #f5f6f2b0; }
-.modern .face-option, .modern #character-back, .modern #character-reset, .modern #character-save { background-color: #2b2d2f66; border-color: #f5f6f24d; }
-.modern .face-option.selected { border-color: #f5f6f2; background-color: #f5f6f21a; }
-.modern #character-save { background-color: #f5f6f226; border-color: #f5f6f299; }
-.modern #character-back:hover, .modern #character-reset:hover, .modern #character-save:hover { background-color: #f5f6f21a; }
-.modern #character-save:disabled { color: #f5f6f259; border-color: #f5f6f226; background-color: #2b2d2f66; }
-.modern .color-setting input.invalid, .modern #character-status.invalid { border-color: #ec6962; color: #ec6962; }
-.classic #character-details, .classic #faces-panel { background-color: #0f1f26; border-color: #338c7366; }
+.modern #dialog-panel { background-color: #383a3c; }
+.modern .color-setting label, .modern #face-count, .modern #character-name-label, .modern #active-character, .modern .roster-active, .modern .roster-empty { color: #f5f6f299; }
+.modern #paint-hint, .modern #character-status, .modern #dialog-detail { color: #f5f6f2bf; }
+.modern .color-setting input, .modern #character-name { background-color: #2b2d2f; border-color: #f5f6f24d; caret-color: #f5f6f2; }
+.modern input:focus { border-color: #f5f6f2b0; }
+.modern .roster-character, .modern #character-screen button { background-color: #2b2d2f66; border-color: #f5f6f24d; }
+.modern #character-screen .roster-character.selected { border-left-color: #ec6962; background-color: #f5f6f214; }
+.modern #character-screen .color-chip { background-color: transparent; }
+.modern #character-screen .face-option.selected { border-color: #f5f6f2; background-color: #f5f6f21a; }
+.modern #character-screen #character-save, .modern #character-screen #character-use { background-color: #f5f6f226; }
+.modern #character-screen button:hover, .modern #character-screen button:focus { border-color: #f5f6f2b0; }
+.modern #character-screen button:disabled { color: #f5f6f259; border-color: #f5f6f226; background-color: #2b2d2f66; }
+.modern .color-setting input.invalid, .modern #character-name.invalid, .modern #character-status.invalid { border-color: #ec6962; color: #ec6962; }
+.classic #character-roster, .classic #character-details, .classic #faces-panel, .classic #dialog-panel { background-color: #0f1f26; border-color: #338c7366; }
 .classic #character-preview { background-color: #0b1116; border-color: #338c7366; }
-.classic .editor-heading, .classic .color-setting label { font-size: 15dp; letter-spacing: 0dp; }
-.classic .color-setting input, .classic #face-name, .classic #character-status { font-size: 15dp; }
-.classic .color-setting input { background-color: #142633; border-color: #338c7380; caret-color: #d9e6f0; }
-.classic .color-setting input:focus { background-color: #144d33; }
-.classic #face-count { font-size: 12dp; top: 19dp; }
-.classic #face-name { line-height: 18dp; }
-.classic .face-option, .classic #character-back, .classic #character-reset { background-color: #142633; border-color: #338c7380; }
-.classic .face-option.selected, .classic #character-save { background-color: #1f4d42; border-color: #338c73; }
-.classic #character-back, .classic #character-reset, .classic #character-save { font-size: 15dp; }
-.classic #character-back:hover, .classic #character-reset:hover, .classic #character-save:hover { background-color: #286654; }
-.classic #character-save:disabled { color: #d9e6f059; border-color: #338c7340; background-color: #142633; }
-.classic #paint-hint, .classic #orbit-hint, .classic #character-size { font-size: 13dp; }
-.classic .color-setting input.invalid, .classic #character-status.invalid { border-color: #eb4370; color: #eb4370; }
+.classic .editor-heading, .classic .color-setting label, .classic #character-name-label { font-size: 15dp; letter-spacing: 0dp; }
+.classic .color-setting input, .classic #face-name, .classic #face-count { font-size: 15dp; }
+.classic .roster-active, .classic .roster-empty { font-size: 13dp; }
+.classic .color-setting input, .classic #character-name { background-color: #142633; border-color: #338c7380; caret-color: #d9e6f0; }
+.classic input:focus { background-color: #144d33; }
+.classic .roster-character, .classic #character-screen button { background-color: #142633; border-color: #338c7380; }
+.classic #character-screen .roster-character.selected, .classic #character-screen #character-save, .classic #character-screen #character-use { background-color: #1f4d42; border-color: #338c73; }
+.classic #character-screen button { font-size: 13dp; }
+.classic #character-back { width: 140dp; white-space: nowrap; }
+.classic #character-screen button:hover, .classic #character-screen button:focus { border-color: #d9e6f0; }
+.classic #character-screen button:disabled { color: #d9e6f059; background-color: #142633; border-color: #338c7340; }
+.classic .color-setting input.invalid, .classic #character-name.invalid, .classic #character-status.invalid { border-color: #eb4370; color: #eb4370; }

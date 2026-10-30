@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
         require(menu.takeCommand() == multiplayer::MenuCommand::SinglePlayer, "RmlUi buttons must handle pointer clicks");
         draw(multiplayer::MenuScreen::Character);
         const auto preview = menu.previewViewport();
-        require(preview.x > 300 && preview.y >= 0 && preview.z > 250 && preview.w > 300 &&
+        require(preview.x > 250 && preview.y >= 0 && preview.z > 250 && preview.w > 300 &&
                 preview.x + preview.z <= 960 && preview.y + preview.w <= 600,
                 "Character viewport must come from the visible layout");
         key(GLFW_KEY_ESCAPE); draw(multiplayer::MenuScreen::Character);
@@ -103,49 +103,16 @@ int main(int argc, char** argv) {
         menu.editCharacter(*creation);
         draw(multiplayer::MenuScreen::Character);
         require(creation->faces().size() == 20, "Editor must expose all 20 face icons");
-        // Edit three native color fields, then select the final icon through its
-        // visible grid position (four columns, five rows).
-        for (const char* value : {"123456", "ABCDEF", "FEDCBA"}) {
-            key(GLFW_KEY_TAB); key(GLFW_KEY_A, GLFW_MOD_CONTROL); type(value); draw(multiplayer::MenuScreen::Character);
-        }
-        require(creation->color(multiplayer::CharacterColorTarget::Base) == multiplayer::CharacterCanvas::Color{0x12,0x34,0x56,255} &&
-                creation->color(multiplayer::CharacterColorTarget::Brush) == multiplayer::CharacterCanvas::Color{0xab,0xcd,0xef,255} &&
-                creation->color(multiplayer::CharacterColorTarget::Face) == multiplayer::CharacterCanvas::Color{0xfe,0xdc,0xba,255},
-                "Base, brush and face inputs must control independent colors");
-        key(GLFW_KEY_A, GLFW_MOD_CONTROL); type("ZZZZZZ"); draw(multiplayer::MenuScreen::Character);
+        require(!creation->hasCharacter() && creation->library().characters().empty(), "Fresh collections must show the empty roster");
         const auto click = [&](float x, float y) {
             menu.pointer(x / 960, y / 600); menu.button(0, true, 0); menu.button(0, false, 0);
             draw(multiplayer::MenuScreen::Character);
         };
-        click(840, 538);
-        require(!std::filesystem::exists(profile), "Invalid color input must prevent saving");
-        // A preset repairs the field without changing the other two selectors.
-        click(60 + 16 + 3 * 26 + 10, 130 + 216 + 52 + 10);
-        require(creation->color(multiplayer::CharacterColorTarget::Face) == multiplayer::CharacterCanvas::Color{245,246,242,255},
-                "Color presets must update their selected role");
-        click(660 + 16 + 3 * 52 + 23, 130 + 48 + 4 * 52 + 23);
-        require(creation->faceIndex() == 19, "The last of 20 face icons must be clickable");
-        click(840, 538);
-        require(std::filesystem::is_regular_file(profile), "Save button must persist the local character");
-        {
-            multiplayer::CharacterCreation restored(profile);
-            require(restored.faceIndex() == 19 && restored.color(multiplayer::CharacterColorTarget::Base) == creation->color(multiplayer::CharacterColorTarget::Base),
-                    "A new editor must restore the saved face and colors");
-        }
-        click(250, 538);
-        require(creation->faceIndex() == 0 && creation->color(multiplayer::CharacterColorTarget::Base) == multiplayer::CharacterCanvas::baseColor,
-                "Reset button must restore the default appearance");
-        multiplayer::CharacterCanvas saved; std::string savedFace;
-        multiplayer::loadCharacterProfile(profile, saved, savedFace);
-        require(savedFace == creation->faces()[19].id, "Reset must leave the previous save intact until Save is clicked");
-        if (argc > 2) {
-            // Read the GPU buffer directly for dependable visual QA captures,
-            // independent of compositor/front-buffer screenshot timing.
-            const auto capture = [&](const char* suffix) {
+        const auto capture = [&](const char* suffix) {
+                if (argc <= 2) return;
                 glDisable(GL_SCISSOR_TEST); glDepthMask(GL_TRUE);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
                 draw(multiplayer::MenuScreen::Character);
-                creation->draw(menu.previewViewport(), {-1,-1}, false, false);
                 std::vector<unsigned char> image(960 * 600 * 3);
                 glPixelStorei(GL_PACK_ALIGNMENT, 1);
                 glReadPixels(0, 0, 960, 600, GL_RGB, GL_UNSIGNED_BYTE, image.data());
@@ -154,8 +121,75 @@ int main(int argc, char** argv) {
                 for (int y = 599; y >= 0; --y) output.write(reinterpret_cast<const char*>(image.data() + y * 960 * 3), 960 * 3);
                 require(bool(output), "Cannot save editor QA capture");
             };
-            capture("-modern"); key(GLFW_KEY_F6); capture("-classic"); key(GLFW_KEY_F6); draw(multiplayer::MenuScreen::Character);
+        click(145,177); type("Mara"); key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Character);
+        require(creation->hasCharacter() && creation->name() == "Mara", "New must open the existing editor with a name field");
+        int role = 0;
+        for (const char* value : {"123456", "ABCDEF", "FEDCBA"}) {
+            click(680,185 + 47 * role++); key(GLFW_KEY_A, GLFW_MOD_CONTROL); type(value); draw(multiplayer::MenuScreen::Character);
         }
+        require(creation->color(multiplayer::CharacterColorTarget::Base) == multiplayer::CharacterCanvas::Color{0x12,0x34,0x56,255} &&
+                creation->color(multiplayer::CharacterColorTarget::Brush) == multiplayer::CharacterCanvas::Color{0xab,0xcd,0xef,255} &&
+                creation->color(multiplayer::CharacterColorTarget::Face) == multiplayer::CharacterCanvas::Color{0xfe,0xdc,0xba,255},
+                "Base, brush and face inputs must control independent colors");
+        key(GLFW_KEY_A, GLFW_MOD_CONTROL); type("ZZZZZZ"); draw(multiplayer::MenuScreen::Character);
+        click(800,560);
+        require(creation->library().characters().empty(), "Invalid color input must prevent saving");
+        click(798,278);
+        require(creation->color(multiplayer::CharacterColorTarget::Face) == multiplayer::CharacterCanvas::Color{245,246,242,255},
+                "Color presets must repair their selected role");
+        click(824,441);
+        require(creation->faceIndex() == 19, "The last of 20 face icons must be clickable");
+        click(800,560);
+        require(creation->library().characters().size() == 1, "Save must add the named character to the roster");
+        const auto mara = creation->selectedId();
+        const auto maraPath = creation->library().get(mara).path;
+        require(creation->library().activeId().empty(), "Saving must not implicitly choose the game character");
+        click(445,560);
+        require(creation->library().activeId() == mara, "Use character must select the saved character for gameplay");
+        click(145,177); type("Aron"); key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Character); click(800,560);
+        const auto aron = creation->selectedId();
+        require(aron != mara && creation->library().characters().size() == 2 && creation->library().activeId() == mara,
+                "A second character must have an independent save and preserve who is in use");
+        {
+            multiplayer::CharacterCreation restored(profile);
+            require(restored.selectedId() == mara && restored.faceIndex() == 19,
+                    "Reopening must load the in-use character rather than the last inspected draft");
+        }
+        capture("-modern"); key(GLFW_KEY_F6); capture("-classic"); key(GLFW_KEY_F6); draw(multiplayer::MenuScreen::Character);
+        // Mara is the second alphabetical row. Paint, then switch toward Aron.
+        click(145,322);
+        require(creation->selectedId() == mara, "Roster selection must load the saved character");
+        menu.pointer(425.f / 960,360.f / 600); menu.button(0,true,0); draw(multiplayer::MenuScreen::Character);
+        menu.button(0,false,0); draw(multiplayer::MenuScreen::Character);
+        require(creation->dirty(), "Painting through the RmlUi preview must mark the draft dirty");
+        click(145,237);
+        require(creation->selectedId() == mara && creation->dirty(), "Switching must wait for the unsaved-draft decision");
+        capture("-unsaved");
+        require(near(color(450,410), {56,58,60}), "The confirmation dialog must cover the 3D preview");
+        key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Character);
+        require(creation->selectedId() == mara && creation->dirty(), "Default confirmation must keep editing");
+        click(145,237); key(GLFW_KEY_TAB); key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Character);
+        require(creation->selectedId() == aron && !creation->dirty(), "Discard-and-continue must load the requested roster entry");
+        click(410,160); key(GLFW_KEY_A, GLFW_MOD_CONTROL); type("Aron II"); key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Character);
+        key(GLFW_KEY_ESCAPE); draw(multiplayer::MenuScreen::Character);
+        key(GLFW_KEY_TAB); key(GLFW_KEY_TAB); key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Character);
+        require(menu.takeCommand() == multiplayer::MenuCommand::Back && creation->name() == "Aron II" && !creation->dirty(),
+                "Save-and-continue must persist the rename before leaving");
+        draw(multiplayer::MenuScreen::Character); click(445,560);
+        require(creation->library().activeId() == aron, "Use character must stay explicit after renaming");
+        const auto aronPath = creation->library().get(aron).path;
+        click(145,480); capture("-retire"); key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Character);
+        require(std::filesystem::exists(aronPath), "Retirement confirmation must default to Cancel");
+        click(145,480); key(GLFW_KEY_TAB); key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Character);
+        require(!std::filesystem::exists(aronPath) && std::filesystem::exists(directory / "characters/retired" / aronPath.filename()) && creation->library().activeId().empty(),
+                "Retirement must move the save, remove its row and clear the active choice");
+        require(creation->selectedId() == mara, "The remaining character should be available for inspection");
+        click(445,560); click(320,560);
+        require(creation->faceIndex() == 0 && creation->color(multiplayer::CharacterColorTarget::Base) == multiplayer::CharacterCanvas::baseColor,
+                "Reset must restore the default appearance inside the current draft");
+        multiplayer::CharacterCanvas saved; std::string savedFace;
+        multiplayer::loadCharacterProfile(maraPath,saved,savedFace);
+        require(savedFace == creation->faces()[19].id, "Reset must leave the existing save intact until Save is clicked");
         std::filesystem::remove_all(directory);
         draw(); key(GLFW_KEY_F6); draw();
         require(near(color(5, 5), {6, 10, 14}), "Classic must remain available after sessions and character preview");
@@ -166,7 +200,7 @@ int main(int argc, char** argv) {
         menu.draw(multiplayer::MenuScreen::Choose, "", "", 1500, 600);
         require(menu.takeCommand() == multiplayer::MenuCommand::SinglePlayer, "Resized menu hit testing must follow its layout");
         require(glGetError() == GL_NO_ERROR, "Menu/HUD transitions must not introduce GL errors");
-        std::cout << "Menu themes, original glyphs, editing, pointers, resize and HUD lifetime passed.\n";
+        std::cout << "Menu themes, roster, named saves, explicit selection, native preview, unsaved guards, retirement and resize passed.\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; result = 1; }
     glfwDestroyWindow(window); glfwTerminate();
     return result;

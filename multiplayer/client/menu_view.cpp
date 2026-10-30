@@ -1,5 +1,6 @@
 #include "menu_view.hpp"
 #include "character_editor.hpp"
+#include "character_preview.hpp"
 #include "gui/ui_runtime.hpp"
 #include <RmlUi/Core.h>
 #include <RmlUi/Core/Elements/ElementFormControlInput.h>
@@ -51,8 +52,10 @@ struct MenuView::Impl final : Rml::EventListener {
     MenuCommand command = MenuCommand::None;
     int selected = 0, width = 0, height = 0;
     bool modern = false;
+    glm::vec2 pointer{-1};
+    bool left = false, right = false;
     struct Input {
-        enum Kind { Key, Character, Move, Button, Blur } kind;
+        enum Kind { Key, Character, Move, Button, Blur, Wheel } kind;
         int code = 0, action = 0, mods = 0;
         unsigned int codepoint = 0;
         float x = 0, y = 0;
@@ -64,6 +67,7 @@ struct MenuView::Impl final : Rml::EventListener {
         context = Rml::CreateContext("main-menu", {960, 600});
         if (!context) throw std::runtime_error("Cannot create main menu context");
         try {
+            registerCharacterPreview();
             document = context->LoadDocument((directory / "main-menu.rml").generic_string());
             if (!document) throw std::runtime_error("Cannot load main menu layout");
             port = dynamic_cast<Rml::ElementFormControlInput*>(&element("host-port"));
@@ -103,7 +107,7 @@ struct MenuView::Impl final : Rml::EventListener {
             if (event.GetId() == Rml::EventId::Click) {
                 if (id == "theme-classic") { theme(false); return; }
                 if (id == "theme-modern") { theme(true); return; }
-                if (id == "character-back") { command = MenuCommand::Back; return; }
+                if (id == "character-back" && !editor) { command = MenuCommand::Back; return; }
                 if (id == "loading-cancel") { command = MenuCommand::Cancel; return; }
             }
             if (screen != MenuScreen::Choose) continue;
@@ -128,7 +132,15 @@ struct MenuView::Impl final : Rml::EventListener {
     void key(const Input& input) {
         const int code = input.code, mods = modifiers(input.mods);
         const bool pressed = input.action != GLFW_RELEASE;
+        if (screen == MenuScreen::Character && editor && editor->dialogOpen()) {
+            if (pressed) editor->dialogKey(code, input.mods & GLFW_MOD_SHIFT);
+            return;
+        }
         if (pressed && code == GLFW_KEY_F6) { if (input.action == GLFW_PRESS) theme(!modern); return; }
+        if (screen == MenuScreen::Character && editor && input.action == GLFW_PRESS && (input.mods & GLFW_MOD_CONTROL)) {
+            if (code == GLFW_KEY_S) { editor->save(); return; }
+            if (code == GLFW_KEY_N) { editor->newCharacter(); return; }
+        }
         if (screen == MenuScreen::Loading) {
             if (pressed && code == GLFW_KEY_ESCAPE) command = MenuCommand::Cancel;
             return;
@@ -137,7 +149,7 @@ struct MenuView::Impl final : Rml::EventListener {
             std::vector<Rml::ElementFormControlInput*> fields{port, address};
             if (screen == MenuScreen::Character) {
                 fields.clear();
-                for (const auto* id : {"base-color", "brush-color", "face-color"})
+                for (const auto* id : {"character-name", "base-color", "brush-color", "face-color"})
                     fields.push_back(dynamic_cast<Rml::ElementFormControlInput*>(&element(id)));
             }
             const auto found = std::find(fields.begin(), fields.end(), context->GetFocusElement());
@@ -157,7 +169,7 @@ struct MenuView::Impl final : Rml::EventListener {
         }
         if (!pressed) return;
         if (screen == MenuScreen::Character) {
-            if (code == GLFW_KEY_ESCAPE) command = MenuCommand::Back;
+            if (code == GLFW_KEY_ESCAPE) { if (editor) editor->requestBack(); else command = MenuCommand::Back; }
             return;
         }
         if (code == GLFW_KEY_ESCAPE) command = MenuCommand::Quit;
@@ -167,22 +179,28 @@ struct MenuView::Impl final : Rml::EventListener {
         else if (code >= GLFW_KEY_1 && code <= GLFW_KEY_5) command = commands[code - GLFW_KEY_1];
     }
     void processInput() {
+        if (editor) editor->focusPendingInput();
         for (const auto& input : inputs) {
             switch (input.kind) {
             case Input::Key: key(input); break;
             case Input::Character:
-                if (screen != MenuScreen::Loading && editing() && input.codepoint >= 32 && input.codepoint <= 126)
+                if (screen != MenuScreen::Loading && editing() && input.codepoint >= 32 && input.codepoint <= 0x10ffff && (!editor || !editor->dialogOpen()))
                     context->ProcessTextInput(Rml::Character(input.codepoint));
                 break;
-            case Input::Move: context->ProcessMouseMove(int(input.x * width), int(input.y * height), 0); break;
+            case Input::Move: pointer = {input.x * width, input.y * height}; context->ProcessMouseMove(int(pointer.x), int(pointer.y), 0); break;
             case Input::Button:
+                if (input.code == 0) left = input.action != 0; else if (input.code == 1) right = input.action != 0;
                 if (input.action) context->ProcessMouseButtonDown(input.code, modifiers(input.mods));
                 else context->ProcessMouseButtonUp(input.code, modifiers(input.mods));
                 break;
-            case Input::Blur: blur(); context->ProcessMouseLeave(); break;
+            case Input::Blur: left = right = false; blur(); context->ProcessMouseLeave(); break;
+            case Input::Wheel: context->ProcessMouseWheel(-input.y, 0); break;
             }
+            if (editor) editor->focusPendingInput();
         }
         inputs.clear();
+        if (screen == MenuScreen::Character && editor) editor->refresh();
+        updateCharacterPreview(*document, pointer, left, right, screen == MenuScreen::Character && editor && editor->previewInteractive());
     }
 };
 
@@ -190,6 +208,7 @@ MenuView::MenuView(const std::filesystem::path& directory) : impl_(std::make_uni
 MenuView::~MenuView() = default;
 void MenuView::editCharacter(CharacterCreation& creation) {
     if (!impl_->editor) impl_->editor = std::make_unique<CharacterEditor>(*impl_->document, creation);
+    bindCharacterPreview(*impl_->document, creation, impl_->runtime->renderer());
 }
 void MenuView::connection(const std::string& port, const std::string& address) {
     impl_->port->SetValue(port); impl_->address->SetValue(address);
@@ -201,11 +220,11 @@ void MenuView::draw(MenuScreen screen, const std::string& message, const std::st
     if (self.screen != screen) { self.blur(); self.screen = screen; }
     self.document->SetClass("creating", screen == MenuScreen::Character);
     self.document->SetClass("loading", screen == MenuScreen::Loading);
-    setText(self.element("menu-title"), screen == MenuScreen::Character ? "CHARACTER CREATION" : "GODOLLO");
-    setText(self.element("menu-subtitle"), screen == MenuScreen::Character ? "YOUR LOCAL CHARACTER PREVIEW" : "CHOOSE YOUR NEXT SESSION");
+    setText(self.element("menu-title"), screen == MenuScreen::Character ? "CHARACTERS" : "GODOLLO");
+    setText(self.element("menu-subtitle"), screen == MenuScreen::Character ? "YOUR CHARACTERS / LOCAL STUDIO" : "CHOOSE YOUR NEXT SESSION");
     setText(self.element("menu-message"), message);
     setText(self.element("loading-message"), message);
-    setText(self.element("face-name"), face);
+    if (!self.editor) setText(self.element("face-name"), face);
     if (screen == MenuScreen::Character && self.editor) self.editor->refresh();
     if (self.width != width || self.height != height) {
         self.width = width; self.height = height;
@@ -222,8 +241,13 @@ void MenuView::pointer(float x, float y) {
     Impl::Input input{Impl::Input::Move}; input.x = x; input.y = y; impl_->inputs.push_back(input);
 }
 void MenuView::button(int button, bool pressed, int modifiers) { impl_->inputs.push_back({Impl::Input::Button, button, int(pressed), modifiers}); }
+void MenuView::wheel(float notches) { Impl::Input input{Impl::Input::Wheel}; input.y = notches; impl_->inputs.push_back(input); }
 void MenuView::focusLost() { impl_->inputs.push_back({Impl::Input::Blur}); }
-MenuCommand MenuView::takeCommand() { const auto command = impl_->command; impl_->command = MenuCommand::None; return command; }
+MenuCommand MenuView::takeCommand() {
+    const auto command = impl_->command; impl_->command = MenuCommand::None;
+    if (impl_->editor && impl_->editor->takeBackRequested()) return MenuCommand::Back;
+    return command;
+}
 glm::ivec4 MenuView::previewViewport() const {
     const auto& self = *impl_;
     auto& preview = self.element("character-preview");

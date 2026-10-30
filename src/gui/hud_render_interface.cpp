@@ -32,11 +32,14 @@ public:
         glGetIntegerv(GL_ACTIVE_TEXTURE, &activeTexture);
         glActiveTexture(GL_TEXTURE0);
         glGetIntegerv(GL_TEXTURE_BINDING_2D, &texture);
+        glGetIntegerv(GL_TEXTURE_BINDING_2D_ARRAY, &arrayTexture);
         glGetIntegerv(GL_SAMPLER_BINDING, &sampler);
         glGetIntegerv(GL_UNPACK_ALIGNMENT, &unpackAlignment);
         glGetIntegerv(GL_UNPACK_ROW_LENGTH, &unpackRowLength);
         glGetIntegerv(GL_UNPACK_SKIP_PIXELS, &unpackSkipPixels);
         glGetIntegerv(GL_UNPACK_SKIP_ROWS, &unpackSkipRows);
+        glGetIntegerv(GL_UNPACK_IMAGE_HEIGHT, &unpackImageHeight);
+        glGetIntegerv(GL_UNPACK_SKIP_IMAGES, &unpackSkipImages);
         glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING, &unpackBuffer);
         glGetIntegerv(GL_VIEWPORT, viewport);
         glGetIntegerv(GL_SCISSOR_BOX, scissorBox);
@@ -47,6 +50,11 @@ public:
         glGetIntegerv(GL_BLEND_EQUATION_RGB, &equationRgb);
         glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &equationAlpha);
         glGetBooleanv(GL_DEPTH_WRITEMASK, &depthWrite);
+        glGetIntegerv(GL_DEPTH_FUNC, &depthFunction);
+        glGetDoublev(GL_DEPTH_RANGE, depthRange);
+        glGetDoublev(GL_DEPTH_CLEAR_VALUE, &clearDepth);
+        glGetIntegerv(GL_FRONT_FACE, &frontFace);
+        glGetIntegerv(GL_CULL_FACE_MODE, &cullMode);
         depth = glIsEnabled(GL_DEPTH_TEST); blend = glIsEnabled(GL_BLEND);
         cull = glIsEnabled(GL_CULL_FACE); stencil = glIsEnabled(GL_STENCIL_TEST);
         scissor = glIsEnabled(GL_SCISSOR_TEST);
@@ -62,7 +70,8 @@ public:
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawFramebuffer);
         glBindFramebuffer(GL_READ_FRAMEBUFFER, readFramebuffer);
         glBindRenderbuffer(GL_RENDERBUFFER, renderbuffer);
-        glBindTexture(GL_TEXTURE_2D, texture);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture); glBindTexture(GL_TEXTURE_2D_ARRAY, arrayTexture);
         glBindSampler(0, sampler);
         glActiveTexture(activeTexture);
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpackBuffer);
@@ -70,11 +79,16 @@ public:
         glPixelStorei(GL_UNPACK_ROW_LENGTH, unpackRowLength);
         glPixelStorei(GL_UNPACK_SKIP_PIXELS, unpackSkipPixels);
         glPixelStorei(GL_UNPACK_SKIP_ROWS, unpackSkipRows);
+        glPixelStorei(GL_UNPACK_IMAGE_HEIGHT, unpackImageHeight);
+        glPixelStorei(GL_UNPACK_SKIP_IMAGES, unpackSkipImages);
         glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
         glScissor(scissorBox[0], scissorBox[1], scissorBox[2], scissorBox[3]);
         glBlendFuncSeparate(sourceRgb, destinationRgb, sourceAlpha, destinationAlpha);
         glBlendEquationSeparate(equationRgb, equationAlpha);
         glDepthMask(depthWrite);
+        glDepthFunc(depthFunction); glDepthRange(depthRange[0], depthRange[1]);
+        glClearDepth(clearDepth);
+        glFrontFace(frontFace); glCullFace(cullMode);
         enable(GL_DEPTH_TEST, depth); enable(GL_BLEND, blend);
         enable(GL_CULL_FACE, cull); enable(GL_STENCIL_TEST, stencil);
         enable(GL_SCISSOR_TEST, scissor);
@@ -83,9 +97,12 @@ public:
     }
 private:
     static void enable(GLenum flag, GLboolean value) { if (value) glEnable(flag); else glDisable(flag); }
-    GLint program{}, vao{}, arrayBuffer{}, activeTexture{}, texture{}, sampler{};
+    GLint program{}, vao{}, arrayBuffer{}, activeTexture{}, texture{}, arrayTexture{}, sampler{};
     GLint drawFramebuffer{}, readFramebuffer{}, renderbuffer{};
     GLint unpackAlignment{}, unpackRowLength{}, unpackSkipPixels{}, unpackSkipRows{}, unpackBuffer{};
+    GLint unpackImageHeight{}, unpackSkipImages{}, depthFunction{}, frontFace{}, cullMode{};
+    GLdouble depthRange[2]{};
+    GLdouble clearDepth{};
     GLint viewport[4]{}, scissorBox[4]{};
     GLint sourceRgb{}, destinationRgb{}, sourceAlpha{}, destinationAlpha{}, equationRgb{}, equationAlpha{};
     GLboolean depthWrite{}, depth{}, blend{}, cull{}, stencil{}, scissor{};
@@ -123,6 +140,7 @@ HudRenderInterface::~HudRenderInterface() {
     glDeleteSamplers(1, &minimapSampler_);
     glDeleteProgram(program_);
 }
+void HudRenderInterface::renderExternal(const std::function<void()>& draw) { GlState restore; draw(); }
 
 void HudRenderInterface::setMinimap(const MinimapSource& source, GLuint texture) {
     minimap_ = source;

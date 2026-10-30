@@ -24,9 +24,10 @@ void save(const std::filesystem::path& path, const std::vector<unsigned char>& i
     if (!file) throw std::runtime_error("Cannot save character preview capture");
 }
 void check(const std::filesystem::path& capture) {
-    const auto profile = std::filesystem::path("character-creation-test-" +
-        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".json");
+    const auto root = std::filesystem::path("character-creation-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    const auto profile = root / "character.json";
     multiplayer::CharacterCreation creation(profile);
+    creation.newCharacter(); creation.setName("GPU survivor");
     const auto draw = [&](glm::vec2 pointer, bool paint = false, bool orbit = false) {
         glClearColor(.045f,.065f,.085f,1); glClearDepth(1); glDepthMask(GL_TRUE);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -53,7 +54,7 @@ void check(const std::filesystem::path& capture) {
         restored.draw({0,0,width,height}, {-1,-1}, false, false);
         if (pixels() != painted) throw std::runtime_error("Saved character did not restore the rendered paint and icon");
     }
-    std::filesystem::remove(profile);
+    std::filesystem::remove_all(root);
     draw({.5f,.5f}, false, true); draw({.8f,.5f}, false, true);
     draw({-1,-1});
     if (pixels() == painted) throw std::runtime_error("Right drag failed to rotate the character");

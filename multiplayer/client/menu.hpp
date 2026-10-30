@@ -23,6 +23,7 @@ public:
 private:
     void callbacks();
     void handleCommand();
+    bool prepareCharacter();
     void leaveCharacterCreation();
     void draw(const std::string& message, bool loading);
     static void key(GLFWwindow*, int, int, int, int);
@@ -30,11 +31,13 @@ private:
     static void click(GLFWwindow*, int, int, int);
     static void pointer(GLFWwindow*, double, double);
     static void focus(GLFWwindow*, int);
+    static void scroll(GLFWwindow*, double, double);
     GLFWwindow* window_ = nullptr;
     std::unique_ptr<MenuView> view_;
     bool cancelled_ = false;
     bool creating_ = false;
     std::unique_ptr<CharacterCreation> characterCreation_;
     GameMode choice_ = GameMode::Menu;
+    std::string status_;
 };
 }

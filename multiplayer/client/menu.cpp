@@ -28,18 +28,28 @@ GameMenu::~GameMenu() {
 }
 void GameMenu::handleCommand() {
     switch (view_->takeCommand()) {
-    case MenuCommand::SinglePlayer: choice_ = GameMode::SinglePlayer; break;
-    case MenuCommand::Host: choice_ = GameMode::Host; break;
-    case MenuCommand::Join: choice_ = GameMode::Join; break;
+    case MenuCommand::SinglePlayer: if (prepareCharacter()) choice_ = GameMode::SinglePlayer; break;
+    case MenuCommand::Host: if (prepareCharacter()) choice_ = GameMode::Host; break;
+    case MenuCommand::Join: if (prepareCharacter()) choice_ = GameMode::Join; break;
     case MenuCommand::Quit: choice_ = GameMode::Quit; break;
     case MenuCommand::Character:
         creating_ = true;
-        glfwSetWindowTitle(window_, "Godollo | Character creation");
+        glfwSetWindowTitle(window_, "Godollo | Characters");
         break;
     case MenuCommand::Back: leaveCharacterCreation(); break;
     case MenuCommand::Cancel: cancelled_ = true; break;
     case MenuCommand::None: break;
     }
+}
+bool GameMenu::prepareCharacter() {
+    try {
+        if (!characterCreation_) characterCreation_ = std::make_unique<CharacterCreation>();
+        view_->editCharacter(*characterCreation_);
+        if (!characterCreation_->library().activeId().empty()) return true;
+        status_ = "Create or choose a character before playing.";
+        creating_ = true; glfwSetWindowTitle(window_, "Godollo | Characters");
+    } catch (const std::exception& error) { status_ = error.what(); }
+    return false;
 }
 void GameMenu::leaveCharacterCreation() {
     creating_ = false;
@@ -51,12 +61,13 @@ void GameMenu::callbacks() {
     glfwSetWindowUserPointer(window_, this); glfwSetKeyCallback(window_, key);
     glfwSetCharCallback(window_, character); glfwSetMouseButtonCallback(window_, click);
     glfwSetCursorPosCallback(window_, pointer); glfwSetWindowFocusCallback(window_, focus);
-    glfwSetScrollCallback(window_, nullptr);
+    glfwSetScrollCallback(window_, scroll);
     glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     double x = 0, y = 0; glfwGetCursorPos(window_, &x, &y); pointer(window_, x, y);
 }
 void GameMenu::key(GLFWwindow* window, int code, int, int action, int mods) { menu(window).view_->key(code, action, mods); }
 void GameMenu::character(GLFWwindow* window, unsigned int c) { menu(window).view_->character(c); }
+void GameMenu::scroll(GLFWwindow* window, double, double y) { menu(window).view_->wheel(float(y)); }
 void GameMenu::click(GLFWwindow* window, int button, int action, int mods) {
     if (button != GLFW_MOUSE_BUTTON_LEFT && button != GLFW_MOUSE_BUTTON_RIGHT) return;
     double x = 0, y = 0; glfwGetCursorPos(window, &x, &y); pointer(window, x, y);
@@ -76,7 +87,7 @@ void GameMenu::focus(GLFWwindow* window, int focused) {
 GameMode GameMenu::choose(const std::string& message) {
     choice_ = GameMode::Menu; cancelled_ = false;
     view_->connection(port, address); callbacks();
-    std::string status = message;
+    status_ = message;
     glfwSetWindowTitle(window_, "Godollo | Choose a game mode");
     while (!closed() && choice_ == GameMode::Menu) {
         glfwPollEvents();
@@ -86,11 +97,11 @@ GameMode GameMenu::choose(const std::string& message) {
                 view_->editCharacter(*characterCreation_);
             }
             catch (const std::exception& error) {
-                status = error.what(); std::cerr << "Character creation: " << status << '\n';
+                status_ = error.what(); std::cerr << "Characters: " << status_ << '\n';
                 leaveCharacterCreation();
             }
         }
-        draw(status, false); handleCommand(); glfwWaitEventsTimeout(.016);
+        draw(status_, false); handleCommand(); glfwWaitEventsTimeout(.016);
     }
     return closed() ? GameMode::Quit : choice_;
 }
@@ -114,18 +125,6 @@ void GameMenu::draw(const std::string& message, bool loading) {
     view_->draw(loading ? MenuScreen::Loading : creating_ ? MenuScreen::Character : MenuScreen::Choose,
                 message, characterCreation_ ? characterCreation_->faceName() : "", width, height);
     port = view_->port(); address = view_->address();
-    if (creating_ && !loading && characterCreation_) {
-        const auto viewport = view_->previewViewport();
-        const int top = height - viewport.y - viewport.w;
-        double x = 0, y = 0; int windowWidth = 0, windowHeight = 0;
-        glfwGetCursorPos(window_, &x, &y); glfwGetWindowSize(window_, &windowWidth, &windowHeight);
-        const glm::vec2 pointer{windowWidth > 0 ? (float(x) / windowWidth * width - viewport.x) / std::max(viewport.z, 1) : -1,
-                                windowHeight > 0 ? (float(y) / windowHeight * height - top) / std::max(viewport.w, 1) : -1};
-        const bool focused = glfwGetWindowAttrib(window_, GLFW_FOCUSED);
-        characterCreation_->draw(viewport, pointer,
-            focused && glfwGetMouseButton(window_, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS,
-            focused && glfwGetMouseButton(window_, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
-    }
     glfwSwapBuffers(window_);
     if (depth) glEnable(GL_DEPTH_TEST);
     if (cull) glEnable(GL_CULL_FACE);

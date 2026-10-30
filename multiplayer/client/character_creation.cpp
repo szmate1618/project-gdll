@@ -15,21 +15,17 @@ namespace multiplayer {
 namespace {
 struct Vertex { glm::vec3 position, normal; glm::vec2 uv; float face; };
 }
-CharacterCreation::CharacterCreation(std::filesystem::path profilePath) : faces_(loadCharacterFaces(resourceRoot())), profilePath_(std::move(profilePath)) {
-    std::mt19937 random(std::random_device{}());
-    faceIndex_ = std::uniform_int_distribution<std::size_t>(0, faces_.size() - 1)(random);
-    try {
-        if (profilePath_.empty()) profilePath_ = characterProfilePath();
-        CharacterCanvas loaded; std::string id;
-        if (loadCharacterProfile(profilePath_, loaded, id)) {
-            const auto face = std::find_if(faces_.begin(), faces_.end(), [&](const auto& face) { return face.id == id; });
-            if (face == faces_.end()) throw std::runtime_error("Saved face icon is unavailable");
-            canvas_ = std::move(loaded); faceIndex_ = std::size_t(face - faces_.begin());
-            status_ = "Saved character loaded";
-        }
-    } catch (const std::exception& error) { status_ = std::string("Could not load saved character: ") + error.what(); }
-    faceName_ = faces_[faceIndex_].name;
-    canvas_.applyFace(loadCharacterFaceImage(faces_[faceIndex_].image));
+CharacterCreation::CharacterCreation(std::filesystem::path profilePath)
+    : library_(profilePath.empty() ? characterProfilePath() : std::move(profilePath)), faces_(loadCharacterFaces(resourceRoot())) {
+    status_ = library_.warning();
+    if (!library_.characters().empty()) {
+        selectCharacter(library_.activeId().empty() ? library_.characters().front().id : library_.activeId());
+        if (!library_.warning().empty()) status_ = library_.warning();
+    } else {
+        faceName_ = faces_.front().name;
+        canvas_.applyFace(loadCharacterFaceImage(faces_.front().image));
+        status_ = library_.warning().empty() ? "Create your first character" : library_.warning();
+    }
     const auto path = resourceRoot() / "multiplayer/client";
     std::vector<Vertex> vertices;
     const std::array<glm::vec2, 4> corners{{{0,0}, {1,0}, {1,1}, {0,1}}};
@@ -71,7 +67,46 @@ void CharacterCreation::uploadImages() {
         glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, CharacterCanvas::resolution, CharacterCanvas::resolution,
             1, GL_RGBA, GL_UNSIGNED_BYTE, canvas_.images()[i].rgba.data());
 }
-void CharacterCreation::changed() { status_ = "Unsaved changes"; }
+void CharacterCreation::changed() { dirty_ = true; status_ = "Unsaved changes"; }
+void CharacterCreation::setName(const std::string& name) {
+    if (name_ != name) { name_ = name; changed(); }
+}
+void CharacterCreation::newCharacter() {
+    canvas_ = CharacterCanvas{}; faceIndex_ = 0; faceName_ = faces_.front().name;
+    canvas_.applyFace(loadCharacterFaceImage(faces_.front().image));
+    selected_.clear(); name_.clear(); hasCharacter_ = true; dirty_ = false;
+    status_ = "Name your new character";
+    if (texture_) uploadImages();
+    releasePointer(); yaw_ = .4f; pitch_ = .15f;
+}
+void CharacterCreation::selectCharacter(const std::string& id) {
+    const auto record = library_.get(id);
+    CharacterCanvas loaded; std::string face, name;
+    if (!loadCharacterProfile(record.path, loaded, face, &name)) throw std::runtime_error("Character save is missing");
+    const auto found = std::find_if(faces_.begin(), faces_.end(), [&](const auto& icon) { return icon.id == face; });
+    if (found == faces_.end()) throw std::runtime_error("Saved face icon is unavailable");
+    loaded.applyFace(loadCharacterFaceImage(found->image));
+    canvas_ = std::move(loaded); selected_ = id; name_ = name;
+    faceIndex_ = std::size_t(found - faces_.begin()); faceName_ = found->name;
+    dirty_ = false; hasCharacter_ = true; status_ = library_.activeId() == id ? "In use for your next session" : "Saved character";
+    if (texture_) uploadImages();
+    releasePointer();
+}
+void CharacterCreation::discardChanges() {
+    if (!selected_.empty()) selectCharacter(selected_);
+    else if (!library_.characters().empty()) selectCharacter(library_.activeId().empty() ? library_.characters().front().id : library_.activeId());
+    else { hasCharacter_ = false; dirty_ = false; name_.clear(); status_ = "Create your first character"; releasePointer(); }
+}
+void CharacterCreation::useCharacter() {
+    if (selected_.empty() || dirty_) throw std::runtime_error("Save this character before using it");
+    library_.use(selected_); status_ = "In use for your next session";
+}
+void CharacterCreation::retireCharacter() {
+    if (selected_.empty()) throw std::runtime_error("Only saved characters can be retired");
+    library_.retire(selected_);
+    selected_.clear(); discardChanges();
+    status_ = library_.activeId().empty() ? "Choose a character for your next session" : "Character retired";
+}
 void CharacterCreation::selectFace(std::size_t index) {
     const auto& face = faces_.at(index);
     const auto icon = loadCharacterFaceImage(face.image);
@@ -98,9 +133,10 @@ void CharacterCreation::reset() {
 }
 bool CharacterCreation::save() {
     try {
-        if (profilePath_.empty()) profilePath_ = characterProfilePath();
-        saveCharacterProfile(profilePath_, canvas_, faces_[faceIndex_].id);
-        status_ = "Character saved locally";
+        if (!hasCharacter_) throw std::runtime_error("Create a character first");
+        const auto record = library_.save(selected_, name_, canvas_, faces_[faceIndex_].id);
+        selected_ = record.id; name_ = record.name; dirty_ = false;
+        status_ = library_.activeId().empty() ? "Saved. Choose Use character before playing." : "Character saved locally";
         return true;
     } catch (const std::exception& error) { status_ = std::string("Save failed: ") + error.what(); return false; }
 }
@@ -126,7 +162,7 @@ void CharacterCreation::draw(glm::ivec4 viewport, glm::vec2 pointer, bool paint,
         hit = CharacterCanvas::intersect(eye, glm::vec3(far) / far.w - eye);
     }
     glActiveTexture(GL_TEXTURE0); glBindSampler(0, 0);
-    if (paint && !orbit && hit) {
+    if (paint && hasCharacter_ && !orbit && hit) {
         const auto start = previousPaint_.value_or(hit->position);
         const int steps = std::max(1, int(std::ceil(glm::distance(start, hit->position) / (CharacterCanvas::brushRadius * .4f))));
         bool changed = false;

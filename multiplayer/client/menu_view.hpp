@@ -24,6 +24,7 @@ public:
     void character(unsigned int codepoint);
     void pointer(float normalizedX, float normalizedY);
     void button(int button, bool pressed, int modifiers);
+    void wheel(float notches);
     void focusLost();
     MenuCommand takeCommand();
     glm::ivec4 previewViewport() const; // Framebuffer pixels; bottom-left GL origin.

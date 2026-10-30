@@ -2,6 +2,7 @@
 import ctypes as C
 import ctypes.util
 import os
+import json
 from pathlib import Path
 import shutil
 import socket
@@ -168,6 +169,11 @@ def capture(name):
 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
+# Seed the former single-save format to check non-destructive import and reuse.
+profile = directory / "character.json"
+if not profile.exists():
+    profile.write_text(json.dumps({"schema":"godollo.character", "version":1, "resolution":256,
+        "face":"clown", "base":[70,178,190], "brush":[235,67,112], "ink":[18,28,36], "paint":[[],[],[],[],[],[]]}))
 base = [asset, "--no-trees", "--zombie-count", "0"]
 log = directory / "game.log"
 children = []
@@ -185,7 +191,7 @@ with log.open("w") as output:
         key("F6")
         capture("menu-modern")
         key("4")
-        wait_for(lambda: "| Character creation" in title(window), "Character creation screen did not open")
+        wait_for(lambda: "| Characters" in title(window), "Character creation screen did not open")
         time.sleep(.15)
         capture("character-creation")
         key("Escape")
@@ -202,7 +208,7 @@ with log.open("w") as output:
             key("Escape")
             wait_for(lambda: "Choose a game mode" in title(window), "Leaving single-player did not restore menu")
         key("4")
-        wait_for(lambda: "| Character creation" in title(window), "Character preview could not reopen after gameplay")
+        wait_for(lambda: "| Characters" in title(window), "Character preview could not reopen after gameplay")
         time.sleep(.15)
         capture("character-after-session")
         key("Escape")
