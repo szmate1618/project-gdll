@@ -1,0 +1,36 @@
+/* Skills uses the loadout tabs/hotbar and the character studio's quiet controls.
+   Combo controls remain presentation placeholders. */
+.skills .main-panel { box-sizing: border-box; }
+#skills-list { left: 0dp; width: 346dp; }
+#combo-builder { left: 366dp; width: 470dp; }
+#skill-details { left: 856dp; width: 354dp; }
+.skills-group { position: absolute; left: 20dp; right: 20dp; border-width: 1dp; border-color: #f5f6f226; background-color: #2b2d2f33; }
+#melee-skills { top: 54dp; height: 244dp; }
+#saved-combos { top: 314dp; bottom: 20dp; }
+.skills-group-heading { height: 32dp; padding-left: 12dp; line-height: 32dp; font-size: 10dp; letter-spacing: 1dp; border-bottom-width: 1dp; border-color: #f5f6f226; color: #f5f6f299; }
+#melee-skill-entries { position: absolute; left: 0dp; right: 0dp; top: 33dp; bottom: 0dp; overflow-y: auto; }
+.skill-entry { position: relative; height: 56dp; border-bottom-width: 1dp; border-color: #f5f6f226; }
+.skill-entry:hover { background-color: #f5f6f214; }
+.skill-square { position: absolute; left: 12dp; top: 12dp; width: 30dp; height: 30dp; box-sizing: border-box; border-width: 1dp; border-color: #b29a8580; background-color: #b29a854d; }
+.skill-symbol { position: absolute; left: 4dp; top: 4dp; width: 22dp; height: 22dp; image-color: #f5f6f2; }
+.skill-symbol.fists { decorator: image(../data/assets/game-icons/hud/fists.png contain); }
+.skill-name { position: absolute; left: 56dp; right: 12dp; top: 18dp; font-size: 14dp; white-space: nowrap; overflow: hidden; }
+.skills-empty { padding: 18dp 12dp; font-size: 11dp; color: #f5f6f280; }
+#combo-name-label { position: absolute; left: 20dp; top: 44dp; font-size: 9dp; letter-spacing: 1dp; color: #f5f6f299; }
+#combo-name { position: absolute; left: 20dp; top: 61dp; width: 428dp; height: 30dp; box-sizing: border-box; padding: 5dp 10dp; border-width: 1dp; border-color: #f5f6f24d; background-color: #2b2d2f; font-family: hud-system; font-size: 14dp; line-height: 18dp; color: #f5f6f280; }
+#combo-slots { position: absolute; top: 105dp; left: 20dp; right: 20dp; }
+.combo-slot { position: relative; height: 38dp; margin-bottom: 8dp; box-sizing: border-box; border-width: 1dp; border-color: #f5f6f226; background-color: #2b2d2f66; }
+.combo-number { position: absolute; top: 0dp; left: 0dp; width: 40dp; height: 36dp; line-height: 36dp; text-align: center; font-size: 12dp; border-right-width: 1dp; border-color: #f5f6f226; color: #f5f6f2bf; }
+.combo-add { position: absolute; left: 54dp; top: 0dp; width: 20dp; line-height: 36dp; text-align: center; font-size: 20dp; color: #f5f6f299; }
+.combo-empty-icon { position: absolute; left: 56dp; top: 9dp; width: 16dp; height: 16dp; box-sizing: border-box; border-width: 1dp; border-color: #f5f6f226; }
+.combo-placeholder { position: absolute; left: 86dp; right: 32dp; top: 0dp; line-height: 36dp; font-size: 12dp; color: #f5f6f280; }
+.combo-handle { position: absolute; right: 10dp; top: 0dp; line-height: 36dp; font-size: 15dp; letter-spacing: -3dp; color: #f5f6f259; }
+.skills-button { position: absolute; bottom: 18dp; height: 32dp; box-sizing: border-box; padding: 6dp 8dp; border-width: 1dp; font-family: hud-system; font-size: 11dp; line-height: 18dp; text-align: center; }
+.skills-button.inactive { color: #f5f6f259; border-color: #f5f6f226; background-color: #2b2d2f66; pointer-events: none; cursor: default; }
+#reset-combo { left: 20dp; width: 164dp; }
+#save-combo { left: 196dp; right: 20dp; }
+.skill-details-icon { position: absolute; left: 20dp; top: 66dp; width: 44dp; height: 44dp; background-color: #f5f6f226; }
+.skill-details-name { position: absolute; left: 82dp; right: 18dp; top: 71dp; font-size: 20dp; line-height: 25dp; }
+.skill-details-fields { position: absolute; left: 20dp; right: 20dp; top: 153dp; }
+.skill-detail { height: 58dp; padding-top: 3dp; border-top-width: 1dp; border-color: #f5f6f226; }
+#add-combo-action { left: 20dp; right: 20dp; }

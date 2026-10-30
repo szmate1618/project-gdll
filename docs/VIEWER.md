@@ -111,15 +111,15 @@ The downloaded archive is reused, and no icon artwork is generated.
 
 Layout lives in [hud.rml](../ui/hud.rml), [hud.rcss](../ui/hud.rcss), and
 [loadout.rcss](../ui/loadout.rcss). [palette.rcss](../ui/palette.rcss) holds shared
-color roles for gameplay and all loadout screens. The main game-mode menu
-retains its original blue/green scheme and is styled separately. Warm white is
+color roles for gameplay, all loadout screens, and the Modern main menu. Classic
+retains its original blue/green scheme. Warm white is
 the main in-game UI color, with grey menu surfaces and the HUD's health red as
 the menu accent:
 
 | Role | Color | Use |
 | --- | --- | --- |
 | Primary | White `#f5f6f2` | Text, item outlines and progress |
-| Accent | Health red `#ec6962` | Active loadout tabs, group headings, hover, combo markers and health |
+| Accent | Coral `#ec6962` | Active tabs, selection markers and health |
 | Placement feedback | Green `#59c49c` / yellow `#e7cd65` / red `#ec6962` | Free space, swaps and rejection |
 | Surfaces | Grey `#2b2d2f` / `#383a3c` | Menu backdrop and panels |
 
@@ -205,10 +205,15 @@ configurable penalty/bonus values.
 Completed moves persist for the session;
 they are not written to TOML or synchronized over the network.
 
-[skills.rml](../ui/skills.rml) has available melee actions and saved combos on
-the left, six numbered combo-builder slots in the center, and combo details
-with an inactive Save Combo button on the right. Combo editing, saving and
-execution are layout placeholders; they do not change melee combat.
+[skills.rml](../ui/skills.rml) uses the character studio's neutral panels and
+controls while retaining the in-game tabs and shortcut strip. Available melee
+actions and saved combos are on the left; the wider center panel has a combo
+name field, six compact numbered steps, Reset and Save Combo. The right panel
+shows the action-details placeholder and an inactive Add to Combo button.
+Group headings, step numbers and hover fills stay neutral, with coral reserved
+for navigation highlights. Skills-specific layout and colors live in
+[skills.rcss](../ui/skills.rcss). Combo editing, saving and execution remain
+layout placeholders; they do not change melee combat.
 [skills.toml](../skills.toml) registers the available melee actions in `[melee]`:
 `punch = "Punch"` uses the empty definition
 [skills/melee/punch.skill.toml](../skills/melee/punch.skill.toml). To list another
@@ -227,7 +232,8 @@ assigned to pistol, SMG, shotgun, sniper and HE grenade; slot 5 references `skil
 footprints separately from gameplay settings in `storage/weapons/*.gameplay.toml`.
 Ownership and shortcuts are loaded with the player inventory at startup.
 Hotbar editing and combo execution remain unimplemented. In gameplay, number keys and the mouse wheel preview these configured shortcuts; left click confirms.
-Icons and the body reference are colored square placeholders. System fonts and
+Inventory tiles and the body reference are colored square placeholders; the
+Skills list reuses the HUD's existing fist artwork for Punch. System fonts and
 the HUD backend are shared; each screen is cached until the session ends.
 
 After building `test_hud`, capture the screens without loading town data:

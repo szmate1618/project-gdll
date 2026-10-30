@@ -1,36 +1,40 @@
 <rml>
-<head><title>Skills</title><link type="text/template" href="loadout.rml" /></head>
+<head><title>Skills</title><link type="text/template" href="loadout.rml" /><link type="text/rcss" href="skills.rcss" /></head>
 <body template="loadout" class="loadout skills">
     <div id="skills-list" class="panel main-panel">
-        <div class="panel-heading">AVAILABLE ACTIONS</div>
+        <div class="panel-heading">AVAILABLE ACTIONS</div><div id="skills-count" class="panel-meta"></div>
         <div id="melee-skills" class="skills-group">
             <div class="skills-group-heading">MELEE SKILLS</div>
             <div id="melee-skill-entries"></div>
         </div>
         <div id="saved-combos" class="skills-group">
             <div class="skills-group-heading">SAVED COMBOS</div>
-            <div class="skills-empty">No saved combos</div>
+            <div class="skills-empty">No saved combos yet</div>
         </div>
     </div>
     <div id="combo-builder" class="panel main-panel">
         <div class="panel-heading">COMBO BUILDER</div><div class="panel-meta">0 / 6 ACTIONS</div>
+        <label id="combo-name-label" for="combo-name">COMBO NAME</label>
+        <input id="combo-name" type="text" placeholder="Combo name" disabled="disabled" />
         <div id="combo-slots">
-            <div class="combo-slot"><div class="combo-number">1</div><div class="combo-add"><span>+</span> Add next skill</div></div>
-            <div class="combo-arrow">&#8595;</div>
-            <div class="combo-slot"><div class="combo-number">2</div><div class="combo-add"><span>+</span> Add next skill</div></div>
-            <div class="combo-arrow">&#8595;</div>
-            <div class="combo-slot"><div class="combo-number">3</div><div class="combo-add"><span>+</span> Add next skill</div></div>
-            <div class="combo-arrow">&#8595;</div>
-            <div class="combo-slot"><div class="combo-number">4</div><div class="combo-add"><span>+</span> Add next skill</div></div>
-            <div class="combo-arrow">&#8595;</div>
-            <div class="combo-slot"><div class="combo-number">5</div><div class="combo-add"><span>+</span> Add next skill</div></div>
-            <div class="combo-arrow">&#8595;</div>
-            <div class="combo-slot"><div class="combo-number">6</div><div class="combo-add"><span>+</span> Add next skill</div></div>
+            <div class="combo-slot"><div class="combo-number">1</div><div class="combo-add">+</div><div class="combo-placeholder">Add next action</div><div class="combo-handle">&#8942;&#8942;</div></div>
+            <div class="combo-slot"><div class="combo-number">2</div><div class="combo-empty-icon"></div><div class="combo-placeholder">Empty slot</div><div class="combo-handle">&#8942;&#8942;</div></div>
+            <div class="combo-slot"><div class="combo-number">3</div><div class="combo-empty-icon"></div><div class="combo-placeholder">Empty slot</div><div class="combo-handle">&#8942;&#8942;</div></div>
+            <div class="combo-slot"><div class="combo-number">4</div><div class="combo-empty-icon"></div><div class="combo-placeholder">Empty slot</div><div class="combo-handle">&#8942;&#8942;</div></div>
+            <div class="combo-slot"><div class="combo-number">5</div><div class="combo-empty-icon"></div><div class="combo-placeholder">Empty slot</div><div class="combo-handle">&#8942;&#8942;</div></div>
+            <div class="combo-slot"><div class="combo-number">6</div><div class="combo-empty-icon"></div><div class="combo-placeholder">Empty slot</div><div class="combo-handle">&#8942;&#8942;</div></div>
         </div>
+        <button id="reset-combo" class="skills-button inactive" disabled="disabled">RESET</button>
+        <button id="save-combo" class="skills-button inactive" disabled="disabled">SAVE COMBO</button>
     </div>
-    <div id="combo-details" class="panel main-panel">
-        <div class="panel-heading">COMBO DETAILS</div>
-        <button id="save-combo" disabled="disabled">Save Combo</button>
+    <div id="skill-details" class="panel main-panel">
+        <div class="panel-heading">ACTION DETAILS</div>
+        <div class="skill-details-icon"></div><div class="skill-details-name">No action selected</div>
+        <div class="skill-details-fields">
+            <div class="skill-detail"><div class="field-label">TYPE</div><div class="field-value">—</div></div>
+            <div class="skill-detail"><div class="field-label">AVAILABLE</div><div class="field-value">—</div></div>
+        </div>
+        <button id="add-combo-action" class="skills-button inactive" disabled="disabled">ADD TO COMBO</button>
     </div>
 </body>
 </rml>

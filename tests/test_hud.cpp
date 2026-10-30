@@ -884,7 +884,7 @@ int main(int argc, char** argv) {
             std::size_t actionChanges = 0;
             for (int y = 0; y < 720; ++y) for (int x = 0; x < 1280; ++x) {
                 const bool same = colorAt(original, 1280, 720, x, y) == colorAt(configured, 1280, 720, x, y);
-                if (x >= 54 && x < 380 && y >= 185 && y < 400) actionChanges += !same;
+                if (x >= 34 && x < 380 && y >= 98 && y < 548) actionChanges += !same;
                 else require(same, "Melee registration changed content outside the available skill list");
             }
             require(actionChanges > 300, "Newly registered melee skill did not appear in Skills");

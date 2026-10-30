@@ -25,7 +25,7 @@ def check_credits(package):
         "HUD_ICONS.txt": "Game-icons.net",
         "CHARACTER_FACES.txt": "Game-icons.net",
     }
-    for name in ("hud.rml", "hud.rcss", "command-wheel.rcss", "palette.rcss", "hud-icons.rcss", "hud.vert", "hud.frag", "inventory.rml", "skills.rml", "health.rml", "map.rml", "loadout.rml", "loadout.rcss"):
+    for name in ("hud.rml", "hud.rcss", "command-wheel.rcss", "palette.rcss", "hud-icons.rcss", "hud.vert", "hud.frag", "inventory.rml", "skills.rml", "skills.rcss", "health.rml", "map.rml", "loadout.rml", "loadout.rcss"):
         if not (package / "ui" / name).is_file():
             raise RuntimeError("Package is missing HUD resource " + name)
     for name in ("main-menu.rml", "main-menu.rcss", "main-menu-classic.rcss", "main-menu-modern.rcss", "fonts/menu-pixel.ttf", "character-editor.rcss"):

@@ -54,26 +54,6 @@ body.loadout { pointer-events: auto; }
 .assignment-square { position: absolute; left: 8dp; top: 33dp; width: 14dp; height: 14dp; }
 .assignment-name { position: absolute; left: 29dp; right: 5dp; top: 30dp; font-size: 11dp; line-height: 13dp; }
 .empty .assignment-name { left: 8dp; font-size: 10dp; }
-/* Skills shares the loadout frame, palette and type scale. */
-#skills-list { left: 0dp; width: 366dp; }
-#combo-builder { left: 386dp; width: 438dp; }
-#combo-details { left: 844dp; width: 366dp; }
-.skills-group { position: absolute; left: 20dp; right: 20dp; border-width: 1dp; }
-#melee-skills { top: 54dp; height: 244dp; }
-#saved-combos { top: 314dp; bottom: 20dp; }
-.skills-group-heading { height: 32dp; padding-left: 12dp; line-height: 32dp; font-size: 10dp; letter-spacing: 1dp; border-bottom-width: 1dp; }
-#melee-skill-entries { position: absolute; left: 0dp; right: 0dp; top: 33dp; bottom: 0dp; overflow-y: auto; }
-.skill-entry { position: relative; height: 56dp; border-bottom-width: 1dp; }
-.skill-square { position: absolute; left: 12dp; top: 12dp; width: 30dp; height: 30dp; border-width: 1dp; }
-.skill-name { position: absolute; left: 56dp; right: 12dp; top: 18dp; font-size: 14dp; white-space: nowrap; overflow: hidden; }
-.skills-empty { padding: 18dp 12dp; font-size: 11dp; }
-#combo-slots { position: absolute; top: 54dp; left: 20dp; right: 20dp; }
-.combo-slot { position: relative; height: 44dp; border-width: 1dp; }
-.combo-number { position: absolute; top: 0dp; left: 0dp; width: 40dp; height: 44dp; line-height: 44dp; text-align: center; font-size: 14dp; border-right-width: 1dp; }
-.combo-add { position: absolute; left: 41dp; right: 0dp; top: 0dp; height: 44dp; line-height: 44dp; text-align: center; font-size: 12dp; }
-.combo-add span { margin-right: 7dp; font-size: 20dp; }
-.combo-arrow { height: 16dp; line-height: 16dp; text-align: center; font-size: 14dp; }
-#save-combo { position: absolute; left: 20dp; right: 20dp; bottom: 20dp; height: 38dp; line-height: 38dp; text-align: center; font-family: hud-system; font-size: 12dp; border-width: 1dp; }
 .health #action-hotbar, .map #action-hotbar { display: none; }
 .full-panel { left: 0dp; width: 1210dp; height: 590dp; }
 #satellite-overview { display: block; position: absolute; left: 50%; margin-left: -257dp; top: 54dp; width: 512dp; height: 512dp; border-width: 1dp; }

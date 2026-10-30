@@ -21,7 +21,7 @@ def check_contents(package):
         "data/assets/game-icons/license.txt", "credits/assets/HUD_ICONS.txt",
         "gui/character-faces.json", "credits/assets/CHARACTER_FACES.txt",
         "multiplayer/client/character_creation.vert", "multiplayer/client/character_creation.frag",
-        "ui/inventory.rml", "ui/skills.rml", "ui/health.rml", "ui/map.rml", "ui/loadout.rml", "ui/loadout.rcss",
+        "ui/inventory.rml", "ui/skills.rml", "ui/skills.rcss", "ui/health.rml", "ui/map.rml", "ui/loadout.rml", "ui/loadout.rcss",
         "multiplayer/client/players.vert", "multiplayer/client/players.frag",
         "credits/assets/README.txt", "licenses/GameNetworkingSockets.txt",
     ]

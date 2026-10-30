@@ -1,7 +1,7 @@
 /* HUD, in-game loadout and modern main-menu palette. Classic keeps its own colors.
    Primary white #f5f6f2: text, item outlines and progress.
    Grey backdrop #2b2d2f and surfaces #383a3c anchor the menu screens.
-   Health red #ec6962 accents menu navigation, headings and combo markers.
+   Coral #ec6962 accents menu navigation and selection markers.
    Gameplay vitals and equipment retain their HUD tints; inventory placement
    keeps green/yellow/red feedback for valid space, swaps and rejection.
    Hex suffixes vary opacity; satellite imagery retains its geographic colors. */
@@ -37,29 +37,20 @@ div, span, button { border-color: #f5f6f24d; }
 body.loadout { background-color: #2b2d2fed; }
 .panel { background-color: #383a3cd9; }
 .page-tab, .body-placeholder-label, .backpack-caption,
-.field-label, .skills-empty { color: #f5f6f280; }
+.field-label { color: #f5f6f280; }
 .page-tab:hover { color: #f5f6f2; background-color: #f5f6f21a; }
 .inventory #inventory-tab, .skills #skills-tab,
 .health #health-tab, .map #map-tab { color: #f5f6f2; border-color: #ec6962; }
 .body-placeholder, .loadout .unselected { background-color: #f5f6f240; }
 .backpack-size, .storage-occupants, .item .assignment-type,
-.skill .assignment-type, .combo-add,
+.skill .assignment-type,
 .storage-label, .action-number { color: #f5f6f2bf; }
 .storage-item, .storage-item.explosive { border-color: #f5f6f2; background-color: #f5f6f226; }
-.storage-cell, .action-slot, .combo-slot, #save-combo { background-color: #2b2d2f66; }
+.storage-cell, .action-slot { background-color: #2b2d2f66; }
 .storage-item-label { color: #f5f6f2; }
-.detail-field, .skills-group-heading, .skill-entry,
-.combo-number, .skills-group { border-color: #f5f6f226; }
-.skills-group { background-color: #2b2d2f33; }
-.skills-group-heading { color: #ec6962; background-color: #ec69620d; }
-.skill-entry:hover { background-color: #ec696214; }
-.skill-square { border-color: #b29a8580; background-color: #b29a854d; }
+.detail-field { border-color: #f5f6f226; }
 .loadout .punch { background-color: #b29a85; }
 .loadout .grenade { background-color: #b3ae72; }
-.combo-add span { color: #ec6962; }
-.combo-arrow { color: #ec696280; }
-.combo-number { color: #ec6962bf; }
-#save-combo { color: #f5f6f280; }
 .signal-marker { background-color: #2b2d2fed; }
 /* Faint sector fills keep the gameplay scene visible through the dial. */
 .command-choice { sector-fill: #f5f6f226; sector-outline: #f5f6f24d; }
