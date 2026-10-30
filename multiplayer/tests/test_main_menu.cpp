@@ -121,8 +121,26 @@ int main(int argc, char** argv) {
                 for (int y = 599; y >= 0; --y) output.write(reinterpret_cast<const char*>(image.data() + y * 960 * 3), 960 * 3);
                 require(bool(output), "Cannot save editor QA capture");
             };
-        click(145,177); type("Mara"); key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Character);
+        const auto disabledRetire = color(80,472);
+        click(145,480);
+        require(!creation->hasCharacter() && color(80,472) == disabledRetire && near(color(450,410), {36,38,40}),
+                "Retire without a saved selection must stay disabled and must not open a dialog");
+        const auto idleNew = color(80,170);
+        menu.pointer(145.f/960,177.f/600); draw(multiplayer::MenuScreen::Character);
+        require(color(80,170)[0] > idleNew[0], "Character action buttons must brighten on hover");
+        menu.pointer(950.f/960,590.f/600); draw(multiplayer::MenuScreen::Character);
+        capture("-empty-modern"); key(GLFW_KEY_F6); draw(multiplayer::MenuScreen::Character);
+        click(145,480);
+        require(!creation->hasCharacter() && near(color(450,410), {11,17,22}),
+                "Classic Retire must also be disabled without a selected character");
+        menu.pointer(950.f/960,590.f/600); draw(multiplayer::MenuScreen::Character);
+        capture("-empty-classic"); key(GLFW_KEY_F6); draw(multiplayer::MenuScreen::Character);
+        click(875,140); // Empty editor's far corner, outside the old preview and Create button.
+        type("Mara"); key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Character);
         require(creation->hasCharacter() && creation->name() == "Mara", "New must open the existing editor with a name field");
+        click(145,480);
+        require(creation->selectedId().empty() && creation->name() == "Mara" && !near(color(450,410), {56,58,60}),
+                "Retire must remain disabled while editing a new unsaved character");
         int role = 0;
         for (const char* value : {"123456", "ABCDEF", "FEDCBA"}) {
             click(680,185 + 47 * role++); key(GLFW_KEY_A, GLFW_MOD_CONTROL); type(value); draw(multiplayer::MenuScreen::Character);

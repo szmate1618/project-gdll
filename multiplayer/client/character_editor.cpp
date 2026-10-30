@@ -82,7 +82,11 @@ struct CharacterEditor::Impl final : Rml::EventListener {
         return *result;
     }
     void disable(const char* id, bool disabled) {
-        if (disabled) element(id).SetAttribute("disabled", true); else element(id).RemoveAttribute("disabled");
+        auto& control = element(id);
+        if (disabled) control.SetAttribute("disabled", true); else control.RemoveAttribute("disabled");
+        // Generic RmlUi buttons do not implement native form-control disabling.
+        control.SetPseudoClass("disabled", disabled);
+        if (disabled && document.GetContext()->GetFocusElement() == &control) control.Blur();
     }
     bool colorsValid() const {
         for (const auto* field : inputs) if (!parseColor(field->GetValue())) return false;
@@ -128,6 +132,7 @@ struct CharacterEditor::Impl final : Rml::EventListener {
         element("character-screen").SetClass("has-dialog", dialog != Dialog::None);
         text(element("face-name"), creation.faceName());
         std::string status = error.empty() ? creation.status() : error;
+        if (!has && error.empty() && creation.library().warning().empty()) status.clear();
         if (has && !colorsValid()) status = "Use a six-digit hex color, e.g. #46B2BE";
         text(element("character-status"), status);
         element("character-status").SetClass("invalid", !error.empty() || (has && !colorsValid()));
@@ -209,16 +214,17 @@ struct CharacterEditor::Impl final : Rml::EventListener {
             if (event.GetId() != Rml::EventId::Click) return;
             for (auto* target = event.GetTargetElement(); target && target->GetId() != "character-screen"; target = target->GetParentNode()) {
                 const auto& id = target->GetId();
+                if (target->HasAttribute("disabled")) return;
                 if (dialog != Dialog::None) {
                     if (id == "dialog-cancel") resolve(0);
                     else if (id == "dialog-discard") resolve(1);
                     else if (id == "dialog-save" && valid()) resolve(2);
                     continue;
                 }
-                if (id == "character-new" || id == "empty-create") { request(Action::New); return; }
+                if (id == "character-new" || (id == "character-empty" && !creation.hasCharacter())) { request(Action::New); return; }
                 if (id == "character-back") { request(Action::Back); return; }
                 if (id == "character-cancel") { request(Action::Discard); return; }
-                if (id == "character-retire") { request(Action::Retire); return; }
+                if (id == "character-retire") { if (!creation.selectedId().empty()) request(Action::Retire); return; }
                 if (id == "character-use") { creation.useCharacter(); error.clear(); refresh(); return; }
                 if (id == "character-reset") { creation.reset(); refresh(true); return; }
                 if (id == "character-save") { save(); return; }

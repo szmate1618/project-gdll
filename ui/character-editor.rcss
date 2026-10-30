@@ -3,7 +3,7 @@
 .editor-heading { position: absolute; left: 12dp; top: 12dp; font-size: 10dp; letter-spacing: 1dp; }
 #character-new { position: absolute; left: 10dp; right: 10dp; top: 37dp; height: 30dp; border-width: 1dp; text-align: center; font-size: 10dp; line-height: 26dp; }
 #character-list { position: absolute; left: 10dp; right: 10dp; top: 77dp; height: 252dp; overflow-y: auto; }
-.roster-character { display: block; position: relative; width: 100%; height: 78dp; margin-bottom: 7dp; border-width: 1dp; box-sizing: border-box; }
+.roster-character { display: block; position: relative; width: 100%; height: 78dp; margin-bottom: 7dp; border-width: 1dp; border-left-width: 2dp; box-sizing: border-box; }
 .roster-avatar { position: absolute; left: 10dp; top: 9dp; width: 19dp; height: 57dp; }
 .roster-avatar img { position: absolute; left: 3dp; top: 7dp; width: 13dp; height: 13dp; }
 .roster-avatar-side { position: absolute; left: 16dp; top: 0dp; width: 3dp; height: 57dp; background-color: #00000033; }
@@ -14,10 +14,10 @@
 #character-name-label { position: absolute; left: 270dp; top: 126dp; font-size: 10dp; }
 #character-name { position: absolute; left: 270dp; top: 145dp; width: 310dp; height: 30dp; padding: 5dp 10dp; border-width: 1dp; font-family: hud-system; font-size: 14dp; }
 #character-preview { display: block; position: absolute; left: 270dp; top: 185dp; width: 310dp; height: 320dp; border-width: 1dp; box-sizing: border-box; }
-#character-empty { display: none; position: absolute; left: 285dp; top: 310dp; width: 280dp; text-align: center; font-size: 12dp; }
-#empty-create { display: block; margin: 20dp auto; height: 36dp; padding: 8dp 12dp; border-width: 1dp; font-size: 11dp; }
+#character-empty { display: none; position: absolute; left: 270dp; top: 125dp; width: 630dp; height: 380dp; border-width: 1dp; box-sizing: border-box; cursor: pointer; }
 .empty #character-empty { display: block; }
-.empty #character-details, .empty #faces-panel, .empty #character-name-label, .empty #character-name, .empty #paint-hint, .empty #character-reset { visibility: hidden; }
+.empty #character-details, .empty #faces-panel, .empty #character-name-label, .empty #character-name, .empty #character-preview, .empty #paint-hint, .empty #character-reset, .empty #character-use, .empty #character-cancel, .empty #character-save { visibility: hidden; }
+#character-screen button:disabled { cursor: default; pointer-events: none; }
 #character-details { position: absolute; left: 600dp; top: 125dp; width: 300dp; height: 178dp; border-width: 1dp; box-sizing: border-box; }
 .color-setting { position: absolute; left: 12dp; width: 274dp; height: 42dp; }
 #base-setting { top: 33dp; } #brush-setting { top: 80dp; } #face-setting { top: 127dp; }
@@ -30,7 +30,7 @@
 #faces-panel { position: absolute; left: 600dp; top: 313dp; width: 300dp; height: 192dp; border-width: 1dp; box-sizing: border-box; }
 #face-count { position: absolute; right: 12dp; top: 13dp; font-size: 9dp; }
 #face-options { position: absolute; left: 12dp; top: 33dp; width: 274dp; display: flex; flex-wrap: wrap; }
-.face-option { position: relative; width: 34dp; height: 34dp; margin-right: 5dp; margin-bottom: 5dp; border-width: 1dp; box-sizing: border-box; }
+.face-option { position: relative; width: 34dp; height: 34dp; margin-right: 5dp; margin-bottom: 5dp; border-width: 1dp; border-bottom-width: 2dp; box-sizing: border-box; }
 .face-option img { position: absolute; left: 4dp; top: 4dp; width: 24dp; height: 24dp; image-color: #f5f6f2; }
 .face-option:hover { border-color: #f5f6f2; }
 #face-name { position: absolute; left: 12dp; right: 12dp; bottom: 10dp; font-size: 11dp; white-space: nowrap; overflow: hidden; }
@@ -54,6 +54,8 @@
 .hidden { display: none; }
 .modern #character-roster, .modern #character-details, .modern #faces-panel, .modern #character-preview, .modern #dialog-panel { border-color: #f5f6f226; }
 .modern #character-preview { background-color: #242628; }
+.modern #character-empty { background-color: #242628; border-color: #f5f6f226; }
+.modern #character-empty:hover { background-color: #f5f6f214; border-color: #f5f6f2b0; }
 .modern #dialog-panel { background-color: #383a3c; }
 .modern .color-setting label, .modern #face-count, .modern #character-name-label, .modern #active-character, .modern .roster-active, .modern .roster-empty { color: #f5f6f299; }
 .modern #paint-hint, .modern #character-status, .modern #dialog-detail { color: #f5f6f2bf; }
@@ -62,22 +64,26 @@
 .modern .roster-character, .modern #character-screen button { background-color: #2b2d2f66; border-color: #f5f6f24d; }
 .modern #character-screen .roster-character.selected { border-left-color: #ec6962; background-color: #f5f6f214; }
 .modern #character-screen .color-chip { background-color: transparent; }
-.modern #character-screen .face-option.selected { border-color: #f5f6f2; background-color: #f5f6f21a; }
-.modern #character-screen #character-save, .modern #character-screen #character-use { background-color: #f5f6f226; }
-.modern #character-screen button:hover, .modern #character-screen button:focus { border-color: #f5f6f2b0; }
-.modern #character-screen button:disabled { color: #f5f6f259; border-color: #f5f6f226; background-color: #2b2d2f66; }
+.modern #character-screen .face-option.selected { border-color: #f5f6f2; border-bottom-color: #ec6962; background-color: #f5f6f21a; }
+.modern #character-screen .character-primary { background-color: #f5f6f226; }
+.modern #character-screen button:hover, .modern #character-screen button:focus { border-color: #f5f6f2b0; background-color: #f5f6f21a; }
+.modern #character-screen .character-primary:hover, .modern #character-screen .character-primary:focus { background-color: #f5f6f23d; }
+.modern #character-screen button:focus, .modern #character-screen button:active { border-bottom-color: #ec6962; }
+.modern #character-screen button:disabled, .modern #character-screen button:disabled:hover, .modern #character-screen button:disabled:focus { color: #f5f6f259; border-color: #f5f6f226; background-color: #2b2d2f66; }
 .modern .color-setting input.invalid, .modern #character-name.invalid, .modern #character-status.invalid { border-color: #ec6962; color: #ec6962; }
 .classic #character-roster, .classic #character-details, .classic #faces-panel, .classic #dialog-panel { background-color: #0f1f26; border-color: #338c7366; }
 .classic #character-preview { background-color: #0b1116; border-color: #338c7366; }
+.classic #character-empty { background-color: #0b1116; border-color: #338c7366; }
+.classic #character-empty:hover { background-color: #142633; border-color: #d9e6f0; }
 .classic .editor-heading, .classic .color-setting label, .classic #character-name-label { font-size: 15dp; letter-spacing: 0dp; }
 .classic .color-setting input, .classic #face-name, .classic #face-count { font-size: 15dp; }
 .classic .roster-active, .classic .roster-empty { font-size: 13dp; }
 .classic .color-setting input, .classic #character-name { background-color: #142633; border-color: #338c7380; caret-color: #d9e6f0; }
 .classic input:focus { background-color: #144d33; }
 .classic .roster-character, .classic #character-screen button { background-color: #142633; border-color: #338c7380; }
-.classic #character-screen .roster-character.selected, .classic #character-screen #character-save, .classic #character-screen #character-use { background-color: #1f4d42; border-color: #338c73; }
+.classic #character-screen .roster-character.selected, .classic #character-screen .character-primary { background-color: #1f4d42; border-color: #338c73; }
 .classic #character-screen button { font-size: 13dp; }
 .classic #character-back { width: 140dp; white-space: nowrap; }
-.classic #character-screen button:hover, .classic #character-screen button:focus { border-color: #d9e6f0; }
+.classic #character-screen button:hover, .classic #character-screen button:focus { border-color: #d9e6f0; background-color: #1f4d42; }
 .classic #character-screen button:disabled { color: #d9e6f059; background-color: #142633; border-color: #338c7340; }
 .classic .color-setting input.invalid, .classic #character-name.invalid, .classic #character-status.invalid { border-color: #eb4370; color: #eb4370; }

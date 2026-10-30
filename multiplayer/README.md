@@ -39,6 +39,12 @@ Both Linux and Windows packages include the menu and font resources.
 ## Characters
 
 Choose **Characters** (key **4**) to open the roster beside the existing editor.
+
+With no character selected, the editor is a blank clickable area: click anywhere
+inside it to start a new character, or use **New character** in the roster.
+**Retire** is disabled until a saved character is selected. Enabled buttons
+brighten on hover and show keyboard focus; disabled buttons stay muted and inert.
+
 Both Classic and Modern styles support the same workflow:
 
 - **New character** opens a fresh draft. Enter a name (up to 32 characters),

@@ -48,7 +48,7 @@
             <label id="character-name-label" for="character-name">CHARACTER NAME</label>
             <input id="character-name" type="text" maxlength="32" value="" />
             <character-preview id="character-preview" class="panel"></character-preview>
-            <div id="character-empty"><div>No character selected</div><button id="empty-create">CREATE A CHARACTER</button></div>
+            <div id="character-empty"></div>
             <div id="character-details" class="panel">
                 <div class="editor-heading">COLORS</div>
                 <div id="base-setting" class="color-setting"><label for="base-color">BASE COLOR</label><div id="base-sample" class="color-sample"></div><input id="base-color" type="text" maxlength="7" value="#46B2BE" /><div id="base-palette" class="color-palette"></div></div>
@@ -60,9 +60,9 @@
             <div id="active-character"></div>
             <button id="character-back">BACK TO MENU</button>
             <button id="character-reset">RESET</button>
-            <button id="character-use">USE CHARACTER</button>
+            <button id="character-use" class="character-primary">USE CHARACTER</button>
             <button id="character-cancel">CANCEL</button>
-            <button id="character-save">SAVE CHANGES</button>
+            <button id="character-save" class="character-primary">SAVE CHANGES</button>
             <div id="character-status"></div>
             <div id="character-dialog">
                 <div id="dialog-panel" class="panel">
