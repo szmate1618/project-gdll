@@ -783,7 +783,7 @@ Attack mode changes are urgent updates, and ordinary non-attacking records keep
 their existing size. Assets without authored attacks retain the lunge fallback.
 
 Corpse poses carry independently versioned roots and palettes on a separate
-reliable transport lane. Each peer has at most four unacknowledged poses and a
+reliable transport lane. Each peer has at most 100 unacknowledged poses and a
 32 KiB bulk transport budget shared with zombie setup messages. Changes while
 a pose is in flight coalesce to the
 latest version; round-robin selection prevents moving corpses starving others.
@@ -805,8 +805,9 @@ There is no playback buffer. Prediction stops after 400 ms without a newer pose;
 teleports, wake/re-entry gaps, and mesh-separation changes reset motion estimates.
 A sleeping pose immediately stops prediction. Fixed scale, reflection and shear
 are preserved. Corpses stay hidden until their first complete pose arrives.
-The four-transfer window can reduce the achieved update rate on slow links;
-this change does not introduce pose compression or a new transport stream.
+The transfer window, acknowledgements and shared 32 KiB bulk budget can reduce
+the achieved update rate on slow links. The 100-transfer limit does not guarantee
+100 active ragdolls at five Hz; poses still use the existing uncompressed stream.
 
 Physical melee runs at the shared server physics rate. The server validates
 fist ownership, individual clicks and the 0.5 s cooldown. It builds one set of

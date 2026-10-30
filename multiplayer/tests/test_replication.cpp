@@ -88,9 +88,10 @@ void fiveHzPoseCadence(Scene& scene) {
     scene.zombies = viewer::ZombieLayer{};
 }
 void corpseTransfers(Scene& scene) {
+    constexpr std::size_t corpseCount = 140;
     scene.zombies.assets.emplace_back();
     scene.zombies.assets[0].skeleton.resize(maxBones);
-    for (std::size_t i = 0; i < 40; ++i) {
+    for (std::size_t i = 0; i < corpseCount; ++i) {
         viewer::ZombieInstance instance;
         instance.transform[3] = {static_cast<float>(i), 0, 0, 1};
         scene.zombies.instances.push_back(instance);
@@ -99,7 +100,7 @@ void corpseTransfers(Scene& scene) {
     Replication replication;
     Snapshot base; base.tick = 1; base.players.push_back({}); base.players[0].id = 1;
     const auto essential = test_replication::readySnapshot(replication, scene, {0, 0, 0}, base);
-    require(essential.zombies.size() == 40 && encode(essential).size() < 7000,
+    require(essential.zombies.size() == corpseCount && encode(essential).size() < 7000,
         "Bulk corpse palettes inflated essential state");
     std::vector<CorpsePose> active;
     for (std::size_t i = 0; i < Replication::maxPoseTransfers; ++i) {
@@ -107,6 +108,7 @@ void corpseTransfers(Scene& scene) {
         require(pose && pose->id == i, "Bulk selection is not fair/deterministic");
         replication.sent(*pose); active.push_back(*pose);
     }
+    require(active.size() == 100, "Peer must allow 100 distinct corpse transfers before acknowledgement");
     require(!replication.nextPose(scene), "Slow peer exceeded the in-flight pose bound");
     // Keep changing the first corpse while all transfers are blocked.
     for (int i = 0; i < 100; ++i) {
@@ -118,7 +120,7 @@ void corpseTransfers(Scene& scene) {
     }
     for (const auto& pose : active) replication.acknowledge({pose.id, pose.version});
     std::set<std::uint32_t> seen;
-    for (int i = 0; i < 40; ++i) {
+    for (std::size_t i = 0; i < corpseCount; ++i) {
         const auto pose = replication.nextPose(scene);
         require(pose.has_value(), "Unsent or changed corpse pose was lost");
         if (pose->id == 0) require(pose->version == scene.zombies.instances[0].ragdollPoseVersion,
@@ -126,7 +128,8 @@ void corpseTransfers(Scene& scene) {
         replication.sent(*pose); replication.acknowledge({pose->id, pose->version}); seen.insert(pose->id);
         if (!replication.nextPose(scene)) break;
     }
-    require(seen.size() == 37 && seen.count(0), "Moving corpses starved other corpse transfers");
+    require(seen.size() == corpseCount - active.size() + 1 && seen.count(0),
+        "Moving corpses starved other corpse transfers");
     Replication lateJoin;
     test_replication::readySnapshot(lateJoin, scene, {0, 0, 0}, base);
     require(lateJoin.nextPose(scene).has_value(), "Late join lost initial corpse poses");

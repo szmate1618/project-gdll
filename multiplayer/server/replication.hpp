@@ -16,7 +16,7 @@ public:
     Replication& operator=(const Replication&) = delete;
     Replication(Replication&&) noexcept = default;
     Replication& operator=(Replication&&) noexcept = default;
-    static constexpr std::size_t maxPoseTransfers = 4;
+    static constexpr std::size_t maxPoseTransfers = 100;
     Snapshot snapshot(Scene& scene, glm::vec3 feet, Snapshot state,
                       const std::optional<ReplicationView>& view = {});
     void acknowledgeSnapshot(std::uint64_t tick) { vehicles_.acknowledge(tick); }

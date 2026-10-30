@@ -3,12 +3,14 @@
 #include "server/replication.hpp"
 #include "player_body.hpp"
 #include "physics_world.hpp"
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <thread>
 
 int main(int argc, char** argv) {
     try {
+        constexpr std::uint32_t corpseCount = 100;
         if (argc != 5) throw std::runtime_error("Expected role, port, large-state flag and loss percentage");
         const bool server = std::string(argv[1]) == "server", large = std::stoi(argv[3]) != 0;
         const auto port = static_cast<std::uint16_t>(std::stoi(argv[2]));
@@ -24,7 +26,7 @@ int main(int argc, char** argv) {
             state.players[p].slot=static_cast<std::uint8_t>(viewer::punchSlot);
             state.players[p].melee=body.pose();
         }
-        state.zombies.resize(large ? multiplayer::maxZombieUpdatesPerSnapshot : 40);
+        state.zombies.resize(large ? multiplayer::maxZombieUpdatesPerSnapshot : corpseCount);
         for (std::size_t i = 0; i < state.zombies.size(); ++i) {
             state.zombies[i].id = static_cast<std::uint32_t>(i); state.zombies[i].dead = !large;
         }
@@ -110,12 +112,13 @@ int main(int argc, char** argv) {
                 birdFrame.tick=birdSimulation.state().tick; birdFrame.checksum=birdSimulation.checksum();
                 if (!network.send(peer,birdFrame,true)) throw std::runtime_error("Cannot send bird command watermark");
                 next = now + std::chrono::milliseconds(50);
-                if (!large) for (std::size_t i = inFlight.size(); i < multiplayer::Replication::maxPoseTransfers; ++i) {
-                    while (inFlight.count(nextPose)) nextPose = (nextPose + 1) % 40;
+                const auto poseLimit = std::min<std::size_t>(multiplayer::Replication::maxPoseTransfers, corpseCount);
+                if (!large) for (std::size_t i = inFlight.size(); i < poseLimit; ++i) {
+                    while (inFlight.count(nextPose)) nextPose = (nextPose + 1) % corpseCount;
                     multiplayer::CorpsePose pose;
                     pose.id = nextPose; pose.version = state.tick; pose.bones.resize(multiplayer::maxBones, glm::mat4(1));
                     if (!network.send(peer, pose, true)) break;
-                    inFlight.emplace(pose.id, pose.version); nextPose = (nextPose + 1) % 40;
+                    inFlight.emplace(pose.id, pose.version); nextPose = (nextPose + 1) % corpseCount;
                 }
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
