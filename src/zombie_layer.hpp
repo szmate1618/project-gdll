@@ -116,7 +116,7 @@ struct ZombieLayer {
     // Server-owned effects for a trusted client intersection. Does not retest
     // its ray against the newer authoritative pose or current occluders.
     bool applyReportedShot(const ZombieHitClaim& claim, glm::vec3 origin, glm::vec3 direction,
-        double seconds, const CollisionWorld& world, ShotCaliber caliber);
+        double seconds, const CollisionWorld& world, ShotCaliber caliber, std::uint32_t excludedMistObserver = 0);
     const ZombieDamage& damage() const { return damage_; }
     const ZombieWounds& wounds() const { return wounds_; }
     const BloodMist& bloodMist() const { return bloodMist_; }
@@ -231,7 +231,8 @@ private:
     bool shootImpl(glm::vec3 origin, glm::vec3 direction, double animationSeconds,
                    const CollisionWorld* occlusion, ShotCaliber caliber);
     bool applyShotHit(const ZombieShotHit& hit, std::vector<glm::mat4> pose, glm::vec3 point,
-                     glm::vec3 direction, double seconds, const CollisionWorld* world, ShotCaliber caliber);
+                     glm::vec3 direction, double seconds, const CollisionWorld* world, ShotCaliber caliber,
+                     std::uint32_t excludedMistObserver = 0);
     ZombieDamage damage_;
     ZombieWounds wounds_;
     BloodMist bloodMist_;

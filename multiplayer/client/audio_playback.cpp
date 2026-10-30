@@ -18,18 +18,16 @@ bool near(glm::vec3 a, glm::vec3 b) {
     return glm::dot(delta, delta) <= soundRange * soundRange;
 }
 }
-void ClientAudio::receive(const Snapshot& snapshot, std::uint32_t self) {
+void ClientAudio::queueRemote(const std::vector<viewer::AudioCue>& cues) {
     if (!enabled()) return;
-    for (const auto& player : snapshot.players) if (player.id == self) weapons_.reconcile(player);
-    for (const auto& cue : events_.receive(snapshot, self)) {
+    for (const auto& cue : cues) {
         if (pending_.size() == maxSoundEvents) pending_.pop_front();
         pending_.push_back(cue);
     }
 }
-void ClientAudio::weaponCommand(const Command& command, double now, const viewer::Weapons& definitions,
-                               const viewer::PlayerInventory& inventory) {
+void ClientAudio::playWeapon(const std::vector<viewer::AudioEffect>& sounds) {
     if (!enabled()) return;
-    for (const auto cue : weapons_.advance(command, now, definitions, inventory))
+    for (const auto cue : sounds)
         system_.playLocal(cue, cue == viewer::AudioEffect::emptyClick ? 1.f :
             cue == viewer::AudioEffect::reload || cue == viewer::AudioEffect::reloadRifle ||
             cue == viewer::AudioEffect::reloadShotgun ? .5f : .8f);
@@ -143,6 +141,11 @@ void ClientAudio::update(const viewer::Camera& camera, const Scene& scene, const
     }
     zombieSounds(scene, snapshots, camera.position(), now);
     for (const auto& cue : pending_) {
+        const bool firearm = cue.effect == viewer::AudioEffect::pistol || cue.effect == viewer::AudioEffect::smg ||
+            cue.effect == viewer::AudioEffect::shotgun || cue.effect == viewer::AudioEffect::sniper;
+        // Distant shot events still animate remote guns and flashes, while the
+        // existing hearing radius controls whether their audio gets a voice.
+        if (firearm && !near(cue.position, camera.position())) continue;
         if (cue.zombie) system_.playZombie(*cue.zombie, cue.effect, cue.priority, cue.gain, cue.pitch);
         else system_.play(cue.effect, cue.position, cue.gain, cue.pitch);
     }

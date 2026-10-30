@@ -407,8 +407,27 @@ The shot origin remains the server player's camera; distant sniper targets need
 no special origin allowance. The server trusts the reported intersection and
 does not repeat the ray test against a newer zombie pose. This policy suits
 trusted cooperative sessions; it does not independently prove client hit claims.
-Protocol version 22 requires matching client/server builds. Melee, grenades and
+Protocol version 23 requires matching client/server builds. Melee, grenades and
 standalone viewer shooting keep their existing authoritative collision paths.
+
+Own firearm sound, recoil, scope kick and muzzle light share one immediate local
+firing decision, including with `--no-audio`. Hit reports also retain world-space
+impacts from the displayed pellet traces. Predicted bullet mist uses those points
+and a bounded local clock, so it keeps fading during server stalls and survives
+replicated mist replacement. The numbered shot marks mist already displayed;
+accepted server mist is then omitted only for that shooter. Other observers and
+unpredicted shots retain authoritative mist. These effects do not change ammo,
+damage, wounds or ragdolls, and confirmations never replay local recoil or flash.
+
+Remote players render their equipped firearm without additional arm geometry.
+The shared weapon meshes use the same eye-relative mount as the local view,
+placed from existing replicated feet, stance and look direction. A shot report
+carries only its world muzzle position as additional cosmetic geometry; the
+server bounds that position and uses a nearby fallback when absent or implausible.
+The existing gunshot event carries that muzzle position to other peers. One
+deduplicated event starts remote sound, gun recoil and muzzle light on the shared
+buffered playback timeline. Gunshot events reach distant observers for visuals,
+while audio keeps its 40 m hearing range. No extra camera transform is transmitted.
 
 At level load both peers validate the optional `abandoned_cars.instances.json`
 beside the map and include its exact bytes in the content fingerprint. The server
@@ -533,7 +552,7 @@ silent until it changes again. Moving, coasting and externally pushed cars all
 retain their updates; driver occupancy alone does not control replication.
 Clients keep bounded per-car histories and interpolate chassis, wheels and
 velocity at the shared playback time, including across snapshots omitting that
-car. Protocol 22 requires matching rebuilt clients and servers.
+car. Protocol 23 requires matching rebuilt clients and servers.
 The driver camera follows the same interpolated pose as
 the rendered car. Vehicle motion is server-authoritative and is not locally
 predicted, so driving response includes network latency. Driving commands are

@@ -1,7 +1,9 @@
 #include "server/world.hpp"
 #include "box_layer.hpp"
+#include "simulation_clock.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -115,6 +117,161 @@ void protocolReports() {
     rejects([&] { decode(bytes.data(), bytes.size() - 1); }, "Truncated firearm report was accepted");
 }
 
+void mistObserverExclusion() {
+    viewer::BloodMist mist;
+    mist.emit({1, 2, 3}, viewer::BloodMistSize::small, 0, 7);
+    mist.emit({4, 5, 6}, viewer::BloodMistSize::medium, 0);
+    mist.emit({7, 8, 9}, viewer::BloodMistSize::large, 0, 9);
+    const auto all = mist.recent(.2);
+    require(all.size() == 3 && mist.sample(.2).size() == 3,
+        "Observer exclusions changed standalone mist presentation");
+    const auto first = mist.recent(.2, 7), second = mist.recent(.2, 9);
+    require(first.size() == 2 && first[0].id == all[1].id && first[1].id == all[2].id &&
+            second.size() == 2 && second[0].id == all[0].id && second[1].id == all[1].id,
+        "Predicted mist exclusion affected another observer or an ordinary burst");
+    require(mist.recent(.2, 8).size() == 3, "An unrelated observer lost authoritative mist");
+    // Exclusions are local publication metadata, absent from replicated bursts.
+    mist.replace(all, .2);
+    require(mist.recent(.2, 7).size() == 3 && mist.recent(.2, 9).size() == 3,
+        "Replacing replicated bursts retained server-only observer exclusions");
+}
+
+void predictedMistPublication(const Options& options) {
+    Scene scene(options); openScene(scene);
+    World world(scene);
+    const auto shooter = world.join(), remote = world.join();
+    advance(world, 4);
+    const int initialLoaded = world.players().at(shooter).weapons.equipped().loaded;
+    send(world, shooter, fire(1)); // A headless or unpredicted shot keeps its own effect.
+    const auto ordinary = world.snapshot(shooter).bloodMist;
+    require(ordinary.size() == 1 && world.snapshot(remote).bloodMist.size() == 1,
+        "Unpredicted accepted shot was hidden from its owner or remote observer");
+    send(world, shooter, release(2)); advance(world);
+    auto predicted = fire(3);
+    predicted.firearmShot->predictedMist = true;
+    send(world, shooter, predicted);
+    const auto local = world.snapshot(shooter).bloodMist;
+    const auto other = world.snapshot(remote).bloodMist;
+    require(local.size() == 1 && local[0].id == ordinary[0].id && other.size() == 2 &&
+            other[0].id == ordinary[0].id && other[1].id != ordinary[0].id,
+        "Predicted shot mist replayed for its owner or disappeared for another observer");
+    require(scene.zombies.bloodMist().sample(viewer::SimulationClock::instance().seconds()).size() == 2 &&
+            world.players().at(shooter).shots == 2 &&
+            world.players().at(shooter).weapons.equipped().loaded == initialLoaded - 2 &&
+            scene.zombies.damage().injury(0) && scene.zombies.damage().injury(0)->health == 6,
+        "Mist prediction changed authoritative damage, ammunition or standalone effects");
+    world.submit(shooter, Commands{{predicted}}); advance(world, 3);
+    require(world.snapshot(remote).bloodMist.size() == 2 && world.snapshot(shooter).bloodMist.size() == 1,
+        "A retried predicted command duplicated its authoritative mist");
+}
+
+void remoteMuzzlePublication(const Options& options) {
+    Scene scene(options); openScene(scene);
+    World world(scene);
+    const auto shooter = world.join(), remote = world.join();
+    auto& observer = const_cast<ServerPlayer&>(world.players().at(remote));
+    require(observer.controller.spawn({200, 1.7f, 0}, *scene.collision),
+        "Muzzle fixture could not place its observer outside hearing range");
+    observer.camera.setPosition(observer.controller.eyePosition());
+    advance(world, 4);
+    const int initialLoaded = world.players().at(shooter).weapons.equipped().loaded;
+    std::uint64_t sequence = 0;
+    const auto shoot = [&](std::optional<glm::vec3> muzzle, bool hit = true) {
+        auto command = fire(++sequence, 0, hit);
+        command.firearmShot->muzzlePosition = muzzle;
+        send(world, shooter, command);
+        const auto snapshot = world.snapshot(remote);
+        const auto event = std::find_if(snapshot.sounds.begin(), snapshot.sounds.end(), [&](const auto& sound) {
+            return sound.kind == SoundKind::shot && sound.source == shooter && sound.tick == world.tick();
+        });
+        require(event != snapshot.sounds.end(), "A distant observer missed an accepted firearm presentation event");
+        require(world.snapshot(shooter).sounds.empty(), "Accepted firearm event replayed for its owner");
+        return *event;
+    };
+    const auto ready = [&] { send(world, shooter, release(++sequence)); advance(world); };
+    const auto fallback = [&] {
+        const auto& camera = world.players().at(shooter).camera;
+        return camera.position() + camera.direction() * .5f - glm::vec3(0, .15f, 0);
+    };
+    const glm::vec3 displayedMuzzle{.3f, 1.55f, -.75f};
+    require(glm::distance(shoot(displayedMuzzle).position, displayedMuzzle) < .0001f,
+        "Remote firearm event lost the reported world muzzle position");
+    ready();
+    require(glm::distance(shoot(glm::vec3(1000)).position, fallback()) < .0001f,
+        "An implausible cosmetic muzzle did not use the authoritative fallback");
+    ready();
+    const glm::vec3 nonfinite{std::numeric_limits<float>::quiet_NaN(), 0, 0};
+    require(glm::distance(shoot(nonfinite).position, fallback()) < .0001f,
+        "A nonfinite cosmetic muzzle did not use the authoritative fallback");
+    ready();
+    require(glm::distance(shoot(std::nullopt, false).position, fallback()) < .0001f,
+        "A headless firearm event did not provide an approximate muzzle");
+    require(world.players().at(shooter).shots == 4 &&
+            world.players().at(shooter).weapons.equipped().loaded == initialLoaded - 4 &&
+            scene.zombies.damage().injury(0) && scene.zombies.damage().injury(0)->health == 4,
+        "Cosmetic muzzle validation changed damage or authoritative weapon acceptance");
+
+    ServerSounds events;
+    events.emit(1, SoundKind::shot, shooter, {});
+    events.emit(1, SoundKind::reload, shooter, {});
+    events.emit(1, SoundKind::heard, 0, {});
+    const auto distant = events.forListener(1, remote, {200, 0, 0});
+    require(distant.size() == 1 && distant[0].kind == SoundKind::shot,
+        "Sending distant firearm visuals expanded unrelated sound delivery");
+}
+
+void cosmeticMuzzleWireFallback(const Options& options) {
+    for (const float invalid : {std::numeric_limits<float>::quiet_NaN(),
+                               std::numeric_limits<float>::infinity(), 1e9f}) {
+        auto command = fire(1);
+        command.firearmShot->muzzlePosition = glm::vec3(invalid, 12, 13);
+        const auto bytes = encode(Commands{{command}});
+        const auto copy = std::get<Commands>(decode(bytes.data(), bytes.size())).commands.front();
+        require(copy.firearmShot && !copy.firearmShot->muzzlePosition &&
+                copy.firearmShot->hits.size() == 1 && copy.firearmShot->hits[0].hit.bone == 1,
+            "Writing invalid cosmetic muzzle data discarded a valid firearm report");
+    }
+
+    Scene scene(options); openScene(scene);
+    World world(scene);
+    const auto shooter = world.join(), remote = world.join();
+    advance(world, 4);
+    const int initialLoaded = world.players().at(shooter).weapons.equipped().loaded;
+    std::uint64_t sequence = 0;
+    // IEEE-754 little-endian coordinates 11, 12 and 13 identify the muzzle
+    // payload without relying on the surrounding command's serialized offsets.
+    const std::vector<std::uint8_t> muzzleBytes{0, 0, 0x30, 0x41, 0, 0, 0x40, 0x41, 0, 0, 0x50, 0x41};
+    for (const std::uint32_t invalidBits : {0x7fc00000u, 0x7f800000u, 0x7f7fffffu}) {
+        auto command = fire(++sequence);
+        command.firearmShot->muzzlePosition = glm::vec3(11, 12, 13);
+        auto bytes = encode(Commands{{command}});
+        auto position = std::search(bytes.begin(), bytes.end(), muzzleBytes.begin(), muzzleBytes.end());
+        require(position != bytes.end(), "Wire fixture could not locate its cosmetic muzzle coordinates");
+        for (unsigned int byte = 0; byte < 4; ++byte)
+            *position++ = static_cast<std::uint8_t>(invalidBits >> (byte * 8));
+        const auto decoded = std::get<Commands>(decode(bytes.data(), bytes.size()));
+        const auto& shot = decoded.commands.front();
+        require(shot.sequence == sequence && shot.firearmShot && !shot.firearmShot->muzzlePosition &&
+                shot.firearmShot->hits.size() == 1 && shot.firearmShot->hits[0].hit.zombie == 0 &&
+                shot.firearmShot->hits[0].hit.bone == 1 && shot.firearmShot->hits[0].hit.headshot,
+            "Reading invalid cosmetic muzzle bits discarded or changed the valid hit");
+        world.submit(shooter, decoded); world.step();
+        const auto snapshot = world.snapshot(remote);
+        const auto event = std::find_if(snapshot.sounds.begin(), snapshot.sounds.end(), [&](const auto& sound) {
+            return sound.kind == SoundKind::shot && sound.source == shooter && sound.tick == world.tick();
+        });
+        const auto& camera = world.players().at(shooter).camera;
+        const auto fallback = camera.position() + camera.direction() * .5f - glm::vec3(0, .15f, 0);
+        require(event != snapshot.sounds.end() && glm::distance(event->position, fallback) < .0001f,
+            "Invalid cosmetic wire coordinates prevented the accepted shot's fallback muzzle");
+        send(world, shooter, release(++sequence)); advance(world);
+    }
+    require(world.players().at(shooter).shots == 3 &&
+            world.players().at(shooter).weapons.equipped().loaded == initialLoaded - 3 &&
+            scene.zombies.damage().injury(0) && scene.zombies.damage().injury(0)->health == 4,
+        "Cosmetic muzzle wire fallback changed authoritative firing or damage");
+}
+
 void movedTargetsAndCommandOrder(const Options& options) {
     Scene scene(options); openScene(scene);
     World world(scene); const auto player = world.join(); advance(world, 4);
@@ -209,8 +366,10 @@ int main(int argc, char** argv) {
         require(argc == 2, "Expected synthetic map asset");
         Options options; options.map = argv[1]; options.zombieCount = 0;
         options.trees = options.forests = options.cars = false;
-        protocolReports(); movedTargetsAndCommandOrder(options); weaponRulesAndMisses(options); sniperWeaponBinding(options);
-        std::cout << "Trusted firearm reports, command order, misses, weapon rules and sniper binding passed\n";
+        protocolReports(); mistObserverExclusion(); predictedMistPublication(options); remoteMuzzlePublication(options);
+        cosmeticMuzzleWireFallback(options);
+        movedTargetsAndCommandOrder(options); weaponRulesAndMisses(options); sniperWeaponBinding(options);
+        std::cout << "Trusted firearm reports, predicted mist, command order, misses, weapon rules and sniper binding passed\n";
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

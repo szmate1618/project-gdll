@@ -46,6 +46,62 @@ Pixels read() {
     return pixels;
 }
 
+void localBloodMist(const std::filesystem::path& captures) {
+    const auto model = room();
+    viewer::ZombieLayer replicated;
+    viewer::Renderer renderer(model, VIEWER_SHADER_DIR, nullptr, &replicated);
+    renderer.resize(width, height);
+    renderer.setShadows(false); renderer.setHaze(false); renderer.setGroundFog(false);
+    renderer.setFlashlight(false);
+    viewer::Camera camera;
+    camera.setPosition({0, 0, 0}); camera.setOrientation(-90, 0);
+    // A stalled server clock deliberately has a different origin from the
+    // local effect clock. Every capture renders the same server animation time.
+    constexpr double serverSeconds = 120, localStart = 10;
+    const auto render = [&](const char* phase) {
+        renderer.render(camera, serverSeconds);
+        if (!captures.empty()) renderer.writeScreenshot(captures / (std::string("local-mist-") + phase + ".ppm"));
+        return read();
+    };
+    const auto empty = render("off");
+    const auto tinted = [&](const Pixels& before, const Pixels& after, int left, int right) {
+        std::size_t count = 0;
+        for (int y = height / 3; y < height * 2 / 3; ++y)
+            for (int x = left; x < right; ++x) {
+                const auto pixel = (static_cast<std::size_t>(y) * width + x) * 3;
+                const int oldTint = int(before[pixel]) - int(before[pixel + 1]);
+                const int newTint = int(after[pixel]) - int(after[pixel + 1]);
+                count += newTint > oldTint + 3 && after[pixel + 1] < before[pixel + 1];
+            }
+        return count;
+    };
+    viewer::BloodMist local;
+    local.emit({0, 0, -1.5f}, viewer::BloodMistSize::large, localStart);
+    renderer.setLocalBloodMist(local.sample(localStart + .1));
+    const auto predicted = render("predicted");
+    require(tinted(empty, predicted, width / 3, width * 2 / 3) > 100,
+        "Predicted hit mist must visibly tint the aimed wall before any authoritative effect arrives");
+
+    replicated.setReplicatedBloodMist({{1, {.85f, 0, -1.5f}, .1f, viewer::BloodMistSize::small}}, serverSeconds);
+    renderer.updateZombies(replicated);
+    const auto combined = render("remote");
+    require(tinted(predicted, combined, width * 2 / 3, width * 9 / 10) > 100,
+        "Remote authoritative hit mist must remain visible alongside locally predicted mist");
+    replicated.setReplicatedBloodMist({}, serverSeconds);
+    renderer.updateZombies(replicated);
+    require(render("replaced") == predicted,
+        "Replacing authoritative mist must preserve the pending local effect exactly");
+
+    renderer.setLocalBloodMist(local.sample(localStart + .4));
+    const auto aged = render("aging");
+    require(aged != predicted && tinted(empty, aged, width / 3, width * 2 / 3) > 100,
+        "Local hit mist must keep aging visibly while the server animation clock is frozen");
+    renderer.setLocalBloodMist(local.sample(localStart + viewer::BloodMist::duration + .1));
+    require(render("ended") == empty,
+        "Expired local mist must restore the wall pixels while the server animation clock remains frozen");
+    viewer::Renderer::checkErrors("local and replicated blood mist");
+}
+
 void check(const std::filesystem::path& captures) {
     const auto model = room();
     viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
@@ -128,6 +184,7 @@ void check(const std::filesystem::path& captures) {
     renderer.render(camera);
     require(read() == empty, "Detonation removes the grenade mesh and its expired light completely");
     viewer::Renderer::checkErrors("muzzle flash scene and weapon");
+    localBloodMist(captures);
 }
 }
 

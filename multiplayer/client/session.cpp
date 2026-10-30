@@ -22,6 +22,8 @@
 #include "weapon_overlay.hpp"
 #include "player_body_renderer.hpp"
 #include "audio_playback.hpp"
+#include "weapon_feedback.hpp"
+#include "sound_cues.hpp"
 #include "window.hpp"
 #include <GLFW/glfw3.h>
 #else
@@ -216,6 +218,9 @@ struct Graphics {
     float speedMetersPerSecond = 0;
     std::unique_ptr<viewer::WeaponOverlay> weapon;
     std::unique_ptr<multiplayer::ClientAudio> audio;
+    multiplayer::WeaponFeedbackPrediction weaponFeedback;
+    multiplayer::RemoteSoundCues remoteEvents;
+    viewer::BloodMist localBloodMist;
     viewer::MuzzleFlash muzzleFlash;
     std::size_t muzzleSlot = 0;
     glm::vec3 muzzleModelPosition{0};
@@ -265,7 +270,7 @@ struct Graphics {
         weapon = std::make_unique<viewer::WeaponOverlay>(shaders, multiplayer::weaponModelDirectory(),
             viewer::WeaponViewBody{playerConfig.height, playerConfig.eyeHeight});
         renderer->loadGrenadeModel(multiplayer::weaponModelDirectory() / "he_grenade.glb");
-        players = std::make_unique<multiplayer::PlayerRenderer>();
+        players = std::make_unique<multiplayer::PlayerRenderer>(weapon.get());
         body = std::make_unique<viewer::PlayerBodyRenderer>(shaders);
         birds = std::make_unique<viewer::BirdRenderer>(shaders);
         viewer::AudioOptions audioOptions;
@@ -392,7 +397,6 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
         }
 #ifdef MP_GRAPHICS
         const auto simulationStart = Clock::now();
-        bool newAudioSnapshot = false;
 #endif
         const auto messages = network.receive();
         for (const auto& event : network.events) {
@@ -409,9 +413,6 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 std::cout << "Connected as player " << self << std::endl;
             } else if (const auto* snapshot = std::get_if<multiplayer::Snapshot>(&message)) {
                 if (!self || !snapshots.push(*snapshot, now, network.estimatedOneWaySeconds(connection))) continue;
-#ifdef MP_GRAPHICS
-                newAudioSnapshot = true;
-#endif
                 lastSnapshot = now; ++received; mostPlayers = std::max(mostPlayers, snapshot->players.size());
                 for (const auto& p : snapshot->players) if (p.id != self) {
                     const auto origin = remoteOrigins.emplace(p.id, p.movement.feet).first->second;
@@ -441,12 +442,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                     if ((in.weaponSwitching || in.weaponReloading) && in.leftHeld)
                         in.suppressLeftUntilRelease = true;
 #ifdef MP_GRAPHICS
-                    if (graphics.weapon && ready && p.shots > ownState.shots && p.slot != viewer::punchSlot && !weaponDefinitions.equipped().config.grenade) {
-                        in.weaponMotion.fire(p.slot, now);
-                        graphics.muzzleSlot = p.slot;
-                        graphics.muzzleModelPosition = weaponDefinitions.equipped().config.muzzlePosition;
-                        graphics.muzzleFlash.fire(now, {});
-                    }
+                    graphics.weaponFeedback.reconcile(p);
 #endif
                     prediction.reconcile(p,*scene.collision);
                     const bool walking=p.vehicle==multiplayer::noVehicle && ownState.vehicle==multiplayer::noVehicle;
@@ -519,17 +515,13 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 }
             } else throw std::runtime_error("Unexpected server message");
         }
-#ifdef MP_GRAPHICS
-        // Consume the newest accepted state once: a receive backlog must not
-        // replay a burst of already stale audio from intermediate snapshots.
-        if (newAudioSnapshot && graphics.audio) graphics.audio->receive(snapshots.latest(), self);
-#endif
         if (now - lastSnapshot > (prediction.ready() ? 5 : 15)) throw std::runtime_error(prediction.ready() ? "Connection lost: server stopped responding (snapshot timeout)" :
                                      "Could not join: server did not provide player state within 15 seconds");
         if (prediction.ready()) {
             accumulator += dt;
 #ifdef MP_GRAPHICS
             std::optional<multiplayer::FirearmShot> frameFirearmShot;
+            std::vector<multiplayer::FirearmImpact> frameFirearmImpacts;
 #endif
             while (accumulator >= 1.0 / 60) {
                 auto nextCommand = command(in, graphics.window, options.bot, now);
@@ -544,8 +536,37 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                         frameFirearmShot = reportFirearmHits(static_cast<std::uint8_t>(in.equippedSlot),
                             equipped.config, aim.position(), aim.direction(), [&](glm::vec3 origin, glm::vec3 direction) {
                                 return graphics.renderer->traceZombieShot(origin, direction, *scene.collision);
-                            });
+                            }, &frameFirearmImpacts);
                     nextCommand.firearmShot = frameFirearmShot;
+                }
+                // Predict presentation before enqueueing so its mist marker is
+                // retained in the same numbered command and all retransmits.
+                nextCommand.sequence = prediction.nextSequence();
+                multiplayer::WeaponFeedback feedback;
+                if (inventory) {
+                    feedback = graphics.weaponFeedback.advance(nextCommand, now, weaponDefinitions, *inventory);
+                    if (feedback.firearmSlot) {
+                        const auto slot = *feedback.firearmSlot;
+                        // The hit trace above used the displayed pre-shot aim.
+                        // Recoil now changes presentation and the actual muzzle
+                        // sent to observers, without changing that shot's ray.
+                        in.weaponMotion.fire(slot, now);
+                        graphics.muzzleSlot = slot;
+                        graphics.muzzleModelPosition = weaponDefinitions.state(slot).config.muzzlePosition;
+                        graphics.muzzleFlash.fire(now, {});
+                    }
+                    if (nextCommand.firearmShot && graphics.weapon) {
+                        const auto slot = nextCommand.firearmShot->slot;
+                        const auto eye = in.weaponMotion.aimCamera(in.camera, slot, now, true);
+                        nextCommand.firearmShot->muzzlePosition = glm::vec3(glm::inverse(eye.view()) *
+                            glm::vec4(graphics.weapon->muzzlePosition(slot, weaponDefinitions.state(slot).config.muzzlePosition,
+                                in.weaponMotion.pose(slot, now)), 1));
+                    }
+                    if (feedback.firearmSlot && nextCommand.firearmShot && !frameFirearmImpacts.empty()) {
+                        for (const auto& impact : frameFirearmImpacts)
+                            graphics.localBloodMist.emit(impact.position, impact.size, now);
+                        nextCommand.firearmShot->predictedMist = true;
+                    }
                 }
                 const auto& controller = prediction.controller();
                 const viewer::UndergrowthMotion shrubBefore{controller.feet(), controller.bodyHeight(),
@@ -559,7 +580,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 // Fresh prediction only: reconciliation replays must stay silent.
                 if (graphics.audio) {
                     const bool running = nextCommand.movement.run && controller.stance() == viewer::PlayerStance::Standing;
-                    graphics.audio->weaponCommand(predicted, now, weaponDefinitions, *inventory);
+                    graphics.audio->playWeapon(feedback.sounds);
                     if (!in.driver.occupied()) {
                         graphics.audio->localMovement(controller, shrubBefore, scene.undergrowth, running, self);
                         auto soundCamera = in.camera;
@@ -595,6 +616,18 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
             }
         }
         snapshots.apply(scene, now);
+#ifdef MP_GRAPHICS
+        if (graphics.window && !snapshots.empty()) {
+            // Shots share one event decision for sound, remote recoil and flash.
+            // Check every frame so an event held for buffered playback can become
+            // due even when no newer network snapshot arrives.
+            std::vector<multiplayer::SoundEvent> shots;
+            const auto cues = graphics.remoteEvents.receive(snapshots.latest(), self, &shots,
+                                                            snapshots.animationSeconds());
+            graphics.audio->queueRemote(cues);
+            graphics.players->receiveShots(shots, snapshots.players(), snapshots.animationSeconds());
+        }
+#endif
         visualOffset *= static_cast<float>(std::exp(-15 * dt));
         if (prediction.ready()) {
             if (in.toggleDrivingCamera) {
@@ -616,9 +649,13 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 intervalSimulationSeconds += std::chrono::duration<double>(Clock::now() - simulationStart).count();
                 auto& renderer = *graphics.renderer;
                 renderer.setFlashlight(in.flashlight);
+                renderer.setLocalBloodMist(graphics.localBloodMist.sample(now));
                 renderer.updateGrenades(snapshots.grenades());
                 renderer.updateVegetationBlasts(snapshots.explosions(now));
-                renderer.setExplosionLights(snapshots.explosionLights(now));
+                auto pointLights = snapshots.explosionLights(now);
+                const auto remoteFlashes = graphics.players->muzzleLights(snapshots.animationSeconds());
+                pointLights.insert(pointLights.end(), remoteFlashes.begin(), remoteFlashes.end());
+                renderer.setExplosionLights(pointLights);
                 const auto viewCamera = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, now, !in.driver.occupied() && !in.interaction);
                 auto flash = graphics.muzzleFlash.light(now);
                 flash.position = graphics.weapon->muzzlePosition(graphics.muzzleSlot, graphics.muzzleModelPosition,
@@ -644,7 +681,8 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 const auto renderStart = Clock::now();
                 renderer.render(viewCamera, snapshots.animationSeconds(), [&] {
                     graphics.birds->draw(viewCamera,renderAspect,snapshots.animationSeconds(),birds.sample(snapshots.animationSeconds()));
-                    graphics.players->draw(viewCamera, snapshots.players(), self, renderWidth, renderHeight);
+                    graphics.players->draw(viewCamera, snapshots.players(), self, renderWidth, renderHeight,
+                                           snapshots.animationSeconds());
                     graphics.body->drawPose(ownBody,viewCamera.projection(renderAspect)*viewCamera.view(),renderWidth,renderHeight);
                 });
                 if (prediction.ready() && !in.driver.occupied() && !in.interaction &&

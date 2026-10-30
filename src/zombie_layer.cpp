@@ -203,7 +203,8 @@ bool ZombieLayer::shootImpl(glm::vec3 origin, glm::vec3 direction, double animat
 }
 
 bool ZombieLayer::applyReportedShot(const ZombieHitClaim& claim, glm::vec3 origin, glm::vec3 direction,
-                                    double seconds, const CollisionWorld& world, ShotCaliber caliber) {
+                                    double seconds, const CollisionWorld& world, ShotCaliber caliber,
+                                    std::uint32_t excludedMistObserver) {
     if (claim.zombie >= instances.size() || !finite(origin) || !finite(direction) || !finite(claim.point) ||
         !std::isfinite(seconds) || claim.bone < -1 || claim.joint < -1) return false;
     const float length = glm::length(direction);
@@ -238,12 +239,12 @@ bool ZombieLayer::applyReportedShot(const ZombieHitClaim& claim, glm::vec3 origi
     const float distance = glm::length(point - origin);
     if (!std::isfinite(distance)) return false;
     const ZombieShotHit hit{claim.zombie, distance, claim.headshot, claim.joint, claim.woundRegion};
-    return applyShotHit(hit, std::move(pose), point, direction, seconds, &world, caliber);
+    return applyShotHit(hit, std::move(pose), point, direction, seconds, &world, caliber, excludedMistObserver);
 }
 
 bool ZombieLayer::applyShotHit(const ZombieShotHit& hit, std::vector<glm::mat4> selectedPose,
                                glm::vec3 point, glm::vec3 direction, double animationSeconds,
-                               const CollisionWorld* occlusion, ShotCaliber caliber) {
+                               const CollisionWorld* occlusion, ShotCaliber caliber, std::uint32_t excludedMistObserver) {
     bool openedWound = false;
     if (hit.woundRegion && (*hit.woundRegion != ZombieWoundRegion::head || caliber == ShotCaliber::high)) {
         const auto& instance = instances[hit.zombie];
@@ -268,7 +269,7 @@ bool ZombieLayer::applyShotHit(const ZombieShotHit& hit, std::vector<glm::mat4> 
         activateRagdoll(hit.zombie, std::move(selectedPose), direction * 4.0f, animationSeconds);
     const auto mistSize = openedWound ? BloodMistSize::large : hit.joint >= 0 ? BloodMistSize::medium : BloodMistSize::small;
     // Offset slightly toward the incoming bullet so the billboard clears the surface.
-    bloodMist_.emit(point-direction*std::min(.025f,hit.distance),mistSize,animationSeconds);
+    bloodMist_.emit(point-direction*std::min(.025f,hit.distance),mistSize,animationSeconds,excludedMistObserver);
     emitBloodParticles(hit,point,direction,animationSeconds,occlusion);
     return true;
 }

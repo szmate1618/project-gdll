@@ -27,6 +27,7 @@
 #include "shadow_map.hpp"
 #include "flashlight.hpp"
 #include "muzzle_flash.hpp"
+#include "blood_mist.hpp"
 #include "grenades.hpp"
 #include "dropped_weapons.hpp"
 #include "atmosphere.hpp"
@@ -135,6 +136,8 @@ public:
     void setFlashlight(bool enabled) { flashlightEnabled_ = enabled; }
     void setFlashlightShadows(bool enabled) { flashlightShadows_ = enabled; }
     void setMuzzleFlash(const MuzzleFlashLight& light) { muzzleFlash_ = light; }
+    // Already aged on the local presentation clock; server mist keeps its own timeline.
+    void setLocalBloodMist(const std::vector<BloodMistBurst>& bursts) { localBloodMist_ = bursts; }
     void setTreeShadows(bool enabled) { treeShadows_ = enabled; }
     void setTreeCanopyShading(bool enabled) { treeCanopyShading_ = enabled; }
     // Three-dimensional root distance in meters; zero keeps authored cards.
@@ -388,6 +391,7 @@ private:
     int overlayWidth_ = 0, overlayHeight_ = 0;
     bool overlayActive_ = false; // Reset by render(); other callers can present the scene directly.
     MuzzleFlashLight muzzleFlash_;
+    std::vector<BloodMistBurst> localBloodMist_;
     std::array<MuzzleFlashLight, maxExplosionLights> explosionLights_{};
     std::size_t explosionLightCount_ = 0;
     Atmosphere atmosphere_;

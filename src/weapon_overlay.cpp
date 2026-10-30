@@ -2,6 +2,7 @@
 #include "model.hpp"
 #include "shader_program.hpp"
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <vector>
 #include <glm/gtc/matrix_transform.hpp>
@@ -25,6 +26,38 @@ void appendModel(const Model& model, bool shotgun, std::vector<OverlayVertex>& v
         }
     }
 }
+
+class WeaponDrawState {
+public:
+    explicit WeaponDrawState(bool overlay) {
+        glGetIntegerv(GL_CURRENT_PROGRAM, &program_); glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vao_);
+        glGetIntegerv(GL_FRONT_FACE, &front_); glGetIntegerv(GL_CULL_FACE_MODE, &cullMode_);
+        glGetIntegerv(GL_DEPTH_FUNC, &depthFunction_); glGetBooleanv(GL_DEPTH_WRITEMASK, &depthWrite_);
+        glGetDoublev(GL_DEPTH_CLEAR_VALUE, &clearDepth_); glGetDoublev(GL_DEPTH_RANGE, depthRange_);
+        depth_ = glIsEnabled(GL_DEPTH_TEST); blend_ = glIsEnabled(GL_BLEND);
+        cull_ = glIsEnabled(GL_CULL_FACE); scissor_ = glIsEnabled(GL_SCISSOR_TEST);
+        glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LESS); glDepthMask(GL_TRUE); glDepthRange(0, 1);
+        glDisable(GL_BLEND); glEnable(GL_CULL_FACE); glCullFace(GL_BACK); glFrontFace(GL_CCW);
+        if (overlay) {
+            glDisable(GL_SCISSOR_TEST);
+            glClearDepth(1); glClear(GL_DEPTH_BUFFER_BIT);
+        }
+    }
+    ~WeaponDrawState() {
+        glBindVertexArray(static_cast<GLuint>(vao_)); glUseProgram(static_cast<GLuint>(program_));
+        if (depth_) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+        if (blend_) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+        if (cull_) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+        if (scissor_) glEnable(GL_SCISSOR_TEST); else glDisable(GL_SCISSOR_TEST);
+        glCullFace(static_cast<GLenum>(cullMode_)); glFrontFace(static_cast<GLenum>(front_));
+        glDepthFunc(static_cast<GLenum>(depthFunction_)); glDepthMask(depthWrite_);
+        glClearDepth(clearDepth_); glDepthRange(depthRange_[0], depthRange_[1]);
+    }
+private:
+    GLint program_ = 0, vao_ = 0, front_ = 0, cullMode_ = 0, depthFunction_ = 0;
+    GLboolean depth_ = GL_FALSE, blend_ = GL_FALSE, cull_ = GL_FALSE, scissor_ = GL_FALSE, depthWrite_ = GL_TRUE;
+    GLdouble clearDepth_ = 1, depthRange_[2]{};
+};
 } // namespace
 
 WeaponOverlay::WeaponOverlay(const std::filesystem::path& shaders, const std::filesystem::path& models,
@@ -74,41 +107,31 @@ glm::vec3 WeaponOverlay::muzzlePosition(std::size_t slot, glm::vec3 modelMuzzle,
 void WeaponOverlay::draw(std::size_t slot, int width, int height, const MuzzleFlashLight& flash,
                          const WeaponMotionPose& motion) {
     if (slot >= ranges_.size() || width <= 0 || height <= 0) return;
-    GLint previousProgram = 0, previousVao = 0, previousFront = 0, previousCullMode = 0, previousDepthFunction = 0;
-    glGetIntegerv(GL_CURRENT_PROGRAM, &previousProgram);
-    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previousVao);
-    glGetIntegerv(GL_FRONT_FACE, &previousFront);
-    glGetIntegerv(GL_CULL_FACE_MODE, &previousCullMode);
-    glGetIntegerv(GL_DEPTH_FUNC, &previousDepthFunction);
-    const auto depth = glIsEnabled(GL_DEPTH_TEST), blend = glIsEnabled(GL_BLEND), cull = glIsEnabled(GL_CULL_FACE);
-    const auto scissor = glIsEnabled(GL_SCISSOR_TEST);
-    GLboolean depthWrite = GL_TRUE;
-    GLdouble clearDepth = 1, depthRange[2]{};
-    glGetBooleanv(GL_DEPTH_WRITEMASK, &depthWrite);
-    glGetDoublev(GL_DEPTH_CLEAR_VALUE, &clearDepth);
-    glGetDoublev(GL_DEPTH_RANGE, depthRange);
-    glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LESS); glDepthMask(GL_TRUE); glDepthRange(0, 1);
-    glDisable(GL_BLEND); glDisable(GL_SCISSOR_TEST);
-    glEnable(GL_CULL_FACE); glCullFace(GL_BACK); glFrontFace(GL_CCW);
-    glClearDepth(1); glClear(GL_DEPTH_BUFFER_BIT);
-    glUseProgram(program_); glBindVertexArray(vao_);
+    const WeaponDrawState restore(true);
     const auto projection = glm::perspective(glm::radians(60.0f), static_cast<float>(width) / height, .01f, 5.0f);
     const auto pose = animatedWeaponPose(poses_[slot], motion);
-    const auto transform = projection * pose;
+    drawGeometry(slot, projection, pose, flash, motion.pumpTravel);
+}
+
+void WeaponOverlay::drawWorld(std::size_t slot, const Camera& camera, float aspect, const glm::mat4& eyeToWorld,
+                              const MuzzleFlashLight& worldFlash, const WeaponMotionPose& motion) {
+    if (slot >= ranges_.size() || !std::isfinite(aspect) || aspect <= 0) return;
+    const WeaponDrawState restore(false);
+    const auto view = camera.view();
+    const auto pose = view * eyeToWorld * animatedWeaponPose(poses_[slot], motion);
+    drawGeometry(slot, camera.projection(aspect), pose, worldFlash.transformed(view), motion.pumpTravel);
+}
+
+void WeaponOverlay::drawGeometry(std::size_t slot, const glm::mat4& projection, const glm::mat4& modelToEye,
+                                 const MuzzleFlashLight& flash, float pumpTravel) {
+    glUseProgram(program_); glBindVertexArray(vao_);
+    const auto transform = projection * modelToEye;
     glUniformMatrix4fv(transform_, 1, GL_FALSE, glm::value_ptr(transform));
-    glUniformMatrix4fv(pose_, 1, GL_FALSE, glm::value_ptr(pose));
-    glUniform1f(pumpTravel_, motion.pumpTravel);
+    glUniformMatrix4fv(pose_, 1, GL_FALSE, glm::value_ptr(modelToEye));
+    glUniform1f(pumpTravel_, pumpTravel);
     glUniform3fv(flashPosition_, 1, glm::value_ptr(flash.position));
     glUniform3fv(flashColor_, 1, glm::value_ptr(flash.color));
     glUniform1f(flashRange_, flash.range);
     glDrawArrays(GL_TRIANGLES, ranges_[slot].first, ranges_[slot].count);
-    glBindVertexArray(static_cast<GLuint>(previousVao)); glUseProgram(static_cast<GLuint>(previousProgram));
-    if (depth) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
-    if (blend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
-    if (cull) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
-    if (scissor) glEnable(GL_SCISSOR_TEST); else glDisable(GL_SCISSOR_TEST);
-    glCullFace(static_cast<GLenum>(previousCullMode)); glFrontFace(static_cast<GLenum>(previousFront));
-    glDepthFunc(static_cast<GLenum>(previousDepthFunction)); glDepthMask(depthWrite);
-    glClearDepth(clearDepth); glDepthRange(depthRange[0], depthRange[1]);
 }
 } // namespace viewer

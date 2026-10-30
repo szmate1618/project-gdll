@@ -11,6 +11,19 @@
 
 namespace multiplayer {
 namespace {
+glm::vec3 shotMuzzlePosition(const ServerPlayer& player, const Command& command) {
+    const auto origin = player.camera.position();
+    if (command.firearmShot && command.firearmShot->muzzlePosition) {
+        const auto muzzle = *command.firearmShot->muzzlePosition;
+        const auto delta = muzzle - origin;
+        // Cosmetic client prediction can lead the authoritative player pose.
+        // An implausible muzzle falls back without changing shot acceptance.
+        if (std::isfinite(muzzle.x) && std::isfinite(muzzle.y) && std::isfinite(muzzle.z) &&
+            glm::dot(delta, delta) <= 30.f * 30.f) return muzzle;
+    }
+    return origin + player.camera.direction() * .5f - glm::vec3(0, .15f, 0);
+}
+
 bool validFirearmReport(const Scene& scene, const ServerPlayer& player, const Command& command) {
     if (!command.firearmShot || command.firearmShot->slot != player.weapons.slot()) return false;
     const auto& reports = command.firearmShot->hits;
@@ -131,6 +144,7 @@ void World::step() {
         std::vector<glm::vec3> directions;
         viewer::ShotCaliber caliber;
         std::vector<FirearmHit> hits;
+        std::uint32_t excludedMistObserver = 0;
     };
     std::vector<Shot> shots;
     std::vector<viewer::PlayerBody*> bodies;
@@ -288,14 +302,15 @@ void World::step() {
                 }) == viewer::WeaponFireResult::fired) {
                 ++player.shots;
                 if (player.weapons.slot() < 4)
-                    sounds_.emit(tick_, SoundKind::shot, id, player.camera.position(), static_cast<std::uint8_t>(player.weapons.slot()));
+                    sounds_.emit(tick_, SoundKind::shot, id, shotMuzzlePosition(player, command),
+                                 static_cast<std::uint8_t>(player.weapons.slot()));
                 if (config.grenade) {
                     if (!scene_.grenades->throwFrom(player.camera.position(), player.camera.direction(), playerVelocity,
                             now, *config.grenade, *scene_.collision)) throw std::logic_error("Accepted grenade throw failed");
                     player.weaponReload.begin(player.weapons, player.inventory, now);
                 } else if (player.weapons.slot() != viewer::punchSlot)
                     shots.push_back({player.camera.position(), viewer::weaponShotDirections(config, player.camera.direction()),
-                        config.caliber, command.firearmShot->hits});
+                        config.caliber, command.firearmShot->hits, command.firearmShot->predictedMist ? id : 0});
             }
             player.held = command;
         }
@@ -343,7 +358,7 @@ void World::step() {
         // fired, before any later input could switch weapons or change aim.
         for (const auto& report : shot.hits)
             scene_.zombies.applyReportedShot(report.hit, shot.origin, shot.directions[report.pellet],
-                                            now, *scene_.collision, shot.caliber);
+                                            now, *scene_.collision, shot.caliber, shot.excludedMistObserver);
     }
     for (const auto& reaction : scene_.zombies.takeReactionEvents())
         sounds_.emit(tick_, reaction.chase ? SoundKind::chase : SoundKind::heard,
@@ -371,7 +386,7 @@ Snapshot World::snapshot(std::uint32_t id) {
     s.sounds = sounds_.forListener(tick_, id, observer.camera.position());
     s.grenades = scene_.grenades->poses();
     s.explosions = scene_.grenades->explosions(viewer::SimulationClock::instance().seconds());
-    s.bloodMist = scene_.zombies.bloodMist().recent(viewer::SimulationClock::instance().seconds());
+    s.bloodMist = scene_.zombies.bloodMist().recent(viewer::SimulationClock::instance().seconds(), id);
     for (const auto& [playerId, player] : players_) {
         s.signals.insert(s.signals.end(), player.signals.begin(), player.signals.end());
         const auto& weapon = player.weapons.equipped();

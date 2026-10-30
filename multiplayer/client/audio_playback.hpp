@@ -1,6 +1,6 @@
 #pragma once
-#include "sound_cues.hpp"
-#include "weapon_audio.hpp"
+#include "zombie_audio.hpp"
+#include "audio.hpp"
 #include "scene.hpp"
 #include "snapshots.hpp"
 #include "door_audio.hpp"
@@ -14,9 +14,8 @@ class ClientAudio {
 public:
     explicit ClientAudio(const viewer::AudioOptions& options) : system_(options) {}
     bool enabled() const { return system_.enabled(); }
-    void receive(const Snapshot& snapshot, std::uint32_t self);
-    void weaponCommand(const Command& command, double now, const viewer::Weapons& definitions,
-                       const viewer::PlayerInventory& inventory);
+    void queueRemote(const std::vector<viewer::AudioCue>& cues);
+    void playWeapon(const std::vector<viewer::AudioEffect>& sounds);
     void localMovement(const viewer::FPSController& controller, const viewer::UndergrowthMotion& before,
                        const viewer::UndergrowthIndex& shrubs, bool running, std::uint32_t self);
     void localDoor(const Command& command, const viewer::Camera& camera, const Scene& scene);
@@ -35,8 +34,6 @@ private:
     };
     struct Reaction { glm::vec3 position; double expires; };
     viewer::AudioSystem system_;
-    WeaponAudioPrediction weapons_;
-    RemoteSoundCues events_;
     viewer::UndergrowthEmitter localShrubs_;
     viewer::DoorAudioTracker doors_;
     viewer::ZombieAudioScheduler zombies_;

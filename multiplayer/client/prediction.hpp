@@ -10,6 +10,8 @@ public:
     void reconcile(const PlayerState& authoritative, const viewer::CollisionWorld& collision);
     Commands commandsToSend() const;
     bool ready() const { return ready_; }
+    // Reserve presentation metadata before advance stores this numbered input.
+    std::uint64_t nextSequence() const { return sequence_ + 1; }
     glm::vec3 eye() const { return controller_.eyePosition(); }
     const viewer::FPSController& controller() const { return controller_; }
     std::size_t outstanding() const { return pending_.size(); }

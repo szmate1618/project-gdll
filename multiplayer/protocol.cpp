@@ -91,6 +91,26 @@ void movement(Wire& w, viewer::FPSState& s) {
 }
 void firearmShot(Wire& w, FirearmShot& shot) {
     w.integer(shot.slot);
+    w.flag(shot.predictedMist);
+    const auto validMuzzle = [](glm::vec3 point) {
+        return std::isfinite(point.x) && std::isfinite(point.y) && std::isfinite(point.z) &&
+            glm::all(glm::lessThanEqual(glm::abs(point), glm::vec3(1e8f)));
+    };
+    auto muzzle = shot.muzzlePosition.value_or(glm::vec3(0));
+    bool hasMuzzle = shot.muzzlePosition && validMuzzle(muzzle);
+    w.flag(hasMuzzle);
+    if (hasMuzzle) {
+        // Cosmetic muzzle data must not invalidate an otherwise valid hit.
+        // Read its float bits with the ordinary little-endian bounds checks,
+        // then discard invalid coordinates instead of weakening gameplay data.
+        for (int axis = 0; axis < 3; ++axis) {
+            std::uint32_t bits = 0;
+            if (!w.reading) std::memcpy(&bits, &muzzle[axis], sizeof(bits));
+            w.integer(bits);
+            if (w.reading) std::memcpy(&muzzle[axis], &bits, sizeof(bits));
+        }
+        if (w.reading) shot.muzzlePosition = validMuzzle(muzzle) ? std::optional<glm::vec3>(muzzle) : std::nullopt;
+    } else if (w.reading) shot.muzzlePosition.reset();
     if (shot.slot >= 4) throw std::runtime_error("Invalid firearm report weapon slot");
     std::array<bool, maxFirearmHits> pellets{};
     w.list(shot.hits, maxFirearmHits, [&](FirearmHit& report) {

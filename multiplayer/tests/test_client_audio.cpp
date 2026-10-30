@@ -1,4 +1,6 @@
 #include "client/audio_playback.hpp"
+#include "client/sound_cues.hpp"
+#include "client/weapon_feedback.hpp"
 #include <iostream>
 #include <stdexcept>
 
@@ -19,26 +21,48 @@ int main(int argc, char** argv) {
         multiplayer::Snapshot initial; initial.tick = 100;
         auto& self = initial.players.emplace_back(); self.id = 1; self.loaded = 2; self.reserve = 120;
         self.movement.feet = scene.spawnEye - glm::vec3(0, 1.7f, 0); self.movement.grounded = true;
-        audio.receive(initial, 1);
+        multiplayer::RemoteSoundCues remoteEvents;
+        std::vector<multiplayer::SoundEvent> remoteShots;
+        const auto receive = [&](const multiplayer::Snapshot& snapshot) {
+            audio.queueRemote(remoteEvents.receive(snapshot, 1, &remoteShots));
+        };
+        receive(initial);
+        multiplayer::WeaponFeedbackPrediction feedback;
+        feedback.reconcile(self);
+        const auto weaponCommand = [&](const multiplayer::Command& command, double now) {
+            const auto result = feedback.advance(command, now, scene.initialWeapons, scene.initialInventory);
+            audio.playWeapon(result.sounds);
+            return result;
+        };
         multiplayer::Command shot; shot.sequence = 1; shot.left = true;
-        audio.weaponCommand(shot, 0, scene.initialWeapons, scene.initialInventory);
+        require(weaponCommand(shot, 0).firearmSlot == 0,
+                "Local shot sound and visual feedback used different firing decisions");
         require(audio.stats().effects == 1, "Own shot did not reach playback before server acknowledgement");
         multiplayer::Snapshot next = initial; next.tick = 103;
         next.players[0].resolved = 1; next.players[0].loaded = 1; next.players[0].shots = 1;
+        feedback.reconcile(next.players[0]);
         multiplayer::Snapshots snapshots; snapshots.push(next, 0); snapshots.apply(scene, 0);
-        audio.receive(next, 1); audio.update(camera, scene, snapshots, 1, .016f, .016);
+        receive(next); audio.update(camera, scene, snapshots, 1, .016f, .016);
         require(audio.stats().effects == 1, "Shot confirmation duplicated local playback");
         next.tick = 106;
         next.sounds.push_back({1, 105, multiplayer::SoundKind::shot, 2, 2, camera.position()});
-        audio.receive(next, 1); audio.update(camera, scene, snapshots, 1, .016f, .032);
+        receive(next); audio.update(camera, scene, snapshots, 1, .016f, .032);
         require(audio.stats().effects == 2, "Remote event did not reach positional playback");
-        audio.receive(next, 1); audio.update(camera, scene, snapshots, 1, .016f, .048);
+        receive(next); audio.update(camera, scene, snapshots, 1, .016f, .048);
         require(audio.stats().effects == 2, "Repeated remote event duplicated playback");
+        next.tick = 107;
+        next.sounds.push_back({2, 107, multiplayer::SoundKind::shot, 2, 1,
+                               camera.position() + glm::vec3(multiplayer::soundRange + 1, 0, 0)});
+        receive(next);
+        require(remoteShots.size() == 1 && remoteShots[0].id == 2,
+                "An inaudible remote shot lost its visual event");
+        audio.update(camera, scene, snapshots, 1, .016f, .056);
+        require(audio.stats().effects == 2, "A distant gunshot consumed an audio effect voice");
         multiplayer::Command reload; reload.sequence = 2; reload.reload = true;
-        audio.weaponCommand(reload, 1, scene.initialWeapons, scene.initialInventory);
+        weaponCommand(reload, 1);
         require(audio.stats().effects == 3, "Own reload did not play before server confirmation");
         next.tick = 109; next.explosions.push_back({1, camera.position(), .1f});
-        audio.receive(next, 1); audio.update(camera, scene, snapshots, 1, .016f, .064);
+        receive(next); audio.update(camera, scene, snapshots, 1, .016f, .064);
         require(audio.stats().effects == 4, "Replicated explosion did not reach playback");
 
         auto remote = next.players.front(); remote.id = 2;
@@ -72,7 +96,19 @@ int main(int argc, char** argv) {
         require(audio.stats().zombieEmitters.empty(), "A hidden/dead ambient candidate retained a voice");
         settings.enabled = false;
         multiplayer::ClientAudio disabled(settings);
-        disabled.receive(next, 1); disabled.weaponCommand(shot, 0, scene.initialWeapons, scene.initialInventory);
+        multiplayer::WeaponFeedbackPrediction mutedFeedback;
+        mutedFeedback.reconcile(initial.players[0]);
+        const auto mutedShot = mutedFeedback.advance(shot, 0, scene.initialWeapons, scene.initialInventory);
+        multiplayer::RemoteSoundCues mutedEvents;
+        mutedEvents.receive(initial, 1);
+        auto mutedSnapshot = next; mutedSnapshot.tick = 201;
+        mutedSnapshot.sounds.push_back({3, 201, multiplayer::SoundKind::shot, 2, 3, camera.position()});
+        std::vector<multiplayer::SoundEvent> mutedShots;
+        disabled.queueRemote(mutedEvents.receive(mutedSnapshot, 1, &mutedShots));
+        disabled.playWeapon(mutedShot.sounds);
+        require(mutedShot.firearmSlot == 0, "--no-audio disabled local shot visuals");
+        require(mutedShots.size() == 1 && mutedShots[0].source == 2,
+                "--no-audio disabled remote shot visuals");
         disabled.update(camera, scene, snapshots, 1, .016f, 2);
         require(!disabled.enabled() && disabled.stats().effects == 0, "--no-audio still played effects");
         std::cout << "Client playback: immediate local actions, remote events, footsteps, ambience and mute passed\n";

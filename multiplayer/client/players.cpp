@@ -2,11 +2,12 @@
 #include "resources.hpp"
 #include "box_layer.hpp"
 #include "shader_program.hpp"
+#include "weapon_overlay.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 namespace multiplayer {
-PlayerRenderer::PlayerRenderer() {
+PlayerRenderer::PlayerRenderer(viewer::WeaponOverlay* sharedWeapon) : weapon_(sharedWeapon) {
     const auto cube = viewer::BoxLayer::unitCube();
     std::vector<glm::vec3> vertices;
     for (const auto i : cube.primitives.front().indices) vertices.push_back(cube.primitives.front().vertices[i].position);
@@ -22,8 +23,17 @@ PlayerRenderer::PlayerRenderer() {
 PlayerRenderer::~PlayerRenderer() {
     glDeleteBuffers(1, &vbo_); glDeleteVertexArrays(1, &vao_); glDeleteProgram(program_);
 }
+void PlayerRenderer::receiveShots(const std::vector<SoundEvent>& shots, const std::vector<PlayerState>& players,
+                                  double serverSeconds) {
+    weapons_.receiveShots(shots, players, serverSeconds);
+}
+std::vector<viewer::MuzzleFlashLight> PlayerRenderer::muzzleLights(double seconds) const {
+    return weapons_.muzzleLights(seconds);
+}
 void PlayerRenderer::draw(const viewer::Camera& camera, const std::vector<PlayerState>& players,
-                          std::uint32_t self, int width, int height) {
+                          std::uint32_t self, int width, int height, double serverSeconds) {
+    if (width <= 0 || height <= 0) return;
+    weapons_.receiveShots({}, players, serverSeconds);
     GLint program = 0, vao = 0, front = 0;
     glGetIntegerv(GL_CURRENT_PROGRAM, &program); glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vao);
     glGetIntegerv(GL_FRONT_FACE, &front); glFrontFace(GL_CCW);
@@ -49,6 +59,12 @@ void PlayerRenderer::draw(const viewer::Camera& camera, const std::vector<Player
         glUniformMatrix4fv(matrix_, 1, GL_FALSE, glm::value_ptr(m));
         glUniform3f(color_, .15f + .12f * (p.id % 4), .65f, .95f);
         glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
+    if (weapon_) for (const auto& player : players) {
+        if (player.id == self) continue;
+        if (const auto sample = weapons_.sample(player, serverSeconds))
+            weapon_->drawWorld(sample->slot, camera, static_cast<float>(width) / height,
+                sample->eyeToWorld, sample->flash, sample->motion);
     }
     glFrontFace(static_cast<GLenum>(front));
     glBindVertexArray(static_cast<GLuint>(vao)); glUseProgram(static_cast<GLuint>(program));

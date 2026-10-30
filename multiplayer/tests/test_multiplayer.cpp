@@ -208,6 +208,19 @@ void prediction() {
     Snapshot a; a.tick = 10;
     require(buffer.push(a, 0) && !buffer.push(a, 1), "Stale snapshot was published");
     a.tick = 9; require(!buffer.push(a, 1), "Reordered snapshot was published");
+    Command localEffect;
+    localEffect.sequence = client.nextSequence();
+    localEffect.left = true;
+    localEffect.firearmShot = FirearmShot{0, {}, true};
+    localEffect.firearmShot->muzzlePosition = glm::vec3(1, 2, 3);
+    const auto numbered = client.advance(localEffect, collision);
+    require(numbered.sequence == localEffect.sequence, "Presentation prediction used a different command number");
+    const auto retry = encode(client.commandsToSend());
+    const auto decoded = std::get<Commands>(decode(retry.data(), retry.size()));
+    require(decoded.commands.back().sequence == numbered.sequence &&
+            decoded.commands.back().firearmShot && decoded.commands.back().firearmShot->predictedMist &&
+            decoded.commands.back().firearmShot->muzzlePosition == glm::vec3(1, 2, 3),
+            "Local mist or muzzle metadata was lost from the stored/retried shot command");
 }
 void physicsPoses() {
     auto physics = std::make_shared<viewer::PhysicsWorld>();

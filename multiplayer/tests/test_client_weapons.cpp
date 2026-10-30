@@ -11,10 +11,21 @@ std::vector<std::vector<unsigned char>> frames;
 int frame = 0;
 bool departed = false;
 viewer::PlayerBodyPose punchPose;
+viewer::FPSState onFootAfterExit;
+glm::vec3 punchEye{0};
 constexpr HSteamNetConnection testConnection = 1;
 constexpr int frameWidth = 1280;
 int frameHeight = 720;
 bool scaledDisplay = false;
+std::chrono::steady_clock::time_point sessionOrigin;
+std::uint64_t latestCommand = 0, localFireCommand = 0, shotsBeforeLocalFire = 0;
+double localFireSeconds = 0;
+std::uint8_t localFireSlot = 1;
+bool holdFireAcknowledgement = false;
+
+double sessionSeconds() {
+    return std::chrono::duration<double>(std::chrono::steady_clock::now() - sessionOrigin).count();
+}
 
 void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
@@ -36,6 +47,19 @@ std::size_t differences(std::size_t a, std::size_t b) {
         }
     return count;
 }
+std::size_t brightenedWorldPixels(std::size_t before, std::size_t after) {
+    std::size_t count = 0;
+    // The fixture's nearby pillar, above the held weapon and away from the HUD.
+    // Recoil does not move the hip camera; illumination here proves that the
+    // muzzle light reached scene rendering, independently of weapon motion.
+    for (int y = frameHeight / 2; y < frameHeight * 13 / 20; ++y)
+        for (int x = frameWidth * 13 / 20; x < frameWidth * 3 / 4; ++x) {
+            const auto i = static_cast<std::size_t>(y * frameWidth + x) * 3;
+            if (int(frames[after][i]) - int(frames[before][i]) > 12 &&
+                int(frames[after][i+1]) - int(frames[before][i+1]) > 6) ++count;
+        }
+    return count;
+}
 void capture(const char* name) {
     std::ofstream file(fixture / (std::string(name) + ".ppm"), std::ios::binary);
     file << "P6\n" << frameWidth << ' ' << frameHeight << "\n255\n";
@@ -52,13 +76,24 @@ std::filesystem::path weaponModelDirectory() { return VIEWER_WEAPON_ASSETS; }
 std::filesystem::path audioDirectory() { return VIEWER_AUDIO_DIR; }
 Network::Network(float, float) {}
 Network::~Network() = default;
-HSteamNetConnection Network::connect(const std::string&) { return testConnection; }
+HSteamNetConnection Network::connect(const std::string&) {
+    sessionOrigin = std::chrono::steady_clock::now();
+    return testConnection;
+}
 double Network::estimatedOneWaySeconds(HSteamNetConnection) const { return 0; }
 bool Network::send(HSteamNetConnection, const Message& message, bool) {
     if (std::holds_alternative<Goodbye>(message)) departed = true;
-    if (scaledDisplay) if (const auto* commands = std::get_if<Commands>(&message); commands && commands->view)
-        require(std::abs(commands->view->aspect - 16.f/9) < .0001f,
+    if (const auto* commands = std::get_if<Commands>(&message)) {
+        for (const auto& command : commands->commands) {
+            latestCommand = std::max(latestCommand, command.sequence);
+            if (holdFireAcknowledgement && !localFireCommand && command.left && command.slot == localFireSlot) {
+                localFireCommand = command.sequence;
+                localFireSeconds = sessionSeconds();
+            }
+        }
+        if (scaledDisplay && commands->view) require(std::abs(commands->view->aspect - 16.f/9) < .0001f,
                 "Replication used the letterboxed window aspect instead of the rendered camera aspect");
+    }
     return true;
 }
 std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
@@ -153,22 +188,43 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             break;
         case 18:
             require(differences(0, 17) < 100, "Empty grenade inventory must leave the hand empty");
-            authoritative.slot = 1;
+            authoritative.slot = 1; authoritative.loaded = 2;
+            // The following loop must accrue a fixed step after its local press.
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
             break;
         case 19:
             capture("smg-before-shot");
-            ++authoritative.shots;
+            shotsBeforeLocalFire = authoritative.shots;
+            holdFireAcknowledgement = true;
+            in.capture = true;
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
             break;
         case 20:
-            require(differences(18,19) > 500, "Confirmed shot did not animate the held weapon");
+            require(localFireCommand && authoritative.shots == shotsBeforeLocalFire,
+                    "Local firearm feedback did not precede the server shot acknowledgement");
+            require(in.weaponMotion.pose(1, localFireSeconds).offset.z > 0 && differences(18,19) > 500,
+                    "Local firing input did not immediately animate the held weapon");
+            require(brightenedWorldPixels(18,19) > 500,
+                    "Local firing input did not immediately illuminate the scene with muzzle flash");
             capture("smg-recoil");
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             break;
+        case 21:
+            require(in.weaponMotion.pose(1, sessionSeconds()).offset.z == 0,
+                    "Local recoil did not recover while its acknowledgement was delayed");
+            ++authoritative.shots; --authoritative.loaded;
+            holdFireAcknowledgement = false;
+            break;
         case 22:
-            require(differences(18,21) < 100, "Unchanged shot snapshots retriggered recoil or prevented recovery");
+            require(authoritative.resolved >= localFireCommand && differences(18,21) < 100,
+                    "Delayed shot acknowledgement replayed local recoil or muzzle flash");
             capture("smg-recovered");
+            ++authoritative.shots; --authoritative.loaded;
             break;
         case 23: {
+            require(differences(18,22) < 100,
+                    "An externally scripted shot counter triggered local recoil or muzzle flash");
             car.emplace();
             car->chassis.center = authoritative.movement.feet + glm::vec3(0, .8f, 0);
             for (std::size_t w = 0; w < 4; ++w) {
@@ -225,6 +281,7 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             require(command(in, window, false, 0.0).enterVehicle && !command(in, window, false, 0.0).enterVehicle,
                     "Enter must queue exactly one seat-transition command");
             authoritative.vehicle = multiplayer::noVehicle; authoritative.seat = multiplayer::noVehicleSeat;
+            authoritative.movement = onFootAfterExit;
             break;
         }
         case 27:
@@ -254,6 +311,7 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             require(command(in, window, false, 0.0).enterVehicle && !command(in, window, false, 0.0).enterVehicle,
                     "Passenger Enter must request one exit");
             authoritative.vehicle = multiplayer::noVehicle; authoritative.seat = multiplayer::noVehicleSeat;
+            authoritative.movement = onFootAfterExit;
             break;
         case 30: {
             require(!in.driver.occupied(), "Passenger exit did not restore walking controls");
@@ -282,6 +340,7 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
         }
         case 31:
             require(!in.canScope,"Confirmed fists enabled scope"); capture("fists-punch");
+            punchEye = in.camera.position();
             authoritative.melee={};
             break;
         case 32:
@@ -289,6 +348,9 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             authoritative.melee=punchPose; ++authoritative.shots;
             break;
         case 33:
+            capture("fists-punch-confirmed-again");
+            require(glm::distance(in.camera.position(), punchEye) < .001f,
+                    "Scripted on-foot state moved the camera between identical punch poses");
             require(differences(30,32)<100,"Confirmed punches created firearm recoil or muzzle lighting");
             in.interaction=true;
             break;
@@ -398,12 +460,68 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             require(!in.wheelOpen && in.pendingSignal == multiplayer::SignalKind::None,
                     "Focus loss submitted a command");
             key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
+            authoritative.slot = 3; authoritative.loaded = 2;
+            authoritative.yaw = -90; authoritative.pitch = 0;
+            in.camera.setOrientation(-90, 0);
+            break;
+        case 43:
+            in.capture = true;
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+            require(in.camera.viewMode() == viewer::Camera::ViewMode::zoom10,
+                    "Scoped local firing fixture did not enter sniper scope");
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            break;
+        case 44:
+            capture("sniper-before-local-shot");
+            localFireCommand = 0; localFireSlot = 3;
+            shotsBeforeLocalFire = authoritative.shots;
+            holdFireAcknowledgement = true;
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+            break;
+        case 45: {
+            require(localFireCommand && authoritative.shots == shotsBeforeLocalFire &&
+                    in.weaponMotion.pose(3, localFireSeconds).offset.z > 0,
+                    "Scoped recoil waited for server acknowledgement");
+            require(in.camera.viewMode() == viewer::Camera::ViewMode::zoom10,
+                    "Local firing left the sniper scope");
+            const viewer::WeaponMotion resting;
+            const auto baseline = resting.aimCamera(in.camera, 3, localFireSeconds, true);
+            const auto recoiling = in.weaponMotion.aimCamera(in.camera, 3, localFireSeconds, true);
+            const auto outgoing = command(in, window, false, localFireSeconds);
+            require(glm::distance(baseline.direction(), recoiling.direction()) > .0001f,
+                    "Immediate local recoil did not move the scoped aim beyond the same-time sway");
+            require(outgoing.pitch == recoiling.pitchDegrees() && outgoing.movement.yawDegrees == recoiling.yawDegrees() &&
+                    in.camera.yawDegrees() == authoritative.yaw && in.camera.pitchDegrees() == authoritative.pitch,
+                    "Scoped local recoil disagreed with sent aim or accumulated into mouse orientation");
+            capture("sniper-local-recoil");
+            std::this_thread::sleep_for(std::chrono::milliseconds(750));
+            break;
+        }
+        case 46:
+            require(in.weaponMotion.pose(3, sessionSeconds()).offset.z == 0,
+                    "Scoped recoil did not recover before its delayed acknowledgement");
+            ++authoritative.shots; --authoritative.loaded;
+            holdFireAcknowledgement = false;
+            break;
+        case 47: {
+            require(authoritative.resolved >= localFireCommand && in.weaponMotion.pose(3, sessionSeconds()).offset.z == 0,
+                    "Delayed sniper acknowledgement replayed local recoil");
+            const double now = sessionSeconds();
+            const viewer::WeaponMotion resting;
+            const auto baseline = resting.aimCamera(in.camera, 3, now, true);
+            const auto acknowledged = in.weaponMotion.aimCamera(in.camera, 3, now, true);
+            require(glm::distance(baseline.direction(), acknowledged.direction()) < .000001f,
+                    "Delayed sniper acknowledgement applied another kick to scoped aim");
+            capture("sniper-local-acknowledged");
             glfwSetWindowShouldClose(window, true);
             break;
+        }
     }
     // This fixture also scripts external authoritative equipment changes.
     // Their matching requests stand in for completed user selections.
     if (!in.actionSelection.open()) in.slot = authoritative.slot;
+    if (!holdFireAcknowledgement) authoritative.resolved = latestCommand;
     Snapshot snapshot; snapshot.tick = static_cast<std::uint64_t>(frame++);
     snapshot.players.push_back(authoritative);
     if (car) snapshot.vehicles.push_back(*car);
@@ -453,11 +571,23 @@ int main(int argc, char** argv) {
         viewer::FPSController controller;
         require(controller.spawn(scene.spawnEye, *scene.collision), "Cannot spawn weapon test player");
         authoritative.id = 1; authoritative.movement = controller.movementState();
+        // Script the same safe exit that the authoritative server chooses.
+        // Restoring the original spawn would put walking feet inside this car;
+        // normal command ACKs would then repeatedly trigger local depenetration.
+        scene.vehicles->add(authoritative.movement.feet + glm::vec3(0, .8f, 0));
+        const auto exits = viewer::vehicleExits(*scene.vehicles, 0, *scene.collision, controller.config(), 1);
+        require(!exits.empty(), "Weapon fixture car has no supported passenger exit");
+        viewer::FPSController exiting;
+        require(exiting.spawn(exits.front() + glm::vec3(0, exiting.eyeHeight(), 0), *scene.collision),
+                "Cannot place scripted player outside the fixture car");
+        onFootAfterExit = exiting.movementState();
         char program[] = "client", noTrees[] = "--no-trees", count[] = "--zombie-count", zero[] = "0";
-        char hidden[] = "--hidden", seconds[] = "--seconds", duration[] = "5";
+        char hidden[] = "--hidden", seconds[] = "--seconds", duration[] = "8", noAudio[] = "--no-audio";
         char dayLength[] = "--day-length";
-        char* args[] = {program, argv[1], noTrees, count, zero, hidden, seconds, duration, dayLength, zero};
-        auto clientOptions = multiplayer::parseOptions(10, args, false);
+        // The scaled variant repeats local firing checks through --no-audio.
+        char* args[] = {program, argv[1], noTrees, count, zero, hidden, seconds, duration, dayLength, zero, noAudio};
+        auto clientOptions = multiplayer::parseOptions(scaledDisplay ? 11 : 10, args, false);
+        require(clientOptions.audio != scaledDisplay, "Client audio option did not match its test variant");
         const auto releaseWindow = [](GLFWwindow* window) { if (window) { glfwDestroyWindow(window); glfwTerminate(); } };
         std::unique_ptr<GLFWwindow, decltype(releaseWindow)> sharedWindow(nullptr, releaseWindow);
         if (scaledDisplay) {
@@ -469,7 +599,7 @@ int main(int argc, char** argv) {
             glfwPollEvents();
             clientOptions.screenshot = fixture / "scaled-window.ppm";
         }
-        require(multiplayer::runClientSession(clientOptions, sharedWindow.get()) == 0 && frame == 43, "Graphical client did not finish all weapon and command wheel states");
+        require(multiplayer::runClientSession(clientOptions, sharedWindow.get()) == 0 && frame == 48, "Graphical client did not finish all weapon and command wheel states");
         if (scaledDisplay) {
             std::ifstream screenshot(clientOptions.screenshot);
             std::string magic; int width = 0, height = 0;

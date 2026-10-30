@@ -5,9 +5,9 @@
 #include <stdexcept>
 
 namespace viewer {
-void BloodMist::emit(glm::vec3 point, BloodMistSize size, double seconds) {
+void BloodMist::emit(glm::vec3 point, BloodMistSize size, double seconds, std::uint32_t excludedObserver) {
     if (!std::isfinite(seconds) || !std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z)) return;
-    entries_[slot_] = {{nextId_++,point,0,size},seconds};
+    entries_[slot_] = {{nextId_++,point,0,size},seconds,excludedObserver};
     if (!nextId_) nextId_ = 1;
     slot_ = (slot_+1)%capacity;
 }
@@ -18,9 +18,10 @@ std::vector<BloodMistBurst> BloodMist::sample(double seconds) const {
     }),result.end());
     return result;
 }
-std::vector<BloodMistBurst> BloodMist::recent(double seconds) const {
+std::vector<BloodMistBurst> BloodMist::recent(double seconds, std::uint32_t observer) const {
     std::vector<BloodMistBurst> result;
     for (const auto& entry : entries_) {
+        if (observer && entry.excludedObserver == observer) continue;
         const double age = seconds-entry.seconds;
         if (!entry.burst.id || !std::isfinite(age) || age < 0 || age >= historySeconds) continue;
         auto burst = entry.burst;

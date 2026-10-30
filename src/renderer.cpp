@@ -481,13 +481,15 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         drawVehicles(projection * view);
     }
     if (drawOpaque) drawOpaque();
-    if (zombieSource_) {
+    if (zombieSource_ || !localBloodMist_.empty()) {
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::bloodDraws);
-        auto bursts = zombieSource_->bloodMist().sample(animationSeconds);
-        if (!bursts.empty() || zombieSource_->bloodParticles().hasEffects(animationSeconds)) {
+        auto bursts = zombieSource_ ? zombieSource_->bloodMist().sample(animationSeconds) : std::vector<BloodMistBurst>{};
+        bursts.insert(bursts.end(), localBloodMist_.begin(), localBloodMist_.end());
+        const auto* particles = zombieSource_ ? &zombieSource_->bloodParticles() : nullptr;
+        if (!bursts.empty() || (particles && particles->hasEffects(animationSeconds))) {
             if (!bloodMist_) bloodMist_ = std::make_unique<BloodMistRenderer>(shaderDirectory_);
             bloodMist_->draw(camera,float(width_)/float(height_),bursts,lighting.unlitColor,
-                             &zombieSource_->bloodParticles(),animationSeconds);
+                             particles,animationSeconds);
         }
     }
     if (!transparentScene_.empty()) {

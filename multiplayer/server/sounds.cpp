@@ -13,8 +13,11 @@ std::vector<SoundEvent> ServerSounds::forListener(std::uint64_t tick, std::uint3
     std::vector<SoundEvent> result;
     for (const auto& event : events_) {
         const auto delta = event.position - eye;
+        // Shots also drive remote muzzle/recoil presentation. Send their small
+        // bounded history outside hearing range; clients attenuate the audio.
+        const bool inRange = event.kind == SoundKind::shot || glm::dot(delta, delta) <= soundRange * soundRange;
         if (event.tick <= tick && tick - event.tick <= soundHistoryTicks &&
-            !(playerSound(event.kind) && event.source == player) && glm::dot(delta, delta) <= soundRange * soundRange)
+            !(playerSound(event.kind) && event.source == player) && inRange)
             result.push_back(event);
     }
     return result;

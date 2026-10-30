@@ -211,7 +211,9 @@ The predictor tracks pending magazine consumption and weapon cooldowns, shares
 the authoritative reload eligibility calculation, and retires predictions when
 commands are acknowledged. It never changes gameplay ammo or hit results.
 Confirmation and movement reconciliation never replay sounds. A rejected
-prediction may already have been heard. Recoil and hit effects remain confirmed.
+prediction may already have been heard. The same local decision also starts
+firearm recoil, muzzle light and predicted bullet mist, even when audio is muted;
+damage, wounds and ragdolls remain authoritative.
 
 Own footsteps, landings, door latches and shrub contacts also play locally.
 Other players' footsteps/landings and shrub contacts are reconstructed from
@@ -228,16 +230,20 @@ can leave audible actors silent temporarily. Moans never enter the protocol.
 Server sounds cover remote firearm shots/reloads, door latches, and actual
 zombie hearing/chase reactions. Gameplay records bounded reaction notifications
 where they occur; there is no extra population scan. A history of at most 128
-events repeats for 30 server ticks (0.5 s) in snapshots, selected within 40 m of
-each listener. An originating player never receives its own predicted actions.
+events repeats for 30 server ticks (0.5 s) in snapshots. Gunshot events reach all
+other players to animate their remote guns and muzzle lights; their sounds keep
+the 40 m hearing range. Other event kinds are selected within 40 m of each
+listener. An originating player never receives its own predicted actions.
 Clients deduplicate event IDs, suppress pre-join history, and discard events more
 than 18 ticks (0.3 s) old in the newest accepted snapshot. A receive backlog is
-coalesced before playback. Loss beyond that short history drops a sound rather
+coalesced before playback. Remote shot sound, recoil and flash share one
+deduplicated receipt on the buffered player playback timeline. Loss beyond that
+short history drops a sound rather
 than replaying a burst. Explosion sounds reuse grenade IDs/ages; door slams use
 the existing angle/speed tracker. These are presentation cues, independent of
 AI noise and perception.
 
-Protocol 22 requires matching rebuilt peers. Audio is positional with distance
+Protocol 23 requires matching rebuilt peers. Audio is positional with distance
 attenuation; wall occlusion, room acoustics and voice chat are not implemented.
 
 ## Checks and code
@@ -269,9 +275,11 @@ or asset quality.
 - `src/undergrowth.hpp/.cpp`: Indexed contact volumes, swept movement and AI noise events.
 - `src/undergrowth_audio.hpp/.cpp`: Recorded shrub effect selection and playback.
 - `multiplayer/client/audio_playback.hpp/.cpp`: Local playback and bounded ambient candidates.
-- `multiplayer/client/weapon_audio.hpp/.cpp`: Immediate action sound prediction.
+- `multiplayer/client/weapon_audio.hpp/.cpp`: Weapon-to-clip mappings.
+- `multiplayer/client/weapon_feedback.hpp/.cpp`: Shared immediate shot/reload prediction.
+- `multiplayer/client/remote_weapon_playback.hpp/.cpp`: Event-timed remote guns and muzzle lights.
 - `multiplayer/client/sound_cues.hpp/.cpp`: Repeated snapshot event filtering/deduplication.
-- `multiplayer/server/sounds.hpp/.cpp`: Bounded, range-filtered authoritative event history.
+- `multiplayer/server/sounds.hpp/.cpp`: Bounded authoritative event history and observer filtering.
 - `tools/create_audio_assets.py`: Original synthesized landing and ambience.
 - `tools/prepare_audio_assets.py`: Hash-checked recording preparation.
 - `assets/audio/`: Curated WAVs, credits, and provenance manifest.
