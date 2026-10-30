@@ -1,4 +1,4 @@
-/* HUD and in-game loadout palette. The main menu has its own color scheme.
+/* HUD, in-game loadout and modern main-menu palette. Classic keeps its own colors.
    Primary white #f5f6f2: text, item outlines and progress.
    Grey backdrop #2b2d2f and surfaces #383a3c anchor the menu screens.
    Health red #ec6962 accents menu navigation, headings and combo markers.

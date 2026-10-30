@@ -1,0 +1,20 @@
+/* Original 960x600 menu, including its exact 5x7 glyph shapes. */
+body.classic { font-family: menu-pixel; font-size: 15dp; color: #d9e6f0; background-color: #060a0e; }
+.classic #header-rule { background-color: #338c73; }
+.classic.creating #menu-title { font-size: 30dp; }
+.classic #menu-subtitle, .classic #connection-title, .classic #connection-note { display: none; }
+.classic .menu-action { font-size: 20dp; background-color: #0f1f26; }
+.classic .menu-action.selected, .classic .menu-action:hover, .classic #character-back { background-color: #1f4d42; }
+.classic input { background-color: #142633; caret-color: #d9e6f0; }
+.classic input:focus { background-color: #144d33; }
+.classic #host-port { font-size: 20dp; }
+.classic #connection-panel { background-color: transparent; }
+.classic #character-heading { font-size: 20dp; }
+.classic #character-preview { background-color: #0b1116; }
+.classic .theme-button { background-color: #0f1f26; }
+.classic .theme-button.active, .classic .theme-button:hover { background-color: #1f4d42; }
+.classic #loading-heading { display: none; }
+.classic #loading-message { top: 150dp; font-size: 20dp; }
+.classic #loading-cancel { background-color: #0f1f26; }
+.classic #loading-cancel:hover { background-color: #1f4d42; }
+.classic input selection { color: #d9e6f0; background-color: #338c73; }

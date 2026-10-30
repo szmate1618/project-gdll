@@ -40,7 +40,8 @@ struct HudState {
     bool showLocalMapPlayer = true;
 };
 
-// Owns the application's RmlUi lifetime. One HUD at a time, on the GL thread.
+// Owns a HUD context and shares the application's RmlUi runtime with the menu.
+// One HUD at a time, on the GL thread.
 // Construct/destroy with a current context. Draws into the currently bound FBO
 // in framebuffer pixels, preserving GL state.
 class Hud {

@@ -1,0 +1,62 @@
+<rml>
+<head>
+    <title>Godollo</title>
+    <link type="text/rcss" href="main-menu.rcss" />
+    <link type="text/rcss" href="palette.rcss" />
+    <link type="text/rcss" href="main-menu-classic.rcss" />
+    <link type="text/rcss" href="main-menu-modern.rcss" />
+</head>
+<body class="main-menu classic">
+    <div id="menu-frame">
+        <div id="menu-title">GODOLLO</div>
+        <div id="menu-subtitle">CHOOSE YOUR NEXT SESSION</div>
+        <div id="theme-picker">
+            <span id="theme-label">STYLE / F6</span>
+            <button id="theme-classic" class="theme-button active">CLASSIC</button>
+            <button id="theme-modern" class="theme-button">MODERN</button>
+        </div>
+        <div id="header-rule"></div>
+        <div id="choose-screen">
+            <div id="menu-actions">
+                <button id="play-single" class="menu-action selected"><span class="action-key">1</span><span class="action-name">SINGLE PLAYER</span><span class="action-detail">A private, offline session</span></button>
+                <button id="play-host" class="menu-action"><span class="action-key">2</span><span class="action-name">HOST GAME</span><span class="action-detail">Start a session with friends</span></button>
+                <button id="play-join" class="menu-action"><span class="action-key">3</span><span class="action-name">JOIN GAME</span><span class="action-detail">Connect to an existing server</span></button>
+                <button id="create-character" class="menu-action"><span class="action-key">4</span><span class="action-name">CHARACTER CREATION</span><span class="action-detail">Paint and inspect your character</span></button>
+                <button id="quit-game" class="menu-action"><span class="action-key">5</span><span class="action-name">QUIT</span></button>
+            </div>
+            <div id="connection-panel" class="panel">
+                <div id="connection-title">CONNECTION</div>
+                <div id="host-heading">HOST: UP TO 8 PLAYERS</div>
+                <label id="port-label" for="host-port">UDP PORT</label>
+                <input id="host-port" type="text" maxlength="5" value="27020" />
+                <label id="address-label" for="join-address">JOIN: NUMERIC IP:PORT</label>
+                <input id="join-address" type="text" maxlength="64" value="127.0.0.1:27020" />
+                <div id="connection-note">Use the host's numeric IP address and UDP port.</div>
+            </div>
+            <div id="offline-hint">SINGLE PLAYER IS PRIVATE AND WORKS OFFLINE.</div>
+            <div id="controls-hint">CLICK OR USE 1-5 / ARROWS + ENTER. TAB EDITS FIELDS.</div>
+            <div id="session-hint">ESC DURING PLAY LEAVES THE SESSION.</div>
+        </div>
+        <div id="character-screen">
+            <div id="character-details">
+                <div id="character-heading">YOUR CHARACTER</div>
+                <div id="character-size">0.6 X 1.8 X 0.4 M</div>
+                <div id="paint-hint">LEFT DRAG TO PAINT</div>
+                <div id="orbit-hint">RIGHT DRAG TO ROTATE</div>
+                <div id="face-label">FACE</div>
+                <div id="face-name"></div>
+                <div id="base-swatch" class="swatch"></div><div id="base-label">BASE</div>
+                <div id="paint-swatch" class="swatch"></div><div id="paint-label">PAINT</div>
+                <button id="character-back">ESC - BACK</button>
+            </div>
+            <div id="character-preview" class="panel"></div>
+        </div>
+        <div id="loading-screen">
+            <div id="loading-heading">PREPARING SESSION</div>
+            <div id="loading-message"></div>
+            <button id="loading-cancel">ESC - CANCEL / RETURN TO MENU</button>
+        </div>
+        <div id="menu-message"></div>
+    </div>
+</body>
+</rml>

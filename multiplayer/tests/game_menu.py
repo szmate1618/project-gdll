@@ -182,6 +182,8 @@ with log.open("w") as output:
         window = wait_for(lambda: owned_window(game.pid), "Game window not found")
         wait_for(lambda: "Choose a game mode" in title(window), "Initial menu missing")
         capture("menu")
+        key("F6")
+        capture("menu-modern")
         key("4")
         wait_for(lambda: "| Character creation" in title(window), "Character creation screen did not open")
         time.sleep(.15)
@@ -189,6 +191,9 @@ with log.open("w") as output:
         key("Escape")
         wait_for(lambda: "Choose a game mode" in title(window), "Character creation did not restore menu")
         for cycle in range(2):
+            if cycle == 1:
+                key("F6")
+                capture("menu-classic-after-session")
             key("1")
             wait_for(lambda: "| Player" in title(window), "Single-player did not become playable")
             if cycle == 0:

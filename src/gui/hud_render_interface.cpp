@@ -132,6 +132,11 @@ void HudRenderInterface::setMinimapRoads(const Model& model) {
     GlState restore;
     roads_ = std::make_unique<MinimapRoadRenderer>(model);
 }
+void HudRenderInterface::clearMinimap() {
+    minimap_ = {};
+    minimapTexture_ = 0;
+    roads_.reset();
+}
 
 void HudRenderInterface::drawSatelliteImage(Rml::Vector2f offset, Rml::Vector2f size, glm::vec2 origin,
                                             glm::vec2 x, glm::vec2 y, float contrast) {

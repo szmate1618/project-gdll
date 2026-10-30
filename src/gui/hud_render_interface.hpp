@@ -22,6 +22,7 @@ public:
     void render(Rml::Context& context, int width, int height, const std::function<void()>& afterLayout = {});
     void setMinimap(const MinimapSource& source, GLuint texture);
     void setMinimapRoads(const Model& model);
+    void clearMinimap(); // Release scene data before the borrowed terrain texture is destroyed.
     void setMinimapPosition(glm::vec2 position) { minimapPosition_ = position; }
     void drawMinimap(Rml::Vector2f offset, Rml::Vector2f size);
     void drawSatelliteMap(Rml::Vector2f offset, Rml::Vector2f size, glm::vec2 uvOrigin, glm::vec2 uvExtent);

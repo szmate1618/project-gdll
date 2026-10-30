@@ -1,5 +1,6 @@
 #include "hud.hpp"
 #include "hud_render_interface.hpp"
+#include "ui_runtime.hpp"
 #include "inventory_view.hpp"
 #include "inventory_interaction.hpp"
 #include "action_hotbar.hpp"
@@ -11,41 +12,21 @@
 #include <RmlUi/Core.h>
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <cmath>
-#include <cstdlib>
-#include <fstream>
 #include <iomanip>
-#include <iostream>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <unordered_map>
-#ifdef _WIN32
-#include <windows.h>
-#endif
 
 namespace viewer {
 namespace {
-bool hudActive = false; // The application owns RmlUi on its graphics thread.
-
-class HudSystem final : public Rml::SystemInterface {
-public:
-    double GetElapsedTime() override {
-        return std::chrono::duration<double>(std::chrono::steady_clock::now() - start_).count();
-    }
-    bool LogMessage(Rml::Log::Type, const Rml::String& message) override {
-        std::cerr << "RmlUi: " << message << '\n';
-        return true;
-    }
-private:
-    std::chrono::steady_clock::time_point start_ = std::chrono::steady_clock::now();
-};
+bool hudActive = false; // One gameplay HUD at a time, sharing the application UI runtime.
 
 class SatelliteMapElement final : public Rml::Element {
 public:
     explicit SatelliteMapElement(const Rml::String& tag) : Rml::Element(tag) {}
-    HudRenderInterface* renderer = nullptr; // Owned by the HUD; outlives this element.
+    HudRenderInterface* renderer = nullptr; // Shared UI runtime; outlives this element.
 protected:
     void OnRender() override {
         if (!renderer) return;
@@ -53,26 +34,6 @@ protected:
         renderer->drawMinimap(offset, size);
     }
 };
-
-std::filesystem::path systemFont() {
-    if (const auto* override = std::getenv("GD_HUD_FONT")) return override;
-#ifdef _WIN32
-    std::array<wchar_t, MAX_PATH> windows{};
-    const auto length = GetWindowsDirectoryW(windows.data(), static_cast<UINT>(windows.size()));
-    if (length && length < windows.size()) return std::filesystem::path(windows.data()) / "Fonts/segoeui.ttf";
-#else
-    for (const char* path : {
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-            "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-            "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
-            "/usr/share/fonts/TTF/DejaVuSans.ttf",
-            "/usr/share/fonts/noto/NotoSans-Regular.ttf"})
-        if (std::filesystem::is_regular_file(path)) return path;
-#endif
-    throw std::runtime_error("No HUD system font found. Set GD_HUD_FONT to an installed .ttf font.");
-}
 
 std::string speed(float metresPerSecond) {
     std::ostringstream result;
@@ -82,11 +43,8 @@ std::string speed(float metresPerSecond) {
 } // namespace
 
 struct Hud::Impl {
-    HudRenderInterface renderer;
-    HudSystem system;
-    Rml::ElementInstancerGeneric<SatelliteMapElement> mapInstancer;
-    // FreeType borrows these bytes until Rml::Shutdown().
-    std::vector<Rml::byte> font;
+    std::shared_ptr<UiRuntime> runtime;
+    HudRenderInterface& renderer;
     Rml::Context* context = nullptr;
     Rml::ElementDocument* document = nullptr;
     std::array<Rml::ElementDocument*, 4> screens{};
@@ -104,29 +62,16 @@ struct Hud::Impl {
     std::array<Rml::Element*, 24> ticks{};
     std::array<Rml::Element*, 6> directions{};
     int width = 0, height = 0, slot = -2, bearing = -1, selectionSlot = -1;
-    bool initialized = false;
 
     Impl(const std::filesystem::path& directory, PlayerInventory& playerInventory)
-        : renderer(directory), inventory(playerInventory), sourceDirectory(directory) {
+        : runtime(UiRuntime::acquire(directory)), renderer(runtime->renderer()), inventory(playerInventory), sourceDirectory(directory) {
         if (hudActive) throw std::runtime_error("Only one HUD may own RmlUi at a time");
-        Rml::SetSystemInterface(&system);
-        Rml::SetRenderInterface(&renderer);
         try {
-            if (!Rml::Initialise()) throw std::runtime_error("Cannot initialize RmlUi");
-            initialized = true;
-            hudActive = true;
-            const auto path = systemFont();
-            std::ifstream input(path, std::ios::binary);
-            if (!input) throw std::runtime_error("Cannot read HUD system font: " + path.string());
-            font.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
-            if (!Rml::LoadFontFace(Rml::Span<const Rml::byte>(font.data(), font.size()), "hud-system",
-                                   Rml::Style::FontStyle::Normal, Rml::Style::FontWeight::Normal))
-                throw std::runtime_error("Cannot load HUD system font: " + path.string());
             context = Rml::CreateContext("game-hud", {1280, 720});
             if (!context) throw std::runtime_error("Cannot create HUD context");
+            hudActive = true;
+            static Rml::ElementInstancerGeneric<SatelliteMapElement> mapInstancer;
             Rml::Factory::RegisterElementInstancer("minimap", &mapInstancer);
-            registerMapViewElement();
-            registerCommandWheelElements();
             document = context->LoadDocument((directory / "hud.rml").generic_string());
             if (!document) throw std::runtime_error("Cannot load HUD layout: " + directory.string());
             for (const char* id : {"heading", "north-coordinate", "east-coordinate", "movement", "mode", "speed",
@@ -152,7 +97,6 @@ struct Hud::Impl {
             }
             commandWheel = std::make_unique<CommandWheelView>(*document);
             document->Show();
-            std::cout << "HUD system font: " << path << '\n';
         } catch (...) {
             shutdown();
             throw;
@@ -163,9 +107,10 @@ struct Hud::Impl {
         commandWheel.reset();
         mapView.reset();
         inventoryInteraction.reset();
-        if (initialized) { Rml::Shutdown(); initialized = false; hudActive = false; }
-        Rml::SetRenderInterface(nullptr);
-        Rml::SetSystemInterface(nullptr);
+        if (context) {
+            Rml::RemoveContext("game-hud"); context = nullptr; hudActive = false;
+            renderer.clearMinimap();
+        }
     }
     void setText(const std::string& id, const std::string& value) {
         // Avoid invalidating text geometry/layout when the displayed value is unchanged.

@@ -1,0 +1,45 @@
+/* Inventory/map surfaces and quiet typography; coral is a small focus accent. */
+body.modern { font-size: 14dp; background-color: #2b2d2f; }
+.modern #menu-title { top: 43dp; font-size: 44dp; }
+.modern #menu-subtitle { position: absolute; left: 60dp; top: 82dp; font-size: 9dp; letter-spacing: 2dp; color: #f5f6f280; }
+.modern #header-rule { height: 1dp; top: 108dp; background-color: #f5f6f226; }
+.modern #theme-picker { top: 54dp; font-size: 10dp; }
+.modern #theme-label { color: #f5f6f280; }
+.modern .theme-button { background-color: #383a3c; color: #f5f6f299; border-bottom-width: 1dp; border-color: #f5f6f226; }
+.modern .theme-button.active { color: #f5f6f2; border-color: #ec6962; }
+.modern .theme-button:hover { color: #f5f6f2; background-color: #f5f6f21a; }
+.modern #menu-actions { width: 356dp; }
+.modern .menu-action { height: 54dp; margin-bottom: 9dp; border-width: 1dp; border-left-width: 2dp; border-color: #f5f6f21a; background-color: #383a3c; }
+.modern .menu-action.selected { border-left-color: #ec6962; background-color: #f5f6f21a; }
+.modern .menu-action:hover { border-top-color: #f5f6f24d; border-right-color: #f5f6f24d; border-bottom-color: #f5f6f24d; background-color: #f5f6f214; }
+.modern .action-key { left: 15dp; top: 16dp; font-size: 11dp; color: #f5f6f280; }
+.modern .action-name { left: 43dp; top: 8dp; font-size: 14dp; }
+.modern .action-detail { display: block; left: 43dp; top: 30dp; font-size: 10dp; color: #f5f6f280; }
+.modern #quit-game { height: 40dp; background-color: transparent; }
+.modern #quit-game .action-key { top: 11dp; }
+.modern #quit-game .action-name { top: 9dp; }
+.modern #connection-panel { left: 448dp; width: 452dp; height: 300dp; box-sizing: border-box; border-width: 1dp; border-color: #f5f6f226; }
+.modern #connection-title { left: 24dp; top: 20dp; font-size: 11dp; letter-spacing: 2dp; }
+.modern #host-heading { left: 24dp; top: 61dp; font-size: 10dp; color: #f5f6f299; }
+.modern #port-label { left: 24dp; top: 84dp; font-size: 10dp; color: #f5f6f280; }
+.modern #host-port, .modern #join-address { left: 24dp; width: 402dp; height: 38dp; background-color: #2b2d2f; border-width: 1dp; border-color: #f5f6f226; padding: 7dp 12dp; font-size: 14dp; caret-color: #f5f6f2; }
+.modern #host-port { top: 104dp; }
+.modern #address-label { left: 24dp; top: 168dp; font-size: 10dp; color: #f5f6f299; }
+.modern #join-address { top: 190dp; }
+.modern #host-port:focus, .modern #join-address:focus { border-color: #f5f6f299; }
+.modern #connection-note { left: 24dp; top: 250dp; font-size: 10dp; color: #f5f6f280; }
+.modern #offline-hint { top: 454dp; font-size: 10dp; color: #f5f6f299; }
+.modern #controls-hint { top: 480dp; font-size: 10dp; color: #f5f6f280; }
+.modern #session-hint { top: 500dp; font-size: 10dp; color: #f5f6f280; }
+.modern #menu-message { top: 537dp; font-size: 12dp; color: #f5f6f2bf; max-height: 40dp; }
+.modern #character-details { font-size: 12dp; }
+.modern #character-heading { font-size: 14dp; letter-spacing: 1dp; }
+.modern #character-size, .modern #face-label { color: #f5f6f280; font-size: 10dp; }
+.modern #paint-hint, .modern #orbit-hint { color: #f5f6f2bf; font-size: 11dp; }
+.modern #face-name { color: #f5f6f2bf; }
+.modern #character-preview { border-width: 1dp; box-sizing: border-box; border-color: #f5f6f226; background-color: #242628; }
+.modern #character-back, .modern #loading-cancel { background-color: #383a3c; border-width: 1dp; border-color: #f5f6f24d; font-size: 11dp; }
+.modern #character-back:hover, .modern #loading-cancel:hover { background-color: #f5f6f21a; }
+.modern #loading-heading { font-size: 11dp; letter-spacing: 2dp; color: #f5f6f280; }
+.modern #loading-message { font-size: 17dp; line-height: 28dp; }
+.modern input selection { color: #2b2d2f; background-color: #f5f6f2; }

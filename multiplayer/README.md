@@ -11,6 +11,31 @@ interpolation. The game builds on Linux and Windows; Windows compilation,
 headless session checks and ZIP validation run in GitHub Actions. Interactive
 Windows rendering still needs validation on Windows hardware.
 
+## Main menu styles
+
+The client main menu uses one RmlUi document with **Classic** and **Modern**
+styles. Classic is the default and retains the original blue/green colors,
+layout and 5×7 pixel lettering. Modern uses the inventory/map menus' charcoal
+surfaces and off-white text, with a thin coral selection accent. Click either
+style at the top right, or press **F6**, including in the character preview
+and loading screen. The choice and connection fields survive menu/gameplay
+transitions during this launch; the style is not saved between launches.
+
+Use **1–5** or **Up/Down + Enter** to choose a mode. **Tab** cycles through
+the host port, join address, then back to mode selection; **Shift+Tab** reverses
+that order. **Enter/Escape** ends field editing. Loading supports **Escape**
+or its Cancel button. The character preview retains its paint/orbit controls.
+
+The shared layout is [main-menu.rml](../ui/main-menu.rml), with common rules in
+[main-menu.rcss](../ui/main-menu.rcss) and separate
+[Classic](../ui/main-menu-classic.rcss) / [Modern](../ui/main-menu-modern.rcss)
+styles. [MenuView](client/menu_view.hpp) owns UI interaction; `GameMenu` owns
+the window and session actions. The HUD and menu share one RmlUi runtime with
+separate contexts, allowing loading feedback while the HUD exists.
+The bundled [pixel font](../ui/fonts/README.md) uses the original glyph shapes;
+Modern retains it in the heading and uses the HUD system font for controls.
+Both Linux and Windows packages include the menu and font resources.
+
 ## Character creation preview
 
 Choose **Character creation** (key **4**) in the client menu. The screen renders
