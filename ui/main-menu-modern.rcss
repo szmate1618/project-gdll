@@ -22,7 +22,8 @@ body.modern { font-size: 14dp; background-color: #2b2d2f; }
 .modern #connection-title { left: 24dp; top: 20dp; font-size: 11dp; letter-spacing: 2dp; }
 .modern #host-heading { left: 24dp; top: 61dp; font-size: 10dp; color: #f5f6f299; }
 .modern #port-label { left: 24dp; top: 84dp; font-size: 10dp; color: #f5f6f280; }
-.modern #host-port, .modern #join-address { left: 24dp; width: 402dp; height: 38dp; background-color: #2b2d2f; border-width: 1dp; border-color: #f5f6f226; padding: 7dp 12dp; font-size: 14dp; caret-color: #f5f6f2; }
+/* Center the text line within the space left by the borders and padding. */
+.modern #host-port, .modern #join-address { left: 24dp; width: 402dp; height: 38dp; background-color: #2b2d2f; border-width: 1dp; border-color: #f5f6f226; padding: 7dp 12dp; font-size: 14dp; line-height: 22dp; caret-color: #f5f6f2; }
 .modern #host-port { top: 104dp; }
 .modern #address-label { left: 24dp; top: 168dp; font-size: 10dp; color: #f5f6f299; }
 .modern #join-address { top: 190dp; }

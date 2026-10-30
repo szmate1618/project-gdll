@@ -60,6 +60,8 @@
 .modern .color-setting label, .modern #face-count, .modern #character-name-label, .modern #active-character, .modern .roster-active, .modern .roster-empty { color: #f5f6f299; }
 .modern #paint-hint, .modern #character-status, .modern #dialog-detail { color: #f5f6f2bf; }
 .modern .color-setting input, .modern #character-name { background-color: #2b2d2f; border-color: #f5f6f24d; caret-color: #f5f6f2; }
+.modern #character-name { line-height: 18dp; }
+.modern .color-setting input { line-height: 15dp; }
 .modern input:focus { border-color: #f5f6f2b0; }
 .modern .roster-character, .modern #character-screen button { background-color: #2b2d2f66; border-color: #f5f6f24d; }
 .modern #character-screen .roster-character.selected { border-left-color: #ec6962; background-color: #f5f6f214; }
