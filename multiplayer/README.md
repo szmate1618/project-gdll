@@ -72,12 +72,9 @@ buttons and Enter activates the focused choice, initially Cancel/Keep editing.
 The 3D preview is rendered in RmlUi document order, so dialogs cover it and
 prevent painting through them.
 
-The library is beside the former single save:
-
-| Platform | Base directory |
-| --- | --- |
-| Linux | `$XDG_DATA_HOME/godollo`, falling back to `~/.local/share/godollo` |
-| Windows | `%LOCALAPPDATA%/Godollo` |
+By default, saves live in **`userdata/` beside the game executable** on both
+Linux and Windows, independent of the launcher's working directory. Development
+builds use `build/multiplayer/userdata/`. The directory is created when needed.
 
 `characters/current/<id>.json` contains each named character's icon, colors and
 six paint layers. `characters/retired/<id>.json` retains retired saves unchanged.
@@ -91,7 +88,17 @@ for gameplay. The original file is kept intact. Import runs only before the
 library is initialized, so retiring the imported character does not bring it
 back on restart. Malformed saves are reported and retained. `GD_CHARACTER_PROFILE`
 can select another legacy/base path; its parent contains the `characters` folder.
+For example, `GD_CHARACTER_PROFILE=/my/saves/character.json` stores the library in
+`/my/saves/characters/`. An unset or empty override uses the install-local default.
 Sessions continue to read an unmigrated single save when no library exists yet.
+
+Saves from older versions remain in `$XDG_DATA_HOME/godollo` (usually
+`~/.local/share/godollo`) on Linux or `%LOCALAPPDATA%/Godollo` on Windows.
+To carry them over, copy their `characters` folder into the game's `userdata`
+folder, including `library.json`, `current/`, and `retired/`. For a single old
+save, copy `character.json` into `userdata/` before opening Characters. You can
+also set `GD_CHARACTER_PROFILE` to the old `character.json` path to keep using
+that location. Existing user files are not moved automatically.
 
 Each client uploads its saved appearance once after joining a session. The
 server validates and retains it for the active player, distributes it to every

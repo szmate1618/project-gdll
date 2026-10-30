@@ -25,6 +25,11 @@ the included sample scene with trees and zombies disabled. Keep the resources
 and `OpenAL32.dll` beside `godollo_client.exe`. The executable and artifact names
 retain "client" for compatibility; this is the full game, including its server.
 
+Characters are saved in `userdata\characters\current\` beside `godollo_client.exe`;
+retired characters stay in `userdata\characters\retired\`. Set
+`GD_CHARACTER_PROFILE` to another `character.json` path to override the save base.
+See the [Characters guide](../README.md#characters) for carrying over older saves.
+
 - **Single Player** starts a private, one-player loopback server automatically.
   It works without internet or an online service.
 - **Host Game** starts the same authoritative server for up to eight total

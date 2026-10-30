@@ -44,6 +44,11 @@ at build time, except glibc, the C++ runtime, and the OpenGL dispatch/driver sta
 the destination system. A desktop X11/XWayland installation is also required.
 The launcher resolves relative map paths from the package folder.
 
+Characters are saved in `userdata/characters/current/` beside `godollo_client`;
+retired characters stay in `userdata/characters/retired/`. Set
+`GD_CHARACTER_PROFILE` to another `character.json` path to override the save base.
+See the [Characters guide](../README.md#characters) for carrying over older saves.
+
 Use `--fullscreen --resolution 960x540` for a desktop-resolution fullscreen
 window with an upscaled 3D scene and sharp native-resolution HUD. Resolution
 presets are `960x540`, `1280x720` and `1920x1080`; the flag also fixes the 3D

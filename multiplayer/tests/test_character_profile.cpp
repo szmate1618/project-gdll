@@ -3,12 +3,51 @@
 #include "client/character_skin.hpp"
 #include "json.hpp"
 #include <chrono>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 
 namespace {
 void require(bool condition, const char* message) { if (!condition) throw std::runtime_error(message); }
+void profileOverride(const char* value) {
+#ifdef _WIN32
+    if (_putenv_s("GD_CHARACTER_PROFILE", value ? value : "")) throw std::runtime_error("Cannot set test profile override");
+#else
+    if (value ? setenv("GD_CHARACTER_PROFILE", value, 1) : unsetenv("GD_CHARACTER_PROFILE"))
+        throw std::runtime_error("Cannot set test profile override");
+#endif
+}
+void checkPaths(const std::filesystem::path& scratch, const std::filesystem::path& executable) {
+    struct RestoreEnvironment {
+        std::filesystem::path workingDirectory = std::filesystem::current_path();
+        std::optional<std::string> profile;
+        RestoreEnvironment() { if (const char* value = std::getenv("GD_CHARACTER_PROFILE")) profile = value; }
+        ~RestoreEnvironment() {
+            std::error_code ignored;
+            std::filesystem::current_path(workingDirectory, ignored);
+            profileOverride(profile ? profile->c_str() : nullptr);
+        }
+    } restore;
+    const auto expected = executable.parent_path() / "userdata/character.json";
+    profileOverride(nullptr);
+    require(multiplayer::characterProfilePath() == expected, "Default saves must live beside the executable");
+    std::filesystem::current_path(scratch);
+    require(multiplayer::characterProfilePath() == expected, "Save location must be independent of the working directory");
+    profileOverride("");
+    require(multiplayer::characterProfilePath() == expected, "An empty override must use the install-local default");
+    const auto custom = scratch / std::filesystem::u8path(u8"custom saves/Áron/character.json");
+    profileOverride(custom.u8string().c_str());
+    require(multiplayer::characterProfilePath() == custom, "The profile override must preserve spaces and Unicode");
+    multiplayer::CharacterLibrary library(multiplayer::characterProfilePath());
+    const auto record = library.save("", "Portable", multiplayer::CharacterCanvas{}, "clown");
+    library.use(record.id);
+    require(record.path.parent_path() == custom.parent_path() / "characters/current", "The override must relocate the entire roster");
+    library.retire(record.id);
+    require(std::filesystem::exists(custom.parent_path() / "characters/retired" / record.path.filename()),
+            "Retired characters must stay under the overridden base");
+}
 void check(const std::filesystem::path& path) {
     using Canvas = multiplayer::CharacterCanvas;
     Canvas original;
@@ -86,11 +125,12 @@ void check(const std::filesystem::path& path) {
 }
 } // namespace
 int main(int argc, char** argv) {
-    const auto directory = std::filesystem::path(argc > 1 ? argv[1] : "build") /
-        ("character-profile-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    const auto directory = std::filesystem::absolute(std::filesystem::path(argc > 1 ? argv[1] : "build") /
+        ("character-profile-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())));
     int result = 0;
     try {
         std::filesystem::create_directories(directory);
+        checkPaths(directory, std::filesystem::canonical(argv[0]));
         check(directory / "character.json");
         std::cout << "Character colors, six paint layers, atomic replacement and malformed saves passed\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; result = 1; }

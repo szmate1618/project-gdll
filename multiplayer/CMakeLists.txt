@@ -33,16 +33,19 @@ else()
     set(mp_transport GameNetworkingSockets::GameNetworkingSockets)
 endif()
 
+add_library(multiplayer_paths STATIC application_paths.cpp)
+target_include_directories(multiplayer_paths PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+viewer_warnings(multiplayer_paths)
+
 add_library(multiplayer_core STATIC protocol.cpp character_appearance_data.cpp character_appearances.cpp scene.cpp resources.cpp asset_validation.cpp network.cpp fragments.cpp
     outgoing_snapshots.cpp signals.cpp server/birds.cpp server/world.cpp server/vehicle_seats.cpp server/replication.cpp server/zombie_selection.cpp
     server/sounds.cpp server/vehicle_replication.cpp client/prediction.cpp client/snapshots.cpp client/vehicle_playback.cpp client/ragdoll_interpolation.cpp
     client/ragdoll_playback.cpp client/zombie_prediction.cpp client/firearm_hits.cpp client/weapon_feedback.cpp client/weapon_audio.cpp client/sound_cues.cpp client/remote_weapon_playback.cpp)
 target_include_directories(multiplayer_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(multiplayer_core SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
-target_link_libraries(multiplayer_core PUBLIC viewer_fps viewer_zombies viewer_interaction
+target_link_libraries(multiplayer_core PUBLIC multiplayer_paths viewer_fps viewer_zombies viewer_interaction
     viewer_objects viewer_vehicles viewer_forests viewer_vegetation viewer_poles viewer_guardrails viewer_weapons viewer_inventory viewer_grenades viewer_undergrowth viewer_birds viewer_sun_lighting ${mp_transport})
-target_compile_definitions(multiplayer_core PUBLIC
-    MP_ROOT="${PROJECT_SOURCE_DIR}")
+target_compile_definitions(multiplayer_core PUBLIC MP_ROOT="${PROJECT_SOURCE_DIR}")
 target_compile_definitions(multiplayer_core PRIVATE MP_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}")
 if(GD_VIEWER)
     target_compile_definitions(multiplayer_core PRIVATE MP_AUDIO_DIR="${VIEWER_AUDIO_DIR}")
@@ -59,7 +62,7 @@ target_link_libraries(godollo_server PRIVATE multiplayer_server_runtime)
 viewer_warnings(godollo_server)
 
 add_library(multiplayer_character_canvas STATIC client/character_canvas.cpp client/character_profile.cpp client/character_library.cpp client/character_faces.cpp client/character_skin.cpp)
-target_link_libraries(multiplayer_character_canvas PUBLIC viewer_model)
+target_link_libraries(multiplayer_character_canvas PUBLIC viewer_model multiplayer_paths)
 target_include_directories(multiplayer_character_canvas PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(multiplayer_character_canvas SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(multiplayer_character_canvas)

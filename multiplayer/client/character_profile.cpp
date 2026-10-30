@@ -1,4 +1,5 @@
 #include "character_profile.hpp"
+#include "application_paths.hpp"
 #include "json.hpp"
 #include <algorithm>
 #include <cstdlib>
@@ -32,13 +33,7 @@ Json rgb(CharacterCanvas::Color color) { return {color[0], color[1], color[2]}; 
 
 std::filesystem::path characterProfilePath() {
     if (const char* path = std::getenv("GD_CHARACTER_PROFILE"); path && *path) return std::filesystem::u8path(path);
-#ifdef _WIN32
-    if (const wchar_t* directory = _wgetenv(L"LOCALAPPDATA"); directory && *directory) return std::filesystem::path(directory) / L"Godollo/character.json";
-#else
-    if (const char* directory = std::getenv("XDG_DATA_HOME"); directory && *directory) return std::filesystem::u8path(directory) / "godollo/character.json";
-    if (const char* directory = std::getenv("HOME"); directory && *directory) return std::filesystem::u8path(directory) / ".local/share/godollo/character.json";
-#endif
-    throw std::runtime_error("Cannot locate local character storage. Set GD_CHARACTER_PROFILE.");
+    return userDataDirectory() / "character.json";
 }
 bool loadCharacterProfile(const std::filesystem::path& path, CharacterCanvas& canvas, std::string& faceId, std::string* name) {
     if (!std::filesystem::exists(path)) return false;

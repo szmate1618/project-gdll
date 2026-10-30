@@ -6,6 +6,7 @@ __pycache__/
 # Local configuration and credentials
 .env
 config.local.json
+/userdata/
 
 # Downloaded data and generated scene output
 data/**

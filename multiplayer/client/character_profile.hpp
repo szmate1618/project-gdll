@@ -4,6 +4,8 @@
 #include <string>
 
 namespace multiplayer {
+// Defaults to <executable directory>/userdata/character.json. A nonempty
+// GD_CHARACTER_PROFILE overrides this path and the library's parent directory.
 std::filesystem::path characterProfilePath();
 // Versioned local appearance, including the independent paint layers. A missing
 // file returns false; invalid saves throw without changing the destination.
