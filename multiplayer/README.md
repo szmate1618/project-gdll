@@ -571,12 +571,29 @@ retain their updates; driver occupancy alone does not control replication.
 Clients keep bounded per-car histories and interpolate chassis, wheels and
 velocity at the shared playback time, including across snapshots omitting that
 car. Protocol 23 requires matching rebuilt clients and servers.
-The driver camera follows the same interpolated pose as the rendered car,
-using a playback clock six server ticks (100 ms) behind incoming snapshot time.
-Vehicle motion is server-authoritative and is not locally predicted, so driving
-response includes that buffer plus network and server-update delays. Mouse look
-remains local. Driving commands are retained/resubmitted normally but never
-replayed as walking movement. Lighting
+
+The locally driven car bypasses the six-tick (100 ms) playback buffer. Every
+rendered frame extrapolates its latest confirmed chassis position with the
+reported linear velocity and estimated current server time (including RTT/2
+incoming transit). Chassis orientation extrapolates measured angular velocity
+from consecutive authoritative orientations, following the shorter quaternion
+arc for yaw, pitch and roll. A first sample, gaps exceeding 250 ms, and turns
+faster than 360 degrees/second reset angular prediction. A car omitted from a
+newer complete snapshot holds its confirmed orientation.
+
+All four wheels follow the predicted chassis translation and rotation while
+retaining their latest confirmed relative steering, spin and suspension poses.
+The driver camera follows that displayed car in either camera mode, with local
+mouse look and world-up camera orientation. Position and orientation
+extrapolation hold at 250 ms of unconfirmed motion if updates stop arriving.
+No vehicle physics runs on the client. New snapshots directly correct the
+prediction, so abrupt motion changes can jump.
+
+Remote cars and passenger views retain the 100 ms interpolation buffer. Physics
+runs at 60 Hz and snapshots arrive at 20 Hz. Throttle, steering and braking
+remain server-authoritative, so their response still includes network and
+server-update delays. Mouse look remains local. Driving commands are
+retained/resubmitted normally but never replayed as walking movement. Lighting
 uses the shared server tick and matching day/night settings, including parked
 headlights at night.
 

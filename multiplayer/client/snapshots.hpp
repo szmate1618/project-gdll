@@ -14,7 +14,7 @@ public:
     void pushPose(const Scene& scene, const CorpsePose& pose, double receivedSeconds);
     const Snapshot& latest() const { return frames_.back(); }
     bool empty() const { return frames_.empty(); }
-    void apply(Scene& scene, double now);
+    void apply(Scene& scene, double now, std::uint32_t localPlayer = 0);
     const std::vector<PlayerState>& players() const { return players_; }
     const std::vector<viewer::GrenadePose>& grenades() const { return grenades_; }
     std::vector<viewer::MuzzleFlashLight> explosionLights(double now) const;

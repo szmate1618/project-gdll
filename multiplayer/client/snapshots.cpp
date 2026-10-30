@@ -128,9 +128,11 @@ std::vector<viewer::MuzzleFlashLight> Snapshots::explosionLights(double now) con
     }
     return result;
 }
-void Snapshots::apply(Scene& scene, double now) {
+void Snapshots::apply(Scene& scene, double now, std::uint32_t localPlayer) {
     if (frames_.empty()) return;
     const double latestTick = static_cast<double>(frames_.back().tick);
+    // RTT/2 estimates incoming transit for unbuffered presentation.
+    const double estimatedServerTick = latestTick + (std::max(0.0, now - received_) + transitSeconds_) * 60;
     // Render six ticks behind incoming state; freeze at the latest state on starvation.
     renderTick_ = std::max(renderTick_, std::clamp(latestTick + (now - received_) * 60 - 6,
         static_cast<double>(frames_.front().tick), latestTick));
@@ -159,9 +161,13 @@ void Snapshots::apply(Scene& scene, double now) {
         }
         break;
     }
-    // Chassis and all four wheel poses share one playback time, including the
-    // local driver's camera. No client physics or walking prediction moves cars.
-    vehicles_.apply(*scene.vehicles, renderTick_);
+    std::optional<VehiclePlayback::Driver> driver;
+    for (const auto& player : frames_.back().players)
+        if (player.id == localPlayer && player.vehicle != noVehicle && player.seat == 0)
+            driver = VehiclePlayback::Driver{player.vehicle, estimatedServerTick};
+    // Chassis and wheels share either buffered playback or, for the local
+    // driver, position/orientation extrapolation. Neither advances client physics.
+    vehicles_.apply(*scene.vehicles, renderTick_, driver);
     for (const auto& player : frames_.back().players) if (player.vehicle != noVehicle)
         (void)scene.vehicles->config(player.vehicle).seats.at(player.seat);
     std::unordered_map<std::uint32_t, float> oldAngles;
@@ -188,9 +194,7 @@ void Snapshots::apply(Scene& scene, double now) {
     }
     scene.zombies.setReplicatedWoundContents(b.woundContents);
     scene.zombies.setReplicatedBloodMist(b.bloodMist,double(b.tick)/60);
-    // Only living zombies use the estimated current server time. Other world
-    // playback retains its existing buffer; RTT/2 estimates incoming transit.
-    applyZombies(scene, now, latestTick + (std::max(0.0, now - received_) + transitSeconds_) * 60);
+    applyZombies(scene, now, estimatedServerTick);
 }
 void Snapshots::applyZombies(Scene& scene, double now, double estimatedServerTick) {
     auto kept = trackedZombieIds_.begin();
