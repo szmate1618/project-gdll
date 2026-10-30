@@ -2,6 +2,7 @@
 
 #include "model.hpp"
 #include "zombie_skeleton.hpp"
+#include "visibility.hpp"
 
 #include <array>
 #include <cstdint>
@@ -67,6 +68,9 @@ struct AnimatedModel {
     // primitive's shared vertex buffer; bind geometry and materials remain shared.
     std::optional<BakedAnimationClip> walkClip, runClip;
     std::optional<BakedAnimationClip> attackLeftClip, attackRightClip;
+    // Asset scene-space meters, before instance transforms or FP16 expansion.
+    // Retained when CPU vertex frames are released after GPU upload.
+    std::optional<VisibilityBounds> bakedBounds;
     std::size_t totalFrameCount() const;
 };
 

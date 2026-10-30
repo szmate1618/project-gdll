@@ -4,6 +4,7 @@
 #include "zombie_ragdoll_pose.hpp"
 #include "zombie_placement.hpp"
 #include "zombie_animation.hpp"
+#include "zombie_bounds.hpp"
 #include "zombie_lod.hpp"
 #include "zombie_navigation.hpp"
 #include "zombie_cavity_physics.hpp"
@@ -43,6 +44,14 @@ ZombieLayer::ZombieLayer() = default;
 ZombieLayer::~ZombieLayer() = default;
 ZombieLayer::ZombieLayer(ZombieLayer&&) noexcept = default;
 ZombieLayer& ZombieLayer::operator=(ZombieLayer&&) noexcept = default;
+
+void ZombieLayer::releaseAnimationVertices() {
+    for (auto& asset : assets) releaseZombieAnimationVertices(asset);
+    for (auto& levels : lodAssets)
+        for (auto& asset : levels) releaseZombieAnimationVertices(asset);
+    for (auto& prepared : dismembermentAssets)
+        for (auto& asset : prepared.meshes) releaseZombieAnimationVertices(asset);
+}
 
 void ZombieLayer::enableNavigation(const std::filesystem::path& navmeshPath) {
     auto navigation = std::make_unique<ZombieNavigation>(navmeshPath, instances.size());

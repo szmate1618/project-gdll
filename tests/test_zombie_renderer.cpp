@@ -803,23 +803,34 @@ void traceLastRenderedZombiePose() {
     viewer::Renderer::checkErrors("last-rendered zombie hit queries");
 }
 
-void traceLastRenderedWoundMask() {
+void traceLastRenderedWoundMask(bool head) {
     viewer::ZombieLayer layer;
     layer.assets.push_back(makeAsset(1, 2));
     auto& asset = layer.assets.front();
-    asset.ragdollBones[std::size_t(viewer::RagdollPart::torso)] = 0;
-    asset.skeleton[0].name = "torso";
+    asset.ragdollBones[std::size_t(head ? viewer::RagdollPart::head : viewer::RagdollPart::torso)] = 0;
+    asset.skeleton[0].name = head ? "head" : "torso";
     for (const float height : {.75f, 1.1f})
         for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
             asset.boneFrames.push_back(glm::translate(glm::mat4(1), {0, height, 0}));
+    // Closure buffers must include both attacks with the exterior's offsets.
+    const auto frames = asset.animation[0].frames;
+    for (auto* clip : {&asset.attackLeftClip, &asset.attackRightClip}) {
+        *clip = viewer::BakedAnimationClip{"attack", 1, 2, asset.totalFrameCount(), asset.boneFrames, false};
+        asset.animation[0].frames.insert(asset.animation[0].frames.end(), frames.begin(),
+                                         frames.begin() + 2 * asset.model.primitives[0].vertices.size());
+    }
     layer.capsuleAssets.resize(1);
     viewer::ZombieBoneCapsule capsule;
     capsule.bone = 0; capsule.a = capsule.b = markerCenter(0, 0); capsule.radius = .12f;
+    capsule.headshot = head;
     layer.capsuleAssets[0].capsules.push_back(capsule);
     layer.instances.emplace_back();
     viewer::Camera camera;
     camera.setPosition({0, .925f, 10}); camera.setOrientation(-90, 0);
     viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    layer.releaseAnimationVertices();
+    if (asset.animation[0].frames.capacity() != 0)
+        throw std::runtime_error("Wound rendering regression must run without CPU vertex frames");
     renderer.resize(width, height); renderer.setZombieDistanceDetail(false); renderer.setShadows(false);
     renderer.setHaze(false); renderer.setGroundFog(false);
     const viewer::CollisionWorld empty(viewer::Model{});
@@ -827,11 +838,13 @@ void traceLastRenderedWoundMask() {
     const auto hits = [&] { return renderer.traceZombieShot(origin, direction, empty).has_value(); };
     const auto draw = [&] { renderer.updateZombies(layer); renderer.render(camera, .25); };
     draw();
+    const auto intactPixels = colorPixels();
     if (!hits()) throw std::runtime_error("Intact displayed torso must accept its surface hit");
     layer.setWoundMask(0, {0x0f});
     if (!hits()) throw std::runtime_error("An unrendered new wound must not remove the previously displayed surface");
     draw();
     if (hits()) throw std::runtime_error("A displayed wound must remove its hit surface");
+    if (colorPixels() == intactPixels) throw std::runtime_error("A new wound must change the rendered surface after CPU release");
     layer.setWoundMask(0, {0});
     if (hits()) throw std::runtime_error("An unrendered wound revision must not replace the cached displayed hole");
     draw();
@@ -1372,6 +1385,7 @@ void renderAuthoredAttacks(const std::filesystem::path& path, const std::filesys
         zombie.phase = .73f;
     }
     viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    layer.releaseAnimationVertices();
     renderer.resize(1280, 720); renderer.setHaze(false); renderer.setGroundFog(false);
     renderer.setZombieDistanceDetail(false);
     viewer::Camera camera; camera.setPosition({0, 5.8f, 10}); camera.setOrientation(-90, -22);
@@ -1415,6 +1429,7 @@ void renderJointSeparations(const std::filesystem::path& path, const std::filesy
     if (layer.assets.size() != 1 || layer.dismembermentAssets[0].joints.size() != 10)
         throw std::runtime_error("Expected one prepared character with ten joint definitions");
     viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    layer.releaseAnimationVertices();
     renderer.resize(1280, 960); renderer.setHaze(false); renderer.setGroundFog(false);
     viewer::Camera camera; camera.setPosition({0, 7, 11}); camera.setOrientation(-90, -28);
     for (std::size_t j = 0; j < 10; ++j) {
@@ -1493,7 +1508,8 @@ int main(int argc, char** argv) {
         renderHiddenLocomotionChanges();
         renderExplicitIdleClock();
         traceLastRenderedZombiePose();
-        traceLastRenderedWoundMask();
+        traceLastRenderedWoundMask(false);
+        traceLastRenderedWoundMask(true);
         renderPosePublicationChanges();
         paletteGrowthAndReuse();
         if (mode == "--attacks") {

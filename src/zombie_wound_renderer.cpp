@@ -29,9 +29,6 @@ void Renderer::updateZombieWound(std::size_t id, ZombieBatch& batch, ZombieGPUIn
         zombieSource_->dismembermentAssets.at(source.asset).meshes.at(std::size_t(source.severedJoint));
     const auto& surface = batch.woundSurfaces.at(variant);
     const auto mask = ZombieWounds::surfaceMask(asset,surface,*wound,source.severedJoint < 0);
-    if (!surface.closures.empty() && batch.closures[variant].model.meshes.empty())
-        uploadZombieGeometry(zombieWoundClosureModel(asset,surface),batch.closures[variant],batch.staging.size(),
-                             static_cast<GLint>(batch.woundLimit));
     if (mask.size() > batch.woundStride || batch.woundStride == 0)
         throw std::runtime_error("Zombie wound mask does not match its geometry");
     ZombieWound displayedWound;

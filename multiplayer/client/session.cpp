@@ -261,6 +261,7 @@ struct Graphics {
         const auto shaders = multiplayer::resourceRoot() / "shaders";
         renderer = std::make_unique<viewer::Renderer>(scene.model, shaders, scene.trees ? &*scene.trees : nullptr,
             &scene.zombies, scene.forests ? &*scene.forests : nullptr);
+        scene.zombies.releaseAnimationVertices();
         gpuTimer = std::make_unique<viewer::GpuTimer>();
         renderer->setVehicleAssets(multiplayer::resourceRoot() / "assets/vehicles/models");
         reticle = std::make_unique<viewer::ReticleOverlay>(shaders);

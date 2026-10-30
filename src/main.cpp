@@ -1484,6 +1484,7 @@ int run(const Options& options) {
     app.droppedWeapons = &droppedWeapons;
     viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr,
                               zombies ? &*zombies : nullptr, forests ? &*forests : nullptr);
+    if (zombies) zombies->releaseAnimationVertices();
     if (doodads) {
         doodads->update(app.rig.camera().position(),physicsScene,doors);
         renderer.setDoodads(*doodads,doodadModels);

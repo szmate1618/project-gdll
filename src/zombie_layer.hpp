@@ -100,6 +100,11 @@ struct ZombieLayer {
     ZombieBehaviorPool behaviors;
     glm::vec3 boundsMin{0}, boundsMax{0};
 
+    // After successful renderer construction, release baked CPU vertex frames
+    // for originals, LODs and severed variants. Gameplay retains bones/weights
+    // and cached extents; creating another renderer requires reloading assets.
+    void releaseAnimationVertices();
+
     // Returns true when the nearest living zombie takes damage. Only zero HP
     // activates its ragdoll; each call represents one bullet or shotgun pellet.
     // animationSeconds is the time of the last displayed frame (before phase).

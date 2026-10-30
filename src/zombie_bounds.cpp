@@ -21,11 +21,23 @@ void includeZombieGeometryBounds(const AnimatedModel& asset, VisibilityBounds& a
             bind.minimum = glm::min(bind.minimum, vertex.position);
             bind.maximum = glm::max(bind.maximum, vertex.position);
         }
-    for (const auto& primitive : asset.animation)
-        for (const auto& vertex : primitive.frames) {
-            animation.minimum = glm::min(animation.minimum, glm::vec3(vertex.position));
-            animation.maximum = glm::max(animation.maximum, glm::vec3(vertex.position));
-        }
+    if (asset.bakedBounds) includeZombieBounds(animation, *asset.bakedBounds);
+    else
+        for (const auto& primitive : asset.animation)
+            for (const auto& vertex : primitive.frames) {
+                animation.minimum = glm::min(animation.minimum, glm::vec3(vertex.position));
+                animation.maximum = glm::max(animation.maximum, glm::vec3(vertex.position));
+            }
+}
+
+void releaseZombieAnimationVertices(AnimatedModel& asset) {
+    if (!asset.bakedBounds) {
+        auto animation = emptyZombieBounds(), bind = emptyZombieBounds();
+        includeZombieGeometryBounds(asset, animation, bind);
+        asset.bakedBounds = animation;
+    }
+    for (auto& primitive : asset.animation)
+        std::vector<AnimationVertex>().swap(primitive.frames);
 }
 
 VisibilityBounds transformedZombieBounds(const VisibilityBounds& bounds, const glm::mat4& transform) {

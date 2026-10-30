@@ -5,6 +5,7 @@
 #include "zombie_animation_buffer.hpp"
 #include "zombie_lod.hpp"
 #include "zombie_bounds.hpp"
+#include "zombie_wound_surface.hpp"
 
 #include <cmath>
 #include <cstddef>
@@ -155,6 +156,15 @@ void Renderer::uploadZombies(const ZombieLayer& zombies) {
             batch.lods.resize(zombies.lodAssets[i].size());
             for (std::size_t level = 0; level < batch.lods.size(); ++level)
                 uploadZombieGeometry(zombies.lodAssets[i][level], batch.lods[level], batch.staging.size(), maximumTexels);
+        }
+        // Closures are fixed shared geometry; only their wound mask changes at
+        // runtime. Upload every variant before the owner releases CPU frames.
+        for (std::size_t variant = 0; variant < batch.woundSurfaces.size(); ++variant) {
+            const auto& surface = batch.woundSurfaces[variant];
+            if (surface.closures.empty()) continue;
+            const auto& asset = variant == 0 ? source : zombies.dismembermentAssets[i].meshes[variant - 1];
+            uploadZombieGeometry(zombieWoundClosureModel(asset, surface), batch.closures[variant],
+                                 batch.staging.size(), maximumTexels);
         }
     }
     glBindTexture(GL_TEXTURE_BUFFER, 0);

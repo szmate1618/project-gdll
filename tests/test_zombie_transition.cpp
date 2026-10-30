@@ -1,6 +1,7 @@
 #include "zombie_shooting_fixture.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_animation.hpp"
+#include "zombie_bounds.hpp"
 #include "zombie_chase.hpp"
 #include "physics_world.hpp"
 #include "physics_prop.hpp"
@@ -138,6 +139,8 @@ void checkTransition(double seconds, float phase, std::size_t first, std::size_t
     instance.transform = instance.restTransform;
     instance.phase = phase;
     layer.instances.push_back(instance);
+    const auto bakedFrames = asset.animation[0].frames;
+    layer.releaseAnimationVertices();
     const auto center = glm::vec3(instance.restRoot * glm::vec4(0, 0.9f, 0, 1));
     require(viewer::test::shootToKill(layer, center + glm::vec3(0, 0, 3), {0, 0, -1}, seconds), "Synthetic humanoid must be hit");
     const auto& ragdoll = layer.instances[0];
@@ -155,8 +158,8 @@ void checkTransition(double seconds, float phase, std::size_t first, std::size_t
         for (std::size_t influence = 0; influence < 8; ++influence)
             skinned += ragdoll.ragdollBones[skin.joints[influence]] * glm::vec4(vertices[v].position, 1) *
                        skin.weights[influence];
-        const auto baked = asset.animation[0].frames[first * vertices.size() + v].position * (1 - fraction) +
-                           asset.animation[0].frames[second * vertices.size() + v].position * fraction;
+        const auto baked = bakedFrames[first * vertices.size() + v].position * (1 - fraction) +
+                           bakedFrames[second * vertices.size() + v].position * fraction;
         require(glm::length(ragdoll.transform * skinned - instance.restTransform * baked) < 2e-4f,
                 "Activation must not move displayed vertices, including blended and unmapped joints");
     }
@@ -176,6 +179,85 @@ void checkTransition(double seconds, float phase, std::size_t first, std::size_t
     }
     require(glm::length(worldBone(ragdoll, asset, elbow)[3] - initialElbow[3]) > 0.01f,
             "The parent must actually move while checking inherited hand and finger poses");
+}
+
+void releasedAnimationBoundsSurviveIndexRebuilds() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(humanoid());
+    layer.lodAssets = {{humanoid()}};
+    layer.dismembermentAssets.resize(1);
+    layer.dismembermentAssets[0].meshes.push_back(humanoid());
+    // Only animation reaches these extremes; reference geometry cannot recover
+    // the replication extent when indexes are rebuilt after releasing frames.
+    layer.assets[0].animation[0].frames[0].position.x = -25;
+    layer.lodAssets[0][0].animation[0].frames[0].position.z = 35;
+    layer.dismembermentAssets[0].meshes[0].animation[0].frames[0].position.y = 45;
+    layer.instances.emplace_back();
+    layer.rebuildSpatialIndex();
+    const auto before = layer.replicationBounds(0);
+    const auto pose = viewer::sampleZombiePose(layer.assets[0], layer.instances[0], .25);
+    layer.releaseAnimationVertices();
+    layer.releaseAnimationVertices();
+    for (const auto* asset : {&layer.assets[0], &layer.lodAssets[0][0], &layer.dismembermentAssets[0].meshes[0]}) {
+        require(asset->animation[0].frames.capacity() == 0, "CPU animation storage must actually be freed");
+        require(!asset->animation[0].skinning.empty(), "Gameplay must retain skin weights");
+    }
+    layer.rebuildSpatialIndex();
+    const auto after = layer.replicationBounds(0);
+    require(after.minimum == before.minimum && after.maximum == before.maximum &&
+            after.minimum.x <= -25 && after.maximum.z >= 35 && after.maximum.y >= 45,
+            "Released originals, LODs and severed meshes must preserve full replication bounds");
+    require(viewer::sampleZombiePose(layer.assets[0], layer.instances[0], .25) == pose,
+            "Releasing vertex frames must preserve gameplay animation poses");
+    bool selected = false;
+    layer.visitReplicationNear({-25, 0, 0}, 1, [&](std::size_t id) { selected = id == 0; return true; });
+    require(selected, "Replication interest must still find an actor whose animated extent reaches the player");
+}
+
+void releasedAnimationWoundsFollowHits() {
+    viewer::AnimatedModel asset;
+    asset.frameCount = 2; asset.duration = 1;
+    asset.skeleton.resize(2);
+    asset.skeleton[0].name = "spine";
+    asset.skeleton[1].name = "head";
+    asset.ragdollBones[std::size_t(viewer::RagdollPart::torso)] = 0;
+    asset.ragdollBones[std::size_t(viewer::RagdollPart::head)] = 1;
+    asset.boneFrames.assign(4, glm::mat4(1));
+    auto& primitive = asset.model.primitives.emplace_back();
+    auto& animation = asset.animation.emplace_back();
+    for (std::uint32_t bone = 0; bone < 2; ++bone)
+        for (const float x : {-.25f, .25f})
+            for (const glm::vec2 offset : {glm::vec2(-.03f, -.03f), glm::vec2(.03f, -.03f), glm::vec2(0, .03f)}) {
+                viewer::Vertex vertex;
+                vertex.position = {x + offset.x, 1 + .7f * float(bone) + offset.y, 0};
+                primitive.indices.push_back(static_cast<std::uint32_t>(primitive.vertices.size()));
+                primitive.vertices.push_back(vertex);
+                viewer::SkinningVertex skin;
+                skin.joints[0] = bone; skin.weights[0] = 1;
+                animation.skinning.push_back(skin);
+            }
+    for (int frame = 0; frame < 2; ++frame)
+        for (const auto& vertex : primitive.vertices)
+            animation.frames.push_back({glm::vec4(vertex.position, 1), {0, 0, 1, 0}});
+    const auto torso = viewer::prepareZombieWoundRegion(asset, viewer::ZombieWoundRegion::torso);
+    const auto head = viewer::prepareZombieWoundRegion(asset, viewer::ZombieWoundRegion::head);
+    viewer::releaseZombieAnimationVertices(asset);
+    viewer::ZombieWounds wounds;
+    viewer::ZombieInstance instance;
+    const auto pose = viewer::sampleZombiePose(asset, instance, .25);
+    require(wounds.hit(0, asset, torso, instance, pose, {-.25f, 1, 0}) &&
+            wounds.find(0)->removedTriangles == std::vector<std::uint8_t>({1, 0, 0, 0}),
+            "A chest wound must open only at its hit location after CPU release");
+    require(wounds.hit(0, asset, torso, instance, pose, {.25f, 1, 0}) &&
+            wounds.find(0)->removedTriangles == std::vector<std::uint8_t>({1, 1, 0, 0}),
+            "Later chest hits must enlarge the wound independently of prepared closures");
+    require(wounds.hit(1, asset, head, instance, pose, {.25f, 1.7f, 0}) &&
+            wounds.find(1)->removedTriangles == std::vector<std::uint8_t>({0, 0, 0, 1}),
+            "Head wounds must still follow hit locations independently of chest wounds");
+    viewer::ZombieWounds replica;
+    require(replica.applyMask(0, asset, torso, wounds.find(0)->vertexMask) &&
+            replica.find(0)->removedTriangles == wounds.find(0)->removedTriangles,
+            "Replicated hit masks must recreate the same wound without CPU vertex frames");
 }
 
 void unknownRigFollowsFallbackMotion() {
@@ -614,6 +696,8 @@ void animationMotionOnDeath(int clip, bool published, int death, bool loopStart 
 
 int main() {
     try {
+        releasedAnimationBoundsSurviveIndexRebuilds();
+        releasedAnimationWoundsFollowHits();
         checkTransition(0.125, 0.125f, 0, 1, 0.5f);
         checkTransition(0.625, 0.25f, 1, 0, 0.75f);
         checkTransition(1e12 + 0.125, 0.125f, 0, 1, 0.5f);

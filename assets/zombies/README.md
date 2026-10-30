@@ -51,6 +51,16 @@ joint-hit definitions keep their geometry: preparation refreshes their source
 hash only after reproducing the exact former three-clip GLB they describe.
 Other stale collision definitions still fail validation.
 
+The viewer and graphical multiplayer client upload the shared vertex animations
+once, including animated cavity closures for the original and severed meshes.
+They then call `ZombieLayer::releaseAnimationVertices()` to free CPU vertex frames
+and their spare allocation capacity for every mesh level. Bone frames, bind
+geometry and skin weights remain available for attacks, hit tests and ragdolls.
+Cached animation extents preserve visibility and replication bounds through
+spatial-index rebuilds. Head/chest wounds still remove triangles at hit locations
+through dynamic replicated masks; their supporting closure geometry is shared.
+Recreating a renderer after releasing CPU frames requires reloading the assets.
+
 Downloads and output GLBs are written to temporary files before publication.
 Subsequent runs verify cached or downloaded originals against `sources.json`.
 A source hash mismatch stops preparation so upstream changes can be reviewed.

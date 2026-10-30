@@ -119,10 +119,12 @@ AnimatedModel zombieWoundClosureModel(const AnimatedModel& asset, const ZombieWo
     result.duration = asset.duration;
     const auto clip = [](const auto& source) -> std::optional<BakedAnimationClip> {
         if (!source) return {};
-        return BakedAnimationClip{source->name,source->duration,source->frameCount,source->firstFrame,{}};
+        return BakedAnimationClip{source->name,source->duration,source->frameCount,source->firstFrame,{},source->loop};
     };
     result.walkClip = clip(asset.walkClip);
     result.runClip = clip(asset.runClip);
+    result.attackLeftClip = clip(asset.attackLeftClip);
+    result.attackRightClip = clip(asset.attackRightClip);
     Material material;
     material.baseColor = {.231f,.00792f,.0132f,1};
     material.doubleSided = true;
@@ -144,6 +146,7 @@ AnimatedModel zombieWoundClosureModel(const AnimatedModel& asset, const ZombieWo
         if (glm::dot(normal,normal)>1e-16f)
             for (std::size_t v=i; v<i+3; ++v) primitive.vertices[v].normal = glm::normalize(normal);
     }
+    animation.frames.reserve(asset.totalFrameCount() * primitive.vertices.size());
     for (std::size_t frame=0; frame<asset.totalFrameCount(); ++frame)
         for (const auto& triangle : geometry.closures) {
             std::array<AnimationVertex,3> vertices;
