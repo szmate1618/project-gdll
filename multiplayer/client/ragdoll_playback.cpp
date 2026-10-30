@@ -6,80 +6,46 @@
 #include <stdexcept>
 
 namespace multiplayer {
-namespace {
-constexpr double minimumDelay = .1;
-constexpr double maximumDelay = .5;
-constexpr std::size_t historySize = 4;
-}
-
-void RagdollPlayback::push(const CorpsePose& pose, double receivedSeconds) {
-    if (!std::isfinite(receivedSeconds) || receivedSeconds < 0)
+void RagdollPlayback::push(const CorpsePose& pose, double receivedSeconds, double transitSeconds) {
+    if (!std::isfinite(receivedSeconds) || receivedSeconds < 0 ||
+        !std::isfinite(transitSeconds) || transitSeconds < 0)
         throw std::invalid_argument("Invalid ragdoll receive time");
     if (!samples_.empty()) {
         const auto& latest = samples_.back();
-        if (pose.version <= latest.pose.version) return;
+        if (pose.version <= latest.pose.version || pose.tick < latest.pose.tick) return;
         if (receivedSeconds < latest.seconds)
             throw std::invalid_argument("Ragdoll receive time moved backwards");
-        const double interval = receivedSeconds - latest.seconds;
-        if (pose.severedJoint != latest.pose.severedJoint) {
-            // Mesh separation and its complete palette become visible together.
-            samples_.clear();
-            rendered_.reset();
-            renderSeconds_ = -1;
-        } else if (interval > maximumDelay) {
-            // A settled body may wake seconds later. Ease into the new pose over
-            // a short window instead of treating that idle time as moving time.
-            auto previous = latest.pose;
-            samples_.clear();
-            samples_.push_back({std::move(previous), receivedSeconds - minimumDelay});
-            renderSeconds_ = receivedSeconds - minimumDelay;
-            delay_ = minimumDelay;
-        } else {
-            delay_ = std::clamp(interval, minimumDelay, maximumDelay);
-        }
-        if (!samples_.empty() && receivedSeconds == samples_.back().seconds)
-            samples_.pop_back(); // Coalesce poses received in the same poll.
+        if (pose.severedJoint != latest.pose.severedJoint || pose.sleeping ||
+            pose.tick == latest.pose.tick || pose.tick - latest.pose.tick > 36) samples_.clear();
     }
-    if (samples_.size() == historySize) samples_.erase(samples_.begin());
-    samples_.push_back({pose, receivedSeconds});
+    if (samples_.size() == 2) samples_.erase(samples_.begin());
+    samples_.push_back({pose, receivedSeconds, std::min(transitSeconds, .5)});
 }
 
 const CorpsePose* RagdollPlayback::sample(const viewer::AnimatedModel& asset, double now) {
     if (samples_.empty()) return nullptr;
-    const double seconds = std::max(renderSeconds_, std::clamp(now - delay_,
-        samples_.front().seconds, samples_.back().seconds));
-    if (seconds == renderSeconds_ && sampledVersion_ == samples_.back().pose.version)
-        return rendered_ ? &*rendered_ : &samples_.back().pose;
-    if (seconds == samples_.back().seconds) {
-        // Settled corpses retain one complete pose, without four old palettes
-        // and an additional copy of the displayed endpoint in persistent caches.
-        if (samples_.size() > 1) samples_.erase(samples_.begin(), samples_.end() - 1);
+    if (!std::isfinite(now)) throw std::invalid_argument("Invalid ragdoll sample time");
+    const auto& latest = samples_.back();
+    const double age = samples_.size() == 2 && !latest.pose.sleeping ?
+        std::clamp(now - latest.seconds + latest.transit, 0.0, .4) : 0;
+    if (age == renderSeconds_ && sampledVersion_ == latest.pose.version)
+        return rendered_ ? &*rendered_ : &latest.pose;
+    auto next = samples_.size() == 2 ?
+        predictRagdollPose(samples_.front().pose, latest.pose, asset, age) : latest.pose;
+    const auto& previous = rendered_ ? *rendered_ : latest.pose;
+    if (sampledVersion_ != latest.pose.version || next.transform != previous.transform ||
+        next.root != previous.root || next.bones != previous.bones) ++revision_;
+    if (next.transform == latest.pose.transform && next.root == latest.pose.root && next.bones == latest.pose.bones)
         rendered_.reset();
-        renderSeconds_ = seconds;
-        sampledVersion_ = samples_.back().pose.version;
-        ++revision_;
-        return &samples_.back().pose;
-    }
-    const Sample* before = &samples_.front();
-    const Sample* after = before;
-    for (std::size_t i = 1; i < samples_.size(); ++i) {
-        after = &samples_[i];
-        if (after->seconds >= seconds) break;
-        before = after;
-    }
-    const float alpha = after->seconds == before->seconds ? 1.f : static_cast<float>(std::clamp(
-        (seconds - before->seconds) / (after->seconds - before->seconds), 0.0, 1.0));
-    rendered_ = interpolateRagdollPose(before->pose, after->pose, asset, alpha);
-    renderSeconds_ = seconds;
-    sampledVersion_ = samples_.back().pose.version;
-    ++revision_;
-    return &*rendered_;
+    else rendered_ = std::move(next);
+    renderSeconds_ = age;
+    sampledVersion_ = latest.pose.version;
+    return rendered_ ? &*rendered_ : &latest.pose;
 }
 
 void RagdollPlayback::resetHistory() {
     if (samples_.size() > 1) samples_.erase(samples_.begin(), samples_.end() - 1);
     rendered_.reset();
     renderSeconds_ = -1;
-    delay_ = minimumDelay;
 }
 } // namespace multiplayer

@@ -12,6 +12,7 @@ Replication::SetupState* Replication::findSetup(std::size_t id) {
 
 Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
         const std::optional<ReplicationView>& view) {
+    poseTick_ = s.tick;
     const auto population = scene.zombies.instances.size();
     if (setupSlots_.size() < population) setupSlots_.resize(population);
     if (interested_.size() < population) interested_.resize(population);
@@ -179,13 +180,15 @@ std::optional<CorpsePose> Replication::nextPose(const Scene& scene) const {
     for (std::size_t offset = 0; offset < interestedCorpses_.size(); ++offset) {
         const auto id = interestedCorpses_[(startOffset + offset) % interestedCorpses_.size()];
         if (inFlight_.count(id) || !setups_[setupSlots_[id] - 1].acknowledged) continue;
+        const auto last = lastPoseTicks_.find(id);
+        if (last != lastPoseTicks_.end() && poseTick_ - last->second < ragdollUpdateTicks) continue;
         const auto& instance = scene.zombies.instances.at(id);
         if (!instance.ragdoll || instance.removed) continue;
         const auto ack = acknowledged_.find(id);
         if (ack != acknowledged_.end() && ack->second >= instance.ragdollPoseVersion) continue;
         return CorpsePose{static_cast<std::uint32_t>(id), static_cast<std::uint32_t>(instance.asset),
             instance.ragdollPoseVersion, instance.transform, instance.restRoot, instance.ragdollBones,
-            static_cast<std::int16_t>(instance.severedJoint)};
+            static_cast<std::int16_t>(instance.severedJoint), poseTick_, instance.ragdollSleeping};
     }
     return std::nullopt;
 }
@@ -193,6 +196,7 @@ void Replication::sent(const CorpsePose& pose) {
     if (inFlight_.size() >= maxPoseTransfers || inFlight_.count(pose.id))
         throw std::logic_error("Corpse transfer already active or full");
     inFlight_.emplace(pose.id, pose.version);
+    lastPoseTicks_[pose.id] = pose.tick;
     nextPoseId_ = std::size_t(pose.id) + 1;
 }
 void Replication::acknowledge(const PoseAck& ack) {

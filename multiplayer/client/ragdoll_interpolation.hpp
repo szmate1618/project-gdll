@@ -14,4 +14,9 @@ namespace multiplayer {
 CorpsePose interpolateRagdollPose(const CorpsePose& before, const CorpsePose& after,
                                 const viewer::AnimatedModel& asset, float alpha);
 
+// Extrapolate world joint motion from two authoritative timestamps. Prediction
+// is bounded to 400 ms and rejects discontinuities; fixed affine bases survive.
+CorpsePose predictRagdollPose(const CorpsePose& before, const CorpsePose& after,
+                            const viewer::AnimatedModel& asset, double seconds);
+
 } // namespace multiplayer

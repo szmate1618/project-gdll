@@ -99,7 +99,7 @@ void Snapshots::pushSetups(Scene& scene, const ZombieSetups& setups) {
         if (!cached || cached->version < setup.version) cached = setup;
     }
 }
-void Snapshots::pushPose(const Scene& scene, const CorpsePose& pose, double receivedSeconds) {
+void Snapshots::pushPose(const Scene& scene, const CorpsePose& pose, double receivedSeconds, double transitSeconds) {
     if (pose.id >= scene.zombies.instances.size() || pose.asset >= scene.zombies.assets.size() ||
         pose.asset != scene.zombies.instances[pose.id].asset || !pose.version ||
         pose.bones.size() != scene.zombies.assets[pose.asset].skeleton.size())
@@ -108,7 +108,7 @@ void Snapshots::pushPose(const Scene& scene, const CorpsePose& pose, double rece
         std::size_t(pose.severedJoint) >= scene.zombies.dismembermentAssets[pose.asset].meshes.size()))
         throw std::runtime_error("Corpse separation does not match session assets");
     auto& replica = zombie(pose.id);
-    replica.poses.push(pose, receivedSeconds);
+    replica.poses.push(pose, receivedSeconds, transitSeconds);
     if (!replica.tracked) replica.poses.resetHistory();
 }
 std::vector<viewer::GrenadeExplosion> Snapshots::explosions(double now) const {

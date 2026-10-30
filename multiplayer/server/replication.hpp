@@ -48,5 +48,7 @@ private:
     std::vector<std::uint8_t> interested_;
     std::map<std::size_t, std::uint64_t> acknowledged_, inFlight_;
     std::size_t nextPoseId_ = 0;
+    std::uint64_t poseTick_ = 0;
+    std::map<std::size_t, std::uint64_t> lastPoseTicks_;
 };
 } // namespace multiplayer

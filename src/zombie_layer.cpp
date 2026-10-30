@@ -491,7 +491,9 @@ void ZombieLayer::synchronizePhysics(std::size_t id) {
     auto& instance = instances[id];
     if (instance.removed || !instance.ragdoll || !instance.physicsRagdoll) return;
     const auto revision = physics_->world.poseRevision(instance.ragdollHandle);
-    if (revision == instance.physicsPoseRevision) return;
+    const bool sleeping = physics_->world.sleeping(instance.ragdollHandle);
+    if (revision == instance.physicsPoseRevision && sleeping == instance.ragdollSleeping) return;
+    instance.ragdollSleeping = sleeping;
     if (ragdollCleanupY_ && physics_->world.hasBodyBelow(instance.ragdollHandle, *ragdollCleanupY_)) {
         removeRagdoll(id);
         return;

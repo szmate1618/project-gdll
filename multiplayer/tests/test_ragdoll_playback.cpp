@@ -169,11 +169,37 @@ void incompatiblePosesStayCoherent() {
     changed = pair.after; changed.bones[1][0] *= 2;
     snaps(pair.before, changed);
 }
+
+void predictionKeepsJointPivotAndAffineShape() {
+    CorpsePose before, after;
+    before.version = 1; before.tick = 60;
+    after.version = 2; after.tick = 72;
+    viewer::AnimatedModel asset; asset.skeleton.resize(1);
+    asset.skeleton[0].inverseBind = glm::translate(glm::mat4(1), {-4, -3, 0});
+    before.transform = after.transform = shape({-2, 3, 4});
+    const auto boneShape = shape({-.8f, 1.6f, 1.2f});
+    before.bones.push_back(glm::inverse(before.transform) * rigid({1, 2, 0}, 0, {0, 0, 1}) *
+        boneShape * asset.skeleton[0].inverseBind);
+    after.bones.push_back(glm::inverse(after.transform) * rigid({1, 2, 0}, 30, {0, 0, 1}) *
+        boneShape * asset.skeleton[0].inverseBind);
+    const auto predicted = multiplayer::predictRagdollPose(before, after, asset, .2);
+    const auto world = predicted.transform * predicted.bones[0] * glm::inverse(asset.skeleton[0].inverseBind);
+    const auto expected = rigid({1, 2, 0}, 60, {0, 0, 1}) * boneShape;
+    near(world[3], {1, 2, 0, 1}, "Prediction rotated a joint around the mesh origin");
+    near(world * glm::vec4(1, 2, 3, 1), expected * glm::vec4(1, 2, 3, 1),
+        "Prediction failed to advance angular motion from server ticks");
+    sameShape(world, boneShape);
+    sameShape(predicted.transform, after.transform);
+    after.sleeping = true;
+    require(same(multiplayer::predictRagdollPose(before, after, asset, .2), after),
+        "Sleeping pose continued predicting");
+}
 }
 
 int main() {
     try {
         exactEndpoints(); independentWorldMotion(); halfTurnKeepsVolume(); offOriginJointPivot(); incompatiblePosesStayCoherent();
+        predictionKeepsJointPivotAndAffineShape();
         std::cout << "Affine ragdoll interpolation and coherent pose fallback passed\n";
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

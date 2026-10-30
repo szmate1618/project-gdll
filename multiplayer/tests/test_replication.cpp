@@ -46,10 +46,10 @@ void pacedSnapshots() {
 }
 void poseProtocol() {
     CorpsePose pose; pose.id = 7; pose.version = 123; pose.bones.resize(maxBones, glm::mat4(1));
-    pose.severedJoint = 9;
+    pose.severedJoint = 9; pose.tick = 120; pose.sleeping = true;
     const auto bytes = encode(pose);
     const auto copy = std::get<CorpsePose>(decode(bytes.data(), bytes.size()));
-    require(copy.id == 7 && copy.version == 123 && copy.bones == pose.bones && copy.severedJoint == 9,
+    require(copy.id == 7 && copy.version == 123 && copy.tick == 120 && copy.sleeping && copy.bones == pose.bones && copy.severedJoint == 9,
             "Independent pose wire encoding lost separation or skinning state");
     auto invalidJoint = bytes; invalidJoint.back() = 255;
     bool invalidRejected = false;
@@ -66,6 +66,26 @@ void poseProtocol() {
     bool rejected = false;
     try { encode(pose); } catch (const std::runtime_error&) { rejected = true; }
     require(rejected, "Bulk pose bypassed the skeleton budget");
+}
+void fiveHzPoseCadence(Scene& scene) {
+    scene.zombies = viewer::ZombieLayer{};
+    scene.zombies.assets.emplace_back().skeleton.resize(1);
+    scene.zombies.instances.emplace_back();
+    scene.zombies.setRagdollPalette(0, {glm::mat4(1)});
+    Replication replication;
+    Snapshot state; state.tick = 120;
+    test_replication::readySnapshot(replication, scene, {0, 0, 0}, state);
+    const auto first = replication.nextPose(scene);
+    require(first && first->tick == 120, "Initial pose lacks its authoritative timestamp");
+    replication.sent(*first); replication.acknowledge({first->id, first->version});
+    ++scene.zombies.instances[0].ragdollPoseVersion;
+    state.tick = 131; replication.snapshot(scene, {0, 0, 0}, state);
+    require(!replication.nextPose(scene), "Ragdoll exceeded five-Hz update cadence");
+    state.tick = 132; replication.snapshot(scene, {0, 0, 0}, state);
+    const auto next = replication.nextPose(scene);
+    require(next && next->tick == 132 && next->version > first->version,
+        "Five-Hz update did not send the newest complete pose");
+    scene.zombies = viewer::ZombieLayer{};
 }
 void corpseTransfers(Scene& scene) {
     scene.zombies.assets.emplace_back();
@@ -177,7 +197,7 @@ int main(int argc, char** argv) {
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
         pacedSnapshots(); poseProtocol();
         Options options; options.map = argv[1]; options.trees = options.forests = false; options.zombieCount = 0;
-        Scene scene(options); retiredBoxes(scene, options); corpseTransfers(scene); turning(scene);
+        Scene scene(options); retiredBoxes(scene, options); fiveHzPoseCadence(scene); corpseTransfers(scene); turning(scene);
         std::cout << "Pacing, independent corpse transfers and immediate rigid playback passed\n";
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

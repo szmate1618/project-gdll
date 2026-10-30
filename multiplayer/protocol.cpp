@@ -471,6 +471,7 @@ void payload(Wire& w, Snapshot& s) {
 }
 void payload(Wire& w, CorpsePose& pose) {
     w.integer(pose.id); w.integer(pose.asset); w.integer(pose.version);
+    w.integer(pose.tick); w.flag(pose.sleeping);
     w.matrix(pose.transform); w.matrix(pose.root);
     w.list(pose.bones, maxBones, [&](glm::mat4& m) { w.matrix(m); });
     if (!w.reading && (pose.severedJoint < -1 || pose.severedJoint >= int(viewer::ragdollPartCount - 1)))

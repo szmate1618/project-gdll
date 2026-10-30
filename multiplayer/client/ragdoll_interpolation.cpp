@@ -2,6 +2,7 @@
 
 #include "animated_model.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <glm/gtc/quaternion.hpp>
 
@@ -46,10 +47,8 @@ bool interpolateAffine(const glm::dmat4& before, const glm::dmat4& after,
 
 } // namespace
 
-CorpsePose interpolateRagdollPose(const CorpsePose& before, const CorpsePose& after,
-                                const viewer::AnimatedModel& asset, float alpha) {
-    if (alpha <= 0) return before;
-    if (!(alpha < 1)) return after;
+static CorpsePose blendRagdollPose(const CorpsePose& before, const CorpsePose& after,
+                                 const viewer::AnimatedModel& asset, float alpha) {
     if (before.id != after.id || before.asset != after.asset || before.severedJoint != after.severedJoint ||
         before.bones.size() != after.bones.size() || before.bones.size() != asset.skeleton.size()) return after;
 
@@ -75,6 +74,33 @@ CorpsePose interpolateRagdollPose(const CorpsePose& before, const CorpsePose& af
         result.bones[bone] = glm::mat4(inverseTransform * world * inverseBind);
     }
     return result;
+}
+
+CorpsePose interpolateRagdollPose(const CorpsePose& before, const CorpsePose& after,
+                                const viewer::AnimatedModel& asset, float alpha) {
+    if (alpha <= 0) return before;
+    if (!(alpha < 1)) return after;
+    return blendRagdollPose(before, after, asset, alpha);
+}
+
+CorpsePose predictRagdollPose(const CorpsePose& before, const CorpsePose& after,
+                            const viewer::AnimatedModel& asset, double seconds) {
+    if (after.sleeping || after.tick <= before.tick || !std::isfinite(seconds) || seconds <= 0 ||
+        before.bones.size() != after.bones.size() || after.bones.size() != asset.skeleton.size()) return after;
+    const double interval = double(after.tick - before.tick) / 60;
+    if (interval > .6 || before.sleeping) return after; // Wake/re-entry has no measured velocity yet.
+    // Reject teleports and extreme joint motion rather than projecting them.
+    // The shortest rotation arc is bounded by the two samples; prediction never
+    // advances by more than two ordinary five-Hz sample intervals.
+    constexpr double maximumSpeed = 20; // World meters/second.
+    if (glm::length(glm::dvec3(after.transform[3] - before.transform[3])) > maximumSpeed * interval) return after;
+    for (std::size_t bone = 0; bone < after.bones.size(); ++bone) {
+        const auto bind = glm::inverse(glm::dmat4(asset.skeleton[bone].inverseBind));
+        const auto a = glm::dmat4(before.transform) * glm::dmat4(before.bones[bone]) * bind;
+        const auto b = glm::dmat4(after.transform) * glm::dmat4(after.bones[bone]) * bind;
+        if (glm::length(glm::dvec3(b[3] - a[3])) > maximumSpeed * interval) return after;
+    }
+    return blendRagdollPose(before, after, asset, float(1 + std::min(seconds, .4) / interval));
 }
 
 } // namespace multiplayer

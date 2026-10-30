@@ -192,65 +192,55 @@ void smoothPhysicsPoses(Scene& scene) {
     Snapshots playback;
     playback.pushSetups(scene, ZombieSetups{{setup(0)}});
     playback.push(motion(60, 0, 0, 3, true), 0);
-    CorpsePose first; first.version = 1;
+    CorpsePose first; first.version = 1; first.tick = 60;
     first.bones.push_back(glm::translate(glm::mat4(1), {2, 0, 0}));
     playback.pushPose(scene, first, 0); playback.apply(scene, 0);
-    auto next = first; next.version = 2; next.transform[3].x = 10;
+    auto next = first; next.version = 2; next.tick = 72; next.transform[3].x = 2;
     playback.pushPose(scene, next, .2); playback.apply(scene, .2);
     auto& instance = scene.zombies.instances[0];
-    require(instance.transform[3].x == 0, "New ragdoll sample snapped ahead of buffered playback");
+    require(instance.transform[3].x == 2, "New ragdoll sample was delayed by a playback buffer");
     playback.apply(scene, .3);
-    require(std::abs(instance.transform[3].x - 5) < .001f &&
-            std::abs((instance.transform * instance.ragdollBones[0])[3].x - 7) < .001f,
-        "Sparse ragdoll poses did not interpolate root and skin together");
+    require(std::abs(instance.transform[3].x - 3) < .001f &&
+            std::abs((instance.transform * instance.ragdollBones[0])[3].x - 5) < .001f,
+        "Five-Hz ragdoll did not predict root and skin together");
     playback.apply(scene, .35);
-    require(std::abs(instance.transform[3].x - 7.5f) < .001f,
-        "Same-version interpolated palette was not published on the next render frame");
+    require(std::abs(instance.transform[3].x - 3.5f) < .001f,
+        "Same-version predicted palette was not published on the next render frame");
     playback.pushPose(scene, first, .36); playback.apply(scene, .36);
-    require(std::abs(instance.transform[3].x - 8) < .001f,
-        "Stale pose reset interpolation or overwrote newer motion");
-    playback.apply(scene, .4);
+    require(std::abs(instance.transform[3].x - 3.6f) < .001f,
+        "Stale pose reset prediction or overwrote newer motion");
+    playback.apply(scene, .7);
+    const auto frozenVersion = instance.ragdollPoseVersion;
+    playback.apply(scene, 1);
+    require(std::abs(instance.transform[3].x - 6) < .001f && instance.ragdollPoseVersion == frozenVersion,
+        "Starved ragdoll predicted indefinitely or kept uploading a frozen palette");
+    next.version = 3; next.tick = 84; next.transform[3].x = 2.5f; next.sleeping = true;
+    playback.pushPose(scene, next, 1.1); playback.apply(scene, 1.1);
+    require(instance.transform == next.transform, "Sleeping corpse retained predicted motion");
     const auto settledVersion = instance.ragdollPoseVersion;
-    playback.apply(scene, .6);
-    require(instance.transform == next.transform && instance.ragdollPoseVersion == settledVersion,
-        "Starved ragdoll extrapolated or kept uploading its settled palette");
-    next.version = 3; next.transform[3].x = 20;
+    playback.apply(scene, 1.5);
+    require(instance.ragdollPoseVersion == settledVersion, "Settled corpse kept publishing palettes");
+    next.version = 4; next.tick = 180; next.transform[3].x = 4; next.sleeping = false;
     playback.pushPose(scene, next, 2); playback.apply(scene, 2);
-    require(instance.transform[3].x == 10, "Waking corpse snapped to a late pose");
-    playback.apply(scene, 2.05);
-    require(std::abs(instance.transform[3].x - 15) < .001f,
-        "Waking corpse interpolated across its idle interval instead of catching up");
-    playback.apply(scene, 2.1);
-    require(instance.transform == next.transform, "Waking corpse failed to reach its new complete pose");
+    require(instance.transform == next.transform, "Waking corpse interpolated across its idle interval");
 }
 void changingPhysicsCadence(Scene& scene) {
     reset(scene, 1);
     Snapshots playback;
     playback.pushSetups(scene, ZombieSetups{{setup(0)}});
     playback.push(motion(60, 0, 0, 3, true), 0);
-    CorpsePose pose; pose.version = 1; pose.bones.emplace_back(1);
+    CorpsePose pose; pose.version = 1; pose.tick = 60; pose.bones.emplace_back(1);
     playback.pushPose(scene, pose, 0); playback.apply(scene, 0);
-    pose.version = 2; pose.transform[3].x = 1;
-    playback.pushPose(scene, pose, .05); playback.apply(scene, .125);
-    auto& instance = scene.zombies.instances[0];
-    require(std::abs(instance.transform[3].x - .5f) < .001f,
-        "Twenty-Hz ragdoll did not interpolate between its first two samples");
-    playback.apply(scene, .2);
-    pose.version = 3; pose.transform[3].x = 6;
-    playback.pushPose(scene, pose, .3); playback.apply(scene, .3);
-    require(instance.transform[3].x == 1,
-        "Slower ragdoll cadence rewound presentation or jumped ahead");
-    playback.apply(scene, .4);
-    require(std::abs(instance.transform[3].x - 3) < .001f,
-        "Slower ragdoll cadence did not adapt its interpolation window");
-    pose.version = 4; pose.transform[3].x = 8;
-    playback.pushPose(scene, pose, .4);
-    pose.version = 5; pose.transform[3].x = 10;
-    playback.pushPose(scene, pose, .4); playback.apply(scene, .45);
-    require(std::abs(instance.transform[3].x - 8) < .001f,
-        "Same-poll ragdoll samples did not coalesce to the newest complete pose");
-    playback.apply(scene, .6);
-    require(instance.transform == pose.transform, "Same-poll ragdoll playback failed to settle");
+    pose.version = 2; pose.tick = 72; pose.transform[3].x = 1;
+    playback.pushPose(scene, pose, .3); // Arrival jitter must not change measured speed.
+    pose.version = 3; pose.tick = 84; pose.transform[3].x = 2;
+    playback.pushPose(scene, pose, .3, .05); playback.apply(scene, .35);
+    require(std::abs(scene.zombies.instances[0].transform[3].x - 2.5f) < .001f,
+        "Batched five-Hz poses used arrival spacing or ignored estimated transit time");
+    pose.version = 4; pose.tick = 96; pose.transform[3].x = 50;
+    playback.pushPose(scene, pose, .4); playback.apply(scene, .5);
+    require(scene.zombies.instances[0].transform == pose.transform,
+        "A teleport was extrapolated into an unbounded launch");
 }
 void populationCapacityAndOrder(Scene& scene) {
     reset(scene, maxZombies);

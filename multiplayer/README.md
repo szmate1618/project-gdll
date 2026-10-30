@@ -530,7 +530,7 @@ The shot origin remains the server player's camera; distant sniper targets need
 no special origin allowance. The server trusts the reported intersection and
 does not repeat the ray test against a newer zombie pose. This policy suits
 trusted cooperative sessions; it does not independently prove client hit claims.
-Protocol version 24 requires matching client/server builds. Melee, grenades and
+Protocol version 25 requires matching client/server builds. Melee, grenades and
 standalone viewer shooting keep their existing authoritative collision paths.
 
 Own firearm sound, recoil, scope kick and muzzle light share one immediate local
@@ -790,15 +790,17 @@ retries cannot block essential delivery and bulk still makes progress. An
 explicit pose acknowledgement releases a transfer slot; snapshot acknowledgements
 cannot suppress an unreceived palette. Late joins receive their own initial
 poses. Clients retain complete root/palette pairs outside the display buffer.
-Ragdoll playback buffers up to four receive-time samples with a 100 ms delay,
-increased to match observed intervals up to 500 ms. It interpolates world joint positions
-and rotations while preserving fixed scale, reflection and shear, then rebuilds
-the skinning palette under the matching interpolated character transform. It
-holds the last pose when updates stop; a new pose after a gap above 500 ms eases
-in over 100 ms. Re-entry uses the latest cached pose without blending across the
-absence. Mesh separation changes apply their complete pose immediately. Corpses
-stay hidden until their first complete pose arrives. This changes client playback
-only; pose transfer limits and the wire format are unchanged.
+Ragdoll poses carry authoritative simulation ticks and a sleeping flag. Changed
+poses are sent at most five times per second per actor, retaining the bounded,
+acknowledged reliable bulk transport described above. Clients display the newest
+pose immediately and extrapolate world joint translations and rotations from the
+last two server-timestamped poses, including estimated network transit time.
+There is no playback buffer. Prediction stops after 400 ms without a newer pose;
+teleports, wake/re-entry gaps, and mesh-separation changes reset motion estimates.
+A sleeping pose immediately stops prediction. Fixed scale, reflection and shear
+are preserved. Corpses stay hidden until their first complete pose arrives.
+The four-transfer window can reduce the achieved update rate on slow links;
+this change does not introduce pose compression or a new transport stream.
 
 Physical melee runs at the shared server physics rate. The server validates
 fist ownership, individual clicks and the 0.5 s cooldown. It builds one set of

@@ -11,7 +11,7 @@ class Snapshots {
 public:
     bool push(Snapshot snapshot, double receivedSeconds, double transitSeconds = 0);
     void pushSetups(Scene& scene, const ZombieSetups& setups);
-    void pushPose(const Scene& scene, const CorpsePose& pose, double receivedSeconds);
+    void pushPose(const Scene& scene, const CorpsePose& pose, double receivedSeconds, double transitSeconds = 0);
     const Snapshot& latest() const { return frames_.back(); }
     bool empty() const { return frames_.empty(); }
     void apply(Scene& scene, double now);

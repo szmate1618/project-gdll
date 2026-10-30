@@ -31,7 +31,8 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 24; // Reliable custom character texture distribution.
+constexpr std::uint32_t protocolVersion = 25; // Timestamped five-Hz ragdoll prediction.
+constexpr std::uint64_t ragdollUpdateTicks = 12; // 5 Hz at the authoritative 60 Hz tick.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
 constexpr std::size_t maxSignalsPerPlayer = signalLifetimeTicks / signalCooldownTicks;
@@ -139,6 +140,8 @@ struct CorpsePose {
     glm::mat4 transform{1}, root{1};
     std::vector<glm::mat4> bones;
     std::int16_t severedJoint = -1;
+    std::uint64_t tick = 0; // Authoritative pose time, independent of receive jitter.
+    bool sleeping = false; // Final settled poses stop extrapolation immediately.
 };
 struct PoseAck { std::uint32_t id = 0; std::uint64_t version = 0; };
 struct DoorState { std::uint32_t id = 0; float angle = 0; };
