@@ -580,6 +580,13 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_hud)
     add_test(NAME viewer_hud COMMAND test_hud)
     set_tests_properties(viewer_hud PROPERTIES SKIP_RETURN_CODE 77)
+    add_executable(test_hud_backdrop tests/test_hud_backdrop.cpp)
+    target_link_libraries(test_hud_backdrop PRIVATE viewer_hud RmlUi::Core glfw)
+    target_compile_definitions(test_hud_backdrop PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_HUD_DIR="${CMAKE_CURRENT_SOURCE_DIR}/ui")
+    viewer_warnings(test_hud_backdrop)
+    add_test(NAME viewer_hud_backdrop COMMAND test_hud_backdrop)
+    set_tests_properties(viewer_hud_backdrop PROPERTIES SKIP_RETURN_CODE 77)
     add_executable(benchmark_minimap_roads EXCLUDE_FROM_ALL tests/benchmark_minimap_roads.cpp)
     target_link_libraries(benchmark_minimap_roads PRIVATE viewer_hud glfw)
     target_compile_definitions(benchmark_minimap_roads PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES

@@ -67,6 +67,7 @@ struct UiRuntime::Impl {
             // shared stylesheet, including a main menu opened before the HUD.
             registerCommandWheelElements();
             registerMapViewElement();
+            Rml::StyleSheetSpecification::RegisterProperty("hud-backdrop-color", "#2b2d2f", false).AddParser("color");
         } catch (...) { shutdown(); throw; }
     }
     ~Impl() { shutdown(); }

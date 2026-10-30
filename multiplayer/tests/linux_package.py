@@ -28,6 +28,9 @@ def check_credits(package):
     for name in ("hud.rml", "hud.rcss", "command-wheel.rcss", "palette.rcss", "hud-icons.rcss", "hud.vert", "hud.frag", "inventory.rml", "skills.rml", "skills.rcss", "health.rml", "map.rml", "loadout.rml", "loadout.rcss"):
         if not (package / "ui" / name).is_file():
             raise RuntimeError("Package is missing HUD resource " + name)
+    for name in ("hud-backdrop.vert", "hud-backdrop.frag", "hud-backdrop-update.vert", "hud-backdrop-update.frag"):
+        if not (package / "ui" / name).is_file():
+            raise RuntimeError("Package is missing adaptive HUD resource " + name)
     for name in ("main-menu.rml", "main-menu.rcss", "main-menu-classic.rcss", "main-menu-modern.rcss", "fonts/menu-pixel.ttf", "character-editor.rcss"):
         if not (package / "ui" / name).is_file():
             raise RuntimeError("Package is missing main menu resource " + name)

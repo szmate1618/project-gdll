@@ -48,6 +48,26 @@ the scene and HUD at its window framebuffer resolution. Its `--fullscreen` and
 `--resolution` controls can use a fixed 3D target with the same scene upscaling
 and native-resolution HUD; see [client display controls](../multiplayer/README.md#display-controls).
 
+Gameplay labels and status groups gain a charcoal backing over bright
+scenery, using the menu backdrop color `#2b2d2f` from `palette.rcss`
+(`hud-backdrop-color`), capped at 19.5% opacity. Each group adapts to the scene
+behind its own bounds; the backing fades away over dark scenery. Panels have
+flat fills without borders or feathered edges. Opacity follows presentation time,
+with a faster rise (0.1 s time constant) and slower clearing (0.3 s). Empty
+labels and hidden controls leave no backing; opaque menu and loadout screens
+keep their existing backgrounds. The command dial's three sectors each sample
+the scene within their own annular shape and adapt independently, leaving the
+center and sector gaps transparent. Selection retains its highlight and coral arc.
+
+[hud_backdrop.cpp](../src/gui/hud_backdrop.cpp) captures the pre-HUD framebuffer
+into a reusable 128 × 72 GPU texture and estimates each group's luminance from
+64 samples. Two tiny textures retain opacity between frames. Padded rectangular
+panels and the three annular sectors are drawn in separate batches. Sampling,
+fading and compositing stay on the GPU, with no CPU pixel readback or per-frame
+resource allocation.
+The estimate is intentionally approximate rather than a reduction over every
+scene pixel. Bounds follow the current RmlUi layout, including scaled text.
+
 The navigation area displays a north-up 300 × 300 m minimap centered on the
 player's horizontal position (the camera in free-fly mode). Driving uses the
 occupied seat, including with the chase camera. It reuses the satellite texture already

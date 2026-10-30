@@ -6,7 +6,7 @@
     <link type="text/rcss" href="palette.rcss" />
     <link type="text/rcss" href="hud-icons.rcss" />
 </head>
-<body>
+<body class="gameplay">
     <div id="compass">
         <div id="compass-scale"></div>
         <div class="compass-pointer hud-icon"></div>
@@ -44,7 +44,7 @@
     <div id="capture"></div>
     <div id="weapon-selection">
         <div id="selection-slots"></div>
-        <div class="selection-hint">LEFT CLICK TO SELECT</div>
+        <div id="selection-hint" class="selection-hint">LEFT CLICK TO SELECT</div>
     </div>
     <div id="weapon-switch">
         <div class="switch-label"><span id="switch-label">SWITCHING WEAPON</span><span id="switch-countdown"></span></div>
@@ -52,14 +52,14 @@
     </div>
     <div id="signal-markers"></div>
     <div id="command-wheel">
-        <div class="command-title">TEAM SIGNAL</div>
+        <div id="command-title" class="command-title">TEAM SIGNAL</div>
         <command-sector id="command-danger" class="command-choice" sector="0"><div class="command-caption"><div class="command-symbol">!</div><div class="command-label">DANGER</div></div></command-sector>
         <command-sector id="command-move" class="command-choice" sector="1"><div class="command-caption"><div class="command-symbol">→</div><div class="command-label">MOVE THERE</div></div></command-sector>
         <command-sector id="command-backup" class="command-choice" sector="2"><div class="command-caption"><div class="command-symbol">+</div><div class="command-label">BACKUP</div></div></command-sector>
         <div id="command-center"><div class="command-key">MMB</div><div id="command-center-label">CANCEL</div></div>
         <div id="command-cursor"></div>
-        <div class="command-hint">HOLD MIDDLE MOUSE · AIM · RELEASE TO SEND</div>
-        <div class="command-cancel-hint">RETURN TO CENTER OR PRESS ESC TO CANCEL</div>
+        <div id="command-hint" class="command-hint">HOLD MIDDLE MOUSE · AIM · RELEASE TO SEND</div>
+        <div id="command-cancel-hint" class="command-cancel-hint">RETURN TO CENTER OR PRESS ESC TO CANCEL</div>
     </div>
     <div id="damage-feedback">
         <div class="damage-edge top-edge"></div><div class="damage-edge bottom-edge"></div>

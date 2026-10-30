@@ -6,6 +6,7 @@
    keeps green/yellow/red feedback for valid space, swaps and rejection.
    Hex suffixes vary opacity; satellite imagery retains its geographic colors. */
 body { color: #f5f6f2; }
+body.gameplay { hud-backdrop-color: #2b2d2f; }
 div, span, button { border-color: #f5f6f24d; }
 .compass-rule, .compass-tick { background-color: #f5f6f2b0; }
 .compass-center,
@@ -52,9 +53,8 @@ body.loadout { background-color: #2b2d2fed; }
 .loadout .punch { background-color: #b29a85; }
 .loadout .grenade { background-color: #b3ae72; }
 .signal-marker { background-color: #2b2d2fed; }
-/* Faint sector fills keep the gameplay scene visible through the dial. */
-.command-choice { sector-fill: #f5f6f226; sector-outline: #f5f6f24d; }
-#command-center { background-color: #f5f6f21a; }
+/* Each sector gets its own adaptive charcoal backing; selection adds a highlight. */
+.command-choice { sector-outline: #f5f6f24d; }
 .command-title { color: #f5f6f2; }
 .command-choice.selected { sector-fill: #f5f6f23d; sector-outline: #f5f6f280; sector-accent: #ec6962; }
 .command-hint, .command-key { color: #f5f6f299; }

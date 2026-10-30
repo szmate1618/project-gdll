@@ -5,6 +5,14 @@
 
 namespace Rml { class Element; class ElementDocument; }
 namespace viewer {
+// Shared by the RmlUi sector mesh and its adaptive backdrop. Radii use the
+// authored 380-unit square and scale with the element's smaller dimension.
+struct CommandSectorGeometry {
+    static constexpr float designSize = 380.f;
+    static constexpr float innerRadius = 52.f;
+    static constexpr float outerRadius = 189.f;
+    static constexpr int segments = 64;
+};
 // Register the sector element and its palette properties after Rml::Initialise().
 void registerCommandWheelElements();
 

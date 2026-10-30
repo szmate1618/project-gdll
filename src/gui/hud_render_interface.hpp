@@ -19,7 +19,9 @@ class HudRenderInterface final : public Rml::RenderInterface {
 public:
     explicit HudRenderInterface(const std::filesystem::path& shaderDirectory);
     ~HudRenderInterface() override;
-    void render(Rml::Context& context, int width, int height, const std::function<void()>& afterLayout = {});
+    // underlay runs after final layout, before document geometry is drawn.
+    void render(Rml::Context& context, int width, int height, const std::function<void()>& afterLayout = {},
+                const std::function<void()>& underlay = {});
     // Native RmlUi elements may draw 3D content in document order. Restore the
     // complete backend state so later UI, including modal dialogs, stays on top.
     void renderExternal(const std::function<void()>& draw);

@@ -29,10 +29,11 @@ protected:
         const auto accent = GetProperty<Rml::Colourb>("sector-accent");
         if (!geometry_ || size != size_ || fill != fill_ || outline != outline_ || accent != accent_) {
             size_ = size; fill_ = fill; outline_ = outline; accent_ = accent;
-            const float scale = std::min(size.x, size.y) / 380;
+            const float scale = std::min(size.x, size.y) / CommandSectorGeometry::designSize;
             if (scale <= 0) return;
             const Rml::Vector2f center = size * .5f;
-            const float inner = 52 * scale, outer = 189 * scale;
+            const float inner = CommandSectorGeometry::innerRadius * scale;
+            const float outer = CommandSectorGeometry::outerRadius * scale;
             const float stroke = std::max(.75f, scale);
             constexpr float radians = 3.1415926536f / 180;
             const float start = (GetAttribute<int>("sector", 0) * 120 - 60) * radians;
@@ -42,7 +43,7 @@ protected:
             };
             Rml::Mesh mesh;
             const auto arc = [&](float inside, float outside, Rml::Colourb color) {
-                constexpr int segments = 64;
+                constexpr int segments = CommandSectorGeometry::segments;
                 for (int i = 0; i < segments; ++i) {
                     const float a = start + sweep * i / segments, b = start + sweep * (i + 1) / segments;
                     quad(mesh, point(inside, a), point(outside, a), point(outside, b), point(inside, b), color.ToPremultiplied());

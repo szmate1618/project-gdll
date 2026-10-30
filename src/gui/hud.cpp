@@ -1,5 +1,6 @@
 #include "hud.hpp"
 #include "hud_render_interface.hpp"
+#include "hud_backdrop.hpp"
 #include "ui_runtime.hpp"
 #include "inventory_view.hpp"
 #include "inventory_interaction.hpp"
@@ -23,6 +24,47 @@
 namespace viewer {
 namespace {
 bool hudActive = false; // One gameplay HUD at a time, sharing the application UI runtime.
+
+struct BackdropGroup { const char* id; bool textOnly; };
+constexpr std::array<BackdropGroup, 18> backdropGroups{{
+    {"compass", false}, {"coordinates", false}, {"map-caption", true}, {"vitals", false},
+    {"mode-status", false}, {"movement-status", false}, {"speed-status", false}, {"weapon", false},
+    {"prompt", true}, {"capture", true}, {"selection-hint", true}, {"weapon-switch", false},
+    {"command-title", true}, {"command-hint", true}, {"command-cancel-hint", true},
+    {"command-danger", false}, {"command-move", false}, {"command-backup", false}
+}};
+static_assert(backdropGroups.size() == HudBackdrop::maxGroups);
+
+// Text labels use their laid-out lines, avoiding a wide panel across an
+// otherwise empty centered container. All bounds are framebuffer pixels, Y down.
+glm::vec4 backdropBounds(Rml::Element& element, bool textOnly) {
+    if (!element.IsVisible(true)) return {};
+    if (!textOnly) {
+        const auto p = element.GetAbsoluteOffset(Rml::BoxArea::Border);
+        const auto size = element.GetBox().GetSize(Rml::BoxArea::Border);
+        return {p.x, p.y, size.x, size.y};
+    }
+    glm::vec2 minimum{0}, maximum{0};
+    bool found = false;
+    for (int childIndex = 0; childIndex < element.GetNumChildren(); ++childIndex) {
+        auto* child = dynamic_cast<Rml::ElementText*>(element.GetChild(childIndex));
+        if (!child || child->GetText().empty()) continue;
+        const auto absolute = child->GetAbsoluteOffset();
+        const auto& metrics = Rml::GetFontEngineInterface()->GetFontMetrics(child->GetFontFaceHandle());
+        for (const auto& line : child->GetLines()) {
+            // RmlUi fills line.width during rendering, after our underlay.
+            // Measure new lines once; subsequent frames reuse the rendered width.
+            const float lineWidth = line.width > 0 ? line.width : Rml::ElementUtilities::GetStringWidth(child, line.text);
+            const glm::vec2 size{lineWidth, metrics.ascent + metrics.descent};
+            if (size.x <= 0 || size.y <= 0) continue;
+            const glm::vec2 p{absolute.x + line.position.x, absolute.y + line.position.y - metrics.ascent};
+            minimum = found ? glm::min(minimum, p) : p;
+            maximum = found ? glm::max(maximum, p + size) : p + size;
+            found = true;
+        }
+    }
+    return found ? glm::vec4(minimum, maximum - minimum) : glm::vec4(0);
+}
 
 class SatelliteMapElement final : public Rml::Element {
 public:
@@ -54,6 +96,10 @@ struct Hud::Impl {
     std::unique_ptr<MapViewUi> mapView;
     std::optional<MinimapSource> mapSource;
     std::unique_ptr<CommandWheelView> commandWheel;
+    std::unique_ptr<HudBackdrop> backdrop;
+    std::array<Rml::Element*, backdropGroups.size()> backdropElements{};
+    std::optional<double> lastBackdropTime;
+    Rml::PropertyId backdropColorProperty = Rml::PropertyId::Invalid;
     std::unique_ptr<LoadoutNavigation> navigation;
     std::vector<HudPointerEvent> pointerEvents;
     bool hasSatelliteImage = false;
@@ -77,6 +123,7 @@ struct Hud::Impl {
             Rml::Factory::RegisterElementInstancer("minimap", &mapInstancer);
             document = context->LoadDocument((directory / "hud.rml").generic_string());
             if (!document) throw std::runtime_error("Cannot load HUD layout: " + directory.string());
+            backdropColorProperty = Rml::StyleSheetSpecification::GetPropertyId("hud-backdrop-color");
             for (const char* id : {"heading", "north-coordinate", "east-coordinate", "movement", "mode", "speed",
                                     "equipment", "weapon", "mode-icon", "movement-icon", "loaded", "reserve", "prompt", "capture", "compass-scale", "map-caption", "switch-fill", "switch-countdown", "switch-label", "health-value", "health-fill", "damage-feedback"}) {
                 auto* element = document->GetElementById(id);
@@ -99,6 +146,10 @@ struct Hud::Impl {
                 elements.emplace("direction-" + std::to_string(i), directions[i]);
             }
             commandWheel = std::make_unique<CommandWheelView>(*document);
+            for (std::size_t i = 0; i < backdropGroups.size(); ++i) {
+                backdropElements[i] = document->GetElementById(backdropGroups[i].id);
+                if (!backdropElements[i]) throw std::runtime_error(std::string("Missing HUD backdrop group: ") + backdropGroups[i].id);
+            }
             document->Show();
         } catch (...) {
             shutdown();
@@ -194,6 +245,8 @@ struct Hud::Impl {
         const auto presentation = presentationViewport(width, height,
             presentationWidth > 0 ? presentationWidth : width, presentationHeight > 0 ? presentationHeight : height);
         if (screen != HudScreen::Gameplay) {
+            if (backdrop) backdrop->reset();
+            lastBackdropTime.reset();
             renderer.render(*context, width, height, [&] {
                 const auto events = navigation->process(*screens.at(static_cast<std::size_t>(screen) - 1), screen,
                     pointerEvents, width, height, presentation);
@@ -275,7 +328,18 @@ struct Hud::Impl {
             constexpr std::array<const char*, 6> classes{"pistol", "smg", "shotgun", "sniper", "grenade", "fists"};
             elements.at("weapon")->SetClassNames(slot >= 0 && slot < 6 ? classes[slot] : "unconfirmed");
         }
-        renderer.render(*context, width, height);
+        renderer.render(*context, width, height, {}, [&] {
+            if (!backdrop) renderer.renderExternal([&] { backdrop = std::make_unique<HudBackdrop>(sourceDirectory); });
+            HudBackdrop::Bounds bounds{};
+            for (std::size_t i = 0; i < backdropGroups.size(); ++i)
+                bounds[i] = backdropBounds(*backdropElements[i], backdropGroups[i].textOnly);
+            // Use presentation time so fading also works when simulation pauses.
+            const double now = Rml::GetSystemInterface()->GetElapsedTime();
+            const float delta = lastBackdropTime ? static_cast<float>(std::max(0.0, now - *lastBackdropTime)) : 0.f;
+            lastBackdropTime = now;
+            const auto color = document->GetProperty(backdropColorProperty)->Get<Rml::Colourb>();
+            backdrop->draw(bounds, width, height, delta, glm::vec3(color.red, color.green, color.blue) / 255.f);
+        });
     }
 };
 

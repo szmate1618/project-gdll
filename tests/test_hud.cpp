@@ -152,6 +152,69 @@ int main(int argc, char** argv) {
         viewer::HudState state;
         state.equipment = "Pistol <test>"; state.slot = 0; state.loaded = 7; state.reserve = 42;
         state.movement = "CROUCH"; state.yawDegrees = 225; state.speedMetersPerSecond = 1.5f / 3.6f;
+        {
+            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            viewer::Hud hud(VIEWER_HUD_DIR, inventory);
+            glDisable(GL_SCISSOR_TEST); glClearColor(1, 1, 1, 1); glClear(GL_COLOR_BUFFER_BIT);
+            glEnable(GL_SCISSOR_TEST);
+            hud.draw(state, 1280, 720); checkState();
+            const auto bright = pixels(1280, 720);
+            const auto backing = colorAt(bright, 1280, 720, 430, 34);
+            require(backing[0] >= 212 && backing[0] <= 216 && backing[0] <= backing[1] && backing[1] <= backing[2],
+                    "Bright scenery must give the gameplay HUD a charcoal backdrop");
+            for (const auto& point : std::array<std::array<int, 2>, 4>{{{640,300}, {40,40}, {640,600}, {640,702}}})
+                require(isColor(colorAt(bright, 1280, 720, point[0], point[1]), {255,255,255}),
+                        "Hidden HUD groups and empty prompt/capture labels must leave the scene unobscured");
+            std::size_t captionBackground = 0;
+            for (int y = 142; y < 157; ++y) for (int x = 1176; x < 1220; ++x)
+                if (colorAt(bright, 1280, 720, x, y)[0] < 235) ++captionBackground;
+            require(captionBackground > 120 && isColor(colorAt(bright, 1280, 720, 1150, 148), {255,255,255}),
+                    "The first-frame map caption needs a backdrop fitted to its text");
+            if (argc > 1) capture((std::string(argv[1]) + "-adaptive-bright-empty.ppm").c_str(), bright, 1280, 720);
+        }
+        {
+            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            viewer::Hud hud(VIEWER_HUD_DIR, inventory);
+            auto labels = state;
+            labels.prompt = "Enter: exit vehicle"; labels.mouseCaptured = false;
+            labels.selectionSlot = 0; labels.commandWheelOpen = true;
+            glDisable(GL_SCISSOR_TEST); glClearColor(1, 1, 1, 1); glClear(GL_COLOR_BUFFER_BIT);
+            glEnable(GL_SCISSOR_TEST);
+            hud.draw(labels, 1280, 720); checkState();
+            const auto bright = pixels(1280, 720);
+            const auto backgroundCount = [&](int left, int top, int right, int bottom) {
+                std::size_t count = 0;
+                for (int y = top; y < bottom; ++y) for (int x = left; x < right; ++x)
+                    if (colorAt(bright, 1280, 720, x, y)[0] < 235) ++count;
+                return count;
+            };
+            require(backgroundCount(550,590,730,610) > 500 && backgroundCount(590,684,690,708) > 400,
+                    "New prompt and cursor labels need readable first-frame backdrops");
+            require(backgroundCount(24,104,160,122) > 200 && backgroundCount(500,526,780,560) > 1000,
+                    "Selection and command instructions need first-frame backdrops");
+            require(isColor(colorAt(bright, 1280, 720, 615, 271), {214,214,214}) &&
+                    isColor(colorAt(bright, 1280, 720, 644, 490), {214,214,214}),
+                    "Command sectors must have their own adaptive charcoal backdrops through their straight edges");
+            for (const auto& point : std::array<std::array<int, 2>, 4>{{{495,215}, {675,360}, {641,420}, {641,490}}})
+                require(isColor(colorAt(bright, 1280, 720, point[0], point[1]), {255,255,255}),
+                        "The command dial must leave its center, gaps and outer corners unobscured");
+            require(isColor(colorAt(bright, 1280, 720, 400, 600), {255,255,255}) &&
+                    isColor(colorAt(bright, 1280, 720, 400, 695), {255,255,255}),
+                    "Centered labels must not darken the unused width of their containers");
+            if (argc > 1) capture((std::string(argv[1]) + "-adaptive-bright.ppm").c_str(), bright, 1280, 720);
+        }
+        {
+            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            viewer::Hud hud(VIEWER_HUD_DIR, inventory);
+            clear();
+            glScissor(0, 360, 1280, 360); glClearColor(1, 1, 1, 1); glClear(GL_COLOR_BUFFER_BIT);
+            glScissor(11, 19, 31, 41);
+            hud.draw(state, 1280, 720); checkState();
+            const auto mixed = pixels(1280, 720);
+            require(isColor(colorAt(mixed, 1280, 720, 430, 34), {214,214,214}) &&
+                    isColor(colorAt(mixed, 1280, 720, 30, 590), {0,0,0}),
+                    "HUD groups must adapt independently to local scene brightness");
+        }
         std::vector<unsigned char> first;
         {
             auto hudInventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
@@ -232,8 +295,6 @@ int main(int argc, char** argv) {
             require(colorAt(centeredWheel, 1280, 720, 641, 420) == colorAt(beforeWheel, 1280, 720, 641, 420) &&
                     colorAt(centeredWheel, 1280, 720, 641, 490) == colorAt(beforeWheel, 1280, 720, 641, 490),
                     "Outward sector separation must leave a parallel gap near and far from the center");
-            require(colorAt(centeredWheel, 1280, 720, 644, 490) != colorAt(beforeWheel, 1280, 720, 644, 490),
-                    "The full 120-degree sector must extend to its translated straight edge");
             if (argc > 1) capture((std::string(argv[1]) + "-wheel-center.ppm").c_str(), centeredWheel, 1280, 720);
             for (const auto offset : {glm::vec2(0, -100), glm::vec2(100, 60), glm::vec2(-100, 60)}) {
                 state.commandWheelOffset = offset;
@@ -254,8 +315,8 @@ int main(int argc, char** argv) {
                     "Selected sector must brighten neutrally while retaining HUD transparency");
             require(colorAt(sectorPixels, 1280, 720, 750, 400) == colorAt(centeredWheel, 1280, 720, 750, 400),
                     "Selecting Danger must not highlight the Move sector");
-            require(isColor(colorAt(sectorPixels, 1280, 720, 750, 400), {36,36,36}),
-                    "Unselected sectors must use the faint off-white HUD fill");
+            require(isColor(colorAt(sectorPixels, 1280, 720, 750, 400), {0,0,0}),
+                    "Unselected sectors over dark scenery must remain transparent");
             if (argc > 1) capture((std::string(argv[1]) + "-wheel-danger.ppm").c_str(), pixels(1280, 720), 1280, 720);
             state.weaponSwitchDuration = 2; state.weaponSwitchRemaining = 1;
             clear(); hud.draw(state, 1280, 720); checkState();

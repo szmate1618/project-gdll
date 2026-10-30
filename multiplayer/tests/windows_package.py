@@ -17,6 +17,7 @@ def check_contents(package):
         "ui/main-menu.rml", "ui/main-menu.rcss", "ui/main-menu-classic.rcss", "ui/main-menu-modern.rcss",
         "ui/fonts/menu-pixel.ttf", "ui/character-editor.rcss",
         "ui/hud.rml", "ui/hud.rcss", "ui/command-wheel.rcss", "ui/palette.rcss", "ui/hud-icons.rcss", "ui/hud.vert", "ui/hud.frag", "licenses/RmlUi.txt",
+        "ui/hud-backdrop.vert", "ui/hud-backdrop.frag", "ui/hud-backdrop-update.vert", "ui/hud-backdrop-update.frag",
         "gui/hud-icons.json", "data/assets/game-icons/hud/health.png", "data/assets/game-icons/hud/pistol.png",
         "data/assets/game-icons/license.txt", "credits/assets/HUD_ICONS.txt",
         "gui/character-faces.json", "credits/assets/CHARACTER_FACES.txt",

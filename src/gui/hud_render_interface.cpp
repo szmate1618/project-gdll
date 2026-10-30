@@ -213,7 +213,8 @@ void HudRenderInterface::drawMinimap(Rml::Vector2f offset, Rml::Vector2f size) {
     }
 }
 
-void HudRenderInterface::render(Rml::Context& context, int width, int height, const std::function<void()>& afterLayout) {
+void HudRenderInterface::render(Rml::Context& context, int width, int height, const std::function<void()>& afterLayout,
+                                const std::function<void()>& underlay) {
     GlState restore;
     width_ = width;
     height_ = height;
@@ -236,6 +237,7 @@ void HudRenderInterface::render(Rml::Context& context, int width, int height, co
     // Hit testing needs current layout. Keep interaction-triggered geometry
     // updates inside the same GL state guard as normal RmlUi rendering.
     if (afterLayout) { afterLayout(); context.Update(); }
+    if (underlay) renderExternal(underlay);
     context.Render();
 }
 
