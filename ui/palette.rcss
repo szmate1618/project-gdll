@@ -29,7 +29,8 @@ div, span, button { border-color: #f5f6f24d; }
 .empty .selection-name, .empty .assignment-name { color: #f5f6f259; }
 .selection-slot, .switch-track, .placement-label { background-color: #2b2d2fed; }
 .selection-slot.selected { border-color: #f5f6f2; background-color: #383a3cf5; }
-.selected .selection-key { color: #ec6962; }
+.selected .selection-key { color: #f5f6f2; }
+.selection-marker { background-color: #ec6962; }
 #switch-countdown { color: #f5f6f2; }
 .switch-track, .placement-track { border-color: #f5f6f280; }
 
@@ -37,6 +38,7 @@ body.loadout { background-color: #2b2d2fed; }
 .panel { background-color: #383a3cd9; }
 .page-tab, .body-placeholder-label, .backpack-caption,
 .field-label, .skills-empty { color: #f5f6f280; }
+.page-tab:hover { color: #f5f6f2; background-color: #f5f6f21a; }
 .inventory #inventory-tab, .skills #skills-tab,
 .health #health-tab, .map #map-tab { color: #f5f6f2; border-color: #ec6962; }
 .body-placeholder, .loadout .unselected { background-color: #f5f6f240; }
@@ -62,8 +64,8 @@ body.loadout { background-color: #2b2d2fed; }
 /* Faint sector fills keep the gameplay scene visible through the dial. */
 .command-choice { sector-fill: #f5f6f226; sector-outline: #f5f6f24d; }
 #command-center { background-color: #f5f6f21a; }
-.command-title, .command-choice.selected .command-symbol { color: #ec6962; }
-.command-choice.selected { sector-fill: #ec696226; sector-outline: #ec6962; }
+.command-title { color: #ec6962; }
+.command-choice.selected { sector-fill: #f5f6f23d; sector-outline: #f5f6f280; sector-accent: #ec6962; }
 .command-hint, .command-key { color: #f5f6f299; }
 .command-cancel-hint, #command-center-label { color: #f5f6f280; }
 #command-cursor { background-color: #f5f6f2; }
@@ -72,7 +74,8 @@ body.loadout { background-color: #2b2d2fed; }
 .signal-marker.backup { border-color: #e7cd65; color: #e7cd65; }
 #satellite-overview { background-color: #2b2d2f; border-color: #f5f6f24d; map-line-color: #e7cd65; map-self-color: #59c49c; map-player-color: #f5f6f2; }
 #map-tools button, .map-distance-label { color: #f5f6f2; background-color: #2b2d2fed; border-color: #f5f6f24d; }
-#map-tools button.active { color: #e7cd65; border-color: #e7cd65; }
+#map-tools button:hover { border-color: #f5f6f2b0; background-color: #f5f6f21a; }
+#map-tools button.active { border-left-color: #ec6962; background-color: #f5f6f21a; }
 #map-hint { color: #f5f6f299; }
 .inventory-ghost { border-color: #ec6962; background-color: #ec696240; }
 .inventory-ghost.valid { border-color: #59c49c; background-color: #59c49c26; }

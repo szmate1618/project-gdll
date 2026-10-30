@@ -141,12 +141,20 @@ another installed font, set `GD_HUD_FONT` to its `.ttf` path before launching.
 FreeType creates the glyph atlas needed to render this system-font text.
 
 F1 opens Inventory; F2 opens Skills, F3 Health and F4 Map.
+Click the tabs across the top of any of these pages to switch pages. Clicking
+the current tab keeps it open. Tabs brighten on hover; the active tab has bright
+text and a thin coral underline.
 Press the active key again, or Escape, to return to the gameplay HUD. Opening
 any screen cancels
 held actions and blocks movement, camera look and gameplay inputs while it is
 visible; simulation continues. F8 and F9 now select free-fly and walking modes.
 F10 toggles the standalone viewer's collision overlay. The same four screens
 are available in the graphical multiplayer client.
+
+Map tool buttons brighten on hover and mark the active measurement tool with
+a coral left edge. The radial signal dial brightens the selected wedge with a
+thin coral outer arc; its fill stays neutral and translucent. The gameplay
+hotbar selector marks the selected slot with a small coral bar.
 
 [inventory.rml](../ui/inventory.rml) builds body storage and the backpack from
 [storage/loadout.toml](../storage/loadout.toml) and the equipment/backpack catalogs

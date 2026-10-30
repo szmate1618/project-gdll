@@ -26,8 +26,9 @@ protected:
         const auto size = GetBox().GetSize(Rml::BoxArea::Content);
         const auto fill = GetProperty<Rml::Colourb>("sector-fill");
         const auto outline = GetProperty<Rml::Colourb>("sector-outline");
-        if (!geometry_ || size != size_ || fill != fill_ || outline != outline_) {
-            size_ = size; fill_ = fill; outline_ = outline;
+        const auto accent = GetProperty<Rml::Colourb>("sector-accent");
+        if (!geometry_ || size != size_ || fill != fill_ || outline != outline_ || accent != accent_) {
+            size_ = size; fill_ = fill; outline_ = outline; accent_ = accent;
             const float scale = std::min(size.x, size.y) / 380;
             if (scale <= 0) return;
             const Rml::Vector2f center = size * .5f;
@@ -55,6 +56,9 @@ protected:
                 quad(mesh, point(inner, angle) - side, point(outer, angle) - side,
                      point(outer, angle) + side, point(inner, angle) + side, outline.ToPremultiplied());
             }
+            // Only the outer arc carries the selection accent; the interior
+            // and radial edges retain the neutral menu highlight.
+            if (accent.alpha) arc(outer - std::max(1.f, 2 * scale), outer, accent);
             geometry_ = GetRenderManager()->MakeGeometry(std::move(mesh));
         }
         geometry_.Render(GetAbsoluteOffset(Rml::BoxArea::Content));
@@ -62,13 +66,14 @@ protected:
 private:
     Rml::Geometry geometry_;
     Rml::Vector2f size_;
-    Rml::Colourb fill_, outline_;
+    Rml::Colourb fill_, outline_, accent_;
 };
 }
 
 void registerCommandWheelElements() {
     Rml::StyleSheetSpecification::RegisterProperty("sector-fill", "transparent", false).AddParser("color");
     Rml::StyleSheetSpecification::RegisterProperty("sector-outline", "transparent", false).AddParser("color");
+    Rml::StyleSheetSpecification::RegisterProperty("sector-accent", "transparent", false).AddParser("color");
     // The factory borrows this stateless instancer across successive HUD lifetimes.
     static Rml::ElementInstancerGeneric<CommandSector> instancer;
     Rml::Factory::RegisterElementInstancer("command-sector", &instancer);

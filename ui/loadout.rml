@@ -7,10 +7,10 @@
 <body>
     <div id="loadout-frame">
         <div id="loadout-header">
-            <div id="inventory-tab" class="page-tab"><span class="key-label">F1</span>INVENTORY</div>
-            <div id="skills-tab" class="page-tab"><span class="key-label">F2</span>SKILLS</div>
-            <div id="health-tab" class="page-tab"><span class="key-label">F3</span>HEALTH</div>
-            <div id="map-tab" class="page-tab"><span class="key-label">F4</span>MAP</div>
+            <button id="inventory-tab" class="page-tab"><span class="key-label">F1</span>INVENTORY</button>
+            <button id="skills-tab" class="page-tab"><span class="key-label">F2</span>SKILLS</button>
+            <button id="health-tab" class="page-tab"><span class="key-label">F3</span>HEALTH</button>
+            <button id="map-tab" class="page-tab"><span class="key-label">F4</span>MAP</button>
             <div class="close-hint">Press the active key or Esc to close</div>
         </div>
         <div id="page-content"></div>

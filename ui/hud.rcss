@@ -57,6 +57,8 @@ div { display: block; }
 #selection-slots { position: relative; width: 346dp; height: 74dp; }
 .selection-slot { position: absolute; top: 0dp; width: 22dp; height: 30dp; box-sizing: border-box; border-width: 1dp; }
 .selection-slot.selected { width: 112dp; height: 74dp; }
+.selection-marker { display: none; position: absolute; left: 8dp; bottom: 0dp; width: 20dp; height: 2dp; }
+.selected .selection-marker { display: block; }
 .selection-key { position: absolute; left: 0dp; top: 4dp; width: 20dp; text-align: center; font-size: 10dp; }
 .selected .selection-key { left: 6dp; font-size: 11dp; }
 .selection-icon { position: absolute; left: 4dp; top: 15dp; width: 14dp; height: 14dp; }

@@ -109,6 +109,18 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
     glReadPixels(0, 0, frameWidth, frameHeight, GL_RGB, GL_UNSIGNED_BYTE, frames.back().data());
     auto* window = glfwGetCurrentContext();
     auto& in = input(window);
+    const auto clickTab = [&](float designX) {
+        int width, height, windowWidth, windowHeight;
+        glfwGetFramebufferSize(window, &width, &height);
+        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+        const float scale = std::min(width / 1280.f, height / 720.f);
+        // Hidden windows cannot warp the OS cursor. Use the real move callback
+        // and enqueue button transitions at the HUD boundary instead.
+        mouse(window, ((width - 1280 * scale) / 2 + designX * scale) * windowWidth / width,
+                      ((height - 720 * scale) / 2 + 53 * scale) * windowHeight / height);
+        in.hud->pointerButton(0, true);
+        in.hud->pointerButton(0, false);
+    };
     switch (frame) {
         case 2:
             require(differences(0, 1) > 500, "Confirmed pistol did not appear after spawn");
@@ -514,9 +526,24 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             require(glm::distance(baseline.direction(), acknowledged.direction()) < .000001f,
                     "Delayed sniper acknowledgement applied another kick to scoped aim");
             capture("sniper-local-acknowledged");
-            glfwSetWindowShouldClose(window, true);
+            key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
             break;
         }
+        case 48: clickTab(300); break;
+        case 49: require(in.hudScreen == viewer::HudScreen::Skills, "Inventory tab click did not reach the client's Skills input state"); break;
+        case 50: clickTab(475); break;
+        case 51: require(in.hudScreen == viewer::HudScreen::Health, "Skills page must forward tab clicks to Health"); break;
+        case 52: clickTab(680); break;
+        case 53: require(in.hudScreen == viewer::HudScreen::Map, "Health page must forward tab clicks to Map"); break;
+        case 54: clickTab(80); break;
+        case 55: require(in.hudScreen == viewer::HudScreen::Inventory, "Map tab click did not return to Inventory"); break;
+        case 56: clickTab(80); break;
+        case 57:
+            require(in.hudScreen == viewer::HudScreen::Inventory, "Clicking the active inventory tab closed the menu");
+            key(window, GLFW_KEY_ESCAPE, 0, GLFW_PRESS, 0);
+            require(in.hudScreen == viewer::HudScreen::Gameplay && !in.leave, "Escape after tab navigation must close the menu");
+            glfwSetWindowShouldClose(window, true);
+            break;
     }
     // This fixture also scripts external authoritative equipment changes.
     // Their matching requests stand in for completed user selections.
@@ -599,7 +626,7 @@ int main(int argc, char** argv) {
             glfwPollEvents();
             clientOptions.screenshot = fixture / "scaled-window.ppm";
         }
-        require(multiplayer::runClientSession(clientOptions, sharedWindow.get()) == 0 && frame == 48, "Graphical client did not finish all weapon and command wheel states");
+        require(multiplayer::runClientSession(clientOptions, sharedWindow.get()) == 0 && frame == 58, "Graphical client did not finish all weapon, command wheel and page-tab states");
         if (scaledDisplay) {
             std::ifstream screenshot(clientOptions.screenshot);
             std::string magic; int width = 0, height = 0;

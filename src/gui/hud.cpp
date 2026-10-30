@@ -5,6 +5,7 @@
 #include "inventory_interaction.hpp"
 #include "action_hotbar.hpp"
 #include "skills_view.hpp"
+#include "loadout_navigation.hpp"
 #include "gui/map_view.hpp"
 #include "presentation_viewport.hpp"
 #include "inventory/player_inventory.hpp"
@@ -53,6 +54,7 @@ struct Hud::Impl {
     std::unique_ptr<MapViewUi> mapView;
     std::optional<MinimapSource> mapSource;
     std::unique_ptr<CommandWheelView> commandWheel;
+    std::unique_ptr<LoadoutNavigation> navigation;
     std::vector<HudPointerEvent> pointerEvents;
     bool hasSatelliteImage = false;
     std::filesystem::path sourceDirectory;
@@ -70,6 +72,7 @@ struct Hud::Impl {
             context = Rml::CreateContext("game-hud", {1280, 720});
             if (!context) throw std::runtime_error("Cannot create HUD context");
             hudActive = true;
+            navigation = std::make_unique<LoadoutNavigation>(*context);
             static Rml::ElementInstancerGeneric<SatelliteMapElement> mapInstancer;
             Rml::Factory::RegisterElementInstancer("minimap", &mapInstancer);
             document = context->LoadDocument((directory / "hud.rml").generic_string());
@@ -104,6 +107,7 @@ struct Hud::Impl {
     }
     ~Impl() { shutdown(); }
     void shutdown() {
+        navigation.reset();
         commandWheel.reset();
         mapView.reset();
         inventoryInteraction.reset();
@@ -168,6 +172,7 @@ struct Hud::Impl {
             return page;
         };
         auto* nextDocument = screenDocument(next);
+        navigation->cancel();
         if (screen == HudScreen::Inventory) {
             inventoryInteraction->cancel();
             pointerEvents.clear();
@@ -189,22 +194,12 @@ struct Hud::Impl {
         const auto presentation = presentationViewport(width, height,
             presentationWidth > 0 ? presentationWidth : width, presentationHeight > 0 ? presentationHeight : height);
         if (screen != HudScreen::Gameplay) {
-            if (screen == HudScreen::Inventory)
-                renderer.render(*context, width, height, [&] { inventoryInteraction->process(pointerEvents, width, height, presentation, state.seconds); });
-            else if (screen == HudScreen::Map)
-                renderer.render(*context, width, height, [&] { mapView->process(pointerEvents, width, height, presentation, state); });
-            else if (screen == HudScreen::Skills)
-                renderer.render(*context, width, height, [&] {
-                    for (const auto& event : pointerEvents) {
-                        if (event.action == HudPointerAction::Move) {
-                            const auto point = presentation.scenePointer(event.x, event.y, width, height);
-                            context->ProcessMouseMove(static_cast<int>(point.x), static_cast<int>(point.y), 0);
-                        }
-                        else if (event.action == HudPointerAction::Wheel)
-                            context->ProcessMouseWheel(-event.x, 0);
-                    }
-                });
-            else renderer.render(*context, width, height);
+            renderer.render(*context, width, height, [&] {
+                const auto events = navigation->process(*screens.at(static_cast<std::size_t>(screen) - 1), screen,
+                    pointerEvents, width, height, presentation);
+                if (screen == HudScreen::Inventory) inventoryInteraction->process(events, width, height, presentation, state.seconds);
+                else if (screen == HudScreen::Map) mapView->process(events, width, height, presentation, state);
+            });
             pointerEvents.clear();
             return;
         }
@@ -305,6 +300,7 @@ void Hud::mouseWheel(float notches) {
 }
 void Hud::cancelInventoryDrag() { cancelPointerInteraction(); }
 void Hud::cancelPointerInteraction() { impl_->pointerEvents.push_back({HudPointerAction::Cancel}); }
+std::optional<HudScreen> Hud::takeScreenRequest() { return impl_->navigation->takeRequest(); }
 std::vector<InventoryDragAction> Hud::takeInventoryActions() {
     return impl_->inventoryInteraction ? impl_->inventoryInteraction->takeActions() : std::vector<InventoryDragAction>{};
 }

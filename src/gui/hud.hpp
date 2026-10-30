@@ -60,6 +60,9 @@ public:
     void mouseWheel(float notches);
     void cancelInventoryDrag();
     void cancelPointerInteraction(); // Screen switch/focus loss, including map gestures.
+    // Consume a clicked page tab after draw(); apply it to the caller's screen
+    // state so input routing and the next rendered page stay in agreement.
+    std::optional<HudScreen> takeScreenRequest();
     std::vector<InventoryDragAction> takeInventoryActions();
     bool inventoryDragging() const; // Includes completed actions awaiting delivery.
     void refreshInventoryLayout(); // Call after applying an idle authoritative placement snapshot.

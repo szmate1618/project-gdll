@@ -600,7 +600,7 @@ void hudPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
 }
 void cursorCallback(GLFWwindow* window, double x, double y) {
     auto& app = state(window);
-    if (app.hudScreen == viewer::HudScreen::Inventory || app.hudScreen == viewer::HudScreen::Skills || app.hudScreen == viewer::HudScreen::Map) {
+    if (app.hudScreen != viewer::HudScreen::Gameplay) {
         hudPointer(window, app.hud, x, y); return;
     }
     if (!app.capture || app.hudScreen != viewer::HudScreen::Gameplay) return;
@@ -613,7 +613,7 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     auto& app = state(window);
-    if (app.hudScreen == viewer::HudScreen::Inventory || app.hudScreen == viewer::HudScreen::Map) {
+    if (app.hudScreen != viewer::HudScreen::Gameplay) {
         double x, y; glfwGetCursorPos(window, &x, &y);
         hudPointer(window, app.hud, x, y);
         if (app.hud) app.hud->pointerButton(button, action == GLFW_PRESS);
@@ -653,7 +653,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
 }
 
 void scrollCallback(GLFWwindow* window, double, double y) {
-    if ((state(window).hudScreen == viewer::HudScreen::Inventory || state(window).hudScreen == viewer::HudScreen::Skills || state(window).hudScreen == viewer::HudScreen::Map) && state(window).hud) {
+    if (state(window).hudScreen != viewer::HudScreen::Gameplay && state(window).hud) {
         double x, cursorY; glfwGetCursorPos(window, &x, &cursorY);
         hudPointer(window, state(window).hud, x, cursorY);
         state(window).hud->mouseWheel(static_cast<float>(y));
@@ -1844,6 +1844,7 @@ int run(const Options& options) {
             viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::hud);
             hud.draw(hudState, app.width, app.height);
         }
+        if (const auto requested = hud.takeScreenRequest()) app.hudScreen = *requested;
         (void)hud.takeInventoryActions(); // Standalone already applies these operations locally.
         intervalRenderSeconds += glfwGetTime() - renderStart;
         gpuTimer.end();

@@ -1,7 +1,7 @@
-body.inventory, body.skills { pointer-events: auto; }
+body.loadout { pointer-events: auto; }
 #loadout-frame { position: absolute; left: 50%; top: 50%; margin-left: -606dp; margin-top: -330dp; width: 1212dp; height: 660dp; }
 #loadout-header { position: absolute; top: 0dp; width: 1212dp; height: 48dp; border-bottom-width: 1dp; }
-.page-tab { position: absolute; top: 6dp; height: 40dp; width: 178dp; font-size: 19dp; }
+.page-tab { display: block; position: absolute; top: 6dp; height: 40dp; width: 178dp; box-sizing: border-box; padding: 0dp; text-align: left; font-size: 19dp; cursor: pointer; }
 #inventory-tab { left: 0dp; }
 #skills-tab { left: 204dp; }
 #health-tab { left: 408dp; }
@@ -80,7 +80,7 @@ body.inventory, body.skills { pointer-events: auto; }
 #map-unavailable { position: absolute; left: 0dp; top: 298dp; width: 1210dp; text-align: center; font-size: 13dp; }
 #map-tools { display: none; position: absolute; left: 20dp; top: 54dp; width: 300dp; }
 .has-satellite #map-tools { display: block; }
-#map-tools button { display: block; width: 280dp; height: 34dp; margin-bottom: 8dp; font-family: hud-system; font-size: 11dp; line-height: 34dp; border-width: 1dp; text-align: center; }
+#map-tools button { display: block; width: 280dp; height: 34dp; box-sizing: border-box; margin-bottom: 8dp; font-family: hud-system; font-size: 11dp; line-height: 32dp; border-width: 1dp; border-left-width: 2dp; text-align: center; cursor: pointer; }
 #map-total { margin-top: 18dp; font-size: 12dp; line-height: 22dp; }
 #map-preview-total { font-size: 12dp; line-height: 22dp; }
 #map-player-label { margin-top: 18dp; font-size: 12dp; }

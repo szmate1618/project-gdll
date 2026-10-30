@@ -127,7 +127,7 @@ void hudPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
 }
 void mouse(GLFWwindow* window, double x, double y) {
     auto& in = input(window);
-    if (in.hudScreen == viewer::HudScreen::Inventory || in.hudScreen == viewer::HudScreen::Skills || in.hudScreen == viewer::HudScreen::Map) {
+    if (in.hudScreen != viewer::HudScreen::Gameplay) {
         hudPointer(window, in.hud, x, y); return;
     }
     if (!in.capture || in.hudScreen != viewer::HudScreen::Gameplay) return;
@@ -164,7 +164,7 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
         }
         return;
     }
-    if (in.hudScreen == viewer::HudScreen::Inventory || in.hudScreen == viewer::HudScreen::Map) {
+    if (in.hudScreen != viewer::HudScreen::Gameplay) {
         double x, y; glfwGetCursorPos(window, &x, &y);
         hudPointer(window, in.hud, x, y);
         if (in.hud) in.hud->pointerButton(buttonCode, action == GLFW_PRESS);
@@ -188,7 +188,7 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
 void scroll(GLFWwindow* window, double, double y) {
     auto& in = input(window);
     if (in.wheelOpen) return;
-    if ((in.hudScreen == viewer::HudScreen::Inventory || in.hudScreen == viewer::HudScreen::Skills || in.hudScreen == viewer::HudScreen::Map) && in.hud) {
+    if (in.hudScreen != viewer::HudScreen::Gameplay && in.hud) {
         double x, cursorY; glfwGetCursorPos(window, &x, &cursorY);
         hudPointer(window, in.hud, x, cursorY);
         in.hud->mouseWheel(static_cast<float>(y));
@@ -776,6 +776,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                             hudState.prompt="Birds diving! Move aside, duck or reach cover"; break;
                         }
                 graphics.hud->draw(hudState, width, height);
+                if (const auto requested = graphics.hud->takeScreenRequest()) in.hudScreen = *requested;
                 intervalRenderSeconds += std::chrono::duration<double>(Clock::now() - renderStart).count();
                 graphics.gpuTimer->end();
                 // Presentation and VSync waits stay outside the render timers.

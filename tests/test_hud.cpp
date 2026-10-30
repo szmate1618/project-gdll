@@ -249,8 +249,9 @@ int main(int argc, char** argv) {
             require(isColor(colorAt(sectorPixels, 1280, 720, 630, 263), {236,105,98}),
                     "Selected sector's curved outer edge must use the shared menu red accent");
             const auto sectorFill = colorAt(sectorPixels, 1280, 720, 670, 290);
-            require(sectorFill[0] > 20 && sectorFill[0] < 60 && sectorFill[0] > sectorFill[1] * 2,
-                    "Selected sector must tint its interior while retaining HUD transparency");
+            require(sectorFill[0] > 45 && sectorFill[0] < 80 && std::abs(int(sectorFill[0]) - sectorFill[1]) <= 1 &&
+                    std::abs(int(sectorFill[0]) - sectorFill[2]) <= 1,
+                    "Selected sector must brighten neutrally while retaining HUD transparency");
             require(colorAt(sectorPixels, 1280, 720, 720, 380) == colorAt(centeredWheel, 1280, 720, 720, 380),
                     "Selecting Danger must not highlight the Move sector");
             require(isColor(colorAt(sectorPixels, 1280, 720, 720, 380), {36,36,36}),
@@ -267,6 +268,9 @@ int main(int argc, char** argv) {
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto selecting = pixels(1280, 720);
             require(selecting != first, "Selection overlay and progress must render");
+            require(isColor(colorAt(selecting, 1280, 720, 60, 95), {236,105,98}) &&
+                    !isColor(colorAt(selecting, 1280, 720, 34, 51), {236,105,98}),
+                    "Only the selected hotbar slot must carry the small coral marker");
             if (argc > 1) capture((std::string(argv[1]) + "-selection.ppm").c_str(), selecting, 1280, 720);
             state.selectionSlot = 5; state.weaponSwitchRemaining = 1;
             clear(); hud.draw(state, 1280, 720); checkState();
@@ -415,7 +419,12 @@ int main(int argc, char** argv) {
             const auto click = [&](float x,float y) { move(x,y); hud.pointerButton(0,true); hud.pointerButton(0,false); draw(); };
             draw();
             const auto emptyMap = pixels(1280,720);
+            move(100,169); draw();
+            require(colorAt(pixels(1280,720),1280,720,55,160)[0] > colorAt(emptyMap,1280,720,55,160)[0] + 20,
+                    "Hovering a map tool must brighten its outline");
             click(100,169); // Measure; controls are outside the imagery.
+            require(isColor(colorAt(pixels(1280,720),1280,720,55,160),{236,105,98}),
+                    "The active map tool must carry a thin coral left edge");
             click(450,260); click(750,260);
             move(750,520); draw();
             if (argc > 1) capture((std::string(argv[1])+"-map-preview.ppm").c_str(),pixels(1280,720),1280,720);
@@ -485,6 +494,56 @@ int main(int argc, char** argv) {
                 "File image must preserve partial alpha and HUD tint with premultiplied blending");
             require(isColor(colorAt(imagePixels, 1280, 720, 51, 596), {0,0,0}),
                 "Transparent file texels must leave the scene unchanged");
+        }
+        // All loadout pages share clickable tabs, including the otherwise empty
+        // Health page. Navigation uses fitted presentation coordinates.
+        {
+            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            viewer::Hud hud(VIEWER_HUD_DIR, inventory);
+            viewer::HudState page; page.screen = viewer::HudScreen::Inventory;
+            int width = 1280, height = 720, displayWidth = 1280, displayHeight = 720;
+            const auto draw = [&] { clear(); hud.draw(page, width, height, displayWidth, displayHeight); checkState(); };
+            const auto move = [&](float x, float y) {
+                const auto fit = viewer::presentationViewport(width, height, displayWidth, displayHeight);
+                hud.pointerMove((fit.x + x * fit.width / 1280) / displayWidth,
+                                (fit.y + y * fit.height / 720) / displayHeight);
+            };
+            const auto click = [&](float x, float y) {
+                move(x, y); hud.pointerButton(0, true); hud.pointerButton(0, false); draw();
+            };
+            const auto apply = [&](viewer::HudScreen expected) {
+                require(hud.takeScreenRequest() == expected, "Clicked tab did not request the expected page");
+                require(!hud.takeScreenRequest(), "Tab requests must be consumed exactly once");
+                page.screen = expected; draw();
+            };
+            draw();
+            const auto idle = pixels(width, height);
+            move(300, 53); draw();
+            require(pixels(width, height) != idle, "Hovering an inactive page tab must brighten it");
+            click(245, 51); apply(viewer::HudScreen::Skills); // Click the nested F2 label.
+            click(475, 53); apply(viewer::HudScreen::Health);
+            click(680, 53); apply(viewer::HudScreen::Map);
+            click(80, 53); apply(viewer::HudScreen::Inventory);
+            click(80, 53);
+            require(!hud.takeScreenRequest(), "Clicking the active tab must keep its page open");
+            move(300, 53); hud.pointerButton(0, true); move(475, 53); hud.pointerButton(0, false); draw();
+            require(!hud.takeScreenRequest(), "Releasing on a different tab must not navigate");
+            move(300, 53); hud.pointerButton(0, true); hud.cancelPointerInteraction(); hud.pointerButton(0, false); draw();
+            require(!hud.takeScreenRequest(), "Focus cancellation must cancel a pressed tab");
+            move(65, 402); hud.pointerButton(0, true); move(610, 197); hud.pointerButton(0, false); draw();
+            require(inventory.held() && inventory.held()->item == "pistol", "Navigation fixture must have a pending inventory placement");
+            (void)hud.takeInventoryActions();
+            page.seconds += 30; click(300, 53);
+            require(!inventory.held() && inventory.locationOf("pistol")->placement->storage == "body/hip_holster/holster",
+                    "Clicking a tab must cancel a pending placement before its timer can finish");
+            const auto cancelled = hud.takeInventoryActions();
+            require(cancelled.size() == 1 && cancelled.front().kind == viewer::InventoryDragActionKind::Cancel,
+                    "Tab navigation must report inventory cancellation to the server");
+            apply(viewer::HudScreen::Skills);
+            width = 640; height = 360; displayWidth = 1920; displayHeight = 1200; draw();
+            click(475, 53); apply(viewer::HudScreen::Health);
+            click(245, 51); apply(viewer::HudScreen::Skills);
+            require(hud.takeInventoryActions().empty(), "Idle tab navigation must not produce inventory operations");
         }
         // Multiplayer returns to its shared menu window and starts another session.
         {
