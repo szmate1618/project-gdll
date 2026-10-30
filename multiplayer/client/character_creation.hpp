@@ -1,15 +1,12 @@
 #pragma once
 #include "character_canvas.hpp"
+#include "character_faces.hpp"
 #include "opengl.hpp"
 #include <filesystem>
 #include <string>
 
 namespace multiplayer {
 enum class CharacterColorTarget { Base, Brush, Face };
-struct CharacterFace {
-    std::string id, name;
-    std::filesystem::path image;
-};
 // Menu-owned preview; all resources and painting remain local to this client.
 class CharacterCreation {
 public:

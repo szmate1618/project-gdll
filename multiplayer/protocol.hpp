@@ -8,6 +8,7 @@
 #include "blood_mist.hpp"
 #include "sound_events.hpp"
 #include "player_body_pose.hpp"
+#include "character_appearance_data.hpp"
 #include "zombie_hit.hpp"
 
 #include "vehicle_config.hpp"
@@ -30,7 +31,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 23; // Predicted shot feedback and reported world muzzle positions.
+constexpr std::uint32_t protocolVersion = 24; // Reliable custom character texture distribution.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
 constexpr std::size_t maxSignalsPerPlayer = signalLifetimeTicks / signalCooldownTicks;
@@ -176,7 +177,7 @@ struct Snapshot {
     std::vector<SoundEvent> sounds;
 };
 using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment, CorpsePose, PoseAck, BirdFrame, BirdResync,
-                             ZombieSetups, ZombieSetupAck>;
+                             ZombieSetups, ZombieSetupAck, CharacterAppearanceChunk>;
 std::vector<std::uint8_t> encode(const Message& message);
 Message decode(const void* data, std::size_t bytes);
 } // namespace multiplayer

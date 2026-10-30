@@ -510,6 +510,11 @@ void payload(Wire& w, ZombieSetupAck& ack) {
     });
     uniqueIds(ack.zombies);
 }
+void payload(Wire& w, CharacterAppearanceChunk& chunk) {
+    w.integer(chunk.player); w.integer(chunk.totalBytes); w.integer(chunk.offset);
+    w.list(chunk.bytes, characterAppearanceChunkBytes, [&](std::uint8_t& byte) { w.integer(byte); });
+    validateCharacterAppearanceChunk(chunk);
+}
 }
 std::vector<std::uint8_t> encode(const Message& message) {
     Wire w;
@@ -525,14 +530,15 @@ Message decode(const void* data, std::size_t bytes) {
     Wire w; w.input = static_cast<const std::uint8_t*>(data); w.size = bytes; w.reading = true;
     std::uint32_t magic = 0, version = 0; std::uint8_t type = 0;
     w.integer(magic); w.integer(version); w.integer(type);
-    if (magic != 0x4c4c4447 || version != protocolVersion || type > 11) throw std::runtime_error("Incompatible multiplayer protocol");
+    if (magic != 0x4c4c4447 || version != protocolVersion || type > 12) throw std::runtime_error("Incompatible multiplayer protocol");
     Message result;
     switch (type) { case 0: result = Hello{}; break; case 1: result = Welcome{}; break;
         case 2: result = Commands{}; break; case 3: result = Snapshot{}; break;
         case 4: result = Goodbye{}; break; case 5: result = Fragment{}; break;
         case 6: result = CorpsePose{}; break; case 7: result = PoseAck{}; break;
         case 8: result = BirdFrame{}; break; case 9: result = BirdResync{}; break;
-        case 10: result = ZombieSetups{}; break; case 11: result = ZombieSetupAck{}; break; }
+        case 10: result = ZombieSetups{}; break; case 11: result = ZombieSetupAck{}; break;
+        case 12: result = CharacterAppearanceChunk{}; break; }
     std::visit([&](auto& value) { payload(w, value); }, result);
     if (w.offset != bytes) throw std::runtime_error("Trailing multiplayer message data");
     return result;

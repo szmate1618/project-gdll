@@ -243,7 +243,7 @@ than replaying a burst. Explosion sounds reuse grenade IDs/ages; door slams use
 the existing angle/speed tracker. These are presentation cues, independent of
 AI noise and perception.
 
-Protocol 23 requires matching rebuilt peers. Audio is positional with distance
+Protocol 24 requires matching rebuilt peers. Audio is positional with distance
 attenuation; wall occlusion, room acoustics and voice chat are not implemented.
 
 ## Checks and code

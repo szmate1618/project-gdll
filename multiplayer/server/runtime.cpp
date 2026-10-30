@@ -1,6 +1,7 @@
 #include "runtime.hpp"
 #include "network.hpp"
 #include "world.hpp"
+#include "character_appearances.hpp"
 #include "zombie_navigation.hpp"
 #include "zombie_scenario.hpp"
 #include <chrono>
@@ -48,9 +49,11 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
         std::chrono::steady_clock::time_point last = std::chrono::steady_clock::now();
     };
     std::map<HSteamNetConnection, Peer> peers;
+    ServerCharacterAppearances appearances;
     auto disconnect = [&](HSteamNetConnection c, const std::string& reason) {
         const auto p = peers.find(c);
         if (p != peers.end()) {
+            appearances.leave(p->second.id);
             world.leave(p->second.id); peers.erase(p);
             std::cout << "Disconnected: " << reason << std::endl;
         }
@@ -94,11 +97,16 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
                 if (const auto* hello = std::get_if<multiplayer::Hello>(&message)) {
                     if (peer.id || hello->fingerprint != scene.fingerprint) throw std::runtime_error("Content mismatch or duplicate hello");
                     peer.id = world.join();
+                    appearances.join(peer.id);
                     if (!network.send(c, multiplayer::Welcome{peer.id}, true)) throw std::runtime_error("Cannot send welcome");
                     sendState(c, peer.id);
                     std::cout << "Joined player " << peer.id << std::endl;
                 } else if (const auto* commands = std::get_if<multiplayer::Commands>(&message); commands && peer.id)
                     world.submit(peer.id, *commands);
+                else if (const auto* chunk = std::get_if<CharacterAppearanceChunk>(&message); chunk && peer.id) {
+                    if (appearances.receive(peer.id, *chunk))
+                        std::cout << "Character appearance accepted for player " << peer.id << std::endl;
+                }
                 else if (const auto* ack = std::get_if<multiplayer::PoseAck>(&message); ack && peer.id)
                     world.acknowledgePose(peer.id, *ack);
                 else if (const auto* ack = std::get_if<multiplayer::ZombieSetupAck>(&message); ack && peer.id)
@@ -110,6 +118,12 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
             } catch (const std::exception& error) { disconnect(c, error.what()); }
         }
         const auto now = Clock::now();
+        for (auto it = peers.begin(); it != peers.end();) {
+            const auto current = it++;
+            if (current->second.id && !appearances.pump(current->second.id,
+                    [&](const auto& chunk) { return network.send(current->first, chunk, true); }))
+                disconnect(current->first, "Character appearance queue capacity exceeded");
+        }
         for (auto it = peers.begin(); it != peers.end();) {
             const auto current = it++;
             if (std::chrono::duration<double>(now - current->second.last).count() > (current->second.id ? 10 : 5))

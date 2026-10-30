@@ -23,7 +23,7 @@ public:
     double estimatedOneWaySeconds(HSteamNetConnection connection) const;
     std::vector<Event> events;
     // Unreliable large messages are accepted into a bounded, replaceable queue.
-    // CorpsePose must be reliable and uses the lower-priority bulk lane.
+    // CorpsePose, zombie setups and character appearances require reliable bulk delivery.
     // BirdFrame must be reliable: its watermark completes an ordered tick range.
     bool send(HSteamNetConnection connection, const Message& message, bool reliable);
     void close(HSteamNetConnection connection, const std::string& reason);

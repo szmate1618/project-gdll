@@ -2,14 +2,11 @@
 #include "character_profile.hpp"
 #include "resources.hpp"
 #include "shader_program.hpp"
-#include "json.hpp"
-#include "stb_image.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <fstream>
 #include <memory>
 #include <random>
 #include <stdexcept>
@@ -17,30 +14,8 @@
 namespace multiplayer {
 namespace {
 struct Vertex { glm::vec3 position, normal; glm::vec2 uv; float face; };
-std::vector<CharacterFace> faceCatalog() {
-    const auto& root = resourceRoot();
-    std::ifstream stream(root / "gui/character-faces.json");
-    if (!stream) throw std::runtime_error("Cannot read character face selection");
-    const auto entries = nlohmann::json::parse(stream).at("icons");
-    if (entries.size() != 20) throw std::runtime_error("Character creation requires 20 face icons");
-    std::vector<CharacterFace> faces;
-    for (auto entry = entries.begin(); entry != entries.end(); ++entry)
-        faces.push_back({entry.key(), entry.value().at("name").get<std::string>(),
-                         root / "data/assets/game-icons/character-faces" / (entry.key() + ".png")});
-    return faces;
 }
-viewer::ImageData loadFace(const std::filesystem::path& path) {
-    int width = 0, height = 0, channels = 0;
-    const std::unique_ptr<unsigned char, decltype(&stbi_image_free)> pixels(
-        stbi_load(path.u8string().c_str(), &width, &height, &channels, 4), stbi_image_free);
-    if (!pixels || width <= 0 || height <= 0 || width > 1024 || height > 1024)
-        throw std::runtime_error("Character face textures missing. Run tools/prepare_hud_icons.py");
-    viewer::ImageData image; image.width = width; image.height = height;
-    image.rgba.assign(pixels.get(), pixels.get() + static_cast<std::size_t>(width) * height * 4);
-    return image;
-}
-}
-CharacterCreation::CharacterCreation(std::filesystem::path profilePath) : faces_(faceCatalog()), profilePath_(std::move(profilePath)) {
+CharacterCreation::CharacterCreation(std::filesystem::path profilePath) : faces_(loadCharacterFaces(resourceRoot())), profilePath_(std::move(profilePath)) {
     std::mt19937 random(std::random_device{}());
     faceIndex_ = std::uniform_int_distribution<std::size_t>(0, faces_.size() - 1)(random);
     try {
@@ -54,7 +29,7 @@ CharacterCreation::CharacterCreation(std::filesystem::path profilePath) : faces_
         }
     } catch (const std::exception& error) { status_ = std::string("Could not load saved character: ") + error.what(); }
     faceName_ = faces_[faceIndex_].name;
-    canvas_.applyFace(loadFace(faces_[faceIndex_].image));
+    canvas_.applyFace(loadCharacterFaceImage(faces_[faceIndex_].image));
     const auto path = resourceRoot() / "multiplayer/client";
     std::vector<Vertex> vertices;
     const std::array<glm::vec2, 4> corners{{{0,0}, {1,0}, {1,1}, {0,1}}};
@@ -99,7 +74,7 @@ void CharacterCreation::uploadImages() {
 void CharacterCreation::changed() { status_ = "Unsaved changes"; }
 void CharacterCreation::selectFace(std::size_t index) {
     const auto& face = faces_.at(index);
-    const auto icon = loadFace(face.image);
+    const auto icon = loadCharacterFaceImage(face.image);
     canvas_.applyFace(icon); faceIndex_ = index; faceName_ = face.name;
     uploadImages(); changed(); releasePointer();
 }

@@ -1,5 +1,9 @@
 #include "session.hpp"
 #include "network.hpp"
+#include "character_appearances.hpp"
+#include "character_skin.hpp"
+#include "character_profile.hpp"
+#include "resources.hpp"
 #include "prediction.hpp"
 #include "snapshots.hpp"
 #include "firearm_hits.hpp"
@@ -360,6 +364,15 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
         graphics.initialize(scene, in, options, window, *inventory);
     }
     multiplayer::Network network(options.fakeLagMs, options.fakeLossPercent);
+    multiplayer::CharacterAppearanceOutbox appearanceUpload;
+    multiplayer::ClientCharacterAppearances appearances;
+    auto localAppearance = multiplayer::defaultCharacterAppearance();
+    try {
+        localAppearance = multiplayer::loadSavedCharacterAppearance(multiplayer::resourceRoot(), multiplayer::characterProfilePath());
+    } catch (const std::exception& error) {
+        std::cerr << "Character appearance: " << error.what() << "; using the default character\n";
+    }
+    const auto localAppearanceBytes = std::make_shared<const std::vector<std::uint8_t>>(multiplayer::encodeCharacterAppearance(localAppearance));
     const auto connection = network.connect(options.address);
     using Clock = std::chrono::steady_clock;
     const auto start = Clock::now(); auto previous = start;
@@ -410,7 +423,17 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
             if (const auto* welcome = std::get_if<multiplayer::Welcome>(&message)) {
                 if (self) throw std::runtime_error("Duplicate welcome");
                 self = welcome->player;
+                appearanceUpload.push(0, localAppearanceBytes);
                 std::cout << "Connected as player " << self << std::endl;
+            } else if (const auto* appearance = std::get_if<multiplayer::CharacterAppearanceChunk>(&message)) {
+                const bool complete = appearances.receive(*appearance);
+#ifdef MP_GRAPHICS
+                if (graphics.players) {
+                    if (!appearance->totalBytes) graphics.players->removeAppearance(appearance->player);
+                    else if (complete) graphics.players->setAppearance(appearance->player, appearances.get(appearance->player));
+                }
+#endif
+                if (complete) std::cout << "Character appearance received for player " << appearance->player << std::endl;
             } else if (const auto* snapshot = std::get_if<multiplayer::Snapshot>(&message)) {
                 if (!self || !snapshots.push(*snapshot, now, network.estimatedOneWaySeconds(connection))) continue;
                 lastSnapshot = now; ++received; mostPlayers = std::max(mostPlayers, snapshot->players.size());
@@ -515,6 +538,7 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 }
             } else throw std::runtime_error("Unexpected server message");
         }
+        if (self) appearanceUpload.pump([&](const auto& chunk) { return network.send(connection, chunk, true); });
         if (now - lastSnapshot > (prediction.ready() ? 5 : 15)) throw std::runtime_error(prediction.ready() ? "Connection lost: server stopped responding (snapshot timeout)" :
                                      "Could not join: server did not provide player state within 15 seconds");
         if (prediction.ready()) {

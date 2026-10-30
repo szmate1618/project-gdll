@@ -31,6 +31,56 @@ std::size_t differences(const std::vector<unsigned char>& a, const std::vector<u
         if (a[i] != b[i] || a[i+1] != b[i+1] || a[i+2] != b[i+2]) ++result;
     return result;
 }
+void customAppearance(const std::filesystem::path& screenshot) {
+    multiplayer::PlayerRenderer renderer;
+    multiplayer::CharacterAppearance appearance; appearance.rgb.resize(multiplayer::characterTextureBytes);
+    const std::array<glm::u8vec3, 6> colors{{{220,30,40},{20,210,50},{30,40,220},{210,180,20},{200,30,190},{20,180,200}}};
+    for (int face = 0; face < 6; ++face) for (int y = 0; y < 256; ++y) for (int x = 0; x < 256; ++x) {
+        const auto offset = ((std::size_t(face) * 256 + y) * 256 + x) * 3;
+        for (int c = 0; c < 3; ++c) appearance.rgb[offset + c] = colors[face][c];
+    }
+    // A distinct top-left mark checks both handedness and vertical UV origin.
+    for (int y = 32; y < 96; ++y) for (int x = 32; x < 96; ++x) {
+        const auto i = (y * 256 + x) * 3;
+        appearance.rgb[i] = 15; appearance.rgb[i + 1] = 240; appearance.rgb[i + 2] = 60;
+    }
+    renderer.setAppearance(2, appearance);
+    multiplayer::PlayerState player; player.id = 2; player.yaw = 90;
+    viewer::Camera camera;
+    const auto draw = [&] {
+        glDisable(GL_SCISSOR_TEST); glEnable(GL_DEPTH_TEST); glDepthMask(GL_TRUE); glClearDepth(1);
+        glClearColor(0,0,0,1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); glViewport(0,0,width,height);
+        renderer.draw(camera, {player}, 1, width, height);
+    };
+    const std::array<glm::vec3, 6> eyes{{{0,.9f,3},{0,.9f,-3},{3,.9f,0},{-3,.9f,0},{0,3,0},{0,-2,0}}};
+    const std::array<glm::vec2, 6> looks{{{-90,0},{90,0},{180,0},{0,0},{-90,-89},{-90,89}}};
+    for (int face = 0; face < 6; ++face) {
+        camera.setPosition(eyes[face]); camera.setOrientation(looks[face].x, looks[face].y); draw();
+        if (glm::length(pixel() - glm::vec3(colors[face])) > 4) throw std::runtime_error("Custom character side is missing, culled or mapped to the wrong texture");
+    }
+    camera.setPosition(eyes[0]); camera.setOrientation(-90,0); draw();
+    const auto clip = camera.projection(float(width) / height) * camera.view() * glm::vec4(-.15f,1.35f,.2f,1);
+    std::array<unsigned char, 3> marked{};
+    glReadPixels(int((clip.x/clip.w*.5f+.5f)*width), int((clip.y/clip.w*.5f+.5f)*height), 1,1,GL_RGB,GL_UNSIGNED_BYTE,marked.data());
+    if (std::abs(int(marked[1]) - 240) > 3) throw std::runtime_error("Character icon/painting is mirrored or upside-down");
+    if (!screenshot.empty()) {
+        const auto image = pixels();
+        std::ofstream output(screenshot.string() + "-appearance.ppm", std::ios::binary);
+        output << "P6\n" << width << ' ' << height << "\n255\n";
+        for (int y = height - 1; y >= 0; --y) output.write(reinterpret_cast<const char*>(image.data() + y * width * 3), width * 3);
+    }
+    auto physics = std::make_shared<viewer::PhysicsWorld>(); viewer::PlayerBody body(physics, 1.7f);
+    body.follow({0,1.7f,0}, {0,0,1}, true); player.melee = body.pose(); draw();
+    const auto head = camera.projection(float(width) / height) * camera.view() * glm::vec4(0,1.62f,.2f,1);
+    glReadPixels(int((head.x/head.w*.5f+.5f)*width), int((head.y/head.w*.5f+.5f)*height), 1,1,GL_RGB,GL_UNSIGNED_BYTE,marked.data());
+    if (std::abs(int(marked[0]) - 220) > 3) throw std::runtime_error("Melee mode lost the custom character's authored head/face region");
+    player.melee.enabled = false;
+    // At yaw -90 the authored front must face north (-Z).
+    player.yaw = -90; camera.setPosition(eyes[1]); camera.setOrientation(90,0); draw();
+    if (glm::length(pixel() - glm::vec3(colors[0])) > 4) throw std::runtime_error("Character face does not follow camera yaw");
+    renderer.removeAppearance(2); draw();
+    if (glm::length(pixel() - glm::vec3(colors[0])) < 20) throw std::runtime_error("Disconnect did not release the player appearance");
+}
 void worldWeapons(const std::filesystem::path& screenshot) {
     viewer::WeaponOverlay geometry(VIEWER_SHADER_DIR, VIEWER_WEAPON_ASSETS);
     multiplayer::RemoteWeaponPlayback playback;
@@ -132,6 +182,7 @@ void check(const std::filesystem::path& screenshot) {
     GLboolean depthWrite = GL_FALSE; glGetBooleanv(GL_DEPTH_WRITEMASK, &depthWrite);
     if (!depthWrite) throw std::runtime_error("Opaque player hook leaked depth state");
     worldWeapons(screenshot);
+    customAppearance(screenshot);
     viewer::Renderer::checkErrors("multiplayer players and glass");
 }
 }

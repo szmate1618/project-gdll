@@ -67,8 +67,24 @@ Save validates a temporary file before atomically replacing the previous save.
 A malformed profile reports an error in the editor and leaves the saved file
 intact until the user chooses Save.
 
-The appearance is currently used by the local editor preview; applying it to
-in-game/networked players remains separate work. The RmlUi binding lives in
+Each client uploads its saved appearance once after joining a session. The
+server validates and retains it for the active player, distributes it to every
+connected client, and sends existing appearances to late arrivals. It removes
+cached appearances on disconnect. Save before starting/joining to use the latest
+draft; saving during a session does not update that session's appearance.
+Remote players render the same six finished textures, including tinted icons
+and brush painting, with the face aligned to their look direction. Custom
+characters retain the authored box in melee mode, with authoritative physical
+arms and fists. The local first-person body overlay retains its existing look.
+
+Textures are opaque 256×256 RGB for each of six sides. Lossless run-length
+compression is used when smaller than raw RGB. Fixed-size 8 KiB chunks use the
+reliable, flow-controlled bulk lane; movement snapshots carry no texture data.
+Clients publish a complete validated appearance together, so a partial transfer
+keeps the existing placeholder. Upload ownership comes from the joined
+session connection, and clients cannot change another player's appearance.
+The appearance is cosmetic and is separate from collision and map fingerprints.
+Protocol 24 requires matching rebuilt clients and servers. The RmlUi binding lives in
 [character_editor.cpp](client/character_editor.cpp), with styles in
 [character-editor.rcss](../ui/character-editor.rcss). Painting and compositing
 remain in `CharacterCanvas`; profile serialization lives in `character_profile`.
@@ -474,7 +490,7 @@ The shot origin remains the server player's camera; distant sniper targets need
 no special origin allowance. The server trusts the reported intersection and
 does not repeat the ray test against a newer zombie pose. This policy suits
 trusted cooperative sessions; it does not independently prove client hit claims.
-Protocol version 23 requires matching client/server builds. Melee, grenades and
+Protocol version 24 requires matching client/server builds. Melee, grenades and
 standalone viewer shooting keep their existing authoritative collision paths.
 
 Own firearm sound, recoil, scope kick and muzzle light share one immediate local
@@ -636,7 +652,7 @@ unbounded queue. After the final stopped pose is confirmed, a parked car stays
 silent until it changes again. Moving, coasting and externally pushed cars all
 retain their updates; driver occupancy alone does not control replication.
 Clients keep each car's latest confirmed state, including across snapshots
-omitting that car. Protocol 23 requires matching rebuilt clients and servers.
+omitting that car. Protocol 24 requires matching rebuilt clients and servers.
 
 All cars bypass the six-tick (100 ms) world playback buffer. Every rendered
 frame extrapolates each car's latest confirmed chassis position with the
