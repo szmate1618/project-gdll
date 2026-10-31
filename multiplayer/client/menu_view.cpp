@@ -1,9 +1,11 @@
 #include "menu_view.hpp"
 #include "character_editor.hpp"
 #include "character_preview.hpp"
+#include "host_setup_view.hpp"
 #include "gui/ui_runtime.hpp"
 #include <RmlUi/Core.h>
 #include <RmlUi/Core/Elements/ElementFormControlInput.h>
+#include <RmlUi/Core/Elements/ElementFormControlSelect.h>
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <array>
@@ -33,6 +35,12 @@ Rml::Input::KeyIdentifier inputKey(int code) {
     case GLFW_KEY_HOME: return KI_HOME;
     case GLFW_KEY_END: return KI_END;
     case GLFW_KEY_SPACE: return KI_SPACE;
+    case GLFW_KEY_TAB: return KI_TAB;
+    case GLFW_KEY_ENTER: return KI_RETURN;
+    case GLFW_KEY_KP_ENTER: return KI_NUMPADENTER;
+    case GLFW_KEY_ESCAPE: return KI_ESCAPE;
+    case GLFW_KEY_UP: return KI_UP;
+    case GLFW_KEY_DOWN: return KI_DOWN;
     default: return KI_UNKNOWN;
     }
 }
@@ -48,6 +56,7 @@ struct MenuView::Impl final : Rml::EventListener {
     Rml::ElementDocument* document = nullptr;
     Rml::ElementFormControlInput *port = nullptr, *address = nullptr;
     std::unique_ptr<CharacterEditor> editor;
+    std::unique_ptr<HostSetupView> host;
     MenuScreen screen = MenuScreen::Choose;
     MenuCommand command = MenuCommand::None;
     int selected = 0, width = 0, height = 0;
@@ -69,7 +78,7 @@ struct MenuView::Impl final : Rml::EventListener {
             registerCharacterPreview();
             document = context->LoadDocument((directory / "main-menu.rml").generic_string());
             if (!document) throw std::runtime_error("Cannot load main menu layout");
-            port = dynamic_cast<Rml::ElementFormControlInput*>(&element("host-port"));
+            port = dynamic_cast<Rml::ElementFormControlInput*>(&element("setup-port"));
             address = dynamic_cast<Rml::ElementFormControlInput*>(&element("join-address"));
             if (!port || !address) throw std::runtime_error("Missing main menu connection inputs");
             document->AddEventListener("click", this);
@@ -78,6 +87,7 @@ struct MenuView::Impl final : Rml::EventListener {
         } catch (...) { Rml::RemoveContext("main-menu"); context = nullptr; throw; }
     }
     ~Impl() override {
+        host.reset();
         editor.reset();
         // Remove listeners while their owner is still alive.
         document->RemoveEventListener("click", this);
@@ -107,6 +117,8 @@ struct MenuView::Impl final : Rml::EventListener {
                 if (id == "theme-modern") { theme(true); return; }
                 if (id == "character-back" && !editor) { command = MenuCommand::Back; return; }
                 if (id == "loading-cancel") { command = MenuCommand::Cancel; return; }
+                if (screen == MenuScreen::Host && id == "host-back") { command = MenuCommand::Back; return; }
+                if (screen == MenuScreen::Host && id == "host-start") { command = MenuCommand::StartHost; return; }
             }
             if (screen != MenuScreen::Choose) continue;
             for (int i = 0; i < int(actionIds.size()); ++i) if (id == actionIds[i]) {
@@ -130,6 +142,24 @@ struct MenuView::Impl final : Rml::EventListener {
     void key(const Input& input) {
         const int code = input.code, mods = modifiers(input.mods);
         const bool pressed = input.action != GLFW_RELEASE;
+        if (screen == MenuScreen::Host) {
+            if (pressed && code == GLFW_KEY_ESCAPE) {
+                auto* select = dynamic_cast<Rml::ElementFormControlSelect*>(context->GetFocusElement());
+                if (select && select->IsSelectBoxVisible()) select->CancelSelectBox();
+                else if (editing()) blur();
+                else command = MenuCommand::Back;
+                return;
+            }
+            if (pressed && editing() && (code == GLFW_KEY_ENTER || code == GLFW_KEY_KP_ENTER)) { blur(); return; }
+            if (pressed && (code == GLFW_KEY_ENTER || code == GLFW_KEY_KP_ENTER) && !context->GetFocusElement()) {
+                command = MenuCommand::StartHost; return;
+            }
+            const auto translated = inputKey(code);
+            if (translated != Rml::Input::KI_UNKNOWN) {
+                if (pressed) context->ProcessKeyDown(translated, mods); else context->ProcessKeyUp(translated, mods);
+            }
+            return;
+        }
         if (screen == MenuScreen::Character && editor && editor->dialogOpen()) {
             if (pressed) editor->dialogKey(code, input.mods & GLFW_MOD_SHIFT);
             return;
@@ -143,7 +173,7 @@ struct MenuView::Impl final : Rml::EventListener {
             return;
         }
         if (pressed && code == GLFW_KEY_TAB) {
-            std::vector<Rml::ElementFormControlInput*> fields{port, address};
+            std::vector<Rml::ElementFormControlInput*> fields{address};
             if (screen == MenuScreen::Character) {
                 fields.clear();
                 for (const auto* id : {"character-name", "base-color", "brush-color", "face-color"})
@@ -203,6 +233,13 @@ struct MenuView::Impl final : Rml::EventListener {
 
 MenuView::MenuView(const std::filesystem::path& directory) : impl_(std::make_unique<Impl>(directory)) {}
 MenuView::~MenuView() = default;
+void MenuView::configureHost(const Options& defaults, const std::vector<std::filesystem::path>& directories) {
+    impl_->host = std::make_unique<HostSetupView>(*impl_->document, defaults, directories);
+}
+ServerOptions MenuView::hostOptions() {
+    if (!impl_->host) throw std::runtime_error("Host setup is not configured");
+    return impl_->host->options();
+}
 void MenuView::editCharacter(CharacterCreation& creation) {
     if (!impl_->editor) impl_->editor = std::make_unique<CharacterEditor>(*impl_->document, creation);
     bindCharacterPreview(*impl_->document, creation, impl_->runtime->renderer());
@@ -214,11 +251,15 @@ std::string MenuView::port() const { return impl_->port->GetValue(); }
 std::string MenuView::address() const { return impl_->address->GetValue(); }
 void MenuView::draw(MenuScreen screen, const std::string& message, const std::string& face, int width, int height) {
     auto& self = *impl_;
+    const bool enteringHost = self.screen != screen && screen == MenuScreen::Host;
     if (self.screen != screen) { self.blur(); self.screen = screen; }
     self.document->SetClass("creating", screen == MenuScreen::Character);
     self.document->SetClass("loading", screen == MenuScreen::Loading);
-    setText(self.element("menu-title"), screen == MenuScreen::Character ? "CHARACTERS" : "GODOLLO");
-    setText(self.element("menu-subtitle"), screen == MenuScreen::Character ? "YOUR CHARACTERS / LOCAL STUDIO" : "CHOOSE YOUR NEXT SESSION");
+    self.document->SetClass("hosting", screen == MenuScreen::Host);
+    self.document->SetClass("has-message", !message.empty());
+    setText(self.element("menu-title"), screen == MenuScreen::Character ? "CHARACTERS" : screen == MenuScreen::Host ? "HOST GAME" : "GODOLLO");
+    setText(self.element("menu-subtitle"), screen == MenuScreen::Character ? "YOUR CHARACTERS / LOCAL STUDIO" :
+        screen == MenuScreen::Host ? "CHOOSE A SCENARIO AND SESSION OPTIONS" : "CHOOSE YOUR NEXT SESSION");
     setText(self.element("menu-message"), message);
     setText(self.element("loading-message"), message);
     if (!self.editor) setText(self.element("face-name"), face);
@@ -228,7 +269,10 @@ void MenuView::draw(MenuScreen screen, const std::string& message, const std::st
         self.context->SetDimensions({width, height});
         self.context->SetDensityIndependentPixelRatio(std::min(float(width) / 960, float(height) / 600));
     }
-    self.runtime->renderer().render(*self.context, width, height, [&] { self.processInput(); });
+    self.runtime->renderer().render(*self.context, width, height, [&] {
+        if (enteringHost) self.element("host-start").Focus();
+        self.processInput();
+    });
 }
 void MenuView::key(int key, int action, int modifiers) { impl_->inputs.push_back({Impl::Input::Key, key, action, modifiers}); }
 void MenuView::character(unsigned int codepoint) {

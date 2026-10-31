@@ -31,7 +31,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 29; // Ground items and dynamic inventory ownership.
+constexpr std::uint32_t protocolVersion = 31; // Host session settings are discovered before loading the client world.
 constexpr std::uint64_t ragdollUpdateTicks = 12; // 5 Hz at the authoritative 60 Hz tick.
 constexpr std::uint64_t blastRagdollUpdateTicks = 6; // 10 Hz for explosion-created ragdolls.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
@@ -52,6 +52,19 @@ struct BirdResync {};
 struct Hello { std::string fingerprint; };
 struct Welcome { std::uint32_t player = 0; };
 struct Goodbye {};
+struct RequestSessionSettings {};
+// Only world settings travel here. Local paths, graphics and audio stay local;
+// the normal content fingerprint is still checked after the client loads.
+struct SessionSettings {
+    std::uint32_t zombieCount = 0;
+    float zombieRadius = 100;
+    double startHour = 12, dayLengthSeconds = 1200;
+    std::optional<glm::vec2> spawn;
+    glm::vec2 look{-90, 0};
+    bool trees = true, forests = true, cars = true, birds = false;
+    std::uint8_t vegetation = 0;
+    bool explicitVegetation = false;
+};
 constexpr std::size_t fragmentBytes = 900;
 struct Fragment {
     std::uint64_t message = 0;
@@ -220,7 +233,7 @@ struct Snapshot {
     std::vector<GroundItemState> groundItems;
 };
 using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment, CorpsePose, PoseAck, BirdFrame, BirdResync,
-                             ZombieSetups, ZombieSetupAck, CharacterAppearanceChunk>;
+                             ZombieSetups, ZombieSetupAck, CharacterAppearanceChunk, RequestSessionSettings, SessionSettings>;
 std::vector<std::uint8_t> encode(const Message& message);
 Message decode(const void* data, std::size_t bytes);
 } // namespace multiplayer

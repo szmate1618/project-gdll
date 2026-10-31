@@ -3,6 +3,8 @@
 #include "server/runtime.hpp"
 #include "server/world.hpp"
 #include "network.hpp"
+#include "session_settings.hpp"
+#include "client/session_setup.hpp"
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -96,7 +98,10 @@ void setupBeforeWelcome(const multiplayer::Options& options) {
             while (!stop) {
                 const auto messages = server.receive();
                 for (const auto& [connection, message] : messages) {
-                    if (const auto* hello = std::get_if<multiplayer::Hello>(&message)) {
+                    if (std::holds_alternative<multiplayer::RequestSessionSettings>(message)) {
+                        require(server.send(connection, multiplayer::sessionSettings(options, scene), true),
+                                "Cannot send setup-order fixture settings");
+                    } else if (const auto* hello = std::get_if<multiplayer::Hello>(&message)) {
                         require(hello->fingerprint == scene.fingerprint, "Setup-order fixture fingerprint differs");
                         peer = connection;
                         const auto id = world.join();
@@ -114,7 +119,7 @@ void setupBeforeWelcome(const multiplayer::Options& options) {
                         require(server.send(peer, multiplayer::Welcome{1}, true),
                             "Cannot send delayed fixture welcome");
                     } else if (std::holds_alternative<multiplayer::Goodbye>(message)) {
-                        server.close(connection, "Setup-order fixture departure");
+                        server.close(connection, "Client left");
                         peer = k_HSteamNetConnection_Invalid;
                     }
                 }
@@ -202,11 +207,16 @@ int main(int argc, char** argv) {
         }
         // Exercise the actual client session repeatedly in this same process.
         for (bool single : {true, false, true}) {
-            multiplayer::LocalServer server(options, {single, single ? 1u : multiplayer::maxPlayers});
-            auto client = options.scene;
+            auto configuredHost = options;
+            configuredHost.scene.dayNight = {3.25, 0};
+            configuredHost.scene.spawn = glm::vec2(116, -71);
+            configuredHost.scene.cars = false;
+            multiplayer::LocalServer server(configuredHost, {single, single ? 1u : multiplayer::maxPlayers});
+            multiplayer::Options client;
+            client.map = options.scene.map;
             client.address = "127.0.0.1:" + std::to_string(ready(server));
             client.headless = true; client.bot = true; client.seconds = .25;
-            require(multiplayer::runClientSession(client) == 0, "Repeated client session failed");
+            require(multiplayer::runClientSession(client) == 0, "Client did not discover host world settings");
         }
         setupBeforeWelcome(options.scene);
         {

@@ -18,17 +18,14 @@ body.modern { font-size: 14dp; background-color: #2b2d2f; }
 .modern #quit-game { height: 40dp; background-color: transparent; }
 .modern #quit-game .action-key { top: 11dp; }
 .modern #quit-game .action-name { top: 9dp; }
-.modern #connection-panel { left: 448dp; width: 452dp; height: 300dp; box-sizing: border-box; border-width: 1dp; border-color: #f5f6f226; }
+.modern #connection-panel { left: 448dp; width: 452dp; height: 220dp; box-sizing: border-box; border-width: 1dp; border-color: #f5f6f226; }
 .modern #connection-title { left: 24dp; top: 20dp; font-size: 11dp; letter-spacing: 2dp; }
-.modern #host-heading { left: 24dp; top: 61dp; font-size: 10dp; color: #f5f6f299; }
-.modern #port-label { left: 24dp; top: 84dp; font-size: 10dp; color: #f5f6f280; }
 /* Center the text line within the space left by the borders and padding. */
-.modern #host-port, .modern #join-address { left: 24dp; width: 402dp; height: 38dp; background-color: #2b2d2f; border-width: 1dp; border-color: #f5f6f226; padding: 7dp 12dp; font-size: 14dp; line-height: 22dp; caret-color: #f5f6f2; }
-.modern #host-port { top: 104dp; }
-.modern #address-label { left: 24dp; top: 168dp; font-size: 10dp; color: #f5f6f299; }
-.modern #join-address { top: 190dp; }
-.modern #host-port:focus, .modern #join-address:focus { border-color: #f5f6f299; }
-.modern #connection-note { left: 24dp; top: 250dp; font-size: 10dp; color: #f5f6f280; }
+.modern #join-address { left: 24dp; width: 402dp; height: 38dp; background-color: #2b2d2f; border-width: 1dp; border-color: #f5f6f226; padding: 7dp 12dp; font-size: 14dp; line-height: 22dp; caret-color: #f5f6f2; }
+.modern #address-label { left: 24dp; top: 80dp; font-size: 10dp; color: #f5f6f299; }
+.modern #join-address { top: 104dp; }
+.modern #join-address:focus { border-color: #f5f6f299; }
+.modern #connection-note { left: 24dp; top: 165dp; font-size: 10dp; color: #f5f6f280; }
 .modern #offline-hint { top: 454dp; font-size: 10dp; color: #f5f6f299; }
 .modern #controls-hint { top: 480dp; font-size: 10dp; color: #f5f6f280; }
 .modern #session-hint { top: 500dp; font-size: 10dp; color: #f5f6f280; }

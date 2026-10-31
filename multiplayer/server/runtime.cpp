@@ -3,6 +3,7 @@
 #include "network.hpp"
 #include "world.hpp"
 #include "character_appearances.hpp"
+#include "session_settings.hpp"
 #include "zombie_navigation.hpp"
 #include "zombie_scenario.hpp"
 #include <chrono>
@@ -26,11 +27,14 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
             throw std::runtime_error("Scenario exceeds the multiplayer zombie limit");
         options.zombieCount = scenario.count();
         scenarioPlayer = scenario.player;
+        if (!options.spawn && scenario.player)
+            options.spawn = glm::vec2(scenario.player->spawn[0], scenario.player->spawn[1]);
         populationLoader = [scenario, navmesh](const auto& source, const auto& collision, const auto& model) {
             return viewer::loadZombieScenario(source, collision, model, navmesh, scenario);
         };
     }
     multiplayer::Scene scene(options, populationLoader, scenarioPlayer);
+    const auto configuration = sessionSettings(options, scene);
     if (shouldStop()) return;
     multiplayer::World world(scene);
     if (const auto* navigation = scene.zombies.navigation()) {
@@ -46,6 +50,7 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
     using Clock = std::chrono::steady_clock;
     struct Peer {
         std::uint32_t id = 0;
+        bool settingsRequested = false;
         // MSVC cannot resolve the enclosing function's Clock alias here.
         std::chrono::steady_clock::time_point last = std::chrono::steady_clock::now();
     };
@@ -97,7 +102,11 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
             try {
                 if (std::holds_alternative<multiplayer::Goodbye>(message)) { disconnect(c, "Client left"); continue; }
                 auto& peer = it->second;
-                if (const auto* hello = std::get_if<multiplayer::Hello>(&message)) {
+                if (std::holds_alternative<RequestSessionSettings>(message)) {
+                    if (peer.id || peer.settingsRequested) throw std::runtime_error("Duplicate session settings request");
+                    peer.settingsRequested = true;
+                    if (!network.send(c, configuration, true)) throw std::runtime_error("Cannot send session settings");
+                } else if (const auto* hello = std::get_if<multiplayer::Hello>(&message)) {
                     if (peer.id || hello->fingerprint != scene.fingerprint) throw std::runtime_error("Content mismatch or duplicate hello");
                     peer.id = world.join();
                     appearances.join(peer.id);

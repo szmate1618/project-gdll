@@ -10,16 +10,6 @@
 #include <memory>
 #include <thread>
 
-#ifdef MP_GRAPHICS
-namespace {
-std::uint16_t hostPort(const std::string& text) {
-    std::size_t end = 0;
-    const auto port = std::stoul(text, &end);
-    if (end != text.size() || port < 1 || port > 65535) throw std::runtime_error("Host port must be between 1 and 65535");
-    return static_cast<std::uint16_t>(port);
-}
-}
-#endif
 int main(int argc, char** argv) {
     try {
         auto game = multiplayer::parseGameOptions(argc, argv);
@@ -29,8 +19,7 @@ int main(int argc, char** argv) {
 #ifdef MP_GRAPHICS
         std::unique_ptr<multiplayer::GameMenu> menu;
         if (!game.scene.headless) {
-            menu = std::make_unique<multiplayer::GameMenu>(game.scene.display, game.scene.hidden);
-            menu->address = game.scene.address; menu->port = std::to_string(game.scene.port);
+            menu = std::make_unique<multiplayer::GameMenu>(game.scene);
         }
 #endif
         auto mode = game.mode;
@@ -63,11 +52,15 @@ int main(int argc, char** argv) {
 #ifdef MP_GRAPHICS
                 if (menu) {
                     options.address = menu->address;
-                    if (mode == multiplayer::GameMode::Host) options.port = hostPort(menu->port);
                 }
 #endif
                 if (mode == multiplayer::GameMode::SinglePlayer || mode == multiplayer::GameMode::Host) {
                     multiplayer::ServerOptions authoritative; authoritative.scene = options;
+#ifdef MP_GRAPHICS
+                    if (menu && mode == multiplayer::GameMode::Host) {
+                        authoritative = menu->hostOptions(); options = authoritative.scene;
+                    }
+#endif
                     authoritative.scene.seconds = 0;
                     const bool single = mode == multiplayer::GameMode::SinglePlayer;
                     server = std::make_unique<multiplayer::LocalServer>(authoritative,

@@ -32,6 +32,9 @@ struct Options {
     std::optional<glm::vec2> spawn;
     viewer::VegetationSelection vegetation;
     std::size_t zombieCount = 100;
+    // Negotiated effective slots, including authored populations on small maps.
+    // Used only by replicas; it never triggers population generation/navigation.
+    std::optional<std::size_t> replicaZombieCount;
     float zombieRadius = 100;
     bool trees = true, forests = true, headless = false, hidden = false, bot = false;
     bool cars = true;

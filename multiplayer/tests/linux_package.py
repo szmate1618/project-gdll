@@ -31,7 +31,7 @@ def check_credits(package):
     for name in ("hud-backdrop.vert", "hud-backdrop.frag", "hud-backdrop-update.vert", "hud-backdrop-update.frag"):
         if not (package / "ui" / name).is_file():
             raise RuntimeError("Package is missing adaptive HUD resource " + name)
-    for name in ("main-menu.rml", "main-menu.rcss", "main-menu-classic.rcss", "main-menu-modern.rcss", "fonts/menu-pixel.ttf", "character-editor.rcss"):
+    for name in ("main-menu.rml", "main-menu.rcss", "main-menu-classic.rcss", "main-menu-modern.rcss", "fonts/menu-pixel.ttf", "character-editor.rcss", "host-game.rcss"):
         if not (package / "ui" / name).is_file():
             raise RuntimeError("Package is missing main menu resource " + name)
     icons = json.loads((package / "gui/hud-icons.json").read_text())["icons"]

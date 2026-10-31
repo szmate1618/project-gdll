@@ -1,5 +1,6 @@
 #pragma once
 #include "options.hpp"
+#include "server/options.hpp"
 #include <memory>
 #include <string>
 struct GLFWwindow;
@@ -10,7 +11,7 @@ class MenuView;
 // its context; all GLFW and GL work remains on the application thread.
 class GameMenu {
 public:
-    GameMenu(const ClientDisplay& display, bool hidden);
+    explicit GameMenu(const Options& defaults);
     ~GameMenu();
     GameMenu(const GameMenu&) = delete;
     GameMenu& operator=(const GameMenu&) = delete;
@@ -18,6 +19,7 @@ public:
     GameMode choose(const std::string& message);
     bool progress(const std::string& message);
     bool closed() const;
+    ServerOptions hostOptions();
     std::string address = "127.0.0.1:27020";
     std::string port = "27020";
 private:
@@ -36,6 +38,7 @@ private:
     std::unique_ptr<MenuView> view_;
     bool cancelled_ = false;
     bool creating_ = false;
+    bool hosting_ = false;
     std::unique_ptr<CharacterCreation> characterCreation_;
     GameMode choice_ = GameMode::Menu;
     std::string status_;

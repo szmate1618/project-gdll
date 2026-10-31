@@ -40,8 +40,14 @@ int main(int argc, char** argv) {
         viewer::initializeOpenGL();
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << '\n';
         const std::filesystem::path ui = VIEWER_HUD_DIR;
+        const auto directory = std::filesystem::path(argc > 1 ? argv[1] : "build") /
+            ("editor-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        std::filesystem::create_directories(directory / "scenarios");
+        std::ofstream(directory / "scenarios/idle.toml") << "[zombies.residents]\ncount = 7\n";
         std::unique_ptr<multiplayer::CharacterCreation> creation; // Must outlive the borrowed editor binding.
         multiplayer::MenuView menu(ui);
+        multiplayer::Options hostDefaults;
+        menu.configureHost(hostDefaults, {directory / "scenarios"});
         const auto draw = [&](multiplayer::MenuScreen screen = multiplayer::MenuScreen::Choose) {
             menu.draw(screen, "Status <&> stays literal", "TEST FACE", 960, 600);
         };
@@ -68,16 +74,38 @@ int main(int argc, char** argv) {
                     "Classic title must retain the original pixel glyph");
         key(GLFW_KEY_UP); key(GLFW_KEY_ENTER); draw();
         require(menu.takeCommand() == multiplayer::MenuCommand::Quit, "Arrow navigation must wrap");
-        key(GLFW_KEY_TAB); key(GLFW_KEY_BACKSPACE); draw();
-        require(menu.port() == "2702", "Tab must place the caret after the existing field value");
-        key(GLFW_KEY_A, GLFW_MOD_CONTROL); type("34567"); draw();
+        key(GLFW_KEY_2); draw();
+        require(menu.takeCommand() == multiplayer::MenuCommand::Host, "Host action must open setup without starting a session");
+        draw(multiplayer::MenuScreen::Host);
+        key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Host);
+        require(menu.takeCommand() == multiplayer::MenuCommand::StartHost, "Host setup Enter must activate Start hosting");
+        menu.pointer(490.f / 960, 435.f / 600); menu.button(0,true,0); menu.button(0,false,0);
+        draw(multiplayer::MenuScreen::Host);
+        key(GLFW_KEY_END); key(GLFW_KEY_BACKSPACE); draw(multiplayer::MenuScreen::Host);
+        require(menu.port() == "2702", "Host port must support caret editing");
+        key(GLFW_KEY_A, GLFW_MOD_CONTROL); type("34567"); draw(multiplayer::MenuScreen::Host);
         require(menu.port() == "34567", "Port input must support select-all and typing");
         require(menu.takeCommand() == multiplayer::MenuCommand::None, "Typing digits must not activate a game mode");
-        theme(true); draw();
+        theme(true); draw(multiplayer::MenuScreen::Host);
         require(near(color(5, 5), {43, 45, 47}), "Clicking Modern must select the modern theme");
         require(menu.port() == "34567", "Theme change must preserve input values");
-        key(GLFW_KEY_TAB); key(GLFW_KEY_HOME); key(GLFW_KEY_DELETE); draw();
-        require(menu.port() == "4567", "Tab must resume field editing after clicking a theme button");
+        menu.pointer(490.f / 960, 435.f / 600); menu.button(0,true,0); menu.button(0,false,0);
+        key(GLFW_KEY_HOME); key(GLFW_KEY_DELETE); draw(multiplayer::MenuScreen::Host);
+        require(menu.port() == "4567", "Host port must retain editable text after changing themes");
+        key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Host);
+        menu.pointer(440.f / 960, 330.f / 600); menu.button(0,true,0); menu.button(0,false,0); draw(multiplayer::MenuScreen::Host);
+        require(menu.hostOptions().scene.birds, "Bird switch must update authoritative host options");
+        menu.pointer(490.f / 960, 397.f / 600); menu.button(0,true,0); menu.button(0,false,0);
+        key(GLFW_KEY_DOWN); key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Host);
+        require(menu.hostOptions().scene.dayNight.startHour == 18, "Starting time dropdown must update host time");
+        menu.pointer(740.f / 960, 397.f / 600); menu.button(0,true,0); menu.button(0,false,0);
+        key(GLFW_KEY_DOWN); key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Host);
+        require(menu.hostOptions().scene.dayNight.dayLengthSeconds == 0, "Cycle dropdown must support fixed time");
+        menu.pointer(160.f / 960, 240.f / 600); menu.button(0,true,0); menu.button(0,false,0); draw(multiplayer::MenuScreen::Host);
+        require(menu.hostOptions().scenario.filename() == "idle.toml", "Scenario selection must reach the server launch options");
+        key(GLFW_KEY_ESCAPE); draw(multiplayer::MenuScreen::Host);
+        require(menu.takeCommand() == multiplayer::MenuCommand::Back, "Host setup Escape must return to the main menu");
+        draw();
         key(GLFW_KEY_TAB); key(GLFW_KEY_A, GLFW_MOD_CONTROL); type("127.0.0.1:12345");
         key(GLFW_KEY_ENTER); key(GLFW_KEY_3); draw();
         require(menu.address() == "127.0.0.1:12345", "Join input must preserve address punctuation");
@@ -104,8 +132,6 @@ int main(int argc, char** argv) {
                 "Character viewport must come from the visible layout");
         key(GLFW_KEY_ESCAPE); draw(multiplayer::MenuScreen::Character);
         require(menu.takeCommand() == multiplayer::MenuCommand::Back, "Character preview must support Escape");
-        const auto directory = std::filesystem::path(argc > 1 ? argv[1] : "build") /
-            ("editor-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
         const auto profile = directory / "character.json";
         creation = std::make_unique<multiplayer::CharacterCreation>(profile);
         menu.editCharacter(*creation);
@@ -116,11 +142,11 @@ int main(int argc, char** argv) {
             menu.pointer(x / 960, y / 600); menu.button(0, true, 0); menu.button(0, false, 0);
             draw(multiplayer::MenuScreen::Character);
         };
-        const auto capture = [&](const char* suffix) {
+        const auto capture = [&](const char* suffix, multiplayer::MenuScreen screen = multiplayer::MenuScreen::Character) {
                 if (argc <= 2) return;
                 glDisable(GL_SCISSOR_TEST); glDepthMask(GL_TRUE);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-                draw(multiplayer::MenuScreen::Character);
+                draw(screen);
                 std::vector<unsigned char> image(960 * 600 * 3);
                 glPixelStorei(GL_PACK_ALIGNMENT, 1);
                 glReadPixels(0, 0, 960, 600, GL_RGB, GL_UNSIGNED_BYTE, image.data());
@@ -226,6 +252,8 @@ int main(int argc, char** argv) {
         menu.draw(multiplayer::MenuScreen::Choose, "", "", 1500, 600);
         require(menu.takeCommand() == multiplayer::MenuCommand::SinglePlayer, "Resized menu hit testing must follow its layout");
         require(glGetError() == GL_NO_ERROR, "Menu/HUD transitions must not introduce GL errors");
+        capture("-host-classic", multiplayer::MenuScreen::Host);
+        theme(true); capture("-host-modern", multiplayer::MenuScreen::Host);
         std::cout << "Menu themes, roster, named saves, explicit selection, native preview, unsaved guards, retirement and resize passed.\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; result = 1; }
     glfwDestroyWindow(window); glfwTerminate();

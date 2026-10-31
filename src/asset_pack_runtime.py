@@ -69,12 +69,12 @@ Map: {map_name}
 Vegetation: {vegetation if trees else "none"}
 The launchers apply this pack's map, vegetation, forest and zombie options.
 Extra arguments are accepted, e.g. --single-player, --host or --connect IP:PORT.
-All peers must use matching game builds, content and scene settings.
+All peers must use matching game builds and content. Joining follows the host's world settings.
 
 This ZIP contains prepared map geometry, embedded map metadata/textures,
 published companion layers/navigation, scene models and definitions.
-Scenario TOMLs are included for the standalone server/prototype viewer;
-the integrated menu starts the normal game without a scenario.
+Scenario TOMLs are included for Host Game setup and the standalone server/prototype viewer.
+Choose a scenario and session options on Host Game setup, then Start hosting.
 asset-pack.json lists the content, hashes and launcher arguments. Navigation
 is included when it exists beside the map. Raw datasets, preparation caches,
 backups, executables and platform libraries are not part of this ZIP.

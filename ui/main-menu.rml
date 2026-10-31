@@ -6,6 +6,7 @@
     <link type="text/rcss" href="main-menu-classic.rcss" />
     <link type="text/rcss" href="main-menu-modern.rcss" />
     <link type="text/rcss" href="character-editor.rcss" />
+    <link type="text/rcss" href="host-game.rcss" />
 </head>
 <body class="main-menu modern">
     <div id="menu-frame">
@@ -27,9 +28,6 @@
             </div>
             <div id="connection-panel" class="panel">
                 <div id="connection-title">CONNECTION</div>
-                <div id="host-heading">HOST: UP TO 8 PLAYERS</div>
-                <label id="port-label" for="host-port">UDP PORT</label>
-                <input id="host-port" type="text" maxlength="5" value="27020" />
                 <label id="address-label" for="join-address">JOIN: NUMERIC IP:PORT</label>
                 <input id="join-address" type="text" maxlength="64" value="127.0.0.1:27020" />
                 <div id="connection-note">Use the host's numeric IP address and UDP port.</div>
@@ -37,6 +35,32 @@
             <div id="offline-hint">SINGLE PLAYER IS PRIVATE AND WORKS OFFLINE.</div>
             <div id="controls-hint">CLICK OR USE 1-5 / ARROWS + ENTER. TAB EDITS FIELDS.</div>
             <div id="session-hint">ESC DURING PLAY LEAVES THE SESSION.</div>
+        </div>
+        <div id="host-screen">
+            <div id="host-scenarios-heading">SCENARIO</div>
+            <div id="host-scenario-list"></div>
+            <div id="host-options-panel">
+                <div id="host-scenario-name"></div>
+                <div id="host-scenario-detail"></div>
+                <div id="host-population"></div>
+                <div id="host-requirements"></div>
+                <div id="host-map"></div>
+                <div id="host-options-heading">SESSION OPTIONS</div>
+                <button id="host-birds">BIRDS: OFF</button>
+                <div id="host-birds-hint">Flocks and bird attacks</div>
+                <label id="host-time-label" for="host-start-time">STARTING TIME</label>
+                <select id="host-start-time"></select>
+                <label id="host-cycle-label" for="host-day-cycle">DAY / NIGHT CYCLE</label>
+                <select id="host-day-cycle"></select>
+                <label id="setup-port-label" for="setup-port">UDP PORT</label>
+                <input id="setup-port" type="text" maxlength="5" value="27020" />
+                <div id="host-capacity">UP TO 8 PLAYERS</div>
+                <button id="host-reset">RESTORE OPTION DEFAULTS</button>
+            </div>
+            <div id="host-summary"></div>
+            <button id="host-back">BACK</button>
+            <button id="host-start">START HOSTING</button>
+            <div id="host-network-note">Friends join by IP address and UDP port. Internet play may need router/firewall setup.</div>
         </div>
         <div id="character-screen" class="empty">
             <div id="character-roster" class="panel">

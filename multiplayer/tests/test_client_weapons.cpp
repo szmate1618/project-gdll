@@ -75,6 +75,8 @@ const std::filesystem::path& resourceRoot() { return fixture; }
 std::filesystem::path weaponModelDirectory() { return VIEWER_WEAPON_ASSETS; }
 std::filesystem::path audioDirectory() { return VIEWER_AUDIO_DIR; }
 Network::Network(float, float) {}
+// The frame script begins after discovery; transport startup has its own integration test.
+std::optional<Options> discoverSession(const Options& local, const SessionFeedback&, const std::function<void()>&) { return local; }
 Network::~Network() = default;
 HSteamNetConnection Network::connect(const std::string&) {
     sessionOrigin = std::chrono::steady_clock::now();

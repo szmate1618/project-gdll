@@ -209,11 +209,16 @@ with log.open("w") as output:
         key("Escape")
         wait_for(lambda: "Choose a game mode" in title(window), "Reopened character preview did not restore menu")
         key("2")
+        wait_for(lambda: "| Host game" in title(window), "Host setup did not open")
+        capture("host-setup")
+        key("Return")
         wait_for(lambda: "| Player" in title(window), "Hosting did not become playable")
         remote = subprocess.Popen([client, *base, "--connect", f"127.0.0.1:{port}", "--headless", "--seconds", "10"],
                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         children.append(remote)
         wait_for(lambda: "Joined player 2" in log.read_text(), "Remote client did not join integrated host")
+        key("Escape")
+        wait_for(lambda: "| Host game" in title(window), "Host leave did not preserve setup")
         key("Escape")
         wait_for(lambda: "Choose a game mode" in title(window), "Host leave did not restore menu")
         text, _ = remote.communicate(timeout=8)
@@ -226,11 +231,14 @@ with log.open("w") as output:
             wait_for(lambda: "Listening on UDP" in server_log.read_text(), "Dedicated server failed")
             # Port-in-use startup must recover without losing the menu/window.
             key("2")
+            wait_for(lambda: "| Host game" in title(window), "Retry setup did not open")
+            key("Return")
             wait_for(lambda: "Cannot listen on UDP" in log.read_text(), "Host startup error was not reported")
-            wait_for(lambda: "Choose a game mode" in title(window), "Startup failure lost menu")
+            wait_for(lambda: "| Host game" in title(window), "Startup failure lost host setup")
             capture("startup-error")
+            key("Escape")
+            wait_for(lambda: "Choose a game mode" in title(window), "Back from host setup lost main menu")
             # Edit the join address through the real menu field.
-            key("Tab")
             key("Tab")
             for _ in "127.0.0.1:27020":
                 key("BackSpace")
@@ -247,6 +255,8 @@ with log.open("w") as output:
             capture("disconnect")
         # A fresh hosted session must still work; close the actual window in play.
         key("2")
+        wait_for(lambda: "| Host game" in title(window), "Final host setup did not open")
+        key("Return")
         wait_for(lambda: "| Player" in title(window), "Retry after disconnect failed")
         close_window()
         if game.wait(timeout=10):

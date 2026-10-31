@@ -12,11 +12,14 @@ namespace multiplayer {
 namespace {
 GameMenu& menu(GLFWwindow* window) { return *static_cast<GameMenu*>(glfwGetWindowUserPointer(window)); }
 }
-GameMenu::GameMenu(const ClientDisplay& display, bool hidden) {
-    window_ = createClientWindow(display, hidden);
+GameMenu::GameMenu(const Options& defaults) {
+    window_ = createClientWindow(defaults.display, defaults.hidden);
     try {
         glfwMakeContextCurrent(window_); glfwSwapInterval(1); viewer::initializeOpenGL();
         view_ = std::make_unique<MenuView>(resourceRoot() / "ui");
+        view_->configureHost(defaults, {resourceRoot() / "scenarios", defaults.map.parent_path() / "scenarios",
+            defaults.map.parent_path().parent_path() / "scenarios"});
+        port = std::to_string(defaults.port); address = defaults.address;
     } catch (...) {
         glfwDestroyWindow(window_); glfwTerminate(); throw;
     }
@@ -29,14 +32,26 @@ GameMenu::~GameMenu() {
 void GameMenu::handleCommand() {
     switch (view_->takeCommand()) {
     case MenuCommand::SinglePlayer: if (prepareCharacter()) choice_ = GameMode::SinglePlayer; break;
-    case MenuCommand::Host: if (prepareCharacter()) choice_ = GameMode::Host; break;
+    case MenuCommand::Host:
+        hosting_ = true; status_.clear();
+        glfwSetWindowTitle(window_, "Godollo | Host game");
+        break;
+    case MenuCommand::StartHost:
+        try {
+            (void)hostOptions(); status_.clear();
+            if (prepareCharacter()) choice_ = GameMode::Host;
+        } catch (const std::exception& error) { status_ = error.what(); }
+        break;
     case MenuCommand::Join: if (prepareCharacter()) choice_ = GameMode::Join; break;
     case MenuCommand::Quit: choice_ = GameMode::Quit; break;
     case MenuCommand::Character:
         creating_ = true;
         glfwSetWindowTitle(window_, "Godollo | Characters");
         break;
-    case MenuCommand::Back: leaveCharacterCreation(); break;
+    case MenuCommand::Back:
+        if (creating_) leaveCharacterCreation();
+        else { hosting_ = false; status_.clear(); glfwSetWindowTitle(window_, "Godollo | Choose a game mode"); }
+        break;
     case MenuCommand::Cancel: cancelled_ = true; break;
     case MenuCommand::None: break;
     }
@@ -54,9 +69,10 @@ bool GameMenu::prepareCharacter() {
 void GameMenu::leaveCharacterCreation() {
     creating_ = false;
     if (characterCreation_) characterCreation_->releasePointer();
-    glfwSetWindowTitle(window_, "Godollo | Choose a game mode");
+    glfwSetWindowTitle(window_, hosting_ ? "Godollo | Host game" : "Godollo | Choose a game mode");
 }
 bool GameMenu::closed() const { return glfwWindowShouldClose(window_); }
+ServerOptions GameMenu::hostOptions() { return view_->hostOptions(); }
 void GameMenu::callbacks() {
     glfwSetWindowUserPointer(window_, this); glfwSetKeyCallback(window_, key);
     glfwSetCharCallback(window_, character); glfwSetMouseButtonCallback(window_, click);
@@ -88,7 +104,7 @@ GameMode GameMenu::choose(const std::string& message) {
     choice_ = GameMode::Menu; cancelled_ = false;
     view_->connection(port, address); callbacks();
     status_ = message;
-    glfwSetWindowTitle(window_, "Godollo | Choose a game mode");
+    glfwSetWindowTitle(window_, hosting_ ? "Godollo | Host game" : "Godollo | Choose a game mode");
     while (!closed() && choice_ == GameMode::Menu) {
         glfwPollEvents();
         if (creating_) {
@@ -122,7 +138,7 @@ void GameMenu::draw(const std::string& message, bool loading) {
     glDepthMask(GL_TRUE); glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     glClearDepth(1);
     glClearColor(.025f,.04f,.055f,1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    view_->draw(loading ? MenuScreen::Loading : creating_ ? MenuScreen::Character : MenuScreen::Choose,
+    view_->draw(loading ? MenuScreen::Loading : creating_ ? MenuScreen::Character : hosting_ ? MenuScreen::Host : MenuScreen::Choose,
                 message, characterCreation_ ? characterCreation_->faceName() : "", width, height);
     port = view_->port(); address = view_->address();
     glfwSwapBuffers(window_);

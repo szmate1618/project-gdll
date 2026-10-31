@@ -21,9 +21,9 @@ style at the top right, including in the character preview and loading screen.
 The choice and connection fields survive menu/gameplay transitions during this
 launch; the style is not saved between launches.
 
-Use **1–5** or **Up/Down + Enter** to choose a mode. **Tab** cycles through
-the host port, join address, then back to mode selection; **Shift+Tab** reverses
-that order. **Enter/Escape** ends field editing. Loading supports **Escape**
+Use **1–5** or **Up/Down + Enter** to choose a mode. **Tab** edits the join
+address, then returns to mode selection; **Shift+Tab** reverses that order.
+**Enter/Escape** ends field editing. Loading supports **Escape**
 or its Cancel button. The character preview retains its paint/orbit controls.
 
 The shared layout is [main-menu.rml](../ui/main-menu.rml), with common rules in
@@ -35,6 +35,40 @@ separate contexts, allowing loading feedback while the HUD exists.
 The bundled [pixel font](../ui/fonts/README.md) uses the original glyph shapes;
 Classic retains it; Modern uses the HUD system font for headings and controls.
 Both Linux and Windows packages include the menu and font resources.
+
+### Host Game setup
+
+**Host Game** opens a setup screen before starting the server. Choose **Default
+session** for the launcher's ordinary population, or select an installed scenario
+from the list. The screen shows the population, initial movement and navigation
+requirements. Malformed scenarios and missing navigation/placement images show
+an explanation; starting rechecks the files and reports errors without losing the
+draft. Scenario selection never edits the source TOML.
+
+Set **Birds** (flocks and bird attacks), **Starting time**, **Day / night cycle**
+(20-minute day or fixed time), and **UDP port**, then choose **Start hosting**.
+Launch-time bird/clock/port settings initialize the controls; custom launch-time
+clock values remain selectable. **Restore option defaults** restores those bird
+and clock defaults while preserving the selected scenario and port. **Tab** and
+**Shift+Tab** move between controls; **Enter/Space** activates buttons and arrows
+operate the dropdowns. **Escape** closes a dropdown or finishes port editing,
+then returns to the main menu. Character selection, when required, returns to
+the hosting setup. Startup cancellation, errors and leaving a hosted game retain
+the draft for retry during this launch.
+
+The scenario list reads `scenarios/` in the installed resource directory and
+beside the map (or beside its containing `output/` directory), deduplicating
+matching paths. Prepared content packs already include these files. Travelling
+groups need the map's `.navmesh`; the menu never downloads or generates one.
+There is no scenario editor or separate scenario submenu.
+
+Joining clients first read the host's world settings through a short-lived
+connection, then load their local map/assets and perform the normal fingerprint
+handshake. Population, spawn, clock, vegetation, cars and birds follow the host;
+local asset paths, display/audio preferences and explicit camera-look overrides
+remain local. Scenario definitions, placements and navigation stay server-owned.
+The hosting UI is in [host-game.rcss](../ui/host-game.rcss),
+[HostSetup](client/host_setup.hpp) and [HostSetupView](client/host_setup_view.hpp).
 
 ## Characters
 
@@ -306,8 +340,8 @@ the map (with embedded textures/geographic metadata), adjacent tree/pole/guardra
 and car-placement layers, referenced tree models/forest textures, zombie and
 vehicle models with their current LoDs, configuration and attribution. Published
 `.navmesh`, `.navigation.json` and `.navmesh.json` companions are included and
-checked against each other and the map. Scenario TOMLs are included for dedicated
-hosting and prototype-viewer use. The integrated menu starts the normal game.
+checked against each other and the map. Scenario TOMLs are included for Host Game
+setup, dedicated hosting and prototype-viewer use.
 
 The Actions application package already supplies executables, libraries,
 shaders, weapon models and audio; the content ZIP does not duplicate those build
@@ -383,17 +417,18 @@ Open the game menu from the repository root:
 ./build/multiplayer/godollo_client output/godollo.glb
 ```
 
-Click a mode, press 1–4, or use the arrow keys and Enter. Click the host-port or
-join-address field to edit it; Tab cycles the two fields, Backspace removes
-characters, and Enter finishes editing. The map and scene options come from the
-command line and are reused when switching modes.
+Click a mode, press 1–5, or use the arrow keys and Enter. The main menu has the
+join-address field; the UDP port is on Host Game setup. Backspace edits text and
+Enter finishes editing. The map and initial scene options come from the command
+line. Hosting overrides apply to hosted sessions; joining follows the host's
+world settings automatically.
 
 - **Single Player** starts a private server on IPv4 loopback at an automatically
   selected high UDP port. It admits one connection and rejects additional
   clients, including clients on the same machine, while that player is connected.
   It needs neither internet access nor an online service and has no discovery
   advertisement.
-- **Host Game** listens on the selected UDP port (27020 by default), connects the
+- **Host Game** opens setup, then listens on the selected UDP port (27020 by default), connects the
   host locally, and admits up to eight total players. Give other players the
   host's numeric IP and port. Firewall/router configuration is still manual;
   there is no matchmaking, relay or automatic NAT traversal.
@@ -454,7 +489,7 @@ and data URIs are supported. Zombie assets may have at most 128 skeleton nodes
 (including non-joint scene nodes); incompatible rigs fail before hosting.
 Weapon definitions and starting inventory are loaded once per scene and copied
 for each joining player, so changing files cannot change a running session.
-The current wire protocol is version 29; rebuild both client and server together.
+The current wire protocol is version 31; rebuild both client and server together.
 Player health starts at 100 and is authoritative, including fractional damage
 from collision-limited zombie lunges. Clients show health and a brief damage
 pulse without simulating attacks. Stamina and weariness are stored but inactive.

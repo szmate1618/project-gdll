@@ -4,11 +4,12 @@
 #include <memory>
 #include <string>
 #include <glm/vec4.hpp>
+#include "server/options.hpp"
 
 namespace multiplayer {
 class CharacterCreation;
-enum class MenuScreen { Choose, Character, Loading };
-enum class MenuCommand { None, SinglePlayer, Host, Join, Character, Quit, Back, Cancel };
+enum class MenuScreen { Choose, Host, Character, Loading };
+enum class MenuCommand { None, SinglePlayer, Host, StartHost, Join, Character, Quit, Back, Cancel };
 
 // RmlUi layout, themes and local interaction. GameMenu owns window/session work.
 class MenuView {
@@ -16,6 +17,8 @@ public:
     explicit MenuView(const std::filesystem::path& directory);
     ~MenuView();
     void connection(const std::string& port, const std::string& address);
+    void configureHost(const Options& defaults, const std::vector<std::filesystem::path>& scenarioDirectories);
+    ServerOptions hostOptions();
     void editCharacter(CharacterCreation& creation); // Borrows the menu-owned preview until view destruction.
     std::string port() const;
     std::string address() const;

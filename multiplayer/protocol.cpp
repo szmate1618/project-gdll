@@ -42,6 +42,13 @@ struct Wire {
         if (n > 1) throw std::runtime_error("Invalid multiplayer flag");
         value = n != 0;
     }
+    void number(double& value) {
+        std::uint64_t bits = 0;
+        if (!reading) std::memcpy(&bits, &value, 8);
+        integer(bits);
+        if (reading) std::memcpy(&value, &bits, 8);
+        if (!std::isfinite(value) || std::abs(value) > 1e8) throw std::runtime_error("Invalid multiplayer number");
+    }
     void text(std::string& value, std::size_t maximum) {
         if (value.size() > maximum) throw std::runtime_error("Multiplayer string too long");
         auto length = static_cast<std::uint16_t>(value.size());
@@ -210,6 +217,25 @@ void payload(Wire& w, Hello& hello) {
 void payload(Wire& w, Welcome& welcome) {
     w.integer(welcome.player);
     if (!welcome.player) throw std::runtime_error("Invalid player ID");
+}
+void payload(Wire&, RequestSessionSettings&) {}
+void payload(Wire& w, SessionSettings& settings) {
+    w.integer(settings.zombieCount); w.number(settings.zombieRadius);
+    w.number(settings.startHour); w.number(settings.dayLengthSeconds);
+    bool spawn = settings.spawn.has_value(); w.flag(spawn);
+    if (spawn) {
+        if (w.reading) settings.spawn.emplace();
+        w.number(settings.spawn->x); w.number(settings.spawn->y);
+    } else settings.spawn.reset();
+    w.number(settings.look.x); w.number(settings.look.y);
+    w.flag(settings.trees); w.flag(settings.forests); w.flag(settings.cars); w.flag(settings.birds);
+    w.integer(settings.vegetation); w.flag(settings.explicitVegetation);
+    if (settings.zombieCount > maxZombies || settings.zombieRadius < 5 || settings.zombieRadius > 1000 ||
+        settings.startHour < 0 || settings.startHour >= 24 || settings.dayLengthSeconds < 0 ||
+        (settings.dayLengthSeconds > 0 && settings.dayLengthSeconds < 1) || settings.dayLengthSeconds > 86400 ||
+        std::abs(settings.look.x) > 180 || std::abs(settings.look.y) > 89 || settings.vegetation > 4 ||
+        (settings.spawn && (std::abs(settings.spawn->x) > 1e7f || std::abs(settings.spawn->y) > 1e7f)))
+        throw std::runtime_error("Invalid host session settings");
 }
 // Signed fixed-point values use explicit zigzag encoding, independent of
 // signed shifts, machine endianness and compiler struct padding.
@@ -617,7 +643,7 @@ Message decode(const void* data, std::size_t bytes) {
     Wire w; w.input = static_cast<const std::uint8_t*>(data); w.size = bytes; w.reading = true;
     std::uint32_t magic = 0, version = 0; std::uint8_t type = 0;
     w.integer(magic); w.integer(version); w.integer(type);
-    if (magic != 0x4c4c4447 || version != protocolVersion || type > 12) throw std::runtime_error("Incompatible multiplayer protocol");
+    if (magic != 0x4c4c4447 || version != protocolVersion || type > 14) throw std::runtime_error("Incompatible multiplayer protocol");
     Message result;
     switch (type) { case 0: result = Hello{}; break; case 1: result = Welcome{}; break;
         case 2: result = Commands{}; break; case 3: result = Snapshot{}; break;
@@ -625,7 +651,8 @@ Message decode(const void* data, std::size_t bytes) {
         case 6: result = CorpsePose{}; break; case 7: result = PoseAck{}; break;
         case 8: result = BirdFrame{}; break; case 9: result = BirdResync{}; break;
         case 10: result = ZombieSetups{}; break; case 11: result = ZombieSetupAck{}; break;
-        case 12: result = CharacterAppearanceChunk{}; break; }
+        case 12: result = CharacterAppearanceChunk{}; break;
+        case 13: result = RequestSessionSettings{}; break; case 14: result = SessionSettings{}; break; }
     std::visit([&](auto& value) { payload(w, value); }, result);
     if (w.offset != bytes) throw std::runtime_error("Trailing multiplayer message data");
     return result;

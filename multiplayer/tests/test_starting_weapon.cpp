@@ -14,6 +14,9 @@ void require(bool condition, const char* message) { if (!condition) throw std::r
 }
 
 namespace multiplayer {
+// This scripted transport starts at the gameplay handshake. Real settings
+// discovery and content validation are exercised by test_game_sessions.
+std::optional<Options> discoverSession(const Options& local, const SessionFeedback&, const std::function<void()>&) { return local; }
 const std::filesystem::path& resourceRoot() { return resources; }
 std::filesystem::path weaponModelDirectory() { return VIEWER_WEAPON_ASSETS; }
 Network::Network(float, float) {}

@@ -7,7 +7,6 @@ body.classic { font-family: menu-pixel; font-size: 15dp; color: #d9e6f0; backgro
 .classic .menu-action.selected, .classic .menu-action:hover { background-color: #1f4d42; }
 .classic input { background-color: #142633; caret-color: #d9e6f0; }
 .classic input:focus { background-color: #144d33; }
-.classic #host-port { font-size: 20dp; }
 .classic #connection-panel { background-color: transparent; }
 .classic .theme-button { background-color: #0f1f26; }
 .classic .theme-button.active, .classic .theme-button:hover { background-color: #1f4d42; }

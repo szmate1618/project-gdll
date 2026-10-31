@@ -1,4 +1,5 @@
 #include "session.hpp"
+#include "session_setup.hpp"
 #include "inventory_state.hpp"
 #include "network.hpp"
 #include "character_appearances.hpp"
@@ -333,12 +334,15 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
     return c;
 }
 }
-int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
+int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* window,
                                   const SessionFeedback& feedback, const std::function<void()>& checkServer,
                                   const std::function<std::optional<double>()>& serverSimulationMilliseconds) {
 #ifndef MP_GRAPHICS
     (void)serverSimulationMilliseconds;
 #endif
+    const auto configured = discoverSession(requestedOptions, feedback, checkServer);
+    if (!configured) return 0;
+    const auto& options = *configured;
     std::unique_ptr<Scene> loaded;
     if (feedback) {
         auto loading = std::async(std::launch::async, [&] {

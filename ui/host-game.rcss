@@ -1,0 +1,71 @@
+/* Hosting uses the same fitted 960x600 frame and both existing menu themes. */
+#host-screen { display: none; }
+.hosting #host-screen { display: block; }
+.hosting #choose-screen { display: none; }
+.hosting #menu-message { top: 478dp; max-height: 35dp; font-size: 12dp; }
+.hosting.has-message #host-summary { display: none; }
+#host-screen button, #host-screen select { tab-index: auto; }
+#host-screen button, #host-screen input, #host-screen select { box-sizing: border-box; }
+#host-scenarios-heading { position: absolute; left: 60dp; top: 133dp; font-size: 12dp; }
+#host-scenario-list { position: absolute; left: 60dp; top: 160dp; width: 280dp; height: 310dp; overflow: auto; }
+#host-scenario-list scrollbarvertical { width: 10dp; margin-left: 6dp; }
+#host-scenario-list scrollbarvertical slidertrack { background-color: #ffffff10; }
+#host-scenario-list scrollbarvertical sliderbar { background-color: #808982; min-height: 25dp; }
+#host-scenario-list scrollbarvertical sliderbar:hover { background-color: #bfc2bd; }
+#host-scenario-list scrollbarvertical sliderarrowdec, #host-scenario-list scrollbarvertical sliderarrowinc { height: 0dp; }
+.host-scenario { display: block; width: 260dp; padding: 10dp 12dp; margin-bottom: 8dp; font-size: 14dp; }
+.host-scenario span { display: block; font-size: 11dp; margin-top: 4dp; }
+#host-options-panel { position: absolute; left: 365dp; top: 130dp; width: 535dp; height: 340dp; box-sizing: border-box; }
+#host-options-panel > div, #host-options-panel > label, #host-options-panel > button, #host-options-panel > input,
+#host-options-panel > select { position: absolute; }
+#host-scenario-name { left: 20dp; top: 14dp; right: 20dp; font-size: 17dp; }
+#host-scenario-detail { left: 20dp; top: 42dp; right: 20dp; height: 35dp; overflow: auto; font-size: 12dp; }
+#host-population { left: 20dp; top: 83dp; font-size: 12dp; }
+#host-requirements { left: 20dp; top: 103dp; right: 20dp; height: 34dp; overflow: auto; font-size: 11dp; }
+#host-map { left: 20dp; top: 138dp; font-size: 11dp; }
+#host-options-heading { left: 20dp; top: 165dp; font-size: 11dp; }
+#host-birds { left: 20dp; top: 187dp; width: 145dp; height: 32dp; padding: 7dp 10dp; font-size: 12dp; }
+#host-birds-hint { left: 178dp; top: 195dp; font-size: 11dp; }
+#host-time-label, #host-cycle-label { top: 230dp; font-size: 10dp; }
+#host-time-label { left: 20dp; }
+#host-cycle-label { left: 270dp; }
+#host-start-time, #host-day-cycle { top: 249dp; height: 32dp; width: 235dp; font-size: 13dp; }
+#host-start-time { left: 20dp; }
+#host-day-cycle { left: 270dp; }
+#host-screen selectvalue { padding: 7dp 10dp; }
+#host-screen selectarrow { width: 24dp; }
+#host-screen selectbox { margin-top: 2dp; max-height: 170dp; overflow: auto; }
+#host-screen option { padding: 8dp 10dp; }
+#setup-port-label { left: 20dp; top: 298dp; font-size: 10dp; }
+#setup-port { left: 90dp; top: 291dp; width: 92dp; height: 30dp; padding: 5dp 9dp; font-size: 13dp; }
+#host-capacity { left: 200dp; top: 298dp; font-size: 10dp; }
+#host-reset { right: 20dp; top: 292dp; height: 28dp; padding: 6dp 8dp; font-size: 9dp; }
+#host-summary { position: absolute; left: 60dp; top: 489dp; right: 60dp; font-size: 12dp; }
+#host-back, #host-start { position: absolute; top: 527dp; height: 36dp; padding: 9dp 15dp; font-size: 13dp; }
+#host-back { left: 60dp; }
+#host-start { right: 60dp; }
+#host-network-note { position: absolute; left: 60dp; top: 575dp; right: 60dp; font-size: 10dp; }
+.modern #host-options-panel { background-color: #383a3c; border: 1dp #f5f6f226; }
+.modern #host-screen button { background-color: #383a3c; border: 1dp #f5f6f24d; color: #f5f6f2; }
+.modern #host-screen button:hover, .modern #host-screen button:focus { background-color: #4b4d4f; border-color: #f5f6f2; }
+.modern #host-screen .host-scenario.selected, .modern #host-birds.active { border-left: 3dp #ec6962; background-color: #4b4d4f; }
+.modern #host-screen input, .modern #host-screen select { background-color: #2b2d2f; border: 1dp #f5f6f24d; color: #f5f6f2; caret-color: #f5f6f2; }
+.modern #host-screen input:focus, .modern #host-screen select:focus { border-color: #f5f6f2; }
+.modern #host-screen selectbox { background-color: #2b2d2f; border: 1dp #f5f6f280; }
+.modern #host-screen option:hover, .modern #host-screen option:checked { background-color: #555759; }
+.modern #host-screen selectarrow { decorator: text("v"); color: #f5f6f2; }
+.modern #host-screen .host-scenario span, .modern #host-scenario-detail, .modern #host-requirements,
+.modern #host-map, .modern #host-birds-hint, .modern #host-network-note { color: #bfc2bd; }
+.modern #host-screen #host-start { background-color: #f5f6f2; color: #2b2d2f; }
+.modern #host-screen #host-start:hover, .modern #host-screen #host-start:focus { background-color: #d7dad4; }
+.modern #host-requirements.unavailable { color: #ec6962; }
+.classic.hosting #menu-title { font-size: 30dp; }
+.classic #host-screen button { background-color: #0f1f26; color: #d9e6f0; }
+.classic #host-screen button:hover, .classic #host-screen button:focus, .classic #host-screen .host-scenario.selected,
+.classic #host-birds.active { background-color: #1f4d42; }
+.classic #host-options-panel { background-color: #0b1116; }
+.classic #host-screen select { background-color: #142633; color: #d9e6f0; }
+.classic #host-screen selectbox { background-color: #142633; border: 1dp #338c73; }
+.classic #host-screen option:hover, .classic #host-screen option:checked { background-color: #1f4d42; }
+.classic #host-screen selectarrow { decorator: text("v"); color: #d9e6f0; }
+.classic #host-requirements.unavailable { color: #ff9999; }

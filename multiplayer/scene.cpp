@@ -228,7 +228,9 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
     spawnEye = player.eyePosition();
     const auto extent = model.boundsMax - model.boundsMin;
     birdsEnabled = o.birds;
-    const std::size_t count = populationLoader || (extent.x >= 100 && extent.z >= 100) ? o.zombieCount : 0;
+    const std::size_t count = role == SceneRole::Replica && o.replicaZombieCount ? *o.replicaZombieCount :
+        populationLoader || (extent.x >= 100 && extent.z >= 100) ? o.zombieCount : 0;
+    if (count > maxZombies) throw std::runtime_error("Zombie population exceeds multiplayer capacity");
     if (count) {
         if (std::filesystem::is_directory(o.zombieAssets))
             for (const auto& entry : std::filesystem::directory_iterator(o.zombieAssets))

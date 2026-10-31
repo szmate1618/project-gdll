@@ -16,13 +16,10 @@ input { tab-index: auto; }
 #theme-label { display: inline-block; margin-right: 12dp; }
 .theme-button { display: inline-block; height: 30dp; padding: 4dp 10dp; margin-left: 6dp; }
 #connection-panel { position: absolute; left: 490dp; top: 135dp; width: 410dp; height: 215dp; }
-#host-heading, #port-label, #address-label, #connection-title, #connection-note { position: absolute; }
-#host-port, #join-address { position: absolute; left: 0dp; width: 410dp; height: 40dp; padding: 7dp 15dp; }
-#host-heading { left: 0dp; top: 10dp; }
-#port-label { left: 0dp; top: 35dp; }
-#host-port { top: 55dp; }
-#address-label { left: 0dp; top: 125dp; }
-#join-address { top: 150dp; }
+#address-label, #connection-title, #connection-note { position: absolute; }
+#join-address { position: absolute; left: 0dp; width: 410dp; height: 40dp; padding: 7dp 15dp; }
+#address-label { left: 0dp; top: 35dp; }
+#join-address { top: 55dp; }
 #offline-hint, #controls-hint, #session-hint, #menu-message { position: absolute; left: 60dp; right: 60dp; }
 #offline-hint { top: 435dp; }
 #controls-hint { top: 460dp; }
