@@ -785,7 +785,11 @@ their existing size. Assets without authored attacks retain the lunge fallback.
 
 Corpse poses carry independently versioned roots and palettes on a separate
 reliable transport lane. Living active-ragdoll attacks use that same lane at
-**10 Hz**, with compressed palettes and immediate prediction limited to 100 ms.
+**20 Hz within 20 metres** of each observer's authoritative player feet, including
+the boundary, and **10 Hz farther away**. Distance is measured in 3D between
+player and zombie feet, so different observers can receive different rates for
+the same attack. Palettes remain compressed and immediate prediction is limited
+to 100 ms. Acknowledgements and the existing bulk budget still bound delivery.
 An attack revision in motion and pose messages prevents late poses from an old
 swing or a living attack from being applied to a corpse. Playback history resets
 on revision changes. Clients render these authoritative physical poses without

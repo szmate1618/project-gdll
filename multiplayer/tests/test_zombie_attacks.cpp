@@ -192,7 +192,7 @@ void livingPhysicalAttackReplication(const Options& options) {
         if (const auto pose = world.nextPose(player)) {
             require(pose->activeAttackRevision != 0 && !scene.zombies.instances[0].ragdoll,
                 "Replication mislabeled a living attack as a corpse");
-            if (lastPoseTick) require(pose->tick - lastPoseTick >= 6, "Living physical poses exceeded ten Hz");
+            if (lastPoseTick) require(pose->tick - lastPoseTick >= 3, "Nearby living physical poses exceeded twenty Hz");
             lastPoseTick = pose->tick;
             if (!firstPose) firstPose = *pose;
             else if (pose->activeAttackRevision > firstPose->activeAttackRevision) laterPose = *pose;
@@ -217,7 +217,7 @@ void livingPhysicalAttackReplication(const Options& options) {
             displayed = true;
         } else if (displayed && !replica.attackClip) recovered = true;
     }
-    require(displayed && recovered && restarted && delivered > 8,
+    require(displayed && recovered && restarted && delivered > 50,
         "Physical attack replication failed to start, recover or start a fresh epoch");
     require(world.players().at(player).vitals.health() < 100,
         "Authoritative physical hands failed to injure the player");

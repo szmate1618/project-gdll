@@ -13,6 +13,7 @@ Replication::SetupState* Replication::findSetup(std::size_t id) {
 Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
         const std::optional<ReplicationView>& view) {
     poseTick_ = s.tick;
+    observerFeet_ = feet;
     const auto population = scene.zombies.instances.size();
     if (setupSlots_.size() < population) setupSlots_.resize(population);
     if (interested_.size() < population) interested_.resize(population);
@@ -184,7 +185,13 @@ std::optional<CorpsePose> Replication::nextPose(const Scene& scene) const {
         const auto id = interestedCorpses_[(startOffset + offset) % interestedCorpses_.size()];
         if (inFlight_.count(id) || !setups_[setupSlots_[id] - 1].acknowledged) continue;
         const auto& instance = scene.zombies.instances.at(id);
-        const auto period = instance.blastRagdoll || instance.activeRagdoll ? blastRagdollUpdateTicks : ragdollUpdateTicks;
+        auto period = instance.blastRagdoll || instance.activeRagdoll ? blastRagdollUpdateTicks : ragdollUpdateTicks;
+        if (instance.activeRagdoll) {
+            constexpr float nearbyAttackDistance = 20.f; // World meters, measured per observer.
+            const auto offset = glm::vec3(instance.restRoot[3]) - observerFeet_;
+            if (glm::dot(offset, offset) <= nearbyAttackDistance * nearbyAttackDistance)
+                period = 3; // 20 Hz at the authoritative 60 Hz tick.
+        }
         const auto last = lastPoseTicks_.find(id);
         if (last != lastPoseTicks_.end() && poseTick_ - last->second < period) continue;
         if (!instance.hasPhysicalPose() || instance.removed) continue;

@@ -8,6 +8,7 @@
 #include <iostream>
 #include <set>
 #include <stdexcept>
+#include <utility>
 
 namespace {
 using namespace multiplayer;
@@ -97,6 +98,59 @@ void poseCadence(Scene& scene, bool blast) {
     replication.sent(*settled); replication.acknowledge({settled->id, settled->version});
     state.tick += period; replication.snapshot(scene, {0, 0, 0}, state);
     require(!replication.nextPose(scene), "Settled unchanged ragdolls must stop sending at both cadences");
+    scene.zombies = viewer::ZombieLayer{};
+}
+void nearbyAttackCadence(Scene& scene) {
+    scene.zombies = viewer::ZombieLayer{};
+    scene.zombies.assets.emplace_back().skeleton.resize(1);
+    auto& instance = scene.zombies.instances.emplace_back();
+    const glm::vec3 feet(120, 6, -80);
+    instance.transform = instance.restTransform = instance.restRoot = glm::translate(glm::mat4(1), feet);
+    scene.zombies.setRagdollPalette(0, {glm::mat4(1)}, true);
+    instance.attackClip = 1; instance.attackRevision = 1;
+    Replication near, far, above;
+    Snapshot state; state.tick = 120;
+    const auto edge = feet + glm::vec3(20, 0, 0);
+    const auto outside = feet + glm::vec3(20.01f, 0, 0);
+    const auto upstairs = feet + glm::vec3(0, 20.01f, 0);
+    const auto send = [&](Replication& peer) {
+        const auto pose = peer.nextPose(scene);
+        require(pose && pose->tick == state.tick && pose->activeAttackRevision == 1,
+            "Active attack cadence lost its complete current pose");
+        peer.sent(*pose); peer.acknowledge({pose->id, pose->version});
+    };
+    for (const auto& observer : {std::make_pair(&near, edge), std::make_pair(&far, outside), std::make_pair(&above, upstairs)}) {
+        test_replication::readySnapshot(*observer.first, scene, observer.second, state);
+        send(*observer.first);
+    }
+    for (std::uint64_t tick = 121; tick <= 126; ++tick) {
+        state.tick = tick; ++instance.ragdollPoseVersion;
+        near.snapshot(scene, edge, state); far.snapshot(scene, outside, state); above.snapshot(scene, upstairs, state);
+        if (tick % 3 == 0) send(near);
+        else require(!near.nextPose(scene), "Nearby attack exceeded twenty Hz");
+        if (tick == 126) { send(far); send(above); }
+        else require(!far.nextPose(scene) && !above.nextPose(scene),
+            "Attacks beyond twenty metres, including vertical distance, exceeded ten Hz");
+    }
+    state.tick = 132;
+    near.snapshot(scene, edge, state); far.snapshot(scene, outside, state);
+    require(!near.nextPose(scene) && !far.nextPose(scene), "Faster cadence resent an unchanged pose");
+
+    // Move one observer inward, then outward; preserve its last-send history.
+    ++instance.ragdollPoseVersion;
+    state.tick = 135; far.snapshot(scene, outside, state); send(far);
+    ++instance.ragdollPoseVersion;
+    state.tick = 138; far.snapshot(scene, feet + glm::vec3(19, 0, 0), state);
+    const auto pending = far.nextPose(scene);
+    require(pending.has_value(), "Moving inside the radius did not enable the faster cadence");
+    far.sent(*pending);
+    ++instance.ragdollPoseVersion;
+    state.tick = 141; far.snapshot(scene, feet + glm::vec3(19, 0, 0), state);
+    require(!far.nextPose(scene), "Twenty-Hz mode bypassed the in-flight acknowledgement");
+    far.acknowledge({pending->id, pending->version});
+    far.snapshot(scene, outside, state);
+    require(!far.nextPose(scene), "Moving outside the radius failed to restore ten Hz");
+    state.tick = 144; far.snapshot(scene, outside, state); send(far);
     scene.zombies = viewer::ZombieLayer{};
 }
 void corpseTransfers(Scene& scene) {
@@ -213,7 +267,7 @@ int main(int argc, char** argv) {
         pacedSnapshots(); poseProtocol();
         Options options; options.map = argv[1]; options.trees = options.forests = false; options.zombieCount = 0;
         Scene scene(options); retiredBoxes(scene, options);
-        poseCadence(scene, false); poseCadence(scene, true); corpseTransfers(scene); turning(scene);
+        poseCadence(scene, false); poseCadence(scene, true); nearbyAttackCadence(scene); corpseTransfers(scene); turning(scene);
         std::cout << "Pacing, independent corpse transfers and immediate rigid playback passed\n";
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
