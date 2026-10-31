@@ -74,3 +74,20 @@ body.loadout { pointer-events: auto; }
 .placement-track { width: 130dp; height: 6dp; border-width: 1dp; }
 .placement-fill { height: 6dp; }
 .placement-label { padding-top: 4dp; font-size: 9dp; }
+
+/* Equal halves of the right column, separated by a narrow gutter. */
+.inventory .details-panel { height: 220dp; overflow: hidden; }
+.inventory .detail-square { left: 16dp; top: 47dp; width: 26dp; height: 26dp; }
+.inventory .detail-name { left: 52dp; right: 12dp; top: 44dp; font-size: 16dp; white-space: nowrap; overflow: hidden; }
+.inventory .detail-subtitle { left: 16dp; top: 80dp; font-size: 9dp; }
+.inventory .detail-fields { left: 16dp; top: 103dp; width: 322dp; display: flex; flex-wrap: wrap; }
+.inventory .detail-field { box-sizing: border-box; width: 50%; height: 36dp; padding-top: 0dp; overflow: hidden; }
+.inventory .field-label { margin-top: 3dp; font-size: 8dp; }
+.inventory .field-value { margin-top: 2dp; font-size: 10dp; white-space: nowrap; }
+#ground-panel { left: 856dp; top: 298dp; width: 354dp; height: 220dp; }
+#ground-scroll { position: absolute; left: 16dp; right: 12dp; top: 48dp; bottom: 12dp; overflow-y: auto; overflow-x: hidden; }
+#ground-storage { width: 288dp; }
+#ground-scroll scrollbarvertical { width: 8dp; margin-left: 8dp; }
+#ground-scroll scrollbarvertical slidertrack { background-color: #2b2d2f; }
+#ground-scroll scrollbarvertical sliderbar { min-height: 20dp; background-color: #f5f6f280; }
+#ground-scroll scrollbarvertical sliderarrowdec, #ground-scroll scrollbarvertical sliderarrowinc { height: 0dp; }

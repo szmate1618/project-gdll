@@ -31,7 +31,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 28; // Living physical attack poses and attack revisions.
+constexpr std::uint32_t protocolVersion = 29; // Ground items and dynamic inventory ownership.
 constexpr std::uint64_t ragdollUpdateTicks = 12; // 5 Hz at the authoritative 60 Hz tick.
 constexpr std::uint64_t blastRagdollUpdateTicks = 6; // 10 Hz for explosion-created ragdolls.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
@@ -92,6 +92,24 @@ struct Commands {
     std::uint64_t snapshotTick = 0; // Last complete essential snapshot received.
     std::optional<ReplicationView> view{};
 };
+struct InventoryEntryState {
+    std::string id, prototype;
+    std::uint32_t quantity = 0;
+    viewer::ItemPlacement placement;
+};
+struct InventoryState {
+    std::vector<InventoryEntryState> items;
+    std::array<std::string, 10> hotbar;
+};
+struct GroundItemState {
+    std::uint64_t id = 0;
+    std::string item, prototype;
+    std::uint32_t quantity = 0, loaded = 0;
+    float readyAt = 0;
+    std::uint8_t slot = 255; // 255 is an ammo box.
+    glm::vec3 center{0}, halfExtents{.1f};
+    glm::quat rotation{1,0,0,0};
+};
 struct PlayerState {
     std::uint32_t id = 0;
     std::uint64_t resolved = 0;
@@ -108,9 +126,11 @@ struct PlayerState {
     viewer::PlayerBodyPose melee;
     float weaponSwitchRemaining = 0, weaponSwitchDuration = 0; // Server simulation seconds.
     float reloadRemaining = 0, reloadDuration = 0;
-    std::vector<std::uint32_t> ammoQuantities{}; // Stack IDs in fingerprinted inventory map order.
+    std::vector<std::uint32_t> ammoQuantities{}; // Counts keyed by ammoItemIds, also while a placement is pending.
     bool inventoryDragging = false;
     std::vector<viewer::ItemPlacement> inventoryPlacements{}; // All item IDs in the same map order, when idle.
+    std::optional<InventoryState> inventoryState{}; // Observer only, when no transaction is active.
+    std::vector<std::string> ammoItemIds{};
 };
 struct ZombieState {
     std::uint32_t id = 0, asset = 0;
@@ -197,6 +217,7 @@ struct Snapshot {
     std::vector<VehicleState> vehicles;
     std::vector<SignalState> signals;
     std::vector<SoundEvent> sounds;
+    std::vector<GroundItemState> groundItems;
 };
 using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment, CorpsePose, PoseAck, BirdFrame, BirdResync,
                              ZombieSetups, ZombieSetupAck, CharacterAppearanceChunk>;

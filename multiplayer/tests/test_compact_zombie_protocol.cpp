@@ -45,8 +45,8 @@ void compactMotion() {
     const float decodedYaw = glm::degrees(std::atan2(copy.root[2].x, copy.root[2].z));
     require(std::abs(std::remainder(decodedYaw - 179.9f, 360.f)) <= .704f,
             "One-byte yaw did not use circular nearest rounding");
-    // Header, tick, player count and zombie count precede the first record.
-    constexpr std::size_t firstRecord = 9 + 8 + 4 + 4;
+    // Header, tick, player count, ground-item count and zombie count precede the first record.
+    constexpr std::size_t firstRecord = 9 + 8 + 4 + 4 + 4;
     require(bytes[firstRecord + 5] == 0xd2 && bytes[firstRecord + 6] == 0x04 && bytes[firstRecord + 7] == 0x00 &&
             bytes[firstRecord + 8] == 0x2e && bytes[firstRecord + 9] == 0xfb && bytes[firstRecord + 10] == 0xff,
             "Signed 24-bit coordinates must use explicit little-endian two's-complement bytes");

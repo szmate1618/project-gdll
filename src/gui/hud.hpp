@@ -14,12 +14,16 @@ namespace viewer {
 class PlayerInventory;
 struct MinimapSource;
 struct Model;
+class GroundItems;
+class Weapons;
+class CollisionWorld;
 enum class HudScreen { Gameplay, Inventory, Skills, Health, Map };
 
 // Presentation snapshot only; callers retain simulation/network ownership.
 struct HudState {
     HudScreen screen = HudScreen::Gameplay;
     double seconds = 0; // Monotonic simulation/session time; continues in menus.
+    glm::vec3 feet{0}, forward{0,0,-1}; // Ground inventory query/drop frame.
     glm::vec3 position{0}; // Runtime metres: X east, Y up, Z south.
     float yawDegrees = -90; // Camera yaw; -90 is north, 0 is east.
     float speedMetersPerSecond = 0; // Horizontal travel speed; displayed in km/h.
@@ -65,6 +69,7 @@ public:
     std::optional<HudScreen> takeScreenRequest();
     std::vector<InventoryDragAction> takeInventoryActions();
     bool inventoryDragging() const; // Includes completed actions awaiting delivery.
+    void setGroundItems(GroundItems& ground, Weapons& weapons, const CollisionWorld& collision);
     void refreshInventoryLayout(); // Call after applying an idle authoritative placement snapshot.
     // Borrow the terrain's uploaded OpenGL texture; its renderer must outlive
     // this HUD. The mapping is copied; no extra image decode/upload is needed.

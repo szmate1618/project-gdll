@@ -1,4 +1,5 @@
 #include "protocol.hpp"
+#include "inventory_state.hpp"
 #include "fragments.hpp"
 #include "client/prediction.hpp"
 #include "client/snapshots.hpp"
@@ -50,6 +51,7 @@ void protocol() {
     player.weaponSwitchRemaining = 1.25f; player.weaponSwitchDuration = 3.5f;
     player.reloadRemaining = 2.25f; player.reloadDuration = 4.5f;
     player.ammoQuantities = {0, 5, 60};
+    player.ammoItemIds = {"empty", "partial", "full"};
     player.inventoryPlacements.push_back({"backpack/tactical_backpack/main", 7, 0, 90});
     s.players.push_back(player);
     s.zombies.push_back({}); s.doors.push_back({3, .5f}); s.boxes.push_back({}); s.boxes.back().removed = true;
@@ -63,7 +65,7 @@ void protocol() {
     require(copy.players[0].weaponSwitchRemaining == 1.25f && copy.players[0].weaponSwitchDuration == 3.5f,
             "Snapshot lost authoritative switch progress");
     require(copy.players[0].reloadRemaining == 2.25f && copy.players[0].reloadDuration == 4.5f &&
-            copy.players[0].ammoQuantities == std::vector<std::uint32_t>({0, 5, 60}),
+            copy.players[0].ammoQuantities == std::vector<std::uint32_t>({0, 5, 60}) && copy.players[0].ammoItemIds == player.ammoItemIds,
             "Snapshot lost reload timing or empty ammo stacks");
     require(copy.players[0].inventoryPlacements.at(0).rotation == 90 &&
             copy.players[0].inventoryPlacements[0].storage == "backpack/tactical_backpack/main",
@@ -768,6 +770,58 @@ void serverInventoryAmmo(const std::filesystem::path& asset) {
     require(player.weaponReload.pending() && std::abs(player.weaponReload.duration() - 2.15) < 1e-6,
             "A queued reload must wait for storage moves and use their completed access time");
 }
+void serverGroundInventory(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    using Action = viewer::InventoryDragActionKind;
+    Options options; options.map=asset; options.trees=options.forests=false; options.zombieCount=0;
+    Scene scene(options); scene.model=ground();
+    scene.collision=std::make_unique<viewer::CollisionWorld>(scene.model,std::vector<viewer::TrunkCollider>{},scene.doors.get());
+    scene.collision->setBoxes(scene.boxes.get()); scene.spawnEye={0,1.7f,0};
+    World world(scene); const auto id=world.join();
+    const auto& player=world.players().at(id);
+    for (int i=0; i<5; ++i) world.step();
+    std::uint64_t sequence=0;
+    const auto submit=[&](std::vector<viewer::InventoryDragAction> actions) {
+        Command command; command.sequence=++sequence; command.inventoryActions=std::move(actions);
+        command.slot=static_cast<std::uint8_t>(player.weapons.slot());
+        command.movement.yawDegrees=player.camera.yawDegrees(); command.pitch=player.camera.pitchDegrees();
+        const auto encoded=encode(Commands{{command}});
+        const auto decoded=std::get<Commands>(decode(encoded.data(),encoded.size()));
+        world.submit(id,decoded); world.submit(id,decoded); world.step();
+    };
+    const auto original=player.inventory.placements().at("pistol_rounds_1");
+    submit({{Action::PickUp,"pistol_rounds_1","",0,0,0}, {Action::DropGround,"pistol_rounds_1","",0,0,0}});
+    require(scene.groundItems->count()==1 && !player.inventory.owns("pistol_rounds_1") &&
+        player.inventory.ammoCount("pistol_rounds")==60, "Server ground drop must transfer ownership exactly once");
+    const auto state=world.snapshot(id);
+    const auto bytes=encode(state);
+    const auto copy=std::get<Snapshot>(decode(bytes.data(),bytes.size()));
+    auto replica=scene.initialInventory;
+    viewer::GroundItems replicaGround(std::make_shared<viewer::PhysicsWorld>());
+    require(copy.players[0].inventoryState && applyInventory(replica,scene.initialInventory,*copy.players[0].inventoryState),
+        "Dynamic inventory ownership must survive snapshot serialization");
+    applyGround(replicaGround,scene.initialInventory,copy.groundItems);
+    require(!replica.owns("pistol_rounds_1") && replicaGround.count()==1 && replicaGround.poses()[0].entry.quantity==60,
+        "Ground replica lost item metadata or quantity");
+    const auto groundId=scene.groundItems->poses()[0].entry.id;
+    submit({{Action::TakeGround,"",original.storage,original.x,original.y,original.rotation/90,groundId}});
+    require(scene.groundItems->count()==0 && player.inventory.quantity("pistol_rounds_1")==60,
+        "Server ground pickup must restore the selected placement and quantity");
+    submit({{Action::TakeGround,"",original.storage,original.x,original.y,0,groundId}});
+    require(player.inventory.ammoCount("pistol_rounds")==120, "Duplicate pickup duplicated ammunition");
+    const auto farId=scene.groundItems->add(*player.inventory.find("pistol_rounds_1"),7,{},player.controller.feet()+glm::vec3(5,0,0));
+    submit({{Action::TakeGround,"","backpack/tactical_backpack/main",6,4,0,farId}});
+    require(scene.groundItems->count()==1 && player.inventory.ammoCount("pistol_rounds")==120,
+        "Server must reject out-of-reach ground items even for a valid destination");
+    const auto pistolPlacement=player.inventory.placements().at("pistol");
+    submit({{Action::PickUp,"pistol","",0,0,0},{Action::DropGround,"pistol","",0,0,0}});
+    require(!player.weapons.state(0).owned && !player.inventory.owns("pistol"), "Ground weapon remained fireable on the server");
+    const auto nearby=scene.groundItems->nearby(player.controller.feet());
+    require(nearby.size()==1, "Nearby ground query included an item outside two metres");
+    submit({{Action::TakeGround,"",pistolPlacement.storage,pistolPlacement.x,pistolPlacement.y,0,nearby[0].id}});
+    require(player.weapons.state(0).owned && player.weapons.state(0).loaded==12 && player.inventory.hotbar()[0]=="pistol",
+        "Weapon pickup must restore its magazine and configured hotbar binding");
+}
 void inputRecovery(const std::filesystem::path& asset) {
     using namespace multiplayer;
     Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
@@ -841,7 +895,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); playerHealthProtocol(); fragments(); prediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]);
+        triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

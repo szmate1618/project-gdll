@@ -37,6 +37,8 @@ public:
     // when the placement completes. Pickup and cancellation require no time.
     bool advance(double seconds);
     void cancel();
+    // Commit the swap chain and relinquish the held item to the world.
+    bool release();
 private:
     void completePlacement();
     PlayerInventory& inventory_;

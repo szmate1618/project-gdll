@@ -1,4 +1,5 @@
 #include "world.hpp"
+#include "inventory_state.hpp"
 #include "signals.hpp"
 #include "simulation_clock.hpp"
 #include "zombie_animation.hpp"
@@ -49,7 +50,7 @@ bool validFirearmReport(const Scene& scene, const ServerPlayer& player, const Co
     }
     return true;
 }
-void applyInventoryActions(ServerPlayer& player) {
+void applyInventoryActions(ServerPlayer& player, Scene& scene) {
     while (!player.pendingInventoryActions.empty()) {
         const auto& action = player.pendingInventoryActions.front();
         // Network jitter can deliver the next locally completed move before
@@ -62,6 +63,18 @@ void applyInventoryActions(ServerPlayer& player) {
         case viewer::InventoryDragActionKind::Rotate: player.inventoryDrag.rotate(action.turns); break;
         case viewer::InventoryDragActionKind::Drop: player.inventoryDrag.drop(action.storage, action.x, action.y); break;
         case viewer::InventoryDragActionKind::Cancel: player.inventoryDrag.cancel(); break;
+        case viewer::InventoryDragActionKind::DropGround:
+            if (player.inventoryDrag.held() && player.inventoryDrag.held()->item == action.item && !player.weaponSwitch.pending())
+                scene.groundItems->drop(player.inventory, player.inventoryDrag, player.weapons,
+                    player.controller.feet(), player.camera.direction(), *scene.collision);
+            // A rejected world transfer must restore the held item, otherwise
+            // a predicted client completion can leave the server stuck in hand.
+            if (player.inventoryDrag.held()) player.inventoryDrag.cancel();
+            break;
+        case viewer::InventoryDragActionKind::TakeGround:
+            if (!player.weaponSwitch.pending()) scene.groundItems->take(action.ground, player.inventory, player.weapons,
+                {action.storage, action.x, action.y, action.turns * 90}, player.controller.feet());
+            break;
         }
         player.pendingInventoryActions.pop_front();
     }
@@ -152,7 +165,7 @@ void World::step() {
     targets.reserve(players_.size());
     for (auto& [id, player] : players_) {
         player.inventoryDrag.advance(tickSeconds);
-        applyInventoryActions(player);
+        applyInventoryActions(player, scene_);
         bodies.push_back(&player.body);
         targets.push_back({player.controller.feet(), player.controller.eyeHeight(), player.controller.bodyHeight(),
                            id, player.velocity, player.controller.config().radius});
@@ -203,7 +216,7 @@ void World::step() {
             if (player.pendingInventoryActions.size() + command.inventoryActions.size() > 1024)
                 throw std::runtime_error("Too many queued inventory actions");
             player.pendingInventoryActions.insert(player.pendingInventoryActions.end(), command.inventoryActions.begin(), command.inventoryActions.end());
-            applyInventoryActions(player);
+            applyInventoryActions(player, scene_);
             if (command.enterVehicle && vehicleSeats_.toggle(id, player.controller, player.camera)) {
                 // Entering/exiting repositions the capsule without physical travel.
                 movementOrigin = player.controller.feet();
@@ -322,6 +335,7 @@ void World::step() {
         if (player.body.enabled()) physicsScene_.ensureNear(player.camera.position()-glm::vec3(3),player.camera.position()+glm::vec3(3));
     }
     physicsScene_.prepare(*scene_.boxes);
+    scene_.groundItems->prepare(physicsScene_,scene_.doors.get());
     scene_.grenades->prepare(physicsScene_, *scene_.doors);
     for (std::size_t i = 0; i < scene_.boxes->count(); ++i)
         if (scene_.boxes->active(i)) scene_.doors->activateNear(scene_.boxes->pose(i).center, 8);
@@ -349,6 +363,7 @@ void World::step() {
         if (car != noVehicle) player.velocity = scene_.vehicles->velocity(car);
     }
     scene_.grenades->update(now, *scene_.collision, &scene_.zombies, now);
+    scene_.groundItems->removeBelow(scene_.model.boundsMin.y - 10.f);
     scene_.boxes->retireBelow(scene_.model.boundsMin.y - 10.f);
     scene_.zombies.synchronizePhysics();
     for (const auto& noise : noises) scene_.zombies.makeNoise(noise.position, noise.decibels);
@@ -399,16 +414,21 @@ Snapshot World::snapshot(std::uint32_t id) {
             player.weaponSwitch.timing() ? static_cast<float>(player.weaponSwitch.timing()->total()) : 0.f,
             static_cast<float>(player.weaponReload.remaining(viewer::SimulationClock::instance().seconds())),
             static_cast<float>(player.weaponReload.duration()), {}, bool(player.inventory.held()) || !player.pendingInventoryActions.empty(), {}});
-        // The fingerprint guarantees the same stack IDs and sorted order on clients.
+        // IDs remain explicit as players acquire additional stack instances.
         for (const auto& [itemId, item] : player.inventory.items())
-            if (item.inventory().stackable)
+            if (item.inventory().stackable) {
                 s.players.back().ammoQuantities.push_back(static_cast<std::uint32_t>(player.inventory.quantity(itemId)));
+                s.players.back().ammoItemIds.push_back(itemId);
+            }
         if (!player.inventory.held())
             for (const auto& [itemId, item] : player.inventory.items()) {
                 (void)item;
                 s.players.back().inventoryPlacements.push_back(player.inventory.placements().at(itemId));
             }
     }
+    for (auto& state : s.players)
+        if (state.id == id && !state.inventoryDragging) state.inventoryState = captureInventory(observer.inventory);
+    s.groundItems = captureGround(*scene_.groundItems, observer.controller.feet());
     auto view = observer.replicationView.value_or(ReplicationView{});
     if (!observer.replicationView || glm::distance(view.eye, observer.camera.position()) > 30.f) {
         view.eye = observer.camera.position();

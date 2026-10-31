@@ -1,4 +1,6 @@
 #include "gui/hud.hpp"
+#include "ground_items.hpp"
+#include "collision_world.hpp"
 #include "inventory/inventory_config.hpp"
 #include "minimap.hpp"
 #include "minimap_fixture.hpp"
@@ -600,7 +602,7 @@ int main(int argc, char** argv) {
             require(!hud.takeScreenRequest(), "Releasing on a different tab must not navigate");
             move(300, 53); hud.pointerButton(0, true); hud.cancelPointerInteraction(); hud.pointerButton(0, false); draw();
             require(!hud.takeScreenRequest(), "Focus cancellation must cancel a pressed tab");
-            move(65, 402); hud.pointerButton(0, true); move(610, 197); hud.pointerButton(0, false); draw();
+            move(65, 402); hud.pointerButton(0, true); move(610, 197); hud.pointerButton(0, false); hud.pointerButton(0, true); hud.pointerButton(0, false); draw();
             require(inventory.held() && inventory.held()->item == "pistol", "Navigation fixture must have a pending inventory placement");
             (void)hud.takeInventoryActions();
             page.seconds += 30; click(300, 53);
@@ -718,16 +720,16 @@ int main(int argc, char** argv) {
                 return false;
             };
             draw();
-            move(610, 197); hud.pointerButton(0, true); hud.pointerButton(0, false);
+            move(610, 197);
             const auto selected = draw();
             require(hud.takeInventoryActions().empty() && !hud.inventoryDragging(),
-                    "Selecting a stack must not send a pickup action");
+                    "Hovering a stack must not send a pickup action");
             require(inventory.consume("hud_rounds", 12), "Could not consume graphical ammo fixture");
             const auto empty = draw();
             require(inventory.locationOf("hud_rounds")->placement && inventory.quantity("hud_rounds") == 0,
                     "Depleted stacks must keep their storage footprint");
             require(changedRegion(selected, empty, 602, 188, 24, 24), "Stack quantity did not refresh in its grid cell");
-            require(changedRegion(selected, empty, 910, 235, 314, 310), "Selected stack quantity did not refresh in item details");
+            require(changedRegion(selected, empty, 910, 170, 314, 110), "Selected stack quantity did not refresh in item details");
             require(empty == draw(), "Unchanged empty stacks must render consistently");
             if (argc > 1) capture((std::string(argv[1]) + "-ammo-empty.ppm").c_str(), empty, 1280, 720);
             move(610, 197); hud.pointerButton(0, true); move(700, 250);
@@ -747,7 +749,7 @@ int main(int argc, char** argv) {
             require(actions.size() == 1 && actions[0].kind == viewer::InventoryDragActionKind::Cancel && !hud.inventoryDragging(),
                     "Cancelling must expose one authoritative action and drain the idle queue");
             // An immediate return is idle locally, but its actions still need delivery.
-            move(638, 197); hud.pointerButton(0, true); move(700, 250); move(638, 197); hud.pointerButton(0, false);
+            move(638, 197); hud.pointerButton(0, true); move(700, 250); move(638, 197); hud.pointerButton(0, false); hud.pointerButton(0, true); hud.pointerButton(0, false);
             draw();
             require(!inventory.held() && hud.inventoryDragging(), "Completed unsent operations must block reconciliation");
             actions = hud.takeInventoryActions();
@@ -757,7 +759,7 @@ int main(int argc, char** argv) {
                     "Immediate return must preserve the pickup/drop order and destination cells");
             hud.refreshInventoryLayout();
             // Counts may change while a placement is waiting for storage access.
-            move(638, 197); hud.pointerButton(0, true); move(600, 261); hud.pointerButton(0, false);
+            move(638, 197); hud.pointerButton(0, true); move(600, 261); hud.pointerButton(0, false); hud.pointerButton(0, true); hud.pointerButton(0, false);
             draw();
             require(inventory.held() && inventory.held()->item == "hud_rounds_2", "Ammo placement must wait for storage access");
             require(inventory.consume("hud_rounds_2", 1), "Could not consume a pending graphical stack");
@@ -776,34 +778,33 @@ int main(int argc, char** argv) {
             const auto draw = [&](double elapsed = 0) { state.seconds += elapsed; clear(); hud.draw(state, 1280, 720); checkState(); return pixels(1280, 720); };
             const auto initial = draw();
             const auto move = [&](float x, float y) { hud.pointerMove(x / 1280, y / 720); };
-            const auto click = [&](const char* id, float x, float y) {
+            const auto click = [&](float x, float y) { move(x,y); hud.pointerButton(0,true); hud.pointerButton(0,false); draw(); };
+            const auto heldClick = [&](const char* id, float x, float y) {
                 const auto before = *hudInventory.locationOf(id)->placement;
-                move(x, y); hud.pointerButton(0, true); draw();
-                require(!hudInventory.held() && hudInventory.locationOf(id)->placement,
-                    "Pressing an item must select it without starting a pickup");
-                move(x + 1, y + 1); hud.pointerButton(0, false); draw();
+                move(x, y); draw(); // Hover alone exposes details, with no move action.
+                click(x, y);
+                require(hudInventory.held() && hudInventory.held()->item == id,
+                    "One click must pick up the item without requiring pointer motion");
+                move(x + 20, y + 20); draw();
+                require(hudInventory.held() && hudInventory.held()->item == id,
+                    "Releasing the mouse and moving must keep the item attached to the cursor");
+                hud.pointerButton(1, true); draw();
                 const auto after = hudInventory.locationOf(id);
                 require(!hudInventory.held() && after->placement && after->placement->storage == before.storage &&
-                    after->placement->x == before.x && after->placement->y == before.y && after->placement->rotation == before.rotation,
-                    "Clicking or small pointer jitter must not start a timed replacement");
+                    after->placement->x == before.x && after->placement->y == before.y,
+                    "Right-click must return the item to its original cells");
             };
-            click("pistol", 65, 402);
-            click("he_grenade", 304, 333);
-            click("sniper", 600, 293);
-            // Preserve the path even when moving away and back happens within
-            // a single render frame. An exact return remains free after a real drag.
-            move(65, 402); hud.pointerButton(0, true);
-            move(200, 420); move(65, 402); hud.pointerButton(0, false); draw();
-            require(!hudInventory.held() && hudInventory.locationOf("pistol")->placement->storage == "body/hip_holster/holster",
-                "Returning to the original holster position must complete immediately");
-            move(600, 293); hud.pointerButton(0, true);
-            move(800, 450); move(600, 293); hud.pointerButton(0, false); draw();
-            require(!hudInventory.held() && hudInventory.locationOf("sniper")->placement->y == 2,
-                "A true backpack drag returned to its origin must complete immediately");
+            heldClick("pistol", 65, 402);
+            heldClick("he_grenade", 304, 333);
+            heldClick("sniper", 600, 293);
+            click(65,402); move(200,420); click(65,402);
+            require(!hudInventory.held(), "A second click in the original cells must finish immediately");
+            click(600,293); move(800,450); click(600,293);
+            require(!hudInventory.held(), "Returning a backpack item with a second click must finish immediately");
             // Round-trip through the short top pocket, including pickup from
             // its occupied grid rather than only dropping into an empty grid.
             move(65, 402); hud.pointerButton(0, true);
-            move(610, 197); hud.pointerButton(0, false); draw(); draw(2);
+            move(610, 197); hud.pointerButton(0, false); hud.pointerButton(0, true); hud.pointerButton(0, false); draw(); draw(2);
             require(hudInventory.locationOf("pistol")->placement &&
                 hudInventory.locationOf("pistol")->placement->storage == "backpack/tactical_backpack/top_quick_access",
                 "Pistol must fit in the backpack top pocket");
@@ -811,14 +812,14 @@ int main(int argc, char** argv) {
             move(610, 220); draw();
             require(hudInventory.held() && hudInventory.held()->item == "pistol",
                 "A pistol stored in the top pocket must be draggable out again");
-            move(65, 402); hud.pointerButton(0, false); draw(); draw(2);
+            move(65, 402); hud.pointerButton(0, false); hud.pointerButton(0, true); hud.pointerButton(0, false); draw(); draw(2);
             require(!hudInventory.held() && hudInventory.locationOf("pistol")->placement &&
                 hudInventory.locationOf("pistol")->placement->storage == "body/hip_holster/holster",
                 "Pistol must return to its holster after leaving the top pocket");
             // Exchange SMG for shotgun, then shotgun for sniper. Cancel must
             // restore all three footprints, rather than only the last item.
             move(600, 261); hud.pointerButton(0, true);
-            move(650, 261); hud.pointerButton(0, false); draw(); draw(6);
+            move(650, 261); hud.pointerButton(0, false); hud.pointerButton(0, true); hud.pointerButton(0, false); draw(); draw(6);
             move(600, 293); hud.pointerButton(0, true); hud.pointerButton(0, false); draw(); draw(4);
             hud.pointerButton(1, true);
             const auto cancelled = draw();
@@ -831,7 +832,7 @@ int main(int argc, char** argv) {
             const auto held = draw();
             require(held != initial, "Inventory input did not show a held item");
             if (argc > 1) capture((std::string(argv[1]) + "-drag-preview.ppm").c_str(), held, 1280, 720);
-            hud.pointerButton(0, false);
+            hud.pointerButton(0, false); hud.pointerButton(0, true); hud.pointerButton(0, false);
             const auto pending = draw();
             require(hudInventory.held() && !hudInventory.placements().count("sniper"),
                 "Item must remain held until placement access time completes");
@@ -843,7 +844,10 @@ int main(int argc, char** argv) {
             require(isColor(colorAt(pixels(640, 360), 640, 360, 33, 131), {245,246,242}),
                 "Pending placement progress must follow viewport scaling");
             move(900, 500);
-            require(draw() == halfway, "Pending item or progress bar followed the mouse away from its destination");
+            const auto movedPending = draw();
+            for (int y = 180; y < 300; ++y) for (int x = 34; x < 300; ++x)
+                require(colorAt(movedPending,1280,720,x,y) == colorAt(halfway,1280,720,x,y),
+                    "Pending item or progress bar followed the mouse away from its destination");
             const auto placed = draw(2.02);
             require(hudInventory.locationOf("sniper")->placement->storage == "body/left_shoulder_sling/carry" &&
                 hudInventory.locationOf("sniper")->placement->rotation == 90,
@@ -858,12 +862,63 @@ int main(int argc, char** argv) {
             clear(); hud.draw(state, 640, 360); checkState();
             hud.pointerButton(1, true);
             clear(); hud.draw(state, 640, 360); checkState();
-            require(draw() == placed, "Right-click failed to restore the previous completed placement");
+            const auto restored = draw();
+            for (int y = 150; y < 540; ++y) for (int x = 34; x < 872; ++x)
+                require(colorAt(restored,1280,720,x,y) == colorAt(placed,1280,720,x,y), "Right-click failed to restore the previous completed placement");
             move(74, 195); hud.pointerButton(0, true); move(80, 205); draw();
             require(hudInventory.held().has_value(), "Dragging beyond the movement threshold must pick up the item");
             state.screen = viewer::HudScreen::Skills; draw();
             state.screen = viewer::HudScreen::Inventory;
-            require(draw() == placed, "Leaving Inventory failed to cancel a pending drag");
+            const auto reopened = draw();
+            for (int y = 150; y < 540; ++y) for (int x = 34; x < 872; ++x)
+                require(colorAt(reopened,1280,720,x,y) == colorAt(placed,1280,720,x,y), "Leaving Inventory failed to cancel a held item");
+        }
+        {
+            const auto root = std::filesystem::path(VIEWER_HUD_DIR).parent_path();
+            auto inventory = viewer::loadPlayerInventory(root);
+            viewer::Weapons weapons(root / "storage/weapons", root / "inventory.toml", true);
+            auto physics = std::make_shared<viewer::PhysicsWorld>();
+            viewer::GroundItems ground(physics);
+            viewer::Model emptyModel;
+            viewer::CollisionWorld collision(emptyModel);
+            viewer::Hud hud(VIEWER_HUD_DIR, inventory);
+            hud.setGroundItems(ground, weapons, collision);
+            state.screen = viewer::HudScreen::Inventory;
+            state.feet = {0,0,0}; state.forward = {0,0,-1};
+            const auto draw = [&] { clear(); hud.draw(state,1280,720); checkState(); return pixels(1280,720); };
+            const auto move = [&](float x, float y) { hud.pointerMove(x/1280,y/720); };
+            const auto click = [&](float x, float y) { move(x,y); hud.pointerButton(0,true); hud.pointerButton(0,false); return draw(); };
+            draw();
+            move(65,402); const auto pistolDetails = draw();
+            move(304,333); const auto grenadeDetails = draw();
+            bool hoverChanged = false;
+            for (int y=140; y<300; ++y) for (int x=910; x<1230; ++x)
+                hoverChanged |= colorAt(pistolDetails,1280,720,x,y) != colorAt(grenadeDetails,1280,720,x,y);
+            require(hoverChanged && hud.takeInventoryActions().empty(), "Details must follow hover without clicking");
+            click(65,402); move(940,400); draw();
+            require(inventory.held() && ground.count() == 0, "Moving a clicked item must not drop it before the next click");
+            const auto dropped = click(940,400);
+            require(!inventory.owns("pistol") && !weapons.state(0).owned && ground.count() == 1,
+                "Clicking ground must create a physical item and remove player ownership");
+            if (argc>1) capture((std::string(argv[1])+"-ground.ppm").c_str(), dropped,1280,720);
+            click(914,385); hud.pointerButton(1,true); draw();
+            require(ground.count()==1 && !inventory.owns("pistol"), "Cancelling a ground pickup must leave the world item intact");
+            click(914,385); click(65,402);
+            require(ground.count()==0 && inventory.owns("pistol") && weapons.state(0).loaded==12,
+                "A second click must transfer a ground weapon into the selected inventory cells");
+            const auto actions = hud.takeInventoryActions();
+            require(actions.size()==3 && actions[0].kind==viewer::InventoryDragActionKind::PickUp &&
+                actions[1].kind==viewer::InventoryDragActionKind::DropGround && actions[2].kind==viewer::InventoryDragActionKind::TakeGround,
+                "Ground transfers must expose the authoritative operations in order");
+            for (int i=0; i<180; ++i) ground.add(*inventory.find("pistol_rounds_1"), i%60, {}, {.5f,0,0});
+            ground.add(*inventory.find("pistol_rounds_1"),60,{}, {5,0,0});
+            move(930,400); const auto top = draw();
+            hud.mouseWheel(-12); const auto scrolled = draw();
+            bool scrollChanged = false;
+            for (int y=380; y<530; ++y) for (int x=910; x<1200; ++x)
+                scrollChanged |= colorAt(top,1280,720,x,y) != colorAt(scrolled,1280,720,x,y);
+            require(scrollChanged, "Ground storage must scroll independently when nearby items exceed the visible grid");
+            if (argc>1) capture((std::string(argv[1])+"-ground-scroll.ppm").c_str(), scrolled,1280,720);
         }
         {
             const auto root = std::filesystem::path(VIEWER_HUD_DIR).parent_path();

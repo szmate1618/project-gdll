@@ -1,4 +1,5 @@
 #include "session.hpp"
+#include "inventory_state.hpp"
 #include "network.hpp"
 #include "character_appearances.hpp"
 #include "character_skin.hpp"
@@ -262,6 +263,7 @@ struct Graphics {
         renderer = std::make_unique<viewer::Renderer>(scene.model, shaders, scene.trees ? &*scene.trees : nullptr,
             &scene.zombies, scene.forests ? &*scene.forests : nullptr);
         scene.zombies.releaseAnimationVertices();
+        renderer->setGroundItems(*scene.groundItems, scene.groundModels);
         gpuTimer = std::make_unique<viewer::GpuTimer>();
         renderer->setVehicleAssets(multiplayer::resourceRoot() / "assets/vehicles/models");
         reticle = std::make_unique<viewer::ReticleOverlay>(shaders);
@@ -392,6 +394,10 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
 #endif
     std::uint64_t lastInventoryCommand = 0;
     auto weaponDefinitions = scene.initialWeapons;
+    auto inventoryWeapons = scene.initialWeapons;
+#ifdef MP_GRAPHICS
+    if (in.hud) in.hud->setGroundItems(*scene.groundItems, inventoryWeapons, *scene.collision);
+#endif
     while (!graphics.closed() && !in.leave) {
         if (checkServer) checkServer();
         const auto clockNow = Clock::now();
@@ -478,36 +484,26 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
 #ifdef MP_GRAPHICS
                     inventoryIdle = inventoryIdle && (!in.hud || !in.hud->inventoryDragging());
 #endif
-                    if (inventory && inventoryIdle && !p.inventoryPlacements.empty()) {
-                        std::map<std::string, viewer::ItemPlacement> placements;
-                        std::size_t index = 0;
-                        bool changed = false;
-                        for (const auto& [id, item] : inventory->items()) {
-                            (void)item;
-                            if (index >= p.inventoryPlacements.size()) throw std::runtime_error("Incomplete authoritative inventory placements");
-                            const auto& placement = p.inventoryPlacements[index++];
-                            const auto& current = inventory->placements().at(id);
-                            changed |= current.storage != placement.storage || current.x != placement.x ||
-                                current.y != placement.y || current.rotation != placement.rotation;
-                            placements.emplace(id, placement);
-                        }
-                        if (index != p.inventoryPlacements.size() || !inventory->synchronizePlacements(placements))
-                            throw std::runtime_error("Invalid authoritative inventory placements");
+                    if (inventory && inventoryIdle && p.inventoryState) {
+                        bool layoutChanged = false;
+                        if (!multiplayer::applyInventory(*inventory, scene.initialInventory, *p.inventoryState, &layoutChanged))
+                            throw std::runtime_error("Invalid authoritative inventory");
+                        multiplayer::applyGround(*scene.groundItems, scene.initialInventory, snapshot->groundItems);
+                        if (in.slot < viewer::weaponIds.size() && !inventory->owns(viewer::weaponIds[in.slot])) in.slot = p.slot;
+                        inventoryWeapons.synchronizeOwnership(*inventory, p.slot, static_cast<int>(p.loaded));
 #ifdef MP_GRAPHICS
-                        if (changed && in.hud) in.hud->refreshInventoryLayout();
-#else
-                        (void)changed;
+                        in.actions = viewer::actionShortcuts(*inventory);
+                        if (layoutChanged && in.hud) in.hud->refreshInventoryLayout();
 #endif
-                    }
-                    if (inventory && !p.ammoQuantities.empty()) {
-                        std::size_t stack = 0;
-                        for (const auto& [id, item] : inventory->items()) {
-                            if (!item.inventory().stackable) continue;
-                            if (stack >= p.ammoQuantities.size() || p.ammoQuantities[stack] > static_cast<std::uint32_t>(item.inventory().maxStack) ||
-                                !inventory->setQuantity(id, static_cast<int>(p.ammoQuantities[stack++])))
-                                throw std::runtime_error("Invalid authoritative ammo stack quantities");
+                    } else if (inventory && !p.ammoQuantities.empty()) {
+                        // IDs keep live quantities attached to the correct
+                        // stacks while ownership changes await acknowledgement.
+                        if (p.ammoItemIds.size() != p.ammoQuantities.size()) throw std::runtime_error("Invalid authoritative ammo IDs");
+                        for (std::size_t index=0; index<p.ammoItemIds.size(); ++index) {
+                            const auto& itemId=p.ammoItemIds[index];
+                            if (inventory->owns(itemId) && !inventory->setQuantity(itemId,static_cast<int>(p.ammoQuantities[index])))
+                                throw std::runtime_error("Invalid authoritative ammo quantity");
                         }
-                        if (stack != p.ammoQuantities.size()) throw std::runtime_error("Unexpected authoritative ammo stacks");
                     }
                     if (!ready) {
                         in.slot = p.slot;
@@ -720,6 +716,8 @@ int multiplayer::runClientSession(const Options& options, GLFWwindow* window,
                 viewer::HudState hudState;
                 hudState.seconds = now;
                 hudState.screen = in.hudScreen;
+                hudState.feet = prediction.controller().feet();
+                hudState.forward = in.camera.direction();
                 hudState.position = in.driver.occupied() ? in.driver.eyePosition(*scene.vehicles) : in.camera.position();
                 hudState.yawDegrees = in.camera.yawDegrees();
                 hudState.showLocalMapPlayer = prediction.ready();

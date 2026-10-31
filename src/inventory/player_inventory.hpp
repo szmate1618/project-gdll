@@ -47,6 +47,8 @@ public:
     // Apply a complete authoritative layout between local drag transactions.
     // Invalid snapshots leave both placement and quantity state untouched.
     bool synchronizePlacements(const std::map<std::string, ItemPlacement>& placements);
+    bool synchronizeContents(InventoryContents contents);
+    bool insert(const Item& item, int quantity, const ItemPlacement& placement);
     bool hasTag(std::string_view tag) const;
     bool hasType(std::string_view type) const;
     std::optional<InventoryLocation> locationOf(const std::string& id) const;
@@ -66,6 +68,7 @@ private:
     StorageLoadout storage_;
     InventoryContents contents_;
     InventoryLayout layout_;
+    std::array<std::string, 10> configuredHotbar_;
     std::optional<HeldInventoryItem> held_;
 };
 } // namespace viewer

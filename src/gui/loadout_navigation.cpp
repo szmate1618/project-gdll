@@ -42,7 +42,9 @@ std::vector<HudPointerEvent> LoadoutNavigation::process(Rml::ElementDocument& do
             continue;
         }
         case HudPointerAction::Cancel: cancel(); break;
-        case HudPointerAction::Wheel: context_.ProcessMouseWheel(-event.x, 0); break;
+        case HudPointerAction::Wheel:
+            if (screen != HudScreen::Inventory) context_.ProcessMouseWheel(-event.x, 0);
+            break;
         default: break;
         }
         remaining.push_back(event);

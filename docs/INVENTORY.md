@@ -14,6 +14,8 @@ targets are defined in `cmake/Inventory.cmake` for graphical and headless builds
 | Resolve compartments and validate footprints, tags and overlaps | `src/inventory/inventory_placement.hpp/.cpp` |
 | Score backpack obstruction/support and calculate adjusted access times | `src/inventory/inventory_access.hpp/.cpp` |
 | Pick up, rotate, place, swap and cancel a placement transaction | `src/inventory/inventory_drag.hpp/.cpp` |
+| Own physical ground items and validate transfers within two metres | `src/ground_items.hpp/.cpp` |
+| Serialize dynamic inventory ownership and ground replicas | `multiplayer/inventory_state.hpp/.cpp` |
 | Draw storage grids and item details | `src/gui/inventory_view.hpp/.cpp` |
 | Convert pointer/wheel input and hit tests into inventory operations | `src/gui/inventory_interaction.hpp/.cpp` |
 | Present configured action shortcuts | `src/gui/action_hotbar.hpp/.cpp` |
@@ -146,11 +148,16 @@ them to the client HUD.
 ## Current prototype boundary
 
 There is one owned firearm per weapon ID, with multiple ammo stack instances.
-Weapon acquisition/removal synchronization remains separate from ammo accounting.
+Ground transfers update both inventory ownership and combat weapon ownership.
+Weapons retain magazines/cooldowns; ammo retains stack quantities. Acquired ammo
+with a colliding instance ID receives a new ID while retaining its catalog
+prototype.
 Multiplayer replays sequenced inventory
 pickup, rotation, placement and cancellation through the server's `InventoryDrag`.
-Snapshots update quantities continuously, including during drags. Placement
-corrections wait until queued operations are acknowledged and both drags are idle.
+Snapshots update quantities during moves. Complete ownership and ground
+corrections wait until queued operations are acknowledged and the local and
+authoritative placement transactions are idle. The protocol version changes
+with this dynamic ownership format.
 New actions wait behind an earlier server placement timer. Placements and stack
 changes last for the session and do not rewrite TOML.
 

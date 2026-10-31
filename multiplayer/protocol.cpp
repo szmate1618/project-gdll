@@ -149,7 +149,7 @@ void command(Wire& w, Command& c) {
     w.list(c.inventoryActions, 64, [&](viewer::InventoryDragAction& action) {
         auto kind = static_cast<std::uint8_t>(action.kind);
         w.integer(kind);
-        if (kind > static_cast<std::uint8_t>(viewer::InventoryDragActionKind::Cancel))
+        if (kind > static_cast<std::uint8_t>(viewer::InventoryDragActionKind::TakeGround))
             throw std::runtime_error("Invalid inventory action");
         action.kind = static_cast<viewer::InventoryDragActionKind>(kind);
         switch (action.kind) {
@@ -161,6 +161,12 @@ void command(Wire& w, Command& c) {
             action.turns = turns;
             break;
         }
+        case viewer::InventoryDragActionKind::TakeGround:
+            w.integer(action.ground);
+            { auto rotation = static_cast<std::uint8_t>(action.turns); w.integer(rotation);
+              if (rotation > 3) throw std::runtime_error("Invalid ground rotation");
+              action.turns = rotation; }
+            [[fallthrough]];
         case viewer::InventoryDragActionKind::Drop: {
             w.text(action.storage, 192);
             if (!w.reading && (action.x < 0 || action.x > 15 || action.y < 0 || action.y > 15))
@@ -170,6 +176,7 @@ void command(Wire& w, Command& c) {
             if (x > 15 || y > 15) throw std::runtime_error("Invalid inventory cell");
             break;
         }
+        case viewer::InventoryDragActionKind::DropGround:
         case viewer::InventoryDragActionKind::Cancel: w.text(action.item, 128); break;
         }
     });
@@ -348,6 +355,17 @@ void zombieMotion(Wire& w, ZombieState& z) {
         z.transform = z.root;
     }
 }
+void inventoryPlacement(Wire& w, viewer::ItemPlacement& placement) {
+    w.text(placement.storage, 192);
+    if (!w.reading && (placement.x < 0 || placement.x > 15 || placement.y < 0 || placement.y > 15 ||
+        placement.rotation < 0 || placement.rotation > 270 || placement.rotation % 90))
+        throw std::runtime_error("Invalid inventory placement");
+    auto x = static_cast<std::uint8_t>(placement.x), y = static_cast<std::uint8_t>(placement.y);
+    auto rotation = static_cast<std::uint8_t>(placement.rotation / 90);
+    w.integer(x); w.integer(y); w.integer(rotation);
+    if (x > 15 || y > 15 || rotation > 3) throw std::runtime_error("Invalid inventory placement");
+    placement.x = x; placement.y = y; placement.rotation = rotation * 90;
+}
 void payload(Wire& w, Snapshot& s) {
     w.integer(s.tick);
     w.list(s.players, maxPlayers, [&](PlayerState& p) {
@@ -373,23 +391,40 @@ void payload(Wire& w, Snapshot& s) {
         if (p.reloadRemaining < 0 || p.reloadDuration < p.reloadRemaining)
             throw std::runtime_error("Invalid reload progress");
         w.list(p.ammoQuantities, 1024, [&](std::uint32_t& count) { w.integer(count); });
+        if (w.reading) p.ammoItemIds.resize(p.ammoQuantities.size());
+        if (p.ammoItemIds.size() != p.ammoQuantities.size()) throw std::runtime_error("Invalid ammo quantity IDs");
+        for (auto& item : p.ammoItemIds) w.text(item,128);
         w.flag(p.inventoryDragging);
         w.list(p.inventoryPlacements, 1024, [&](viewer::ItemPlacement& placement) {
-            w.text(placement.storage, 192);
-            if (!w.reading && (placement.x < 0 || placement.x > 15 || placement.y < 0 || placement.y > 15 ||
-                placement.rotation < 0 || placement.rotation > 270 || placement.rotation % 90))
-                throw std::runtime_error("Invalid inventory placement");
-            auto x = static_cast<std::uint8_t>(placement.x), y = static_cast<std::uint8_t>(placement.y);
-            auto rotation = static_cast<std::uint8_t>(placement.rotation / 90);
-            w.integer(x); w.integer(y); w.integer(rotation);
-            if (x > 15 || y > 15 || rotation > 3) throw std::runtime_error("Invalid inventory placement");
-            placement.x = x; placement.y = y; placement.rotation = rotation * 90;
+            inventoryPlacement(w, placement);
         });
+        bool hasInventory = p.inventoryState.has_value();
+        w.flag(hasInventory);
+        if (hasInventory) {
+            if (w.reading) p.inventoryState.emplace();
+            auto& inventory = *p.inventoryState;
+            w.list(inventory.items, 1024, [&](InventoryEntryState& entry) {
+                w.text(entry.id, 128); w.text(entry.prototype, 128); w.integer(entry.quantity);
+                inventoryPlacement(w, entry.placement);
+            });
+            for (auto& shortcut : inventory.hotbar) w.text(shortcut, 128);
+        }
+        if (p.inventoryDragging && hasInventory) throw std::runtime_error("Held complete inventory snapshot");
         if (p.inventoryDragging && !p.inventoryPlacements.empty()) throw std::runtime_error("Invalid held inventory snapshot");
         if (!p.id || p.slot > viewer::punchSlot || std::abs(p.yaw) > 180 || std::abs(p.pitch) > 89 ||
             (p.vehicle != noVehicle && (p.vehicle >= maxVehicles || p.seat >= viewer::maxVehicleSeats)) ||
             (p.vehicle == noVehicle && p.seat != noVehicleSeat))
             throw std::runtime_error("Invalid player snapshot");
+    });
+    w.list(s.groundItems, 512, [&](GroundItemState& entry) {
+        w.integer(entry.id); w.text(entry.item, 128); w.text(entry.prototype, 128);
+        w.integer(entry.quantity); w.integer(entry.loaded); w.number(entry.readyAt); w.integer(entry.slot);
+        w.vector(entry.center); w.vector(entry.halfExtents);
+        w.number(entry.rotation.w); w.number(entry.rotation.x); w.number(entry.rotation.y); w.number(entry.rotation.z);
+        if (!entry.id || (entry.slot != 255 && entry.slot >= viewer::weaponIds.size()) || entry.readyAt < 0 ||
+            std::abs(glm::length(entry.rotation) - 1) > .001f ||
+            glm::any(glm::lessThan(entry.halfExtents, glm::vec3(.01f))) ||
+            glm::any(glm::greaterThan(entry.halfExtents, glm::vec3(2)))) throw std::runtime_error("Invalid ground item");
     });
     w.list(s.zombies, maxZombieUpdatesPerSnapshot, [&](ZombieState& z) { zombieMotion(w, z); });
     w.list(s.doors, maxDoors, [&](DoorState& d) {

@@ -2,6 +2,7 @@
 #include "protocol.hpp"
 #include "resources.hpp"
 #include "box_layer.hpp"
+#include "ground_items.hpp"
 #include "collision_world.hpp"
 #include "door_layer.hpp"
 #include "forest_layer.hpp"
@@ -63,6 +64,8 @@ struct Scene {
     std::shared_ptr<viewer::PhysicsWorld> physics;
     std::unique_ptr<viewer::DoorLayer> doors;
     std::unique_ptr<viewer::BoxLayer> boxes;
+    std::unique_ptr<viewer::GroundItems> groundItems;
+    std::array<viewer::Model, viewer::weaponIds.size()> groundModels;
     std::unique_ptr<viewer::Grenades> grenades;
 
     std::unique_ptr<viewer::VehicleLayer> vehicles;

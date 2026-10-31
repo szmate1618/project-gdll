@@ -175,6 +175,10 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
     }
     doors = std::make_unique<viewer::DoorLayer>(viewer::prepareDoorPanels(model), physics);
     boxes = std::make_unique<viewer::BoxLayer>(physics);
+    groundItems = std::make_unique<viewer::GroundItems>(physics, role == SceneRole::Replica);
+    for (std::size_t i = 0; i < groundModels.size(); ++i)
+        groundModels[i] = viewer::loadModel(weaponModelDirectory() / (std::string(viewer::weaponIds[i]) + ".glb"));
+    groundItems->setModels(groundModels);
     grenades = std::make_unique<viewer::Grenades>(physics);
 
     vehicles = std::make_unique<viewer::VehicleLayer>(physics, viewer::loadVehicleConfigs(resourceRoot() / "vehicles"));

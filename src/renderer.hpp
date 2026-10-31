@@ -30,6 +30,7 @@
 #include "blood_mist.hpp"
 #include "grenades.hpp"
 #include "dropped_weapons.hpp"
+#include "ground_items.hpp"
 #include "atmosphere.hpp"
 #include "night_lighting.hpp"
 #include "day_night.hpp"
@@ -105,6 +106,7 @@ public:
     void updateDoodads(const DoodadLayer& doodads);
     std::size_t doodadVisibleCount() const { return doodadVisibleCount_; }
     // Shared model resources; the physics layer must outlive rendering.
+    void setGroundItems(const GroundItems& items, const std::array<Model,weaponIds.size()>& models);
     void setDroppedWeapons(const DroppedWeapons& weapons, const std::array<Model,weaponIds.size()>& models);
     void loadGrenadeModel(const std::filesystem::path& path);
     void updateGrenades(const std::vector<GrenadePose>& poses) { grenadePoses_ = poses; }
@@ -559,7 +561,8 @@ private:
         std::vector<DrawInstance> draws;
         GLuint instances = 0;
     };
-    std::array<DroppedModelGPU,weaponIds.size()> droppedModels_;
+    std::array<DroppedModelGPU,weaponIds.size()+1> droppedModels_;
+    const GroundItems* groundSource_ = nullptr;
     const DroppedWeapons* droppedSource_ = nullptr;
     bool rainEnabled_ = false;
 };

@@ -15,6 +15,7 @@ void require(bool condition, const char* message) { if (!condition) throw std::r
 
 namespace multiplayer {
 const std::filesystem::path& resourceRoot() { return resources; }
+std::filesystem::path weaponModelDirectory() { return VIEWER_WEAPON_ASSETS; }
 Network::Network(float, float) {}
 Network::~Network() = default;
 HSteamNetConnection Network::connect(const std::string&) { return connection; }

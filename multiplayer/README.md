@@ -454,12 +454,12 @@ and data URIs are supported. Zombie assets may have at most 128 skeleton nodes
 (including non-joint scene nodes); incompatible rigs fail before hosting.
 Weapon definitions and starting inventory are loaded once per scene and copied
 for each joining player, so changing files cannot change a running session.
-The current wire protocol is version 20; rebuild both client and server together.
+The current wire protocol is version 29; rebuild both client and server together.
 Player health starts at 100 and is authoritative, including fractional damage
 from collision-limited zombie lunges. Clients show health and a brief damage
 pulse without simulating attacks. Stamina and weariness are stored but inactive.
 Ammo quantities, reload progress and inventory placements are authoritative.
-Sequenced inventory drag operations run through the server's storage rules and
+Sequenced inventory move operations run through the server's storage rules and
 timers. Clients reconcile completed moves after acknowledgement, so moving an
 ammo stack changes its reload access time. Empty stacks remain in storage.
 Snapshots include persistent head/torso wound masks and authoritative loose
@@ -488,7 +488,12 @@ Scene options:
 F1 opens Inventory, F2 Skills, F3 Health (empty) and F4 the full Sentinel map
 without road overlays. Press the active
 key again or Escape to close it. These screens block gameplay inputs while
-visible. Inventory supports timed moves, rotation, swaps and ammo stack merging.
+visible. Click an item once to pick it up and again to place it; hover to inspect
+its details. Inventory supports timed moves, rotation, swaps and ammo stack merging.
+The lower right ground grid scrolls through equippable items within two metres.
+Placing an item there drops it physically; clicking a ground item and then free
+compatible inventory cells acquires it. The server validates reach and ownership,
+and weapon magazines and ammo quantities survive transfers.
 See the shared [HUD layouts](../docs/VIEWER.md#hud).
 
 Client controls: WASD, mouse look, Shift run, Space jump, Ctrl crouch, C prone,

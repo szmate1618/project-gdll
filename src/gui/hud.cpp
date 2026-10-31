@@ -92,6 +92,9 @@ struct Hud::Impl {
     Rml::ElementDocument* document = nullptr;
     std::array<Rml::ElementDocument*, 4> screens{};
     PlayerInventory& inventory;
+    GroundItems* ground = nullptr;
+    Weapons* weapons = nullptr;
+    const CollisionWorld* collision = nullptr;
     std::unique_ptr<InventoryInteraction> inventoryInteraction;
     std::unique_ptr<MapViewUi> mapView;
     std::optional<MinimapSource> mapSource;
@@ -210,8 +213,10 @@ struct Hud::Impl {
                 if (selected == HudScreen::Inventory || selected == HudScreen::Skills) {
                     populateActionHotbar(*page, inventory);
                 }
-                if (selected == HudScreen::Inventory)
+                if (selected == HudScreen::Inventory) {
                     inventoryInteraction = std::make_unique<InventoryInteraction>(*page, inventory);
+                    if (ground) inventoryInteraction->setGround(*ground, *weapons, *collision);
+                }
                 if (selected == HudScreen::Skills)
                     populateMeleeSkills(*page, loadMeleeSkills(sourceDirectory.parent_path()));
                 if (selected == HudScreen::Map) {
@@ -223,6 +228,7 @@ struct Hud::Impl {
             return page;
         };
         auto* nextDocument = screenDocument(next);
+        if (next == HudScreen::Inventory || next == HudScreen::Skills) populateActionHotbar(*nextDocument, inventory);
         navigation->cancel();
         if (screen == HudScreen::Inventory) {
             inventoryInteraction->cancel();
@@ -250,7 +256,7 @@ struct Hud::Impl {
             renderer.render(*context, width, height, [&] {
                 const auto events = navigation->process(*screens.at(static_cast<std::size_t>(screen) - 1), screen,
                     pointerEvents, width, height, presentation);
-                if (screen == HudScreen::Inventory) inventoryInteraction->process(events, width, height, presentation, state.seconds);
+                if (screen == HudScreen::Inventory) inventoryInteraction->process(events, width, height, presentation, state.seconds, state.feet, state.forward);
                 else if (screen == HudScreen::Map) mapView->process(events, width, height, presentation, state);
             });
             pointerEvents.clear();
@@ -373,6 +379,8 @@ bool Hud::inventoryDragging() const {
 }
 void Hud::refreshInventoryLayout() {
     if (impl_->inventoryInteraction) impl_->inventoryInteraction->refreshLayout();
+    for (auto* page : impl_->screens)
+        if (page && page->GetElementById("hotbar-slots")) populateActionHotbar(*page, impl_->inventory);
 }
 void Hud::setMinimap(const MinimapSource& source, unsigned int texture) {
     impl_->renderer.setMinimap(source, texture);
@@ -383,4 +391,8 @@ void Hud::setMinimap(const MinimapSource& source, unsigned int texture) {
     impl_->setText("map-caption", texture ? "" : "NO MAP");
 }
 void Hud::setMinimapRoads(const Model& model) { impl_->renderer.setMinimapRoads(model); }
+void Hud::setGroundItems(GroundItems& ground, Weapons& weapons, const CollisionWorld& collision) {
+    impl_->ground = &ground; impl_->weapons = &weapons; impl_->collision = &collision;
+    if (impl_->inventoryInteraction) impl_->inventoryInteraction->setGround(ground, weapons, collision);
+}
 } // namespace viewer

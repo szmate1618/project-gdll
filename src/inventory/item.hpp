@@ -24,8 +24,12 @@ public:
     const WeaponConfig& gameplay() const { return gameplay_; }
     const std::vector<std::string>& tags() const { return tags_; }
     bool hasTag(std::string_view tag) const;
+    // Fingerprinted starting-instance ID used to reconstruct transferred stacks.
+    const std::string& prototype() const { return prototype_; }
+    Item renamed(const std::string& id) const;
 private:
     std::string id_;
+    std::string prototype_;
     ItemInventoryConfig inventory_;
     WeaponConfig gameplay_;
     std::vector<std::string> tags_;

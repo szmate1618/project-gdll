@@ -112,18 +112,30 @@ WeaponFireResult Weapons::fireAttempt(double seconds, const std::function<bool()
     emptyClicked_ = false;
     return WeaponFireResult::fired;
 }
+void Weapons::synchronizeOwnership(const PlayerInventory& inventory, std::size_t equipped, int loaded) {
+    for (std::size_t i = 0; i < weaponIds.size(); ++i) {
+        weapons_[i].owned = inventory.owns(weaponIds[i]);
+        if (i == equipped) weapons_[i].loaded = std::clamp(loaded, 0, weapons_[i].config.magazineCapacity);
+    }
+    if (equipped < weapons_.size()) slot_ = equipped;
+    syncAmmo(inventory);
+}
 void Weapons::syncAmmo(const PlayerInventory& inventory) {
     for (std::size_t i = 0; i < ids.size(); ++i)
         weapons_[i].reserve = inventory.ammoCount(weapons_[i].config.ammoType);
 }
 std::optional<WeaponItem> Weapons::discard() {
-    auto& weapon = weapons_[slot_];
-    if (reloading_ || !weapon.owned || slot_ == punchSlot) return {};
-    const WeaponItem item{slot_,weapon.loaded,weapon.readyAt};
+    return discard(slot_);
+}
+std::optional<WeaponItem> Weapons::discard(std::size_t slot) {
+    if (slot >= weaponIds.size()) return {};
+    auto& weapon = weapons_[slot];
+    if (reloading_ || !weapon.owned) return {};
+    const WeaponItem item{slot,weapon.loaded,weapon.readyAt};
     weapon.owned = false;
     weapon.loaded = 0;
     cancelTrigger();
-    for (std::size_t offset=1; offset<weapons_.size(); ++offset) {
+    for (std::size_t offset=1; slot_ == slot && offset<weapons_.size(); ++offset) {
         const auto next = (item.slot+offset)%weapons_.size();
         if (weapons_[next].owned) { slot_ = next; break; }
     }

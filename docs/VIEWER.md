@@ -191,15 +191,14 @@ restart to reload changes. The GUI borrows that model. See
 Root `inventory.toml` places the 2×1 pistol in the holster, the grenade in the
 chest pouch, and the other three weapons in the backpack. Occupied N×M footprints
 are drawn as tinted rectangles on the grids. References, bounds and overlap
-are validated against the equipped storage. Picking up an item shows its details.
+are validated against the equipped storage. Hovering over an item shows its details.
 Compartment `allowed_tags` restrict the hip holster to `handgun` items and both
 shoulder slings to `long_gun` items; other starter compartments accept any tag.
 Storage placements determine weapon-switch access times; ammo remains separate.
 
-Inventory releases the cursor. Click an item to select its details without
-moving it or paying access time. Hold the left mouse button and move at least
-4 design pixels to pick up and drag an item; release to place it. Turning the
-wheel while holding the mouse button also begins the drag.
+Inventory releases the cursor. Click an item once to pick it up; it follows the
+pointer after releasing the mouse button. Click again to place it. Details follow
+the item under the pointer, without requiring a click.
 Each mouse-wheel notch rotates the held item 90°;
 the opposite direction reverses rotation. Green previews indicate free space,
 yellow indicates a swap, and red indicates a rejected placement. A drop must fit
@@ -210,7 +209,7 @@ pickup compartment, cell and rotation is free if no other item is displaced.
 A pending item stays at the destination with a progress bar, and other inventory
 moves/rotation wait until completion. The world and game/session time keep running.
 At completion, swapping immediately holds the displaced item; its next placement
-charges its source and destination costs. Click and release to place it next.
+charges its source and destination costs. Click again to place it next.
 Right-click, leaving Inventory, or losing window focus cancels the entire
 unfinished swap chain, restoring all placements to before the first pickup.
 A completed free-space placement finishes the chain. Cancellation requires no
@@ -235,8 +234,18 @@ Group headings, step numbers and hover fills stay neutral, with coral reserved
 for navigation highlights. Skills-specific layout and colors live in
 [skills.rcss](../ui/skills.rcss). Combo editing, saving and execution remain
 layout placeholders; they do not change melee combat.
-Inventory and Skills share the same details title, icon tile and field spacing,
-and their main panels use the same outer sizing convention.
+Inventory uses the upper half of the right column for compact item details.
+The lower half is a scrollable ground grid showing equippable items within two
+metres of the player's feet (distance to each item's collider). Click a carried
+item, then the ground grid, to drop it physically. Weapons use their actual
+models; ammo stacks use small olive boxes. Dropping commits the placement chain
+and removes the item from usable equipment/ammo. Click a ground item, then a
+free, compatible inventory footprint, to acquire it. Ground transfers are
+immediate; moves between carried compartments retain their access timers.
+Right-click or leaving the screen before placing a ground item leaves it in the
+world. Multiplayer checks reach and ownership on the server; another player's
+pickup can invalidate an item shown locally. Grabbable scenery props are separate
+from equippable items and do not appear in this grid.
 [skills.toml](../skills.toml) registers the available melee actions in `[melee]`:
 `punch = "Punch"` uses the empty definition
 [skills/melee/punch.skill.toml](../skills/melee/punch.skill.toml). To list another
@@ -1905,8 +1914,8 @@ The delay is sampled on confirmation and advances with
 simulation time. Combat, reload and discard/pickup wait until completion, and
 confirmation/held clicks do not fire on completion. Scope resets on completion.
 Storage locations remain reserved while a weapon is equipped. Multiplayer
-calculates and publishes the delay on the server using its startup storage
-layout; client-only storage moves are still not replicated.
+calculates and publishes the delay on the server using each player's current
+authoritative storage layout.
 
  Left click applies a 12 N·s impulse to alternating fists,
 with a 0.5 s cooldown after an arm accepts the strike. Rejected punches consume
@@ -2253,8 +2262,9 @@ Reserve ammunition stays with the player throughout. Already-owned weapon types
 are left in the world. Dropping selects the next owned weapon; dropping the last
 one leaves the player unarmed, without firing, reloading, or a held model.
 These actions work in either control mode while the mouse is captured.
-The flashlight toggle is **L**. Multiplayer drop/pickup input and replication
-are not included in this standalone feature.
+The flashlight toggle is **L**. The F/G shortcuts are standalone controls; both
+the viewer and multiplayer client also support dropping and acquiring items
+through the Inventory ground grid. Pickup needs a free compatible footprint.
 
 ## First-person walking
 

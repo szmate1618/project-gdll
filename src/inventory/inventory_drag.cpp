@@ -127,4 +127,17 @@ void InventoryDrag::cancel() {
     inventory_.held_.reset();
     inventory_.rebuild();
 }
+bool InventoryDrag::release() {
+    if (!inventory_.held_ || pending_) return false;
+    const auto id = inventory_.held_->item;
+    inventory_.contents_.owned.erase(id);
+    inventory_.contents_.quantities.erase(id);
+    for (auto& shortcut : inventory_.contents_.hotbar) if (shortcut == id) shortcut.clear();
+    inventory_.held_.reset();
+    originalPlacements_.reset();
+    sourceAccess_ = {};
+    sourcePlacement_ = {};
+    inventory_.rebuild();
+    return true;
+}
 } // namespace viewer

@@ -6,7 +6,7 @@
 
 namespace viewer {
 PlayerInventory::PlayerInventory(StorageLoadout storage, InventoryContents contents)
-    : storage_(std::move(storage)), contents_(std::move(contents)), layout_(buildInventoryLayout(storage_, contents_)) {
+    : storage_(std::move(storage)), contents_(std::move(contents)), layout_(buildInventoryLayout(storage_, contents_)), configuredHotbar_(contents_.hotbar) {
     for (const auto& [id, item] : items()) {
         const auto count = contents_.quantities.find(id);
         if (item.inventory().stackable && (count == contents_.quantities.end() || count->second < 0 ||
@@ -66,6 +66,25 @@ bool PlayerInventory::synchronizePlacements(const std::map<std::string, ItemPlac
     contents_.placements = std::move(candidate.placements);
     layout_ = std::move(layout);
     return true;
+}
+bool PlayerInventory::synchronizeContents(InventoryContents contents) {
+    if (held_) return false;
+    try {
+        PlayerInventory candidate(storage_, std::move(contents));
+        contents_ = std::move(candidate.contents_);
+        layout_ = std::move(candidate.layout_);
+        return true;
+    } catch (const std::exception&) { return false; }
+}
+bool PlayerInventory::insert(const Item& item, int quantity, const ItemPlacement& placement) {
+    if (held_ || owns(item.id())) return false;
+    auto candidate = contents_;
+    candidate.owned.emplace(item.id(), item);
+    candidate.placements.emplace(item.id(), placement);
+    for (std::size_t i = 0; i < candidate.hotbar.size(); ++i)
+        if (candidate.hotbar[i].empty() && configuredHotbar_[i] == item.id()) candidate.hotbar[i] = item.id();
+    if (item.inventory().stackable) candidate.quantities.emplace(item.id(), quantity);
+    return synchronizeContents(std::move(candidate));
 }
 bool PlayerInventory::hasTag(std::string_view tag) const {
     return std::any_of(items().begin(), items().end(), [&](const auto& entry) { return entry.second.hasTag(tag); });

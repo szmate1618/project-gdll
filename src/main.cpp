@@ -461,7 +461,7 @@ struct AppState {
     double lastDamageSeconds = -1;
     viewer::DoorLayer* doors = nullptr;
     viewer::BoxLayer* boxes = nullptr;
-    viewer::DroppedWeapons* droppedWeapons = nullptr;
+    viewer::GroundItems* groundItems = nullptr;
     viewer::PhysicsScene* physicsScene = nullptr;
     viewer::VehicleLayer* cars = nullptr;
     viewer::VehiclePlayer driver;
@@ -554,15 +554,15 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         if (app.driver.toggleThirdPerson(*app.cars,app.rig.camera(),app.world))
             std::cout << (app.driver.thirdPerson()?"Driving camera: third person\n":"Driving camera: first person\n");
     } else if (key == GLFW_KEY_F12) captureMouse(window, !app.capture);
-    else if (key == GLFW_KEY_F && app.capture && app.droppedWeapons) {
+    else if (key == GLFW_KEY_F && app.capture && app.groundItems) {
         if (app.weaponSwitch.pending() || app.weaponReload.pending()) return;
-        if (app.droppedWeapons->discard(app.weapons,app.rig.camera(),app.world,app.playerVelocity)) {
+        if (app.groundItems->discard(app.weapons,app.inventory,app.rig.camera(),app.world,app.playerVelocity)) {
             while (app.rig.camera().viewMode()!=viewer::Camera::ViewMode::original) app.rig.camera().cycleViewMode();
             std::cout << "Discarded weapon | " << app.weapons.status() << '\n';
         }
-    } else if (key == GLFW_KEY_G && app.capture && app.droppedWeapons) {
+    } else if (key == GLFW_KEY_G && app.capture && app.groundItems) {
         if (app.weaponSwitch.pending() || app.weaponReload.pending()) return;
-        if (app.droppedWeapons->pickUp(app.weapons,app.rig.camera(),app.world)) {
+        if (app.groundItems->pickUp(app.weapons,app.inventory,app.rig.camera(),app.world)) {
             while (app.rig.camera().viewMode()!=viewer::Camera::ViewMode::original) app.rig.camera().cycleViewMode();
             std::cout << "Picked up weapon | " << app.weapons.status() << '\n';
         }
@@ -815,19 +815,19 @@ void inputSelfTest(GLFWwindow* window) {
     key(window, GLFW_KEY_L, 0, GLFW_RELEASE, 0);
     if (app.flashlight != originalFlashlight)
         throw std::runtime_error("A second L press must restore the flashlight");
-    if (app.droppedWeapons) {
-        const auto before = app.droppedWeapons->count();
+    if (app.groundItems) {
+        const auto before = app.groundItems->count();
         const auto middle = (app.boundsMin+app.boundsMax)*.5f;
         app.rig.camera().setPosition({middle.x,app.boundsMax.y+5,middle.z});
         app.rig.camera().setOrientation(-90,0);
         key(window,GLFW_KEY_F,0,GLFW_PRESS,0);
         key(window,GLFW_KEY_F,0,GLFW_REPEAT,0);
         key(window,GLFW_KEY_F,0,GLFW_RELEASE,0);
-        if (app.droppedWeapons->count()!=before+1 || app.weapons.equip(originalWeapons.slot()))
+        if (app.groundItems->count()!=before+1 || app.weapons.equip(originalWeapons.slot()))
             throw std::runtime_error("F must discard one weapon and remove its inventory ownership");
         key(window,GLFW_KEY_G,0,GLFW_PRESS,0);
         key(window,GLFW_KEY_G,0,GLFW_RELEASE,0);
-        if (app.droppedWeapons->count()!=before || app.weapons.slot()!=originalWeapons.slot() ||
+        if (app.groundItems->count()!=before || app.weapons.slot()!=originalWeapons.slot() ||
             app.weapons.equipped().loaded!=originalWeapons.equipped().loaded || app.flashlight!=originalFlashlight)
             throw std::runtime_error("G must recover the weapon and ammunition without toggling the flashlight");
         app.rig.camera() = original;
@@ -1482,8 +1482,9 @@ int run(const Options& options) {
     std::array<viewer::Model,viewer::weaponIds.size()> droppedModels;
     for (std::size_t i=0; i<droppedModels.size(); ++i)
         droppedModels[i] = viewer::loadModel(std::filesystem::path(VIEWER_WEAPON_ASSETS)/(std::string(viewer::weaponIds[i])+".glb"));
-    viewer::DroppedWeapons droppedWeapons(physics,droppedModels);
-    app.droppedWeapons = &droppedWeapons;
+    viewer::GroundItems groundItems(physics);
+    groundItems.setModels(droppedModels);
+    app.groundItems = &groundItems;
     viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr,
                               zombies ? &*zombies : nullptr, forests ? &*forests : nullptr);
     if (zombies) zombies->releaseAnimationVertices();
@@ -1491,12 +1492,13 @@ int run(const Options& options) {
         doodads->update(app.rig.camera().position(),physicsScene,doors);
         renderer.setDoodads(*doodads,doodadModels);
     }
-    renderer.setDroppedWeapons(droppedWeapons,droppedModels);
+    renderer.setGroundItems(groundItems,droppedModels);
     renderer.setVehicleAssets(std::filesystem::path(VIEWER_VEHICLES).parent_path() / "assets/vehicles/models");
     renderer.setVehicleDistanceDetail(options.vehicleDistanceDetail);
     renderer.setVehicleInstancing(options.vehicleInstancing);
     viewer::ReticleOverlay reticle(options.shaders);
     viewer::Hud hud(VIEWER_HUD_DIR, app.inventory);
+    hud.setGroundItems(groundItems, app.weapons, app.world);
     app.hud = &hud;
     if (const auto minimap = viewer::findMinimapSource(model)) {
         hud.setMinimap(*minimap, renderer.sceneTexture(minimap->texture));
@@ -1638,7 +1640,7 @@ int run(const Options& options) {
                 for (const auto id : zombies->ragdollIds())
                     doors.activateNear(glm::vec3(zombies->instances[id].transform[3]));
             physicsScene.prepare(boxes);
-            droppedWeapons.prepare(physicsScene, doors);
+            groundItems.prepare(physicsScene, &doors);
             grenades.prepare(physicsScene, doors);
 
             const double behaviorStart = glfwGetTime();
@@ -1700,7 +1702,7 @@ int run(const Options& options) {
             melee.finish(playerBody, zombies ? &*zombies : nullptr,
                          app.displayedAnimationSeconds);
             boxes.retireBelow(model.boundsMin.y - 10.f);
-            droppedWeapons.removeBelow(model.boundsMin.y - 10.f);
+            groundItems.removeBelow(model.boundsMin.y - 10.f);
             playerBody.afterStep();
             bodyRenderer.captureBody(playerBody, step);
             if (zombies) {
@@ -1813,6 +1815,8 @@ int run(const Options& options) {
         hudState.health = app.vitals.health();
         hudState.lastDamageSeconds = app.lastDamageSeconds;
         hudState.screen = app.hudScreen;
+        hudState.feet = app.driver.occupied() ? app.driver.eyePosition(cars) - glm::vec3(0, 1.65f, 0) : app.rig.walking() ? app.rig.player().feet() : app.rig.camera().position() - glm::vec3(0, 1.65f, 0);
+        hudState.forward = app.rig.camera().direction();
         hudState.position = app.driver.occupied() ? app.driver.eyePosition(cars) : app.rig.camera().position();
         hudState.yawDegrees = app.rig.camera().yawDegrees();
         hudState.movement = app.driver.occupied() ? (app.driver.driving() ? "DRIVING" : "PASSENGER") :

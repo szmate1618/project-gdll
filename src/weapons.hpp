@@ -49,9 +49,11 @@ public:
     // runs only for an eligible trigger and must not change this Weapons object.
     // A rejected semi-automatic press is consumed, not queued.
     WeaponFireResult fireAttempt(double seconds, const std::function<bool()>& accept = {});
+    void synchronizeOwnership(const PlayerInventory& inventory, std::size_t equipped, int loaded);
     void syncAmmo(const PlayerInventory& inventory);
     bool reloading() const { return reloading_; }
     std::optional<WeaponItem> discard();
+    std::optional<WeaponItem> discard(std::size_t slot);
     bool pickUp(const WeaponItem& item); // Reject an already-owned weapon type.
     std::string status() const;
 private:

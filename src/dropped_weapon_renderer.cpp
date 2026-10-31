@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace viewer {
 void Renderer::setDroppedWeapons(const DroppedWeapons& weapons, const std::array<Model,weaponIds.size()>& models) {
@@ -12,12 +13,36 @@ void Renderer::setDroppedWeapons(const DroppedWeapons& weapons, const std::array
     }
     droppedSource_ = &weapons;
 }
+void Renderer::setGroundItems(const GroundItems& items, const std::array<Model,weaponIds.size()>& models) {
+    for (std::size_t i = 0; i < droppedModels_.size(); ++i) {
+        auto& gpu = droppedModels_[i];
+        if (!gpu.model.meshes.empty()) continue;
+        auto model = i < models.size() ? models[i] : BoxLayer::unitCube();
+        if (i == models.size()) {
+            model.materials[0].baseColor = {.28f,.36f,.19f,1};
+            model.draws.push_back(DrawInstance{});
+        }
+        uploadModel(model, gpu.model);
+        gpu.draws = model.draws;
+        setupInstanceMatrices(gpu.model, gpu.instances);
+    }
+    groundSource_ = &items;
+}
 void Renderer::drawDroppedWeapons(const glm::mat4& projectionView) {
-    if (!droppedSource_ || !droppedSource_->count()) return;
+    if ((!droppedSource_ || !droppedSource_->count()) && (!groundSource_ || !groundSource_->count())) return;
     const Frustum frustum(projectionView);
-    std::array<std::vector<glm::mat4>,weaponIds.size()> visible;
-    for (const auto& pose : droppedSource_->poses())
+    std::array<std::vector<glm::mat4>,weaponIds.size()+1> visible;
+    if (droppedSource_) for (const auto& pose : droppedSource_->poses())
         if (frustum.intersects(pose.minimum,pose.maximum)) visible[pose.slot].push_back(pose.transform);
+    if (groundSource_) for (const auto& pose : groundSource_->poses()) {
+        const auto half = glm::vec3(glm::length(pose.body.halfExtents));
+        if (!frustum.intersects(pose.body.center - half, pose.body.center + half)) continue;
+        const auto slot = pose.entry.weapon ? pose.entry.weapon->slot : weaponIds.size();
+        const auto transform = pose.entry.weapon ?
+            glm::translate(glm::mat4(1), pose.body.center) * glm::mat4_cast(pose.body.rotation) *
+                glm::translate(glm::mat4(1), -groundSource_->centers()[slot]) : pose.body.transform();
+        visible[slot].push_back(transform);
+    }
     glUniform1i(instancedLocation_,GL_TRUE);
     glUniform1i(animatedLocation_,GL_FALSE);
     glUniform1i(treeCanopyLocation_,GL_FALSE);
