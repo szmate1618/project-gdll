@@ -96,24 +96,24 @@ void key(GLFWwindow* window, int code, int, int action, int) {
     }
     if (in.hudScreen != viewer::HudScreen::Gameplay) return;
     if (code == GLFW_KEY_ESCAPE && in.wheelOpen) { in.cancelSignal(); return; }
-    if (in.wheelOpen && code != GLFW_KEY_F12 && code != GLFW_KEY_LEFT_ALT) return;
+    if (in.wheelOpen && code != GLFW_KEY_F12) return;
     if (code == GLFW_KEY_ESCAPE && in.actionSelection.open()) { in.actionSelection.close(); return; }
     if (code == GLFW_KEY_ESCAPE) in.leave = true;
     if (code == GLFW_KEY_ENTER && in.capture) in.enterVehicle = true;
     if ((code == GLFW_KEY_LEFT_ALT || code == GLFW_KEY_RIGHT_ALT) && in.driver.driving()) in.toggleDrivingCamera = true;
     if (in.driver.occupied() && code != GLFW_KEY_F12) return;
     if (code == GLFW_KEY_TAB) { in.interaction = !in.interaction; in.actionSelection.close(); }
-    if (code == GLFW_KEY_Z) in.prone = true;
+    if (code == GLFW_KEY_C) in.prone = true;
     if (code == GLFW_KEY_R && !in.weaponSwitching && !in.weaponReloading && !in.actionSelection.open()) {
         in.reload = true;
         in.suppressLeftUntilRelease |= in.leftHeld;
     }
-    if (code == GLFW_KEY_F) in.flashlight = !in.flashlight;
+    if (code == GLFW_KEY_L) in.flashlight = !in.flashlight;
     if (code == GLFW_KEY_GRAVE_ACCENT || (code >= GLFW_KEY_1 && code <= GLFW_KEY_9)) {
         in.actionSelection.highlight(code == GLFW_KEY_GRAVE_ACCENT ? 0 : code - GLFW_KEY_1 + 1);
         in.leftPressed = false;
     }
-    if (code == GLFW_KEY_LEFT_ALT || code == GLFW_KEY_F12) {
+    if (code == GLFW_KEY_F12) {
         in.cancelSignal();
         in.capture = !in.capture; in.firstMouse = true; in.drag = {};
         in.actionSelection.close();
@@ -194,7 +194,7 @@ void scroll(GLFWwindow* window, double, double y) {
         in.hud->mouseWheel(static_cast<float>(y));
     }
     if (in.hudScreen == viewer::HudScreen::Gameplay && in.capture && !in.driver.occupied() && !in.interaction && std::isfinite(y) && y != 0) {
-        in.actionSelection.cycle(y < 0 ? 1 : -1, in.actions, in.equippedSlot);
+        in.actionSelection.cycle(y > 0 ? 1 : -1, in.actions, in.equippedSlot);
         in.leftPressed = false;
     }
 }

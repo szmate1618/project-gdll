@@ -1753,10 +1753,10 @@ build directory when run by CTest.
 | 1–9 | Preview the corresponding configured hotbar slot; left click confirms |
 | Key left of 1 (Hungarian 0 / US backtick) | Preview hotbar slot 0; number-row 0 at the right is unbound |
 | R | Reload equipped weapon from its matching reserve ammo |
-| G | Discard the equipped weapon with a fast forward throw and vertical-axis spin |
-| F | Pick up the discarded weapon under the camera ray within 2 m |
+| F | Discard the equipped weapon with a fast forward throw and vertical-axis spin |
+| G | Pick up the discarded weapon under the camera ray within 2 m |
 | Shift | Free-fly: move four times faster; standing: run at 6 m/s |
-| Mouse wheel | Combat: cycle assigned hotbar actions; Interaction in free-fly: adjust movement speed |
+| Mouse wheel | Combat: scroll up for the next assigned hotbar action, down for the previous; Interaction in free-fly: adjust movement speed |
 | F1 | Open / close the Inventory visual prototype |
 | F2 | Open / close the Skills visual prototype |
 | F8 | Switch to free-fly mode |
@@ -1764,12 +1764,12 @@ build directory when run by CTest.
 | Space | Jump while grounded in walking mode; get up first when prone; driving: wheel brake |
 | Enter | Enter a nearby stopped car from walking mode; exit beside it when stopped and clear |
 | Ctrl (hold) | Crouch on the ground; tuck legs in the air without lowering the camera |
-| Physical key left of X: Z (QWERTY), Y (QWERTZ) | Toggle prone in walking mode; an airborne press waits for landing |
+| C | Toggle prone in walking mode; an airborne press waits for landing |
 | F3 | Open / close the empty Health screen |
 | F4 | Open / close the full Sentinel map |
 | F10 | Toggle collision visualization |
 | Tab | Switch between Combat (default) and Interaction controls |
-| Left Alt | Release / capture the mouse on foot; toggle first/third person while driving |
+| Alt | Toggle first/third person while driving |
 | F12 | Release / capture the mouse |
 | L | Toggle the flashlight on/off |
 | Home | Frame the whole scene again in free-fly mode |
@@ -2214,7 +2214,7 @@ read once at startup; gameplay changes live in memory and restart from the file.
 
 ### Discarding and picking up weapons
 
-In the standalone viewer, **G** discards the equipped weapon with a 12.5 m/s
+In the standalone viewer, **F** discards the equipped weapon with a 12.5 m/s
 forward launch, a small upward velocity, and a 14 rad/s spin about world Y.
 Actual player travel adds to the launch. The dropped item renders its weapon
 model and uses a box collider fitted to the model bounds, with continuous
@@ -2222,12 +2222,12 @@ collision detection and the same streamed terrain/building physics as crates.
 Strong linear and angular damping brakes grounded weapons. Holding a weapon
 disables this braking and skips its support-contact checks. Airborne weapons
 use their normal damping, so released weapons fall normally; braking resumes
-on ground contact. F still collects weapons within 2 m along the camera ray.
+on ground contact. G still collects weapons within 2 m along the camera ray.
 Doors and other physics props can also stop it. A blocked spawn leaves the
 weapon in the inventory. Discarding an HE grenade creates an unprimed
 equippable object.
 
-**F** casts the camera's forward ray against dropped weapon boxes within 2 m.
+**G** casts the camera's forward ray against dropped weapon boxes within 2 m.
 Scenery blocks pickup. A successful pickup destroys the physics object and
 equips its weapon, preserving loaded rounds and its existing shot cooldown.
 Reserve ammunition stays with the player throughout. Already-owned weapon types
@@ -2271,7 +2271,7 @@ and 1.5 m/s movement speed. Toggling prone uses a 0.60 m capsule, a 0.50 m eye
 height, and 0.75 m/s movement. Prone persists after releasing its key and takes
 priority over Ctrl. Shift does not accelerate crouching or crawling. Space
 requests getting up from prone; another press can jump. The prone key uses the
-physical US Z position (left of X), independent of the printed letter; the
+physical US C position, independent of the printed letter; the
 existing console help uses GLFW's layout-specific key name. Rebinding is not
 implemented.
 

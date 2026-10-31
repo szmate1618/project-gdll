@@ -299,8 +299,15 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
         case 27:
             require(!in.driver.driving() && !in.driver.thirdPerson(), "Confirmed exit must restore walking camera");
             key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_PRESS, 0);
-            require(!in.toggleDrivingCamera, "Alt must have no camera effect on foot");
-            key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_PRESS, 0); // Restore master's mouse capture toggle.
+            require(!in.toggleDrivingCamera && in.capture, "Alt must leave camera and mouse capture unchanged on foot");
+            key(window, GLFW_KEY_RIGHT_ALT, 0, GLFW_PRESS, 0);
+            require(in.capture, "Right Alt must leave mouse capture unchanged on foot");
+            key(window, GLFW_KEY_C, 0, GLFW_PRESS, 0);
+            key(window, GLFW_KEY_C, 0, GLFW_REPEAT, 0);
+            key(window, GLFW_KEY_C, 0, GLFW_RELEASE, 0);
+            require(command(in, window, false, 0).movement.toggleProne &&
+                    !command(in, window, false, 0).movement.toggleProne,
+                    "C must queue one prone toggle and ignore repeat/release");
             authoritative.vehicle = 0; authoritative.seat = 1;
             break;
         case 28: {
@@ -328,6 +335,19 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
         case 30: {
             require(!in.driver.occupied(), "Passenger exit did not restore walking controls");
             const auto oldSlot=in.slot;
+            key(window, GLFW_KEY_1, 0, GLFW_PRESS, 0);
+            scroll(window, 0, 1);
+            require(in.actionSelection.selected() == 2, "Scrolling up must preview the next action");
+            scroll(window, 0, -1);
+            require(in.actionSelection.selected() == 1 && in.slot == oldSlot,
+                    "Scrolling down must preview the previous action without equipping");
+            in.actionSelection.close();
+            const auto flashlight = in.flashlight;
+            key(window, GLFW_KEY_F, 0, GLFW_PRESS, 0);
+            require(in.flashlight == flashlight, "F must not toggle the flashlight");
+            key(window, GLFW_KEY_L, 0, GLFW_PRESS, 0);
+            require(in.flashlight != flashlight, "L must toggle the flashlight");
+            key(window, GLFW_KEY_L, 0, GLFW_PRESS, 0);
             key(window,GLFW_KEY_0,0,GLFW_PRESS,0);
             require(in.slot==oldSlot,"US number-row 0 unexpectedly equipped fists");
             key(window,GLFW_KEY_GRAVE_ACCENT,0,GLFW_PRESS,0);

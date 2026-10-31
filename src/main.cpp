@@ -356,8 +356,8 @@ void printHelp() {
               << "Release to drop; swing and release to throw. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
               << "Combat: key left of 1 (HU 0) fists, 1 pistol, 2 SMG, 3 shotgun, 4 sniper, 5 HE grenade; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
-              << "Left Alt cursor / driving camera, F12 cursor, wheel change speed, G discard weapon, F pick up weapon, L toggle flashlight, Home frame model, Escape quit\n\n"
-              << "F1 Inventory, F2 Skills, F3 Health, F4 Map, F8 free-fly, F9 FPS walking, F10 collision overlay; Space jump in FPS\n\n"
+              << "Alt driving camera, F12 cursor, wheel change speed, F throw weapon, G pick up weapon, L toggle flashlight, Home frame model, Escape quit\n\n"
+              << "F1 Inventory, F2 Skills, F3 Health, F4 Map, F8 free-fly, F9 FPS walking, F10 collision overlay; Space jump, C prone in FPS\n\n"
               << "  --fps               Start in walking mode\n"
               << "  --fullscreen        Fill the primary monitor at the selected render resolution\n"
               << "  --resolution WxH    960x540, 1280x720 (default) or 1920x1080\n"
@@ -553,14 +553,14 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     } else if ((key == GLFW_KEY_LEFT_ALT || key == GLFW_KEY_RIGHT_ALT) && app.driver.driving()) {
         if (app.driver.toggleThirdPerson(*app.cars,app.rig.camera(),app.world))
             std::cout << (app.driver.thirdPerson()?"Driving camera: third person\n":"Driving camera: first person\n");
-    } else if (key == GLFW_KEY_LEFT_ALT || key == GLFW_KEY_F12) captureMouse(window, !app.capture);
-    else if (key == GLFW_KEY_G && app.capture && app.droppedWeapons) {
+    } else if (key == GLFW_KEY_F12) captureMouse(window, !app.capture);
+    else if (key == GLFW_KEY_F && app.capture && app.droppedWeapons) {
         if (app.weaponSwitch.pending() || app.weaponReload.pending()) return;
         if (app.droppedWeapons->discard(app.weapons,app.rig.camera(),app.world,app.playerVelocity)) {
             while (app.rig.camera().viewMode()!=viewer::Camera::ViewMode::original) app.rig.camera().cycleViewMode();
             std::cout << "Discarded weapon | " << app.weapons.status() << '\n';
         }
-    } else if (key == GLFW_KEY_F && app.capture && app.droppedWeapons) {
+    } else if (key == GLFW_KEY_G && app.capture && app.droppedWeapons) {
         if (app.weaponSwitch.pending() || app.weaponReload.pending()) return;
         if (app.droppedWeapons->pickUp(app.weapons,app.rig.camera(),app.world)) {
             while (app.rig.camera().viewMode()!=viewer::Camera::ViewMode::original) app.rig.camera().cycleViewMode();
@@ -586,9 +586,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     } else if (key == GLFW_KEY_F10) {
         app.collisionDebug = !app.collisionDebug;
         std::cout << "Collision overlay: " << (app.collisionDebug ? "on" : "off") << '\n';
-    } else if (key == GLFW_KEY_Z && app.rig.walking()) {
-        // GLFW key tokens identify US-layout physical positions. This is the
-        // bottom-row key left of X, labelled Y on a QWERTZ keyboard.
+    } else if (key == GLFW_KEY_C && app.rig.walking()) {
         app.proneToggleQueued = !app.proneToggleQueued;
     }
 }
@@ -662,7 +660,7 @@ void scrollCallback(GLFWwindow* window, double, double y) {
     auto& app = state(window);
     if (app.capture && !app.driver.occupied() && app.interaction.mode() == viewer::ControlMode::Combat) {
         if (std::isfinite(y) && y != 0) {
-            app.actionSelection.cycle(y < 0 ? 1 : -1, viewer::actionShortcuts(app.inventory), app.weapons.slot());
+            app.actionSelection.cycle(y > 0 ? 1 : -1, viewer::actionShortcuts(app.inventory), app.weapons.slot());
             app.weapons.cancelTrigger();
         }
         return;
@@ -798,6 +796,14 @@ void inputSelfTest(GLFWwindow* window) {
                 while (app.rig.camera().viewMode() != viewer::Camera::ViewMode::original) app.rig.camera().cycleViewMode();
         }
     };
+    key(window, GLFW_KEY_1, 0, GLFW_PRESS, 0);
+    scrollCallback(window, 0, 1);
+    if (app.actionSelection.selected() != 2)
+        throw std::runtime_error("Scrolling up must preview the next hotbar action");
+    scrollCallback(window, 0, -1);
+    if (app.actionSelection.selected() != 1 || app.weapons.slot() != originalWeapons.slot())
+        throw std::runtime_error("Scrolling down must preview the previous action without equipping");
+    app.actionSelection.close();
     const bool originalFlashlight = app.flashlight;
     const auto viewBeforeFlashlight = app.rig.camera().view();
     key(window, GLFW_KEY_L, 0, GLFW_PRESS, 0);
@@ -814,16 +820,16 @@ void inputSelfTest(GLFWwindow* window) {
         const auto middle = (app.boundsMin+app.boundsMax)*.5f;
         app.rig.camera().setPosition({middle.x,app.boundsMax.y+5,middle.z});
         app.rig.camera().setOrientation(-90,0);
-        key(window,GLFW_KEY_G,0,GLFW_PRESS,0);
-        key(window,GLFW_KEY_G,0,GLFW_REPEAT,0);
-        key(window,GLFW_KEY_G,0,GLFW_RELEASE,0);
-        if (app.droppedWeapons->count()!=before+1 || app.weapons.equip(originalWeapons.slot()))
-            throw std::runtime_error("G must discard one weapon and remove its inventory ownership");
         key(window,GLFW_KEY_F,0,GLFW_PRESS,0);
+        key(window,GLFW_KEY_F,0,GLFW_REPEAT,0);
         key(window,GLFW_KEY_F,0,GLFW_RELEASE,0);
+        if (app.droppedWeapons->count()!=before+1 || app.weapons.equip(originalWeapons.slot()))
+            throw std::runtime_error("F must discard one weapon and remove its inventory ownership");
+        key(window,GLFW_KEY_G,0,GLFW_PRESS,0);
+        key(window,GLFW_KEY_G,0,GLFW_RELEASE,0);
         if (app.droppedWeapons->count()!=before || app.weapons.slot()!=originalWeapons.slot() ||
             app.weapons.equipped().loaded!=originalWeapons.equipped().loaded || app.flashlight!=originalFlashlight)
-            throw std::runtime_error("F must recover the weapon and ammunition without toggling the flashlight");
+            throw std::runtime_error("G must recover the weapon and ammunition without toggling the flashlight");
         app.rig.camera() = original;
     }
     const bool wasWalking = app.rig.walking();
@@ -993,18 +999,14 @@ void inputSelfTest(GLFWwindow* window) {
     if (app.interaction.mode() != viewer::ControlMode::Combat)
         throw std::runtime_error("Tab failed to restore combat mode");
     const auto cameraBeforeAlt = app.rig.camera();
-    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_PRESS, 0);
-    if (app.capture) throw std::runtime_error("Left Alt must release the cursor on foot");
-    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_REPEAT, 0);
-    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_RELEASE, 0);
-    key(window, GLFW_KEY_RIGHT_ALT, 0, GLFW_PRESS, 0);
-    key(window, GLFW_KEY_RIGHT_ALT, 0, GLFW_RELEASE, 0);
-    if (app.capture) throw std::runtime_error("Right Alt or repeat must not toggle the cursor on foot");
-    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_PRESS, 0);
-    key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_RELEASE, 0);
-    if (!app.capture || app.driver.thirdPerson() || app.rig.camera().position() != cameraBeforeAlt.position() ||
-        app.rig.camera().view() != cameraBeforeAlt.view())
-        throw std::runtime_error("Left Alt must recapture the cursor without moving the on-foot camera");
+    for (int code : {GLFW_KEY_LEFT_ALT, GLFW_KEY_RIGHT_ALT}) {
+        key(window, code, 0, GLFW_PRESS, 0);
+        key(window, code, 0, GLFW_REPEAT, 0);
+        key(window, code, 0, GLFW_RELEASE, 0);
+        if (!app.capture || app.driver.thirdPerson() || app.rig.camera().position() != cameraBeforeAlt.position() ||
+            app.rig.camera().view() != cameraBeforeAlt.view())
+            throw std::runtime_error("Alt must leave mouse capture and the on-foot camera unchanged");
+    }
     key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
     if (app.capture) throw std::runtime_error("Mouse release self-test failed");
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
@@ -1081,15 +1083,15 @@ void fpsInputSelfTest(GLFWwindow* window) {
     moveCamera(app, 1.0f / 120.0f);
     if (app.rig.player().stance() != viewer::PlayerStance::Standing)
         throw std::runtime_error("Releasing Ctrl failed to stand");
-    key(window, GLFW_KEY_Z, 0, GLFW_PRESS, 0);
-    key(window, GLFW_KEY_Z, 0, GLFW_REPEAT, 0);
-    key(window, GLFW_KEY_Z, 0, GLFW_RELEASE, 0);
+    key(window, GLFW_KEY_C, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_C, 0, GLFW_REPEAT, 0);
+    key(window, GLFW_KEY_C, 0, GLFW_RELEASE, 0);
     moveCamera(app, 1.0f / 120.0f);
     moveCamera(app, 1.0f / 120.0f);
     if (app.rig.player().stance() != viewer::PlayerStance::Prone)
         throw std::runtime_error("A short prone press must toggle once, ignore repeats and persist after release");
-    key(window, GLFW_KEY_Z, 0, GLFW_PRESS, 0);
-    key(window, GLFW_KEY_Z, 0, GLFW_RELEASE, 0);
+    key(window, GLFW_KEY_C, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_C, 0, GLFW_RELEASE, 0);
     moveCamera(app, 1.0f / 120.0f);
     if (app.rig.player().stance() != viewer::PlayerStance::Standing)
         throw std::runtime_error("A second prone press failed to stand");
@@ -1472,11 +1474,11 @@ int run(const Options& options) {
     glfwSetWindowFocusCallback(window.get(), focusCallback);
     captureMouse(window.get(), true);
     if (!options.hidden && glfwRawMouseMotionSupported()) glfwSetInputMode(window.get(), GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
-    const char* proneKeyName = glfwGetKeyName(GLFW_KEY_Z, 0);
+    const char* proneKeyName = glfwGetKeyName(GLFW_KEY_C, 0);
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
               << " m/s; F1 Inventory, F2 Skills, F3 Health, F4 Map, F8 free-fly, F9 walk, F10 collisions, WASD move, Space jump, Ctrl hold crouch/airborne tuck, "
-              << (proneKeyName ? proneKeyName : "Z")
-              << " toggle prone, mouse look, Tab Combat/Interaction, G discard weapon, F pick up weapon, L flashlight, Home frame scene, Left Alt cursor / driving camera, F12 cursor, Escape quit\n";
+              << (proneKeyName ? proneKeyName : "C")
+              << " toggle prone, mouse look, Tab Combat/Interaction, F throw weapon, G pick up weapon, L flashlight, Home frame scene, Alt driving camera, F12 cursor, Escape quit\n";
     std::array<viewer::Model,viewer::weaponIds.size()> droppedModels;
     for (std::size_t i=0; i<droppedModels.size(); ++i)
         droppedModels[i] = viewer::loadModel(std::filesystem::path(VIEWER_WEAPON_ASSETS)/(std::string(viewer::weaponIds[i])+".glb"));

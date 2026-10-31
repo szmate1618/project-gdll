@@ -51,7 +51,6 @@ struct MenuView::Impl final : Rml::EventListener {
     MenuScreen screen = MenuScreen::Choose;
     MenuCommand command = MenuCommand::None;
     int selected = 0, width = 0, height = 0;
-    bool modern = false;
     glm::vec2 pointer{-1};
     bool left = false, right = false;
     struct Input {
@@ -94,8 +93,7 @@ struct MenuView::Impl final : Rml::EventListener {
         selected = row;
         for (int i = 0; i < int(actionIds.size()); ++i) element(actionIds[i]).SetClass("selected", i == row);
     }
-    void theme(bool next) {
-        modern = next;
+    void theme(bool modern) {
         document->SetClass("classic", !modern);
         document->SetClass("modern", modern);
         element("theme-classic").SetClass("active", !modern);
@@ -136,7 +134,6 @@ struct MenuView::Impl final : Rml::EventListener {
             if (pressed) editor->dialogKey(code, input.mods & GLFW_MOD_SHIFT);
             return;
         }
-        if (pressed && code == GLFW_KEY_F6) { if (input.action == GLFW_PRESS) theme(!modern); return; }
         if (screen == MenuScreen::Character && editor && input.action == GLFW_PRESS && (input.mods & GLFW_MOD_CONTROL)) {
             if (code == GLFW_KEY_S) { editor->save(); return; }
             if (code == GLFW_KEY_N) { editor->newCharacter(); return; }

@@ -49,8 +49,16 @@ int main(int argc, char** argv) {
             menu.key(code, GLFW_PRESS, mods); menu.key(code, GLFW_RELEASE, mods);
         };
         const auto type = [&](const char* text) { for (; *text; ++text) menu.character(*text); };
+        const auto theme = [&](bool modern) {
+            menu.pointer((modern ? 860.f : 775.f) / 960, 65.f / 600);
+            menu.button(0, true, 0); menu.button(0, false, 0);
+        };
         draw();
-        require(near(color(5, 5), {6, 10, 14}), "Classic must be the initial theme");
+        require(near(color(5, 5), {43, 45, 47}), "Modern must be the initial theme");
+        key(GLFW_KEY_F6); draw();
+        require(near(color(5, 5), {43, 45, 47}), "F6 must leave the theme unchanged");
+        theme(false); draw();
+        require(near(color(5, 5), {6, 10, 14}), "Clicking Classic must select the classic theme");
         // Original G at four pixels per cell. Validate the rendered font against
         // its visible pattern, independently of the font writer and JSON table.
         const std::array<const char*, 7> letter{".###.", "#...#", "#....", "#.###", "#...#", "#...#", ".####"};
@@ -65,11 +73,11 @@ int main(int argc, char** argv) {
         key(GLFW_KEY_A, GLFW_MOD_CONTROL); type("34567"); draw();
         require(menu.port() == "34567", "Port input must support select-all and typing");
         require(menu.takeCommand() == multiplayer::MenuCommand::None, "Typing digits must not activate a game mode");
-        key(GLFW_KEY_F6); draw();
-        require(near(color(5, 5), {43, 45, 47}), "F6 must select the modern theme");
+        theme(true); draw();
+        require(near(color(5, 5), {43, 45, 47}), "Clicking Modern must select the modern theme");
         require(menu.port() == "34567", "Theme change must preserve input values");
-        key(GLFW_KEY_HOME); key(GLFW_KEY_DELETE); draw();
-        require(menu.port() == "4567", "Theme change must preserve input focus and cursor editing");
+        key(GLFW_KEY_TAB); key(GLFW_KEY_HOME); key(GLFW_KEY_DELETE); draw();
+        require(menu.port() == "4567", "Tab must resume field editing after clicking a theme button");
         key(GLFW_KEY_TAB); key(GLFW_KEY_A, GLFW_MOD_CONTROL); type("127.0.0.1:12345");
         key(GLFW_KEY_ENTER); key(GLFW_KEY_3); draw();
         require(menu.address() == "127.0.0.1:12345", "Join input must preserve address punctuation");
@@ -129,12 +137,12 @@ int main(int argc, char** argv) {
         menu.pointer(145.f/960,177.f/600); draw(multiplayer::MenuScreen::Character);
         require(color(80,170)[0] > idleNew[0], "Character action buttons must brighten on hover");
         menu.pointer(950.f/960,590.f/600); draw(multiplayer::MenuScreen::Character);
-        capture("-empty-modern"); key(GLFW_KEY_F6); draw(multiplayer::MenuScreen::Character);
+        capture("-empty-modern"); theme(false); draw(multiplayer::MenuScreen::Character);
         click(145,480);
         require(!creation->hasCharacter() && near(color(450,410), {11,17,22}),
                 "Classic Retire must also be disabled without a selected character");
         menu.pointer(950.f/960,590.f/600); draw(multiplayer::MenuScreen::Character);
-        capture("-empty-classic"); key(GLFW_KEY_F6); draw(multiplayer::MenuScreen::Character);
+        capture("-empty-classic"); theme(true); draw(multiplayer::MenuScreen::Character);
         click(875,140); // Empty editor's far corner, outside the old preview and Create button.
         type("Mara"); key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Character);
         require(creation->hasCharacter() && creation->name() == "Mara", "New must open the existing editor with a name field");
@@ -173,7 +181,7 @@ int main(int argc, char** argv) {
             require(restored.selectedId() == mara && restored.faceIndex() == 19,
                     "Reopening must load the in-use character rather than the last inspected draft");
         }
-        capture("-modern"); key(GLFW_KEY_F6); capture("-classic"); key(GLFW_KEY_F6); draw(multiplayer::MenuScreen::Character);
+        capture("-modern"); theme(false); capture("-classic"); theme(true); draw(multiplayer::MenuScreen::Character);
         // Mara is the second alphabetical row. Paint, then switch toward Aron.
         click(145,322);
         require(creation->selectedId() == mara, "Roster selection must load the saved character");
@@ -209,7 +217,7 @@ int main(int argc, char** argv) {
         multiplayer::loadCharacterProfile(maraPath,saved,savedFace);
         require(savedFace == creation->faces()[19].id, "Reset must leave the existing save intact until Save is clicked");
         std::filesystem::remove_all(directory);
-        draw(); key(GLFW_KEY_F6); draw();
+        draw(); theme(false); draw();
         require(near(color(5, 5), {6, 10, 14}), "Classic must remain available after sessions and character preview");
         // A wider framebuffer moves the centered layout; hit testing must use
         // the same native framebuffer coordinates as rendering.

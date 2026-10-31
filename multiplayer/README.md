@@ -14,12 +14,12 @@ Windows rendering still needs validation on Windows hardware.
 ## Main menu styles
 
 The client main menu uses one RmlUi document with **Classic** and **Modern**
-styles. Classic is the default and retains the original blue/green colors,
-layout and 5×7 pixel lettering. Modern uses the inventory/map menus' charcoal
+styles. Classic retains the original blue/green colors, layout and 5×7 pixel
+lettering. Modern is the default and uses the inventory/map menus' charcoal
 surfaces and off-white text, with a thin coral selection accent. Click either
-style at the top right, or press **F6**, including in the character preview
-and loading screen. The choice and connection fields survive menu/gameplay
-transitions during this launch; the style is not saved between launches.
+style at the top right, including in the character preview and loading screen.
+The choice and connection fields survive menu/gameplay transitions during this
+launch; the style is not saved between launches.
 
 Use **1–5** or **Up/Down + Enter** to choose a mode. **Tab** cycles through
 the host port, join address, then back to mode selection; **Shift+Tab** reverses
@@ -491,10 +491,11 @@ key again or Escape to close it. These screens block gameplay inputs while
 visible. Inventory supports timed moves, rotation, swaps and ammo stack merging.
 See the shared [HUD layouts](../docs/VIEWER.md#hud).
 
-Client controls: WASD, mouse look, Shift run, Space jump, Ctrl crouch, Z prone,
+Client controls: WASD, mouse look, Shift run, Space jump, Ctrl crouch, C prone,
 1–9 hotbar preview and the physical key left of 1 (Hungarian 0 / US backtick)
-for slot 0; mouse wheel cycles assigned actions, and left click confirms.
-Weapon changes show server-timed progress; the starter Punch shortcut is 5. R reload, F toggle flashlight, left click fire/throw/punch, right click
+for slot 0; mouse wheel up previews the next assigned action and down the
+previous, and left click confirms.
+Weapon changes show server-timed progress; the starter Punch shortcut is 5. R reload, L toggle flashlight, left click fire/throw/punch, right click
 cycle scope.
 Tab switches Combat/Interaction. In Interaction, hold either mouse button to
 grab a nearby prop; left mouse also grabs doors. Mouse motion and walking move

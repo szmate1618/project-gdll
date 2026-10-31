@@ -7,14 +7,14 @@
     <link type="text/rcss" href="main-menu-modern.rcss" />
     <link type="text/rcss" href="character-editor.rcss" />
 </head>
-<body class="main-menu classic">
+<body class="main-menu modern">
     <div id="menu-frame">
         <div id="menu-title">GODOLLO</div>
         <div id="menu-subtitle">CHOOSE YOUR NEXT SESSION</div>
         <div id="theme-picker">
-            <span id="theme-label">STYLE / F6</span>
-            <button id="theme-classic" class="theme-button active">CLASSIC</button>
-            <button id="theme-modern" class="theme-button">MODERN</button>
+            <span id="theme-label">STYLE</span>
+            <button id="theme-classic" class="theme-button">CLASSIC</button>
+            <button id="theme-modern" class="theme-button active">MODERN</button>
         </div>
         <div id="header-rule"></div>
         <div id="choose-screen">
