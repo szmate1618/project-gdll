@@ -9,6 +9,7 @@
 #include <array>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <set>
 #include <stdexcept>
 
@@ -48,6 +49,120 @@ struct Fixture {
         for (std::size_t i = 0; i < doors.size(); ++i) source.doors.push_back(i);
     }
 };
+float segmentDistance(glm::vec2 a, glm::vec2 b, glm::vec2 c, glm::vec2 d) {
+    const auto cross = [](glm::vec2 p, glm::vec2 q) { return p.x * q.y - p.y * q.x; };
+    const float divisor = cross(b - a, d - c);
+    if (std::abs(divisor) > 1e-6f) {
+        const float t = cross(c - a, d - c) / divisor, u = cross(c - a, b - a) / divisor;
+        if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return 0;
+    }
+    const auto distance = [](glm::vec2 p, glm::vec2 start, glm::vec2 end) {
+        const auto delta = end - start;
+        const float t = glm::dot(delta, delta) > 0 ? glm::clamp(glm::dot(p - start, delta) / glm::dot(delta, delta), 0.f, 1.f) : 0.f;
+        return glm::distance(p, start + t * delta);
+    };
+    return std::min({distance(a, c, d), distance(b, c, d), distance(c, a, b), distance(d, a, b)});
+}
+void windowClearance(const viewer::house_layout::Layout& plan, const std::vector<viewer::house_layout::Rectangle>& windows) {
+    for (const auto& wall : plan.partitions) {
+        glm::vec2 a, b;
+        a[wall.axis] = b[wall.axis] = wall.position;
+        a[1 - wall.axis] = wall.low; b[1 - wall.axis] = wall.high;
+        for (const auto& window : windows)
+            require(segmentDistance(a, b, window.low, window.high) >= .1999f,
+                    "Every emitted partition must leave 20 cm at panes, including its endpoints");
+    }
+}
+void windowPlacement() {
+    using namespace viewer::house_layout;
+    const Rectangle footprint{{-5, -6}, {5, 6}};
+    const std::vector<Entrance> doors{{0, {0, -6}, {0, -1}, 1}};
+    for (const bool deeper : {false, true}) {
+        const std::vector<Rectangle> windows = deeper ? std::vector<Rectangle>{{{-5, -4.95f}, {-5, -3.6f}}} :
+            std::vector<Rectangle>{{{-5, -4.3f}, {-5, -3.1f}}};
+        int entries = 0;
+        for (int seed = 0; seed < 100; ++seed) {
+            const auto plan = generate("window_" + std::to_string(seed), footprint, doors, 0, {}, windows);
+            windowClearance(plan, windows);
+            for (const auto& wall : plan.partitions) for (const auto& opening : wall.openings) if (opening.entrance == 0) {
+                const float depth = wall.position + 6;
+                require(deeper ? depth > 2.5f && depth < 2.7f : depth >= 1.2f && depth < 1.6f,
+                        "Entries must search both shallower and deeper than 2 m for window clearance");
+                ++entries;
+            }
+        }
+        require(entries > 90, "Window conflicts must move usable entries rather than simply skipping their rolls");
+    }
+    const std::vector<Rectangle> narrowGap{{{-5, -4.8f}, {-5, -3}}, {{-5, -2.5f}, {-5, -1}}};
+    const auto narrow = generate("window_0", footprint, doors, 0, {}, narrowGap);
+    bool foundGap = false;
+    for (const auto& wall : narrow.partitions) for (const auto& opening : wall.openings)
+        if (opening.entrance == 0) foundGap = wall.position > -2.8f && wall.position < -2.7f;
+    require(foundGap, "Entry search must find a narrow valid gap between nearby windows");
+    windowClearance(narrow, narrowGap);
+
+    const std::vector<Rectangle> sideWindows{{{-3.4f, -6}, {-2.6f, -6}}, {{2.6f, -6}, {3.4f, -6}}};
+    int sideRooms = 0;
+    for (int seed = 0; seed < 100; ++seed) {
+        const auto plan = generate("side_" + std::to_string(seed), footprint, doors, 0, {}, sideWindows);
+        windowClearance(plan, sideWindows);
+        for (const auto& room : plan.rooms) sideRooms += room.kind == viewer::HouseRoom::Kind::SmallRoom;
+    }
+    require(sideRooms > 50, "Side-room walls should move around windows when a usable room still fits");
+
+    const std::vector<Rectangle> blocked{{{-5, -6}, {-5, 6}}, {{5, -6}, {5, 6}},
+                                          {{-5, -6}, {5, -6}}, {{-5, 6}, {5, 6}}};
+    const auto unsplit = generate("window_0", footprint, doors, 0, {}, blocked);
+    require(unsplit.partitions.empty() && unsplit.rooms.size() == 1 && unsplit.rooms[0].kind == viewer::HouseRoom::Kind::Living,
+            "If every facade is glazed, omit unsafe subdivisions and retain usable living space");
+    const std::vector<Rectangle> gaps{{{-5, -6}, {-5, -.25f}}, {{-5, .25f}, {-5, 6}},
+        {{5, -6}, {5, -.25f}}, {{5, .25f}, {5, 6}}, {{-5, -6}, {-.25f, -6}}, {{.25f, -6}, {5, -6}},
+        {{-5, 6}, {-.25f, 6}}, {{.25f, 6}, {5, 6}}};
+    int subdivided = 0;
+    for (int seed = 0; seed < 100; ++seed) {
+        const auto plan = generate("living_" + std::to_string(seed), footprint, {}, 0, {}, gaps);
+        windowClearance(plan, gaps);
+        subdivided += plan.rooms.size() > 1;
+    }
+    require(subdivided > 50, "Living subdivisions must search valid gaps outside their preferred random positions");
+}
+void loadedWindowGeometry(const glm::mat4& transform) {
+    Fixture fixture(transform);
+    const auto original = viewer::generateHouseFloorplan(fixture.model, fixture.source, fixture.doors);
+    require(bool(original), "Window clearance fixture must generate an interior");
+    const auto addWindow = [&](float bottom) {
+        interior_fixture::quad(fixture.model, {-5, bottom, -4.3f}, {-5, bottom, -3.1f},
+            {-5, bottom + 1.2f, -3.1f}, {-5, bottom + 1.2f, -4.3f}, "building_house_windows", transform);
+        fixture.source.windows.push_back(fixture.model.draws.size() - 1);
+    };
+    addWindow(3.9f);
+    const auto upstairsOnly = viewer::generateHouseFloorplan(fixture.model, fixture.source, fixture.doors);
+    require(upstairsOnly && upstairsOnly->structure.primitives.size() == original->structure.primitives.size(),
+            "An upstairs pane must not constrain ground-storey partitions");
+    for (std::size_t mesh = 0; mesh < original->structure.primitives.size(); ++mesh) {
+        const auto& a = original->structure.primitives[mesh]; const auto& b = upstairsOnly->structure.primitives[mesh];
+        require(a.indices == b.indices && a.vertices.size() == b.vertices.size(), "Upstairs-only window must preserve ground-layout topology");
+        for (std::size_t i = 0; i < a.vertices.size(); ++i)
+            require(a.vertices[i].position == b.vertices[i].position, "Upstairs-only window must preserve ground-layout geometry");
+    }
+    addWindow(.9f);
+    const auto shifted = viewer::generateHouseFloorplan(fixture.model, fixture.source, fixture.doors);
+    require(bool(shifted), "Ground-floor window must move the partition without rejecting the house");
+    const auto worldXZ = [&](glm::vec3 p) { const auto q = glm::vec3(transform * glm::vec4(p, 1)); return glm::vec2(q.x, q.z); };
+    const auto start = worldXZ({-5, 0, -4.3f}), end = worldXZ({-5, 0, -3.1f});
+    const auto closestWall = [&](const viewer::HouseFloorplan& plan) {
+        float nearest = std::numeric_limits<float>::max();
+        for (const auto& mesh : plan.structure.primitives) if (mesh.material == 0)
+            for (std::size_t i = 0; i < mesh.indices.size(); i += 3) for (int edge = 0; edge < 3; ++edge) {
+                const auto a = mesh.vertices[mesh.indices[i + edge]].position;
+                const auto b = mesh.vertices[mesh.indices[i + (edge + 1) % 3]].position;
+                nearest = std::min(nearest, segmentDistance({a.x, a.z}, {b.x, b.z}, start, end));
+            }
+        return nearest;
+    };
+    require(closestWall(*original) < .01f, "Loaded-window fixture must reproduce a partition crossing the pane");
+    require(closestWall(*shifted) >= .2f, "Actual generated wall geometry must clear the loaded pane by 20 cm after transforming");
+}
 void variation() {
     const std::vector<viewer::house_layout::Entrance> entrances{{0, {0, -6}, {0, -1}, 1}, {1, {0, 6}, {0, 1}, 1}};
     constexpr int samples = 1000;
@@ -217,7 +332,10 @@ void geometry(const glm::mat4& transform, int storeys) {
 } // namespace
 int main() {
     try {
-        variation();
+        variation(); windowPlacement();
+        loadedWindowGeometry(glm::mat4(1));
+        loadedWindowGeometry(glm::translate(glm::mat4(1), {-1108, 5, -250}) *
+            glm::rotate(glm::mat4(1), glm::radians(31.f), glm::vec3(0, 1, 0)) * glm::scale(glm::mat4(1), {-1, 1, 1}));
         geometry(glm::mat4(1), 2);
         geometry(glm::translate(glm::mat4(1), {87, 5, -39}) * glm::rotate(glm::mat4(1), glm::radians(31.f), glm::vec3(0, 1, 0)) * glm::scale(glm::mat4(1), {-1, 1, 1}), 3);
         std::cout << "Room probability, connectivity, stair headroom and walking tests passed\n";

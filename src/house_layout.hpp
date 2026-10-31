@@ -38,7 +38,8 @@ struct Layout {
 // Integer-only random choices have a specified sequence, independent of the
 // standard library, activation order, wall-clock time and process RNG state.
 Layout generate(const std::string& building, Rectangle footprint, const std::vector<Entrance>& entrances,
-                float floor, const std::vector<float>& upperFloors);
+                float floor, const std::vector<float>& upperFloors,
+                const std::vector<Rectangle>& windows = {}); // Ground-storey pane bounds in house-axis metres.
 // Transform layout coordinates once into runtime X/Y/Z metres and build minimal
 // partition, floor and ramp planes. Door IDs start at source.firstDoor.
 void buildGeometry(HouseFloorplan& result, const HouseSource& source, const Layout& layout,

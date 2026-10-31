@@ -43,9 +43,9 @@ int main(int argc, char** argv) {
         options.forests = false;
         const glm::vec3 spawn{1.5f, -2.25f, 0};
         const auto fingerprint = multiplayer::sceneFingerprint(options, 7, spawn, {first});
-        // Independently calculated for protocol 34: SHA-256 of <II6f2B
+        // Independently calculated for protocol 35: SHA-256 of <II6f2B
         // little-endian settings followed by ASCII SHA-256("abc") in hex.
-        require(fingerprint == "07b09a978ec7a78344ce522b1e2bd1e2067f8b72a0983c7c0e417edb971b0109",
+        require(fingerprint == "d3c0891a6109e894eceeb37ec101e904e97a22295f2332c39c058b19d3376756",
                 "Scene fingerprint differs from the cross-platform reference");
         require(multiplayer::sceneFingerprint(options, 7, spawn, {second}) == fingerprint,
                 "Resource paths changed the fingerprint");
@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
                 "None preset must fingerprint the effective disabled vegetation");
         options.zombieRadius = 999.25f; options.trees = false; options.forests = true;
         require(multiplayer::sceneFingerprint(options, 1024, {0, .1f, -123.5f}, {first}) ==
-                "902a92c2e60869c5eaad2641388a9f1c153342e4e7e3f3e6cce1d2e4d0bcbb51",
+                "ebc3e72eb8b3486b36350435b190b0c0346bec932522d7e0e5253467b39cceb5",
                 "Fractional settings differ from the cross-platform reference");
         std::ofstream(second, std::ios::binary) << "abd";
         require(multiplayer::sceneFingerprint(options, 1024, {0, .1f, -123.5f}, {second}) !=

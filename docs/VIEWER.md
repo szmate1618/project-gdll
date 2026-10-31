@@ -2345,9 +2345,10 @@ room and staircase generator as multiplayer, with no extra option or map
 regeneration. Walk near an eligible house (F9 enters walking mode), select
 **Object handling** in slot **0**, then grab and pull an exterior door open.
 Within 20 metres of the open door, the house receives its entry-area rolls,
-1–3 living rooms, optional 2×2 metre side rooms, and any staircase ramps with
+1–3 living rooms, optional side rooms preferably about 2 metres wide, and any staircase ramps with
 floor openings. The interior is evicted beyond 30 metres and regenerated
-identically on return. See [runtime floorplans](FLOORPLANS.md) for the footprint
+identically on return. Partitions leave at least 20 cm around windows; entry
+depths adjust either side of the preferred 2 metres to fit. See [runtime floorplans](FLOORPLANS.md) for the footprint
 heuristic, room-size limits, storeys, collision, and multiplayer lifecycle.
 See [building generation](../README.md) for facade configuration and regeneration.
 

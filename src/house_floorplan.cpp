@@ -72,8 +72,9 @@ std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const H
     }
     float eaves = std::numeric_limits<float>::max();
     for (const auto& face : roof) for (const auto p : face) eaves = std::min(eaves, p.y);
+    const auto windowFaces = faces(model, source.windows);
     std::vector<float> heads;
-    for (const auto& face : faces(model, source.windows)) {
+    for (const auto& face : windowFaces) {
         const float bottom = std::min({face[0].y, face[1].y, face[2].y});
         const float top = std::max({face[0].y, face[1].y, face[2].y});
         if (top - bottom > .5f) heads.push_back(top);
@@ -103,7 +104,20 @@ std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const H
              glm::dot(glm::vec2(door.outward.x, door.outward.z), v)},
             std::min(1.f, door.halfExtents.x * 2)});
     }
-    const auto layout = house_layout::generate(source.name, {low, high}, entryDoors, floor, result.upperFloors);
+    std::vector<house_layout::Rectangle> windows;
+    for (const auto& face : windowFaces) {
+        const float bottom = std::min({face[0].y, face[1].y, face[2].y});
+        const float top = std::max({face[0].y, face[1].y, face[2].y});
+        if (top <= floor || bottom >= ceiling) continue;
+        house_layout::Rectangle bounds{glm::vec2(std::numeric_limits<float>::max()),
+                                       glm::vec2(std::numeric_limits<float>::lowest())};
+        for (const auto p : face) {
+            const auto q = local({p.x, p.z});
+            bounds.low = glm::min(bounds.low, q); bounds.high = glm::max(bounds.high, q);
+        }
+        windows.push_back(bounds);
+    }
+    const auto layout = house_layout::generate(source.name, {low, high}, entryDoors, floor, result.upperFloors, windows);
     if (layout.rooms.empty() || (!result.upperFloors.empty() && layout.stairs.empty())) return std::nullopt;
     house_layout::buildGeometry(result, source, layout, origin, u, v, {low, high});
     result.minimum = glm::vec3(std::numeric_limits<float>::max()); result.maximum = -result.minimum;

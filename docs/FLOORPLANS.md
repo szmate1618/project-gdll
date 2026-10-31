@@ -34,16 +34,20 @@ head heights are rejected conservatively.
 
 ## Ground-storey rooms
 
-Each exterior door independently has a **95% chance** to request a full-width,
-2-metre-deep entry area. Doors on the same facade share an entry polygon when
+Each exterior door independently has a **95% chance** to request a full-width
+entry area, preferably **2 metres deep**. Doors on the same facade share an entry polygon when
 any request succeeds, with aligned internal doors for the successful requests.
 Opposite facade entries remain separate. Strips are carved in stable facade
-order so polygons do not overlap. A request is skipped when the strip would
-leave unusable living space, block another entry, or prevent the staircase.
+order so polygons do not overlap. Entry walls search both shallower and deeper
+positions, choosing the closest usable candidate to 2 metres and retaining at
+least 1.2 metres of entry depth. A request is skipped when no suitable position
+can preserve window clearance, usable living space, other entries and the staircase.
 A door without an entry area opens directly into its containing living room.
 
 Every created entry independently rolls **50% on each side** for a small room
-approximately **2 by 2 metres**. A side room is created only when it fits,
+approximately **2 metres wide**, with the entry area's depth. Side walls can
+move to clear windows; each side-room dimension must stay at least 1.5 metres.
+A side room is created only when it fits,
 leaves a usable anteroom at least 2 metres wide, and clears every exterior door
 and aligned internal opening. Both, neither, or either side can be selected.
 Their room-category names are **`small_rooms`** and **`anteroom`**; the remaining
@@ -56,6 +60,14 @@ at least **10 square metres** and **2.5 metres in both directions**. Partition
 doorways keep the rooms connected. A split cannot run through another doorway
 or consume the space needed by the staircase. Small houses can keep fewer rooms
 than the target rather than creating tiny subdivisions.
+
+Every entry, side-room and living partition must stay **at least 20 cm from
+ground-storey windows**, including at its endpoints on exterior walls. Pane
+bounds come from the already-loaded window geometry, transformed into the
+house's axes. Upstairs panes do not constrain ground-storey partitions.
+Candidate positions include clear-gap boundaries between panes, so even narrow
+valid gaps can be found; a 1 mm margin protects the clearance after float rounding.
+Optional partitions are skipped when no safe, usable subdivision exists.
 
 All choices use a specified integer hash/generator seeded from the stable
 building identity and separate domains for entry, side-room, living-room and
@@ -124,7 +136,7 @@ side-room doors plus the two possible living partitions. Failed random choices
 leave unused slots. A reserved slot holds no generated geometry or body until
 the house loads. Activation order cannot change IDs. The existing door-angle
 snapshot carries interactive movement only; clients ignore angles for reserved
-panels whose geometry is not locally resident. Protocol 34 prevents older
+panels whose geometry is not locally resident. Protocol 35 prevents older
 peers with different layouts or door-ID semantics from joining.
 
 Walking, ground support, sight, firearm queries and debug geometry include a

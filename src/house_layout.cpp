@@ -34,6 +34,43 @@ glm::vec2 point(int axis, float position, float along) {
 bool contains(Rectangle r, glm::vec2 p, float margin = .01f) {
     return glm::all(glm::greaterThanEqual(p, r.low - margin)) && glm::all(glm::lessThanEqual(p, r.high + margin));
 }
+// Test the finite partition, including its endpoints, against each pane's
+// horizontal bounds. Windows on other storeys are excluded by the caller.
+bool clearsWindows(int axis, float cut, float low, float high, const std::vector<Rectangle>& windows) {
+    const int along = 1 - axis;
+    for (const auto& window : windows) {
+        const float across = std::max({window.low[axis] - cut, cut - window.high[axis], 0.f});
+        const float beside = std::max({window.low[along] - high, low - window.high[along], 0.f});
+        if (across * across + beside * beside < .2f * .2f) return false;
+    }
+    return true;
+}
+std::vector<float> partitionPositions(int axis, float low, float high, float preferred,
+                                      float start, float end, const std::vector<Rectangle>& windows) {
+    if (low > high) return {};
+    std::vector<float> positions{glm::clamp(preferred, low, high), low, high};
+    // Every free interval has an endpoint at a pane edge plus clearance, or
+    // at a room limit. Consider those as well as the preferred position so a
+    // narrow usable gap is found without a grid or random retry limit.
+    constexpr float margin = .201f; // 20 cm plus 1 mm for world-space float rounding.
+    for (const auto& window : windows) {
+        const int along = 1 - axis;
+        const float beside = std::max({window.low[along] - end, start - window.high[along], 0.f});
+        if (beside >= margin) continue;
+        const float reach = std::sqrt(margin * margin - beside * beside);
+        for (const float edge : {window.low[axis] - reach, window.high[axis] + reach})
+            if (edge >= low && edge <= high) positions.push_back(edge);
+    }
+    std::sort(positions.begin(), positions.end(), [&](float a, float b) {
+        const float da = std::abs(a - preferred), db = std::abs(b - preferred);
+        return da == db ? a < b : da < db;
+    });
+    positions.erase(std::unique(positions.begin(), positions.end()), positions.end());
+    positions.erase(std::remove_if(positions.begin(), positions.end(), [&](float cut) {
+        return !clearsWindows(axis, cut, start, end, windows);
+    }), positions.end());
+    return positions;
+}
 std::vector<glm::vec2> accessPoints(const std::vector<Partition>& partitions, const std::vector<Entrance>& entrances) {
     std::vector<glm::vec2> result;
     for (const auto& door : entrances) result.push_back(door.center);
@@ -94,7 +131,7 @@ bool splitClearsDoors(const Room& room, int axis, float cut, const std::vector<P
 } // namespace
 
 Layout generate(const std::string& building, Rectangle footprint, const std::vector<Entrance>& entrances,
-                float floor, const std::vector<float>& upperFloors) {
+                float floor, const std::vector<float>& upperFloors, const std::vector<Rectangle>& windows) {
     Layout result;
     std::map<int, std::vector<Entrance>> sides;
     float maxRise = 0, previous = floor;
@@ -117,43 +154,62 @@ Layout generate(const std::string& building, Rectangle footprint, const std::vec
         }
         if (selected.empty()) continue;
         auto entry = living, remaining = living;
-        const float cut = positive ? footprint.high[axis] - 2 : footprint.low[axis] + 2;
-        if (positive) { entry.low[axis] = cut; remaining.high[axis] = cut; }
-        else { entry.high[axis] = cut; remaining.low[axis] = cut; }
-        if (!usable(remaining)) continue;
-        Partition wall{axis, cut, entry.low[along], entry.high[along], {}};
-        bool clear = true;
-        for (const auto& door : selected) {
-            const float a = door.center[along] - door.width * .5f, b = a + door.width;
-            if (a < entry.low[along] + .12f || b > entry.high[along] - .12f) { clear = false; break; }
-            wall.openings.push_back({a, b, door.outward, door.id});
+        Partition wall;
+        const float minLiving = std::max(2.5f, 10.f / (living.high[along] - living.low[along]));
+        const float preferred = positive ? footprint.high[axis] - 2 : footprint.low[axis] + 2;
+        const float minimum = positive ? living.low[axis] + minLiving : footprint.low[axis] + 1.2f;
+        const float maximum = positive ? footprint.high[axis] - 1.2f : living.high[axis] - minLiving;
+        bool placed = false;
+        for (const float cut : partitionPositions(axis, minimum, maximum, preferred, living.low[along], living.high[along], windows)) {
+            entry = remaining = living;
+            if (positive) { entry.low[axis] = cut; remaining.high[axis] = cut; }
+            else { entry.high[axis] = cut; remaining.low[axis] = cut; }
+            if (!usable(remaining) || !splitClearsDoors({HouseRoom::Kind::Living, living, {}}, axis, cut, result.partitions, entrances)) continue;
+            wall = {axis, cut, entry.low[along], entry.high[along], {}};
+            bool clear = true;
+            for (const auto& door : selected) {
+                const float a = door.center[along] - door.width * .5f, b = a + door.width;
+                if (a < entry.low[along] + .12f || b > entry.high[along] - .12f) { clear = false; break; }
+                wall.openings.push_back({a, b, door.outward, door.id});
+            }
+            // An adjacent entry strip must not swallow a previously placed access.
+            for (const auto& existing : result.partitions) for (const auto& door : existing.openings) {
+                if (!door.entrance) continue;
+                const auto p = point(existing.axis, existing.position, (door.low + door.high) * .5f);
+                if (!contains(remaining, p)) clear = false;
+            }
+            if (!clear) continue;
+            auto trialWalls = result.partitions; trialWalls.push_back(wall);
+            const std::vector<Room> trialRooms{{HouseRoom::Kind::Living, remaining, {}}};
+            if (maxRise > 0 && stairOptions(trialRooms, trialWalls, entrances, footprint, maxRise).empty()) continue;
+            placed = true; break;
         }
-        // An adjacent entry strip must not swallow a previously placed access.
-        for (const auto& existing : result.partitions) for (const auto& door : existing.openings) {
-            if (!door.entrance) continue;
-            const auto p = point(existing.axis, existing.position, (door.low + door.high) * .5f);
-            if (!contains(remaining, p)) clear = false;
-        }
-        if (!clear) continue;
-        auto trialWalls = result.partitions; trialWalls.push_back(wall);
-        const std::vector<Room> trialRooms{{HouseRoom::Kind::Living, remaining, {}}};
-        if (maxRise > 0 && stairOptions(trialRooms, trialWalls, entrances, footprint, maxRise).empty()) continue;
+        if (!placed) continue;
         living = remaining;
         result.partitions.push_back(std::move(wall));
         auto anteroom = entry;
         for (const bool right : {false, true}) {
             Random random(building, (right ? 0x7269676874ull : 0x6c656674ull) ^ side.second.front().id);
             const bool chosen = random.pick(100) < 50; // Independent, even when the other side cannot fit.
-            if (!chosen || anteroom.high[along] - anteroom.low[along] < 4.f) continue;
+            if (!chosen || anteroom.high[along] - anteroom.low[along] < 3.5f ||
+                anteroom.high[axis] - anteroom.low[axis] < 1.5f) continue;
             auto small = anteroom;
-            if (right) small.low[along] = small.high[along] - 2;
-            else small.high[along] = small.low[along] + 2;
-            // Keep every exterior door and its aligned internal portal in the
-            // anteroom, including an exterior door whose own entry roll failed.
-            bool fits = true;
-            for (const auto& door : side.second) {
-                if (door.center[along] + door.width * .5f + .25f > small.low[along] &&
-                    door.center[along] - door.width * .5f - .25f < small.high[along]) fits = false;
+            const float preferredSide = right ? small.high[along] - 2 : small.low[along] + 2;
+            const float minSide = anteroom.low[along] + (right ? 2.f : 1.5f);
+            const float maxSide = anteroom.high[along] - (right ? 1.5f : 2.f);
+            bool fits = false;
+            for (const float position : partitionPositions(along, minSide, maxSide, preferredSide,
+                                                           small.low[axis], small.high[axis], windows)) {
+                small = anteroom;
+                if (right) small.low[along] = position; else small.high[along] = position;
+                // Keep every exterior door and its aligned internal portal in
+                // the anteroom, including doors whose own entry roll failed.
+                fits = true;
+                for (const auto& door : side.second) {
+                    if (door.center[along] + door.width * .5f + .25f > small.low[along] &&
+                        door.center[along] - door.width * .5f - .25f < small.high[along]) fits = false;
+                }
+                if (fits) break;
             }
             if (!fits) continue;
             const float position = right ? small.low[along] : small.high[along];
@@ -178,19 +234,24 @@ Layout generate(const std::string& building, Rectangle footprint, const std::vec
             const auto& room = livingRooms[i]; const auto size = room.bounds.high - room.bounds.low;
             for (int attempt = 0; attempt < 12; ++attempt) {
                 const float fraction = .38f + .24f * (random.pick(1001) / 1000.f);
-                const float cut = room.bounds.low[axis] + size[axis] * fraction;
-                auto first = room, second = room;
-                first.bounds.high[axis] = cut; second.bounds.low[axis] = cut;
-                if (!usable(first.bounds) || !usable(second.bounds) || !splitClearsDoors(room, axis, cut, result.partitions, entrances)) continue;
+                const float preferredCut = room.bounds.low[axis] + size[axis] * fraction;
                 const int along = 1 - axis;
-                const float center = (room.bounds.low[along] + room.bounds.high[along]) * .5f;
-                glm::vec2 outward(0); outward[axis] = -1;
-                Partition wall{axis, cut, room.bounds.low[along], room.bounds.high[along],
-                               {{center - .45f, center + .45f, outward, std::nullopt}}};
-                auto rooms = livingRooms; rooms[i] = first; rooms.push_back(second);
-                auto walls = result.partitions; walls.push_back(wall);
-                if (maxRise > 0 && stairOptions(rooms, walls, entrances, footprint, maxRise).empty()) continue;
-                choices.push_back({std::move(rooms), std::move(wall)});
+                const float minSize = std::max(2.5f, 10.f / size[along]);
+                for (const float cut : partitionPositions(axis, room.bounds.low[axis] + minSize,
+                        room.bounds.high[axis] - minSize, preferredCut, room.bounds.low[along], room.bounds.high[along], windows)) {
+                    auto first = room, second = room;
+                    first.bounds.high[axis] = cut; second.bounds.low[axis] = cut;
+                    if (!usable(first.bounds) || !usable(second.bounds) || !splitClearsDoors(room, axis, cut, result.partitions, entrances)) continue;
+                    const float center = (room.bounds.low[along] + room.bounds.high[along]) * .5f;
+                    glm::vec2 outward(0); outward[axis] = -1;
+                    Partition wall{axis, cut, room.bounds.low[along], room.bounds.high[along],
+                                   {{center - .45f, center + .45f, outward, std::nullopt}}};
+                    auto rooms = livingRooms; rooms[i] = first; rooms.push_back(second);
+                    auto walls = result.partitions; walls.push_back(wall);
+                    if (maxRise > 0 && stairOptions(rooms, walls, entrances, footprint, maxRise).empty()) continue;
+                    choices.push_back({std::move(rooms), std::move(wall)});
+                    break;
+                }
             }
         }
         if (choices.empty()) break;
