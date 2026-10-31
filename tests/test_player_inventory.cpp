@@ -1,3 +1,4 @@
+#include "inventory_fixture.hpp"
 #include "inventory/inventory_config.hpp"
 #include "inventory/inventory_drag.hpp"
 #include "inventory/item_config.hpp"
@@ -33,12 +34,12 @@ void definitionsAndQueries() {
         "Item queries must return the matching owned items");
     for (const auto& found : rifles)
         require(found.item->hasTag("long_gun") && found.location.kind == viewer::InventoryLocationKind::Storage &&
-            found.location.placement->storage == "backpack/tactical_backpack/main", "Category results must include current location");
+            found.location.placement->storage == inventory.placements().at(found.item->id()).storage, "Category results must include current location");
     require(!inventory.locationOf("missing") && inventory.itemsIn("missing").empty(), "Unknown items/compartments must return no results");
     require(inventory.itemsIn("body/hip_holster/holster").at(0).item->id() == "pistol", "Compartment query must identify the stored item");
 }
 void queriesFollowTransactions() {
-    auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
+    auto inventory = inventory_fixture::crowdedBackpack(VIEWER_ITEM_ROOT);
     const std::string pack = "backpack/tactical_backpack/main";
     const auto sniperStart = *inventory.locationOf("sniper")->placement;
     const auto initialPackSize = inventory.itemsIn(pack).size();

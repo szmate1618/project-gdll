@@ -37,12 +37,12 @@ div, span, button { border-color: #f5f6f24d; }
 
 body.loadout { background-color: #2b2d2fed; }
 .panel { background-color: #383a3cd9; }
-.page-tab, .body-placeholder-label, .backpack-caption,
+.page-tab, .backpack-caption,
 .field-label { color: #f5f6f280; }
 .page-tab:hover { color: #f5f6f2; background-color: #f5f6f21a; }
 .inventory #inventory-tab, .skills #skills-tab,
 .health #health-tab, .map #map-tab { color: #f5f6f2; border-color: #ec6962; }
-.body-placeholder, .loadout .unselected { background-color: #f5f6f240; }
+.loadout .unselected { background-color: #f5f6f240; }
 .backpack-size, .storage-occupants, .item .assignment-type,
 .skill .assignment-type,
 .storage-label, .action-number { color: #f5f6f2bf; }

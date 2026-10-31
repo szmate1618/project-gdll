@@ -1,3 +1,4 @@
+#include "inventory_fixture.hpp"
 #include "gui/hud.hpp"
 #include "ground_items.hpp"
 #include "collision_world.hpp"
@@ -7,6 +8,7 @@
 #include "opengl.hpp"
 #include "presentation_viewport.hpp"
 #include <GLFW/glfw3.h>
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <fstream>
@@ -155,7 +157,7 @@ int main(int argc, char** argv) {
         state.equipment = "Pistol <test>"; state.slot = 0; state.loaded = 7; state.reserve = 42;
         state.movement = "CROUCH"; state.yawDegrees = 225; state.speedMetersPerSecond = 1.5f / 3.6f;
         {
-            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            auto inventory = inventory_fixture::crowdedBackpack(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
             viewer::Hud hud(VIEWER_HUD_DIR, inventory);
             glDisable(GL_SCISSOR_TEST); glClearColor(1, 1, 1, 1); glClear(GL_COLOR_BUFFER_BIT);
             glEnable(GL_SCISSOR_TEST);
@@ -175,7 +177,7 @@ int main(int argc, char** argv) {
             if (argc > 1) capture((std::string(argv[1]) + "-adaptive-bright-empty.ppm").c_str(), bright, 1280, 720);
         }
         {
-            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            auto inventory = inventory_fixture::crowdedBackpack(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
             viewer::Hud hud(VIEWER_HUD_DIR, inventory);
             auto labels = state;
             labels.prompt = "Enter: exit vehicle"; labels.mouseCaptured = false;
@@ -206,7 +208,7 @@ int main(int argc, char** argv) {
             if (argc > 1) capture((std::string(argv[1]) + "-adaptive-bright.ppm").c_str(), bright, 1280, 720);
         }
         {
-            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            auto inventory = inventory_fixture::crowdedBackpack(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
             viewer::Hud hud(VIEWER_HUD_DIR, inventory);
             clear();
             glScissor(0, 360, 1280, 360); glClearColor(1, 1, 1, 1); glClear(GL_COLOR_BUFFER_BIT);
@@ -219,7 +221,7 @@ int main(int argc, char** argv) {
         }
         std::vector<unsigned char> first;
         {
-            auto hudInventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            auto hudInventory = inventory_fixture::crowdedBackpack(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
             viewer::Hud hud(VIEWER_HUD_DIR, hudInventory);
             clear(); hud.draw(state, 1280, 720); checkState();
             first = pixels(1280, 720);
@@ -477,7 +479,7 @@ int main(int argc, char** argv) {
         require(filter == GL_LINEAR, "HUD changed the scene terrain's texture filtering");
         glBindTexture(GL_TEXTURE_2D, texture); glActiveTexture(GL_TEXTURE3);
         {
-            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            auto inventory = inventory_fixture::crowdedBackpack(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
             viewer::Hud hud(VIEWER_HUD_DIR,inventory);
             hud.setMinimap(*mapSource,mapTexture);
             viewer::HudState mapState;
@@ -570,7 +572,7 @@ int main(int argc, char** argv) {
         // All loadout pages share clickable tabs, including the otherwise empty
         // Health page. Navigation uses fitted presentation coordinates.
         {
-            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            auto inventory = inventory_fixture::crowdedBackpack(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
             viewer::Hud hud(VIEWER_HUD_DIR, inventory);
             viewer::HudState page; page.screen = viewer::HudScreen::Inventory;
             int width = 1280, height = 720, displayWidth = 1280, displayHeight = 720;
@@ -617,9 +619,39 @@ int main(int argc, char** argv) {
             click(245, 51); apply(viewer::HudScreen::Skills);
             require(hud.takeInventoryActions().empty(), "Idle tab navigation must not produce inventory operations");
         }
+        // Every filled vest cell must remain clickable below the occupied slings.
+        {
+            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            viewer::Hud hud(VIEWER_HUD_DIR, inventory);
+            const auto previousScreen = state.screen;
+            state.screen = viewer::HudScreen::Inventory;
+            const auto draw = [&] { clear(); hud.draw(state, 1280, 720); checkState(); };
+            draw();
+            if (argc > 1) capture((std::string(argv[1]) + "-tactical-vest.ppm").c_str(), pixels(1280, 720), 1280, 720);
+            const auto& vest = inventory.storage().equipment.at(1);
+            for (std::size_t index = 0; index < vest.slots.size(); ++index) {
+                const auto reference = viewer::bodyStorageReference(vest.id, vest.slots[index].id);
+                for (int row = 0; row < 2; ++row) {
+                    const float x = 66 + static_cast<float>(index % 3) * 120;
+                    const float y = 316 + static_cast<float>(index / 3) * 116 + row * 24;
+                    const auto& rectangles = inventory.layout().at(reference).items;
+                    const auto found = std::find_if(rectangles.begin(), rectangles.end(),
+                        [&](const auto& rectangle) { return rectangle.y == row; });
+                    require(found != rectangles.end(), "Both vest cells must start occupied");
+                    const auto item = found->item;
+                    hud.pointerMove(x / 1280, y / 720);
+                    hud.pointerButton(0, true); hud.pointerButton(0, false); draw();
+                    require(inventory.held() && inventory.held()->item == item,
+                        "Each vest cell must pick up its own item without overlapping another compartment");
+                    hud.pointerButton(1, true); draw();
+                    require(!inventory.held(), "Vest pickup cancellation must restore its item");
+                }
+            }
+            state.screen = previousScreen;
+        }
         // Multiplayer returns to its shared menu window and starts another session.
         {
-            auto hudInventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            auto hudInventory = inventory_fixture::crowdedBackpack(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
             viewer::Hud hud(VIEWER_HUD_DIR, hudInventory);
             state.loaded = 7;
             clear(); hud.draw(state, 1280, 720); checkState();
@@ -772,7 +804,7 @@ int main(int argc, char** argv) {
                     "Timed completion must not enqueue an extra user operation");
         }
         {
-            auto hudInventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            auto hudInventory = inventory_fixture::crowdedBackpack(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
             viewer::Hud hud(VIEWER_HUD_DIR, hudInventory);
             state.screen = viewer::HudScreen::Inventory;
             const auto draw = [&](double elapsed = 0) { state.seconds += elapsed; clear(); hud.draw(state, 1280, 720); checkState(); return pixels(1280, 720); };
@@ -828,7 +860,7 @@ int main(int argc, char** argv) {
             // Sniper starts at backpack row 2. Pick up its first cell, rotate,
             // and align the rotated grab cell with the sling's second column.
             move(600, 293); hud.pointerButton(0, true); hud.mouseWheel(1);
-            move(74, 195);
+            move(69, 195);
             const auto held = draw();
             require(held != initial, "Inventory input did not show a held item");
             if (argc > 1) capture((std::string(argv[1]) + "-drag-preview.ppm").c_str(), held, 1280, 720);
@@ -838,10 +870,10 @@ int main(int argc, char** argv) {
                 "Item must remain held until placement access time completes");
             const auto halfway = draw(2.01);
             require(pending != halfway, "Pending placement did not animate its progress bar");
-            require(isColor(colorAt(halfway, 1280, 720, 65, 261), {245,246,242}),
+            require(isColor(colorAt(halfway, 1280, 720, 65, 245), {245,246,242}),
                 "Placement progress bar must appear near the destination item");
             clear(); hud.draw(state, 640, 360); checkState();
-            require(isColor(colorAt(pixels(640, 360), 640, 360, 33, 131), {245,246,242}),
+            require(isColor(colorAt(pixels(640, 360), 640, 360, 33, 123), {245,246,242}),
                 "Pending placement progress must follow viewport scaling");
             move(900, 500);
             const auto movedPending = draw();
@@ -858,14 +890,14 @@ int main(int argc, char** argv) {
             if (argc > 1) capture((std::string(argv[1]) + "-drag-placed.ppm").c_str(), placed, 1280, 720);
             // Same window fractions work after a 2x render-resolution change.
             clear(); hud.draw(state, 640, 360); checkState();
-            move(74, 195); hud.pointerButton(0, true); hud.mouseWheel(-1);
+            move(69, 195); hud.pointerButton(0, true); hud.mouseWheel(-1);
             clear(); hud.draw(state, 640, 360); checkState();
             hud.pointerButton(1, true);
             clear(); hud.draw(state, 640, 360); checkState();
             const auto restored = draw();
             for (int y = 150; y < 540; ++y) for (int x = 34; x < 872; ++x)
                 require(colorAt(restored,1280,720,x,y) == colorAt(placed,1280,720,x,y), "Right-click failed to restore the previous completed placement");
-            move(74, 195); hud.pointerButton(0, true); move(80, 205); draw();
+            move(69, 195); hud.pointerButton(0, true); move(80, 205); draw();
             require(hudInventory.held().has_value(), "Dragging beyond the movement threshold must pick up the item");
             state.screen = viewer::HudScreen::Skills; draw();
             state.screen = viewer::HudScreen::Inventory;
@@ -875,7 +907,7 @@ int main(int argc, char** argv) {
         }
         {
             const auto root = std::filesystem::path(VIEWER_HUD_DIR).parent_path();
-            auto inventory = viewer::loadPlayerInventory(root);
+            auto inventory = inventory_fixture::crowdedBackpack(root);
             viewer::Weapons weapons(root / "storage/weapons", root / "inventory.toml", true);
             auto physics = std::make_shared<viewer::PhysicsWorld>();
             viewer::GroundItems ground(physics);
@@ -922,9 +954,9 @@ int main(int argc, char** argv) {
         }
         {
             const auto root = std::filesystem::path(VIEWER_HUD_DIR).parent_path();
-            auto contents = viewer::loadInventoryContents(root);
+            auto contents = inventory_fixture::contents(root);
             contents.placements.at("pistol") = {"backpack/tactical_backpack/top_quick_access", 0, 0};
-            viewer::PlayerInventory inventory(viewer::loadStorageLoadout(root / "storage"), std::move(contents));
+            viewer::PlayerInventory inventory(inventory_fixture::storage(root), std::move(contents));
             viewer::Hud hud(VIEWER_HUD_DIR, inventory);
             state.screen = viewer::HudScreen::Inventory;
             for (const auto dimensions : {std::array{1280, 720}, std::array{640, 360}, std::array{1366, 768},
@@ -950,10 +982,10 @@ int main(int argc, char** argv) {
         // These fitted rectangles are independent of the production fit helper.
         for (const bool topPocket : {true, false}) {
             const auto root = std::filesystem::path(VIEWER_HUD_DIR).parent_path();
-            auto contents = viewer::loadInventoryContents(root);
+            auto contents = inventory_fixture::contents(root);
             contents.placements.at("pistol") = {topPocket ? "backpack/tactical_backpack/top_quick_access" :
                 "backpack/tactical_backpack/front_utility", 0, 0};
-            viewer::PlayerInventory inventory(viewer::loadStorageLoadout(root / "storage"), std::move(contents));
+            viewer::PlayerInventory inventory(inventory_fixture::storage(root), std::move(contents));
             viewer::Hud hud(VIEWER_HUD_DIR, inventory);
             state.screen = viewer::HudScreen::Inventory;
             for (const auto fit : {std::array{1920, 1200, 0, 60, 1920, 1080},
@@ -991,7 +1023,7 @@ int main(int argc, char** argv) {
         // changing the combo placeholders or the shared hotbar.
         {
             StorageFixture fixture;
-            auto hudInventory = viewer::loadPlayerInventory(fixture.directory);
+            auto hudInventory = inventory_fixture::crowdedBackpack(fixture.directory);
             state.screen = viewer::HudScreen::Skills;
             std::vector<unsigned char> original;
             {

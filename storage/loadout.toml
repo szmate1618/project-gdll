@@ -2,4 +2,4 @@ schema_version = 1
 
 # Catalog IDs, not saved item contents. Read on first opening Inventory.
 backpack = "tactical_backpack"
-equipment = ["hip_holster", "chest_pouch", "left_shoulder_sling", "right_shoulder_sling"]
+equipment = ["hip_holster", "tactical_vest", "left_shoulder_sling", "right_shoulder_sling"]

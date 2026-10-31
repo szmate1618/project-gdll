@@ -16,8 +16,6 @@ body.loadout { pointer-events: auto; }
 #body-storage { left: 0dp; width: 388dp; }
 #backpack { left: 408dp; width: 428dp; }
 .details-panel { left: 856dp; width: 354dp; }
-.body-placeholder { position: absolute; top: 174dp; left: 170dp; width: 48dp; height: 48dp; }
-.body-placeholder-label { position: absolute; top: 237dp; left: 137dp; width: 114dp; font-size: 10dp; line-height: 17dp; text-align: center; }
 .backpack-size { font-size: 14dp; top: 14dp; }
 /* Slot coordinates use this inner rectangle of each panel, in design dp. */
 .storage-area { position: absolute; left: 20dp; top: 62dp; height: 344dp; }

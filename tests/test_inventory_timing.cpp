@@ -1,3 +1,4 @@
+#include "inventory_fixture.hpp"
 #include "inventory/inventory_config.hpp"
 #include "inventory/inventory_drag.hpp"
 #include <cmath>
@@ -11,7 +12,7 @@ void near(double value, double expected, const char* message) { require(std::abs
 constexpr auto pack = "backpack/tactical_backpack/main";
 constexpr auto sling = "body/left_shoulder_sling/carry";
 void sourceAndDestination() {
-    auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
+    auto inventory = inventory_fixture::crowdedBackpack(VIEWER_ITEM_ROOT);
     viewer::InventoryDrag drag(inventory);
     require(drag.pickUp("sniper") && !drag.pending(), "Pickup must be immediate and start no timer");
     drag.rotate(1);
@@ -34,7 +35,7 @@ void sourceAndDestination() {
     require(inventory.locationOf("sniper")->placement->storage == sling, "Cancel must preserve completed free-space moves");
 }
 void swapDefersSourceCost() {
-    auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
+    auto inventory = inventory_fixture::crowdedBackpack(VIEWER_ITEM_ROOT);
     viewer::InventoryDrag drag(inventory);
     drag.pickUp("submachine_gun");
     require(drag.drop(pack, 3, 0).result == viewer::InventoryDrop::Swap, "First swap must be valid");
@@ -52,7 +53,7 @@ void swapDefersSourceCost() {
     require(!inventory.held() && inventory.placements().size() == inventory.items().size(), "Timed swap chain lost an item");
 }
 void cancellationAndRowIndependence() {
-    auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
+    auto inventory = inventory_fixture::crowdedBackpack(VIEWER_ITEM_ROOT);
     viewer::InventoryDrag drag(inventory);
     drag.pickUp("submachine_gun"); drag.drop(pack, 3, 0); drag.advance(drag.pending()->durationSeconds);
     drag.drop(pack, 0, 2); drag.advance(1);
@@ -76,7 +77,7 @@ void cancellationAndRowIndependence() {
     drag.cancel();
 }
 void returningToOriginalCompartment() {
-    auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
+    auto inventory = inventory_fixture::crowdedBackpack(VIEWER_ITEM_ROOT);
     viewer::InventoryDrag drag(inventory);
     constexpr auto holster = "body/hip_holster/holster";
     constexpr auto pouch = "body/chest_pouch/pouch";
@@ -123,12 +124,12 @@ void returningToOriginalCompartment() {
     drag.cancel();
     // Free returns do not depend on the optional occupancy configuration.
     auto fixedStorage = inventory.storage(); fixedStorage.backpack->grid.backpackAccess.reset();
-    viewer::PlayerInventory fixed(fixedStorage, viewer::loadInventoryContents(VIEWER_ITEM_ROOT));
+    viewer::PlayerInventory fixed(fixedStorage, inventory_fixture::contents(VIEWER_ITEM_ROOT));
     viewer::InventoryDrag fixedDrag(fixed); fixedDrag.pickUp("sniper"); fixedDrag.drop(pack, 0, 2);
     require(!fixedDrag.pending() && !fixedDrag.held(), "Fixed-access backpack returns must also be free");
 }
 void returningOverAnotherItem() {
-    auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
+    auto inventory = inventory_fixture::crowdedBackpack(VIEWER_ITEM_ROOT);
     viewer::InventoryDrag drag(inventory);
     drag.pickUp("submachine_gun"); drag.drop(pack, 3, 0);
     drag.advance(drag.pending()->durationSeconds);

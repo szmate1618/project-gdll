@@ -87,9 +87,10 @@ void populateInventory(Rml::ElementDocument& document, const PlayerInventory& in
     const auto& loadout = inventory.storage();
     const auto& layout = inventory.layout();
     std::string body;
+    // Compact tall body grids leave room for two pouch rows below the slings.
     for (const auto& equipment : loadout.equipment)
         for (const auto& slot : equipment.slots)
-            body += slotMarkup(slot, layout.at(bodyStorageReference(equipment.id, slot.id)), inventory, 348, 344, bodyStorageReference(equipment.id, slot.id));
+            body += slotMarkup(slot, layout.at(bodyStorageReference(equipment.id, slot.id)), inventory, 348, 344, bodyStorageReference(equipment.id, slot.id), 48);
     if (body.empty()) body = "<div class='storage-empty'>NO BODY STORAGE EQUIPPED</div>";
     set(document, "body-storage-slots", body);
     set(document, "body-storage-count", std::to_string(loadout.equipment.size()) + " EQUIPPED");

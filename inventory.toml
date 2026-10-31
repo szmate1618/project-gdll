@@ -68,77 +68,80 @@ storage = "body/hip_holster/holster"
 x = 0
 y = 0
 
-[placements.he_grenade]
-storage = "body/chest_pouch/pouch"
-x = 0
-y = 0
-
 [placements.submachine_gun]
-storage = "backpack/tactical_backpack/main"
+storage = "body/right_shoulder_sling/carry"
 x = 0
 y = 0
+rotation = 90
 
 [placements.shotgun]
-storage = "backpack/tactical_backpack/main"
-x = 3
+storage = "body/left_shoulder_sling/carry"
+x = 0
 y = 0
+rotation = 90
 
 [placements.sniper]
 storage = "backpack/tactical_backpack/main"
 x = 0
-y = 2
+y = 0
+rotation = 90
 
 [placements.pistol_rounds_1]
-storage = "backpack/tactical_backpack/main"
-x = 7
+storage = "body/tactical_vest/upper_left"
+x = 0
 y = 0
 
 [placements.pistol_rounds_2]
-storage = "backpack/tactical_backpack/main"
-x = 7
+storage = "body/tactical_vest/upper_left"
+x = 0
 y = 1
 
 [placements.smg_rounds_1]
-storage = "backpack/tactical_backpack/main"
-x = 7
-y = 2
+storage = "body/tactical_vest/upper_center"
+x = 0
+y = 0
 
 [placements.smg_rounds_2]
-storage = "backpack/tactical_backpack/main"
-x = 7
-y = 3
+storage = "body/tactical_vest/upper_center"
+x = 0
+y = 1
 
 [placements.smg_rounds_3]
-storage = "backpack/tactical_backpack/main"
-x = 7
-y = 4
+storage = "body/tactical_vest/upper_right"
+x = 0
+y = 0
 
 [placements.smg_rounds_4]
-storage = "backpack/tactical_backpack/main"
-x = 7
-y = 5
+storage = "body/tactical_vest/upper_right"
+x = 0
+y = 1
 
 [placements.smg_rounds_5]
-storage = "backpack/tactical_backpack/main"
-x = 7
-y = 6
-
-[placements.shotgun_shells_1]
-storage = "backpack/tactical_backpack/main"
-x = 7
-y = 7
-
-[placements.shotgun_shells_2]
-storage = "backpack/tactical_backpack/main"
-x = 7
-y = 8
+storage = "body/tactical_vest/lower_left"
+x = 0
+y = 0
 
 [placements.sniper_rounds_1]
-storage = "backpack/tactical_backpack/right_side"
+storage = "body/tactical_vest/lower_left"
+x = 0
+y = 1
+
+[placements.shotgun_shells_1]
+storage = "body/tactical_vest/lower_center"
+x = 0
+y = 0
+
+[placements.shotgun_shells_2]
+storage = "body/tactical_vest/lower_center"
+x = 0
+y = 1
+
+[placements.he_grenade]
+storage = "body/tactical_vest/lower_right"
 x = 0
 y = 0
 
 [placements.he_grenades_1]
-storage = "backpack/tactical_backpack/right_side"
+storage = "body/tactical_vest/lower_right"
 x = 0
 y = 1

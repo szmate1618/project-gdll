@@ -42,7 +42,7 @@ struct Fixture {
 void selectedStorage() {
     const auto loadout = viewer::loadStorageLoadout(VIEWER_STORAGE_DIR);
     require(loadout.equipment.size() == 4 && loadout.equipment[0].id == "hip_holster" &&
-        loadout.equipment[1].id == "chest_pouch" &&
+        loadout.equipment[1].id == "tactical_vest" &&
         loadout.equipment[2].id == "left_shoulder_sling" && loadout.equipment[3].id == "right_shoulder_sling",
         "Selection must resolve only equipped equipment, in order");
     for (std::size_t index = 2; index < 4; ++index) {
@@ -53,10 +53,20 @@ void selectedStorage() {
         require(sling.y == -1 && sling.x == (index == 2 ? -1 : 1),
             "Shoulder slings must use the top corners of the body storage panel");
     }
+    const auto& vest = loadout.equipment[1];
+    require(vest.slots.size() == 6, "Vest must have six pouches");
+    for (std::size_t index = 0; index < vest.slots.size(); ++index) {
+        const auto& slot = vest.slots[index];
+        require(slot.grid.width == 1 && slot.grid.height == 2 && slot.grid.accessTime == .65,
+            "Vest pouches must be 1x2 with fixed access");
+        require(slot.x == static_cast<double>(index % 3) - 1 &&
+            slot.y == vest.slots[(index / 3) * 3].y && vest.slots[0].y < vest.slots[3].y,
+            "Vest pouches must form two rows of three");
+    }
     const auto& holster = loadout.equipment[0].slots.at(0);
     require(holster.grid.width == 2 && holster.grid.height == 1 && holster.grid.accessTime == .35,
         "Holster dimensions and timing were lost");
-    require(holster.x == -.8 && holster.y == .45, "Panel-relative coordinates were changed");
+    require(holster.x == 0 && holster.y == -1, "Panel-relative coordinates were changed");
     require(holster.grid.allowedTags == std::vector<std::string>{"handgun"}, "Holster must only accept handguns");
     require(loadout.equipment[1].slots.at(0).grid.allowedTags.empty(), "Omitted restrictions must allow any tag");
     require(loadout.backpack && loadout.backpack->id == "tactical_backpack" &&
@@ -135,7 +145,7 @@ void invalidCatalogs() {
     }
     for (const auto& value : {"1.01", "-1.01", "nan"}) {
         Fixture fixture;
-        fixture.replace("equipment.toml", "x = -0.8", std::string("x = ") + value);
+        fixture.replace("equipment.toml", "x = 0", std::string("x = ") + value);
         fixture.rejects("equipment.toml", "coordinates");
     }
     {

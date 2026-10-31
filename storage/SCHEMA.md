@@ -6,11 +6,11 @@
 ```toml
 schema_version = 1
 backpack = "tactical_backpack"
-equipment = ["hip_holster", "chest_pouch", "left_shoulder_sling", "right_shoulder_sling"]
+equipment = ["hip_holster", "tactical_vest", "left_shoulder_sling", "right_shoulder_sling"]
 ```
 
-The starter bag is the **8×10 tactical backpack**, large enough for the three
-large weapons placed in it. Other choices are `small_sling_bag` (4×5) and
+The starter bag is the **8×10 tactical backpack**, large enough for the
+vertical sniper placed in it. Other choices are `small_sling_bag` (4×5) and
 `hiking_backpack` (10×14).
 Omit `backpack` for no backpack; use `equipment = []` for no body storage.
 
@@ -86,9 +86,22 @@ equipped in the starter loadout and appear at the top corners of Body Storage.
 Their references are `body/left_shoulder_sling/carry` and
 `body/right_shoulder_sling/carry`.
 
-They fit the 5×2 sniper when rotated 90° using the mouse wheel while held.
-The sniper starts in the backpack. The chest
-pouch's panel position is lower to leave room for the right sling.
+The SMG starts rotated 90° in the right sling; the shotgun starts rotated 90°
+in the left. The sniper starts rotated 90° in the backpack, occupying 2×5 cells.
+The slings also fit the sniper when rotated vertically.
+
+## Tactical vest
+
+`tactical_vest` replaces `chest_pouch` in the starter loadout. It has six **1×2**
+pouches in two rows of three: `upper_left`, `upper_center`, `upper_right`,
+`lower_left`, `lower_center`, and `lower_right`. Each has a fixed access time of
+0.65 seconds and accepts any item that fits. References use
+`body/tactical_vest/<pouch-id>`. The chest pouch remains available in the catalog.
+
+All twelve vest cells start occupied: two pistol-ammo stacks, five SMG-ammo
+stacks, two shotgun-shell stacks, one sniper-ammo stack, one grenade stack, and
+the ready grenade. The pistol remains in the hip holster. The holster is centered
+between the slings, above the two vest rows.
 
 ## Item tag restrictions
 
@@ -99,7 +112,7 @@ must be unique, nonempty strings containing lowercase letters, digits or undersc
 The same optional field works inside a backpack's main `grid` table.
 
 The hip holster accepts `handgun`; both shoulder slings accept `long_gun`.
-The chest pouch and backpacks remain unrestricted. Both startup placement
+The vest, chest pouch and backpacks remain unrestricted. Both startup placement
 validation and drag/drop previews enforce the rule, including swaps and rotated
 items. Rotation never changes item tags. The item must also fit the grid.
 
@@ -107,7 +120,7 @@ items. Rotation never changes item tags. The item must also fit the grid.
 
 Coordinates position the compartment card's **center within the inner storage
 rectangle of the Body Storage panel or Backpack panel**. They are independent of
-the body placeholder and the main backpack grid. X increases rightward; Y
+the main backpack grid. X increases rightward; Y
 increases downward. `(0, 0)` is the rectangle's center, `(-1, -1)` its top left,
 and `(1, 1)` its bottom right.
 

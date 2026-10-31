@@ -3,7 +3,6 @@
 <body template="loadout" class="loadout inventory">
     <div id="body-storage" class="panel main-panel">
         <div class="panel-heading">BODY STORAGE</div><div id="body-storage-count" class="panel-meta"></div>
-        <div class="body-placeholder"></div><div class="body-placeholder-label">BODY<br/>REFERENCE</div>
         <div id="body-storage-slots" class="storage-area"></div>
     </div>
     <div id="backpack" class="panel main-panel">

@@ -1,3 +1,4 @@
+#include "inventory_fixture.hpp"
 #include "inventory/inventory_access.hpp"
 #include "inventory/inventory_config.hpp"
 #include "inventory/inventory_drag.hpp"
@@ -76,7 +77,7 @@ void transferBasesAndFloor() {
         "The combined transfer must never have negative duration");
 }
 void operationSnapshots() {
-    auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
+    auto inventory = inventory_fixture::crowdedBackpack(VIEWER_ITEM_ROOT);
     viewer::InventoryDrag drag(inventory);
     const auto pack = "backpack/tactical_backpack/main";
     drag.pickUp("submachine_gun");

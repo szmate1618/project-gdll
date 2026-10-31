@@ -724,14 +724,21 @@ void serverInventoryAmmo(const std::filesystem::path& asset) {
         world.submit(id, Commands{{command}}); world.submit(id, Commands{{command}});
         world.step();
     };
+    // Leave one vest cell free and make the reserve pistol stack slower to access.
+    Command reserve;
+    reserve.inventoryActions = {{Action::PickUp, "pistol_rounds_2", "", 0, 0, 0},
+        {Action::Drop, "", "backpack/tactical_backpack/main", 6, 0, 0}};
+    submit(reserve);
+    for (int i = 0; i < 600 && player.inventoryDrag.pending(); ++i) world.step();
+    require(!player.inventory.held(), "Reserve stack setup must complete");
     Command move;
     move.inventoryActions = {{Action::PickUp, "pistol_rounds_1", "", 0, 0, 0},
-        {Action::Drop, "", "body/chest_pouch/pouch", 1, 0, 0}};
+        {Action::Drop, "", "body/tactical_vest/upper_left", 0, 1, 0}};
     submit(move);
     require(player.inventoryDrag.pending() && world.snapshot(id).players[0].inventoryDragging,
             "A network inventory move must start authoritative storage access");
     for (int i = 0; i < 600 && player.inventoryDrag.pending(); ++i) world.step();
-    require(!player.inventory.held() && player.inventory.locationOf("pistol_rounds_1")->placement->storage == "body/chest_pouch/pouch",
+    require(!player.inventory.held() && player.inventory.locationOf("pistol_rounds_1")->placement->storage == "body/tactical_vest/upper_left",
             "A replicated move must commit once, without repeating held actions");
     Command fire; fire.left = true; submit(fire);
     Command reload; reload.reload = true; submit(reload);
@@ -743,7 +750,7 @@ void serverInventoryAmmo(const std::filesystem::path& asset) {
             "Reload must consume the fastest matching stack after the network move");
     Command merge;
     merge.inventoryActions = {{Action::PickUp, "pistol_rounds_2", "", 0, 0, 0},
-        {Action::Drop, "", "body/chest_pouch/pouch", 1, 0, 0}};
+        {Action::Drop, "", "body/tactical_vest/upper_left", 0, 1, 0}};
     submit(merge);
     for (int i = 0; i < 600 && player.inventoryDrag.pending(); ++i) world.step();
     require(player.inventory.quantity("pistol_rounds_1") == 60 && player.inventory.quantity("pistol_rounds_2") == 59 &&
@@ -765,7 +772,7 @@ void serverInventoryAmmo(const std::filesystem::path& asset) {
     submit(move);
     require(player.pendingInventoryActions.size() == 2, "Next move must wait behind the authoritative timer");
     for (int i = 0; i < 1200 && (player.inventoryDrag.pending() || !player.pendingInventoryActions.empty()); ++i) world.step();
-    require(!player.inventory.held() && player.inventory.locationOf("pistol_rounds_1")->placement->storage == "body/chest_pouch/pouch" &&
+    require(!player.inventory.held() && player.inventory.locationOf("pistol_rounds_1")->placement->storage == "body/tactical_vest/upper_left" &&
             player.pendingInventoryActions.empty(), "Network jitter lost an acknowledged inventory move");
     require(player.weaponReload.pending() && std::abs(player.weaponReload.duration() - 2.15) < 1e-6,
             "A queued reload must wait for storage moves and use their completed access time");

@@ -1,3 +1,4 @@
+#include "inventory_fixture.hpp"
 #include "inventory/inventory_drag.hpp"
 #include "inventory/inventory_config.hpp"
 #include <iostream>
@@ -21,8 +22,8 @@ bool same(const std::map<std::string, viewer::ItemPlacement>& a, const std::map<
     return true;
 }
 void rotationAndBoundaries() {
-    const auto storage = viewer::loadStorageLoadout(std::filesystem::path(VIEWER_ITEM_ROOT) / "storage");
-    auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
+    const auto storage = inventory_fixture::storage(VIEWER_ITEM_ROOT);
+    auto inventory = inventory_fixture::crowdedBackpack(VIEWER_ITEM_ROOT);
     const auto original = inventory.placements();
     const auto shortcuts = inventory.hotbar();
     viewer::InventoryDrag drag(inventory);
@@ -92,8 +93,8 @@ void swapChains() {
     wide.cancel();
 }
 void tagRestrictions() {
-    auto storage = viewer::loadStorageLoadout(std::filesystem::path(VIEWER_ITEM_ROOT) / "storage");
-    auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
+    auto storage = inventory_fixture::storage(VIEWER_ITEM_ROOT);
+    auto inventory = inventory_fixture::crowdedBackpack(VIEWER_ITEM_ROOT);
     const auto original = inventory.placements();
     const std::string holster = "body/hip_holster/holster";
     viewer::InventoryDrag drag(inventory);
@@ -123,7 +124,7 @@ void tagRestrictions() {
     // Multiple allowed tags mean any match, not all tags; this is data-driven.
     auto alternateStorage = storage;
     alternateStorage.equipment[0].slots[0].grid.allowedTags = {"utility", "grenade", "handgun"};
-    viewer::PlayerInventory alternateInventory(alternateStorage, viewer::loadInventoryContents(VIEWER_ITEM_ROOT));
+    viewer::PlayerInventory alternateInventory(alternateStorage, inventory_fixture::contents(VIEWER_ITEM_ROOT));
     viewer::InventoryDrag alternate(alternateInventory);
     alternate.pickUp("he_grenade");
     require(alternate.preview(holster, 0, 0).result == viewer::InventoryDrop::Swap,

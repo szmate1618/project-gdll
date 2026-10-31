@@ -52,11 +52,11 @@ void transitions() {
     const auto punch = viewer::weaponSwitchTiming(inventory, weapons.equipped().config, weapons.state(viewer::punchSlot).config);
     require(punch && punch->draw == 0 && punch->storageAccess > 0,
             "Punch must have no storage/draw cost, while putting away its old weapon stays timed");
-    near(punch->storageAccess, 2.84, "Switching to fists must charge only the old weapon's adjusted source storage");
+    near(punch->storageAccess, .7, "Switching to fists must charge only the old weapon's sling access");
     const auto fromPunch = viewer::weaponSwitchTiming(inventory, weapons.state(viewer::punchSlot).config, weapons.equipped().config);
-    near(fromPunch->storageAccess, 2.84, "Switching from fists must charge only the new weapon's adjusted storage");
+    near(fromPunch->storageAccess, .7, "Switching from fists must charge only the new weapon's sling access");
     const auto separate = viewer::weaponSwitchTiming(inventory, weapons.state(0).config, weapons.state(4).config);
-    near(separate->storageAccess, 1.0, "Holster and chest pouch must each charge their access time");
+    near(separate->storageAccess, 1.0, "Holster and vest pouch must each charge their access time");
 }
 void sharedStorageAndBothAdjustments() {
     const auto original = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);

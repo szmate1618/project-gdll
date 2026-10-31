@@ -180,16 +180,18 @@ The gameplay hotbar selector marks the selected slot with a small coral bar.
 [inventory.rml](../ui/inventory.rml) builds body storage and the backpack from
 [storage/loadout.toml](../storage/loadout.toml) and the equipment/backpack catalogs
 in that folder. The starter selection is an 8×10 tactical backpack, hip holster
-and chest pouch, plus left and right shoulder slings with vertical 2×5 grids.
-The slings start empty; rotate the 5×2 sniper to fit their 2×5 grids. The 4×5 sling bag remains
+and a tactical vest with six 1×2 pouches in two rows of three, plus left and right
+shoulder slings with vertical 2×5 grids. The SMG starts vertically in the right
+sling and the shotgun vertically in the left. The 4×5 sling bag remains
 available in the catalog. Slot
 coordinates are normalized within each panel's inner storage rectangle. Capacity, pocket placement and access times come from those files;
 see [the storage schema](../storage/SCHEMA.md) for editing and validation rules.
 The application reads the files once when creating the player inventory at startup;
 restart to reload changes. The GUI borrows that model. See
 [inventory code and queries](INVENTORY.md) for the ownership and module boundaries.
-Root `inventory.toml` places the 2×1 pistol in the holster, the grenade in the
-chest pouch, and the other three weapons in the backpack. Occupied N×M footprints
+Root `inventory.toml` places the 2×1 pistol in the holster and the sniper vertically
+in the backpack. All twelve vest cells hold the eleven ammo stacks and the ready
+grenade. Occupied N×M footprints
 are drawn as tinted rectangles on the grids. References, bounds and overlap
 are validated against the equipped storage. Hovering over an item shows its details.
 Compartment `allowed_tags` restrict the hip holster to `handgun` items and both

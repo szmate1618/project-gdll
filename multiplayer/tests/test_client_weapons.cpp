@@ -610,7 +610,7 @@ int main(int argc, char** argv) {
             "[ammo]\n"
             "[hotbar]\n0='pistol'\n1='submachine_gun'\n2='shotgun'\n3='sniper'\n4='he_grenade'\n5='skill:punch'\n"
             "[placements.pistol]\nstorage='body/hip_holster/holster'\nx=0\ny=0\n"
-            "[placements.he_grenade]\nstorage='body/chest_pouch/pouch'\nx=0\ny=0\n"
+            "[placements.he_grenade]\nstorage='body/tactical_vest/lower_right'\nx=0\ny=0\n"
             "[placements.submachine_gun]\nstorage='backpack/tactical_backpack/main'\nx=0\ny=0\n"
             "[placements.shotgun]\nstorage='backpack/tactical_backpack/main'\nx=3\ny=0\n"
             "[placements.sniper]\nstorage='backpack/tactical_backpack/main'\nx=0\ny=2\n";

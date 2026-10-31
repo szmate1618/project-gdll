@@ -21,21 +21,30 @@ void placements() {
     const auto inventory = viewer::loadInventoryContents(VIEWER_ITEM_ROOT);
     const auto layout = viewer::buildInventoryLayout(storage, inventory);
     require(inventory.placements.size() == inventory.owned.size(), "Every starter weapon and ammo stack needs a placement");
-    const auto& sniper = inventory.owned.at("sniper");
-    for (const auto* reference : {"body/left_shoulder_sling/carry", "body/right_shoulder_sling/carry"}) {
-        const auto& sling = layout.at(reference);
-        require(sling.items.empty() && sling.grid.width == sniper.inventory().height && sling.grid.height == sniper.inventory().width,
-            "Each equipped sling must fit the sniper after future rotation");
+    for (const auto& [id, side] : {std::pair{"shotgun", "left"}, std::pair{"submachine_gun", "right"}}) {
+        const auto& sling = layout.at(std::string("body/") + side + "_shoulder_sling/carry");
+        require(sling.items.size() == 1 && sling.items[0].item == id && sling.items[0].width == 2 &&
+            inventory.placements.at(id).rotation == 90, "Long guns must start vertically in their assigned slings");
     }
     const auto& holster = layout.at("body/hip_holster/holster");
     require(holster.items.size() == 1 && holster.items[0].item == "pistol" &&
         holster.items[0].width == 2 && holster.items[0].height == 1, "Pistol must fill the 2x1 holster");
-    require(layout.at("body/chest_pouch/pouch").items.at(0).item == "he_grenade", "Grenade must be in the chest pouch");
+    require(!layout.count("body/chest_pouch/pouch"), "Chest pouch must be replaced by the vest");
+    const auto& vest = storage.equipment.at(1);
+    require(vest.id == "tactical_vest" && vest.slots.size() == 6, "Vest must have six pouches");
+    for (const auto& slot : vest.slots) {
+        const auto& pouch = layout.at(viewer::bodyStorageReference(vest.id, slot.id));
+        require(pouch.grid.width == 1 && pouch.grid.height == 2 && pouch.items.size() == 2,
+            "Each 1x2 vest pouch must start completely full");
+        for (const auto& item : pouch.items)
+            require(item.width == 1 && item.height == 1 &&
+                (inventory.owned.at(item.item).inventory().type == "ammo" || item.item == "he_grenade"),
+                "Vest must contain only ammo stacks and grenades");
+    }
     const auto& backpack = layout.at("backpack/tactical_backpack/main");
-    require(backpack.items.size() == 12 && backpack.grid.width == 8 && backpack.grid.height == 10,
-        "The other three weapons and nine ammo stacks must be in the equipped tactical backpack");
-    require(inventory.placements.at("submachine_gun").x == 0 && inventory.placements.at("shotgun").x == 3 &&
-        inventory.placements.at("sniper").y == 2, "Grid cell positions were not parsed");
+    require(backpack.items.size() == 1 && backpack.items[0].item == "sniper" &&
+        backpack.items[0].width == 2 && backpack.items[0].height == 5 && inventory.placements.at("sniper").rotation == 90,
+        "Sniper must start vertically in the backpack");
     auto changed = inventory;
     changed.placements.at("pistol").storage = "body/left_shoulder_sling/carry";
     rejects(storage, changed, "allowed tag");
@@ -53,7 +62,7 @@ void placements() {
     changed.placements.at("pistol").x = 2;
     rejects(storage, changed, "outside");
     changed = inventory;
-    changed.placements.at("sniper").y = 0;
+    changed.placements.at("he_grenade") = changed.placements.at("sniper");
     rejects(storage, changed, "overlaps");
     changed = inventory;
     changed.placements.at("sniper").y = -1;
