@@ -123,7 +123,7 @@ Clients publish a complete validated appearance together, so a partial transfer
 keeps the existing placeholder. Upload ownership comes from the joined
 session connection, and clients cannot change another player's appearance.
 The appearance is cosmetic and is separate from collision and map fingerprints.
-Protocol 24 requires matching rebuilt clients and servers. The RmlUi binding lives in
+Protocol 27 requires matching rebuilt clients and servers. The RmlUi binding lives in
 [character_editor.cpp](client/character_editor.cpp), with styles in
 [character-editor.rcss](../ui/character-editor.rcss). Painting and compositing
 remain in `CharacterCanvas`; profile serialization lives in `character_profile` and collection/selection handling
@@ -692,7 +692,7 @@ unbounded queue. After the final stopped pose is confirmed, a parked car stays
 silent until it changes again. Moving, coasting and externally pushed cars all
 retain their updates; driver occupancy alone does not control replication.
 Clients keep each car's latest confirmed state, including across snapshots
-omitting that car. Protocol 24 requires matching rebuilt clients and servers.
+omitting that car. Protocol 27 requires matching rebuilt clients and servers.
 
 All cars bypass the six-tick (100 ms) world playback buffer. Every rendered
 frame extrapolates each car's latest confirmed chassis position with the
@@ -787,6 +787,14 @@ reliable transport lane. Each peer has at most 100 unacknowledged poses and a
 32 KiB bulk transport budget shared with zombie setup messages. Changes while
 a pose is in flight coalesce to the
 latest version; round-robin selection prevents moving corpses starving others.
+Protocol 27 compresses bone rotations to three bytes per joint: one byte per
+XYZ Euler angle, with 256 steps per revolution. The shared skeleton supplies
+fixed joint offsets and affine bases. Sparse millimetre translation deltas retain
+physics joint movement and detached limbs: one index byte plus three signed
+byte offsets normally, or three signed 24-bit offsets for larger displacements.
+Root matrices retain float32 precision. Clients expand the complete palette
+before existing prediction. Poses with unsupported changing scale/shear retain
+the full matrix encoding. Matching rebuilt clients and servers are required.
 Protocol version 6 includes the prepared joint-separation index in each complete
 corpse pose, so the mesh variant and bone palette are applied together. Joint
 definitions and referenced capped meshes participate in the scene fingerprint
@@ -808,7 +816,8 @@ A sleeping pose immediately stops prediction. Fixed scale, reflection and shear
 are preserved. Corpses stay hidden until their first complete pose arrives.
 The transfer window, acknowledgements and shared 32 KiB bulk budget can reduce
 the achieved update rate on slow links. The 100-transfer limit does not guarantee
-100 active ragdolls at five Hz; poses still use the existing uncompressed stream.
+100 active ragdolls at five Hz. Compression reduces pose bytes, while achieved
+cadence still depends on bandwidth, acknowledgements and other bulk traffic.
 
 Physical melee runs at the shared server physics rate. The server validates
 fist ownership, individual clicks and the 0.5 s cooldown. It builds one set of

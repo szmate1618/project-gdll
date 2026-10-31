@@ -176,8 +176,9 @@ float32 position fallbacks. Idle actors are included in this recurring cost.
 
 Loose ragdolls and spring-held melee ragdolls retain the separate complete,
 versioned full-3D pose channel. A one-byte yaw cannot describe their independent
-limb motion. Establish their fixed model/handoff metadata once where possible;
-compressing changing body/bone poses is separate work. The current `CorpsePose`
+limb motion. Protocol 27 uses three-byte joint rotations and sparse millimetre
+translation deltas against shared skeleton metadata, with full float32 roots
+and a matrix fallback for unsupported changing affine bases. The `CorpsePose`
 name and snapshot `dead` flag also cover melee spring ragdolls; the compact flag
 therefore denotes physics-pose mode, including those active hit reactions.
 

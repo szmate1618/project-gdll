@@ -1,4 +1,5 @@
 #include "runtime.hpp"
+#include "ragdoll_pose_codec.hpp"
 #include "network.hpp"
 #include "world.hpp"
 #include "character_appearances.hpp"
@@ -69,8 +70,10 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
         if (const auto frame=world.birdFrame(id); frame && network.send(c,*frame,true))
             world.birdFrameSent(id,frame->tick);
         for (std::size_t i = 0; i < multiplayer::Replication::maxPoseTransfers; ++i) {
-            const auto pose = world.nextPose(id);
-            if (!pose || !network.send(c, *pose, true)) break;
+            auto pose = world.nextPose(id);
+            if (!pose) break;
+            pose->compact = compactRagdollPose(scene.zombies.assets.at(pose->asset), *pose);
+            if (!network.send(c, *pose, true)) break;
             world.poseSent(id, *pose);
         }
     };

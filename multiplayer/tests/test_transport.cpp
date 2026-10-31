@@ -1,6 +1,7 @@
 #include "network.hpp"
 #include "boid/replica.hpp"
 #include "server/replication.hpp"
+#include "ragdoll_pose_codec.hpp"
 #include "player_body.hpp"
 #include "physics_world.hpp"
 #include <algorithm>
@@ -53,6 +54,8 @@ int main(int argc, char** argv) {
         std::uint64_t latest = 0;
         std::uint32_t nextPose = 0;
         std::map<std::uint32_t, std::uint64_t> inFlight;
+        viewer::AnimatedModel poseAsset;
+        poseAsset.skeleton.resize(multiplayer::maxBones);
         while (Clock::now() - start < std::chrono::milliseconds(server ? 6000 : 4000)) {
             const auto messages = network.receive();
             for (const auto& event : network.events)
@@ -117,6 +120,8 @@ int main(int argc, char** argv) {
                     while (inFlight.count(nextPose)) nextPose = (nextPose + 1) % corpseCount;
                     multiplayer::CorpsePose pose;
                     pose.id = nextPose; pose.version = state.tick; pose.bones.resize(multiplayer::maxBones, glm::mat4(1));
+                    pose.compact = multiplayer::compactRagdollPose(poseAsset, pose);
+                    if (!pose.compact) throw std::runtime_error("Transport fixture failed compact pose encoding");
                     if (!network.send(peer, pose, true)) break;
                     inFlight.emplace(pose.id, pose.version); nextPose = (nextPose + 1) % corpseCount;
                 }

@@ -477,11 +477,52 @@ void payload(Wire& w, Snapshot& s) {
             throw std::runtime_error("Invalid vehicle occupancy");
     }
 }
+void compactPose(Wire& w, CompactRagdollPose& pose) {
+    static_assert(maxBones <= 128, "Compact joint offsets reserve one index bit for their width");
+    if (!w.reading && (pose.rotations.empty() || pose.rotations.size() > maxBones ||
+        pose.offsets.size() > pose.rotations.size())) throw std::runtime_error("Invalid compact corpse size");
+    auto count = static_cast<std::uint8_t>(pose.rotations.size());
+    w.integer(count);
+    if (!count || count > maxBones) throw std::runtime_error("Invalid compact corpse skeleton");
+    if (w.reading) pose.rotations.resize(count);
+    for (auto& rotation : pose.rotations) for (auto& axis : rotation) w.integer(axis);
+    auto offsets = static_cast<std::uint8_t>(pose.offsets.size());
+    w.integer(offsets);
+    if (offsets > count) throw std::runtime_error("Invalid compact corpse offsets");
+    if (w.reading) pose.offsets.resize(offsets);
+    int previous = -1;
+    for (auto& offset : pose.offsets) {
+        bool wide = false;
+        if (!w.reading) for (const auto value : offset.millimetres) {
+            if (value < -8388608 || value > 8388607) throw std::runtime_error("Compact corpse offset exceeds range");
+            wide |= value < -128 || value > 127;
+        }
+        std::uint8_t key = static_cast<std::uint8_t>(offset.bone | (wide ? 128 : 0));
+        w.integer(key);
+        if (w.reading) { offset.bone = key & 127; wide = (key & 128) != 0; }
+        if (offset.bone >= count || offset.bone <= previous)
+            throw std::runtime_error("Unordered compact corpse offset");
+        previous = offset.bone;
+        for (auto& value : offset.millimetres) {
+            if (wide) signed24(w, value);
+            else {
+                auto byte = static_cast<std::uint8_t>(static_cast<std::uint32_t>(value) & 255);
+                w.integer(byte);
+                if (w.reading) value = byte < 128 ? byte : int(byte) - 256;
+            }
+        }
+    }
+}
 void payload(Wire& w, CorpsePose& pose) {
     w.integer(pose.id); w.integer(pose.asset); w.integer(pose.version);
     w.integer(pose.tick); w.flag(pose.sleeping);
     w.matrix(pose.transform); w.matrix(pose.root);
-    w.list(pose.bones, maxBones, [&](glm::mat4& m) { w.matrix(m); });
+    bool compact = pose.compact.has_value();
+    w.flag(compact);
+    if (compact) {
+        if (w.reading) pose.compact.emplace();
+        compactPose(w, *pose.compact);
+    } else w.list(pose.bones, maxBones, [&](glm::mat4& m) { w.matrix(m); });
     if (!w.reading && (pose.severedJoint < -1 || pose.severedJoint >= int(viewer::ragdollPartCount - 1)))
         throw std::runtime_error("Invalid severed joint");
     std::uint8_t separation = static_cast<std::uint8_t>(pose.severedJoint + 1);

@@ -37,7 +37,7 @@ add_library(multiplayer_paths STATIC application_paths.cpp)
 target_include_directories(multiplayer_paths PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 viewer_warnings(multiplayer_paths)
 
-add_library(multiplayer_core STATIC protocol.cpp character_appearance_data.cpp character_appearances.cpp scene.cpp resources.cpp asset_validation.cpp network.cpp fragments.cpp
+add_library(multiplayer_core STATIC protocol.cpp ragdoll_pose_codec.cpp character_appearance_data.cpp character_appearances.cpp scene.cpp resources.cpp asset_validation.cpp network.cpp fragments.cpp
     outgoing_snapshots.cpp signals.cpp server/birds.cpp server/world.cpp server/vehicle_seats.cpp server/replication.cpp server/zombie_selection.cpp
     server/sounds.cpp server/vehicle_replication.cpp client/prediction.cpp client/snapshots.cpp client/vehicle_playback.cpp client/ragdoll_interpolation.cpp
     client/ragdoll_playback.cpp client/zombie_prediction.cpp client/firearm_hits.cpp client/weapon_feedback.cpp client/weapon_audio.cpp client/sound_cues.cpp client/remote_weapon_playback.cpp)
@@ -205,6 +205,10 @@ if(BUILD_TESTING)
     viewer_warnings(test_replication)
     add_dependencies(test_replication viewer_test_asset)
     add_test(NAME multiplayer_replication COMMAND test_replication "${VIEWER_TEST_ASSET}")
+    add_executable(test_ragdoll_pose_codec tests/test_ragdoll_pose_codec.cpp)
+    target_link_libraries(test_ragdoll_pose_codec PRIVATE multiplayer_core)
+    viewer_warnings(test_ragdoll_pose_codec)
+    add_test(NAME multiplayer_ragdoll_pose_codec COMMAND test_ragdoll_pose_codec)
     add_executable(test_vehicle_replication tests/test_vehicle_replication.cpp)
     target_link_libraries(test_vehicle_replication PRIVATE multiplayer_core)
     viewer_warnings(test_vehicle_replication)

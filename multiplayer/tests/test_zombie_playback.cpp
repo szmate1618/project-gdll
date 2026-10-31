@@ -1,4 +1,5 @@
 #include "client/snapshots.hpp"
+#include "ragdoll_pose_codec.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
 #include <cmath>
@@ -206,16 +207,24 @@ void completePhysicsPoses(Scene& scene) {
     require(!scene.zombies.instances[0].removed && scene.zombies.instances[0].transform[3].x == 11,
         "Re-entering actor lost its retained complete physics pose");
 }
-void smoothPhysicsPoses(Scene& scene) {
+void smoothPhysicsPoses(Scene& scene, bool compact) {
     reset(scene, 1);
     Snapshots playback;
     playback.pushSetups(scene, ZombieSetups{{setup(0)}});
     playback.push(motion(60, 0, 0, 3, true), 0);
+    const auto push = [&](CorpsePose pose, double now) {
+        if (compact) {
+            pose.compact = compactRagdollPose(scene.zombies.assets[0], pose);
+            require(pose.compact.has_value(), "Prediction fixture failed compact encoding");
+        }
+        const auto bytes = encode(pose);
+        playback.pushPose(scene, std::get<CorpsePose>(decode(bytes.data(), bytes.size())), now);
+    };
     CorpsePose first; first.version = 1; first.tick = 60;
     first.bones.push_back(glm::translate(glm::mat4(1), {2, 0, 0}));
-    playback.pushPose(scene, first, 0); playback.apply(scene, 0);
+    push(first, 0); playback.apply(scene, 0);
     auto next = first; next.version = 2; next.tick = 72; next.transform[3].x = 2;
-    playback.pushPose(scene, next, .2); playback.apply(scene, .2);
+    push(next, .2); playback.apply(scene, .2);
     auto& instance = scene.zombies.instances[0];
     require(instance.transform[3].x == 2, "New ragdoll sample was delayed by a playback buffer");
     playback.apply(scene, .3);
@@ -225,7 +234,7 @@ void smoothPhysicsPoses(Scene& scene) {
     playback.apply(scene, .35);
     require(std::abs(instance.transform[3].x - 3.5f) < .001f,
         "Same-version predicted palette was not published on the next render frame");
-    playback.pushPose(scene, first, .36); playback.apply(scene, .36);
+    push(first, .36); playback.apply(scene, .36);
     require(std::abs(instance.transform[3].x - 3.6f) < .001f,
         "Stale pose reset prediction or overwrote newer motion");
     playback.apply(scene, .7);
@@ -234,13 +243,13 @@ void smoothPhysicsPoses(Scene& scene) {
     require(std::abs(instance.transform[3].x - 6) < .001f && instance.ragdollPoseVersion == frozenVersion,
         "Starved ragdoll predicted indefinitely or kept uploading a frozen palette");
     next.version = 3; next.tick = 84; next.transform[3].x = 2.5f; next.sleeping = true;
-    playback.pushPose(scene, next, 1.1); playback.apply(scene, 1.1);
+    push(next, 1.1); playback.apply(scene, 1.1);
     require(instance.transform == next.transform, "Sleeping corpse retained predicted motion");
     const auto settledVersion = instance.ragdollPoseVersion;
     playback.apply(scene, 1.5);
     require(instance.ragdollPoseVersion == settledVersion, "Settled corpse kept publishing palettes");
     next.version = 4; next.tick = 180; next.transform[3].x = 4; next.sleeping = false;
-    playback.pushPose(scene, next, 2); playback.apply(scene, 2);
+    push(next, 2); playback.apply(scene, 2);
     require(instance.transform == next.transform, "Waking corpse interpolated across its idle interval");
 }
 void changingPhysicsCadence(Scene& scene) {
@@ -310,7 +319,7 @@ int main(int argc, char** argv) {
         nearbyPredictionAndTransit(scene);
         metadataAndNormalization(scene);
         authoredAttackPlayback(scene); completePhysicsPoses(scene);
-        smoothPhysicsPoses(scene);
+        smoothPhysicsPoses(scene, false); smoothPhysicsPoses(scene, true);
         changingPhysicsCadence(scene);
         populationCapacityAndOrder(scene);
         std::cout << "Persistent sparse zombie playback, setup versions, expiry and ID order passed\n";

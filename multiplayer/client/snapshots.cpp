@@ -1,4 +1,5 @@
 #include "snapshots.hpp"
+#include "ragdoll_pose_codec.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -101,14 +102,21 @@ void Snapshots::pushSetups(Scene& scene, const ZombieSetups& setups) {
 }
 void Snapshots::pushPose(const Scene& scene, const CorpsePose& pose, double receivedSeconds, double transitSeconds) {
     if (pose.id >= scene.zombies.instances.size() || pose.asset >= scene.zombies.assets.size() ||
-        pose.asset != scene.zombies.instances[pose.id].asset || !pose.version ||
-        pose.bones.size() != scene.zombies.assets[pose.asset].skeleton.size())
+        pose.asset != scene.zombies.instances[pose.id].asset || !pose.version)
+        throw std::runtime_error("Corpse pose does not match session assets");
+    std::optional<CorpsePose> expanded;
+    if (pose.compact) {
+        expanded = pose;
+        expandRagdollPose(scene.zombies.assets[pose.asset], *expanded);
+    }
+    const auto& complete = expanded ? *expanded : pose;
+    if (complete.bones.size() != scene.zombies.assets[pose.asset].skeleton.size())
         throw std::runtime_error("Corpse pose does not match session assets");
     if (pose.severedJoint >= 0 && (pose.asset >= scene.zombies.dismembermentAssets.size() ||
         std::size_t(pose.severedJoint) >= scene.zombies.dismembermentAssets[pose.asset].meshes.size()))
         throw std::runtime_error("Corpse separation does not match session assets");
     auto& replica = zombie(pose.id);
-    replica.poses.push(pose, receivedSeconds, transitSeconds);
+    replica.poses.push(complete, receivedSeconds, transitSeconds);
     if (!replica.tracked) replica.poses.resetHistory();
 }
 std::vector<viewer::GrenadeExplosion> Snapshots::explosions(double now) const {

@@ -31,7 +31,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 26; // Non-looping authored zombie attacks.
+constexpr std::uint32_t protocolVersion = 27; // Compact ragdoll joint rotations and sparse offsets.
 constexpr std::uint64_t ragdollUpdateTicks = 12; // 5 Hz at the authoritative 60 Hz tick.
 constexpr std::uint64_t blastRagdollUpdateTicks = 6; // 10 Hz for explosion-created ragdolls.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
@@ -134,6 +134,16 @@ struct ZombieSetup {
 struct ZombieSetups { std::vector<ZombieSetup> zombies; };
 struct ZombieSetupReceipt { std::uint32_t id = 0; std::uint64_t version = 0; };
 struct ZombieSetupAck { std::vector<ZombieSetupReceipt> zombies; };
+struct RagdollJointOffset {
+    std::uint8_t bone = 0;
+    // Change from the authored parent-relative joint, in reference asset-space
+    // millimetres. Sparse offsets preserve physics stretch and detached limbs.
+    std::array<std::int32_t, 3> millimetres{};
+};
+struct CompactRagdollPose {
+    std::vector<std::array<std::uint8_t, 3>> rotations; // XYZ Euler turns, 256 steps per revolution.
+    std::vector<RagdollJointOffset> offsets; // Ascending bone IDs; omitted offsets are zero.
+};
 // A complete, coherent corpse pose, delivered independently of essential state.
 // Versions increase for each zombie; an acknowledgement releases a bounded
 // transfer slot. Intermediate versions are coalesced while a transfer is active.
@@ -145,6 +155,9 @@ struct CorpsePose {
     std::int16_t severedJoint = -1;
     std::uint64_t tick = 0; // Authoritative pose time, independent of receive jitter.
     bool sleeping = false; // Final settled poses stop extrapolation immediately.
+    // Wire-only alternative to bones. Expanded against the shared skeleton
+    // before prediction; roots remain full precision in both encodings.
+    std::optional<CompactRagdollPose> compact{};
 };
 struct PoseAck { std::uint32_t id = 0; std::uint64_t version = 0; };
 struct DoorState { std::uint32_t id = 0; float angle = 0; };
