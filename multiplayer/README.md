@@ -489,7 +489,10 @@ and data URIs are supported. Zombie assets may have at most 128 skeleton nodes
 (including non-joint scene nodes); incompatible rigs fail before hosting.
 Weapon definitions and starting inventory are loaded once per scene and copied
 for each joining player, so changing files cannot change a running session.
-The current wire protocol is version 31; rebuild both client and server together.
+The current wire protocol is version 32; rebuild both client and server together.
+Runtime [family-house floorplans](../docs/FLOORPLANS.md) are generated separately
+by each peer. Geometry is neither saved nor replicated; stable generated door
+IDs use the existing authoritative door-angle snapshots.
 Player health starts at 100 and is authoritative, including fractional damage
 from collision-limited zombie lunges. Clients show health and a brief damage
 pulse without simulating attacks. Stamina and weariness are stored but inactive.

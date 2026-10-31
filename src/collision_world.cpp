@@ -316,7 +316,7 @@ void appendTrunk(std::vector<glm::vec3>& lines, const TrunkCollider& trunk) {
 }  // namespace
 
 struct CollisionWorld::Impl {
-    const std::uint64_t worldId = nextWorldId.fetch_add(1, std::memory_order_relaxed);
+    std::uint64_t worldId = nextWorldId.fetch_add(1, std::memory_order_relaxed);
     struct Node {
         Bounds bounds;
         std::uint32_t first = 0, count = 0, left = 0, right = 0;
@@ -336,6 +336,8 @@ struct CollisionWorld::Impl {
     const DoorLayer* doors = nullptr;
     BoxLayer* boxes = nullptr;
     const VehicleLayer* vehicles = nullptr;
+    std::unique_ptr<CollisionWorld> runtime;
+    std::uint64_t runtimeRevision = 0;
 
     void addTriangle(const CollisionFace& face, float winding, int group, bool terrain, bool roof,
                      bool wallBase, bool road) {
@@ -584,6 +586,7 @@ CollisionWorld& CollisionWorld::operator=(CollisionWorld&&) noexcept = default;
 
 bool CollisionWorld::lineOfSight(glm::vec3 origin, glm::vec3 target) const {
     if (!finite(origin) || !finite(target)) return false;
+    if (impl_->runtime && !impl_->runtime->lineOfSight(origin, target)) return false;
     const auto delta = target - origin;
     const float length = glm::length(delta);
     if (!std::isfinite(length)) return false;
@@ -693,6 +696,10 @@ bool CollisionWorld::simpleTravelerClear(glm::vec3 start,glm::vec3 end,float rad
                                          ContactCandidates& cache) const {
     zombie_profile::Timer timer(zombie_profile::Stage::contacts);
     if (!finite(start) || !finite(end) || !std::isfinite(radius) || !std::isfinite(height) || radius<=0 || height<2*radius) return false;
+    if (impl_->runtime) {
+        ContactCandidates runtimeCandidates;
+        if (!impl_->runtime->simpleTravelerClear(start, end, radius, height, runtimeCandidates)) return false;
+    }
     constexpr float skin=.002f,wallClearance=.05f;
     const float reach=radius+skin;
     Bounds region;
@@ -831,6 +838,16 @@ void CollisionWorld::visitContacts(glm::vec3 feet,float radius,float height,floa
         }
     } else if (!impl_->visitTrunksIndexed(region,visitTrunk)) return;
     }
+    if (impl_->runtime) {
+        struct Forward { ContactVisitor visitor; bool stopped = false; } forward{visitor};
+        impl_->runtime->visitContacts(feet, radius, height, skin, wallClearance,
+            {&forward, [](void* context, const Contact& contact) {
+                auto& state = *static_cast<Forward*>(context);
+                if (!state.visitor(contact)) { state.stopped = true; return false; }
+                return true;
+            }}, nullptr, policy);
+        if (forward.stopped) return;
+    }
     // Dynamic manifold generation retains its existing API and live poses.
     // No static contacts are stored, and this list is never globally sorted.
     std::vector<Contact> dynamic;
@@ -906,6 +923,10 @@ std::optional<GroundHit> CollisionWorld::queryGround(float x, float z, float min
             }
         } else impl_->query(region, consider);
     } else impl_->query(region, consider);
+    }
+    if (!terrainOnly && impl_->runtime) {
+        const auto support = impl_->runtime->queryGround(x, z, minY, maxY, false, foundationCaps, nullptr, false);
+        if (support && (!result || support->height > result->height)) result = support;
     }
     if (includeBoxes && !terrainOnly && impl_->boxes) {
         zombie_profile::Timer propTimer(zombie_profile::Stage::groundProps);
@@ -1012,6 +1033,10 @@ std::vector<glm::vec3> CollisionWorld::debugLines(glm::vec3 near, float distance
         const auto doors = doorCollisionDebugLines(*impl_->doors, region.low, region.high);
         result.insert(result.end(), doors.begin(), doors.end());
     }
+    if (impl_->runtime) {
+        const auto lines = impl_->runtime->debugLines(near, distance);
+        result.insert(result.end(), lines.begin(), lines.end());
+    }
     if (impl_->boxes) {
         const auto boxes = impl_->boxes->debugLines(region.low, region.high);
         result.insert(result.end(), boxes.begin(), boxes.end());
@@ -1021,22 +1046,35 @@ std::vector<glm::vec3> CollisionWorld::debugLines(glm::vec3 near, float distance
 
 const CollisionStats& CollisionWorld::stats() const { return impl_->stats; }
 bool CollisionWorld::empty() const {
-    return impl_->triangles.empty() && impl_->trunks.empty() &&
+    return (!impl_->runtime || impl_->runtime->empty()) && impl_->triangles.empty() && impl_->trunks.empty() &&
            (!impl_->doors || impl_->doors->count() == 0) && (!impl_->boxes || impl_->boxes->count() == 0) &&
            (!impl_->vehicles || impl_->vehicles->count() == 0);
 }
+void CollisionWorld::setRuntimeGeometry(const Model& model) {
+    auto replacement = model.draws.empty() ? nullptr : std::make_unique<CollisionWorld>(model);
+    impl_->runtime = std::move(replacement);
+    ++impl_->runtimeRevision;
+    impl_->worldId = nextWorldId.fetch_add(1, std::memory_order_relaxed);
+}
+const CollisionWorld* CollisionWorld::runtimeGeometry() const { return impl_->runtime.get(); }
+std::uint64_t CollisionWorld::runtimeRevision() const { return impl_->runtimeRevision; }
 void CollisionWorld::setVehicles(const VehicleLayer* vehicles) { impl_->vehicles=vehicles; }
 void CollisionWorld::setBoxes(BoxLayer* boxes) { impl_->boxes = boxes; }
 void CollisionWorld::pushBoxes(glm::vec3 feet, float radius, float height, glm::vec3 velocity, float dt) const {
     if (impl_->boxes) impl_->boxes->push(feet, radius, height, velocity, dt);
 }
-std::vector<StaticCollisionFace> CollisionWorld::staticFaces(glm::vec3 minimum, glm::vec3 maximum) const {
+std::vector<StaticCollisionFace> CollisionWorld::staticFaces(glm::vec3 minimum, glm::vec3 maximum, bool includeRuntime) const {
     std::vector<StaticCollisionFace> result;
     if (!finite(minimum) || !finite(maximum) || glm::any(glm::greaterThan(minimum, maximum))) return result;
     Bounds region; region.include(minimum); region.include(maximum);
     impl_->query(region, [&](const Triangle& t) {
         result.push_back({static_cast<std::size_t>(&t - impl_->triangles.data()), {t.a, t.b, t.c}});
     });
+    if (includeRuntime && impl_->runtime) {
+        for (auto face : impl_->runtime->staticFaces(minimum, maximum)) {
+            face.index += impl_->triangles.size(); result.push_back(face);
+        }
+    }
     return result;
 }
 

@@ -20,6 +20,40 @@ struct StaticBody {
         if (mesh) b3DestroyMesh(mesh);
     }
 };
+std::vector<std::unique_ptr<StaticBody>> meshBodies(const std::shared_ptr<PhysicsWorld>& simulation,
+        std::vector<b3Vec3> vertices, std::vector<int32_t> indices, glm::vec3 origin) {
+    std::vector<std::unique_ptr<StaticBody>> result;
+    if (indices.empty()) return result;
+    // Mesh contacts are one-sided. Two separately built windings preserve
+    // both indoor and outdoor collision without changing the scene winding.
+    for (int side = 0; side < 2; ++side) {
+        if (side) for (std::size_t i = 0; i < indices.size(); i += 3) std::swap(indices[i + 1], indices[i + 2]);
+        auto mesh = std::make_unique<StaticBody>();
+        b3MeshDef definition{};
+        definition.vertices = vertices.data(); definition.indices = indices.data();
+        definition.vertexCount = static_cast<int>(vertices.size());
+        definition.triangleCount = static_cast<int>(indices.size() / 3);
+        definition.weldVertices = true; definition.weldTolerance = .0001f;
+        definition.identifyEdges = true;
+        mesh->mesh = b3CreateMesh(&definition, nullptr, 0);
+        if (!mesh->mesh) throw std::runtime_error("Cannot build scene physics mesh");
+        auto body = b3DefaultBodyDef();
+        body.position = {origin.x, origin.y, origin.z};
+        mesh->body = b3CreateBody(simulation->id(), &body);
+        auto shape = b3DefaultShapeDef();
+        shape.filter.categoryBits = ordinaryBodyCategory;
+        shape.baseMaterial.friction = .6f;
+        // Door panels have finite collider thickness at a flush wall hinge.
+        // Their existing hinge limits define the swing; importing the wall
+        // as another door contact would jam them at the jamb. These meshes
+        // support props and living physical attacks. Loose corpse floors
+        // and door hinge behavior remain independent of these meshes.
+        shape.filter.maskBits = interiorBoxCategory | grenadeBodyCategory | zombieContentsCategory | vehicleBodyCategory | playerBodyCategory | zombieAttackBodyCategory;
+        b3CreateMeshShape(mesh->body, &shape, mesh->mesh, {1, 1, 1});
+        result.push_back(std::move(mesh));
+    }
+    return result;
+}
 } // namespace
 struct PhysicsScene::Impl {
     std::shared_ptr<PhysicsWorld> simulation;
@@ -27,7 +61,27 @@ struct PhysicsScene::Impl {
     glm::vec3 minimum, maximum;
     std::set<std::pair<int, int>> cells;
     std::set<std::size_t> triangles, trunks;
-    std::vector<std::unique_ptr<StaticBody>> bodies;
+    std::vector<std::unique_ptr<StaticBody>> bodies, runtimeBodies;
+    std::uint64_t runtimeRevision = 0;
+    void syncRuntime() {
+        if (runtimeRevision == collision->runtimeRevision()) return;
+        std::vector<std::unique_ptr<StaticBody>> replacement;
+        if (const auto* layer = collision->runtimeGeometry()) {
+            const auto faces = layer->staticFaces(glm::vec3(-1e8f), glm::vec3(1e8f));
+            std::vector<b3Vec3> vertices;
+            std::vector<int32_t> indices;
+            // Use a local origin so Box3D retains precision away from map centre.
+            const auto origin = faces.empty() ? glm::vec3(0) : faces.front().vertices[0];
+            for (const auto& face : faces) for (const auto p : face.vertices) {
+                const auto q = p - origin;
+                indices.push_back(static_cast<int32_t>(vertices.size()));
+                vertices.push_back({q.x, q.y, q.z});
+            }
+            replacement = meshBodies(simulation, std::move(vertices), std::move(indices), origin);
+        }
+        runtimeBodies = std::move(replacement);
+        runtimeRevision = collision->runtimeRevision();
+    }
 };
 PhysicsScene::PhysicsScene(std::shared_ptr<PhysicsWorld> simulation, const CollisionWorld& collision,
                            glm::vec3 minimum, glm::vec3 maximum) : impl_(std::make_unique<Impl>()) {
@@ -38,6 +92,7 @@ PhysicsScene::PhysicsScene(std::shared_ptr<PhysicsWorld> simulation, const Colli
 }
 PhysicsScene::~PhysicsScene() = default;
 void PhysicsScene::ensureNear(glm::vec3 minimum, glm::vec3 maximum) {
+    impl_->syncRuntime();
     minimum = glm::max(minimum, impl_->minimum);
     maximum = glm::min(maximum, impl_->maximum);
     if (glm::any(glm::greaterThan(minimum, maximum))) return;
@@ -48,7 +103,7 @@ void PhysicsScene::ensureNear(glm::vec3 minimum, glm::vec3 maximum) {
     for (int x = left; x <= right; ++x) for (int z = first; z <= last; ++z) {
         if (!impl_->cells.emplace(x, z).second) continue;
         const auto faces = impl_->collision->staticFaces({x * cellSize, impl_->minimum.y - 1, z * cellSize},
-            {(x + 1) * cellSize, impl_->maximum.y + 1, (z + 1) * cellSize});
+            {(x + 1) * cellSize, impl_->maximum.y + 1, (z + 1) * cellSize}, false);
         const glm::vec3 origin(x * cellSize, 0, z * cellSize);
         std::vector<b3Vec3> vertices;
         std::vector<int32_t> indices;
@@ -77,37 +132,12 @@ void PhysicsScene::ensureNear(glm::vec3 minimum, glm::vec3 maximum) {
             impl_->bodies.push_back(std::move(trunk));
         }
         if (indices.empty()) continue;
-        // Mesh contacts are one-sided. Two separately built windings preserve
-        // both indoor and outdoor collision without changing the scene winding.
-        for (int side = 0; side < 2; ++side) {
-            if (side) for (std::size_t i = 0; i < indices.size(); i += 3) std::swap(indices[i + 1], indices[i + 2]);
-            auto mesh = std::make_unique<StaticBody>();
-            b3MeshDef definition{};
-            definition.vertices = vertices.data(); definition.indices = indices.data();
-            definition.vertexCount = static_cast<int>(vertices.size());
-            definition.triangleCount = static_cast<int>(indices.size() / 3);
-            definition.weldVertices = true; definition.weldTolerance = .0001f;
-            definition.identifyEdges = true;
-            mesh->mesh = b3CreateMesh(&definition, nullptr, 0);
-            if (!mesh->mesh) throw std::runtime_error("Cannot build scene physics mesh");
-            auto body = b3DefaultBodyDef();
-            body.position = {origin.x, origin.y, origin.z};
-            mesh->body = b3CreateBody(impl_->simulation->id(), &body);
-            auto shape = b3DefaultShapeDef();
-            shape.filter.categoryBits = ordinaryBodyCategory;
-            shape.baseMaterial.friction = .6f;
-            // Door panels have finite collider thickness at a flush wall hinge.
-            // Their existing hinge limits define the swing; importing the wall
-            // as another door contact would jam them at the jamb. These meshes
-            // support props and living physical attacks. Loose corpse floors
-            // and door hinge behavior remain independent of these meshes.
-            shape.filter.maskBits = interiorBoxCategory | grenadeBodyCategory | zombieContentsCategory | vehicleBodyCategory | playerBodyCategory | zombieAttackBodyCategory;
-            b3CreateMeshShape(mesh->body, &shape, mesh->mesh, {1, 1, 1});
-            impl_->bodies.push_back(std::move(mesh));
-        }
+        auto meshes = meshBodies(impl_->simulation, std::move(vertices), std::move(indices), origin);
+        for (auto& mesh : meshes) impl_->bodies.push_back(std::move(mesh));
     }
 }
 void PhysicsScene::prepare(const BoxLayer& boxes, float padding) {
+    impl_->syncRuntime();
     for (std::size_t i = 0; i < boxes.count(); ++i) {
         if (!boxes.active(i)) continue;
         const auto box = boxes.pose(i);

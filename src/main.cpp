@@ -17,6 +17,7 @@
 #include "vehicle_placement.hpp"
 #include <random>
 #include "interior_objects.hpp"
+#include "floorplan_layer.hpp"
 #include "reticle_overlay.hpp"
 #include "gui/hud.hpp"
 #include "inventory/inventory_config.hpp"
@@ -1298,6 +1299,7 @@ int run(const Options& options) {
     collision.setBoxes(&boxes);
     viewer::PhysicsScene physicsScene(physics, collision, model.boundsMin, model.boundsMax);
     viewer::InteriorObjects interiors(model, doors, std::random_device{}());
+    viewer::FloorplanLayer floorplans(model, doors, collision);
     const auto& collisionStats = collision.stats();
     std::cout << "Collision world: " << collisionStats.triangles << " triangles, "
               << collisionStats.buildings << " buildings, " << collisionStats.bvhNodes << " BVH nodes, "
@@ -1605,6 +1607,7 @@ int run(const Options& options) {
         }
         const double simulationStart = glfwGetTime();
         viewer::frame_stage_profile::Capture frameStageCapture(options.profile ? &frameStages : nullptr);
+        floorplans.update({app.rig.camera().position()});
         if (doodads) doodads->update(app.rig.camera().position(),physicsScene,doors);
         const auto previousCameraPosition = playerPresentation.eye(physics->interpolationAlpha());
         bool simulated = false;
@@ -1787,6 +1790,7 @@ int run(const Options& options) {
         if (frameProfile) frameProfile->beginGpu();
         gpuTimer.begin();
         const double renderStart = glfwGetTime();
+        renderer.updateFloorplans(floorplans);
         renderer.render(viewCamera, app.displayedAnimationSeconds, [&] {
             if (birdRenderer)
                 birdRenderer->draw(viewCamera, float(renderWidth) / renderHeight,

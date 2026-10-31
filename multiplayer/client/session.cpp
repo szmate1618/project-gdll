@@ -598,6 +598,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 const viewer::UndergrowthMotion shrubBefore{controller.feet(), controller.bodyHeight(),
                     controller.config().radius, controller.grounded(), false};
 #endif
+                scene.floorplans->update({prediction.eye()});
                 const auto predicted = prediction.advance(nextCommand, *scene.collision);
                 if (!predicted.inventoryActions.empty()) lastInventoryCommand = predicted.sequence;
 #ifdef MP_GRAPHICS
@@ -641,6 +642,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 accumulator -= 1.0 / 60;
             }
         }
+        scene.floorplans->update({prediction.ready() ? prediction.eye() : scene.spawnEye});
         snapshots.apply(scene, now);
 #ifdef MP_GRAPHICS
         if (graphics.window && !snapshots.empty()) {
@@ -705,6 +707,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 graphics.body->capturePose(ownBody,static_cast<float>(dt));
                 graphics.gpuTimer->begin();
                 const auto renderStart = Clock::now();
+                renderer.updateFloorplans(*scene.floorplans);
                 renderer.render(viewCamera, snapshots.animationSeconds(), [&] {
                     graphics.birds->draw(viewCamera,renderAspect,snapshots.animationSeconds(),birds.sample(snapshots.animationSeconds()));
                     graphics.players->draw(viewCamera, snapshots.players(), self, renderWidth, renderHeight,

@@ -79,16 +79,19 @@ InteriorObjects::InteriorObjects(const Model& model, const DoorLayer& doors, std
         if (!key.empty()) impl_->buildings[key].draws.push_back(i);
     }
     for (std::size_t i = 0; i < doors.count(); ++i) {
+        impl_->doorBuildings.emplace_back();
+        if (!doors.present(i) || doors.panel(i).draw >= model.draws.size()) continue;
         const auto& draw = model.draws.at(doors.panel(i).draw);
         const auto key = buildingName(draw.name, "_doors");
-        impl_->doorBuildings.push_back(key);
+        impl_->doorBuildings.back() = key;
         const auto found = impl_->buildings.find(key);
         if (found != impl_->buildings.end()) found->second.doors.push_back(i);
     }
 }
 InteriorObjects::~InteriorObjects() = default;
 std::size_t InteriorObjects::populate(std::size_t door, const CollisionWorld& collision, PhysicsScene& scene, BoxLayer& boxes) {
-    const auto found = impl_->buildings.find(impl_->doorBuildings.at(door));
+    if (door >= impl_->doorBuildings.size()) return 0;
+    const auto found = impl_->buildings.find(impl_->doorBuildings[door]);
     if (found == impl_->buildings.end() || found->second.populated) return 0;
     auto& building = found->second;
     std::vector<Face> roof, walls;

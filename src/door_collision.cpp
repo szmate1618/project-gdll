@@ -55,7 +55,9 @@ std::vector<std::vector<DoorOpening>> collisionDoorOpenings(const Model& model, 
         if (!draw.lowDetail && !draw.detailGroup.empty() && suffix(draw.name, "_detailed_walls"))
             groups.emplace(groupKey(draw), std::vector<DoorOpening>{});
     for (std::size_t i = 0; i < doors.count(); ++i) {
+        if (!doors.present(i)) continue;
         const auto& panel = doors.panel(i);
+        if (panel.draw >= model.draws.size()) continue;
         const auto& draw = model.draws.at(panel.draw);
         const auto found = groups.find(groupKey(draw));
         if (found == groups.end()) continue;

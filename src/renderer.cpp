@@ -182,6 +182,7 @@ void Renderer::release() noexcept {
     releaseZombies();
     releaseModel(model_);
     releaseModel(boxModel_);
+    releaseModel(floorplanModel_);
     releaseModel(grenadeModel_);
     releaseWoundContents();
 
@@ -472,6 +473,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     drawZombies(animationSeconds);
     {
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::props);
+        drawFloorplans();
         drawBoxes(projection * view);
         drawDoodads(projection * view);
         drawDroppedWeapons(projection * view);

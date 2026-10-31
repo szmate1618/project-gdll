@@ -71,6 +71,7 @@ void Renderer::drawShadowCasters(const glm::mat4& view, const glm::mat4& project
         drawForests(projectionView, true, temporal.forests);
     }
     drawZombies(seconds, pass);
+    drawFloorplans();
     drawBoxes(projectionView);
     drawDoodads(projectionView, true);
     drawGrenades(projectionView);

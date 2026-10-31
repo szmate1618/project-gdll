@@ -159,15 +159,22 @@ public:
     // Consecutive pairs are line segments, suitable for GL_LINES.
     std::vector<glm::vec3> debugLines(glm::vec3 near, float distance = 15.0f) const;
     const CollisionStats& stats() const;
-    std::uint64_t identity() const; // Immutable geometry lifetime; survives moves.
+    std::uint64_t identity() const; // Geometry revision identity; survives moves.
     bool empty() const; // No static geometry, trunks, doors or boxes.
     // Borrowed dynamic props must outlive this world. Queries remain read-only.
     void setBoxes(BoxLayer* boxes);
     void setVehicles(const VehicleLayer* vehicles);
+    // Replace a small streamed static layer without rebuilding the town BVH.
+    // Invalidates walking/contact caches, including cached door-free regions.
+    void setRuntimeGeometry(const Model& model);
+    const CollisionWorld* runtimeGeometry() const;
+    std::uint64_t runtimeRevision() const;
     void pushBoxes(glm::vec3 feet, float radius, float height, glm::vec3 velocity, float dt) const;
     // BVH-selected static triangles, including the actual clipped doorways.
     // Stable indices let physics upload neighboring regions without duplicates.
-    std::vector<StaticCollisionFace> staticFaces(glm::vec3 minimum, glm::vec3 maximum) const;
+    // Runtime face indices remain stable only until runtimeRevision() changes.
+    std::vector<StaticCollisionFace> staticFaces(glm::vec3 minimum, glm::vec3 maximum,
+                                               bool includeRuntime = true) const;
     // Deepest sphere/trunk overlap through the trunk BVH, ignoring scene meshes
     // and foliage. Center and radius are world meters; no velocity sweep.
     std::optional<Contact> trunkContact(glm::vec3 center, float radius) const;

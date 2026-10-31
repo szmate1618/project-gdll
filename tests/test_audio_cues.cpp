@@ -98,6 +98,8 @@ void doorSlams() {
     require(sample(0).size() == 1, "A separate later slam is audible");
     tracker.update(.1f, {});
     require(sample(0).empty(), "Doors entering the audible neighborhood do not create phantom slams");
+    sample(-.5f); sample(-.15f);
+    require(sample(0).size() == 1, "Inward-swinging doors must produce the same closing slam");
 }
 }
 int main() {

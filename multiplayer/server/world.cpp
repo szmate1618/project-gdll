@@ -147,6 +147,10 @@ void World::submit(std::uint32_t id, const Commands& commands) {
 void World::step() {
     ++tick_;
     sounds_.expire(tick_);
+    std::vector<glm::vec3> interiorObservers;
+    interiorObservers.reserve(players_.size());
+    for (const auto& entry : players_) interiorObservers.push_back(entry.second.controller.feet());
+    scene_.floorplans->update(interiorObservers);
     auto& clock = viewer::SimulationClock::instance();
     clock.advance(tickSeconds);
     const double now = clock.seconds();

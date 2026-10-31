@@ -33,6 +33,7 @@ void DoorInteraction::look(Camera& camera, float dx, float dy) {
 void DoorInteraction::update(const Camera& camera, float dt) {
     if (!grab_ || !std::isfinite(dt) || dt <= 0) return;
     auto& grab = *grab_;
+    if (!grab.doors->present(grab.door)) { release(); return; }
     const auto state = grab.doors->pointState(grab.door, grab.localPoint);
     const auto target = camera.position() + grab.eyeOffset + grab.right * grab.drag.x + grab.forward * grab.drag.y;
     // Spring stiffness in N/m and damping in N*s/m. Door hinges handle limits;

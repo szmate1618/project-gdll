@@ -9,6 +9,7 @@ struct DoorPanel {
     glm::mat4 closedTransform{1};
     glm::vec3 hinge{0}, center{0}, halfExtents{0}, outward{0};
     glm::quat rotation{1, 0, 0, 0};
+    bool inward = false; // Interior panels swing toward -outward.
 };
 
 // Split generated *_doors draws into independent panels, retaining materials,

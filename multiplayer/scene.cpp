@@ -218,6 +218,7 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
     collision = std::make_unique<viewer::CollisionWorld>(model, trunks, doors.get());
     collision->setBoxes(boxes.get());
     collision->setVehicles(vehicles.get());
+    floorplans = std::make_unique<viewer::FloorplanLayer>(model, *doors, *collision);
     const auto center = (model.boundsMin + model.boundsMax) * .5f;
     const auto scenarioSpawn = playerSpawn ? glm::vec2(playerSpawn->spawn[0], playerSpawn->spawn[1]) : glm::vec2(center.x, center.z);
     const auto spawn = o.spawn.value_or(scenarioSpawn);

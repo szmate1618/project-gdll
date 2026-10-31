@@ -46,6 +46,7 @@ class RainRenderer;
 class BloodMistRenderer;
 class GpuTimer;
 class DoorLayer;
+class FloorplanLayer;
 class BoxLayer;
 class VehicleLayer;
 class DoodadLayer;
@@ -98,6 +99,7 @@ public:
     std::optional<ZombieShotTrace> traceZombieShot(glm::vec3 origin, glm::vec3 direction,
                                                  const CollisionWorld& world);
     void updateDoors(const DoorLayer& doors);
+    void updateFloorplans(const FloorplanLayer& layer);
     // Refresh cached poses after physics or spawning. The source must outlive
     // this renderer; unchanged revisions retain meshes and visibility bounds.
     void updateBoxes(const BoxLayer& boxes);
@@ -329,6 +331,7 @@ private:
     void beginTownPass(glm::vec3 eye, const glm::mat4& projection, bool sunShadow = false);
     void drawBuildingBatch(const ModelGPU& model, std::size_t batch);
     void drawBoxes(const glm::mat4& projectionView);
+    void drawFloorplans();
     void drawDoodads(const glm::mat4& projectionView, bool shadowPass = false);
     void releaseDoodads() noexcept;
     void drawVehicles(const glm::mat4& projectionView, bool shadowPass = false);
@@ -451,6 +454,10 @@ private:
     VehicleStats vehicleStats_;
     const VehicleLayer* vehicleSource_ = nullptr;
     std::optional<std::size_t> vehicleDriver_;
+    ModelGPU floorplanModel_;
+    std::vector<DrawInstance> floorplanDraws_;
+    const FloorplanLayer* floorplanSource_ = nullptr;
+    std::uint64_t floorplanRevision_ = 0;
     ModelGPU boxModel_;
     ModelGPU grenadeModel_;
     ModelGPU woundContentsModel_;

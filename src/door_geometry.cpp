@@ -52,7 +52,7 @@ std::vector<Primitive> components(const Primitive& source) {
 
 DoorPanel describe(const Primitive& primitive, const DrawInstance& draw, std::size_t index) {
     const auto normal = glm::inverseTranspose(glm::mat3(draw.transform)) * primitive.vertices.front().normal;
-    if (!std::isfinite(glm::length(normal)) || glm::length(normal) < .5f || std::abs(normal.y) > .001f * glm::length(normal))
+    if (!std::isfinite(glm::length(normal)) || glm::length(normal) < 1e-6f || std::abs(normal.y) > .001f * glm::length(normal))
         throw std::runtime_error("Door panel requires a horizontal outward normal");
     const auto outward = glm::normalize(normal);
     const glm::vec3 up(0, 1, 0);

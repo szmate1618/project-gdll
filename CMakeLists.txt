@@ -352,7 +352,7 @@ target_include_directories(viewer_weapons PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/sr
 target_link_libraries(viewer_weapons PUBLIC viewer_weapon_config viewer_camera viewer_inventory PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_weapons)
 
-add_library(viewer_objects STATIC src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp src/ground_items.cpp)
+add_library(viewer_objects STATIC src/house_floorplan.cpp src/floorplan_layer.cpp src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp src/ground_items.cpp)
 target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics viewer_weapons)
 viewer_warnings(viewer_objects)
 include(cmake/Doodads.cmake)
@@ -411,6 +411,7 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp src
     src/boid/bird_renderer.cpp
     src/gpu_timer.cpp
     src/box_renderer.cpp
+    src/floorplan_renderer.cpp
     src/doodad_renderer.cpp
     src/dropped_weapon_renderer.cpp
     src/grenade_renderer.cpp
@@ -768,6 +769,10 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_object_interaction PRIVATE viewer_interaction viewer_objects)
     viewer_warnings(test_object_interaction)
     add_test(NAME viewer_object_interaction COMMAND test_object_interaction)
+    add_executable(test_floorplans tests/test_floorplans.cpp)
+    target_link_libraries(test_floorplans PRIVATE viewer_objects viewer_interaction)
+    viewer_warnings(test_floorplans)
+    add_test(NAME viewer_floorplans COMMAND test_floorplans)
     add_executable(test_interior_objects tests/test_interior_objects.cpp)
     target_link_libraries(test_interior_objects PRIVATE viewer_objects viewer_interaction)
     viewer_warnings(test_interior_objects)
@@ -852,6 +857,13 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_physics_boxes PRIVATE viewer_objects viewer_fps)
     viewer_warnings(test_physics_boxes)
     add_test(NAME viewer_physics_boxes COMMAND test_physics_boxes)
+    add_executable(test_floorplan_renderer tests/test_floorplan_renderer.cpp)
+    target_link_libraries(test_floorplan_renderer PRIVATE viewer_objects viewer_renderer glfw)
+    target_compile_definitions(test_floorplan_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_floorplan_renderer)
+    add_test(NAME viewer_floorplan_renderer COMMAND test_floorplan_renderer)
+    set_tests_properties(viewer_floorplan_renderer PROPERTIES SKIP_RETURN_CODE 77)
     add_executable(test_box_renderer tests/test_box_renderer.cpp)
     target_link_libraries(test_box_renderer PRIVATE viewer_objects viewer_renderer glfw)
     target_compile_definitions(test_box_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES

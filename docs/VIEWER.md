@@ -2331,8 +2331,10 @@ and panels together. Both scope views extend this range and retain frustum
 culling. Walking collision cuts the doorways out of the original wall triangles
 and queries the door panels at their current Box3D poses. Windows remain solid.
 Building shadows continue to use the original closed shell.
-There are no modeled rooms. See [building generation](../README.md) for
-configuration and regeneration.
+Family houses receive streamed runtime floorplans; other buildings retain their
+empty shells. See [runtime floorplans](FLOORPLANS.md) for the footprint heuristic,
+window-based storeys, entry polygons, collision, and multiplayer lifecycle.
+See [building generation](../README.md) for facade configuration and regeneration.
 
 Generated brown door panels have runtime Box3D bodies and vertical revolute
 joints, sharing the simulation with zombie ragdolls. Their limits allow a
@@ -2355,8 +2357,9 @@ approximate the building as closed.
 radius)` uses a grid to instantiate local hinges (32 m by default); the app
 calls it around the camera and ragdolls. Other future physics actors must call
 it around their positions before stepping, with a radius covering their next
-movement. Activated doors retain their pose and can sleep as the camera leaves;
-they are not recreated or reset. `applyForce(door, force, worldPoint)` and
+movement. Activated exterior doors retain their pose and can sleep as the camera leaves.
+Streamed interior doors are removed with their floorplan and reset when the
+server regenerates an evicted house. `applyForce(door, force, worldPoint)` and
 `applyImpulse(door, impulse, worldPoint)` activate a chosen door directly.
 Vectors use world coordinates, meters, newtons and newton-seconds. Reapply a
 sustained force each physics step. Physics objects created in `PhysicsWorld::id()`

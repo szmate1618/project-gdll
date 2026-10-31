@@ -28,6 +28,7 @@ struct DoorLayer::Impl {
         b3BodyId anchor{}, body{};
         b3JointId joint{};
         glm::mat4 inverseRest{1};
+        bool present = true, runtime = false;
     };
     std::shared_ptr<PhysicsWorld> world;
     std::vector<Entry> entries;
@@ -44,6 +45,7 @@ struct DoorLayer::Impl {
     }
     Entry& activate(std::size_t index) {
         auto& e = entries.at(index);
+        if (!e.present) throw std::logic_error("Door geometry is not resident");
         if (b3Body_IsValid(e.body)) return e;
         auto definition = b3DefaultBodyDef();
         definition.position = position(e.panel.hinge);
@@ -77,8 +79,8 @@ struct DoorLayer::Impl {
         hinge.base.localFrameB.q = b3InvMulQuat(definition.rotation, frame);
         hinge.base.collideConnected = false;
         hinge.enableLimit = true;
-        hinge.lowerAngle = 0;
-        hinge.upperAngle = 110 * B3_DEG_TO_RAD;
+        hinge.lowerAngle = e.panel.inward ? -110 * B3_DEG_TO_RAD : 0;
+        hinge.upperAngle = e.panel.inward ? 0 : 110 * B3_DEG_TO_RAD;
         e.joint = b3CreateRevoluteJoint(world->id(), &hinge);
         e.inverseRest = glm::inverse(glm::translate(glm::mat4(1), e.panel.center) * glm::mat4_cast(e.panel.rotation));
         active.push_back(index);
@@ -116,6 +118,49 @@ std::size_t DoorLayer::activeCount() const { return impl_->active.size(); }
 const std::vector<std::size_t>& DoorLayer::activeDoors() const { return impl_->active; }
 const DoorPanel& DoorLayer::panel(std::size_t door) const { return impl_->entries.at(door).panel; }
 
+std::size_t DoorLayer::reserveRuntimeDoors(std::size_t count) {
+    const auto first = impl_->entries.size();
+    impl_->entries.resize(first + count);
+    for (std::size_t i = first; i < first + count; ++i) {
+        impl_->entries[i].present = false;
+        impl_->entries[i].runtime = true;
+    }
+    return first;
+}
+bool DoorLayer::present(std::size_t door) const {
+    return door < count() && impl_->entries[door].present;
+}
+void DoorLayer::installRuntimeDoor(std::size_t door, const DoorPanel& panel) {
+    auto& entry = impl_->entries.at(door);
+    if (!entry.runtime || entry.present) throw std::logic_error("Runtime door ID is already occupied");
+    // Reuse the ordinary panel validation and conservative spatial bounds.
+    DoorLayer validated({panel}, impl_->world);
+    entry.panel = panel;
+    entry.present = true;
+    impl_->cells[{cell(panel.hinge.x), cell(panel.hinge.z)}].push_back(door);
+    impl_->maximumReach = std::max(impl_->maximumReach, validated.impl_->maximumReach);
+    impl_->minimum = glm::min(impl_->minimum, validated.impl_->minimum);
+    impl_->maximum = glm::max(impl_->maximum, validated.impl_->maximum);
+}
+void DoorLayer::evictRuntimeDoor(std::size_t door) {
+    auto& entry = impl_->entries.at(door);
+    if (!entry.runtime) throw std::logic_error("Cannot evict an exterior door");
+    if (!entry.present) return;
+    if (b3Body_IsValid(entry.body)) {
+        b3DestroyBody(entry.body);
+        b3DestroyBody(entry.anchor);
+    }
+    impl_->active.erase(std::remove(impl_->active.begin(), impl_->active.end(), door), impl_->active.end());
+    const auto key = std::make_pair(cell(entry.panel.hinge.x), cell(entry.panel.hinge.z));
+    auto found = impl_->cells.find(key);
+    auto& ids = found->second;
+    ids.erase(std::remove(ids.begin(), ids.end(), door), ids.end());
+    if (ids.empty()) impl_->cells.erase(found);
+    entry = {};
+    entry.present = false;
+    entry.runtime = true;
+}
+
 void DoorLayer::activateNear(glm::vec3 p, float radius) {
     if (!finite(p) || !std::isfinite(radius) || radius < 0 || radius > 1024)
         throw std::invalid_argument("Invalid door activation region");
@@ -125,6 +170,7 @@ void DoorLayer::activateNear(glm::vec3 p, float radius) {
         const auto found = impl_->cells.find({x, z});
         if (found == impl_->cells.end()) continue;
         for (const auto index : found->second) {
+            if (!impl_->entries[index].present) continue;
             const auto delta = impl_->entries[index].panel.hinge - p;
             if (glm::dot(delta, delta) <= radius * radius) impl_->activate(index);
         }
@@ -162,7 +208,8 @@ glm::mat4 DoorLayer::transform(std::size_t door) const {
 std::vector<DoorDrawPose> DoorLayer::poses() const {
     std::vector<DoorDrawPose> result;
     result.reserve(impl_->active.size());
-    for (const auto i : impl_->active) result.push_back({impl_->entries[i].panel.draw, transform(i)});
+    for (const auto i : impl_->active)
+        if (!impl_->entries[i].runtime) result.push_back({impl_->entries[i].panel.draw, transform(i)});
     return result;
 }
 std::vector<DoorCollider> DoorLayer::colliders(glm::vec3 minimum, glm::vec3 maximum) const {
@@ -177,6 +224,7 @@ std::vector<DoorCollider> DoorLayer::colliders(glm::vec3 minimum, glm::vec3 maxi
     const auto append=[&](const std::vector<std::size_t>& indices) {
         for (const auto index : indices) {
             const auto& e = impl_->entries[index];
+            if (!e.present) continue;
             const auto& p = e.panel;
             const float swept = 2 * p.halfExtents.x + p.halfExtents.z + .02f;
             if (p.hinge.x + swept < minimum.x || p.hinge.x - swept > maximum.x ||

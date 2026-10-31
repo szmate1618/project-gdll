@@ -5,6 +5,7 @@
 #include "ground_items.hpp"
 #include "collision_world.hpp"
 #include "door_layer.hpp"
+#include "floorplan_layer.hpp"
 #include "forest_layer.hpp"
 #include "physics_world.hpp"
 #include "tree_layer.hpp"
@@ -77,6 +78,7 @@ struct Scene {
     std::optional<viewer::ForestLayer> forests;
     viewer::UndergrowthIndex undergrowth;
     std::unique_ptr<viewer::CollisionWorld> collision;
+    std::unique_ptr<viewer::FloorplanLayer> floorplans;
     viewer::ZombieLayer zombies;
     glm::vec3 spawnEye{0};
     glm::vec2 spawnOrientation{-90, 0};

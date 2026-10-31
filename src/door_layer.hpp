@@ -27,11 +27,17 @@ public:
     ~DoorLayer();
     DoorLayer(const DoorLayer&) = delete;
     DoorLayer& operator=(const DoorLayer&) = delete;
-    std::size_t count() const;
+    std::size_t count() const; // Stable ID capacity; includes unloaded runtime slots.
     std::size_t activeCount() const;
     // Stable panel IDs; borrowed view invalidated by further activation.
     const std::vector<std::size_t>& activeDoors() const;
     const DoorPanel& panel(std::size_t door) const; // Immutable closed geometry; stable door index.
+    // Reserve stable IDs without geometry/bodies. Runtime panels use draw == SIZE_MAX
+    // and are rendered by their owning streamed layer, rather than scene poses().
+    std::size_t reserveRuntimeDoors(std::size_t count);
+    bool present(std::size_t door) const;
+    void installRuntimeDoor(std::size_t door, const DoorPanel& panel);
+    void evictRuntimeDoor(std::size_t door);
     void activateNear(glm::vec3 position, float radius = 32);
     // World-space forces in N, impulses in N*s, application points in meters.
     // Force applies to the next physics step; continuous force must be reapplied.
