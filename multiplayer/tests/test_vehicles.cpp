@@ -390,9 +390,19 @@ void zombieImpacts(const Options& o) {
         if (speed < 5) {
             require(!snapshot.zombies[0].dead && scene.zombies.instances[0].restRoot[3].z < contactFeet.z-.01f,
                     "Slow server car impacts must push living zombies");
+            require(!scene.zombies.instances[0].vehicleImpactRagdoll, "Slow car pushes must not request faster corpse updates");
         } else {
-            require(snapshot.zombies[0].dead && world.nextPose(observer).has_value(),
+            const auto initial = world.nextPose(observer);
+            require(snapshot.zombies[0].dead && initial && scene.zombies.instances[0].vehicleImpactRagdoll,
                     "Fast server car impacts must replicate ragdolls and their poses");
+            world.poseSent(observer, *initial); world.acknowledgePose(observer, {initial->id, initial->version});
+            for (int tick = 1; tick <= 3; ++tick) {
+                world.step(); world.snapshot(observer);
+                const auto next = world.nextPose(observer);
+                if (tick < 3) require(!next, "Car-hit corpse exceeded the twenty-Hz pose rate");
+                else require(next && next->tick == initial->tick + 3,
+                    "Nearby car-hit corpse did not replicate again after fifty milliseconds");
+            }
         }
     }
 }

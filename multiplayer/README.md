@@ -797,6 +797,13 @@ creating another local attack rig; baked playback covers the initial wait for a
 matching pose. Recovery returns to ordinary animation. Damage stays server-owned.
 Protocol 28 requires matching rebuilt applications.
 
+Corpses created by a car knockdown also update at **20 Hz within 20 metres** of
+an observer, returning to the ordinary **5 Hz** rate farther away. The distance
+check follows the moving ragdoll's current root rather than its frozen impact
+position, excluding the fixed asset normalization offset. Unchanged settled
+poses stop sending after confirmation. Slow car pushes retain living behavior.
+This cadence change needs no additional wire fields or protocol version.
+
 Each peer has at most 100 unacknowledged poses and a
 32 KiB bulk transport budget shared with zombie setup messages. Changes while
 a pose is in flight coalesce to the

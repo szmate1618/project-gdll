@@ -186,10 +186,14 @@ std::optional<CorpsePose> Replication::nextPose(const Scene& scene) const {
         if (inFlight_.count(id) || !setups_[setupSlots_[id] - 1].acknowledged) continue;
         const auto& instance = scene.zombies.instances.at(id);
         auto period = instance.blastRagdoll || instance.activeRagdoll ? blastRagdollUpdateTicks : ragdollUpdateTicks;
-        if (instance.activeRagdoll) {
-            constexpr float nearbyAttackDistance = 20.f; // World meters, measured per observer.
-            const auto offset = glm::vec3(instance.restRoot[3]) - observerFeet_;
-            if (glm::dot(offset, offset) <= nearbyAttackDistance * nearbyAttackDistance)
+        if (instance.activeRagdoll || instance.vehicleImpactRagdoll) {
+            constexpr float nearbyRagdollDistance = 20.f; // World meters, measured per observer.
+            // Corpse restRoot freezes at handoff. Its transform retains the
+            // fixed asset basis and carries the current pelvis translation.
+            const auto feet = glm::vec3(instance.restRoot[3]) +
+                glm::vec3(instance.transform[3] - instance.restTransform[3]);
+            const auto offset = feet - observerFeet_;
+            if (glm::dot(offset, offset) <= nearbyRagdollDistance * nearbyRagdollDistance)
                 period = 3; // 20 Hz at the authoritative 60 Hz tick.
         }
         const auto last = lastPoseTicks_.find(id);

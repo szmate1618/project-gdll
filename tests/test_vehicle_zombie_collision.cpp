@@ -55,14 +55,18 @@ void thresholdAndPublication() {
         if(speed<5) {
             require(!f.zombies.instances[0].ragdoll && f.zombies.instances[0].restRoot[3].z<-2.2f,
                     "A slow chassis impact must push the living zombie");
+            require(!f.zombies.instances[0].vehicleImpactRagdoll, "A slow push must not mark a vehicle ragdoll");
             f.zombies.queryLivingNear(glm::vec3(f.zombies.instances[0].restRoot[3]),.01f,ids);
             require(ids==std::vector<std::size_t>{0},"Pushing left the spatial membership behind");
             require(f.cars.velocity(0).z>-speed,"A pushed zombie supplied no reaction impulse to the car");
         } else {
             require(f.zombies.ragdollCount()==1 && !f.zombies.instances[0].springRagdoll,
                     "A fast chassis hit must create an ordinary loose ragdoll");
+            require(f.zombies.instances[0].vehicleImpactRagdoll, "A car knockdown must retain its replication cause");
             f.zombies.queryLivingNear({0,0,-2.12f},3,ids);
             require(ids.empty(),"Car ragdoll remained in living collision queries");
+            f.zombies.removeRagdoll(0);
+            require(!f.zombies.instances[0].vehicleImpactRagdoll, "Retiring a car corpse retained its replication cause");
         }
     }
 }

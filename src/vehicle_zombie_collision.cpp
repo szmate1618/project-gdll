@@ -42,8 +42,10 @@ void collideVehicleZombies(VehicleLayer& cars, std::size_t car, const BoxPose& p
             const float approach = std::max(glm::dot(velocity, normal), glm::dot(travel / seconds, normal));
             if (approach >= 5.f) {
                 const auto launch = normal * (approach * .8f) + glm::vec3(0, .8f, 0);
-                if (zombies.knockDown(id, launch, animationSeconds))
+                if (zombies.knockDown(id, launch, animationSeconds)) {
+                    zombies.instances[id].vehicleImpactRagdoll = true;
                     cars.applyImpulse(car, -normal * (75.f * approach * .8f), hit.point);
+                }
             } else {
                 const auto overlap = boxContacts(current, feet, ZombieCrowd::bodyRadius, ZombieCrowd::bodyHeight, .025f);
                 float depth = hit.depth;

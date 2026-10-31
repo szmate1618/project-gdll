@@ -549,6 +549,7 @@ void ZombieLayer::removeRagdoll(std::size_t zombie) {
     instance.removed = true;
     instance.ragdoll = instance.physicsRagdoll = instance.springRagdoll = instance.walking = false;
     instance.blastRagdoll = false;
+    instance.vehicleImpactRagdoll = false;
     instance.ragdollBones.clear();
     instance.activationPose.clear();
     ++instance.ragdollPoseVersion;
