@@ -44,7 +44,7 @@ void streaming(const glm::mat4& node) {
     viewer::PhysicsScene scene(physics, collision, model.boundsMin, model.boundsMax);
     viewer::FloorplanLayer layer(model, doors, collision);
     const auto point = [&](glm::vec3 p) { return glm::vec3(node * glm::vec4(p, 1)); };
-    require(doors.count() == 10 && !doors.present(2), "Runtime IDs must be reserved without panel geometry");
+    require(doors.count() == 18 && !doors.present(2), "Runtime IDs must be reserved without panel geometry");
     layer.update({point({0, 1.7f, 8})});
     require(layer.residentCount() == 0, "Closed exterior doors must not generate interiors");
     viewer::ContactCandidates doorCache;
@@ -63,7 +63,7 @@ void streaming(const glm::mat4& node) {
     require(doorContacts > 0, "Generation must invalidate a previously cached door-free region");
     const auto& plan = layer.resident().begin()->second;
     float totalArea = 0; std::size_t livingRooms = 0;
-    for (const auto& room : plan.rooms) { totalArea += area(room.polygon); livingRooms += room.kind == viewer::HouseRoom::Kind::Living; }
+    for (const auto& room : plan.rooms) if (room.storey == 0) { totalArea += area(room.polygon); livingRooms += room.kind == viewer::HouseRoom::Kind::Living; }
     require(std::abs(totalArea - 120) < .01f && livingRooms >= 1 && livingRooms <= 3,
             "Room polygons must tile the footprint with one to three living rooms");
     const auto entry = std::find_if(plan.doors.begin(), plan.doors.end(), [](const viewer::HouseInteriorDoor& d) { return d.entrance == 0; });
@@ -166,7 +166,7 @@ void activationOrder() {
     viewer::FloorplanLayer plansA(model, a, collisionA), plansB(modelB, b, collisionB);
     a.setAngle(0, .6f); a.setAngle(2, .6f); b.setAngle(0, .6f); b.setAngle(2, .6f);
     plansA.update({a.panel(0).center}); plansB.update({b.panel(2).center});
-    require(a.present(4) && !a.present(12) && !b.present(4) && b.present(12),
+    require(a.present(4) && !a.present(20) && !b.present(4) && b.present(20),
             "Opposite streaming orders must use the same reserved door slots");
     plansA.update({a.panel(0).center, a.panel(2).center});
     plansB.update({b.panel(0).center, b.panel(2).center});
@@ -190,7 +190,7 @@ void realMap(const std::filesystem::path& path) {
         if (!layer.residentCount()) continue;
         const auto& plan = layer.resident().begin()->second;
         if (!buildings.count(plan.name)) std::cout << plan.name << ": " << area(plan.footprint) << " m2, " << plan.rooms.size()
-                  << " ground rooms, " << plan.upperFloors.size() + 1 << " storeys\n";
+                  << " rooms across " << plan.upperFloors.size() + 1 << " storeys\n";
         if (buildings.insert(plan.name).second) ++generated;
         layer.update({});
     }

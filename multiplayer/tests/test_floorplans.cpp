@@ -11,6 +11,8 @@ void require(bool condition, const char* message) { if (!condition) throw std::r
 void house(multiplayer::Scene& scene) {
     scene.floorplans.reset(); scene.collision.reset(); scene.doors.reset();
     scene.model = house_fixture::house();
+    for (auto& draw : scene.model.draws) if (draw.name.rfind("building_house", 0) == 0)
+        draw.name.replace(0, 14, "building_render_0");
     scene.doors = std::make_unique<viewer::DoorLayer>(viewer::prepareDoorPanels(scene.model), scene.physics);
     scene.collision = std::make_unique<viewer::CollisionWorld>(scene.model, std::vector<viewer::TrunkCollider>{}, scene.doors.get());
     scene.floorplans = std::make_unique<viewer::FloorplanLayer>(scene.model, *scene.doors, *scene.collision);
@@ -31,6 +33,7 @@ int main(int argc, char** argv) {
         require(server.floorplans->residentCount() == 1 && client.floorplans->residentCount() == 0,
                 "Server must stream around authoritative players while the client remains independent");
         const auto& panel = server.floorplans->resident().begin()->second.doors.back();
+        require(panel.storey == 1, "Replication fixture must exercise an upper-storey door");
         const auto door = panel.id;
         const float angle = panel.panel.inward ? -.8f : .8f;
         server.doors->setAngle(door, angle);

@@ -26,7 +26,22 @@ std::vector<Face> faces(const Model& model, const std::vector<std::size_t>& draw
     }
     return result;
 }
+std::vector<float> windowHeads(const std::vector<Face>& windows) {
+    std::vector<float> heads;
+    for (const auto& face : windows) {
+        const float bottom = std::min({face[0].y, face[1].y, face[2].y});
+        const float top = std::max({face[0].y, face[1].y, face[2].y});
+        if (top - bottom > .5f) heads.push_back(top);
+    }
+    std::sort(heads.begin(), heads.end());
+    heads.erase(std::unique(heads.begin(), heads.end(), [](float a, float b) { return std::abs(a - b) < tolerance; }), heads.end());
+    return heads;
+}
 } // namespace
+std::size_t houseUpperStoreyCount(const Model& model, const HouseSource& source) {
+    const auto heads = windowHeads(faces(model, source.windows));
+    return heads.empty() ? 0 : heads.size() - 1;
+}
 
 std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const HouseSource& source,
                                                    const std::vector<DoorPanel>& entrances) {
@@ -73,14 +88,7 @@ std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const H
     float eaves = std::numeric_limits<float>::max();
     for (const auto& face : roof) for (const auto p : face) eaves = std::min(eaves, p.y);
     const auto windowFaces = faces(model, source.windows);
-    std::vector<float> heads;
-    for (const auto& face : windowFaces) {
-        const float bottom = std::min({face[0].y, face[1].y, face[2].y});
-        const float top = std::max({face[0].y, face[1].y, face[2].y});
-        if (top - bottom > .5f) heads.push_back(top);
-    }
-    std::sort(heads.begin(), heads.end());
-    heads.erase(std::unique(heads.begin(), heads.end(), [](float a, float b) { return std::abs(a - b) < tolerance; }), heads.end());
+    const auto heads = windowHeads(windowFaces);
     float doorHead = std::numeric_limits<float>::max();
     for (const auto id : source.doors) doorHead = std::min(doorHead, entrances.at(id).center.y + entrances.at(id).halfExtents.y);
     // Generated exterior doors and first-row window heads share the same 2.1 m
@@ -105,20 +113,22 @@ std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const H
             std::min(1.f, door.halfExtents.x * 2)});
     }
     std::vector<house_layout::Rectangle> windows;
+    std::vector<house_layout::Window> allWindows;
     for (const auto& face : windowFaces) {
         const float bottom = std::min({face[0].y, face[1].y, face[2].y});
         const float top = std::max({face[0].y, face[1].y, face[2].y});
-        if (top <= floor || bottom >= ceiling) continue;
         house_layout::Rectangle bounds{glm::vec2(std::numeric_limits<float>::max()),
                                        glm::vec2(std::numeric_limits<float>::lowest())};
         for (const auto p : face) {
             const auto q = local({p.x, p.z});
             bounds.low = glm::min(bounds.low, q); bounds.high = glm::max(bounds.high, q);
         }
-        windows.push_back(bounds);
+        allWindows.push_back({bounds, bottom, top});
+        if (top > floor && bottom < ceiling) windows.push_back(bounds);
     }
-    const auto layout = house_layout::generate(source.name, {low, high}, entryDoors, floor, result.upperFloors, windows);
+    auto layout = house_layout::generate(source.name, {low, high}, entryDoors, floor, result.upperFloors, windows);
     if (layout.rooms.empty() || (!result.upperFloors.empty() && layout.stairs.empty())) return std::nullopt;
+    if (!house_layout::generateUpperStoreys(layout, source.name, {low, high}, result.upperFloors, result.ceiling, allWindows)) return std::nullopt;
     house_layout::buildGeometry(result, source, layout, origin, u, v, {low, high});
     result.minimum = glm::vec3(std::numeric_limits<float>::max()); result.maximum = -result.minimum;
     for (const auto q : {low, glm::vec2(low.x, high.y), high, glm::vec2(high.x, low.y)}) {

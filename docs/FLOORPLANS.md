@@ -3,8 +3,10 @@
 The standalone viewer, multiplayer client and server generate these interiors
 from the map geometry they already load. No town regeneration, sidecar,
 serialized floorplan, network geometry payload or random seed is required.
-`house_floorplan` classifies the shell and storeys; `house_layout` chooses rooms
-and staircase positions; `house_layout_geometry` emits their planes and door
+`house_floorplan` classifies the shell and storeys; `house_layout` chooses ground
+rooms and the first staircase, and `house_upper_layout` generates successive
+floors. `house_layout_rules` shares window clearance, room splitting and ramp
+fitting between them. `house_layout_geometry` emits their planes and door
 panels. `floorplan_layer` owns streaming. Rendering and collision consume the
 same generated result separately.
 
@@ -62,9 +64,9 @@ or consume the space needed by the staircase. Small houses can keep fewer rooms
 than the target rather than creating tiny subdivisions.
 
 Every entry, side-room and living partition must stay **at least 20 cm from
-ground-storey windows**, including at its endpoints on exterior walls. Pane
+windows on its storey**, including at its endpoints on exterior walls. Pane
 bounds come from the already-loaded window geometry, transformed into the
-house's axes. Upstairs panes do not constrain ground-storey partitions.
+house's axes. Panes on other storeys do not constrain a partition.
 Candidate positions include clear-gap boundaries between panes, so even narrow
 valid gaps can be found; a 1 mm margin protects the clearance after float rounding.
 Optional partitions are skipped when no safe, usable subdivision exists.
@@ -83,6 +85,31 @@ Box3D panels and grab controls. Entry doors swing inward into the living space;
 side-room doors swing outward into the anteroom. Panels start closed and retain
 3 cm clearance above the floor datum.
 
+## Upper-storey rooms
+
+Each floor above ground starts with its incoming ramp, floor opening and 80 cm
+upper landing. Independently for each storey, a deterministic **50/50 choice**
+picks a wall direction **D** parallel to either pair of exterior walls. Each
+side of the incoming staircase independently rolls **70%** for a full-span wall
+parallel to D, preferably about **2 metres from the ramp**. These walls form one
+`stair_area` and zero, one or two living areas. A cut is skipped when no usable
+side area fits, the storey's windows forbid it, or the incoming opening, landing
+or next staircase would be obstructed.
+
+Each created living side independently chooses one of two rules:
+
+- Cut it with walls perpendicular to D into a random **1–4 rooms**, subject to
+  the same 10 m² / 2.5 m minimums. Every room gets its own door opening into the
+  stair area; the dividing walls need no doorways.
+- Reuse the ground-floor living algorithm, targeting **1–3 rooms** connected
+  by partition doors and one doorway into the stair area.
+
+Window clearance applies to both modes. A requested subdivision count can be
+reduced when necessary. Stair-area boundary doors swing into the stair area.
+The uppermost floor gets rooms but no further upward ramp. Room polygons and
+door descriptors carry a storey index: 0 is ground, and `upperFloors[i-1]` is
+the floor height for storey i. Rendering and collision use that storey's ceiling.
+
 ## Staircase ramps
 
 A multi-storey house selects one of the living rooms that can accommodate a
@@ -92,9 +119,10 @@ prefer placement against an exterior wall. They avoid doorway approaches.
 
 The staircase is currently a **single inclined plane per storey transition**,
 1.1 metres wide, with 80 cm landing space at both ends. The slope stays below
-the controller's 45-degree walking limit. Multiple flights occupy the same
-selected room. There are no treads, railings, upper-storey subdivisions or
-furniture rules yet.
+the controller's 45-degree walking limit. The first flight occupies its chosen
+ground room. Subsequent flights are chosen separately
+inside each upper stair area, avoiding the incoming floor opening and landing.
+There are no treads, railings or upper-storey furniture rules yet.
 
 Each separating floor has a matching **rectangular cutout** over the ramp's
 standing head envelope, with 2.05 metres of vertical clearance and a small edge
@@ -131,12 +159,15 @@ The server resets generated door movement after a complete eviction. A client
 that evicts independently recovers the server's current door angles on return.
 
 Generated interior door IDs are reserved after exterior IDs, in sorted building
-order. Each building reserves `3 * exterior_door_count + 2` slots: entry and
-side-room doors plus the two possible living partitions. Failed random choices
+order. Each building reserves `3 * exterior_door_count + 2 + 8 * upper_storeys`
+slots: ground entry/side-room doors and two possible living partitions, plus at
+most four doors per side on each upper floor. Window-head rows determine the
+upper-storey count without generating a layout; eligible houses have at most
+three upper storeys. Failed random choices
 leave unused slots. A reserved slot holds no generated geometry or body until
 the house loads. Activation order cannot change IDs. The existing door-angle
 snapshot carries interactive movement only; clients ignore angles for reserved
-panels whose geometry is not locally resident. Protocol 35 prevents older
+panels whose geometry is not locally resident. Protocol 36 prevents older
 peers with different layouts or door-ID semantics from joining.
 
 Walking, ground support, sight, firearm queries and debug geometry include a
@@ -154,7 +185,7 @@ its existing session lifecycle. It is not part of the regenerated floorplan.
 ```bash
 cmake -S . -B build
 cmake --build build -j4
-ctest --test-dir build -R 'house_layout|floorplan' --output-on-failure
+ctest --test-dir build -R 'house_.*layout|floorplan' --output-on-failure
 # Optional read-only check against the published map:
 ./build/test_floorplans output/godollo.glb
 # Requires a working OpenGL display:
@@ -170,3 +201,7 @@ cached walking/sight/prop collision eviction, camera/shadow rendering and
 independent multiplayer generation with stable replicated door movement. Ramp
 tests exercise actual standing-player ascent, transformed sloped support,
 upper landing support, multi-storey flights and collision-free floor openings.
+Upper-storey cases cover independent side rolls and subdivision modes, connected
+room graphs, storey-specific windows, reserved doors, and incoming/outgoing stair
+clearance. The GPU case opens an upper door; multiplayer replicates its angle
+across independent generation, eviction and reentry.

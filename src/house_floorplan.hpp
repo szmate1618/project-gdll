@@ -12,13 +12,15 @@ struct HouseSource {
     std::size_t firstDoor = 0; // Reserved runtime IDs; geometry is still generated lazily.
 };
 struct HouseRoom {
-    enum class Kind { Anteroom, SmallRoom, Living };
+    enum class Kind { Anteroom, SmallRoom, Living, StairArea };
     Kind kind = Kind::Living;
-    std::vector<glm::vec2> polygon; // X/Z metres; ground storey only.
+    std::vector<glm::vec2> polygon; // X/Z metres on the indicated storey.
     std::vector<std::size_t> entrances; // Exterior door IDs opening into this room.
     bool staircase = false;
+    std::size_t storey = 0; // Ground = 0; upperFloors[storey - 1] is its floor height.
     const char* name() const {
-        return kind == Kind::Anteroom ? "anteroom" : kind == Kind::SmallRoom ? "small_rooms" : "living";
+        return kind == Kind::Anteroom ? "anteroom" : kind == Kind::SmallRoom ? "small_rooms" :
+            kind == Kind::StairArea ? "stair_area" : "living";
     }
 };
 struct HouseInteriorDoor {
@@ -26,9 +28,10 @@ struct HouseInteriorDoor {
     std::optional<std::size_t> entrance; // Exterior counterpart, if this is an entry partition door.
     DoorPanel panel;
     Primitive geometry; // World-space plane in its closed pose.
+    std::size_t storey = 0;
 };
 struct HouseStaircase {
-    std::size_t room; // Index in HouseFloorplan::rooms; every flight uses this living room.
+    std::size_t room; // Index of the room containing this flight's lower end.
     std::vector<glm::vec2> ramp, opening; // Rectangles in world X/Z metres.
     glm::vec3 bottom, top; // Centreline endpoints on the walkable plane.
 };
@@ -48,4 +51,6 @@ struct HouseFloorplan {
 // Window row heads determine storeys; random decisions depend only on the stable building identity.
 std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const HouseSource& source,
                                                    const std::vector<DoorPanel>& entrances);
+// Window-head rows already loaded in the map, for reserving stable door IDs.
+std::size_t houseUpperStoreyCount(const Model& model, const HouseSource& source);
 } // namespace viewer

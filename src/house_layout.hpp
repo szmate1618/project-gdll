@@ -11,6 +11,7 @@ struct Room {
     HouseRoom::Kind kind;
     Rectangle bounds;
     std::vector<std::size_t> entrances;
+    std::size_t storey = 0;
 };
 struct Opening {
     float low, high;
@@ -22,6 +23,7 @@ struct Partition {
     int axis;
     float position, low, high;
     std::vector<Opening> openings;
+    std::size_t storey = 0;
 };
 struct Stair {
     std::size_t room;
@@ -35,6 +37,10 @@ struct Layout {
     std::vector<Partition> partitions;
     std::vector<Stair> stairs;
 };
+struct Window { Rectangle bounds; float bottom, top; };
+inline constexpr std::size_t maxUpperRoomsPerSide = 4;
+bool generateUpperStoreys(Layout& layout, const std::string& building, Rectangle footprint,
+    const std::vector<float>& upperFloors, float ceiling, const std::vector<Window>& windows);
 // Integer-only random choices have a specified sequence, independent of the
 // standard library, activation order, wall-clock time and process RNG state.
 Layout generate(const std::string& building, Rectangle footprint, const std::vector<Entrance>& entrances,

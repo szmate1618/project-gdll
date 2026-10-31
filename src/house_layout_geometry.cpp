@@ -39,11 +39,13 @@ void buildGeometry(HouseFloorplan& result, const HouseSource& source, const Layo
         quad(floors, world(p[0], y), world(p[1], y), world(p[2], y), world(p[3], y));
     };
     for (const auto& room : layout.rooms) {
-        result.rooms.push_back({room.kind, polygon(room.bounds), room.entrances});
-        plane(room.bounds, result.floor + .01f);
+        result.rooms.push_back({room.kind, polygon(room.bounds), room.entrances,
+            room.kind == HouseRoom::Kind::StairArea, room.storey});
+        if (room.storey == 0) plane(room.bounds, result.floor + .01f);
     }
-    const float ceiling = result.upperFloors.empty() ? result.ceiling : result.upperFloors.front();
     for (const auto& wall : layout.partitions) {
+        const float floor = wall.storey == 0 ? result.floor : result.upperFloors.at(wall.storey - 1);
+        const float ceiling = wall.storey < result.upperFloors.size() ? result.upperFloors[wall.storey] : result.ceiling;
         const auto point = [&](float along, float y) {
             glm::vec2 p; p[wall.axis] = wall.position; p[1 - wall.axis] = along; return world(p, y);
         };
@@ -52,26 +54,26 @@ void buildGeometry(HouseFloorplan& result, const HouseSource& source, const Layo
         float cursor = wall.low;
         for (const auto& opening : openings) {
             if (opening.low < cursor || opening.high > wall.high) throw std::logic_error("Overlapping house doorways");
-            const float head = result.floor + 2.1f;
-            quad(walls, point(cursor, result.floor), point(opening.low, result.floor), point(opening.low, ceiling), point(cursor, ceiling));
+            const float head = floor + 2.1f;
+            quad(walls, point(cursor, floor), point(opening.low, floor), point(opening.low, ceiling), point(cursor, ceiling));
             quad(walls, point(opening.low, head), point(opening.high, head), point(opening.high, ceiling), point(opening.low, ceiling));
             const auto normal = u * opening.outward.x + v * opening.outward.y;
             const glm::vec3 outward(normal.x, 0, normal.y), up(0, 1, 0);
             const auto right = glm::cross(up, outward);
             DoorPanel panel;
             panel.draw = std::numeric_limits<std::size_t>::max(); panel.inward = opening.inward;
-            panel.center = (point(opening.low, result.floor) + point(opening.high, head)) * .5f;
-            panel.center.y = result.floor + 1.065f;
+            panel.center = (point(opening.low, floor) + point(opening.high, head)) * .5f;
+            panel.center.y = floor + 1.065f;
             panel.halfExtents = {(opening.high - opening.low) * .5f, 1.035f, .02f};
             panel.hinge = panel.center - right * panel.halfExtents.x; panel.outward = outward;
             panel.rotation = glm::quat_cast(glm::mat3(right, up, outward));
             Primitive mesh; mesh.material = 2;
             const auto a = panel.center - right * panel.halfExtents.x, b = panel.center + right * panel.halfExtents.x;
-            quad(mesh, {a.x, result.floor + .03f, a.z}, {b.x, result.floor + .03f, b.z}, {b.x, head, b.z}, {a.x, head, a.z});
-            result.doors.push_back({source.firstDoor + result.doors.size(), opening.entrance, panel, std::move(mesh)});
+            quad(mesh, {a.x, floor + .03f, a.z}, {b.x, floor + .03f, b.z}, {b.x, head, b.z}, {a.x, head, a.z});
+            result.doors.push_back({source.firstDoor + result.doors.size(), opening.entrance, panel, std::move(mesh), wall.storey});
             cursor = opening.high;
         }
-        quad(walls, point(cursor, result.floor), point(wall.high, result.floor), point(wall.high, ceiling), point(cursor, ceiling));
+        quad(walls, point(cursor, floor), point(wall.high, floor), point(wall.high, ceiling), point(cursor, ceiling));
     }
     for (const auto y : result.upperFloors) {
         const auto stair = std::find_if(layout.stairs.begin(), layout.stairs.end(), [&](const Stair& s) { return std::abs(s.top - y) < .001f; });

@@ -32,6 +32,9 @@ float depth(const viewer::Camera& camera, glm::vec3 point) {
 }
 void render(const std::filesystem::path& capture) {
     auto model = house_fixture::house();
+    // This stable identity creates upper living rooms as well as both entries.
+    for (auto& draw : model.draws) if (draw.name.rfind("building_house", 0) == 0)
+        draw.name.replace(0, 14, "building_render_0");
     auto physics = std::make_shared<viewer::PhysicsWorld>();
     viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics);
     viewer::CollisionWorld collision(model, {}, &doors);
@@ -88,6 +91,18 @@ void render(const std::filesystem::path& capture) {
         aim(stair.top + direction * .5f + glm::vec3(0, 1.65f, 0), (stair.bottom + stair.top) * .5f);
         renderer.render(camera);
         if (!capture.empty()) renderer.writeScreenshot(capture.string() + ".upper.ppm");
+        const auto upperDoor = std::find_if(plan.doors.begin(), plan.doors.end(), [](const viewer::HouseInteriorDoor& d) {
+            return d.storey > 0 && !d.panel.inward;
+        });
+        require(upperDoor != plan.doors.end(), "Rendering fixture must exercise an upper living-room doorway");
+        const auto& panel = upperDoor->panel;
+        aim(panel.center - panel.outward * 1.25f + glm::vec3(0, .35f, 0), panel.center);
+        doors.setAngle(upperDoor->id, 0); renderer.updateFloorplans(layer); renderer.render(camera);
+        const auto closedUpper = depth(camera, panel.center);
+        doors.setAngle(upperDoor->id, 1.5f); renderer.updateFloorplans(layer); renderer.render(camera);
+        require(depth(camera, panel.center) > closedUpper + .00001f,
+                "An upper-storey interactive panel must uncover the doorway into its stair area");
+        if (!capture.empty()) renderer.writeScreenshot(capture.string() + ".upper-rooms.ppm");
     }
     renderer.setNight(false); renderer.setFlashlight(false); renderer.setShadows(true);
     camera.setPosition({3, 6.1f, 0}); camera.setOrientation(0, 0);

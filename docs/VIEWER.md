@@ -2350,6 +2350,10 @@ floor openings. The interior is evicted beyond 30 metres and regenerated
 identically on return. Partitions leave at least 20 cm around windows; entry
 depths adjust either side of the preferred 2 metres to fit. See [runtime floorplans](FLOORPLANS.md) for the footprint
 heuristic, room-size limits, storeys, collision, and multiplayer lifecycle.
+Upper floors form a stair area with independently rolled side walls, then
+subdivide each living side independently into rooms with shared stair access
+or the ground-floor split rule. Each further flight avoids the incoming opening
+and landing; the uppermost floor has no upward ramp.
 See [building generation](../README.md) for facade configuration and regeneration.
 
 Generated brown door panels have runtime Box3D bodies and vertical revolute

@@ -2,6 +2,7 @@
 #include "collision_world.hpp"
 #include "door_layer.hpp"
 #include "model_merge.hpp"
+#include "house_layout.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -95,13 +96,15 @@ FloorplanLayer::FloorplanLayer(const Model& model, DoorLayer& doors, CollisionWo
         data.doorBuildings[i] = name;
         data.cells[{cell(panel.center.x), cell(panel.center.z)}].push_back(i);
     }
-    // Each entrance can add one entry door and two side-room doors. At most
-    // two further partitions connect the three living rooms. Reserve by sorted
-    // building identity, so skipped entries and activation order cannot shift IDs.
+    // Ground: entry/side doors and at most two living partitions. Upper floors:
+    // at most four rooms per side, each adding one connection. The 10 m house
+    // height / 2.4 m minimum storey permits at most three upper floors.
+    // Reserve by sorted identity and loaded window rows, never activation order.
     for (auto& entry : data.sources) {
         auto& source = entry.second;
         if (source.doors.empty()) continue;
-        source.firstDoor = doors.reserveRuntimeDoors(source.doors.size() * 3 + 2);
+        source.firstDoor = doors.reserveRuntimeDoors(source.doors.size() * 3 + 2 +
+            2 * house_layout::maxUpperRoomsPerSide * std::min<std::size_t>(3, houseUpperStoreyCount(model, source)));
     }
 }
 FloorplanLayer::~FloorplanLayer() {

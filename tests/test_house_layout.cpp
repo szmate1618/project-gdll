@@ -137,13 +137,12 @@ void loadedWindowGeometry(const glm::mat4& transform) {
     };
     addWindow(3.9f);
     const auto upstairsOnly = viewer::generateHouseFloorplan(fixture.model, fixture.source, fixture.doors);
-    require(upstairsOnly && upstairsOnly->structure.primitives.size() == original->structure.primitives.size(),
+    require(bool(upstairsOnly),
             "An upstairs pane must not constrain ground-storey partitions");
-    for (std::size_t mesh = 0; mesh < original->structure.primitives.size(); ++mesh) {
-        const auto& a = original->structure.primitives[mesh]; const auto& b = upstairsOnly->structure.primitives[mesh];
-        require(a.indices == b.indices && a.vertices.size() == b.vertices.size(), "Upstairs-only window must preserve ground-layout topology");
-        for (std::size_t i = 0; i < a.vertices.size(); ++i)
-            require(a.vertices[i].position == b.vertices[i].position, "Upstairs-only window must preserve ground-layout geometry");
+    for (std::size_t i = 0; i < original->rooms.size() && original->rooms[i].storey == 0; ++i) {
+        require(i < upstairsOnly->rooms.size() && upstairsOnly->rooms[i].storey == 0 &&
+            original->rooms[i].polygon == upstairsOnly->rooms[i].polygon && original->rooms[i].kind == upstairsOnly->rooms[i].kind,
+            "Upstairs-only window must preserve ground-layout geometry");
     }
     addWindow(.9f);
     const auto shifted = viewer::generateHouseFloorplan(fixture.model, fixture.source, fixture.doors);
@@ -153,10 +152,15 @@ void loadedWindowGeometry(const glm::mat4& transform) {
     const auto closestWall = [&](const viewer::HouseFloorplan& plan) {
         float nearest = std::numeric_limits<float>::max();
         for (const auto& mesh : plan.structure.primitives) if (mesh.material == 0)
-            for (std::size_t i = 0; i < mesh.indices.size(); i += 3) for (int edge = 0; edge < 3; ++edge) {
+            for (std::size_t i = 0; i < mesh.indices.size(); i += 3) {
+                if (mesh.vertices[mesh.indices[i]].position.y >= plan.upperFloors.front() &&
+                    mesh.vertices[mesh.indices[i + 1]].position.y >= plan.upperFloors.front() &&
+                    mesh.vertices[mesh.indices[i + 2]].position.y >= plan.upperFloors.front()) continue;
+                for (int edge = 0; edge < 3; ++edge) {
                 const auto a = mesh.vertices[mesh.indices[i + edge]].position;
                 const auto b = mesh.vertices[mesh.indices[i + (edge + 1) % 3]].position;
                 nearest = std::min(nearest, segmentDistance({a.x, a.z}, {b.x, b.z}, start, end));
+                }
             }
         return nearest;
     };
@@ -218,14 +222,14 @@ void variation() {
 }
 void connections(const viewer::HouseFloorplan& plan) {
     std::vector<std::vector<std::size_t>> links(plan.rooms.size());
-    require(plan.doors.size() <= 8, "Reserved door budget must cover side rooms and living subdivisions");
+    require(plan.doors.size() <= 8 + 8 * plan.upperFloors.size(), "Reserved door budget must cover every storey's subdivisions");
     for (const auto& door : plan.doors) {
         std::array<std::size_t, 2> endpoints{};
         for (int side = 0; side < 2; ++side) {
             const auto p = door.panel.center + door.panel.outward * (side ? .15f : -.15f);
             std::vector<std::size_t> containing;
             for (std::size_t room = 0; room < plan.rooms.size(); ++room)
-                if (inside(plan.rooms[room].polygon, {p.x, p.z})) containing.push_back(room);
+                if (plan.rooms[room].storey == door.storey && inside(plan.rooms[room].polygon, {p.x, p.z})) containing.push_back(room);
             require(containing.size() == 1, "Each side of every internal doorway must open into one actual room");
             endpoints[static_cast<std::size_t>(side)] = containing.front();
         }
@@ -233,8 +237,18 @@ void connections(const viewer::HouseFloorplan& plan) {
         if (plan.rooms[endpoints[0]].kind == viewer::HouseRoom::Kind::SmallRoom) {
             require(!door.panel.inward && plan.rooms[endpoints[1]].kind == viewer::HouseRoom::Kind::Anteroom,
                     "Small-room doors must swing outward into their anteroom");
-        } else require(door.panel.inward, "Entry and living-room doors must retain their inward hinges");
+        } else if (!door.panel.inward) require(door.storey > 0 && plan.rooms[endpoints[1]].kind == viewer::HouseRoom::Kind::StairArea,
+                    "Upper side doors must open toward their stair area");
         links[endpoints[0]].push_back(endpoints[1]); links[endpoints[1]].push_back(endpoints[0]);
+    }
+    for (const auto& stair : plan.stairs) {
+        const auto storey = plan.rooms.at(stair.room).storey;
+        const auto landing = std::find_if(plan.rooms.begin(), plan.rooms.end(), [&](const viewer::HouseRoom& r) {
+            return r.storey == storey + 1 && r.kind == viewer::HouseRoom::Kind::StairArea;
+        });
+        require(landing != plan.rooms.end(), "Every ramp must lead into the next storey's stair area");
+        const auto upper = static_cast<std::size_t>(landing - plan.rooms.begin());
+        links[stair.room].push_back(upper); links[upper].push_back(stair.room);
     }
     std::set<std::size_t> seen{0}; std::vector<std::size_t> todo{0};
     while (!todo.empty()) { const auto room = todo.back(); todo.pop_back(); for (const auto next : links[room]) if (seen.insert(next).second) todo.push_back(next); }
@@ -248,11 +262,11 @@ bool smallRoomSwing(const viewer::HouseFloorplan& plan) {
     bool tested = false;
     for (std::size_t id = 0; id < panels.size(); ++id) {
         const auto& panel = panels[id];
-        if (panel.inward) continue;
+        if (panel.inward || plan.doors[id].storey != 0) continue;
         doors.setAngle(id, .8f);
         const auto opened = glm::vec3(doors.transform(id) * glm::vec4(panel.center, 1));
         require(std::any_of(plan.rooms.begin(), plan.rooms.end(), [&](const viewer::HouseRoom& room) {
-            return room.kind == viewer::HouseRoom::Kind::Anteroom && inside(room.polygon, {opened.x, opened.z});
+            return room.storey == 0 && room.kind == viewer::HouseRoom::Kind::Anteroom && inside(room.polygon, {opened.x, opened.z});
         }), "Opened small-room panel must occupy the anteroom, rather than its small room");
         doors.setAngle(id, 0);
         const auto right = glm::cross(glm::vec3(0, 1, 0), panel.outward);
@@ -274,12 +288,13 @@ void geometry(const glm::mat4& transform, int storeys) {
         require(plan->stairs.size() == static_cast<std::size_t>(storeys - 1), "Each extra storey must have a ramp and matching floor opening");
         float sum = 0; int stairsRooms = 0;
         for (const auto& room : plan->rooms) { sum += area(room.polygon); stairsRooms += room.staircase; }
-        require(std::abs(sum - area(plan->footprint)) < .02f && stairsRooms == 1, "Room polygons must tile the building and select exactly one staircase living room");
+        require(std::abs(sum - area(plan->footprint) * storeys) < .02f * storeys && stairsRooms == storeys,
+                "Room polygons must tile every storey with one ground staircase room and each upper stair area");
         connections(*plan);
         if (!testedSmallRoom) testedSmallRoom = smallRoomSwing(*plan);
         viewer::CollisionWorld collision(plan->structure);
         for (const auto& stair : plan->stairs) {
-            require(plan->rooms.at(stair.room).kind == viewer::HouseRoom::Kind::Living && plan->rooms.at(stair.room).staircase,
+            require(plan->rooms.at(stair.room).staircase,
                     "The staircase must belong to the selected living room");
             const auto run = glm::vec2(stair.top.x - stair.bottom.x, stair.top.z - stair.bottom.z);
             require(stair.top.y > stair.bottom.y && glm::length(run) >= stair.top.y - stair.bottom.y,
@@ -299,8 +314,7 @@ void geometry(const glm::mat4& transform, int storeys) {
             require(support && support->normal.y >= .707f && std::abs(support->height - middle.y) < .001f,
                     "Ramp plane must provide transformed, sloped walking support");
         }
-        if (seed == 0) {
-            const auto& stair = plan->stairs.front();
+        if (seed == 0) for (const auto& stair : plan->stairs) {
             auto direction = stair.top - stair.bottom; direction.y = 0; direction = glm::normalize(direction);
             viewer::FPSController player;
             player.teleport(stair.bottom - direction * .5f + glm::vec3(0, .03f, 0));
