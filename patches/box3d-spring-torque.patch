@@ -1,0 +1,226 @@
+--- a/include/box3d/box3d.h
++++ b/include/box3d/box3d.h
+@@ -1454,6 +1454,13 @@
+ /// Is the revolute angular spring enabled?
+ B3_API bool b3RevoluteJoint_IsSpringEnabled( b3JointId jointId );
+ 
++/// Set the revolute spring torque limit in newton-meters. Non-negative; default FLT_MAX is unlimited.
++/// Caps only the spring, not motors, joint limits or anchor constraints. Zero disables spring torque.
++B3_API void b3RevoluteJoint_SetMaxSpringTorque( b3JointId jointId, float torque );
++
++/// Get the revolute spring torque limit in newton-meters.
++B3_API float b3RevoluteJoint_GetMaxSpringTorque( b3JointId jointId );
++
+ /// Set the revolute joint spring stiffness in Hertz
+ B3_API void b3RevoluteJoint_SetSpringHertz( b3JointId jointId, float hertz );
+ 
+@@ -1564,6 +1571,13 @@
+ 
+ /// Is the spherical angular spring enabled?
+ B3_API bool b3SphericalJoint_IsSpringEnabled( b3JointId jointId );
++
++/// Set the spherical spring torque limit in newton-meters. Non-negative; default FLT_MAX is unlimited.
++/// Caps only the spring, not motors, joint limits or anchor constraints. Zero disables spring torque.
++B3_API void b3SphericalJoint_SetMaxSpringTorque( b3JointId jointId, float torque );
++
++/// Get the spherical spring torque limit in newton-meters.
++B3_API float b3SphericalJoint_GetMaxSpringTorque( b3JointId jointId );
+ 
+ /// Set the spherical joint spring stiffness in Hertz
+ B3_API void b3SphericalJoint_SetSpringHertz( b3JointId jointId, float hertz );
+--- a/src/joint.h
++++ b/src/joint.h
+@@ -181,6 +181,7 @@
+ 	float upperImpulse;
+ 	float hertz;
+ 	float dampingRatio;
++	float maxSpringTorque;
+ 	float maxMotorTorque;
+ 	float motorSpeed;
+ 	float targetAngle;
+@@ -214,6 +215,7 @@
+ 	float swingImpulse;
+ 	float hertz;
+ 	float dampingRatio;
++	float maxSpringTorque;
+ 	float maxMotorTorque;
+ 	b3Vec3 motorVelocity;
+ 	float lowerTwistAngle;
+--- a/src/joint.c
++++ b/src/joint.c
+@@ -605,6 +605,7 @@
+ 	joint->revoluteJoint = (b3RevoluteJoint){ 0 };
+ 	joint->revoluteJoint.hertz = def->hertz;
+ 	joint->revoluteJoint.dampingRatio = def->dampingRatio;
++	joint->revoluteJoint.maxSpringTorque = FLT_MAX;
+ 	joint->revoluteJoint.targetAngle = b3ClampFloat( def->targetAngle, -B3_PI, B3_PI );
+ 
+ 	float lowerAngle = b3MinFloat( def->lowerAngle, def->upperAngle );
+@@ -642,6 +643,7 @@
+ 	joint->sphericalJoint = (b3SphericalJoint){ 0 };
+ 	joint->sphericalJoint.hertz = def->hertz;
+ 	joint->sphericalJoint.dampingRatio = def->dampingRatio;
++	joint->sphericalJoint.maxSpringTorque = FLT_MAX;
+ 	joint->sphericalJoint.targetRotation = def->targetRotation;
+ 	joint->sphericalJoint.coneAngle = b3ClampFloat( def->coneAngle, 0.0f, 0.5f * B3_PI );
+ 
+--- a/src/revolute_joint.c
++++ b/src/revolute_joint.c
+@@ -202,6 +202,21 @@
+ 	return base->revoluteJoint.motorSpeed;
+ }
+ 
++void b3RevoluteJoint_SetMaxSpringTorque( b3JointId jointId, float torque )
++{
++	B3_ASSERT( b3IsValidFloat( torque ) && torque >= 0.0f );
++	b3World* world = b3GetWorld( jointId.world0 );
++	B3_REC( world, RevoluteJointSetMaxSpringTorque, jointId, torque );
++	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
++	base->revoluteJoint.maxSpringTorque = torque;
++}
++
++float b3RevoluteJoint_GetMaxSpringTorque( b3JointId jointId )
++{
++	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_revoluteJoint );
++	return base->revoluteJoint.maxSpringTorque;
++}
++
+ void b3RevoluteJoint_SetMaxMotorTorque( b3JointId jointId, float maxForce )
+ {
+ 	B3_ASSERT( b3IsValidFloat( maxForce ) && maxForce >= 0.0f );
+@@ -356,6 +371,12 @@
+ 	b3Vec3 rA = b3RotateVector( stateA->deltaRotation, joint->frameA.p );
+ 	b3Vec3 rB = b3RotateVector( stateB->deltaRotation, joint->frameB.p );
+ 
++	if ( joint->maxSpringTorque < FLT_MAX )
++	{
++		float maxImpulse = joint->maxSpringTorque * context->h;
++		joint->springImpulse = b3ClampFloat( joint->springImpulse, -maxImpulse, maxImpulse );
++	}
++
+ 	float axialImpulse = joint->springImpulse + joint->motorImpulse + joint->lowerImpulse - joint->upperImpulse;
+ 	b3Vec3 angularImpulse =
+ 		b3Add( b3MulSV( joint->perpImpulse.x, joint->perpAxisX ), b3MulSV( joint->perpImpulse.y, joint->perpAxisY ) );
+@@ -425,7 +446,14 @@
+ 		float cdot = b3Dot( b3Sub( wB, wA ), joint->rotationAxisZ );
+ 
+ 		float deltaImpulse = -massScale * joint->axialMass * ( cdot + bias ) - impulseScale * joint->springImpulse;
++		float oldImpulse = joint->springImpulse;
+ 		joint->springImpulse += deltaImpulse;
++		if ( joint->maxSpringTorque < FLT_MAX )
++		{
++			float maxImpulse = joint->maxSpringTorque * context->h;
++			joint->springImpulse = b3ClampFloat( joint->springImpulse, -maxImpulse, maxImpulse );
++			deltaImpulse = joint->springImpulse - oldImpulse;
++		}
+ 
+ 		wA = b3MulSub( wA, deltaImpulse, b3MulMV( iA, joint->rotationAxisZ ) );
+ 		wB = b3MulAdd( wB, deltaImpulse, b3MulMV( iB, joint->rotationAxisZ ) );
+--- a/src/spherical_joint.c
++++ b/src/spherical_joint.c
+@@ -229,6 +229,21 @@
+ 	return base->sphericalJoint.motorVelocity;
+ }
+ 
++void b3SphericalJoint_SetMaxSpringTorque( b3JointId jointId, float torque )
++{
++	B3_ASSERT( b3IsValidFloat( torque ) && torque >= 0.0f );
++	b3World* world = b3GetWorld( jointId.world0 );
++	B3_REC( world, SphericalJointSetMaxSpringTorque, jointId, torque );
++	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
++	base->sphericalJoint.maxSpringTorque = torque;
++}
++
++float b3SphericalJoint_GetMaxSpringTorque( b3JointId jointId )
++{
++	b3JointSim* base = b3GetJointSimCheckType( jointId, b3_sphericalJoint );
++	return base->sphericalJoint.maxSpringTorque;
++}
++
+ void b3SphericalJoint_SetMaxMotorTorque( b3JointId jointId, float maxForce )
+ {
+ 	B3_ASSERT( b3IsValidFloat( maxForce ) && maxForce >= 0.0f );
+@@ -406,6 +421,16 @@
+ 	b3Vec3 rA = b3RotateVector( stateA->deltaRotation, joint->frameA.p );
+ 	b3Vec3 rB = b3RotateVector( stateB->deltaRotation, joint->frameB.p );
+ 
++	if ( joint->maxSpringTorque < FLT_MAX )
++	{
++		float maxImpulse = joint->maxSpringTorque * context->h;
++		float length = b3Length( joint->springImpulse );
++		if ( length > maxImpulse )
++		{
++			joint->springImpulse = b3MulSV( maxImpulse / length, joint->springImpulse );
++		}
++	}
++
+ 	b3Vec3 angularImpulse = b3Add( joint->springImpulse, joint->motorImpulse );
+ 	angularImpulse = b3MulSub( angularImpulse, joint->swingImpulse, joint->swingAxis );
+ 	angularImpulse = b3MulAdd( angularImpulse, joint->lowerTwistImpulse - joint->upperTwistImpulse, joint->twistJacobian );
+@@ -468,7 +493,18 @@
+ 
+ 		b3Vec3 impulse = b3MulSub( b3MulSV( -massScale, b3MulMV( joint->rotationMass, b3Add( cdot, bias ) ) ),
+ 								   impulseScale, joint->springImpulse );
+-		joint->springImpulse = b3Add( joint->springImpulse, impulse );
++		b3Vec3 oldImpulse = joint->springImpulse;
++		joint->springImpulse = b3Add( oldImpulse, impulse );
++		if ( joint->maxSpringTorque < FLT_MAX )
++		{
++			float maxImpulse = joint->maxSpringTorque * context->h;
++			float length = b3Length( joint->springImpulse );
++			if ( length > maxImpulse )
++			{
++				joint->springImpulse = b3MulSV( maxImpulse / length, joint->springImpulse );
++			}
++			impulse = b3Sub( joint->springImpulse, oldImpulse );
++		}
+ 
+ 		wA = b3Sub( wA, b3MulMV( iA, impulse ) );
+ 		wB = b3Add( wB, b3MulMV( iB, impulse ) );
+--- a/src/recording_ops.inl
++++ b/src/recording_ops.inl
+@@ -234,3 +234,7 @@
+ 
+ // Accumulated world bounds over the whole recording, written once at stop.
+ B3_REC_OP( 0xF2, RecordingBounds, RET_NONE, ARG( AABB, bounds ) )
++
++// Local spring torque limits
++B3_REC_OP( 0xF3, RevoluteJointSetMaxSpringTorque, RET_NONE, ARG( JOINTID, joint ) ARG( F32, torque ) )
++B3_REC_OP( 0xF4, SphericalJointSetMaxSpringTorque, RET_NONE, ARG( JOINTID, joint ) ARG( F32, torque ) )
+--- a/src/recording_replay.c
++++ b/src/recording_replay.c
+@@ -1522,6 +1522,11 @@
+ 	b3RevoluteJoint_SetMotorSpeed( b3RecMakeJointId( rdr, a->joint ), a->motorSpeed );
+ }
+ 
++static void b3RecDispatch_RevoluteJointSetMaxSpringTorque( const b3RecArgs_RevoluteJointSetMaxSpringTorque* a, b3RecReader* rdr )
++{
++	b3RevoluteJoint_SetMaxSpringTorque( b3RecMakeJointId( rdr, a->joint ), a->torque );
++}
++
+ static void b3RecDispatch_RevoluteJointSetMaxMotorTorque( const b3RecArgs_RevoluteJointSetMaxMotorTorque* a, b3RecReader* rdr )
+ {
+ 	b3RevoluteJoint_SetMaxMotorTorque( b3RecMakeJointId( rdr, a->joint ), a->torque );
+@@ -1576,6 +1581,11 @@
+ static void b3RecDispatch_SphericalJointSetMotorVelocity( const b3RecArgs_SphericalJointSetMotorVelocity* a, b3RecReader* rdr )
+ {
+ 	b3SphericalJoint_SetMotorVelocity( b3RecMakeJointId( rdr, a->joint ), a->motorVelocity );
++}
++
++static void b3RecDispatch_SphericalJointSetMaxSpringTorque( const b3RecArgs_SphericalJointSetMaxSpringTorque* a, b3RecReader* rdr )
++{
++	b3SphericalJoint_SetMaxSpringTorque( b3RecMakeJointId( rdr, a->joint ), a->torque );
+ }
+ 
+ static void b3RecDispatch_SphericalJointSetMaxMotorTorque( const b3RecArgs_SphericalJointSetMaxMotorTorque* a, b3RecReader* rdr )
+--- a/src/world_snapshot.c
++++ b/src/world_snapshot.c
+@@ -33,7 +33,7 @@
+ 
+ // Snapshot image magic 'BNS3' and version
+ #define B3_SNAP_MAGIC 0x33534E42u
+-#define B3_SNAP_VERSION 5u // broad-phase pair traversal, move buffer removed
++#define B3_SNAP_VERSION 6u // local spring torque limits change joint-state layout
+ 
+ #define B3_SNAP_FLAG_VALIDATION 0x1u
+ #define B3_SNAP_FLAG_DOUBLE_PRECISION 0x2u

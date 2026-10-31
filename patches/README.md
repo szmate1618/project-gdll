@@ -1,5 +1,23 @@
 # Box3D physics extensions
 
+## Angular spring torque limits
+
+`box3d-spring-torque.patch` adds `SetMaxSpringTorque` / `GetMaxSpringTorque` for
+revolute and spherical joints. Existing joints default to unlimited (`FLT_MAX`);
+zero permits no spring torque. Limits use N·m and affect only spring actuation,
+independently of motors, passive joint limits and positional anchor constraints.
+
+The solver caps accumulated angular impulse by `maximum torque * substep duration`
+before warm starting and during solving. Spherical joints share one torque budget
+across all three axes. Recording/replay includes limit changes; engine snapshot
+version 6 rejects older snapshots because the internal joint layout changed.
+The multiplayer wire format is unchanged.
+
+Only living zombie attack drives enable finite limits. Their authored absolute
+pose targets, spring frequencies and damping are unchanged. `viewer_spring_torque`
+measures angular momentum changes across timestep/substep combinations, limit
+changes, sustained obstruction, recovery and snapshot-seeded replay.
+
 ## Deforming melee contact meshes
 
 Normal weighted zombie assets use immutable per-bone meshes in
@@ -20,7 +38,7 @@ separates or when dropped/degenerate triangles require new topology. Unchanged
 poses retain their collision surfaces and contact caches. No lower-detail mesh
 or collider approximation is introduced.
 
-The existing patch helper applies both patches, including on cached sources.
+The existing patch helper applies all physics patches, including on cached sources.
 `viewer_melee_contact_mesh` checks deformation, all BVH branches, edge flags,
 seam/degeneracy rejection, query bounds, stable body ownership, and cleanup.
 

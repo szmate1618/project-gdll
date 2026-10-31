@@ -308,6 +308,14 @@ public:
     void drivePose(const RagdollPose& target, float seconds) {
         if (!driven_) {
             holdPose();
+            // Muscle torque caps (N*m); preserve the existing absolute pose
+            // targets, stiffness and damping. Other spring-held rigs are uncapped.
+            b3SphericalJoint_SetMaxSpringTorque(joints_[torso], 120.f);
+            b3SphericalJoint_SetMaxSpringTorque(joints_[head], 15.f);
+            for (const auto part : {upperArmLeft, upperArmRight})
+                b3SphericalJoint_SetMaxSpringTorque(joints_[part], 45.f);
+            for (const auto part : {lowerArmLeft, lowerArmRight})
+                b3RevoluteJoint_SetMaxSpringTorque(joints_[part], 25.f);
             // Locomotion owns the feet/root. Only the upper body participates
             // dynamically in an attack; there is no balance controller yet.
             for (const auto part : {pelvis, upperLegLeft, lowerLegLeft, upperLegRight, lowerLegRight})

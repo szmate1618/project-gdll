@@ -108,7 +108,7 @@ FetchContent_Declare(openal_soft
     DOWNLOAD_NAME openal-soft-1.24.3.tar.gz
 )
 FetchContent_MakeAvailable(glm tinygltf box3d meshoptimizer tomlplusplus)
-# Extend Box3D for directional tire friction and refitting posed contact meshes.
+# Extend Box3D for tire friction, posed contact meshes and spring torque limits.
 # Apply on every configure, including already populated offline dependency trees.
 execute_process(
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/patch_box3d_directional_friction.py"
@@ -120,6 +120,7 @@ endif()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/patches/box3d-directional-friction.patch"
     "${CMAKE_CURRENT_SOURCE_DIR}/patches/box3d-mesh-refit.patch"
+    "${CMAKE_CURRENT_SOURCE_DIR}/patches/box3d-spring-torque.patch"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/patch_box3d_directional_friction.py")
 if(GD_VIEWER)
     FetchContent_MakeAvailable(glfw openal_soft)
@@ -790,6 +791,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_vehicle_traction PRIVATE viewer_physics)
     viewer_warnings(test_vehicle_traction)
     add_test(NAME viewer_vehicle_traction COMMAND test_vehicle_traction)
+
+    add_executable(test_spring_torque tests/test_spring_torque.cpp)
+    target_link_libraries(test_spring_torque PRIVATE viewer_physics)
+    viewer_warnings(test_spring_torque)
+    add_test(NAME viewer_spring_torque COMMAND test_spring_torque)
 
     add_executable(test_vehicle_steering tests/test_vehicle_steering.cpp)
     target_link_libraries(test_vehicle_steering PRIVATE viewer_physics)

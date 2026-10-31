@@ -1247,8 +1247,13 @@ elbow targets (10 Hz critically damped springs; neck 5 Hz). The pelvis and legs
 are kinematic supports following the authored lower-body frames; this is an
 upper-body attack controller, not a balancing/walking controller. Dynamic arms
 and torso respond to scene geometry, doors, props and player fists. These are
-joint spring drives without explicit torque caps. The living attack category
-imports nearby scene collision independently of the unchanged corpse floors.
+joint spring drives capped at **120 N·m for the torso, 45 N·m per shoulder,
+25 N·m per elbow and 15 N·m for the neck**. The cap bounds accumulated spring
+impulse per physics substep, including warm starts. Absolute animation pose
+targets, spring stiffness/damping and supported lower-body motion are unchanged;
+passive joint-limit and anchor reactions remain independent of the muscle caps.
+Other existing spring-held rigs retain unlimited spring torque. The living attack
+category imports nearby scene collision independently of the unchanged corpse floors.
 
 Only attacking zombies allocate these rigs. They stay alive, indexed and
 shootable, retain behavior and wounds, and release the bodies, hand colliders and
