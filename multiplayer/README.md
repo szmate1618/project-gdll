@@ -409,6 +409,63 @@ fingerprints still reject mismatched content. Every player uses the same pack.
 The original prototype viewer still uses its build checkout's resource paths.
 Windows compilation and runtime checks remain in GitHub CI.
 
+### Ready-to-run ZIPs
+
+[`tools/package_github_clients.py`](../tools/package_github_clients.py) downloads
+the Windows and Linux client artifacts from the latest successful **Build apps**
+run with both artifacts still available, combines each with the prepared town
+content, and writes two ready-to-run ZIPs under `build/distribution/`:
+
+```bash
+.venv/bin/python tools/package_github_clients.py
+```
+
+Use Python 3.12 or newer. Set `GH_TOKEN` or `GITHUB_TOKEN` in the environment to
+a GitHub token with **Actions: read** permission for the repository. The token is
+used only for the GitHub API; the signed artifact-storage download receives no
+authorization header. GitHub documents the required permission in its
+[artifact download API](https://docs.github.com/en/rest/actions/artifacts#download-an-artifact).
+The repository is inferred from `origin`; `--repo OWNER/REPO` overrides it.
+The default branch is selected unless `--branch BRANCH` is supplied. Successful
+push and manual workflow runs qualify; pull-request builds are excluded. Both
+clients always come from the same run and source commit.
+
+By default, the script creates a fresh asset ZIP in temporary staging using the
+existing asset packager. It accepts the same `--map`, `--zombies`, `--vegetation`,
+`--no-trees`, `--no-forests`, and `--no-zombies` preparation options. It uses
+prepared local data and does not regenerate the map or download scene assets.
+To reuse an existing asset ZIP and avoid recompressing it first:
+
+```bash
+.venv/bin/python tools/package_github_clients.py --assets build/godollo-assets.zip
+```
+
+`--assets` fixes the scene/layer settings, so do not combine it with preparation
+options. Use `--platform windows` or `--platform linux` to download one platform,
+and `--output-dir PATH` to change the destination.
+
+The script verifies artifact checksums when GitHub supplies them and checks all
+asset payloads against `asset-pack.json`. Shared configuration file sets and
+bytes must match the downloaded client; conflicting shared resources are also
+rejected. Credit notices may differ only in LF/CRLF line endings; their text must
+match, and the asset ZIP's notice bytes and hashes are retained. Push
+runtime/configuration changes and wait for their successful build
+before packaging them. A mismatch names the file rather than overwriting the
+build's configuration. Local configuration is checked before compressing fresh
+scene assets. Neither input archives nor the checkout are changed.
+
+Outputs are named `godollo-client-<platform>-x86_64-town-<commit>.zip`. Each contains
+one game directory, its platform libraries and licenses, all town content, and
+`client-build.json` recording the source commit, workflow URL/run ID and artifact
+ID. Both ZIPs are completed and checked before either is published; download,
+configuration or compression failures preserve existing output ZIPs. Safe Linux
+library links are stored as ordinary files, retaining their loadable names, and
+Linux executable permissions are retained in the ZIP.
+
+Extract the Windows ZIP and launch `play-town.cmd`. On Linux, extract with
+`unzip`, enter the game directory, and run `./play-town.sh`. No separate asset
+installation is needed.
+
 ## Run
 
 Open the game menu from the repository root:
