@@ -9,7 +9,6 @@
 #include <iostream>
 #include <set>
 #include <stdexcept>
-#include <utility>
 
 namespace {
 using namespace multiplayer;
@@ -69,108 +68,61 @@ void poseProtocol() {
     try { encode(pose); } catch (const std::runtime_error&) { rejected = true; }
     require(rejected, "Bulk pose bypassed the skeleton budget");
 }
-void poseCadence(Scene& scene, bool blast) {
-    scene.zombies = viewer::ZombieLayer{};
-    scene.zombies.assets.emplace_back().skeleton.resize(1);
-    scene.zombies.instances.emplace_back();
-    scene.zombies.setRagdollPalette(0, {glm::mat4(1)});
-    scene.zombies.instances[0].blastRagdoll = blast;
-    const std::uint64_t period = blast ? 6 : 12;
-    Replication replication;
-    Snapshot state; state.tick = 120;
-    test_replication::readySnapshot(replication, scene, {0, 0, 0}, state);
-    const auto first = replication.nextPose(scene);
-    require(first && first->tick == 120, "Initial pose lacks its authoritative timestamp");
-    replication.sent(*first); replication.acknowledge({first->id, first->version});
-    ++scene.zombies.instances[0].ragdollPoseVersion;
-    state.tick = 120 + period - 1; replication.snapshot(scene, {0, 0, 0}, state);
-    require(!replication.nextPose(scene), "Ragdoll exceeded its configured update cadence");
-    state.tick = 120 + period; replication.snapshot(scene, {0, 0, 0}, state);
-    const auto next = replication.nextPose(scene);
-    require(next && next->tick == state.tick && next->version > first->version,
-        "Five/ten-Hz update did not send the newest complete pose");
-    replication.sent(*next); replication.acknowledge({next->id, next->version});
-    auto& instance = scene.zombies.instances[0];
-    instance.ragdollSleeping = true;
-    ++instance.ragdollPoseVersion;
-    state.tick += period; replication.snapshot(scene, {0, 0, 0}, state);
-    const auto settled = replication.nextPose(scene);
-    require(settled && settled->sleeping, "Both cadences must deliver the final sleeping pose");
-    replication.sent(*settled); replication.acknowledge({settled->id, settled->version});
-    state.tick += period; replication.snapshot(scene, {0, 0, 0}, state);
-    require(!replication.nextPose(scene), "Settled unchanged ragdolls must stop sending at both cadences");
-    scene.zombies = viewer::ZombieLayer{};
-}
-void nearbyPhysicalPoseCadence(Scene& scene, bool vehicle) {
+enum class PhysicalPose { corpse, blast, vehicle, attack };
+void poseCadence(Scene& scene, PhysicalPose kind) {
     scene.zombies = viewer::ZombieLayer{};
     scene.zombies.assets.emplace_back().skeleton.resize(1);
     auto& instance = scene.zombies.instances.emplace_back();
     const glm::vec3 feet(120, 6, -80);
     instance.restRoot = glm::translate(glm::mat4(1), feet);
     instance.transform = instance.restTransform = instance.restRoot * glm::translate(glm::mat4(1), {5, 1, -3});
-    scene.zombies.setRagdollPalette(0, {glm::mat4(1)}, !vehicle);
-    instance.vehicleImpactRagdoll = vehicle;
-    instance.attackClip = vehicle ? 0 : 1; instance.attackRevision = vehicle ? 0 : 1;
-    const std::uint64_t farPeriod = vehicle ? 12 : 6;
-    Replication near, far, above;
+    const bool attack = kind == PhysicalPose::attack;
+    scene.zombies.setRagdollPalette(0, {glm::mat4(1)}, attack);
+    instance.blastRagdoll = kind == PhysicalPose::blast;
+    instance.vehicleImpactRagdoll = kind == PhysicalPose::vehicle;
+    instance.attackClip = attack ? 1 : 0; instance.attackRevision = attack ? 1 : 0;
+    // Cover both sides of the former twenty-metre threshold, including height.
+    const std::array<glm::vec3, 4> observers{{feet, feet + glm::vec3(20, 0, 0),
+        feet + glm::vec3(20.01f, 0, 0), feet + glm::vec3(0, 20.01f, 0)}};
+    std::array<Replication, 4> peers;
     Snapshot state; state.tick = 120;
-    const auto edge = feet + glm::vec3(20, 0, 0);
-    const auto outside = feet + glm::vec3(20.01f, 0, 0);
-    const auto upstairs = feet + glm::vec3(0, 20.01f, 0);
     const auto send = [&](Replication& peer) {
         const auto pose = peer.nextPose(scene);
-        require(pose && pose->tick == state.tick && pose->activeAttackRevision == instance.attackRevision,
-            "Nearby physical cadence lost its complete current pose");
+        require(pose && pose->tick == state.tick && pose->version == instance.ragdollPoseVersion &&
+                pose->activeAttackRevision == instance.attackRevision && pose->sleeping == instance.ragdollSleeping,
+            "Uniform cadence lost the complete current physical pose");
         peer.sent(*pose); peer.acknowledge({pose->id, pose->version});
     };
-    const std::array<std::pair<Replication*, glm::vec3>, 3> observers{{{&near, edge}, {&far, outside}, {&above, upstairs}}};
-    for (const auto& observer : observers) {
-        test_replication::readySnapshot(*observer.first, scene, observer.second, state);
-        send(*observer.first);
+    for (std::size_t i = 0; i < peers.size(); ++i) {
+        test_replication::readySnapshot(peers[i], scene, observers[i], state);
+        send(peers[i]);
     }
-    for (std::uint64_t tick = 121; tick <= 120 + farPeriod; ++tick) {
+    for (std::uint64_t tick = 121; tick <= 180; ++tick) {
         state.tick = tick; ++instance.ragdollPoseVersion;
-        near.snapshot(scene, edge, state); far.snapshot(scene, outside, state); above.snapshot(scene, upstairs, state);
-        if (tick % 3 == 0) send(near);
-        else require(!near.nextPose(scene), "Nearby physical pose exceeded twenty Hz");
-        if (tick == 120 + farPeriod) { send(far); send(above); }
-        else require(!far.nextPose(scene) && !above.nextPose(scene),
-            "Physical poses beyond twenty metres, including vertical distance, exceeded their normal rate");
-    }
-    state.tick = 120 + 2 * farPeriod;
-    near.snapshot(scene, edge, state); far.snapshot(scene, outside, state);
-    require(!near.nextPose(scene) && !far.nextPose(scene), "Faster cadence resent an unchanged pose");
-
-    // Move one observer inward, then outward; preserve its last-send history.
-    ++instance.ragdollPoseVersion;
-    state.tick += farPeriod; far.snapshot(scene, outside, state); send(far);
-    ++instance.ragdollPoseVersion;
-    state.tick += 3; far.snapshot(scene, feet + glm::vec3(19, 0, 0), state);
-    const auto pending = far.nextPose(scene);
-    require(pending.has_value(), "Moving inside the radius did not enable the faster cadence");
-    far.sent(*pending);
-    ++instance.ragdollPoseVersion;
-    state.tick += 3; far.snapshot(scene, feet + glm::vec3(19, 0, 0), state);
-    require(!far.nextPose(scene), "Twenty-Hz mode bypassed the in-flight acknowledgement");
-    far.acknowledge({pending->id, pending->version});
-    far.snapshot(scene, outside, state);
-    require(!far.nextPose(scene), "Moving outside the radius failed to restore the normal rate");
-    state.tick += farPeriod - 3; far.snapshot(scene, outside, state); send(far);
-    if (vehicle) {
-        // A launched corpse travels away from its frozen death root. Distance
-        // must follow the moved pelvis without counting the fixed asset offset.
-        instance.transform = glm::translate(glm::mat4(1), {40, 0, 0}) * instance.restTransform;
-        scene.zombies.markRenderChanged(0);
-        const auto movedFeet = feet + glm::vec3(40, 0, 0);
-        for (int sample = 0; sample < 2; ++sample) {
-            ++instance.ragdollPoseVersion; state.tick += 3;
-            near.snapshot(scene, movedFeet, state); send(near);
+        for (std::size_t i = 0; i < peers.size(); ++i) {
+            peers[i].snapshot(scene, observers[i], state);
+            if (tick % 3 == 0) send(peers[i]);
+            else require(!peers[i].nextPose(scene), "Physical pose exceeded twenty Hz");
         }
-        ++instance.ragdollPoseVersion; state.tick += 3;
-        near.snapshot(scene, feet, state);
-        require(!near.nextPose(scene), "The old impact position incorrectly retained the nearby rate");
-        state.tick += farPeriod - 3; near.snapshot(scene, feet, state); send(near);
     }
+    auto& peer = peers[0];
+    state.tick += 3; peer.snapshot(scene, observers[0], state);
+    require(!peer.nextPose(scene), "Unchanged poses must not be resent at twenty Hz");
+    ++instance.ragdollPoseVersion;
+    peer.snapshot(scene, observers[0], state);
+    const auto pending = peer.nextPose(scene);
+    require(pending.has_value(), "Changed pose was lost after an idle interval");
+    peer.sent(*pending);
+    ++instance.ragdollPoseVersion;
+    state.tick += 3; peer.snapshot(scene, observers[0], state);
+    require(!peer.nextPose(scene), "Twenty-Hz mode bypassed the in-flight acknowledgement");
+    peer.acknowledge({pending->id, pending->version});
+    send(peer);
+    instance.ragdollSleeping = true;
+    ++instance.ragdollPoseVersion;
+    state.tick += 3; peer.snapshot(scene, observers[0], state); send(peer);
+    state.tick += 3; peer.snapshot(scene, observers[0], state);
+    require(!peer.nextPose(scene), "Settled unchanged poses must stop sending");
     scene.zombies = viewer::ZombieLayer{};
 }
 void corpseTransfers(Scene& scene) {
@@ -287,8 +239,8 @@ int main(int argc, char** argv) {
         pacedSnapshots(); poseProtocol();
         Options options; options.map = argv[1]; options.trees = options.forests = false; options.zombieCount = 0;
         Scene scene(options); retiredBoxes(scene, options);
-        poseCadence(scene, false); poseCadence(scene, true);
-        nearbyPhysicalPoseCadence(scene, false); nearbyPhysicalPoseCadence(scene, true);
+        for (const auto kind : {PhysicalPose::corpse, PhysicalPose::blast, PhysicalPose::vehicle, PhysicalPose::attack})
+            poseCadence(scene, kind);
         corpseTransfers(scene); turning(scene);
         std::cout << "Pacing, independent corpse transfers and immediate rigid playback passed\n";
         return 0;

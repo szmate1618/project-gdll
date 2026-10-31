@@ -715,9 +715,9 @@ the [client session loop](client/session.cpp).
 
 Other players, doors and boxes use buffered snapshot interpolation. Living
 zombies predict their current root and animation clocks without a playback delay;
-ragdolls retain buffered pose
-playback. Fixed asset normalization stays separate from root motion, preserving
-size through turns. Remote players draw in the opaque pass before glass and rain.
+ragdolls predict their physical poses without a playback buffer. Fixed asset
+normalization stays separate from root motion, preserving size through turns.
+Remote players draw in the opaque pass before glass and rain.
 The server does not render, so ragdoll handoff and damage reactions use its
 animation clock. Firearm hit selection uses the client's displayed pose as
 described above, without historical rewind.
@@ -824,12 +824,11 @@ Attack mode changes are urgent updates, and ordinary non-attacking records keep
 their existing size. Assets without authored attacks retain the lunge fallback.
 
 Corpse poses carry independently versioned roots and palettes on a separate
-reliable transport lane. Living active-ragdoll attacks use that same lane at
-**20 Hz within 20 metres** of each observer's authoritative player feet, including
-the boundary, and **10 Hz farther away**. Distance is measured in 3D between
-player and zombie feet, so different observers can receive different rates for
-the same attack. Palettes remain compressed and immediate prediction is limited
-to 100 ms. Acknowledgements and the existing bulk budget still bound delivery.
+reliable transport lane. All ragdoll poses update uniformly at **20 Hz**,
+including ordinary corpses, explosion and car knockdowns, and living
+active-ragdoll attacks, at every observer distance. Palettes remain compressed
+and immediate prediction for living attacks is limited to 100 ms.
+Acknowledgements and the existing bulk budget still bound delivery.
 An attack revision in motion and pose messages prevents late poses from an old
 swing or a living attack from being applied to a corpse. Playback history resets
 on revision changes. Clients render these authoritative physical poses without
@@ -837,12 +836,9 @@ creating another local attack rig; baked playback covers the initial wait for a
 matching pose. Recovery returns to ordinary animation. Damage stays server-owned.
 Protocol 28 requires matching rebuilt applications.
 
-Corpses created by a car knockdown also update at **20 Hz within 20 metres** of
-an observer, returning to the ordinary **5 Hz** rate farther away. The distance
-check follows the moving ragdoll's current root rather than its frozen impact
-position, excluding the fixed asset normalization offset. Unchanged settled
-poses stop sending after confirmation. Slow car pushes retain living behavior.
-This cadence change needs no additional wire fields or protocol version.
+Unchanged settled poses stop sending after confirmation. Slow car pushes
+retain living behavior. The uniform cadence needs no additional wire fields
+or protocol version.
 
 Each peer has at most 100 unacknowledged poses and a
 32 KiB bulk transport budget shared with zombie setup messages. Changes while
@@ -866,8 +862,7 @@ explicit pose acknowledgement releases a transfer slot; snapshot acknowledgement
 cannot suppress an unreceived palette. Late joins receive their own initial
 poses. Clients retain complete root/palette pairs outside the display buffer.
 Ragdoll poses carry authoritative simulation ticks and a sleeping flag. Changed
-poses are sent at most five times per second per actor, or ten times per second
-for ragdolls created by explosions, retaining the bounded,
+poses are sent at most twenty times per second per actor, retaining the bounded,
 acknowledged reliable bulk transport described above. Clients display the newest
 pose immediately and extrapolate world joint translations and rotations from the
 last two server-timestamped poses, including estimated network transit time.
@@ -877,7 +872,7 @@ A sleeping pose immediately stops prediction. Fixed scale, reflection and shear
 are preserved. Corpses stay hidden until their first complete pose arrives.
 The transfer window, acknowledgements and shared 32 KiB bulk budget can reduce
 the achieved update rate on slow links. The 100-transfer limit does not guarantee
-100 active ragdolls at five Hz. Compression reduces pose bytes, while achieved
+100 active ragdolls at twenty Hz. Compression reduces pose bytes, while achieved
 cadence still depends on bandwidth, acknowledgements and other bulk traffic.
 
 Physical melee runs at the shared server physics rate. The server validates

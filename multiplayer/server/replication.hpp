@@ -49,7 +49,6 @@ private:
     std::map<std::size_t, std::uint64_t> acknowledged_, inFlight_;
     std::size_t nextPoseId_ = 0;
     std::uint64_t poseTick_ = 0;
-    glm::vec3 observerFeet_{0}; // Authoritative player position from the latest snapshot.
     std::map<std::size_t, std::uint64_t> lastPoseTicks_;
 };
 } // namespace multiplayer
