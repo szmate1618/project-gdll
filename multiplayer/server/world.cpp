@@ -255,54 +255,57 @@ void World::step() {
                 if (target) player.signals.push_back({id, command.signal, *target, tick_ + signalLifetimeTicks});
             }
             player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
-            const bool mode = player.interaction.mode() == viewer::ControlMode::Interaction;
-            if (mode != command.interaction) player.interaction.toggleMode();
-            if (command.interaction) {
+            const bool switchedWeapon = player.weaponSwitch.begin(player.weapons, player.inventory, command.slot, now);
+            const bool handlingMode = command.objectHandling || player.weapons.slot() == viewer::handlingSlot;
+            const bool handling = !command.cancelInteraction && handlingMode && command.slot == player.weapons.slot() &&
+                !player.weaponSwitch.pending() && !player.weaponReload.pending();
+            if (!handling) player.interaction.cancel();
+            else {
                 for (const auto hand : {viewer::Hand::Left, viewer::Hand::Right}) {
                     const bool held = hand == viewer::Hand::Left ? command.left : command.right;
                     const bool wasHeld = hand == viewer::Hand::Left ? player.held.left : player.held.right;
-                    if (!held && wasHeld) player.interaction.release(hand, now);
-                    if (held && (!wasHeld || !player.held.interaction)) {
+                    if (!held && wasHeld) player.interaction.release(hand, player.camera, *scene_.doors,
+                        *scene_.boxes, *scene_.collision, now);
+                    if (held && !wasHeld && !player.triggerNeedsRelease) {
                         player.interaction.press(hand, player.camera, *scene_.doors, *scene_.boxes, *scene_.collision, now);
                         bool conflict = false;
                         for (const auto& [otherId, other] : players_) {
                             if (otherId == id) continue;
-                            const auto prop = player.interaction.heldProp(hand);
+                            const auto prop = player.interaction.heldProp();
                             const auto door = player.interaction.grabbedDoor();
-                            conflict |= prop && (prop == other.interaction.heldProp(viewer::Hand::Left) || prop == other.interaction.heldProp(viewer::Hand::Right));
+                            conflict |= prop && prop == other.interaction.heldProp();
                             conflict |= door && door == other.interaction.grabbedDoor();
                         }
                         if (conflict) player.interaction.cancel();
-                        if (const auto door = player.interaction.grabbedDoor()) {
+                        if (hand == viewer::Hand::Left) if (const auto door = player.interaction.grabbedDoor()) {
                             if (std::abs(scene_.doors->angle(*door)) <= .025f)
                                 sounds_.emit(tick_, SoundKind::doorLatch, id, scene_.doors->panel(*door).center);
-                            // shortcut: stop populating before the fixed protocol prop budget; raise/version it for larger sessions.
                             if (scene_.boxes->count() + 64 < maxBoxes)
                                 interiors_.populate(*door, *scene_.collision, physicsScene_, *scene_.boxes);
                         }
                     }
                 }
-                player.interaction.look(player.camera, command.drag.x, command.drag.y, now);
+                player.interaction.look(player.camera, command.drag.x, command.drag.y);
                 player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
                 player.interaction.update(player.camera, tickSeconds / inputs);
             }
-            const bool switchedWeapon = player.weaponSwitch.begin(player.weapons, player.inventory, command.slot, now);
-            if (command.reload && !player.weaponSwitch.pending()) player.reloadRequested = true;
+            if (command.reload && !command.objectHandling && !player.weaponSwitch.pending()) player.reloadRequested = true;
             if (player.reloadRequested && !player.weaponSwitch.pending() && !player.inventory.held() && player.pendingInventoryActions.empty()) {
                 if (player.weaponReload.begin(player.weapons, player.inventory, now) && player.weapons.slot() < 4)
                     sounds_.emit(tick_, SoundKind::reload, id, player.camera.position(), static_cast<std::uint8_t>(player.weapons.slot()));
                 player.reloadRequested = false;
             }
             // Resetting Weapons must not turn an already-held button into a new press.
+            if (player.held.objectHandling && !command.objectHandling && command.left) player.triggerNeedsRelease = true;
             if (consumed && !command.left) player.triggerNeedsRelease = false;
             if ((switchedWeapon || command.reload) && command.left && player.held.left) player.triggerNeedsRelease = true;
             if ((player.weaponSwitch.pending() || player.weaponReload.pending() || player.reloadRequested) && command.left) player.triggerNeedsRelease = true;
-            player.weapons.trigger(command.left && !command.interaction && !player.triggerNeedsRelease &&
+            player.weapons.trigger(command.left && !handlingMode && !player.triggerNeedsRelease &&
                 !player.weaponSwitch.pending() && !player.weaponReload.pending() && !player.reloadRequested);
             // Accept before the next input can reload/switch weapons or change aim.
             const auto& config = player.weapons.equipped().config;
             player.body.follow(player.camera.position(),player.camera.direction(),
-                player.weapons.slot()==viewer::punchSlot && !command.interaction && !player.weaponSwitch.pending());
+                player.weapons.slot()==viewer::punchSlot && !handlingMode && !player.weaponSwitch.pending());
             const bool canThrow = !config.grenade || scene_.grenades->canThrow(player.camera.position(), *scene_.collision);
             if (!canThrow) {
                 player.weapons.cancelTrigger();

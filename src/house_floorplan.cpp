@@ -1,4 +1,5 @@
 #include "house_floorplan.hpp"
+#include "house_layout.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -24,16 +25,6 @@ std::vector<Face> faces(const Model& model, const std::vector<std::size_t>& draw
         }
     }
     return result;
-}
-void quad(Primitive& mesh, glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 d) {
-    if (glm::length(glm::cross(b - a, c - a)) < .0001f) return;
-    const auto base = static_cast<std::uint32_t>(mesh.vertices.size());
-    const auto normal = glm::normalize(glm::cross(b - a, c - a));
-    for (const auto p : {a, b, c, d}) {
-        Vertex v; v.position = p; v.normal = normal;
-        mesh.vertices.push_back(v);
-    }
-    for (const auto i : {0u, 1u, 2u, 0u, 2u, 3u}) mesh.indices.push_back(base + i);
 }
 } // namespace
 
@@ -104,93 +95,17 @@ std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const H
     }
     const float ceiling = result.upperFloors.empty() ? result.ceiling : result.upperFloors.front();
     if (ceiling - floor < 2.4f) return std::nullopt;
-    result.structure.materials.resize(3);
-    result.structure.materials[0].baseColor = {.68f, .65f, .58f, 1};
-    result.structure.materials[1].baseColor = {.36f, .30f, .23f, 1};
-    result.structure.materials[2].baseColor = {.38f, .22f, .10f, 1};
-    for (auto& material : result.structure.materials) material.doubleSided = true;
-    Primitive partitions, floors; partitions.material = 0; floors.material = 1;
-    const auto polygon = [&](glm::vec2 a, glm::vec2 b) {
-        std::vector<glm::vec2> p;
-        for (const auto q : {a, glm::vec2(a.x, b.y), b, glm::vec2(b.x, a.y)}) {
-            const auto w = world(q, floor); p.emplace_back(w.x, w.z);
-        }
-        return p;
-    };
-    result.footprint = polygon(low, high);
-    const auto plane = [&](glm::vec2 a, glm::vec2 b, float y) {
-        quad(floors, world(a, y), world({a.x, b.y}, y), world(b, y), world({b.x, a.y}, y));
-    };
-    // Group coplanar entrances: two exterior doors on one facade share an entry
-    // polygon, but receive their own aligned openings and interactive panels.
-    std::map<int, std::vector<std::size_t>> sides;
+    std::vector<house_layout::Entrance> entryDoors;
     for (const auto id : source.doors) {
         const auto& door = entrances.at(id);
-        const auto p = local({door.center.x, door.center.z});
-        const glm::vec2 normal(glm::dot(glm::vec2(door.outward.x, door.outward.z), u),
-                               glm::dot(glm::vec2(door.outward.x, door.outward.z), v));
-        const int axis = std::abs(normal.x) > std::abs(normal.y) ? 0 : 1;
-        const bool positive = normal[axis] > 0;
-        if (std::abs(normal[axis]) < .99f || std::abs(p[axis] - (positive ? high[axis] : low[axis])) > .15f) return std::nullopt;
-        sides[axis * 2 + int(positive)].push_back(id);
+        entryDoors.push_back({id, local({door.center.x, door.center.z}),
+            {glm::dot(glm::vec2(door.outward.x, door.outward.z), u),
+             glm::dot(glm::vec2(door.outward.x, door.outward.z), v)},
+            std::min(1.f, door.halfExtents.x * 2)});
     }
-    auto livingLow = low, livingHigh = high;
-    for (const auto& side : sides) {
-        const int axis = side.first / 2, along = 1 - axis;
-        const bool positive = side.first % 2;
-        auto entryLow = livingLow, entryHigh = livingHigh;
-        const float cut = positive ? high[axis] - 2 : low[axis] + 2;
-        if (positive) { entryLow[axis] = cut; livingHigh[axis] = cut; }
-        else { entryHigh[axis] = cut; livingLow[axis] = cut; }
-        if (livingHigh[axis] - livingLow[axis] < 1 || entryHigh[along] - entryLow[along] < 2) return std::nullopt;
-        result.rooms.push_back({HouseRoom::Kind::Entry, polygon(entryLow, entryHigh), side.second});
-        plane(entryLow, entryHigh, floor + .01f);
-        struct Opening { float low, high, top; std::size_t id; };
-        std::vector<Opening> openings;
-        for (const auto id : side.second) {
-            const auto& exterior = entrances[id];
-            const auto p = local({exterior.center.x, exterior.center.z});
-            const float width = std::min(1.0f, 2 * exterior.halfExtents.x);
-            const float left = p[along] - width * .5f, right = p[along] + width * .5f;
-            if (left < entryLow[along] + .12f || right > entryHigh[along] - .12f) return std::nullopt;
-            openings.push_back({left, right, floor + 2.1f, id});
-        }
-        std::sort(openings.begin(), openings.end(), [](const Opening& a, const Opening& b) { return a.low < b.low; });
-        const auto point = [&](float x, float y) { glm::vec2 p; p[axis] = cut; p[along] = x; return world(p, y); };
-        float cursor = entryLow[along];
-        for (const auto& opening : openings) {
-            if (opening.low < cursor) return std::nullopt;
-            quad(partitions, point(cursor, floor), point(opening.low, floor), point(opening.low, ceiling), point(cursor, ceiling));
-            quad(partitions, point(opening.low, opening.top), point(opening.high, opening.top), point(opening.high, ceiling), point(opening.low, ceiling));
-            const auto outward = entrances[opening.id].outward;
-            const auto right = glm::cross(glm::vec3(0, 1, 0), outward);
-            const auto center = (point(opening.low, floor) + point(opening.high, opening.top)) * .5f;
-            DoorPanel panel;
-            panel.draw = std::numeric_limits<std::size_t>::max(); panel.inward = true;
-            panel.outward = outward; panel.center = center;
-            panel.halfExtents = {(opening.high - opening.low) * .5f, 1.035f, .02f};
-            panel.center.y = floor + 1.065f; // 3 cm ground clearance; head stays at 2.1 m.
-            panel.hinge = panel.center - right * panel.halfExtents.x;
-            panel.rotation = glm::quat_cast(glm::mat3(right, glm::vec3(0, 1, 0), outward));
-            Primitive mesh; mesh.material = 2;
-            const auto a = center - right * panel.halfExtents.x;
-            const auto b = center + right * panel.halfExtents.x;
-            quad(mesh, {a.x, floor + .03f, a.z}, {b.x, floor + .03f, b.z}, {b.x, opening.top, b.z}, {a.x, opening.top, a.z});
-            result.doors.push_back({opening.id, panel, std::move(mesh)});
-            cursor = opening.high;
-        }
-        quad(partitions, point(cursor, floor), point(entryHigh[along], floor), point(entryHigh[along], ceiling), point(cursor, ceiling));
-    }
-    result.rooms.push_back({HouseRoom::Kind::Living, polygon(livingLow, livingHigh), {}});
-    // Lift ground-storey surfaces 1 cm above the existing terrain datum to
-    // avoid coplanar depth fighting without changing window-derived storeys.
-    plane(livingLow, livingHigh, floor + .01f);
-    for (const auto y : result.upperFloors) plane(low, high, y);
-    plane(low, high, result.ceiling);
-    result.structure.primitives.push_back(std::move(partitions));
-    result.structure.primitives.push_back(std::move(floors));
-    for (std::size_t i = 0; i < result.structure.primitives.size(); ++i)
-        result.structure.draws.push_back({i, glm::mat4(1), "house_interior"});
+    const auto layout = house_layout::generate(source.name, {low, high}, entryDoors, floor, result.upperFloors);
+    if (layout.rooms.empty() || (!result.upperFloors.empty() && layout.stairs.empty())) return std::nullopt;
+    house_layout::buildGeometry(result, source, layout, origin, u, v, {low, high});
     result.minimum = glm::vec3(std::numeric_limits<float>::max()); result.maximum = -result.minimum;
     for (const auto q : {low, glm::vec2(low.x, high.y), high, glm::vec2(high.x, low.y)}) {
         result.minimum = glm::min(result.minimum, world(q, floor));

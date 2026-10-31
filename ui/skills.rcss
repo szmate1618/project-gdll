@@ -29,3 +29,5 @@
 #reset-combo { left: 20dp; width: 164dp; }
 #save-combo { left: 196dp; right: 20dp; }
 #add-combo-action { left: 20dp; right: 20dp; }
+
+.skill-symbol.handling { decorator: image(../data/assets/game-icons/hud/interact.png contain); }

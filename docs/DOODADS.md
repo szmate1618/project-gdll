@@ -2,10 +2,11 @@
 
 The standalone viewer streams the original [branch, stone and beer-bottle
 meshes](../assets/doodads/README.md) around the player when a runtime forest layer
-is loaded. Run the normal town viewer, walk into woodland, press **Tab** for
-Interaction mode, then hold either mouse button to grab a nearby doodad. Carry
-it with the ordinary movement/grip controls, release to drop, or swing and
-release to throw. The objects are grabbable props, rather than inventory items.
+is loaded. Run the normal town viewer, walk into woodland, and select
+**Object handling** in hotbar slot **0**. Hold left mouse to drag a nearby doodad; release left to drop it;
+movement and mouse motion manipulate it. Tap right mouse to drop, or hold
+right and release to throw. Right click also pushes reachable props without
+grabbing first. Doodads use the shared grabbable-prop physics.
 
 ```bash
 ./build/godollo_viewer output/godollo.glb --fps

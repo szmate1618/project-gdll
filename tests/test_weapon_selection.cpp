@@ -12,21 +12,23 @@ void near(double a, double b, const char* message) { require(std::abs(a - b) < 1
 void selection() {
     const auto inventory = viewer::loadPlayerInventory(VIEWER_ITEM_ROOT);
     const auto actions = viewer::actionShortcuts(inventory);
-    require(actions[0].equipment == 0 && actions[5].skill && actions[5].equipment == viewer::punchSlot,
+    require(actions[0].skill && actions[0].equipment == viewer::handlingSlot && actions[1].skill && actions[1].equipment == viewer::punchSlot,
             "Hotbar must resolve both item IDs and the configured Punch skill");
     viewer::ActionSelection selection;
     selection.highlight(3);
-    require(selection.selected() == 3 && selection.confirm(actions, 0) == 3 && !selection.open(),
+    require(selection.selected() == 3 && selection.confirm(actions, 0) == 1 && !selection.open(),
             "A number preview must confirm exactly once");
     require(!selection.confirm(actions, 0), "A second click must not repeat confirmation");
-    selection.highlight(0);
+    selection.highlight(2);
     require(!selection.confirm(actions, 0), "Confirming the current equipment must do nothing");
+    selection.highlight(0);
+    require(selection.confirm(actions, 0) == viewer::handlingSlot, "Slot 0 must select the object-handling skill");
     selection.highlight(9);
     require(!selection.confirm(actions, 0), "An unassigned slot must not equip anything");
-    selection.cycle(-1, actions, 0);
-    require(selection.selected() == 5, "Wheel must wrap past empty slots to Punch");
+    selection.cycle(-1, actions, viewer::handlingSlot);
+    require(selection.selected() == 6, "Wheel must wrap past empty slots to the grenade");
     selection.cycle(1, actions, 0);
-    require(selection.selected() == 0, "Wheel must wrap from Punch to the pistol");
+    require(selection.selected() == 0, "Wheel must wrap from the grenade to object handling");
     selection.close(); selection.cycle(1, {}, 0);
     require(!selection.open(), "An empty hotbar must not create a selection");
 }
@@ -55,6 +57,10 @@ void transitions() {
     near(punch->storageAccess, .7, "Switching to fists must charge only the old weapon's sling access");
     const auto fromPunch = viewer::weaponSwitchTiming(inventory, weapons.state(viewer::punchSlot).config, weapons.equipped().config);
     near(fromPunch->storageAccess, .7, "Switching from fists must charge only the new weapon's sling access");
+    require(switching.begin(weapons, inventory, viewer::handlingSlot, 100), "Object handling must be selectable through the normal switch transaction");
+    require(switching.update(weapons, 200) && weapons.slot() == viewer::handlingSlot, "Switching must finish equipping object handling");
+    weapons.trigger(true);
+    require(!weapons.fire(201) && !weapons.discard(), "Object handling must never fire or become a dropped equippable");
     const auto separate = viewer::weaponSwitchTiming(inventory, weapons.state(0).config, weapons.state(4).config);
     near(separate->storageAccess, 1.0, "Holster and vest pouch must each charge their access time");
 }

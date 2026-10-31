@@ -45,7 +45,6 @@ struct Fixture {
     viewer::Camera camera = cameraAt({.8f, 1, .02f});
     viewer::DoorInteraction input;
     void grab() {
-        input.toggleMode();
         require(input.press(camera, doors, world), "A visible door within reach must be grabbable");
     }
     void advance(int frames = 120, float dt = 1.0f / 120) {
@@ -89,13 +88,11 @@ void rayQueries() {
     }
 }
 
-void modesAndLook() {
+void grabbingAndLook() {
     Fixture f;
-    require(f.input.mode() == viewer::ControlMode::Combat, "Combat must be the startup mode");
-    require(!f.input.press(f.camera, f.doors, f.world), "Combat click must not grab a door");
     auto yaw = f.camera.yawDegrees();
     f.input.look(f.camera, 10, 0);
-    require(f.camera.yawDegrees() != yaw, "Combat mouse look must work");
+    require(f.camera.yawDegrees() != yaw, "Mouse look must work without a grip");
     f.camera = cameraAt({.8f, 1, .02f});
     f.grab();
     yaw = f.camera.yawDegrees();
@@ -107,9 +104,8 @@ void modesAndLook() {
     require(f.camera.yawDegrees() != yaw && f.camera.pitchDegrees() != pitch, "Release must immediately restore mouse look");
     f.camera = cameraAt({.8f, 1, .02f});
     require(f.input.press(f.camera, f.doors, f.world), "Regrabbing must work");
-    f.input.toggleMode();
-    require(!f.input.grabbing() && f.input.mode() == viewer::ControlMode::Combat, "Mode switch must cancel a held grab");
-    f.input.toggleMode();
+    f.input.release();
+    require(!f.input.grabbing(), "Explicit release must cancel a held grab");
     f.camera.setPosition({10, 1, 1});
     require(!f.input.press(f.camera, f.doors, f.world), "An interaction click with no target must not grab");
     yaw = f.camera.yawDegrees();
@@ -128,7 +124,6 @@ void occlusion() {
     wall.primitives.push_back(mesh);
     wall.draws.push_back({1, glm::mat4(1), "building_1_walls"});
     viewer::CollisionWorld blocked(wall, {}, &f.doors);
-    f.input.toggleMode();
     require(!f.input.press(f.camera, f.doors, blocked), "A wall must prevent grabbing through it");
     viewer::CollisionWorld trunk(doorModel(), {{{.8f, 0, .5f}, .15f, 2}}, &f.doors);
     require(!f.input.press(f.camera, f.doors, trunk), "A solid trunk must prevent grabbing through it");
@@ -207,7 +202,7 @@ void applicationPoint() {
 } // namespace
 int main() {
     try {
-        rayQueries(); modesAndLook(); occlusion(); mouseAndMovementForces(); frameRates(); applicationPoint();
+        rayQueries(); grabbingAndLook(); occlusion(); mouseAndMovementForces(); frameRates(); applicationPoint();
         std::cout << "Door interaction tests passed\n";
         return 0;
     } catch (const std::exception& e) {

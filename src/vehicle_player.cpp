@@ -125,7 +125,7 @@ void VehiclePlayer::followCar(std::optional<std::size_t> car, const VehicleLayer
     }
 }
 bool VehiclePlayer::toggleThirdPerson(const VehicleLayer& cars, Camera& camera, const CollisionWorld& world) {
-    if (!driving()) return false;
+    if (!occupied()) return false;
     thirdPerson_ = !thirdPerson_;
     if (thirdPerson_) {
         firstPersonPitch_ = camera.pitchDegrees();
@@ -148,7 +148,7 @@ void VehiclePlayer::updateCamera(const VehicleLayer& cars, Camera& camera, const
         return;
     }
     // Orbit above the car in world-up space; chassis yaw carries the view around
-    // turns, while mouse look changes the driver's relative viewing angle.
+    // turns, while mouse look changes the occupant's relative viewing angle.
     camera.setOrientation(camera.yawDegrees(), std::clamp(camera.pitchDegrees(), -65.f, -5.f));
     const auto pivot = box.center + glm::vec3(0, .65f, 0);
     const auto backward = -camera.direction();

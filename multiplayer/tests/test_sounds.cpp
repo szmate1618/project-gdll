@@ -153,6 +153,15 @@ void prediction(const viewer::Weapons& definitions, const viewer::PlayerInventor
     press.reload = false; press.left = true; ++press.sequence;
     require(quiet(client.advance(press, 5, definitions, inventory)), "Predicted reload allowed an early shot");
 
+    WeaponFeedbackPrediction handling;
+    state.slot = 0; state.loaded = 3; state.resolved = 0; handling.reconcile(state);
+    Command alt; alt.slot = 0; alt.left = true; alt.objectHandling = true;
+    require(quiet(handling.advance(alt, 10, definitions, inventory)), "Temporary handling must not predict shots or weapon audio");
+    alt.objectHandling = false;
+    require(quiet(handling.advance(alt, 11, definitions, inventory)), "Releasing Alt with left held must not predict an accidental shot");
+    alt.left = false; handling.advance(alt, 12, definitions, inventory);
+    alt.left = true;
+    require(handling.advance(alt, 13, definitions, inventory).firearmSlot == 0, "A fresh click must restore weapon feedback after handling");
     WeaponFeedbackPrediction automatic;
     state.slot = 1; state.loaded = 3; state.resolved = 0; automatic.reconcile(state);
     Command smg; smg.slot = 1; smg.left = true; smg.sequence = 1;
@@ -165,7 +174,7 @@ void prediction(const viewer::Weapons& definitions, const viewer::PlayerInventor
     const auto continued = automatic.advance(smg, 1, definitions, inventory);
     require(continued.sounds.size() == 1 && continued.firearmSlot == 1,
             "Automatic weapon did not continue feedback while held");
-    smg.interaction = true; ++smg.sequence;
+    smg.slot = static_cast<std::uint8_t>(viewer::handlingSlot); ++smg.sequence;
     require(quiet(automatic.advance(smg, 2, definitions, inventory)), "Interaction input fired weapon feedback");
 }
 void feedbackExclusions(const viewer::Weapons& definitions, const viewer::PlayerInventory& inventory) {
@@ -184,7 +193,7 @@ void feedbackExclusions(const viewer::Weapons& definitions, const viewer::Player
     excluded(changed, press, "Active reload produced firearm feedback");
     auto input = press; input.slot = 1;
     excluded(state, input, "Unconfirmed equipment selection produced firearm feedback");
-    input = press; input.interaction = true;
+    input = press; input.slot = static_cast<std::uint8_t>(viewer::handlingSlot);
     excluded(state, input, "Interaction click produced firearm feedback");
     changed = state; changed.slot = static_cast<std::uint8_t>(viewer::punchSlot);
     input = press; input.slot = changed.slot;

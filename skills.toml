@@ -2,3 +2,4 @@
 # skills/melee/<id>.skill.toml file. Values are display names.
 [melee]
 punch = "Punch"
+object_handling = "Object handling"

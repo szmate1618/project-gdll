@@ -1,28 +1,65 @@
 #include "player_interaction.hpp"
+#include "collision_world.hpp"
+#include "weapon_config.hpp"
+
+#include <algorithm>
+#include <cmath>
 
 namespace viewer {
-void PlayerInteraction::toggleMode() { objects_.cancel(); doors_.toggleMode(); }
-void PlayerInteraction::cancel() { objects_.cancel(); doors_.release(); }
-void PlayerInteraction::release(Hand hand, double seconds) {
-    objects_.release(hand, seconds);
-    if (hand == Hand::Left) doors_.release();
+void PlayerInteraction::cancel() { chargeStarted_.reset(); objects_.cancel(); doors_.release(); }
+void PlayerInteraction::release(Hand hand, const Camera& camera, DoorLayer& doors, BoxLayer& boxes,
+                                const CollisionWorld& world, double seconds) {
+    if (hand == Hand::Left) {
+        objects_.cancel(); doors_.release();
+        return;
+    }
+    if (!chargeStarted_) return;
+    const double duration = seconds - *chargeStarted_;
+    chargeStarted_.reset();
+    if (!std::isfinite(duration) || duration < 0) { cancel(); return; }
+    const bool held = grabbing();
+    if (chargingGrip_ && !held) { cancel(); return; }
+    // A tap drops a held object; empty-handed taps give a small shove. Full
+    // charge takes 1 s and matches a standard 450 g grenade's launch momentum.
+    const float charge = static_cast<float>(std::clamp((duration - .15) / .85, 0.0, 1.0));
+    const float strength = held ? charge : std::max(.2f, charge);
+    const auto impulse = (camera.direction() * GrenadeConfig{}.throwSpeed + glm::vec3(0, 2, 0)) * (.45f * strength);
+    if (const auto prop = objects_.heldProp()) {
+        const auto center = prop->center();
+        objects_.cancel(); // Remove the constraint before applying momentum.
+        if (glm::distance(center, camera.position()) <= 5) prop->applyImpulse(impulse, center);
+    } else if (const auto heldDoor = doors_.grabbedDoor()) {
+        const auto hit = doors.raycast(camera.position(), camera.direction(), 1.5f);
+        doors_.release();
+        if (hit && hit->door == *heldDoor && world.lineOfSight(camera.position(), hit->point))
+            doors.applyImpulse(*heldDoor, impulse, hit->point);
+    } else {
+        // Resolve at release, so charging never stores a remote or occluded target.
+        const auto prop = raycastPhysicsProp(boxes.physicsWorld(), camera.position(), camera.direction(),
+                                            ObjectInteraction::rayReach(camera.direction()));
+        const auto door = doors.raycast(camera.position(), camera.direction(), 1.5f);
+        if (door && (!prop || door->distance <= prop->distance)) {
+            if (world.lineOfSight(camera.position(), door->point)) doors.applyImpulse(door->door, impulse, door->point);
+        } else if (prop && world.lineOfSight(camera.position(), prop->point)) {
+            prop->prop.applyImpulse(impulse, prop->point);
+        }
+    }
 }
 bool PlayerInteraction::press(Hand hand, const Camera& camera, DoorLayer& doors, BoxLayer& boxes,
                               const CollisionWorld& world, double seconds) {
-    if (mode() != ControlMode::Interaction) return false;
-    if (hand == Hand::Left) doors_.release();
-    const auto prop = raycastPhysicsProp(boxes.physicsWorld(),camera.position(),camera.direction(),ObjectInteraction::rayReach(camera.direction()));
-    const auto door = hand == Hand::Left ? doors.raycast(camera.position(), camera.direction(), 1.5f) : std::nullopt;
-    if (door && (!prop || door->distance <= prop->distance)) {
-        // Clear only the left prop grip, leaving a right-hand object attached.
-        // Replacing a grip must not add a throw boost.
-        objects_.cancel(hand);
-        return doors_.press(camera, doors, world);
+    if (!std::isfinite(seconds)) return false;
+    if (hand == Hand::Right) {
+        if (!chargeStarted_) { chargeStarted_ = seconds; chargingGrip_ = grabbing(); }
+        return true;
     }
-    return objects_.press(hand, camera, boxes, world, seconds);
+    if (charging() || grabbing()) return false;
+    const auto prop = raycastPhysicsProp(boxes.physicsWorld(),camera.position(),camera.direction(),ObjectInteraction::rayReach(camera.direction()));
+    const auto door = doors.raycast(camera.position(), camera.direction(), 1.5f);
+    if (door && (!prop || door->distance <= prop->distance)) return doors_.press(camera, doors, world);
+    return objects_.press(camera, boxes, world);
 }
-void PlayerInteraction::look(Camera& camera, float dx, float dy, double seconds) {
-    objects_.moveMouse(dx, dy, seconds);
+void PlayerInteraction::look(Camera& camera, float dx, float dy) {
+    objects_.moveMouse(dx, dy);
     if (doors_.grabbing()) doors_.look(camera, dx, dy);
     else camera.look(dx, dy);
 }

@@ -30,6 +30,10 @@ int count(const toml::table& table, const std::string& key, const std::filesyste
 } // namespace
 
 Weapons::Weapons(const std::filesystem::path& definitions, const std::filesystem::path& inventory, bool enableMelee) {
+    auto& handling = weapons_[handlingSlot];
+    handling.owned = true;
+    handling.config.id = "object_handling"; handling.config.name = "Object handling";
+    handling.config.ammoPerShot = 0; handling.config.magazineCapacity = 0;
     auto& punch = weapons_[punchSlot];
     punch.owned = enableMelee;
     punch.config.id = "punch"; punch.config.name = "Fists";
@@ -100,7 +104,7 @@ WeaponFireResult Weapons::fireAttempt(double seconds, const std::function<bool()
     auto& weapon = weapons_[slot_];
     const bool requested = pressed_ || (held_ && weapon.config.automatic);
     pressed_ = false;
-    if (reloading_ || !weapon.owned || !requested || !std::isfinite(seconds) || seconds < weapon.readyAt) return WeaponFireResult::none;
+    if (slot_ == handlingSlot || reloading_ || !weapon.owned || !requested || !std::isfinite(seconds) || seconds < weapon.readyAt) return WeaponFireResult::none;
     if (weapon.loaded < weapon.config.ammoPerShot) {
         if (emptyClicked_) return WeaponFireResult::none;
         emptyClicked_ = true;
@@ -151,6 +155,7 @@ bool Weapons::pickUp(const WeaponItem& item) {
     return equip(item.slot);
 }
 std::string Weapons::status() const {
+    if (slot_ == handlingSlot) return "Object handling";
     if (slot_ == punchSlot) return "Fists";
     const auto& weapon = equipped();
     if (!weapon.owned) return "Unarmed";
@@ -163,7 +168,7 @@ bool weaponViewVisible(const WeaponConfig& config, std::uint32_t loaded, bool co
 }
 
 std::vector<glm::vec3> weaponShotDirections(const WeaponConfig& config, glm::vec3 forward) {
-    if (config.grenade || config.id == "punch") return {};
+    if (config.grenade || config.id == "punch" || config.id == "object_handling") return {};
     forward = glm::normalize(forward);
     std::vector<glm::vec3> result{forward};
     const auto reference = std::abs(forward.y) > .99f ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);

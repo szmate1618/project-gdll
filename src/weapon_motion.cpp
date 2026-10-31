@@ -37,15 +37,19 @@ void WeaponMotion::fire(std::size_t slot, double seconds) {
     shot.seconds = seconds;
 }
 
-WeaponMotionPose WeaponMotion::pose(std::size_t slot, double seconds) const {
+WeaponMotionPose WeaponMotion::pose(std::size_t slot, double seconds, bool lowered) const {
     WeaponMotionPose result;
+    if (lowered) {
+        result.offset = {0, -.20f, .08f};
+        result.angles.x = -30.f;
+    }
     if (slot >= shots_.size() || !std::isfinite(seconds)) return result;
     const auto& shot = shots_[slot];
     const auto& profile = profiles[slot];
     const double elapsed = seconds-shot.seconds;
     const float kick = shot.strength * remaining(elapsed, profile.recovery);
-    result.offset.z = profile.rearward*kick;
-    result.angles = profile.angles*kick;
+    result.offset.z += profile.rearward*kick;
+    result.angles += profile.angles*kick;
     // Pull the separate fore-end back 9.5 cm, then return it before the
     // default 0.9 s firing cooldown. Absolute timing survives frame stalls.
     if (slot == 2 && elapsed > .12 && elapsed < .66)

@@ -12,7 +12,8 @@ void populateMeleeSkills(Rml::ElementDocument& document, const std::vector<Melee
     std::string contents;
     for (const auto& skill : skills)
         contents += "<div class='skill-entry' data-skill='" + skill.id + "'>"
-            "<div class='skill-square'>" + std::string(skill.id == "punch" ? "<div class='skill-symbol fists'></div>" : "") + "</div><div class='skill-name'>" +
+            "<div class='skill-square'>" + std::string(skill.id == "punch" ? "<div class='skill-symbol fists'></div>" :
+                skill.id == "object_handling" ? "<div class='skill-symbol handling'></div>" : "") + "</div><div class='skill-name'>" +
             Rml::StringUtilities::EncodeRml(skill.name) + "</div></div>";
     if (skills.empty()) contents = "<div class='skills-empty'>No melee skills available</div>";
     host->SetInnerRML(contents);

@@ -101,6 +101,9 @@ int main(int argc, char** argv) {
         for (std::size_t slot=0;slot<4;++slot) {
             const auto rest = render(slot, {}, "rest");
             motion.fire(slot,10);
+            const auto lowered = render(slot,motion.pose(slot,11,true),"lowered");
+            if (rest.first == lowered.first || rest.second != lowered.second)
+                throw std::runtime_error("Lowering must visibly move the weapon without changing its geometry");
             const auto kicked = render(slot, motion.pose(slot,10), "kick");
             if (rest.first == kicked.first || rest.second != kicked.second || rest != render(slot,motion.pose(slot,11),"recovered"))
                 throw std::runtime_error("Firearm must recoil and recover without changing geometry");

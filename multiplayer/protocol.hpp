@@ -31,7 +31,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 32; // Streamed house interiors reserve stable interactive door IDs.
+constexpr std::uint32_t protocolVersion = 34; // Temporary object handling while retaining the equipped weapon.
 constexpr std::uint64_t ragdollUpdateTicks = 3; // Uniform 20 Hz at the authoritative 60 Hz tick.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
@@ -86,7 +86,8 @@ struct Command {
     viewer::FPSInput movement;
     float pitch = 0;
     glm::vec2 drag{0}; // Mouse pixels accumulated during this command.
-    bool interaction = false, left = false, right = false, reload = false;
+    bool cancelInteraction = false, left = false, right = false, reload = false;
+    bool objectHandling = false; // Temporary on-foot handling; slot remains the equipped weapon.
     std::uint8_t slot = 0;
     bool enterVehicle = false; // One Enter press; deduplicated with the command sequence.
     std::vector<viewer::InventoryDragAction> inventoryActions{};

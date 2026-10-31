@@ -70,7 +70,7 @@ void protocol() {
     require(copy.players[0].inventoryPlacements.at(0).rotation == 90 &&
             copy.players[0].inventoryPlacements[0].storage == "backpack/tactical_backpack/main",
             "Snapshot lost authoritative storage placements");
-    Command inventoryCommand; inventoryCommand.sequence = 1;
+    Command inventoryCommand; inventoryCommand.sequence = 1; inventoryCommand.objectHandling = true;
     inventoryCommand.inventoryActions = {
         {viewer::InventoryDragActionKind::PickUp, "pistol_rounds_1", "", 0, 0, 0},
         {viewer::InventoryDragActionKind::Rotate, "", "", 0, 0, -1},
@@ -78,7 +78,7 @@ void protocol() {
         {viewer::InventoryDragActionKind::Cancel, "pistol_rounds_1", "", 0, 0, 0}};
     const auto commandBytes = encode(Commands{{inventoryCommand}});
     const auto inventoryCommands = std::get<Commands>(decode(commandBytes.data(), commandBytes.size()));
-    require(inventoryCommands.commands[0].inventoryActions.size() == 4 &&
+    require(inventoryCommands.commands[0].objectHandling && inventoryCommands.commands[0].inventoryActions.size() == 4 &&
             inventoryCommands.commands[0].inventoryActions[0].item == "pistol_rounds_1" &&
             inventoryCommands.commands[0].inventoryActions[1].turns == 3 &&
             inventoryCommands.commands[0].inventoryActions[2].x == 1 &&
@@ -107,7 +107,11 @@ void protocol() {
     commands = encode(Commands{{c}});
     require(std::get<Commands>(decode(commands.data(),commands.size())).commands[0].slot==viewer::punchSlot,
             "Fists slot command round trip failed");
-    c.slot = static_cast<std::uint8_t>(viewer::punchSlot+1);
+    c.slot = static_cast<std::uint8_t>(viewer::handlingSlot);
+    commands = encode(Commands{{c}});
+    require(std::get<Commands>(decode(commands.data(), commands.size())).commands[0].slot == viewer::handlingSlot,
+            "Object handling skill command round trip failed");
+    c.slot = static_cast<std::uint8_t>(viewer::handlingSlot+1);
     rejects([&] { encode(Commands{{c}}); }, "Unavailable weapon slot accepted");
     c.slot = 4;
     c.movement.forward = std::numeric_limits<float>::quiet_NaN();
@@ -659,6 +663,71 @@ void serverUndergrowth(const std::filesystem::path& asset) {
                 "Server hearing must come from authoritative shrub contact, independent of client audio");
     }
 }
+void serverObjectHandling(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    for (const bool grab : {false, true}) for (const bool cancel : {false, true}) {
+        Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
+        Scene scene(options); scene.model = ground();
+        scene.collision = std::make_unique<viewer::CollisionWorld>(scene.model);
+        scene.collision->setBoxes(scene.boxes.get()); scene.spawnEye = {0, 1.7f, 1};
+        World world(scene); const auto id = world.join();
+        for (int i = 0; i < 5; ++i) world.step();
+        std::uint64_t sequence = 0;
+        const auto send = [&](bool left = false, bool right = false, bool suspended = false) {
+            Command c; c.sequence = ++sequence; c.slot = static_cast<std::uint8_t>(viewer::handlingSlot);
+            c.movement.yawDegrees = -90; c.pitch = 0; c.left = left; c.right = right;
+            c.cancelInteraction = suspended;
+            world.submit(id, Commands{{c}}); world.step();
+        };
+        send();
+        for (int i = 0; i < 600 && world.players().at(id).weapons.slot() != viewer::handlingSlot; ++i) send();
+        require(world.players().at(id).weapons.slot() == viewer::handlingSlot, "Server did not equip Object handling");
+        if (grab) {
+            scene.boxes->add({0, 1.7f, 0}, glm::vec3(.4f));
+            send(true); send();
+            require(!world.players().at(id).interaction.grabbing(), "Server must drop the grip on left release");
+            send(true);
+            require(world.players().at(id).interaction.heldBox() == 0, "Server must grab while left is held");
+            send(true, true); send(true);
+            require(!world.players().at(id).interaction.grabbing(), "Server right tap did not drop the grip");
+            send(); send(true);
+            require(world.players().at(id).interaction.heldBox() == 0, "Server failed to regrab after dropping");
+        }
+        for (int i = 0; i < 65; ++i) send(grab, true);
+        const float beforeCancel = grab ? scene.boxes->velocity(0).z : 0;
+        if (cancel) send(grab, true, true);
+        if (!grab) scene.boxes->add({0, 1.7f, 0}, glm::vec3(.4f));
+        send(grab);
+        require(!world.players().at(id).interaction.grabbing() && !world.players().at(id).interaction.charging(),
+                "Server release/cancellation retained a grip or charge");
+        require(cancel ? std::abs(scene.boxes->velocity(0).z - beforeCancel) < .02f : scene.boxes->velocity(0).z < -.3f,
+                "Server must throw/push on release and cancel without applying a charged impulse");
+        require(world.players().at(id).shots == 0, "Object handling emitted a combat shot");
+    }
+}
+void temporaryObjectHandling(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
+    Scene scene(options); scene.model = ground();
+    scene.collision = std::make_unique<viewer::CollisionWorld>(scene.model);
+    scene.collision->setBoxes(scene.boxes.get()); scene.spawnEye = {0, 1.7f, 1};
+    World world(scene); const auto id = world.join();
+    for (int i = 0; i < 5; ++i) world.step();
+    scene.boxes->add({0, 1.7f, 0}, glm::vec3(.4f));
+    Command c; c.sequence = 1; c.objectHandling = true; c.left = true; c.movement.yawDegrees = -90;
+    const auto loaded = world.players().at(id).weapons.equipped().loaded;
+    world.submit(id, Commands{{c}}); world.step();
+    require(world.players().at(id).interaction.heldBox() == 0 && world.players().at(id).weapons.slot() == 0,
+            "Temporary handling must grab while preserving the equipped firearm");
+    ++c.sequence; c.objectHandling = false; c.firearmShot = FirearmShot{0, {}};
+    world.submit(id, Commands{{c}}); world.step();
+    require(!world.players().at(id).interaction.grabbing() && world.players().at(id).shots == 0 &&
+            world.players().at(id).weapons.equipped().loaded == loaded,
+            "Ending temporary handling with held left input must drop without firing or consuming ammunition");
+    ++c.sequence; c.left = false; c.firearmShot.reset(); world.submit(id, Commands{{c}}); world.step();
+    ++c.sequence; c.left = true; c.firearmShot = FirearmShot{0, {}}; world.submit(id, Commands{{c}}); world.step();
+    require(world.players().at(id).shots == 1, "A fresh click after temporary handling must restore combat");
+}
 void serverGrenades(const std::filesystem::path& asset) {
     using namespace multiplayer;
     Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
@@ -826,7 +895,7 @@ void serverGroundInventory(const std::filesystem::path& asset) {
     const auto nearby=scene.groundItems->nearby(player.controller.feet());
     require(nearby.size()==1, "Nearby ground query included an item outside two metres");
     submit({{Action::TakeGround,"",pistolPlacement.storage,pistolPlacement.x,pistolPlacement.y,0,nearby[0].id}});
-    require(player.weapons.state(0).owned && player.weapons.state(0).loaded==12 && player.inventory.hotbar()[0]=="pistol",
+    require(player.weapons.state(0).owned && player.weapons.state(0).loaded==12 && player.inventory.hotbar()[2]=="pistol",
         "Weapon pickup must restore its magazine and configured hotbar binding");
 }
 void inputRecovery(const std::filesystem::path& asset) {
@@ -902,7 +971,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); playerHealthProtocol(); fragments(); prediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]);
+        triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

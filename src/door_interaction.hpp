@@ -6,14 +6,10 @@
 
 namespace viewer {
 class CollisionWorld;
-enum class ControlMode { Combat, Interaction };
 
 // Input-independent door gesture. The borrowed door layer must outlive a grab.
 class DoorInteraction {
 public:
-    ControlMode mode() const { return mode_; }
-    const char* modeName() const { return mode_ == ControlMode::Combat ? "Combat" : "Interaction"; }
-    void toggleMode();
     bool grabbing() const { return grab_.has_value(); }
     std::optional<std::size_t> grabbedDoor() const { return grab_ ? std::optional<std::size_t>(grab_->door) : std::nullopt; }
     bool press(const Camera& camera, DoorLayer& doors, const CollisionWorld& world);
@@ -31,7 +27,6 @@ private:
         glm::vec3 localPoint, eyeOffset, forward, right;
         glm::vec2 drag{0}; // Horizontal/depth offset in meters.
     };
-    ControlMode mode_ = ControlMode::Combat;
     std::optional<Grab> grab_;
 };
 } // namespace viewer

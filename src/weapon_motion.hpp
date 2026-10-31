@@ -18,7 +18,7 @@ struct WeaponMotionPose {
 class WeaponMotion {
 public:
     void fire(std::size_t slot, double seconds); // Successful shots only, once per shell.
-    WeaponMotionPose pose(std::size_t slot, double seconds) const;
+    WeaponMotionPose pose(std::size_t slot, double seconds, bool lowered = false) const;
     // Returns a copy: movement/mouse orientation never accumulate visual offsets.
     // Scoped render and shot queries must use this same camera; hip aim is unchanged.
     Camera aimCamera(const Camera& input, std::size_t slot, double seconds, bool combat) const;

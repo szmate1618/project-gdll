@@ -53,8 +53,8 @@ void ClientAudio::localMovement(const viewer::FPSController& controller, const v
         viewer::playUndergrowth(system_, *event);
 }
 void ClientAudio::localDoor(const Command& command, const viewer::Camera& camera, const Scene& scene) {
-    const bool pressed = command.interaction && command.left && !doorHeld_;
-    doorHeld_ = command.interaction && command.left;
+    const bool pressed = (command.slot == viewer::handlingSlot) && command.left && !doorHeld_;
+    doorHeld_ = (command.slot == viewer::handlingSlot) && command.left;
     if (!enabled() || !pressed || command.enterVehicle) return;
     const auto door = scene.doors->raycast(camera.position(), camera.direction(), 1.5f);
     const auto prop = viewer::raycastPhysicsProp(scene.boxes->physicsWorld(), camera.position(), camera.direction(),

@@ -30,8 +30,7 @@ void population(bool courtyard, const glm::mat4& node, std::uint32_t seed, std::
     const auto direction = -panel.outward;
     const float yaw = glm::degrees(std::atan2(direction.z, direction.x));
     camera.look((yaw - camera.yawDegrees()) * 10, -camera.pitchDegrees() * 10);
-    require(!interaction.press(camera, doors, world) && boxes.count() == 0, "Combat clicks must not populate interiors");
-    interaction.toggleMode();
+    require(boxes.count() == 0, "Interiors must remain empty until a door is grabbed");
     require(interaction.press(camera, doors, world), "Fixture door must be reachable for a real grab");
     const auto count = interiors.populate(*interaction.grabbedDoor(), world, scene, boxes);
     require(count >= 12 && count <= 36, "Ordinary buildings must receive a bounded random population");

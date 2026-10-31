@@ -140,7 +140,7 @@ void authoritativeHits(const Options& options) {
     world.leave(second);
     require(b3World_GetCounters(scene.physics->id()).bodyCount==before-int(viewer::playerBodyPartCount)-1,
             "Disconnect retained a player's physical bodies");
-    auto interaction=fists(94,true); interaction.interaction=true;
+    auto interaction=fists(94,true); interaction.slot = static_cast<std::uint8_t>(viewer::handlingSlot);
     world.submit(first,Commands{{interaction}}); world.step();
     require(!wire(world.snapshot(first)).players[0].melee.enabled && world.players().at(first).shots==2,
             "Interaction mode left the physical fists enabled or punched");

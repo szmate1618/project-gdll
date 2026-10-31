@@ -30,7 +30,7 @@
         </div>
     </div>
     <div id="status-strip">
-        <div id="mode-status" class="status-item"><div id="mode-icon" class="hud-icon combat"></div><div id="mode">COMBAT</div></div>
+        <div id="mode-status" class="status-item"><div id="mode-icon" class="hud-icon combat"></div><div id="mode">ITEM</div></div>
         <div id="movement-status" class="status-item"><div id="movement-icon" class="hud-icon stand"></div><div id="movement">STAND</div></div>
         <div id="speed-status" class="status-item"><div id="speed-icon" class="hud-icon"></div><div id="speed">0.0 km/h</div></div>
     </div>

@@ -310,7 +310,7 @@ struct Hud::Impl {
         setText("east-coordinate", "E " + std::to_string(std::lround(state.position.x)) + " m");
         setText("movement", state.movement);
         setText("mode", state.mode);
-        const std::string modeClasses = state.mode == "INTERACT" ? "hud-icon interact" : "hud-icon combat";
+        const std::string modeClasses = state.mode == "SKILL" ? "hud-icon interact" : "hud-icon combat";
         if (elements.at("mode-icon")->GetClassNames() != modeClasses)
             elements.at("mode-icon")->SetClassNames(modeClasses);
         const auto movementClass = state.movement == "CROUCH" ? "crouch" : state.movement == "PRONE" ? "prone" :
@@ -331,8 +331,8 @@ struct Hud::Impl {
         setText("prompt", state.prompt);
         if (slot != state.slot) {
             slot = state.slot;
-            constexpr std::array<const char*, 6> classes{"pistol", "smg", "shotgun", "sniper", "grenade", "fists"};
-            elements.at("weapon")->SetClassNames(slot >= 0 && slot < 6 ? classes[slot] : "unconfirmed");
+            constexpr std::array<const char*, 7> classes{"pistol", "smg", "shotgun", "sniper", "grenade", "fists", "handling"};
+            elements.at("weapon")->SetClassNames(slot >= 0 && slot < 7 ? classes[slot] : "unconfirmed");
         }
         renderer.render(*context, width, height, {}, [&] {
             if (!backdrop) renderer.renderExternal([&] { backdrop = std::make_unique<HudBackdrop>(sourceDirectory); });

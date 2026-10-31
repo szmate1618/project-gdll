@@ -14,6 +14,7 @@ namespace viewer {
 class PlayerInventory;
 class WeaponReload;
 inline constexpr std::array<const char*, 5> weaponIds{"pistol", "submachine_gun", "shotgun", "sniper", "he_grenade"};
+constexpr std::size_t handlingSlot = weaponIds.size() + 1;
 constexpr std::size_t punchSlot = weaponIds.size(); // Equipment ID; hotbar positions are independent.
 // Slots 0..4 are fixed weapon IDs. Ammo counts use rounds (shotgun shells),
 // not pellets. Configuration and starting inventory are read once at startup.
@@ -58,7 +59,7 @@ public:
     std::string status() const;
 private:
     friend class WeaponReload;
-    std::array<WeaponState, weaponIds.size() + 1> weapons_;
+    std::array<WeaponState, weaponIds.size() + 2> weapons_;
     std::size_t slot_ = 0;
     bool held_ = false, pressed_ = false;
     bool emptyClicked_ = false;

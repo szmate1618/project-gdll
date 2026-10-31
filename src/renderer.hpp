@@ -332,6 +332,7 @@ private:
     void drawBuildingBatch(const ModelGPU& model, std::size_t batch);
     void drawBoxes(const glm::mat4& projectionView);
     void drawFloorplans();
+    void applyInteriorSunOcclusion(const Camera& camera);
     void drawDoodads(const glm::mat4& projectionView, bool shadowPass = false);
     void releaseDoodads() noexcept;
     void drawVehicles(const glm::mat4& projectionView, bool shadowPass = false);

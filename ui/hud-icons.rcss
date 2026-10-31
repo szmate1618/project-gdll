@@ -21,3 +21,5 @@
 .sniper #weapon-icon, .selection-icon.sniper { decorator: image(../data/assets/game-icons/hud/sniper.png contain); image-color: #93a88a; }
 .grenade #weapon-icon, .selection-icon.grenade { decorator: image(../data/assets/game-icons/hud/grenade.png contain); image-color: #b3ae72; }
 .fists #weapon-icon, .selection-icon.fists { decorator: image(../data/assets/game-icons/hud/fists.png contain); image-color: #b29a85; }
+
+.handling #weapon-icon, .selection-icon.handling { decorator: image(../data/assets/game-icons/hud/interact.png contain); image-color: #a6b9a1; }

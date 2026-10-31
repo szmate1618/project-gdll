@@ -18,8 +18,9 @@ WeaponFeedback WeaponFeedbackPrediction::advance(const Command& command, double 
     const bool pressed = command.left && !held_;
     held_ = command.left;
     if (!held_) { empty_ = false; needsRelease_ = false; }
+    if (command.objectHandling) { needsRelease_ |= held_; return result; }
     if (!ready_ || !std::isfinite(now) || state_.slot >= viewer::weaponIds.size() || command.slot != state_.slot ||
-        state_.vehicle != noVehicle || command.interaction || state_.weaponSwitchRemaining > 0) return result;
+        state_.vehicle != noVehicle || state_.weaponSwitchRemaining > 0) return result;
     auto weapon = definitions.state(state_.slot);
     int outstanding = 0;
     for (const auto& shot : pending_) if (shot.slot == state_.slot) outstanding += shot.rounds;

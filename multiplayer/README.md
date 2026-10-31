@@ -489,7 +489,7 @@ and data URIs are supported. Zombie assets may have at most 128 skeleton nodes
 (including non-joint scene nodes); incompatible rigs fail before hosting.
 Weapon definitions and starting inventory are loaded once per scene and copied
 for each joining player, so changing files cannot change a running session.
-The current wire protocol is version 32; rebuild both client and server together.
+The current wire protocol is version 34; rebuild both client and server together.
 Runtime [family-house floorplans](../docs/FLOORPLANS.md) are generated separately
 by each peer. Geometry is neither saved nor replicated; stable generated door
 IDs use the existing authoritative door-angle snapshots.
@@ -536,13 +536,23 @@ See the shared [HUD layouts](../docs/VIEWER.md#hud).
 
 Client controls: WASD, mouse look, Shift run, Space jump, Ctrl crouch, C prone,
 1–9 hotbar preview and the physical key left of 1 (Hungarian 0 / US backtick)
-for slot 0; mouse wheel up previews the next assigned action and down the
+or number-row 0 for slot 0; mouse wheel up previews the next assigned action and down the
 previous, and left click confirms.
-Weapon changes show server-timed progress; the starter Punch shortcut is 5. R reload, L toggle flashlight, left click fire/throw/punch, right click
+Weapon changes show server-timed progress; the starter Punch shortcut is 1. R reload, L toggle flashlight, left click fire/throw/punch, right click
 cycle scope.
-Tab switches Combat/Interaction. In Interaction, hold either mouse button to
-grab a nearby prop; left mouse also grabs doors. Mouse motion and walking move
-the grip. F12 releases/recaptures the mouse; Escape returns to the game menu. Losing focus releases
+Holding **Alt** on foot temporarily enables Object handling without changing the
+equipped weapon. The weapon lowers while Alt is held. Releasing Alt cancels the
+grip/charge and restores weapon controls; held mouse buttons must be released
+before firing again. In any vehicle seat, Alt toggles first/third-person view.
+
+**Object handling** is the default skill in hotbar slot **0**. Hold left mouse to grab
+one nearby door or prop; mouse motion and walking manipulate it. The grip
+ends when left mouse is released. Tap right mouse to drop, or keep left held and hold right
+and release to throw (full charge after one second, about a default grenade's
+launch momentum). Without grabbing first, right click pushes the object under
+the crosshair within reach; holding right charges a stronger push. Switching
+actions, opening menus or releasing input cancels grips and charges.
+F12 releases/recaptures the mouse; Escape returns to the game menu. Losing focus releases
 controls. The window title shows ammo, mode, rendered FPS, GPU render time,
 CPU render time and client simulation time, refreshed about once per second.
 CPU times are mean wall milliseconds per rendered frame; client simulation
@@ -619,9 +629,9 @@ four clients share one car in distinct seats; the front-left seat drives. The
 window title shows the car name and available seat inside its configured radius.
 WASD drives, Space brakes, Enter
 exits below 1.5 m/s when there is a clear standing position, and Alt toggles
-first/third person while driving. F12 continues to release/recapture the mouse.
-Passengers can only mouse-look and leave with Enter; they cannot drive, select
-weapons, scope, grab or choose the chase camera. Remote occupants are hidden
+first/third person for any occupied seat. F12 continues to release/recapture the mouse.
+Passengers can mouse-look, toggle the chase camera with Alt, and leave with
+Enter; they cannot drive, select weapons, scope or grab. Remote occupants are hidden
 inside the prototype chassis. The server owns seat reservations and releases
 them on exit or disconnect. Clients share optional [vehicle LoD assets](../assets/vehicles/README.md#vehicle-lods) by type,
 with a procedural fallback when the local cache is unavailable. See [vehicle definitions](../vehicles/README.md)
@@ -638,7 +648,7 @@ reverse performance and zombie push/ragdoll impacts as [single-player](../docs/V
 Combat normal view shows the same camera-local 1911, UMP, scoped M14 sniper and
 pump shotgun as single-player, including the eye-height hand/shoulder poses.
 The displayed model follows the server-confirmed equipped slot; a pending or
-rejected selection keeps the current model. Scope and Interaction views hide
+rejected selection keeps the current model. Scope and Object handling hide
 the weapon. Only scoped weapons enable zoom, and a confirmed weapon change
 resets zoom. Remote players retain their simple body models.
 
@@ -882,7 +892,7 @@ Physical melee runs at the shared server physics rate. The server validates
 fist ownership, individual clicks and the 0.5 s cooldown. It builds one set of
 nearby zombie contact proxies for all players, reads every striking arm's solved
 contacts, then applies the combined hit reactions. Guard and returning arms do
-not damage zombies. Interaction mode, vehicle occupancy, weapon switching and
+not damage zombies. Object handling, vehicle occupancy, weapon switching and
 disconnect disable or release the player rig. Fists are always available and
 cannot become dropped equippable items. Melee targets zombies; there is no
 player-health or player-versus-player damage system.

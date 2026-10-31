@@ -51,7 +51,7 @@ void starterInventory() {
     require(inventory.owned.size() == 16 && inventory.quantities.size() == 11,
         "All five weapons and eleven ammo stacks must have owned item definitions");
     for (std::size_t slot = 0; slot < expected.size(); ++slot) {
-        require(inventory.hotbar[slot] == expected[slot], "Weapon hotbar order must match slots 0–4");
+        require(inventory.hotbar[slot + 2] == expected[slot], "Weapon hotbar order must match slots 2–6");
         const auto& item = inventory.owned.at(expected[slot]);
         require(item.gameplay().id == expected[slot] && item.inventory().type == "weapon", "Item gameplay reference was lost");
         require(item.inventory().width > 0 && item.inventory().height > 0 && !item.tags().empty(), "Item footprint/tags missing");
@@ -59,9 +59,11 @@ void starterInventory() {
         require(std::find(item.tags().begin(), item.tags().end(), category) != item.tags().end(),
             "Weapon category must come from its comma-separated tags file");
     }
-    require(inventory.hotbar[5] == "skill:punch" && inventory.skills.at("punch") == "Punch", "Punch shortcut must reference the registered skill");
-    for (std::size_t slot = 6; slot < inventory.hotbar.size(); ++slot)
-        require(inventory.hotbar[slot].empty(), "Slots 6–9 must start unassigned");
+    require(inventory.hotbar[1] == "skill:punch" && inventory.skills.at("punch") == "Punch", "Punch shortcut must reference the registered skill");
+    require(inventory.hotbar[0] == "skill:object_handling" && inventory.skills.at("object_handling") == "Object handling",
+            "Slot 0 must contain the Object handling skill");
+    for (std::size_t slot = 7; slot < inventory.hotbar.size(); ++slot)
+        require(inventory.hotbar[slot].empty(), "Slots 7–9 must start unassigned");
     const auto& pistol = inventory.owned.at("pistol");
     require(pistol.inventory().width == 2 && pistol.inventory().height == 1, "Pistol must have a 2x1 cell footprint");
     const auto& sniper = inventory.owned.at("sniper");

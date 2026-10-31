@@ -718,8 +718,8 @@ are independent; source-object visibility and collision remain unchanged.
 
 The experimental single-player layer streams branches, stones and occasional
 beer bottles around the player in runtime forest polygons, including the
-forested parts of boundary cells. Press **Tab** for Interaction mode, then grab,
-carry and throw them with the ordinary left/right-hand prop controls. Moved
+forested parts of boundary cells. Select **Object handling** in slot **0**, then hold left mouse to grab and carry
+them; release left to drop. Right click also drops; holding right and releasing charges a throw. Moved
 objects retain their identities across cell boundaries, including destinations
 outside woodland, and their poses are saved beside the map.
 
@@ -1419,7 +1419,7 @@ presentation rules leave accepted collision positions unchanged.
 Distance LOD affects rendering and displayed poses; zombies
 still have no occlusion culling.
 
-In Combat mode while the mouse is captured, a weapon shot casts one ray per
+While the mouse is captured, a firearm shot casts one ray per
 pellet from the camera center and damages the nearest living zombie along
 each ray. Prepared characters use `NAME.capsules.json` beside the original GLB:
 bone-attached capsules fitted once to the reference mesh, with a robust near-full
@@ -1637,7 +1637,8 @@ The front-left seat drives; the other seats allow mouse look and Enter to leave.
 See [vehicle definitions](../vehicles/README.md) for the per-type TOML fields.
 **W/S** accelerate forward or brake into reverse,
 **A/D** steer, and **Space** brakes the wheels. **Alt** toggles first/third person
-while driving; it has no camera effect on foot.
+in any occupied seat. On foot, holding Alt temporarily enables Object handling
+and lowers the equipped weapon.
 Mouse look follows chassis turns. In third person it orbits the car from above,
 and the camera pulls closer when a wall, tree trunk or prop blocks the view.
 Returning to first person restores the seat view. Exiting resets to first person.
@@ -1778,15 +1779,15 @@ build directory when run by CTest.
 | A / D | Strafe left / right; driving: steer left / right |
 | Q / E | Move down / up along world Y in free-fly mode |
 | Mouse | Look around while captured; held props move sideways/up/down; held doors move sideways or push/pull |
-| Left mouse button | Combat: shoot or punch; Interaction: left-hand prop grab within 1.5 m horizontally or door grab within 1.5 m along the ray |
-| Right mouse button | Combat with a scoped weapon: cycle normal, 10°, and 1° fields of view; Interaction: right-hand prop grab within 1.5 m horizontally |
+| Left mouse button | Confirm hotbar preview; otherwise fire/punch, or grab a nearby prop/door with Object handling |
+| Right mouse button | Scoped weapon: cycle normal, 10°, and 1° fields of view; Object handling: tap to drop or push, hold and release to throw or push harder |
 | 1–9 | Preview the corresponding configured hotbar slot; left click confirms |
-| Key left of 1 (Hungarian 0 / US backtick) | Preview hotbar slot 0; number-row 0 at the right is unbound |
+| Key left of 1 (Hungarian 0 / US backtick) | Preview hotbar slot 0 (also available on number-row 0) |
 | R | Reload equipped weapon from its matching reserve ammo |
 | F | Discard the equipped weapon with a fast forward throw and vertical-axis spin |
 | G | Pick up the discarded weapon under the camera ray within 2 m |
 | Shift | Free-fly: move four times faster; standing: run at 6 m/s |
-| Mouse wheel | Combat: scroll up for the next assigned hotbar action, down for the previous; Interaction in free-fly: adjust movement speed |
+| Mouse wheel | Scroll up for the next assigned hotbar action, down for the previous |
 | F1 | Open / close the Inventory visual prototype |
 | F2 | Open / close the Skills visual prototype |
 | F8 | Switch to free-fly mode |
@@ -1798,8 +1799,7 @@ build directory when run by CTest.
 | F3 | Open / close the empty Health screen |
 | F4 | Open / close the full Sentinel map |
 | F10 | Toggle collision visualization |
-| Tab | Switch between Combat (default) and Interaction controls |
-| Alt | Toggle first/third person while driving |
+| Alt | Hold for temporary Object handling on foot; toggle first/third person in any vehicle seat |
 | F12 | Release / capture the mouse |
 | L | Toggle the flashlight on/off |
 | Home | Frame the whole scene again in free-fly mode |
@@ -1811,16 +1811,25 @@ limited to avoid flipping the camera. The camera initially frames the imported
 scene's transformed bounds, including scenes away from the origin, and chooses
 a movement speed based on scene size.
 
-In Interaction mode, aim the center crosshair at a door within 1.5 m and hold
-the left mouse button. Walls and solid trunks block the grab. The selected
+Select the **Object handling** skill (default hotbar slot **0**), then aim the
+center crosshair at a door within 1.5 m and hold the left mouse button.
+Release left mouse to let go; right click can also drop the grip. Walls and
+solid trunks block the grab. The selected
 point stays attached to the door as it swings. Dragging right/left moves a
 horizontal grip target sideways; dragging up pushes it forward along the
 camera's horizontal heading, and dragging down pulls it back. Moving with WASD
 also moves the grip target and tugs the door. Mouse look remains active while
 grabbing, so mouse motion rotates the camera and moves the grip together.
-A click that misses all reachable objects keeps normal mouse look. Interaction
-clicks never shoot. Changing control/camera mode, releasing the cursor, or
-losing window focus ends the grab.
+A click that misses all reachable objects keeps normal mouse look. Skill
+clicks never shoot. Switching actions or camera, opening a menu, releasing the
+cursor, or losing window focus cancels the grip and any charged throw.
+
+You can also **hold either Alt key** for temporary Object handling on foot.
+The equipped weapon stays selected and is lowered while Alt is held; firing,
+punching, reloading and scope clicks are disabled during this gesture. Releasing
+Alt cancels any grip/charge and raises the weapon. A mouse button already held
+when Alt ends must be released before it can fire. In a vehicle, Alt continues
+to toggle the local first/third-person camera for both drivers and passengers.
 
 The first successful grab of any door in a building also populates its interior
 with untextured brown boxes. Each building gets a random target of 12–36 props:
@@ -1838,19 +1847,14 @@ capsule controller: it reads oriented box contacts and support surfaces, then
 applies bounded, time-scaled impulses during walking. Ordinary clearance,
 support and sight queries do not move boxes.
 
-In Interaction mode, aim the center crosshair at a crate, dropped weapon or
-loose torso object within 1.5 m horizontally and 2 m vertically of the camera and hold
-either mouse button: left and right buttons control independent hands. The left
-button selects the nearer door or prop; walls, trunks, doors and other props
-block grabs behind them. Mouse right/left moves the picked point sideways,
-up/down moves it vertically, and WASD moves the grip with the player. Camera
-look remains active while either hand holds anything. If both hands hold
-different objects, mouse movement moves both and rotates the camera once.
-Both hands can also share an object; releasing one leaves the other attached.
-Picking a weapon up with **F** or removing its owning corpse releases any grips
-on the removed bodies. Moving a remaining equippable weapon into a vacated slot
-preserves its existing grips. Body identities also prevent two multiplayer players from
-grabbing the same prop; torso contents use the existing authoritative physics.
+With Object handling selected, aim at a crate, dropped equippable weapon or
+loose torso object within 1.5 m horizontally and 2 m vertically of the camera,
+and hold left mouse to grab and drag it; release left to let go. The nearer door or prop wins; walls, trunks, doors
+and other props block grabs behind them. Mouse right/left moves the picked
+point sideways, up/down moves it vertically, and WASD moves the grip with the
+player. Camera look remains active. One object can be held at a time.
+Removing the owning body ends the grip; body identities prevent two multiplayer
+players from grabbing the same prop.
 
 Each grip owns a shapeless hand anchor and a critically damped Box3D motor joint
 at the clicked point. Its positional spring is solved during physics substeps
@@ -1859,23 +1863,27 @@ settles spin without an orientation spring. A hand's normal force budget is
 180 N, enough to suspend about 18 kg. For heavier props the joint's combined
 force budget increases toward 90% of the prop's weight, capped at 420 N,
 so one hand can drag or tip them without lifting them clear of the floor.
-Two hands combine their force budgets. Mouse offsets are bounded, and a
+Mouse offsets are bounded, and a
 large camera teleport or an object too far from its target ends the grip.
 Existing collisions remain active while holding objects.
 
-Release a button to drop that hand's object. Swing the mouse and release within
-100 ms to add a throw impulse in the recent motion's direction. Upward swings
-also add forward speed equal to 60% of their upward component; diagonal swings
-therefore interpolate that boost. Perfect sideways and downward swings add no
-forward momentum. Each releasing hand adds at most 60 N·s, giving heavy objects
-less speed; an object too heavy for that hand to lift receives no upward boost.
-Existing body momentum is preserved. Changing mode, releasing the cursor or
-losing focus drops both hands without adding a throw impulse.
+Tap right mouse to drop the held object without adding momentum. While keeping
+left held, hold right mouse and release right to throw along the camera's aim: charging starts after a
+150 ms tap allowance and reaches full strength after one second. Full charge
+adds approximately 6.4 N·s, the launch momentum of the default 450 g grenade
+at 14 m/s with its small upward component. Heavy objects receive less speed
+from the same impulse. Existing body momentum is preserved.
+
+You can also right click without grabbing first: release pushes the nearest
+reachable object under the crosshair. A tap gives a small shove; holding right
+charges the same maximum impulse as a throw. Reach and occlusion are checked
+at release. Charging never grabs an object or applies force before release.
+Switching actions or suspending input cancels the charge without throwing.
 
 The viewer follows glTF's right-handed coordinate system: Y is up, and the
 camera looks toward negative Z before orientation is applied. Distances are
 interpreted as meters. The vertical field of view starts at 60°. Each
-right-click in Combat mode with a scoped weapon selects 10°, then 1°, then
+right-click with a scoped weapon selects 10°, then 1°, then
 returns to 60° in either camera mode.
 Normal view has a small center crosshair; both zoom modes show scope markings
 and a circular tunnel-vision vignette whose opening spans nearly the full screen
@@ -1895,19 +1903,19 @@ Framebuffer resize updates the viewport and projection aspect ratio.
 
 In the viewer and multiplayer client, number keys **1–9** preview the matching
 hotbar position; the **physical key immediately left of 1** (Hungarian **0**, US
-backtick) previews position zero. The right-hand number-row zero is unbound.
+backtick) or number-row **0** previews position zero.
 The compact upper-left overlay shows all ten numbered positions and expands
 the highlighted one to show its action name and icon. The mouse
 wheel cycles assigned actions, wrapping over empty positions. **Left click**
 confirms and consumes that click. Selecting the equipped action does nothing;
-Escape cancels the preview. The initial slots are 0 pistol, 1 SMG, 2 shotgun,
-3 sniper, 4 HE grenade, and 5 Punch. `inventory.toml` accepts owned item IDs and
+Escape cancels the preview. The initial slots are 0 Object handling, 1 Punch, 2 pistol, 3 SMG,
+4 shotgun, 5 sniper, and 6 HE grenade. `inventory.toml` accepts owned item IDs and
 `skill:<ID>` references registered in `skills.toml`; editing assignments in the UI
 is not implemented. Punch equips the existing fists, which use no ammunition.
 
 Switching shows a progress bar without a draw/put-away animation. Its duration is
 old weapon `draw_time_seconds` + combined storage access + new weapon
-`draw_time_seconds`. Draw time also serves as put-away time; Punch costs
+`draw_time_seconds`. Draw time also serves as put-away time; Object handling and Punch cost
 zero for its own draw and storage. Both storage footprints exclude each other
 when scoring occupancy. Charge each distinct compartment's base once, plus
 obstruction minus support for the old weapon's backpack destination and the new
@@ -2040,7 +2048,7 @@ At the reference size, masses in kilograms are 11 hip, 9 lower torso, 17 chest,
 ragdolls retain their existing anatomical mass distribution (72.6 kg total).
 The body uses `PlayerBodyRenderer`, separate from firearm recoil and muzzle lighting,
 and is drawn against scene depth and is disabled when fists are unequipped,
-in Interaction mode, or while occupying any vehicle seat. Nearby zombie contact meshes use the
+while Object handling is selected, or while occupying any vehicle seat. Nearby zombie contact meshes use the
 published animation pose and the living spatial index, independently of culling.
 Multiplayer runs the rig and all contacts on the server. Clients send fist
 selection and trigger input, render the newest confirmed local pose at the
@@ -2089,16 +2097,16 @@ Both implementations hit Box3D's existing 256-triangle contact-query buffer
 limit in some scripted contacts. Benchmark physics diagnostics go to stderr
 so this limitation remains visible without contaminating CSV output.
 
-The starter firearm shortcuts are **0–3** (0 is the key left of 1); preview then left click to equip the pistol, submachine gun, shotgun, or sniper. The pistol,
+The starter firearm shortcuts are **2–5**; preview then left click to equip the pistol, submachine gun, shotgun, or sniper. The pistol,
 sniper, and shotgun fire once per click; the SMG repeats while left mouse is
 held. Every shot respects its configured cooldown and consumes magazine ammo,
 including misses and shots in scenes without zombies. Empty weapons stop firing.
 The shotgun casts eight rays (one centered and seven around a 4° cone) while
 consuming one shell. Firearms use the existing zombie hit/ragdoll behavior.
 The sniper alone enables the existing right-click scope cycle. Equipping a
-weapon resets zoom. Combat normal view displays [low-poly firearm models](../assets/weapons/README.md):
+weapon resets zoom. Normal view displays [low-poly firearm models](../assets/weapons/README.md):
 a 1911 pistol, UMP SMG, a scoped and extended M14 sniper, and a stock pump shotgun.
-The models are hidden in scope and Interaction mode. Each firearm kicks upward
+The models are hidden in scope and while Object handling is selected. Each firearm kicks upward
 and rearward after a successful shot and recovers to its ready pose: a sharp
 pistol flip, small fast SMG pulses, a heavy shotgun kick, and slower sniper
 recovery. Automatic fire adds a bounded amount of residual recoil. The shotgun's
@@ -2123,7 +2131,7 @@ two-handed pistol hold and shoulder-seated stocks, with estimated shoulder
 width and arm reach. Crouching and prone preserve these upper-body proportions.
 The window title and console report the equipped weapon, magazine, and reserve.
 
-**4**, then left click, equips an HE grenade; **left click** throws one in Combat mode. Holding
+**6**, then left click, equips an HE grenade; **left click** throws one. Holding
 the button throws only once. The starting inventory supplies six grenades.
 One grenade starts loaded and five occupy an ammo stack. After a throw, the
 held model disappears while the next matching grenade is automatically
@@ -2332,8 +2340,15 @@ culling. Walking collision cuts the doorways out of the original wall triangles
 and queries the door panels at their current Box3D poses. Windows remain solid.
 Building shadows continue to use the original closed shell.
 Family houses receive streamed runtime floorplans; other buildings retain their
-empty shells. See [runtime floorplans](FLOORPLANS.md) for the footprint heuristic,
-window-based storeys, entry polygons, collision, and multiplayer lifecycle.
+empty shells. The standalone `godollo_viewer` enables the same deterministic
+room and staircase generator as multiplayer, with no extra option or map
+regeneration. Walk near an eligible house (F9 enters walking mode), select
+**Object handling** in slot **0**, then grab and pull an exterior door open.
+Within 20 metres of the open door, the house receives its entry-area rolls,
+1–3 living rooms, optional 2×2 metre side rooms, and any staircase ramps with
+floor openings. The interior is evicted beyond 30 metres and regenerated
+identically on return. See [runtime floorplans](FLOORPLANS.md) for the footprint
+heuristic, room-size limits, storeys, collision, and multiplayer lifecycle.
 See [building generation](../README.md) for facade configuration and regeneration.
 
 Generated brown door panels have runtime Box3D bodies and vertical revolute
@@ -2368,7 +2383,7 @@ can push doors through ordinary contacts, with no door-specific hit handler.
 `DoorLayer::raycast` uses the spatial grid and current oriented panel boxes;
 picking is read-only. It returns a stable door index and a body-local hit point.
 `pointState` follows that point's world position and velocity as the hinge
-rotates. `DoorInteraction` owns the control mode and grab state independently
+rotates. `DoorInteraction` owns the door grab state independently
 of GLFW. Its horizontal spring has stiffness 220 N/m, damping 35 N*s/m, and a
 180 N force limit. Mouse travel moves the target by 4 mm/pixel, clamped to
 1.5 m on each axis. The target also follows player displacement. Each update
@@ -3092,9 +3107,9 @@ src/interior_objects.{hpp,cpp} Once-per-building random interior placement
 src/box_renderer.cpp       Shared cube instances and current-pose visibility
 src/door_geometry.{hpp,cpp} Runtime extraction of independent door panels
 src/door_layer.{hpp,cpp} Local hinge activation, force API and door poses
-src/door_interaction.{hpp,cpp} Combat/interaction mode and mouse/player door grabs
+src/door_interaction.{hpp,cpp} Mouse/player door grabs
 src/player_interaction.{hpp,cpp} Nearest door/box picking and shared input routing
-src/object_interaction.{hpp,cpp} Independent hand grips, strength and release throws
+src/object_interaction.{hpp,cpp} Persistent prop grip and bounded manipulation forces
 src/door_collision.{hpp,cpp} Doorway clipping and live Box3D capsule contacts
 src/zombie_ragdoll.{hpp,cpp} Box3D ragdoll simulation and simplified ground planes
 src/zombie_ragdoll_pose.{hpp,cpp} Animated-pose handoff and physics-to-skin mapping

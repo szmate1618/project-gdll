@@ -30,15 +30,18 @@ int main(int argc, char** argv) {
         world.step();
         require(server.floorplans->residentCount() == 1 && client.floorplans->residentCount() == 0,
                 "Server must stream around authoritative players while the client remains independent");
-        server.doors->setAngle(3, -.8f);
+        const auto& panel = server.floorplans->resident().begin()->second.doors.back();
+        const auto door = panel.id;
+        const float angle = panel.panel.inward ? -.8f : .8f;
+        server.doors->setAngle(door, angle);
         const auto snapshot = world.snapshot(player);
         multiplayer::Snapshots playback;
         require(playback.push(snapshot, 1), "Server snapshot must be accepted");
         playback.apply(client, 1);
-        require(!client.doors->present(3), "A distant replicated angle must not allocate interior geometry");
+        require(!client.doors->present(door), "A distant replicated angle must not allocate interior geometry");
         client.floorplans->update({{0, 1.7f, 8}});
         playback.apply(client, 1);
-        require(client.floorplans->residentCount() == 1 && client.doors->present(3) && std::abs(client.doors->angle(3) + .8f) < .001f,
+        require(client.floorplans->residentCount() == 1 && client.doors->present(door) && std::abs(client.doors->angle(door) - angle) < .001f,
                 "Locally generated stable door IDs must receive the existing replicated door angle");
         const auto& a = server.floorplans->renderModel(); const auto& b = client.floorplans->renderModel();
         require(a.draws.size() == b.draws.size() && a.primitives.size() == b.primitives.size(), "Peers must generate identical topology");
@@ -48,9 +51,9 @@ int main(int argc, char** argv) {
                 require(a.primitives[i].vertices[j].position == b.primitives[i].vertices[j].position, "Peers must independently generate identical coordinates");
         }
         client.floorplans->update({{0, 1.7f, 100}}); playback.apply(client, 1);
-        require(!client.doors->present(3) && server.doors->present(3), "Client eviction must not change authoritative geometry");
+        require(!client.doors->present(door) && server.doors->present(door), "Client eviction must not change authoritative geometry");
         client.floorplans->update({{0, 1.7f, 8}}); playback.apply(client, 1);
-        require(std::abs(client.doors->angle(3) + .8f) < .001f, "Regenerated client panels must recover current authoritative movement");
+        require(std::abs(client.doors->angle(door) - angle) < .001f, "Regenerated client panels must recover current authoritative movement");
         world.leave(player); world.step();
         require(server.floorplans->residentCount() == 0, "The server must evict when no player remains nearby");
         std::cout << "Independent multiplayer floorplan and stable door playback tests passed\n";

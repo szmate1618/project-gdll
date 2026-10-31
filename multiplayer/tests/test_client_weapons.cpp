@@ -127,10 +127,10 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
         case 2:
             require(differences(0, 1) > 500, "Confirmed pistol did not appear after spawn");
             capture("pistol");
-            key(window, GLFW_KEY_1, 0, GLFW_PRESS, 0); // Preview hotbar 1 (SMG).
+            key(window, GLFW_KEY_3, 0, GLFW_PRESS, 0); // Preview hotbar 3 (SMG).
             break;
         case 3:
-            require(in.equippedSlot == 0 && in.slot == 0 && in.actionSelection.selected() == 1,
+            require(in.equippedSlot == 0 && in.slot == 0 && in.actionSelection.selected() == 3,
                     "Preview replaced the server-confirmed pistol");
             button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
             require(in.slot == 1 && !command(in, window, false, 0).left,
@@ -140,13 +140,27 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             break;
         case 4: capture("submachine_gun"); authoritative.slot = 2; break;
         case 5: capture("shotgun"); authoritative.slot = 3; break;
-        case 6: capture("sniper"); in.interaction = true; break;
-        case 7:
-            require(differences(0, 6) < 100, "Weapon remained visible in Interaction mode");
-            in.interaction = false;
+        case 6: capture("sniper"); authoritative.slot = viewer::handlingSlot; break;
+        case 7: {
+            require(differences(0, 6) < 100, "Weapon remained visible with Object handling selected");
+            capture("object-handling");
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+            require(command(in, window, false, 0).left, "Object handling must send held left input");
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+            require(!command(in, window, false, 0).left, "Object handling must not latch left input after release");
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+            require(command(in, window, false, 0).right, "Right press did not start a skill charge");
+            key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+            key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
+            const auto cancelled = command(in, window, false, 0);
+            require(cancelled.cancelInteraction && !cancelled.right,
+                    "Opening and closing a menu between commands lost throw cancellation");
+            authoritative.slot = 3;
             break;
+        }
         case 8:
-            require(differences(5, 7) < 100, "Returning to Combat did not restore the equipped sniper");
+            require(differences(5, 7) < 100, "Switching back did not restore the equipped sniper");
             authoritative.slot = 3;
             break;
         case 9:
@@ -163,9 +177,9 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
                         "Multiplayer sent a different aim direction from the scoped view");
                 require(aim.view() != in.camera.view(), "Multiplayer scope has no sway");
             }
-            in.interaction = true; // Capture scoped world/reticle without the weapon.
+            // The scoped sniper must hide its weapon without changing action.
             break;
-        case 10: in.interaction = false; break;
+        case 10: authoritative.slot = 3; break;
         case 11:
             require(differences(9, 10) < 100, "Weapon appeared over the scope view");
             authoritative.slot = 0;
@@ -298,12 +312,30 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             authoritative.movement = onFootAfterExit;
             break;
         }
-        case 27:
+        case 27: {
             require(!in.driver.driving() && !in.driver.thirdPerson(), "Confirmed exit must restore walking camera");
+            // Finish the map-page mouse gesture before starting a fresh drag.
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+            const auto slotBeforeAlt = in.slot;
             key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_PRESS, 0);
-            require(!in.toggleDrivingCamera && in.capture, "Alt must leave camera and mouse capture unchanged on foot");
+            const auto entering = command(in, window, false, 0);
+            require(in.temporaryHandling() && entering.objectHandling && entering.cancelInteraction && entering.slot == slotBeforeAlt &&
+                    !in.toggleDrivingCamera && in.capture, "Held Alt must enter temporary handling without switching weapons or vehicle camera");
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+            require(command(in, window, false, 0).left, "Temporary handling must send held left-button input");
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+            require(!command(in, window, false, 0).left, "Left release must immediately clear temporary drag input");
             key(window, GLFW_KEY_RIGHT_ALT, 0, GLFW_PRESS, 0);
-            require(in.capture, "Right Alt must leave mouse capture unchanged on foot");
+            key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_RELEASE, 0);
+            require(in.temporaryHandling(), "Releasing one Alt must retain temporary handling while the other is held");
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+            require(command(in, window, false, 0).left, "Second temporary grip press was lost");
+            key(window, GLFW_KEY_RIGHT_ALT, 0, GLFW_RELEASE, 0);
+            const auto leaving = command(in, window, false, 0);
+            require(!in.temporaryHandling() && !leaving.objectHandling && leaving.cancelInteraction && !leaving.left && in.slot == slotBeforeAlt,
+                    "Ending temporary handling with left held must cancel the grip without firing");
+            require(!command(in, window, false, 0).left, "Held left must remain suppressed after Alt release");
+            button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
             key(window, GLFW_KEY_C, 0, GLFW_PRESS, 0);
             key(window, GLFW_KEY_C, 0, GLFW_REPEAT, 0);
             key(window, GLFW_KEY_C, 0, GLFW_RELEASE, 0);
@@ -312,14 +344,16 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
                     "C must queue one prone toggle and ignore repeat/release");
             authoritative.vehicle = 0; authoritative.seat = 1;
             break;
+        }
         case 28: {
             require(in.driver.occupied() && !in.driver.driving() && in.driver.seat() == 1 && !in.canScope,
                     "Confirmed passenger seat enabled driver controls or scope");
             const auto oldSlot = in.slot;
             key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_PRESS, 0);
+            key(window, GLFW_KEY_LEFT_ALT, 0, GLFW_RELEASE, 0);
             key(window, GLFW_KEY_2, 0, GLFW_PRESS, 0);
             key(window, GLFW_KEY_GRAVE_ACCENT, 0, GLFW_PRESS, 0);
-            require(!in.toggleDrivingCamera && in.slot == oldSlot, "Passenger selected chase camera or weapon");
+            require(in.toggleDrivingCamera && !in.temporaryHandling() && in.slot == oldSlot, "Passenger Alt must request chase camera while keeping handling and weapons disabled");
             in.firstMouse = false; in.lastX = in.lastY = 100;
             mouse(window, 160, 80);
             require(std::abs(in.camera.pitchDegrees()) > 0, "Passenger mouse look was blocked");
@@ -327,7 +361,8 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             break;
         }
         case 29:
-            require(in.driver.occupied() && !in.driver.thirdPerson(), "Passenger look changed occupancy or camera mode");
+            require(in.driver.occupied() && in.driver.thirdPerson(), "Passenger Alt did not enable the chase camera");
+            capture("passenger_third_person");
             key(window, GLFW_KEY_ENTER, 0, GLFW_PRESS, 0);
             require(command(in, window, false, 0.0).enterVehicle && !command(in, window, false, 0.0).enterVehicle,
                     "Passenger Enter must request one exit");
@@ -355,7 +390,7 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             key(window,GLFW_KEY_GRAVE_ACCENT,0,GLFW_PRESS,0);
             require(in.slot==oldSlot && in.actionSelection.selected()==0,
                     "Physical key left of 1 must preview slot zero without equipping");
-            key(window,GLFW_KEY_5,0,GLFW_PRESS,0);
+            key(window,GLFW_KEY_1,0,GLFW_PRESS,0);
             button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_PRESS,0);
             button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_RELEASE,0);
             require(in.slot==viewer::punchSlot && command(in,window,false,0).slot==viewer::punchSlot,
@@ -386,11 +421,11 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             require(glm::distance(in.camera.position(), punchEye) < .001f,
                     "Scripted on-foot state moved the camera between identical punch poses");
             require(differences(30,32)<100,"Confirmed punches created firearm recoil or muzzle lighting");
-            in.interaction=true;
+            authoritative.slot=viewer::handlingSlot;
             break;
         case 34:
-            require(differences(31,33)<100,"Interaction mode retained the local physical hands");
-            in.interaction=false; key(window,GLFW_KEY_GRAVE_ACCENT,0,GLFW_PRESS,0);
+            require(differences(31,33)<100,"Object handling retained the local physical fists");
+            authoritative.slot=viewer::punchSlot; key(window,GLFW_KEY_2,0,GLFW_PRESS,0);
             button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_PRESS,0);
             button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_RELEASE,0);
             authoritative.slot=0; authoritative.melee={};
@@ -608,7 +643,7 @@ int main(int argc, char** argv) {
         std::ofstream(fixture / "inventory.toml") <<
             "equipped='pistol'\n[weapons]\npistol=0\nsubmachine_gun=0\nsniper=0\nshotgun=0\nhe_grenade=1\n"
             "[ammo]\n"
-            "[hotbar]\n0='pistol'\n1='submachine_gun'\n2='shotgun'\n3='sniper'\n4='he_grenade'\n5='skill:punch'\n"
+            "[hotbar]\n0='skill:object_handling'\n1='skill:punch'\n2='pistol'\n3='submachine_gun'\n4='shotgun'\n5='sniper'\n6='he_grenade'\n"
             "[placements.pistol]\nstorage='body/hip_holster/holster'\nx=0\ny=0\n"
             "[placements.he_grenade]\nstorage='body/tactical_vest/lower_right'\nx=0\ny=0\n"
             "[placements.submachine_gun]\nstorage='backpack/tactical_backpack/main'\nx=0\ny=0\n"

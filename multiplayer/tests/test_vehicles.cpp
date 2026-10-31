@@ -219,7 +219,7 @@ void ownershipAndDriving(const Options& o) {
     require(glm::distance(world.players().at(first).camera.position(), viewer::vehicleSeat(*scene.vehicles,0,0)) < .001f,
             "Driver camera must follow the physical seat");
     std::uint64_t sequence = 1;
-    Command drive; drive.movement.forward = 1; drive.left = true; drive.reload = true; drive.slot = 2; drive.interaction = true;
+    Command drive; drive.movement.forward = 1; drive.left = true; drive.reload = true; drive.slot = 2; drive.slot = static_cast<std::uint8_t>(viewer::handlingSlot);
     for (int i = 0; i < 120; ++i) {
         drive.sequence = ++sequence;
         world.submit(first, Commands{{drive}}); world.step();
@@ -227,7 +227,7 @@ void ownershipAndDriving(const Options& o) {
     require(scene.vehicles->pose(0).chassis.center.z < -4 && -scene.vehicles->velocity(0).z > 4,
             "Server driving must use physical forward thrust");
     require(world.players().at(first).shots == 0 && world.players().at(first).weapons.slot() == 0 &&
-            !world.players().at(first).interaction.heldBox(viewer::Hand::Left), "Driving must suspend weapons and grabbing");
+            !world.players().at(first).interaction.heldBox(), "Driving must suspend weapons and grabbing");
     auto moving = wire(world.snapshot(first));
     Scene client(o); Snapshots playback; playback.push(moving, 0); playback.apply(client, 0);
     require(client.vehicles->count() == 1 && glm::distance(client.vehicles->pose(0).chassis.center,
@@ -309,22 +309,24 @@ void passengers(const Options& o) {
     require(client.vehicles->type(0)==1,"Late join lost the configured car type");
     viewer::VehiclePlayer passenger; viewer::Camera camera;
     passenger.followCar(0,*client.vehicles,camera,1);
-    require(passenger.occupied() && !passenger.driving() && !passenger.toggleThirdPerson(*client.vehicles,camera,*client.collision),
-            "Passenger obtained driver controls or chase camera");
+    require(passenger.occupied() && !passenger.driving() && passenger.toggleThirdPerson(*client.vehicles,camera,*client.collision) && passenger.thirdPerson(),
+            "Passenger must have the chase camera without obtaining driver controls");
+    require(passenger.toggleThirdPerson(*client.vehicles,camera,*client.collision) && !passenger.thirdPerson(),
+            "Passenger must be able to return from chase camera to the same seat");
     camera.look(90,30); const auto direction=camera.direction();
     passenger.updateCamera(*client.vehicles,camera,*client.collision);
     require(glm::distance(camera.position(),viewer::vehicleSeat(*client.vehicles,0,1))<.001f &&
             glm::distance(direction,camera.direction())<.001f,"Passenger mouse look moved the seat or was reset");
     Command driver; driver.sequence=1; driver.movement.forward=1;
     Command rider; rider.sequence=1; rider.movement.forward=-1; rider.movement.right=1; rider.movement.jump=true;
-    rider.left=true; rider.reload=true; rider.slot=2; rider.interaction=true; rider.pitch=25; rider.movement.yawDegrees=40;
+    rider.left=true; rider.reload=true; rider.slot=2; rider.slot = static_cast<std::uint8_t>(viewer::handlingSlot); rider.pitch=25; rider.movement.yawDegrees=40;
     for (int i=0;i<120;++i) {
         ++driver.sequence; ++rider.sequence;
         world.submit(occupants[0],Commands{{driver}}); world.submit(occupants[1],Commands{{rider}}); world.step();
     }
     require(scene.vehicles->velocity(0).z < -3,"Passenger throttle/brake/steering overrode the driver");
     const auto& seated=world.players().at(occupants[1]);
-    require(seated.shots==0 && seated.weapons.slot()==0 && !seated.interaction.heldBox(viewer::Hand::Left) &&
+    require(seated.shots==0 && seated.weapons.slot()==0 && !seated.interaction.heldBox() &&
             std::abs(seated.camera.pitchDegrees()-25)<.001f,"Passenger used weapons/grabbing or lost mouse look");
     world.leave(occupants[2]);
     require(world.snapshot(occupants[0]).players[0].seat==0,"Passenger disconnect removed the driver");

@@ -75,3 +75,5 @@ body.loadout { background-color: #2b2d2fed; }
 .inventory-ghost.placing { border-color: #f5f6f2; background-color: #f5f6f226; }
 .placement-track { background-color: #2b2d2f; }
 .placement-label { color: #f5f6f2; }
+
+.loadout .handling { background-color: #a6b9a1; }

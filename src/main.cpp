@@ -352,12 +352,12 @@ void printHelp() {
     std::cout << "Usage: godollo_viewer [model.glb|model.gltf] [options]\n"
               << "Default model: " << VIEWER_DEFAULT_ASSET << "\n\n"
               << "W/S forward/back, A/D strafe, Q/E down/up, mouse look, Shift faster\n"
-              << "Tab switch Combat/Interaction; left mouse shoot/punch in Combat, grab a door (1.5 m) or box (2 m) in Interaction\n"
-              << "Interaction: left/right mouse hold boxes with separate hands; mouse sideways/up/down moves boxes; WASD moves grips\n"
-              << "Release to drop; swing and release to throw. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
-              << "Combat: key left of 1 (HU 0) fists, 1 pistol, 2 SMG, 3 shotgun, 4 sniper, 5 HE grenade; R reload; hold left mouse for automatic fire\n"
+              << "Slot 0 or held Alt: Object handling; hold left to drag, release to drop; hold right to charge throw/push\n"
+              << "Object handling: mouse moves the held object; WASD moves the grip; right click also pushes objects within reach\n"
+              << "Right tap drops; hold right and release throws. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
+              << "Hotbar: 0 Object handling, 1 Punch, 2 pistol, 3 SMG, 4 shotgun, 5 sniper, 6 HE grenade; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
-              << "Alt driving camera, F12 cursor, wheel change speed, F throw weapon, G pick up weapon, L toggle flashlight, Home frame model, Escape quit\n\n"
+              << "Alt handling / vehicle camera, F12 cursor, wheel preview action, F throw weapon, G pick up weapon, L toggle flashlight, Home frame model, Escape quit\n\n"
               << "F1 Inventory, F2 Skills, F3 Health, F4 Map, F8 free-fly, F9 FPS walking, F10 collision overlay; Space jump, C prone in FPS\n\n"
               << "  --fps               Start in walking mode\n"
               << "  --fullscreen        Fill the primary monitor at the selected render resolution\n"
@@ -485,6 +485,11 @@ struct AppState {
     bool flashlight = true;
     glm::vec3 playerVelocity{0};
     double lastX = 0, lastY = 0;
+    bool temporaryHandling() const {
+        return capture && hudScreen == viewer::HudScreen::Gameplay && !driver.occupied() &&
+            weapons.slot() != viewer::handlingSlot && (keys[GLFW_KEY_LEFT_ALT] || keys[GLFW_KEY_RIGHT_ALT]);
+    }
+    bool handling() const { return weapons.slot() == viewer::handlingSlot || temporaryHandling(); }
 };
 
 AppState& state(GLFWwindow* window) { return *static_cast<AppState*>(glfwGetWindowUserPointer(window)); }
@@ -492,7 +497,10 @@ AppState& state(GLFWwindow* window) { return *static_cast<AppState*>(glfwGetWind
 void captureMouse(GLFWwindow* window, bool captured) {
     auto& app = state(window);
     app.capture = captured;
-    if (!captured) { app.interaction.cancel(); app.weapons.cancelTrigger(); }
+    if (!captured) {
+        app.interaction.cancel(); app.weapons.cancelTrigger();
+        app.keys[GLFW_KEY_LEFT_ALT] = app.keys[GLFW_KEY_RIGHT_ALT] = false;
+    }
     if (!captured) app.actionSelection.close();
     app.firstMouse = true;
     if (!app.hidden) glfwSetInputMode(window, GLFW_CURSOR,
@@ -507,8 +515,19 @@ void framebufferCallback(GLFWwindow* window, int width, int height) {
 
 void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     auto& app = state(window);
+    const bool wasTemporaryHandling = app.temporaryHandling();
     if (key >= 0 && key <= GLFW_KEY_LAST)
         app.keys[static_cast<std::size_t>(key)] = action != GLFW_RELEASE && app.hudScreen == viewer::HudScreen::Gameplay;
+    if (key == GLFW_KEY_LEFT_ALT || key == GLFW_KEY_RIGHT_ALT) {
+        if (wasTemporaryHandling != app.temporaryHandling()) {
+            app.interaction.cancel(); app.weapons.cancelTrigger(); app.actionSelection.close();
+            if (app.temporaryHandling()) while (app.rig.camera().viewMode() != viewer::Camera::ViewMode::original)
+                app.rig.camera().cycleViewMode();
+        }
+        if (action == GLFW_PRESS && app.driver.occupied() && app.hudScreen == viewer::HudScreen::Gameplay && app.cars)
+            app.driver.toggleThirdPerson(*app.cars, app.rig.camera(), app.world);
+        return;
+    }
     if (action != GLFW_PRESS) return;
     if ((key >= GLFW_KEY_F1 && key <= GLFW_KEY_F4) ||
         (key == GLFW_KEY_ESCAPE && app.hudScreen != viewer::HudScreen::Gameplay)) {
@@ -530,7 +549,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
             app.weapons.cancelTrigger(); app.interaction.cancel(); app.proneToggleQueued = false;
             while (app.rig.camera().viewMode() != viewer::Camera::ViewMode::original)
                 app.rig.camera().cycleViewMode();
-            std::cout << (app.driver.occupied() ? (app.driver.driving() ? "Driving: WASD, Space brake, Enter exit when stopped\n" : "Passenger: mouse look, Enter exit when stopped\n") : "Left vehicle\n");
+            std::cout << (app.driver.occupied() ? (app.driver.driving() ? "Driving: WASD, Space brake, Enter exit when stopped\n" : "Passenger: mouse look, Alt camera, Enter exit when stopped\n") : "Left vehicle\n");
         } else std::cout << "Enter needs a nearby stopped car, or a clear exit beside a stopped car\n";
         return;
     }
@@ -538,22 +557,15 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         key != GLFW_KEY_LEFT_ALT && key != GLFW_KEY_RIGHT_ALT) return;
     if (key == GLFW_KEY_ESCAPE && app.actionSelection.open()) { app.actionSelection.close(); return; }
     if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(window, GLFW_TRUE);
-    else if (key == GLFW_KEY_TAB) {
-        app.weapons.cancelTrigger();
-        app.actionSelection.close();
-        app.interaction.toggleMode();
-        std::cout << "Control mode: " << app.interaction.modeName() << '\n';
-    } else if (key == GLFW_KEY_GRAVE_ACCENT || (key >= GLFW_KEY_1 && key <= GLFW_KEY_9)) {
-        app.actionSelection.highlight(key == GLFW_KEY_GRAVE_ACCENT ? 0 : key - GLFW_KEY_1 + 1);
+    else if (key == GLFW_KEY_0 || key == GLFW_KEY_GRAVE_ACCENT || (key >= GLFW_KEY_1 && key <= GLFW_KEY_9)) {
+        app.interaction.cancel();
+        app.actionSelection.highlight((key == GLFW_KEY_0 || key == GLFW_KEY_GRAVE_ACCENT) ? 0 : key - GLFW_KEY_1 + 1);
         app.weapons.cancelTrigger();
     } else if (key == GLFW_KEY_R) {
-        if (app.weaponSwitch.pending() || app.actionSelection.open()) return;
+        if (app.temporaryHandling() || app.weaponSwitch.pending() || app.actionSelection.open()) return;
         if (app.weaponReload.begin(app.weapons, app.inventory, viewer::SimulationClock::instance().seconds()) && app.audio)
             app.audio->reload(app.weapons.slot());
         std::cout << app.weapons.status() << '\n';
-    } else if ((key == GLFW_KEY_LEFT_ALT || key == GLFW_KEY_RIGHT_ALT) && app.driver.driving()) {
-        if (app.driver.toggleThirdPerson(*app.cars,app.rig.camera(),app.world))
-            std::cout << (app.driver.thirdPerson()?"Driving camera: third person\n":"Driving camera: first person\n");
     } else if (key == GLFW_KEY_F12) captureMouse(window, !app.capture);
     else if (key == GLFW_KEY_F && app.capture && app.groundItems) {
         if (app.weaponSwitch.pending() || app.weaponReload.pending()) return;
@@ -604,7 +616,7 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
     }
     if (!app.capture || app.hudScreen != viewer::HudScreen::Gameplay) return;
     if (!app.firstMouse && std::isfinite(x) && std::isfinite(y))
-        app.interaction.look(app.rig.camera(), static_cast<float>(x - app.lastX), static_cast<float>(app.lastY - y), glfwGetTime());
+        app.interaction.look(app.rig.camera(), static_cast<float>(x - app.lastX), static_cast<float>(app.lastY - y));
     app.lastX = x;
     app.lastY = y;
     app.firstMouse = false;
@@ -620,22 +632,26 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     }
     if ((button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT) && action == GLFW_RELEASE) {
         if (button == GLFW_MOUSE_BUTTON_LEFT) app.weapons.trigger(false);
-        app.interaction.release(button == GLFW_MOUSE_BUTTON_LEFT ? viewer::Hand::Left : viewer::Hand::Right, glfwGetTime());
+        if (app.handling() && !app.weaponSwitch.pending() && app.capture &&
+            app.doors && app.boxes)
+            app.interaction.release(button == GLFW_MOUSE_BUTTON_LEFT ? viewer::Hand::Left : viewer::Hand::Right,
+                app.rig.camera(), *app.doors, *app.boxes, app.world, glfwGetTime());
         return;
     }
     if (action != GLFW_PRESS || !app.capture || app.driver.occupied() || app.hudScreen != viewer::HudScreen::Gameplay) return;
     if (button == GLFW_MOUSE_BUTTON_LEFT && app.actionSelection.open()) {
         const auto target = app.actionSelection.confirm(viewer::actionShortcuts(app.inventory), app.weapons.slot());
-        if (target) app.weaponSwitch.begin(app.weapons, app.inventory, *target, viewer::SimulationClock::instance().seconds());
+        if (target && app.weaponSwitch.begin(app.weapons, app.inventory, *target, viewer::SimulationClock::instance().seconds()))
+            app.interaction.cancel();
         return; // Confirmation never fires, punches or grabs an object.
     }
     if (app.weaponSwitch.pending() || app.weaponReload.pending()) return;
-    if (button == GLFW_MOUSE_BUTTON_RIGHT && app.interaction.mode() == viewer::ControlMode::Combat) {
+    if (button == GLFW_MOUSE_BUTTON_RIGHT && !app.handling()) {
         if (app.weapons.equipped().owned && app.weapons.equipped().config.hasScope) app.rig.camera().cycleViewMode();
         return;
     }
     if (button != GLFW_MOUSE_BUTTON_LEFT && button != GLFW_MOUSE_BUTTON_RIGHT) return;
-    if (app.interaction.mode() == viewer::ControlMode::Interaction) {
+    if (app.handling()) {
         const auto hand = button == GLFW_MOUSE_BUTTON_LEFT ? viewer::Hand::Left : viewer::Hand::Right;
         if (app.doors && app.boxes && app.interaction.press(hand, app.rig.camera(), *app.doors, *app.boxes, app.world, glfwGetTime()) &&
             app.interaction.grabbedDoor() && hand == viewer::Hand::Left) {
@@ -659,8 +675,9 @@ void scrollCallback(GLFWwindow* window, double, double y) {
     }
     if (state(window).hudScreen != viewer::HudScreen::Gameplay) return;
     auto& app = state(window);
-    if (app.capture && !app.driver.occupied() && app.interaction.mode() == viewer::ControlMode::Combat) {
+    if (app.capture && !app.driver.occupied()) {
         if (std::isfinite(y) && y != 0) {
+            app.interaction.cancel();
             app.actionSelection.cycle(y > 0 ? 1 : -1, viewer::actionShortcuts(app.inventory), app.weapons.slot());
             app.weapons.cancelTrigger();
         }
@@ -685,7 +702,7 @@ void focusCallback(GLFWwindow* window, int focused) {
 // True only for a firearm shot that should pulse the held muzzle light.
 bool updateWeapons(AppState& app, double seconds) {
     if (app.driver.occupied() || !app.capture || app.actionSelection.open() || app.weaponSwitch.pending() ||
-        app.interaction.mode() != viewer::ControlMode::Combat || !app.weapons.equipped().owned) {
+        app.handling() || !app.weapons.equipped().owned) {
         app.weapons.cancelTrigger();
         return false;
     }
@@ -854,7 +871,7 @@ void inputSelfTest(GLFWwindow* window) {
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
     if (app.rig.camera().projection(1.0f) != originalProjection)
         throw std::runtime_error("Unscoped pistol changed the view mode");
-    choose(3);
+    choose(5);
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
     const auto tenDegreeProjection = app.rig.camera().projection(1.0f);
     const float tenDegrees = glm::degrees(2.0f * std::atan(1.0f / tenDegreeProjection[1][1]));
@@ -876,13 +893,15 @@ void inputSelfTest(GLFWwindow* window) {
     app.weapons.equip(0);
     key(window, GLFW_KEY_0, 0, GLFW_PRESS, 0);
     key(window, GLFW_KEY_0, 0, GLFW_RELEASE, 0);
-    if (app.weapons.slot() != 0)
-        throw std::runtime_error("The number-row 0 position must not select fists");
-    // Physical key left of 1 is hotbar zero and must leave the equipped pistol unchanged.
+    if (app.actionSelection.selected() != 0 || app.weapons.slot() != 0)
+        throw std::runtime_error("Number-row 0 must preview Object handling without equipping");
     choose(0);
-    if (app.weapons.slot() != 0 || app.weaponSwitch.pending())
+    if (app.weapons.slot() != viewer::handlingSlot)
+        throw std::runtime_error("Default slot 0 failed to equip Object handling");
+    choose(0);
+    if (app.weaponSwitch.pending())
         throw std::runtime_error("Confirming the current action must have no switch delay");
-    choose(5);
+    choose(1);
     if (app.weapons.slot() != viewer::punchSlot || app.weapons.equipped().config.hasScope)
         throw std::runtime_error("Configured Punch shortcut selection failed");
     if (app.body && app.melee) {
@@ -912,11 +931,11 @@ void inputSelfTest(GLFWwindow* window) {
         app.body->follow(app.rig.camera().position(), app.rig.camera().direction(), false);
     }
     for (int slot = 0; slot < static_cast<int>(viewer::weaponIds.size()); ++slot) {
-        choose(slot);
+        choose(slot + 2);
         if (app.weapons.slot() != static_cast<std::size_t>(slot))
             throw std::runtime_error("Weapon selection callback failed");
     }
-    choose(2);
+    choose(3);
     const auto loaded = app.weapons.equipped().loaded;
     mouse(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
     updateWeapons(app, 0);
@@ -984,26 +1003,28 @@ void inputSelfTest(GLFWwindow* window) {
         updateWeapons(shot, 10);
         if (thrown.poses().size() != 1) throw std::runtime_error("Holding left click repeated a grenade throw");
     }
+    app.weapons.equip(viewer::handlingSlot);
     key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
-    if (!app.capture || app.interaction.mode() != viewer::ControlMode::Interaction)
-        throw std::runtime_error("Tab failed to select interaction mode with mouse captured");
-    key(window, GLFW_KEY_TAB, 0, GLFW_REPEAT, 0);
-    if (app.interaction.mode() != viewer::ControlMode::Interaction)
-        throw std::runtime_error("Tab repeat changed the control mode");
+    if (!app.capture || app.weapons.slot() != viewer::handlingSlot)
+        throw std::runtime_error("Tab must leave the selected skill unchanged");
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
     if (app.rig.camera().projection(1.0f) != originalProjection)
-        throw std::runtime_error("Interaction right hand changed zoom");
-    key(window, GLFW_KEY_TAB, 0, GLFW_RELEASE, 0);
-    key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
-    key(window, GLFW_KEY_TAB, 0, GLFW_RELEASE, 0);
-    if (app.interaction.mode() != viewer::ControlMode::Combat)
-        throw std::runtime_error("Tab failed to restore combat mode");
+        throw std::runtime_error("Object handling right click changed zoom");
+    app.weapons.equip(0);
     const auto cameraBeforeAlt = app.rig.camera();
     for (int code : {GLFW_KEY_LEFT_ALT, GLFW_KEY_RIGHT_ALT}) {
+        const auto equippedBeforeAlt = app.weapons.slot();
+        const auto loadedBeforeAlt = app.weapons.equipped().loaded;
         key(window, code, 0, GLFW_PRESS, 0);
+        if (!app.temporaryHandling() || app.weapons.slot() != equippedBeforeAlt)
+            throw std::runtime_error("Held Alt must enable handling without changing the equipped weapon");
+        app.weapons.trigger(true); updateWeapons(app, 20);
+        if (app.weapons.equipped().loaded != loadedBeforeAlt)
+            throw std::runtime_error("Temporary handling fired the held weapon");
         key(window, code, 0, GLFW_REPEAT, 0);
         key(window, code, 0, GLFW_RELEASE, 0);
+        if (app.temporaryHandling()) throw std::runtime_error("Alt release must restore weapon controls");
         if (!app.capture || app.driver.thirdPerson() || app.rig.camera().position() != cameraBeforeAlt.position() ||
             app.rig.camera().view() != cameraBeforeAlt.view())
             throw std::runtime_error("Alt must leave mouse capture and the on-foot camera unchanged");
@@ -1031,7 +1052,7 @@ void inputSelfTest(GLFWwindow* window) {
     app.inventory = originalInventory;
     if (wasWalking && !app.rig.enterWalking()) throw std::runtime_error("Failed to restore walking mode after input test");
     app.firstMouse = true;
-    std::cout << "Input self-test passed: movement, mouse capture, control modes, flashlight toggle, weapon selection/fire/reload/discard/pickup, shot occlusion, scope, resize, Escape\n";
+    std::cout << "Input self-test passed: movement, mouse capture, object-handling skill, flashlight toggle, weapon selection/fire/reload/discard/pickup, shot occlusion, scope, resize, Escape\n";
 }
 
 void fpsInputSelfTest(GLFWwindow* window) {
@@ -1480,7 +1501,7 @@ int run(const Options& options) {
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
               << " m/s; F1 Inventory, F2 Skills, F3 Health, F4 Map, F8 free-fly, F9 walk, F10 collisions, WASD move, Space jump, Ctrl hold crouch/airborne tuck, "
               << (proneKeyName ? proneKeyName : "C")
-              << " toggle prone, mouse look, Tab Combat/Interaction, F throw weapon, G pick up weapon, L flashlight, Home frame scene, Alt driving camera, F12 cursor, Escape quit\n";
+              << " toggle prone, mouse look, F throw weapon, G pick up weapon, L flashlight, Home frame scene, Alt handling / vehicle camera, F12 cursor, Escape quit\n";
     std::array<viewer::Model,viewer::weaponIds.size()> droppedModels;
     for (std::size_t i=0; i<droppedModels.size(); ++i)
         droppedModels[i] = viewer::loadModel(std::filesystem::path(VIEWER_WEAPON_ASSETS)/(std::string(viewer::weaponIds[i])+".glb"));
@@ -1519,7 +1540,7 @@ int run(const Options& options) {
     glm::vec3 muzzleModelPosition{0};
     renderer.loadGrenadeModel(std::filesystem::path(VIEWER_WEAPON_ASSETS) / "he_grenade.glb");
     std::uint32_t lastExplosion = 0;
-    std::cout << "Actions: key left of 1 previews slot 0; 1-9 preview hotbar slots, wheel cycles, left click confirms; R reload\n" << app.weapons.status() << '\n';
+    std::cout << "Actions: 0 or key left of 1 previews Object handling in slot 0; 1-9 preview hotbar slots, wheel cycles, left click confirms; R reload\n" << app.weapons.status() << '\n';
     renderer.setTreeCulling(options.treeCulling);
     renderer.setZombieCulling(options.zombieCulling);
     renderer.setZombieDistanceDetail(options.zombieDistanceDetail);
@@ -1614,8 +1635,7 @@ int run(const Options& options) {
         float birdSeconds = 0;
         const auto followPlayerBody = [&] {
             playerBody.follow(app.rig.camera().position(), app.rig.camera().direction(),
-                !app.driver.occupied() && !app.weaponSwitch.pending() && app.weapons.slot() == viewer::punchSlot &&
-                app.interaction.mode() == viewer::ControlMode::Combat);
+                !app.driver.occupied() && !app.weaponSwitch.pending() && !app.handling() && app.weapons.slot() == viewer::punchSlot);
         };
         const auto fireWeapons = [&] {
             viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::weapons);
@@ -1763,10 +1783,10 @@ int run(const Options& options) {
         if (!app.driver.occupied()) presentedCamera.setPosition(playerPresentation.eye(presentationAlpha));
         const auto presentedBody = playerPresentation.pose(presentationAlpha);
         const auto viewCamera = app.weaponMotion.aimCamera(presentedCamera, app.weapons.slot(),
-            simulationClock.seconds(), !app.driver.occupied() && app.interaction.mode() == viewer::ControlMode::Combat && app.weapons.equipped().owned);
+            simulationClock.seconds(), !app.driver.occupied() && !app.handling() && app.weapons.equipped().owned);
         auto flash = muzzleFlash.light(simulationClock.seconds());
         flash.position = weaponOverlay.muzzlePosition(muzzleSlot, muzzleModelPosition,
-            app.weaponMotion.pose(muzzleSlot, simulationClock.seconds()));
+            app.weaponMotion.pose(muzzleSlot, simulationClock.seconds(), app.temporaryHandling()));
         renderer.setMuzzleFlash(flash.transformed(glm::inverse(viewCamera.view())));
         const double preparationStart = glfwGetTime();
         intervalSimulationSeconds += preparationStart - simulationStart;
@@ -1795,8 +1815,7 @@ int run(const Options& options) {
             if (birdRenderer)
                 birdRenderer->draw(viewCamera, float(renderWidth) / renderHeight,
                     app.displayedAnimationSeconds, birds->birds());
-            if (!app.driver.occupied() && !app.weaponSwitch.pending() && app.weapons.slot() == viewer::punchSlot &&
-                app.interaction.mode() == viewer::ControlMode::Combat)
+            if (!app.driver.occupied() && !app.weaponSwitch.pending() && !app.handling() && app.weapons.slot() == viewer::punchSlot)
                 bodyRenderer.drawPose(presentedBody, viewCamera.projection(float(renderWidth) / renderHeight) *
                                        viewCamera.view(), renderWidth, renderHeight,
                                        (1.f - presentationAlpha) * viewer::PhysicsWorld::fixedStepSeconds);
@@ -1806,11 +1825,11 @@ int run(const Options& options) {
         const auto& heldWeapon = app.weapons.equipped();
         {
             viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::overlay);
-            if (!app.driver.occupied() && !app.weaponSwitch.pending() && heldWeapon.owned && app.interaction.mode() == viewer::ControlMode::Combat &&
+            if (!app.driver.occupied() && !app.weaponSwitch.pending() && heldWeapon.owned && app.weapons.slot() != viewer::handlingSlot &&
                 app.rig.camera().viewMode() == viewer::Camera::ViewMode::original &&
                 viewer::weaponViewVisible(heldWeapon.config, heldWeapon.loaded, simulationClock.seconds() < heldWeapon.readyAt))
                 weaponOverlay.draw(app.weapons.slot(), renderWidth, renderHeight, flash,
-                                   app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds()));
+                                   app.weaponMotion.pose(app.weapons.slot(), simulationClock.seconds(), app.temporaryHandling()));
             const auto overlayViewport = renderer.beginOverlay(app.width, app.height);
             reticle.draw(app.rig.camera().viewMode(), overlayViewport.width, overlayViewport.height);
         }
@@ -1826,13 +1845,13 @@ int run(const Options& options) {
         hudState.movement = app.driver.occupied() ? (app.driver.driving() ? "DRIVING" : "PASSENGER") :
             !app.rig.walking() ? "FREE FLY" : app.rig.player().stance() == viewer::PlayerStance::Prone ? "PRONE" :
             app.rig.player().stance() == viewer::PlayerStance::Crouched ? "CROUCH" : "STAND";
-        hudState.mode = app.interaction.mode() == viewer::ControlMode::Combat ? "COMBAT" : "INTERACT";
+        hudState.mode = app.handling() ? "OBJECT HANDLING" : app.weapons.slot() >= viewer::punchSlot ? "SKILL" : "ITEM";
         const auto velocity = app.driver.car() ? cars.velocity(*app.driver.car()) : app.playerVelocity;
         hudState.speedMetersPerSecond = !app.driver.occupied() && !app.rig.walking() && dt > 0 ?
             glm::length(presentedCamera.position() - previousCameraPosition) / dt : glm::length(glm::vec2(velocity.x, velocity.z));
         hudState.equipment = heldWeapon.owned ? heldWeapon.config.name : "EMPTY HANDS";
         hudState.slot = heldWeapon.owned ? static_cast<int>(app.weapons.slot()) : -1;
-        if (heldWeapon.owned && app.weapons.slot() != viewer::punchSlot) {
+        if (heldWeapon.owned && app.weapons.slot() < viewer::weaponIds.size()) {
             hudState.loaded = heldWeapon.loaded;
             hudState.reserve = heldWeapon.reserve;
         }
@@ -1843,7 +1862,9 @@ int run(const Options& options) {
         hudState.reloadRemaining = app.weaponReload.remaining(simulationClock.seconds());
         hudState.reloadDuration = app.weaponReload.duration();
         if (app.driver.occupied()) hudState.prompt = "Enter: exit vehicle";
-        else if (app.interaction.grabbing()) hudState.prompt = "Holding object";
+        else if (app.interaction.charging()) hudState.prompt = "Release right mouse: throw / push";
+        else if (app.interaction.grabbing()) hudState.prompt = "Release left: drop; hold right: throw";
+        else if (app.handling()) hudState.prompt = "Hold left: drag; right click / hold: push";
         else if (birds && app.rig.walking() && app.vitals.health() > 0) {
             for (const auto& flock : birds->flocks()) {
                 if (flock.mode == viewer::BirdFlockMode::gathering || flock.mode == viewer::BirdFlockMode::swooping) {
@@ -1912,7 +1933,7 @@ int run(const Options& options) {
             speedStatus << std::fixed << std::setprecision(2) << speed;
             const auto entry = !app.driver.occupied() && app.rig.walking() ?
                 viewer::vehicleEntry(cars, app.rig.camera().position(), collision) : std::optional<viewer::VehicleSeatRef>{};
-            const auto caption = title + " | " + (app.driver.occupied() ? (app.driver.driving() ? "Driving" : "Passenger | Mouse look, Enter exit") : app.rig.modeName()) + " | " + app.interaction.modeName()
+            const auto caption = title + " | " + (app.driver.occupied() ? (app.driver.driving() ? "Driving" : "Passenger | Mouse look, Enter exit") : app.rig.modeName()) + " | " + app.weapons.equipped().config.name
                 + " | " + app.weapons.status()
                 + (app.interaction.grabbing() ? " (holding)" : "") + status + " | " + std::to_string(fps)
                 + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + " | CPU sim " + simulationTime + townStatus + treeStatus + zombieStatus + clockStatus.str() + " | " + speedStatus.str() + " m/s"

@@ -5,13 +5,8 @@
 #include <cmath>
 
 namespace viewer {
-void DoorInteraction::toggleMode() {
-    release();
-    mode_ = mode_ == ControlMode::Combat ? ControlMode::Interaction : ControlMode::Combat;
-}
 bool DoorInteraction::press(const Camera& camera, DoorLayer& doors, const CollisionWorld& world) {
     release();
-    if (mode_ != ControlMode::Interaction) return false;
     const auto hit = doors.raycast(camera.position(), camera.direction(), 1.5f);
     if (!hit || !world.lineOfSight(camera.position(), hit->point)) return false;
     // Yaw defines a stable horizontal basis even when looking almost vertically.

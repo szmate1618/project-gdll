@@ -33,6 +33,13 @@ void recoilAndPump() {
             motion.pose(2,10.5).pumpTravel < rear, "Shotgun must pull back, then return its pump");
     require(motion.pose(2,10.8).pumpTravel == 0, "Pump must finish before the default next shot");
     require(motion.pose(0,10.36).pumpTravel == 0, "Other weapons must not pump");
+    for (std::size_t slot = 0; slot < 5; ++slot) {
+        const auto raised = motion.pose(slot, 20), lowered = motion.pose(slot, 20, true);
+        const auto transform = viewer::animatedWeaponPose(glm::mat4(1), lowered);
+        require(lowered.offset.y < raised.offset.y && (transform * glm::vec4(0, 0, -1, 0)).y < -.4f,
+                "Temporary handling must lower the weapon and point its muzzle down");
+        require(atRest(motion.pose(slot, 20)), "Releasing temporary handling must restore the original weapon pose");
+    }
     viewer::WeaponMotion automatic;
     for (int i=0;i<200;++i) automatic.fire(1, i*.08);
     const auto held = automatic.pose(1,199*.08);

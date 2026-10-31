@@ -7,6 +7,7 @@
 
 #include <GLFW/glfw3.h>
 #include <array>
+#include <algorithm>
 #include <iostream>
 #include <stdexcept>
 
@@ -38,6 +39,10 @@ void render(const std::filesystem::path& capture) {
     viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
     renderer.resize(width, height); renderer.setHaze(false); renderer.setGroundFog(false); renderer.setShadows(false);
     viewer::Camera camera;
+    camera.setPosition({3, 4.4f, 3}); camera.setOrientation(50, 0);
+    renderer.setShadows(true); renderer.render(camera);
+    const auto bareCorner = pixel(camera, {5, 4.5f, 5.97f});
+    renderer.setShadows(false);
     camera.setPosition({2, 1.65f, 5.5f}); camera.setOrientation(-90, 0);
     renderer.render(camera);
     const auto bare = pixel(camera, {2, 1.65f, 4});
@@ -48,7 +53,10 @@ void render(const std::filesystem::path& capture) {
     camera.setPosition({0, 1.65f, 5.6f});
     renderer.render(camera);
     const auto closed = depth(camera, {.35f, 1.4f, 4});
-    doors.setAngle(3, -1.5f);
+    const auto& plan = layer.resident().begin()->second;
+    const auto entry = std::find_if(plan.doors.begin(), plan.doors.end(), [](const viewer::HouseInteriorDoor& d) { return d.entrance == 1; });
+    require(entry != plan.doors.end(), "Rendering fixture needs its front anteroom door");
+    doors.setAngle(entry->id, -1.5f);
     renderer.updateFloorplans(layer); renderer.render(camera);
     require(depth(camera, {.35f, 1.4f, 4}) > closed + .00001f, "The interactive interior panel must visibly uncover its doorway");
     // Camera sees the entry partition, the swung panel and the living space.
@@ -57,7 +65,64 @@ void render(const std::filesystem::path& capture) {
     if (!capture.empty()) renderer.writeScreenshot(capture);
     renderer.setNight(true); renderer.setFlashlight(true); renderer.setFlashlightShadows(true); renderer.render(camera);
     if (!capture.empty()) renderer.writeScreenshot(capture.string() + ".night.ppm");
+    if (!plan.stairs.empty()) {
+        for (const auto& door : plan.doors) doors.setAngle(door.id, door.panel.inward ? -1.5f : 1.5f);
+        renderer.updateFloorplans(layer);
+        renderer.setNight(false); renderer.setFlashlight(false);
+        const auto& stair = plan.stairs.front();
+        const auto& room = plan.rooms.at(stair.room);
+        glm::vec2 center(0); for (const auto p : room.polygon) center += p / float(room.polygon.size());
+        const auto aim = [&](glm::vec3 eye, glm::vec3 target) {
+            const auto d = target - eye;
+            camera.setPosition(eye);
+            camera.setOrientation(glm::degrees(std::atan2(d.z, d.x)),
+                glm::degrees(std::atan2(d.y, glm::length(glm::vec2(d.x, d.z)))));
+        };
+        auto direction = stair.top - stair.bottom; direction.y = 0; direction = glm::normalize(direction);
+        auto towardRoom = glm::vec3(center.x, plan.floor, center.y) - stair.bottom; towardRoom.y = 0;
+        towardRoom -= direction * glm::dot(towardRoom, direction); towardRoom = glm::normalize(towardRoom);
+        aim(stair.bottom + direction * .3f + towardRoom * 1.2f + glm::vec3(0, 1.65f, 0),
+            (stair.bottom + stair.top) * .5f + glm::vec3(0, .4f, 0));
+        renderer.setShadows(false); renderer.render(camera);
+        if (!capture.empty()) renderer.writeScreenshot(capture.string() + ".stairs.ppm");
+        aim(stair.top + direction * .5f + glm::vec3(0, 1.65f, 0), (stair.bottom + stair.top) * .5f);
+        renderer.render(camera);
+        if (!capture.empty()) renderer.writeScreenshot(capture.string() + ".upper.ppm");
+    }
+    renderer.setNight(false); renderer.setFlashlight(false); renderer.setShadows(true);
+    camera.setPosition({3, 6.1f, 0}); camera.setOrientation(0, 0);
+    renderer.render(camera);
+    if (!capture.empty()) renderer.writeScreenshot(capture.string() + ".roof-seam.ppm");
+    const auto seam = pixel(camera, {5, 6.45f, 0});
+    const auto wall = pixel(camera, {5, 6.0f, 0});
+    float seamDifference = 0;
+    for (int channel = 0; channel < 3; ++channel) seamDifference += std::abs(int(seam[channel]) - int(wall[channel]));
+    require(seamDifference < 12, "Closed ceiling must block the sunlight stripe at the existing wall/roof seam");
+    renderer.setShadows(false); renderer.render(camera);
+    const auto unshadowed = pixel(camera, {5, 6.45f, 0});
+    int sunlightDifference = 0;
+    for (int channel = 0; channel < 3; ++channel) sunlightDifference += int(unshadowed[channel]) - int(seam[channel]);
+    require(sunlightDifference > 20, "Disabling shadows must also bypass the interior shell's sun occlusion");
+    renderer.setShadows(true);
+    camera.setPosition({0, 4.4f, 4.5f}); camera.setOrientation(180, -17);
+    renderer.render(camera);
+    if (!capture.empty()) renderer.writeScreenshot(capture.string() + ".floor-seam.ppm");
+    const auto floorSeam = pixel(camera, {-4.97f, 3, 4.5f});
+    const auto floorInside = pixel(camera, {-4.3f, 3, 4.5f});
+    int floorDifference = 0;
+    for (int channel = 0; channel < 3; ++channel) floorDifference += std::abs(int(floorSeam[channel]) - int(floorInside[channel]));
+    require(floorDifference < 12, "Closed exterior wall must block sunlight at its upper-floor contact edge");
+    camera.setPosition({3, 4.4f, 3}); camera.setOrientation(50, 0);
+    renderer.render(camera);
+    if (!capture.empty()) renderer.writeScreenshot(capture.string() + ".corner-seam.ppm");
+    const auto cornerSeam = pixel(camera, {5, 4.5f, 5.97f});
+    const auto wallInside = pixel(camera, {5, 4.5f, 5.4f});
+    int cornerDifference = 0;
+    for (int channel = 0; channel < 3; ++channel) cornerDifference += std::abs(int(cornerSeam[channel]) - int(wallInside[channel]));
+    require(cornerDifference < 12, "Closed wall corner must block sunlight along the vertical contact edge");
     layer.update({glm::vec3(100)}); renderer.updateFloorplans(layer); renderer.render(camera);
+    require(pixel(camera, {5, 4.5f, 5.97f}) == bareCorner,
+            "Eviction must clear the exact interior shadow and restore the bare shell's lighting");
     GLboolean depthWrite = GL_FALSE; glGetBooleanv(GL_DEPTH_WRITEMASK, &depthWrite);
     require(depthWrite == GL_TRUE, "Streamed interiors must retain opaque depth writes");
     viewer::Renderer::checkErrors("floorplan camera, shadow, door movement and eviction");

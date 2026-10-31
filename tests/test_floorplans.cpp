@@ -44,7 +44,7 @@ void streaming(const glm::mat4& node) {
     viewer::PhysicsScene scene(physics, collision, model.boundsMin, model.boundsMax);
     viewer::FloorplanLayer layer(model, doors, collision);
     const auto point = [&](glm::vec3 p) { return glm::vec3(node * glm::vec4(p, 1)); };
-    require(doors.count() == 4 && !doors.present(2), "Runtime IDs must be reserved without panel geometry");
+    require(doors.count() == 10 && !doors.present(2), "Runtime IDs must be reserved without panel geometry");
     layer.update({point({0, 1.7f, 8})});
     require(layer.residentCount() == 0, "Closed exterior doors must not generate interiors");
     viewer::ContactCandidates doorCache;
@@ -58,13 +58,19 @@ void streaming(const glm::mat4& node) {
     layer.update({point({0, 1.7f, -26.1f})});
     require(layer.residentCount() == 0, "Generation must not exceed the 20 metre door radius");
     layer.update({point({0, 1.7f, -25.9f})});
-    require(layer.residentCount() == 1 && doors.present(2) && doors.present(3), "Either open entrance must generate both entries together");
+    require(layer.residentCount() == 1, "Either open entrance must generate the complete house layout");
     collision.visitContacts(point({0, .1f, -4}), .25f, 1.7f, 0, 0, countDoor, &doorCache);
     require(doorContacts > 0, "Generation must invalidate a previously cached door-free region");
     const auto& plan = layer.resident().begin()->second;
-    require(plan.rooms.size() == 3, "Two opposite doors need two entries and a living polygon");
-    require(std::abs(area(plan.rooms[0].polygon) - 20) < .01f && std::abs(area(plan.rooms[1].polygon) - 20) < .01f &&
-            std::abs(area(plan.rooms[2].polygon) - 80) < .01f, "Entries must be 2 m deep, full width, and leave the exact living remainder");
+    float totalArea = 0; std::size_t livingRooms = 0;
+    for (const auto& room : plan.rooms) { totalArea += area(room.polygon); livingRooms += room.kind == viewer::HouseRoom::Kind::Living; }
+    require(std::abs(totalArea - 120) < .01f && livingRooms >= 1 && livingRooms <= 3,
+            "Room polygons must tile the footprint with one to three living rooms");
+    const auto entry = std::find_if(plan.doors.begin(), plan.doors.end(), [](const viewer::HouseInteriorDoor& d) { return d.entrance == 0; });
+    require(entry != plan.doors.end(), "Streaming fixture requires its first entry partition");
+    const auto entryId = entry->id;
+    std::vector<std::size_t> generatedIds;
+    for (const auto& door : plan.doors) generatedIds.push_back(door.id);
     require(plan.upperFloors.size() == 1 && std::abs(plan.upperFloors[0] - (node[3].y + 3)) < .001f,
             "Second window row must create the separating upper floor");
     const auto structure = plan.structure;
@@ -75,7 +81,14 @@ void streaming(const glm::mat4& node) {
     doors.setAngle(0, 0);
     layer.update({point({0, 1.7f, 7})});
     require(layer.residentCount() == 1, "Closing the exterior door must retain the nearby interior");
-    const auto upper = point({2, 3, 0});
+    glm::vec3 upper(0);
+    bool foundSupport = false;
+    for (const float x : {-3.f, 0.f, 3.f}) for (const float z : {-2.f, 0.f, 2.f}) {
+        const auto p = point({x, 3, z});
+        const auto ground = collision.walkingGroundAt(p.x, p.z, p.y - .05f, p.y + .05f);
+        if (ground && ground->normal.y > .99f && std::abs(ground->height - p.y) < .001f) { upper = p; foundSupport = true; }
+    }
+    require(foundSupport, "Upper storey must retain usable floor around its staircase hole");
     viewer::WalkingGroundCache groundCache;
     const auto support = collision.walkingGroundAt(upper.x, upper.z, upper.y - .2f, upper.y + .2f, &groundCache);
     require(support && std::abs(support->height - upper.y) < .001f && !support->terrain, "Walking must stand on the generated upper plane");
@@ -87,16 +100,16 @@ void streaming(const glm::mat4& node) {
     std::size_t count = 0;
     collision.visitContacts(wallFeet, .25f, 1.7f, 0, 0, {&count, [](void* p, const viewer::Contact&) { ++*static_cast<std::size_t*>(p); return true; }}, &contacts);
     require(count > 0, "Entry walls must participate in cached capsule collision");
-    doors.setAngle(2, -.8f);
-    require(glm::dot(glm::vec3(doors.transform(2) * glm::vec4(doors.panel(2).center, 1)) - doors.panel(2).center,
-                     doors.panel(2).outward) < -.1f, "Negative interior angle must swing the panel into the living space");
-    doors.setAngle(2, 0);
-    const auto& panel = doors.panel(2);
-    doors.applyImpulse(2, -panel.outward * 4.f, panel.center + glm::cross(glm::vec3(0, 1, 0), panel.outward) * .4f);
+    doors.setAngle(entryId, -.8f);
+    require(glm::dot(glm::vec3(doors.transform(entryId) * glm::vec4(doors.panel(entryId).center, 1)) - doors.panel(entryId).center,
+                     doors.panel(entryId).outward) < -.1f, "Negative interior angle must swing the panel into the living space");
+    doors.setAngle(entryId, 0);
+    const auto& panel = doors.panel(entryId);
+    doors.applyImpulse(entryId, -panel.outward * 4.f, panel.center + glm::cross(glm::vec3(0, 1, 0), panel.outward) * .4f);
     for (int i = 0; i < 90; ++i) { scene.prepare(boxes); physics->step(1.f / 60); }
-    require(doors.angle(2) < -.05f && doors.angle(2) > -2, "Interactive hinge impulses must open inward within the hinge limit");
+    require(doors.angle(entryId) < -.05f && doors.angle(entryId) > -2, "Interactive hinge impulses must open inward within the hinge limit");
     // Box support is uploaded even when the terrain tile was already prepared.
-    const auto boxPosition = point({2, 3.8f, 0});
+    const auto boxPosition = upper + glm::vec3(0, .8f, 0);
     boxes.add(boxPosition, {.5f, .5f, .5f});
     for (int i = 0; i < 120; ++i) { scene.prepare(boxes); physics->step(1.f / 60); }
     require(std::abs(boxes.pose(0).center.y - .25f - upper.y) < .05f, "Generated slabs must physically support props");
@@ -105,7 +118,8 @@ void streaming(const glm::mat4& node) {
     layer.update({point({0, 1.7f, 36})});
     require(layer.residentCount() == 1, "The 30 metre eviction boundary is inclusive from the building footprint");
     layer.update({point({0, 1.7f, 36.2f})});
-    require(layer.residentCount() == 0 && !doors.present(2) && !doors.present(3) && layer.renderModel().draws.empty(),
+    require(layer.residentCount() == 0 && layer.renderModel().draws.empty() &&
+            std::all_of(generatedIds.begin(), generatedIds.end(), [&](std::size_t id) { return !doors.present(id); }),
             "Eviction must release all generated plans, meshes, and panels");
     require(!collision.walkingGroundAt(upper.x, upper.z, upper.y - .2f, upper.y + .2f, &groundCache),
             "Cached support must disappear when the slab is evicted");
@@ -118,7 +132,7 @@ void streaming(const glm::mat4& node) {
     layer.update({point({0, 1.7f, 8})});
     require(identical(structure, layer.resident().begin()->second.structure) && identical(render, layer.renderModel()),
             "Reentry through the other door must regenerate identical geometry and draw ordering");
-    require(std::abs(doors.angle(2)) < .001f, "Evicted door movement must not be preserved locally");
+    require(std::abs(doors.angle(entryId)) < .001f, "Evicted door movement must not be preserved locally");
 }
 void heuristic() {
     for (int variant = 0; variant < 6; ++variant) {
@@ -152,7 +166,7 @@ void activationOrder() {
     viewer::FloorplanLayer plansA(model, a, collisionA), plansB(modelB, b, collisionB);
     a.setAngle(0, .6f); a.setAngle(2, .6f); b.setAngle(0, .6f); b.setAngle(2, .6f);
     plansA.update({a.panel(0).center}); plansB.update({b.panel(2).center});
-    require(a.present(4) && !a.present(6) && !b.present(4) && b.present(6),
+    require(a.present(4) && !a.present(12) && !b.present(4) && b.present(12),
             "Opposite streaming orders must use the same reserved door slots");
     plansA.update({a.panel(0).center, a.panel(2).center});
     plansB.update({b.panel(0).center, b.panel(2).center});

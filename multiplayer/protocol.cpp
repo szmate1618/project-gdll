@@ -151,7 +151,7 @@ void command(Wire& w, Command& c) {
     w.number(c.movement.yawDegrees); w.number(c.pitch);
     w.number(c.drag.x); w.number(c.drag.y);
     w.flag(c.movement.run); w.flag(c.movement.jump); w.flag(c.movement.crouch); w.flag(c.movement.toggleProne);
-    w.flag(c.interaction); w.flag(c.left); w.flag(c.right); w.flag(c.reload); w.integer(c.slot);
+    w.flag(c.cancelInteraction); w.flag(c.objectHandling); w.flag(c.left); w.flag(c.right); w.flag(c.reload); w.integer(c.slot);
     w.flag(c.enterVehicle);
     w.list(c.inventoryActions, 64, [&](viewer::InventoryDragAction& action) {
         auto kind = static_cast<std::uint8_t>(action.kind);
@@ -198,7 +198,7 @@ void command(Wire& w, Command& c) {
         if (!c.left) throw std::runtime_error("Firearm report without firing input");
     } else c.firearmShot.reset();
     if (c.sequence == 0 || std::abs(c.movement.forward) > 1 || std::abs(c.movement.right) > 1 ||
-        std::abs(c.movement.yawDegrees) > 180 || std::abs(c.pitch) > 89 || c.slot > viewer::punchSlot ||
+        std::abs(c.movement.yawDegrees) > 180 || std::abs(c.pitch) > 89 || c.slot > viewer::handlingSlot ||
         std::abs(c.drag.x) > 2000 || std::abs(c.drag.y) > 2000)
         throw std::runtime_error("Invalid multiplayer command");
 }
@@ -437,7 +437,7 @@ void payload(Wire& w, Snapshot& s) {
         }
         if (p.inventoryDragging && hasInventory) throw std::runtime_error("Held complete inventory snapshot");
         if (p.inventoryDragging && !p.inventoryPlacements.empty()) throw std::runtime_error("Invalid held inventory snapshot");
-        if (!p.id || p.slot > viewer::punchSlot || std::abs(p.yaw) > 180 || std::abs(p.pitch) > 89 ||
+        if (!p.id || p.slot > viewer::handlingSlot || std::abs(p.yaw) > 180 || std::abs(p.pitch) > 89 ||
             (p.vehicle != noVehicle && (p.vehicle >= maxVehicles || p.seat >= viewer::maxVehicleSeats)) ||
             (p.vehicle == noVehicle && p.seat != noVehicleSeat))
             throw std::runtime_error("Invalid player snapshot");

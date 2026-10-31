@@ -2,12 +2,13 @@
 #include "interior_fixture.hpp"
 
 namespace house_fixture {
-inline viewer::Model house(const glm::mat4& transform = glm::mat4(1), bool upstairs = true) {
+inline viewer::Model house(const glm::mat4& transform = glm::mat4(1), bool upstairs = true, int storeys = 0) {
     viewer::Model model;
     model.materials.push_back({});
     model.materials[0].doubleSided = true;
     model.materials[0].baseColor = {.45f, .48f, .52f, 1};
-    const float eaves = upstairs ? 6.5f : 3.5f;
+    const int levels = storeys > 0 ? storeys : upstairs ? 2 : 1;
+    const float eaves = levels * 3.f + .5f;
     const auto quad = [&](glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 d, const std::string& suffix, bool low = false) {
         interior_fixture::quad(model, a, b, c, d, "building_house_" + suffix, transform, low);
     };
@@ -21,7 +22,7 @@ inline viewer::Model house(const glm::mat4& transform = glm::mat4(1), bool upsta
             quad(point(span.x, -.08f), point(span.y, -.08f), point(span.y, eaves), point(span.x, eaves), "detailed_walls");
         quad(point(-.5f, 2.1f), point(.5f, 2.1f), point(.5f, eaves), point(-.5f, eaves), "detailed_walls");
         quad(point(-.5f, -.08f), point(.5f, -.08f), point(.5f, 2.1f), point(-.5f, 2.1f), "doors");
-        for (int row = 0; row < (upstairs ? 2 : 1); ++row)
+        for (int row = 0; row < levels; ++row)
             quad(point(2, .9f + row * 3), point(3.2f, .9f + row * 3), point(3.2f, 2.1f + row * 3), point(2, 2.1f + row * 3), "windows");
         const float x = sign * 5;
         quad({x, -.08f, 6}, {x, -.08f, -6}, {x, eaves, -6}, {x, eaves, 6}, "walls", true);

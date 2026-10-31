@@ -25,6 +25,7 @@ struct BasicShaderUniforms {
     GLint eyeLocation_ = -1, sunDirectionLocation_ = -1, sunColorLocation_ = -1;
     GLint skyAmbientLocation_ = -1, groundAmbientLocation_ = -1;
     GLint shadowDistanceLocation_ = -1, shadowFadeLocation_ = -1;
+    GLint interiorShellULocation_ = -1, interiorShellVLocation_ = -1, interiorShellHeightsLocation_ = -1;
     GLint hazeColorLocation_ = -1, hazeDensityLocation_ = -1, hazeStartLocation_ = -1;
     GLint groundFogLocation_ = -1, forestVisibilityLocation_ = -1;
     GLint nightBlendLocation_ = -1, unlitLightLocation_ = -1;

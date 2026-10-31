@@ -35,6 +35,11 @@ uniform vec3 uSkyAmbient;
 uniform vec3 uGroundAmbient;
 uniform float uShadowDistance;
 uniform float uShadowFadeStart;
+// Closed sun-shadow shell of the camera's resident house; zero width disables.
+// xy: horizontal unit axis, zw: projected bounds, in world metres.
+uniform vec4 uInteriorShellU;
+uniform vec4 uInteriorShellV;
+uniform vec2 uInteriorShellHeights; // Floor, final ceiling, in world metres.
 uniform vec3 uHazeColor;
 uniform float uHazeDensity;
 uniform float uHazeStart;
@@ -90,6 +95,17 @@ float groundFogDepth(float distanceFromEye) {
 
 float sunlightVisibility(float sunFacing, float distanceFromEye) {
     if (!uShadows || sunFacing <= 0.0) return 1.0;
+    // Sun casters use solid walls across doors/windows. Every point inside
+    // that closed shell is shadowed, without depth bias or PCF edge leakage.
+    // A millimetre covers float32 projection rounding at shared wall vertices.
+    const float shellTolerance = 0.001;
+    if (uInteriorShellU.w > uInteriorShellU.z && vWorldPosition.y >= uInteriorShellHeights.x - shellTolerance &&
+        vWorldPosition.y <= uInteriorShellHeights.y + shellTolerance) {
+        float u = dot(vWorldPosition.xz, uInteriorShellU.xy), v = dot(vWorldPosition.xz, uInteriorShellV.xy);
+        if (u >= uInteriorShellU.z - shellTolerance && u <= uInteriorShellU.w + shellTolerance &&
+            v >= uInteriorShellV.z - shellTolerance && v <= uInteriorShellV.w + shellTolerance)
+            return 0.0;
+    }
     if (distanceFromEye >= uShadowDistance) return 1.0;
     vec4 lightClip = uSunMatrix * vec4(vWorldPosition, 1.0);
     vec3 coord = lightClip.xyz / lightClip.w * 0.5 + 0.5;

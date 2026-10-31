@@ -277,10 +277,10 @@ int main(int argc, char** argv) {
                 clear(); hud.draw(state, 1280, 720); checkState();
                 require(iconChanged(pixels(1280, 720), 588, 648, 22, 22), "Movement state failed to change its icon");
             }
-            state.movement = "CROUCH"; state.mode = "INTERACT";
+            state.movement = "CROUCH"; state.mode = "SKILL";
             clear(); hud.draw(state, 1280, 720); checkState();
-            require(iconChanged(pixels(1280, 720), 430, 648, 22, 22), "Interaction mode failed to change its icon");
-            state.mode = "COMBAT";
+            require(iconChanged(pixels(1280, 720), 430, 648, 22, 22), "Skill selection failed to change its icon");
+            state.mode = "ITEM";
             for (int slot = 1; slot < 6; ++slot) {
                 state.slot = slot;
                 clear(); hud.draw(state, 1280, 720); checkState();
@@ -1030,7 +1030,7 @@ int main(int argc, char** argv) {
                 viewer::Hud hud(fixture.directory / "ui", hudInventory);
                 clear(); hud.draw(state, 1280, 720); checkState();
                 original = pixels(1280, 720);
-                std::ofstream(fixture.directory / "skills.toml") << "[melee]\npunch='Punch'\nkick='Kick'\n";
+                std::ofstream(fixture.directory / "skills.toml") << "[melee]\npunch='Punch'\nobject_handling='Object handling'\nkick='Kick'\n";
                 std::ofstream(fixture.directory / "skills/melee/kick.skill.toml");
                 state.screen = viewer::HudScreen::Gameplay;
                 clear(); hud.draw(state, 1280, 720); checkState();

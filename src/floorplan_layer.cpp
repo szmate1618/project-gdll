@@ -38,7 +38,6 @@ struct FloorplanLayer::Impl {
     const Model* source;
     DoorLayer* doors;
     CollisionWorld* collision;
-    std::size_t firstRuntime;
     std::vector<DoorPanel> entrances;
     std::vector<std::string> doorBuildings;
     std::map<std::string, HouseSource> sources;
@@ -62,7 +61,7 @@ struct FloorplanLayer::Impl {
                 auto mesh = door.geometry; mesh.material += materialOffset;
                 renderModel.draws.push_back({renderModel.primitives.size(), glm::mat4(1), "house_interior_door"});
                 renderModel.primitives.push_back(std::move(mesh));
-                doorDraws.emplace(draw, firstRuntime + door.entrance);
+                doorDraws.emplace(draw, door.id);
             }
         }
         collision->setRuntimeGeometry(collisionModel);
@@ -96,12 +95,18 @@ FloorplanLayer::FloorplanLayer(const Model& model, DoorLayer& doors, CollisionWo
         data.doorBuildings[i] = name;
         data.cells[{cell(panel.center.x), cell(panel.center.z)}].push_back(i);
     }
-    // IDs depend only on immutable exterior IDs, never on activation order.
-    data.firstRuntime = doors.reserveRuntimeDoors(exteriorCount);
+    // Each entrance can add one entry door and two side-room doors. At most
+    // two further partitions connect the three living rooms. Reserve by sorted
+    // building identity, so skipped entries and activation order cannot shift IDs.
+    for (auto& entry : data.sources) {
+        auto& source = entry.second;
+        if (source.doors.empty()) continue;
+        source.firstDoor = doors.reserveRuntimeDoors(source.doors.size() * 3 + 2);
+    }
 }
 FloorplanLayer::~FloorplanLayer() {
     for (const auto& entry : impl_->resident) for (const auto& door : entry.second.doors)
-        impl_->doors->evictRuntimeDoor(impl_->firstRuntime + door.entrance);
+        impl_->doors->evictRuntimeDoor(door.id);
     if (!impl_->resident.empty()) impl_->collision->setRuntimeGeometry({});
 }
 void FloorplanLayer::update(const std::vector<glm::vec3>& observers) {
@@ -114,7 +119,7 @@ void FloorplanLayer::update(const std::vector<glm::vec3>& observers) {
             return distanceSquared(plan, p) <= 30 * 30 + .001f;
         });
         if (keep) { ++it; continue; }
-        for (const auto& door : plan.doors) data.doors->evictRuntimeDoor(data.firstRuntime + door.entrance);
+        for (const auto& door : plan.doors) data.doors->evictRuntimeDoor(door.id);
         it = data.resident.erase(it); changed = true;
     }
     std::set<std::string> candidates;
@@ -134,7 +139,7 @@ void FloorplanLayer::update(const std::vector<glm::vec3>& observers) {
         if (data.resident.count(name) || data.rejected.count(name)) continue;
         auto plan = generateHouseFloorplan(*data.source, data.sources.at(name), data.entrances);
         if (!plan) { data.rejected.insert(name); continue; }
-        for (const auto& door : plan->doors) data.doors->installRuntimeDoor(data.firstRuntime + door.entrance, door.panel);
+        for (const auto& door : plan->doors) data.doors->installRuntimeDoor(door.id, door.panel);
         data.resident.emplace(name, std::move(*plan)); changed = true;
     }
     if (changed) data.publish();

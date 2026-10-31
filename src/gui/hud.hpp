@@ -27,7 +27,7 @@ struct HudState {
     glm::vec3 position{0}; // Runtime metres: X east, Y up, Z south.
     float yawDegrees = -90; // Camera yaw; -90 is north, 0 is east.
     float speedMetersPerSecond = 0; // Horizontal travel speed; displayed in km/h.
-    std::string movement = "FREE FLY", mode = "COMBAT";
+    std::string movement = "FREE FLY", mode = "ITEM";
     std::string equipment = "CONNECTING", prompt;
     std::optional<int> loaded, reserve;
     std::optional<float> health; // Unknown while connecting; stamina/weariness remain placeholders.

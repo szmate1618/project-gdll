@@ -75,85 +75,96 @@ void picking() {
     occluded.boxes.add({1.2f, 1, 0}, {.4f, .4f, .4f});
     occluded.camera = cameraAt({1.2f, 1, 0});
     occluded.camera.setPosition({0, 1, 0}); occluded.camera.look(900, 0);
-    require(!occluded.input.press(Hand::Left, occluded.camera, occluded.boxes, occluded.world, 0), "A wall must block the grab even when the ray hits a box");
+    require(!occluded.input.press(occluded.camera, occluded.boxes, occluded.world), "A wall must block the grab even when the ray hits a box");
 }
-glm::vec3 releaseVelocity(glm::vec2 motion, float size = .4f, double delay = .02, bool cancel = false) {
+glm::vec3 throwOrPush(double duration, bool held, float size = .4f, bool cancel = false) {
     Fixture f;
     f.boxes.add({0, 1, 0}, glm::vec3(size));
     f.camera = cameraAt({0, 1, 0}, size * .5f + 1);
-    require(f.input.press(Hand::Left, f.camera, f.boxes, f.world, 1), "Release fixture must grab the box");
-    f.input.moveMouse(motion.x, motion.y, 1.01);
-    if (cancel) f.input.cancel(); else f.input.release(Hand::Left, 1.01 + delay);
-    require(!f.input.grabbing(), "Released or cancelled hand must detach");
-    return f.boxes.velocity(0);
+    viewer::DoorLayer doors({}, f.physics);
+    viewer::PlayerInteraction input;
+    if (held) {
+        require(input.press(Hand::Left, f.camera, doors, f.boxes, f.world, 1), "Left click must grab");
+        require(input.heldBox() == 0, "Holding left must keep the grip attached");
+    }
+    input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 2);
+    require(input.charging() && input.heldProp().has_value() == held, "Right press charges without grabbing");
+    require(glm::length(f.boxes.velocity(0)) < .001f, "Charge must wait for release before applying momentum");
+    if (cancel) input.cancel();
+    input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 2 + duration);
+    require(!input.grabbing() && !input.charging(), "Right release must detach and consume the charge");
+    const auto velocity = f.boxes.velocity(0);
+    input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 5);
+    require(glm::distance(velocity, f.boxes.velocity(0)) < .001f, "Release cannot replay a charge");
+    return velocity;
 }
 void throws() {
-    const auto up = releaseVelocity({0, 120});
-    const auto right = releaseVelocity({120, 0}), left = releaseVelocity({-120, 0});
-    const auto diagonal = releaseVelocity({60, 60}), down = releaseVelocity({0, -120});
-    require(up.y > 4 && up.z < -2 && std::abs(up.x) < .001f, "Upward release must add both up and forward momentum");
-    require(right.x > 4 && std::abs(right.z) < .001f && std::abs(right.y) < .001f && left.x < -4 && std::abs(left.z) < .001f,
-            "Perfect sideways releases must add no forward or vertical momentum");
-    require(diagonal.x > 2 && diagonal.y > 2 && diagonal.z < -1 && diagonal.z > up.z && std::abs(diagonal.z / diagonal.y + .6f) < .001f,
-            "Upward diagonal releases must interpolate the forward component");
-    require(down.y < -4 && std::abs(down.z) < .001f, "Downward release must add no forward momentum");
-    require(glm::length(releaseVelocity({0, 120}, .4f, .2)) < .001f, "An old stopped swing must expire into an ordinary drop");
-    require(glm::length(releaseVelocity({120, 120}, .4f, .02, true)) < .001f, "Focus/mode cancellation must not turn recent motion into a throw");
-    const auto heavy = releaseVelocity({120, 0}, 1);
-    require(heavy.x > .5f && heavy.x < right.x * .4f, "The same throw gesture must impart less speed to a heavy object");
-    require(releaseVelocity({0, 120}, 1).y <= .001f, "An unliftable box must not gain upward throw momentum");
-    const auto rotated = viewer::ObjectInteraction::throwVelocity({0, 5}, {0, 0, 1}, {1, 0, 0});
-    require(glm::distance(rotated, glm::vec3(3, 5, 0)) < .001f, "Throw boost must follow camera yaw rather than a fixed world direction");
+    require(glm::length(throwOrPush(.05, true)) < .001f, "Quick right click must drop a held object without a boost");
+    const auto full = throwOrPush(1, true), partial = throwOrPush(.5, true);
+    const auto push = throwOrPush(.05, false), chargedPush = throwOrPush(1, false);
+    require(full.z < -.5f && full.y > 0 && std::abs(full.x) < .001f, "Full charge must launch in the aimed direction");
+    require(glm::length(partial) > .1f && glm::length(partial) < glm::length(full), "Hold duration must increase momentum");
+    require(glm::distance(full, throwOrPush(10, true)) < .001f, "Long holds must saturate");
+    require(glm::length(push) > .1f && glm::length(push) < glm::length(chargedPush), "Empty-handed click must shove, and hold must charge a stronger push");
+    require(glm::distance(full, chargedPush) < .001f, "Held and unheld objects must receive the same charged momentum");
+    require(glm::length(throwOrPush(1, true, .4f, true)) < .001f &&
+            glm::length(throwOrPush(1, false, .4f, true)) < .001f, "Cancellation must clear held and empty-handed charges");
+    Fixture light, heavy;
+    light.boxes.add({0, 1, 0}, glm::vec3(.4f)); heavy.boxes.add({0, 1, 0}, glm::vec3(1));
+    const float lightMass = viewer::raycastPhysicsProp(light.physics, {0, 1, 2}, {0, 0, -1}, 2)->prop.mass();
+    const float heavyMass = viewer::raycastPhysicsProp(heavy.physics, {0, 1, 2}, {0, 0, -1}, 2)->prop.mass();
+    require(std::abs(glm::length(full) * lightMass - std::sqrt(6.3f*6.3f + .9f*.9f)) < .01f,
+            "Full charge must match the launch momentum of a 450 g standard grenade");
+    require(glm::distance(full * lightMass, throwOrPush(1, true, 1) * heavyMass) < .01f,
+            "The same charge must give heavier objects less speed with equal momentum");
 }
-void independentHandsAndLook() {
+void heldGripAndLook() {
     Fixture f;
-    f.boxes.add({-1, 1, 0}, glm::vec3(.4f)); f.boxes.add({1, 1, 0}, glm::vec3(.4f));
+    f.boxes.add({0, 1, 0}, glm::vec3(.4f)); f.camera = cameraAt({0, 1, 0});
     viewer::DoorLayer doors({}, f.physics);
-    viewer::PlayerInteraction interaction;
-    f.camera = cameraAt({-1, 1, 0});
-    require(!interaction.press(Hand::Left, f.camera, doors, f.boxes, f.world, 0), "Combat clicks must not grab props");
-    interaction.toggleMode();
-    require(interaction.press(Hand::Left, f.camera, doors, f.boxes, f.world, 1), "Left hand must grab a prop");
-    f.camera.setPosition({1, 1, 1.2f});
-    require(interaction.press(Hand::Right, f.camera, doors, f.boxes, f.world, 1), "Right hand must grab a second prop without dropping the first");
-    auto expectedCamera = f.camera;
-    expectedCamera.look(100, 100);
-    interaction.look(f.camera, 100, 100, 1.01);
-    require(f.camera.yawDegrees() == expectedCamera.yawDegrees() && f.camera.pitchDegrees() == expectedCamera.pitchDegrees(),
-            "Holding both hands must preserve ordinary mouse look exactly once");
-    require(interaction.heldBox(Hand::Left) == 0 && interaction.heldBox(Hand::Right) == 1, "Hands must retain separate box identities");
-    interaction.release(Hand::Left, 1.02);
-    require(!interaction.heldBox(Hand::Left) && interaction.heldBox(Hand::Right) == 1 && f.boxes.velocity(0).x > 0 && glm::length(f.boxes.velocity(1)) < .001f,
-            "Releasing one hand must throw only its object and leave the other grip unchanged");
-    expectedCamera.look(50, 50);
-    interaction.look(f.camera, 50, 50, 1.03);
-    require(f.camera.yawDegrees() == expectedCamera.yawDegrees() && f.camera.pitchDegrees() == expectedCamera.pitchDegrees(),
-            "Right hand alone must preserve ordinary camera look");
-    interaction.cancel();
-    require(!interaction.grabbing(), "Cancellation must drop both hands");
-    expectedCamera.look(50, 0);
-    interaction.look(f.camera, 50, 0, 1.05);
-    require(f.camera.yawDegrees() == expectedCamera.yawDegrees(), "Mouse look must continue after the last grip ends");
-
-    Fixture shared;
-    shared.boxes.add({0, 1, 0}, glm::vec3(.4f)); shared.camera = cameraAt({0, 1, 0});
-    require(shared.input.press(Hand::Left, shared.camera, shared.boxes, shared.world, 0) &&
-            shared.input.press(Hand::Right, shared.camera, shared.boxes, shared.world, 0), "Both hands must be able to share a box");
-    shared.advance(90);
-    require(shared.boxes.pose(0).center.y < 1.1f, "Two stationary hands must not double gravity compensation and launch a box");
-    shared.input.moveMouse(100, 100, 2);
-    const auto velocity = shared.boxes.velocity(0);
-    shared.input.release(Hand::Left, 2.01);
-    require(shared.input.heldBox(Hand::Right) == 0 && glm::distance(velocity, shared.boxes.velocity(0)) < .001f,
-            "Releasing one shared grip must not throw an object still held by the other hand");
+    viewer::PlayerInteraction input;
+    require(input.press(Hand::Left, f.camera, doors, f.boxes, f.world, 0), "Left click must grab a prop");
+    auto expected = f.camera; expected.look(100, 100);
+    input.look(f.camera, 100, 100);
+    require(f.camera.yawDegrees() == expected.yawDegrees() && f.camera.pitchDegrees() == expected.pitchDegrees(),
+            "A held grip must preserve ordinary mouse look exactly once");
+    require(input.heldBox() == 0, "Mouse movement must retain the selected object");
+    const auto before = f.boxes.velocity(0);
+    input.release(Hand::Left, f.camera, doors, f.boxes, f.world, .5);
+    require(!input.grabbing() && glm::distance(before, f.boxes.velocity(0)) < .001f,
+            "Releasing left must detach without adding a throw impulse");
+    f.camera = cameraAt(f.boxes.pose(0).center);
+    require(input.press(Hand::Left, f.camera, doors, f.boxes, f.world, .6), "Left must allow a fresh grab after release");
+    input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 1);
+    input.cancel();
+    input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 2);
+    require(!input.grabbing() && glm::distance(before, f.boxes.velocity(0)) < .001f, "Unequipping or suspending input must cancel without a throw");
 }
-float lift(float size, bool twoHands, float dt = 1.0f / 60) {
+void pushReachAndOcclusion() {
+    for (const bool blocked : {false, true}) {
+        Fixture f(blocked);
+        f.boxes.add({1.2f, 1, 0}, glm::vec3(.4f));
+        f.camera.setOrientation(0, 0); f.camera.setPosition({0, 1, 0});
+        viewer::DoorLayer doors({}, f.physics);
+        viewer::PlayerInteraction input;
+        input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 0);
+        input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 1);
+        require(blocked ? glm::length(f.boxes.velocity(0)) < .001f : f.boxes.velocity(0).x > .5f,
+                "Unheld pushes must respect wall occlusion");
+    }
+    Fixture f; f.boxes.add({0, 1, 0}, glm::vec3(.4f)); f.camera = cameraAt({0, 1, 0});
+    viewer::DoorLayer doors({}, f.physics); viewer::PlayerInteraction input;
+    input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 0);
+    f.camera.setPosition({0, 1, 5});
+    input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 1);
+    require(glm::length(f.boxes.velocity(0)) < .001f, "Moving out of reach during a charge must not push a remote object");
+}
+float lift(float size, float dt = 1.0f / 60) {
     Fixture f;
     const glm::vec3 center(0, size * .5f + .02f, 0);
     f.boxes.add(center, glm::vec3(size)); f.camera = cameraAt(center, size * .5f + 1);
-    require(f.input.press(Hand::Left, f.camera, f.boxes, f.world, 0), "Lift fixture must be grabbable");
-    if (twoHands) require(f.input.press(Hand::Right, f.camera, f.boxes, f.world, 0), "Second lifting hand must attach");
-    f.input.moveMouse(0, 250, .01);
+    require(f.input.press(f.camera, f.boxes, f.world), "Lift fixture must be grabbable");
+    f.input.moveMouse(0, 250);
     f.advance(static_cast<int>(3 / dt), dt);
     return bottom(f.boxes.pose(0));
 }
@@ -161,12 +172,12 @@ void heldMovementAndDrop() {
     Fixture f;
     f.boxes.add({0, .22f, 0}, glm::vec3(.4f)); f.camera = cameraAt({0, .22f, 0});
     const auto hit = f.boxes.raycast(f.camera.position(), f.camera.direction(), 2);
-    require(hit && f.input.press(Hand::Left, f.camera, f.boxes, f.world, 0), "Movement fixture must be grabbable");
-    f.input.moveMouse(200, 200, .01); f.advance(120);
+    require(hit && f.input.press(f.camera, f.boxes, f.world), "Movement fixture must be grabbable");
+    f.input.moveMouse(200, 200); f.advance(120);
     auto point = f.boxes.pointState(0, hit->localPoint).point;
     require(point.x > .6f && point.y > .8f, "Mouse right/up must move the attached point sideways and upward");
     const auto raised = point;
-    f.input.moveMouse(-400, -200, 2.01); f.advance(120);
+    f.input.moveMouse(-400, -200); f.advance(120);
     point = f.boxes.pointState(0, hit->localPoint).point;
     // A picked face can rotate to the top while hanging. Verify the body's
     // ground contact, not an impossible below-ground target for that grip.
@@ -177,27 +188,24 @@ void heldMovementAndDrop() {
     require(f.boxes.pointState(0, hit->localPoint).point.z > before + .3f, "Walking backward must pull the grip toward the camera");
     f.camera.setPosition(f.camera.position() - glm::vec3(0, 0, .8f)); f.advance(120);
     require(f.boxes.pointState(0, hit->localPoint).point.z < before - .15f, "Walking forward must push the held object forward");
-    f.input.moveMouse(0, 200, 8.01); f.advance(120);
+    f.input.moveMouse(0, 200); f.advance(120);
     require(bottom(f.boxes.pose(0)) > .5f, "Drop fixture must be airborne while held");
     const auto velocity = f.boxes.velocity(0);
-    f.input.release(Hand::Left, 10.01);
+    f.input.cancel();
     require(glm::distance(velocity, f.boxes.velocity(0)) < .001f, "A release without a recent swing must preserve existing momentum without a boost");
     f.advance(120);
     require(bottom(f.boxes.pose(0)) < .04f, "Released objects must fall and settle onto the floor");
 }
 void liftingDraggingAndCollisions() {
-    const float light = lift(.4f, false), heavy = lift(1, false);
-    const float mediumOne = lift(.73f, false), mediumTwo = lift(.73f, true);
-    std::cout << "Lift bottoms: light=" << light << " heavy=" << heavy << " medium one=" << mediumOne << " two=" << mediumTwo << '\n';
+    const float light = lift(.4f), heavy = lift(1);
     require(light > .5f, "A small crate must lift well clear of the ground");
-    require(heavy < .06f && mediumOne < .06f, "Objects above one-hand lifting strength must remain supported by the floor");
-    require(mediumTwo > .25f, "Combined hands must lift an object too heavy for one hand");
-    const auto slow = lift(.4f, false, 1.0f / 30), fast = lift(.4f, false, 1.0f / 120);
+    require(heavy < .06f, "Objects above lifting strength must remain supported by the floor");
+    const auto slow = lift(.4f, 1.0f / 30), fast = lift(.4f, 1.0f / 120);
     require(std::abs(slow - fast) < .15f, "Holding must work across frames with multiple or zero physics steps");
 
     Fixture drag;
     drag.boxes.add({0, .52f, 0}, glm::vec3(1)); drag.camera = cameraAt({0, .52f, 0}, 1.5f);
-    require(drag.input.press(Hand::Right, drag.camera, drag.boxes, drag.world, 0), "Heavy box must be grabbable for dragging");
+    require(drag.input.press(drag.camera, drag.boxes, drag.world), "Heavy box must be grabbable for dragging");
     // Move the camera as WASD does; the fixed world grip follows the eye offset.
     for (int i = 0; i < 180; ++i) {
         drag.camera.setPosition(drag.camera.position() + glm::vec3(.01f, 0, 0));
@@ -210,14 +218,19 @@ void liftingDraggingAndCollisions() {
 
     Fixture blocked(true);
     blocked.boxes.add({0, .22f, 0}, glm::vec3(.4f)); blocked.camera = cameraAt({0, .22f, 0});
-    require(blocked.input.press(Hand::Left, blocked.camera, blocked.boxes, blocked.world, 0), "Box before a wall must be reachable");
-    blocked.input.moveMouse(375, 0, .01); blocked.advance();
+    require(blocked.input.press(blocked.camera, blocked.boxes, blocked.world), "Box before a wall must be reachable");
+    blocked.input.moveMouse(375, 0); blocked.advance();
     require(blocked.boxes.pose(0).center.x < .65f, "Holding must not teleport or pull a box through a solid wall");
     Fixture thrown(true);
-    thrown.boxes.add({0, 1, 0}, glm::vec3(.4f)); thrown.camera = cameraAt({0, 1, 0});
-    require(thrown.input.press(Hand::Left, thrown.camera, thrown.boxes, thrown.world, 0), "Throw collision fixture must be reachable");
-    thrown.input.moveMouse(1500, 0, .01); thrown.input.release(Hand::Left, .02); thrown.advance();
-    require(thrown.boxes.pose(0).center.x < .65f, "A fast release throw must collide with a thin static wall");
+    thrown.boxes.add({0, 1, 0}, glm::vec3(.4f));
+    thrown.camera.setOrientation(0, 0); thrown.camera.setPosition({-1.2f, 1, 0});
+    viewer::DoorLayer doors({}, thrown.physics); viewer::PlayerInteraction input;
+    require(input.press(Hand::Left, thrown.camera, doors, thrown.boxes, thrown.world, 0), "Throw collision fixture must be reachable");
+    input.press(Hand::Right, thrown.camera, doors, thrown.boxes, thrown.world, 0);
+    input.release(Hand::Right, thrown.camera, doors, thrown.boxes, thrown.world, 1);
+    require(thrown.boxes.velocity(0).x > .5f, "Charged throw must start toward the wall");
+    thrown.advance();
+    require(thrown.boxes.pose(0).center.x < .65f, "A charged throw must collide with a thin static wall");
 }
 void routingAndCancellation() {
     for (const bool boxInFront : {false, true}) {
@@ -227,24 +240,24 @@ void routingAndCancellation() {
         viewer::DoorLayer doors({panel}, f.physics);
         viewer::CollisionWorld world(f.model, {}, &doors); world.setBoxes(&f.boxes);
         f.boxes.add({0, 1, boxInFront ? .65f : -.5f}, glm::vec3(.4f));
-        viewer::PlayerInteraction input; input.toggleMode(); f.camera = cameraAt({0, 1, 0}, 1.3f);
+        viewer::PlayerInteraction input; f.camera = cameraAt({0, 1, 0}, 1.3f);
         require(input.press(Hand::Left, f.camera, doors, f.boxes, world, 0), "Nearest reachable target must be grabbed");
-        require(boxInFront ? input.heldBox(Hand::Left).has_value() : input.grabbedDoor().has_value(), "Left hand must select the nearer door or prop");
+        require(boxInFront ? input.heldBox().has_value() : input.grabbedDoor().has_value(), "Left hand must select the nearer door or prop");
         auto expectedCamera = f.camera;
         expectedCamera.look(100, 100);
-        input.look(f.camera, 100, 100, .01);
+        input.look(f.camera, 100, 100);
         require(f.camera.yawDegrees() == expectedCamera.yawDegrees() && f.camera.pitchDegrees() == expectedCamera.pitchDegrees(),
                 "Left-hand door or box grabs must preserve mouse look without applying it twice");
         const auto before = f.boxes.velocity(0);
-        input.toggleMode();
-        require(input.mode() == viewer::ControlMode::Combat && !input.grabbing() && glm::distance(before, f.boxes.velocity(0)) < .001f,
+        input.cancel();
+        require(!input.grabbing() && glm::distance(before, f.boxes.velocity(0)) < .001f,
                 "Mode changes must cancel door and object grips without throwing");
     }
 }
 } // namespace
 int main() {
     try {
-        picking(); throws(); independentHandsAndLook(); heldMovementAndDrop(); liftingDraggingAndCollisions(); routingAndCancellation();
+        picking(); throws(); heldGripAndLook(); pushReachAndOcclusion(); heldMovementAndDrop(); liftingDraggingAndCollisions(); routingAndCancellation();
         std::cout << "Object picking, hands, throw directions, strength, movement and collision tests passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

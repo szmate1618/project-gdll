@@ -105,6 +105,7 @@ void Renderer::applyLighting(const Camera& camera, const SunShadowView& shadowVi
     glUniform1i(shadowPassLocation_, GL_FALSE);
     const bool sunlight = glm::any(glm::greaterThan(lighting.sun.color, glm::vec3(0)));
     glUniform1i(shadowsLocation_, shadows_ && sunlight && shadowPassLocation_ >= 0);
+    applyInteriorSunOcclusion(camera);
     const auto matrix = shadowView.projectionView();
     const auto eye = camera.position();
     const auto sun = glm::normalize(lighting.sun.direction);

@@ -42,6 +42,9 @@ BasicShaderUniforms::BasicShaderUniforms(GLuint program) {
     skyAmbientLocation_ = glGetUniformLocation(program, "uSkyAmbient");
     groundAmbientLocation_ = glGetUniformLocation(program, "uGroundAmbient");
     shadowDistanceLocation_ = glGetUniformLocation(program, "uShadowDistance");
+    interiorShellULocation_ = glGetUniformLocation(program, "uInteriorShellU");
+    interiorShellVLocation_ = glGetUniformLocation(program, "uInteriorShellV");
+    interiorShellHeightsLocation_ = glGetUniformLocation(program, "uInteriorShellHeights");
     shadowFadeLocation_ = glGetUniformLocation(program, "uShadowFadeStart");
     hazeColorLocation_ = glGetUniformLocation(program, "uHazeColor");
     hazeDensityLocation_ = glGetUniformLocation(program, "uHazeDensity");
