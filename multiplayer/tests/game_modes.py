@@ -60,17 +60,26 @@ with tempfile.TemporaryDirectory(prefix="godollo-game-modes-") as directory:
                     host.wait()
     # An abruptly killed host cannot send a reason; clients must still time out.
     log = directory / "killed-host.log"
-    with log.open("w") as output:
+    remote_log = directory / "remote.log"
+    with log.open("w") as output, remote_log.open("w") as remote_output:
         host = subprocess.Popen([*base, "--host", "--port", str(port)], stdout=output, stderr=subprocess.STDOUT)
         remote = None
         try:
             wait_for(host, log, "Connected as player")
             remote = subprocess.Popen([*base, "--connect", f"127.0.0.1:{port}", "--seconds", "12"],
-                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-            wait_for(host, log, "Joined player 2")
+                                      stdout=remote_output, stderr=subprocess.STDOUT)
+            # Server admission (and even the client's Welcome) can precede the
+            # first usable snapshot. Kill only after client-side spawn so this
+            # exercises connection loss rather than the longer join timeout.
+            wait_for(remote, remote_log, "Spawned as player 2")
             host.kill()
             host.wait()
-            text, _ = remote.communicate(timeout=10)
+            try:
+                remote.wait(timeout=10)
+            except subprocess.TimeoutExpired as error:
+                raise RuntimeError("Lost host did not time out:\n" + remote_log.read_text() +
+                                   "\nHost:\n" + log.read_text()) from error
+            text = remote_log.read_text()
             if remote.returncode == 0 or "Connection lost: server stopped responding" not in text:
                 raise RuntimeError("Lost host did not produce timeout feedback:\n" + text)
         finally:

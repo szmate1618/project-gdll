@@ -512,6 +512,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     if (!ready) {
                         in.slot = p.slot;
                         if (!options.explicitLook) in.camera.setOrientation(p.yaw, p.pitch);
+                        std::cout << "Spawned as player " << self << std::endl;
                     }
                     const auto correction = before - prediction.eye();
                     if (ready && walking && glm::length(correction) < 2) visualOffset += correction; else visualOffset = {};
