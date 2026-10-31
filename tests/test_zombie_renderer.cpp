@@ -803,6 +803,43 @@ void traceLastRenderedZombiePose() {
     viewer::Renderer::checkErrors("last-rendered zombie hit queries");
 }
 
+void traceLastRenderedPhysicalAttack() {
+    viewer::ZombieLayer layer;
+    layer.assets.push_back(makeAsset(1, 2));
+    auto& asset = layer.assets[0];
+    for (int frame = 0; frame < 2; ++frame)
+        for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
+            asset.boneFrames.push_back(glm::translate(glm::mat4(1), {0, .75f, 0}));
+    layer.capsuleAssets.resize(1);
+    viewer::ZombieBoneCapsule capsule;
+    capsule.bone = 0; capsule.a = capsule.b = markerCenter(0, 0); capsule.radius = .12f;
+    layer.capsuleAssets[0].capsules.push_back(capsule);
+    layer.instances.emplace_back();
+    layer.setRagdollPalette(0, std::vector<glm::mat4>(2, glm::translate(glm::mat4(1), {0, .75f, 0})), true);
+    viewer::Camera camera;
+    camera.setPosition({0, .75f, 10}); camera.setOrientation(-90, 0);
+    viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    renderer.resize(width, height); renderer.setZombieDistanceDetail(false); renderer.setShadows(false);
+    renderer.setHaze(false); renderer.setGroundFog(false);
+    layer.releaseAnimationVertices();
+    const viewer::CollisionWorld empty(viewer::Model{});
+    const glm::vec3 origin(-.38f, .75f, 10), direction(0, 0, -1);
+    renderer.render(camera, 0);
+    if (!renderer.traceZombieShot(origin, direction, empty))
+        throw std::runtime_error("A displayed physical attacker must remain shootable");
+    layer.setRagdollPalette(0, std::vector<glm::mat4>(2, glm::translate(glm::mat4(1), {3, .75f, 0})), true);
+    if (!renderer.traceZombieShot(origin, direction, empty))
+        throw std::runtime_error("A newer physical source pose replaced the last displayed hit palette");
+    renderer.updateZombies(layer); renderer.render(camera, 0);
+    if (renderer.traceZombieShot(origin, direction, empty) ||
+        !renderer.traceZombieShot(origin + glm::vec3(3, 0, 0), direction, empty))
+        throw std::runtime_error("Physical attacker hit queries failed to follow the rendered palette");
+    camera.setOrientation(90, 0); renderer.render(camera, 0);
+    if (renderer.traceZombieShot(origin + glm::vec3(3, 0, 0), direction, empty))
+        throw std::runtime_error("Hidden physical attacker retained its displayed hit palette");
+    viewer::Renderer::checkErrors("last-rendered active attack hit queries");
+}
+
 void traceLastRenderedWoundMask(bool head) {
     viewer::ZombieLayer layer;
     layer.assets.push_back(makeAsset(1, 2));
@@ -1508,6 +1545,7 @@ int main(int argc, char** argv) {
         renderHiddenLocomotionChanges();
         renderExplicitIdleClock();
         traceLastRenderedZombiePose();
+        traceLastRenderedPhysicalAttack();
         traceLastRenderedWoundMask(false);
         traceLastRenderedWoundMask(true);
         renderPosePublicationChanges();

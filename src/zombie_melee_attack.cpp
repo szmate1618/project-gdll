@@ -71,6 +71,7 @@ bool beginZombieMeleeAttack(ZombieLunge& cycle, ZombieInstance& instance,
     cycle.phase = ZombieLunge::Phase::windup;
     cycle.elapsed = 0;
     cycle.strikeStopped = false;
+    cycle.physicalHandValid = false;
     cycle.targetPlayer = player.id;
     cycle.nextAttackSeconds = now + clip.duration + zombieAttackCooldownSeconds;
     return true;
@@ -92,12 +93,18 @@ void stepZombieMeleeAttack(ZombieLunge& cycle, ZombieInstance& instance,
     // The pack winds up before ~0.6 s and swings fastest around 0.8--1.0 s.
     // Only that forward swing can injure; idle, windup and retraction cannot.
     const double strikeStart = clip.duration * .25, strikeEnd = clip.duration * .55;
-    double time = std::max(before, strikeStart);
-    const double end = std::min(after, strikeEnd);
-    auto hand = handPosition(asset, instance, clip, bone, time);
+    const bool physical = instance.activeRagdoll;
+    glm::vec3 solvedHand{0};
+    if (physical)
+        solvedHand = glm::vec3(instance.transform * instance.ragdollBones.at(std::size_t(bone)) *
+            glm::inverse(asset.skeleton.at(std::size_t(bone)).inverseBind)[3]);
+    double time = std::max(physical ? before - seconds : before, strikeStart);
+    const double end = std::min(physical ? before : after, strikeEnd);
+    auto hand = physical ? (cycle.physicalHandValid ? cycle.previousHand : solvedHand) :
+        handPosition(asset, instance, clip, bone, time);
     while (!cycle.strikeStopped && time < end) {
-        const double next = std::min(end, time + 1.0 / 120);
-        const auto desired = handPosition(asset, instance, clip, bone, next);
+        const double next = physical ? end : std::min(end, time + 1.0 / 120);
+        const auto desired = physical ? solvedHand : handPosition(asset, instance, clip, bone, next);
         // Trace from the supported torso too: a hand already behind a newly
         // closed door must not injure someone through that door.
         const auto chest = glm::vec3(instance.restRoot[3]) + glm::vec3(0, 1.2f, 0);
@@ -119,6 +126,7 @@ void stepZombieMeleeAttack(ZombieLunge& cycle, ZombieInstance& instance,
         }
         hand = desired; time = next;
     }
+    if (physical) { cycle.previousHand = solvedHand; cycle.physicalHandValid = true; }
     instance.attackSeconds = after;
     stopZombieLocomotion(instance);
     cycle.phase = after < strikeStart ? ZombieLunge::Phase::windup :

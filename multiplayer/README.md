@@ -123,7 +123,7 @@ Clients publish a complete validated appearance together, so a partial transfer
 keeps the existing placeholder. Upload ownership comes from the joined
 session connection, and clients cannot change another player's appearance.
 The appearance is cosmetic and is separate from collision and map fingerprints.
-Protocol 27 requires matching rebuilt clients and servers. The RmlUi binding lives in
+Protocol 28 requires matching rebuilt clients and servers. The RmlUi binding lives in
 [character_editor.cpp](client/character_editor.cpp), with styles in
 [character-editor.rcss](../ui/character-editor.rcss). Painting and compositing
 remain in `CharacterCanvas`; profile serialization lives in `character_profile` and collection/selection handling
@@ -693,7 +693,7 @@ unbounded queue. After the final stopped pose is confirmed, a parked car stays
 silent until it changes again. Moving, coasting and externally pushed cars all
 retain their updates; driver occupancy alone does not control replication.
 Clients keep each car's latest confirmed state, including across snapshots
-omitting that car. Protocol 27 requires matching rebuilt clients and servers.
+omitting that car. Protocol 28 requires matching rebuilt clients and servers.
 
 All cars bypass the six-tick (100 ms) world playback buffer. Every rendered
 frame extrapolates each car's latest confirmed chassis position with the
@@ -784,7 +784,16 @@ Attack mode changes are urgent updates, and ordinary non-attacking records keep
 their existing size. Assets without authored attacks retain the lunge fallback.
 
 Corpse poses carry independently versioned roots and palettes on a separate
-reliable transport lane. Each peer has at most 100 unacknowledged poses and a
+reliable transport lane. Living active-ragdoll attacks use that same lane at
+**10 Hz**, with compressed palettes and immediate prediction limited to 100 ms.
+An attack revision in motion and pose messages prevents late poses from an old
+swing or a living attack from being applied to a corpse. Playback history resets
+on revision changes. Clients render these authoritative physical poses without
+creating another local attack rig; baked playback covers the initial wait for a
+matching pose. Recovery returns to ordinary animation. Damage stays server-owned.
+Protocol 28 requires matching rebuilt applications.
+
+Each peer has at most 100 unacknowledged poses and a
 32 KiB bulk transport budget shared with zombie setup messages. Changes while
 a pose is in flight coalesce to the
 latest version; round-robin selection prevents moving corpses starving others.

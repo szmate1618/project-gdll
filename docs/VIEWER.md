@@ -1241,12 +1241,26 @@ Prepared zombie assets include the pack's `attack_left_70f` and
 once over their authored **2.33 seconds**, followed by a **0.5 s cooldown**.
 Playback starts at frame zero, independently of the random idle phase, and clamps
 to its exact final frame. Rendering, shadows, shooting and ragdoll handoff share
-the selected clip and pose. No active-ragdoll arm controller is used.
+the selected clip and pose. Humanoid rigs use a temporary **active ragdoll**:
+Box3D angular joint springs follow the clip's changing torso, neck, shoulder and
+elbow targets (10 Hz critically damped springs; neck 5 Hz). The pelvis and legs
+are kinematic supports following the authored lower-body frames; this is an
+upper-body attack controller, not a balancing/walking controller. Dynamic arms
+and torso respond to scene geometry, doors, props and player fists. These are
+joint spring drives without explicit torque caps. The living attack category
+imports nearby scene collision independently of the unchanged corpse floors.
 
-A **10 cm sphere** follows the attacking hand joint. During the forward swing
-(25–55% of the clip), its path is swept against current player body capsules in
-at most 1/120-second animation segments. The first contact consumes the swing
-and inflicts **10 health damage** only after fresh range/FOV/visibility checks.
+Only attacking zombies allocate these rigs. They stay alive, indexed and
+shootable, retain behavior and wounds, and release the bodies, hand colliders and
+local floor on cancellation/recovery. Death releases the same rig's supports and
+springs, preserving its solved pose and velocity for the corpse handoff.
+
+Each lower arm carries a **10 cm hand sphere**. During the forward swing
+(25–55% of the clip), the solved hand path from successive physics steps is
+swept against current player body capsules. Hits use physical deflection rather
+than the desired animation path. Assets with named hands/clips but no complete
+ragdoll mapping keep baked playback and sweeps in at most 1/120-second segments.
+The first contact consumes the swing and inflicts **10 health damage** only after fresh range/FOV/visibility checks.
 Scene contacts and hand/torso visibility prevent strikes through walls, current
 doors and props. Windup, recovery and idle contacts cannot injure. Dodging,
 crouching and separate floors use current body dimensions and positions. A miss

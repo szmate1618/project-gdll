@@ -335,6 +335,7 @@ void zombieMotion(Wire& w, ZombieState& z) {
     if (w.reading) z.attackClip = flags >> 6;
     if (z.attackClip) {
         w.number(z.attackSeconds);
+        w.integer(z.activeAttackRevision);
         if (z.attackSeconds < 0 || z.attackSeconds > 120 || (flags & 7))
             throw std::runtime_error("Invalid zombie attack clock");
     }
@@ -516,6 +517,7 @@ void compactPose(Wire& w, CompactRagdollPose& pose) {
 void payload(Wire& w, CorpsePose& pose) {
     w.integer(pose.id); w.integer(pose.asset); w.integer(pose.version);
     w.integer(pose.tick); w.flag(pose.sleeping);
+    w.integer(pose.activeAttackRevision);
     w.matrix(pose.transform); w.matrix(pose.root);
     bool compact = pose.compact.has_value();
     w.flag(compact);

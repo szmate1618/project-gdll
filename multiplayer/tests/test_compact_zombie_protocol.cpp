@@ -59,10 +59,10 @@ void compactMotion() {
     for (std::uint8_t side : {std::uint8_t(1), std::uint8_t(2)}) {
         auto attack = snapshot;
         auto& z = attack.zombies[0];
-        z.walking = z.running = z.dead = false; z.attackClip = side; z.attackSeconds = .875f;
+        z.walking = z.running = z.dead = false; z.attackClip = side; z.attackSeconds = .875f; z.activeAttackRevision = 17;
         const auto decoded = roundTrip(attack).zombies[0];
-        require(decoded.attackClip == side && decoded.attackSeconds == .875f && !decoded.walking &&
-                encode(attack).size() == emptySize + 23,
+        require(decoded.attackClip == side && decoded.attackSeconds == .875f && decoded.activeAttackRevision == 17 && !decoded.walking &&
+                encode(attack).size() == emptySize + 27,
             "Authored attack lost its variant/clock or inflated non-attacking records");
         z.walking = true;
         rejects([&] { encode(attack); }, "Walking and attacking were accepted together");

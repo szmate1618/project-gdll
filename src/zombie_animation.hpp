@@ -6,10 +6,11 @@ namespace viewer {
 struct ZombieInstance;
 
 // Ordinary movement uses shared baked vertices. Skeletons are sampled only
-// when a hit test or ragdoll handoff needs the exact displayed pose. A published
+// for hits/handoff or temporary active-ragdoll attack targets. A published
 // camera frame takes precedence over continuous simulation time, including LOD
 // animation stepping and the last displayed locomotion clip.
-// secondsOffset samples relative to that pose; attack endpoints clamp instead of looping.
+// Physical attackers return their solved skeleton. secondsOffset otherwise
+// samples relative to the displayed pose; attack endpoints clamp rather than loop.
 const BakedAnimationClip* zombieAnimationClip(const AnimatedModel& asset, const ZombieInstance& instance);
 const BakedAnimationClip* zombieAnimationClipById(const AnimatedModel& asset, int id);
 int zombieAnimationClipId(const AnimatedModel& asset, const ZombieInstance& instance);

@@ -51,7 +51,7 @@ Renderer::ZombieGPUInstance Renderer::zombieGPUInstance(const AnimatedModel& ass
             clip ? static_cast<float>(clip->frameCount) : 0.0f,
             0.0f,
             -1.0f, // Draw preparation assigns the pose after visibility selection.
-            instance.ragdoll ? 1.0f : 0.0f, 0.0f, boneBase};
+            instance.hasPhysicalPose() ? 1.0f : 0.0f, 0.0f, boneBase};
 }
 
 void Renderer::uploadZombies(const ZombieLayer& zombies) {
@@ -322,7 +322,8 @@ void Renderer::updateZombieInstance(std::size_t id, bool boundsChanged, bool ful
     render.local = local;
     render.displayedFrame = -1;
     render.severedJoint = source.severedJoint;
-    render.ragdoll = source.ragdoll;
+    render.ragdoll = source.hasPhysicalPose();
+    if (!source.activeRagdoll) displayedZombieAttacks_.erase(id);
     const auto& model = zombieSource_->assets[asset];
     const auto* clip = zombieAnimationClip(model, source);
     render.clip = static_cast<ZombieRenderClip>(zombieAnimationClipId(model, source));
@@ -338,7 +339,7 @@ void Renderer::updateZombieInstance(std::size_t id, bool boundsChanged, bool ful
     }
     if (batch.removedPoses[local]) ++zombieCount_;
     batch.removedPoses[local] = false;
-    const bool live = source.ragdoll;
+    const bool live = source.hasPhysicalPose();
     if (full || !live) batch.palettes->release(local);
     if (live && source.ragdollBones.size() != static_cast<std::size_t>(batch.skinningBoneCount))
         throw std::runtime_error("Live skeleton data does not match zombie asset");
@@ -459,6 +460,12 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
                 nextDisplayedZombieSources_.push_back(visible.instance);
                 render.displayedFrame = cameraInstance.animationFrame;
                 const auto& source = zombieSource_->instances[visible.instance];
+                if (source.activeRagdoll) {
+                    auto& displayed = displayedZombieAttacks_[visible.instance];
+                    displayed.transform = cameraInstance.transform;
+                    displayed.root = source.restRoot;
+                    displayed.bones = source.ragdollBones;
+                }
                 const auto clip = static_cast<int>(render.clip);
                 // Another renderer can publish a different pose into this layer.
                 // Compare authoritative fields rather than a private last value.
@@ -501,6 +508,7 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
             while (current != nextDisplayedZombieSources_.end() && *current < id) ++current;
             if (current != nextDisplayedZombieSources_.end() && *current == id) continue;
             zombieRenderStates_[id].displayedFrame = -1;
+            displayedZombieAttacks_.erase(id);
             const auto& source = zombieSource_->instances[id];
             if (source.displayedAnimationFrame != -1) {
                 source.displayedAnimationFrame = -1;
@@ -540,7 +548,9 @@ std::optional<ZombieShotTrace> Renderer::traceZombieShot(glm::vec3 origin, glm::
     std::optional<ZombieShotTrace> nearest;
     for (const auto id : zombieShotCandidates_) {
         const auto& render = zombieRenderStates_[id];
-        if (render.ragdoll || render.displayedFrame < 0) continue;
+        if (render.displayedFrame < 0) continue;
+        const auto physical = displayedZombieAttacks_.find(id);
+        if (render.ragdoll && physical == displayedZombieAttacks_.end()) continue;
         const auto& batch = zombieBatches_[render.asset];
         const auto& cached = batch.staging[render.local];
         const auto& source = zombieSource_->instances[id];
@@ -558,6 +568,12 @@ std::optional<ZombieShotTrace> Renderer::traceZombieShot(glm::vec3 origin, glm::
         displayed.walking = render.clip == ZombieRenderClip::Walk || render.clip == ZombieRenderClip::Run;
         displayed.running = render.clip == ZombieRenderClip::Run;
         displayed.attackClip = render.clip == ZombieRenderClip::AttackLeft ? 1 : render.clip == ZombieRenderClip::AttackRight ? 2 : 0;
+        if (physical != displayedZombieAttacks_.end()) {
+            displayed.activeRagdoll = true;
+            displayed.transform = displayed.restTransform = physical->second.transform;
+            displayed.restRoot = physical->second.root;
+            displayed.ragdollBones = physical->second.bones;
+        }
         const auto& timing = zombieBatches_[render.asset].clipTimings[static_cast<std::size_t>(render.clip)];
         const auto intervals = timing.frameCount - (displayed.attackClip && timing.frameCount ? 1 : 0);
         const double seconds = intervals ? double(render.displayedFrame) * timing.duration / intervals : 0;

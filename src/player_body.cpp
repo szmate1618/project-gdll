@@ -328,7 +328,7 @@ PlayerBody::PlayerBody(std::shared_ptr<PhysicsWorld> world, float eyeHeight) : i
         d.bodies[i] = b3CreateBody(d.world->id(), &body);
         auto shape = b3DefaultShapeDef();
         shape.filter.categoryBits = playerBodyCategory;
-        shape.filter.maskBits = ordinaryBodyCategory | interiorBoxCategory | doorBodyCategory | vehicleBodyCategory | meleeZombieCategory;
+        shape.filter.maskBits = ordinaryBodyCategory | interiorBoxCategory | doorBodyCategory | vehicleBodyCategory | meleeZombieCategory | zombieAttackBodyCategory;
         shape.filter.groupIndex = group; // All parts may overlap, even non-neighbors.
         const auto s = d.sizes[i]; shape.density = masses[i] * d.scale * d.scale * d.scale / (s.x * s.y * s.z);
         shape.baseMaterial.friction = .45f;

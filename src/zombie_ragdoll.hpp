@@ -4,6 +4,7 @@
 #include <memory>
 #include <array>
 #include <cstdint>
+#include <box3d/id.h>
 
 #include <glm/glm.hpp>
 
@@ -22,8 +23,8 @@ struct RagdollPose {
     std::array<glm::vec3, ragdollPartCount> tips{};
 };
 
-// Box3D-backed ragdoll simulation. Ground collision is intentionally represented
-// by a small plane-sized box around each activated zombie.
+// Box3D-backed corpse and living attack rigs. Loose corpses retain their small
+// local floor. The scene additionally supplies contacts for driven attack rigs.
 class ZombieRagdollWorld {
 public:
     ZombieRagdollWorld();
@@ -57,6 +58,11 @@ public:
     // Anchor both feet at their current poses; the upper body remains dynamic.
     // This rig has no separate feet, so anchors lock the lower-leg frames.
     void holdPose(std::size_t handle);
+    // Moving animation targets in world meters. Lower-body frames are supported;
+    // torso/head/arms remain dynamic and follow damped joint springs.
+    void drivePose(std::size_t handle, const RagdollPose& target, float seconds);
+    void releasePose(std::size_t handle); // Preserve current transforms/velocities for death.
+    bool ownsBody(std::size_t handle, b3BodyId body) const;
     void destroy(std::size_t handle);
     [[nodiscard]] glm::mat4 rootTransform(std::size_t handle) const;
     [[nodiscard]] std::array<glm::mat4, ragdollPartCount> bodyTransforms(std::size_t handle) const;

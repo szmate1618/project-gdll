@@ -29,6 +29,12 @@ int zombieAnimationClipId(const AnimatedModel& asset, const ZombieInstance& inst
 
 std::vector<glm::mat4> sampleZombiePose(const AnimatedModel& asset, const ZombieInstance& instance,
                                      double idleSeconds, float secondsOffset) {
+    if (instance.activeRagdoll) {
+        std::vector<glm::mat4> pose;
+        for (std::size_t bone = 0; bone < asset.skeleton.size(); ++bone)
+            pose.push_back(instance.ragdollBones.at(bone) * glm::inverse(asset.skeleton[bone].inverseBind));
+        return pose;
+    }
     if (instance.displayedAnimationFrame >= 0) {
         const auto* displayedClip = zombieAnimationClipById(asset, instance.displayedAnimationClip);
         const auto& frames = displayedClip ? displayedClip->boneFrames : asset.boneFrames;

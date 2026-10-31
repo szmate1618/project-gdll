@@ -1,4 +1,7 @@
 #include "server/world.hpp"
+#include "zombie_active_attack_fixture.hpp"
+#include "zombie_replication_fixture.hpp"
+#include "ragdoll_pose_codec.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -155,6 +158,86 @@ void disabledPerceptionStopsDamage(const Options& options) {
     }
 }
 
+void livingPhysicalAttackReplication(const Options& options) {
+    Scene scene(options), client(options);
+    openScene(scene); openScene(client, false);
+    scene.zombies.assets[0] = zombie_attack_fixture::humanoid();
+    client.zombies.assets[0] = zombie_attack_fixture::humanoid();
+    // The synthetic rig's straight arm reaches 66 cm from its shoulder.
+    // Use the same 85 cm target distance as its focused physical-contact test.
+    for (auto* layer : {&scene.zombies, &client.zombies}) {
+        auto& instance = layer->instances[0];
+        instance.transform = instance.restRoot = instance.restTransform =
+            glm::translate(glm::mat4(1), glm::vec3(0, 0, -.85f));
+    }
+    scene.zombies.rebuildSpatialIndex(); client.zombies.rebuildSpatialIndex();
+    World world(scene);
+    const auto player = world.join();
+    Snapshots playback;
+    test_replication::installSetups(playback, client, scene);
+    bool displayed = false, recovered = false, restarted = false;
+    std::uint32_t firstRevision = 0;
+    std::uint64_t lastPoseTick = 0;
+    std::optional<CorpsePose> firstPose, laterPose;
+    std::optional<Snapshot> laterMotion;
+    int delivered = 0;
+    for (int tick = 1; tick <= 220; ++tick) {
+        world.step();
+        if (tick % 3) continue;
+        const double now = tick / 60.;
+        const auto snapshot = test_replication::readySnapshot(world, player);
+        for (const auto& motion : snapshot.zombies)
+            if (firstPose && motion.activeAttackRevision > firstPose->activeAttackRevision) laterMotion = snapshot;
+        playback.push(wire(snapshot), now);
+        if (const auto pose = world.nextPose(player)) {
+            require(pose->activeAttackRevision != 0 && !scene.zombies.instances[0].ragdoll,
+                "Replication mislabeled a living attack as a corpse");
+            if (lastPoseTick) require(pose->tick - lastPoseTick >= 6, "Living physical poses exceeded ten Hz");
+            lastPoseTick = pose->tick;
+            if (!firstPose) firstPose = *pose;
+            else if (pose->activeAttackRevision > firstPose->activeAttackRevision) laterPose = *pose;
+            world.poseSent(player, *pose);
+            auto packed = *pose;
+            packed.compact = compactRagdollPose(scene.zombies.assets[0], packed);
+            require(packed.compact.has_value(), "Living physical attacks bypassed joint compression");
+            const auto bytes = encode(packed);
+            playback.pushPose(client, std::get<CorpsePose>(decode(bytes.data(), bytes.size())), now);
+            world.acknowledgePose(player, {pose->id, pose->version});
+            ++delivered;
+        }
+        playback.apply(client, now);
+        const auto& replica = client.zombies.instances[0];
+        require(!replica.ragdoll && client.zombies.ragdollCount() == 0,
+            "A replicated physical attacker entered the corpse population");
+        if (replica.activeRagdoll) {
+            require(!replica.physicsRagdoll && replica.ragdollBones.size() == 15,
+                "Client must render the authoritative physical palette without a second local rig");
+            if (!firstRevision) firstRevision = replica.attackRevision;
+            restarted |= replica.attackRevision != firstRevision;
+            displayed = true;
+        } else if (displayed && !replica.attackClip) recovered = true;
+    }
+    require(displayed && recovered && restarted && delivered > 8,
+        "Physical attack replication failed to start, recover or start a fresh epoch");
+    require(world.players().at(player).vitals.health() < 100,
+        "Authoritative physical hands failed to injure the player");
+    require(firstPose && laterPose && laterMotion, "Attack epoch fixtures missing");
+    Scene delayedClient(options); openScene(delayedClient, false);
+    delayedClient.zombies.assets[0] = zombie_attack_fixture::humanoid();
+    delayedClient.zombies.rebuildSpatialIndex();
+    Snapshots delayed;
+    test_replication::installSetups(delayed, delayedClient, scene);
+    delayed.push(wire(*laterMotion), 5);
+    delayed.pushPose(delayedClient, *firstPose, 5); // Old reliable transfer, newer motion already received.
+    delayed.apply(delayedClient, 5);
+    require(!delayedClient.zombies.instances[0].activeRagdoll && !delayedClient.zombies.instances[0].removed,
+        "A delayed old swing replaced a new attack's baked fallback");
+    delayed.pushPose(delayedClient, *laterPose, 5.1);
+    delayed.apply(delayedClient, 5.1);
+    require(delayedClient.zombies.instances[0].activeRagdoll && !delayedClient.zombies.instances[0].ragdoll,
+        "A matching attack epoch could not replace the fallback after an old transfer");
+}
+
 void backlogVelocityMeasuresTheWholeTick(const Options& options) {
     Scene scene(options);
     openScene(scene, false);
@@ -238,6 +321,7 @@ int main(int argc, char** argv) {
         stationaryHitsAndIndependentHealth(options);
         escapedRagdollIsRetiredByServer(options);
         disabledPerceptionStopsDamage(options);
+        livingPhysicalAttackReplication(options);
         backlogVelocityMeasuresTheWholeTick(options);
         vehicleExitDoesNotBecomeImpactVelocity(options);
         std::cout << "Multiplayer zombie attack authority, health and measured velocity passed\n";

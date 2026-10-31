@@ -31,7 +31,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 27; // Compact ragdoll joint rotations and sparse offsets.
+constexpr std::uint32_t protocolVersion = 28; // Living physical attack poses and attack revisions.
 constexpr std::uint64_t ragdollUpdateTicks = 12; // 5 Hz at the authoritative 60 Hz tick.
 constexpr std::uint64_t blastRagdollUpdateTicks = 6; // 10 Hz for explosion-created ragdolls.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
@@ -119,10 +119,12 @@ struct ZombieState {
     bool walking = false, running = false, dead = false;
     std::vector<std::uint8_t> woundMask{};
     // The wire carries only ID, packed flags/cadence, root position/yaw and
-    // walkSeconds. Asset, phase, normalization and wounds arrive via setup.
+    // walkSeconds, plus clock/revision during attacks. Asset, phase,
+    // normalization and wounds arrive via setup.
     std::uint8_t updatePeriodTicks = 3; // 3/12/60 authoritative ticks: 20/5/1 Hz.
     std::uint8_t attackClip = 0; // 0 none, 1 left, 2 right.
     float attackSeconds = 0;
+    std::uint32_t activeAttackRevision = 0; // Zero selects the baked/fallback presentation.
 };
 struct ZombieSetup {
     std::uint32_t id = 0, asset = 0;
@@ -144,7 +146,7 @@ struct CompactRagdollPose {
     std::vector<std::array<std::uint8_t, 3>> rotations; // XYZ Euler turns, 256 steps per revolution.
     std::vector<RagdollJointOffset> offsets; // Ascending bone IDs; omitted offsets are zero.
 };
-// A complete, coherent corpse pose, delivered independently of essential state.
+// A complete corpse or living attack pose, independent of essential state.
 // Versions increase for each zombie; an acknowledgement releases a bounded
 // transfer slot. Intermediate versions are coalesced while a transfer is active.
 struct CorpsePose {
@@ -158,6 +160,7 @@ struct CorpsePose {
     // Wire-only alternative to bones. Expanded against the shared skeleton
     // before prediction; roots remain full precision in both encodings.
     std::optional<CompactRagdollPose> compact{};
+    std::uint32_t activeAttackRevision = 0; // Zero is a corpse; otherwise a living attack epoch.
 };
 struct PoseAck { std::uint32_t id = 0; std::uint64_t version = 0; };
 struct DoorState { std::uint32_t id = 0; float angle = 0; };

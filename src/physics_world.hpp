@@ -23,6 +23,7 @@ constexpr std::uint64_t ragdollBodyCategory = 1ull << 17;
 constexpr std::uint64_t vehicleBodyCategory = 1ull << 18;
 constexpr std::uint64_t playerBodyCategory = 1ull << 20;
 constexpr std::uint64_t meleeZombieCategory = 1ull << 21;
+constexpr std::uint64_t zombieAttackBodyCategory = 1ull << 22;
 
 // Shared Box3D simulation in runtime meters (X east, Y up, Z south).
 // Owners of bodies/joints must retain this world and destroy their resources

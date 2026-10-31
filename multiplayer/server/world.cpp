@@ -326,6 +326,7 @@ void World::step() {
     for (std::size_t i = 0; i < scene_.boxes->count(); ++i)
         if (scene_.boxes->active(i)) scene_.doors->activateNear(scene_.boxes->pose(i).center, 8);
     for (const auto id : scene_.zombies.ragdollIds()) scene_.doors->activateNear(glm::vec3(scene_.zombies.instances[id].transform[3]));
+    scene_.zombies.prepareAttackPhysics(physicsScene_);
     scene_.zombies.prepareWoundPhysics(tickSeconds, now, &physicsScene_);
     scene_.physics->step(tickSeconds, [&](float seconds) {
         viewer::prepareVehicleScene(*scene_.vehicles, physicsScene_);

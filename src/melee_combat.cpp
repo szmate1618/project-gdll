@@ -70,10 +70,13 @@ void MeleeCombat::prepare(PlayerBody* const* players, std::size_t count, ZombieL
     for (const auto id : d.nearby) {
         // Catch up only nearby rigs before positioning their bone surfaces,
         // including when one render frame advances several physics steps.
-        if (zombies->instances[id].springRagdoll) zombies->synchronizePhysics(id);
+        if (zombies->instances[id].springRagdoll || zombies->instances[id].activeRagdoll) zombies->synchronizePhysics(id);
         const auto& instance = zombies->instances[id];
         if (instance.removed || (instance.ragdoll && !instance.springRagdoll) || instance.asset >= zombies->assets.size()) continue;
         const auto& asset = zombies->assets[instance.asset];
+        // The dynamic rig already supplies its own contact capsules and hands.
+        // A kinematic mesh proxy here would stop fists before they reach it.
+        if (instance.activeRagdoll) continue;
         if (ZombieBoneCollisionAsset::supported(asset)) {
             auto& rig = d.boneRigs[id];
             if (rig.asset != &asset) {
@@ -209,6 +212,8 @@ void MeleeCombat::finish(PlayerBody* const* players, std::size_t count, ZombieLa
                     for (const auto& [id, rig] : d.boneRigs)
                         if (rig.contacts->owns(other)) { zombie = id; break; }
                 }
+                const auto physicalAttack = zombies->activeAttackOwner(other);
+                if (physicalAttack) zombie = *physicalAttack;
                 if (zombie == zombies->instances.size()) continue;
                 for (int m = 0; m < contact.manifoldCount; ++m) {
                     const auto& manifold = contact.manifolds[m];
@@ -217,6 +222,9 @@ void MeleeCombat::finish(PlayerBody* const* players, std::size_t count, ZombieLa
                         const auto& point = manifold.points[p];
                         if (point.totalNormalImpulse <= .001f) continue;
                         player.recordArmContact(part);
+                        // Box3D already applied this impulse to the dynamic
+                        // attack body. Do not apply it again or kill the owner.
+                        if (physicalAttack) continue;
                         auto& hit = hits[zombie];
                         hit.impulse += glm::vec3(normal.x, normal.y, normal.z) * (armIsA ? 1.f : -1.f) * point.totalNormalImpulse;
                         const auto center = b3Body_GetWorldCenter(body);
@@ -260,7 +268,7 @@ bool MeleeCombat::punch(PlayerBody& player, glm::vec3 eye, glm::vec3 direction, 
     // Spring ragdoll internals exclude this category, so aim uses their bone
     // surfaces too rather than an invisible capsule in front of the mesh.
     filter.categoryBits = playerBodyCategory;
-    filter.maskBits = meleeZombieCategory | ordinaryBodyCategory | doorBodyCategory | interiorBoxCategory | vehicleBodyCategory;
+    filter.maskBits = meleeZombieCategory | zombieAttackBodyCategory | ordinaryBodyCategory | doorBodyCategory | interiorBoxCategory | vehicleBodyCategory;
     const auto ray = b3World_CastRayClosest(impl_->world->id(), {eye.x, eye.y, eye.z},
         {direction.x * range, direction.y * range, direction.z * range}, filter);
     if (ray.hit && ray.fraction * range < distance) distance = ray.fraction * range;

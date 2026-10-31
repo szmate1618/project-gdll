@@ -37,14 +37,14 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
     // complete player/door/box lists and pending vehicle updates share the budget.
     const auto baseBytes = encode(s).size();
     const auto available = maxMessageBytes - baseBytes;
-    const auto sampleLimit = std::min(maxZombieUpdatesPerSnapshot, available / 26);
+    const auto sampleLimit = std::min(maxZombieUpdatesPerSnapshot, available / 30);
     const std::vector<std::uint8_t> emptyMask;
     auto* setupSlots = setupSlots_.data();
     auto* cachedSetups = setups_.data();
     for (std::size_t rank = 0; rank < selected_.size(); ++rank) {
         const auto id = selected_[rank];
         const auto& instance = scene.zombies.instances[id];
-        if (instance.ragdoll) interestedCorpses_.push_back(id);
+        if (instance.hasPhysicalPose()) interestedCorpses_.push_back(id);
         auto& slot = setupSlots[id];
         const bool created = slot == 0;
         if (created) {
@@ -89,7 +89,7 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
         if (!interested_[id]) state.sentMotion = false;
         if (!state.acknowledged || s.zombies.size() == sampleLimit) continue;
         const auto period = static_cast<std::uint8_t>(rank < 256 ? 3 : rank < 1024 ? 12 : 60);
-        const auto mode = static_cast<std::uint8_t>(instance.walking | (instance.running << 1) | (instance.ragdoll << 2) | (instance.attackClip << 3));
+        const auto mode = static_cast<std::uint8_t>(instance.walking | (instance.running << 1) | (instance.ragdoll << 2) | (instance.attackClip << 3) | (instance.activeRagdoll << 5));
         const bool urgent = !state.sentMotion || state.lastMode != mode || period < state.lastPeriod;
         const auto passes = std::uint64_t(period / 3);
         // Rank balances every cadence bucket even for adversarial stable IDs
@@ -107,6 +107,7 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
         sample.walking = instance.walking; sample.running = instance.running; sample.dead = instance.ragdoll;
         sample.attackClip = instance.ragdoll ? 0 : instance.attackClip;
         sample.attackSeconds = static_cast<float>(instance.attackSeconds);
+        sample.activeAttackRevision = instance.activeRagdoll ? instance.attackRevision : 0;
         sample.updatePeriodTicks = period;
         s.zombies.push_back(std::move(sample));
         state.sentMotion = true; state.lastMotionTick = s.tick; state.lastMode = mode; state.lastPeriod = period;
@@ -122,7 +123,7 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
         it = pendingSetups_.erase(it);
     }
     std::sort(interestedCorpses_.begin(), interestedCorpses_.end());
-    const auto contentsLimit = std::min<std::size_t>(256, (available - s.zombies.size() * 26) / 64);
+    const auto contentsLimit = std::min<std::size_t>(256, (available - s.zombies.size() * 30) / 64);
     s.woundContents = scene.zombies.woundContents(selected_, contentsLimit);
     return s;
 }
@@ -183,15 +184,17 @@ std::optional<CorpsePose> Replication::nextPose(const Scene& scene) const {
         const auto id = interestedCorpses_[(startOffset + offset) % interestedCorpses_.size()];
         if (inFlight_.count(id) || !setups_[setupSlots_[id] - 1].acknowledged) continue;
         const auto& instance = scene.zombies.instances.at(id);
-        const auto period = instance.blastRagdoll ? blastRagdollUpdateTicks : ragdollUpdateTicks;
+        const auto period = instance.blastRagdoll || instance.activeRagdoll ? blastRagdollUpdateTicks : ragdollUpdateTicks;
         const auto last = lastPoseTicks_.find(id);
         if (last != lastPoseTicks_.end() && poseTick_ - last->second < period) continue;
-        if (!instance.ragdoll || instance.removed) continue;
+        if (!instance.hasPhysicalPose() || instance.removed) continue;
         const auto ack = acknowledged_.find(id);
         if (ack != acknowledged_.end() && ack->second >= instance.ragdollPoseVersion) continue;
-        return CorpsePose{static_cast<std::uint32_t>(id), static_cast<std::uint32_t>(instance.asset),
+        auto pose = CorpsePose{static_cast<std::uint32_t>(id), static_cast<std::uint32_t>(instance.asset),
             instance.ragdollPoseVersion, instance.transform, instance.restRoot, instance.ragdollBones,
             static_cast<std::int16_t>(instance.severedJoint), poseTick_, instance.ragdollSleeping};
+        pose.activeAttackRevision = instance.activeRagdoll ? instance.attackRevision : 0;
+        return pose;
     }
     return std::nullopt;
 }

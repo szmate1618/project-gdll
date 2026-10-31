@@ -8,6 +8,7 @@
 #include "zombie_lod.hpp"
 #include "zombie_navigation.hpp"
 #include "zombie_cavity_physics.hpp"
+#include "zombie_layer_physics.hpp"
 #include "physics_world.hpp"
 #include "simulation_clock.hpp"
 
@@ -31,14 +32,6 @@ bool finite(glm::vec3 value) {
     return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
 }
-
-struct ZombieLayer::Physics {
-    Physics() : Physics(std::make_shared<PhysicsWorld>()) {}
-    explicit Physics(std::shared_ptr<PhysicsWorld> shared) : simulation(std::move(shared)), world(simulation), cavities(simulation) {}
-    std::shared_ptr<PhysicsWorld> simulation;
-    ZombieRagdollWorld world;
-    ZombieCavityPhysics cavities;
-};
 
 ZombieLayer::ZombieLayer() = default;
 ZombieLayer::~ZombieLayer() = default;
@@ -320,7 +313,7 @@ bool ZombieLayer::meleeHit(std::size_t id, glm::vec3 impulse, glm::vec3 point, d
     if (instance.removed || instance.asset >= assets.size()) return false;
     if (instance.ragdoll) {
         if (!instance.springRagdoll || !instance.physicsRagdoll || !physics_) return false;
-    } else {
+    } else if (!instance.activeRagdoll) {
         if (!knockDown(id, {}, seconds)) return false;
         physics_->world.holdPose(instance.ragdollHandle);
         instance.springRagdoll = true;
@@ -344,6 +337,7 @@ glm::vec3 ZombieLayer::pushLiving(std::size_t id, glm::vec3 displacement, const 
     const auto movement=moveZombieBody(start,start+displacement,world,&crowd_,id);
     const auto delta=movement.feet-start;
     if (delta!=glm::vec3(0)) {
+        if (instance.activeRagdoll && physics_) physics_->world.translate(instance.ragdollHandle, delta);
         const auto translation=glm::translate(glm::mat4(1),delta);
         instance.restRoot=translation*instance.restRoot;
         instance.restTransform=translation*instance.restTransform;
@@ -362,24 +356,35 @@ void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> s
     const auto& asset = assets[instance.asset];
     constexpr float motionSampleSeconds = 1.0f / 30;
     const auto previousPose = sampleZombiePose(asset, instance, animationSeconds, -motionSampleSeconds);
-    instance.activationPose = std::move(selectedPose);
+    const bool promotedAttack = instance.activeRagdoll;
     RagdollPose reference, current;
-    const bool mappedRig = makeZombieRagdollPoses(instance, asset, reference, current);
-    if (mappedRig)
-        instance.ragdollHandle = physics_->world.create(feet, yaw, velocity, reference, current);
-    else
-        instance.ragdollHandle = physics_->world.create(feet, yaw, velocity);
+    bool mappedRig = false;
+    if (!promotedAttack) {
+        instance.activationPose = std::move(selectedPose);
+        mappedRig = makeZombieRagdollPoses(instance, asset, reference, current);
+        if (mappedRig)
+            instance.ragdollHandle = physics_->world.create(feet, yaw, velocity, reference, current);
+        else
+            instance.ragdollHandle = physics_->world.create(feet, yaw, velocity);
+    }
     try {
         registerRagdoll(selected);
     } catch (...) {
-        physics_->world.destroy(instance.ragdollHandle);
+        if (!promotedAttack) physics_->world.destroy(instance.ragdollHandle);
         throw;
+    }
+    if (promotedAttack) {
+        physics_->world.releasePose(instance.ragdollHandle);
+        physics_->attacks.erase(selected);
+        instance.activeRagdoll = false;
+        physics_->world.addLinearVelocity(instance.ragdollHandle, RagdollPart::pelvis, velocity * .7f);
     }
     if (instance.locomotionVelocity != glm::vec3(0))
         for (std::size_t part = 0; part < ragdollPartCount; ++part)
             physics_->world.addLinearVelocity(instance.ragdollHandle, static_cast<RagdollPart>(part), instance.locomotionVelocity);
     if (mappedRig) inheritZombieRagdollMotion(instance, asset, previousPose, motionSampleSeconds, physics_->world);
     instance.ragdoll = true;
+    instance.attackClip = 0;
     instance.severedJoint = severedJoint;
     if (severedJoint >= 0) {
         const auto part = dismembermentAssets.at(instance.asset).joints.at(std::size_t(severedJoint)).part;
@@ -406,7 +411,8 @@ void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> s
 }
 
 void ZombieLayer::attachPhysics(std::shared_ptr<PhysicsWorld> world) {
-    if (ragdollCount() != 0) throw std::logic_error("Attach physics before creating ragdolls");
+    if (ragdollCount() != 0 || (physics_ && !physics_->attacks.empty()))
+        throw std::logic_error("Attach physics before creating ragdolls");
     auto replacement = std::make_unique<Physics>(std::move(world));
     physics_ = std::move(replacement);
 }
@@ -426,7 +432,7 @@ void ZombieLayer::prepareWoundPhysics(float seconds, double animationSeconds, Ph
         const auto& asset = assets.at(instance.asset);
         const auto& geometry = woundGeometry_.at(instance.asset)[std::size_t(region)];
         const auto bone = std::size_t(geometry.bone);
-        const auto pose = instance.ragdoll ? instance.ragdollBones[bone] * asset.skeleton[bone].referenceWorld :
+        const auto pose = instance.hasPhysicalPose() ? instance.ragdollBones[bone] * asset.skeleton[bone].referenceWorld :
             sampleZombiePose(asset, instance, animationSeconds)[bone];
         const auto frame = instance.transform * pose * glm::inverse(asset.skeleton[bone].referenceWorld) * geometry.referenceFrame;
         physics_->cavities.move(id, region, frame, seconds);
@@ -488,6 +494,7 @@ void ZombieLayer::synchronizePhysics() {
     if (!physics_) return;
     // Loose contents move independently, even when their owning corpse sleeps.
     if (ragdollCleanupY_) physics_->cavities.removeContentsBelow(*ragdollCleanupY_);
+    for (const auto id : physics_->attacks) synchronizePhysics(id);
     for (std::size_t slot = 0; slot < ragdollIds_.size();) {
         const auto id = ragdollIds_[slot];
         synchronizePhysics(id);
@@ -499,21 +506,22 @@ void ZombieLayer::synchronizePhysics() {
 void ZombieLayer::synchronizePhysics(std::size_t id) {
     if (!physics_ || id >= instances.size()) return;
     auto& instance = instances[id];
-    if (instance.removed || !instance.ragdoll || !instance.physicsRagdoll) return;
+    if (instance.removed || !instance.hasPhysicalPose() || !instance.physicsRagdoll) return;
     const auto revision = physics_->world.poseRevision(instance.ragdollHandle);
     const bool sleeping = physics_->world.sleeping(instance.ragdollHandle);
     if (revision == instance.physicsPoseRevision && sleeping == instance.ragdollSleeping) return;
     instance.ragdollSleeping = sleeping;
-    if (ragdollCleanupY_ && physics_->world.hasBodyBelow(instance.ragdollHandle, *ragdollCleanupY_)) {
+    if (instance.ragdoll && ragdollCleanupY_ && physics_->world.hasBodyBelow(instance.ragdollHandle, *ragdollCleanupY_)) {
         removeRagdoll(id);
         return;
     }
-    instance.transform = physics_->world.rootTransform(instance.ragdollHandle) *
-        glm::inverse(instance.restRoot) * instance.restTransform;
+    instance.transform = instance.activeRagdoll ? instance.restTransform :
+        physics_->world.rootTransform(instance.ragdollHandle) * glm::inverse(instance.restRoot) * instance.restTransform;
     if (instance.asset < assets.size()) updateZombieRagdollSkin(instance, assets[instance.asset], physics_->world);
     instance.physicsPoseRevision = revision;
     ++instance.ragdollPoseVersion;
     markRenderChanged(id);
+    if (instance.activeRagdoll) updateSpatialMembership(id);
 }
 
 void ZombieLayer::translateRagdoll(std::size_t zombie, glm::vec3 displacement) {
@@ -549,7 +557,8 @@ void ZombieLayer::removeRagdoll(std::size_t zombie) {
     behaviors.remove(zombie);
     markRenderChanged(zombie);
 }
-void ZombieLayer::setRagdollPalette(std::size_t zombie, std::vector<glm::mat4> palette) {
+void ZombieLayer::setRagdollPalette(std::size_t zombie, std::vector<glm::mat4> palette, bool activeAttack) {
+    if (activeAttack) ensureSpatialIndex();
     auto& instance = instances.at(zombie);
     if (instance.removed || instance.physicsRagdoll) throw std::logic_error("Palette is owned by physics or removed");
     if (instance.asset >= assets.size() || palette.size() != assets[instance.asset].skeleton.size())
@@ -558,14 +567,19 @@ void ZombieLayer::setRagdollPalette(std::size_t zombie, std::vector<glm::mat4> p
         for (int column = 0; column < 4; ++column)
             for (int row = 0; row < 4; ++row)
                 if (!std::isfinite(matrix[column][row])) throw std::invalid_argument("Palette must be finite");
-    registerRagdoll(zombie);
-    if (navigation_) navigation_->reset(zombie);
+    if (!activeAttack) {
+        registerRagdoll(zombie);
+        if (navigation_) navigation_->reset(zombie);
+    }
     instance.ragdollBones = std::move(palette);
-    instance.ragdoll = true;
+    instance.ragdoll = !activeAttack;
+    instance.activeRagdoll = activeAttack;
     instance.walking = false;
     ++instance.ragdollPoseVersion;
-    spatialIndex_.erase(zombie);
-    behaviors.remove(zombie);
+    if (!activeAttack) {
+        spatialIndex_.erase(zombie);
+        behaviors.remove(zombie);
+    } else updateSpatialMembership(zombie);
     markRenderChanged(zombie);
 }
 

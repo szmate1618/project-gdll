@@ -15,7 +15,8 @@ void RagdollPlayback::push(const CorpsePose& pose, double receivedSeconds, doubl
         if (pose.version <= latest.pose.version || pose.tick < latest.pose.tick) return;
         if (receivedSeconds < latest.seconds)
             throw std::invalid_argument("Ragdoll receive time moved backwards");
-        if (pose.severedJoint != latest.pose.severedJoint || pose.sleeping ||
+        if (pose.activeAttackRevision != latest.pose.activeAttackRevision ||
+            pose.severedJoint != latest.pose.severedJoint || pose.sleeping ||
             pose.tick == latest.pose.tick || pose.tick - latest.pose.tick > 36) samples_.clear();
     }
     if (samples_.size() == 2) samples_.erase(samples_.begin());
@@ -27,7 +28,7 @@ const CorpsePose* RagdollPlayback::sample(const viewer::AnimatedModel& asset, do
     if (!std::isfinite(now)) throw std::invalid_argument("Invalid ragdoll sample time");
     const auto& latest = samples_.back();
     const double age = samples_.size() == 2 && !latest.pose.sleeping ?
-        std::clamp(now - latest.seconds + latest.transit, 0.0, .4) : 0;
+        std::clamp(now - latest.seconds + latest.transit, 0.0, latest.pose.activeAttackRevision ? .1 : .4) : 0;
     if (age == renderSeconds_ && sampledVersion_ == latest.pose.version)
         return rendered_ ? &*rendered_ : &latest.pose;
     auto next = samples_.size() == 2 ?

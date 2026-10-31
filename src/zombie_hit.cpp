@@ -146,6 +146,14 @@ ZombieHitBounds zombieShotBounds(const ZombieInstance& instance, const ZombieHit
         const auto joints = transformed(geometry.jointPoints, instance.transform);
         include(result, joints.minimum); include(result, joints.maximum);
     }
+    if (instance.activeRagdoll && !geometry.capsules.empty()) {
+        // Springs can deflect outside the baked animation envelope. Transform
+        // its capsule union through each skin delta; posed geometry decides hits.
+        for (const auto& bone : instance.ragdollBones) {
+            const auto physical = transformed(geometry.capsulePoints, instance.transform * bone);
+            include(result, physical.minimum); include(result, physical.maximum);
+        }
+    }
     // Outward tolerance covers affine/frame interpolation rounding. Broad-phase
     // bounds may overinclude; the detailed colliders make the final decision.
     const auto padding = glm::vec3(0.001f) +

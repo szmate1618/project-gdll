@@ -85,7 +85,8 @@ CorpsePose interpolateRagdollPose(const CorpsePose& before, const CorpsePose& af
 
 CorpsePose predictRagdollPose(const CorpsePose& before, const CorpsePose& after,
                             const viewer::AnimatedModel& asset, double seconds) {
-    if (after.sleeping || after.tick <= before.tick || !std::isfinite(seconds) || seconds <= 0 ||
+    if (before.activeAttackRevision != after.activeAttackRevision ||
+        after.sleeping || after.tick <= before.tick || !std::isfinite(seconds) || seconds <= 0 ||
         before.bones.size() != after.bones.size() || after.bones.size() != asset.skeleton.size()) return after;
     const double interval = double(after.tick - before.tick) / 60;
     if (interval > .6 || before.sleeping) return after; // Wake/re-entry has no measured velocity yet.

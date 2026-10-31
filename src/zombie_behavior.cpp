@@ -286,6 +286,7 @@ void ZombieLayer::setPerceptionEnabled(bool enabled) {
         if (instance.removed || instance.ragdoll) continue;
         if (instance.walking || instance.attackClip) markRenderChanged(entry.zombie, false);
         instance.attackClip = 0;
+        stopActiveAttack(entry.zombie);
         stopZombieLocomotion(instance);
     }
     behaviors = ZombieBehaviorPool{};
@@ -493,6 +494,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
     }
     phase.finish();
     updateScenarioRoutes(seconds, world, player, players);
+    updateActiveAttacks(seconds);
 }
 
 } // namespace viewer

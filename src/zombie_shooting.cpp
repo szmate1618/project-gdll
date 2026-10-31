@@ -67,6 +67,11 @@ void ZombieLayer::updateSpatialMembership(std::size_t id) {
     crowd_.update(id, feet);
     auto& bounds = shotBounds_[id];
     bounds = zombieShotBounds(instance, hitGeometry_[instance.asset]);
+    if (instance.activeRagdoll) {
+        const auto& physical = replicationWorldBounds_[id];
+        bounds.minimum = glm::min(bounds.minimum, physical.minimum);
+        bounds.maximum = glm::max(bounds.maximum, physical.maximum);
+    }
     // A high-water mark avoids rescanning the crowd when one actor moves. Normal
     // yaw/locomotion cannot grow it unboundedly; explicit rebuild resets it.
     for (const int axis : {0, 2})
@@ -83,7 +88,7 @@ void ZombieLayer::updateReplicationMembership(std::size_t id) {
     }
     const auto& assetBounds = replicationAssetBounds_[instance.asset];
     auto local = assetBounds[0];
-    if (instance.ragdoll)
+    if (instance.hasPhysicalPose())
         for (const auto& bone : instance.ragdollBones)
             includeZombieBounds(local, transformedZombieBounds(assetBounds[1], bone));
     auto& bounds = replicationWorldBounds_[id];

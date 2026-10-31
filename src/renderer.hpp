@@ -262,6 +262,10 @@ private:
         bool ragdoll = false;
     };
     static_assert(sizeof(ZombieRenderState) <= 56, "Zombie selection state must remain compact");
+    struct DisplayedZombieAttack {
+        glm::mat4 transform{1}, root{1};
+        std::vector<glm::mat4> bones;
+    };
     struct ZombieClipTiming {
         float duration = 0;
         std::size_t frameCount = 0;
@@ -530,6 +534,7 @@ private:
     // Source-ID order matches visibility results. Refresh through the existing
     // render notifications; selection avoids gathering the larger gameplay state.
     std::vector<ZombieRenderState> zombieRenderStates_;
+    std::unordered_map<std::size_t, DisplayedZombieAttack> displayedZombieAttacks_;
     std::vector<ZombieVisibilityResult> visibleZombies_;
     std::vector<std::size_t> zombieShotCandidates_;
     ZombieVisibilityStats zombieVisibilityStats_;

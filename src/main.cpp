@@ -1681,6 +1681,7 @@ int run(const Options& options) {
                            float(app.keys[GLFW_KEY_D]) - float(app.keys[GLFW_KEY_A]), app.keys[GLFW_KEY_SPACE]);
             if (zombies) {
                 viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::wounds);
+                zombies->prepareAttackPhysics(physicsScene);
                 zombies->prepareWoundPhysics(step, app.displayedAnimationSeconds, &physicsScene);
             }
             playerBody.beforeStep(step);

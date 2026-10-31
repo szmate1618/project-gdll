@@ -234,6 +234,8 @@ void Snapshots::applyZombies(Scene& scene, double now, double estimatedServerTic
         instance.restRoot = z.root;
         instance.phase = setup.phase; instance.walkSeconds = z.walkSeconds;
         instance.walking = z.walking; instance.running = z.running; instance.ragdoll = z.dead;
+        instance.activeRagdoll = false;
+        instance.attackRevision = z.activeAttackRevision;
         instance.attackClip = z.dead ? 0 : z.attackClip;
         instance.attackSeconds = z.attackSeconds;
         if (instance.attackClip) {
@@ -253,16 +255,19 @@ void Snapshots::applyZombies(Scene& scene, double now, double estimatedServerTic
         }
         instance.transform = instance.restRoot * setup.normalization;
         instance.restTransform = instance.transform;
-        if (z.dead) {
+        if (z.dead || z.activeAttackRevision) {
             const auto* pose = replica.poses.sample(scene.zombies.assets[setup.asset], now);
             // Roots and palettes share one playback time. Joint-world rigid
             // motion is interpolated while fixed affine bind geometry survives.
-            if (!pose) instance.removed = true;
+            const bool matches = pose && (z.dead ? pose->activeAttackRevision == 0 :
+                pose->activeAttackRevision == z.activeAttackRevision);
+            if (!matches) { if (z.dead) instance.removed = true; }
             else {
+                instance.activeRagdoll = !z.dead;
                 instance.transform = pose->transform; instance.restRoot = pose->root;
                 if (replica.appliedPoseRevision != replica.poses.revision()) {
                     instance.severedJoint = pose->severedJoint;
-                    scene.zombies.setRagdollPalette(id, pose->bones);
+                    scene.zombies.setRagdollPalette(id, pose->bones, !z.dead);
                     replica.appliedPoseRevision = replica.poses.revision();
                 }
             }

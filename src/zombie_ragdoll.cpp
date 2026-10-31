@@ -118,6 +118,7 @@ public:
             const float length = glm::length(axis);
             const auto rotation = length > 1e-5f ? frameFromY(axis, forward) : frameFromY({0, 1, 0}, forward);
             referenceBodies_[part] = glm::translate(glm::mat4(1), (begin + end) * 0.5f) * glm::mat4_cast(rotation);
+            boneToBody_[part] = glm::inverse(reference.bones[part]) * referenceBodies_[part];
             // Uniform source scale cancels in this delta. Normalize the resulting
             // axes because interpolated animation matrices can contain small shear.
             const auto live = current.bones[part] * glm::inverse(reference.bones[part]) * referenceBodies_[part];
@@ -140,6 +141,8 @@ public:
             if (verticalAxis > 1e-5f)
                 halfLength = std::min(halfLength, std::max(0.0f, (clearance - radius) / verticalAxis));
             bodies_[part] = addBody(center, liveRotation, radius, halfLength, masses[part], collisionGroup);
+            if (part == lowerArmLeft || part == lowerArmRight)
+                handPoints_[part == lowerArmRight] = b3Body_GetLocalPoint(bodies_[part], toB3Pos(current.tips[part]));
         }
 
         // Joint rotation frames come from the reference anatomy. Positional
@@ -302,6 +305,97 @@ public:
         }
     }
 
+    void drivePose(const RagdollPose& target, float seconds) {
+        if (!driven_) {
+            holdPose();
+            // Locomotion owns the feet/root. Only the upper body participates
+            // dynamically in an attack; there is no balance controller yet.
+            for (const auto part : {pelvis, upperLegLeft, lowerLegLeft, upperLegRight, lowerLegRight})
+                b3Body_SetType(bodies_[part], b3_kinematicBody);
+            for (const auto body : bodies_) {
+                std::vector<b3ShapeId> shapes(b3Body_GetShapeCount(body));
+                const int count = b3Body_GetShapes(body, shapes.data(), static_cast<int>(shapes.size()));
+                for (int i = 0; i < count; ++i) {
+                    auto filter = b3Shape_GetFilter(shapes[i]);
+                    filter.categoryBits = zombieAttackBodyCategory;
+                    filter.maskBits |= playerBodyCategory;
+                    b3Shape_SetFilter(shapes[i], filter, false);
+                }
+            }
+            for (const auto part : {lowerArmLeft, lowerArmRight}) {
+                auto shape = b3DefaultShapeDef();
+                shape.density = 0;
+                b3ShapeId existing{};
+                b3Body_GetShapes(bodies_[part], &existing, 1);
+                shape.filter = b3Shape_GetFilter(existing);
+                const b3Sphere sphere{handPoints_[part == lowerArmRight], .10f};
+                handShapes_[part == lowerArmRight] = b3CreateSphereShape(bodies_[part], &shape, &sphere);
+            }
+            driven_ = true;
+        }
+        std::array<glm::quat, partCount> rotations{};
+        for (int part = 0; part < partCount; ++part) {
+            const auto desired = target.bones[part] * boneToBody_[part];
+            rotations[part] = rigidRotation(desired);
+            if (b3Body_GetType(bodies_[part]) == b3_kinematicBody) {
+                const b3WorldTransform transform{toB3Pos(glm::vec3(desired[3])), toB3(rotations[part])};
+                b3Body_SetTargetTransform(bodies_[part], transform, seconds, true);
+            }
+        }
+        for (int child = torso; child < partCount; ++child) {
+            const auto joint = joints_[child];
+            if (!b3Joint_IsValid(joint)) continue;
+            const auto parent = child == torso || child == upperLegLeft || child == upperLegRight ? pelvis :
+                child == head || child == upperArmLeft || child == upperArmRight ? torso : child - 1;
+            const auto qa = b3MulQuat(toB3(rotations[parent]), b3Joint_GetLocalFrameA(joint).q);
+            const auto qb = b3MulQuat(toB3(rotations[child]), b3Joint_GetLocalFrameB(joint).q);
+            const auto relative = b3InvMulQuat(qa, qb);
+            if (b3Joint_GetType(joint) == b3_sphericalJoint) {
+                b3SphericalJoint_SetTargetRotation(joint, relative);
+                b3SphericalJoint_SetSpringHertz(joint, child == head ? 5.f : 10.f);
+                b3SphericalJoint_SetSpringDampingRatio(joint, 1.f);
+            } else {
+                const float angle = 2.f * std::atan2(relative.v.z, relative.s);
+                b3RevoluteJoint_SetTargetAngle(joint, std::remainder(angle, 2.f * pi));
+                b3RevoluteJoint_SetSpringHertz(joint, 10.f);
+                b3RevoluteJoint_SetSpringDampingRatio(joint, 1.f);
+            }
+        }
+    }
+
+    void releasePose() {
+        if (!driven_) return;
+        for (const auto shape : handShapes_) if (b3Shape_IsValid(shape)) b3DestroyShape(shape, true);
+        handShapes_ = {};
+        for (const auto body : bodies_) {
+            b3Body_SetType(body, b3_dynamicBody);
+            std::vector<b3ShapeId> shapes(b3Body_GetShapeCount(body));
+            const int count = b3Body_GetShapes(body, shapes.data(), static_cast<int>(shapes.size()));
+            for (int i = 0; i < count; ++i) {
+                auto filter = b3Shape_GetFilter(shapes[i]);
+                filter.categoryBits = ragdollBodyCategory;
+                b3Shape_SetFilter(shapes[i], filter, false);
+            }
+        }
+        for (int child = torso; child < partCount; ++child) {
+            const auto joint = joints_[child];
+            if (!b3Joint_IsValid(joint)) continue;
+            if (b3Joint_GetType(joint) == b3_sphericalJoint) {
+                b3SphericalJoint_EnableSpring(joint, false);
+                b3SphericalJoint_EnableMotor(joint, child == head || child == upperArmLeft || child == upperArmRight);
+            } else {
+                b3RevoluteJoint_EnableSpring(joint, false);
+                b3RevoluteJoint_EnableMotor(joint, child == lowerArmLeft || child == lowerArmRight);
+            }
+        }
+        driven_ = false;
+        ++revision_;
+    }
+
+    bool ownsBody(b3BodyId body) const {
+        return std::any_of(bodies_.begin(), bodies_.end(), [&](b3BodyId id) { return B3_ID_EQUALS(id, body); });
+    }
+
     glm::mat4 rootTransform() const {
         const auto position = fromB3(b3Body_GetPosition(bodies_[pelvis]));
         // Preserve the exact instance frame at handoff; the skinning matrices
@@ -419,6 +513,10 @@ private:
     std::array<b3JointId, partCount> joints_{};
     std::array<glm::mat4, partCount> restBodies_{};
     std::array<glm::mat4, partCount> referenceBodies_{};
+    std::array<glm::mat4, partCount> boneToBody_{};
+    std::array<b3Vec3, 2> handPoints_{};
+    std::array<b3ShapeId, 2> handShapes_{};
+    bool driven_ = false;
     glm::vec3 feet_{0};
     glm::vec3 initialPelvis_{0};
     float yaw_ = 0;
@@ -557,6 +655,18 @@ void ZombieRagdollWorld::destroy(std::size_t handle) {
 void ZombieRagdollWorld::holdPose(std::size_t handle) {
     if (!valid(handle)) throw std::out_of_range("Invalid ragdoll handle");
     impl_->entries[handle].ragdoll->holdPose();
+}
+void ZombieRagdollWorld::drivePose(std::size_t handle, const RagdollPose& target, float seconds) {
+    if (!valid(handle)) throw std::out_of_range("Invalid ragdoll handle");
+    if (!std::isfinite(seconds) || seconds <= 0) throw std::invalid_argument("Invalid pose drive interval");
+    impl_->entries[handle].ragdoll->drivePose(target, seconds);
+}
+void ZombieRagdollWorld::releasePose(std::size_t handle) {
+    if (!valid(handle)) throw std::out_of_range("Invalid ragdoll handle");
+    impl_->entries[handle].ragdoll->releasePose();
+}
+bool ZombieRagdollWorld::ownsBody(std::size_t handle, b3BodyId body) const {
+    return valid(handle) && impl_->entries[handle].ragdoll->ownsBody(body);
 }
 
 

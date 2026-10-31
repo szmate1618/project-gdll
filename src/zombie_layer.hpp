@@ -42,6 +42,8 @@ struct ZombieInstance {
     mutable int displayedAnimationClip = 0; // 0 idle, 1 walk, 2 run, 3/4 left/right attack.
     std::uint8_t attackClip = 0; // 0 none, 1 left, 2 right; simulation-owned presentation.
     double attackSeconds = 0; // Non-looping clip clock, independent of random idle phase.
+    bool activeRagdoll = false; // Living attack driven by physics; never a corpse/death flag.
+    std::uint32_t attackRevision = 0; // Distinguishes repeated physical attacks on the wire.
     float phase = 0; // Fraction of the idle cycle, independent of frame rate.
     bool walking = false;
     bool running = false; // Select the authored run clip during pursuit.
@@ -74,6 +76,7 @@ struct ZombieInstance {
     // Asset-space skinning palette. After initialization, mutate through the
     // layer's owning API so bounds and persistent GPU palettes are invalidated.
     std::vector<glm::mat4> ragdollBones;
+    bool hasPhysicalPose() const { return ragdoll || activeRagdoll; }
 };
 
 struct ZombieBehaviorStats {
@@ -136,6 +139,9 @@ struct ZombieLayer {
     }
     // Sparse wounded actors only. Call before advancing the shared physics world.
     void prepareWoundPhysics(float seconds, double animationSeconds, PhysicsScene* scene = nullptr);
+    // Stream contacts for living attack rigs only; corpse ground is unchanged.
+    void prepareAttackPhysics(PhysicsScene& scene);
+    std::optional<std::size_t> activeAttackOwner(b3BodyId body) const;
     std::vector<glm::mat4> woundContents() const;
     std::vector<glm::mat4> woundContents(const std::vector<std::size_t>& ids, std::size_t maxCount) const;
     void setWoundMask(std::size_t zombie, const std::vector<std::uint8_t>& mask);
@@ -218,7 +224,7 @@ struct ZombieLayer {
     void applyRagdollImpulse(std::size_t zombie, RagdollPart part, glm::vec3 impulse);
     void removeRagdoll(std::size_t zombie);
     // Externally driven rigs/tests only; physics-owned palettes use the APIs above.
-    void setRagdollPalette(std::size_t zombie, std::vector<glm::mat4> palette);
+    void setRagdollPalette(std::size_t zombie, std::vector<glm::mat4> palette, bool activeAttack = false);
     void update(float seconds);
     [[nodiscard]] std::size_t ragdollCount() const;
     // Dense, unordered list of stable instance IDs, including externally driven
@@ -231,6 +237,8 @@ struct ZombieLayer {
     const ZombieRenderUpdates& renderUpdates() const { return renderUpdates_; }
 
 private:
+    void updateActiveAttacks(float seconds);
+    void stopActiveAttack(std::size_t id);
     void recordReaction(std::size_t id, double now, bool chase);
     std::deque<ZombieReactionEvent> reactionEvents_;
     void emitBloodParticles(const ZombieShotHit& hit, glm::vec3 point, glm::vec3 direction,

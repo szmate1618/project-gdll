@@ -8,7 +8,8 @@ struct AnimatedModel;
 constexpr float zombieHandRadius = .10f; // World meters, on the attacking wrist/hand joint.
 
 // The existing attack cycle owns targeting/cooldown. Authored attacks keep the
-// root stationary and use a non-looping baked clip instead of lunge movement.
+// root stationary. Mapped rigs drive joint springs from the non-looping clip;
+// custom rigs without physical mappings use its baked hand path.
 bool hasZombieMeleeAttack(const AnimatedModel& asset);
 bool beginZombieMeleeAttack(ZombieLunge& cycle, ZombieInstance& instance,
                            const AnimatedModel& asset, const ZombiePlayer& player, double now);
