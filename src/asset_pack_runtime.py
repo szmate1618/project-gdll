@@ -75,7 +75,10 @@ Extra arguments are accepted, e.g. --single-player, --host or --connect IP:PORT.
 All peers must use matching game builds and content. Joining follows the host's world settings.
 
 This ZIP contains prepared map geometry, embedded map metadata/textures,
-published companion layers/navigation, scene models and definitions.
+published companion layers/navigation, scene models and definitions, and the
+self-contained pigeon flock descriptor with its meshes, flight animation and atlas.
+When enabled, dogs include all three appearances, their current LoDs, embedded
+textures and animations, and source/motion provenance.
 Scenario TOMLs are included for Host Game setup and the standalone server/prototype viewer.
 Choose a scenario and session options on Host Game setup, then Start hosting.
 asset-pack.json lists the content, hashes and launcher arguments. Navigation
@@ -87,6 +90,7 @@ No map generation or asset downloads occur during packaging or startup.
 
 Keep credits/assets and credits/software with the package. Dog model and motion
 credits and the original model's use restrictions are in credits/assets/UNDEAD_DOGS.txt.
+Pigeon model credits, license links and modifications are in credits/assets/PIGEONS.txt.
 '''
     launch = {"windows": "play-town.cmd", "linux": "play-town.sh", "arguments": arguments}
     return launch, {"play-town.cmd": windows.replace("\n", "\r\n").encode("utf-8"),

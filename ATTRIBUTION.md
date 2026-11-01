@@ -35,6 +35,20 @@ and inferred building/road dimensions are approximations produced by this code.
 The software and third-party data have separate licensing; this project does
 not relicense downloaded data.
 
+## Pigeon model attribution
+
+The bird flocks use [Animated Bird, Pigeon](https://sketchfab.com/3d-models/animated-bird-pigeon-797d27b68af3453e865149435df6aa30)
+by **Paul Spooner (dudecon / Peripheral Arbor)**, listed under
+[Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/).
+The model page also links the author's [public domain declaration](https://ip.tryop.com/).
+Project modifications include undead-palette recoloring, a yellow-beige 16×16
+atlas, a 65 cm wingspan, baked flight animation and reduced meshes for distant
+flocks. The model remains separate from the town GLB.
+
+Client packages and content packs retain [PIGEONS.txt](credits/assets/PIGEONS.txt).
+See the [pigeon asset documentation](assets/pigeon/README.md) for preparation
+details and source fingerprints.
+
 ## Software attribution
 
 The viewer and authoritative server use **Recast Navigation / Detour 1.6.0**

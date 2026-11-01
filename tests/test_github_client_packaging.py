@@ -93,6 +93,9 @@ class ClientBundleTests(unittest.TestCase):
                        "play-town.cmd": b"@echo off\r\n", "credits/assets/MAP.txt": b"Map attribution",
                        "credits/assets/UNDEAD_DOGS.txt": (Path(__file__).resolve().parents[1] /
                                                           "credits/assets/UNDEAD_DOGS.txt").read_bytes(),
+                       "credits/assets/PIGEONS.txt": (Path(__file__).resolve().parents[1] /
+                                                      "credits/assets/PIGEONS.txt").read_bytes(),
+                       "assets/pigeon/flock.json": b'{"schema":"godollo.pigeon-flock","version":1}\n',
                        "assets/undead_dog/models/undead_dog_variant_1.glb": b"prepared dog model"}
         self.asset_pack = self.root / "assets.zip"
         self.write_assets()

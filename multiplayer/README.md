@@ -378,9 +378,15 @@ Lowbit Lab's model and Petrov_the_blind's CC0 running animation. The model's
 terms permit game/app use and prohibit raw asset redistribution; retain these
 terms with game content and do not share it as a reusable model collection.
 
+The pigeon flock descriptor and `credits/assets/PIGEONS.txt` accompany both
+client packages and content packs. The notice credits Paul Spooner
+(dudecon / Peripheral Arbor), records the listed CC BY 4.0 license and the
+author's additional public domain declaration, and describes the palette,
+texture, scale, animation and mesh modifications.
+
 The notices cover OpenStreetMap, Sentinel-2, Copernicus DEM GLO-30, CC0 Durango
-weapons, and the conditional zombie/dog/audio assets. They do not clear other
-licensing obligations. Before public distribution, present the OSM credit
+weapons, Paul Spooner's pigeon, and the conditional zombie/dog/audio assets.
+They do not clear other licensing obligations. Before public distribution, present the OSM credit
 visibly in the game or its credits, and address any ODbL adapted-database
 share-alike/access obligations. The recorded zombie Standard license restricts
 standalone/extractable model redistribution: confirm the acquired license and

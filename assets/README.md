@@ -103,6 +103,17 @@ and the [idle crowd controls](../docs/VIEWER.md#idle-zombie-crowd) to run 1,000
 instances on the generated town. Character assets remain separate from the
 town GLB and tree placement manifests.
 
+## Pigeon flocks
+
+The bird flocks use [Animated Bird, Pigeon](https://sketchfab.com/3d-models/animated-bird-pigeon-797d27b68af3453e865149435df6aa30)
+by Paul Spooner (dudecon / Peripheral Arbor), listed as CC BY 4.0 with an
+additional public domain declaration by the author. The runtime version uses
+the undead palette, a yellow-beige 16×16 atlas, a 65 cm wingspan, baked flight
+animation and reduced meshes for distant flocks. See the
+[asset documentation](pigeon/README.md) for sources and preparation, and
+[distributed credits](../credits/assets/PIGEONS.txt) for the license links
+and modification notice included in client packages and content packs.
+
 ## Undead dog
 
 [undead_dog/](undead_dog/README.md) contains the preparation instructions for

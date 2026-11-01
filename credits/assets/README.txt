@@ -11,6 +11,9 @@ OPENSTREETMAP.txt OpenStreetMap map features (ODbL 1.0).
 SENTINEL.txt      Copernicus Sentinel-2 terrain imagery.
 COPERNICUS_DEM.txt Copernicus GLO-30 terrain elevation and required disclaimer.
 ZOMBIES.txt       Denys Almaral's models, when installed from an asset pack.
+PIGEONS.txt       Paul Spooner's animated pigeon (dudecon / Peripheral Arbor),
+                  listed as CC BY 4.0 with an author public domain declaration;
+                  palette, texture, scale, animation and mesh modifications.
 UNDEAD_DOGS.txt   Lowbit Lab's undead dog and Petrov_the_blind's run animation,
                   when installed from a game content pack.
 AUDIO.txt         Sound credits for versions that include audio; the current
