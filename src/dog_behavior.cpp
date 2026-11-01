@@ -1,5 +1,4 @@
 #include "dog_layer.hpp"
-#include "character_step.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -26,48 +25,6 @@ int sight(const DogInstance& dog, const ZombiePlayer& player, const CollisionWor
         if (world.lineOfSight(feet+glm::vec3(0,.55f,0), player.feet+glm::vec3(0,height,0))) ++clear;
     return clear == 3 ? 2 : clear ? 1 : 0;
 }
-bool clear(glm::vec3 feet, const CollisionWorld& world) {
-    for (const auto& c : world.contacts(feet, dogRadius, dogHeight, .002f, .05f)) {
-        if (c.depth <= .0001f || (c.terrainSupport && c.normal.y >= .70710678f) ||
-            (c.normal.y > .7f && c.point.y <= feet.y+.0021f)) continue;
-        return false;
-    }
-    return true;
-}
-}
-glm::vec3 DogLayer::move(std::size_t id, glm::vec3 desired, const CollisionWorld& world) {
-    auto feet = glm::vec3(instances[id].root[3]);
-    const auto offset = desired-feet;
-    const float distance = glm::length(glm::vec2(offset.x,offset.z));
-    if (distance < 1e-6f) return feet;
-    const int segments = std::min(2048, int(std::ceil(distance/(dogRadius/3))));
-    const auto delta = offset / float(segments);
-    WalkingGroundCache groundCache;
-    for (int segment = 0; segment < segments; ++segment) {
-        auto next = feet+delta;
-        if (!world.empty()) {
-            const auto ground = world.walkingGroundAt(next.x, next.z, std::numeric_limits<float>::lowest(), feet.y+.3f, &groundCache);
-            if (!ground || ground->normal.y < .70710678f) break;
-            next.y = ground->height;
-            if (!clear(next, world)) {
-                const CharacterStepConfig config{dogRadius,dogHeight,.3f,.70710678f,.002f,.05f};
-                const auto step = tryCharacterStep(feet,next,world,config);
-                if (!step) break;
-                next = step->feet;
-            }
-        }
-        spatial_.query(next, dogRadius*2, candidates_);
-        bool blocked = false;
-        for (const auto other : candidates_) {
-            if (other == id) continue;
-            const auto p = glm::vec3(instances[other].root[3]);
-            if (std::abs(p.y-next.y) >= dogHeight) continue;
-            if (glm::length(glm::vec2(p.x-next.x,p.z-next.z)) < dogRadius*2-.0001f) { blocked = true; break; }
-        }
-        if (blocked) break;
-        feet = next;
-    }
-    return feet;
 }
 void DogLayer::makeNoise(glm::vec3 position, float decibels) {
     if (!finite(position) || !std::isfinite(decibels)) return;

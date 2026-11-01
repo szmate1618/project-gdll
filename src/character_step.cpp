@@ -19,7 +19,11 @@ std::optional<CharacterStep> tryCharacterStep(glm::vec3 start, glm::vec3 desired
     const glm::vec2 offset(desired.x - start.x, desired.z - start.z);
     const float distance = glm::length(offset);
     if (!std::isfinite(distance) || distance < 1e-6f || distance > config.radius / 3 + tolerance ||
-        config.maxRise <= 0 || !blocked(desired, world, config)) return std::nullopt;
+        config.maxRise <= 0) return std::nullopt;
+    const auto contacts = world.contacts(desired, config.radius, config.height, config.skin, config.wallClearance);
+    if (std::none_of(contacts.begin(), contacts.end(), [](const Contact& contact) {
+            return contact.depth > tolerance;
+        })) return std::nullopt;
 
     // The center is still outside a ledge when the rounded foot first touches
     // its edge. Looking only directly beneath the center cannot discover it.
@@ -27,8 +31,7 @@ std::optional<CharacterStep> tryCharacterStep(glm::vec3 start, glm::vec3 desired
     const auto ground = world.walkingGroundAt(start.x, start.z,
         start.y - config.radius - config.skin, start.y + config.skin);
     std::optional<GroundHit> support;
-    for (const float reach : {0.f, config.radius * .5f, config.radius}) {
-        const auto sample = glm::vec2(desired.x, desired.z) + forward * reach;
+    const auto considerSupport = [&](glm::vec2 sample) {
         // Measure the ledge above the supporting slope at its edge, rather
         // than above feet still a capsule radius downhill from that edge.
         float slopeRise = 0;
@@ -42,6 +45,21 @@ std::optional<CharacterStep> tryCharacterStep(glm::vec3 start, glm::vec3 desired
             start.y + tolerance, baseHeight + slopeRise + config.maxRise + tolerance);
         if (hit && hit->normal.y >= config.minNormalY &&
             (!support || hit->height > support->height)) support = hit;
+    };
+    for (const float reach : {0.f, config.radius * .5f, config.radius})
+        considerSupport(glm::vec2(desired.x, desired.z) + forward * reach);
+    // A descending tread can have its highest point at the lip, between all
+    // three forward samples. Probe the actual contact to continue rolling the
+    // rounded foot across it without losing the ledge's support.
+    for (const auto& contact : contacts) {
+        if (contact.depth <= tolerance) continue;
+        const auto sample = glm::vec2(contact.point.x, contact.point.z);
+        const auto delta = sample - glm::vec2(start.x, start.z);
+        const float along = glm::dot(delta, forward);
+        const auto across = delta - forward * along;
+        if (along >= -tolerance && along <= distance + config.radius + tolerance &&
+            glm::length(across) <= config.radius + tolerance)
+            considerSupport(sample);
     }
     if (!support) return std::nullopt;
     const float liftedY = support->height + config.radius * (1 / support->normal.y - 1) +
@@ -62,15 +80,23 @@ std::optional<CharacterStep> tryCharacterStep(glm::vec3 start, glm::vec3 desired
     landing.y = liftedY;
     if (blocked(landing, world, config)) return std::nullopt;
 
-    // The downward range is shorter than the capsule height, so the first
-    // overlap cannot be skipped. Bisection retains the clear side of contact,
-    // including rounded-foot support just outside a raised surface's edge.
+    // A step can exceed the foot radius (dogs use a 25 cm radius and 30 cm
+    // rise). At the original height its side contact may have no upward normal;
+    // find the first downward contact before bisecting the supported landing.
     float low = start.y, high = liftedY;
-    auto bottom = landing;
-    bottom.y = low;
     bool upwardContact = false;
-    for (const auto& c : world.contacts(bottom, config.radius, config.height, config.skin, config.wallClearance))
-        if (c.depth > tolerance && c.normal.y > 0) upwardContact = true;
+    for (int i = 1; i <= lifts; ++i) {
+        auto probe = landing;
+        probe.y = liftedY - (liftedY-start.y)*(float(i)/lifts);
+        bool overlap = false;
+        for (const auto& c : world.contacts(probe, config.radius, config.height, config.skin, config.wallClearance)) {
+            if (c.depth <= tolerance) continue;
+            overlap = true;
+            if (c.normal.y > 0) upwardContact = true;
+        }
+        if (overlap) { low = probe.y; break; }
+        high = probe.y;
+    }
     if (!upwardContact) return std::nullopt;
     for (int i = 0; i < 12; ++i) {
         landing.y = (low + high) * .5f;

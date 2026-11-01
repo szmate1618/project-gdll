@@ -54,7 +54,13 @@ IK is used. See the [asset guide](../assets/undead_dog/README.md#running-animati
 for provenance, reproducible preparation and the local editable Blender scene.
 
 Terrain, building, door and prop queries use a dog-sized capsule and the shared
-scene collision world. A separate dog grid constrains dog-to-dog contacts.
+scene collision world. `dog_movement.cpp` handles terrain support, wall sliding
+and steps up to 30 cm. Rounded-foot support is retained while crossing an edge;
+step probes include the contact lip so sloping treads remain discoverable. The
+shared step helper checks the descending landing for upward support, including
+ledges taller than the dog's 25 cm foot radius. Walls, over-height ledges and
+insufficient headroom remain blocking. A separate dog grid constrains dog-to-dog
+contacts.
 Bites use the authored non-looping attack, apply 10 damage once at its contact
 time, and recheck range, facing and occlusion at impact. Firearm pellets choose
 the nearest dog or humanoid contact; dog health and death are authoritative.
@@ -117,8 +123,8 @@ in the ordinary session fingerprint.
 ## Verification
 
 ```bash
-cmake --build build --target test_dogs test_multiplayer_dogs test_dog_renderer -j4
-ctest --test-dir build -R '^(viewer_dogs|viewer_dog_assets|multiplayer_dogs)$' --output-on-failure
+cmake --build build --target test_dogs test_dog_movement test_multiplayer_dogs test_dog_renderer -j4
+ctest --test-dir build -R '^(viewer_dogs|viewer_dog_assets|viewer_dog_movement|viewer_dog_movement_godollo|multiplayer_dogs)$' --output-on-failure
 ./build/test_dog_renderer build/dog-render-check
 .venv/bin/python multiplayer/tests/dog_loopback.py \
   build/multiplayer/godollo_server build/multiplayer/godollo_client \
@@ -131,3 +137,9 @@ and hidden/dead actors. The UDP
 check starts an isolated synthetic scene with 1,000 dogs and two clients,
 including a late join, with simulated lag and packet loss. It preserves small
 fixtures and logs under the requested scratch directory.
+
+The movement regressions cover ascent/descent, sloping treads, the 30 cm limit,
+headroom, solid walls and glancing wall slides at 30/60/144 Hz. When the published
+map exists at configuration time, an integration check compares the dogs’
+approaches near the viewer’s `--spawn 0 0` with reachable humanoid approaches;
+full building walls remain obstacles for both populations.
