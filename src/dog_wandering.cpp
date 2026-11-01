@@ -64,6 +64,8 @@ void DogLayer::selectWanderers(double now) {
         const float angle = std::uniform_real_distribution<float>(0,2*pi)(wanderRandom_);
         behavior.wander.direction = {std::sin(angle), std::cos(angle)};
         behavior.wander.previous = glm::vec3(instances[id].root[3]);
+        behavior.wander.waypoints.push_back(behavior.wander.previous);
+        behavior.wander.nextPartCheck = now+5;
     }
 }
 
@@ -71,15 +73,19 @@ bool DogLayer::prepareWanderStep(std::size_t id, const CollisionWorld& world, do
     auto& behavior = behaviors[id];
     auto& wander = behavior.wander;
     const auto feet = glm::vec3(instances[id].root[3]);
+    if (wander.waypoints.empty()) wander.waypoints.push_back(wander.previous);
     if (wander.hasTarget) {
         const bool arrived = horizontalDistance(feet,behavior.target) <= arrivalDistance;
         if (!arrived && wander.stalledSeconds < 3) return true;
-        if (wander.returning) { finish(behavior,now); return false; }
+        if (wander.returning && !arrived) { finish(behavior,now); return false; }
         wander.hasTarget = false;
-        if (arrived) --wander.remainingLegs;
+        if (arrived && !wander.returning) {
+            --wander.remainingLegs;
+            wander.waypoints.push_back(feet);
+        }
         else wander.returning = true; // A clear sight ray need not be walkable.
     }
-    if (wander.remainingLegs <= 0) { finish(behavior,now); return false; }
+    if (wander.remainingLegs <= 0) wander.returning = true;
     if (!wander.returning) {
         const float distance = std::uniform_real_distribution<float>(100,300)(wanderRandom_);
         if (const auto target = dogWanderTarget(feet,wander.direction,distance,world)) {
@@ -91,11 +97,13 @@ bool DogLayer::prepareWanderStep(std::size_t id, const CollisionWorld& world, do
         }
         wander.returning = true;
     }
-    if (horizontalDistance(feet,wander.previous) <= arrivalDistance) {
+    while (!wander.waypoints.empty() && horizontalDistance(feet,wander.waypoints.back()) <= arrivalDistance)
+        wander.waypoints.pop_back();
+    if (wander.waypoints.empty()) {
         finish(behavior,now);
         return false;
     }
-    behavior.target = wander.previous;
+    behavior.target = wander.waypoints.back();
     wander.hasTarget = true;
     wander.stalledSeconds = 0;
     return true;

@@ -1,5 +1,6 @@
 #include "zombie_ragdoll.hpp"
 #include "physics_world.hpp"
+#include "zombie_detached_parts.hpp"
 
 #include <box3d/box3d.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -82,9 +83,9 @@ glm::quat frameFromZ(glm::vec3 axis, glm::vec3 xHint) {
 
 class Ragdoll {
 public:
-    Ragdoll(PhysicsWorld& simulation, glm::vec3 feet, float yaw, glm::vec3 impulse, int collisionGroup,
+    Ragdoll(PhysicsWorld& simulation, ZombieDetachedParts& detached, glm::vec3 feet, float yaw, glm::vec3 impulse, int collisionGroup,
             const RagdollPose& reference, const RagdollPose& current)
-        : simulation_(simulation), world_(simulation.id()), feet_(feet), yaw_(yaw) {
+        : simulation_(simulation), detached_(detached), world_(simulation.id()), feet_(feet), yaw_(yaw) {
         const auto facing = glm::mat3(glm::rotate(glm::mat4(1.0f), yaw, glm::vec3(0, 1, 0)));
         const auto forward = facing * glm::vec3(0, 0, 1);
         const auto position = [](const RagdollPose& pose, Part part) {
@@ -179,6 +180,7 @@ public:
 
     ~Ragdoll() {
         for (const auto body : bodies_) {
+            detached_.forget(body);
             simulation_.untrackBodyMotion(body);
             if (b3Body_IsValid(body)) b3DestroyBody(body);
         }
@@ -241,6 +243,16 @@ public:
             ++revision_;
         }
         for (const auto body : bodies_) b3Body_SetAwake(body, true);
+        // Each detached root is one fetchable assembly. A severed upper arm or
+        // thigh retains its connected distal segment; a later cut refreshes it.
+        for (int root = upperArmLeft; root < partCount; ++root) {
+            if (b3Joint_IsValid(joints_[root])) continue;
+            std::array<b3BodyId,2> assembly{bodies_[root],{}};
+            std::size_t count = 1;
+            if ((root == upperArmLeft || root == upperArmRight || root == upperLegLeft || root == upperLegRight) &&
+                b3Joint_IsValid(joints_[root+1])) assembly[count++] = bodies_[root+1];
+            detached_.record(static_cast<RagdollPart>(root),assembly,count,revision_);
+        }
     }
 
 
@@ -514,6 +526,7 @@ private:
     }
 
     PhysicsWorld& simulation_;
+    ZombieDetachedParts& detached_;
     std::uint64_t revision_ = 1;
     b3WorldId world_ = b3_nullWorldId;
     b3BodyId ground_{};
@@ -533,19 +546,21 @@ private:
 } // namespace
 
 struct ZombieRagdollWorld::Impl {
+    explicit Impl(std::shared_ptr<PhysicsWorld> world) : simulation(std::move(world)), detached(simulation) {}
     struct Entry {
         std::unique_ptr<Ragdoll> ragdoll;
     };
 
     // Declared first so entries destroy their bodies before releasing the world.
     std::shared_ptr<PhysicsWorld> simulation;
+    ZombieDetachedParts detached;
     std::vector<Entry> entries;
 };
 
 ZombieRagdollWorld::ZombieRagdollWorld() : ZombieRagdollWorld(std::make_shared<PhysicsWorld>()) {}
-ZombieRagdollWorld::ZombieRagdollWorld(std::shared_ptr<PhysicsWorld> world) : impl_(std::make_unique<Impl>()) {
+ZombieRagdollWorld::ZombieRagdollWorld(std::shared_ptr<PhysicsWorld> world) {
     if (!world) throw std::invalid_argument("Ragdolls require a physics world");
-    impl_->simulation = std::move(world);
+    impl_ = std::make_unique<Impl>(std::move(world));
 }
 ZombieRagdollWorld::~ZombieRagdollWorld() = default;
 ZombieRagdollWorld::ZombieRagdollWorld(ZombieRagdollWorld&&) noexcept = default;
@@ -602,7 +617,7 @@ std::size_t ZombieRagdollWorld::create(glm::vec3 feet, float yaw, glm::vec3 impu
     if (!std::isfinite(hipWidth) || hipWidth < 1e-5f)
         throw std::invalid_argument("Ragdoll reference hips must be separated");
     const auto group = impl_->simulation->allocateCollisionGroup();
-    auto ragdoll = std::make_unique<Ragdoll>(*impl_->simulation, feet, yaw, impulse, group, referencePose, currentPose);
+    auto ragdoll = std::make_unique<Ragdoll>(*impl_->simulation, impl_->detached, feet, yaw, impulse, group, referencePose, currentPose);
     ragdoll->trackMotion();
     impl_->entries.push_back({std::move(ragdoll)});
     return impl_->entries.size() - 1;
@@ -643,6 +658,7 @@ void ZombieRagdollWorld::sever(std::size_t handle, RagdollPart child) {
         throw std::invalid_argument("Invalid severed ragdoll joint");
     impl_->entries[handle].ragdoll->sever(static_cast<Part>(child));
 }
+ZombieDetachedParts& ZombieRagdollWorld::detachedParts() { return impl_->detached; }
 void ZombieRagdollWorld::addAngularVelocity(std::size_t handle, RagdollPart part, glm::vec3 velocity) {
     if (!valid(handle)) throw std::out_of_range("Invalid ragdoll handle");
     if (std::size_t(part) >= ragdollPartCount || !std::isfinite(velocity.x) ||

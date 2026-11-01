@@ -311,7 +311,7 @@ add_custom_command(
 add_custom_target(viewer_audio_assets DEPENDS ${VIEWER_AUDIO_FILES})
 endif()
 
-add_library(viewer_physics STATIC src/vehicle_config.cpp src/physics_world.cpp src/player_body.cpp src/player_body_pose.cpp src/player_presentation.cpp src/physics_prop.cpp src/physics_grab.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_physics.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp src/vehicle_steering.cpp)
+add_library(viewer_physics STATIC src/vehicle_config.cpp src/physics_world.cpp src/player_body.cpp src/player_body_pose.cpp src/player_presentation.cpp src/physics_prop.cpp src/physics_grab.cpp src/physics_attachment.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_physics.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp src/vehicle_steering.cpp)
 target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
@@ -324,7 +324,7 @@ viewer_warnings(viewer_forests)
 
 add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp src/interior_zombie_placement.cpp src/interior_zombies.cpp
     src/zombie_layer.cpp src/zombie_bounds.cpp src/zombie_lod.cpp src/zombie_lod_assets.cpp src/zombie_hit.cpp src/zombie_damage.cpp src/zombie_dismemberment.cpp src/zombie_shooting.cpp src/zombie_chase.cpp src/zombie_attack.cpp src/zombie_lunge.cpp src/zombie_melee_attack.cpp src/zombie_behavior.cpp src/zombie_animation.cpp
-    src/melee_combat.cpp src/melee_contact_mesh.cpp src/zombie_bone_collision.cpp src/zombie_ragdoll.cpp src/zombie_ragdoll_pose.cpp src/zombie_active_attack.cpp src/zombie_spatial_index.cpp src/zombie_crowd.cpp src/zombie_movement.cpp src/zombie_door_collision.cpp src/zombie_perception.cpp src/zombie_render_updates.cpp
+    src/melee_combat.cpp src/melee_contact_mesh.cpp src/zombie_bone_collision.cpp src/zombie_ragdoll.cpp src/zombie_detached_parts.cpp src/zombie_ragdoll_pose.cpp src/zombie_active_attack.cpp src/zombie_spatial_index.cpp src/zombie_crowd.cpp src/zombie_movement.cpp src/zombie_door_collision.cpp src/zombie_perception.cpp src/zombie_render_updates.cpp
     src/zombie_navigation.cpp src/zombie_scenario.cpp src/scenario_density.cpp src/zombie_scenario_routes.cpp src/zombie_travel.cpp src/zombie_hit_capsules.cpp src/zombie_shot_query.cpp
     src/zombie_wounds.cpp src/zombie_wound_surface.cpp src/zombie_cavity_physics.cpp
     src/blood_mist.cpp src/blood_particles.cpp src/zombie_blood.cpp)
@@ -338,7 +338,7 @@ target_link_libraries(prepare_pigeon_flock PRIVATE viewer_zombies viewer_bird_as
 target_include_directories(prepare_pigeon_flock SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(prepare_pigeon_flock)
 
-add_library(viewer_dogs STATIC src/dog_layer.cpp src/dog_behavior.cpp src/dog_movement.cpp src/dog_wandering.cpp)
+add_library(viewer_dogs STATIC src/dog_layer.cpp src/dog_behavior.cpp src/dog_movement.cpp src/dog_wandering.cpp src/dog_fetch.cpp)
 target_link_libraries(viewer_dogs PUBLIC viewer_zombies)
 viewer_warnings(viewer_dogs)
 if(BUILD_TESTING)
@@ -350,6 +350,10 @@ if(BUILD_TESTING)
     target_link_libraries(test_dog_wandering PRIVATE viewer_dogs)
     viewer_warnings(test_dog_wandering)
     add_test(NAME viewer_dog_wandering COMMAND test_dog_wandering)
+    add_executable(test_dog_fetch tests/test_dog_fetch.cpp)
+    target_link_libraries(test_dog_fetch PRIVATE viewer_dogs)
+    viewer_warnings(test_dog_fetch)
+    add_test(NAME viewer_dog_fetch COMMAND test_dog_fetch)
     add_executable(test_dog_movement tests/test_dog_movement.cpp)
     target_link_libraries(test_dog_movement PRIVATE viewer_dogs viewer_fps)
     viewer_warnings(test_dog_movement)

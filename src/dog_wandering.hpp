@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <optional>
+#include <vector>
 
 namespace viewer {
 class CollisionWorld;
@@ -12,6 +13,8 @@ struct DogWandering {
     int remainingLegs = 0;
     bool hasTarget = false, returning = false;
     float stalledSeconds = 0;
+    double nextPartCheck = 0;
+    std::vector<glm::vec3> waypoints; // Home first, followed by visited leg endpoints.
 };
 
 // Unit X/Z direction D and distance in meters (the caller selects 100-300).

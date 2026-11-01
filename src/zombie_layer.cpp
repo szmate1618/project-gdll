@@ -441,6 +441,7 @@ void ZombieLayer::attachPhysics(std::shared_ptr<PhysicsWorld> world) {
     auto replacement = std::make_unique<Physics>(std::move(world));
     physics_ = std::move(replacement);
 }
+ZombieDetachedParts* ZombieLayer::detachedParts() { return physics_ ? &physics_->world.detachedParts() : nullptr; }
 
 void ZombieLayer::update(float seconds) {
     if (!physics_ || !std::isfinite(seconds) || seconds <= 0.0f) return;

@@ -215,6 +215,7 @@ struct ZombieLayer {
     // Attach before the first ragdoll. The app then steps the shared world and
     // calls synchronizePhysics(); standalone update() retains its own stepping.
     void attachPhysics(std::shared_ptr<PhysicsWorld> world);
+    ZombieDetachedParts* detachedParts(); // Null until authoritative physics exists.
     // World Y-up meters; configure from scene.boundsMin.y - 10. Disabled until
     // configured. Any escaped ragdoll bone retires its owner; loose wound
     // contents below the same plane are removed independently.

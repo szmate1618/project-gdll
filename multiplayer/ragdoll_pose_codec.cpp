@@ -85,6 +85,7 @@ std::optional<CompactRagdollPose> compactRagdollPose(const viewer::AnimatedModel
     if (!rig || pose.bones.size() != asset.skeleton.size()) return {};
     CompactRagdollPose packed;
     packed.rotations.resize(pose.bones.size());
+    std::vector<glm::dvec3> quantizedOffsets(pose.bones.size());
     std::vector<glm::dmat4> world(pose.bones.size());
     for (std::size_t b = 0; b < world.size(); ++b) {
         world[b] = glm::dmat4(pose.bones[b]) * glm::inverse(glm::dmat4(asset.skeleton[b].inverseBind));
@@ -106,15 +107,20 @@ std::optional<CompactRagdollPose> compactRagdollPose(const viewer::AnimatedModel
             offset.millimetres[axis] = static_cast<std::int32_t>(std::llround(delta[axis] * 1000));
         }
         if (offset.millimetres != std::array<std::int32_t, 3>{}) packed.offsets.push_back(offset);
+        quantizedOffsets[b] = glm::dvec3(offset.millimetres[0],offset.millimetres[1],offset.millimetres[2])/1000.;
     }
     // A nonuniform/sheared parent can amplify an otherwise rigid local-angle
     // rounding into a change of the child's world basis. Keep those poses raw.
-    std::vector<glm::dmat3> decoded(world.size());
+    std::vector<glm::dmat4> decoded(world.size());
     for (const auto b : rig->order) {
-        auto basis = unpackRotation(packed.rotations[b]) * glm::dmat3(rig->local[b]);
+        auto local = glm::dmat4(unpackRotation(packed.rotations[b]) * glm::dmat3(rig->local[b]));
+        local[3] = rig->local[b][3] + glm::dvec4(glm::inverse(rig->parentBasis[b])*quantizedOffsets[b],0);
         const int parent = asset.skeleton[b].parent;
-        decoded[b] = parent < 0 ? basis : decoded[static_cast<std::size_t>(parent)] * basis;
-        if (!rotationBasis(decoded[b] * glm::inverse(glm::dmat3(world[b])))) return {};
+        decoded[b] = parent < 0 ? local : decoded[static_cast<std::size_t>(parent)] * local;
+        if (!rotationBasis(glm::dmat3(decoded[b]) * glm::inverse(glm::dmat3(world[b])))) return {};
+        // Parent-angle rounding can displace a limb carried far from its corpse
+        // by meters. Preserve those poses through the existing raw fallback.
+        if (glm::distance(glm::dvec3(decoded[b][3]),glm::dvec3(world[b][3])) > .05) return {};
     }
     return packed;
 }

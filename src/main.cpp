@@ -810,7 +810,8 @@ void updateZombieBehavior(AppState& app, float seconds, double animationSeconds,
     target.velocity = app.driver.car() ? app.cars->velocity(*app.driver.car()) : app.playerVelocity;
     target.radius = config.radius;
     if (app.dogs) {
-        app.dogs->updateBehavior(seconds, {target}, app.world, viewer::SimulationClock::instance().seconds());
+        app.dogs->updateBehavior(seconds, {target}, app.world, viewer::SimulationClock::instance().seconds(),
+                                 app.zombies ? app.zombies->detachedParts() : nullptr);
         for (const auto& hit : app.dogs->attackHits())
             if (app.vitals.applyDamage(hit.damage) > 0) app.lastDamageSeconds = viewer::SimulationClock::instance().seconds();
     }
@@ -1718,6 +1719,7 @@ int run(const Options& options) {
 
             const double behaviorStart = glfwGetTime();
             updateZombieBehavior(app, step, app.displayedAnimationSeconds, options.profile ? &zombieProfile : nullptr);
+            if (app.dogs) app.dogs->prepareFetchPhysics(physicsScene,&doors);
             intervalBehaviorSeconds += glfwGetTime() - behaviorStart;
             // Aim from the solved start-of-step eye/fist pair, before movement
             // sets the anchor's endpoint for this same physics solve.

@@ -38,7 +38,7 @@ grid. Humanoid zombie arrays, interior reservations, ragdolls, wound buffers and
 network IDs contain no dogs. `viewer_dogs` is a separate CMake library.
 
 `dog_behavior.cpp` handles idle, noise-directed looking, investigation, pursuit,
-attacks and wandering. Ordinary activation is within
+attacks, wandering and fetching. Ordinary activation is within
 100 meters, perception suspends beyond 150 meters and resumes within 100 meters.
 Observations use the same distance-dependent cadence (10/5/1 Hz), horizontal
 100-degree field of view, three occlusion rays and remembered target position.
@@ -48,7 +48,7 @@ priority over locomotion. Legacy models lacking run retain the walk fallback.
 Locomotion time advances by actual displacement divided by the clip's reference
 speed (1.2 m/s walk, 3 m/s run), so later gameplay speed changes proportionally
 change playback without rebaking. Pursuit and investigation stop when players
-leave; wandering continues independently of player presence.
+leave; wandering and fetching continue independently of player presence.
 
 The run is an offline, automatically retargeted CC0 motion from
 [Petrov_the_blind's PSX dog](https://petrov-the-blind.itch.io/3d-running-dog-low-res-psx).
@@ -96,10 +96,11 @@ a fresh distance of 100–300 meters and tests a supported endpoint with clear
 line of sight from the dog's 0.55-meter eye height. Try D first, then +30°, -30°,
 +45°, -45°, always relative to the original D. The first clear candidate wins.
 Walk at 1.2 m/s using normal terrain support and capsule collision, then plan
-the next leg. Completing the chosen number of legs returns the dog to idle.
+the next leg. Record the home position and each reached waypoint. After the
+chosen number of legs, retrace those waypoints to home, then return to idle.
 
-If all candidates fail, walk back to the start of the previous leg and end the
-trip. A blocked first leg ends at the trip origin. Three seconds without
+If all candidates fail, retrace the visited waypoints home. A blocked first
+leg ends at the trip origin. Three seconds without
 progress toward a waypoint also triggers the return; if the return itself
 stalls for three seconds, stop and idle. Visibility alone does not guarantee
 walkability, and wandering does not request navigation paths.
@@ -110,6 +111,43 @@ with pursuit, partial sight with investigation, and an audible noise with
 looking. A close visible player can trigger the usual bite. Interruptions
 discard the remaining trip. The server and standalone viewer own these
 decisions; multiplayer clients play the existing replicated walking poses.
+
+### Fetching detached limbs
+
+Every five simulation seconds while wandering (including its homeward return),
+`dog_fetch.cpp` requests the nearest ten available detached arm/leg assemblies
+within 100 meters. `zombie_detached_parts.hpp/.cpp` stores ownership metadata;
+Box3D's existing broad phase performs the spatial query, followed by exact 3D
+body-center distances. Intact limbs, heads, torsos and parts already carried by
+another dog are excluded. Check sight from dog eye height to each candidate's
+current center, at most ten rays per scan. The first visible candidate starts
+the `fetching` behavior state. There is no extra body-part field-of-view test.
+
+Fetch copies the visited wandering route and appends the exact interruption
+point. Walk directly toward the part at 1.2 m/s using normal dog collision. At
+pickup range (within 0.8 horizontal meters and 1.2 meters of the mouth, with
+clear mouth-to-part sight), snap the complete detached assembly to the mouth,
+wake it, and attach a firm point joint. A whole arm/leg retains its internal
+elbow/knee joint during the snap. The grip follows the existing walking jaw
+pose; no pickup animation is added. Only one dog can carry an assembly.
+
+Walk back to the interruption point, then retrace the saved waypoints home.
+At home, destroy the mouth joint, drop the part and idle. Imported scene
+collision around the carrying dog supports the limb away from its corpse's
+local fallback floor, including after the home drop. Carrying updates the
+original corpse's physics pose and uses existing corpse-pose replication;
+clients do not run dog AI or recreate the carry joint.
+Compact corpse poses fall back to full precision when reconstructed joint
+positions would differ by more than 5 cm, including limbs carried far from
+their original parent bones.
+
+If a target disappears, another dog picks it up, or approach stalls for three
+seconds, return home without it. If the homeward route itself stalls for three
+seconds, release the part and idle at the reached position. Normal player
+perception and audible noise interrupt both fetch and wandering and immediately
+release the carry joint. Dog death, corpse removal and layer destruction also
+release the joint; generation-bearing physics IDs prevent stale targets from
+referring to replacement bodies.
 
 ## LoDs
 

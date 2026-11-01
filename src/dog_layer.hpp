@@ -5,6 +5,7 @@
 #include "zombie_spatial_index.hpp"
 #include "noise.hpp"
 #include "dog_wandering.hpp"
+#include "dog_fetch.hpp"
 #include <filesystem>
 #include <optional>
 #include <random>
@@ -15,7 +16,10 @@ constexpr float dogRadius = .25f, dogHeight = .9f;
 // Meters per animation second. Actual travel / reference speed keeps playback
 // proportional when gameplay movement speeds change.
 constexpr float dogWalkAnimationSpeed = 1.2f, dogRunAnimationSpeed = 3.f;
-enum class DogState { idle, looking, investigating, chasing, attacking, wandering };
+class ZombieDetachedParts;
+class PhysicsScene;
+class DoorLayer;
+enum class DogState { idle, looking, investigating, chasing, attacking, wandering, fetching };
 struct DogBehavior {
     DogState state = DogState::idle;
     glm::vec3 target{0};
@@ -26,6 +30,7 @@ struct DogBehavior {
     int sight = 0; // 0 blocked, 1 partial, 2 full.
     bool active = false, suspended = false, attackHit = false;
     DogWandering wander;
+    std::optional<DogFetching> fetch;
 };
 struct DogInstance {
     std::size_t asset = 0;
@@ -53,7 +58,9 @@ public:
     std::vector<DogInstance> instances;
     std::vector<DogBehavior> behaviors;
     void rebuildSpatialIndex();
-    void updateBehavior(float dt, const std::vector<ZombiePlayer>& players, const CollisionWorld& world, double now);
+    void updateBehavior(float dt, const std::vector<ZombiePlayer>& players, const CollisionWorld& world, double now,
+                        ZombieDetachedParts* parts = nullptr);
+    void prepareFetchPhysics(PhysicsScene& scene, DoorLayer* doors = nullptr) const;
     void makeNoise(glm::vec3 position, float decibels);
     const std::vector<DogAttackHit>& attackHits() const { return hits_; }
     void releaseAnimationVertices();
@@ -68,6 +75,8 @@ private:
     std::optional<double> nextWanderSelection_;
     void selectWanderers(double now);
     bool prepareWanderStep(std::size_t id, const CollisionWorld& world, double now);
+    void findFetchPart(std::size_t id, ZombieDetachedParts& parts, const CollisionWorld& world, double now);
+    bool prepareFetchStep(std::size_t id, ZombieDetachedParts* parts, const CollisionWorld& world, double now);
     glm::vec3 move(std::size_t id, glm::vec3 desired, const CollisionWorld& world);
 };
 std::vector<std::filesystem::path> dogAssetPaths(const std::filesystem::path& directory);

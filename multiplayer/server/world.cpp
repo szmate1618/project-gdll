@@ -183,7 +183,7 @@ void World::step() {
     }
     // Advance living poses from the start-of-tick player state before aim and
     // contacts. Do not move them again between the solve and its snapshot.
-    scene_.dogs.updateBehavior(tickSeconds, targets, *scene_.collision, now);
+    scene_.dogs.updateBehavior(tickSeconds, targets, *scene_.collision, now, scene_.zombies.detachedParts());
     for (const auto& hit : scene_.dogs.attackHits()) {
         const auto player = players_.find(hit.player);
         if (player != players_.end()) player->second.vitals.applyDamage(hit.damage);
@@ -360,6 +360,7 @@ void World::step() {
         if (scene_.boxes->active(i)) scene_.doors->activateNear(scene_.boxes->pose(i).center, 8);
     for (const auto id : scene_.zombies.ragdollIds()) scene_.doors->activateNear(glm::vec3(scene_.zombies.instances[id].transform[3]));
     scene_.zombies.prepareAttackPhysics(physicsScene_);
+    scene_.dogs.prepareFetchPhysics(physicsScene_,scene_.doors.get());
     scene_.zombies.prepareWoundPhysics(tickSeconds, now, &physicsScene_);
     scene_.physics->step(tickSeconds, [&](float seconds) {
         viewer::prepareVehicleScene(*scene_.vehicles, physicsScene_);

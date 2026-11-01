@@ -13,6 +13,7 @@
 namespace viewer {
 
 class PhysicsWorld;
+class ZombieDetachedParts;
 
 // World-space skeleton transforms and distal joint positions, in meters.
 // Bone matrices may include asset scale; physics uses their rigid motion only.
@@ -54,6 +55,7 @@ public:
     // Add world-space angular velocity (radians/second) to this body only.
     void addAngularVelocity(std::size_t handle, RagdollPart part, glm::vec3 velocity);
     void sever(std::size_t handle, RagdollPart child);
+    ZombieDetachedParts& detachedParts();
     // Capture every joint's current relative rotation as a damped spring target.
     // Anchor both feet at their current poses; the upper body remains dynamic.
     // This rig has no separate feet, so anchors lock the lower-leg frames.

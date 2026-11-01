@@ -46,9 +46,9 @@ std::vector<std::unique_ptr<StaticBody>> meshBodies(const std::shared_ptr<Physic
         // Door panels have finite collider thickness at a flush wall hinge.
         // Their existing hinge limits define the swing; importing the wall
         // as another door contact would jam them at the jamb. These meshes
-        // support props and living physical attacks. Loose corpse floors
+        // support props, detached limbs and living physical attacks. Corpse floors
         // and door hinge behavior remain independent of these meshes.
-        shape.filter.maskBits = interiorBoxCategory | grenadeBodyCategory | zombieContentsCategory | vehicleBodyCategory | playerBodyCategory | zombieAttackBodyCategory;
+        shape.filter.maskBits = interiorBoxCategory | grenadeBodyCategory | zombieContentsCategory | vehicleBodyCategory | playerBodyCategory | zombieAttackBodyCategory | detachedLimbCategory;
         b3CreateMeshShape(mesh->body, &shape, mesh->mesh, {1, 1, 1});
         result.push_back(std::move(mesh));
     }

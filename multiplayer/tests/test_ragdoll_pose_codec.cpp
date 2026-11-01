@@ -59,6 +59,17 @@ CorpsePose roundtrip(const viewer::AnimatedModel& asset, CorpsePose pose) {
     return copy;
 }
 
+void distantFetchedLimbUsesRawPose() {
+    const auto asset = rig();
+    auto pose = posed(asset);
+    // A fetched limb can be hundreds of meters from its original parent.
+    pose.bones[0][3].x += 1000;
+    require(!compactRagdollPose(asset,pose),"Far-carried limbs must avoid amplified parent-angle rounding");
+    const auto bytes = encode(pose);
+    const auto copy = std::get<CorpsePose>(decode(bytes.data(),bytes.size()));
+    require(copy.bones == pose.bones,"Raw fallback must preserve a distant fetched limb exactly");
+}
+
 void hierarchyAndDetachedOffsets() {
     const auto asset = rig();
     const auto pose = posed(asset);
@@ -188,7 +199,7 @@ void authoredAssets(const std::filesystem::path& directory) {
 
 int main(int argc, char** argv) {
     try {
-        hierarchyAndDetachedOffsets(); rotationRangeAndAffineShape(); malformedAndFallback();
+        hierarchyAndDetachedOffsets(); distantFetchedLimbUsesRawPose(); rotationRangeAndAffineShape(); malformedAndFallback();
         if (argc > 1) authoredAssets(argv[1]);
         std::cout << "Compact ragdoll codec tests passed\n";
         return 0;

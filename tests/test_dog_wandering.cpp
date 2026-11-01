@@ -108,25 +108,25 @@ void trip() {
         auto dogs = pack(); start(dogs,legs);
         glm::vec3 previous(0);
         int completed = 0;
-        for (int step = 0; step < 1800; ++step) {
+        for (int step = 0; step < 4000; ++step) {
             const int remaining = dogs.behaviors[0].wander.remainingLegs;
+            const auto reached = glm::vec3(dogs.instances[0].root[3]);
             dogs.updateBehavior(1,{},empty,step);
             const auto& behavior = dogs.behaviors[0];
-            if (behavior.state == viewer::DogState::idle || behavior.wander.remainingLegs < remaining) {
-                // The next leg may already have taken its first 1.2 m step.
-                const auto waypoint = behavior.state == viewer::DogState::idle ?
-                    glm::vec3(dogs.instances[0].root[3]) : behavior.wander.previous;
-                const float distance = glm::length(waypoint-previous);
+            if (remaining > 0 && behavior.wander.remainingLegs < remaining) {
+                const float distance = glm::length(reached-previous);
                 require(distance >= 99.98f && distance <= 300.01f,"Leg left the 100-300 meter range");
-                require(std::abs(waypoint.x) < .001f && waypoint.z > previous.z,
+                require(std::abs(reached.x) < .001f && reached.z > previous.z,
                         "Open legs must keep the original trip direction");
-                previous = waypoint;
+                previous = reached;
                 ++completed;
             }
             if (behavior.state == viewer::DogState::idle) break;
         }
         require(completed == legs && dogs.behaviors[0].state == viewer::DogState::idle,
                 "Wandering must finish after the chosen number of legs");
+        require(glm::length(glm::vec3(dogs.instances[0].root[3])) < .02f,
+                "Completed wandering trips must retrace all waypoints home");
         require(!dogs.instances[0].walking,"Completed trips must stop their walking animation");
     }
 }
