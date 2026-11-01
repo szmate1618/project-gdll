@@ -31,8 +31,8 @@ error; sessions with zero dogs do not load dog assets.
 grid. Humanoid zombie arrays, interior reservations, ragdolls, wound buffers and
 network IDs contain no dogs. `viewer_dogs` is a separate CMake library.
 
-`dog_behavior.cpp` mirrors the zombie perception and movement states: idle,
-noise-directed looking, investigation, pursuit and attacks. Activation is within
+`dog_behavior.cpp` handles idle, noise-directed looking, investigation, pursuit,
+attacks and wandering. Ordinary activation is within
 100 meters, perception suspends beyond 150 meters and resumes within 100 meters.
 Observations use the same distance-dependent cadence (10/5/1 Hz), horizontal
 100-degree field of view, three occlusion rays and remembered target position.
@@ -41,7 +41,8 @@ Dog eye height is 0.55 meters. Investigation walks at 1.2 m/s; pursuit runs at
 priority over locomotion. Legacy models lacking run retain the walk fallback.
 Locomotion time advances by actual displacement divided by the clip's reference
 speed (1.2 m/s walk, 3 m/s run), so later gameplay speed changes proportionally
-change playback without rebaking. Dogs stop when players leave.
+change playback without rebaking. Pursuit and investigation stop when players
+leave; wandering continues independently of player presence.
 
 The run is an offline, automatically retargeted CC0 motion from
 [Petrov_the_blind's PSX dog](https://petrov-the-blind.itch.io/3d-running-dog-low-res-psx).
@@ -73,6 +74,36 @@ The renderer allocates separate dog animation textures, instance buffers, LoD
 batches and camera/sun/flashlight lists. Only stateless animation upload and
 shader utilities are shared with humanoids. Camera rendering retains the
 displayed dog transforms and stepped frame for subsequent firearm reports.
+
+### Wandering
+
+`dog_wandering.hpp/.cpp` owns trip planning and population selection. Every
+60 simulation seconds after the population's first behavior update, randomly
+select 0.5% of living, present dogs without replacement. Only selected idle dogs
+start wandering; busy selections are skipped. Fractional counts are rounded
+probabilistically (200 dogs select one, 1,000 select five, a single dog has a
+0.5% chance per minute). A delayed update selects once rather than replaying
+missed batches.
+
+Each trip chooses 3–7 legs and one random horizontal direction D. Each leg picks
+a fresh distance of 100–300 meters and tests a supported endpoint with clear
+line of sight from the dog's 0.55-meter eye height. Try D first, then +30°, -30°,
++45°, -45°, always relative to the original D. The first clear candidate wins.
+Walk at 1.2 m/s using normal terrain support and capsule collision, then plan
+the next leg. Completing the chosen number of legs returns the dog to idle.
+
+If all candidates fail, walk back to the start of the previous leg and end the
+trip. A blocked first leg ends at the trip origin. Three seconds without
+progress toward a waypoint also triggers the return; if the return itself
+stalls for three seconds, stop and idle. Visibility alone does not guarantee
+walkability, and wandering does not request navigation paths.
+
+Wandering dogs retain normal perception cadence, field of view, occlusion and
+100/150-meter perception suspension thresholds. Full player sight interrupts
+with pursuit, partial sight with investigation, and an audible noise with
+looking. A close visible player can trigger the usual bite. Interruptions
+discard the remaining trip. The server and standalone viewer own these
+decisions; multiplayer clients play the existing replicated walking poses.
 
 ## LoDs
 
