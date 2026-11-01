@@ -940,7 +940,12 @@ poses are sent at most twenty times per second per actor, retaining the bounded,
 acknowledged reliable bulk transport described above. Clients display the newest
 pose immediately and extrapolate world joint translations and rotations from the
 last two server-timestamped poses, including estimated network transit time.
-There is no playback buffer. Prediction stops after 400 ms without a newer pose;
+There is no playback buffer. Incoming prediction errors ease out over 50 ms in
+world joint space while the new trajectory keeps advancing. This also eases the
+first measured motion out of the initial held pose; steady motion gains no fixed
+delay. A fast joint's predicted translation is limited independently to 20 m/s,
+so one flying limb cannot freeze prediction for the whole body.
+Prediction stops after 400 ms without a newer pose;
 teleports, wake/re-entry gaps, and mesh-separation changes reset motion estimates.
 A sleeping pose immediately stops prediction. Fixed scale, reflection and shear
 are preserved. Corpses stay hidden until their first complete pose arrives.

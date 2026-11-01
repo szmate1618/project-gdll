@@ -1,4 +1,5 @@
 #include "client/ragdoll_interpolation.hpp"
+#include "client/ragdoll_playback.hpp"
 #include "animated_model.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -195,12 +196,124 @@ void predictionKeepsJointPivotAndAffineShape(std::uint64_t period) {
     require(same(multiplayer::predictRagdollPose(before, after, asset, interval), after),
         "Sleeping pose continued predicting");
 }
+
+CorpsePose flight(std::uint64_t version, std::uint64_t tick, float seconds) {
+    CorpsePose pose;
+    pose.version = version; pose.tick = tick;
+    pose.transform[3] = {8 * seconds, 5 * seconds - 4.9f * seconds * seconds, 0, 1};
+    pose.bones.emplace_back(1);
+    return pose;
+}
+
+void continuousPacketCorrections(std::uint64_t period) {
+    viewer::AnimatedModel asset; asset.skeleton.resize(1);
+    multiplayer::RagdollPlayback playback;
+    playback.push(flight(1, 60, 0), 0);
+    playback.sample(asset, 0);
+    const double interval = double(period) / 60;
+    for (std::uint64_t packet = 1; packet <= 6; ++packet) {
+        const double now = interval * double(packet);
+        const auto old = *playback.sample(asset, now);
+        playback.push(flight(packet + 1, 60 + period * packet, float(now)), now);
+        const auto fresh = *playback.sample(asset, now);
+        near(fresh.transform[3], old.transform[3], "An incoming ballistic pose jumped at its receive time");
+        near((fresh.transform * fresh.bones[0])[3], (old.transform * old.bones[0])[3],
+            "An incoming palette jumped independently of its root");
+        const auto half = *playback.sample(asset, now + .025);
+        require(half.transform[3].x > fresh.transform[3].x,
+            "Correction easing stopped the advancing trajectory");
+        const auto settled = *playback.sample(asset, now + .05);
+        const auto expected = multiplayer::predictRagdollPose(
+            flight(packet, 60 + period * (packet - 1), float(now - interval)),
+            flight(packet + 1, 60 + period * packet, float(now)), asset, .05);
+        near(settled.transform[3], expected.transform[3], "Packet correction retained a permanent playback delay");
+        // A duplicate must not restart the correction.
+        playback.push(flight(packet + 1, 60 + period * packet, float(now)), now + .05);
+    }
+}
+
+void correctionsSurviveRapidUpdatesAndStopAtDiscontinuities() {
+    viewer::AnimatedModel asset; asset.skeleton.resize(1);
+    multiplayer::RagdollPlayback playback;
+    playback.push(flight(1, 60, 0), 0); playback.sample(asset, 0);
+    playback.push(flight(2, 63, .05f), .05); playback.sample(asset, .05);
+    const auto before = *playback.sample(asset, .07);
+    playback.push(flight(3, 66, .1f), .07);
+    near(playback.sample(asset, .07)->transform[3], before.transform[3],
+        "An update during correction discarded its remaining offset");
+    const auto advanced = *playback.sample(asset, .08);
+    playback.push(flight(2, 63, .05f), .08);
+    require(same(*playback.sample(asset, .08), advanced), "A stale pose changed an in-progress correction");
+    auto sleep = flight(4, 69, .15f); sleep.sleeping = true;
+    playback.push(sleep, .09);
+    require(same(*playback.sample(asset, .09), sleep) && same(*playback.sample(asset, 1), sleep),
+        "Sleeping pose retained correction motion");
+    auto wake = flight(5, 72, .2f);
+    playback.push(wake, 1.1);
+    require(same(*playback.sample(asset, 1.2), wake), "A waking body inherited its settled velocity");
+    auto teleport = flight(6, 75, 10);
+    playback.push(teleport, 1.3);
+    require(same(*playback.sample(asset, 1.3), teleport), "A teleport was eased through the intervening world");
+    auto severed = flight(7, 78, 10.01f); severed.severedJoint = 1;
+    playback.push(severed, 1.35);
+    require(same(*playback.sample(asset, 1.35), severed), "A mesh change retained the previous palette correction");
+    playback.resetHistory();
+    require(same(*playback.sample(asset, 1.4), severed), "Re-entry retained a stale trajectory correction");
+}
+
+void fastLimbDoesNotFreezeBody() {
+    viewer::AnimatedModel asset; asset.skeleton.resize(2);
+    CorpsePose before, after;
+    before.version = 1; before.tick = 60; before.bones.resize(2, glm::mat4(1));
+    after = before; after.version = 2; after.tick = 63;
+    after.transform[3].x = .4f;
+    after.bones[0][3].x = .65f; // World joint speed: 21 m/s.
+    const auto predicted = multiplayer::predictRagdollPose(before, after, asset, .025);
+    near(predicted.transform[3], {.6f, 0, 0, 1}, "A fast limb froze the moving root");
+    near((predicted.transform * predicted.bones[1])[3], {.6f, 0, 0, 1}, "A fast limb froze an unrelated joint");
+    near((predicted.transform * predicted.bones[0])[3], {1.55f, 0, 0, 1},
+        "Fast joint prediction failed to retain its bounded forward motion");
+}
+
+void correctionKeepsAffineShapeAndJointPivots() {
+    const Pair pair;
+    const auto corrected = multiplayer::correctRagdollPose(pair.before, pair.after, pair.after, pair.asset, .5f);
+    const auto expected = interpolateRagdollPose(pair.before, pair.after, pair.asset, .5f);
+    sameShape(corrected.transform, pair.after.transform);
+    near(corrected.transform[3], expected.transform[3], "Correction moved the root along a different path");
+    for (std::size_t bone = 0; bone < pair.asset.skeleton.size(); ++bone) {
+        const auto world = corrected.transform * corrected.bones[bone];
+        sameShape(world, pair.after.transform * pair.after.bones[bone]);
+        for (const auto vertex : {glm::vec4(0, 0, 0, 1), glm::vec4(1, 2, 3, 1)})
+            near(world * vertex, expected.transform * expected.bones[bone] * vertex,
+                "World-joint correction changed the anatomical rotation pivot");
+    }
+}
+
+void correctionFinishesAtPredictionHorizon() {
+    viewer::AnimatedModel asset; asset.skeleton.resize(1);
+    multiplayer::RagdollPlayback playback;
+    auto a = flight(1, 60, 0), b = flight(2, 63, .05f);
+    a.activeAttackRevision = b.activeAttackRevision = 1;
+    playback.push(a, 0); playback.sample(asset, 0);
+    playback.push(b, .05, .2);
+    playback.sample(asset, .05); playback.sample(asset, .075);
+    const auto expected = multiplayer::predictRagdollPose(a, b, asset, .1);
+    require(same(*playback.sample(asset, .11), expected),
+        "Frozen prediction cache retained the last partial correction");
+    require(same(*playback.sample(asset, .2), expected), "Finished correction changed a frozen pose");
+}
 }
 
 int main() {
     try {
         exactEndpoints(); independentWorldMotion(); halfTurnKeepsVolume(); offOriginJointPivot(); incompatiblePosesStayCoherent();
-        for (const std::uint64_t period : {6, 12}) predictionKeepsJointPivotAndAffineShape(period);
+        for (const std::uint64_t period : {3, 6, 12}) {
+            predictionKeepsJointPivotAndAffineShape(period);
+            continuousPacketCorrections(period);
+        }
+        correctionsSurviveRapidUpdatesAndStopAtDiscontinuities(); fastLimbDoesNotFreezeBody();
+        correctionKeepsAffineShapeAndJointPivots(); correctionFinishesAtPredictionHorizon();
         std::cout << "Affine ragdoll interpolation and coherent pose fallback passed\n";
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

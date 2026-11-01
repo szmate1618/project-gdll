@@ -19,4 +19,9 @@ CorpsePose interpolateRagdollPose(const CorpsePose& before, const CorpsePose& af
 CorpsePose predictRagdollPose(const CorpsePose& before, const CorpsePose& after,
                             const viewer::AnimatedModel& asset, double seconds);
 
+// Apply a fading world-joint correction measured from target to displayed.
+// The current predicted trajectory keeps advancing while its error decays.
+CorpsePose correctRagdollPose(const CorpsePose& displayed, const CorpsePose& target,
+                            const CorpsePose& predicted, const viewer::AnimatedModel& asset, float weight);
+
 } // namespace multiplayer

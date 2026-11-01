@@ -226,7 +226,7 @@ void smoothPhysicsPoses(Scene& scene, bool compact) {
     auto next = first; next.version = 2; next.tick = 72; next.transform[3].x = 2;
     push(next, .2); playback.apply(scene, .2);
     auto& instance = scene.zombies.instances[0];
-    require(instance.transform[3].x == 2, "New ragdoll sample was delayed by a playback buffer");
+    require(instance.transform[3].x == 0, "First measured ragdoll motion jumped out of its initial held pose");
     playback.apply(scene, .3);
     require(std::abs(instance.transform[3].x - 3) < .001f &&
             std::abs((instance.transform * instance.ragdollBones[0])[3].x - 5) < .001f,
