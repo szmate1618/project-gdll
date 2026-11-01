@@ -321,7 +321,7 @@ struct Graphics {
         renderer->loadGrenadeModel(multiplayer::weaponModelDirectory() / "he_grenade.glb");
         players = std::make_unique<multiplayer::PlayerRenderer>(weapon.get());
         body = std::make_unique<viewer::PlayerBodyRenderer>(shaders);
-        birds = std::make_unique<viewer::BirdRenderer>(shaders);
+        birds = std::make_unique<viewer::BirdRenderer>(shaders, multiplayer::resourceRoot() / "assets/pigeon/flock.json");
         viewer::AudioOptions audioOptions;
         audioOptions.directory = multiplayer::audioDirectory();
         audioOptions.enabled = options.audio;

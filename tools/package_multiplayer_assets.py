@@ -88,6 +88,7 @@ class RuntimeAssets:
 
 def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetation="osm-tuned2"):
     assets = RuntimeAssets(root)
+    assets.add(root / "assets/pigeon/flock.json")
     document = assets.model(map_path)
     map_hash = assets.files[map_path.resolve()]
     assets.generated["credits/assets/MAP.txt"] = map_credits(

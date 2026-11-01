@@ -260,6 +260,11 @@ add_library(viewer_birds STATIC src/boid/bird_flock.cpp src/boid/bird_flight_spa
 target_link_libraries(viewer_birds PUBLIC viewer_boids viewer_collision viewer_visibility)
 viewer_warnings(viewer_birds)
 
+add_library(viewer_bird_assets STATIC src/boid/bird_assets.cpp)
+target_link_libraries(viewer_bird_assets PUBLIC viewer_model)
+target_include_directories(viewer_bird_assets SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+viewer_warnings(viewer_bird_assets)
+
 add_library(viewer_noise STATIC src/noise.cpp src/player_noise.cpp)
 target_include_directories(viewer_noise PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(viewer_noise PUBLIC glm::glm)
@@ -327,6 +332,11 @@ target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer
     viewer_zombie_steering viewer_scenario_config viewer_visibility viewer_zombie_animation_buffer)
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_zombies)
+
+add_executable(prepare_pigeon_flock EXCLUDE_FROM_ALL tools/prepare_pigeon_flock.cpp)
+target_link_libraries(prepare_pigeon_flock PRIVATE viewer_zombies viewer_bird_assets meshoptimizer)
+target_include_directories(prepare_pigeon_flock SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+viewer_warnings(prepare_pigeon_flock)
 
 add_library(viewer_dogs STATIC src/dog_layer.cpp src/dog_behavior.cpp)
 target_link_libraries(viewer_dogs PUBLIC viewer_zombies)
@@ -436,6 +446,7 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp src
 target_link_libraries(viewer_renderer PUBLIC
     viewer_birds viewer_doodads viewer_vehicle_lods viewer_model viewer_weapon_pose viewer_weapons viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_dogs viewer_sun_lighting viewer_grenades OpenGL::GL)
 target_link_libraries(viewer_renderer PRIVATE viewer_zombie_animation_buffer)
+target_link_libraries(viewer_renderer PUBLIC viewer_bird_assets)
 if(WIN32)
     target_link_libraries(viewer_renderer PUBLIC GLEW::GLEW)
 endif()
@@ -465,6 +476,7 @@ target_compile_definitions(godollo_viewer PRIVATE
     VIEWER_HUD_DIR="${CMAKE_CURRENT_SOURCE_DIR}/ui"
     VIEWER_DEFAULT_ASSET="${VIEWER_TEST_ASSET}"
     VIEWER_DOG_ASSETS="${CMAKE_CURRENT_SOURCE_DIR}/assets/undead_dog/models"
+    VIEWER_BIRD_ASSET="${CMAKE_CURRENT_SOURCE_DIR}/assets/pigeon/flock.json"
     VIEWER_ZOMBIE_ASSETS="${CMAKE_CURRENT_SOURCE_DIR}/assets/zombies/models"
     VIEWER_ZOMBIE_PARK="${CMAKE_CURRENT_SOURCE_DIR}/assets/zombies/grassalkovich_park.json"
     VIEWER_FOREST_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/forest_patches.json"
@@ -481,6 +493,12 @@ endif()
 
 if(BUILD_TESTING)
     add_executable(test_boid_simulation tests/test_boid_simulation.cpp)
+    add_executable(test_bird_assets tests/test_bird_assets.cpp)
+    target_link_libraries(test_bird_assets PRIVATE viewer_bird_assets)
+    target_include_directories(test_bird_assets SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
+    viewer_warnings(test_bird_assets)
+    add_test(NAME viewer_bird_assets COMMAND test_bird_assets
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/pigeon/flock.json" "${CMAKE_CURRENT_BINARY_DIR}/pigeon-palette")
     target_link_libraries(test_boid_simulation PRIVATE viewer_boids)
     viewer_warnings(test_boid_simulation)
     add_test(NAME viewer_boid_simulation COMMAND test_boid_simulation)
@@ -585,7 +603,8 @@ if(BUILD_TESTING AND GD_VIEWER)
     add_executable(test_bird_renderer tests/test_bird_renderer.cpp)
     target_link_libraries(test_bird_renderer PRIVATE viewer_renderer glfw)
     target_compile_definitions(test_bird_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
-        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
+        VIEWER_BIRD_ASSET="${CMAKE_CURRENT_SOURCE_DIR}/assets/pigeon/flock.json")
     viewer_warnings(test_bird_renderer)
     add_test(NAME viewer_bird_renderer COMMAND test_bird_renderer)
     set_tests_properties(viewer_bird_renderer PROPERTIES SKIP_RETURN_CODE 77)

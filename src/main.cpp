@@ -1520,7 +1520,7 @@ int run(const Options& options) {
     if (!options.noBirds && (options.explicitBirds || townSizedTerrain)) {
         birds = std::make_unique<viewer::BirdFlocks>(collision, trees ? &*trees : nullptr,
             model.boundsMin, model.boundsMax, app.rig.camera().position(), options.birds);
-        if (!birds->birds().empty()) birdRenderer = std::make_unique<viewer::BirdRenderer>(options.shaders);
+        if (!birds->birds().empty()) birdRenderer = std::make_unique<viewer::BirdRenderer>(options.shaders, VIEWER_BIRD_ASSET);
         std::cout << "Birds: " << birds->birds().size() << " in " << birds->flocks().size()
                   << " flocks; move or duck when they gather for a dive; cover blocks attacks\n";
     }

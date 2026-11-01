@@ -1,0 +1,34 @@
+{
+  "renderer": "Blender 4.5.3 LTS / CPU Cycles",
+  "triangles": 710,
+  "vertices": 357,
+  "bones": 136,
+  "texture_size": 16,
+  "texture_filter": "Closest (nearest)",
+  "warm_white": true,
+  "actions": [
+    "Flapping",
+    "Gliding",
+    "Landing",
+    "Standing Idle",
+    "Takeoff"
+  ],
+  "views": [
+    {
+      "file": "pigeon_palette_16_warm.png",
+      "action": "Standing Idle",
+      "frame": 1
+    },
+    {
+      "file": "pigeon_side_16_warm.png",
+      "action": "Standing Idle",
+      "frame": 1
+    },
+    {
+      "file": "pigeon_flight_16_warm.png",
+      "action": "Gliding",
+      "frame": 20
+    }
+  ],
+  "note": "Neutral studio lighting; palette is exact in the texture, shading changes rendered pixel colors."
+}

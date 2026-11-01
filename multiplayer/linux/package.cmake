@@ -42,6 +42,7 @@ foreach(weapon pistol submachine_gun shotgun sniper he_grenade)
     file(COPY "${BUILD_DIR}/assets/weapons/${weapon}.glb" DESTINATION "${package}/assets/weapons")
 endforeach()
 file(COPY "${source_root}/assets/weapons/README.md" DESTINATION "${package}/assets/weapons")
+file(COPY "${source_root}/assets/pigeon/flock.json" DESTINATION "${package}/assets/pigeon")
 file(COPY "${BUILD_DIR}/audio/" DESTINATION "${package}/assets/audio")
 file(COPY "${source_root}/multiplayer/client/players.vert" "${source_root}/multiplayer/client/players.frag"
     "${source_root}/multiplayer/client/character_creation.vert" "${source_root}/multiplayer/client/character_creation.frag"

@@ -728,8 +728,8 @@ See [placement, streaming and persistence](DOODADS.md) for details and checks.
 
 ## Bird flocks
 
-The standalone viewer automatically adds six flocks of 192 black birds to
-terrain at least 100 m wide and deep. No extra assets or map generation are
+The standalone viewer automatically adds six flocks of 192 animated pigeons to
+terrain at least 100 m wide and deep. No downloads or map generation are
 needed. Use `--no-birds` for comparisons, or change the population:
 
 ```bash
@@ -756,11 +756,13 @@ passes instead of following the player continuously. Each swept bird impact
 costs **1 HP**, with at most one hit from that bird per pass; cover also blocks
 damage. Free-fly observers and vehicle occupants are not attacked.
 
-Each bird is three perpendicular square cards: a triangle from above, a flat
-diamond from the side, and a disk with a flat wing diamond from the front. The
-fragment shader makes these masks directly, so no texture files are required.
-Velocity sets orientation and a small wing motion runs on the GPU. Visible birds
-share one instanced draw, write silhouette depth and discard empty card pixels.
+Birds use the approved low-poly pigeon with the 16×16 yellow-beige palette atlas
+and nearest filtering. Velocity sets heading and pitch; the shared baked wing
+animation runs on the GPU with individual phase offsets. Screen-size LoD selects
+710, 240 or 62 triangles, keeping the full mesh for close views and zoomed birds.
+Visible birds share at most three instanced draws and write normal scene depth.
+The tracked `assets/pigeon/flock.json` contains all runtime geometry, animation
+and texture data; see the [pigeon asset guide](../assets/pigeon/README.md).
 There are no bird rigid bodies, shadow passes or per-bird navigation queries.
 Collision avoidance uses a shared approximate corridor; individual birds can
 clip obstacles at formation edges. Multiplayer servers can enable the same

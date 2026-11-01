@@ -14,6 +14,7 @@ def check_contents(package):
         "godollo_client.exe", "OpenAL32.dll", "run-game.cmd", "README.md",
         "storage/equipment.toml", "storage/backpacks.toml", "storage/loadout.toml",
         "assets/test.glb", "assets/test.navmesh", "inventory.toml", "skills.toml", "skills/melee/punch.skill.toml",
+        "assets/pigeon/flock.json", "credits/assets/PIGEONS.txt",
         "ui/main-menu.rml", "ui/main-menu.rcss", "ui/main-menu-classic.rcss", "ui/main-menu-modern.rcss",
         "ui/fonts/menu-pixel.ttf", "ui/character-editor.rcss", "ui/host-game.rcss",
         "ui/hud.rml", "ui/hud.rcss", "ui/command-wheel.rcss", "ui/palette.rcss", "ui/hud-icons.rcss", "ui/hud.vert", "ui/hud.frag", "licenses/RmlUi.txt",

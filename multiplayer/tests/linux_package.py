@@ -99,6 +99,8 @@ def main():
                 raise RuntimeError("Package is missing a generated weapon model: " + str(model))
         if not (package / "assets/weapons/README.md").is_file():
             raise RuntimeError("Package is missing weapon attribution")
+        if not (package / "assets/pigeon/flock.json").is_file():
+            raise RuntimeError("Package is missing the animated pigeon meshes")
         client, asset = package / "run-client.sh", package / "assets/test.glb"
         environment = dict(os.environ)
         environment.pop("LD_LIBRARY_PATH", None)

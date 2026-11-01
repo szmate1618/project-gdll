@@ -1,0 +1,67 @@
+{
+  "author": "Paul Spooner (dudecon / Peripheral Arbor)",
+  "model_page": "https://sketchfab.com/3d-models/animated-bird-pigeon-797d27b68af3453e865149435df6aa30",
+  "download_url": "https://github.com/user-attachments/files/18528328/animated-bird-pigeon.zip",
+  "archive_context": "https://github.com/orgs/assimp/discussions/5970",
+  "archive_sha256": "3055a92f4ec5a197158dcc46cbf5297181aed2a58b7557a1a12855c4bab7cc5b",
+  "model_sha256": "62bd99613373c3d7fd8d8d8b23c07be6d8394edb48481c18f09ce6ed240815a4",
+  "source_atlas_sha256": "752c5d6b0c83409d414a1e525a4c623d57666f7998ceee30d311ed3081f7e459",
+  "license": "CC BY 4.0 as listed on Sketchfab; author additionally declares public domain",
+  "author_public_domain_declaration": "https://ip.tryop.com/",
+  "palette": "assets/palettes/undead.json",
+  "palette_sha256": "749a065a29b49a498e8fe34a6159d58381b074ceddfd9b9dbfb887ad073884ab",
+  "reference_sha256": "6833f9f2939228ed775ea409b857e31a65f2e83362e44608f1b7bc93eb2477d7",
+  "atlas_sha256": "96b1e16cd6fd82fa5baf8707d373e7bd852b0bcf945cffe72cdd1c5404298f5a",
+  "texture_variants": {
+    "16": {
+      "atlas": "models/pigeon_atlas_16.png",
+      "atlas_sha256": "fabacd1198c613bcc77c5c22d947c5003bf796c5b83ddc5a8208366fad024643",
+      "downscale": "512x512 to 16x16 using nearest-neighbor sampling"
+    },
+    "16_warm": {
+      "atlas": "models/pigeon_atlas_16_warm.png",
+      "atlas_sha256": "2804f461b1fe33a7d49657ff6ac1226962618fb029010c75c040233fc17c78f1",
+      "source_variant": "16",
+      "replace_rgb": [
+        [
+          222,
+          217,
+          214
+        ],
+        [
+          253,
+          253,
+          253
+        ]
+      ],
+      "with_rgb": [
+        209,
+        204,
+        201
+      ],
+      "changed_texels": 159
+    },
+    "16_yellow": {
+      "atlas": "models/pigeon_atlas_16_yellow.png",
+      "atlas_sha256": "0e6ebef0b2c8b0b3e2edef052df615b386c6494bcd2efeaa617ba6d63144cfa3",
+      "source_variant": "16_warm",
+      "replace_rgb": [
+        [
+          209,
+          204,
+          201
+        ]
+      ],
+      "with_rgb": [
+        165,
+        161,
+        152
+      ],
+      "changed_texels": 172
+    }
+  },
+  "surface_colors_used": 50,
+  "recoloring": "Nearest surface swatch in Oklab; original 512px texture and UVs retained; no emissive material",
+  "preparation": "tools/prepare_pigeon.py",
+  "rendering": "tools/render_pigeon.py"
+}

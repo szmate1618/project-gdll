@@ -55,17 +55,17 @@ std::size_t checkPixels(bool expectBird = true) {
     glReadPixels(0, 0, size, size, GL_DEPTH_COMPONENT, GL_FLOAT, depth.data());
     std::size_t silhouette = 0, empty = 0;
     for (std::size_t i = 0; i < depth.size(); ++i) {
-        if (color[i * 4] < 20) {
+        if (color[i * 4] < 245 || color[i * 4 + 1] < 245 || color[i * 4 + 2] < 245) {
             ++silhouette;
-            require(depth[i] < 1.f, "Bird silhouettes must write depth");
+            require(depth[i] < 1.f, "Pigeon geometry must write depth");
         } else {
             ++empty;
             if (expectBird) require(depth[i] == 1.f, "Discarded card pixels must leave depth untouched");
         }
     }
     if (expectBird) {
-        require(silhouette > 50 && silhouette < 1000, "Bird cards must show a small masked silhouette");
-        require(empty > 64000, "Bird cards must leave the surrounding sky clear");
+        require(silhouette > 5 && silhouette < 10000, "Pigeon mesh must produce visible geometry");
+        require(empty > 55000, "Pigeon mesh must leave the surrounding sky clear");
     } else require(silhouette == 0, "Scene depth must occlude birds");
     return silhouette;
 }
@@ -83,7 +83,7 @@ void saveCapture(const std::string& prefix, const char* view) {
 
 void checkRendering(const std::string& capturePrefix) {
     Target target;
-    viewer::BirdRenderer renderer(VIEWER_SHADER_DIR);
+    viewer::BirdRenderer renderer(VIEWER_SHADER_DIR, VIEWER_BIRD_ASSET);
     viewer::FlockBird bird;
     bird.position = {0, 0, 0};
     bird.velocity = {0, 0, -10};
@@ -94,21 +94,20 @@ void checkRendering(const std::string& capturePrefix) {
     camera.setOrientation(-90, 0);
     target.clear();
     renderer.draw(camera, 1, 0, birds);
-    const auto front = checkPixels();
+    checkPixels();
     saveCapture(capturePrefix, "front");
     camera.setPosition({5, 0, 0});
     camera.setOrientation(180, 0);
     target.clear();
     renderer.draw(camera, 1, 0, birds);
-    const auto side = checkPixels();
+    checkPixels();
     saveCapture(capturePrefix, "side");
     camera.setPosition({0, 5, .0873f});
     camera.setOrientation(-90, -89);
     target.clear();
     renderer.draw(camera, 1, 0, birds);
-    const auto top = checkPixels();
+    checkPixels();
     saveCapture(capturePrefix, "top");
-    require(top > side * 3 && top > front * 2, "Top triangle must be broader than the flat side/front silhouettes");
     target.clear(.5);
     renderer.draw(camera, 1, 0, birds);
     checkPixels(false);
@@ -138,13 +137,13 @@ void captureFlock(const std::string& prefix) {
     viewer::Camera camera;
     camera.frame(minimum - glm::vec3(2), maximum + glm::vec3(2), 1);
     Target target;
-    viewer::BirdRenderer renderer(VIEWER_SHADER_DIR);
+    viewer::BirdRenderer renderer(VIEWER_SHADER_DIR, VIEWER_BIRD_ASSET);
     target.clear();
     renderer.draw(camera, 1, 120 * step, flocks.birds());
     std::vector<unsigned char> color(size * size * 4);
     glReadPixels(0, 0, size, size, GL_RGBA, GL_UNSIGNED_BYTE, color.data());
     std::size_t silhouette = 0;
-    for (std::size_t i = 0; i < color.size(); i += 4) silhouette += color[i] < 20;
+    for (std::size_t i = 0; i < color.size(); i += 4) silhouette += color[i] < 245;
     require(silhouette > 100, "A framed simulated flock must produce visible bird silhouettes");
     require(glGetError() == GL_NO_ERROR, "A full simulated flock draw must not produce GL errors");
     saveCapture(prefix, "flock");
@@ -152,18 +151,22 @@ void captureFlock(const std::string& prefix) {
 
 void checkState() {
     Target target;
-    viewer::BirdRenderer renderer(VIEWER_SHADER_DIR);
+    viewer::BirdRenderer renderer(VIEWER_SHADER_DIR, VIEWER_BIRD_ASSET);
     viewer::Camera camera;
     camera.setPosition({0, 0, 5});
     camera.setOrientation(-90, 0);
     viewer::FlockBird bird;
     bird.position = {0, 0, 0};
     bird.velocity = {0, 0, -10};
-    GLuint vao = 0, buffer = 0;
+    GLuint vao = 0, buffer = 0, textures[2]{}, samplers[2]{};
     glGenVertexArrays(1, &vao);
     glGenBuffers(1, &buffer);
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, buffer);
+    glGenTextures(2, textures); glGenSamplers(2, samplers);
+    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_BUFFER, textures[0]); glBindSampler(0, samplers[0]);
+    glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, textures[1]); glBindSampler(1, samplers[1]);
+    glActiveTexture(GL_TEXTURE3);
     glUseProgram(0);
     glDisable(GL_DEPTH_TEST);
     glDepthMask(GL_FALSE);
@@ -178,6 +181,18 @@ void checkState() {
     require(static_cast<GLuint>(actual) == vao, "Bird renderer must restore the VAO");
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &actual);
     require(static_cast<GLuint>(actual) == buffer, "Bird renderer must restore the array buffer");
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &actual);
+    require(actual == GL_TEXTURE3, "Pigeon rendering must restore the active texture unit");
+    glActiveTexture(GL_TEXTURE0); glGetIntegerv(GL_TEXTURE_BINDING_BUFFER, &actual);
+    require(static_cast<GLuint>(actual) == textures[0], "Pigeon rendering must restore the animation binding");
+    glGetIntegerv(GL_SAMPLER_BINDING, &actual);
+    require(static_cast<GLuint>(actual) == samplers[0], "Pigeon rendering must restore sampler zero");
+    glActiveTexture(GL_TEXTURE1); glGetIntegerv(GL_TEXTURE_BINDING_2D, &actual);
+    require(static_cast<GLuint>(actual) == textures[1], "Pigeon rendering must restore the atlas binding");
+    glGetIntegerv(GL_SAMPLER_BINDING, &actual);
+    require(static_cast<GLuint>(actual) == samplers[1], "Pigeon rendering must restore sampler one");
+    glBindSampler(0, 0); glBindSampler(1, 0);
+    glDeleteSamplers(2, samplers); glDeleteTextures(2, textures); glActiveTexture(GL_TEXTURE0);
     glGetBooleanv(GL_DEPTH_WRITEMASK, &depthWrite);
     require(!depthWrite && !glIsEnabled(GL_DEPTH_TEST) && glIsEnabled(GL_BLEND) && glIsEnabled(GL_CULL_FACE),
             "Bird renderer must restore depth, blend, and culling state");
@@ -187,6 +202,42 @@ void checkState() {
     glDeleteVertexArrays(1, &vao);
     glDepthMask(GL_TRUE);
     require(glGetError() == GL_NO_ERROR, "Bird rendering must not produce GL errors");
+}
+
+void checkLodAndAnimation(const std::string& prefix) {
+    Target target;
+    viewer::BirdRenderer renderer(VIEWER_SHADER_DIR, VIEWER_BIRD_ASSET);
+    viewer::Camera camera;
+    camera.setOrientation(-90, 0);
+    viewer::FlockBird bird;
+    bird.velocity = {0, 0, 10};
+    for (std::size_t level = 0; level < 3; ++level) {
+        camera.setPosition({0, 0, level == 0 ? 1.f : level == 1 ? 5.f : 10.f});
+        target.clear();
+        const auto stats = renderer.draw(camera, 1, 0, {bird});
+        require(stats.instances[level] == 1, "Pigeon must select the projected-size LoD");
+        require(stats.instances[0] + stats.instances[1] + stats.instances[2] == 1,
+                "Pigeon must appear exactly once across LoD batches");
+        checkPixels();
+        saveCapture(prefix, level == 0 ? "lod0" : level == 1 ? "lod1" : "lod2");
+    }
+    camera.setPosition({0, 0, 1.2f});
+    target.clear(); renderer.draw(camera, 1, 0, {bird});
+    std::vector<unsigned char> first(size * size * 4), second(first.size());
+    glReadPixels(0, 0, size, size, GL_RGBA, GL_UNSIGNED_BYTE, first.data());
+    target.clear(); renderer.draw(camera, 1, .1, {bird});
+    glReadPixels(0, 0, size, size, GL_RGBA, GL_UNSIGNED_BYTE, second.data());
+    require(first != second, "Pigeon wing animation must change the rendered mesh");
+    saveCapture(prefix, "animated");
+    bool colored = false;
+    for (std::size_t i = 0; i < second.size(); i += 4)
+        colored |= second[i] > second[i + 2] + 2;
+    require(colored, "Pigeon must retain the colored palette texture");
+    bird.position = {0, 0, 10};
+    target.clear();
+    const auto culled = renderer.draw(camera, 1, 0, {bird});
+    require(culled.triangles == 0, "Birds behind the camera must be culled");
+    checkPixels(false);
 }
 } // namespace
 
@@ -206,6 +257,7 @@ int main(int argc, char** argv) {
         checkRendering(capturePrefix);
         captureFlock(capturePrefix);
         checkState();
+        checkLodAndAnimation(capturePrefix);
         std::cout << "Bird rendering tests passed (" << glGetString(GL_RENDERER) << ")\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

@@ -1,0 +1,17 @@
+PIGEON FLOCK MODEL
+
+"Animated Bird, Pigeon" by Paul Spooner (dudecon / Peripheral Arbor).
+https://sketchfab.com/3d-models/animated-bird-pigeon-797d27b68af3453e865149435df6aa30
+Listed license: Creative Commons Attribution 4.0 International (CC BY 4.0).
+https://creativecommons.org/licenses/by/4.0/
+The author also declares this work public domain: https://ip.tryop.com/
+
+Changes: recolored with the supplied undead palette, reduced to a 16x16 atlas,
+light feathers changed to RGB 165,161,152 (#A5A198), flight animation baked,
+65cm wingspan, and reduced meshes prepared for distance-dependent detail.
+Only the Flapping clip is used by the flock renderer.
+
+Original FBX and texture were obtained from the publicly shared source archive:
+https://github.com/orgs/assimp/discussions/5970
+Source fingerprints and preparation details: assets/pigeon/sources.json and
+assets/pigeon/README.md in the project source distribution.

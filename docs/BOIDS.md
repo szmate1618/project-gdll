@@ -17,7 +17,10 @@ numeric representations. No global compiler floating-point settings change.
 - `src/boid/bird_flight_space.hpp/.cpp`: the existing float collision/canopy
   query boundary. Only the authority validates routes and selects targets.
 - `src/boid/presentation.hpp`, `bird_renderer.hpp/.cpp`: float conversion and
-  existing card rendering. Wing animation never feeds movement.
+  instanced animated pigeon rendering. Wing animation never feeds movement.
+- `src/boid/bird_assets.hpp/.cpp`: validated baked meshes, animation bounds and
+  projected-size LoD selection. `assets/pigeon/flock.json` contains the shared
+  flight samples, three detail levels and the approved 16px palette atlas.
 - `src/boid/replica.hpp/.cpp`: checkpoint restore, ordered command replay and
   presentation interpolation.
 - `multiplayer/server/birds.hpp/.cpp`: command history and per-publication hash
@@ -111,6 +114,22 @@ payload for 1,152 birds, plus the displayed pose and current simulation. It
 retains two seconds at 20 Hz; normal sampling discards older poses earlier.
 
 ## Verification and costs
+
+Pigeon rendering uses 710/240/62 triangles per bird. The full mesh is selected
+at an enclosing diameter of at least 48 pixels, the middle mesh at 16–48 pixels,
+and the lowest below 16 pixels. Projection scale and render-target height make
+the policy respond to zoom and scene resolution. All levels share the same
+12-frame Flapping clip with interpolated GPU playback and stable per-bird phase.
+Full animated bounds enclose culling through the complete cycle. The 65cm
+wingspan is in runtime meters; the source glTF's +Z faces the flight direction.
+Only three instanced draws and one atlas are needed for a mixed-detail crowd.
+There is no per-bird CPU skinning, GPU readback or movement-state change.
+
+The self-contained descriptor is tracked so clean checkouts and client packages
+need no model download or Blender installation. Rebuild it offline with
+`prepare_pigeon_flock` as described in [the asset guide](../assets/pigeon/README.md).
+Multiplayer includes its raw bytes in the content fingerprint when birds are
+enabled, and `.gitattributes` keeps it in LF form across platforms.
 
 ```bash
 cmake --build build --target test_boid_simulation test_bird_flock \

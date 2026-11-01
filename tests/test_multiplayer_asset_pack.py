@@ -38,6 +38,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         self.tree = self.write("assets/tree.glb", glb({"extras": {"tree": True}}))
         self.write("assets/dry_tree_impostor.glb", glb({"extras": {"dry_tree": True}}))
         self.zombie = self.write("assets/zombies/models/Zombie.glb", glb({}))
+        self.write("assets/pigeon/flock.json", b'{"schema":"godollo.pigeon-flock","version":1}\n')
         self.write("assets/zombies/models/unused-old-lod.glb.bak", b"not runtime")
         levels = []
         for level in range(1, 4):
@@ -173,7 +174,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         expected = {"output/town.glb", "output/ATTRIBUTION.md", "output/trees.instances.json", "output/poles.instances.json", "output/guardrails.glb",
                     "assets/tree.glb", "assets/dry_tree_impostor.glb", "output/osm/forest_patches.json", "assets/side.png", "assets/top.png", "assets/shrub.png", "inventory.toml",
                     "assets/zombies/models/Zombie.glb", "assets/zombies/models/lods.json"}
-        expected.add("vehicles/car.toml")
+        expected.update({"vehicles/car.toml", "assets/pigeon/flock.json"})
         expected.update({"skills.toml", "skills/melee/punch.skill.toml", "storage/equipment.toml", "storage/backpacks.toml", "storage/loadout.toml"})
         for suffix in ("inventory.toml", "gameplay.toml", "tags.txt"):
             expected.update(f"storage/weapons/{name}.{suffix}" for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"))

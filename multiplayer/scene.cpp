@@ -311,6 +311,7 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
             [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         if (extension == ".glb" || extension == ".gltf") validateSessionGlb(path);
     }
+    if (o.birds) content.push_back(resourceRoot() / "assets/pigeon/flock.json");
     fingerprint = sceneFingerprint(o, zombies.instances.size(), spawnEye, content);
     std::cout << "Scene ready: " << zombies.instances.size() << " zombies, " << dogs.instances.size() << " dogs, fingerprint " << fingerprint << '\n';
 }

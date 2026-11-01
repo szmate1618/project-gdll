@@ -11,6 +11,7 @@
 /storage/*.toml text eol=lf
 /forest_patches.json text eol=lf
 /forest_patches_astra.json text eol=lf
+/assets/pigeon/flock.json text eol=lf
 /assets/zombies/models/*.hitboxes.json text eol=lf
 /assets/zombies/models/*.capsules.json text eol=lf
 # Unix launchers need LF for the interpreter shebang.
