@@ -42,8 +42,8 @@ struct BirdFlockStats {
 bool birdHitsPlayer(glm::vec3 from, glm::vec3 to, const BirdFlockPlayer& player,
                     float birdRadius = .14f);
 
-// Fixed storage and linear work: shared flock steering, four sampled neighbors
-// per bird, and at most one sight ray per update. No per-bird scene queries.
+// Fixed storage and bounded neighbor work per bird, shared flock routes, and at
+// most one sight ray per update. No per-bird scene queries.
 class BirdFlocks {
 public:
     BirdFlocks(const CollisionWorld& world, const TreeLayer* trees,

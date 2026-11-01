@@ -251,7 +251,7 @@ add_library(viewer_collision STATIC src/collision_world.cpp src/door_collision.c
 target_link_libraries(viewer_collision PUBLIC viewer_model)
 viewer_warnings(viewer_collision)
 
-add_library(viewer_boids STATIC src/boid/simulation.cpp src/boid/replica.cpp)
+add_library(viewer_boids STATIC src/boid/simulation.cpp src/boid/flock_neighbors.cpp src/boid/replica.cpp)
 target_include_directories(viewer_boids PUBLIC src)
 target_link_libraries(viewer_boids PUBLIC glm::glm)
 viewer_warnings(viewer_boids)

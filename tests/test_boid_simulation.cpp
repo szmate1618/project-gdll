@@ -47,6 +47,60 @@ void arithmetic() {
     for (int i=0;i<60;++i) sum+=integrate({1,-1,61},remainder);
     require(sum==Vec3{1,-1,61} && remainder==Vec3{},"Sub-millimetre movement must survive through carried remainders");
 }
+void localNeighbors() {
+    // Indices 0 and 1 are not the old fixed index samples. Their separation
+    // straddles the origin and a grid cell boundary.
+    std::vector<Bird> birds(80);
+    for (std::size_t i=0;i<birds.size();++i)
+        birds[i].position={10000+static_cast<std::int32_t>(i)*10000,0,0};
+    birds[0].position={-100,0,0}; birds[1].position={100,0,0};
+    FlockNeighbors neighbors; neighbors.reserve(birds.size());
+    neighbors.rebuild(birds,0,birds.size(),0);
+    require(neighbors.steering(birds,0).x<0 && neighbors.steering(birds,1).x>0,
+            "Spatially close birds must separate across negative cell boundaries regardless of their indices");
+    birds[1].position={1200,0,0}; birds[1].velocity={0,0,4000};
+    neighbors.rebuild(birds,0,birds.size(),1);
+    require(neighbors.steering(birds,0).z>0,
+            "Birds must align with nearby moving birds outside the separation radius");
+    neighbors.rebuild(birds,0,1,2);
+    require(neighbors.steering(birds,0)==Vec3{},"Nearby birds from other flocks must not enter the neighbor calculation");
+    birds[1]=birds[0];
+    neighbors.rebuild(birds,0,2,3);
+    const auto a=neighbors.steering(birds,0), b=neighbors.steering(birds,1);
+    require(lengthSquared(a)>0 && a+b==Vec3{},
+            "Coincident birds must receive opposite nonzero separation instead of remaining stacked");
+}
+void fluidFlock() {
+    Checkpoint c; c.seed=0x62697264u;
+    Flock flock; flock.birdCount=192; flock.center={0,25000,0};
+    flock.velocity={0,0,8000}; flock.control.target={0,25000,2000000};
+    c.flocks.push_back(flock);
+    for (std::uint32_t i=0;i<flock.birdCount;++i) {
+        Bird bird; bird.position=flock.center+birdOffset(c.seed,i);
+        bird.velocity=flock.velocity; c.birds.push_back(bird);
+    }
+    Simulation simulation(c);
+    for (int tick=0;tick<600;++tick) simulation.step();
+    const auto settled=simulation.state();
+    for (int tick=0;tick<600;++tick) simulation.step();
+    const auto& after=simulation.state();
+    std::size_t moved=0,reordered=0;
+    for (std::size_t i=0;i<after.birds.size();++i) {
+        const auto relative=after.birds[i].position-after.flocks[0].center;
+        const auto before=settled.birds[i].position-settled.flocks[0].center;
+        moved+=lengthSquared(relative-before)>600*600;
+        const auto next=(i+1)%after.birds.size();
+        reordered+=(after.birds[i].position.x<after.birds[next].position.x)!=
+                   (settled.birds[i].position.x<settled.birds[next].position.x);
+        require(lengthSquared(relative)<10000ull*10000,
+                "Free-moving birds must stay within a cohesive flock during steady travel");
+    }
+    std::cout<<"Fluid flock: "<<moved<<" moved, "<<reordered<<" reordered\n";
+    require(moved>after.birds.size()/2 && reordered>after.birds.size()/5,
+            "Settled birds must keep exchanging positions instead of returning to permanent formation slots");
+    require(after.flocks[0].center.z-settled.flocks[0].center.z>50000,
+            "Internal flock movement must preserve progress along the shared route");
+}
 void deterministicMotion() {
     Simulation first(initial()),second(initial());
     const auto start=first.state().birds[0].position;
@@ -64,13 +118,15 @@ void deterministicMotion() {
         const auto control=commands(tick,first); first.step(control); restored.step(control);
         require(first.checksum()==restored.checksum(),"Checkpoint must preserve velocity and integration remainders");
     }
-    require(first.checksum()==656954825247874657ull,"Cross-platform boid golden state changed after checkpoint continuation");
+    std::cout<<"Boid deterministic checksum after 3720 ticks: "<<first.checksum()<<'\n';
+    require(first.checksum()==16094241270410465360ull,"Cross-platform boid golden state changed after checkpoint continuation");
     const auto before=first.checksum(); Command wrong; wrong.tick=first.state().tick+2;
     rejects([&] { first.step({wrong}); },"Wrong-tick controls must be rejected");
     require(before==first.checksum(),"Rejected command must not mutate simulation");
     auto invalid=first.state(); invalid.version++;
     rejects([&] { restored.restore(invalid); },"Unknown integer simulation versions must be rejected");
-    std::cout<<"Boid deterministic checksum after 3720 ticks: "<<first.checksum()<<'\n';
+    invalid.version=1;
+    rejects([&] { restored.restore(invalid); },"Old formation-slot simulation checkpoints must be rejected");
 }
 Frame checkpoint(const Simulation& s) { Frame f; f.tick=s.state().tick; f.checksum=s.checksum(); f.hasCheckpoint=true; f.checkpoint=s.state(); return f; }
 void replay() {
@@ -97,6 +153,6 @@ void replay() {
 }
 }
 int main() {
-    try { arithmetic(); deterministicMotion(); replay(); std::cout<<"Fixed-point boid simulation and replay tests passed\n"; }
+    try { arithmetic(); localNeighbors(); fluidFlock(); deterministicMotion(); replay(); std::cout<<"Fixed-point boid simulation and replay tests passed\n"; }
     catch (const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

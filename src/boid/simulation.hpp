@@ -1,11 +1,12 @@
 #pragma once
 
 #include "fixed.hpp"
+#include "flock_neighbors.hpp"
 #include <cstddef>
 #include <vector>
 
 namespace viewer::boid {
-constexpr std::uint32_t simulationVersion = 1;
+constexpr std::uint32_t simulationVersion = 2;
 constexpr std::size_t maxFlocks = 64, maxBirds = 65536;
 enum class Mode : std::uint8_t { wandering, gathering, swooping, recovering };
 struct Control {
@@ -52,6 +53,7 @@ public:
     std::uint64_t checksum() const;
 private:
     Checkpoint state_;
-    std::vector<Vec3> offsets_;
+    FlockNeighbors neighbors_;
+    std::vector<Vec3> accelerations_;
 };
 } // namespace viewer::boid

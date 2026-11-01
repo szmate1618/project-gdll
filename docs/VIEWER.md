@@ -737,9 +737,11 @@ needed. Use `--no-birds` for comparisons, or change the population:
 ./build/godollo_viewer assets/test.glb --birds --hidden --fixed-step --frames 120
 ```
 
-Each flock flies between random 3D waypoints. Shared steering supplies cohesion
-and alignment; four sampled neighbors per bird approximate separation without
-an all-pairs search. A static BVH over the loaded tree canopies and the scene's
+Each flock flies between random 3D waypoints. Birds move freely within the flock,
+using nearby-bird separation and alignment, loose cohesion and smooth individual
+steering variation. They exchange positions instead of returning to fixed
+formation slots. A bounded spatial hash samples local neighbors without an
+all-pairs search. A static BVH over the loaded tree canopies and the scene's
 existing collision indexes validate spawn points, waypoints and shared flight
 corridors. Placement uses world meters with Y up. Failed placement attempts have
 a fixed budget, so crowded scenes can produce fewer flocks.

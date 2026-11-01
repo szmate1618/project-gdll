@@ -10,6 +10,8 @@ numeric representations. No global compiler floating-point settings change.
   vector scaling and integration remainders.
 - `src/boid/simulation.hpp/.cpp`: pure deterministic movement and state. No
   clock, scene queries, floating-point arithmetic or client-local AI decisions.
+- `src/boid/flock_neighbors.hpp/.cpp`: bounded spatial sampling for local
+  separation and alignment, rebuilt from each flock's pre-tick positions.
 - `src/boid/bird_flock.hpp/.cpp`: authority decisions, bounded scene queries,
   player perception and swept damage. The standalone viewer also uses this.
 - `src/boid/bird_flight_space.hpp/.cpp`: the existing float collision/canopy
@@ -31,9 +33,22 @@ down, and checked narrowing rejects overflow instead of relying on signed wrap.
 
 Every movement tick is exactly 1/60 second. Signed per-axis velocity and position
 remainders preserve fractions between ticks, so slow movement is not discarded.
-Neighbor sampling and bird update order are part of simulation version 1.
-Four stable index samples per bird preserve the previous linear-cost steering.
-Offsets and render phases derive from stable unsigned integer hashes.
+Movement rules and neighbor sampling are part of simulation version 2. Birds
+have no assigned formation slots. They align with nearby birds within 1.5 m,
+separate within 1 m, and receive cohesion only outside a loose 3 m radius
+(1.2 m during gathering). Smooth individual acceleration changes every two
+seconds, allowing birds to exchange positions while following a shared route.
+Swoops steer toward the committed aim/exit with local separation and alignment.
+
+A per-flock spatial hash examines at most eight cells and eight bucket entries
+per cell, including hash collisions. Crowded-cell samples rotate by integer
+tick, rather than permanently choosing the same birds. All steering reads the
+same pre-tick positions and velocities before integration. Storage is reserved
+at restore and reused; neighbor work stays bounded per bird. Spawn offsets,
+steering variation and render phases derive from stable unsigned integer hashes.
+Checkpoints include all inputs needed to rebuild this scratch index and resume
+the exact motion. Version 1 checkpoints are rejected because their movement
+rules differ; server and clients must use the same simulation version.
 
 The standalone `update(dt, player)` adapter accumulates presentation-frame time
 into those fixed steps. Network replicas never use frame deltas for movement:
@@ -85,7 +100,8 @@ Server history holds only commands for the last 600 ticks. The client's current
 integer simulation is the base state for replay; historical rollback states are
 not stored. At the default population, one live checkpoint has 60,456 bytes of
 state payload and encodes into a 57,036-byte protocol message. Authority working
-data, offsets, vector/deque bookkeeping and float presentation caches are extra.
+data, neighbor-index/acceleration scratch, vector/deque bookkeeping and float
+presentation caches are extra.
 Each retained command is 72 bytes in the measured Linux build. Six flocks can
 produce at most 3,600 commands in 600 ticks: 259,200 bytes of payload in the
 worst case, with container overhead additional.
@@ -111,6 +127,9 @@ checks arithmetic boundaries and integration remainders, and tests duplicate
 frames, delayed commands, mismatch detection and late-join restore. Windows CI
 builds and runs this same golden-state check and the multiplayer bird suite.
 Running it on Linux alone does not constitute Windows runtime validation.
+Behavior regressions also check local separation across negative grid
+boundaries, alignment, coincident-bird escape, isolation between flocks, and
+continued internal movement and reordering after twenty seconds of travel.
 
 Multiplayer tests round-trip signed protocol fields, reject malformed states,
 compare clients with different delivery schedules, verify bounded-history
@@ -118,19 +137,22 @@ fallback, and exercise real reliable delivery under packet loss alongside
 existing world snapshots and corpse-pose traffic. GPU checks retain silhouette,
 depth and GL-state coverage.
 
-On the Ryzen 5 7535HS, Release, synthetic open world: 1,152 birds averaged about
-0.058 ms per idle update and 0.075 ms with perception/attacks enabled; 12,288
-birds averaged 0.532/0.793 ms. Construction and rendering are excluded. Actual
-town geometry query costs can differ.
+On the Ryzen 5 7535HS, Release, synthetic open world, version 2 averaged
+0.449/0.412 ms per idle/active update for 1,152 birds and 5.188/5.181 ms for
+12,288 (2026-11-01, 120 warmup ticks followed by 3,600 exact 60 Hz ticks per
+case). Historical version 1 formation steering averaged 0.058/0.075 ms for
+1,152 birds and 0.532/0.793 ms for 12,288. Version 2 trades higher CPU cost for
+local neighbor reactions and a changing flock shape. Construction and rendering
+are excluded. Actual town geometry query costs can differ.
 
 The default-state microbenchmark measured approximately 0.001 ms to copy a
-checkpoint, 0.055 ms to hash movement state, 0.177 ms to encode a checkpoint,
-0.048 ms to decode and 0.016 ms to restore the integer core. Full replica join
-handling (restore, checksum, presentation) took about 0.077 ms. Checkpoint work
+checkpoint, 0.055 ms to hash movement state, 0.121 ms to encode a checkpoint,
+0.063 ms to decode and 0.004 ms to restore the integer core. Full replica join
+handling (restore, checksum, presentation) took about 0.060 ms. Checkpoint work
 is occasional; hashing at 20 Hz costs about 1.1 ms of CPU time per second.
 
-The one-minute standalone authority test emitted 97 commands and retained a
-peak of 22 commands (1,584 bytes payload). The two-player multiplayer test sent
-200 frames and 16 commands in ten simulated seconds: 7,104 payload bytes,
+The one-minute standalone authority test emitted 89 commands and retained a
+peak of 19 commands (1,368 bytes payload). The two-player multiplayer test sent
+200 frames and 14 commands in ten simulated seconds: 6,966 payload bytes,
 excluding its initial 57,036-byte checkpoint and transport overhead. These are
 fixture measurements, not bandwidth guarantees for every gameplay situation.
