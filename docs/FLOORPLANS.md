@@ -3,7 +3,8 @@
 The standalone viewer, multiplayer client and server generate these interiors
 from the map geometry they already load. No town regeneration, sidecar,
 serialized floorplan, network geometry payload or random seed is required.
-`house_floorplan` classifies the shell and storeys; `house_layout` chooses ground
+`house_floorplan` classifies the shell and storeys; `house_polygon` supplies simple
+polygon clipping, containment and triangulation; `house_layout` chooses ground
 rooms and the first staircase, and `house_upper_layout` generates successive
 floors. `house_layout_rules` shares window clearance, room splitting and ramp
 fitting between them. `house_layout_geometry` emits their planes and door
@@ -13,17 +14,22 @@ same generated result separately.
 ## Eligible houses
 
 This is a footprint heuristic, not a building-use label. A house needs a roof,
-at least one prepared exterior door and a rectangular wall perimeter:
+at least one prepared exterior door and an approximately orthogonal wall perimeter:
 
-- Footprint area between 45 and 220 square metres.
-- Both sides at least 5 metres; neither side longer than 22 metres.
+- Oriented bounding-rectangle area between 45 and 220 square metres, with at
+  least 45 square metres of actual interior footprint.
+- Both bounding-rectangle sides at least 5 metres; neither longer than 22 metres.
 - Long side no more than 2.5 times the short side.
-- Every projected wall segment on the oriented rectangle perimeter, within
-  8 cm of export precision. Courtyards, concavities and inward recesses fail.
+- Walls follow two perpendicular axes within **5 degrees**, with **at least
+  75% of the bounding rectangle filled**. Modest corner cutouts, entrance recesses
+  and extensions can pass. More deeply indented shapes still fail.
+- One closed, non-self-intersecting boundary with at most 24 corners after
+  removing collinear points. Courtyards, disconnected shells and open/branched
+  boundaries fail. Repeated wall-triangle edges are deduplicated within 8 cm.
 
 The rectangle follows transformed wall edges rather than world axes. Node
 transforms, including reflections, are applied once. Sheds, apartment blocks
-and long narrow buildings usually fail these limits. Small rectangular shops
+and long narrow buildings usually fail these limits. Small shops
 can pass; distinguishing their use needs further rules or additional data.
 
 Door heads establish the existing facade generator's floor datum, 2.1 metres
@@ -33,6 +39,16 @@ offset from the first row. Adjacent rows must be 2.4–4.2 metres apart. One row
 or no window data, does not invent extra storeys. A final ceiling sits 2 cm
 below the lowest roof vertex. Implausibly short/tall shells and inconsistent
 head heights are rejected conservatively.
+
+The original rectangular case retains its existing layout choices. Irregular
+houses use the same subdivision rules in the two main wall axes, then clip rooms,
+partition spans, floors and ceilings to the actual boundary. Rooms must remain
+connected and meet the existing size limits after clipping. Optional cuts are
+skipped when their rooms or door approaches would extend outside the shell;
+stairs and both landings must fit entirely inside it. A recessed exterior door
+measures its preferred entry depth from its own facade. Window clearance remains
+20 cm on every storey. Geometry never fills a missing corner with the bounding
+rectangle or puts a staircase across exterior space.
 
 ## Ground-storey rooms
 
@@ -139,6 +155,10 @@ from producing bright strips along roof, wall and floor contacts. A 1 mm margin
 handles float32 projection rounding. Ambient and local lights retain their
 usual behavior; disabling shadows bypasses this check. Direct sunlight through
 windows or open doors would require changing both this check and the sun casters.
+For irregular shells this uses the actual polygon, including its recesses. The
+rectangle fast path stays constant-cost; irregular shells add at most 24 edge
+checks per shaded receiver inside the bounding rectangle while the camera is
+inside that house. This does not add a scan of town buildings per pixel.
 
 ## Streaming and multiplayer
 
@@ -167,7 +187,7 @@ three upper storeys. Failed random choices
 leave unused slots. A reserved slot holds no generated geometry or body until
 the house loads. Activation order cannot change IDs. The existing door-angle
 snapshot carries interactive movement only; clients ignore angles for reserved
-panels whose geometry is not locally resident. Protocol 37 prevents older
+panels whose geometry is not locally resident. Protocol 38 prevents older
 peers with different layouts or door-ID semantics from joining.
 
 Walking, ground support, sight, firearm queries and debug geometry include a
@@ -235,7 +255,7 @@ physics, injury and replication work.
 ```bash
 cmake -S . -B build
 cmake --build build -j4
-ctest --test-dir build -R 'house_.*layout|floorplan|interior_zombies' --output-on-failure
+ctest --test-dir build -R 'house_.*layout|house_footprint|floorplan|interior_zombies' --output-on-failure
 # Optional read-only check against the published map:
 ./build/test_floorplans output/godollo.glb
 # Requires a working OpenGL display:
@@ -262,3 +282,8 @@ respawn after eviction. Scenario checks retain existing paths while activating
 reserve slots. Multiplayer checks deliver reserved actors through setup and
 movement snapshots; the GPU regression activates them after CPU animation frames
 have been released, then verifies disappearance and reappearance across sleep.
+Irregular cases cover corner cutouts, recessed entrances, small extensions and
+slightly skew walls, with one to three storeys, rotated/reflected coordinates,
+area conservation, walking support, door clearance and exact regeneration. GPU
+checks retain exterior depth in a missing corner and verify that its sunlit
+receiver is not included in the house's analytic shadow mask.

@@ -1,6 +1,7 @@
 #include "interior_zombies.hpp"
 #include "floorplan_layer.hpp"
 #include "zombie_layer.hpp"
+#include "house_polygon.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -17,10 +18,7 @@ struct InteriorZombies::Impl {
         std::vector<Actor> actors;
         bool contains(glm::vec3 p) const {
             if (p.y < floor - .1f || p.y > ceiling) return false;
-            const auto origin = footprint[0], u = footprint[3] - origin, v = footprint[1] - origin;
-            const glm::vec2 delta = glm::vec2(p.x, p.z) - origin;
-            const auto a = glm::dot(delta, u) / glm::dot(u, u), b = glm::dot(delta, v) / glm::dot(v, v);
-            return a >= 0 && a <= 1 && b >= 0 && b <= 1;
+            return house_polygon::contains(footprint, {p.x, p.z});
         }
     };
     std::size_t first, reserved, used = 0;

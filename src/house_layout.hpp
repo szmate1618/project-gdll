@@ -40,14 +40,16 @@ struct Layout {
 struct Window { Rectangle bounds; float bottom, top; };
 inline constexpr std::size_t maxUpperRoomsPerSide = 4;
 bool generateUpperStoreys(Layout& layout, const std::string& building, Rectangle footprint,
-    const std::vector<float>& upperFloors, float ceiling, const std::vector<Window>& windows);
+    const std::vector<float>& upperFloors, float ceiling, const std::vector<Window>& windows,
+    const std::vector<glm::vec2>& outline = {});
 // Integer-only random choices have a specified sequence, independent of the
 // standard library, activation order, wall-clock time and process RNG state.
 Layout generate(const std::string& building, Rectangle footprint, const std::vector<Entrance>& entrances,
                 float floor, const std::vector<float>& upperFloors,
-                const std::vector<Rectangle>& windows = {}); // Ground-storey pane bounds in house-axis metres.
+                const std::vector<Rectangle>& windows = {}, const std::vector<glm::vec2>& outline = {});
 // Transform layout coordinates once into runtime X/Y/Z metres and build minimal
 // partition, floor and ramp planes. Door IDs start at source.firstDoor.
 void buildGeometry(HouseFloorplan& result, const HouseSource& source, const Layout& layout,
-                   glm::vec2 origin, glm::vec2 u, glm::vec2 v, Rectangle footprint);
+                   glm::vec2 origin, glm::vec2 u, glm::vec2 v, Rectangle footprint,
+                   const std::vector<glm::vec2>& outline = {});
 } // namespace viewer::house_layout

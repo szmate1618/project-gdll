@@ -2340,7 +2340,13 @@ culling. Walking collision cuts the doorways out of the original wall triangles
 and queries the door panels at their current Box3D poses. Windows remain solid.
 Building shadows continue to use the original closed shell.
 Family houses receive streamed runtime floorplans; other buildings retain their
-empty shells. The standalone `godollo_viewer` enables the same deterministic
+empty shells. Eligible footprints can have approximately perpendicular/parallel
+walls, including modest recesses and extensions. Walls may deviate by up to
+5 degrees from the house axes,
+and the actual outline must fill at least 75% of its bounding rectangle; existing
+area, side-length and aspect limits still apply. Floors and partitions follow the
+actual boundary, with safe stairs and doorway approaches.
+The standalone `godollo_viewer` enables the same deterministic
 room and staircase generator as multiplayer, with no extra option or map
 regeneration. Walk near an eligible house (F9 enters walking mode), select
 **Object handling** in slot **0**, then grab and pull an exterior door open.

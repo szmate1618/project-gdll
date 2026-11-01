@@ -1,4 +1,5 @@
 #include "house_layout.hpp"
+#include "house_polygon.hpp"
 
 #include <glm/gtc/quaternion.hpp>
 #include <algorithm>
@@ -19,27 +20,55 @@ std::array<glm::vec2, 4> corners(Rectangle r) {
 }
 } // namespace
 void buildGeometry(HouseFloorplan& result, const HouseSource& source, const Layout& layout,
-                   glm::vec2 origin, glm::vec2 u, glm::vec2 v, Rectangle footprint) {
+                   glm::vec2 origin, glm::vec2 u, glm::vec2 v, Rectangle footprint,
+                   const std::vector<glm::vec2>& outline) {
     const auto world = [&](glm::vec2 p, float y) { const auto q = origin + u * p.x + v * p.y; return glm::vec3(q.x, y, q.y); };
     const auto polygon = [&](Rectangle rect) {
         std::vector<glm::vec2> output;
         for (const auto p : corners(rect)) { const auto q = world(p, 0); output.emplace_back(q.x, q.z); }
         return output;
     };
-    result.footprint = polygon(footprint);
+    const auto envelope = polygon(footprint);
+    std::copy(envelope.begin(), envelope.end(), result.envelope.begin());
+    result.footprint = envelope;
+    if (!outline.empty()) {
+        result.footprint.clear();
+        for (const auto p : outline) { const auto q = world(p, 0); result.footprint.emplace_back(q.x, q.z); }
+    }
     result.structure.materials.resize(3);
     result.structure.materials[0].baseColor = {.68f, .65f, .58f, 1};
     result.structure.materials[1].baseColor = {.36f, .30f, .23f, 1};
     result.structure.materials[2].baseColor = {.38f, .22f, .10f, 1};
     for (auto& material : result.structure.materials) material.doubleSided = true;
     Primitive walls, floors, ramps; walls.material = 0; floors.material = 1; ramps.material = 1;
+    const auto shellTriangles = house_polygon::triangles(outline);
     const auto plane = [&](Rectangle r, float y) {
         if (r.high.x <= r.low.x || r.high.y <= r.low.y) return;
+        if (!outline.empty()) {
+            // A slab around a stair opening can intersect a concave house in
+            // several pieces. Clip each shell triangle, never bridge the void.
+            for (std::size_t i = 0; i < shellTriangles.size(); i += 3) {
+                const auto clipped = house_polygon::clip({outline[shellTriangles[i]], outline[shellTriangles[i + 1]], outline[shellTriangles[i + 2]]}, r.low, r.high);
+                const auto base = static_cast<std::uint32_t>(floors.vertices.size());
+                for (const auto p : clipped) { Vertex vertex; vertex.position = world(p, y); vertex.normal = {0, 1, 0}; floors.vertices.push_back(vertex); }
+                for (std::uint32_t j = 1; j + 1 < clipped.size(); ++j)
+                    floors.indices.insert(floors.indices.end(), {base, base + j, base + j + 1});
+            }
+            return;
+        }
         const auto p = corners(r);
         quad(floors, world(p[0], y), world(p[1], y), world(p[2], y), world(p[3], y));
     };
     for (const auto& room : layout.rooms) {
-        result.rooms.push_back({room.kind, polygon(room.bounds), room.entrances,
+        auto boundary = polygon(room.bounds);
+        if (!outline.empty()) {
+            boundary.clear();
+            for (const auto p : house_polygon::clip(outline, room.bounds.low, room.bounds.high)) {
+                const auto q = world(p, 0); boundary.emplace_back(q.x, q.z);
+            }
+            if (boundary.empty()) throw std::logic_error("House room became disconnected or empty after clipping");
+        }
+        result.rooms.push_back({room.kind, std::move(boundary), room.entrances,
             room.kind == HouseRoom::Kind::StairArea, room.storey});
         if (room.storey == 0) plane(room.bounds, result.floor + .01f);
     }
@@ -51,29 +80,34 @@ void buildGeometry(HouseFloorplan& result, const HouseSource& source, const Layo
         };
         auto openings = wall.openings;
         std::sort(openings.begin(), openings.end(), [](const Opening& a, const Opening& b) { return a.low < b.low; });
-        float cursor = wall.low;
-        for (const auto& opening : openings) {
-            if (opening.low < cursor || opening.high > wall.high) throw std::logic_error("Overlapping house doorways");
-            const float head = floor + 2.1f;
-            quad(walls, point(cursor, floor), point(opening.low, floor), point(opening.low, ceiling), point(cursor, ceiling));
-            quad(walls, point(opening.low, head), point(opening.high, head), point(opening.high, ceiling), point(opening.low, ceiling));
-            const auto normal = u * opening.outward.x + v * opening.outward.y;
-            const glm::vec3 outward(normal.x, 0, normal.y), up(0, 1, 0);
-            const auto right = glm::cross(up, outward);
-            DoorPanel panel;
-            panel.draw = std::numeric_limits<std::size_t>::max(); panel.inward = opening.inward;
-            panel.center = (point(opening.low, floor) + point(opening.high, head)) * .5f;
-            panel.center.y = floor + 1.065f;
-            panel.halfExtents = {(opening.high - opening.low) * .5f, 1.035f, .02f};
-            panel.hinge = panel.center - right * panel.halfExtents.x; panel.outward = outward;
-            panel.rotation = glm::quat_cast(glm::mat3(right, up, outward));
-            Primitive mesh; mesh.material = 2;
-            const auto a = panel.center - right * panel.halfExtents.x, b = panel.center + right * panel.halfExtents.x;
-            quad(mesh, {a.x, floor + .03f, a.z}, {b.x, floor + .03f, b.z}, {b.x, head, b.z}, {a.x, head, a.z});
-            result.doors.push_back({source.firstDoor + result.doors.size(), opening.entrance, panel, std::move(mesh), wall.storey});
-            cursor = opening.high;
+        const auto spans = outline.empty() ? std::vector<std::pair<float, float>>{{wall.low, wall.high}} :
+            house_polygon::spans(outline, wall.axis, wall.position, wall.low, wall.high);
+        for (const auto& span : spans) {
+            float cursor = span.first;
+            for (const auto& opening : openings) {
+                if (opening.high <= span.first || opening.low >= span.second) continue;
+                if (opening.low < cursor || opening.high > span.second) throw std::logic_error("Overlapping or clipped house doorways");
+                const float head = floor + 2.1f;
+                quad(walls, point(cursor, floor), point(opening.low, floor), point(opening.low, ceiling), point(cursor, ceiling));
+                quad(walls, point(opening.low, head), point(opening.high, head), point(opening.high, ceiling), point(opening.low, ceiling));
+                const auto normal = u * opening.outward.x + v * opening.outward.y;
+                const glm::vec3 outward(normal.x, 0, normal.y), up(0, 1, 0);
+                const auto right = glm::cross(up, outward);
+                DoorPanel panel;
+                panel.draw = std::numeric_limits<std::size_t>::max(); panel.inward = opening.inward;
+                panel.center = (point(opening.low, floor) + point(opening.high, head)) * .5f;
+                panel.center.y = floor + 1.065f;
+                panel.halfExtents = {(opening.high - opening.low) * .5f, 1.035f, .02f};
+                panel.hinge = panel.center - right * panel.halfExtents.x; panel.outward = outward;
+                panel.rotation = glm::quat_cast(glm::mat3(right, up, outward));
+                Primitive mesh; mesh.material = 2;
+                const auto a = panel.center - right * panel.halfExtents.x, b = panel.center + right * panel.halfExtents.x;
+                quad(mesh, {a.x, floor + .03f, a.z}, {b.x, floor + .03f, b.z}, {b.x, head, b.z}, {a.x, head, a.z});
+                result.doors.push_back({source.firstDoor + result.doors.size(), opening.entrance, panel, std::move(mesh), wall.storey});
+                cursor = opening.high;
+            }
+            quad(walls, point(cursor, floor), point(span.second, floor), point(span.second, ceiling), point(cursor, ceiling));
         }
-        quad(walls, point(cursor, floor), point(wall.high, floor), point(wall.high, ceiling), point(cursor, ceiling));
     }
     for (const auto y : result.upperFloors) {
         const auto stair = std::find_if(layout.stairs.begin(), layout.stairs.end(), [&](const Stair& s) { return std::abs(s.top - y) < .001f; });

@@ -1,4 +1,5 @@
 #include "house_layout_rules.hpp"
+#include "house_polygon.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -19,6 +20,23 @@ float area(Rectangle r) { const auto d = r.high - r.low; return d.x * d.y; }
 bool usable(Rectangle r) {
     const auto size = r.high - r.low;
     return std::min(size.x, size.y) >= 2.5f && area(r) >= 10.f;
+}
+bool usable(Rectangle r, const std::vector<glm::vec2>& outline, float minimumSide, float minimumArea) {
+    if (outline.empty()) return std::min(r.high.x - r.low.x, r.high.y - r.low.y) >= minimumSide && area(r) >= minimumArea;
+    const auto polygon = house_polygon::clip(outline, r.low, r.high);
+    if (polygon.empty() || house_polygon::area(polygon) < minimumArea) return false;
+    auto low = polygon.front(), high = low;
+    for (const auto p : polygon) { low = glm::min(low, p); high = glm::max(high, p); }
+    return std::min(high.x - low.x, high.y - low.y) >= minimumSide;
+}
+bool openingsFit(const Partition& wall, const std::vector<glm::vec2>& outline) {
+    if (outline.empty()) return true;
+    for (const auto& opening : wall.openings) {
+        const auto low = point(wall.axis, wall.position - .3f, opening.low - .12f);
+        const auto high = point(wall.axis, wall.position + .3f, opening.high + .12f);
+        if (!house_polygon::covers(outline, low, high)) return false;
+    }
+    return true;
 }
 glm::vec2 point(int axis, float position, float along) {
     glm::vec2 p; p[axis] = position; p[1 - axis] = along; return p;
@@ -71,7 +89,8 @@ std::vector<glm::vec2> accessPoints(const std::vector<Partition>& partitions, co
     return result;
 }
 std::vector<StairOption> stairOptions(const std::vector<Room>& rooms, const std::vector<Partition>& partitions,
-                                    const std::vector<Entrance>& entrances, Rectangle footprint, float rise, const std::vector<Rectangle>& blocked) {
+                                    const std::vector<Entrance>& entrances, Rectangle footprint, float rise,
+                                    const std::vector<Rectangle>& blocked, const std::vector<glm::vec2>& outline) {
     std::vector<StairOption> result;
     const auto accesses = accessPoints(partitions, entrances);
     constexpr float width = 1.1f, landing = .8f, inset = .06f;
@@ -85,12 +104,15 @@ std::vector<StairOption> stairOptions(const std::vector<Room>& rooms, const std:
             // A capsule walker supports slopes up to 45 degrees. Leave a small
             // margin and a body-width landing at each end of the straight ramp.
             if (run < rise / .98f || bounds.high[across] - bounds.low[across] < width + 2 * inset) continue;
-            for (const bool farSide : {false, true}) for (const bool ascending : {false, true}) {
+            const std::vector<float> sideInsets = outline.empty() ? std::vector<float>{inset} : std::vector<float>{inset, .36f, .66f};
+            for (const float sideInset : sideInsets) for (const bool farSide : {false, true}) for (const bool ascending : {false, true}) {
                 auto ramp = bounds;
                 ramp.low[axis] += landing + inset; ramp.high[axis] = ramp.low[axis] + run;
-                if (farSide) { ramp.high[across] -= inset; ramp.low[across] = ramp.high[across] - width; }
-                else { ramp.low[across] += inset; ramp.high[across] = ramp.low[across] + width; }
+                if (farSide) { ramp.high[across] -= sideInset; ramp.low[across] = ramp.high[across] - width; }
+                else { ramp.low[across] += sideInset; ramp.high[across] = ramp.low[across] + width; }
                 auto occupied = ramp; occupied.low[axis] -= landing; occupied.high[axis] += landing;
+                if (!outline.empty() && (!contains(bounds, occupied.low) || !contains(bounds, occupied.high) ||
+                    !house_polygon::covers(outline, occupied.low, occupied.high))) continue;
                 bool clear = true;
                 for (const auto p : accesses) {
                     if (!contains(bounds, p)) continue;
@@ -127,7 +149,8 @@ bool splitClearsDoors(const Room& room, int axis, float cut, const std::vector<P
     return true;
 }
 void subdivideLiving(std::vector<Room>& rooms, std::vector<Partition>& walls, Random& random,
-    Rectangle footprint, const std::vector<Entrance>& entrances, const std::vector<Rectangle>& windows, float rise) {
+    Rectangle footprint, const std::vector<Entrance>& entrances, const std::vector<Rectangle>& windows, float rise,
+    const std::vector<glm::vec2>& outline) {
     const std::size_t target = 1 + random.pick(3);
     while (rooms.size() < target) {
         struct Split { std::vector<Room> rooms; Partition wall; };
@@ -143,14 +166,15 @@ void subdivideLiving(std::vector<Room>& rooms, std::vector<Partition>& walls, Ra
                         room.bounds.high[axis] - minSize, preferredCut, room.bounds.low[along], room.bounds.high[along], windows)) {
                     auto first = room, second = room;
                     first.bounds.high[axis] = cut; second.bounds.low[axis] = cut;
-                    if (!usable(first.bounds) || !usable(second.bounds) || !splitClearsDoors(room, axis, cut, walls, entrances)) continue;
+                    if (!usable(first.bounds, outline) || !usable(second.bounds, outline) || !splitClearsDoors(room, axis, cut, walls, entrances)) continue;
                     const float center = (room.bounds.low[along] + room.bounds.high[along]) * .5f;
                     glm::vec2 outward(0); outward[axis] = -1;
                     Partition wall{axis, cut, room.bounds.low[along], room.bounds.high[along],
                                    {{center - .45f, center + .45f, outward, std::nullopt}}};
+                    if (!openingsFit(wall, outline)) continue;
                     auto trialRooms = rooms; trialRooms[i] = first; trialRooms.push_back(second);
                     auto trialWalls = walls; trialWalls.push_back(wall);
-                    if (rise > 0 && stairOptions(trialRooms, trialWalls, entrances, footprint, rise).empty()) continue;
+                    if (rise > 0 && stairOptions(trialRooms, trialWalls, entrances, footprint, rise, {}, outline).empty()) continue;
                     choices.push_back({std::move(trialRooms), std::move(wall)});
                     break;
                 }

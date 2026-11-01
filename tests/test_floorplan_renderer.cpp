@@ -142,6 +142,45 @@ void render(const std::filesystem::path& capture) {
     require(depthWrite == GL_TRUE, "Streamed interiors must retain opaque depth writes");
     viewer::Renderer::checkErrors("floorplan camera, shadow, door movement and eviction");
 }
+void renderIrregular(const std::filesystem::path& capture) {
+    auto model = house_fixture::outlined({{-5,-6},{-5,6},{2,6},{2,3},{5,3},{5,-6}});
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics);
+    viewer::CollisionWorld collision(model, {}, &doors);
+    viewer::FloorplanLayer layer(model, doors, collision);
+    viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
+    renderer.resize(width, height); renderer.setHaze(false); renderer.setGroundFog(false);
+    viewer::Camera camera; camera.setPosition({4, 10, 6}); camera.setOrientation(-90, -83);
+    renderer.render(camera);
+    const auto bare = depth(camera, {4, 0, 4.8f});
+    doors.setAngle(0, .7f); layer.update({doors.panel(0).center});
+    require(layer.residentCount() == 1, "Rendering fixture must accept its concave house");
+    renderer.updateDoors(doors); renderer.updateFloorplans(layer); renderer.render(camera);
+    require(std::abs(depth(camera, {4, 0, 4.8f}) - bare) < .000001f,
+            "Missing building corners must retain exterior depth rather than receive a bounding-box floor/ceiling");
+    for (const auto& door : layer.resident().begin()->second.doors) doors.setAngle(door.id, door.panel.inward ? -1.5f : 1.5f);
+    renderer.updateFloorplans(layer);
+    camera.setPosition({-1, 4.5f, 4.5f}); camera.setOrientation(12, -7);
+    renderer.render(camera);
+    if (!capture.empty()) renderer.writeScreenshot(capture.string() + ".irregular.ppm");
+    camera.setPosition({16, 16, 20}); camera.setOrientation(-128.66f, -27);
+    renderer.render(camera);
+    if (!capture.empty()) renderer.writeScreenshot(capture.string() + ".irregular-overview.ppm");
+
+    // Isolate the analytic sun mask: an exterior receiver in the missing corner
+    // remains visible from inside after omitting the original opaque shell.
+    viewer::Model probe; probe.materials.resize(1); probe.materials[0].doubleSided = true;
+    probe.materials[0].baseColor = {.7f, .7f, .7f, 1};
+    interior_fixture::quad(probe, {4, 3.5f, 4.5f}, {4, 5.5f, 4.5f}, {4, 5.5f, 5.5f}, {4, 3.5f, 5.5f}, "exterior_probe");
+    interior_fixture::bounds(probe);
+    viewer::Renderer mask(probe, VIEWER_SHADER_DIR); mask.resize(width, height);
+    mask.setHaze(false); mask.setGroundFog(false);
+    camera.setPosition({1.98f, 4.4f, 5}); camera.setOrientation(0, 0);
+    mask.render(camera); const auto exterior = pixel(camera, {4, 4.4f, 5});
+    mask.updateFloorplans(layer); mask.render(camera);
+    require(pixel(camera, {4, 4.4f, 5}) == exterior, "An irregular shell's exact sun mask must not shade the exterior recess");
+    viewer::Renderer::checkErrors("irregular floorplan depth and exact sun containment");
+}
 } // namespace
 int main(int argc, char** argv) {
     if (!glfwInit()) return 77;
@@ -155,6 +194,7 @@ int main(int argc, char** argv) {
     try {
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << '\n';
         render(argc > 1 ? argv[1] : std::filesystem::path{});
+        renderIrregular(argc > 1 ? argv[1] : std::filesystem::path{});
         std::cout << "Floorplan rendering tests passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; result = 1; }
     glfwDestroyWindow(window); glfwTerminate();

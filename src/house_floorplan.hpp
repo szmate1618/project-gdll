@@ -1,6 +1,7 @@
 #pragma once
 
 #include "door_geometry.hpp"
+#include <array>
 #include <optional>
 
 namespace viewer {
@@ -40,14 +41,16 @@ struct HouseFloorplan {
     glm::vec3 minimum{0}, maximum{0};
     float floor = 0, ceiling = 0;
     std::vector<float> upperFloors;
-    std::vector<glm::vec2> footprint; // Original oriented rectangle, X/Z metres.
+    std::vector<glm::vec2> footprint; // Actual simple shell boundary, X/Z metres; no holes.
+    std::array<glm::vec2, 4> envelope{}; // Oriented rectangle: low, low/high, high, high/low.
     std::vector<HouseRoom> rooms;
     Model structure; // Floors/ceilings and the simplest partition wall quads.
     std::vector<HouseInteriorDoor> doors;
     std::vector<HouseStaircase> stairs;
 };
-// Conservative footprint heuristic: rectangular perimeter, 45..220 m²,
-// sides 5..22 m, aspect <= 2.5. Reject courtyards, concavities and missing shells.
+// Conservative footprint heuristic: approximately orthogonal walls, 45..220 m²
+// envelope, sides 5..22 m, aspect <= 2.5, at least 75% envelope fill and 45 m²
+// actual floor area. Reject courtyards, disconnected and missing shells.
 // Window row heads determine storeys; random decisions depend only on the stable building identity.
 std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const HouseSource& source,
                                                    const std::vector<DoorPanel>& entrances);

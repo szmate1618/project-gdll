@@ -1,5 +1,6 @@
 #include "house_floorplan.hpp"
 #include "house_layout.hpp"
+#include "house_polygon.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -7,6 +8,7 @@
 #include <cmath>
 #include <limits>
 #include <map>
+#include <set>
 
 namespace viewer {
 namespace {
@@ -36,6 +38,47 @@ std::vector<float> windowHeads(const std::vector<Face>& windows) {
     std::sort(heads.begin(), heads.end());
     heads.erase(std::unique(heads.begin(), heads.end(), [](float a, float b) { return std::abs(a - b) < tolerance; }), heads.end());
     return heads;
+}
+std::optional<house_polygon::Polygon> outline(const std::vector<std::pair<glm::vec2, glm::vec2>>& segments,
+                                             glm::vec2 low, glm::vec2 high) {
+    bool rectangular = true;
+    for (const auto& [a, b] : segments) {
+        bool perimeter = false;
+        for (int axis = 0; axis < 2; ++axis) for (const float boundary : {low[axis], high[axis]})
+            if (std::abs(a[axis] - boundary) < tolerance && std::abs(b[axis] - boundary) < tolerance) perimeter = true;
+        rectangular &= perimeter;
+    }
+    if (rectangular) return house_polygon::Polygon{}; // Preserve established rectangular layouts exactly.
+    std::vector<glm::vec2> points;
+    std::set<std::pair<std::size_t, std::size_t>> edges;
+    const auto vertex = [&](glm::vec2 p) {
+        for (std::size_t i = 0; i < points.size(); ++i) if (glm::distance(points[i], p) < tolerance) return i;
+        points.push_back(p); return points.size() - 1;
+    };
+    for (const auto& [a, b] : segments) {
+        const auto direction = glm::normalize(b - a);
+        if (std::min(std::abs(direction.x), std::abs(direction.y)) > .087156f) return std::nullopt; // sin(5 degrees).
+        const auto first = vertex(a), second = vertex(b);
+        if (first != second) edges.emplace(std::min(first, second), std::max(first, second));
+    }
+    if (points.size() < 4 || points.size() > 64) return std::nullopt;
+    std::vector<std::vector<std::size_t>> neighbors(points.size());
+    for (const auto& [a, b] : edges) { neighbors[a].push_back(b); neighbors[b].push_back(a); }
+    for (const auto& adjacent : neighbors) if (adjacent.size() != 2) return std::nullopt;
+    house_polygon::Polygon boundary;
+    std::size_t previous = points.size(), current = 0;
+    do {
+        boundary.push_back(points[current]);
+        const auto& adjacent = neighbors[current];
+        const auto next = adjacent[0] == previous ? adjacent[1] : adjacent[0];
+        previous = current; current = next;
+    } while (current != 0 && boundary.size() <= points.size());
+    // Multiple cycles include courtyard holes or separate building parts.
+    if (current != 0 || boundary.size() != points.size() || !house_polygon::simple(boundary)) return std::nullopt;
+    boundary = house_polygon::clip(boundary, low, high);
+    const float area = house_polygon::area(boundary), envelopeArea = (high.x - low.x) * (high.y - low.y);
+    if (boundary.size() > 24 || area < 45 || area < envelopeArea * .75f) return std::nullopt;
+    return boundary;
 }
 } // namespace
 std::size_t houseUpperStoreyCount(const Model& model, const HouseSource& source) {
@@ -76,15 +119,10 @@ std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const H
     const float area = size.x * size.y;
     if (area < 45 || area > 220 || std::min(size.x, size.y) < 5 || std::max(size.x, size.y) > 22 ||
         std::max(size.x, size.y) > 2.5f * std::min(size.x, size.y)) return std::nullopt;
-    // Every projected wall segment must lie on one rectangle side. Unlike hull
-    // fill ratio this rejects holes and small inward recesses as well as L shapes.
-    for (const auto& edge : segments) {
-        const auto a = local(edge.first), b = local(edge.second);
-        bool perimeter = false;
-        for (int axis = 0; axis < 2; ++axis) for (const float boundary : {low[axis], high[axis]})
-            if (std::abs(a[axis] - boundary) < tolerance && std::abs(b[axis] - boundary) < tolerance) perimeter = true;
-        if (!perimeter) return std::nullopt;
-    }
+    std::vector<std::pair<glm::vec2, glm::vec2>> localSegments;
+    for (const auto& edge : segments) localSegments.emplace_back(local(edge.first), local(edge.second));
+    const auto shell = outline(localSegments, low, high);
+    if (!shell) return std::nullopt;
     float eaves = std::numeric_limits<float>::max();
     for (const auto& face : roof) for (const auto p : face) eaves = std::min(eaves, p.y);
     const auto windowFaces = faces(model, source.windows);
@@ -126,10 +164,10 @@ std::optional<HouseFloorplan> generateHouseFloorplan(const Model& model, const H
         allWindows.push_back({bounds, bottom, top});
         if (top > floor && bottom < ceiling) windows.push_back(bounds);
     }
-    auto layout = house_layout::generate(source.name, {low, high}, entryDoors, floor, result.upperFloors, windows);
+    auto layout = house_layout::generate(source.name, {low, high}, entryDoors, floor, result.upperFloors, windows, *shell);
     if (layout.rooms.empty() || (!result.upperFloors.empty() && layout.stairs.empty())) return std::nullopt;
-    if (!house_layout::generateUpperStoreys(layout, source.name, {low, high}, result.upperFloors, result.ceiling, allWindows)) return std::nullopt;
-    house_layout::buildGeometry(result, source, layout, origin, u, v, {low, high});
+    if (!house_layout::generateUpperStoreys(layout, source.name, {low, high}, result.upperFloors, result.ceiling, allWindows, *shell)) return std::nullopt;
+    house_layout::buildGeometry(result, source, layout, origin, u, v, {low, high}, *shell);
     result.minimum = glm::vec3(std::numeric_limits<float>::max()); result.maximum = -result.minimum;
     for (const auto q : {low, glm::vec2(low.x, high.y), high, glm::vec2(high.x, low.y)}) {
         result.minimum = glm::min(result.minimum, world(q, floor));

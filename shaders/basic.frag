@@ -40,6 +40,8 @@ uniform float uShadowFadeStart;
 uniform vec4 uInteriorShellU;
 uniform vec4 uInteriorShellV;
 uniform vec2 uInteriorShellHeights; // Floor, final ceiling, in world metres.
+uniform int uInteriorShellVertexCount; // Zero keeps the rectangular fast path.
+uniform vec2 uInteriorShellVertices[24]; // Actual simple boundary; no courtyard holes.
 uniform vec3 uHazeColor;
 uniform float uHazeDensity;
 uniform float uHazeStart;
@@ -104,7 +106,18 @@ float sunlightVisibility(float sunFacing, float distanceFromEye) {
         float u = dot(vWorldPosition.xz, uInteriorShellU.xy), v = dot(vWorldPosition.xz, uInteriorShellV.xy);
         if (u >= uInteriorShellU.z - shellTolerance && u <= uInteriorShellU.w + shellTolerance &&
             v >= uInteriorShellV.z - shellTolerance && v <= uInteriorShellV.w + shellTolerance)
-            return 0.0;
+        {
+            bool inside = uInteriorShellVertexCount == 0;
+            for (int i = 0; i < uInteriorShellVertexCount; ++i) {
+                vec2 a = uInteriorShellVertices[i], b = uInteriorShellVertices[(i + 1) % uInteriorShellVertexCount];
+                vec2 edge = b - a, delta = vWorldPosition.xz - a;
+                vec2 nearest = delta - edge * clamp(dot(delta, edge) / dot(edge, edge), 0.0, 1.0);
+                if (dot(nearest, nearest) <= shellTolerance * shellTolerance) return 0.0;
+                if ((a.y > vWorldPosition.z) != (b.y > vWorldPosition.z) &&
+                    vWorldPosition.x < a.x + (b.x - a.x) * (vWorldPosition.z - a.y) / (b.y - a.y)) inside = !inside;
+            }
+            if (inside) return 0.0;
+        }
     }
     if (distanceFromEye >= uShadowDistance) return 1.0;
     vec4 lightClip = uSunMatrix * vec4(vWorldPosition, 1.0);

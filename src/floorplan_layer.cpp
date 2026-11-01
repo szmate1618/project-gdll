@@ -3,6 +3,7 @@
 #include "door_layer.hpp"
 #include "model_merge.hpp"
 #include "house_layout.hpp"
+#include "house_polygon.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -20,17 +21,14 @@ std::string key(const std::string& name, const std::string& suffix) {
 float distanceSquared(const HouseFloorplan& plan, glm::vec3 position) {
     const glm::vec2 p(position.x, position.z);
     float nearest = std::numeric_limits<float>::max();
-    bool positive = false, negative = false;
     for (std::size_t i = 0; i < plan.footprint.size(); ++i) {
         const auto a = plan.footprint[i], b = plan.footprint[(i + 1) % plan.footprint.size()];
         const auto edge = b - a, delta = p - a;
-        const float cross = edge.x * delta.y - edge.y * delta.x;
-        positive |= cross > .001f; negative |= cross < -.001f;
         const auto d = delta - edge * glm::clamp(glm::dot(delta, edge) / glm::dot(edge, edge), 0.f, 1.f);
         nearest = std::min(nearest, glm::dot(d, d));
     }
     const float dy = std::max({plan.floor - position.y, position.y - plan.ceiling, 0.f});
-    return (positive && negative ? nearest : 0.f) + dy * dy;
+    return (house_polygon::contains(plan.footprint, p) ? 0.f : nearest) + dy * dy;
 }
 int cell(float p) { return static_cast<int>(std::floor(p / cellSize)); }
 bool finite(glm::vec3 p) { return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z) && glm::all(glm::lessThan(glm::abs(p), glm::vec3(1e8f))); }

@@ -1,5 +1,6 @@
 #include "house_layout.hpp"
 #include "house_layout_rules.hpp"
+#include "house_polygon.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -10,7 +11,8 @@ namespace viewer::house_layout {
 using namespace rules;
 
 Layout generate(const std::string& building, Rectangle footprint, const std::vector<Entrance>& entrances,
-                float floor, const std::vector<float>& upperFloors, const std::vector<Rectangle>& windows) {
+                float floor, const std::vector<float>& upperFloors, const std::vector<Rectangle>& windows,
+                const std::vector<glm::vec2>& outline) {
     Layout result;
     std::map<int, std::vector<Entrance>> sides;
     float maxRise = 0, previous = floor;
@@ -18,14 +20,20 @@ Layout generate(const std::string& building, Rectangle footprint, const std::vec
     for (const auto& door : entrances) {
         const int axis = std::abs(door.outward.x) > std::abs(door.outward.y) ? 0 : 1;
         const bool positive = door.outward[axis] > 0;
-        if (std::abs(door.outward[axis]) < .99f ||
-            std::abs(door.center[axis] - (positive ? footprint.high[axis] : footprint.low[axis])) > .15f) return {};
+        if (std::abs(door.outward[axis]) < .99f) return {};
+        if (outline.empty()) {
+            if (std::abs(door.center[axis] - (positive ? footprint.high[axis] : footprint.low[axis])) > .15f) return {};
+        } else if (!house_polygon::contains(outline, door.center, .15f) ||
+                   !house_polygon::contains(outline, door.center - door.outward * .35f)) return {};
         sides[axis * 2 + int(positive)].push_back(door);
     }
     auto living = footprint;
     for (const auto& side : sides) {
         const int axis = side.first / 2, along = 1 - axis;
         const bool positive = side.first % 2;
+        float facade = positive ? footprint.high[axis] : footprint.low[axis];
+        if (!outline.empty()) for (const auto& door : side.second)
+            facade = positive ? std::min(facade, door.center[axis]) : std::max(facade, door.center[axis]);
         std::vector<Entrance> selected;
         for (const auto& door : side.second) {
             Random random(building, 0x656e747279ull ^ door.id);
@@ -35,15 +43,16 @@ Layout generate(const std::string& building, Rectangle footprint, const std::vec
         auto entry = living, remaining = living;
         Partition wall;
         const float minLiving = std::max(2.5f, 10.f / (living.high[along] - living.low[along]));
-        const float preferred = positive ? footprint.high[axis] - 2 : footprint.low[axis] + 2;
-        const float minimum = positive ? living.low[axis] + minLiving : footprint.low[axis] + 1.2f;
-        const float maximum = positive ? footprint.high[axis] - 1.2f : living.high[axis] - minLiving;
+        const float preferred = positive ? facade - 2 : facade + 2;
+        const float minimum = positive ? living.low[axis] + minLiving : facade + 1.2f;
+        const float maximum = positive ? facade - 1.2f : living.high[axis] - minLiving;
         bool placed = false;
         for (const float cut : partitionPositions(axis, minimum, maximum, preferred, living.low[along], living.high[along], windows)) {
             entry = remaining = living;
             if (positive) { entry.low[axis] = cut; remaining.high[axis] = cut; }
             else { entry.high[axis] = cut; remaining.low[axis] = cut; }
-            if (!usable(remaining) || !splitClearsDoors({HouseRoom::Kind::Living, living, {}}, axis, cut, result.partitions, entrances)) continue;
+            if (!usable(remaining, outline) || (!outline.empty() && !usable(entry, outline, 1.2f, 2.f)) ||
+                !splitClearsDoors({HouseRoom::Kind::Living, living, {}}, axis, cut, result.partitions, entrances)) continue;
             wall = {axis, cut, entry.low[along], entry.high[along], {}};
             bool clear = true;
             for (const auto& door : selected) {
@@ -57,10 +66,10 @@ Layout generate(const std::string& building, Rectangle footprint, const std::vec
                 const auto p = point(existing.axis, existing.position, (door.low + door.high) * .5f);
                 if (!contains(remaining, p)) clear = false;
             }
-            if (!clear) continue;
+            if (!clear || !openingsFit(wall, outline)) continue;
             auto trialWalls = result.partitions; trialWalls.push_back(wall);
             const std::vector<Room> trialRooms{{HouseRoom::Kind::Living, remaining, {}}};
-            if (maxRise > 0 && stairOptions(trialRooms, trialWalls, entrances, footprint, maxRise).empty()) continue;
+            if (maxRise > 0 && stairOptions(trialRooms, trialWalls, entrances, footprint, maxRise, {}, outline).empty()) continue;
             placed = true; break;
         }
         if (!placed) continue;
@@ -88,6 +97,13 @@ Layout generate(const std::string& building, Rectangle footprint, const std::vec
                     if (door.center[along] + door.width * .5f + .25f > small.low[along] &&
                         door.center[along] - door.width * .5f - .25f < small.high[along]) fits = false;
                 }
+                auto next = anteroom;
+                if (right) next.high[along] = position; else next.low[along] = position;
+                glm::vec2 normal(0); normal[along] = right ? -1.f : 1.f;
+                const float doorCenter = (small.low[axis] + small.high[axis]) * .5f;
+                const Partition candidate{along, position, small.low[axis], small.high[axis],
+                    {{doorCenter - .4f, doorCenter + .4f, normal, std::nullopt, false}}};
+                if (!outline.empty()) fits &= usable(small, outline, 1.5f, 2.25f) && usable(next, outline, 1.2f, 2.f) && openingsFit(candidate, outline);
                 if (fits) break;
             }
             if (!fits) continue;
@@ -105,13 +121,13 @@ Layout generate(const std::string& building, Rectangle footprint, const std::vec
     }
     std::vector<Room> livingRooms{{HouseRoom::Kind::Living, living, {}}};
     Random random(building, 0x6c6976696e67ull);
-    subdivideLiving(livingRooms, result.partitions, random, footprint, entrances, windows, maxRise);
+    subdivideLiving(livingRooms, result.partitions, random, footprint, entrances, windows, maxRise, outline);
     for (auto& room : livingRooms) for (const auto& door : entrances)
         if (contains(room.bounds, door.center)) room.entrances.push_back(door.id);
     const auto firstLiving = result.rooms.size();
     result.rooms.insert(result.rooms.end(), livingRooms.begin(), livingRooms.end());
     if (maxRise > 0) {
-        auto choices = stairOptions(livingRooms, result.partitions, entrances, footprint, maxRise);
+        auto choices = stairOptions(livingRooms, result.partitions, entrances, footprint, maxRise, {}, outline);
         if (choices.empty()) return {};
         if (std::any_of(choices.begin(), choices.end(), [](const StairOption& s) { return s.exterior; }))
             choices.erase(std::remove_if(choices.begin(), choices.end(), [](const StairOption& s) { return !s.exterior; }), choices.end());

@@ -10,15 +10,34 @@
 
 namespace {
 void require(bool condition, const char* message) { if (!condition) throw std::runtime_error(message); }
-void house(multiplayer::Scene& scene, const std::string& name = "building_render_0") {
+void house(multiplayer::Scene& scene, const std::string& name = "building_render_0", bool irregular = false) {
     scene.floorplans.reset(); scene.collision.reset(); scene.doors.reset();
-    scene.model = house_fixture::house();
+    scene.model = irregular ? house_fixture::outlined({{-5,-6},{-5,6},{2,6},{2,3},{5,3},{5,-6}}) : house_fixture::house();
     for (auto& draw : scene.model.draws) if (draw.name.rfind("building_house", 0) == 0)
         draw.name.replace(0, 14, name);
     scene.doors = std::make_unique<viewer::DoorLayer>(viewer::prepareDoorPanels(scene.model), scene.physics);
     scene.collision = std::make_unique<viewer::CollisionWorld>(scene.model, std::vector<viewer::TrunkCollider>{}, scene.doors.get());
     scene.floorplans = std::make_unique<viewer::FloorplanLayer>(scene.model, *scene.doors, *scene.collision);
     scene.spawnEye = {0, 1.7f, 8};
+}
+void irregular(multiplayer::Scene& server, multiplayer::Scene& client) {
+    house(server, "building_irregular", true); house(client, "building_irregular", true);
+    multiplayer::World world(server); const auto player = world.join();
+    server.doors->setAngle(0, .7f); world.step();
+    require(server.floorplans->residentCount() == 1, "Server must generate a near-orthogonal concave house");
+    multiplayer::Snapshots playback;
+    require(playback.push(world.snapshot(player), 1), "Irregular house snapshot must be accepted");
+    playback.apply(client, 1); client.floorplans->update({client.spawnEye});
+    const auto& a = server.floorplans->resident().begin()->second; const auto& b = client.floorplans->resident().begin()->second;
+    require(a.footprint == b.footprint && a.footprint.size() == 6 && a.rooms.size() == b.rooms.size() && a.doors.size() == b.doors.size(),
+            "Peers must independently produce the same concave outline, rooms and reserved door IDs");
+    for (std::size_t i = 0; i < a.structure.primitives.size(); ++i) {
+        const auto& first = a.structure.primitives[i]; const auto& second = b.structure.primitives[i];
+        require(first.indices == second.indices && first.vertices.size() == second.vertices.size(), "Peers must generate identical irregular topology");
+        for (std::size_t j = 0; j < first.vertices.size(); ++j)
+            require(first.vertices[j].position == second.vertices[j].position, "Peers must generate identical clipped coordinates");
+    }
+    world.leave(player); world.step();
 }
 void encounters(multiplayer::Scene& server, multiplayer::Scene& client) {
     std::string name;
@@ -111,7 +130,7 @@ int main(int argc, char** argv) {
         require(std::abs(client.doors->angle(door) - angle) < .001f, "Regenerated client panels must recover current authoritative movement");
         world.leave(player); world.step();
         require(server.floorplans->residentCount() == 0, "The server must evict when no player remains nearby");
-        encounters(server, client);
+        irregular(server, client); encounters(server, client);
         std::cout << "Independent multiplayer floorplan and stable door playback tests passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

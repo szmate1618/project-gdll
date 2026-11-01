@@ -19,12 +19,12 @@ std::vector<Rectangle> incomingClearance(const Stair& stair) {
     return {stair.opening, landing};
 }
 bool fitsNextStair(Rectangle core, const std::vector<Partition>& walls, Rectangle footprint,
-                   float rise, const std::vector<Rectangle>& blocked) {
-    return rise <= 0 || !stairOptions({{HouseRoom::Kind::StairArea, core, {}}}, walls, {}, footprint, rise, blocked).empty();
+                   float rise, const std::vector<Rectangle>& blocked, const std::vector<glm::vec2>& outline) {
+    return rise <= 0 || !stairOptions({{HouseRoom::Kind::StairArea, core, {}}}, walls, {}, footprint, rise, blocked, outline).empty();
 }
 std::vector<Room> perpendicularRooms(const Side& side, int axis, Random& random,
     std::vector<Partition>& walls, Rectangle core, Rectangle footprint, float rise,
-    const std::vector<Rectangle>& windows, const std::vector<Rectangle>& blocked) {
+    const std::vector<Rectangle>& windows, const std::vector<Rectangle>& blocked, const std::vector<glm::vec2>& outline) {
     const int along = 1 - axis;
     const auto bounds = side.room.bounds;
     const float minLength = std::max(2.5f, 10.f / (bounds.high[axis] - bounds.low[axis]));
@@ -48,7 +48,7 @@ std::vector<Room> perpendicularRooms(const Side& side, int axis, Random& random,
             if (positions.empty()) { clear = false; break; }
             auto room = remaining;
             room.bounds.high[along] = positions.front(); remaining.bounds.low[along] = positions.front();
-            if (!usable(room.bounds) || !usable(remaining.bounds)) { clear = false; break; }
+            if (!usable(room.bounds, outline) || !usable(remaining.bounds, outline)) { clear = false; break; }
             rooms.push_back(room);
             trialWalls.push_back({along, positions.front(), bounds.low[axis], bounds.high[axis], {}});
         }
@@ -61,7 +61,7 @@ std::vector<Room> perpendicularRooms(const Side& side, int axis, Random& random,
             const float center = (room.bounds.low[along] + room.bounds.high[along]) * .5f;
             boundary.openings.push_back({center - .45f, center + .45f, outward, std::nullopt, false});
         }
-        if (!fitsNextStair(core, trialWalls, footprint, rise, blocked)) continue;
+        if (!openingsFit(boundary, outline) || !fitsNextStair(core, trialWalls, footprint, rise, blocked, outline)) continue;
         walls = std::move(trialWalls);
         return rooms;
     }
@@ -70,7 +70,8 @@ std::vector<Room> perpendicularRooms(const Side& side, int axis, Random& random,
 } // namespace
 
 bool generateUpperStoreys(Layout& layout, const std::string& building, Rectangle footprint,
-    const std::vector<float>& upperFloors, float ceiling, const std::vector<Window>& allWindows) {
+    const std::vector<float>& upperFloors, float ceiling, const std::vector<Window>& allWindows,
+    const std::vector<glm::vec2>& outline) {
     if (upperFloors.empty()) return true;
     if (layout.stairs.empty()) return false;
     for (std::size_t level = 0; level < upperFloors.size(); ++level) {
@@ -95,7 +96,7 @@ bool generateUpperStoreys(Layout& layout, const std::string& building, Rectangle
         auto core = footprint;
         std::array<std::optional<Side>, 2> sides;
         std::vector<Partition> walls;
-        if (!fitsNextStair(core, walls, footprint, rise, blocked)) return false;
+        if (!fitsNextStair(core, walls, footprint, rise, blocked, outline)) return false;
         for (int side = 0; side < 2; ++side) {
             Random roll(building, 0x757070657243ull ^ domain ^ std::uint64_t(side));
             if (roll.pick(100) >= 70) continue;
@@ -108,13 +109,13 @@ bool generateUpperStoreys(Layout& layout, const std::string& building, Rectangle
                 auto living = core, nextCore = core;
                 if (highSide) { living.low[axis] = cut; nextCore.high[axis] = cut; }
                 else { living.high[axis] = cut; nextCore.low[axis] = cut; }
-                if (!usable(living)) continue;
+                if (!usable(living, outline) || (!outline.empty() && !usable(nextCore, outline, 1.1f, 2.f))) continue;
                 glm::vec2 outward(0); outward[axis] = highSide ? -1.f : 1.f;
                 const float center = (core.low[along] + core.high[along]) * .5f;
                 auto trialWalls = walls;
                 trialWalls.push_back({axis, cut, core.low[along], core.high[along],
                     {{center - .45f, center + .45f, outward, std::nullopt, false}}});
-                if (!fitsNextStair(nextCore, trialWalls, footprint, rise, blocked)) continue;
+                if (!openingsFit(trialWalls.back(), outline) || !fitsNextStair(nextCore, trialWalls, footprint, rise, blocked, outline)) continue;
                 sides[side] = Side{{HouseRoom::Kind::Living, living, {}, storey}, walls.size()};
                 walls = std::move(trialWalls); core = nextCore;
                 break;
@@ -127,15 +128,15 @@ bool generateUpperStoreys(Layout& layout, const std::string& building, Rectangle
             Random subdivision(building, 0x757070657253ull ^ domain ^ std::uint64_t(side));
             std::vector<Room> rooms;
             if (subdivision.pick(2) == 0) {
-                rooms = perpendicularRooms(*sides[side], axis, subdivision, walls, core, footprint, rise, windows, blocked);
+                rooms = perpendicularRooms(*sides[side], axis, subdivision, walls, core, footprint, rise, windows, blocked, outline);
             } else {
                 rooms.push_back(sides[side]->room);
-                subdivideLiving(rooms, walls, subdivision, footprint, {}, windows);
+                subdivideLiving(rooms, walls, subdivision, footprint, {}, windows, 0, outline);
             }
             layout.rooms.insert(layout.rooms.end(), rooms.begin(), rooms.end());
         }
         if (rise > 0) {
-            const auto options = stairOptions({{HouseRoom::Kind::StairArea, core, {}}}, walls, {}, footprint, rise, blocked);
+            const auto options = stairOptions({{HouseRoom::Kind::StairArea, core, {}}}, walls, {}, footprint, rise, blocked, outline);
             if (options.empty()) return false;
             Random choice(building, 0x757070657252ull ^ domain);
             layout.stairs.push_back(makeStair(options[choice.pick(static_cast<std::uint32_t>(options.size()))], stairRoom, floor, top));

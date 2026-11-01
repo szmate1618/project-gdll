@@ -1,5 +1,6 @@
 #include "interior_zombies.hpp"
 #include "house_layout_rules.hpp"
+#include "house_polygon.hpp"
 #include "collision_world.hpp"
 #include "door_layer.hpp"
 #include "zombie_crowd.hpp"
@@ -15,13 +16,7 @@ using house_layout::rules::Random;
 constexpr float inset = .42f, spacing = .75f;
 struct Candidate { glm::vec2 feet, facing; std::size_t room; InteriorZombiePosition kind; };
 bool inside(const HouseRoom& room, glm::vec2 p) {
-    bool positive = false, negative = false;
-    for (std::size_t i = 0; i < room.polygon.size(); ++i) {
-        const auto a = room.polygon[i], edge = room.polygon[(i + 1) % room.polygon.size()] - a, delta = p - a;
-        const float cross = edge.x * delta.y - edge.y * delta.x;
-        positive |= cross > .001f; negative |= cross < -.001f;
-    }
-    return !(positive && negative);
+    return house_polygon::contains(room.polygon, p);
 }
 std::optional<glm::vec3> safeFeet(const HouseFloorplan& plan, const Candidate& candidate, const CollisionWorld& world) {
     const auto& room = plan.rooms[candidate.room];
@@ -80,8 +75,8 @@ std::vector<InteriorZombiePlacement> placeInteriorZombies(const HouseFloorplan& 
         for (const auto id : rooms) {
             const auto& room = plan.rooms[id];
             if (room.kind != HouseRoom::Kind::Living) continue;
-            const auto u = glm::normalize(room.polygon[3] - room.polygon[0]), v = glm::normalize(room.polygon[1] - room.polygon[0]);
-            glm::vec2 center(0); for (const auto p : room.polygon) center += p * .25f;
+            const auto u = glm::normalize(plan.envelope[3] - plan.envelope[0]), v = glm::normalize(plan.envelope[1] - plan.envelope[0]);
+            glm::vec2 center(0); for (const auto p : room.polygon) center += p / float(room.polygon.size());
             const auto access = roomDoors(plan, room, doors);
             const glm::vec2 target = access.empty() ? center + v : glm::vec2(access.front().center.x, access.front().center.z);
             std::vector<InteriorZombiePlacement> group;
@@ -98,7 +93,7 @@ std::vector<InteriorZombiePlacement> placeInteriorZombies(const HouseFloorplan& 
     std::vector<Candidate> hidden, beside, corners;
     for (const auto id : rooms) {
         const auto& room = plan.rooms[id];
-        glm::vec2 center(0); for (const auto p : room.polygon) center += p * .25f;
+        glm::vec2 center(0); for (const auto p : room.polygon) center += p / float(room.polygon.size());
         const auto access = roomDoors(plan, room, doors);
         for (const auto& door : access) {
             const glm::vec2 p(door.center.x, door.center.z), normal(door.outward.x, door.outward.z);
@@ -113,11 +108,19 @@ std::vector<InteriorZombiePlacement> placeInteriorZombies(const HouseFloorplan& 
                     beside.push_back({p + inward * inset + right * (flank * (door.halfExtents.x + .5f)), p, id, InteriorZombiePosition::BesideDoor});
             }
         }
-        const auto u = glm::normalize(room.polygon[3] - room.polygon[0]), v = glm::normalize(room.polygon[1] - room.polygon[0]);
-        const auto width = glm::distance(room.polygon[3], room.polygon[0]), depth = glm::distance(room.polygon[1], room.polygon[0]);
         const glm::vec2 target = access.empty() ? center : glm::vec2(access.front().center.x, access.front().center.z);
-        for (const bool highU : {false, true}) for (const bool highV : {false, true})
-            corners.push_back({room.polygon[0] + u * (highU ? width - inset : inset) + v * (highV ? depth - inset : inset), target, id, InteriorZombiePosition::Corner});
+        if (plan.footprint.size() == 4 && std::equal(plan.footprint.begin(), plan.footprint.end(), plan.envelope.begin())) {
+            const auto u = glm::normalize(room.polygon[3] - room.polygon[0]), v = glm::normalize(room.polygon[1] - room.polygon[0]);
+            const auto width = glm::distance(room.polygon[3], room.polygon[0]), depth = glm::distance(room.polygon[1], room.polygon[0]);
+            for (const bool highU : {false, true}) for (const bool highV : {false, true})
+                corners.push_back({room.polygon[0] + u * (highU ? width - inset : inset) + v * (highV ? depth - inset : inset), target, id, InteriorZombiePosition::Corner});
+        } else for (std::size_t i = 0; i < room.polygon.size(); ++i) {
+            const auto p = room.polygon[i];
+            const auto a = glm::normalize(room.polygon[(i + room.polygon.size() - 1) % room.polygon.size()] - p);
+            const auto b = glm::normalize(room.polygon[(i + 1) % room.polygon.size()] - p);
+            const float sine = std::abs(a.x * b.y - a.y * b.x);
+            if (sine > .1f) corners.push_back({p + (a + b) * (inset / sine), target, id, InteriorZombiePosition::Corner});
+        }
     }
     shuffle(hidden, random); shuffle(beside, random); shuffle(corners, random);
     std::vector<InteriorZombiePlacement> result;
