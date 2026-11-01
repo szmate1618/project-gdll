@@ -98,7 +98,7 @@ void nearbyPredictionAndTransit(Scene& scene) {
     metadata.normalization = glm::scale(glm::mat4(1), {-2, 3, 4});
     metadata.normalization[1].x = .3f;
     playback.pushSetups(scene, ZombieSetups{{metadata}});
-    playback.push(motion(60, 0, 0, 3, false, .25f), 0);
+    playback.push(motion(60, 0, 0, 3, false, .25f), 0, .02);
     playback.apply(scene, 0);
     playback.push(motion(63, 0, .15f, 3, false, .275f), .05, .02);
     playback.apply(scene, .05);
@@ -125,6 +125,59 @@ void nearbyPredictionAndTransit(Scene& scene) {
     require(instance.restRoot == last, "Rejected snapshot changed the prediction clock");
     rejects([&] { playback.push(motion(66, 0, .3f), .6, -1); },
         "Negative network transit estimate was accepted");
+}
+void delayedAndBurstMotion(Scene& scene) {
+    reset(scene, 1);
+    Snapshots playback;
+    playback.pushSetups(scene, ZombieSetups{{setup(0)}});
+    for (int i = 0; i < 3; ++i) {
+        playback.push(motion(60 + i * 3, 0, i * .15f, 3, false, 1 + i * .05f), i * .05);
+        playback.apply(scene, i * .05);
+    }
+    playback.apply(scene, .17);
+    const auto& zombie = scene.zombies.instances[0];
+    const auto before = zombie.restRoot[3].x;
+    const auto walkBefore = zombie.walkSeconds;
+    const auto idleBefore = zombie.idleSeconds;
+    playback.push(motion(69, 0, .45f, 3, false, 1.15f), .18);
+    playback.apply(scene, .18);
+    require(zombie.restRoot[3].x > before && std::abs(zombie.restRoot[3].x - before - .03f) < .001f,
+        "Delayed packet rewound steady root motion or changed its speed at arrival");
+    require(std::abs(zombie.walkSeconds - walkBefore - .01) < .0001 &&
+            std::abs(zombie.idleSeconds - idleBefore - .01) < .0001,
+        "Delayed packet rewound animation or separated it from root motion");
+
+    playback.apply(scene, .19);
+    const auto beforeBurst = zombie.restRoot;
+    const auto walkBeforeBurst = zombie.walkSeconds;
+    const auto idleBeforeBurst = zombie.idleSeconds;
+    playback.push(motion(72, 0, .60f, 3, false, 1.20f), .19);
+    playback.push(motion(75, 0, .75f, 3, false, 1.25f), .19);
+    playback.apply(scene, .19);
+    require(glm::length(glm::vec3(zombie.restRoot[3] - beforeBurst[3])) < .001f &&
+            std::abs(zombie.walkSeconds - walkBeforeBurst) < .0001 &&
+            std::abs(zombie.idleSeconds - idleBeforeBurst) < .0001,
+        "Burst arrivals jumped root or animation at the same presentation time");
+    const auto afterBurst = zombie.restRoot;
+    playback.apply(scene, .19);
+    require(zombie.restRoot == afterBurst, "Applying twice in one frame restarted burst corrections");
+
+    playback.apply(scene, .5);
+    const auto held = zombie.restRoot;
+    const auto heldWalk = zombie.walkSeconds;
+    const auto heldIdle = zombie.idleSeconds;
+    playback.apply(scene, .8);
+    require(zombie.restRoot == held && zombie.walkSeconds == heldWalk && zombie.idleSeconds == heldIdle,
+        "Smoothed clock bypassed per-actor starvation limits");
+    for (int i = 0; i < 12; ++i) {
+        const double now = .85 + i * .05;
+        const auto tick = std::uint64_t(111 + i * 3);
+        playback.push(motion(tick, 0, float(tick - 60) / 20, 3, false, float(tick) / 60), now);
+        playback.apply(scene, now);
+    }
+    require(zombie.restRoot[3].x > held[3].x && !zombie.removed &&
+            std::abs(zombie.restRoot[3].x - 4.2f) < .05f,
+        "Playback failed to resume steady authoritative travel after missing updates");
 }
 void metadataAndNormalization(Scene& scene) {
     reset(scene, 1);
@@ -317,6 +370,7 @@ int main(int argc, char** argv) {
         persistenceAndExpiry(scene);
         independentSlowPrediction(scene);
         nearbyPredictionAndTransit(scene);
+        delayedAndBurstMotion(scene);
         metadataAndNormalization(scene);
         authoredAttackPlayback(scene); completePhysicsPoses(scene);
         smoothPhysicsPoses(scene, false); smoothPhysicsPoses(scene, true);

@@ -79,6 +79,7 @@ bool Snapshots::push(Snapshot snapshot, double receivedSeconds, double transitSe
     if (frames_.size() > 32) frames_.pop_front();
     received_ = receivedSeconds;
     transitSeconds_ = std::min(transitSeconds, .5);
+    zombieClock_.observe(frames_.back().tick, receivedSeconds, transitSeconds_);
     return true;
 }
 void Snapshots::pushSetups(Scene& scene, const ZombieSetups& setups) {
@@ -200,7 +201,7 @@ void Snapshots::apply(Scene& scene, double now) {
     }
     scene.zombies.setReplicatedWoundContents(b.woundContents);
     scene.zombies.setReplicatedBloodMist(b.bloodMist,double(b.tick)/60);
-    applyZombies(scene, now, estimatedServerTick);
+    applyZombies(scene, now, zombieClock_.tick(now));
 }
 void Snapshots::applyZombies(Scene& scene, double now, double estimatedServerTick) {
     auto kept = trackedZombieIds_.begin();

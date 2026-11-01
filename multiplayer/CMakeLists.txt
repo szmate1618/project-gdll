@@ -40,7 +40,7 @@ viewer_warnings(multiplayer_paths)
 add_library(multiplayer_core STATIC server/dog_replication.cpp client/dog_playback.cpp protocol.cpp session_settings.cpp client/session_setup.cpp client/host_setup.cpp inventory_state.cpp ragdoll_pose_codec.cpp character_appearance_data.cpp character_appearances.cpp scene.cpp resources.cpp asset_validation.cpp network.cpp fragments.cpp
     outgoing_snapshots.cpp signals.cpp server/birds.cpp server/world.cpp server/vehicle_seats.cpp server/replication.cpp server/zombie_selection.cpp
     server/sounds.cpp server/vehicle_replication.cpp client/prediction.cpp client/snapshots.cpp client/vehicle_playback.cpp client/ragdoll_interpolation.cpp
-    client/ragdoll_playback.cpp client/zombie_prediction.cpp client/firearm_hits.cpp client/weapon_feedback.cpp client/weapon_audio.cpp client/sound_cues.cpp client/remote_weapon_playback.cpp)
+    client/ragdoll_playback.cpp client/zombie_prediction.cpp client/zombie_presentation_clock.cpp client/firearm_hits.cpp client/weapon_feedback.cpp client/weapon_audio.cpp client/sound_cues.cpp client/remote_weapon_playback.cpp)
 target_include_directories(multiplayer_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(multiplayer_core SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 target_link_libraries(multiplayer_core PUBLIC multiplayer_paths viewer_fps viewer_zombies viewer_dogs viewer_interaction
@@ -120,6 +120,11 @@ if(BUILD_TESTING)
     target_link_libraries(test_zombie_prediction PRIVATE multiplayer_core)
     viewer_warnings(test_zombie_prediction)
     add_test(NAME multiplayer_zombie_prediction COMMAND test_zombie_prediction)
+
+    add_executable(test_zombie_presentation_clock tests/test_zombie_presentation_clock.cpp)
+    target_link_libraries(test_zombie_presentation_clock PRIVATE multiplayer_core)
+    viewer_warnings(test_zombie_presentation_clock)
+    add_test(NAME multiplayer_zombie_presentation_clock COMMAND test_zombie_presentation_clock)
 
     add_executable(test_firearm_hits tests/test_firearm_hits.cpp)
     target_link_libraries(test_firearm_hits PRIVATE multiplayer_core)

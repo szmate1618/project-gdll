@@ -897,7 +897,13 @@ the same animation rates. These presentation rates are independent of the server
 Living-zombie prediction derives root velocity, shortest yaw motion and the
 locomotion-clock rate from authoritative motion samples. Estimated server time
 includes half the transport's smoothed round-trip time; this is an approximation
-on asymmetric links. Position and animation advance together, with each actor's
+on asymmetric links. A session-wide [zombie presentation clock](client/zombie_presentation_clock.hpp)
+advances continuously from local steady time. Accepted snapshots update its target
+offset instead of resetting displayed time. Offset errors ease out with a 250 ms
+time constant, with clock speed bounded to 90–110% of real time, so delayed packets,
+burst arrivals and changing transit estimates cannot rewind or jump the clock.
+The first snapshot initializes it immediately; no playback buffer is added.
+Position and animation advance together, with each actor's
 idle clock sharing the prediction horizon. Extrapolation is bounded to the larger
 of 100 ms and the advertised update interval, capped at one second: 100 ms for
 20 Hz actors, 200 ms for 5 Hz actors and one second for 1 Hz actors. Beyond that

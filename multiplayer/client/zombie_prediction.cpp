@@ -79,7 +79,10 @@ PredictedZombieMotion ZombiePrediction::predict(const Source& source, double ser
     const double age = state.dead ? 0 : std::clamp(
         (serverTick - double(source.tick)) / ticksPerSecond, 0.0, horizon(state));
     PredictedZombieMotion result{state.root, double(state.walkSeconds) + source.walkRate * age,
-        double(source.tick) / ticksPerSecond + age};
+        state.dead ? double(source.tick) / ticksPerSecond :
+            std::min(serverTick / ticksPerSecond, double(source.tick) / ticksPerSecond + horizon(state))};
+    // Idle uses the shared presentation clock, even when a burst delivers a
+    // source timestamp ahead of it. Only the starvation horizon caps that clock.
     const float turnRate = glm::length(source.angularVelocity);
     if (turnRate > 1e-6f) result.root = glm::mat4_cast(
         glm::angleAxis(turnRate * float(age), source.angularVelocity / turnRate) * rotation(state.root));
