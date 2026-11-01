@@ -4,6 +4,7 @@
 #include "zombie_replication_fixture.hpp"
 #include "session_settings.hpp"
 #include "../../tests/house_fixture.hpp"
+#include "../../tests/apartment_fixture.hpp"
 
 #include <iostream>
 #include <stdexcept>
@@ -37,6 +38,40 @@ void irregular(multiplayer::Scene& server, multiplayer::Scene& client) {
         for (std::size_t j = 0; j < first.vertices.size(); ++j)
             require(first.vertices[j].position == second.vertices[j].position, "Peers must generate identical clipped coordinates");
     }
+    world.leave(player); world.step();
+}
+void prefab(multiplayer::Scene& server, multiplayer::Scene& client) {
+    for (auto* scene : {&server, &client}) {
+        scene->floorplans.reset(); scene->collision.reset(); scene->doors.reset();
+        scene->model = apartment_fixture::block(24,20,11);
+        scene->doors = std::make_unique<viewer::DoorLayer>(viewer::prepareDoorPanels(scene->model), scene->physics);
+        scene->collision = std::make_unique<viewer::CollisionWorld>(scene->model, std::vector<viewer::TrunkCollider>{}, scene->doors.get());
+        scene->floorplans = std::make_unique<viewer::FloorplanLayer>(scene->model, *scene->doors, *scene->collision);
+        scene->spawnEye = {0,1.7f,12};
+    }
+    multiplayer::World world(server);
+    const auto player = world.join();
+    server.doors->setAngle(0,.7f); world.step();
+    require(server.floorplans->residentCount() == 1, "Server must stream a tall apartment block");
+    const auto& authority = server.floorplans->resident().begin()->second;
+    const auto upper = std::find_if(authority.doors.begin(), authority.doors.end(), [](const auto& d) { return d.storey == 10; });
+    require(upper != authority.doors.end(), "Apartment fixture must reserve and install top-storey door IDs");
+    server.doors->setAngle(upper->id,-.9f);
+    multiplayer::Snapshots playback;
+    require(playback.push(world.snapshot(player),1), "Apartment snapshot must be accepted");
+    playback.apply(client,1); client.floorplans->update({client.spawnEye}); playback.apply(client,1);
+    const auto& replica = client.floorplans->resident().begin()->second;
+    require(replica.kind == viewer::HouseFloorplan::Kind::PrefabApartmentBlock && replica.rooms.size() == authority.rooms.size() &&
+            replica.doors.size() == authority.doors.size() && replica.stairs.size() == 10,
+            "Peers must independently generate the same eleven-storey apartment topology");
+    for (std::size_t i = 0; i < authority.rooms.size(); ++i)
+        require(authority.rooms[i].polygon == replica.rooms[i].polygon, "Apartment polygons must match exactly between peers");
+    require(std::abs(client.doors->angle(upper->id)+.9f) < .001f,
+            "Replicated angles must reach reserved apartment doors above the family-house storey limit");
+    const auto id = upper->id;
+    client.floorplans->update({}); client.floorplans->update({client.spawnEye}); playback.apply(client,1);
+    require(std::abs(client.doors->angle(id)+.9f) < .001f,
+            "Apartment door IDs and movement must survive independent client eviction/reentry");
     world.leave(player); world.step();
 }
 void encounters(multiplayer::Scene& server, multiplayer::Scene& client) {
@@ -130,7 +165,7 @@ int main(int argc, char** argv) {
         require(std::abs(client.doors->angle(door) - angle) < .001f, "Regenerated client panels must recover current authoritative movement");
         world.leave(player); world.step();
         require(server.floorplans->residentCount() == 0, "The server must evict when no player remains nearby");
-        irregular(server, client); encounters(server, client);
+        irregular(server, client); prefab(server,client); encounters(server, client);
         std::cout << "Independent multiplayer floorplan and stable door playback tests passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

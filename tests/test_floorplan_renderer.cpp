@@ -1,4 +1,5 @@
 #include "house_fixture.hpp"
+#include "apartment_fixture.hpp"
 #include "floorplan_layer.hpp"
 #include "door_layer.hpp"
 #include "collision_world.hpp"
@@ -181,6 +182,47 @@ void renderIrregular(const std::filesystem::path& capture) {
     require(pixel(camera, {4, 4.4f, 5}) == exterior, "An irregular shell's exact sun mask must not shade the exterior recess");
     viewer::Renderer::checkErrors("irregular floorplan depth and exact sun containment");
 }
+void renderApartment(const std::filesystem::path& capture) {
+    auto model = apartment_fixture::block(48,14,11);
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::DoorLayer doors(viewer::prepareDoorPanels(model),physics);
+    viewer::CollisionWorld collision(model,{},&doors);
+    viewer::FloorplanLayer layer(model,doors,collision);
+    doors.setAngle(0,.7f);layer.update({doors.panel(0).center});
+    require(layer.residentCount()==1,"Apartment rendering fixture must generate an interior");
+    const auto& plan=layer.resident().begin()->second;
+    require(plan.kind==viewer::HouseFloorplan::Kind::PrefabApartmentBlock && plan.upperFloors.size()==10,
+            "Apartment renderer must receive all eleven floors");
+    viewer::Renderer renderer(model,VIEWER_SHADER_DIR);
+    renderer.resize(width,height);renderer.setHaze(false);renderer.setGroundFog(false);renderer.setShadows(false);
+    viewer::Camera camera;
+    const auto aim=[&](glm::vec3 eye,glm::vec3 target){
+        const auto d=target-eye;camera.setPosition(eye);
+        camera.setOrientation(glm::degrees(std::atan2(d.z,d.x)),glm::degrees(std::atan2(d.y,glm::length(glm::vec2(d.x,d.z)))));
+    };
+    renderer.updateDoors(doors);renderer.updateFloorplans(layer);
+    for(const auto level:{std::size_t(0),std::size_t(10)}){
+        const auto door=std::find_if(plan.doors.begin(),plan.doors.end(),[&](const auto& d){return d.storey==level;});
+        require(door!=plan.doors.end(),"Every apartment floor must have an interactive entrance");
+        aim(door->panel.center+door->panel.outward*.7f+glm::vec3(0,.6f,0),door->panel.center);
+        renderer.render(camera);const auto closed=depth(camera,door->panel.center);
+        doors.setAngle(door->id,-1.5f);renderer.updateFloorplans(layer);renderer.render(camera);
+        require(depth(camera,door->panel.center)>closed+.00001f,"An apartment entrance must visibly open on ground and top floors");
+    }
+    const auto corridor=std::find_if(plan.rooms.begin(),plan.rooms.end(),[](const auto& r){return r.storey==0 && r.kind==viewer::HouseRoom::Kind::Corridor;});
+    require(corridor!=plan.rooms.end(),"Slab rendering fixture must expose a common corridor");
+    glm::vec2 center(0);for(const auto p:corridor->polygon)center+=p/float(corridor->polygon.size());
+    const auto& stair=plan.stairs.front();
+    for(const auto& door:plan.doors)doors.setAngle(door.id,-1.2f);
+    renderer.updateFloorplans(layer);renderer.setShadows(true);
+    aim({center.x,plan.floor+1.7f,center.y},stair.bottom+glm::vec3(0,1.3f,0));
+    renderer.render(camera);if(!capture.empty())renderer.writeScreenshot(capture.string()+".apartments.ppm");
+    auto direction=stair.top-stair.bottom;direction.y=0;direction=glm::normalize(direction);
+    const auto side=glm::normalize(glm::cross(glm::vec3(0,1,0),direction));
+    aim(stair.bottom-direction*.45f+side*.55f+glm::vec3(0,1.7f,0),stair.top+glm::vec3(0,.6f,0));
+    renderer.render(camera);if(!capture.empty())renderer.writeScreenshot(capture.string()+".apartment-stairs.ppm");
+    viewer::Renderer::checkErrors("eleven-storey apartment floors, doors and stair core");
+}
 } // namespace
 int main(int argc, char** argv) {
     if (!glfwInit()) return 77;
@@ -195,6 +237,7 @@ int main(int argc, char** argv) {
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << '\n';
         render(argc > 1 ? argv[1] : std::filesystem::path{});
         renderIrregular(argc > 1 ? argv[1] : std::filesystem::path{});
+        renderApartment(argc > 1 ? argv[1] : std::filesystem::path{});
         std::cout << "Floorplan rendering tests passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; result = 1; }
     glfwDestroyWindow(window); glfwTerminate();

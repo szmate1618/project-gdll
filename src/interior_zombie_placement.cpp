@@ -66,7 +66,12 @@ std::vector<InteriorZombiePlacement> placeInteriorZombies(const HouseFloorplan& 
     if (!hasInteriorZombieEncounter(plan.name)) return {};
     Random random(plan.name, 0x7a6f6d6269657370ull);
     std::vector<std::size_t> rooms;
-    for (std::size_t i = 0; i < plan.rooms.size(); ++i) rooms.push_back(i);
+    for (std::size_t i = 0; i < plan.rooms.size(); ++i) {
+        // Adjacent common polygons have open boundaries; their corners are not
+        // necessarily physical walls where an ordinary ambusher can hide.
+        if (plan.kind == HouseFloorplan::Kind::PrefabApartmentBlock && plan.rooms[i].kind != HouseRoom::Kind::Apartment) continue;
+        rooms.push_back(i);
+    }
     shuffle(rooms, random);
     // A rare middle-room encounter is atomic: either the whole 3-6 group fits
     // in one living room, or fall back to ordinary wall-hugging ambushers.
@@ -74,7 +79,7 @@ std::vector<InteriorZombiePlacement> placeInteriorZombies(const HouseFloorplan& 
         const auto count = 3 + random.pick(4);
         for (const auto id : rooms) {
             const auto& room = plan.rooms[id];
-            if (room.kind != HouseRoom::Kind::Living) continue;
+            if (room.kind != HouseRoom::Kind::Living && room.kind != HouseRoom::Kind::Apartment) continue;
             const auto u = glm::normalize(plan.envelope[3] - plan.envelope[0]), v = glm::normalize(plan.envelope[1] - plan.envelope[0]);
             glm::vec2 center(0); for (const auto p : room.polygon) center += p / float(room.polygon.size());
             const auto access = roomDoors(plan, room, doors);
@@ -109,7 +114,8 @@ std::vector<InteriorZombiePlacement> placeInteriorZombies(const HouseFloorplan& 
             }
         }
         const glm::vec2 target = access.empty() ? center : glm::vec2(access.front().center.x, access.front().center.z);
-        if (plan.footprint.size() == 4 && std::equal(plan.footprint.begin(), plan.footprint.end(), plan.envelope.begin())) {
+        if (room.polygon.size() == 4 && plan.footprint.size() == 4 &&
+            std::equal(plan.footprint.begin(), plan.footprint.end(), plan.envelope.begin())) {
             const auto u = glm::normalize(room.polygon[3] - room.polygon[0]), v = glm::normalize(room.polygon[1] - room.polygon[0]);
             const auto width = glm::distance(room.polygon[3], room.polygon[0]), depth = glm::distance(room.polygon[1], room.polygon[0]);
             for (const bool highU : {false, true}) for (const bool highV : {false, true})

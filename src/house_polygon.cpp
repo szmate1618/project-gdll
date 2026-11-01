@@ -50,7 +50,9 @@ bool contains(const Polygon& polygon, glm::vec2 p, float margin) {
     return inside;
 }
 bool simple(const Polygon& polygon) {
-    if (polygon.size() < 3 || area(polygon) < .001f) return false;
+    // Small clipping tiles are still real geometry. Room/building minimum areas
+    // are enforced by their callers; discarding these tiles punches floor holes.
+    if (polygon.size() < 3 || area(polygon) < .00000001f) return false;
     for (std::size_t i = 0; i < polygon.size(); ++i) {
         const auto a = polygon[i], b = polygon[(i + 1) % polygon.size()];
         if (glm::distance(a, b) < .0001f) return false;

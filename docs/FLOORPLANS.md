@@ -1,10 +1,13 @@
-# Runtime family-house floorplans
+# Runtime building floorplans
 
 The standalone viewer, multiplayer client and server generate these interiors
 from the map geometry they already load. No town regeneration, sidecar,
 serialized floorplan, network geometry payload or random seed is required.
-`house_floorplan` classifies the shell and storeys; `house_polygon` supplies simple
-polygon clipping, containment and triangulation; `house_layout` chooses ground
+`building_shell` reads the shared wall axes, footprint and roof heights.
+`house_floorplan` handles family houses; `prefab_floorplan` classifies apartment
+blocks and fits their storeys, and `apartment_layout` builds their common areas
+and apartment boundaries. `house_polygon` supplies simple polygon clipping,
+containment and triangulation; `house_layout` chooses family-house ground
 rooms and the first staircase, and `house_upper_layout` generates successive
 floors. `house_layout_rules` shares window clearance, room splitting and ramp
 fitting between them. `house_layout_geometry` emits their planes and door
@@ -49,6 +52,60 @@ stairs and both landings must fit entirely inside it. A recessed exterior door
 measures its preferred entry depth from its own facade. Window clearance remains
 20 cm on every storey. Geometry never fills a missing corner with the bounding
 rectangle or puts a staircase across exterior space.
+
+## Prefab apartment blocks
+
+This separate heuristic applies to larger shells; it does not establish their
+actual construction method or use. Classification reads **only the individual
+building's wall and roof geometry**, never windows, doors or neighbouring
+buildings. It requires:
+
+- A closed, approximately orthogonal footprint, within 5 degrees of its two
+  wall axes, without courtyard holes, occupying at least 80% of its envelope.
+- Actual footprint area **180–2,200 m²**, and wall height **12–50 metres**.
+- Roof relief at most **0.5 metres**.
+- Either a slab: short side **8–22 m**, long side **20–120 m**, aspect ratio
+  **1.5–8**; or a compact tower: both sides **12–35 m**, aspect ratio at most
+  **1.8**. A shell satisfying both uses the slab template.
+
+Height starts at the highest sampled wall base plus the facade generator's
+8 cm foundation skin, avoiding a buried downhill wall extending the estimate.
+The nominal storey count is rounded from height / 3 m and clamped to **4–16**.
+The shared outline limits of 24 corners and one connected perimeter apply.
+
+Generating a usable interior subsequently needs an existing exterior door.
+Windows and doors fit the already-classified building: matching window-head
+rows can align its floor heights, and partitions must clear windows by **20 cm**.
+Repeated upper partitions respect the union of windows on every storey. A
+separating floor cannot intersect a pane. Missing panes use evenly spaced
+floors from shell heights. A shell can qualify but fail layout fitting; no
+partial interior is installed in that case.
+
+A slab has a **2 m common corridor** along its long axis, with apartments on
+both sides and a stair core near one end. Deterministic bay lengths target
+**6–9 m** and move into window gaps when necessary. A compact tower has a
+central landing with up to four surrounding apartment regions. The ground
+floor adds lobbies from exterior entrances to the common circulation; upper
+floors repeat one common/apartment template. Small remnants merge into an
+adjacent apartment or become part of an adjoining lobby. Each retained apartment
+has at least **25 m²**, bounding sides of at least **3 m**, exterior-wall contact,
+and exactly one **90 cm interactive entrance opening inward** from common space.
+Its internal rooms are deferred to a later generation stage. Room categories
+are `apartment`, `corridor`, `lobby` and `stair_area`.
+
+The **3.5 × 8 m** stair core contains two alternating 1.1 m ramp bays, with
+86 cm end landings and circulation beside the core. Successive flights reverse
+direction and use different bays so the next flight and its cutout do not block
+the incoming landing. Each transition uses the same walkable inclined-plane
+geometry and 2.05 m head-clearance cutout as family houses. The final ceiling
+has no stair opening. Common boundaries remain open; apartment partitions use
+simple full-height quads and a quad above each doorway.
+
+Rooms tile the actual footprint, including modest recesses or skewed facades.
+Clipping keeps small facade fragments until adjacent tiles are joined; common
+areas wrapping around the stair core are represented by simple adjoining
+polygons, without inserting extra walls. Disconnected areas, unusable door
+approaches or an unfittable core reject that candidate layout.
 
 ## Ground-storey rooms
 
@@ -165,8 +222,10 @@ inside that house. This does not add a scan of town buildings per pixel.
 An entrance grid selects open exterior doors within 20 metres of an observer.
 Open means more than 0.1 radians away from closed, avoiding hinge-stop jitter.
 The complete building interior is then generated, including its other entries.
-Only map draw references, exterior panel descriptors and grid membership are
-indexed before this trigger; classification and generated geometry are lazy.
+Before this trigger, map draw references, exterior panel descriptors and grid
+membership are indexed. Apartment-block shell metadata is classified and cached
+to reserve stable door IDs; rooms, ramps, partitions and meshes are generated
+only on demand. Family-house layout generation remains lazy.
 
 The interior stays resident while an observer is within 30 metres of the
 building's oriented footprint and vertical interior interval, even if the
@@ -187,8 +246,11 @@ three upper storeys. Failed random choices
 leave unused slots. A reserved slot holds no generated geometry or body until
 the house loads. Activation order cannot change IDs. The existing door-angle
 snapshot carries interactive movement only; clients ignore angles for reserved
-panels whose geometry is not locally resident. Protocol 38 prevents older
-peers with different layouts or door-ID semantics from joining.
+panels whose geometry is not locally resident. A block instead reserves
+`storeys * (2 * ceil(long_side / 3 m) + 8) + 6 * exterior_door_count` slots,
+a conservative bound for apartment entrances and ground-lobby splits without
+generating any rooms at startup. Protocol 39 prevents older peers with different
+layouts or door-ID semantics from joining.
 
 Walking, ground support, sight, firearm queries and debug geometry include a
 small runtime collision BVH alongside the unchanged town BVH. Generation and
@@ -202,17 +264,18 @@ its existing session lifecycle. It is not part of the regenerated floorplan.
 
 ## Interior zombie encounters
 
-When a house first becomes resident, a deterministic building-name roll selects
-it with **20% probability** for an encounter. This is one roll per building,
+When a house or apartment block first becomes resident, a deterministic
+building-name roll selects it with **20% probability** for an encounter. This is one roll per building,
 including all its storeys. Ordinary encounters contain 1–3 zombies, placed
 against walls in corners or beside doorways, facing the doorway. Doorway
 placements favor the hinge side where the opened panel can hide the zombie.
 Positions leave capsule clearance and avoid stairs, unsupported floor openings,
-closed panels and existing physical obstacles.
+closed panels and existing physical obstacles. Block encounters use apartment
+rooms; open boundaries between common-space polygons are not ambush walls.
 
 For 10% of selected encounters, placement first tries a **complete group of 3–6**
-in the middle of one living room. If the whole group cannot fit the geometry,
-placement falls back to wall ambushers. At activation, nearby players and living
+in the middle of one living room or apartment. If the whole group cannot fit
+the geometry, placement falls back to wall ambushers. At activation, nearby players and living
 zombies also block placements; a center group is accepted or rejected as a whole.
 Thus 20% is the encounter-selection chance, not a guarantee of occupied houses
 when valid positions or capacity are unavailable.

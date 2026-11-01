@@ -1,4 +1,5 @@
 #include "house_fixture.hpp"
+#include "apartment_fixture.hpp"
 #include "interior_zombies.hpp"
 #include "floorplan_layer.hpp"
 #include "door_layer.hpp"
@@ -23,19 +24,20 @@ float wallDistance(const viewer::HouseRoom& room, glm::vec2 p) {
     }
     return distance;
 }
-void placement(const glm::mat4& transform) {
-    auto model = house_fixture::house(transform);
+void placement(const glm::mat4& transform, bool apartment = false) {
+    auto model = apartment ? apartment_fixture::block(20,24,5,transform) : house_fixture::house(transform);
     // This deterministic layout has partitioned upper rooms and their doors,
     // so concealment/placement are exercised on both storeys.
-    for (auto& draw : model.draws) if (draw.name.find("building_house_") == 0)
-        draw.name.replace(0, 14, "building_render_0");
+    const std::string prefix = apartment ? "building_prefab" : "building_house";
+    for (auto& draw : model.draws) if (draw.name.find(prefix + "_") == 0)
+        draw.name.replace(0, prefix.size(), "building_render_0");
     auto physics = std::make_shared<viewer::PhysicsWorld>();
     viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics);
     viewer::CollisionWorld collision(model, {}, &doors);
     viewer::FloorplanLayer floors(model, doors, collision);
     doors.setAngle(1, .7f);
     floors.update({doors.panel(1).center});
-    require(floors.residentCount() == 1, "Placement fixture must generate a family house");
+    require(floors.residentCount() == 1, "Placement fixture must generate its building interior");
     auto plan = floors.resident().begin()->second;
     int selected = 0, occupied = 0, groups = 0, hidden = 0, corners = 0, upstairs = 0;
     bool testedConcealment = false;
@@ -56,6 +58,8 @@ void placement(const glm::mat4& transform) {
             require(p.transform == repeated[i].transform && p.position == repeated[i].position && p.room == repeated[i].room,
                     "Interior placement and facing must be deterministic");
             const auto& room = plan.rooms.at(p.room); upstairs += room.storey > 0;
+            if (apartment) require(room.kind == viewer::HouseRoom::Kind::Apartment,
+                                   "Block ambushers must use actual apartment walls, not open common-space boundaries");
             const float floor = room.storey == 0 ? plan.floor + .01f : plan.upperFloors.at(room.storey - 1);
             require(std::abs(feet.y - floor) < .02f, "Interior zombies must stand on their storey's generated floor");
             require(wallDistance(room, {feet.x, feet.z}) > .35f, "Zombie bodies must leave physical clearance to walls");
@@ -192,6 +196,7 @@ int main() {
     try {
         placement(glm::mat4(1));
         placement(glm::translate(glm::mat4(1), {-1108, 5, -250}) * glm::rotate(glm::mat4(1), glm::radians(31.f), glm::vec3(0, 1, 0)) * glm::scale(glm::mat4(1), {-1, 1, 1}));
+        placement(glm::mat4(1), true);
         lifecycle();
         std::cout << "Interior zombie placement tests passed\n"; return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

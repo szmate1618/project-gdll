@@ -4,6 +4,7 @@
 #include "model_merge.hpp"
 #include "house_layout.hpp"
 #include "house_polygon.hpp"
+#include "prefab_floorplan.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -40,6 +41,7 @@ struct FloorplanLayer::Impl {
     std::vector<DoorPanel> entrances;
     std::vector<std::string> doorBuildings;
     std::map<std::string, HouseSource> sources;
+    std::map<std::string, PrefabBlock> blocks; // Shell metadata only; no generated rooms/meshes.
     std::map<std::pair<int, int>, std::vector<std::size_t>> cells;
     std::set<std::string> rejected;
     std::map<std::string, HouseFloorplan> resident;
@@ -101,6 +103,11 @@ FloorplanLayer::FloorplanLayer(const Model& model, DoorLayer& doors, CollisionWo
     for (auto& entry : data.sources) {
         auto& source = entry.second;
         if (source.doors.empty()) continue;
+        if (auto block = classifyPrefabBlock(model, source)) {
+            source.firstDoor = doors.reserveRuntimeDoors(prefabDoorCapacity(*block, source.doors.size()));
+            data.blocks.emplace(source.name, std::move(*block));
+            continue;
+        }
         source.firstDoor = doors.reserveRuntimeDoors(source.doors.size() * 3 + 2 +
             2 * house_layout::maxUpperRoomsPerSide * std::min<std::size_t>(3, houseUpperStoreyCount(model, source)));
     }
@@ -138,7 +145,9 @@ void FloorplanLayer::update(const std::vector<glm::vec3>& observers) {
     }
     for (const auto& name : candidates) {
         if (data.resident.count(name) || data.rejected.count(name)) continue;
-        auto plan = generateHouseFloorplan(*data.source, data.sources.at(name), data.entrances);
+        const auto block = data.blocks.find(name);
+        auto plan = block == data.blocks.end() ? generateHouseFloorplan(*data.source, data.sources.at(name), data.entrances) :
+            generatePrefabFloorplan(*data.source, data.sources.at(name), data.entrances, block->second);
         if (!plan) { data.rejected.insert(name); continue; }
         for (const auto& door : plan->doors) data.doors->installRuntimeDoor(door.id, door.panel);
         data.resident.emplace(name, std::move(*plan)); changed = true;

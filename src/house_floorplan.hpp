@@ -13,7 +13,7 @@ struct HouseSource {
     std::size_t firstDoor = 0; // Reserved runtime IDs; geometry is still generated lazily.
 };
 struct HouseRoom {
-    enum class Kind { Anteroom, SmallRoom, Living, StairArea };
+    enum class Kind { Anteroom, SmallRoom, Living, StairArea, Apartment, Corridor, Lobby };
     Kind kind = Kind::Living;
     std::vector<glm::vec2> polygon; // X/Z metres on the indicated storey.
     std::vector<std::size_t> entrances; // Exterior door IDs opening into this room.
@@ -21,7 +21,8 @@ struct HouseRoom {
     std::size_t storey = 0; // Ground = 0; upperFloors[storey - 1] is its floor height.
     const char* name() const {
         return kind == Kind::Anteroom ? "anteroom" : kind == Kind::SmallRoom ? "small_rooms" :
-            kind == Kind::StairArea ? "stair_area" : "living";
+            kind == Kind::StairArea ? "stair_area" : kind == Kind::Apartment ? "apartment" :
+            kind == Kind::Corridor ? "corridor" : kind == Kind::Lobby ? "lobby" : "living";
     }
 };
 struct HouseInteriorDoor {
@@ -37,6 +38,8 @@ struct HouseStaircase {
     glm::vec3 bottom, top; // Centreline endpoints on the walkable plane.
 };
 struct HouseFloorplan {
+    enum class Kind { FamilyHouse, PrefabApartmentBlock };
+    Kind kind = Kind::FamilyHouse;
     std::string name;
     glm::vec3 minimum{0}, maximum{0};
     float floor = 0, ceiling = 0;

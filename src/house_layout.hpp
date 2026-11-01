@@ -12,6 +12,7 @@ struct Room {
     Rectangle bounds;
     std::vector<std::size_t> entrances;
     std::size_t storey = 0;
+    std::vector<glm::vec2> polygon{}; // Optional pre-clipped boundary for apartment/common-space regions.
 };
 struct Opening {
     float low, high;
@@ -36,6 +37,7 @@ struct Layout {
     std::vector<Room> rooms;
     std::vector<Partition> partitions;
     std::vector<Stair> stairs;
+    bool wholeGroundFloor = false; // Apartment regions can have nonrectangular bounds.
 };
 struct Window { Rectangle bounds; float bottom, top; };
 inline constexpr std::size_t maxUpperRoomsPerSide = 4;

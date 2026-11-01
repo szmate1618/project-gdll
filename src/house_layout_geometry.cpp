@@ -61,7 +61,10 @@ void buildGeometry(HouseFloorplan& result, const HouseSource& source, const Layo
     };
     for (const auto& room : layout.rooms) {
         auto boundary = polygon(room.bounds);
-        if (!outline.empty()) {
+        if (!room.polygon.empty()) {
+            boundary.clear();
+            for (const auto p : room.polygon) { const auto q = world(p, 0); boundary.emplace_back(q.x, q.z); }
+        } else if (!outline.empty()) {
             boundary.clear();
             for (const auto p : house_polygon::clip(outline, room.bounds.low, room.bounds.high)) {
                 const auto q = world(p, 0); boundary.emplace_back(q.x, q.z);
@@ -70,8 +73,9 @@ void buildGeometry(HouseFloorplan& result, const HouseSource& source, const Layo
         }
         result.rooms.push_back({room.kind, std::move(boundary), room.entrances,
             room.kind == HouseRoom::Kind::StairArea, room.storey});
-        if (room.storey == 0) plane(room.bounds, result.floor + .01f);
+        if (room.storey == 0 && !layout.wholeGroundFloor) plane(room.bounds, result.floor + .01f);
     }
+    if (layout.wholeGroundFloor) plane(footprint, result.floor + .01f);
     for (const auto& wall : layout.partitions) {
         const float floor = wall.storey == 0 ? result.floor : result.upperFloors.at(wall.storey - 1);
         const float ceiling = wall.storey < result.upperFloors.size() ? result.upperFloors[wall.storey] : result.ceiling;

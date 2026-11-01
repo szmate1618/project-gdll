@@ -25,6 +25,9 @@ bool inside(const std::vector<glm::vec2>& polygon, glm::vec2 p) {
 }
 void polygonOperations() {
     using namespace viewer::house_polygon;
+    const auto tiny = clip({{0,0},{0,1},{1,1},{1,0}}, {0,0}, {.0008f,.5f});
+    require(tiny.size() == 4 && std::abs(area(tiny) - .0004f) < .0000001f,
+            "Valid thin clipping tiles must not disappear and create interior holes");
     const Polygon u{{0, 0}, {0, 6}, {2, 6}, {2, 2}, {4, 2}, {4, 6}, {6, 6}, {6, 0}};
     require(simple(u) && area(u) == 28, "Concave boundary area must exclude its notch");
     require(contains(u, {1, 4}) && !contains(u, {3, 4}), "Containment must distinguish the two sides of a concavity");
