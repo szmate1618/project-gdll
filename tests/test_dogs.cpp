@@ -26,6 +26,35 @@ viewer::Model wall() {
     primitive.indices = {0,1,2,0,2,3}; model.primitives.push_back(primitive);
     model.draws.push_back({0,glm::mat4(1),"building_test_walls"}); return model;
 }
+viewer::Model terrain(float slope) {
+    viewer::Model model; viewer::Primitive primitive;
+    for (const auto point : {glm::vec3(-20,-20*slope,-20),{ -20,20*slope,20},
+                             {20,20*slope,20},{20,-20*slope,-20}}) {
+        viewer::Vertex vertex; vertex.position = point; primitive.vertices.push_back(vertex);
+    }
+    primitive.indices = {0,1,2,0,2,3}; model.primitives.push_back(primitive);
+    model.draws.push_back({0,glm::mat4(1),"terrain"}); return model;
+}
+void approachAndBite() {
+    // Walking players sit slightly above terrain. Exercise the whole approach,
+    // rather than starting a dog inside the attack range as the old test did.
+    for (float slope : {0.f,.1f,-.1f}) {
+        auto dogs = pack(); viewer::CollisionWorld world(terrain(slope));
+        const std::vector<viewer::ZombiePlayer> players{{{0,5*slope+.002f,5}}};
+        bool attacked = false, hit = false;
+        for (int step = 0; step < 240; ++step) {
+            dogs.updateBehavior(1.f/60,players,world,double(step)/60);
+            attacked = attacked || dogs.instances[0].attacking;
+            hit = hit || !dogs.attackHits().empty();
+        }
+        require(attacked,"Approaching dog stopped outside its bite activation range");
+        require(hit,"Approaching dog did not bite the visible player on terrain");
+    }
+    auto dogs = pack(); viewer::CollisionWorld empty(viewer::Model{});
+    dogs.updateBehavior(1.f/60,{{{0,0,1.0005f}}},empty,0);
+    require(dogs.instances[0].root[3].z > .0004f,
+            "An animation speed threshold discarded the last physical approach step");
+}
 void behavior() {
     viewer::CollisionWorld empty(viewer::Model{});
     auto dogs = pack(); auto independent = pack();
@@ -95,6 +124,6 @@ void assets(const std::filesystem::path& path) {
 }
 }
 int main(int argc,char** argv) {
-    try { behavior(); if (argc>1) assets(argv[1]); std::cout << "Dog behavior/assets passed\n"; }
+    try { behavior(); approachAndBite(); if (argc>1) assets(argv[1]); std::cout << "Dog behavior/assets passed\n"; }
     catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

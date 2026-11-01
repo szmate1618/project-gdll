@@ -8,6 +8,8 @@
 namespace viewer {
 namespace {
 constexpr float pi = 3.14159265359f;
+constexpr float approachDistance = 1.f;
+constexpr float approachTolerance = .0001f;
 bool finite(glm::vec3 v) { return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z); }
 void face(DogInstance& dog, glm::vec2 direction, float dt, float turnRate) {
     if (glm::length(direction) < 1e-6f) return;
@@ -143,7 +145,7 @@ void DogLayer::updateBehavior(float dt, const std::vector<ZombiePlayer>& players
             dog.attacking = false; behavior.readyAt = now+.5;
             behavior.state = behavior.sight == 2 ? DogState::chasing : DogState::investigating;
         }
-        if (eligible() && glm::length(target->feet-feet) <= 1.f) {
+        if (eligible() && glm::length(target->feet-feet) <= approachDistance+approachTolerance) {
             if (now >= behavior.readyAt) {
                 dog.attacking = true; dog.attackSeconds = 0;
                 behavior.attackStarted = now; behavior.attackHit = false; behavior.state = DogState::attacking;
@@ -159,16 +161,26 @@ void DogLayer::updateBehavior(float dt, const std::vector<ZombiePlayer>& players
         const float distance = glm::length(horizontal);
         const float speed = behavior.state == DogState::chasing ? 3.f : 1.2f;
         float travel = std::min(speed*dt,distance);
-        if (behavior.sight && std::abs(destination.y-feet.y) < 1.f) travel = std::min(travel,std::max(0.f,distance-1.f));
+        const float heightDifference = destination.y-feet.y;
+        if (behavior.sight && std::abs(heightDifference) < approachDistance) {
+            // Match the 3D attack range, including terrain and player foot lift.
+            const float horizontalGap = std::sqrt(approachDistance*approachDistance-heightDifference*heightDifference);
+            travel = std::min(travel,std::max(0.f,distance-horizontalGap));
+        }
         if (distance > 1e-4f && travel > 1e-6f) {
             const auto direction = horizontal/distance;
             const auto next = move(id,feet+glm::vec3(direction.x*travel,0,direction.y*travel),world);
             const auto moved = glm::vec2(next.x-feet.x,next.z-feet.z);
+            if (next != feet) {
+                // Physical progress is independent of the animation speed gate.
+                dog.root[3] = glm::vec4(next,1);
+                dog.transform = dog.root;
+                spatial_.update(id,next);
+            }
             if (glm::length(moved) >= .1f*dt) {
-                dog.root[3] = glm::vec4(next,1); face(dog,moved,dt,pi);
+                face(dog,moved,dt,pi);
                 dog.walking = true; dog.running = speed > 1.2f;
                 dog.walkSeconds += glm::length(moved)/speed;
-                spatial_.update(id,next);
             }
         } else if (!behavior.sight && distance <= 1e-4f) {
             behavior.state = DogState::idle; behavior.idleSince = now;
