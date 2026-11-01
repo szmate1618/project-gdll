@@ -2,6 +2,9 @@
 #include "server/dog_replication.hpp"
 #include "client/firearm_hits.hpp"
 #include "session_settings.hpp"
+#include "server/world.hpp"
+#include "simulation_clock.hpp"
+#include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -95,8 +98,84 @@ void shooting() {
     require(decoded.commands[0].firearmShot->dogHits.size()==1,"Dog hit report lost on wire");
     shot.hits.emplace_back(); command.firearmShot=shot; rejects([&]{encode(Commands{{command}});});
 }
+// Exercise actual asset intersections, command serialization, authoritative
+// damage/ammunition, and replicated health/death rather than injected damage.
+void authoritativeShooting(const std::filesystem::path& map, const std::filesystem::path& assets) {
+    using namespace multiplayer;
+    for (const std::uint8_t slot : {0,3}) for (std::size_t variant=0;variant<3;++variant) {
+        Options options; options.map=map; options.zombieCount=0;
+        options.trees=options.forests=options.cars=false;
+        Scene scene(options);
+        scene.floorplans.reset();
+        viewer::Model ground; viewer::Primitive floor;
+        for (const auto point : {glm::vec3(-100,0,-100),{-100,0,100},{100,0,100},{100,0,-100}}) {
+            viewer::Vertex vertex; vertex.position=point; floor.vertices.push_back(vertex);
+        }
+        floor.indices={0,1,2,0,2,3}; ground.primitives.push_back(floor);
+        ground.draws.push_back({0,glm::mat4(1),"terrain"});
+        ground.boundsMin={-100,0,-100}; ground.boundsMax={100,10,100};
+        scene.model=std::move(ground);
+        scene.collision=std::make_unique<viewer::CollisionWorld>(scene.model);
+        scene.floorplans=std::make_unique<viewer::FloorplanLayer>(scene.model,*scene.doors,*scene.collision);
+        scene.spawnEye={0,1.7f,0};
+        const std::vector<glm::mat4> placements{glm::translate(glm::mat4(1),{0,0,-50})};
+        scene.dogs=viewer::loadDogLayer(assets,placements);
+        scene.dogs.instances[0].asset=variant;
+        scene.dogs.releaseAnimationVertices();
+        World world(scene); const auto player=world.join();
+        std::uint64_t sequence=0;
+        const auto send=[&](Command command) {
+            command.sequence=++sequence; command.slot=slot;
+            const auto bytes=encode(Commands{{command}});
+            world.submit(player,std::get<Commands>(decode(bytes.data(),bytes.size())));
+            world.step();
+        };
+        send(Command{});
+        for (int tick=0;tick<600 && world.players().at(player).weapons.slot()!=slot;++tick) world.step();
+        require(world.players().at(player).weapons.slot()==slot,"Shooting fixture could not equip firearm");
+        const auto& weapon=world.players().at(player).weapons.equipped().config;
+        const int loaded=world.players().at(player).weapons.equipped().loaded;
+        const int lethalHits=slot==0 ? 10 : 5;
+        DogPlayback playback; viewer::DogLayer replica;
+        replica.instances.resize(1); replica.instances[0].asset=variant;
+        for (int hit=1;hit<=lethalHits;++hit) {
+            send(Command{});
+            for (int tick=0;tick<int(std::ceil(weapon.shotIntervalSeconds*60))+1;++tick) world.step();
+            const auto origin=world.players().at(player).camera.position();
+            Command command; command.left=true;
+            // Follow the running torso's vertical bob rather than assuming a
+            // fixed height still intersects the skin at every animation phase.
+            for (const float height : {.4f,.5f,.6f,.7f}) {
+                const auto target=glm::vec3(scene.dogs.instances[0].root[3])+glm::vec3(0,height,0);
+                const auto direction=glm::normalize(target-origin);
+                command.movement.yawDegrees=glm::degrees(std::atan2(direction.z,direction.x));
+                command.pitch=glm::degrees(std::asin(direction.y));
+                command.firearmShot=reportFirearmHits(slot,weapon,origin,direction,
+                    [](glm::vec3,glm::vec3)->std::optional<viewer::ZombieShotTrace>{return {};},nullptr,
+                    [&](glm::vec3 start,glm::vec3 ray) {return scene.dogs.traceShot(start,ray,*scene.collision,viewer::SimulationClock::instance().seconds());});
+                if (!command.firearmShot->dogHits.empty()) break;
+            }
+            require(command.firearmShot->dogHits.size()==1,"Aimed shot missed the actual dog torso");
+            send(command);
+            const float expected=100.f*(1.f-float(hit)/lethalHits);
+            require(std::abs(scene.dogs.instances[0].health-expected)<.001f,"Accepted firearm hit did not reduce dog health");
+            require(world.players().at(player).shots==std::uint64_t(hit) &&
+                world.players().at(player).weapons.equipped().loaded==loaded-hit,"Dog shot was rejected or consumed incorrect ammunition");
+            const auto snapshot=world.snapshot(player); const auto bytes=encode(snapshot);
+            const auto copy=std::get<Snapshot>(decode(bytes.data(),bytes.size()));
+            require(copy.dogs.size()==1,"Changed dog health was not replicated immediately");
+            playback.push(copy.tick,copy.dogs,double(copy.tick)/60);
+            playback.apply(replica,double(copy.tick),double(copy.tick)/60);
+            require(std::abs(replica.instances[0].health-expected)<.001f &&
+                replica.instances[0].dead==(hit==lethalHits),"Client did not receive dog damage/death");
+        }
+        require(scene.dogs.instances[0].dead && !scene.dogs.instances[0].walking &&
+            !scene.dogs.instances[0].attacking,"Lethal gunfire did not stop dog behavior");
+        std::cout<<"Dog variant "<<variant+1<<": killed by "<<lethalHits<<" hits with "<<weapon.name<<"; client death received\n";
+    }
 }
-int main() {
-    try { network(); playback(); shooting(); std::cout<<"Dog replication/playback passed\n"; }
+}
+int main(int argc,char** argv) {
+    try { network(); playback(); shooting(); if(argc==3) authoritativeShooting(argv[1],argv[2]); std::cout<<"Dog replication/playback passed\n"; }
     catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}
 }
