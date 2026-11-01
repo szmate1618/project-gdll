@@ -3,6 +3,7 @@
 #include "ragdoll_playback.hpp"
 #include "vehicle_playback.hpp"
 #include "zombie_prediction.hpp"
+#include "dog_playback.hpp"
 #include <deque>
 #include <memory>
 
@@ -10,6 +11,7 @@ namespace multiplayer {
 class Snapshots {
 public:
     bool push(Snapshot snapshot, double receivedSeconds, double transitSeconds = 0);
+    void pushDogs(const DogFrame& frame, double received) { dogs_.push(frame.tick,frame.dogs,received); }
     void pushSetups(Scene& scene, const ZombieSetups& setups);
     void pushPose(const Scene& scene, const CorpsePose& pose, double receivedSeconds, double transitSeconds = 0);
     const Snapshot& latest() const { return frames_.back(); }
@@ -41,6 +43,7 @@ private:
     std::vector<PlayerState> players_;
     std::vector<viewer::GrenadePose> grenades_;
     VehiclePlayback vehicles_;
+    DogPlayback dogs_;
     double received_ = 0, renderTick_ = 0, transitSeconds_ = 0;
     // Direct stable-ID lookup lives on the heap. Replica payloads are allocated
     // lazily; frame work visits only the sorted, bounded tracked-ID list.

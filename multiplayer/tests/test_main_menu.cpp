@@ -95,6 +95,9 @@ int main(int argc, char** argv) {
         key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Host);
         menu.pointer(440.f / 960, 330.f / 600); menu.button(0,true,0); menu.button(0,false,0); draw(multiplayer::MenuScreen::Host);
         require(menu.hostOptions().scene.birds, "Bird switch must update authoritative host options");
+        menu.pointer(740.f / 960,335.f / 600); menu.button(0,true,0); menu.button(0,false,0);
+        key(GLFW_KEY_DOWN); key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Host);
+        require(menu.hostOptions().scene.dogCount==10,"Dog dropdown must update authoritative host options");
         menu.pointer(490.f / 960, 397.f / 600); menu.button(0,true,0); menu.button(0,false,0);
         key(GLFW_KEY_DOWN); key(GLFW_KEY_ENTER); draw(multiplayer::MenuScreen::Host);
         require(menu.hostOptions().scene.dayNight.startHour == 18, "Starting time dropdown must update host time");

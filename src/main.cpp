@@ -19,6 +19,7 @@
 #include "interior_objects.hpp"
 #include "floorplan_layer.hpp"
 #include "interior_zombies.hpp"
+#include "dog_layer.hpp"
 #include "reticle_overlay.hpp"
 #include "gui/hud.hpp"
 #include "inventory/inventory_config.hpp"
@@ -77,6 +78,8 @@ struct Options {
     std::filesystem::path poles;
     std::filesystem::path guardrails;
     std::filesystem::path zombies;
+    std::filesystem::path dogs = VIEWER_DOG_ASSETS;
+    int dogCount = 0;
     std::filesystem::path scenario;
     bool fullScenarioMovement = false, fixedStep = false;
     int frames = 0;
@@ -261,6 +264,14 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--no-town-culling") options.sceneCulling = false;
         else if (argument == "--no-tree-collisions") options.treeCollisions = false;
         else if (argument == "--zombies") { options.zombies = value(); options.explicitZombies = true; }
+        else if (argument == "--dogs") options.dogs = value();
+        else if (argument == "--dog-count") {
+            const auto text = value(); std::size_t used = 0;
+            options.dogCount = std::stoi(text, &used);
+            if (used != text.size() || options.dogCount < 0 || options.dogCount > 1000)
+                throw std::runtime_error("--dog-count requires an integer from 0 to 1000");
+        }
+        else if (argument == "--no-dogs") options.dogCount = 0;
         else if (argument == "--fixed-step") options.fixedStep = true;
         else if (argument == "--full-scenario-movement") options.fullScenarioMovement = true;
         else if (argument == "--scenario") {
@@ -417,6 +428,9 @@ void printHelp() {
               << "  --no-zombie-perception Skip activation scans, behaviors, sight and hearing\n"
               << "  --no-town-culling   Render all town draw instances for comparison\n"
               << "  --no-tree-collisions Disable the estimated trunk colliders\n"
+              << "  --dogs PATH         Approved dog asset directory\n"
+              << "  --dog-count N       Separate dog population, 0..1000 (default 0)\n"
+              << "  --no-dogs           Disable dogs\n"
               << "  --zombies PATH      Load individual animated GLB/glTF files from PATH\n"
               << "  --fixed-step        Advance simulation by 1/60 s per frame (benchmark)\n"
               << "  --full-scenario-movement  Disable distant traveler approximations\n"
@@ -470,6 +484,7 @@ struct AppState {
     viewer::InteriorObjects* interiors = nullptr;
     const viewer::CollisionWorld& world;
     viewer::ZombieLayer* zombies = nullptr;
+    viewer::DogLayer* dogs = nullptr;
     viewer::SceneAudio* audio = nullptr;
     viewer::Grenades* grenades = nullptr;
     viewer::PlayerBody* body = nullptr;
@@ -729,11 +744,25 @@ bool updateWeapons(AppState& app, double seconds) {
             throw std::logic_error("Accepted grenade throw failed");
         app.weaponReload.begin(app.weapons, app.inventory, seconds);
     } else if (app.audio) app.audio->shot(app.weapons.slot());
-    if (app.zombies && !config.grenade) {
-        app.zombies->makeNoise(app.rig.camera().position(), 110);
-        for (const auto direction : viewer::weaponShotDirections(app.weapons.equipped().config, aim.direction()))
-            app.zombies->shootWithOcclusion(app.rig.camera().position(), direction,
-                                            app.displayedAnimationSeconds, app.world, config.caliber);
+    if (!config.grenade) {
+        const auto origin = app.rig.camera().position();
+        if (app.zombies) app.zombies->makeNoise(origin,110);
+        if (app.dogs) app.dogs->makeNoise(origin,110);
+        for (const auto direction : viewer::weaponShotDirections(config,aim.direction())) {
+            const auto dog = app.dogs ? app.dogs->traceShot(origin,direction,app.world,app.displayedAnimationSeconds) : std::nullopt;
+            // Keep the nearest species on the ray; a pellet cannot hit both.
+            bool nearerZombie = false;
+            if (dog && app.zombies) {
+                std::vector<std::size_t> ids;
+                app.zombies->queryLivingNear(origin,dog->distance+2,ids);
+                for (const auto id : ids) {
+                    const auto trace = app.zombies->traceShot(id,app.zombies->instances[id],origin,direction,app.displayedAnimationSeconds);
+                    if (trace && trace->distance < dog->distance) { nearerZombie = true; break; }
+                }
+            }
+            if (dog && !nearerZombie) app.dogs->damage(dog->dog,config.caliber == viewer::ShotCaliber::high ? 20.f : 10.f);
+            else if (app.zombies) app.zombies->shootWithOcclusion(origin,direction,app.displayedAnimationSeconds,app.world,config.caliber);
+        }
     }
     if (!config.grenade) app.weaponMotion.fire(app.weapons.slot(), seconds);
     std::cout << app.weapons.status() << '\n';
@@ -769,7 +798,7 @@ void moveCamera(AppState& app, float dt) {
 
 void updateZombieBehavior(AppState& app, float seconds, double animationSeconds,
                           viewer::zombie_profile::Profile* profile) {
-    if (!app.zombies) return;
+    if (!app.zombies && !app.dogs) return;
     const auto& player = app.rig.player();
     const auto& config = player.config();
     const float eyeHeight = app.rig.walking() ? player.eyeHeight() : config.eyeHeight;
@@ -780,8 +809,13 @@ void updateZombieBehavior(AppState& app, float seconds, double animationSeconds,
     viewer::ZombiePlayer target{feet, eyeHeight, height};
     target.velocity = app.driver.car() ? app.cars->velocity(*app.driver.car()) : app.playerVelocity;
     target.radius = config.radius;
-    app.zombies->updateBehavior(seconds, target, app.world, animationSeconds);
-    for (const auto& hit : app.zombies->attackHits())
+    if (app.dogs) {
+        app.dogs->updateBehavior(seconds, {target}, app.world, viewer::SimulationClock::instance().seconds());
+        for (const auto& hit : app.dogs->attackHits())
+            if (app.vitals.applyDamage(hit.damage) > 0) app.lastDamageSeconds = viewer::SimulationClock::instance().seconds();
+    }
+    if (app.zombies) app.zombies->updateBehavior(seconds, target, app.world, animationSeconds);
+    if (app.zombies) for (const auto& hit : app.zombies->attackHits())
         if (app.vitals.applyDamage(hit.damage) > 0)
             app.lastDamageSeconds = viewer::SimulationClock::instance().seconds();
 }
@@ -1350,6 +1384,12 @@ int run(const Options& options) {
         std::cout << "Doodads: forest-only cells; " << doodadState->changes().size()
                   << " saved moves; " << doodadSave << '\n';
     }
+    viewer::DogLayer dogs;
+    if (options.dogCount) {
+        const auto center = options.spawn.value_or(glm::vec2((model.boundsMin.x+model.boundsMax.x)*.5f,
+            (model.boundsMin.z+model.boundsMax.z)*.5f));
+        dogs = viewer::loadDogLayer(options.dogs, collision, model, center, options.dogCount, 100);
+    }
     std::optional<viewer::ZombieLayer> zombies;
     std::unique_ptr<viewer::InteriorZombies> interiorZombies;
     const auto interiorReserve = doors.count() ? viewer::interiorZombieReserve : 0;
@@ -1485,6 +1525,7 @@ int run(const Options& options) {
                   << " flocks; move or duck when they gather for a dive; cover blocks attacks\n";
     }
     app.zombies = zombies ? &*zombies : nullptr;
+    app.dogs = &dogs;
     app.doors = &doors;
     app.boxes = &boxes;
     app.physicsScene = &physicsScene;
@@ -1515,8 +1556,9 @@ int run(const Options& options) {
     groundItems.setModels(droppedModels);
     app.groundItems = &groundItems;
     viewer::Renderer renderer(model, options.shaders, trees ? &*trees : nullptr,
-                              zombies ? &*zombies : nullptr, forests ? &*forests : nullptr);
+                              zombies ? &*zombies : nullptr, forests ? &*forests : nullptr, &dogs);
     if (zombies) zombies->releaseAnimationVertices();
+    dogs.releaseAnimationVertices();
     if (doodads) {
         doodads->update(app.rig.camera().position(),physicsScene,doors);
         renderer.setDoodads(*doodads,doodadModels);
@@ -1697,11 +1739,13 @@ int run(const Options& options) {
                         {movingPlayer.feet(), movingPlayer.bodyHeight(), movingPlayer.config().radius,
                          movingPlayer.grounded(), running}, undergrowth)) {
                     if (zombies) zombies->makeNoise(event->noise.position, event->noise.decibels);
+                    dogs.makeNoise(event->noise.position, event->noise.decibels);
                     audio.rustle(*event);
                 }
                 if (zombies)
                     for (const auto& noise : movingPlayer.noises())
                         zombies->makeNoise(noise.position, noise.decibels);
+                for (const auto& noise : movingPlayer.noises()) dogs.makeNoise(noise.position, noise.decibels);
             } else undergrowthEmitter.reset();
             anchorGroundFog();
             followPlayerBody();

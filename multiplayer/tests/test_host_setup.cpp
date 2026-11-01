@@ -25,10 +25,15 @@ int main(int argc, char** argv) {
         write(directory / "travel.toml", "[zombies.horde]\ncount = 600\nmovement = 'travel'\n");
         write(directory / "broken.toml", "[zombies.horde]\ncount = -1\n");
         multiplayer::Options defaults; defaults.map = directory / "map.glb";
+        defaults.dogCount = 1000;
         defaults.birds = true; defaults.port = 31234; defaults.dayNight = {7.25, 3600};
         multiplayer::HostSetup setup(defaults, {directory, directory});
         require(setup.scenarios().size() == 4, "Catalog did not deduplicate paths or retain invalid entries");
         auto options = setup.options();
+        require(options.scene.dogCount == 1000,"Host defaults lost dog count");
+        setup.dogCount = 1001; rejects([&] { setup.options(); },"Oversized dog population accepted");
+        setup.dogCount = 10;
+        require(setup.options().scene.dogCount == 10,"Host dog selection did not reach authoritative options");
         require(options.scenario.empty() && options.scene.birds && options.scene.port == 31234 &&
                 options.scene.dayNight.startHour == 7.25, "Host defaults lost command-line settings");
         for (const auto* port : {"", "0", "65536", "-1", "12x", " 123", "+123"}) {
@@ -51,7 +56,7 @@ int main(int argc, char** argv) {
             }
         }
         setup.restoreOptions();
-        require(setup.birds && setup.startHour == 7.25 && setup.dayLengthSeconds == 3600 && setup.port == "65535",
+        require(setup.dogCount == 1000 && setup.birds && setup.startHour == 7.25 && setup.dayLengthSeconds == 3600 && setup.port == "65535",
                 "Restore options changed connection settings or lost launch defaults");
         multiplayer::SessionSettings settings;
         settings.zombieCount = 1234; settings.spawn = glm::vec2(12, -34); settings.look = {45, -20};

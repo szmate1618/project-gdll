@@ -22,7 +22,7 @@ GameOptions parseGameOptions(int argc, char** argv) {
         shared.push_back(argv[i]);
         // Leave option values to the shared parser, even when they resemble flags.
         if (argument == "--connect" || argument == "--port" || argument == "--zombies" ||
-            argument == "--zombie-count" || argument == "--zombie-radius" || argument == "--vegetation" ||
+            argument == "--dogs" || argument == "--dog-count" || argument == "--zombie-count" || argument == "--zombie-radius" || argument == "--vegetation" ||
             argument == "--seconds" || argument == "--lag-ms" || argument == "--loss-percent" ||
             argument == "--time-of-day" || argument == "--day-length" || argument == "--screenshot" || argument == "--resolution") {
             if (i + 1 < argc) shared.push_back(argv[++i]);

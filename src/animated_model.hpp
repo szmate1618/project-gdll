@@ -85,6 +85,8 @@ AnimatedModel loadIdleModel(const std::filesystem::path& path,
 // Also bake optional walk/run and left/right attack clips. Missing clips retain idle playback; malformed
 // or ambiguous matching clips fail loading rather than silently being ignored.
 AnimatedModel loadZombieModel(const std::filesystem::path& path);
+// Quadruped clips: idle, walk and a single non-looping attack.
+AnimatedModel loadDogModel(const std::filesystem::path& path);
 
 // Reduce shared clip time in double precision before applying each actor's phase.
 // The float base may round to frameCount: keep it unwrapped so adding the phase

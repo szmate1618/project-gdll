@@ -26,7 +26,8 @@ void validateRig(const AnimatedModel& base, const AnimatedModel& lod) {
     if (!same) throw std::runtime_error("LOD rig or animation differs from the original");
 }
 }
-std::vector<AnimatedModel> loadZombieLods(const std::filesystem::path& basePath, const AnimatedModel& base) {
+std::vector<AnimatedModel> loadZombieLods(const std::filesystem::path& basePath, const AnimatedModel& base,
+        AnimatedModel (*loader)(const std::filesystem::path&)) {
     const auto manifestPath = basePath.parent_path() / "lods.json";
     if (!std::filesystem::exists(manifestPath)) return {};
     try {
@@ -48,7 +49,7 @@ std::vector<AnimatedModel> loadZombieLods(const std::filesystem::path& basePath,
             auto tail = path.lexically_relative(root);
             if (tail.empty() || *tail.begin() == "..") throw std::runtime_error("Zombie LOD path leaves asset directory");
             if (level.at("sha256") != fileSha256(path)) throw std::runtime_error("Zombie LOD fingerprint mismatch");
-            auto lod = loadZombieModel(path);
+            auto lod = loader(path);
             validateRig(base, lod);
             result.push_back(std::move(lod));
         }

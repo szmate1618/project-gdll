@@ -56,6 +56,8 @@ public:
     void submit(std::uint32_t id, const Commands& commands);
     void step();
     Snapshot snapshot(std::uint32_t id);
+    std::optional<DogFrame> nextDogs(std::uint32_t id) const;
+    void dogsSent(std::uint32_t id, const DogFrame& frame);
     std::optional<CorpsePose> nextPose(std::uint32_t id) const;
     void poseSent(std::uint32_t id, const CorpsePose& pose);
     void acknowledgePose(std::uint32_t id, const PoseAck& ack);

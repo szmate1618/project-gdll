@@ -19,6 +19,7 @@ public:
     std::size_t selected = 0;
     std::string port;
     bool birds;
+    std::size_t dogCount;
     double startHour, dayLengthSeconds;
     void restoreOptions();
     ServerOptions options() const; // Revalidates files and throws a user-facing error.

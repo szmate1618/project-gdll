@@ -4,6 +4,7 @@ namespace multiplayer {
 SessionSettings sessionSettings(const Options& options, const Scene& scene) {
     SessionSettings settings;
     settings.zombieCount = static_cast<std::uint32_t>(scene.zombies.instances.size());
+    settings.dogCount = static_cast<std::uint32_t>(scene.dogs.instances.size());
     settings.zombieRadius = options.zombieRadius;
     settings.startHour = options.dayNight.startHour;
     settings.dayLengthSeconds = options.dayNight.dayLengthSeconds;
@@ -17,6 +18,7 @@ SessionSettings sessionSettings(const Options& options, const Scene& scene) {
 Options applySessionSettings(const Options& local, const SessionSettings& settings) {
     auto result = local;
     result.zombieCount = settings.zombieCount; result.replicaZombieCount = settings.zombieCount;
+    result.dogCount = settings.dogCount;
     result.zombieRadius = settings.zombieRadius;
     result.spawn = settings.spawn;
     if (!local.explicitLook) result.look = settings.look;

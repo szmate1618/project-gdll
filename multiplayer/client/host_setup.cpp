@@ -24,7 +24,7 @@ viewer::ZombieScenarioConfig validateScenario(const std::filesystem::path& path,
 }
 }
 HostSetup::HostSetup(const Options& defaults, const std::vector<std::filesystem::path>& directories) :
-    port(std::to_string(defaults.port)), birds(defaults.birds), startHour(defaults.dayNight.startHour),
+    port(std::to_string(defaults.port)), birds(defaults.birds), dogCount(defaults.dogCount), startHour(defaults.dayNight.startHour),
     dayLengthSeconds(defaults.dayNight.dayLengthSeconds), defaults_(defaults) {
     scenarios_.push_back({{}, "Default session", "Normal population near the starting area.", {}, defaults.zombieCount, false});
     std::set<std::filesystem::path> paths;
@@ -52,6 +52,7 @@ HostSetup::HostSetup(const Options& defaults, const std::vector<std::filesystem:
     }
 }
 void HostSetup::restoreOptions() {
+    dogCount = defaults_.dogCount;
     birds = defaults_.birds; startHour = defaults_.dayNight.startHour; dayLengthSeconds = defaults_.dayNight.dayLengthSeconds;
 }
 ServerOptions HostSetup::options() const {
@@ -63,8 +64,10 @@ ServerOptions HostSetup::options() const {
     if (!std::isfinite(startHour) || startHour < 0 || startHour >= 24 || !std::isfinite(dayLengthSeconds) ||
         dayLengthSeconds < 0 || (dayLengthSeconds > 0 && dayLengthSeconds < 1) || dayLengthSeconds > 86400)
         throw std::runtime_error("Choose a valid starting time and day/night cycle.");
+    if (dogCount > viewer::maxDogs) throw std::runtime_error("Choose between 0 and 1000 dogs.");
     ServerOptions result; result.scene = defaults_; result.scenario = scenarios_[selected].path;
     result.scene.port = static_cast<std::uint16_t>(value); result.scene.birds = birds;
+    result.scene.dogCount = dogCount;
     result.scene.dayNight = {startHour, dayLengthSeconds};
     if (!result.scenario.empty()) validateScenario(result.scenario, result.scene.map);
     return result;

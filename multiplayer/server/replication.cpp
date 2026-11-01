@@ -13,6 +13,7 @@ Replication::SetupState* Replication::findSetup(std::size_t id) {
 Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
         const std::optional<ReplicationView>& view) {
     poseTick_ = s.tick;
+    dogs_.append(scene.dogs,feet,s.tick,s.dogs);
     const auto population = scene.zombies.instances.size();
     if (setupSlots_.size() < population) setupSlots_.resize(population);
     if (interested_.size() < population) interested_.resize(population);

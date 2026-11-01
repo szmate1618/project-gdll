@@ -10,6 +10,7 @@
 #include "player_body_pose.hpp"
 #include "character_appearance_data.hpp"
 #include "zombie_hit.hpp"
+#include "dog_state.hpp"
 
 #include "vehicle_config.hpp"
 #include "boid/simulation.hpp"
@@ -33,7 +34,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 39; // Shell-classified apartment blocks and taller stable interior door reservations.
+constexpr std::uint32_t protocolVersion = 40; // Independent dog population, motion and firearm reports.
 constexpr std::uint64_t ragdollUpdateTicks = 3; // Uniform 20 Hz at the authoritative 60 Hz tick.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
@@ -57,7 +58,7 @@ struct RequestSessionSettings {};
 // Only world settings travel here. Local paths, graphics and audio stay local;
 // the normal content fingerprint is still checked after the client loads.
 struct SessionSettings {
-    std::uint32_t zombieCount = 0;
+    std::uint32_t zombieCount = 0, dogCount = 0;
     float zombieRadius = 100;
     double startHour = 12, dayLengthSeconds = 1200;
     std::optional<glm::vec2> spawn;
@@ -77,11 +78,13 @@ struct FirearmHit {
     std::uint8_t pellet = 0;
     viewer::ZombieHitClaim hit;
 };
+struct DogFirearmHit { std::uint8_t pellet = 0; std::uint16_t dog = 0; };
 struct FirearmShot {
     std::uint8_t slot = 0; // Expected equipped slot; server owns its actual configuration.
     std::vector<FirearmHit> hits; // Empty is an explicit miss, never a server ray-test request.
     bool predictedMist = false; // This input already emitted local hit mist; suppress its owner copy only.
     std::optional<glm::vec3> muzzlePosition{}; // Cosmetic world position; damage still uses the authoritative eye/ray.
+    std::vector<DogFirearmHit> dogHits{};
 };
 struct Command {
     std::uint64_t sequence = 0;
@@ -221,6 +224,7 @@ struct VehicleState {
 struct Snapshot {
     std::uint64_t tick = 0;
     std::vector<PlayerState> players;
+    std::vector<DogState> dogs;
     std::vector<ZombieState> zombies;
     std::vector<DoorState> doors;
     std::vector<BoxState> boxes;
@@ -235,7 +239,7 @@ struct Snapshot {
     std::vector<GroundItemState> groundItems;
 };
 using Message = std::variant<Hello, Welcome, Commands, Snapshot, Goodbye, Fragment, CorpsePose, PoseAck, BirdFrame, BirdResync,
-                             ZombieSetups, ZombieSetupAck, CharacterAppearanceChunk, RequestSessionSettings, SessionSettings>;
+                             ZombieSetups, ZombieSetupAck, CharacterAppearanceChunk, RequestSessionSettings, SessionSettings, DogFrame>;
 std::vector<std::uint8_t> encode(const Message& message);
 Message decode(const void* data, std::size_t bytes);
 } // namespace multiplayer

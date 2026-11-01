@@ -754,7 +754,7 @@ std::vector<glm::mat4> sampleAnimatedPose(const AnimatedModel& model, double sec
 }
 
 namespace {
-AnimatedModel loadAnimated(const std::filesystem::path& path, const std::string& clipName, bool locomotion) {
+AnimatedModel loadAnimated(const std::filesystem::path& path, const std::string& clipName, bool locomotion, bool dog = false) {
     try {
         auto model = loadModel(path);
         tinygltf::TinyGLTF loader;
@@ -774,7 +774,7 @@ AnimatedModel loadAnimated(const std::filesystem::path& path, const std::string&
                 const std::string token = right ? "@attack_right_" : "@attack_left_";
                 std::string name;
                 for (const auto& animation : source.animations) {
-                    if (lower(animation.name).find(token) == std::string::npos) continue;
+                    if (dog ? (right || lower(animation.name) != "attack") : lower(animation.name).find(token) == std::string::npos) continue;
                     if (!name.empty()) fail("Multiple attack animations match " + token);
                     name = animation.name;
                 }
@@ -794,6 +794,10 @@ AnimatedModel loadAnimated(const std::filesystem::path& path, const std::string&
 
 AnimatedModel loadIdleModel(const std::filesystem::path& path, const std::string& clipName) {
     return loadAnimated(path, clipName, false);
+}
+
+AnimatedModel loadDogModel(const std::filesystem::path& path) {
+    return loadAnimated(path, "", true, true);
 }
 
 AnimatedModel loadZombieModel(const std::filesystem::path& path) {

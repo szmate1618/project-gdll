@@ -27,7 +27,8 @@ The self-contained `models/undead_dog.glb` retains all 496 triangles, 23 joints,
 and three clips (`idle`, `walk`, `attack`). Geometry, UVs, skeleton, inverse bind
 matrices, node transforms and animation accessors remain byte-for-byte intact.
 The original model uses meters, Y up, and an origin between the feet. This asset
-is prepared for use; it is not wired into the town or humanoid zombie systems.
+is the preparation baseline. The three approved variants below are integrated
+as a separate dog population; see the [runtime guide](../../docs/DOGS.md).
 
 Download `PSX_Horror_NPCs_and_Monsters_FREE_Sample.zip` from either creator page
 and place it under `source/`, then rebuild offline from the repository root:

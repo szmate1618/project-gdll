@@ -68,6 +68,11 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
     const auto sendState = [&](HSteamNetConnection c, std::uint32_t id) {
         network.send(c, world.snapshot(id), false);
         for (std::size_t i = 0; i < 4; ++i) {
+            const auto dogs = world.nextDogs(id);
+            if (!dogs || !network.send(c,*dogs,true)) break;
+            world.dogsSent(id,*dogs);
+        }
+        for (std::size_t i = 0; i < 4; ++i) {
             const auto setups = world.nextSetups(id);
             if (!setups || !network.send(c, *setups, true)) break;
             world.setupsSent(id, *setups);

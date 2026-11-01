@@ -33,6 +33,8 @@ struct Options {
     std::uint16_t port = 27020;
     std::optional<glm::vec2> spawn;
     viewer::VegetationSelection vegetation;
+    std::filesystem::path dogAssets = resourceRoot() / "assets/undead_dog/models";
+    std::size_t dogCount = 0;
     std::size_t zombieCount = 100;
     // Negotiated effective slots, including authored populations on small maps.
     // Used only by replicas; it never triggers population generation/navigation.
@@ -82,6 +84,7 @@ struct Scene {
     std::unique_ptr<viewer::FloorplanLayer> floorplans;
     std::unique_ptr<viewer::InteriorZombies> interiorZombies; // Authority only; shared reserved tail.
     viewer::ZombieLayer zombies;
+    viewer::DogLayer dogs;
     glm::vec3 spawnEye{0};
     glm::vec2 spawnOrientation{-90, 0};
 

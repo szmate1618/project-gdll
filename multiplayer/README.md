@@ -1068,3 +1068,12 @@ loopback and packet-loss tests remain enabled. The Windows job runs headless
 session and relocated ZIP checks; X11 menu automation remains Linux-only.
 Internet router compatibility and interactive Windows graphics need separate
 hardware validation.
+
+### Undead dogs
+
+The Host Game screen has a separate dog count. `--dog-count N` enables up to
+1,000 dogs in local/hosted sessions or on the dedicated server; zero is the
+default. `--dogs PATH` selects the three approved variant models. Joining clients
+adopt the host count and verify matching model fingerprints. See the
+[dog runtime guide](../docs/DOGS.md) for local asset setup, LoDs, synchronization
+and current combat scope.

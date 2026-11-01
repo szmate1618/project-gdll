@@ -36,7 +36,7 @@ float fenceAnisotropy() {
 } // namespace
 
 Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirectory,
-                   const TreeLayer* trees, const ZombieLayer* zombies, const ForestLayer* forests)
+                   const TreeLayer* trees, const ZombieLayer* zombies, const ForestLayer* forests, const DogLayer* dogs)
     : shaderDirectory_(shaderDirectory), sceneVisibility_(model) {
     try {
         program_ = createShaderProgram(shaderDirectory / "basic.vert", shaderDirectory / "basic.frag");
@@ -66,6 +66,7 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
             treeAuthoredVisibility_ = ForestTreeVisibility(trees ? trees->instances : empty, forestPatches_);
         }
         if (zombies) uploadZombies(*zombies);
+        if (dogs) uploadDogs(*dogs);
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glGenFramebuffers(1, &framebuffer_);
@@ -180,6 +181,7 @@ void Renderer::release() noexcept {
     bloodMist_.reset();
     rain_.reset();
     releaseZombies();
+    releaseDogs();
     releaseModel(model_);
     releaseModel(boxModel_);
     releaseModel(floorplanModel_);
@@ -419,6 +421,8 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombiePreparation);
         prepareZombieDraws(Frustum(projection * view), castShadows ? &lightFrustum : nullptr, camera, projection, animationSeconds, flashlightCasting ? &flashlightFrustum : nullptr);
     }
+    prepareDogDraws(Frustum(projection * view), castShadows ? &lightFrustum : nullptr,
+        flashlightCasting ? &flashlightFrustum : nullptr, camera, animationSeconds);
     if (castShadows) {
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::shadows);
         drawSunShadows(shadowView, animationSeconds);
@@ -430,7 +434,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         drawFlashlightShadows(flashlight, animationSeconds);
     }
     materialState_.reset();
-    if (!zombieBatches_.empty()) {
+    if (!zombieBatches_.empty() || !dogBatches_.empty()) {
         // Each linked program owns its uniform values. Prepare the same camera
         // lighting for healthy zombies without copying state back from OpenGL.
         selectBasicShader(false);
@@ -471,6 +475,8 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         drawForests(projection * view, false, cameraVisibility_.forests);
     }
     drawZombies(animationSeconds);
+    drawDogs();
+    selectBasicShader(true);
     {
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::props);
         drawFloorplans();

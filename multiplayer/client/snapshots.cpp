@@ -72,6 +72,7 @@ bool Snapshots::push(Snapshot snapshot, double receivedSeconds, double transitSe
     for (const auto& state : snapshot.zombies)
         if (state.id >= maxZombies || (state.updatePeriodTicks != 3 && state.updatePeriodTicks != 12 && state.updatePeriodTicks != 60))
             throw std::runtime_error("Invalid zombie motion sample");
+    dogs_.push(snapshot.tick, snapshot.dogs, receivedSeconds);
     vehicles_.push(snapshot.tick, snapshot.vehicles);
     trackZombies(snapshot, receivedSeconds);
     frames_.push_back(std::move(snapshot));
@@ -141,6 +142,7 @@ void Snapshots::apply(Scene& scene, double now) {
     const double latestTick = static_cast<double>(frames_.back().tick);
     // RTT/2 estimates incoming transit for unbuffered presentation.
     const double estimatedServerTick = latestTick + (std::max(0.0, now - received_) + transitSeconds_) * 60;
+    dogs_.apply(scene.dogs,estimatedServerTick,now);
     // Render six ticks behind incoming state; freeze at the latest state on starvation.
     renderTick_ = std::max(renderTick_, std::clamp(latestTick + (now - received_) * 60 - 6,
         static_cast<double>(frames_.front().tick), latestTick));

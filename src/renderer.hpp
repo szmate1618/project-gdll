@@ -21,6 +21,7 @@
 #include "forest_layer.hpp"
 #include "forest_visibility.hpp"
 #include "zombie_layer.hpp"
+#include "dog_layer.hpp"
 #include "zombie_palette_cache.hpp"
 #include "zombie_visibility.hpp"
 #include "sun_lighting.hpp"
@@ -41,6 +42,7 @@
 #include "vegetation_blast.hpp"
 
 namespace viewer {
+class DogLayer;
 
 class RainRenderer;
 class BloodMistRenderer;
@@ -80,7 +82,7 @@ class Renderer : private BasicShaderUniforms {
 public:
     Renderer(const Model& model, const std::filesystem::path& shaderDirectory,
              const TreeLayer* trees = nullptr, const ZombieLayer* zombies = nullptr,
-             const ForestLayer* forests = nullptr);
+             const ForestLayer* forests = nullptr, const DogLayer* dogs = nullptr);
     ~Renderer();
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
@@ -93,6 +95,8 @@ public:
     // after owning API/physics changes and keep the layer alive during rendering.
     // Direct edits require ZombieLayer::markRenderChanged()/invalidateRenderData().
     void updateZombies(const ZombieLayer& zombies);
+    std::optional<DogShotTrace> traceDogShot(glm::vec3 origin, glm::vec3 direction, const CollisionWorld& world) const;
+    std::size_t dogVisibleCount() const { return dogVisibleCount_; }
     // Read-only firearm query against the last camera draw, using the existing
     // zombie visibility grid. Source playback may advance before the next draw;
     // cached transforms and exact displayed animation frames remain authoritative.
@@ -364,6 +368,11 @@ private:
                             const Camera& camera, const glm::mat4& projection, double seconds, const Frustum* flashlightFrustum);
     enum class ZombiePass { Camera, SunShadow, FlashlightShadow };
     void drawZombies(double seconds, ZombiePass pass = ZombiePass::Camera);
+    void uploadDogs(const DogLayer& dogs);
+    void prepareDogDraws(const Frustum& camera, const Frustum* sun, const Frustum* flashlight,
+                         const Camera& view, double seconds);
+    void drawDogs(ZombiePass pass = ZombiePass::Camera);
+    void releaseDogs() noexcept;
     void drawZombieGroup(double seconds, ZombiePass pass, bool wounds);
     void drawSunShadows(const SunShadowView& shadowView, double seconds);
     void drawFlashlightShadows(const FlashlightView& view, double seconds);
@@ -536,6 +545,12 @@ private:
     VisibilityIndex forestVisibility_;
     ForestRenderStats forestStats_;
     float forestDetailDistance_ = 350;
+    std::vector<DogInstance> displayedDogs_;
+    double displayedDogSeconds_ = 0;
+    const DogLayer* dogSource_ = nullptr;
+    std::vector<std::vector<ZombieGeometry>> dogBatches_;
+    std::size_t dogVisibleCount_ = 0;
+    float dogDrawDistance_ = 180;
     std::vector<ZombieBatch> zombieBatches_;
     // Shared groups across assets; bounds storage in batches stays fixed-size.
     ZombieVisibility zombieVisibility_;

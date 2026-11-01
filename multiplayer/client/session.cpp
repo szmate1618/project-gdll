@@ -302,8 +302,9 @@ struct Graphics {
         bindInput(in);
         const auto shaders = multiplayer::resourceRoot() / "shaders";
         renderer = std::make_unique<viewer::Renderer>(scene.model, shaders, scene.trees ? &*scene.trees : nullptr,
-            &scene.zombies, scene.forests ? &*scene.forests : nullptr);
+            &scene.zombies, scene.forests ? &*scene.forests : nullptr, &scene.dogs);
         scene.zombies.releaseAnimationVertices();
+        scene.dogs.releaseAnimationVertices();
         renderer->setGroundItems(*scene.groundItems, scene.groundModels);
         gpuTimer = std::make_unique<viewer::GpuTimer>();
         renderer->setVehicleAssets(multiplayer::resourceRoot() / "assets/vehicles/models");
@@ -562,6 +563,8 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     if (ready && walking && glm::length(correction) < 2) visualOffset += correction; else visualOffset = {};
                 }
                 if (!found) throw std::runtime_error("Server omitted local player state");
+            } else if (const auto* dogs = std::get_if<multiplayer::DogFrame>(&message)) {
+                snapshots.pushDogs(*dogs,now);
             } else if (const auto* setups = std::get_if<multiplayer::ZombieSetups>(&message)) {
                 // Bulk setup delivery can precede Welcome on the other lane.
                 // The loaded scene is sufficient to validate and retain it.
@@ -606,7 +609,9 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                         frameFirearmShot = reportFirearmHits(static_cast<std::uint8_t>(in.equippedSlot),
                             equipped.config, aim.position(), aim.direction(), [&](glm::vec3 origin, glm::vec3 direction) {
                                 return graphics.renderer->traceZombieShot(origin, direction, *scene.collision);
-                            }, &frameFirearmImpacts);
+                            }, &frameFirearmImpacts, [&](glm::vec3 origin, glm::vec3 direction) {
+                                return graphics.renderer->traceDogShot(origin,direction,*scene.collision);
+                            });
                     nextCommand.firearmShot = frameFirearmShot;
                 }
                 // Predict presentation before enqueueing so its mist marker is
@@ -890,7 +895,9 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
         << " resolved=" << ownState.resolved << " outstanding=" << prediction.outstanding()
         << " feet=" << feet.x << ',' << feet.y << ',' << feet.z << " remote_travel=" << remoteTravel
         << " bird_frames="<<receivedBirdFrames<<" bird_tick="<<birds.simulation().state().tick
-        << " zombies=" << snapshots.trackedZombieIds().size() << '\n';
+        << " zombies=" << snapshots.trackedZombieIds().size()
+        << " dogs=" << std::count_if(scene.dogs.instances.begin(),scene.dogs.instances.end(),[](const auto& dog){return !dog.removed;})
+        << " moving_dogs=" << std::count_if(scene.dogs.instances.begin(),scene.dogs.instances.end(),[](const auto& dog){return !dog.removed && dog.walking;}) << '\n';
     if (!prediction.ready() && !feedback) throw std::runtime_error("Session ended before spawn");
     if (!prediction.ready()) return 0;
     network.send(connection, multiplayer::Goodbye{}, true);

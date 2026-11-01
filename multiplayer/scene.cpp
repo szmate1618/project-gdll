@@ -41,6 +41,13 @@ Options parseOptions(int argc, char** argv, bool server) {
             if (std::abs(x) > 1e7 || std::abs(z) > 1e7) throw std::runtime_error("Spawn outside local frame");
             o.spawn = glm::vec2(x, z);
         } else if (arg == "--zombies") o.zombieAssets = next(i);
+        else if (arg == "--dogs") o.dogAssets = next(i);
+        else if (arg == "--no-dogs") o.dogCount = 0;
+        else if (arg == "--dog-count") {
+            const auto n = number(i);
+            if (n < 0 || n > viewer::maxDogs || std::floor(n) != n) throw std::runtime_error("Invalid dog count");
+            o.dogCount = static_cast<std::size_t>(n);
+        }
         else if (arg == "--birds") o.birds = true;
         else if (arg == "--no-birds") o.birds = false;
         else if (arg == "--no-zombie-perception" && server) o.zombiePerception = false;
@@ -98,7 +105,7 @@ Options parseOptions(int argc, char** argv, bool server) {
         else if (arg == "--help") {
             std::cout << (server ? "godollo_server" : "godollo_client") << " [map.glb] "
                 << (server ? "[--port 27020] [--no-zombie-perception]" : "[--connect 127.0.0.1:27020] [--fullscreen] [--resolution WxH] [--headless] [--hidden] [--bot] [--no-audio] [--look YAW PITCH] [--screenshot FILE]")
-                << "\nShared: --spawn X Z --zombies PATH --zombie-count N --zombie-radius METERS\n"
+                << "\nShared: --dogs PATH --dog-count N (0..1000) --no-dogs --spawn X Z --zombies PATH --zombie-count N --zombie-radius METERS\n"
                    "        --vegetation osm-tuned2|orthophoto|osm|sentinel-astra|none\n"
                    "        --no-trees --no-forests --no-cars --seconds N --lag-ms N --loss-percent N\n"
                    "        --birds enables server-owned deterministic flocks; --no-birds disables them\n"
@@ -128,6 +135,7 @@ std::string sceneFingerprint(const Options& o, std::size_t count, glm::vec3 spaw
     };
     integer(protocolVersion);
     integer(static_cast<std::uint32_t>(count));
+    integer(static_cast<std::uint32_t>(o.dogCount));
     number(o.zombieRadius);
     number(spawnEye.x); number(spawnEye.y); number(spawnEye.z);
     number(static_cast<float>(o.dayNight.startHour)); number(static_cast<float>(o.dayNight.dayLengthSeconds));
@@ -288,6 +296,14 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
         content.push_back(resourceRoot() / "storage" / file);
     const auto vehicleFiles = viewer::vehicleConfigFiles(resourceRoot() / "vehicles");
     content.insert(content.end(), vehicleFiles.begin(), vehicleFiles.end());
+    if (o.dogCount > viewer::maxDogs) throw std::runtime_error("Dog population exceeds multiplayer capacity");
+    if (o.dogCount) {
+        dogs = role == SceneRole::Replica ? viewer::loadDogLayer(o.dogAssets,
+            std::vector<glm::mat4>(o.dogCount,glm::mat4(1)),true) :
+            viewer::loadDogLayer(o.dogAssets,*collision,model,spawn,o.dogCount,o.zombieRadius);
+        const auto paths = viewer::dogAssetPaths(o.dogAssets);
+        content.insert(content.end(),paths.begin(),paths.end());
+    }
     for (const auto& path : content) {
         if (path == o.map) continue; // The map was validated before loading it.
         auto extension = path.extension().string();
@@ -296,6 +312,6 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
         if (extension == ".glb" || extension == ".gltf") validateSessionGlb(path);
     }
     fingerprint = sceneFingerprint(o, zombies.instances.size(), spawnEye, content);
-    std::cout << "Scene ready: " << zombies.instances.size() << " zombies, fingerprint " << fingerprint << '\n';
+    std::cout << "Scene ready: " << zombies.instances.size() << " zombies, " << dogs.instances.size() << " dogs, fingerprint " << fingerprint << '\n';
 }
 } // namespace multiplayer

@@ -21,6 +21,7 @@ struct FirearmImpact {
 FirearmShot reportFirearmHits(std::uint8_t slot, const viewer::WeaponConfig& weapon,
     glm::vec3 origin, glm::vec3 direction,
     const std::function<std::optional<viewer::ZombieShotTrace>(glm::vec3, glm::vec3)>& trace,
-    std::vector<FirearmImpact>* impacts = nullptr);
+    std::vector<FirearmImpact>* impacts = nullptr,
+    const std::function<std::optional<viewer::DogShotTrace>(glm::vec3, glm::vec3)>& dogTrace = {});
 
 } // namespace multiplayer

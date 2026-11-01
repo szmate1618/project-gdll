@@ -328,6 +328,19 @@ target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_zombies)
 
+add_library(viewer_dogs STATIC src/dog_layer.cpp src/dog_behavior.cpp)
+target_link_libraries(viewer_dogs PUBLIC viewer_zombies)
+viewer_warnings(viewer_dogs)
+if(BUILD_TESTING)
+    add_executable(test_dogs tests/test_dogs.cpp)
+    target_link_libraries(test_dogs PRIVATE viewer_dogs)
+    viewer_warnings(test_dogs)
+    add_test(NAME viewer_dogs COMMAND test_dogs)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/undead_dog/models/lods.json")
+        add_test(NAME viewer_dog_assets COMMAND test_dogs "${CMAKE_CURRENT_SOURCE_DIR}/assets/undead_dog/models")
+    endif()
+endif()
+
 add_executable(benchmark_melee_collision EXCLUDE_FROM_ALL tools/benchmark_melee_collision.cpp)
 target_link_libraries(benchmark_melee_collision PRIVATE viewer_zombies)
 target_compile_definitions(benchmark_melee_collision PRIVATE MELEE_BENCH_RIGID_STATS)
@@ -419,9 +432,9 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp src
     src/weapon_overlay.cpp src/player_body_renderer.cpp
     src/building_renderer.cpp
     src/tree_renderer.cpp src/forest_renderer.cpp
-    src/zombie_renderer.cpp src/zombie_wound_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/blood_mist_renderer.cpp src/shader_program.cpp)
+    src/dog_renderer.cpp src/zombie_renderer.cpp src/zombie_wound_renderer.cpp src/zombie_palette_cache.cpp src/shadow_map.cpp src/rain_renderer.cpp src/blood_mist_renderer.cpp src/shader_program.cpp)
 target_link_libraries(viewer_renderer PUBLIC
-    viewer_birds viewer_doodads viewer_vehicle_lods viewer_model viewer_weapon_pose viewer_weapons viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_sun_lighting viewer_grenades OpenGL::GL)
+    viewer_birds viewer_doodads viewer_vehicle_lods viewer_model viewer_weapon_pose viewer_weapons viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_dogs viewer_sun_lighting viewer_grenades OpenGL::GL)
 target_link_libraries(viewer_renderer PRIVATE viewer_zombie_animation_buffer)
 if(WIN32)
     target_link_libraries(viewer_renderer PUBLIC GLEW::GLEW)
@@ -451,6 +464,7 @@ target_compile_definitions(godollo_viewer PRIVATE
     VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
     VIEWER_HUD_DIR="${CMAKE_CURRENT_SOURCE_DIR}/ui"
     VIEWER_DEFAULT_ASSET="${VIEWER_TEST_ASSET}"
+    VIEWER_DOG_ASSETS="${CMAKE_CURRENT_SOURCE_DIR}/assets/undead_dog/models"
     VIEWER_ZOMBIE_ASSETS="${CMAKE_CURRENT_SOURCE_DIR}/assets/zombies/models"
     VIEWER_ZOMBIE_PARK="${CMAKE_CURRENT_SOURCE_DIR}/assets/zombies/grassalkovich_park.json"
     VIEWER_FOREST_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/forest_patches.json"
@@ -691,6 +705,13 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(benchmark_zombie_crowd PRIVATE viewer_renderer glfw)
     target_compile_definitions(benchmark_zombie_crowd PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
     viewer_warnings(benchmark_zombie_crowd)
+
+    add_executable(test_dog_renderer EXCLUDE_FROM_ALL tests/test_dog_renderer.cpp)
+    target_link_libraries(test_dog_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_dog_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
+        DOG_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/undead_dog/models")
+    viewer_warnings(test_dog_renderer)
 
     add_executable(benchmark_zombie_lod_quality EXCLUDE_FROM_ALL
         tests/benchmark_zombie_lod_quality.cpp src/shader_program.cpp)

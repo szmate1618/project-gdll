@@ -145,6 +145,12 @@ void firearmShot(Wire& w, FirearmShot& shot) {
             throw std::runtime_error("Invalid or duplicate firearm hit report");
         pellets[report.pellet] = true;
     });
+    w.list(shot.dogHits, maxFirearmHits, [&](DogFirearmHit& report) {
+        w.integer(report.pellet); w.integer(report.dog);
+        if (report.pellet >= maxFirearmHits || pellets[report.pellet] || report.dog >= viewer::maxDogs)
+            throw std::runtime_error("Invalid or duplicate dog firearm hit");
+        pellets[report.pellet] = true;
+    });
 }
 void command(Wire& w, Command& c) {
     w.integer(c.sequence); w.number(c.movement.forward); w.number(c.movement.right);
@@ -220,7 +226,7 @@ void payload(Wire& w, Welcome& welcome) {
 }
 void payload(Wire&, RequestSessionSettings&) {}
 void payload(Wire& w, SessionSettings& settings) {
-    w.integer(settings.zombieCount); w.number(settings.zombieRadius);
+    w.integer(settings.zombieCount); w.integer(settings.dogCount); w.number(settings.zombieRadius);
     w.number(settings.startHour); w.number(settings.dayLengthSeconds);
     bool spawn = settings.spawn.has_value(); w.flag(spawn);
     if (spawn) {
@@ -230,7 +236,7 @@ void payload(Wire& w, SessionSettings& settings) {
     w.number(settings.look.x); w.number(settings.look.y);
     w.flag(settings.trees); w.flag(settings.forests); w.flag(settings.cars); w.flag(settings.birds);
     w.integer(settings.vegetation); w.flag(settings.explicitVegetation);
-    if (settings.zombieCount > maxZombies || settings.zombieRadius < 5 || settings.zombieRadius > 1000 ||
+    if (settings.dogCount > viewer::maxDogs || settings.zombieCount > maxZombies || settings.zombieRadius < 5 || settings.zombieRadius > 1000 ||
         settings.startHour < 0 || settings.startHour >= 24 || settings.dayLengthSeconds < 0 ||
         (settings.dayLengthSeconds > 0 && settings.dayLengthSeconds < 1) || settings.dayLengthSeconds > 86400 ||
         std::abs(settings.look.x) > 180 || std::abs(settings.look.y) > 89 || settings.vegetation > 4 ||
@@ -392,6 +398,22 @@ void inventoryPlacement(Wire& w, viewer::ItemPlacement& placement) {
     if (x > 15 || y > 15 || rotation > 3) throw std::runtime_error("Invalid inventory placement");
     placement.x = x; placement.y = y; placement.rotation = rotation * 90;
 }
+void dogStates(Wire& w, std::vector<DogState>& dogs) {
+    w.list(dogs, maxDogUpdatesPerSnapshot, [&](DogState& d) {
+        w.integer(d.id); w.integer(d.asset); w.vector(d.feet); w.number(d.yaw);
+        w.number(d.phase); w.number(d.walkSeconds); w.number(d.attackSeconds); w.number(d.health);
+        std::uint8_t flags = static_cast<std::uint8_t>(d.walking | (d.running<<1) | (d.attacking<<2) | (d.dead<<3));
+        w.integer(flags);
+        d.walking = flags&1; d.running = flags&2; d.attacking = flags&4; d.dead = flags&8;
+        if (d.id >= viewer::maxDogs || d.asset >= 3 || flags > 15 || d.phase < 0 || d.phase >= 1 ||
+            d.walkSeconds < 0 || d.attackSeconds < 0 || d.health < 0 || d.health > 100 ||
+            (d.dead && (d.walking || d.running || d.attacking || d.health != 0)) ||
+            (!d.dead && d.health == 0) || (d.running && !d.walking))
+            throw std::runtime_error("Invalid dog motion");
+    });
+    uniqueIds(dogs);
+}
+void payload(Wire& w, DogFrame& frame) { w.integer(frame.tick); dogStates(w,frame.dogs); }
 void payload(Wire& w, Snapshot& s) {
     w.integer(s.tick);
     w.list(s.players, maxPlayers, [&](PlayerState& p) {
@@ -452,6 +474,7 @@ void payload(Wire& w, Snapshot& s) {
             glm::any(glm::lessThan(entry.halfExtents, glm::vec3(.01f))) ||
             glm::any(glm::greaterThan(entry.halfExtents, glm::vec3(2)))) throw std::runtime_error("Invalid ground item");
     });
+    dogStates(w,s.dogs);
     w.list(s.zombies, maxZombieUpdatesPerSnapshot, [&](ZombieState& z) { zombieMotion(w, z); });
     w.list(s.doors, maxDoors, [&](DoorState& d) {
         w.integer(d.id); w.number(d.angle);
@@ -643,7 +666,7 @@ Message decode(const void* data, std::size_t bytes) {
     Wire w; w.input = static_cast<const std::uint8_t*>(data); w.size = bytes; w.reading = true;
     std::uint32_t magic = 0, version = 0; std::uint8_t type = 0;
     w.integer(magic); w.integer(version); w.integer(type);
-    if (magic != 0x4c4c4447 || version != protocolVersion || type > 14) throw std::runtime_error("Incompatible multiplayer protocol");
+    if (magic != 0x4c4c4447 || version != protocolVersion || type > 15) throw std::runtime_error("Incompatible multiplayer protocol");
     Message result;
     switch (type) { case 0: result = Hello{}; break; case 1: result = Welcome{}; break;
         case 2: result = Commands{}; break; case 3: result = Snapshot{}; break;
@@ -652,7 +675,7 @@ Message decode(const void* data, std::size_t bytes) {
         case 8: result = BirdFrame{}; break; case 9: result = BirdResync{}; break;
         case 10: result = ZombieSetups{}; break; case 11: result = ZombieSetupAck{}; break;
         case 12: result = CharacterAppearanceChunk{}; break;
-        case 13: result = RequestSessionSettings{}; break; case 14: result = SessionSettings{}; break; }
+        case 13: result = RequestSessionSettings{}; break; case 14: result = SessionSettings{}; break; case 15: result = DogFrame{}; break; }
     std::visit([&](auto& value) { payload(w, value); }, result);
     if (w.offset != bytes) throw std::runtime_error("Trailing multiplayer message data");
     return result;

@@ -15,5 +15,6 @@ ZombieDetail zombieCameraDetail(float distance, float projectionScale, bool enab
 // Conservative world-space radius for early camera rejection; null means
 // unlimited. Exact mesh/animation selection remains zombieCameraDetail's job.
 std::optional<float> zombieCameraDrawRadius(float projectionScale, bool enabled, float maximumDistance);
-std::vector<AnimatedModel> loadZombieLods(const std::filesystem::path& basePath, const AnimatedModel& base);
+std::vector<AnimatedModel> loadZombieLods(const std::filesystem::path& basePath, const AnimatedModel& base,
+    AnimatedModel (*loader)(const std::filesystem::path&) = loadZombieModel);
 }

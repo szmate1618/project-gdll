@@ -1,6 +1,7 @@
 #pragma once
 #include "scene.hpp"
 #include "vehicle_replication.hpp"
+#include "dog_replication.hpp"
 #include <map>
 #include <list>
 #include <optional>
@@ -19,6 +20,8 @@ public:
     static constexpr std::size_t maxPoseTransfers = 100;
     Snapshot snapshot(Scene& scene, glm::vec3 feet, Snapshot state,
                       const std::optional<ReplicationView>& view = {});
+    std::optional<DogFrame> nextDogs(const Scene& scene, std::uint64_t tick) const { return dogs_.nextFrame(scene.dogs,tick); }
+    void dogsSent(const DogFrame& frame) { dogs_.frameSent(frame); }
     void acknowledgeSnapshot(std::uint64_t tick) { vehicles_.acknowledge(tick); }
     std::optional<ZombieSetups> nextSetups(const Scene& scene) const;
     void setupsSent(const ZombieSetups& setups);
@@ -29,6 +32,7 @@ public:
     std::size_t interestedCount() const { return interestedIds_.size(); }
 private:
     VehicleReplication vehicles_;
+    DogReplication dogs_;
     struct SetupState {
         ZombieSetup current;
         std::uint64_t acknowledged = 0, inFlight = 0, lastMotionTick = 0;

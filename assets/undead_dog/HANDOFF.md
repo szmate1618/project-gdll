@@ -62,7 +62,9 @@ Relevant code:
 - [tests/test_undead_dog_geometry.py](../../tests/test_undead_dog_geometry.py):
   synthetic regression checks independent of the licensed source download.
 
-Asset preparation is complete. The dogs have not been integrated into gameplay.
+Asset preparation is complete. The three variants are integrated as a separate
+opt-in dog population; see the [runtime guide](../../docs/DOGS.md) for behavior,
+LoDs, multiplayer synchronization and current combat scope.
 Earlier resolution-comparison meshes remain in `models/`; the checkpoint above
 identifies the approved final variants for continued work. See the
 [asset guide](README.md) for source licensing and detailed preparation notes.

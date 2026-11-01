@@ -43,9 +43,9 @@ int main(int argc, char** argv) {
         options.forests = false;
         const glm::vec3 spawn{1.5f, -2.25f, 0};
         const auto fingerprint = multiplayer::sceneFingerprint(options, 7, spawn, {first});
-        // Independently calculated for protocol 39: SHA-256 of <II6f2B
+        // Independently calculated for protocol 40: SHA-256 of <III6f2B
         // little-endian settings followed by ASCII SHA-256("abc") in hex.
-        require(fingerprint == "758ea5e81a21f728c35fd95f36e48313d41f5e62ba0d513ec91b7b1c5b707af9",
+        require(fingerprint == "153c9bbab337e69e29997e7da13357d5fd4789fdc951334dcf6e366217052e25",
                 "Scene fingerprint differs from the cross-platform reference");
         require(multiplayer::sceneFingerprint(options, 7, spawn, {second}) == fingerprint,
                 "Resource paths changed the fingerprint");
@@ -73,6 +73,9 @@ int main(int argc, char** argv) {
             require(rejected, "Invalid render resolution was accepted");
         }
         changed = options;
+        changed.dogCount = 1000;
+        require(multiplayer::sceneFingerprint(changed,7,spawn,{first}) != fingerprint,"Dog population missing from fingerprint");
+        changed = options;
         changed.cars = false;
         require(multiplayer::sceneFingerprint(changed, 7, spawn, {first}) != fingerprint,
                 "Disabled cars were not fingerprinted without a sidecar");
@@ -98,7 +101,7 @@ int main(int argc, char** argv) {
                 "None preset must fingerprint the effective disabled vegetation");
         options.zombieRadius = 999.25f; options.trees = false; options.forests = true;
         require(multiplayer::sceneFingerprint(options, 1024, {0, .1f, -123.5f}, {first}) ==
-                "80cbc069ba6133b5a0a8e5792c43f6f32ddcae7901c624288488d85e706a7a7d",
+                "ffac0048b1aa475f45001de66230ab9c23c8d91d025ab718403f8d34edb4dd17",
                 "Fractional settings differ from the cross-platform reference");
         std::ofstream(second, std::ios::binary) << "abd";
         require(multiplayer::sceneFingerprint(options, 1024, {0, .1f, -123.5f}, {second}) !=

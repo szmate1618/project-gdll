@@ -11,7 +11,8 @@ namespace multiplayer {
 FirearmShot reportFirearmHits(std::uint8_t slot, const viewer::WeaponConfig& weapon,
         glm::vec3 origin, glm::vec3 direction,
         const std::function<std::optional<viewer::ZombieShotTrace>(glm::vec3, glm::vec3)>& trace,
-        std::vector<FirearmImpact>* impacts) {
+        std::vector<FirearmImpact>* impacts,
+        const std::function<std::optional<viewer::DogShotTrace>(glm::vec3, glm::vec3)>& dogTrace) {
     if (slot >= viewer::punchSlot || weapon.grenade || !trace)
         throw std::invalid_argument("Firearm hit reporting requires an equipped firearm and scene query");
     const auto directions = viewer::weaponShotDirections(weapon, direction);
@@ -21,7 +22,12 @@ FirearmShot reportFirearmHits(std::uint8_t slot, const viewer::WeaponConfig& wea
     result.slot = slot;
     std::vector<FirearmImpact> presentation;
     for (std::size_t pellet = 0; pellet < directions.size(); ++pellet) {
-        if (const auto hit = trace(origin, directions[pellet])) {
+        const auto hit = trace(origin,directions[pellet]);
+        const auto dog = dogTrace ? dogTrace(origin,directions[pellet]) : std::nullopt;
+        if (dog && (!hit || dog->distance < hit->distance)) {
+            result.dogHits.push_back({static_cast<std::uint8_t>(pellet),static_cast<std::uint16_t>(dog->dog)});
+            if (impacts) presentation.push_back({origin+directions[pellet]*dog->distance,viewer::BloodMistSize::small});
+        } else if (hit) {
             result.hits.push_back({static_cast<std::uint8_t>(pellet), hit->claim});
             if (!impacts) continue;
             if (!std::isfinite(hit->distance) || hit->distance < 0)

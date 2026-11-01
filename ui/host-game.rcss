@@ -25,7 +25,8 @@
 #host-map { left: 20dp; top: 138dp; font-size: 11dp; }
 #host-options-heading { left: 20dp; top: 165dp; font-size: 11dp; }
 #host-birds { left: 20dp; top: 187dp; width: 145dp; height: 32dp; padding: 7dp 10dp; font-size: 12dp; }
-#host-birds-hint { left: 178dp; top: 195dp; font-size: 11dp; }
+#host-dogs-label { left: 270dp; top: 165dp; font-size: 11dp; }
+#host-dogs { left: 270dp; top: 187dp; width: 235dp; height: 32dp; font-size: 13dp; }
 #host-time-label, #host-cycle-label { top: 230dp; font-size: 10dp; }
 #host-time-label { left: 20dp; }
 #host-cycle-label { left: 270dp; }
@@ -55,7 +56,7 @@
 .modern #host-screen option:hover, .modern #host-screen option:checked { background-color: #555759; }
 .modern #host-screen selectarrow { decorator: text("v"); color: #f5f6f2; }
 .modern #host-screen .host-scenario span, .modern #host-scenario-detail, .modern #host-requirements,
-.modern #host-map, .modern #host-birds-hint, .modern #host-network-note { color: #bfc2bd; }
+.modern #host-map, .modern #host-dogs-label, .modern #host-network-note { color: #bfc2bd; }
 .modern #host-screen #host-start { background-color: #f5f6f2; color: #2b2d2f; }
 .modern #host-screen #host-start:hover, .modern #host-screen #host-start:focus { background-color: #d7dad4; }
 .modern #host-requirements.unavailable { color: #ec6962; }

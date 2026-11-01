@@ -29,7 +29,7 @@ bool validFirearmReport(const Scene& scene, const ServerPlayer& player, const Co
     if (!command.firearmShot || command.firearmShot->slot != player.weapons.slot()) return false;
     const auto& reports = command.firearmShot->hits;
     const auto pellets = static_cast<std::size_t>(player.weapons.equipped().config.pellets);
-    if (reports.size() > pellets || reports.size() > maxFirearmHits) return false;
+    if (reports.size()+command.firearmShot->dogHits.size() > pellets || pellets > maxFirearmHits) return false;
     std::array<bool, maxFirearmHits> seen{};
     for (const auto& report : reports) {
         const auto& hit = report.hit;
@@ -47,6 +47,10 @@ bool validFirearmReport(const Scene& scene, const ServerPlayer& player, const Co
             std::size_t(hit.joint) >= scene.zombies.dismembermentAssets[instance.asset].joints.size())) return false;
         if (hit.woundRegion && *hit.woundRegion != viewer::ZombieWoundRegion::torso &&
             *hit.woundRegion != viewer::ZombieWoundRegion::head) return false;
+    }
+    for (const auto& report : command.firearmShot->dogHits) {
+        if (report.pellet >= pellets || seen[report.pellet] || report.dog >= scene.dogs.instances.size()) return false;
+        seen[report.pellet] = true;
     }
     return true;
 }
@@ -163,6 +167,7 @@ void World::step() {
         std::vector<glm::vec3> directions;
         viewer::ShotCaliber caliber;
         std::vector<FirearmHit> hits;
+        std::vector<DogFirearmHit> dogHits;
         std::uint32_t excludedMistObserver = 0;
     };
     std::vector<Shot> shots;
@@ -178,6 +183,11 @@ void World::step() {
     }
     // Advance living poses from the start-of-tick player state before aim and
     // contacts. Do not move them again between the solve and its snapshot.
+    scene_.dogs.updateBehavior(tickSeconds, targets, *scene_.collision, now);
+    for (const auto& hit : scene_.dogs.attackHits()) {
+        const auto player = players_.find(hit.player);
+        if (player != players_.end()) player->second.vitals.applyDamage(hit.damage);
+    }
     scene_.zombies.updateBehaviorForPlayers(tickSeconds, targets, *scene_.collision, now);
     for (const auto& hit : scene_.zombies.attackHits()) {
         const auto player = players_.find(hit.player);
@@ -332,7 +342,7 @@ void World::step() {
                     player.weaponReload.begin(player.weapons, player.inventory, now);
                 } else if (player.weapons.slot() != viewer::punchSlot)
                     shots.push_back({player.camera.position(), viewer::weaponShotDirections(config, player.camera.direction()),
-                        config.caliber, command.firearmShot->hits, command.firearmShot->predictedMist ? id : 0});
+                        config.caliber, command.firearmShot->hits, command.firearmShot->dogHits, command.firearmShot->predictedMist ? id : 0});
             }
             player.held = command;
         }
@@ -375,15 +385,21 @@ void World::step() {
     scene_.groundItems->removeBelow(scene_.model.boundsMin.y - 10.f);
     scene_.boxes->retireBelow(scene_.model.boundsMin.y - 10.f);
     scene_.zombies.synchronizePhysics();
-    for (const auto& noise : noises) scene_.zombies.makeNoise(noise.position, noise.decibels);
+    for (const auto& noise : noises) {
+        scene_.zombies.makeNoise(noise.position, noise.decibels);
+        scene_.dogs.makeNoise(noise.position, noise.decibels);
+    }
     for (const auto& shot : shots) {
         scene_.zombies.makeNoise(shot.origin, 110);
+        scene_.dogs.makeNoise(shot.origin, 110);
         // Intersection comes from the displayed client pose. Weapon identity,
         // origin, pellet directions and caliber were captured when this command
         // fired, before any later input could switch weapons or change aim.
         for (const auto& report : shot.hits)
             scene_.zombies.applyReportedShot(report.hit, shot.origin, shot.directions[report.pellet],
                                             now, *scene_.collision, shot.caliber, shot.excludedMistObserver);
+        for (const auto& report : shot.dogHits)
+            scene_.dogs.damage(report.dog, shot.caliber == viewer::ShotCaliber::high ? 20.f : 10.f);
     }
     for (const auto& reaction : scene_.zombies.takeReactionEvents())
         sounds_.emit(tick_, reaction.chase ? SoundKind::chase : SoundKind::heard,
@@ -445,6 +461,12 @@ Snapshot World::snapshot(std::uint32_t id) {
         view.pitch = observer.camera.pitchDegrees();
     }
     return observer.replication.snapshot(scene_, observer.controller.feet(), std::move(s), view);
+}
+std::optional<DogFrame> World::nextDogs(std::uint32_t id) const {
+    return players_.at(id).replication.nextDogs(scene_,tick_);
+}
+void World::dogsSent(std::uint32_t id, const DogFrame& frame) {
+    players_.at(id).replication.dogsSent(frame);
 }
 std::optional<CorpsePose> World::nextPose(std::uint32_t id) const {
     return players_.at(id).replication.nextPose(scene_);

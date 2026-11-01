@@ -47,7 +47,8 @@
                 <div id="host-map"></div>
                 <div id="host-options-heading">SESSION OPTIONS</div>
                 <button id="host-birds">BIRDS: OFF</button>
-                <div id="host-birds-hint">Flocks and bird attacks</div>
+                <label id="host-dogs-label" for="host-dogs">DOGS</label>
+                <select id="host-dogs"></select>
                 <label id="host-time-label" for="host-start-time">STARTING TIME</label>
                 <select id="host-start-time"></select>
                 <label id="host-cycle-label" for="host-day-cycle">DAY / NIGHT CYCLE</label>
