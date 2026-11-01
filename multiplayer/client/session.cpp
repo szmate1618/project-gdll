@@ -31,6 +31,7 @@
 #include "weapon_feedback.hpp"
 #include "sound_cues.hpp"
 #include "window.hpp"
+#include "mouse_input.hpp"
 #include <GLFW/glfw3.h>
 #else
 struct GLFWwindow;
@@ -300,6 +301,7 @@ struct Graphics {
         std::cout << (options.display.fullscreen ? "Fullscreen" : "Windowed") << "; render resolution "
                   << renderSize.x << 'x' << renderSize.y << "; GUI resolution " << width << 'x' << height << '\n';
         bindInput(in);
+        if (!options.hidden) viewer::enableRawMouseMotion(window);
         const auto shaders = multiplayer::resourceRoot() / "shaders";
         renderer = std::make_unique<viewer::Renderer>(scene.model, shaders, scene.trees ? &*scene.trees : nullptr,
             &scene.zombies, scene.forests ? &*scene.forests : nullptr, &scene.dogs);

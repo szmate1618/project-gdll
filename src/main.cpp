@@ -35,6 +35,7 @@
 #include "player_vitals.hpp"
 #include "melee_combat.hpp"
 #include "camera_rig.hpp"
+#include "mouse_input.hpp"
 #include "collision_debug.hpp"
 #include "gpu_timer.hpp"
 #include "tree_layer.hpp"
@@ -1544,7 +1545,7 @@ int run(const Options& options) {
     glfwSetScrollCallback(window.get(), scrollCallback);
     glfwSetWindowFocusCallback(window.get(), focusCallback);
     captureMouse(window.get(), true);
-    if (!options.hidden && glfwRawMouseMotionSupported()) glfwSetInputMode(window.get(), GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+    if (!options.hidden) viewer::enableRawMouseMotion(window.get());
     const char* proneKeyName = glfwGetKeyName(GLFW_KEY_C, 0);
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
               << " m/s; F1 Inventory, F2 Skills, F3 Health, F4 Map, F8 free-fly, F9 walk, F10 collisions, WASD move, Space jump, Ctrl hold crouch/airborne tuck, "
