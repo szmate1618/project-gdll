@@ -103,6 +103,18 @@ and the [idle crowd controls](../docs/VIEWER.md#idle-zombie-crowd) to run 1,000
 instances on the generated town. Character assets remain separate from the
 town GLB and tree placement manifests.
 
+## Undead dog
+
+[undead_dog/](undead_dog/README.md) contains the preparation instructions for
+Lowbit Lab's free rigged undead dog with the supplied surface palette. The
+download and recolored models remain local; idle, walk and attack clips survive
+preparation unchanged. Three named appearances retain the approved original,
+add a lighter coat and add a near-black coat, all with matching off-white ribs.
+The three appearances share tongues flattened to half thickness with their
+top surfaces fixed, preserving the original rig and animation data.
+The shared [undead palette](palettes/README.md) preserves the supplied reference
+and reusable surface/emissive RGB swatches.
+
 ## Firearm models
 
 The camera-local 1911, UMP, pump shotgun and modified scoped M14 use CC0 meshes

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "status": "user-approved",
+  "description": "Three palette-based undead dog appearances with off-white ribs and tongues at half original thickness; top tongue vertices fixed.",
+  "source_manifest": "sources.json",
+  "palette": "../palettes/undead.json",
+  "palette_sha256": "749a065a29b49a498e8fe34a6159d58381b074ceddfd9b9dbfb887ad073884ab",
+  "geometry": {
+    "preparation": "src/undead_dog_geometry.py",
+    "tongue_thickness_scale": 0.5,
+    "lower_vertices_raised": 24,
+    "top_vertices_fixed": 20,
+    "frame": "model Y up, meters; top plane fixed, X/Z unchanged"
+  },
+  "variants": {
+    "1": {
+      "name": "Original",
+      "model": "models/undead_dog_variant_1.glb",
+      "model_sha256": "eed418f682472f8a70050a3dbaf24167b67bce81213697ed0f2c8f8020dccacd",
+      "texture": "models/dog_atlas_variant_1.png",
+      "texture_sha256": "ea7010a9426498453f30dfb395f5944164a7c14b2fae96e0367981b536024a3b",
+      "preview": "previews/variant-1.png",
+      "preview_sha256": "c603515fa595187e9db21052672296ac17423138e3a1dd665172d8bea2a13dfd"
+    },
+    "2": {
+      "name": "Lighter",
+      "model": "models/undead_dog_variant_2.glb",
+      "model_sha256": "2d206844217605f01fda04e18bbc536d60800cf47709fd8c599a9c3305465fe5",
+      "texture": "models/dog_atlas_variant_2.png",
+      "texture_sha256": "2f191769b6fa343d1cb0c06048c16fe17d959b59131bf88c3b87d0f26544242d",
+      "preview": "previews/variant-2.png",
+      "preview_sha256": "a696a00b80efe55333006dfd578687d6f9ee5d62ae1dd69acc916600fe32f6fd"
+    },
+    "3": {
+      "name": "Near black",
+      "model": "models/undead_dog_variant_3.glb",
+      "model_sha256": "d8ae52983e5332d10880e78c670f13a81804613520dbb447e818949c00bf6bb2",
+      "texture": "models/dog_atlas_variant_3.png",
+      "texture_sha256": "adf1b853a02dedd00bfb41b9d0f3550b74937b814132f5aa4361bb7935d1311f",
+      "preview": "previews/variant-3.png",
+      "preview_sha256": "80284113a48e8a55a432bd96b06a3337fe7b37d7302bb139a77bbeb1c25b4f90"
+    }
+  }
+}

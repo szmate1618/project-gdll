@@ -1,0 +1,371 @@
+{
+  "source_page": "https://lowbitlab.itch.io/free-psx-horror-npcs-sampler",
+  "author": "Lowbit Lab",
+  "archive_name": "PSX_Horror_NPCs_and_Monsters_FREE_Sample.zip",
+  "archive_sha256": "9bb1229234ac8d95c1b37e8a7078043bf870ad408ea7bbe6887fb08293cd1656",
+  "model_member": "PSX_Horror_NPCs_and_Monsters/Models/GLB/dog.glb",
+  "model_sha256": "dad70c2b6dffa92e1e1cd6f9a6fbddd343ab42a92e51dee198ea7d136a9ef08e",
+  "palette_sha256": "6833f9f2939228ed775ea409b857e31a65f2e83362e44608f1b7bc93eb2477d7",
+  "surface_swatches": [
+    [
+      3,
+      12,
+      7
+    ],
+    [
+      20,
+      8,
+      8
+    ],
+    [
+      23,
+      29,
+      15
+    ],
+    [
+      24,
+      8,
+      9
+    ],
+    [
+      28,
+      13,
+      10
+    ],
+    [
+      42,
+      22,
+      21
+    ],
+    [
+      43,
+      45,
+      32
+    ],
+    [
+      45,
+      7,
+      6
+    ],
+    [
+      45,
+      30,
+      11
+    ],
+    [
+      56,
+      26,
+      24
+    ],
+    [
+      56,
+      56,
+      44
+    ],
+    [
+      57,
+      21,
+      9
+    ],
+    [
+      61,
+      5,
+      4
+    ],
+    [
+      64,
+      36,
+      32
+    ],
+    [
+      66,
+      22,
+      13
+    ],
+    [
+      69,
+      11,
+      7
+    ],
+    [
+      70,
+      40,
+      32
+    ],
+    [
+      70,
+      66,
+      57
+    ],
+    [
+      72,
+      67,
+      61
+    ],
+    [
+      76,
+      35,
+      31
+    ],
+    [
+      77,
+      60,
+      52
+    ],
+    [
+      78,
+      73,
+      67
+    ],
+    [
+      79,
+      11,
+      10
+    ],
+    [
+      80,
+      11,
+      4
+    ],
+    [
+      80,
+      35,
+      32
+    ],
+    [
+      80,
+      55,
+      50
+    ],
+    [
+      83,
+      68,
+      63
+    ],
+    [
+      83,
+      76,
+      68
+    ],
+    [
+      83,
+      78,
+      72
+    ],
+    [
+      85,
+      39,
+      41
+    ],
+    [
+      86,
+      51,
+      45
+    ],
+    [
+      90,
+      53,
+      47
+    ],
+    [
+      93,
+      71,
+      52
+    ],
+    [
+      94,
+      32,
+      9
+    ],
+    [
+      99,
+      64,
+      32
+    ],
+    [
+      102,
+      50,
+      13
+    ],
+    [
+      104,
+      69,
+      63
+    ],
+    [
+      105,
+      65,
+      57
+    ],
+    [
+      105,
+      101,
+      92
+    ],
+    [
+      113,
+      52,
+      59
+    ],
+    [
+      115,
+      87,
+      76
+    ],
+    [
+      127,
+      100,
+      89
+    ],
+    [
+      129,
+      70,
+      76
+    ],
+    [
+      137,
+      133,
+      124
+    ],
+    [
+      145,
+      88,
+      94
+    ],
+    [
+      155,
+      106,
+      110
+    ],
+    [
+      160,
+      141,
+      134
+    ],
+    [
+      165,
+      161,
+      152
+    ],
+    [
+      167,
+      125,
+      129
+    ],
+    [
+      193,
+      178,
+      173
+    ],
+    [
+      209,
+      204,
+      201
+    ],
+    [
+      222,
+      217,
+      214
+    ],
+    [
+      253,
+      253,
+      253
+    ]
+  ],
+  "palette_file": "assets/palettes/undead.json",
+  "palette_file_sha256": "749a065a29b49a498e8fe34a6159d58381b074ceddfd9b9dbfb887ad073884ab",
+  "output_sha256": "cc79a9358735c4e223e50f092022a7a8b184b2f0d800b0bf2fcdf92be9aac2f4",
+  "atlas_sha256": "1a36b06ae904e2318cde3d6548c719d90f9ce278fcfba841c40017bea5452509",
+  "preparation": "tools/prepare_undead_dog.py",
+  "texture_variants": {
+    "64": {
+      "model": "undead_dog_64.glb",
+      "atlas": "dog_atlas_64.png",
+      "output_sha256": "c271d5e18ea539619f19108557b187e53e9a32cc3945be88a0453eea60058b37",
+      "atlas_sha256": "6751c009cedf1469ac0ca15dd6f84dc72ca60edc17ba0b7d2b34817af1d599f0",
+      "reduction": "most common RGBA color per original atlas block; ties select first occurrence"
+    },
+    "32": {
+      "model": "undead_dog_32.glb",
+      "atlas": "dog_atlas_32.png",
+      "output_sha256": "82a976864f4f2fa70718d26bd2b8ace7b926b12208dbe60b4702c58197a83b3d",
+      "atlas_sha256": "242c166002ad5aff18d05a65c75afe7fb3c0196c43eca6353312d6e86e5a0888",
+      "reduction": "most common RGBA color per original atlas block; ties select first occurrence"
+    },
+    "16": {
+      "model": "undead_dog_16.glb",
+      "atlas": "dog_atlas_16.png",
+      "output_sha256": "17c0f246e3d1edabdcf069fcc3b0766f286a698df46b522bb69bc8edc3fe778e",
+      "atlas_sha256": "43ea1eb53b08e884875f1a2ec09bf15b665e655f34bec06d9f4c0d241662be07",
+      "reduction": "most common RGBA color per original atlas block; ties select first occurrence"
+    },
+    "16_ribs64": {
+      "model": "undead_dog_16_ribs64.glb",
+      "atlas": "dog_atlas_16_ribs64.png",
+      "output_sha256": "eed418f682472f8a70050a3dbaf24167b67bce81213697ed0f2c8f8020dccacd",
+      "atlas_sha256": "ea7010a9426498453f30dfb395f5944164a7c14b2fae96e0367981b536024a3b",
+      "reduction": "16px block-mode base enlarged to 64px by nearest neighbor; rib patches copied from 64px atlas",
+      "rib_rectangles_64px": [
+        [
+          0,
+          48,
+          16,
+          64
+        ],
+        [
+          36,
+          19,
+          42,
+          26
+        ]
+      ],
+      "rib_color": "exposed rib bone shadows use the painted flank's bone white, RGB 209,204,201"
+    }
+  },
+  "appearance_geometry": {
+    "preparation": "src/undead_dog_geometry.py",
+    "tongue_thickness_scale": 0.5,
+    "lower_vertices_raised": 24,
+    "top_vertices_fixed": 20,
+    "frame": "model Y up, meters; top plane fixed, X/Z unchanged"
+  },
+  "appearance_variants": {
+    "1": {
+      "name": "Original",
+      "model": "undead_dog_variant_1.glb",
+      "atlas": "dog_atlas_variant_1.png",
+      "output_sha256": "eed418f682472f8a70050a3dbaf24167b67bce81213697ed0f2c8f8020dccacd",
+      "atlas_sha256": "ea7010a9426498453f30dfb395f5944164a7c14b2fae96e0367981b536024a3b",
+      "rib_rgb": [
+        209,
+        204,
+        201
+      ]
+    },
+    "2": {
+      "name": "Lighter",
+      "model": "undead_dog_variant_2.glb",
+      "atlas": "dog_atlas_variant_2.png",
+      "output_sha256": "2d206844217605f01fda04e18bbc536d60800cf47709fd8c599a9c3305465fe5",
+      "atlas_sha256": "2f191769b6fa343d1cb0c06048c16fe17d959b59131bf88c3b87d0f26544242d",
+      "rib_rgb": [
+        209,
+        204,
+        201
+      ]
+    },
+    "3": {
+      "name": "Near black",
+      "model": "undead_dog_variant_3.glb",
+      "atlas": "dog_atlas_variant_3.png",
+      "output_sha256": "d8ae52983e5332d10880e78c670f13a81804613520dbb447e818949c00bf6bb2",
+      "atlas_sha256": "adf1b853a02dedd00bfb41b9d0f3550b74937b814132f5aa4361bb7935d1311f",
+      "rib_rgb": [
+        209,
+        204,
+        201
+      ]
+    }
+  }
+}
