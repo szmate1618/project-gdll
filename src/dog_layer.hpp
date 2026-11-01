@@ -10,6 +10,9 @@
 namespace viewer {
 constexpr std::size_t maxDogs = 1000;
 constexpr float dogRadius = .25f, dogHeight = .9f;
+// Meters per animation second. Actual travel / reference speed keeps playback
+// proportional when gameplay movement speeds change.
+constexpr float dogWalkAnimationSpeed = 1.2f, dogRunAnimationSpeed = 3.f;
 enum class DogState { idle, looking, investigating, chasing, attacking };
 struct DogBehavior {
     DogState state = DogState::idle;

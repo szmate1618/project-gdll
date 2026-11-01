@@ -66,6 +66,11 @@ void playback() {
     DogState state; state.walking=state.running=true;
     playback.push(60,{state},1); playback.apply(dogs,60,1);
     require(!dogs.instances[0].removed,"First dog sample must reveal hidden replica");
+    viewer::AnimatedModel model;
+    model.walkClip = viewer::BakedAnimationClip{"walk",1,30,30,{}};
+    model.runClip = viewer::BakedAnimationClip{"run",.6f,18,60,{}};
+    require(viewer::dogAnimationClip(model,dogs.instances[0]) == &*model.runClip,
+            "Replicated running state must select the run clip");
     state.feet.z=.3f; state.walkSeconds=.1f; playback.push(66,{state},1.1);
     playback.apply(dogs,69,1.15); require(std::abs(dogs.instances[0].root[3].z-.15f)<.0001f,"Dog interpolation failed");
     playback.push(63,{DogState{}},1.2); playback.apply(dogs,75,1.2);

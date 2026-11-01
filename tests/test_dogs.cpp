@@ -11,7 +11,8 @@ viewer::DogLayer pack(std::size_t count = 1) {
     auto& asset = dogs.assets.emplace_back();
     asset.frameCount = 30; asset.duration = 1;
     asset.walkClip = viewer::BakedAnimationClip{"walk",1,30,30,{}};
-    asset.attackLeftClip = viewer::BakedAnimationClip{"attack",1,31,60,{},false};
+    asset.runClip = viewer::BakedAnimationClip{"run",.6f,18,60,{}};
+    asset.attackLeftClip = viewer::BakedAnimationClip{"attack",1,31,78,{},false};
     dogs.lodAssets.resize(1); dogs.assetBounds.push_back({{-.2f,0,-.6f},{.2f,.9f,.6f}});
     dogs.instances.resize(count);
     for (std::size_t id = 0; id < count; ++id)
@@ -63,7 +64,7 @@ void behavior() {
     require(dogs.instances[0].running && dogs.instances[0].walking,"Pursuit must run");
     require(std::abs(dogs.instances[0].root[3].z-.3f)<.0001f,"Dog chase speed must mirror 3 m/s");
     require(!independent.behaviors[0].active && independent.instances[0].root[3].z == 0,"Dog populations share state");
-    require(viewer::dogAnimationClip(dogs.assets[0],dogs.instances[0]) == &*dogs.assets[0].walkClip,"Running dogs must use walk");
+    require(viewer::dogAnimationClip(dogs.assets[0],dogs.instances[0]) == &*dogs.assets[0].runClip,"Pursuit must select the run clip");
     const auto walkClock = dogs.instances[0].walkSeconds;
     dogs.updateBehavior(.1f,{},empty,.1);
     require(!dogs.instances[0].walking && dogs.instances[0].walkSeconds == walkClock,"No players must stop movement");
@@ -100,13 +101,14 @@ void assets(const std::filesystem::path& path) {
     for (std::size_t i=0;i<3;++i) {
         const auto& asset = dogs.assets[i];
         require(asset.skeleton.size()==25 && asset.walkClip && asset.attackLeftClip,"Dog rig/clips were lost");
-        require(!asset.runClip && !asset.attackLeftClip->loop,"Dog clips do not match authored source");
+        require(asset.runClip && asset.runClip->loop && !asset.attackLeftClip->loop,"Dog run/attack loop policy was lost");
         require(dogs.instances[i].asset == i && dogs.instances[i].transform == placements[i],"Dog size/variant identity changed");
         require(dogs.lodAssets[i].size()==3,"Missing dog LoDs");
         std::size_t triangles = 496;
         for (const auto& lod : dogs.lodAssets[i]) {
             std::size_t count=0; for (const auto& p:lod.model.primitives) count+=p.indices.size()/3;
             require(count < triangles && lod.skeleton.size()==25,"LoDs must reduce triangles and retain rig");
+            require(lod.runClip && lod.runClip->boneFrames == asset.runClip->boneFrames,"LoDs must preserve the retargeted run");
             triangles = count;
         }
     }
@@ -122,8 +124,26 @@ void assets(const std::filesystem::path& path) {
     auto replica = viewer::loadDogLayer(path,placements,true);
     require(std::all_of(replica.instances.begin(),replica.instances.end(),[](const auto& dog){return dog.removed;}),"Replica slots must start hidden");
 }
+void locomotion() {
+    auto dogs = pack();
+    auto& dog = dogs.instances[0];
+    auto& asset = dogs.assets[0];
+    require(viewer::dogAnimationClip(asset,dog) == nullptr,"Stationary dogs must remain idle");
+    dog.walking = true;
+    require(viewer::dogAnimationClip(asset,dog) == &*asset.walkClip,"Investigation must select walk");
+    dog.running = true; dog.walkSeconds = .15;
+    require(viewer::dogAnimationClip(asset,dog) == &*asset.runClip,"Running must select run");
+    const float frame = viewer::dogAnimationFrame(asset,dog,100);
+    require(std::abs(frame-4.5f)<.0001f,"Run must use its duration and the locomotion clock");
+    dog.walkSeconds += asset.runClip->duration;
+    require(std::abs(viewer::dogAnimationFrame(asset,dog,100)-frame)<.0001f,"Run must loop without resetting the clock");
+    dog.attacking = true;
+    require(viewer::dogAnimationClip(asset,dog) == &*asset.attackLeftClip,"Bites must override locomotion");
+    dog.attacking = false; asset.runClip.reset();
+    require(viewer::dogAnimationClip(asset,dog) == &*asset.walkClip,"Legacy dog assets must retain walking fallback");
+}
 }
 int main(int argc,char** argv) {
-    try { behavior(); approachAndBite(); if (argc>1) assets(argv[1]); std::cout << "Dog behavior/assets passed\n"; }
+    try { behavior(); approachAndBite(); locomotion(); if (argc>1) assets(argv[1]); std::cout << "Dog behavior/assets passed\n"; }
     catch(const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

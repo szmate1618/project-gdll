@@ -69,6 +69,12 @@ that white; flesh, blood, alpha and ordinary runtime lighting are preserved.
 All three appearances use the approved 16×16 base enlarged to a 64×64 atlas,
 with the restored rib patches and matching off-white ribs on both sides.
 
+The runtime variants also contain the retargeted `run` clip. Their appearance,
+rig, original clips and original binary data are retained; the run is appended.
+`approved.json` remains the historical appearance approval checkpoint, so its
+whole-model hashes predate this additional animation. Current runtime hashes
+and the matching pre-run appearance hashes are recorded in `sources.json`.
+
 | Variant | Appearance | Self-contained model | Texture |
 | --- | --- | --- | --- |
 | 1 | Approved original coat | `models/undead_dog_variant_1.glb` | `models/dog_atlas_variant_1.png` |
@@ -89,6 +95,51 @@ The same offline preparation command rebuilds all three named variants.
 palette file's path and hash. Downloaded and prepared model/texture assets
 remain under the ignored `source/` and `models/` directories under the source
 license; the palette, mappings, documentation and provenance are repository inputs.
+
+## Running animation
+
+The donor is [3d dog running dog low res psx scary rigged](https://petrov-the-blind.itch.io/3d-running-dog-low-res-psx)
+by **Petrov_the_blind**, licensed **CC0 1.0**. Its motion is transferred; its mesh
+and texture are not used by the game. The original archive is cached locally as
+`source/PSX_Dog_Run_CC0.zip`; [animations/run-source.json](animations/run-source.json)
+records the page, license and archive/FBX SHA-256 hashes.
+
+[animations/run.json](animations/run.json) is the baked motion in the original
+glTF joint-local coordinates, with a rig fingerprint. It is a reproducible CC0
+motion input, independent of the licensed model files. Ordinary preparation
+uses this file and does not require Blender:
+
+```bash
+.venv/bin/python tools/prepare_undead_dog.py
+.venv/bin/python tools/prepare_dog_lods.py
+```
+
+The current game-rendered result is saved as an [animated preview](previews/run.gif)
+and [eight run poses](previews/run-poses.png).
+
+To redo the automatic transfer with Blender 4.5 and the cached donor archive:
+
+```bash
+blender --background --factory-startup --disable-autoexec \
+  --python tools/retarget_dog_run.py --
+.venv/bin/python tools/prepare_undead_dog.py
+.venv/bin/python tools/prepare_dog_lods.py
+```
+
+The transfer works in Blender Z-up world meters and saves tracks in glTF's
+Y-up joint-local frame. A two-link IK solve adapts the donor's extra leg bones
+to our upper/lower/paw chains. Body, head and tail motion are transferred;
+unmapped jaw and ears keep their local resting pose. Horizontal root motion is
+removed, the loop is closed, and timing is estimated for the game's 3 m/s run.
+No model re-export is used for runtime publication: `src/dog_run_animation.py`
+appends accessors and channels, retaining the entire original binary payload.
+
+`models/undead_dog_run_edit.blend` keeps the transferred action and the hidden
+donor for later manual cleanup. This is a local editing reference; saving that
+scene does not publish changes to the game. A manually corrected action must
+be rebaked into the motion input before rebuilding the runtime variants.
+The first transfer has no manual cosmetic corrections; foot sliding and the
+loop's visual smoothness can be refined later.
 
 ## Tongue geometry
 

@@ -37,8 +37,21 @@ noise-directed looking, investigation, pursuit and attacks. Activation is within
 Observations use the same distance-dependent cadence (10/5/1 Hz), horizontal
 100-degree field of view, three occlusion rays and remembered target position.
 Dog eye height is 0.55 meters. Investigation walks at 1.2 m/s; pursuit runs at
-3 m/s. Both speeds play the authored **walk** clip. Locomotion time advances with
-actual displacement, and dogs stop when players leave.
+3 m/s. Investigation selects **walk**, pursuit selects **run**, and bites take
+priority over locomotion. Legacy models lacking run retain the walk fallback.
+Locomotion time advances by actual displacement divided by the clip's reference
+speed (1.2 m/s walk, 3 m/s run), so later gameplay speed changes proportionally
+change playback without rebaking. Dogs stop when players leave.
+
+The run is an offline, automatically retargeted CC0 motion from
+[Petrov_the_blind's PSX dog](https://petrov-the-blind.itch.io/3d-running-dog-low-res-psx).
+Blender fits its paw trajectories to our existing leg chains with a two-link IK
+solve, transfers body/head/tail rotation, removes horizontal root travel and
+bakes a closed loop. The approximately 0.726-second clip is retimed for the
+3 m/s reference using an estimate from low, backward-moving paws. This estimate
+does not guarantee zero sliding; cosmetic cleanup remains possible. No runtime
+IK is used. See the [asset guide](../assets/undead_dog/README.md#running-animation)
+for provenance, reproducible preparation and the local editable Blender scene.
 
 Terrain, building, door and prop queries use a dog-sized capsule and the shared
 scene collision world. A separate dog grid constrains dog-to-dog contacts.
@@ -113,7 +126,8 @@ ctest --test-dir build -R '^(viewer_dogs|viewer_dog_assets|multiplayer_dogs)$' -
 ```
 
 The rendering check needs display/GPU access and writes captures of all three
-variants, idle/walk/attack playback, all LoDs, and hidden/dead actors. The UDP
+variants, idle/walk/run/attack playback, eight side-view run poses, all LoDs,
+and hidden/dead actors. The UDP
 check starts an isolated synthetic scene with 1,000 dogs and two clients,
 including a late join, with simulated lag and packet loss. It preserves small
 fixtures and logs under the requested scratch directory.

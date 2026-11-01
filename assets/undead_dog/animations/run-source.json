@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "author": "Petrov_the_blind",
+  "source_page": "https://petrov-the-blind.itch.io/3d-running-dog-low-res-psx",
+  "license": "CC0-1.0",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "archive": "source/PSX_Dog_Run_CC0.zip",
+  "archive_sha256": "624d98172d215df02fa796285209ebb59e5448070a66e1156f903a7b5c79b491",
+  "fbx_member": "low res dog/low res scary dog.fbx",
+  "fbx_sha256": "1498a5f6fc0a7e1f0ec8ba31890fb33fc18bdaf459f1fef00372df4b6faff9ea",
+  "preparation": "tools/retarget_dog_run.py",
+  "description": "Run motion transferred onto the approved Lowbit Lab dog rig; no donor mesh is used in the game."
+}

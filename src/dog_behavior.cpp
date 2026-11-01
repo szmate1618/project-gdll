@@ -180,7 +180,7 @@ void DogLayer::updateBehavior(float dt, const std::vector<ZombiePlayer>& players
             if (glm::length(moved) >= .1f*dt) {
                 face(dog,moved,dt,pi);
                 dog.walking = true; dog.running = speed > 1.2f;
-                dog.walkSeconds += glm::length(moved)/speed;
+                dog.walkSeconds += glm::length(moved)/(dog.running ? dogRunAnimationSpeed : dogWalkAnimationSpeed);
             }
         } else if (!behavior.sight && distance <= 1e-4f) {
             behavior.state = DogState::idle; behavior.idleSince = now;

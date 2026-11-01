@@ -16,6 +16,10 @@ accepted revision; the builder records current rebuild outputs in `sources.json`
 [tongue before/after close-up](previews/tongue-before-after.png) are saved here,
 outside the build directory. The self-contained GLBs embed the texture and retain
 the original 496 triangles, 23-joint skeleton, and idle/walk/attack clips.
+Runtime variants now append a retargeted run; see the
+[running animation guide](README.md#running-animation). The approval hashes
+remain the original appearance checkpoint; `sources.json` records current
+runtime hashes and the corresponding unchanged pre-run appearance hashes.
 Previews are deterministic CPU renders, using shared lighting and camera angles.
 
 Approved design:

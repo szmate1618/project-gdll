@@ -25,20 +25,20 @@ int main(int argc,char** argv) {
         const std::filesystem::path output=argc>1 ? argv[1] : "build/dog-render-check";
         std::filesystem::create_directories(output);
         std::vector<glm::mat4> placements;
-        for (int row=0;row<3;++row) for(int variant=0;variant<3;++variant)
+        for (int row=0;row<4;++row) for(int variant=0;variant<3;++variant)
             placements.push_back(glm::translate(glm::mat4(1),{float(variant-1)*2,0,float(-row)*2})*
                 glm::rotate(glm::mat4(1),-1.57079633f,{0,1,0}));
         auto dogs=viewer::loadDogLayer(DOG_ASSET_DIR,placements);
         for(std::size_t i=0;i<dogs.instances.size();++i) {
             auto& dog=dogs.instances[i]; dog.phase=0;
-            dog.walking=i>=3 && i<6; dog.running=dog.walking; dog.walkSeconds=.2;
-            dog.attacking=i>=6; dog.attackSeconds=.3;
+            dog.walking=i>=3 && i<9; dog.running=i>=6 && i<9; dog.walkSeconds=.2;
+            dog.attacking=i>=9; dog.attackSeconds=.3;
         }
         viewer::Renderer renderer(viewer::Model{},VIEWER_SHADER_DIR,nullptr,nullptr,nullptr,&dogs);
         dogs.releaseAnimationVertices();
         renderer.resize(1200,800); renderer.setHaze(false); renderer.setGroundFog(false);
         viewer::Camera camera; camera.setPosition({0,5,8}); camera.setOrientation(-90,-30);
-        renderer.render(camera,.2); require(renderer.dogVisibleCount()==9,"Missing approved dog appearances");
+        renderer.render(camera,.2); require(renderer.dogVisibleCount()==12,"Missing dog appearances or idle/walk/run/attack clips");
         renderer.writeScreenshot(output/"variants-and-clips.ppm"); const auto first=pixels();
         viewer::CollisionWorld empty(viewer::Model{});
         std::optional<viewer::DogShotTrace> displayedHit;
@@ -59,14 +59,25 @@ int main(int argc,char** argv) {
         require(changed>1000,"Dog animations did not change the rendered geometry");
         for(float distance:{25.f,50.f,100.f}) {
             camera.setPosition({0,1,distance});camera.setOrientation(-90,0);
-            renderer.render(camera,.6);require(renderer.dogVisibleCount()==9,"A dog LoD disappeared");
+            renderer.render(camera,.6);require(renderer.dogVisibleCount()==12,"A dog LoD disappeared");
             renderer.writeScreenshot(output/("lod-"+std::to_string(int(distance))+".ppm"));
         }
         // Dead and hidden states share neither the humanoid state nor buffers.
         dogs.damage(0,100); dogs.instances[1].removed=true;
         camera.setPosition({0,5,8});camera.setOrientation(-90,-30);
-        renderer.render(camera,.6);require(renderer.dogVisibleCount()==8,"Hidden dog still rendered");
+        renderer.render(camera,.6);require(renderer.dogVisibleCount()==11,"Hidden dog still rendered");
         renderer.writeScreenshot(output/"death-and-hidden.ppm");
+        dogs.instances = displayedPopulation;
+        for (auto& dog : dogs.instances) dog.removed = true;
+        auto& runner = dogs.instances[0];
+        runner.removed = false; runner.walking = runner.running = true;
+        camera.setPosition({-2,1,3}); camera.setOrientation(-90,-8);
+        for (int frame=0;frame<8;++frame) {
+            runner.walkSeconds = dogs.assets[runner.asset].runClip->duration * frame / 8;
+            renderer.render(camera,runner.walkSeconds);
+            require(renderer.dogVisibleCount()==1,"Run preview must show the selected dog");
+            renderer.writeScreenshot(output/("run-phase-"+std::to_string(frame)+".ppm"));
+        }
         viewer::Renderer::checkErrors("dog rendering and LoDs");
         std::vector<glm::mat4> crowdPlacements;
         for(int id=0;id<1000;++id)

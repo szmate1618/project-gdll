@@ -36,7 +36,7 @@ DogDetail dogCameraDetail(float distance) {
 }
 const BakedAnimationClip* dogAnimationClip(const AnimatedModel& model, const DogInstance& dog) {
     if (dog.attacking && model.attackLeftClip) return &*model.attackLeftClip;
-    // Both locomotion speeds deliberately use walk. These assets have no run.
+    if (dog.walking && dog.running && model.runClip) return &*model.runClip;
     return dog.walking && model.walkClip ? &*model.walkClip : nullptr;
 }
 float dogAnimationFrame(const AnimatedModel& model, const DogInstance& dog, double seconds, float hz) {

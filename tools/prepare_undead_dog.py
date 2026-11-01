@@ -19,6 +19,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from src.glb import pack_glb, read_glb
+from src.dog_run_animation import append_run
 from src.undead_dog_geometry import flatten_tongue
 from src.undead_dog_variants import APPEARANCES, BONE_WHITE, RIB_PATCHES_64, appearance_atlas
 
@@ -222,9 +223,17 @@ def main():
         "rib_color": "exposed rib bone shadows use the painted flank's bone white, RGB 209,204,201",
     }
     manifest["appearance_variants"] = {}
+    run_path = ASSETS / "animations/run.json"
+    run = json.loads(run_path.read_text())
+    manifest["run_animation"] = {
+        "motion": "animations/run.json", "motion_sha256": digest(run_path.read_bytes()),
+        "source_manifest": "animations/run-source.json",
+        "reference_speed_mps": run["reference_speed_mps"],
+    }
     for number, description in APPEARANCES.items():
         appearance = appearance_atlas(atlas, number, palette)
-        model = embed_atlas(appearance_source, appearance)
+        approved_appearance = embed_atlas(appearance_source, appearance)
+        model = append_run(approved_appearance, run)
         model_name = f"undead_dog_variant_{number}.glb"
         atlas_name = f"dog_atlas_variant_{number}.png"
         atomic_write(output_path.with_name(model_name), model)
@@ -232,6 +241,7 @@ def main():
         manifest["appearance_variants"][str(number)] = {
             "name": description, "model": model_name, "atlas": atlas_name,
             "output_sha256": digest(model), "atlas_sha256": digest(appearance),
+            "approved_appearance_sha256": digest(approved_appearance),
             "rib_rgb": BONE_WHITE,
         }
     atomic_write(manifest_path, (json.dumps(manifest, indent=2) + "\n").encode())

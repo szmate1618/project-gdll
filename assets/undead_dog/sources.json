@@ -335,8 +335,9 @@
       "name": "Original",
       "model": "undead_dog_variant_1.glb",
       "atlas": "dog_atlas_variant_1.png",
-      "output_sha256": "eed418f682472f8a70050a3dbaf24167b67bce81213697ed0f2c8f8020dccacd",
+      "output_sha256": "f813cb7e9110b05dba318a1d35292a516cabfa25a0ce1945c7b6c02c82fb62fa",
       "atlas_sha256": "ea7010a9426498453f30dfb395f5944164a7c14b2fae96e0367981b536024a3b",
+      "approved_appearance_sha256": "eed418f682472f8a70050a3dbaf24167b67bce81213697ed0f2c8f8020dccacd",
       "rib_rgb": [
         209,
         204,
@@ -347,8 +348,9 @@
       "name": "Lighter",
       "model": "undead_dog_variant_2.glb",
       "atlas": "dog_atlas_variant_2.png",
-      "output_sha256": "2d206844217605f01fda04e18bbc536d60800cf47709fd8c599a9c3305465fe5",
+      "output_sha256": "d47798398a6b1b8deae04d7e7c8d01b8073611531e1f20a2e2ff5418168b0533",
       "atlas_sha256": "2f191769b6fa343d1cb0c06048c16fe17d959b59131bf88c3b87d0f26544242d",
+      "approved_appearance_sha256": "2d206844217605f01fda04e18bbc536d60800cf47709fd8c599a9c3305465fe5",
       "rib_rgb": [
         209,
         204,
@@ -359,13 +361,20 @@
       "name": "Near black",
       "model": "undead_dog_variant_3.glb",
       "atlas": "dog_atlas_variant_3.png",
-      "output_sha256": "d8ae52983e5332d10880e78c670f13a81804613520dbb447e818949c00bf6bb2",
+      "output_sha256": "c34a02df2ce66b7b61bc8988ce93fad79d58b639e1ecb981528a4b9e8050709e",
       "atlas_sha256": "adf1b853a02dedd00bfb41b9d0f3550b74937b814132f5aa4361bb7935d1311f",
+      "approved_appearance_sha256": "d8ae52983e5332d10880e78c670f13a81804613520dbb447e818949c00bf6bb2",
       "rib_rgb": [
         209,
         204,
         201
       ]
     }
+  },
+  "run_animation": {
+    "motion": "animations/run.json",
+    "motion_sha256": "9b49d2be3ff6f5ca6d8a775e7901b218d5875e028b33ddc93d9f751d2f622e65",
+    "source_manifest": "animations/run-source.json",
+    "reference_speed_mps": 3
   }
 }
