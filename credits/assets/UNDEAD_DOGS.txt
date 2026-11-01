@@ -1,0 +1,29 @@
+UNDEAD DOG MODELS AND RUNNING ANIMATION
+
+Model, rig, atlas and original idle/walk/attack animations: Lowbit Lab.
+PSX Horror NPCs & Monsters — Free Sample.
+https://lowbitlab.itch.io/free-psx-horror-npcs-sampler
+https://lowbitlab.itch.io/psx-horror-npcs-monsters
+
+The downloaded archive's PSX_Horror_NPCs_and_Monsters/README.txt states:
+"Licence: royalty-free use in commercial and non-commercial games and apps.
+No reselling or redistribution of the raw assets."
+
+Project changes: recolored atlas using the supplied undead palette, reduced
+texture resolution with restored rib detail, three coat appearances, thinner
+tongue geometry, simplified distance meshes, and an appended running animation.
+These prepared models retain the original creator's rights and restrictions.
+Use them as game content; this notice grants no standalone asset redistribution
+rights and does not relicense the models under the project's software license.
+
+Running animation donor: "3d dog running dog low res psx scary rigged"
+by Petrov_the_blind.
+https://petrov-the-blind.itch.io/3d-running-dog-low-res-psx
+CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/
+The run motion was retargeted to the Lowbit Lab rig, adapted to its proportions,
+made stationary and looped. The donor mesh and texture are not used in the game.
+The CC0 dedication applies to the donor motion, not the Lowbit Lab model.
+
+Preparation and source fingerprints: assets/undead_dog/README.md,
+assets/undead_dog/sources.json and assets/undead_dog/animations/run-source.json
+in model-containing game content packs and the project source distribution.

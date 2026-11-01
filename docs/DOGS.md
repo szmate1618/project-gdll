@@ -19,8 +19,14 @@ before loading assets and validating the content fingerprint.
 ```
 
 Restore/rebuild the licensed assets locally using the asset guide. Prepared
-models, textures, and generated LoDs remain ignored under the source license;
-they are not added to Git or to the default redistributable content pack.
+models, textures, and generated LoDs remain ignored under the source license.
+The local content packager includes the three runtime variants and their
+current LoDs by default, with model and running-animation attribution in
+`credits/assets/UNDEAD_DOGS.txt`. Use `--dogs PATH` for a prepared model directory
+or `--no-dogs` to omit them and disable dogs in the generated launchers.
+Source archives, editing files, texture comparisons and obsolete LoDs are excluded.
+The creator permits game/app use and prohibits redistribution of raw assets;
+the content ZIP is for installation with the game, not a reusable model library.
 Peers enabling dogs need matching approved source models in their local dog
 asset directory. Missing requested models fail loading with a path-qualified
 error; sessions with zero dogs do not load dog assets.

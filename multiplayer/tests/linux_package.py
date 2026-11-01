@@ -21,6 +21,7 @@ def check_credits(package):
         "COPERNICUS_DEM.txt": "do not incur any liability",
         "WEAPONS.txt": "chilly_durango",
         "ZOMBIES.txt": "Denys Almaral",
+        "UNDEAD_DOGS.txt": "Lowbit Lab",
         "AUDIO.txt": "Michel Baradari",
         "HUD_ICONS.txt": "Game-icons.net",
         "CHARACTER_FACES.txt": "Game-icons.net",

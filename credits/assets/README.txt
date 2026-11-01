@@ -11,6 +11,8 @@ OPENSTREETMAP.txt OpenStreetMap map features (ODbL 1.0).
 SENTINEL.txt      Copernicus Sentinel-2 terrain imagery.
 COPERNICUS_DEM.txt Copernicus GLO-30 terrain elevation and required disclaimer.
 ZOMBIES.txt       Denys Almaral's models, when installed from an asset pack.
+UNDEAD_DOGS.txt   Lowbit Lab's undead dog and Petrov_the_blind's run animation,
+                  when installed from a game content pack.
 AUDIO.txt         Sound credits for versions that include audio; the current
                   multiplayer client does not bundle or play these sounds.
 VEGETATION_SOURCES.txt OSM/Astra/tuned2 vegetation and orthophoto provenance.

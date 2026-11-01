@@ -20,6 +20,7 @@ if str(ROOT) not in sys.path:
 from src.asset_credits import ASSET_CREDIT_FILES, SOFTWARE_CREDIT_FILES, map_credits, vegetation_credits
 from src.vegetation_selection import VEGETATION_PRESETS, vegetation_paths
 from src.asset_pack_runtime import collect_navigation, pack_instructions
+from src.asset_pack_dogs import collect_dogs
 
 
 def sha256(path):
@@ -86,7 +87,7 @@ class RuntimeAssets:
         return document
 
 
-def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetation="osm-tuned2"):
+def collect_assets(root, map_path, zombies, *, dogs=None, trees=True, forests=True, vegetation="osm-tuned2"):
     assets = RuntimeAssets(root)
     assets.add(root / "assets/pigeon/flock.json")
     document = assets.model(map_path)
@@ -178,6 +179,8 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
                 lod = assets.reference(model.parent, level["path"])
                 lod.resolve().relative_to(model.parent.resolve())
                 assets.model(lod, level["sha256"])
+    if dogs is not None:
+        collect_dogs(assets, dogs)
     # Visual assets are optional, with the same safe prototype fallback as the
     # client. Include only the current publication, never source archives or old LoDs.
     vehicle_models = root / "assets/vehicles/models"
@@ -236,12 +239,13 @@ def collect_assets(root, map_path, zombies, *, trees=True, forests=True, vegetat
     return assets
 
 
-def package_assets(root, map_path, output, zombies, *, trees=True, forests=True, vegetation="osm-tuned2"):
+def package_assets(root, map_path, output, zombies, *, dogs=None, trees=True, forests=True, vegetation="osm-tuned2"):
     root, map_path, output = root.resolve(), map_path.resolve(), output.resolve()
     zombies = zombies.resolve() if zombies is not None else None
+    dogs = dogs.resolve() if dogs is not None else None
     if output.suffix.lower() != ".zip":
         raise ValueError("Output must be a .zip file")
-    assets = collect_assets(root, map_path, zombies, trees=trees, forests=forests, vegetation=vegetation)
+    assets = collect_assets(root, map_path, zombies, dogs=dogs, trees=trees, forests=forests, vegetation=vegetation)
     navigation = collect_navigation(assets, map_path)
     scenarios = []
     for path in sorted((root / "scenarios").rglob("scenario.toml")):
@@ -254,12 +258,14 @@ def package_assets(root, map_path, output, zombies, *, trees=True, forests=True,
                     assets.add(assets.reference(path.parent, group[key]))
     launch, generated = pack_instructions(map_path.relative_to(root).as_posix(),
                                         zombies.relative_to(root).as_posix() if zombies else None,
-                                        vegetation, trees, forests)
+                                        vegetation, trees, forests,
+                                        dogs=dogs.relative_to(root).as_posix() if dogs else None)
     assets.generated.update(generated)
     manifest = {"version": 1, "map": map_path.relative_to(root).as_posix(),
                 "vegetation": vegetation if trees else "none",
                 "trees": trees and vegetation not in ("none", "sentinel-astra"),
                 "forests": trees and forests and vegetation != "none", "zombies": zombies.relative_to(root).as_posix() if zombies else None,
+                "dogs": dogs.relative_to(root).as_posix() if dogs else None,
                 "navigation": navigation, "scenarios": scenarios, "launch": launch,
                 "files": {p.relative_to(root).as_posix(): digest for p, digest in sorted(assets.files.items())}}
     manifest["files"].update({name: hashlib.sha256(data).hexdigest() for name, data in assets.generated.items()})
@@ -302,6 +308,9 @@ def main(argv=None):
     parser.add_argument("-o", "--output", type=Path, default=ROOT / "build/godollo-assets.zip")
     parser.add_argument("--zombies", type=Path, default=ROOT / "assets/zombies/models")
     parser.add_argument("--no-zombies", action="store_true", help="For sessions using --zombie-count 0")
+    parser.add_argument("--dogs", type=Path, default=ROOT / "assets/undead_dog/models",
+                        help="Directory with the three prepared dog variants and lods.json")
+    parser.add_argument("--no-dogs", action="store_true", help="Omit licensed dog models and disable dogs in the launchers")
     parser.add_argument("--vegetation", choices=VEGETATION_PRESETS, default="osm-tuned2",
                         help="Preset to package; default: OSM forests, trees/rows and tuned2")
     parser.add_argument("--no-trees", action="store_true", help="Omit detected trees and runtime forests")
@@ -309,6 +318,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         count, size = package_assets(ROOT, args.map, args.output, None if args.no_zombies else args.zombies.resolve(),
+                                    dogs=None if args.no_dogs else args.dogs,
                                     trees=not args.no_trees, forests=not args.no_forests, vegetation=args.vegetation)
     except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile) as error:
         print(f"Asset packaging failed: {error}", file=sys.stderr)

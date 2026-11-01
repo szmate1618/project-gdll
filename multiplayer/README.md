@@ -337,7 +337,7 @@ library only. On Linux:
 The same script works on Windows with `py tools/package_multiplayer_assets.py`.
 It writes `build/godollo-assets.zip`, shared by Windows and Linux. It includes
 the map (with embedded textures/geographic metadata), adjacent tree/pole/guardrail
-and car-placement layers, referenced tree models/forest textures, zombie and
+and car-placement layers, referenced tree models/forest textures, zombie, dog and
 vehicle models with their current LoDs, configuration and attribution. Published
 `.navmesh`, `.navigation.json` and `.navmesh.json` companions are included and
 checked against each other and the map. Scenario TOMLs are included for Host Game
@@ -348,9 +348,9 @@ shaders, weapon models and audio; the content ZIP does not duplicate those build
 outputs. Raw generator datasets, preparation caches, old maps, previews and
 backups are excluded. No local application build is required to make this ZIP.
 
-Use `--map PATH`, `--zombies PATH`, or `--output PATH.zip` for other prepared
-inputs/output. Input assets must stay within this checkout; runtime references must be
-relative and use `/`, and model assets must be self-contained GLBs. The script
+Use `--map PATH`, `--zombies PATH`, `--dogs PATH`, or `--output PATH.zip` for other
+prepared inputs/output. Input assets must stay within this checkout; runtime
+references must be relative and use `/`, and model assets must be self-contained GLBs. The script
 preserves all file bytes so existing fingerprints remain valid. Missing files,
 stale provenance, and files changed during export prevent publication; a failed
 export preserves the previous ZIP. No downloads or map generation occur.
@@ -370,8 +370,16 @@ and a runtime/preparation software inventory accompany both archives under
 `credits/`; JSON/stb notices are also present in the client `licenses/` folder.
 The preparation programs themselves are not distributed in the town asset ZIP.
 
+The dog pack includes exactly the three approved runtime appearances and their
+current three LoDs, with embedded textures and animations. Preparation archives,
+editing scenes, comparison models and old LoDs are excluded. Both application
+packages and content packs carry `credits/assets/UNDEAD_DOGS.txt`, crediting
+Lowbit Lab's model and Petrov_the_blind's CC0 running animation. The model's
+terms permit game/app use and prohibit raw asset redistribution; retain these
+terms with game content and do not share it as a reusable model collection.
+
 The notices cover OpenStreetMap, Sentinel-2, Copernicus DEM GLO-30, CC0 Durango
-weapons, and the conditional zombie/audio assets. They do not clear other
+weapons, and the conditional zombie/dog/audio assets. They do not clear other
 licensing obligations. Before public distribution, present the OSM credit
 visibly in the game or its credits, and address any ODbL adapted-database
 share-alike/access obligations. The recorded zombie Standard license restricts
@@ -382,9 +390,9 @@ and forest placement sources still need a separate license review before public
 distribution; that review is deferred while those assets are being replaced.
 
 For sessions with disabled layers, use `--no-trees` (also omits forests),
-`--no-forests`, and/or `--no-zombies`. The latter corresponds to the game's
-`--zombie-count 0`. `asset-pack.json` inside the archive records the selected
-paths/options and SHA-256 of every included file. Spawn, zombie count/radius,
+`--no-forests`, `--no-zombies`, and/or `--no-dogs`. The character options omit
+their models and disable their populations in the launchers. `asset-pack.json`
+inside the archive records the selected paths/options and SHA-256 of every included file. Spawn, zombie count/radius,
 and vegetation options still need to match between server and clients.
 
 To install the full town after pushing your source changes:
@@ -431,8 +439,8 @@ push and manual workflow runs qualify; pull-request builds are excluded. Both
 clients always come from the same run and source commit.
 
 By default, the script creates a fresh asset ZIP in temporary staging using the
-existing asset packager. It accepts the same `--map`, `--zombies`, `--vegetation`,
-`--no-trees`, `--no-forests`, and `--no-zombies` preparation options. It uses
+existing asset packager. It accepts the same `--map`, `--zombies`, `--dogs`, `--vegetation`,
+`--no-trees`, `--no-forests`, `--no-zombies`, and `--no-dogs` preparation options. It uses
 prepared local data and does not regenerate the map or download scene assets.
 To reuse an existing asset ZIP and avoid recompressing it first:
 

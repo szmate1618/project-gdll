@@ -8,11 +8,31 @@ Rigged undead dog by **Lowbit Lab**, downloaded from the free sample on
 The same download is offered on the
 [Free PSX Horror NPCs Sampler](https://lowbitlab.itch.io/free-psx-horror-npcs-sampler).
 
-The creator permits modification and royalty-free use in commercial and
-noncommercial games and apps. Resale or redistribution of raw models and
-textures is prohibited. Keep the archive, extracted sources, and prepared models
-local; `source/` and `models/` are ignored by Git. The downloaded archive's
+The creator permits royalty-free use in commercial and noncommercial games
+and apps. Resale or redistribution of raw assets is prohibited. The archive,
+extracted sources, and prepared models are not committed to Git; `source/` and
+`models/` are ignored. The downloaded archive's
 `PSX_Horror_NPCs_and_Monsters/README.txt` contains the creator's license notes.
+The distributed notice credits both the model and the CC0 running-animation
+donor: [UNDEAD_DOGS.txt](../../credits/assets/UNDEAD_DOGS.txt).
+
+## Game content packaging
+
+`tools/package_multiplayer_assets.py` and `tools/package_github_clients.py`
+include the three prepared runtime appearances and exactly their current three
+LoDs by default. Build those models and LoDs locally before packaging. Missing
+files or stale source/LoD fingerprints stop publication and preserve the previous
+ZIP. `--dogs PATH` selects another prepared model directory inside this checkout;
+`--no-dogs` omits dog models and disables them in the generated launchers.
+
+Packs retain the embedded textures, rig and all four runtime clips, plus this
+guide, `sources.json`, `animations/run-source.json` and the distributed notice.
+Source ZIPs, extracted originals, Blender files, separate texture atlases,
+comparison models, previews and superseded LoDs are excluded. These are game
+content packs, not permission to redistribute a standalone asset collection.
+Choose the dog count in Host Game or pass `--dog-count N` at launch.
+
+## Local preparation
 
 `palette-reference.png` is the user-supplied reference. Preparation samples the
 53 surface swatches at the top, excluding the labeled emissive strip and black

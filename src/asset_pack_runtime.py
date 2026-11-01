@@ -38,12 +38,13 @@ def collect_navigation(assets, map_path):
     return mesh.relative_to(assets.root).as_posix()
 
 
-def pack_instructions(map_name, zombies, vegetation, trees, forests):
+def pack_instructions(map_name, zombies, vegetation, trees, forests, *, dogs=None):
     arguments = [map_name, "--vegetation", vegetation]
     if not trees:
         arguments.append("--no-trees")
     elif not forests:
         arguments.append("--no-forests")
+    arguments += ["--dogs", dogs] if dogs else ["--no-dogs"]
     arguments += ["--zombies", zombies] if zombies else ["--zombie-count", "0"]
     # Arguments are embedded in a Windows batch file as quoted literals.
     # Percent expansion is escaped; delayed expansion is explicitly disabled.
@@ -67,7 +68,9 @@ def pack_instructions(map_name, zombies, vegetation, trees, forests):
 
 Map: {map_name}
 Vegetation: {vegetation if trees else "none"}
-The launchers apply this pack's map, vegetation, forest and zombie options.
+Dogs: {dogs or "disabled (models omitted)"}
+The launchers apply this pack's map, vegetation, forest, zombie and dog options.
+When dog models are included, choose a dog count in Host Game or pass --dog-count N.
 Extra arguments are accepted, e.g. --single-player, --host or --connect IP:PORT.
 All peers must use matching game builds and content. Joining follows the host's world settings.
 
@@ -82,7 +85,8 @@ The application artifact supplies executables, libraries, shaders, weapon models
 audio and run-client.sh. Those build outputs are not duplicated in this ZIP.
 No map generation or asset downloads occur during packaging or startup.
 
-Keep credits/assets and credits/software with the package.
+Keep credits/assets and credits/software with the package. Dog model and motion
+credits and the original model's use restrictions are in credits/assets/UNDEAD_DOGS.txt.
 '''
     launch = {"windows": "play-town.cmd", "linux": "play-town.sh", "arguments": arguments}
     return launch, {"play-town.cmd": windows.replace("\n", "\r\n").encode("utf-8"),

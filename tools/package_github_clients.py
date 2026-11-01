@@ -34,10 +34,13 @@ def main(argv=None):
     parser.add_argument("--zombies", type=Path, default=None)
     parser.add_argument("--vegetation", choices=VEGETATION_PRESETS, default=None)
     parser.add_argument("--no-zombies", action="store_true")
+    parser.add_argument("--dogs", type=Path, default=None)
+    parser.add_argument("--no-dogs", action="store_true")
     parser.add_argument("--no-trees", action="store_true")
     parser.add_argument("--no-forests", action="store_true")
     args = parser.parse_args(argv)
-    if args.assets and (args.zombies or args.vegetation or args.no_zombies or args.no_trees or args.no_forests):
+    if args.assets and (args.zombies or args.dogs or args.vegetation or args.no_zombies or args.no_dogs
+                        or args.no_trees or args.no_forests):
         parser.error("--assets already fixes the map and layer settings; omit preparation options")
     try:
         github = GitHubClientBuilds(args.repo or repository_from_origin(ROOT),
@@ -62,6 +65,7 @@ def main(argv=None):
                 asset_pack = scratch / "assets.zip"
                 package_assets(ROOT, args.map or ROOT / "output/godollo.glb", asset_pack,
                                None if args.no_zombies else args.zombies or ROOT / "assets/zombies/models",
+                               dogs=None if args.no_dogs else args.dogs or ROOT / "assets/undead_dog/models",
                                vegetation=args.vegetation or "osm-tuned2",
                                trees=not args.no_trees, forests=not args.no_forests)
             staged = []

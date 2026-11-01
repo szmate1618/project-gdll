@@ -90,7 +90,10 @@ class ClientBundleTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.configs = {"storage/equipment.toml": b"tactical vest\n", "inventory.toml": b"starting items\n"}
         self.assets = {**self.configs, "output/town.glb": b"town geometry", "play-town.sh": b"#!/bin/sh\n",
-                       "play-town.cmd": b"@echo off\r\n", "credits/assets/MAP.txt": b"Map attribution"}
+                       "play-town.cmd": b"@echo off\r\n", "credits/assets/MAP.txt": b"Map attribution",
+                       "credits/assets/UNDEAD_DOGS.txt": (Path(__file__).resolve().parents[1] /
+                                                          "credits/assets/UNDEAD_DOGS.txt").read_bytes(),
+                       "assets/undead_dog/models/undead_dog_variant_1.glb": b"prepared dog model"}
         self.asset_pack = self.root / "assets.zip"
         self.write_assets()
 
@@ -271,8 +274,9 @@ class ClientBundleTests(unittest.TestCase):
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
         run = {"id": 42, "head_sha": "a" * 40, "html_url": "https://github.com/owner/game/actions/runs/42"}
-        for dirty in (False, True):
-            with self.subTest(dirty=dirty):
+        for dirty, dog_options in ((False, []), (False, ["--no-dogs"]),
+                                   (False, ["--dogs", "assets/custom/models"]), (True, [])):
+            with self.subTest(dirty=dirty, dog_options=dog_options):
                 if dirty:
                     (self.root / "inventory.toml").write_bytes(b"unpublished inventory")
                 with patch("tools.package_github_clients.ROOT", self.root), \
@@ -284,14 +288,26 @@ class ClientBundleTests(unittest.TestCase):
                     github.latest.return_value = (run, {"windows": {"id": 7, "name": "windows"}})
                     github.download.side_effect = lambda _, destination: shutil.copyfile(artifact, destination)
                     prepare.side_effect = lambda root, map_path, destination, zombies, **options: shutil.copyfile(self.asset_pack, destination)
-                    result = main(["--repo", "owner/game", "--platform", "windows", "--no-zombies", "--no-trees", "--vegetation", "none"])
+                    result = main(["--repo", "owner/game", "--platform", "windows", "--no-zombies", "--no-trees",
+                                   "--vegetation", "none", *dog_options])
                     self.assertEqual(result, 1 if dirty else 0)
                     if dirty:
                         prepare.assert_not_called()
                     else:
                         self.assertEqual(prepare.call_args.args[1], self.root / "output/godollo.glb")
                         self.assertIsNone(prepare.call_args.args[3])
-                        self.assertEqual(prepare.call_args.kwargs, {"vegetation": "none", "trees": False, "forests": True})
+                        expected_dogs = (None if dog_options == ["--no-dogs"] else
+                                         Path("assets/custom/models") if dog_options else
+                                         self.root / "assets/undead_dog/models")
+                        self.assertEqual(prepare.call_args.kwargs, {"vegetation": "none", "trees": False, "forests": True,
+                                                                  "dogs": expected_dogs})
+
+    def test_prebuilt_asset_pack_rejects_dog_preparation_options(self):
+        for options in (["--no-dogs"], ["--dogs", "custom/models"]):
+            with self.subTest(options=options), contextlib.redirect_stderr(io.StringIO()), \
+                 self.assertRaises(SystemExit) as error:
+                main(["--assets", str(self.asset_pack), *options])
+            self.assertEqual(error.exception.code, 2)
 
 
 if __name__ == "__main__":

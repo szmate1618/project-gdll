@@ -107,13 +107,16 @@ town GLB and tree placement manifests.
 
 [undead_dog/](undead_dog/README.md) contains the preparation instructions for
 Lowbit Lab's free rigged undead dog with the supplied surface palette. The
-download and recolored models remain local; idle, walk and attack clips survive
+download and recolored models remain outside Git; idle, walk and attack clips survive
 preparation unchanged. Three named appearances retain the approved original,
 add a lighter coat and add a near-black coat, all with matching off-white ribs.
 The three appearances share tongues flattened to half thickness with their
 top surfaces fixed, preserving the original rig and animation data.
 The shared [undead palette](palettes/README.md) preserves the supplied reference
 and reusable surface/emissive RGB swatches.
+Game content packs include the three appearances and their current LoDs;
+`--no-dogs` omits them. [Distributed credits](../credits/assets/UNDEAD_DOGS.txt)
+cover Lowbit Lab's model and Petrov_the_blind's retargeted CC0 running animation.
 
 ## Firearm models
 

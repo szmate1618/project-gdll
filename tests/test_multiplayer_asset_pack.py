@@ -1,5 +1,7 @@
 """Portable asset exports preserve fingerprints and exclude preparation inputs."""
 import hashlib
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -11,7 +13,7 @@ import unittest
 from unittest.mock import patch
 import zipfile
 
-from tools.package_multiplayer_assets import package_assets
+from tools.package_multiplayer_assets import package_assets, main
 from src.asset_credits import ASSET_CREDIT_FILES, SOFTWARE_CREDIT_FILES
 from src.asset_pack_runtime import pack_instructions
 
@@ -89,6 +91,115 @@ class MultiplayerAssetPackTests(unittest.TestCase):
 
     def package(self, **kwargs):
         return package_assets(self.root, self.map, self.output, self.zombies, **kwargs)
+
+    def prepare_dogs(self, directory="assets/undead_dog/models"):
+        models = {}
+        for variant in range(1, 4):
+            name = f"undead_dog_variant_{variant}.glb"
+            model = self.write(f"{directory}/{name}", glb({"extras": {"variant": variant}}))
+            levels = []
+            for level in range(1, 4):
+                path = f"lod{level}/{variant}-current.glb"
+                lod = self.write(f"{directory}/{path}", glb({"extras": {"level": level}}))
+                levels.append({"path": path, "sha256": self.digest(lod)})
+            models[name] = {"source_sha256": self.digest(model), "levels": levels}
+        self.json(f"{directory}/lods.json", {"version": 1, "models": models})
+        repository = Path(__file__).resolve().parents[1]
+        for name in ("README.md", "sources.json", "animations/run-source.json"):
+            self.write(f"assets/undead_dog/{name}", (repository / "assets/undead_dog" / name).read_bytes())
+        for name in ("undead_dog.glb", "undead_dog_run_edit.blend", "dog_atlas.png", "lod1/old.glb"):
+            self.write(f"{directory}/{name}", b"excluded preparation asset")
+        self.write("assets/undead_dog/source/original.zip", b"excluded source archive")
+        return self.root / directory
+
+    def test_dogs_include_only_three_variants_current_lods_and_provenance(self):
+        dogs = self.prepare_dogs("assets/custom dogs/models")
+        self.package(dogs=dogs)
+        with zipfile.ZipFile(self.output) as archive:
+            manifest = json.loads(archive.read("asset-pack.json"))
+            directory = dogs.relative_to(self.root).as_posix()
+            self.assertEqual(manifest["dogs"], directory)
+            arguments = manifest["launch"]["arguments"]
+            self.assertEqual(arguments[arguments.index("--dogs") + 1], directory)
+            self.assertNotIn("--no-dogs", arguments)
+            self.assertIn(b'"assets/custom dogs/models"', archive.read("play-town.cmd"))
+            self.assertIn(b"'assets/custom dogs/models'", archive.read("play-town.sh"))
+            included = {name for name in archive.namelist() if name.startswith(directory + "/")}
+            self.assertEqual(included, {f"{directory}/lods.json"} |
+                             {f"{directory}/undead_dog_variant_{v}.glb" for v in range(1, 4)} |
+                             {f"{directory}/lod{l}/{v}-current.glb" for v in range(1, 4) for l in range(1, 4)})
+            self.assertFalse(any("/source/" in name for name in archive.namelist()))
+            for name in included:
+                self.assertEqual(archive.read(name), (self.root / name).read_bytes())
+                self.assertEqual(manifest["files"][name], self.digest(self.root / name))
+            notice = archive.read("credits/assets/UNDEAD_DOGS.txt").decode()
+            self.assertIn("Lowbit Lab", notice)
+            self.assertIn("Petrov_the_blind", notice)
+            self.assertIn("No reselling or redistribution of the raw assets.", notice)
+            for name in ("README.md", "sources.json", "animations/run-source.json"):
+                self.assertIn(f"assets/undead_dog/{name}", archive.namelist())
+
+    def test_missing_or_stale_dog_publication_preserves_previous_pack(self):
+        dogs = self.prepare_dogs()
+        self.package(dogs=dogs)
+        previous = self.output.read_bytes()
+        for path in (dogs / "undead_dog_variant_2.glb", dogs / "lod1/2-current.glb",
+                     dogs / "lods.json", self.root / "credits/assets/UNDEAD_DOGS.txt"):
+            original = path.read_bytes()
+            path.unlink()
+            with self.subTest(missing=path), self.assertRaises(ValueError):
+                self.package(dogs=dogs)
+            path.write_bytes(original)
+            self.assertEqual(self.output.read_bytes(), previous)
+            if path.suffix == ".glb":
+                path.write_bytes(glb({"extras": {"stale": True}}))
+                with self.subTest(stale=path), self.assertRaisesRegex(ValueError, "Stale fingerprint"):
+                    self.package(dogs=dogs)
+                path.write_bytes(original)
+                self.assertEqual(self.output.read_bytes(), previous)
+
+    def test_dog_manifest_rejects_wrong_variants_counts_and_unsafe_lods(self):
+        dogs = self.prepare_dogs()
+        path = dogs / "lods.json"
+        original = path.read_text()
+        for change in ("version", "variant", "count", "escape", "absolute", "external"):
+            document = json.loads(original)
+            entry = document["models"]["undead_dog_variant_1.glb"]
+            if change == "version":
+                document["version"] = 2
+            elif change == "variant":
+                del document["models"]["undead_dog_variant_3.glb"]
+            elif change == "count":
+                entry["levels"].pop()
+            elif change == "external":
+                lod = self.write("assets/undead_dog/models/lod1/external.glb", glb({"images": [{"uri": "atlas.png"}]}))
+                entry["levels"][0] = {"path": "lod1/external.glb", "sha256": self.digest(lod)}
+            else:
+                entry["levels"][0]["path"] = "../outside.glb" if change == "escape" else "C:/dog.glb"
+            path.write_text(json.dumps(document))
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                self.package(dogs=dogs)
+
+    def test_omitted_dogs_need_no_models_and_are_disabled_in_launchers(self):
+        self.package(dogs=None)
+        with zipfile.ZipFile(self.output) as archive:
+            manifest = json.loads(archive.read("asset-pack.json"))
+            self.assertIsNone(manifest["dogs"])
+            self.assertIn("--no-dogs", manifest["launch"]["arguments"])
+            self.assertFalse(any(name.startswith("assets/undead_dog/") for name in archive.namelist()))
+
+    def test_cli_defaults_custom_directory_and_no_dogs(self):
+        self.prepare_dogs()
+        custom = self.prepare_dogs("assets/custom dogs/models")
+        for options, expected in (([], "assets/undead_dog/models"),
+                                  (["--dogs", str(custom)], "assets/custom dogs/models"),
+                                  (["--no-dogs"], None)):
+            with self.subTest(options=options), patch("tools.package_multiplayer_assets.ROOT", self.root), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                result = main(["--map", str(self.map), "--output", str(self.output), *options])
+                self.assertEqual(result, 0)
+                with zipfile.ZipFile(self.output) as archive:
+                    self.assertEqual(json.loads(archive.read("asset-pack.json"))["dogs"], expected)
 
     def test_joint_hit_resources_and_fingerprints(self):
         mesh = self.write("assets/zombies/models/severed/elbow.glb", glb({"extras": {"severed": True}}))
