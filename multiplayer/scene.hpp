@@ -6,6 +6,7 @@
 #include "collision_world.hpp"
 #include "door_layer.hpp"
 #include "floorplan_layer.hpp"
+#include "interior_zombies.hpp"
 #include "forest_layer.hpp"
 #include "physics_world.hpp"
 #include "tree_layer.hpp"
@@ -51,11 +52,11 @@ struct Options {
     std::filesystem::path screenshot;
 };
 Options parseOptions(int argc, char** argv, bool server);
-// Count is the effective population after checking the map extent.
+// Count includes dormant slots, after checking the map extent.
 std::string sceneFingerprint(const Options& options, std::size_t count, glm::vec3 spawnEye,
                              const std::vector<std::filesystem::path>& content);
 using ZombiePopulationLoader = std::function<viewer::ZombieLayer(
-    const std::filesystem::path&, const viewer::CollisionWorld&, const viewer::Model&)>;
+    const std::filesystem::path&, const viewer::CollisionWorld&, const viewer::Model&, std::size_t dormant)>;
 enum class SceneRole { Authority, Replica };
 // Clients load shared assets and hidden stable-ID slots, without generating
 // authoritative placements, spatial indexes or navigation routes.
@@ -79,6 +80,7 @@ struct Scene {
     viewer::UndergrowthIndex undergrowth;
     std::unique_ptr<viewer::CollisionWorld> collision;
     std::unique_ptr<viewer::FloorplanLayer> floorplans;
+    std::unique_ptr<viewer::InteriorZombies> interiorZombies; // Authority only; shared reserved tail.
     viewer::ZombieLayer zombies;
     glm::vec3 spawnEye{0};
     glm::vec2 spawnOrientation{-90, 0};

@@ -261,13 +261,14 @@ ZombieScenarioPopulation generateZombieScenario(const CollisionWorld& world, con
 ZombieLayer loadZombieScenario(const std::filesystem::path& source,
                               const CollisionWorld& world, const Model& scene,
                               const std::filesystem::path& navmeshPath,
-                              const ZombieScenarioConfig& config) {
+                              const ZombieScenarioConfig& config, std::size_t dormant) {
     std::unique_ptr<ZombieNavigation> navigation;
-    if (config.needsNavigation()) navigation = std::make_unique<ZombieNavigation>(navmeshPath, config.count());
-    const auto population = generateZombieScenario(world, scene, navigation ? &navigation->mesh() : nullptr, config);
-    auto layer = loadZombieLayer(source, population.placements);
+    if (config.needsNavigation()) navigation = std::make_unique<ZombieNavigation>(navmeshPath, config.count() + dormant);
+    auto population = generateZombieScenario(world, scene, navigation ? &navigation->mesh() : nullptr, config);
+    auto layer = loadZombieLayer(source, population.placements, false, dormant);
     if (navigation) {
         layer.enableNavigation(std::move(navigation));
+        population.destinations.resize(layer.instances.size());
         layer.setScenarioRoutes(population.destinations);
     }
     return layer;

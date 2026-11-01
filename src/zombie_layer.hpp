@@ -62,7 +62,7 @@ struct ZombieInstance {
     // timer changes physical movement or evaluates a per-character skeleton.
     float blockedAnimationSeconds = 0, animationRestartSeconds = 0;
     bool ragdoll = false;
-    bool removed = false; // Tombstone: source IDs remain stable after corpse removal.
+    bool removed = false; // Hidden dormant/sleeping slot or corpse tombstone; IDs stay stable.
     std::size_t ragdollHandle = 0;
     bool physicsRagdoll = false;
     bool ragdollSleeping = false; // Replicated stop marker, including sleep-only transitions.
@@ -198,6 +198,10 @@ struct ZombieLayer {
     // initial fixture/bulk edits to ragdoll/removed flags. Ordinary locomotion
     // and the corpse owning APIs maintain these indices incrementally.
     void rebuildSpatialIndex();
+    // Reserved interior slots are loaded hidden alongside the ordinary crowd.
+    // Activation and sleeping preserve IDs, assets, injuries and scenario routes.
+    void activateInteriorZombie(std::size_t id, const glm::mat4& placement);
+    void setInteriorSleeping(std::size_t id, bool sleeping);
     // Perception/state update, followed by scene/crowd-constrained locomotion.
     // The app advances SimulationClock before calling this once per step.
     void updateBehavior(float seconds, const ZombiePlayer& player, const CollisionWorld& world,
@@ -320,10 +324,10 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
                            const CollisionWorld& world, const Model& scene,
                            glm::vec2 center, std::size_t count = 1000,
                            float radius = 100.0f,
-                           const std::vector<glm::vec2>& boundary = {});
+                           const std::vector<glm::vec2>& boundary = {}, std::size_t dormant = 0);
 
 // Explicit safe placements, used by scenario generation before asset loading.
 ZombieLayer loadZombieLayer(const std::filesystem::path& source,
-                           const std::vector<glm::mat4>& placements, bool replica = false);
+                           const std::vector<glm::mat4>& placements, bool replica = false, std::size_t dormant = 0);
 
 } // namespace viewer

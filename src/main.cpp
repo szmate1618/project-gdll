@@ -18,6 +18,7 @@
 #include <random>
 #include "interior_objects.hpp"
 #include "floorplan_layer.hpp"
+#include "interior_zombies.hpp"
 #include "reticle_overlay.hpp"
 #include "gui/hud.hpp"
 #include "inventory/inventory_config.hpp"
@@ -1350,6 +1351,8 @@ int run(const Options& options) {
                   << " saved moves; " << doodadSave << '\n';
     }
     std::optional<viewer::ZombieLayer> zombies;
+    std::unique_ptr<viewer::InteriorZombies> interiorZombies;
+    const auto interiorReserve = doors.count() ? viewer::interiorZombieReserve : 0;
     std::optional<viewer::ZombieScenarioConfig::Player> scenarioPlayer;
     auto navmesh = options.model;
     navmesh.replace_extension(".navmesh");
@@ -1359,7 +1362,8 @@ int run(const Options& options) {
         const auto scenario = viewer::loadZombieScenarioConfig(options.scenario);
         scenarioPlayer = scenario.player;
         const auto path = options.zombies.empty() ? std::filesystem::path(VIEWER_ZOMBIE_ASSETS) : options.zombies;
-        zombies = viewer::loadZombieScenario(path, collision, model, navmesh, scenario);
+        zombies = viewer::loadZombieScenario(path, collision, model, navmesh, scenario, interiorReserve);
+        if (interiorReserve) interiorZombies = std::make_unique<viewer::InteriorZombies>(scenario.count(), interiorReserve);
         if (options.fullScenarioMovement) zombies->setDistantScenarioTravelEnabled(false);
         std::cout << "Scenario: " << options.scenario << "; " << zombies->instances.size()
                   << " zombies; " << (scenario.needsNavigation() ? "travel routes preplanned" : "initially idle") << '\n';
@@ -1372,13 +1376,15 @@ int run(const Options& options) {
                 viewer::zombieParkBoundary(model, VIEWER_ZOMBIE_PARK);
             const auto count = !boundary.empty() && !options.explicitZombieCount ? 300 : options.zombieCount;
             zombies = viewer::loadZombieLayer(path, collision, model, center,
-                                              static_cast<std::size_t>(count), options.zombieRadius, boundary);
+                                              static_cast<std::size_t>(count), options.zombieRadius, boundary, interiorReserve);
+            if (interiorReserve) interiorZombies = std::make_unique<viewer::InteriorZombies>(count, interiorReserve);
             if (!boundary.empty()) std::cout << "Zombie placement: evenly spread across Grassalkovich Royal Palace gardens\n";
             std::cout << "Zombies: " << zombies->instances.size() << " instances, " << zombies->assets.size()
                       << " shared animated assets; looping idle with individual phase offsets\n";
         } else std::cerr << "Zombie assets are missing at " << path << "; see assets/zombies/README.md for download instructions.\n";
     }
     if (zombies) {
+        if (interiorZombies) std::cout << "Interior zombies: " << interiorZombies->reserveCount() << " shared dormant slots\n";
         zombies->attachPhysics(physics);
         zombies->setRagdollCleanupHeight(model.boundsMin.y - 10.f);
         zombies->setPerceptionStaggering(options.zombiePerceptionStaggering);
@@ -1629,6 +1635,8 @@ int run(const Options& options) {
         const double simulationStart = glfwGetTime();
         viewer::frame_stage_profile::Capture frameStageCapture(options.profile ? &frameStages : nullptr);
         floorplans.update({app.rig.camera().position()});
+        if (interiorZombies)
+            interiorZombies->update(floorplans, *zombies, collision, {app.rig.player().feet()});
         if (doodads) doodads->update(app.rig.camera().position(),physicsScene,doors);
         const auto previousCameraPosition = playerPresentation.eye(physics->interpolationAlpha());
         bool simulated = false;

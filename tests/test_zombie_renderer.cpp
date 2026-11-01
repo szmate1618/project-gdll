@@ -138,6 +138,37 @@ void checkMarkers(const viewer::Camera& camera, const viewer::ZombieLayer& layer
     }
 }
 
+void renderDormantSlots(const std::filesystem::path& screenshot) {
+    viewer::ZombieLayer layer; layer.assets.push_back(makeAsset(1, 2));
+    for (std::size_t id = 0; id < population; ++id) {
+        viewer::ZombieInstance actor;
+        actor.transform = actor.restTransform = actor.restRoot = glm::translate(glm::mat4(1), instancePosition(id));
+        actor.removed = id < population / 2;
+        layer.instances.push_back(actor);
+    }
+    layer.rebuildSpatialIndex();
+    viewer::Renderer renderer(viewer::Model{}, VIEWER_SHADER_DIR, nullptr, &layer);
+    layer.releaseAnimationVertices(); // New activations must work after CPU frame data is freed.
+    renderer.resize(width, height); renderer.setHaze(false); renderer.setGroundFog(false);
+    renderer.setZombieDistanceDetail(false);
+    viewer::Camera camera; camera.setPosition({0, .5f, 14}); camera.look(0, 200);
+    renderer.render(camera, 0);
+    if (renderer.zombieVisibleCount() != population / 2) throw std::runtime_error("Dormant slots must be invisible");
+    for (std::size_t id = 0; id < population / 2; ++id)
+        layer.activateInteriorZombie(id, glm::translate(glm::mat4(1), instancePosition(id)));
+    renderer.updateZombies(layer); renderer.render(camera, 0);
+    if (renderer.zombieVisibleCount() != population) throw std::runtime_error("Activated reserved actors must become visible");
+    checkMarkers(camera, layer, 1, 0, 0);
+    layer.setInteriorSleeping(0, true);
+    renderer.updateZombies(layer); renderer.render(camera, 0);
+    if (renderer.zombieVisibleCount() != population - 1) throw std::runtime_error("Evicted interior actors must disappear");
+    layer.setInteriorSleeping(0, false);
+    renderer.updateZombies(layer); renderer.render(camera, 0);
+    checkMarkers(camera, layer, 1, 0, 0);
+    viewer::Renderer::checkErrors("reserved interior zombie activation");
+    if (!screenshot.empty()) renderer.writeScreenshot(screenshot);
+}
+
 void renderCrowd(std::size_t primitiveCount, const std::filesystem::path& screenshot) {
     viewer::ZombieLayer layer;
     for (std::size_t bones : {2u, 3u, 4u}) layer.assets.push_back(makeAsset(primitiveCount, bones));
@@ -1532,6 +1563,7 @@ int main(int argc, char** argv) {
     int result = 0;
     try {
         const std::string mode = argc > 1 ? argv[1] : "";
+        renderDormantSlots(mode == "--interiors" && argc > 2 ? argv[2] : "");
         renderDistanceLods();
         renderOutlyingLodBounds();
         renderHalfRoundedAnimationBounds();
@@ -1559,7 +1591,7 @@ int main(int argc, char** argv) {
         } else if (mode == "--assets") {
             if (argc < 3) throw std::runtime_error("--assets requires a model directory");
             renderAuthoredAssets(argv[2], argc > 3 ? argv[3] : "");
-        } else {
+        } else if (mode != "--interiors") {
             const std::filesystem::path screenshot = argc > 2 ? argv[2] : "";
             if (mode != "--multiple-primitives") renderCrowd(1, mode == "--single-primitive" ? screenshot : "");
             if (mode != "--single-primitive") renderCrowd(2, screenshot);

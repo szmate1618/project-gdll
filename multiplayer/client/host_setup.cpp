@@ -10,7 +10,7 @@ namespace multiplayer {
 namespace {
 viewer::ZombieScenarioConfig validateScenario(const std::filesystem::path& path, const std::filesystem::path& map) {
     auto scenario = viewer::loadZombieScenarioConfig(path);
-    if (scenario.count() > maxZombies) throw std::runtime_error("Scenario exceeds the multiplayer population limit.");
+    if (scenario.count() > maxOutdoorZombies) throw std::runtime_error("Scenario exceeds the multiplayer population limit.");
     if (scenario.needsNavigation()) {
         auto navigation = map; navigation.replace_extension(".navmesh");
         if (!std::filesystem::is_regular_file(navigation))

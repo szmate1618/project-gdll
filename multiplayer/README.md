@@ -546,7 +546,7 @@ and data URIs are supported. Zombie assets may have at most 128 skeleton nodes
 (including non-joint scene nodes); incompatible rigs fail before hosting.
 Weapon definitions and starting inventory are loaded once per scene and copied
 for each joining player, so changing files cannot change a running session.
-The current wire protocol is version 36; rebuild both client and server together.
+The current wire protocol is version 37; rebuild both client and server together.
 Runtime [family-house floorplans](../docs/FLOORPLANS.md) are generated separately
 by each peer. Geometry is neither saved nor replicated; stable generated door
 IDs use the existing authoritative door-angle snapshots.
@@ -565,8 +565,12 @@ Scene options:
 - `--spawn X Z`: local east/south coordinates in meters; default is map center.
 - `--zombies PATH --zombie-count N --zombie-radius METERS`: default is the existing
   zombie pack, 100 zombies within 100 m. Small scenes under 100 m in either
-  horizontal dimension have no zombies. Maximum authoritative population is
-  100,000; each client synchronizes at most 10,000. Large populations still need
+  horizontal dimension have no ordinary zombies unless a scenario supplies them.
+  The maximum requested outdoor/scenario population is 100,000. Sessions with
+  zombies and map doors also allocate a shared 10,000-slot
+  [interior encounter pool](../docs/FLOORPLANS.md#interior-zombie-encounters),
+  for up to 110,000 stable actor IDs; clients load that negotiated total once.
+  Each client synchronizes at most 10,000 visible actors. Large populations still need
   enough safe placement ground and a suitable radius or idle scenario.
 - `--no-trees`: omit detected trees and runtime forests on both peers.
 - `--no-forests`: omit runtime forest generation on both peers.

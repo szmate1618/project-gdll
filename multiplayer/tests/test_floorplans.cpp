@@ -1,6 +1,8 @@
 #include "scene.hpp"
 #include "client/snapshots.hpp"
 #include "server/world.hpp"
+#include "zombie_replication_fixture.hpp"
+#include "session_settings.hpp"
 #include "../../tests/house_fixture.hpp"
 
 #include <iostream>
@@ -8,15 +10,65 @@
 
 namespace {
 void require(bool condition, const char* message) { if (!condition) throw std::runtime_error(message); }
-void house(multiplayer::Scene& scene) {
+void house(multiplayer::Scene& scene, const std::string& name = "building_render_0") {
     scene.floorplans.reset(); scene.collision.reset(); scene.doors.reset();
     scene.model = house_fixture::house();
     for (auto& draw : scene.model.draws) if (draw.name.rfind("building_house", 0) == 0)
-        draw.name.replace(0, 14, "building_render_0");
+        draw.name.replace(0, 14, name);
     scene.doors = std::make_unique<viewer::DoorLayer>(viewer::prepareDoorPanels(scene.model), scene.physics);
     scene.collision = std::make_unique<viewer::CollisionWorld>(scene.model, std::vector<viewer::TrunkCollider>{}, scene.doors.get());
     scene.floorplans = std::make_unique<viewer::FloorplanLayer>(scene.model, *scene.doors, *scene.collision);
     scene.spawnEye = {0, 1.7f, 8};
+}
+void encounters(multiplayer::Scene& server, multiplayer::Scene& client) {
+    std::string name;
+    for (int n = 0; n < 1000; ++n) {
+        name = "building_encounter_" + std::to_string(n);
+        if (viewer::hasInteriorZombieEncounter(name)) break;
+    }
+    house(server, name); house(client, name);
+    constexpr std::size_t outdoor = 1, total = outdoor + viewer::interiorZombieReserve;
+    for (auto* scene : {&server, &client}) {
+        scene->zombies = viewer::ZombieLayer{};
+        scene->zombies.assets.emplace_back(); scene->zombies.instances.resize(total);
+        for (auto& actor : scene->zombies.instances) actor.removed = true;
+    }
+    server.zombies.rebuildSpatialIndex(); server.zombies.setPerceptionEnabled(false);
+    server.interiorZombies = std::make_unique<viewer::InteriorZombies>(outdoor);
+    const auto settings = multiplayer::sessionSettings(multiplayer::Options{}, server);
+    const auto configured = multiplayer::applySessionSettings(multiplayer::Options{}, settings);
+    require(settings.zombieCount == total && configured.replicaZombieCount == total,
+            "Session discovery must advertise ordinary actors plus the shared reserve exactly once");
+    multiplayer::World world(server);
+    const auto player = world.join(); server.doors->setAngle(1, .7f); world.step();
+    require(!server.zombies.instances[outdoor].removed, "Authoritative streaming must activate a reserved encounter actor");
+    multiplayer::Snapshots playback;
+    const auto deliver = [&](double seconds) {
+        auto snapshot = world.snapshot(player);
+        while (const auto setups = world.nextSetups(player)) {
+            playback.pushSetups(client, *setups);
+            world.setupsSent(player, *setups); world.acknowledgeSetups(player, test_replication::acknowledge(*setups));
+        }
+        test_replication::appendSamples(snapshot, world.snapshot(player));
+        require(playback.push(snapshot, seconds), "Interior zombie movement snapshot must be accepted");
+        playback.apply(client, seconds);
+    };
+    deliver(1);
+    require(!client.zombies.instances[outdoor].removed && client.floorplans->residentCount() == 0 &&
+            glm::distance(glm::vec3(client.zombies.instances[outdoor].restRoot[3]),
+                          glm::vec3(server.zombies.instances[outdoor].restRoot[3])) < .02f,
+            "A hidden client reserve must receive an actor without locally generating a floorplan");
+    const auto root = server.zombies.instances[outdoor].restRoot;
+    world.step();
+    server.floorplans->update({});
+    server.interiorZombies->update(*server.floorplans, server.zombies, *server.collision, {});
+    require(server.zombies.instances[outdoor].removed, "Eviction must immediately remove sleepers from authoritative interest");
+    deliver(2);
+    playback.apply(client, 2 + multiplayer::zombieTimeoutSeconds);
+    require(client.zombies.instances[outdoor].removed, "Sleeping interior actors must leave replicated interest");
+    world.step(); deliver(8);
+    require(!client.zombies.instances[outdoor].removed && server.zombies.instances[outdoor].restRoot == root &&
+            client.zombies.instances.size() == total, "Reentry must reuse the same client/server actor slots");
 }
 } // namespace
 int main(int argc, char** argv) {
@@ -59,6 +111,7 @@ int main(int argc, char** argv) {
         require(std::abs(client.doors->angle(door) - angle) < .001f, "Regenerated client panels must recover current authoritative movement");
         world.leave(player); world.step();
         require(server.floorplans->residentCount() == 0, "The server must evict when no player remains nearby");
+        encounters(server, client);
         std::cout << "Independent multiplayer floorplan and stable door playback tests passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

@@ -151,6 +151,8 @@ void World::step() {
     interiorObservers.reserve(players_.size());
     for (const auto& entry : players_) interiorObservers.push_back(entry.second.controller.feet());
     scene_.floorplans->update(interiorObservers);
+    if (scene_.interiorZombies)
+        scene_.interiorZombies->update(*scene_.floorplans, scene_.zombies, *scene_.collision, interiorObservers);
     auto& clock = viewer::SimulationClock::instance();
     clock.advance(tickSeconds);
     const double now = clock.seconds();

@@ -63,7 +63,9 @@ int main(int argc, char** argv) {
                 decoded.birds && !decoded.trees && decoded.vegetation == 4, "Settings round trip lost data or time precision");
         for (std::size_t n = 0; n < bytes.size(); ++n)
             rejects([&] { multiplayer::decode(bytes.data(), n); }, "Truncated settings accepted");
-        for (const auto count : {100001u, UINT32_MAX}) {
+        auto capacity = settings; capacity.zombieCount = 110000;
+        require(!multiplayer::encode(capacity).empty(), "Host discovery must accept outdoor actors plus the full interior reserve");
+        for (const auto count : {110001u, UINT32_MAX}) {
             auto invalid = settings; invalid.zombieCount = count;
             rejects([&] { multiplayer::encode(invalid); }, "Oversized host population accepted");
         }

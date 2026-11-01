@@ -30,6 +30,6 @@ ZombieScenarioPopulation generateZombieScenario(const CollisionWorld& world, con
 ZombieLayer loadZombieScenario(const std::filesystem::path& source,
                               const CollisionWorld& world, const Model& scene,
                               const std::filesystem::path& navmeshPath,
-                              const ZombieScenarioConfig& config);
+                              const ZombieScenarioConfig& config, std::size_t dormant = 0);
 
 } // namespace viewer

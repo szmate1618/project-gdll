@@ -38,6 +38,31 @@ ZombieLayer::~ZombieLayer() = default;
 ZombieLayer::ZombieLayer(ZombieLayer&&) noexcept = default;
 ZombieLayer& ZombieLayer::operator=(ZombieLayer&&) noexcept = default;
 
+void ZombieLayer::activateInteriorZombie(std::size_t id, const glm::mat4& placement) {
+    auto& instance = instances.at(id);
+    if (!instance.removed || instance.ragdoll) throw std::logic_error("Interior slot is not dormant");
+    const auto normalization = glm::inverse(instance.restRoot) * instance.restTransform;
+    instance.restRoot = placement;
+    instance.restTransform = instance.transform = placement * normalization;
+    instance.chaseNormalization = normalization;
+    setInteriorSleeping(id, false);
+}
+void ZombieLayer::setInteriorSleeping(std::size_t id, bool sleeping) {
+    auto& instance = instances.at(id);
+    if (instance.ragdoll || instance.removed == sleeping) return;
+    ensureSpatialIndex();
+    if (sleeping) {
+        stopActiveAttack(id); behaviors.remove(id);
+        instance.attackClip = 0;
+        instance.attackSeconds = 0;
+    }
+    instance.walking = instance.running = false;
+    instance.locomotionVelocity = glm::vec3(0);
+    instance.removed = sleeping;
+    updateSpatialMembership(id);
+    markRenderChanged(id);
+}
+
 void ZombieLayer::releaseAnimationVertices() {
     for (auto& asset : assets) releaseZombieAnimationVertices(asset);
     for (auto& levels : lodAssets)
@@ -600,17 +625,17 @@ bool hasZombieModels(const std::filesystem::path& source) {
 ZombieLayer loadZombieLayer(const std::filesystem::path& source,
                            const CollisionWorld& world, const Model& scene,
                            glm::vec2 center, std::size_t count, float radius,
-                           const std::vector<glm::vec2>& boundary) {
+                           const std::vector<glm::vec2>& boundary, std::size_t dormant) {
     if (count == 0) return {};
     const auto placements = boundary.empty() ? placeZombies(world, scene, center, count, radius) :
         placeZombiesInRegion(world, scene, boundary, count);
-    return loadZombieLayer(source, placements);
+    return loadZombieLayer(source, placements, false, dormant);
 }
 
 ZombieLayer loadZombieLayer(const std::filesystem::path& source,
-                           const std::vector<glm::mat4>& placements, bool replica) {
+                           const std::vector<glm::mat4>& placements, bool replica, std::size_t dormant) {
     ZombieLayer result;
-    const auto count = placements.size();
+    const auto count = placements.size() + dormant;
     if (count == 0) return result;
     std::vector<std::filesystem::path> paths;
     if (std::filesystem::is_directory(source)) {
@@ -652,7 +677,7 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
     result.instances.reserve(count);
     for (std::size_t i = 0; i < count; ++i) {
         const auto asset = i % result.assets.size();
-        const auto restRoot = placements[i];
+        const auto restRoot = i < placements.size() ? placements[i] : glm::mat4(1);
         const auto transform = restRoot * normalization[asset];
         const float phase = static_cast<float>(std::fmod(static_cast<double>(i) * 0.61803398875, 1.0));
         ZombieInstance instance;
@@ -661,8 +686,9 @@ ZombieLayer loadZombieLayer(const std::filesystem::path& source,
         instance.restTransform = transform;
         instance.restRoot = restRoot;
         instance.phase = phase;
-        instance.removed = replica;
+        instance.removed = replica || i >= placements.size();
         result.instances.push_back(std::move(instance));
+        if (i >= placements.size()) continue;
         const auto& model = result.assets[asset].model;
         for (int corner = 0; corner < 8; ++corner) {
             const glm::vec3 p(corner & 1 ? model.boundsMax.x : model.boundsMin.x,

@@ -2350,6 +2350,13 @@ floor openings. The interior is evicted beyond 30 metres and regenerated
 identically on return. Partitions leave at least 20 cm around windows; entry
 depths adjust either side of the preferred 2 metres to fit. See [runtime floorplans](FLOORPLANS.md) for the footprint
 heuristic, room-size limits, storeys, collision, and multiplayer lifecycle.
+On first load, 20% of eligible houses are selected for interior zombie encounters:
+usually 1–3 wall/corner ambushers, preferably hidden behind opened doors, rarely
+a complete group of 3–6 in a living room. A shared reserve of 10,000 extra hidden
+actor slots is allocated when zombies are enabled and the map has doors. Survivors
+inside an evicted house sleep until reentry; escaped zombies keep moving outdoors,
+and kills never respawn. See [interior encounters](FLOORPLANS.md#interior-zombie-encounters)
+for allocation, exhaustion and measured memory costs.
 Upper floors form a stair area with independently rolled side walls, then
 subdivide each living side independently into rooms with shared stair access
 or the ground-floor split rule. Each further flight avoids the incoming opening

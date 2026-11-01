@@ -1,5 +1,6 @@
 #include "asset_validation.hpp"
 #include "scene.hpp"
+#include "session_settings.hpp"
 #include <json.hpp>
 #include <algorithm>
 #include <cstring>
@@ -100,17 +101,52 @@ int main(int argc, char** argv) {
         options.zombieAssets = boundary;
         multiplayer::Scene atLimit(options);
         require(atLimit.zombies.assets[0].skeleton.size() == multiplayer::maxBones, "Compatible boundary skeleton rejected");
-        // This tiny map cannot safely place 100,000 bodies. A replica must load
+        // This tiny map cannot safely place 110,000 bodies. A replica must load
         // only shared assets and hidden ID slots, without a placement search.
         options.zombieCount = multiplayer::maxZombies;
         multiplayer::Scene replica(options, {}, std::nullopt, multiplayer::SceneRole::Replica);
-        require(replica.zombies.instances.size() == 100000 &&
+        require(replica.zombies.instances.size() == 110000 &&
             std::all_of(replica.zombies.instances.begin(), replica.zombies.instances.end(),
                 [](const auto& instance) { return instance.removed; }) && !replica.zombies.navigation(),
             "Large replica initialization generated visible placements or navigation");
         options.zombieCount = multiplayer::maxZombies + 1;
         rejects([&] { multiplayer::Scene tooLarge(options, {}, std::nullopt, multiplayer::SceneRole::Replica); },
                 "Zombie population exceeds multiplayer capacity");
+
+        // A map door enables the shared reserve without requiring any eager
+        // house generation. Keep this fixture far from the player spawn.
+        std::vector<std::uint8_t> townBytes;
+        auto town = geometry(townBytes, false);
+        const auto doorOffset = townBytes.size();
+        for (const glm::vec3 p : {glm::vec3(-.5f, 0, 0), {.5f, 0, 0}, {.5f, 2.1f, 0}, {-.5f, 2.1f, 0}})
+            { number(townBytes, p.x); number(townBytes, p.y); number(townBytes, p.z); }
+        for (const std::uint8_t index : {0, 1, 2, 0, 2, 3}) townBytes.push_back(index);
+        while (townBytes.size() % 4) townBytes.push_back(0);
+        town["bufferViews"].push_back({{"buffer", 0}, {"byteOffset", doorOffset}, {"byteLength", 48}});
+        town["bufferViews"].push_back({{"buffer", 0}, {"byteOffset", doorOffset + 48}, {"byteLength", 6}});
+        town["accessors"].push_back({{"bufferView", 2}, {"componentType", 5126}, {"count", 4}, {"type", "VEC3"}});
+        town["accessors"].push_back({{"bufferView", 3}, {"componentType", 5121}, {"count", 6}, {"type", "SCALAR"}});
+        town["meshes"].push_back({{"primitives", Json::array({{{"attributes", {{"POSITION", 2}}}, {"indices", 3}}})}});
+        town["nodes"].push_back({{"mesh", 1}, {"name", "building_test_doors"}, {"translation", {20, 0, 0}}});
+        town["scenes"][0]["nodes"].push_back(1);
+        town["buffers"][0]["byteLength"] = townBytes.size();
+        options.map = root / "town.glb"; options.zombieCount = 1;
+        write(options.map, town, townBytes);
+        multiplayer::Scene authority(options);
+        require(authority.interiorZombies && authority.interiorZombies->reserveCount() == 10000 &&
+                authority.zombies.instances.size() == 10001 && !authority.zombies.instances[0].removed &&
+                std::all_of(authority.zombies.instances.begin() + 1, authority.zombies.instances.end(),
+                    [](const auto& z) { return z.removed; }) && authority.floorplans->residentCount() == 0,
+                "Authority must allocate exactly 10,000 additional dormant slots before any interior loads");
+        const auto configured = multiplayer::applySessionSettings(options, multiplayer::sessionSettings(options, authority));
+        multiplayer::Scene townReplica(configured, {}, std::nullopt, multiplayer::SceneRole::Replica);
+        require(townReplica.zombies.instances.size() == 10001 && !townReplica.interiorZombies &&
+                townReplica.fingerprint == authority.fingerprint,
+                "Replica must load the advertised reserve once with matching session identity");
+        options.zombieCount = 0;
+        multiplayer::Scene disabled(options);
+        require(disabled.zombies.instances.empty() && !disabled.interiorZombies,
+                "Disabled zombie populations must not allocate an interior pool");
         std::cout << "Self-contained GLB and skeleton startup validation passed\n";
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

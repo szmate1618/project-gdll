@@ -187,7 +187,8 @@ void scenarioPopulation(const std::filesystem::path& asset, const std::filesyste
     options.trees = options.forests = false;
     options.zombieCount = 1;
     unsigned calls = 0;
-    const multiplayer::ZombiePopulationLoader loader = [&](const auto& source, const auto&, const auto&) {
+    const multiplayer::ZombiePopulationLoader loader = [&](const auto& source, const auto&, const auto&, std::size_t dormant) {
+        require(dormant == 0, "A map without building doors must not reserve interior actors");
         require(source == asset, "Authoritative population did not receive the selected zombie assets");
         ++calls;
         viewer::ZombieLayer layer;

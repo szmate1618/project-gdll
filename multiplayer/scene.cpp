@@ -46,7 +46,7 @@ Options parseOptions(int argc, char** argv, bool server) {
         else if (arg == "--no-zombie-perception" && server) o.zombiePerception = false;
         else if (arg == "--zombie-count") {
             const auto n = number(i);
-            if (n < 0 || n > maxZombies || std::floor(n) != n) throw std::runtime_error("Invalid zombie count");
+            if (n < 0 || n > maxOutdoorZombies || std::floor(n) != n) throw std::runtime_error("Invalid zombie count");
             o.zombieCount = static_cast<std::size_t>(n);
         } else if (arg == "--zombie-radius") {
             const auto n = number(i);
@@ -162,7 +162,9 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
     dayNight(o.dayNight),
     initialWeapons(resourceRoot() / "storage/weapons", resourceRoot() / "inventory.toml", true),
     initialInventory(viewer::loadPlayerInventory(resourceRoot())) {
-    if (o.zombieCount > maxZombies) throw std::runtime_error("Zombie population exceeds multiplayer capacity");
+    if (o.zombieCount > (role == SceneRole::Replica ? maxZombies : maxOutdoorZombies))
+        throw std::runtime_error("Zombie population exceeds multiplayer capacity");
+    static_assert(maxZombies == maxOutdoorZombies + viewer::interiorZombieReserve);
     std::vector<std::filesystem::path> content{o.map};
     const auto adjacent = [&](const char* name) { return o.map.parent_path() / name; };
     if (std::filesystem::exists(adjacent("poles.instances.json"))) {
@@ -232,6 +234,10 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
     const std::size_t count = role == SceneRole::Replica && o.replicaZombieCount ? *o.replicaZombieCount :
         populationLoader || (extent.x >= 100 && extent.z >= 100) ? o.zombieCount : 0;
     if (count > maxZombies) throw std::runtime_error("Zombie population exceeds multiplayer capacity");
+    // Reserve once for the session; do not classify/generate every house here.
+    const auto dormant = role == SceneRole::Authority && count && doors->count() ? viewer::interiorZombieReserve : 0;
+    if (count > maxZombies - dormant) throw std::runtime_error("Zombie population exceeds multiplayer capacity");
+    if (dormant) interiorZombies = std::make_unique<viewer::InteriorZombies>(count, dormant);
     if (count) {
         if (std::filesystem::is_directory(o.zombieAssets))
             for (const auto& entry : std::filesystem::directory_iterator(o.zombieAssets))
@@ -242,10 +248,10 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
             zombies = viewer::loadZombieLayer(o.zombieAssets,
                 std::vector<glm::mat4>(count, glm::mat4(1)), true);
         } else {
-            zombies = populationLoader ? populationLoader(o.zombieAssets, *collision, model) :
-                viewer::loadZombieLayer(o.zombieAssets, *collision, model, spawn, count, o.zombieRadius);
+            zombies = populationLoader ? populationLoader(o.zombieAssets, *collision, model, dormant) :
+                viewer::loadZombieLayer(o.zombieAssets, *collision, model, spawn, count, o.zombieRadius, {}, dormant);
         }
-        if (populationLoader && zombies.instances.size() != count)
+        if (zombies.instances.size() != count + dormant)
             throw std::runtime_error("Scenario population does not match the requested zombie count");
         validateSessionZombies(zombies);
         zombies.setPerceptionEnabled(role == SceneRole::Authority && o.zombiePerception);
@@ -289,7 +295,7 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
             [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         if (extension == ".glb" || extension == ".gltf") validateSessionGlb(path);
     }
-    fingerprint = sceneFingerprint(o, count, spawnEye, content);
+    fingerprint = sceneFingerprint(o, zombies.instances.size(), spawnEye, content);
     std::cout << "Scene ready: " << zombies.instances.size() << " zombies, fingerprint " << fingerprint << '\n';
 }
 } // namespace multiplayer

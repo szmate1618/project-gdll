@@ -167,7 +167,7 @@ three upper storeys. Failed random choices
 leave unused slots. A reserved slot holds no generated geometry or body until
 the house loads. Activation order cannot change IDs. The existing door-angle
 snapshot carries interactive movement only; clients ignore angles for reserved
-panels whose geometry is not locally resident. Protocol 36 prevents older
+panels whose geometry is not locally resident. Protocol 37 prevents older
 peers with different layouts or door-ID semantics from joining.
 
 Walking, ground support, sight, firearm queries and debug geometry include a
@@ -180,12 +180,62 @@ updates moving door poses each frame, and draws both camera and shadow passes.
 The existing random interior prop population remains a separate system with
 its existing session lifecycle. It is not part of the regenerated floorplan.
 
+## Interior zombie encounters
+
+When a house first becomes resident, a deterministic building-name roll selects
+it with **20% probability** for an encounter. This is one roll per building,
+including all its storeys. Ordinary encounters contain 1–3 zombies, placed
+against walls in corners or beside doorways, facing the doorway. Doorway
+placements favor the hinge side where the opened panel can hide the zombie.
+Positions leave capsule clearance and avoid stairs, unsupported floor openings,
+closed panels and existing physical obstacles.
+
+For 10% of selected encounters, placement first tries a **complete group of 3–6**
+in the middle of one living room. If the whole group cannot fit the geometry,
+placement falls back to wall ambushers. At activation, nearby players and living
+zombies also block placements; a center group is accepted or rejected as a whole.
+Thus 20% is the encounter-selection chance, not a guarantee of occupied houses
+when valid positions or capacity are unavailable.
+
+The standalone viewer and authoritative multiplayer server reserve **10,000
+additional zombie slots in one shared pool per session** when zombies are enabled
+and the map has doors. This is a fixed addition to the outdoor/scenario population,
+not a reservation per house. No house layouts are generated for sizing the pool.
+Maps without doors and disabled zombie populations allocate no interior pool.
+Multiplayer supports 100,000 requested outdoor/scenario zombies plus this pool,
+for up to 110,000 negotiated actor IDs. Replicas load the advertised total once;
+they never add another reserve or choose encounter populations themselves.
+
+Slots begin hidden, outside living spatial queries, AI and rendering. They share
+character meshes/animations and have their renderer instance capacity allocated
+at startup. First encounters consume consecutive IDs from the pool. Activation
+changes actor state without growing the population, rebuilding crowd buffers or
+resetting existing scenario routes. The server sends active actors through the
+existing reliable setup and movement snapshot paths; no floorplans are transmitted.
+Clients retire absent movement through the existing five-second interest timeout;
+sleeping does not add a new wire message.
+
+Each selected house is attempted once per session. On geometry eviction, living
+zombies still inside it sleep with their ID, position and injuries retained; they
+wake at those positions when it regenerates. Zombies that have escaped continue
+outdoors. Dead actors follow normal corpse cleanup and never respawn. Slots are
+not recycled, including after death, so exhausting the pool suppresses new
+encounters for the rest of the session. An empty or blocked first attempt is also
+remembered. This state is session-local and is not saved to disk.
+
+The reserve has a measured capacity cost of approximately **87 MiB for an embedded
+host** (client, navigated server and GPU combined) with all ten installed character
+variants. See [the memory estimate](benchmarks/interior-zombie-reserve-2026-10-31.md)
+for component costs, measurement conditions and limits. Inactive slots still cost
+memory and population-sized bookkeeping; activation adds ordinary zombie AI,
+physics, injury and replication work.
+
 ## Verification
 
 ```bash
 cmake -S . -B build
 cmake --build build -j4
-ctest --test-dir build -R 'house_.*layout|floorplan' --output-on-failure
+ctest --test-dir build -R 'house_.*layout|floorplan|interior_zombies' --output-on-failure
 # Optional read-only check against the published map:
 ./build/test_floorplans output/godollo.glb
 # Requires a working OpenGL display:
@@ -205,3 +255,10 @@ Upper-storey cases cover independent side rolls and subdivision modes, connected
 room graphs, storey-specific windows, reserved doors, and incoming/outgoing stair
 clearance. The GPU case opens an upper door; multiplayer replicates its angle
 across independent generation, eviction and reentry.
+Interior encounter tests exercise selection frequency, reflected/rotated
+placements, upper floors, actual opened-panel concealment, complete middle-room
+groups, player clearance, pool exhaustion, injury retention, escape and no
+respawn after eviction. Scenario checks retain existing paths while activating
+reserve slots. Multiplayer checks deliver reserved actors through setup and
+movement snapshots; the GPU regression activates them after CPU animation frames
+have been released, then verifies disappearance and reappearance across sleep.

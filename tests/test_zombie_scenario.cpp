@@ -5,6 +5,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <chrono>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -210,6 +211,22 @@ void mixedMovementPlansOnlyTravelers() {
     require(layer.instances.size() == 25 && layer.navigation() &&
             layer.navigation()->stats().requests == 8 && layer.navigation()->stats().foundPaths == 8,
             "A mixed scenario must preplan exactly its travelling members before simulation");
+    auto reserved = viewer::loadZombieScenario(files.asset(), world, scene, files.navmesh(), settings, 3);
+    require(reserved.instances.size() == 28 && reserved.navigation()->capacity() == 28 &&
+            reserved.navigation()->stats().requests == 8,
+            "Scenario cold load must reserve dormant capacity without planning extra routes");
+    for (std::size_t id = 25; id < 28; ++id)
+        require(reserved.instances[id].removed && !reserved.scenarioDestination(id) && !reserved.navigation()->pathFor(id),
+                "Reserved actors must start hidden and have no scenario destinations");
+    const auto destination = *reserved.scenarioDestination(12);
+    reserved.activateInteriorZombie(25, glm::translate(glm::mat4(1), {50, 0, 50}));
+    reserved.setInteriorSleeping(25, true); reserved.setInteriorSleeping(25, false);
+    require(reserved.instances.size() == 28 && *reserved.scenarioDestination(12) == destination &&
+            reserved.navigation()->pathFor(12) && reserved.navigation()->stats().requests == 8,
+            "Activating and sleeping an interior slot must preserve existing travel routes");
+    const auto replica = viewer::loadZombieLayer(files.asset(), std::vector<glm::mat4>(28, glm::mat4(1)), true);
+    require(replica.instances.size() == 28 && std::all_of(replica.instances.begin(), replica.instances.end(),
+            [](const auto& z) { return z.removed; }), "Replica must load the negotiated total once, initially hidden");
     for (std::size_t id = 0; id < layer.instances.size(); ++id) {
         const bool travelling = id >= 12 && id < 20;
         require(bool(population.destinations[id]) == travelling && bool(layer.scenarioDestination(id)) == travelling,

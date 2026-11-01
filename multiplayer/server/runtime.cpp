@@ -23,14 +23,14 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
     std::optional<viewer::ZombieScenarioConfig::Player> scenarioPlayer;
     if (!serverOptions.scenario.empty()) {
         const auto scenario = viewer::loadZombieScenarioConfig(serverOptions.scenario);
-        if (scenario.count() > multiplayer::maxZombies)
+        if (scenario.count() > multiplayer::maxOutdoorZombies)
             throw std::runtime_error("Scenario exceeds the multiplayer zombie limit");
         options.zombieCount = scenario.count();
         scenarioPlayer = scenario.player;
         if (!options.spawn && scenario.player)
             options.spawn = glm::vec2(scenario.player->spawn[0], scenario.player->spawn[1]);
-        populationLoader = [scenario, navmesh](const auto& source, const auto& collision, const auto& model) {
-            return viewer::loadZombieScenario(source, collision, model, navmesh, scenario);
+        populationLoader = [scenario, navmesh](const auto& source, const auto& collision, const auto& model, std::size_t dormant) {
+            return viewer::loadZombieScenario(source, collision, model, navmesh, scenario, dormant);
         };
     }
     multiplayer::Scene scene(options, populationLoader, scenarioPlayer);
