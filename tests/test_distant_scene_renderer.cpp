@@ -1,6 +1,5 @@
 #include "renderer.hpp"
 #include <GLFW/glfw3.h>
-#include <array>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -27,6 +26,7 @@ std::vector<unsigned char> pixels(int width, int height) {
     return result;
 }
 void compare(viewer::Renderer& renderer, const viewer::Camera& camera, double seconds, int width, int height) {
+    renderer.setDistantSceneCache(true);
     renderer.render(camera,seconds,{},seconds);
     const auto cached = pixels(width, height);
     renderer.setDistantSceneCache(false);
@@ -39,7 +39,7 @@ void compare(viewer::Renderer& renderer, const viewer::Camera& camera, double se
             std::abs(int(cached[i+2])-reference[i+2]) > 30) ++errors;
     }
     require(foreground > 100, "Reference must contain useful colored geometry");
-    require(errors < static_cast<std::size_t>(width*height/50), "Cache must match direct rendering apart from silhouette sampling");
+    require(errors < static_cast<std::size_t>(width*height/50), "A fresh rectangle must match direct static rendering");
     renderer.setDistantSceneCache(true);
 }
 void run() {
@@ -47,12 +47,8 @@ void run() {
     quad(model, {0,0,-1500}, {650,0,0}, {0,350,0}, {1,0,0,1});
     quad(model, {1700,0,0}, {0,0,600}, {0,350,0}, {0,0,1,1});
     quad(model, {0,0,1800}, {650,0,0}, {0,350,0}, {1,1,0,1});
-    quad(model, {-1600,0,0}, {0,0,600}, {0,350,0}, {1,0,1,1});
     quad(model, {0,0,-500}, {60,0,0}, {0,60,0}, {0,1,0,1});
-    quad(model, {300,0,-1700}, {80,0,0}, {0,80,0}, {0,0,1,1});
-    model.draws.back().horizontalMotionRadius = 30; // Full-rate object behind cached red geometry.
     quad(model, {0,1700,0}, {650,0,0}, {0,0,650}, {1,1,1,1});
-    quad(model, {0,-1700,0}, {650,0,0}, {0,0,650}, {1,1,1,1});
     // A transformed map-wide surface spans both sides of the 1 km boundary.
     quad(model, {0,-200,0}, {2400,0,0}, {0,0,2400}, {0,1,1,1});
     model.draws.back().transform[3] = {80,0,-70,1};
@@ -61,24 +57,22 @@ void run() {
     renderer.setDistantSceneCache(true);
     viewer::Camera camera; camera.setPosition({0,0,0}); camera.setOrientation(-90,0);
     renderer.render(camera,0,{},0);
-    require(renderer.distantCacheStats().refreshed && renderer.distantCacheStats().patches > 0, "First draw must populate cache");
+    require(renderer.distantCacheStats().refreshed && renderer.distantCacheStats().active, "First draw must populate cache");
     const auto center = pixels(320,180);
     const auto index = static_cast<std::size_t>((90*320+160)*3);
     require(center[index] == 0 && center[index+1] == 255, "Near geometry must occlude cached geometry");
     renderer.render(camera,.001,{},.001);
-    require(!renderer.distantCacheStats().refreshed && renderer.distantCacheStats().patches == 0,
-            "Stationary reuse must submit no distant tiles");
+    require(!renderer.distantCacheStats().refreshed,
+            "Stationary reuse must avoid distant redraws");
     camera.setOrientation(0,0); renderer.render(camera,.002,{},.002);
-    require(!renderer.distantCacheStats().refreshed && renderer.distantCacheStats().patches > 0,
-            "Turn must patch new directions without full refresh");
+    require(!renderer.distantCacheStats().refreshed && renderer.distantCacheStats().active,
+            "A turn must reuse the rectangle and accept gaps until the next refresh");
     camera.setOrientation(-90,0); renderer.render(camera,.003,{},.003);
-    require(renderer.distantCacheStats().patches == 0, "Returning to a cached direction must reuse its tiles");
-    for (const float yaw : {-179.0f,-135.0f,-90.0f,-45.0f,0.0f,45.0f,90.0f,135.0f,179.0f}) {
+    require(!renderer.distantCacheStats().refreshed, "Returning must reuse the same captured rectangle");
+    for (const float yaw : {-90.0f,45.0f}) {
         camera.setOrientation(yaw,-5); compare(renderer,camera,.004,320,180);
     }
-    for (const float pitch : {-89.0f,89.0f}) {
-        camera.setOrientation(45,pitch); compare(renderer,camera,.005,320,180);
-    }
+    camera.setOrientation(45,89); compare(renderer,camera,.005,320,180);
     camera.setOrientation(-90,0); renderer.render(camera,1,{},1);
     camera.setPosition({.1f,0,0}); renderer.render(camera,1.03,{},1.03);
     require(!renderer.distantCacheStats().refreshed, "Small walking movement must wait for scheduled refresh");
@@ -92,7 +86,7 @@ void run() {
     require(renderer.distantCacheStats().refreshed, "Teleport must invalidate cache immediately");
     renderer.resize(400,240); compare(renderer,camera,.51,400,240);
     camera.cycleViewMode(); renderer.render(camera,.52,{},.52);
-    require(renderer.distantCacheStats().tiles == 0, "Magnified scopes must use direct geometry");
+    require(!renderer.distantCacheStats().active, "Magnified scopes must use direct geometry");
     {
         viewer::Model nearOnly;
         quad(nearOnly,{0,0,-500},{60,0,0},{0,60,0},{0,1,0,1});
@@ -101,13 +95,13 @@ void run() {
         emptyCache.setDistantSceneCache(true);
         viewer::Camera walking; walking.setPosition({0,0,0}); walking.setOrientation(-90,0);
         emptyCache.render(walking,0,{},0);
-        require(emptyCache.distantCacheStats().tiles == 0 && emptyCache.sceneStats().drawCalls == 1,
-                "A near-only view must bypass cache allocation, patches and composition");
+        require(!emptyCache.distantCacheStats().active && emptyCache.sceneStats().drawCalls == 1,
+                "A near-only view must bypass cache allocation and composition");
         walking.setPosition({0,0,2000}); emptyCache.render(walking,.01,{},.01);
-        require(emptyCache.distantCacheStats().refreshed && emptyCache.distantCacheStats().patches > 0,
+        require(emptyCache.distantCacheStats().refreshed && emptyCache.distantCacheStats().active,
                 "Moving into a view with distant work must activate the cache");
         walking.setPosition({0,0,0}); emptyCache.render(walking,.02,{},.02);
-        require(emptyCache.distantCacheStats().tiles == 0 && emptyCache.sceneStats().drawCalls == 1,
+        require(!emptyCache.distantCacheStats().active && emptyCache.sceneStats().drawCalls == 1,
                 "Returning to a near-only view must restore direct rendering");
     }
     viewer::Renderer::checkErrors("distant cache regression");

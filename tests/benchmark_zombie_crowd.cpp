@@ -183,7 +183,7 @@ int main(int argc, char** argv) {
         metadata(output,assets,zombies,camera,renderer,wounded);
         {
             std::ofstream extra(output / "metadata.txt", std::ios::app);
-            extra << "distant_cache=" << distantCache << "\ndistant_cache_active=" << (renderer.distantCacheStats().tiles > 0) << '\n';
+            extra << "distant_cache=" << distantCache << "\ndistant_cache_active=" << renderer.distantCacheStats().active << '\n';
         }
         for (int variant=0;variant<variants;++variant) {
             const bool enabled = variant!=0;

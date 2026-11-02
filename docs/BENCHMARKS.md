@@ -464,16 +464,19 @@ cmake --build build --target benchmark_distant_scene benchmark_zombie_crowd -j4
 ```
 
 The final three map arguments are optional rounds, frames per round and view
-substring filter. `cache-frames.csv` records refreshes, visible tiles, newly
-rendered tiles and cache/near draw counts for every measured frame. Inspect
+substring filter. `cache-frames.csv` records whether the cache is active, its refreshes, and
+capture/near draw counts for every measured frame. Inspect
 refresh and reuse frames separately as well as average cost and p95. Matching
 first-round captures show the same final simulated pose, after the same number
 of frames; image readbacks and query-drain waits are outside timing. AI, physics,
 audio, GUI and presentation are absent in the map case, so it measures render
 cost rather than gameplay FPS. Run GPU workloads sequentially.
 
-Recorded distant scenery comparison: [Radeon 660M, 2026-11-02](benchmarks/distant-scene-cache-2026-11-02.txt),
+Recorded earlier tiled scenery comparison: [Radeon 660M, 2026-11-02](benchmarks/distant-scene-cache-2026-11-02.txt),
 including the empty-view bypass, turn patches and the 100,000-zombie control.
+The [single-rectangle comparison](benchmarks/distant-rectangle-2026-11-02.txt)
+measures its simpler replacement against preserved tiled binaries, with gap
+repair and depth publication intentionally removed. Captures await user review.
 
 ### Other isolated renderer comparisons
 

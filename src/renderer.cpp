@@ -459,36 +459,21 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     if (cacheRequested) gatherVisibleSceneDraws(projection * view, camera.position(), projection);
     const bool cache = cacheRequested && hasDistantStatic(camera, projection);
     if (cache) {
-        // Tile queries borrow the normal draw-list storage. Retain this frame's
-        // already gathered camera lists, then restore them for the near pass.
-        opaqueScene_.swap(savedStaticOpaque_);
-        transparentScene_.swap(savedStaticTransparent_);
-        visibleScene_.swap(savedStaticVisible_);
         if (!distantCache_) distantCache_ = std::make_unique<DistantSceneCache>(shaderDirectory_);
-        staticDetailProjection_ = projection;
         const double cacheSeconds = presentationSeconds ? *presentationSeconds :
             std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
-        distantCache_->update(camera, projection, height_, cacheSeconds, backgroundSrgb_,
-            [&](const glm::mat4& tileView, const glm::mat4& tileProjection) {
+        distantCache_->update(camera, projection, width_, height_, cacheSeconds, backgroundSrgb_,
+            [&](const glm::mat4& captureView, const glm::mat4& captureProjection) {
                 selectBasicShader(true);
                 materialState_.reset();
-                applyBasicSamplersAndVisibility();
-                auto anchoredCamera = camera;
-                anchoredCamera.setPosition(distantCache_->origin());
-                applyLighting(anchoredCamera, shadowView, lighting, flashlight, flashlightCasting);
-                treeViewEye_ = distantCache_->origin();
                 staticPass_ = StaticPass::Far;
                 sceneStats_.drawCalls = 0;
-                drawStaticScene(tileView, tileProjection);
+                drawStaticScene(captureView, captureProjection);
                 distantCache_->stats.drawCalls += sceneStats_.drawCalls + treeStats_.drawCalls + forestStats_.drawCalls;
             });
         distantStats_ = distantCache_->stats;
-        opaqueScene_.swap(savedStaticOpaque_);
-        transparentScene_.swap(savedStaticTransparent_);
-        visibleScene_.swap(savedStaticVisible_);
         sceneStats_ = {sceneDraws_.size(), visibleScene_.size(), 0};
         forestStats_.volumes = forestStats_.drawCalls = 0;
-        treeViewEye_ = camera.position();
     } else if (distantCache_) distantCache_->invalidate();
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
     glViewport(0, 0, width_, height_);
@@ -499,8 +484,6 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     selectBasicShader(true);
     if (cache) {
         materialState_.reset();
-        applyBasicSamplersAndVisibility();
-        applyLighting(camera, shadowView, lighting, flashlight, flashlightCasting);
         staticPass_ = StaticPass::Near;
     }
     staticProjectionView_ = projection * view;

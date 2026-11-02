@@ -1,0 +1,121 @@
+Single-texture distant rectangle — 2026-11-02
+
+Decision and implementation
+---------------------------
+The previous tiled experiment is committed as a3eb387 on
+experiment/distant-scene-cache. This revision replaces it with one 15 Hz color
+capture displayed on a rectangle. The rectangle fills the capture camera view
+at a 1 km proxy depth; subsequent camera motion projects only its four corners.
+Exposed margins wait for the next refresh. The fragment shader samples one
+color texture; no depth texture, per-pixel ray calculation or gap filling remains.
+The camera town draw list is shared by capture and near rendering. Repeated
+lighting setup and tiled draw-list swapping were removed.
+
+This is intentionally approximate. Parallax uses one proxy plane. Main-scene
+geometry and actors always draw over the rectangle; cached scene depth is not
+published. Turning can leave gaps. Visual inspection is reserved for the user.
+The normal renderer is still the default; enable with --distant-scene-cache.
+
+Method
+------
+Hardware: AMD Radeon 660M; OpenGL 4.6 Core, Mesa 24.2.8-1ubuntu1~24.10.1.
+1280x720, normal LoD and sunlight shadows. The same local map, trees, forest
+patches and camera file are used. No map generation or asset downloads ran.
+
+The tiled control executable and all matching shaders were copied before any
+changes. The preserved executable contains matching compiled class layouts;
+it does not link against rebuilt renderer objects. Rectangle and tiled runs
+run sequentially with independent disabled controls, alternating off/on within
+each process. Order: tiled overview, rectangle overview, rectangle town, tiled
+town. Each mode has 3 rounds of 32 warmup / 96 measured frames per motion.
+
+Time and camera motion advance exactly 1/60 second per frame. Walk-turn uses
+1.5 m/s and 40 degrees/s; fast-turn uses 180 degrees/s. Asynchronous timestamps
+have at most four frames in flight; waits and image readbacks stay outside CPU
+render timing. No AI, physics steps, audio, HUD or presentation runs in map cases.
+No builds, tests or other benchmark programs ran concurrently with timings.
+
+Timings below are milliseconds, median of round averages. CPU and GPU overlap;
+do not add them or interpret them as gameplay FPS. Clocks/power were not pinned,
+and the disabled controls vary between processes. These are whole-renderer
+measurements; compositor cost was not isolated. Some fast-turn savings also
+reflect the intentionally accepted uncovered image margins.
+
+Repeated comparisons
+--------------------
+Case | normal (rectangle binary) GPU/CPU | tiled GPU/CPU | rectangle GPU/CPU
+distant-overview-clear-static | 3.285/3.755 | 3.028/3.048 | 2.389/2.288
+distant-overview-clear-walk-turn | 3.228/3.537 | 3.525/3.389 | 2.568/2.530
+distant-overview-clear-fast-turn | 3.144/2.784 | 3.395/3.292 | 2.401/2.279
+town-static | 4.071/4.415 | 4.436/4.330 | 3.675/3.600
+town-walk-turn | 4.013/4.291 | 3.956/3.797 | 3.467/3.266
+town-fast-turn | 3.576/2.753 | 3.468/3.023 | 3.096/2.432
+
+The stationary overview reduced GPU cost 27% and CPU render cost 39% relative
+to its disabled control. Relative to tiled rendering, raw GPU cost fell 21%
+and CPU render cost 25%. The separate tiled disabled control measured
+3.082 ms GPU / 3.031 ms CPU; the rectangle disabled control measured
+3.285 / 3.755 ms, so process-to-process differences remain a limitation.
+
+Stationary town reduced GPU cost 10% and CPU render cost 18% relative to its
+own disabled control. All six repeated cases used less measured CPU and GPU
+time with the rectangle than with the earlier tiled renderer.
+
+Refresh cost and memory
+-----------------------
+The overview captures once every four fixed-step frames: 72 refreshes and
+216 reuse frames per mode. Reuse frames submit no distant capture draws.
+Tiled refreshes drew 25 angular tiles; the rectangle performs one capture,
+reusing the normal town visibility list. Average capture draw count per
+refresh decreased from 2,724 to 1,958 in the stationary overview.
+
+Stationary overview p95 (GPU / CPU render):
+  normal:    3.849 / 4.443 ms
+  tiled:     9.102 / 9.247 ms
+  rectangle: 5.253 / 4.868 ms
+Refresh spikes remain, but are lower than the tiled implementation here.
+One RGBA8 image plus a depth24 renderbuffer at 1280x720 uses approximately
+7 MiB, versus approximately 75 MiB for the tiled cubemap. Capture depth only
+orders surfaces within the stored image; it is not sampled by composition.
+
+Coverage and validation
+-----------------------
+A separate one-round, 64-frame comparison retained all eight map views and
+all three motions, including the forest, 100 m cutoff, unrestricted forest,
+aerial, clearing and town controls. This is broad coverage rather than a
+stable performance claim for every view. All measured GPU results are present.
+
+The required 100,000-zombie case ran six standard 64-frame rounds per mode.
+Both modes report distant_cache_active=0. All 100,000 instances remain visible
+with 10 draws and 6,000,000 camera triangles on every measured frame.
+  disabled: 7.873 ms GPU / 10.080 ms CPU render
+  enabled:  7.386 ms GPU / 10.574 ms CPU render
+There is no cache GPU drawing in this empty-static-background control. Its
+residual off/on difference should not be treated as a caching benefit.
+
+The full default CMake build and explicit benchmark builds passed. Five focused
+rebuilt rendering tests passed: distant rectangle, native presentation, tree
+billboards, forest visibility and buildings. Automated pixel checks validate
+fresh capture alignment and near foreground layering. Obsolete cubemap-face
+and missing-direction-patching tests and their unused fixture geometry were
+removed. Cadence, no extra refresh on turns, scope bypass, teleports, resize,
+empty views and frozen-animation clock independence remain covered.
+Manual visual review was not performed, as requested by the user.
+
+Artifacts and reproduction
+--------------------------
+Ignored artifacts: build/benchmarks/distant-rectangle-20261102/
+  tiled-overview/, rectangle-overview/, tiled-town/, rectangle-town/
+  broad/, crowd-off/, crowd-on/
+Each directory has per-frame CSVs, metadata, input hashes and captures.
+The saved control binaries and matching tiled-shaders/ are retained there.
+User-review captures are the *-rectangle.ppm files in the rectangle directories.
+
+Rectangle command, with FILTER=distant-overview-clear or town:
+./build/benchmark_distant_scene output/godollo.glb output/trees.instances.json \
+  output/osm/forest_patches.json build/forest_perf/billboard-views.txt shaders \
+  OUTPUT 3 96 FILTER
+
+Broad coverage: same command with OUTPUT 1 64 all.
+Crowd: benchmark_zombie_crowd assets/zombies/models OUTPUT --distant-cache 0|1.
+Summarize each directory with tools/summarize_render_benchmark.py.

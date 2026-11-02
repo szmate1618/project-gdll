@@ -137,7 +137,7 @@ public:
     void setRoofBatching(bool enabled) { roofBatching_ = enabled; }
     void setWallBatching(bool enabled) { wallBatching_ = enabled; }
     // Experimental static scenery cache: whole conservative bounds beyond 1 km,
-    // 15 Hz refresh, immediate missing-direction patches. Scope views bypass it.
+    // 15 Hz color capture on a background rectangle. Scope views bypass it.
     void setDistantSceneCache(bool enabled);
     const DistantCacheStats& distantCacheStats() const { return distantStats_; }
     void setShadows(bool enabled) { shadows_ = enabled; }
@@ -226,8 +226,6 @@ private:
     std::vector<bool> staticCacheable_;
     std::vector<VisibilityBounds> roofCacheBounds_, wallCacheBounds_, treeCacheBounds_;
     glm::mat4 staticProjectionView_{1};
-    glm::mat4 staticDetailProjection_{1};
-    std::vector<std::size_t> savedStaticOpaque_, savedStaticTransparent_, savedStaticVisible_;
     const HorizontalVisibilityRange* forestVisibilityRange() const {
         return forestViewRange_ ? &*forestViewRange_ : nullptr;
     }
@@ -544,7 +542,7 @@ private:
     ModelVisibility sceneVisibility_;
     // Plane-order hints belong to each view; alternating camera/light volumes
     // and billboard/authored bounds must not overwrite one another's history.
-    VisibilityPassState cameraVisibility_, sunShadowVisibility_, flashlightVisibility_, distantVisibility_;
+    VisibilityPassState cameraVisibility_, sunShadowVisibility_, flashlightVisibility_;
     SceneRenderStats sceneStats_;
     bool sceneCulling_ = true;
     std::vector<TreeBatch> treeBatches_;

@@ -1,50 +1,49 @@
-# Experimental distant scenery cache
+# Experimental distant scenery rectangle
 
 Enable with `--distant-scene-cache` on `godollo_viewer` or the multiplayer game
-client. It defaults off. Scopes bypass the cache. No generation, collision,
-simulation, network protocol or resource fingerprint changes are involved.
+client. It defaults off. Scopes bypass it. No generation, collision, simulation,
+network protocol or resource fingerprint changes are involved.
 
-Views without visible distant static candidates bypass allocation, tile draws
-and composition entirely. The normal camera draw list is reused for this check;
-foliage uses spatial queries. Moving actors alone never activate the cache.
+This version replaces the tiled cubemap with one screen-sized RGBA8 texture,
+updated at **15 Hz**. Distant scenery is drawn once from the current camera on
+each refresh. The existing camera draw list is reused, so there is no extra
+town visibility query for the capture. Between refreshes, four vertices place
+that image on a rectangle fixed to the capture camera at a **1 km proxy depth**.
+The current camera projects those vertices; the fragment shader samples only
+color. The rectangle fills the screen at capture time.
 
-Static opaque/masked town geometry, individual trees and forest volumes whose
-complete conservative bounds lie at least **1,000 m** from the refresh position
-enter a **15 Hz** cache. Bounds crossing that distance stay at full rate; complete
-building batches share one decision. Translucent surfaces, movable door panels,
-actors, vehicles, props, effects, shadows and the HUD keep their normal cadence.
+Turning or moving can expose empty image margins. These gaps wait for the next
+scheduled refresh; there is no patching or extra geometry pass on turns. Camera
+movement uses the rectangle's single proxy distance, so parallax is approximate.
+The capture has its own depth renderbuffer for correct surface ordering within
+the image, but its depth is never sampled or written into the main scene.
+Normally rendered actors and other foreground geometry always draw over it,
+even when they would physically be behind distant cached scenery. These are
+intentional approximation limits. Visual review is left to the user.
 
-The cache stores color and depth in cubemap faces subdivided into 256-pixel
-tiles. Each display frame samples those directions using the current camera
-rotation, without repeatedly resampling previous images. When turning exposes
-an uncached tile, only that tile is rendered immediately. Cropped tile frusta
-query the existing spatial indexes; already cached directions issue no distant
-draws. Returning to a previously seen direction reuses its original tiles until
-the next scheduled refresh.
+Static opaque/masked town geometry, trees and forest volumes whose complete
+conservative bounds lie at least **1,000 m** from the refresh position enter the
+capture. Bounds crossing that distance stay at full rate; complete building
+batches share one decision. Translucent surfaces, movable panels, actors,
+vehicles, props, effects, shadows and the HUD retain their normal cadence.
+Views without distant static candidates bypass capture allocation and drawing.
 
-Translation is held at the refresh position. Small parallax errors from walking
-can remain for up to about 67 ms. There is no per-frame interior-hole repair.
-Teleports over 20 m force an immediate refresh. A reset presentation clock,
-cache toggle or texture resize also invalidates the cache. Refresh uses an
-optional explicit presentation clock, otherwise monotonic wall time. The viewer
-supplies simulation time independently of `--animation-time`; fixed-step
-benchmarks explicitly supply their 60 Hz timeline in both modes.
+The existing terrain/road/railway/fence index partitions remain: map-wide meshes
+have 128 m cells with conservative bounds and a BVH, sharing original vertices
+and transforms. Long triangles stay whole. These partitions also let nearby
+sections remain at full rate. Disabled rendering and shadows use original lists.
 
-Map-wide terrain, roads, railways and fence meshes are partitioned once into
-128 m cells by triangle centroid. The original vertex buffers and transforms
-are shared; index subsets have conservative bounds and a BVH. Triangles are
-never cut or reprojected into new world geometry. Long triangles crossing cells
-can consequently stay near even when their centroids are far. The ordinary
-disabled renderer and shadow passes retain their original index lists.
+At 1280x720, one RGBA8 image plus a depth24 renderbuffer with four-byte storage
+uses approximately **7 MiB**, compared with approximately 75 MiB for the earlier
+cubemap. Linear filtering smooths the projected image. No per-pixel viewing-ray
+rotation or depth conversion remains in the composite shader.
 
-At 1280x720 with the normal 60-degree field of view, cubemap faces are 1280x1280,
-using approximately 75 MiB for six RGBA8/depth24 faces with four-byte depth
-storage. Nearest sampling avoids reading unfilled neighboring tiles but can
-alias distant edges. Full refreshes can spike frame cost; caching is not an
-assumption of a speedup. Lighting and distant vegetation changes also wait for
-the scheduled refresh. Existing sunlight shadow work is not cached.
+Refresh uses an explicit presentation clock when supplied, otherwise monotonic
+wall time. The viewer supplies simulation time independently of frozen animation
+poses. Teleports over 20 m, resizing, clock resets and toggling force a refresh.
+Other image changes can lag by about 67 ms. Refresh work can still cause spikes.
 
-Implementation: `src/distant_scene_cache.hpp/.cpp` owns cache targets, angular
-coverage, refresh and composition; `src/renderer_distant.cpp` handles static
-geometry partitioning, bounds and draw integration. See the
-[benchmark instructions](BENCHMARKS.md#experimental-distant-scenery-cache).
+The earlier tiled implementation is preserved in commit `a3eb387` on
+`experiment/distant-scene-cache`; its [benchmark report](benchmarks/distant-scene-cache-2026-11-02.txt)
+remains available. See [benchmark instructions](BENCHMARKS.md#experimental-distant-scenery-cache)
+for the current capture harness.

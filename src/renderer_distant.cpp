@@ -155,13 +155,12 @@ void Renderer::drawStaticScene(const glm::mat4& view, const glm::mat4& projectio
     glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, glm::value_ptr(projection));
     glUniform1i(instancedLocation_, GL_FALSE);
     glUniform1i(animatedLocation_, GL_FALSE);
-    const auto eye = staticPass_ == StaticPass::Far ? distantCache_->origin() : treeViewEye_;
-    gatherVisibleSceneDraws(staticProjectionView_, eye, staticDetailProjection_);
-    beginTownPass(eye, staticDetailProjection_);
+    const auto eye = distantCache_->origin();
+    // Capture and near draws share the camera and the already gathered list.
+    beginTownPass(eye, projection);
     for (const auto index : opaqueScene_)
         if (drawTownSource(index)) ++sceneStats_.drawCalls;
-    auto& temporal = staticPass_ == StaticPass::Far ? distantVisibility_ : cameraVisibility_;
-    drawTrees(staticProjectionView_, false, temporal);
-    drawForests(staticProjectionView_, false, temporal.forests);
+    drawTrees(staticProjectionView_, false, cameraVisibility_);
+    drawForests(staticProjectionView_, false, cameraVisibility_.forests);
 }
 } // namespace viewer

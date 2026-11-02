@@ -95,21 +95,21 @@ int main(int argc, char** argv) {
         const auto cameras = views(argv[4],scene,world,forest);
         Window window; viewer::Renderer renderer(scene,shaders,&trees,nullptr,&forest); renderer.resize(width,height);
         std::ofstream metadata(output/"metadata.txt");
-        metadata << "scenario=distant-scene-v1\nGPU=" << glGetString(GL_RENDERER) << "\nGL=" << glGetString(GL_VERSION)
-                 << "\nresolution=1280x720\ncutoff_m=1000\nrefresh_hz=15\nangular_tiles=256px\nrounds=" << rounds
+        metadata << "scenario=distant-rectangle-v1\nGPU=" << glGetString(GL_RENDERER) << "\nGL=" << glGetString(GL_VERSION)
+                 << "\nresolution=1280x720\ncutoff_m=1000\nrefresh_hz=15\ncache=single color rectangle; no depth publication or gap repair\nrounds=" << rounds
                  << "\nframes=" << frames << "\nwarmup=" << warmup
                  << "\nclock=fixed 1/60 second per frame, including motion and refresh; no wall-clock simulation"
                  << "\nmotions=static; walk-turn 1.5m/s and 40deg/s; fast-turn 180deg/s"
                  << "\nworkload=map/vegetation and sunlight shadows; no AI, audio, physics steps, HUD or presentation"
                  << "\ntiming=asynchronous GPU timestamps; max four frames in flight; waits/readbacks outside timers"
-                 << "\nfiltering=nearest vegetation and cached texels; normal LoD; shadows enabled\n";
+                 << "\nfiltering=nearest vegetation; linear cached color; normal LoD; shadows enabled\n";
         for (int i=1;i<=4;++i) metadata << "sha256 " << argv[i] << ' ' << viewer::fileSha256(argv[i]) << '\n';
         for (const auto* name : {"basic.vert","basic.frag","distant_cache.vert","distant_cache.frag"})
             metadata << "shader_sha256 " << name << ' ' << viewer::fileSha256(shaders/name) << '\n';
         std::filesystem::copy_file(argv[4],output/"input-cameras.txt",std::filesystem::copy_options::overwrite_existing);
         std::ofstream settings(output/"views.csv"), counters(output/"cache-frames.csv");
         settings << "view,x,y,z,yaw,pitch,forest_distance,clear_atmosphere\n";
-        counters << "view,motion,round,mode,frame,refresh,visible_tiles,patches,cache_draws,near_town_draws,near_tree_draws,near_forest_draws\n";
+        counters << "view,motion,round,mode,frame,active,refresh,cache_draws,near_town_draws,near_tree_draws,near_forest_draws\n";
         bool selected = false;
         for (const auto& view : cameras) {
             if (filter!="all" && view.name.find(filter)==std::string::npos) continue;
@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
                 const std::string motionName = motion==0 ? "static" : motion==1 ? "walk-turn" : "fast-turn";
                 for (int round=0;round<rounds;++round) for (int variant=0;variant<2;++variant) {
                     const bool cached = (round+variant)%2 != 0;
-                    const std::string mode = cached ? "cached" : "baseline";
+                    const std::string mode = cached ? "rectangle" : "baseline";
                     const auto label = view.name+"-"+motionName+"-"+mode;
                     renderer.setDistantSceneCache(cached);
                     for (int frame=-warmup;frame<0;++frame)
@@ -146,7 +146,7 @@ int main(int argc, char** argv) {
                             profile.record({static_cast<std::uint64_t>(frame),std::chrono::duration<double,std::milli>(end-start).count(),0,0,0,0});
                             const auto& s=renderer.distantCacheStats();
                             counters << view.name << ',' << motionName << ',' << round << ',' << mode << ',' << frame << ','
-                                     << s.refreshed << ',' << s.tiles << ',' << s.patches << ',' << s.drawCalls << ','
+                                     << s.active << ',' << s.refreshed << ',' << s.drawCalls << ','
                                      << renderer.sceneStats().drawCalls << ',' << renderer.treeStats().drawCalls << ','
                                      << renderer.forestStats().drawCalls << '\n';
                         }

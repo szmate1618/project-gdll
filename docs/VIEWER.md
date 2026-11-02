@@ -10,7 +10,7 @@ prints the OpenGL version, renderer, vendor, and GLSL version. The Python scene
 generator remains a separate program.
 
 `--distant-scene-cache` enables the experimental 1 km / 15 Hz static scenery
-cache, with immediate patches for newly exposed directions during turns. It
+cache, displayed on one background rectangle with gaps accepted during turns. It
 defaults off and scopes use normal rendering. See
 [implementation, tradeoffs and benchmarks](DISTANT_SCENE_CACHE.md).
 
