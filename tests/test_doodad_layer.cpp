@@ -7,6 +7,7 @@
 #include "physics_grab.hpp"
 #include "physics_scene.hpp"
 #include "interior_fixture.hpp"
+#include <box3d/box3d.h>
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -96,6 +97,63 @@ void heldBodySurvivesEviction() {
     require(hit->prop.valid() && grip.valid() && instance(layer,candidate.id),
             "Evicting a held object's source cell must preserve the body, joint and render instance");
 }
+void cumulativePersistenceMargins() {
+    Fixture f;
+    const auto original=f.generator.generate({0,0}).front();
+    viewer::DoodadLayer layer(f.physics,f.generator,f.state,f.assets);
+    layer.update(original.position+glm::vec3(0,1.7f,0),f.scene,f.doors);
+    const auto* rendered=instance(layer,original.id);
+    require(rendered,"Save-margin fixture must stream its candidate");
+    const auto center=(rendered->minimum+rendered->maximum)*.5f;
+    auto filter=b3DefaultQueryFilter();
+    filter.maskBits=viewer::interiorBoxCategory;
+    const auto hit=b3World_CastRayClosest(f.physics->id(),{center.x,center.y+.5f,center.z},{0,-1,0},filter);
+    require(hit.hit,"Save-margin fixture must find its physical prop");
+    const auto body=b3Shape_GetBody(hit.shapeId);
+    // Inject solved poses without contact settling or gravity changing the
+    // displacement under test. The real motion events still drive layer sync.
+    b3Body_SetGravityScale(body,0);
+    auto shapeFilter=b3Shape_GetFilter(hit.shapeId);
+    shapeFilter.maskBits=0;
+    b3Shape_SetFilter(hit.shapeId,shapeFilter,true);
+    const auto setPose=[&](float offset, float degrees, bool negateQuaternion=false) {
+        auto rotation=glm::angleAxis(glm::radians(degrees),glm::vec3(0,1,0))*original.rotation;
+        if (negateQuaternion) rotation=-rotation;
+        const auto kind=static_cast<std::size_t>(original.kind);
+        const auto localCenter=(f.assets[kind].boundsMin+f.assets[kind].boundsMax)*.5f;
+        const auto position=original.position+glm::vec3(offset,0,0)+rotation*(localCenter*original.scale);
+        b3Body_SetTransform(body,{position.x,position.y,position.z},
+                            {{rotation.x,rotation.y,rotation.z},rotation.w});
+        b3Body_SetLinearVelocity(body,{0,0,0});
+        b3Body_SetAngularVelocity(body,{0,0,0});
+        b3Body_SetAwake(body,true);
+        f.physics->step(1.f/60);
+        layer.captureChanges();
+    };
+    for (const float offset:{.01f,.03f,.049f}) setPose(offset,0);
+    require(!f.state.contains(original.id),"Displacements below 5 cm must not create an override");
+    require(glm::distance(glm::vec3(instance(layer,original.id)->transform[3]),original.position)>.048f,
+            "Subthreshold movement must still update the rendered pose");
+    setPose(.051f,0);
+    require(f.state.contains(original.id),"Cumulative movement beyond 5 cm must create an override");
+    const auto firstRevision=f.state.revision();
+    setPose(.09f,0);
+    require(f.state.revision()==firstRevision,"Position threshold must use the last recorded pose");
+    setPose(.102f,0);
+    require(f.state.revision()>firstRevision,"Further cumulative movement must update the override");
+    const auto positionRevision=f.state.revision();
+    for (const float angle:{3.f,7.f,9.9f}) setPose(.102f,angle);
+    require(f.state.revision()==positionRevision,"Rotations below 10 degrees must not update an override");
+    setPose(.102f,10.1f);
+    require(f.state.revision()>positionRevision,"Cumulative rotation beyond 10 degrees must update the override");
+    const auto rotationRevision=f.state.revision();
+    setPose(.102f,19.9f);
+    require(f.state.revision()==rotationRevision,"Rotation threshold must use the last recorded pose");
+    setPose(.102f,10.1f,true);
+    require(f.state.revision()==rotationRevision,"Negating a quaternion must not count as rotation");
+    setPose(.102f,20.2f);
+    require(f.state.revision()>rotationRevision,"Further cumulative rotation must update the override");
+}
 void movingAcrossCellsAndReconstructingLayer() {
     Fixture f;
     const auto original=f.generator.generate({0,0}).front();
@@ -142,6 +200,7 @@ int main() {
     try {
         boundedStreamingAndDeterministicReturn();
         heldBodySurvivesEviction();
+        cumulativePersistenceMargins();
         movingAcrossCellsAndReconstructingLayer();
         std::cout<<"Doodad streaming and shared-physics checks passed\n";
         return 0;

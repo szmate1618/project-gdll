@@ -75,9 +75,32 @@ void validation() {
     require(restored.contains(5),"Failed load damaged later atomic saves");
     require(!std::filesystem::exists(files.save.u8string()+".tmp"),"Temporary save left after publication");
 }
+void mismatchDiagnostics() {
+    Files files;
+    viewer::DoodadState original("old-map:old-forest");
+    original.set({5,viewer::DoodadKind::Stone,{1,0,1},{1,0,0,0},1});
+    original.save(files.save);
+    const auto saved=files.read();
+    viewer::DoodadState current("new-map:new-forest");
+    bool rejected=false;
+    try {current.load(files.save);}
+    catch (const std::runtime_error& error) {
+        rejected=true;
+        const std::string message=error.what();
+        require(message.find("mismatch in identity")!=std::string::npos &&
+                message.find("old-map:old-forest")!=std::string::npos &&
+                message.find("new-map:new-forest")!=std::string::npos,
+                "Identity mismatch must identify the saved and expected world");
+    }
+    require(rejected,"Different world accepted the old save");
+    require(current.changes().empty(),"Rejected save populated the new world");
+    require(files.read()==saved,"Rejected save was modified on disk");
+    original.load(files.save);
+    require(original.contains(5),"Rejected save lost the original world's moved prop");
+}
 }
 int main() {
-    try {relocation();validation();}
+    try {relocation();validation();mismatchDiagnostics();}
     catch(const std::exception& error) {std::cerr<<error.what()<<'\n';return 1;}
     std::cout<<"Doodad state checks passed\n";
 }

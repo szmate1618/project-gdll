@@ -71,10 +71,18 @@ void DoodadState::load(const std::filesystem::path& path) {
         throw std::runtime_error("Cannot read doodad save: "+path.u8string());
     }
     const auto document=Json::parse(input);
-    if (document.at("schema")!="godollo.doodad_state" || document.at("version")!=1 ||
-        document.at("generation_version")!=1 || document.at("seed")!=doodadGenerationSeed ||
-        document.at("cell_size_m")!=doodadCellSize || document.at("identity")!=identity_)
-        throw std::runtime_error("Doodad save identity or generation version mismatch: "+path.u8string());
+    const auto expect = [&](const char* field, const Json& expected) {
+        const auto& saved = document.at(field);
+        if (saved != expected)
+            throw std::runtime_error("Doodad save mismatch in " + std::string(field) + ": " + path.u8string() +
+                "\nSaved: " + saved.dump() + "\nExpected: " + expected.dump());
+    };
+    expect("schema", "godollo.doodad_state");
+    expect("version", 1);
+    expect("generation_version", 1);
+    expect("seed", doodadGenerationSeed);
+    expect("cell_size_m", doodadCellSize);
+    expect("identity", identity_);
     const auto& changes=document.at("changes");
     if (!changes.is_array() || changes.size()>1000000) throw std::runtime_error("Invalid saved doodad changes");
     DoodadState loaded(identity_);

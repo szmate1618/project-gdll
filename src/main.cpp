@@ -1385,7 +1385,14 @@ int run(const Options& options) {
             doodadSave.replace_extension(".doodads.json");
         }
         doodadState.emplace(viewer::fileSha256(options.model)+":"+viewer::fileSha256(vegetation.forests));
-        doodadState->load(doodadSave);
+        try {
+            doodadState->load(doodadSave);
+        } catch (const std::exception& error) {
+            throw std::runtime_error(std::string(error.what()) +
+                "\nDoodad identity is map SHA-256:forest configuration SHA-256. Regenerating either file can invalidate a save."
+                "\nThe existing save has been left unchanged. Use --doodad-save FILE with a separate save path,"
+                " or --no-doodads to launch without forest props.");
+        }
         savedDoodadRevision = doodadState->revision();
         doodadGenerator.emplace(*forests,collision);
         constexpr std::array<const char*,viewer::doodadKindCount> names{"branch","stone","beer_bottle"};

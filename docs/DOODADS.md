@@ -53,8 +53,14 @@ ID suppresses the original procedural spawn everywhere, while an index of its
 independent removal and addition lists to keep synchronized. Destinations may
 be in another cell, on a road, indoors or outside every forest polygon.
 
-Small contact settling can also create an override. Movement is accumulated
-against the last saved pose, so many small steps do not lose a meaningful move.
+An override is created or updated only after the asset origin moves more than
+5 cm or rotates more than 10 degrees relative to its last recorded pose (the
+procedural pose until the first override). Movement is accumulated against that
+pose, so many small steps still count once they cross either threshold. Smaller
+settling remains visible while loaded but does not create saved state. Larger
+automatic movements, such as a bottle tipping over, can still create an override.
+The thresholds also apply to handled props; smaller deliberate moves may be
+forgotten after unloading. Existing saved overrides remain intact.
 Branches and stones align to the sampled terrain normal with varying yaw;
 bottles start upright. Physics can rotate them when handled. Colliders
 approximate the complete bounds, including the gap
@@ -74,6 +80,13 @@ The save includes the SHA-256 identities of the map and forest configuration,
 generation version, seed and cell size. A mismatch or invalid save is reported
 before streaming starts; it is not silently discarded or overwritten. Use a
 separate save path when experimenting with different map/forest configurations.
+The identity is `map SHA-256:forest configuration SHA-256`, using the complete
+file contents. Regenerating either file, even for a road-only update, can make
+the existing save incompatible. The error names the mismatched field and shows
+its saved and expected values. To keep playing with fresh props, choose an
+unused `--doodad-save FILE` path; `--no-doodads` also allows startup without
+loading or changing saved props. Keep the original save for its matching world;
+do not change its hashes to force it into a different map.
 IDs are hexadecimal strings, preserving every bit independently of JSON number
 precision. Writing uses a temporary file, validates it, then replaces the last
 good save atomically on Linux. Save files are ignored by Git and are valuable

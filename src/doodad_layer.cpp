@@ -15,6 +15,9 @@ namespace viewer {
 namespace {
 constexpr float loadRadius = 48, unloadRadius = 64;
 constexpr float bodyRadius = 3, retireBodyRadius = 6;
+constexpr float savePositionTolerance = .05f; // Asset-origin displacement in metres.
+// Unit quaternions have |dot| = cos(angle / 2); q and -q denote the same rotation.
+const float saveRotationDotTolerance = 1.f-std::cos(glm::radians(10.f)*.5f);
 bool finite(glm::vec3 p) { return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z); }
 float horizontalDistance2(glm::vec3 a, glm::vec3 b) {
     const auto delta = glm::vec2(a.x-b.x,a.z-b.z);
@@ -69,7 +72,7 @@ struct DoodadLayer::Impl {
             if (moved(pose,entry.pose,1e-6f,1e-8f)) { entry.pose=pose; dirty=true; }
             // Compare against the last saved pose, so slow cumulative movement
             // cannot disappear underneath a per-frame epsilon.
-            if (moved(pose,entry.saved,.002f,3e-6f)) {
+            if (moved(pose,entry.saved,savePositionTolerance,saveRotationDotTolerance)) {
                 state.set(pose);
                 entry.saved=pose;
             }
