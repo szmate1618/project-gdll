@@ -52,8 +52,8 @@ See the [Characters guide](../README.md#characters) for carrying over older save
 Use `--fullscreen --resolution 960x540` for a desktop-resolution fullscreen
 window with an upscaled 3D scene and sharp native-resolution HUD. Resolution
 presets are `960x540`, `1280x720` and `1920x1080`; the flag also fixes the 3D
-resolution in a resizable window. Without an override, windowed rendering follows
-the window, while fullscreen renders at 1280x720. Display settings are client-only.
+resolution in a resizable window. Both display modes default to a fixed 1280x720 render target. F12 opens
+Graphics settings; Home releases/captures the mouse. Display settings are client-only.
 
 The HUD uses RmlUi with colored-square artwork placeholders. Its font comes
 from the installed DejaVu, Noto or Liberation Sans system fonts; set

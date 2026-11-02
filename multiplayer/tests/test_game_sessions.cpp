@@ -66,11 +66,11 @@ void parser() {
     require(parse({"game", "--single-player"}).mode == GameMode::SinglePlayer, "Missing single-player flag");
     require(!parse({"game", "--single-player", "--no-cars"}).scene.cars, "Single-player lost --no-cars");
     const auto display = parse({"game", "--single-player", "--fullscreen", "--resolution", "960x540"});
-    require(display.scene.display.fullscreen && display.scene.display.renderSize({1920, 1200}) == glm::ivec2(960, 540),
+    require(display.scene.display.fullscreen && display.scene.display.renderSize() == glm::ivec2(960, 540),
             "Display options were lost in the game-mode parser");
-    require(parse({"game"}).scene.display.renderSize({1440, 900}) == glm::ivec2(1440, 900),
-            "Default window rendering must follow the framebuffer");
-    require(parse({"game", "--fullscreen"}).scene.display.renderSize({1920, 1200}) == glm::ivec2(1280, 720),
+    require(parse({"game"}).scene.display.renderSize() == glm::ivec2(1280, 720),
+            "Default window rendering must use a separate fixed 720p target");
+    require(parse({"game", "--fullscreen"}).scene.display.renderSize() == glm::ivec2(1280, 720),
             "Fullscreen must default to a separate 720p render target");
     bool badResolution = false;
     try { parse({"game", "--resolution", "--host"}); } catch (const std::exception&) { badResolution = true; }

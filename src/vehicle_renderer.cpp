@@ -74,7 +74,8 @@ void Renderer::drawVehicles(const glm::mat4& projectionView, bool shadowPass) {
         const auto detail = vehicleRangeLimited_ ? instance.detail : VehicleDetail{};
         if (!detail.visible) continue;
         const bool prepared = !instance.lods->empty();
-        const auto level = prepared ? detail.level : 0;
+        const auto minimumLevel = skipHighestDetail_ ? std::size_t(1) : std::size_t(0);
+        const auto level = prepared ? std::min(std::max(detail.level, minimumLevel), instance.lods->size()-1) : 0;
         if (!shadowPass) ++vehicleStats_.levels[level];
         if (prepared) (*instance.lods)[level].transforms.push_back(instance.chassis);
         else {

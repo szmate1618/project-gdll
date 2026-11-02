@@ -96,6 +96,12 @@ void checkBatchedTown(viewer::SceneDepthMode mode) {
         require(!renderer.distantCacheStats().active && renderer.sceneStats().drawCalls == 1,
                 "A near-only building batch must not activate an empty distant capture");
         require(renderer.sceneStats().visible == 2, "A batch representative must retain both visible sources");
+        renderer.setDistantSceneDistance(750); renderer.render(camera, .001, {}, .001);
+        require(renderer.distantCacheStats().active && renderer.distantCacheStats().refreshed,
+                "Reducing cache distance must immediately capture newly distant scenery");
+        renderer.setDistantSceneDistance(1000); renderer.render(camera, .002, {}, .002);
+        require(!renderer.distantCacheStats().active,
+                "Increasing cache distance must immediately restore nearby scenery to full-rate rendering");
     }
     viewer::Model model;
     batchPair(model,0,-1500,-1500,"roof");

@@ -62,9 +62,9 @@ void DistantSceneCache::update(const Camera& camera, const glm::mat4& projection
     // A rectangle matches this camera's image at capture time. Thereafter its
     // four corners follow the current view, accepting gaps outside the image.
     worldQuad_ = glm::inverse(camera.view());
-    worldQuad_[0] *= 1000 / projection[0][0];
-    worldQuad_[1] *= 1000 / projection[1][1];
-    worldQuad_[2] *= 1000;
+    worldQuad_[0] *= proxyDistance_ / projection[0][0];
+    worldQuad_[1] *= proxyDistance_ / projection[1][1];
+    worldQuad_[2] *= proxyDistance_;
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, 0);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);

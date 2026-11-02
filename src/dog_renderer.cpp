@@ -57,7 +57,8 @@ void Renderer::prepareDogDraws(const Frustum& cameraFrustum, const Frustum* sun,
             return gpu;
         };
         if (distance-radius <= dogDrawDistance_ && cameraFrustum.intersects(bounds.minimum,bounds.maximum)) {
-            const auto level = std::min(detail.level,batch.size()-1);
+            const auto minimumLevel = skipHighestDetail_ ? std::size_t(1) : std::size_t(0);
+            const auto level = std::min(std::max(detail.level, minimumLevel), batch.size()-1);
             const auto gpu = makeInstance(level,detail.animationHz);
             displayed.removed = false; displayed.displayedAnimationFrame = gpu.animationFrame;
             batch[level].cameraInstances.push_back(gpu);

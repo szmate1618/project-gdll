@@ -1145,6 +1145,15 @@ void renderDistanceLods() {
                 pixels[i + (channel + 2) % 3] == 0) ++count;
         return count;
     };
+    renderer.setSkipHighestDetail(true);
+    renderAt(5);
+    if (renderer.zombieRenderStats().cameraLevels[0] != 0 || renderer.zombieRenderStats().cameraLevels[1] != 1 ||
+        markerPixels(0) == 0 || markerPixels(2) != 0)
+        throw std::runtime_error("Highest-detail restriction must use the LOD1 mesh even at close range");
+    renderer.setSkipHighestDetail(false);
+    renderAt(5);
+    if (renderer.zombieRenderStats().cameraLevels[0] != 1 || markerPixels(2) == 0)
+        throw std::runtime_error("Disabling the detail restriction must restore the original mesh");
     renderAt(20);
     if (renderer.zombieRenderStats().cameraLevels[1] != 1 || markerPixels(0) == 0 || markerPixels(2) != 0)
         throw std::runtime_error("LOD1 must draw its red marker mesh");

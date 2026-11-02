@@ -1,7 +1,8 @@
 # Experimental distant scenery rectangle
 
 Enable with `--distant-scene-cache` on `godollo_viewer` or the multiplayer game
-client. It defaults off. Scopes bypass it. No generation, collision, simulation,
+client. It defaults off. The in-game **F12 Graphics** page selects 500 m, 750 m,
+1000 m or Disabled. Scopes bypass it. No generation, collision, simulation,
 network protocol or resource fingerprint changes are involved.
 
 Press **F7** during gameplay in either app to enable or disable it immediately,
@@ -13,7 +14,7 @@ This version replaces the tiled cubemap with one screen-sized RGBA8 texture,
 updated at **15 Hz**. Distant scenery is drawn once from the current camera on
 each refresh. The existing camera draw list is reused, so there is no extra
 town visibility query for the capture. Between refreshes, four vertices place
-that image on a rectangle fixed to the capture camera at a **1 km proxy depth**.
+that image on a rectangle fixed to the capture camera at the **selected distance** (1 km for the startup flag).
 The current camera projects those vertices; the fragment shader samples only
 color. The rectangle fills the screen at capture time.
 
@@ -29,7 +30,7 @@ even when they would physically be behind distant cached scenery. These are
 intentional approximation limits. Visual review is left to the user.
 
 Static opaque/masked town geometry, trees and forest volumes whose complete
-conservative bounds lie at least **1,000 m** from the refresh position enter the
+conservative bounds lie at least **the selected distance** from the refresh position enter the
 capture. Bounds crossing that distance stay at full rate; complete building
 batches share one decision. Translucent surfaces, movable panels, actors,
 vehicles, props, effects, shadows and the HUD retain their normal cadence.

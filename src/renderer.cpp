@@ -459,8 +459,8 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::zombiePreparation);
         prepareZombieDraws(Frustum(projection * view), castShadows ? &lightFrustum : nullptr, camera, projection, animationSeconds, flashlightCasting ? &flashlightFrustum : nullptr);
     }
-    prepareDogDraws(Frustum(projection * view), castShadows ? &lightFrustum : nullptr,
-        flashlightCasting ? &flashlightFrustum : nullptr, camera, animationSeconds);
+    prepareDogDraws(Frustum(projection * view), castShadows && zombieShadows_ ? &lightFrustum : nullptr,
+        flashlightCasting && zombieShadows_ ? &flashlightFrustum : nullptr, camera, animationSeconds);
     if (castShadows) {
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::shadows);
         drawSunShadows(shadowView, animationSeconds);
@@ -504,6 +504,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     const bool cache = cacheRequested && hasDistantStatic(camera, projection);
     if (cache) {
         if (!distantCache_) distantCache_ = std::make_unique<DistantSceneCache>(shaderDirectory_);
+        distantCache_->setDistance(distantSceneDistance_);
         const double cacheSeconds = presentationSeconds ? *presentationSeconds :
             std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
         distantCache_->update(camera, projection, width_, height_, cacheSeconds, backgroundSrgb_,

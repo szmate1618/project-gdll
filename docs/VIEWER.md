@@ -28,8 +28,9 @@ and GUI are then drawn at the full window framebuffer resolution, keeping text,
 inventory, and minimap sharp even at `960x540`. Black bars preserve the scene's
 16:9 aspect ratio on other screen shapes; the GUI uses the full window.
 Screenshots include the composed scene and GUI at window framebuffer resolution.
-Without `--fullscreen`, `--resolution` sets the initial window size; normal
-window resizing still adjusts the render target. `--hidden --fullscreen` uses a
+Without `--fullscreen`, `--resolution` also sets the initial window size.
+The 3D render resolution stays fixed when the window is resized; the GUI follows
+the window framebuffer. `--hidden --fullscreen` uses a
 desktop-sized hidden window with the same scene/GUI resolutions as fullscreen,
 without covering the monitor.
 
@@ -317,8 +318,36 @@ within the same HUD session. Losing focus also cancels unfinished drawing;
 closing or losing focus during a point adjustment restores that point. A drag
 threshold of four design pixels prevents panning from adding measurement points.
 
+### Graphics settings
+
+**F12** opens/closes Graphics; its tab sits on the far right of the shared
+in-game header. **Home** releases/captures the mouse; the standalone viewer's
+frame-scene shortcut is **End**. Gameplay continues while this page is open.
+
+Display mode switches between windowed and fullscreen without recreating the
+OpenGL context. Render resolution selects 960x540, 1280x720 or 1920x1080 for the
+world and held weapon; menus, HUD and pointer coordinates retain native window
+resolution. Windowed size and position are restored when leaving fullscreen.
+
+Distant scenery offers 500 m, 750 m, 1000 m and Disabled. The selected distance
+controls both cache eligibility and rectangle proxy depth; eligible static
+scenery refreshes at 15 Hz. Disabled renders it normally. F7 remains an on/off
+shortcut, enabling the 1000 m option.
+
+Shadow casters uses cumulative stops: None, Buildings, +Trees, +NPCs, +Objects.
+Trees includes vegetation; NPCs includes zombies and dogs; Objects includes cars,
+boxes, forest props and grenades. Choosing a level applies the same policy to
+sunlight and flashlight shadows. Pigeons remain non-casters.
+
+Never use highest detail defaults off. When enabled, NPC and car meshes with
+prepared LoDs start at LOD1 even up close, while farther levels keep their normal
+selection. Wounded/severed zombie surfaces retain their required original
+vertex topology, and assets without a prepared lower mesh retain their fallback.
+Settings are local to the current viewer/session and do not change collision,
+AI, networking or content fingerprints.
+
 For reproducible in-game captures, use `--hud-screen inventory`,
-`--hud-screen skills`, `--hud-screen health` or `--hud-screen map` with the
+`--hud-screen skills`, `--hud-screen health`, `--hud-screen map` or `--hud-screen graphics` with the
 viewer's normal map, camera and screenshot options:
 
 ```bash
@@ -1832,9 +1861,10 @@ build directory when run by CTest.
 | F4 | Open / close the full Sentinel map |
 | F10 | Toggle collision visualization |
 | Alt | Hold for temporary Object handling on foot; toggle first/third person in any vehicle seat |
-| F12 | Release / capture the mouse |
+| F12 | Open / close Graphics settings |
+| Home | Release / capture the mouse |
 | L | Toggle the flashlight on/off |
-| Home | Frame the whole scene again in free-fly mode |
+| End | Frame the whole scene again in free-fly mode |
 | Escape | Close the active prototype screen; otherwise close the viewer |
 
 The mouse is captured when the window opens. Movement uses elapsed frame time
@@ -2713,7 +2743,7 @@ Press **L** to toggle the flashlight in either control mode. It starts enabled;
 turning it off removes the beam, its optional shadows, and its illumination of
 rain, while preserving the night palette and weapon muzzle flashes. The setting
 persists through the day/night cycle; daylight still fades the beam out normally.
-**Home** frames the whole scene (previously **F**).
+**End** frames the whole scene; **Home** releases/captures the mouse.
 
 Flashlight shadows are disabled by default. Enable them with
 `--flashlight-shadows`, for example:

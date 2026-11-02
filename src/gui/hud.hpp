@@ -2,6 +2,7 @@
 
 #include "inventory/inventory_action.hpp"
 #include "command_wheel.hpp"
+#include "graphics_settings.hpp"
 #include "../map_view.hpp"
 #include <filesystem>
 #include <memory>
@@ -17,7 +18,7 @@ struct Model;
 class GroundItems;
 class Weapons;
 class CollisionWorld;
-enum class HudScreen { Gameplay, Inventory, Skills, Health, Map };
+enum class HudScreen { Gameplay, Inventory, Skills, Health, Map, Graphics };
 
 // Presentation snapshot only; callers retain simulation/network ownership.
 struct HudState {
@@ -67,6 +68,8 @@ public:
     // Consume a clicked page tab after draw(); apply it to the caller's screen
     // state so input routing and the next rendered page stay in agreement.
     std::optional<HudScreen> takeScreenRequest();
+    void setGraphicsSettings(const GraphicsSettings& settings);
+    std::optional<GraphicsSettings> takeGraphicsSettingsRequest();
     std::vector<InventoryDragAction> takeInventoryActions();
     bool inventoryDragging() const; // Includes completed actions awaiting delivery.
     void setGroundItems(GroundItems& ground, Weapons& weapons, const CollisionWorld& collision);

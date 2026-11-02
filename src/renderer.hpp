@@ -1,6 +1,7 @@
 #pragma once
 
 #include "opengl.hpp"
+#include "graphics_settings.hpp"
 #include "scene_depth.hpp"
 #include "building_visibility.hpp"
 #include "basic_shader_uniforms.hpp"
@@ -145,8 +146,12 @@ public:
     // 15 Hz color capture on a background rectangle. Scope views bypass it.
     void setDistantSceneCache(bool enabled);
     bool distantSceneCacheEnabled() const { return distantEnabled_; }
+    void setDistantSceneDistance(float meters);
     const DistantCacheStats& distantCacheStats() const { return distantStats_; }
     void setShadows(bool enabled) { shadows_ = enabled; }
+    void setShadowCasters(ShadowCasters level);
+    ShadowCasters shadowCasters() const;
+    void setSkipHighestDetail(bool enabled) { skipHighestDetail_ = enabled; }
     // Reallocates the sunlight map between frames. Light coverage is unchanged;
     // projection snapping and PCF texels follow the actual map resolution.
     void setSunShadowResolution(int resolution);
@@ -220,6 +225,8 @@ private:
     enum class StaticPass { All, Near, Far };
     StaticPass staticPass_ = StaticPass::All;
     bool distantEnabled_ = false;
+    float distantSceneDistance_ = 1000;
+    bool objectShadows_ = true, skipHighestDetail_ = false;
     std::unique_ptr<DistantSceneCache> distantCache_;
     DistantCacheStats distantStats_;
     struct StaticChunk { VisibilityBounds bounds; GLsizei count; std::size_t offset; };

@@ -597,6 +597,7 @@ int main(int argc, char** argv) {
             click(245, 51); apply(viewer::HudScreen::Skills); // Click the nested F2 label.
             click(475, 53); apply(viewer::HudScreen::Health);
             click(680, 53); apply(viewer::HudScreen::Map);
+            click(1190, 53); apply(viewer::HudScreen::Graphics);
             click(80, 53); apply(viewer::HudScreen::Inventory);
             click(80, 53);
             require(!hud.takeScreenRequest(), "Clicking the active tab must keep its page open");
@@ -695,6 +696,40 @@ int main(int argc, char** argv) {
             state.screen = viewer::HudScreen::Inventory;
             clear(); hud.draw(state, 640, 360); checkState();
             if (argc > 1) capture((std::string(argv[1]) + "-inventory-small.ppm").c_str(), pixels(640, 360), 640, 360);
+            state.screen = viewer::HudScreen::Graphics;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            if (argc > 1) capture((std::string(argv[1]) + "-graphics.ppm").c_str(), pixels(1280, 720), 1280, 720);
+            require(!hud.takeGraphicsSettingsRequest(), "Opening Graphics must not change any settings");
+            const auto graphicsClick = [&](float x, float y) {
+                hud.pointerMove(x / 1280, y / 720);
+                hud.pointerButton(0, true); hud.pointerButton(0, false);
+                clear(); hud.draw(state, 1280, 720); checkState();
+                const auto request = hud.takeGraphicsSettingsRequest();
+                if (!request) throw std::runtime_error("Graphics control failed to publish a setting change at " + std::to_string(x) + "," + std::to_string(y));
+                require(!hud.takeGraphicsSettingsRequest(), "Graphics changes must be consumed once");
+                return *request;
+            };
+            auto graphics = graphicsClick(640, 187);
+            require(graphics.fullscreen, "Fullscreen button must select fullscreen");
+            graphics = graphicsClick(480, 187);
+            require(!graphics.fullscreen, "Windowed button must restore windowed selection");
+            hud.pointerMove(640.f / 1280, 187.f / 720); hud.pointerButton(0, true);
+            clear(); hud.draw(state, 1280, 720);
+            hud.cancelPointerInteraction(); hud.pointerButton(0, false);
+            clear(); hud.draw(state, 1280, 720);
+            require(!hud.takeGraphicsSettingsRequest(), "Cancelling a pressed control must not change graphics settings");
+            graphics = graphicsClick(420, 267);
+            require(graphics.resolution == 0, "Resolution slider must select 960x540");
+            graphics = graphicsClick(420, 375);
+            require(graphics.distantScenery == 0, "Distant scenery slider must select 500 m");
+            graphics = graphicsClick(420, 483);
+            require(graphics.shadowCasters == viewer::ShadowCasters::None, "Shadow slider must disable shadows at its left end");
+            graphics = graphicsClick(422, 597);
+            require(graphics.skipHighestDetail, "LOD checkbox must enable the highest-detail restriction");
+            graphics = graphicsClick(422, 597);
+            require(!graphics.skipHighestDetail, "LOD checkbox must allow highest detail again");
+            clear(); hud.draw(state, 640, 360); checkState();
+            if (argc > 1) capture((std::string(argv[1]) + "-graphics-small.ppm").c_str(), pixels(640, 360), 640, 360);
             state.screen = viewer::HudScreen::Health;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto health = pixels(1280, 720);

@@ -293,6 +293,13 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             key(window, GLFW_KEY_F4, 0, GLFW_PRESS, 0);
             key(window, GLFW_KEY_F4, 0, GLFW_REPEAT, 0);
             require(in.hudScreen == viewer::HudScreen::Map, "F4 must select map without repeat toggling");
+            key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
+            key(window, GLFW_KEY_F12, 0, GLFW_REPEAT, 0);
+            require(in.hudScreen == viewer::HudScreen::Graphics && in.capture,
+                    "F12 must open Graphics without changing mouse-capture preference");
+            key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
+            require(in.hudScreen == viewer::HudScreen::Gameplay && in.capture, "F12 must close Graphics");
+            key(window, GLFW_KEY_F4, 0, GLFW_PRESS, 0);
             key(window, GLFW_KEY_ENTER, 0, GLFW_PRESS, 0);
             button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
             const auto previewCommand = command(in, window, false, 0.0);
@@ -302,9 +309,9 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             require(in.hudScreen == viewer::HudScreen::Gameplay && !in.leave, "Escape must close skills before leaving session");
             require(glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED, "Closing inventory screens must restore cursor capture");
             in.capture = true;
-            key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
-            require(!in.capture && !in.driver.thirdPerson(), "F12 must release the mouse without changing camera mode");
-            key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
+            key(window, GLFW_KEY_HOME, 0, GLFW_PRESS, 0);
+            require(!in.capture && !in.driver.thirdPerson(), "Home must release the mouse without changing camera mode");
+            key(window, GLFW_KEY_HOME, 0, GLFW_PRESS, 0);
             key(window, GLFW_KEY_ENTER, 0, GLFW_PRESS, 0);
             require(command(in, window, false, 0.0).enterVehicle && !command(in, window, false, 0.0).enterVehicle,
                     "Enter must queue exactly one seat-transition command");
@@ -528,7 +535,14 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE, 0);
             require(!in.wheelOpen && in.pendingSignal == multiplayer::SignalKind::None,
                     "Focus loss submitted a command");
-            key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
+            key(window, GLFW_KEY_HOME, 0, GLFW_PRESS, 0);
+            // Drain wheel cancellation before the next scripted physical press.
+            // A fast rendered frame need not contain a fixed-step command tick.
+            {
+                const auto afterFocus = command(in, window, false, 0);
+                require(!afterFocus.left && !afterFocus.right && afterFocus.signal == multiplayer::SignalKind::None,
+                        "Cancelling the wheel must deliver an idle command before scoped input resumes");
+            }
             authoritative.slot = 3; authoritative.loaded = 2;
             authoritative.yaw = -90; authoritative.pitch = 0;
             in.camera.setOrientation(-90, 0);
@@ -703,7 +717,7 @@ int main(int argc, char** argv) {
             for (std::size_t b = a+1; b < weaponFrames.size(); ++b)
                 require(differences(weaponFrames[a], weaponFrames[b]) > 500,
                         "Server-confirmed weapon models must produce distinct frames");
-        std::cout << "Multiplayer weapons, melee, driving cameras, Enter, Alt and F12 checks passed\n";
+        std::cout << "Multiplayer weapons, melee, driving cameras, Enter, Alt and Home checks passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

@@ -6,7 +6,7 @@
 
 namespace viewer {
 std::optional<HudScreen> LoadoutNavigation::hoveredTab(Rml::ElementDocument& document) const {
-    constexpr std::array<const char*, 4> tabs{"inventory-tab", "skills-tab", "health-tab", "map-tab"};
+    constexpr std::array<const char*, 5> tabs{"inventory-tab", "skills-tab", "health-tab", "map-tab", "graphics-tab"};
     for (auto* element = context_.GetHoverElement(); element && element != &document; element = element->GetParentNode())
         for (std::size_t i = 0; i < tabs.size(); ++i)
             if (element->GetId() == tabs[i]) return static_cast<HudScreen>(i + 1);
@@ -54,7 +54,7 @@ std::vector<HudPointerEvent> LoadoutNavigation::process(Rml::ElementDocument& do
 std::optional<HudScreen> LoadoutNavigation::takeRequest() { return std::exchange(requested_, {}); }
 void LoadoutNavigation::cancel() {
     pressedTab_.reset(); requested_.reset();
-    context_.ProcessMouseButtonUp(0, 0);
     context_.ProcessMouseLeave();
+    context_.ProcessMouseButtonUp(0, 0);
 }
 }

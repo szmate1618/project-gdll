@@ -7,6 +7,7 @@
 #include "action_hotbar.hpp"
 #include "skills_view.hpp"
 #include "loadout_navigation.hpp"
+#include "graphics_view.hpp"
 #include "gui/map_view.hpp"
 #include "presentation_viewport.hpp"
 #include "inventory/player_inventory.hpp"
@@ -90,7 +91,9 @@ struct Hud::Impl {
     HudRenderInterface& renderer;
     Rml::Context* context = nullptr;
     Rml::ElementDocument* document = nullptr;
-    std::array<Rml::ElementDocument*, 4> screens{};
+    std::array<Rml::ElementDocument*, 5> screens{};
+    GraphicsSettings graphicsSettings;
+    std::unique_ptr<GraphicsView> graphicsView;
     PlayerInventory& inventory;
     GroundItems* ground = nullptr;
     Weapons* weapons = nullptr;
@@ -161,6 +164,7 @@ struct Hud::Impl {
     }
     ~Impl() { shutdown(); }
     void shutdown() {
+        graphicsView.reset();
         navigation.reset();
         commandWheel.reset();
         mapView.reset();
@@ -203,7 +207,7 @@ struct Hud::Impl {
         if (screen == next) return;
         const auto screenDocument = [&](HudScreen selected) {
             if (selected == HudScreen::Gameplay) return document;
-            constexpr std::array<const char*, 4> files{"inventory.rml", "skills.rml", "health.rml", "map.rml"};
+            constexpr std::array<const char*, 5> files{"inventory.rml", "skills.rml", "health.rml", "map.rml", "graphics.rml"};
             const auto index = static_cast<std::size_t>(selected) - 1;
             auto*& page = screens.at(index);
             if (!page) {
@@ -219,6 +223,7 @@ struct Hud::Impl {
                 }
                 if (selected == HudScreen::Skills)
                     populateMeleeSkills(*page, loadMeleeSkills(sourceDirectory.parent_path()));
+                if (selected == HudScreen::Graphics) graphicsView = std::make_unique<GraphicsView>(*page, graphicsSettings);
                 if (selected == HudScreen::Map) {
                     mapView = std::make_unique<MapViewUi>(*page, renderer);
                     mapView->setSource(mapSource);
@@ -371,6 +376,13 @@ void Hud::mouseWheel(float notches) {
 void Hud::cancelInventoryDrag() { cancelPointerInteraction(); }
 void Hud::cancelPointerInteraction() { impl_->pointerEvents.push_back({HudPointerAction::Cancel}); }
 std::optional<HudScreen> Hud::takeScreenRequest() { return impl_->navigation->takeRequest(); }
+void Hud::setGraphicsSettings(const GraphicsSettings& settings) {
+    impl_->graphicsSettings = settings;
+    if (impl_->graphicsView) impl_->graphicsView->setSettings(settings);
+}
+std::optional<GraphicsSettings> Hud::takeGraphicsSettingsRequest() {
+    return impl_->graphicsView ? impl_->graphicsView->takeRequest() : std::nullopt;
+}
 std::vector<InventoryDragAction> Hud::takeInventoryActions() {
     return impl_->inventoryInteraction ? impl_->inventoryInteraction->takeActions() : std::vector<InventoryDragAction>{};
 }

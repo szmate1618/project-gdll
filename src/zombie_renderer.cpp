@@ -474,7 +474,10 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
                     source.displayedAnimationClip = clip;
                     ++zombieRenderStats_.posePublications;
                 }
-                const auto level = cameraInstance.woundBase > 0 ? 0 : std::min(detail.level, batch.lods.size());
+                // Wound masks address original vertices; preserve those dedicated
+                // surfaces until a matching simplified wound mesh exists.
+                const auto level = cameraInstance.woundBase > 0 ? 0 : std::min(
+                    std::max(detail.level, skipHighestDetail_ ? std::size_t(1) : std::size_t(0)), batch.lods.size());
                 auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
                 auto& cameraInstances = cameraInstance.woundBase > 0 ? geometry.woundedCameraInstances : geometry.cameraInstances;
                 cameraInstances.push_back(cameraInstance);
@@ -485,7 +488,8 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
                 // Keep the camera pose when available so near silhouettes align.
                 auto shadowInstance = cameraVisible ? cameraInstance : instance;
                 if (!cameraVisible) { shadowInstance.animationFrame = std::floor(frame); shadowInstance.animationStep = 1; }
-                const auto level = zombieDistanceDetail_ ? batch.lods.size() : 0;
+                const auto level = zombieDistanceDetail_ ? batch.lods.size() :
+                    std::min(skipHighestDetail_ ? std::size_t(1) : std::size_t(0), batch.lods.size());
                 auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
                 geometry.shadowInstances.push_back(shadowInstance);
                 ++zombieRenderStats_.shadowLevels[level];
@@ -494,7 +498,8 @@ void Renderer::prepareZombieDraws(const Frustum& cameraFrustum, const Frustum* l
                 auto caster = cameraVisible ? cameraInstance : instance;
                 if (!cameraVisible) { caster.animationFrame = std::floor(frame); caster.animationStep = 1; }
                 // Nearby flashlight silhouettes need more detail than sun shadows.
-                const auto level = zombieDistanceDetail_ && distance >= 12 ? std::min(std::size_t(1), batch.lods.size()) : 0;
+                const auto level = (zombieDistanceDetail_ && distance >= 12) || skipHighestDetail_ ?
+                    std::min(std::size_t(1), batch.lods.size()) : 0;
                 auto& geometry = level ? batch.lods[level - 1] : static_cast<ZombieGeometry&>(batch);
                 geometry.flashlightInstances.push_back(caster);
                 ++zombieRenderStats_.flashlightLevels[level];

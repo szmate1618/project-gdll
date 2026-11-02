@@ -106,11 +106,12 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         return;
     }
     if (action != GLFW_PRESS) return;
-    if ((code >= GLFW_KEY_F1 && code <= GLFW_KEY_F4) ||
+    if ((code >= GLFW_KEY_F1 && code <= GLFW_KEY_F4) || code == GLFW_KEY_F12 ||
         (code == GLFW_KEY_ESCAPE && in.hudScreen != viewer::HudScreen::Gameplay)) {
         constexpr std::array<viewer::HudScreen, 4> screens{viewer::HudScreen::Inventory, viewer::HudScreen::Skills,
             viewer::HudScreen::Health, viewer::HudScreen::Map};
-        const auto requested = code == GLFW_KEY_ESCAPE ? viewer::HudScreen::Gameplay : screens[code - GLFW_KEY_F1];
+        const auto requested = code == GLFW_KEY_ESCAPE ? viewer::HudScreen::Gameplay :
+            code == GLFW_KEY_F12 ? viewer::HudScreen::Graphics : screens[code - GLFW_KEY_F1];
         in.cancelInteraction = true;
         in.altHeld.fill(false);
         in.hudScreen = in.hudScreen == requested ? viewer::HudScreen::Gameplay : requested;
@@ -132,11 +133,11 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         return;
     }
     if (code == GLFW_KEY_ESCAPE && in.wheelOpen) { in.cancelSignal(); return; }
-    if (in.wheelOpen && code != GLFW_KEY_F12) return;
+    if (in.wheelOpen && code != GLFW_KEY_HOME) return;
     if (code == GLFW_KEY_ESCAPE && in.actionSelection.open()) { in.actionSelection.close(); return; }
     if (code == GLFW_KEY_ESCAPE) in.leave = true;
     if (code == GLFW_KEY_ENTER && in.capture) in.enterVehicle = true;
-    if (in.driver.occupied() && code != GLFW_KEY_F12) return;
+    if (in.driver.occupied() && code != GLFW_KEY_HOME) return;
     if (code == GLFW_KEY_C) in.prone = true;
     if (code == GLFW_KEY_R && !in.temporaryHandling() && !in.weaponSwitching && !in.weaponReloading && !in.actionSelection.open()) {
         in.reload = true;
@@ -148,7 +149,7 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         in.actionSelection.highlight((code == GLFW_KEY_0 || code == GLFW_KEY_GRAVE_ACCENT) ? 0 : code - GLFW_KEY_1 + 1);
         in.leftPressed = false;
     }
-    if (code == GLFW_KEY_F12) {
+    if (code == GLFW_KEY_HOME) {
         in.altHeld.fill(false);
         in.cancelInteraction = true;
         in.cancelSignal();
@@ -264,6 +265,7 @@ struct Graphics {
     bool ownsWindow = false;
 #ifdef MP_GRAPHICS
     std::unique_ptr<viewer::Renderer> renderer;
+    std::unique_ptr<viewer::RuntimeGraphicsSettings> settings;
     std::unique_ptr<viewer::GpuTimer> gpuTimer;
     std::unique_ptr<viewer::BirdRenderer> birds;
     std::unique_ptr<viewer::ReticleOverlay> reticle;
@@ -303,7 +305,7 @@ struct Graphics {
         viewer::initializeOpenGL();
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << std::endl;
         int width = 0, height = 0; glfwGetFramebufferSize(window, &width, &height);
-        const auto renderSize = options.display.renderSize({width, height});
+        const auto renderSize = options.display.renderSize();
         std::cout << (options.display.fullscreen ? "Fullscreen" : "Windowed") << "; render resolution "
                   << renderSize.x << 'x' << renderSize.y << "; GUI resolution " << width << 'x' << height << '\n';
         bindInput(in);
@@ -313,6 +315,8 @@ struct Graphics {
             &scene.zombies, scene.forests ? &*scene.forests : nullptr, &scene.dogs);
         in.distantSceneCache = options.distantSceneCache;
         renderer->setDistantSceneCache(in.distantSceneCache);
+        settings = std::make_unique<viewer::RuntimeGraphicsSettings>(window, *renderer, options.display.fullscreen,
+            options.display.renderSize());
         scene.zombies.releaseAnimationVertices();
         scene.dogs.releaseAnimationVertices();
         renderer->setGroundItems(*scene.groundItems, scene.groundModels);
@@ -464,7 +468,16 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
         if (options.seconds && now >= options.seconds) break;
         const double dt = std::min(.1, std::chrono::duration<double>(clockNow - previous).count()); previous = clockNow;
 #ifdef MP_GRAPHICS
-        if (graphics.window) glfwPollEvents();
+        if (graphics.window) {
+            if (const auto changed = graphics.hud->takeGraphicsSettingsRequest()) {
+                graphics.settings->apply(*changed);
+                in.distantSceneCache = changed->distantScenery != 3;
+                in.firstMouse = true;
+            }
+            glfwPollEvents();
+            graphics.settings->syncDistantScenery(in.distantSceneCache);
+            graphics.hud->setGraphicsSettings(graphics.settings->settings());
+        }
         if (in.hud) {
             auto actions = in.hud->takeInventoryActions();
             in.inventoryActions.insert(in.inventoryActions.end(), actions.begin(), actions.end());
@@ -687,7 +700,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     int viewWidth = 0, viewHeight = 0;
                     glfwGetFramebufferSize(graphics.window, &viewWidth, &viewHeight);
                     if (viewWidth > 0 && viewHeight > 0) {
-                        const auto renderSize = options.display.renderSize({viewWidth, viewHeight});
+                        const auto renderSize = graphics.settings->renderSize();
                         view.aspect = std::clamp(float(renderSize.x) / float(renderSize.y), .2f, 8.f);
                         view.verticalFov = glm::degrees(2.f * std::atan(1.f / camera.projection(view.aspect)[1][1]));
                     }
@@ -730,7 +743,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
             graphics.audio->update(in.camera, scene, snapshots, self, static_cast<float>(dt), now);
             int width = 0, height = 0; glfwGetFramebufferSize(graphics.window, &width, &height);
             if (width > 0 && height > 0) {
-                const auto renderSize = options.display.renderSize({width, height});
+                const auto renderSize = graphics.settings->renderSize();
                 const int renderWidth = renderSize.x, renderHeight = renderSize.y;
                 const float renderAspect = float(renderWidth) / renderHeight;
                 intervalSimulationSeconds += std::chrono::duration<double>(Clock::now() - simulationStart).count();
@@ -767,8 +780,6 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 graphics.gpuTimer->begin();
                 const auto renderStart = Clock::now();
                 renderer.updateFloorplans(*scene.floorplans);
-                if (renderer.distantSceneCacheEnabled() != in.distantSceneCache)
-                    renderer.setDistantSceneCache(in.distantSceneCache);
                 renderer.render(viewCamera, snapshots.animationSeconds(), [&] {
                     graphics.birds->draw(viewCamera,renderAspect,snapshots.animationSeconds(),birds.sample(snapshots.animationSeconds()));
                     graphics.players->draw(viewCamera, snapshots.players(), self, renderWidth, renderHeight,

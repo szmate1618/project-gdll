@@ -163,7 +163,8 @@ Options parseOptions(int argc, char** argv) {
             else if (screen == "skills") options.hudScreen = viewer::HudScreen::Skills;
             else if (screen == "health") options.hudScreen = viewer::HudScreen::Health;
             else if (screen == "map") options.hudScreen = viewer::HudScreen::Map;
-            else throw std::runtime_error("--hud-screen requires inventory, skills, health or map");
+            else if (screen == "graphics") options.hudScreen = viewer::HudScreen::Graphics;
+            else throw std::runtime_error("--hud-screen requires inventory, skills, health, map or graphics");
         }
         else if (argument == "--frame-profile") options.frameProfile = value();
         else if (argument == "--sun-shadow-resolution") {
@@ -372,8 +373,8 @@ void printHelp() {
               << "Right tap drops; hold right and release throws. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
               << "Hotbar: 0 Object handling, 1 Punch, 2 pistol, 3 SMG, 4 shotgun, 5 sniper, 6 HE grenade; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
-              << "Alt handling / vehicle camera, F12 cursor, wheel preview action, F throw weapon, G pick up weapon, L toggle flashlight, Home frame model, Escape quit\n\n"
-              << "F1 Inventory, F2 Skills, F3 Health, F4 Map, F8 free-fly, F9 FPS walking, F10 collision overlay; Space jump, C prone in FPS\n\n"
+              << "Alt handling / vehicle camera, Home cursor, wheel preview action, F throw weapon, G pick up weapon, L toggle flashlight, End frame model, Escape quit\n\n"
+              << "F1 Inventory, F2 Skills, F3 Health, F4 Map, F12 Graphics, F8 free-fly, F9 FPS walking, F10 collision overlay; Space jump, C prone in FPS\n\n"
               << "  --fps               Start in walking mode\n"
               << "  --fullscreen        Fill the primary monitor at the selected render resolution\n"
               << "  --resolution WxH    960x540, 1280x720 (default) or 1920x1080\n"
@@ -447,7 +448,7 @@ void printHelp() {
               << "  --self-test-fps     Exercise mode-switch and jump callbacks\n"
               << "  --frames N          Render N frames, then exit\n"
               << "  --screenshot FILE   Save a PPM image; defaults to 3 frames\n"
-              << "  --hud-screen NAME   Start with inventory, skills, health or map visible\n"
+              << "  --hud-screen NAME   Start with inventory, skills, health, map or graphics visible\n"
               << "  --hidden            Hide the window for capture (display still required)\n"
               << "  --allow-software    Permit a CPU OpenGL driver for diagnostics\n"
               << "  --self-test-input   Exercise registered input/resize callbacks\n"
@@ -550,11 +551,12 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         return;
     }
     if (action != GLFW_PRESS) return;
-    if ((key >= GLFW_KEY_F1 && key <= GLFW_KEY_F4) ||
+    if ((key >= GLFW_KEY_F1 && key <= GLFW_KEY_F4) || key == GLFW_KEY_F12 ||
         (key == GLFW_KEY_ESCAPE && app.hudScreen != viewer::HudScreen::Gameplay)) {
         constexpr std::array<viewer::HudScreen, 4> screens{viewer::HudScreen::Inventory, viewer::HudScreen::Skills,
             viewer::HudScreen::Health, viewer::HudScreen::Map};
-        const auto requested = key == GLFW_KEY_ESCAPE ? viewer::HudScreen::Gameplay : screens[key - GLFW_KEY_F1];
+        const auto requested = key == GLFW_KEY_ESCAPE ? viewer::HudScreen::Gameplay :
+            key == GLFW_KEY_F12 ? viewer::HudScreen::Graphics : screens[key - GLFW_KEY_F1];
         app.hudScreen = app.hudScreen == requested ? viewer::HudScreen::Gameplay : requested;
         app.keys.fill(false); app.proneToggleQueued = false; app.firstMouse = true;
         app.actionSelection.close();
@@ -579,7 +581,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         } else std::cout << "Enter needs a nearby stopped car, or a clear exit beside a stopped car\n";
         return;
     }
-    if (app.driver.occupied() && key != GLFW_KEY_ESCAPE && key != GLFW_KEY_F12 &&
+    if (app.driver.occupied() && key != GLFW_KEY_ESCAPE && key != GLFW_KEY_HOME &&
         key != GLFW_KEY_LEFT_ALT && key != GLFW_KEY_RIGHT_ALT) return;
     if (key == GLFW_KEY_ESCAPE && app.actionSelection.open()) { app.actionSelection.close(); return; }
     if (key == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(window, GLFW_TRUE);
@@ -592,7 +594,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         if (app.weaponReload.begin(app.weapons, app.inventory, viewer::SimulationClock::instance().seconds()) && app.audio)
             app.audio->reload(app.weapons.slot());
         std::cout << app.weapons.status() << '\n';
-    } else if (key == GLFW_KEY_F12) captureMouse(window, !app.capture);
+    } else if (key == GLFW_KEY_HOME) captureMouse(window, !app.capture);
     else if (key == GLFW_KEY_F && app.capture && app.groundItems) {
         if (app.weaponSwitch.pending() || app.weaponReload.pending()) return;
         if (app.groundItems->discard(app.weapons,app.inventory,app.rig.camera(),app.world,app.playerVelocity)) {
@@ -608,7 +610,7 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
     } else if (key == GLFW_KEY_L) {
         app.flashlight = !app.flashlight;
         std::cout << "Flashlight: " << (app.flashlight ? "on" : "off") << '\n';
-    } else if (key == GLFW_KEY_HOME) {
+    } else if (key == GLFW_KEY_END) {
         app.weapons.cancelTrigger();
         app.interaction.cancel();
         app.rig.frame(static_cast<float>(std::max(app.width, 1)) / static_cast<float>(std::max(app.height, 1)));
@@ -1075,15 +1077,22 @@ void inputSelfTest(GLFWwindow* window) {
             app.rig.camera().view() != cameraBeforeAlt.view())
             throw std::runtime_error("Alt must leave mouse capture and the on-foot camera unchanged");
     }
-    key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_HOME, 0, GLFW_PRESS, 0);
     if (app.capture) throw std::runtime_error("Mouse release self-test failed");
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
     if (app.rig.camera().projection(1.0f) != originalProjection)
         throw std::runtime_error("Released cursor changed zoom");
-    key(window, GLFW_KEY_F12, 0, GLFW_RELEASE, 0);
+    key(window, GLFW_KEY_HOME, 0, GLFW_RELEASE, 0);
+    key(window, GLFW_KEY_HOME, 0, GLFW_PRESS, 0);
+    key(window, GLFW_KEY_HOME, 0, GLFW_RELEASE, 0);
     key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
-    key(window, GLFW_KEY_F12, 0, GLFW_RELEASE, 0);
+    key(window, GLFW_KEY_F12, 0, GLFW_REPEAT, 0);
+    if (app.hudScreen != viewer::HudScreen::Graphics || !app.capture)
+        throw std::runtime_error("F12 must open Graphics without changing the capture preference");
+    key(window, GLFW_KEY_F12, 0, GLFW_PRESS, 0);
+    if (app.hudScreen != viewer::HudScreen::Gameplay || !app.capture)
+        throw std::runtime_error("F12 must close Graphics and retain mouse capture");
     resize(window, 800, 600);
     if (app.width != 800 || app.height != 600) throw std::runtime_error("Resize callback self-test failed");
     glfwSetWindowSize(window, originalWidth, originalHeight);
@@ -1564,9 +1573,9 @@ int run(const Options& options) {
     if (!options.hidden) viewer::enableRawMouseMotion(window.get());
     const char* proneKeyName = glfwGetKeyName(GLFW_KEY_C, 0);
     std::cout << "Camera mode: " << app.rig.modeName() << "; speed: " << app.rig.speed()
-              << " m/s; F1 Inventory, F2 Skills, F3 Health, F4 Map, F8 free-fly, F9 walk, F10 collisions, WASD move, Space jump, Ctrl hold crouch/airborne tuck, "
+              << " m/s; F1 Inventory, F2 Skills, F3 Health, F4 Map, F12 Graphics, F8 free-fly, F9 walk, F10 collisions, WASD move, Space jump, Ctrl hold crouch/airborne tuck, "
               << (proneKeyName ? proneKeyName : "C")
-              << " toggle prone, mouse look, F throw weapon, G pick up weapon, L flashlight, Home frame scene, Alt handling / vehicle camera, F12 cursor, Escape quit\n";
+              << " toggle prone, mouse look, F throw weapon, G pick up weapon, L flashlight, End frame scene, Alt handling / vehicle camera, Home cursor, Escape quit\n";
     std::array<viewer::Model,viewer::weaponIds.size()> droppedModels;
     for (std::size_t i=0; i<droppedModels.size(); ++i)
         droppedModels[i] = viewer::loadModel(std::filesystem::path(VIEWER_WEAPON_ASSETS)/(std::string(viewer::weaponIds[i])+".glb"));
@@ -1658,7 +1667,8 @@ int run(const Options& options) {
             reticle.draw(mode, 800, 600);
         viewer::Renderer::checkErrors("resized render target and reticle modes");
     }
-    renderer.resize(options.fullscreen ? options.width : app.width, options.fullscreen ? options.height : app.height);
+    viewer::RuntimeGraphicsSettings graphics(window.get(), renderer, options.fullscreen, glm::ivec2(options.width, options.height));
+    renderer.resize(graphics.renderSize().x, graphics.renderSize().y);
     viewer::GpuTimer gpuTimer;
     std::unique_ptr<viewer::FrameProfile> frameProfile;
     if (!options.frameProfile.empty()) frameProfile=std::make_unique<viewer::FrameProfile>(options.frameProfile);
@@ -1677,7 +1687,16 @@ int run(const Options& options) {
     playerPresentation.reset(app.rig.camera().position(), playerBody.pose());
     double nextDoodadSave = glfwGetTime()+5;
     while (!glfwWindowShouldClose(window.get())) {
+        // Commit last frame's UI edits before newer keyboard shortcuts.
+        if (const auto settings = hud.takeGraphicsSettingsRequest()) {
+            graphics.apply(*settings);
+            app.distantSceneCache = settings->distantScenery != 3;
+            app.firstMouse = true;
+            glfwGetFramebufferSize(window.get(), &app.width, &app.height);
+        }
         glfwPollEvents();
+        graphics.syncDistantScenery(app.distantSceneCache);
+        hud.setGraphicsSettings(graphics.settings());
         renderer.setFlashlight(app.flashlight);
         const double now = glfwGetTime();
         const float dt = options.fixedStep?1.f/60:static_cast<float>(std::clamp(now - previous, 0.0, 0.1));
@@ -1870,8 +1889,8 @@ int run(const Options& options) {
         renderer.updateGrenades(grenades.poses());
         renderer.updateVegetationBlasts(grenades.explosions(simulationClock.seconds()));
         renderer.setExplosionLights(grenades.lights(simulationClock.seconds()));
-        const int renderWidth = options.fullscreen ? options.width : app.width;
-        const int renderHeight = options.fullscreen ? options.height : app.height;
+        const auto renderSize = graphics.renderSize();
+        const int renderWidth = renderSize.x, renderHeight = renderSize.y;
         renderer.resize(renderWidth, renderHeight);
         if (zombies) renderer.updateZombies(*zombies);
         std::vector<viewer::DebugVertex> overlay;
@@ -1884,8 +1903,6 @@ int run(const Options& options) {
         gpuTimer.begin();
         const double renderStart = glfwGetTime();
         renderer.updateFloorplans(floorplans);
-        if (renderer.distantSceneCacheEnabled() != app.distantSceneCache)
-            renderer.setDistantSceneCache(app.distantSceneCache);
         renderer.render(viewCamera, app.displayedAnimationSeconds, [&] {
             if (birdRenderer)
                 birdRenderer->draw(viewCamera, float(renderWidth) / renderHeight,

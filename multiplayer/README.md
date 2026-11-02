@@ -269,8 +269,9 @@ game. `--resolution` selects a fixed 3D target: `960x540`, `1280x720` or
 different aspect ratios have black bars. The HUD, inventory/map screens and
 crosshair are drawn at the window framebuffer resolution. Mouse input stays in
 window coordinates. Screenshots include the final native-resolution GUI.
-Without a resolution override, windowed rendering follows the resized window;
-fullscreen defaults to a 1280x720 3D target. An explicit resolution also works in
+The 3D target defaults to 1280x720 in both display modes and stays fixed when
+the window is resized. F12 opens the shared [Graphics page](../docs/VIEWER.md#graphics-settings)
+for live display, render resolution, distant scenery, shadow-caster and LoD controls. An explicit resolution also works in
 a resizable window. These are local settings and do not need to match the server.
 `--hidden --fullscreen` uses a hidden desktop-sized window without occupying the
 monitor, for captures and checks.
@@ -627,7 +628,7 @@ and release to throw (full charge after one second, about a default grenade's
 launch momentum). Without grabbing first, right click pushes the object under
 the crosshair within reach; holding right charges a stronger push. Switching
 actions, opening menus or releasing input cancels grips and charges.
-F12 releases/recaptures the mouse; Escape returns to the game menu. Losing focus releases
+F12 opens/closes the Graphics page; Home releases/recaptures the mouse; Escape returns to the game menu. Losing focus releases
 controls. The window title shows ammo, mode, rendered FPS, GPU render time,
 CPU render time and client simulation time, refreshed about once per second.
 CPU times are mean wall milliseconds per rendered frame; client simulation
@@ -704,7 +705,7 @@ four clients share one car in distinct seats; the front-left seat drives. The
 window title shows the car name and available seat inside its configured radius.
 WASD drives, Space brakes, Enter
 exits below 1.5 m/s when there is a clear standing position, and Alt toggles
-first/third person for any occupied seat. F12 continues to release/recapture the mouse.
+first/third person for any occupied seat. Home releases/recaptures the mouse; F12 opens/closes Graphics.
 Passengers can mouse-look, toggle the chase camera with Alt, and leave with
 Enter; they cannot drive, select weapons, scope or grab. Remote occupants are hidden
 inside the prototype chassis. The server owns seat reservations and releases
@@ -1032,7 +1033,7 @@ moving exits, timeout braking, disconnect/re-entry, late-join wheel poses,
 interpolation, silent parked fleets, lost initial/final state retries, reordered
 acknowledgements, velocity-only changes, sparse playback, zombie push/ragdoll
 replication, and equivalence to single-player
-physics. The graphical client regression also exercises Enter, Alt, F12 and
+physics. The graphical client regression also exercises Enter, Alt, Home, F12 and
 first/third person driving views.
 
 This is a first playable networking foundation, with eight-player admission and

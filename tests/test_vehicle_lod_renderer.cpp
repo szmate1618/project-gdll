@@ -55,6 +55,11 @@ void run(const std::filesystem::path& models,const std::filesystem::path& config
         require(renderer.vehicleStats().boundsUpdated==0,"Unchanged car unnecessarily refitted its bounds");
         const auto near=renderer.vehicleStats();
         require(near.levels[0]==1 && near.drawCalls>0,"Near car did not draw LOD0");
+        renderer.setSkipHighestDetail(true); renderer.render(camera);
+        require(renderer.vehicleStats().levels[0]==0 && renderer.vehicleStats().levels[1]==1,
+                "Highest-detail restriction must use LOD1 for close cars");
+        renderer.setSkipHighestDetail(false); renderer.render(camera);
+        require(renderer.vehicleStats().levels[0]==1,"Disabling the restriction must restore car LOD0");
         renderer.writeScreenshot(output/(type.id+".ppm"));
         const float distances[]{30,70,140};
         for(std::size_t level=1;level<4;++level) {

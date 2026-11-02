@@ -8,6 +8,22 @@
 
 namespace viewer {
 
+void Renderer::setShadowCasters(ShadowCasters level) {
+    shadows_ = level != ShadowCasters::None;
+    treeShadows_ = level >= ShadowCasters::Trees;
+    zombieShadows_ = level >= ShadowCasters::Npcs;
+    objectShadows_ = level >= ShadowCasters::Objects;
+    // The menu exposes one shared policy for both lights.
+    flashlightShadows_ = shadows_;
+}
+
+ShadowCasters Renderer::shadowCasters() const {
+    if (!shadows_) return ShadowCasters::None;
+    if (!treeShadows_) return ShadowCasters::Buildings;
+    if (!zombieShadows_) return ShadowCasters::Trees;
+    return objectShadows_ ? ShadowCasters::Objects : ShadowCasters::Npcs;
+}
+
 void Renderer::setSunShadowResolution(int resolution) {
     if (resolution==shadowMap_->resolution()) return;
     // Construct before replacing, preserving the current target on failure.
@@ -70,14 +86,17 @@ void Renderer::drawShadowCasters(const glm::mat4& view, const glm::mat4& project
         drawTrees(projectionView, true, temporal);
         drawForests(projectionView, true, temporal.forests);
     }
-    drawZombies(seconds, pass);
-    drawDogs(pass);
+    if (zombieShadows_) {
+        drawZombies(seconds, pass);
+        drawDogs(pass);
+    }
     drawFloorplans();
-    drawBoxes(projectionView);
-    drawDoodads(projectionView, true);
-    drawGrenades(projectionView);
-
-    drawVehicles(projectionView, true);
+    if (objectShadows_) {
+        drawBoxes(projectionView);
+        drawDoodads(projectionView, true);
+        drawGrenades(projectionView);
+        drawVehicles(projectionView, true);
+    }
     glUniform1i(shadowPassLocation_, GL_FALSE);
     glDisable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(0, 0);

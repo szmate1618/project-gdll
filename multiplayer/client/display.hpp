@@ -6,9 +6,6 @@ namespace multiplayer {
 struct ClientDisplay {
     bool fullscreen = false;
     std::optional<glm::ivec2> resolution; // Fixed 3D pixels; HUD remains at framebuffer resolution.
-    glm::ivec2 renderSize(glm::ivec2 framebuffer) const {
-        if (resolution) return *resolution;
-        return fullscreen ? glm::ivec2(1280, 720) : framebuffer;
-    }
+    glm::ivec2 renderSize() const { return resolution.value_or(glm::ivec2(1280, 720)); }
 };
 } // namespace multiplayer

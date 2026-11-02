@@ -3,9 +3,17 @@
 #include <cmath>
 #include <limits>
 #include <map>
+#include <stdexcept>
 #include <glm/gtc/type_ptr.hpp>
 
 namespace viewer {
+void Renderer::setDistantSceneDistance(float meters) {
+    if (meters == 0) return; // Disabled preserves the last useful capture distance.
+    if (!std::isfinite(meters) || meters < 0) throw std::invalid_argument("Invalid distant scenery distance");
+    if (meters == distantSceneDistance_) return;
+    distantSceneDistance_ = meters;
+    if (distantCache_) distantCache_->invalidate();
+}
 namespace {
 VisibilityBounds emptyBounds() {
     return {glm::vec3(std::numeric_limits<float>::max()), glm::vec3(std::numeric_limits<float>::lowest())};
@@ -80,7 +88,7 @@ void Renderer::releaseDistantScene() noexcept {
 
 bool Renderer::keepStaticBounds(const VisibilityBounds& bounds) const {
     if (staticPass_ == StaticPass::All) return true;
-    const bool far = DistantSceneCache::distant(bounds, distantCache_->origin(), 1000);
+    const bool far = DistantSceneCache::distant(bounds, distantCache_->origin(), distantSceneDistance_);
     return far == (staticPass_ == StaticPass::Far);
 }
 
@@ -93,25 +101,25 @@ bool Renderer::hasDistantStatic(const Camera& camera, const glm::mat4& projectio
         if (!staticCacheable_[index]) continue;
         auto& chunks = staticChunks_[index];
         if (!chunks.buffer) {
-            if (DistantSceneCache::distant(cacheBoundsForDraw(index, eye, projection), eye, 1000)) return true;
+            if (DistantSceneCache::distant(cacheBoundsForDraw(index, eye, projection), eye, distantSceneDistance_)) return true;
             continue;
         }
         chunks.visibility.query(projectionView, chunks.visible, forestVisibilityRange(), true);
         for (const auto id : chunks.visible)
-            if (DistantSceneCache::distant(chunks.chunks[id].bounds, eye, 1000)) return true;
+            if (DistantSceneCache::distant(chunks.chunks[id].bounds, eye, distantSceneDistance_)) return true;
     }
     // Only query foliage if town geometry supplied no cache candidates. Retain
     // spatial acceleration instead of scanning the full tree population.
     if (!forestPatches_.empty()) {
         forestVisibility_.query(projectionView, visibleForests_, forestVisibilityRange());
         for (const auto index : visibleForests_)
-            if (!forestDetail_[index] && DistantSceneCache::distant(forestPatches_[index].bounds, eye, 1000)) return true;
+            if (!forestDetail_[index] && DistantSceneCache::distant(forestPatches_[index].bounds, eye, distantSceneDistance_)) return true;
     }
     if (!treeInstances_.empty()) {
         const auto& visibility = treeBillboardsForFrame_ ? treeVisibility_ : treeAuthoredVisibility_;
         visibility.query(projectionView, forestDetail_, true, visibleTrees_, forestVisibilityRange());
         for (const auto index : visibleTrees_)
-            if (DistantSceneCache::distant(treeCacheBounds_[index], eye, 1000)) return true;
+            if (DistantSceneCache::distant(treeCacheBounds_[index], eye, distantSceneDistance_)) return true;
     }
     return false;
 }

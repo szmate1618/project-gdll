@@ -26,6 +26,7 @@ public:
     DistantSceneCache(const DistantSceneCache&) = delete;
     DistantSceneCache& operator=(const DistantSceneCache&) = delete;
     void invalidate() { valid_ = false; }
+    void setDistance(float meters) { if (meters != proxyDistance_) { proxyDistance_ = meters; invalidate(); } }
     // Keep projection conventional for rectangle/culling calculations. The draw
     // callback supplies the GPU projection matching the active scene depth.
     void update(const Camera& camera, const glm::mat4& projection, int width, int height, double seconds,
@@ -42,6 +43,7 @@ private:
     GLint transform_ = -1;
     int width_ = 0, height_ = 0;
     bool valid_ = false, reversedDepth_ = false;
+    float proxyDistance_ = 1000;
     double refreshedAt_ = 0;
     glm::vec3 origin_{0};
     glm::mat4 worldQuad_{1};

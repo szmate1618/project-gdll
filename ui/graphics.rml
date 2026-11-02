@@ -1,0 +1,49 @@
+<rml>
+<head><title>Graphics</title><link type="text/template" href="loadout.rml" /><link type="text/rcss" href="graphics.rcss" /></head>
+<body template="loadout" class="loadout graphics">
+    <div id="graphics-panel" class="panel main-panel full-panel">
+        <div class="panel-heading">GRAPHICS</div><div class="panel-meta">Changes apply immediately / No restart required</div>
+        <div id="graphics-controls">
+            <div class="graphics-row" id="graphics-display-row">
+                <div class="graphics-label">Display mode</div>
+                <div class="graphics-control graphics-mode"><button id="graphics-windowed">WINDOWED</button><button id="graphics-fullscreen">FULLSCREEN</button></div>
+            </div>
+            <div class="graphics-row" id="graphics-resolution-row">
+                <label class="graphics-label" for="graphics-resolution">Render resolution</label>
+                <div class="graphics-control">
+                    <div class="graphics-value" id="graphics-resolution-value">1280 x 720</div>
+                    <input id="graphics-resolution" type="range" min="0" max="2" step="1" value="1" />
+                    <div class="graphics-stops"><span>960 x 540</span><span>1280 x 720</span><span>1920 x 1080</span></div>
+                    <div class="graphics-help">3D world and held weapon only. Menus and HUD stay at native resolution.</div>
+                </div>
+            </div>
+            <div class="graphics-row" id="graphics-distant-row">
+                <label class="graphics-label" for="graphics-distant">Distant scenery</label>
+                <div class="graphics-control">
+                    <div class="graphics-value" id="graphics-distant-value">Disabled</div>
+                    <input id="graphics-distant" type="range" min="0" max="3" step="1" value="3" />
+                    <div class="graphics-stops"><span>500 m</span><span>750 m</span><span>1000 m</span><span>Disabled</span></div>
+                    <div class="graphics-help">Beyond this distance, static scenery refreshes at 15 FPS. Nearby scenery stays at full frame rate.</div>
+                </div>
+            </div>
+            <div class="graphics-row" id="graphics-shadow-row">
+                <label class="graphics-label" for="graphics-shadows">Shadow casters</label>
+                <div class="graphics-control">
+                    <div class="graphics-value" id="graphics-shadows-value">+Objects</div>
+                    <input id="graphics-shadows" type="range" min="0" max="4" step="1" value="4" />
+                    <div class="graphics-stops"><span>None</span><span>Buildings</span><span>+Trees</span><span>+NPCs</span><span>+Objects</span></div>
+                    <div class="graphics-help">Choose what casts shadows. Each step includes earlier groups. Applies to sunlight and flashlight.</div>
+                    <div id="graphics-shadow-groups">Buildings, vegetation, zombies and dogs, cars and props.</div>
+                </div>
+            </div>
+            <div class="graphics-row" id="graphics-lod-row">
+                <div class="graphics-label">Level of detail</div>
+                <div class="graphics-control">
+                    <label class="graphics-checkbox"><input id="graphics-lod" type="checkbox" />Never use highest detail</label>
+                    <div class="graphics-help">Use the next lower detail level for NPCs and cars, even up close. Models still simplify farther away.<br />Wound-specific meshes and models without lower detail keep their required geometry.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</rml>

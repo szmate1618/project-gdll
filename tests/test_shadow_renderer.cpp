@@ -1,6 +1,8 @@
 #include "renderer.hpp"
 #include "door_layer.hpp"
 #include "physics_world.hpp"
+#include "box_layer.hpp"
+#include "dog_layer.hpp"
 
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -202,6 +204,51 @@ void checkScene(bool masked, bool unlit, bool blended = false) {
     viewer::Renderer::checkErrors("shadow scene regression");
 }
 
+void checkObjectPresets(GLFWwindow* window, bool switchDisplay) {
+    auto model = scene(false);
+    model.draws.pop_back(); model.primitives.pop_back();
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::BoxLayer boxes(physics);
+    boxes.add({0, 3, 3}, {4, 2, 1});
+    viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
+    renderer.resize(width, height); renderer.setLighting(lighting());
+    renderer.setHaze(false); renderer.setGroundFog(false); renderer.updateBoxes(boxes);
+    const auto view = cameraAt({0, 4, 2});
+    renderer.setShadowCasters(viewer::ShadowCasters::None); renderer.render(view);
+    const auto clear = brightness(view, {0, 0, 0});
+    for (const auto preset : {viewer::ShadowCasters::Buildings, viewer::ShadowCasters::Trees, viewer::ShadowCasters::Npcs}) {
+        renderer.setShadowCasters(preset); renderer.render(view);
+        require(std::abs(brightness(view, {0, 0, 0}) - clear) < 3, "Lower shadow presets must exclude object casters");
+    }
+    renderer.setShadowCasters(viewer::ShadowCasters::Objects); renderer.render(view);
+    require(clear - brightness(view, {0, 0, 0}) > 40, "Objects preset must include prop shadows");
+    viewer::RuntimeGraphicsSettings graphics(window, renderer, false);
+    auto settings = graphics.settings();
+    require(!settings.skipHighestDetail, "Highest-detail restriction must default off");
+    int originalWidth, originalHeight; glfwGetWindowSize(window, &originalWidth, &originalHeight);
+    for (int i = 0; i < 3; ++i) {
+        settings.resolution = i; graphics.apply(settings);
+        require(graphics.renderSize() == viewer::renderResolutions[i], "Render-resolution selection must apply at runtime");
+        int currentWidth, currentHeight; glfwGetWindowSize(window, &currentWidth, &currentHeight);
+        require(currentWidth == originalWidth && currentHeight == originalHeight, "Render resolution must not resize the native GUI window");
+    }
+    settings.fullscreen = true; graphics.apply(settings);
+    require(graphics.settings().fullscreen && !glfwGetWindowMonitor(window), "Hidden fullscreen must not occupy a monitor");
+    settings.fullscreen = false; graphics.apply(settings);
+    require(glfwGetCurrentContext() == window, "Changing display settings must preserve the GL context");
+    if (switchDisplay) {
+        glfwShowWindow(window); glfwPollEvents();
+        settings.fullscreen = true; graphics.apply(settings);
+        require(glfwGetWindowMonitor(window) == glfwGetPrimaryMonitor(), "Fullscreen must use the primary monitor");
+        settings.fullscreen = false; graphics.apply(settings);
+        int currentWidth, currentHeight; glfwGetWindowSize(window, &currentWidth, &currentHeight);
+        require(!glfwGetWindowMonitor(window) && currentWidth == originalWidth && currentHeight == originalHeight,
+                "Leaving fullscreen must restore the original window size");
+        require(glfwGetCurrentContext() == window, "Fullscreen changes must preserve the graphics context");
+        glfwHideWindow(window);
+    }
+}
+
 void checkTreeCaster() {
     auto model = scene(true);
     viewer::TreeLayer trees;
@@ -273,6 +320,10 @@ void checkTreeCaster() {
     renderer.render(view);
     require(std::abs(brightness(view, {-1, 0, 0}) - clear) < 3,
             "The tree shadow comparison toggle must restore clear ground");
+    renderer.setShadowCasters(viewer::ShadowCasters::Buildings); renderer.render(view);
+    require(std::abs(brightness(view, {-1, 0, 0}) - clear) < 3, "Buildings preset must exclude tree casters");
+    renderer.setShadowCasters(viewer::ShadowCasters::Trees); renderer.render(view);
+    require(std::abs(brightness(view, {-1, 0, 0}) - shadow) < 3, "Trees preset must include tree casters");
     GLboolean depthWrite = GL_FALSE;
     glGetBooleanv(GL_DEPTH_WRITEMASK, &depthWrite);
     require(depthWrite && !glIsEnabled(GL_POLYGON_OFFSET_FILL),
@@ -324,6 +375,22 @@ void checkAnimatedCaster() {
     renderer.render(camera, 0.5);
     const float idleLit = brightness(camera, {0, 0, 0});
     require(idleLit - idleShadow > 50, "Baked animation must move its cast shadow with the visible pose");
+    renderer.setShadowCasters(viewer::ShadowCasters::Trees); renderer.render(camera, 0);
+    require(std::abs(brightness(camera, {0, 0, 0}) - idleLit) < 3, "Trees preset must exclude zombie casters");
+    renderer.setShadowCasters(viewer::ShadowCasters::Npcs); renderer.render(camera, 0);
+    require(std::abs(brightness(camera, {0, 0, 0}) - idleShadow) < 3, "NPC preset must include zombie casters");
+    {
+        viewer::DogLayer dogs;
+        dogs.assets.push_back(layer.assets.front()); dogs.lodAssets.resize(1);
+        dogs.assetBounds.push_back({{-2, 2, 3}, {8, 4, 3}}); dogs.instances.resize(1);
+        viewer::Renderer dogRenderer(model, VIEWER_SHADER_DIR, nullptr, nullptr, nullptr, &dogs);
+        dogRenderer.resize(width, height); dogRenderer.setLighting(lighting());
+        dogRenderer.setHaze(false); dogRenderer.setGroundFog(false);
+        dogRenderer.setShadowCasters(viewer::ShadowCasters::Trees); dogRenderer.render(camera, 0);
+        const auto clearDog = brightness(camera, {0, 0, 0});
+        dogRenderer.setShadowCasters(viewer::ShadowCasters::Npcs); dogRenderer.render(camera, 0);
+        require(clearDog - brightness(camera, {0, 0, 0}) > 50, "Dogs must join zombies in the NPC shadow group");
+    }
     layer.instances[0].walking = true;
     layer.markRenderChanged(0, false);
     renderer.updateZombies(layer);
@@ -615,6 +682,7 @@ int main(int argc, char** argv) {
         checkScene(false, true);
         checkScene(false, false, true);
         checkTreeCaster();
+        checkObjectPresets(window, argc > 2 && std::string(argv[2]) == "--display-switch");
         checkAnimatedCaster();
         checkMovingSun();
         checkResolutionSwitch();
