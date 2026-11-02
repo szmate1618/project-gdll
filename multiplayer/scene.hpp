@@ -43,6 +43,7 @@ struct Options {
     bool trees = true, forests = true, headless = false, hidden = false, bot = false;
     bool cars = true;
     bool audio = true;
+    bool distantSceneCache = false; // Experimental client presentation only; outside scene identity.
     ClientDisplay display; // Client presentation only; excluded from scene identity.
     bool birds = false; // Server opt-in during the deterministic flock experiment.
     bool zombiePerception = true; // Authoritative server setting; not world identity.

@@ -154,6 +154,7 @@ void Renderer::drawTrees(const glm::mat4& projectionView, bool shadowPass, Visib
     const Frustum frustum(projectionView);
     std::size_t drawn = 0;
     for (const auto index : selected) {
+        if (!shadowPass && !keepStaticBounds(treeCacheBounds_[index])) continue;
         const auto& instance = treeInstances_[index];
         auto& batch = treeBatches_[instance.asset];
         const auto mode = billboards && batch.billboard

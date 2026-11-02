@@ -305,6 +305,7 @@ struct Graphics {
         const auto shaders = multiplayer::resourceRoot() / "shaders";
         renderer = std::make_unique<viewer::Renderer>(scene.model, shaders, scene.trees ? &*scene.trees : nullptr,
             &scene.zombies, scene.forests ? &*scene.forests : nullptr, &scene.dogs);
+        renderer->setDistantSceneCache(options.distantSceneCache);
         scene.zombies.releaseAnimationVertices();
         scene.dogs.releaseAnimationVertices();
         renderer->setGroundItems(*scene.groundItems, scene.groundModels);

@@ -1,0 +1,143 @@
+Distant scenery cache experiment — 2026-11-02
+
+Branch: experiment/distant-scene-cache; base revision 44494d1.
+
+Result
+------
+The feature remains opt-in. The final clear distant overview reduced GPU cost
+22.1% while increasing CPU rendering cost 41.6%. Refresh spikes remain. This
+is useful evidence for a distant-background experiment, not a general gameplay
+FPS improvement. Nearby scenery, animated actors and shadows retain their
+normal rendering cadence.
+
+The first version also cached an empty background in the open 100,000-zombie
+control, adding about 1.28 ms of total GPU overhead (6.504 -> 7.785 ms). This
+was total cache-path overhead, not an isolated measurement of the composite
+shader. The final version bypasses cubemap allocation, patches and composition
+when the current view contains no eligible distant static geometry. The crowd
+control now reports distant_cache_active=0 and all images remain identical.
+
+Method
+------
+AMD Radeon 660M, OpenGL 4.6 Core, Mesa 24.2.8-1ubuntu1~24.10.1.
+1280x720; ordinary sunlight shadows; nearest vegetation/cached texels.
+1,000 m nearest conservative 3D-bounds cutoff; 15 Hz refresh; 256-pixel angular
+cubemap tiles. Normal-view faces are 1280x1280 (approximately 75 MiB color/depth).
+Scope views bypass the cache. Complete batches crossing the cutoff stay near.
+
+Map cases alternate disabled/enabled rounds in one process: 3 rounds per mode,
+32 warmup and 128 measured frames per round. All 18,432 GPU measurements exist.
+The explicit presentation clock and camera motion advance exactly 1/60 second
+per frame. Walking turns use 1.5 m/s and 40 degrees/s; fast turns use 180
+degrees/s. No AI, dynamic physics steps, audio, HUD or presentation runs here.
+Queries are asynchronous; max four frames in flight; waits and captures remain
+outside CPU timers. Firefox was closed for the final runs. GPU workloads ran
+sequentially, without concurrent builds or rendering tests.
+
+Values below are milliseconds, median of per-round means. p95 pools measured
+frames. GPU and CPU overlap: do not add their costs or convert either directly
+to gameplay FPS. GPU clocks, power and temperatures were not pinned. Absolute
+baseline GPU times shifted substantially between earlier and final runs; use
+within-run comparisons. See also docs/benchmarks/cpu-gpu-overlap-2026-10-22.txt.
+
+Final map comparisons
+---------------------
+Case | GPU off -> on | CPU render off -> on | GPU p95 off -> on | CPU p95 off -> on
+aerial-static | 10.572 -> 10.541 | 0.358 -> 0.468 | 11.047 -> 12.767 | 0.526 -> 0.896
+distant-overview-clear-static | 5.459 -> 4.250 | 2.449 -> 3.469 | 5.961 -> 7.317 | 3.422 -> 9.383
+old-forest-100m-static | 11.120 -> 11.111 | 0.307 -> 0.369 | 12.407 -> 11.402 | 0.542 -> 0.495
+old-forest-unrestricted-static | 15.036 -> 14.526 | 6.548 -> 8.941 | 16.543 -> 18.655 | 7.724 -> 20.070
+open-clearing-static | 7.874 -> 7.239 | 4.643 -> 6.170 | 9.667 -> 12.178 | 7.032 -> 15.370
+osm:-6:-5:0-static | 13.571 -> 12.310 | 2.888 -> 3.357 | 14.312 -> 13.834 | 3.637 -> 7.014
+osm:4:2:0-static | 14.055 -> 13.454 | 7.061 -> 9.354 | 16.637 -> 18.613 | 9.338 -> 21.326
+town-static | 6.946 -> 6.556 | 3.915 -> 5.282 | 8.145 -> 10.810 | 4.797 -> 13.631
+distant-overview-clear-walk-turn | 5.556 -> 4.575 | 2.465 -> 3.632 | 6.013 -> 8.053 | 3.038 -> 9.282
+distant-overview-clear-fast-turn | 5.278 -> 4.353 | 2.062 -> 3.237 | 6.109 -> 7.331 | 3.194 -> 9.345
+town-walk-turn | 6.819 -> 6.341 | 3.362 -> 4.970 | 7.842 -> 10.142 | 4.539 -> 12.115
+town-fast-turn | 6.335 -> 5.966 | 2.785 -> 3.982 | 7.648 -> 10.018 | 4.675 -> 11.840
+
+The full 24-case comparison is retained in map-bypass-analysis/comparison.csv.
+The aerial and 100 m old-forest cases exercise the empty-view bypass. GPU cost
+is effectively unchanged there; candidate checks still add some CPU work.
+
+Refresh and turn patches
+------------------------
+Case / phase | frames | mean GPU | mean CPU render
+distant-overview-clear-fast-turn / patch | 132 | 3.790 | 1.974
+distant-overview-clear-fast-turn / refresh | 96 | 6.639 | 7.844
+distant-overview-clear-fast-turn / reuse | 156 | 3.480 | 1.601
+distant-overview-clear-static / refresh | 96 | 6.890 | 8.871
+distant-overview-clear-static / reuse | 288 | 3.395 | 1.756
+town-static / refresh | 96 | 10.170 | 12.340
+town-static / reuse | 288 | 5.384 | 2.998
+
+For the stationary overview, 96 of 384 frames refreshed and 288 reused the
+cache. At 180 degrees/s, 132 frames patched newly exposed directions without
+a full refresh, 156 reused all visible directions, and 96 refreshed. This
+confirms that turning does not automatically trigger a complete redraw.
+Refresh frames still perform several spatial queries and repeat geometry
+submission across angular tiles; near terrain also uses partitioned index
+ranges. These are added CPU/draw costs. The timing run does not isolate each
+cost or establish that composite arithmetic alone causes the spikes.
+
+Open 100,000-zombie control
+--------------------------
+Final runs use off-a, on-a, on-b, off-b order; each block contains the standard
+6 rounds of 32 warmup / 64 measured frames. Combined: 768 frames per mode,
+100,000 visible living instances, 10 draws, 6,000,000 camera triangles every
+measured frame; same lowest prepared LoD. Static scene: one 1,200 m ground
+surface. Idle AI updates run; dynamic physics/audio/player movement do not.
+
+Mode | GPU | CPU render | GPU p95 | CPU render p95
+off | 9.414 | 11.995 | 14.425 | 15.655
+on | 8.793 | 11.063 | 12.784 | 14.826
+
+Both modes use direct rendering in this case after the bypass fix. The final
+samples show no persistent earlier GPU penalty. Do not interpret the residual
+off/on timing difference as a cache speedup: there is no cached work here,
+and block means vary. All four final captures are pixel-identical.
+
+Image checks and validation
+---------------------------
+21 of 24 matched map capture pairs are pixel-identical. Only the three clear
+distant overview pairs differ: mean absolute RGB error 1.22–1.31 on a 0–255
+scale; 1.67–1.98% of pixels have any channel differing by more than 20. The
+inspected overview/fast-turn comparison shows distant silhouette/texture
+sampling differences, with no visible unfilled tile strips. The final captures
+are byte-identical to those inspected before the empty-view guard was added.
+
+Full default CMake build passed after the final changes. Before the final
+bypass, the complete C++ suite passed 218/219 tests. multiplayer_game_menu
+timed out at 90 seconds twice, after reaching its final hosted session/window
+close step, with the cache disabled. No menu fix was attempted in this task.
+After the bypass, all four rebuilt focused rendering regressions passed:
+distant scenery, tree billboards, forest visibility and building rendering.
+The new regression covers yaw/face boundaries, looking up/down, depth
+occlusion, turn patches/reuse, refresh cadence, independent frozen-animation
+clocks, teleport/resize/scope handling, and near-only <-> distant transitions.
+A one-second hidden client run with --distant-scene-cache also completed.
+
+Artifacts and reproduction
+--------------------------
+Raw artifacts are ignored under build/benchmarks/distant-scene-20261102/:
+  map-bypass/                  final per-frame CSVs, metadata, poses, captures
+  map-bypass-analysis/         comparison.csv, phases.csv, image-quality.csv
+  crowd-bypass-{off,on}-{a,b}/ final crowd CSVs, metadata and captures
+  map-final/, crowd-{off,on}-{a,b}/ retained preliminary implementation runs
+  distant-comparison.png       inspected overview/fast-turn image and x5 diff
+
+Benchmark source is tracked in tests/benchmark_distant_scene.cpp and
+tests/benchmark_zombie_crowd.cpp. Use tools/summarize_render_benchmark.py on
+each output directory. Exact final map command:
+
+./build/benchmark_distant_scene output/godollo.glb output/trees.instances.json \
+  output/osm/forest_patches.json build/forest_perf/billboard-views.txt \
+  shaders build/benchmarks/distant-scene-20261102/map-bypass 3 128 all
+
+Crowd command, repeated off/on/on/off with separate output directories:
+./build/benchmark_zombie_crowd assets/zombies/models OUTPUT --distant-cache 0
+./build/benchmark_zombie_crowd assets/zombies/models OUTPUT --distant-cache 1
+
+Map SHA-256: 1c9efcf7e71beb3c67ca2cfbc77231f5c70de62781faa3bc185ce8617c6e560d.
+Full input/shader hashes, GL details and derived cameras are in metadata.txt
+and views.csv. See docs/DISTANT_SCENE_CACHE.md for implementation behavior.

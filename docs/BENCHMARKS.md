@@ -443,6 +443,40 @@ Recorded example: [sunlight map resolution on Radeon 660M, 2026-10-20](benchmark
 
 ## Isolated renderer comparisons
 
+### Experimental distant scenery cache
+
+See [behavior and limitations](DISTANT_SCENE_CACHE.md). The optional benchmark
+alternates disabled/enabled rounds within one process at 1280x720, using the
+same map, vegetation, sunlight shadows, camera poses and deterministic 60 Hz
+presentation input. It covers stationary views, walking at 1.5 m/s while turning
+40 degrees/s, and turns at 180 degrees/s. It retains the supplied forest/clearing/aerial
+views, adds grounded old-forest views with/without the 100 m cutoff, a derived
+town view, and a clear-atmosphere overview exposing scenery beyond 1 km.
+
+```bash
+cmake --build build --target benchmark_distant_scene benchmark_zombie_crowd -j4
+./build/benchmark_distant_scene output/godollo.glb output/trees.instances.json \
+  output/osm/forest_patches.json build/forest_perf/billboard-views.txt \
+  shaders build/benchmarks/distant-scene-map 3 128 all
+.venv/bin/python tools/summarize_render_benchmark.py build/benchmarks/distant-scene-map
+./build/benchmark_zombie_crowd assets/zombies/models build/benchmarks/distant-crowd-off --distant-cache 0
+./build/benchmark_zombie_crowd assets/zombies/models build/benchmarks/distant-crowd-on --distant-cache 1
+```
+
+The final three map arguments are optional rounds, frames per round and view
+substring filter. `cache-frames.csv` records refreshes, visible tiles, newly
+rendered tiles and cache/near draw counts for every measured frame. Inspect
+refresh and reuse frames separately as well as average cost and p95. Matching
+first-round captures show the same final simulated pose, after the same number
+of frames; image readbacks and query-drain waits are outside timing. AI, physics,
+audio, GUI and presentation are absent in the map case, so it measures render
+cost rather than gameplay FPS. Run GPU workloads sequentially.
+
+Recorded distant scenery comparison: [Radeon 660M, 2026-11-02](benchmarks/distant-scene-cache-2026-11-02.txt),
+including the empty-view bypass, turn patches and the 100,000-zombie control.
+
+### Other isolated renderer comparisons
+
 ```bash
 cmake --build build --target benchmark_render_wins benchmark_zombie_render_preparation -j4
 ./build/benchmark_render_wins output/godollo.glb output/trees.instances.json \

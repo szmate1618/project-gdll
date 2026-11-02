@@ -31,6 +31,10 @@ void Renderer::beginTownPass(glm::vec3 eye, const glm::mat4& projection, bool su
 }
 
 bool Renderer::drawTownSource(std::size_t index) {
+    if (staticPass_ != StaticPass::All) {
+        if (staticChunks_[index].buffer) return drawStaticChunks(index);
+        if (!keepStaticDraw(index)) return false;
+    }
     const auto wall = wallBatchForDraw_[index];
     if (wallBatching_ && wall != noBuildingBatch) {
         auto& state = wallBatchStates_[wall];

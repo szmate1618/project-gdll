@@ -445,6 +445,7 @@ viewer_warnings(viewer_grenades)
 
 if(GD_VIEWER)
 add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp src/basic_shader_uniforms.cpp
+    src/distant_scene_cache.cpp src/renderer_distant.cpp
     src/renderer_presentation.cpp
     src/boid/bird_renderer.cpp
     src/gpu_timer.cpp
@@ -779,6 +780,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(benchmark_zombie_render_preparation PRIVATE viewer_renderer glfw)
     target_compile_definitions(benchmark_zombie_render_preparation PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
     viewer_warnings(benchmark_zombie_render_preparation)
+
+    add_executable(benchmark_distant_scene EXCLUDE_FROM_ALL tests/benchmark_distant_scene.cpp src/frame_profile.cpp)
+    target_link_libraries(benchmark_distant_scene PRIVATE viewer_renderer glfw)
+    target_compile_definitions(benchmark_distant_scene PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES)
+    viewer_warnings(benchmark_distant_scene)
 
     add_executable(benchmark_render_wins EXCLUDE_FROM_ALL tests/benchmark_render_wins.cpp src/frame_profile.cpp)
     target_link_libraries(benchmark_render_wins PRIVATE viewer_renderer glfw)
@@ -1185,6 +1191,14 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_shadow_renderer)
     add_test(NAME viewer_shadow_renderer COMMAND test_shadow_renderer)
     set_tests_properties(viewer_shadow_renderer PROPERTIES SKIP_RETURN_CODE 77)
+
+    add_executable(test_distant_scene_renderer tests/test_distant_scene_renderer.cpp)
+    target_link_libraries(test_distant_scene_renderer PRIVATE viewer_renderer glfw)
+    target_compile_definitions(test_distant_scene_renderer PRIVATE GLFW_INCLUDE_NONE GL_GLEXT_PROTOTYPES
+        VIEWER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+    viewer_warnings(test_distant_scene_renderer)
+    add_test(NAME viewer_distant_scene_renderer COMMAND test_distant_scene_renderer)
+    set_tests_properties(viewer_distant_scene_renderer PROPERTIES SKIP_RETURN_CODE 77)
 
     add_executable(test_presentation_renderer tests/test_presentation_renderer.cpp)
     target_link_libraries(test_presentation_renderer PRIVATE viewer_renderer glfw)

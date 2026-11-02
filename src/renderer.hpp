@@ -40,6 +40,7 @@
 #include "tree_depth_order.hpp"
 #include "building_batch.hpp"
 #include "vegetation_blast.hpp"
+#include "distant_scene_cache.hpp"
 
 namespace viewer {
 class DogLayer;
@@ -89,8 +90,10 @@ public:
     void resize(int width, int height);
     // Optional external opaque draws run with depth writes enabled before glass
     // and rain. They must restore the GL state they change before returning.
+    // Optional presentation clock drives the scenery cache independently of
+    // frozen animation poses. Omission uses monotonic wall time.
     void render(const Camera& camera, double animationSeconds = 0.0,
-                const std::function<void()>& drawOpaque = {});
+                const std::function<void()>& drawOpaque = {}, std::optional<double> presentationSeconds = {});
     // Fixed asset/population topology. Borrows this layer through render(); call
     // after owning API/physics changes and keep the layer alive during rendering.
     // Direct edits require ZombieLayer::markRenderChanged()/invalidateRenderData().
@@ -133,6 +136,10 @@ public:
     void setSceneCulling(bool enabled) { sceneCulling_ = enabled; }
     void setRoofBatching(bool enabled) { roofBatching_ = enabled; }
     void setWallBatching(bool enabled) { wallBatching_ = enabled; }
+    // Experimental static scenery cache: whole conservative bounds beyond 1 km,
+    // 15 Hz refresh, immediate missing-direction patches. Scope views bypass it.
+    void setDistantSceneCache(bool enabled);
+    const DistantCacheStats& distantCacheStats() const { return distantStats_; }
     void setShadows(bool enabled) { shadows_ = enabled; }
     // Reallocates the sunlight map between frames. Light coverage is unchanged;
     // projection snapping and PCF texels follow the actual map resolution.
@@ -196,6 +203,31 @@ public:
     static void checkErrors(const char* stage);
 
 private:
+    void prepareDistantScene(const Model& model);
+    void releaseDistantScene() noexcept;
+    bool keepStaticBounds(const VisibilityBounds& bounds) const;
+    bool keepStaticDraw(std::size_t index) const;
+    bool hasDistantStatic(const Camera& camera, const glm::mat4& projection);
+    bool drawStaticChunks(std::size_t index);
+    void drawStaticScene(const glm::mat4& view, const glm::mat4& projection);
+    enum class StaticPass { All, Near, Far };
+    StaticPass staticPass_ = StaticPass::All;
+    bool distantEnabled_ = false;
+    std::unique_ptr<DistantSceneCache> distantCache_;
+    DistantCacheStats distantStats_;
+    struct StaticChunk { VisibilityBounds bounds; GLsizei count; std::size_t offset; };
+    struct StaticChunks {
+        GLuint buffer = 0;
+        std::vector<StaticChunk> chunks;
+        VisibilityIndex visibility;
+        std::vector<std::size_t> visible;
+    };
+    std::vector<StaticChunks> staticChunks_;
+    std::vector<bool> staticCacheable_;
+    std::vector<VisibilityBounds> roofCacheBounds_, wallCacheBounds_, treeCacheBounds_;
+    glm::mat4 staticProjectionView_{1};
+    glm::mat4 staticDetailProjection_{1};
+    std::vector<std::size_t> savedStaticOpaque_, savedStaticTransparent_, savedStaticVisible_;
     const HorizontalVisibilityRange* forestVisibilityRange() const {
         return forestViewRange_ ? &*forestViewRange_ : nullptr;
     }
@@ -512,7 +544,7 @@ private:
     ModelVisibility sceneVisibility_;
     // Plane-order hints belong to each view; alternating camera/light volumes
     // and billboard/authored bounds must not overwrite one another's history.
-    VisibilityPassState cameraVisibility_, sunShadowVisibility_, flashlightVisibility_;
+    VisibilityPassState cameraVisibility_, sunShadowVisibility_, flashlightVisibility_, distantVisibility_;
     SceneRenderStats sceneStats_;
     bool sceneCulling_ = true;
     std::vector<TreeBatch> treeBatches_;

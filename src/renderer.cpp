@@ -9,6 +9,7 @@
 #include <array>
 #include <cstddef>
 #include <cmath>
+#include <chrono>
 #include <limits>
 #include <numeric>
 #include <sstream>
@@ -57,8 +58,10 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         opaqueScene_.reserve(sceneDraws_.size());
         transparentScene_.reserve(sceneDraws_.size());
         sceneStats_.total = sceneDraws_.size();
+        prepareDistantScene(model);
         std::vector<VisibilityBounds> treeBounds;
         if (trees) treeBounds = uploadTrees(*trees, forests);
+        treeCacheBounds_ = treeBounds;
         if (forests) uploadForests(*forests);
         if (trees || forests) {
             const std::vector<TreeInstance> empty;
@@ -176,6 +179,7 @@ void Renderer::releaseModel(ModelGPU& model) noexcept {
 }
 
 void Renderer::release() noexcept {
+    releaseDistantScene();
     releaseDoodads();
     releaseDroppedWeapons();
     bloodMist_.reset();
@@ -389,7 +393,10 @@ void Renderer::applyBasicSamplersAndVisibility() {
     glUniform1i(zombieCullBackfacesLocation_, GL_FALSE);
 }
 
-void Renderer::render(const Camera& camera, double animationSeconds, const std::function<void()>& drawOpaque) {
+void Renderer::render(const Camera& camera, double animationSeconds, const std::function<void()>& drawOpaque,
+                      std::optional<double> presentationSeconds) {
+    staticPass_ = StaticPass::All;
+    distantStats_ = {};
     overlayActive_ = false;
     sunShadowCpuMs_ = 0;
     sceneStats_ = {sceneDraws_.size(), 0, 0};
@@ -445,15 +452,58 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         selectBasicShader(true);
     }
     applyLighting(camera, shadowView, lighting, flashlight, flashlightCasting);
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
-    glViewport(0, 0, width_, height_);
     auto atmosphere = atmosphere_;
     atmosphere.color = lighting.fogColor;
     backgroundSrgb_ = atmosphere.backgroundSrgb();
+    const bool cacheRequested = distantEnabled_ && camera.viewMode() == Camera::ViewMode::original;
+    if (cacheRequested) gatherVisibleSceneDraws(projection * view, camera.position(), projection);
+    const bool cache = cacheRequested && hasDistantStatic(camera, projection);
+    if (cache) {
+        // Tile queries borrow the normal draw-list storage. Retain this frame's
+        // already gathered camera lists, then restore them for the near pass.
+        opaqueScene_.swap(savedStaticOpaque_);
+        transparentScene_.swap(savedStaticTransparent_);
+        visibleScene_.swap(savedStaticVisible_);
+        if (!distantCache_) distantCache_ = std::make_unique<DistantSceneCache>(shaderDirectory_);
+        staticDetailProjection_ = projection;
+        const double cacheSeconds = presentationSeconds ? *presentationSeconds :
+            std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        distantCache_->update(camera, projection, height_, cacheSeconds, backgroundSrgb_,
+            [&](const glm::mat4& tileView, const glm::mat4& tileProjection) {
+                selectBasicShader(true);
+                materialState_.reset();
+                applyBasicSamplersAndVisibility();
+                auto anchoredCamera = camera;
+                anchoredCamera.setPosition(distantCache_->origin());
+                applyLighting(anchoredCamera, shadowView, lighting, flashlight, flashlightCasting);
+                treeViewEye_ = distantCache_->origin();
+                staticPass_ = StaticPass::Far;
+                sceneStats_.drawCalls = 0;
+                drawStaticScene(tileView, tileProjection);
+                distantCache_->stats.drawCalls += sceneStats_.drawCalls + treeStats_.drawCalls + forestStats_.drawCalls;
+            });
+        distantStats_ = distantCache_->stats;
+        opaqueScene_.swap(savedStaticOpaque_);
+        transparentScene_.swap(savedStaticTransparent_);
+        visibleScene_.swap(savedStaticVisible_);
+        sceneStats_ = {sceneDraws_.size(), visibleScene_.size(), 0};
+        forestStats_.volumes = forestStats_.drawCalls = 0;
+        treeViewEye_ = camera.position();
+    } else if (distantCache_) distantCache_->invalidate();
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
+    glViewport(0, 0, width_, height_);
     glClearColor(backgroundSrgb_.r, backgroundSrgb_.g, backgroundSrgb_.b, 1.0f);
     glDepthMask(GL_TRUE);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if (cache) distantCache_->composite(camera, projection);
     selectBasicShader(true);
+    if (cache) {
+        materialState_.reset();
+        applyBasicSamplersAndVisibility();
+        applyLighting(camera, shadowView, lighting, flashlight, flashlightCasting);
+        staticPass_ = StaticPass::Near;
+    }
+    staticProjectionView_ = projection * view;
     glUniformMatrix4fv(viewLocation_, 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, glm::value_ptr(projection));
     glActiveTexture(GL_TEXTURE0);
@@ -463,7 +513,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     glUniform1i(animatedLocation_, GL_FALSE);
     {
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::town);
-        gatherVisibleSceneDraws(projection * view, camera.position(), projection);
+        if (!cacheRequested) gatherVisibleSceneDraws(projection * view, camera.position(), projection);
         beginTownPass(camera.position(), projection);
         for (const auto index : opaqueScene_) {
             if (drawTownSource(index)) ++sceneStats_.drawCalls;
@@ -474,6 +524,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         drawTrees(projection * view, false, cameraVisibility_);
         drawForests(projection * view, false, cameraVisibility_.forests);
     }
+    staticPass_ = StaticPass::All;
     drawZombies(animationSeconds);
     drawDogs();
     selectBasicShader(true);

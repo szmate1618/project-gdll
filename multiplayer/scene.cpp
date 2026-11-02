@@ -93,6 +93,7 @@ Options parseOptions(int argc, char** argv, bool server) {
             else throw std::runtime_error("--resolution requires 960x540, 1280x720 or 1920x1080");
         }
         else if (arg == "--no-audio" && !server) o.audio = false;
+        else if (arg == "--distant-scene-cache" && !server) o.distantSceneCache = true;
         else if (arg == "--hidden" && !server) o.hidden = true;
         else if (arg == "--look" && !server) {
             const auto yaw = number(i), pitch = number(i);

@@ -9,6 +9,11 @@ the scene with a perspective free-fly or first-person walking camera and directi
 prints the OpenGL version, renderer, vendor, and GLSL version. The Python scene
 generator remains a separate program.
 
+`--distant-scene-cache` enables the experimental 1 km / 15 Hz static scenery
+cache, with immediate patches for newly exposed directions during turns. It
+defaults off and scopes use normal rendering. See
+[implementation, tradeoffs and benchmarks](DISTANT_SCENE_CACHE.md).
+
 Use `--fullscreen` to fill the primary monitor and `--resolution` to select
 `960x540`, `1280x720` (default), or `1920x1080`:
 

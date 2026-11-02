@@ -63,6 +63,7 @@ void Renderer::drawForests(const glm::mat4& projectionView,bool shadowPass, Visi
     glUniformMatrix3fv(normalLocation_, 1, GL_FALSE, glm::value_ptr(normal));
     std::fill(forestVolumeVisible_.begin(), forestVolumeVisible_.end(), false);
     for (const auto index:visibleForests_) {
+        if (!shadowPass && !keepStaticBounds(forestPatches_[index].bounds)) continue;
         if (forestDetail_[index]) continue;
         forestVolumeVisible_[index] = true;
         if (!shadowPass) ++forestStats_.volumes;

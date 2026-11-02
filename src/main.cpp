@@ -111,6 +111,7 @@ struct Options {
     bool noGuardrails = false;
     bool roofBatching = true;
     bool wallBatching = true;
+    bool distantSceneCache = false;
     bool haze = true;
     bool groundFog = true;
     bool noTrees = false, treeCulling = true, treeCollisions = true, sceneCulling = true;
@@ -253,6 +254,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--doodad-save") options.doodadSave = value();
         else if (argument == "--no-fences") options.noFences = true;
         else if (argument == "--no-roof-batching") options.roofBatching = false;
+        else if (argument == "--distant-scene-cache") options.distantSceneCache = true;
         else if (argument == "--no-wall-batching") options.wallBatching = false;
         else if (argument == "--no-trees") options.noTrees = true;
         else if (argument == "--no-tree-culling") options.treeCulling = false;
@@ -389,6 +391,7 @@ void printHelp() {
               << "  --no-shadows        Disable sun and flashlight shadows for comparison\n"
               << "  --sun-shadow-resolution N Sunlight shadow-map width/height (1024; 256..8192)\n"
               << "  --no-tree-shadows   Disable tree casting for both lights\n"
+              << "  --distant-scene-cache Cache static scenery beyond 1 km at 15 Hz (experimental)\n"
               << "  --no-tree-canopy-shading Disable approximate daytime canopy shade\n"
               << "  --no-tree-depth-ordering Keep tree visibility-query order for comparison\n"
               << "  --tree-billboard-distance M Single-card tree LoD beyond M meters (100; 0 disables)\n"
@@ -1598,6 +1601,7 @@ int run(const Options& options) {
     renderer.setZombieShadows(options.zombieShadows);
     renderer.setSceneCulling(options.sceneCulling);
     renderer.setRoofBatching(options.roofBatching);
+    renderer.setDistantSceneCache(options.distantSceneCache);
     renderer.setWallBatching(options.wallBatching);
     renderer.setShadows(options.shadows);
     renderer.setFlashlightShadows(options.flashlightShadows);
@@ -1874,7 +1878,7 @@ int run(const Options& options) {
                 bodyRenderer.drawPose(presentedBody, viewCamera.projection(float(renderWidth) / renderHeight) *
                                        viewCamera.view(), renderWidth, renderHeight,
                                        (1.f - presentationAlpha) * viewer::PhysicsWorld::fixedStepSeconds);
-        });
+        }, simulationClock.seconds());
         if (app.collisionDebug)
             debug->draw(viewCamera, overlay, renderWidth, renderHeight);
         const auto& heldWeapon = app.weapons.equipped();

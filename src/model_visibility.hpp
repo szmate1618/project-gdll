@@ -27,6 +27,7 @@ public:
     void filterDetails(const glm::vec3& eye, const glm::mat4& projection,
                        std::vector<std::size_t>& visible) const;
     const VisibilityBounds& detailBounds(std::size_t draw) const { return detailBounds_.at(draw); }
+    const VisibilityBounds& drawBounds(std::size_t draw) const { return drawBounds_.at(draw); }
 
 private:
     VisibilityIndex index_;

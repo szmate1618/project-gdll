@@ -35,6 +35,11 @@ int main(int argc, char** argv) {
             require(rejected, "Multiplayer accepted conflicting vegetation presets");
         }
         multiplayer::Options options;
+        {
+            const char* args[] = {"client", "--distant-scene-cache"};
+            require(multiplayer::parseOptions(2, const_cast<char**>(args), false).distantSceneCache,
+                    "Client ignored the experimental distant cache flag");
+        }
         for (const bool server : {false, true}) {
             const char* args[] = {"game", "--no-cars"};
             require(!multiplayer::parseOptions(2, const_cast<char**>(args), server).cars,
@@ -49,6 +54,10 @@ int main(int argc, char** argv) {
                 "Scene fingerprint differs from the cross-platform reference");
         require(multiplayer::sceneFingerprint(options, 7, spawn, {second}) == fingerprint,
                 "Resource paths changed the fingerprint");
+        auto cachedOptions = options;
+        cachedOptions.distantSceneCache = true;
+        require(multiplayer::sceneFingerprint(cachedOptions, 7, spawn, {first}) == fingerprint,
+                "Client scenery cache must not change shared world identity");
         const auto previous = std::locale::global(std::locale(std::locale::classic(), new GroupedNumbers));
         const auto localized = multiplayer::sceneFingerprint(options, 7, spawn, {first});
         std::locale::global(previous);

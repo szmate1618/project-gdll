@@ -129,13 +129,14 @@ void metadata(const std::filesystem::path& output, const std::filesystem::path& 
 
 int main(int argc, char** argv) {
     constexpr auto usage = "Usage: benchmark_zombie_crowd ZOMBIE_MODEL_DIRECTORY OUTPUT_DIRECTORY"
-                           " [--wounded N] [--shadow-resolution N]\n";
+                           " [--wounded N] [--shadow-resolution N] [--distant-cache 0|1]\n";
     if (argc<3) {
         std::cerr << usage;
         return 1;
     }
     try {
         std::size_t wounded = 0;
+        bool distantCache = false;
         std::optional<int> shadowResolution;
         for (int argument=3; argument<argc; argument+=2) {
             if (argument+1 >= argc) throw std::runtime_error(usage);
@@ -145,6 +146,7 @@ int main(int argc, char** argv) {
             if (parsed.ec != std::errc{} || parsed.ptr != input.data()+input.size())
                 throw std::runtime_error("Benchmark options require nonnegative integer values");
             if (option == "--wounded" && value <= population) wounded = value;
+            else if (option == "--distant-cache" && value <= 1) distantCache = value != 0;
             else if (option == "--shadow-resolution" && value > 0 && value <= std::size_t(std::numeric_limits<int>::max()))
                 shadowResolution = static_cast<int>(value);
             else throw std::runtime_error(usage);
@@ -173,15 +175,20 @@ int main(int argc, char** argv) {
         std::cout << "GPU " << glGetString(GL_RENDERER) << "\nScenario "
                   << (wounded ? "zombies-open-100k-wounded-v1" : "zombies-open-100k-v1") << '\n' << std::flush;
         viewer::Renderer renderer(scene,"shaders",nullptr,&zombies);
+        renderer.setDistantSceneCache(distantCache);
         renderer.resize(width,height); renderer.setZombieDrawDistance(0);
         if (shadowResolution) renderer.setSunShadowResolution(*shadowResolution);
         renderer.setHaze(false); renderer.setGroundFog(false);
-        renderer.render(camera,.5); checkPopulation(renderer,wounded);
+        renderer.render(camera,.5,{},.5); checkPopulation(renderer,wounded);
         metadata(output,assets,zombies,camera,renderer,wounded);
+        {
+            std::ofstream extra(output / "metadata.txt", std::ios::app);
+            extra << "distant_cache=" << distantCache << "\ndistant_cache_active=" << (renderer.distantCacheStats().tiles > 0) << '\n';
+        }
         for (int variant=0;variant<variants;++variant) {
             const bool enabled = variant!=0;
             selectVariant(renderer,enabled);
-            renderer.render(camera,.5); checkPopulation(renderer,wounded);
+            renderer.render(camera,.5,{},.5); checkPopulation(renderer,wounded);
             renderer.writeScreenshot(output / (enabled ? "tree-hiz.ppm" : "baseline.ppm"));
         }
         const viewer::ZombiePlayer observer{{0,0,halfField+100}};
@@ -196,13 +203,13 @@ int main(int argc, char** argv) {
             const std::string name = enabled ? "tree-hiz" : "baseline";
             selectVariant(renderer,enabled);
             clock.reset();
-            for (int i=0;i<32;++i) { update(); renderer.updateZombies(zombies); renderer.render(camera,clock.seconds()); }
+            for (int i=0;i<32;++i) { update(); renderer.updateZombies(zombies); renderer.render(camera,clock.seconds(),{},clock.seconds()); }
             viewer::FrameProfile profile(output/(name+"-round-"+std::to_string(round)+".csv"));
             for (int frame=0;frame<frames;++frame) {
                 drain(profile,3);
                 const auto start=Clock::now(); update(); const auto updated=Clock::now();
                 renderer.updateZombies(zombies); const auto prepared=Clock::now();
-                profile.beginGpu(); const auto renderStart=Clock::now(); renderer.render(camera,clock.seconds());
+                profile.beginGpu(); const auto renderStart=Clock::now(); renderer.render(camera,clock.seconds(),{},clock.seconds());
                 const auto rendered=Clock::now(); profile.endGpu();
                 profile.record({static_cast<std::uint64_t>(frame),milliseconds(renderStart,rendered),
                     milliseconds(start,updated),milliseconds(updated,prepared),0,0});
