@@ -1,3 +1,4 @@
+#include "scene_depth.hpp"
 #include "player_body_renderer.hpp"
 #include "player_body.hpp"
 #include "box_layer.hpp"
@@ -135,17 +136,17 @@ void PlayerBodyRenderer::drawPose(const PlayerBodyPose& body, const glm::mat4& p
     glGetBooleanv(GL_DEPTH_WRITEMASK, &depthWrite);
     glGetDoublev(GL_DEPTH_CLEAR_VALUE, &clearDepth);
     glGetDoublev(GL_DEPTH_RANGE, depthRange);
-    glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LESS); glDepthMask(GL_TRUE); glDepthRange(0, 1);
+    glEnable(GL_DEPTH_TEST); glDepthFunc(sceneReversedDepth ? GL_GREATER : GL_LESS); glDepthMask(GL_TRUE); glDepthRange(0, 1);
     glDisable(GL_BLEND); glDisable(GL_SCISSOR_TEST);
     glEnable(GL_CULL_FACE); glCullFace(GL_BACK); glFrontFace(GL_CCW);
     glUseProgram(program_); glBindVertexArray(vao_);
     glUniform1f(opacity_, 1.f);
     for (std::size_t part = 0; part < playerBodyPartCount; ++part) {
-        const auto transform = projectionView * body.parts[part];
+        const auto transform = sceneLocalProjection(projectionView) * body.parts[part];
         glUniformMatrix4fv(transform_, 1, GL_FALSE, glm::value_ptr(transform));
         glDrawArrays(GL_TRIANGLES, 0, vertexCount_);
     }
-    drawBodyTrail(body, projectionView, secondsBehindNewest);
+    drawBodyTrail(body, sceneLocalProjection(projectionView), secondsBehindNewest);
     glBindVertexArray(static_cast<GLuint>(previousVao)); glUseProgram(static_cast<GLuint>(previousProgram));
     if (depth) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
     if (blend) glEnable(GL_BLEND); else glDisable(GL_BLEND);

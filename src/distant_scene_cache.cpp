@@ -1,4 +1,5 @@
 #include "distant_scene_cache.hpp"
+#include "scene_depth.hpp"
 #include "shader_program.hpp"
 #include <stdexcept>
 #include <glm/gtc/type_ptr.hpp>
@@ -29,8 +30,9 @@ bool DistantSceneCache::distant(const VisibilityBounds& bounds, glm::vec3 eye, f
 }
 
 void DistantSceneCache::resize(int width, int height) {
-    if (width_ == width && height_ == height) return;
+    if (width_ == width && height_ == height && reversedDepth_ == sceneReversedDepth) return;
     width_ = width; height_ = height;
+    reversedDepth_ = sceneReversedDepth;
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, color_);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -39,7 +41,8 @@ void DistantSceneCache::resize(int width, int height) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glBindRenderbuffer(GL_RENDERBUFFER, depth_);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
+    glRenderbufferStorage(GL_RENDERBUFFER, reversedDepth_ ? GL_DEPTH_COMPONENT32F : GL_DEPTH_COMPONENT24,
+                          width, height);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color_, 0);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth_);
@@ -68,6 +71,8 @@ void DistantSceneCache::update(const Camera& camera, const glm::mat4& projection
     glViewport(0, 0, width, height);
     glDisable(GL_BLEND);
     glDepthMask(GL_TRUE);
+    glDepthFunc(reversedDepth_ ? GL_GREATER : GL_LESS);
+    glClearDepth(reversedDepth_ ? 0 : 1);
     glClearColor(background.r, background.g, background.b, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     draw(camera.view(), projection);
@@ -80,8 +85,10 @@ void DistantSceneCache::composite(const Camera& camera, const glm::mat4& project
     glUniformMatrix4fv(transform_, 1, GL_FALSE, glm::value_ptr(transform));
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, color_);
     glDisable(GL_CULL_FACE); glDisable(GL_BLEND);
-    glDepthFunc(GL_LEQUAL); glDepthMask(GL_FALSE);
+    // This is a background color rectangle. Its proxy depth must neither
+    // occlude foreground geometry nor depend on the scene's depth convention.
+    glDepthFunc(GL_ALWAYS); glDepthMask(GL_FALSE);
     glBindVertexArray(vao_); glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    glDepthFunc(GL_LESS); glDepthMask(GL_TRUE);
+    glDepthFunc(sceneReversedDepth ? GL_GREATER : GL_LESS); glDepthMask(GL_TRUE);
 }
 } // namespace viewer

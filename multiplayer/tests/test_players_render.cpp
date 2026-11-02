@@ -159,7 +159,9 @@ void check(const std::filesystem::path& screenshot) {
     multiplayer::PlayerState player; player.id = 2; player.movement.feet = {0, 0, -4};
     const auto draw = [&] { players.draw(camera, {player}, 1, width, height); };
     // The old ordering provides the opaque player's actual framebuffer color.
-    renderer.render(camera); draw(); const auto uncovered = pixel();
+    renderer.render(camera);
+    { const viewer::SceneDepthScope depth(viewer::sceneClipControl(),renderer.sceneDepthMode()==viewer::SceneDepthMode::Reversed32); draw(); }
+    const auto uncovered = pixel();
     renderer.render(camera, 0, draw); const auto behindGlass = pixel();
     if (!(behindGlass.r > uncovered.r + 40 && behindGlass.b < uncovered.b - 30))
         throw std::runtime_error("Remote player overwrote the transparent glass tint");
@@ -171,7 +173,9 @@ void check(const std::filesystem::path& screenshot) {
     body.follow({0,1.7f,-4},{0,0,-1},true); body.punch({0,0,-1});
     for (int n=0;n<4;++n) physics->step(1.f/60,[&](float dt){body.beforeStep(dt);},[&](float){body.afterStep();});
     player.slot=static_cast<std::uint8_t>(viewer::punchSlot); player.melee=body.pose();
-    renderer.render(camera); draw(); const auto bodyColor=pixel();
+    renderer.render(camera);
+    { const viewer::SceneDepthScope depth(viewer::sceneClipControl(),renderer.sceneDepthMode()==viewer::SceneDepthMode::Reversed32); draw(); }
+    const auto bodyColor=pixel();
     renderer.render(camera,0,draw); const auto bodyBehindGlass=pixel();
     if (!(bodyBehindGlass.r>bodyColor.r+40 && bodyBehindGlass.b<bodyColor.b-30))
         throw std::runtime_error("Remote physical melee body overwrote the glass tint");

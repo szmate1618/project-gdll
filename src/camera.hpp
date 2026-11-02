@@ -11,7 +11,9 @@ public:
 
     void frame(glm::vec3 minimum, glm::vec3 maximum, float aspect);
     [[nodiscard]] glm::mat4 view() const;
-    [[nodiscard]] glm::mat4 projection(float aspect) const;
+    // Default projection is the CPU/OpenGL [-1,1] convention. Reversed uses
+    // [0,1], near=1 and far=0, and must be paired with clip control.
+    [[nodiscard]] glm::mat4 projection(float aspect, bool reversed = false) const;
 
     // Inputs are signed axes; simultaneous movement is normalized. Up is world Y.
     void move(float forward, float right, float up, float dt, bool fast);

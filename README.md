@@ -291,14 +291,25 @@ Other settings include:
 | `buildings.default_height_m` | 8 | Final building-height fallback |
 | `buildings.detail_distance_m` | 120 | Range for walls with door/window openings; scope magnification extends it |
 | `roads.lane_width_m` | 3 | Lane-based road-width estimate |
-| `roads.sample_spacing_m` | 8 | Road surface subdivision size |
-| `roads.offset_m` | 0.02 | Base road clearance above terrain; ridge corrections can increase it |
+| `roads.sample_spacing_m` | 8 | Fallback subdivision for samplers without terrain topology |
+| `roads.offset_m` | 0.001 | Exact road/path clearance above the rendered terrain triangles |
 | `railways.width_m` | 4 | Track-bed width when an OSM `width` tag is absent |
-| `railways.sample_spacing_m` | 8 | Railway surface subdivision size |
-| `railways.offset_m` | 0.3 | Track-bed clearance above terrain |
+| `railways.sample_spacing_m` | 8 | Fallback subdivision for samplers without terrain topology |
+| `railways.offset_m` | 0.001 | Exact track-bed clearance above the rendered terrain triangles |
 | `fences.default_height_m` | 1.5 | Fence height when OSM has no usable `height` |
 | `fences.post_spacing_m` | 2.5 | Textured post interval; independent of panel geometry |
 | `fences.default_gate_width_m` | 3 | Clear gap at mapped gates/entrances without a `width` |
+
+To refit only the affected layers against the published terrain, run
+`.venv/bin/python -m src.generate --offline --surfaces-only`. The
+command retains existing town geometry, validates the map and matching navmesh
+before publication, then refreshes the default vegetation using normal
+fingerprint checks. Refreshed OSM provenance is recorded separately under
+`sources.roads` and `sources.railways`, retaining the original terrain sources.
+Existing pole/guardrail layers must also be regenerated,
+and authored vehicle placements revalidated against the unchanged terrain,
+before launching a map with those optional sidecars. The full generator also
+uses the conforming surface code.
 
 The prototype limits regions to 10km per side and terrain grids to two million
 cells. Start with the supplied area. For distant locations, choose an appropriate
@@ -483,8 +494,9 @@ or disused tracks are excluded. Route relations do not duplicate their track
 ways. Each mapped track becomes a textured ballast surface, with an explicit OSM
 `width` overriding `railways.width_m`. Parallel track ways remain separate;
 `tracks` and `passenger_lines` do not multiply the width. Buffered edges are
-clipped to the configured area and follow the same terrain sampler and clearance
-correction as roads. The surfaces share the `railways_ballast` mesh and
+clipped to the configured area and fitted to the rendered terrain triangles,
+using the same clearance as roads. Generic height-sampler inputs retain the
+older clearance correction. The surfaces share the `railways_ballast` mesh and
 `railway_ballast` material, with OSM IDs retained in mesh extras. GLB scene extras
 and `output/report.json` include a `railways` section with accepted segment,
 category, mesh, triangle and skipped-feature counts. Railway-free areas remain

@@ -664,3 +664,57 @@ centers. Physical contacts use zero skin; padded contacts are reported separatel
 The quality case uses current collision queries after each update, with fixed
 prop/door poses and no physics advancement. It is not an exhaustive guarantee
 for moving props, different maps or every terrain/obstacle configuration.
+
+## Terrain-surface and camera-depth experiment
+
+The render harness accepts `--compare-depth` and `--1080p`. The comparison runs
+24-bit conventional, 32-bit float conventional and 32-bit float reversed camera
+depth on identical geometry. Each round rotates the three modes; allocation,
+60-frame warmup and captures remain outside measurement. CPU visibility, draw
+order, lighting and shadow formats are unchanged. Without `--1080p` the scene
+is 1280x720; with it, 1920x1080. No larger scene target is used by this experiment.
+
+```bash
+./build/benchmark_render_wins output/godollo.glb output/trees.instances.json \
+  output/osm/forest_patches.json build/forest_perf/billboard-views.txt \
+  shaders build/benchmarks/terrain-depth-1080 6 128 all --compare-depth --1080p
+.venv/bin/python tools/summarize_render_benchmark.py build/benchmarks/terrain-depth-1080
+```
+
+For the standard 100,000-zombie control, `--depth-mode 0`, `1`, or `2` chooses
+24-bit conventional, 32-bit float conventional, or 32-bit float reversed depth.
+Its scene resolution stays 1280x720. `--compare-depth` instead rotates all three
+modes within each of six rounds on one loaded population/context. Untimed GPU
+fences finish warmup; `throughput.csv` records completed block time per frame,
+including CPU simulation/preparation/render, query scheduling and the final GPU
+drain. Presentation and VSync are excluded. Use this matched control when
+separate-process GPU elapsed results disagree on integrated hardware.
+Select the same mode and assets when
+comparing revisions; record the actual mode from metadata.
+
+The real-map headless `benchmark_zombie_updates` accepts a trailing
+`--collide-overlays` to include the new fitted road/path/railway meshes in the
+collision world. The default excludes them. Use the same regenerated map,
+scenario, seed, observer and travel mode in both runs. CSVs report ground and
+contact stages separately; metadata includes owned collision allocation bytes.
+Compare the control runs for total cost and the instrumented runs for attribution.
+Expect small height/pose differences between variants; require each to preserve
+ground support, blocker clearance and navmesh coverage independently.
+
+```bash
+./build/multiplayer/benchmark_zombie_updates output/godollo.glb \
+  scenarios/test-horde/scenario.toml build/benchmarks/terrain-no-overlays
+./build/multiplayer/benchmark_zombie_updates output/godollo.glb \
+  scenarios/test-horde/scenario.toml build/benchmarks/terrain-with-overlays --collide-overlays
+```
+
+Run measured GPU/CPU cases sequentially after generation, compilation and other
+heavy work have finished. Background CPU work can affect this integrated GPU.
+
+Recorded experiment: [terrain surfaces and reversed depth, 2026-11-01](benchmarks/terrain-surfaces-reversed-z-2026-11-01.txt).
+
+The [master integration measurements, 2026-11-02](benchmarks/reversed-z-master-integration-2026-11-02.txt)
+cover the current distant rectangle/multi-draw implementation, a 100,000-zombie
+control, and a longer repeat of the initially worse stationary-overview tail.
+They retain mixed per-case and per-round results rather than claiming a uniform
+performance improvement.

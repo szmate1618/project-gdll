@@ -14,6 +14,7 @@ import trimesh
 
 from .fences import add_fences
 from .glb import pack_glb, read_glb
+from .scene_mesh_update import replace_scene_meshes
 from .map_publication import publish_files
 from .navmesh_preparation import prepare_navmesh
 from .osm import parse_fences
@@ -23,76 +24,9 @@ from .verify import inspect_glb
 LOG = logging.getLogger(__name__)
 
 
-def _remove_fence_nodes(document: dict) -> None:
-    """Remove previous fence draws, remapping the static town's graph indices."""
-    old_meshes = document["meshes"]
-    retained = {i: mesh for i, mesh in enumerate(old_meshes)
-                if not mesh.get("name", "").startswith("fences_")}
-    mesh_indices = {old: new for new, old in enumerate(retained)}
-    nodes = {i: node for i, node in enumerate(document["nodes"])
-             if "mesh" not in node or node["mesh"] in retained}
-    node_indices = {old: new for new, old in enumerate(nodes)}
-    for node in nodes.values():
-        if "mesh" in node:
-            node["mesh"] = mesh_indices[node["mesh"]]
-        if "children" in node:
-            node["children"] = [node_indices[i] for i in node["children"] if i in nodes]
-    for scene in document["scenes"]:
-        scene["nodes"] = [node_indices[i] for i in scene.get("nodes", []) if i in nodes]
-    document["meshes"] = list(retained.values())
-    document["nodes"] = list(nodes.values())
-
-
 def prepare_fence_patch(original: bytes, fences: trimesh.Scene, stats: dict, provenance: dict) -> bytes:
-    """Append fence buffers while retaining every original town binary byte.
-
-    Existing fence draws are replaced. Their unused buffers remain in the GLB,
-    just as with a material patch; no town accessor or material is reconstructed.
-    The generator's map is static, so only mesh/node graph indices need remapping.
-    """
-    document, binary = read_glb(original)
-    if document.get("skins") or document.get("animations"):
-        raise ValueError("Fence updates require a static town without skins or animations")
-    _remove_fence_nodes(document)
-    if fences.geometry:
-        generated, fence_binary = read_glb(fences.export(file_type="glb"))
-        binary += b"\0" * (-len(binary) % 4)
-        offset = len(binary)
-        binary += fence_binary
-        bases = {key: len(document.setdefault(key, [])) for key in
-                 ("bufferViews", "accessors", "images", "textures", "samplers", "materials", "meshes")}
-        for view in generated.get("bufferViews", []):
-            view["buffer"] = 0
-            view["byteOffset"] = view.get("byteOffset", 0) + offset
-        for accessor in generated.get("accessors", []):
-            accessor["bufferView"] += bases["bufferViews"]
-        for image in generated.get("images", []):
-            image["bufferView"] += bases["bufferViews"]
-        for texture in generated.get("textures", []):
-            texture["source"] += bases["images"]
-            if "sampler" in texture:
-                texture["sampler"] += bases["samplers"]
-        for material in generated.get("materials", []):
-            for fields in (material, material.get("pbrMetallicRoughness", {})):
-                for key, value in fields.items():
-                    if key.endswith("Texture"):
-                        value["index"] += bases["textures"]
-        active_scene = document["scenes"][document.get("scene", 0)]
-        rotation = [1., 0., 0., 0., 0., 0., -1., 0., 0., 1., 0., 0., 0., 0., 0., 1.]
-        for index, mesh in enumerate(generated["meshes"]):
-            for primitive in mesh["primitives"]:
-                primitive["attributes"] = {key: value + bases["accessors"]
-                                           for key, value in primitive["attributes"].items()}
-                primitive["indices"] += bases["accessors"]
-                primitive["material"] += bases["materials"]
-            active_scene.setdefault("nodes", []).append(len(document["nodes"]))
-            document["nodes"].append({"name": mesh["name"], "mesh": index + bases["meshes"],
-                                      "matrix": rotation})
-        for key in bases:
-            document[key].extend(generated.get(key, []))
-        for extension in generated.get("extensionsUsed", []):
-            if extension not in document.setdefault("extensionsUsed", []):
-                document["extensionsUsed"].append(extension)
+    """Append replacement fences while retaining every original town byte."""
+    document, binary = replace_scene_meshes(original, fences, ("fences_",))
     metadata = document["scenes"][document.get("scene", 0)]["extras"]
     metadata["fences"] = stats
     metadata.setdefault("sources", {})["fences"] = provenance

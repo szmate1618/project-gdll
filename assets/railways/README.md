@@ -25,3 +25,8 @@ meters. Bed width does not change the gauge. Included narrow-gauge ways also
 use the standard-gauge tile for now. To update an existing map from its cached
 OSM extract, run `.venv/bin/python tools/apply_railway_texture.py`; see the
 [map workflow](../../README.md) for validation and backups.
+
+On the terrain-surface experiment, bed polygons are clipped to each terrain
+triangle and placed 1 mm above its plane. Newly generated roads, paths and
+railway beds are render overlays; their ground support comes from the terrain.
+Older unmarked maps retain their existing surface collision.

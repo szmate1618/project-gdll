@@ -440,6 +440,22 @@ void crowdAgainstWallAndDeterminism() {
 
 int main() {
     try {
+        {
+            auto model = floor();
+            for (const auto* name : {"roads_asphalt", "railways_ballast"}) {
+                quad(model, name, {-5,.001f,-5}, {-5,.001f,5}, {5,.001f,5}, {5,.001f,-5});
+                model.draws.back().terrainOverlay = true;
+            }
+            viewer::CollisionWorld world(model);
+            require(world.stats().triangles == 2, "Conforming overlays must not duplicate terrain collision");
+            const auto hit=world.walkingGroundAt(0,0,-1,1);
+            require(hit && std::abs(hit->height)<1e-6f, "Overlay walking must use terrain height");
+            require(world.staticFaces({-6,-1,-6},{6,1,6}).size()==2, "Physics must not import conforming overlays");
+            // An old/elevated surface keeps its original physical support.
+            model.draws.back().terrainOverlay = false;
+            viewer::CollisionWorld elevated(model);
+            require(elevated.stats().triangles==4, "Unmarked surfaces must retain collision");
+        }
         walkingContactRegions();
         walkingRegionWallPadding();
         thinWallsSlidingAndCorners();

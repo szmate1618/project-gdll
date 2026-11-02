@@ -105,6 +105,7 @@ struct CollisionStats {
     std::size_t skippedDegenerateTriangles = 0;
     std::size_t trunks = 0;
     std::size_t trunkBvhNodes = 0;
+    std::size_t allocatedBytes = 0; // Owned static BVH/vector allocations, excluding live layers.
 };
 
 // Static scene BVHs and live door contacts use rendering's transformed, Y-up
@@ -113,7 +114,7 @@ struct CollisionStats {
 class CollisionWorld {
 public:
     explicit CollisionWorld(const Model& model, const std::vector<TrunkCollider>& trunks = {},
-                            const DoorLayer* doors = nullptr);
+                            const DoorLayer* doors = nullptr, bool collideTerrainOverlays = false);
     ~CollisionWorld();
     CollisionWorld(CollisionWorld&&) noexcept;
     CollisionWorld& operator=(CollisionWorld&&) noexcept;

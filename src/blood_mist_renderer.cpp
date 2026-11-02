@@ -1,3 +1,4 @@
+#include "scene_depth.hpp"
 #include "blood_mist_renderer.hpp"
 #include "shader_program.hpp"
 #include "visibility.hpp"
@@ -133,7 +134,8 @@ void BloodMistRenderer::draw(const Camera& camera, float aspect, const std::vect
     const GLState state;
     glUseProgram(program_);
     glUniformMatrix4fv(view_,1,GL_FALSE,glm::value_ptr(view));
-    glUniformMatrix4fv(projection_,1,GL_FALSE,glm::value_ptr(projection));
+    const auto gpuProjection = sceneProjection(camera, aspect);
+    glUniformMatrix4fv(projection_,1,GL_FALSE,glm::value_ptr(gpuProjection));
     const auto color=glm::vec3(.32f,.008f,.016f)*glm::clamp(ambient,glm::vec3(.15f),glm::vec3(1));
     glUniform3fv(color_,1,glm::value_ptr(color)); glUniform1i(textureLocation_,0);
     glBindTexture(GL_TEXTURE_2D,texture_);

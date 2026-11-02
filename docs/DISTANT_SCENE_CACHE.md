@@ -21,7 +21,9 @@ Turning or moving can expose empty image margins. These gaps wait for the next
 scheduled refresh; there is no patching or extra geometry pass on turns. Camera
 movement uses the rectangle's single proxy distance, so parallax is approximate.
 The capture has its own depth renderbuffer for correct surface ordering within
-the image, but its depth is never sampled or written into the main scene.
+the image. It uses reversed FP32 depth when the camera pass does, retaining the
+precision needed by 1 mm terrain overlays; conventional modes use depth24.
+Its depth is never sampled or written into the main scene.
 Normally rendered actors and other foreground geometry always draw over it,
 even when they would physically be behind distant cached scenery. These are
 intentional approximation limits. Visual review is left to the user.
@@ -45,6 +47,10 @@ At 1280x720, one RGBA8 image plus a depth24 renderbuffer with four-byte storage
 uses approximately **7 MiB**, compared with approximately 75 MiB for the earlier
 cubemap. Linear filtering smooths the projected image. No per-pixel viewing-ray
 rotation or depth conversion remains in the composite shader.
+Changing the camera depth convention reallocates and refreshes the capture.
+CPU visibility and rectangle placement retain conventional projection matrices;
+only the capture's GPU projection follows reversed depth. Composition writes no
+depth and restores the active camera comparison before foreground drawing.
 
 Refresh uses an explicit presentation clock when supplied, otherwise monotonic
 wall time. The viewer supplies simulation time independently of frozen animation

@@ -2479,8 +2479,8 @@ The player attempts this step before edge collision correction can lift the
 capsule off the ground. Both player and zombie checks retain ceiling, wall,
 whole-body clearance and crowd constraints.
 
-Roads default to a 0.02 m base offset above terrain. Terrain-ridge clearance
-corrections may raise individual sections further; a configured offset is not
+New roads default to 0.001 m above fitted terrain triangles. Legacy meshes can
+retain terrain-ridge clearance corrections, so their configured offset is not
 an exact bound on every rendered road-to-ground gap. Older maps generated with
 a 0.25 m offset can have edges over 0.30 m. To lower only their roads without
 regenerating the town, set `roads.offset_m` in `config.json`, then run:
@@ -2494,7 +2494,8 @@ regenerating the town, set `roads.offset_m` in `config.json`, then run:
 
 Supply the actual source offset and only companions present for that map.
 The updater translates road leaf nodes in world Y, preserving all mesh buffers,
-road footprints, terrain and buildings. It validates the candidate GLB and
+road footprints, terrain and buildings. It does not add terrain fitting or
+remove legacy ridge corrections. It validates the candidate GLB and
 unchanged terrain before publication, saves originals under
 `output/road-offset-backups/`, and refreshes only companion fingerprints matching
 the original map. Placements and companion geometry stay intact. A stale
@@ -3187,3 +3188,26 @@ Dependency license notices remain in the downloaded source trees: GLFW's
 tinygltf's `LICENSE` (MIT). tinygltf bundles nlohmann/json (MIT) and stb_image
 (MIT or public domain), with their notices in the corresponding headers.
 Preserve the applicable notices when redistributing dependency code or binaries.
+
+### Terrain-fitted surfaces and reversed depth
+
+Newly generated roads, paths and railway beds are clipped to the terrain
+triangles and use 1 mm of vertical clearance. Exported
+float32 terrain coordinates are authoritative. New surface meshes carry a
+`terrain_conforming` marker; the loader excludes these overlays from walking,
+ray and rigid-body collision. Older unmarked surfaces keep their collision.
+
+The camera color pass uses 32-bit floating-point reversed depth when OpenGL 4.5
+or `ARB_clip_control` is available. Near depth is one, far depth is zero, and
+comparison is `GL_GREATER` with a zero clear value. Projection coefficients are
+built directly rather than subtracting conventional float coefficients. CPU
+visibility and sun/flashlight shadow maps retain conventional matrices. Rain,
+blood, birds, physical player bodies and world weapons follow the camera pass;
+clip/depth state is restored before menus and standalone overlays. Systems
+without clip control use conventional 32-bit float depth, with less protection
+against distant overlay z-fighting.
+
+The optional distant scenery cache follows the same depth convention during
+capture, while its CPU visibility calculations keep conventional matrices.
+Its background rectangle writes no scene depth and restores foreground depth
+testing before actors and effects are drawn. See [cache behavior](DISTANT_SCENE_CACHE.md).

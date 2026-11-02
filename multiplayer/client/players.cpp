@@ -1,3 +1,4 @@
+#include "scene_depth.hpp"
 #include "players.hpp"
 #include "player_dimensions.hpp"
 #include "resources.hpp"
@@ -81,7 +82,7 @@ void PlayerRenderer::draw(const viewer::Camera& camera, const std::vector<Player
     glGetIntegerv(GL_FRONT_FACE, &front); glFrontFace(GL_CCW);
     glGetIntegerv(GL_ACTIVE_TEXTURE, &active); glActiveTexture(GL_TEXTURE0);
     glGetIntegerv(GL_TEXTURE_BINDING_2D_ARRAY, &texture); glGetIntegerv(GL_SAMPLER_BINDING, &sampler); glBindSampler(0, 0);
-    const auto vp = camera.projection(static_cast<float>(width) / height) * camera.view();
+    const auto vp = viewer::sceneProjection(camera, static_cast<float>(width) / height) * camera.view();
     glUseProgram(program_); glBindVertexArray(vao_);
     for (const auto& p : players) {
         if (p.id == self || p.vehicle != noVehicle) continue;

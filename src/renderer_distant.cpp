@@ -155,11 +155,11 @@ bool Renderer::drawStaticChunks(std::size_t index) {
     return true; // The caller counts one GL submission, matching forest batches.
 }
 
-void Renderer::drawStaticScene(const glm::mat4& view, const glm::mat4& projection) {
+void Renderer::drawStaticScene(const glm::mat4& view, const glm::mat4& projection, const glm::mat4& gpuProjection) {
     forestStats_.volumes = forestStats_.drawCalls = 0;
     staticProjectionView_ = projection * view;
     glUniformMatrix4fv(viewLocation_, 1, GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, glm::value_ptr(projection));
+    glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, glm::value_ptr(gpuProjection));
     glUniform1i(instancedLocation_, GL_FALSE);
     glUniform1i(animatedLocation_, GL_FALSE);
     const auto eye = distantCache_->origin();

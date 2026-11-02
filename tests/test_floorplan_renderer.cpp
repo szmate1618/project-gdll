@@ -29,7 +29,7 @@ float depth(const viewer::Camera& camera, glm::vec3 point) {
     const auto ndc = glm::vec3(p) / p.w;
     float result = 0;
     glReadPixels(int((ndc.x + 1) * width * .5f), int((ndc.y + 1) * height * .5f), 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &result);
-    return result;
+    return viewer::sceneClipControl() ? 1.f-result : result;
 }
 void render(const std::filesystem::path& capture) {
     auto model = house_fixture::house();

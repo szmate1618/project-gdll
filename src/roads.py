@@ -18,6 +18,7 @@ from trimesh.visual.material import PBRMaterial
 from trimesh.visual.texture import TextureVisuals
 
 from .terrain_surfaces import geometry_parts as _parts, surface_mesh as _surface_mesh
+from .terrain import Terrain
 
 
 LOGGER = logging.getLogger(__name__)
@@ -134,7 +135,7 @@ def add_roads(scene: trimesh.Scene, features: list, elevation: Callable, config:
     """
     settings = config.get("roads", {})
     spacing = float(settings.get("sample_spacing_m", 10.0))
-    offset = float(settings.get("offset_m", 0.02))
+    offset = float(settings.get("offset_m", 0.001))
     lane_width = float(settings.get("lane_width_m", 3.0))
     if not math.isfinite(spacing) or spacing <= 0:
         raise ValueError("roads.sample_spacing_m must be a positive finite number")
@@ -195,6 +196,7 @@ def add_roads(scene: trimesh.Scene, features: list, elevation: Callable, config:
             "surface": material_name,
             "source": "OpenStreetMap",
             "osm_ids": source_ids[material_name],
+            "terrain_conforming": isinstance(elevation, Terrain),
         })
         scene.add_geometry(mesh, geom_name=f"roads_{material_name}", node_name=f"roads_{material_name}")
         triangle_count += len(mesh.faces)

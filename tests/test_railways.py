@@ -23,7 +23,7 @@ class RailwayTests(unittest.TestCase):
         self.assertEqual(stats["railway_segments"], 1)
         mesh = scene.geometry["railways_ballast"]
         np.testing.assert_allclose(mesh.bounds[:, :2], [[0, -2], [1000, 2]])
-        np.testing.assert_allclose(mesh.vertices[:, 2], elevation(*mesh.vertices[:, :2].T) + 0.3)
+        np.testing.assert_allclose(mesh.vertices[:, 2], elevation(*mesh.vertices[:, :2].T) + 0.001)
         self.assertLessEqual(mesh.edges_unique_length.max(), 11.4)
         self.assertLess(len(mesh.faces), 1000)
         self.assertTrue(np.all(mesh.face_normals[:, 2] > 0))
@@ -132,7 +132,7 @@ class RailwayTests(unittest.TestCase):
                            (triangles[:, 1] + triangles[:, 2]) / 2,
                            (triangles[:, 2] + triangles[:, 0]) / 2))
         gap = probes[:, :, 2] - terrain(probes[:, :, 0], probes[:, :, 1])
-        self.assertGreaterEqual(gap.min(), 0.3 - 1e-10)
+        np.testing.assert_allclose(gap, 0.001, atol=1e-10)
         _, inverse = np.unique(mesh.vertices[:, :2].astype(np.float32), axis=0, return_inverse=True)
         for index in range(inverse.max() + 1):
             self.assertLess(np.ptp(mesh.vertices[inverse == index, 2]), 1e-10)

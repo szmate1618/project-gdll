@@ -37,16 +37,21 @@ class Terrain:
         self.bounds = tuple(bounds)
         self.datum = float(datum)
         self.rows, self.cols = self.heights.shape
+        # Use the same float32 coordinates as the published GLB. At millimetre
+        # clearance, sampling an unrounded grid can put overlays below ridges.
+        self.x_axis = np.linspace(bounds[0], bounds[2], self.cols).astype(np.float32).astype(float)
+        self.y_axis = np.linspace(bounds[3], bounds[1], self.rows).astype(np.float32).astype(float)
         self.dx = (bounds[2] - bounds[0]) / (self.cols - 1)
         self.dy = (bounds[3] - bounds[1]) / (self.rows - 1)
 
     def __call__(self, x, y):
         x, y = np.broadcast_arrays(np.asarray(x, dtype=float), np.asarray(y, dtype=float))
-        col = np.clip((x - self.bounds[0]) / self.dx, 0, self.cols - 1)
-        row = np.clip((self.bounds[3] - y) / self.dy, 0, self.rows - 1)
-        i = np.minimum(col.astype(int), self.cols - 2)
-        j = np.minimum(row.astype(int), self.rows - 2)
-        u, v = col - i, row - j
+        x = np.clip(x, self.x_axis[0], self.x_axis[-1])
+        y = np.clip(y, self.y_axis[-1], self.y_axis[0])
+        i = np.clip(np.searchsorted(self.x_axis, x, side="right") - 1, 0, self.cols - 2)
+        j = np.clip(np.searchsorted(-self.y_axis, -y, side="right") - 1, 0, self.rows - 2)
+        u = (x - self.x_axis[i]) / (self.x_axis[i + 1] - self.x_axis[i])
+        v = (self.y_axis[j] - y) / (self.y_axis[j] - self.y_axis[j + 1])
         nw = self.heights[j, i]
         ne = self.heights[j, i + 1]
         sw = self.heights[j + 1, i]
@@ -58,8 +63,7 @@ class Terrain:
         return float(value) if value.ndim == 0 else value
 
     def mesh(self, texture: Image.Image) -> trimesh.Trimesh:
-        x = np.linspace(self.bounds[0], self.bounds[2], self.cols)
-        y = np.linspace(self.bounds[3], self.bounds[1], self.rows)
+        x, y = self.x_axis, self.y_axis
         xx, yy = np.meshgrid(x, y)
         vertices = np.column_stack((xx.ravel(), yy.ravel(), self.heights.ravel()))
         grid = np.arange(self.rows * self.cols).reshape(self.rows, self.cols)
@@ -106,7 +110,7 @@ def build_terrain(config: dict, frame: dict, sources: dict, root: Path) -> tuple
         heights = gaussian_filter(heights, sigma=sigma, mode="nearest")
     terrain = Terrain(heights, bounds)
     datum = terrain(0, 0)
-    terrain.heights -= datum
+    terrain.heights = (terrain.heights - datum).astype(np.float32).astype(float)
     terrain.datum = datum
     processed = root / "data" / "processed"
     processed.mkdir(parents=True, exist_ok=True)

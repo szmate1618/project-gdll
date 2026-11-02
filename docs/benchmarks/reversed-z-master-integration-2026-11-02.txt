@@ -1,0 +1,135 @@
+Reversed depth and terrain-surface integration on master — 2026-11-02
+
+Scope and forecast
+------------------
+Base master: 6093ff0. Ports eefd6f6 (terrain-fitting/1 mm roads and railways,
+reversed camera depth) and 1090b38 (camera aim precision), retaining the recent
+distant-cache rectangle, multi-draw submissions, doodad saves and wheel motors.
+
+The cache needed a real compatibility adaptation: its capture now uses the
+camera depth convention and the matching GPU projection, while CPU visibility
+keeps conventional matrices. Reversed capture uses FP32 depth; conventional
+capture retains depth24. The background rectangle writes no scene depth and
+restores foreground comparison/writes. Depth changes invalidate capture even
+at an unchanged resolution. Refresh remains 15 Hz, with no added scene passes.
+
+On the tested hardware the combined version shows no persistent large rendering
+penalty. This is a forecast for these fixtures, not a guarantee for every GPU or
+whole-game frame time. The existing cache still has refresh spikes and exposed
+image margins during turns. Those approximation limits were not changed.
+
+Hardware and controls
+---------------------
+AMD Radeon 660M, radeonsi/rembrandt, LLVM 19.1.1; OpenGL 4.6 Core,
+Mesa 24.2.8-1ubuntu1~24.10.1. Release build, 1280x720. Firefox was closed after
+the user replied ready before each timing window. Builds and correctness tests
+finished first; each benchmark ran alone. Power/clocks were not pinned and no
+frequency or thermal telemetry was collected.
+
+The existing local map was reused without generation or downloads:
+SHA256 1c9efcf7e71beb3c67ca2cfbc77231f5c70de62781faa3bc185ce8617c6e560d.
+Trees, forest patches, cameras and shaders have recorded hashes in raw metadata.
+This map already contained the experiment's fitted surfaces before the source
+port. Therefore these controls measure depth/cache interaction, not a new
+geometry reduction relative to the current local master asset.
+
+Map/cache control
+-----------------
+Town and clear overview; stationary, 1.5 m/s + 40 degrees/s walk-turn, and
+180 degrees/s fast-turn. Four depth24/reversed32 x cache-off/on combinations
+rotate within one context. Four rounds per case, 32 warmup and 96 measured
+frames per cell/round. Camera, animation and refresh advance exactly 1/60 s.
+Nearest vegetation, linear cached color, normal LoD and sunlight shadows.
+No AI, dynamic physics steps, audio, HUD, VSync or presentation.
+
+GPU timestamps are asynchronous with at most four frames in flight. Warmup
+completion, captures and query waits are outside CPU render sections.
+Completed-block time includes benchmark bookkeeping and final GPU draining.
+CPU/GPU elapsed times overlap and must not be added or treated as gameplay FPS.
+
+All 9,216 GPU samples are present. All 4,608 paired draw/refresh counter rows
+match exactly between depth modes. Median round GPU means change -3.05% to
++2.65%; completed-block means change -6.58% to +2.18%. These mixed results do
+not establish a uniform speedup or slowdown.
+
+Largest initial tail increase: stationary overview, cache off
+                             Depth24       Reversed32      Difference
+GPU p95, ms                   9.407          10.386        +0.979 (+10.41%)
+CPU render p95, ms            4.216           5.891        +1.675 (+39.72%)
+Completed ms/frame            8.573           8.759        +2.18%
+Both p95 metrics worsen in only two of the four paired rounds. Town walk-turn
+cache-off CPU p95 also rises 8.44%, again worsening in only two rounds.
+These observations were retained and prompted the user's targeted rerun.
+
+Targeted stationary-overview rerun
+---------------------------------
+Same view and settings, cache off, eight alternating depth24/reversed32 pairs;
+32 warmup and 256 measured frames per mode/round. All 4,096 GPU samples are
+present and all 2,048 paired geometry counters match. The camera, inputs,
+shaders, viewport and settings match the original run. All 384 compared initial
+counter rows match; same-depth saved captures are pixel-identical across runs.
+
+                             Depth24       Reversed32      Difference
+GPU mean, ms                  3.603          3.548         -1.52%
+GPU p95, ms                   4.152          4.105         -1.12%
+CPU render mean, ms           2.759          2.645         -4.13%
+CPU render p95, ms            3.491          3.406         -2.42%
+Completed ms/frame            3.708          3.623         -2.28%
+
+The original large tail increases do not persist in the longer rerun. Per-round
+GPU p95 rises in five of eight pairs, but by at most 4.88%; CPU p95 rises in two,
+by at most 4.33%. Completed cost averages -3.53% when depth24 runs first and
+-0.99% when reversed runs first. Order effects remain, and these samples do not
+prove that every latency percentile improves. Both early/late aggregate halves
+favor reversed depth. Absolute costs differ substantially between sessions;
+their cause was not measured. Do not call that difference noise or attribute
+it to clocks/temperature without telemetry; compare modes within each run.
+
+100,000-zombie control
+---------------------
+Six rotating rounds x three depth modes, 32 warmup and 64 measured frames each.
+Fixed 60 Hz simulation/animation/preparation. Every frame retains 100,000 visible
+actors, ten draws and 6,000,000 camera triangles. All 1,152 GPU samples present.
+Completed ms/frame: depth24 16.725; conventional FP32 16.529; reversed32 16.784.
+Reversed versus depth24: +0.35% completed cost, -0.93% median round GPU mean,
+GPU p95 16.04648 -> 16.04984 ms (+0.02%), CPU render p95 -1.01%.
+
+Verification and practical limits
+--------------------------------
+Successful full C++ rebuild including viewer/client/server and benchmark targets.
+22 focused CPU CTests and 15 GPU CTests pass. Cache regressions cover all three
+depth modes, foreground occlusion/depth writes, both scopes, live convention
+switching, and 1 mm-separated surfaces at 1.5 km. Initial Python checks pass
+68 cases; after a narrow refreshed-OSM-provenance fix, all 20 generator cases
+pass (one new end-to-end regression, 69 unique Python cases across the runs).
+An actual-map viewer capture and an isolated client session pass. Map captures
+show useful town/forest/road geometry; no new blank or layering failure found.
+
+OpenGL 3.3 Core remains supported. Without GL 4.5/ARB_clip_control the fallback
+is conventional FP32 depth; distant 1 mm overlays may still z-fight. This is
+covered as a conventional rendering path on Linux, not a Windows hardware test.
+Existing ignored output/godollo.doodads.json belongs to an older map. It remains
+untouched; the actual-map smoke uses --no-doodads. Other checked map companions
+already match the local experimental map and need no regeneration for this port.
+
+Wheel motors and doodad persistence do not execute in the isolated map/crowd
+timing fixtures. Their existing behavior is preserved, but whole-game load and
+different drivers can change timing. The older terrain-only collision reduction
+and active surface mesh savings were not remeasured here; see the original
+terrain-surfaces-reversed-z-2026-11-01.txt report for those separate controls.
+
+Raw artifacts and reproduction
+------------------------------
+build/benchmarks/port-reversed-z-20261102/ contains the two compiled scratch
+harnesses and their source/compile commands, cache-depth-core/, crowd-depth/,
+the targeted rerun, per-frame CSVs, hashes, captured images and contact sheets.
+analysis.txt/json and tail-analysis.txt/json contain complete statistics;
+tail-workload-audit.json records the cross-run workload comparison.
+
+The standard crowd control is reproducible with:
+./build/benchmark_zombie_crowd assets/zombies/models OUTPUT --compare-depth
+The map harness is derived from tests/benchmark_distant_scene.cpp; its retained
+source rotates depth and cache independently and adds the targeted case filter.
+Do not compare historical absolute timings as if their operating conditions
+were matched. Repeat measurements only after closing other GPU applications
+and finishing builds/tests; retain per-round controls and counters.

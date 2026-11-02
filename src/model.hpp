@@ -65,6 +65,7 @@ struct DrawInstance {
     // Runtime-only conservative horizontal padding for a movable panel's sweep.
     float horizontalMotionRadius = 0.0f;
     bool fence = false; // Generated fence panels/posts, independent of material.
+    bool terrainOverlay = false; // Exactly fitted road/path/railway; terrain supplies collision.
 };
 
 struct Model {

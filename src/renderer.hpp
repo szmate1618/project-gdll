@@ -1,6 +1,7 @@
 #pragma once
 
 #include "opengl.hpp"
+#include "scene_depth.hpp"
 #include "basic_shader_uniforms.hpp"
 #include <array>
 #include <filesystem>
@@ -88,6 +89,9 @@ public:
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
     void resize(int width, int height);
+    void setSceneDepthMode(SceneDepthMode mode);
+    SceneDepthMode sceneDepthMode() const { return sceneDepthMode_; }
+    bool reversedDepthSupported() const { return clipControl_ != nullptr; }
     // Optional external opaque draws run with depth writes enabled before glass
     // and rain. They must restore the GL state they change before returning.
     // Optional presentation clock drives the scenery cache independently of
@@ -210,7 +214,7 @@ private:
     bool keepStaticDraw(std::size_t index) const;
     bool hasDistantStatic(const Camera& camera, const glm::mat4& projection);
     bool drawStaticChunks(std::size_t index);
-    void drawStaticScene(const glm::mat4& view, const glm::mat4& projection);
+    void drawStaticScene(const glm::mat4& view, const glm::mat4& projection, const glm::mat4& gpuProjection);
     enum class StaticPass { All, Near, Far };
     StaticPass staticPass_ = StaticPass::All;
     bool distantEnabled_ = false;
@@ -230,6 +234,8 @@ private:
     std::vector<bool> staticCacheable_;
     std::vector<VisibilityBounds> roofCacheBounds_, wallCacheBounds_, treeCacheBounds_;
     glm::mat4 staticProjectionView_{1};
+    PFNGLCLIPCONTROLPROC clipControl_ = nullptr;
+    SceneDepthMode sceneDepthMode_ = SceneDepthMode::Conventional32;
     const HorizontalVisibilityRange* forestVisibilityRange() const {
         return forestViewRange_ ? &*forestViewRange_ : nullptr;
     }

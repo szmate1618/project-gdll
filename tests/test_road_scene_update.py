@@ -50,7 +50,7 @@ class RoadOffsetPatchTests(unittest.TestCase):
         doc["nodes"][1]["children"] = [2]
         with self.assertRaisesRegex(ValueError, "leaves"):
             prepare_road_offset_patch(pack_glb(doc, b"keep"), .25, .02)
-        for invalid in (float("nan"), -.1, .001):
+        for invalid in (float("nan"), -.1, .0001):
             with self.assertRaises(ValueError):
                 prepare_road_offset_patch(fixture()[1], .25, invalid)
 

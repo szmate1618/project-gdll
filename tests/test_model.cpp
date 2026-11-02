@@ -122,6 +122,16 @@ void testIndexWidthsAndHierarchy(Fixtures& files) {
         require(near(vertex.color.r, 1) && near(vertex.color.g, 128.0f / 255.0f) && near(vertex.color.a, 1), "Normalized interleaved color decoded incorrectly");
         require(near(vertex.normal.z, 1), "Missing normals should be generated with triangle winding");
 
+        for (const auto* name : {"roads_asphalt", "railways_ballast", "building_test"}) {
+            auto overlay = document;
+            overlay["meshes"][0]["name"] = name;
+            overlay["meshes"][0]["extras"] = {{"terrain_conforming", true}};
+            const auto fitted = viewer::loadModel(files.write(std::string(name)+std::to_string(width), overlay, bytes));
+            require(fitted.draws.front().terrainOverlay == (std::string(name)!="building_test"),
+                    "Only explicitly marked road/railway meshes may omit terrain collision");
+        }
+        require(!model.draws.front().terrainOverlay, "Legacy meshes must retain their collision");
+
         if (width == 1) {
             auto fenced = document;
             fenced["meshes"].push_back(document["meshes"][0]);

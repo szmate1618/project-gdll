@@ -16,6 +16,7 @@ from .osm import RAILWAY_TYPES
 from .roads import parse_width
 from .railway_texture import track_material, track_phases, track_uv
 from .terrain_surfaces import geometry_parts, surface_mesh
+from .terrain import Terrain
 
 
 LOG = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ def add_railways(scene: trimesh.Scene, features: list, elevation: Callable, conf
     settings = config.get("railways", {})
     width = float(settings.get("width_m", 4.0))
     spacing = float(settings.get("sample_spacing_m", 8.0))
-    offset = float(settings.get("offset_m", 0.3))
+    offset = float(settings.get("offset_m", 0.001))
     if not math.isfinite(width) or width <= 0:
         raise ValueError("railways.width_m must be a positive finite number")
     if not math.isfinite(spacing) or spacing <= 0:
@@ -95,6 +96,7 @@ def add_railways(scene: trimesh.Scene, features: list, elevation: Callable, conf
             "source": "OpenStreetMap",
             "osm_ids": source_ids,
             "railway_categories": dict(categories),
+            "terrain_conforming": isinstance(elevation, Terrain),
         })
         scene.add_geometry(mesh, geom_name="railways_ballast", node_name="railways_ballast")
         triangle_count = len(mesh.faces)

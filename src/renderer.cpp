@@ -40,6 +40,8 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
                    const TreeLayer* trees, const ZombieLayer* zombies, const ForestLayer* forests, const DogLayer* dogs)
     : shaderDirectory_(shaderDirectory), sceneVisibility_(model) {
     try {
+        clipControl_ = sceneClipControl();
+        if (clipControl_) sceneDepthMode_ = SceneDepthMode::Reversed32;
         program_ = createShaderProgram(shaderDirectory / "basic.vert", shaderDirectory / "basic.frag");
         woundUniforms_ = BasicShaderUniforms(program_);
         static_cast<BasicShaderUniforms&>(*this) = woundUniforms_;
@@ -229,6 +231,17 @@ void Renderer::updateDoors(const DoorLayer& doors) {
     }
 }
 
+void Renderer::setSceneDepthMode(SceneDepthMode mode) {
+    if (mode == SceneDepthMode::Reversed32 && !clipControl_)
+        throw std::runtime_error("Reversed depth requires OpenGL 4.5 or ARB_clip_control");
+    if (mode == sceneDepthMode_) return;
+    sceneDepthMode_ = mode;
+    if (distantCache_) distantCache_->invalidate();
+    const int width = width_, height = height_;
+    width_ = height_ = 0;
+    resize(width, height);
+}
+
 void Renderer::resize(int width, int height) {
     if (width <= 0 || height <= 0 || (width == width_ && height == height_)) return;
     width_ = width;
@@ -238,7 +251,8 @@ void Renderer::resize(int width, int height) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer_);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
+    glRenderbufferStorage(GL_RENDERBUFFER, sceneDepthMode_ == SceneDepthMode::Conventional24
+        ? GL_DEPTH_COMPONENT24 : GL_DEPTH_COMPONENT32F, width, height);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorBuffer_, 0);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer_);
@@ -441,6 +455,8 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         drawFlashlightShadows(flashlight, animationSeconds);
     }
     materialState_.reset();
+    const SceneDepthScope depthScope(clipControl_, sceneDepthMode_ == SceneDepthMode::Reversed32);
+    const auto gpuProjection = sceneProjection(camera, float(width_) / float(height_));
     if (!zombieBatches_.empty() || !dogBatches_.empty()) {
         // Each linked program owns its uniform values. Prepare the same camera
         // lighting for healthy zombies without copying state back from OpenGL.
@@ -448,7 +464,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         applyBasicSamplersAndVisibility();
         applyLighting(camera, shadowView, lighting, flashlight, flashlightCasting);
         glUniformMatrix4fv(viewLocation_, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, glm::value_ptr(projection));
+        glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, glm::value_ptr(gpuProjection));
         selectBasicShader(true);
     }
     applyLighting(camera, shadowView, lighting, flashlight, flashlightCasting);
@@ -468,7 +484,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
                 materialState_.reset();
                 staticPass_ = StaticPass::Far;
                 sceneStats_.drawCalls = 0;
-                drawStaticScene(captureView, captureProjection);
+                drawStaticScene(captureView, captureProjection, gpuProjection);
                 distantCache_->stats.drawCalls += sceneStats_.drawCalls + treeStats_.drawCalls + forestStats_.drawCalls;
             });
         distantStats_ = distantCache_->stats;
@@ -488,7 +504,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     }
     staticProjectionView_ = projection * view;
     glUniformMatrix4fv(viewLocation_, 1, GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, glm::value_ptr(projection));
+    glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, glm::value_ptr(gpuProjection));
     glActiveTexture(GL_TEXTURE0);
     glUniform1i(textureLocation_, 0);
     glDisable(GL_BLEND);

@@ -1,3 +1,4 @@
+#include "scene_depth.hpp"
 #include "bird_renderer.hpp"
 #include "bird_flock.hpp"
 #include "shader_program.hpp"
@@ -122,7 +123,8 @@ BirdDrawStats BirdRenderer::draw(const Camera& camera, float aspect, double seco
     }
     const State restore;
     glUseProgram(program_);
-    glUniformMatrix4fv(projectionViewLocation_, 1, GL_FALSE, glm::value_ptr(projectionView));
+    const auto gpuProjectionView = sceneProjection(camera, aspect) * camera.view();
+    glUniformMatrix4fv(projectionViewLocation_, 1, GL_FALSE, glm::value_ptr(gpuProjectionView));
     // Reduce double time before conversion; all levels share the same cycle.
     const double cycles = seconds / duration_;
     glUniform1f(frameLocation_, static_cast<float>((cycles - std::floor(cycles)) * frameCount_));

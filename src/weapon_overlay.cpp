@@ -1,3 +1,4 @@
+#include "scene_depth.hpp"
 #include "weapon_overlay.hpp"
 #include "model.hpp"
 #include "shader_program.hpp"
@@ -36,11 +37,11 @@ public:
         glGetDoublev(GL_DEPTH_CLEAR_VALUE, &clearDepth_); glGetDoublev(GL_DEPTH_RANGE, depthRange_);
         depth_ = glIsEnabled(GL_DEPTH_TEST); blend_ = glIsEnabled(GL_BLEND);
         cull_ = glIsEnabled(GL_CULL_FACE); scissor_ = glIsEnabled(GL_SCISSOR_TEST);
-        glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LESS); glDepthMask(GL_TRUE); glDepthRange(0, 1);
+        glEnable(GL_DEPTH_TEST); glDepthFunc(sceneReversedDepth ? GL_GREATER : GL_LESS); glDepthMask(GL_TRUE); glDepthRange(0, 1);
         glDisable(GL_BLEND); glEnable(GL_CULL_FACE); glCullFace(GL_BACK); glFrontFace(GL_CCW);
         if (overlay) {
             glDisable(GL_SCISSOR_TEST);
-            glClearDepth(1); glClear(GL_DEPTH_BUFFER_BIT);
+            glClearDepth(sceneReversedDepth ? 0 : 1); glClear(GL_DEPTH_BUFFER_BIT);
         }
     }
     ~WeaponDrawState() {
@@ -110,7 +111,7 @@ void WeaponOverlay::draw(std::size_t slot, int width, int height, const MuzzleFl
     const WeaponDrawState restore(true);
     const auto projection = glm::perspective(glm::radians(60.0f), static_cast<float>(width) / height, .01f, 5.0f);
     const auto pose = animatedWeaponPose(poses_[slot], motion);
-    drawGeometry(slot, projection, pose, flash, motion.pumpTravel);
+    drawGeometry(slot, sceneLocalProjection(projection), pose, flash, motion.pumpTravel);
 }
 
 void WeaponOverlay::drawWorld(std::size_t slot, const Camera& camera, float aspect, const glm::mat4& eyeToWorld,
@@ -119,7 +120,7 @@ void WeaponOverlay::drawWorld(std::size_t slot, const Camera& camera, float aspe
     const WeaponDrawState restore(false);
     const auto view = camera.view();
     const auto pose = view * eyeToWorld * animatedWeaponPose(poses_[slot], motion);
-    drawGeometry(slot, camera.projection(aspect), pose, worldFlash.transformed(view), motion.pumpTravel);
+    drawGeometry(slot, sceneProjection(camera, aspect), pose, worldFlash.transformed(view), motion.pumpTravel);
 }
 
 void WeaponOverlay::drawGeometry(std::size_t slot, const glm::mat4& projection, const glm::mat4& modelToEye,

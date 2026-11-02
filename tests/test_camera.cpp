@@ -164,6 +164,43 @@ void testScopeDepthPrecision() {
             "Leaving the scope must restore close visibility");
 }
 
+void testAimAlignmentAtMapEdges() {
+    constexpr float aspect = 1280.f / 720.f;
+    constexpr float range = 1000.f;
+    for (const auto position : {glm::vec3(0), glm::vec3(1000, 25, -1000),
+                                glm::vec3(3000, 40, -3000), glm::vec3(-5000, 250, 5000)}) {
+        for (const float yaw : {-179.7f, -90.f, -54.f, -37.6f, 0.f, 37.6f, 89.7f, 143.9f}) {
+            for (const float pitch : {-89.f, -20.f, -1.f, 0.f, 23.4f, 89.f}) {
+                viewer::Camera camera;
+                camera.setOrientation(yaw, pitch);
+                camera.setPosition(glm::vec3(0));
+                const auto originView = camera.view();
+                camera.setPosition(position);
+                const auto view = camera.view();
+                for (int column = 0; column < 3; ++column)
+                    for (int row = 0; row < 3; ++row)
+                        require(view[column][row] == originView[column][row],
+                                "Moving the camera changes its viewing direction");
+
+                // Place a float world-space target on the shot ray, then use
+                // the float rendering matrices to observe its screen position.
+                const auto direction = glm::normalize(glm::dvec3(camera.direction()));
+                const glm::vec4 target(glm::vec3(glm::dvec3(position) + direction * double(range)), 1);
+                for (int zoom = 0; zoom < 3; ++zoom) {
+                    for (const bool reversed : {false, true}) {
+                        const auto clip = camera.projection(aspect, reversed) * view * target;
+                        require(clip.w > 0, "A forward shot target is behind the camera");
+                        const auto pixels = glm::vec2(clip) / clip.w * glm::vec2(640, 360);
+                        require(glm::length(pixels) < .25f,
+                                "A kilometer-range shot misses the center of the rendered scope");
+                    }
+                    camera.cycleViewMode();
+                }
+            }
+        }
+    }
+}
+
 void testZoomLookSensitivity() {
     for (const float sign : {-1.0F, 1.0F}) {
         viewer::Camera camera;
@@ -223,8 +260,22 @@ void testZoomLookSensitivity() {
 
 }  // namespace
 
+void testReversedProjection() {
+    viewer::Camera camera;
+    const auto projection = camera.projection(16.f / 9, true);
+    const auto depth = [&](float distance) {
+        const auto clip = projection * glm::vec4(0, 0, -distance, 1);
+        return clip.z / clip.w;
+    };
+    require(std::abs(depth(.1f)-1) < 1e-6f, "Reversed near depth must be one");
+    require(std::abs(depth(10000)) < 1e-10f, "Reversed far depth must be zero");
+    require(depth(1) > depth(100) && depth(100) > depth(1000), "Reversed depth must decrease with distance");
+    require(depth(1000.f) != depth(1000.001f), "Reversed projection loses millimetre separation at 1 km");
+}
+
 int main() {
     try {
+        testReversedProjection();
         checkFraming({110.0F, -2.0F, -90.0F}, {140.0F, 12.0F, -60.0F}, 16.0F / 9.0F);
         checkFraming({-5000.0F, 200.0F, 10000.0F}, {12000.0F, 2000.0F, 13000.0F}, 0.5F);
         checkFraming({20.0F, 3.0F, -10.0F}, {20.0F, 3.0F, -10.0F}, 1.0F);
@@ -232,6 +283,7 @@ int main() {
         testLookAndSpeed();
         testViewCycle();
         testScopeDepthPrecision();
+        testAimAlignmentAtMapEdges();
         testZoomLookSensitivity();
         std::cout << "Camera framing, movement, mouse look, speed, and view-cycle checks passed\n";
         return EXIT_SUCCESS;

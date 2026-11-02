@@ -79,6 +79,22 @@ void drain(viewer::FrameProfile& profile, std::size_t limit = 0) {
     }
 }
 
+void finishWarmup() {
+    const auto fence=glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE,0);
+    if (!fence) throw std::runtime_error("Cannot fence crowd warmup");
+    glFlush();
+    const auto deadline=Clock::now()+std::chrono::seconds(30);
+    for (;;) {
+        const auto result=glClientWaitSync(fence,0,0);
+        if (result==GL_ALREADY_SIGNALED || result==GL_CONDITION_SATISFIED) break;
+        if (result==GL_WAIT_FAILED || Clock::now()>deadline) {
+            glDeleteSync(fence); throw std::runtime_error("Crowd warmup fence failed");
+        }
+        glfwWaitEventsTimeout(.0005);
+    }
+    glDeleteSync(fence);
+}
+
 void checkPopulation(const viewer::Renderer& renderer, std::size_t wounded) {
     if (renderer.zombieCount() != population || renderer.zombieVisibleCount() != population ||
         renderer.zombieRenderStats().distanceCulled != 0 ||
@@ -93,7 +109,7 @@ void metadata(const std::filesystem::path& output, const std::filesystem::path& 
     std::ofstream file(output / "metadata.txt");
     if (!file) throw std::runtime_error("Cannot write benchmark metadata");
     file << "scenario=" << (wounded ? "zombies-open-100k-wounded-v1" : "zombies-open-100k-v1")
-         << "\nresolution=" << width << 'x' << height
+         << "\ndepth_mode=" << int(renderer.sceneDepthMode()) << "\nresolution=" << width << 'x' << height
          << "\nsun_shadow_resolution=" << renderer.sunShadowResolution()
          << "\nfield_m=1200x1200\nplacement_radius_m=" << radius << "\npopulation=" << population
          << "\nassets=" << zombies.assets.size() << "\nwounded_actors=" << wounded
@@ -128,8 +144,15 @@ void metadata(const std::filesystem::path& output, const std::filesystem::path& 
 } // namespace
 
 int main(int argc, char** argv) {
+    bool compareDepth=false;
+    std::vector<char*> positional{argv[0]};
+    for (int i=1;i<argc;++i) {
+        if (std::string_view(argv[i])=="--compare-depth") compareDepth=true;
+        else positional.push_back(argv[i]);
+    }
+    argc=int(positional.size()); argv=positional.data();
     constexpr auto usage = "Usage: benchmark_zombie_crowd ZOMBIE_MODEL_DIRECTORY OUTPUT_DIRECTORY"
-                           " [--wounded N] [--shadow-resolution N] [--distant-cache 0|1]\n";
+                           " [--wounded N] [--shadow-resolution N] [--distant-cache 0|1] [--depth-mode 0|1|2] [--compare-depth]\n";
     if (argc<3) {
         std::cerr << usage;
         return 1;
@@ -138,6 +161,7 @@ int main(int argc, char** argv) {
         std::size_t wounded = 0;
         bool distantCache = false;
         std::optional<int> shadowResolution;
+        std::optional<viewer::SceneDepthMode> depthMode;
         for (int argument=3; argument<argc; argument+=2) {
             if (argument+1 >= argc) throw std::runtime_error(usage);
             const std::string_view option(argv[argument]), input(argv[argument+1]);
@@ -145,7 +169,8 @@ int main(int argc, char** argv) {
             const auto parsed = std::from_chars(input.data(),input.data()+input.size(),value);
             if (parsed.ec != std::errc{} || parsed.ptr != input.data()+input.size())
                 throw std::runtime_error("Benchmark options require nonnegative integer values");
-            if (option == "--wounded" && value <= population) wounded = value;
+            if (option == "--depth-mode" && value <= 2) depthMode = static_cast<viewer::SceneDepthMode>(value);
+            else if (option == "--wounded" && value <= population) wounded = value;
             else if (option == "--distant-cache" && value <= 1) distantCache = value != 0;
             else if (option == "--shadow-resolution" && value > 0 && value <= std::size_t(std::numeric_limits<int>::max()))
                 shadowResolution = static_cast<int>(value);
@@ -176,6 +201,7 @@ int main(int argc, char** argv) {
                   << (wounded ? "zombies-open-100k-wounded-v1" : "zombies-open-100k-v1") << '\n' << std::flush;
         viewer::Renderer renderer(scene,"shaders",nullptr,&zombies);
         renderer.setDistantSceneCache(distantCache);
+        if (depthMode) renderer.setSceneDepthMode(*depthMode);
         renderer.resize(width,height); renderer.setZombieDrawDistance(0);
         if (shadowResolution) renderer.setSunShadowResolution(*shadowResolution);
         renderer.setHaze(false); renderer.setGroundFog(false);
@@ -184,7 +210,20 @@ int main(int argc, char** argv) {
         {
             std::ofstream extra(output / "metadata.txt", std::ios::app);
             extra << "distant_cache=" << distantCache << "\ndistant_cache_active=" << renderer.distantCacheStats().active << '\n';
+            std::ofstream settings(output/"metadata.txt",std::ios::app);
+            settings << "\ncompare_depth=" << compareDepth
+                     << "\nwarmup_completion=untimed GPU fence"
+                     << "\ncompleted_frame_timing=simulation/preparation/render plus query scheduling and final GPU drain; excludes presentation"
+                     << "\ndepth_comparison_order=rotating per round when enabled\n";
         }
+        if (compareDepth && (!renderer.reversedDepthSupported() || variants!=1 || depthMode))
+            throw std::runtime_error("Depth comparison requires clip control and no explicit depth/Hi-Z variant");
+        std::ofstream throughput(output/"throughput.csv");
+        throughput << "round,variant,completed_ms_per_frame\n";
+        throughput << std::setprecision(9);
+        const std::array<viewer::SceneDepthMode,3> depthModes{viewer::SceneDepthMode::Conventional24,
+            viewer::SceneDepthMode::Conventional32,viewer::SceneDepthMode::Reversed32};
+        const std::array<const char*,3> depthNames{"depth24","float32","reversed32"};
         for (int variant=0;variant<variants;++variant) {
             const bool enabled = variant!=0;
             selectVariant(renderer,enabled);
@@ -198,12 +237,17 @@ int main(int argc, char** argv) {
             zombies.updateBehavior(dt,observer,world,clock.seconds());
             if (!zombies.behaviors.entries().empty()) throw std::runtime_error("Idle overview unexpectedly activated zombie AI");
         };
-        for (int round=0;round<rounds;++round) for (int variant=0;variant<variants;++variant) {
+        for (int round=0;round<rounds;++round) for (int variant=0;variant<variants;++variant)
+        for (int depthVariant=0;depthVariant<(compareDepth?3:1);++depthVariant) {
             const bool enabled = variants>1 && (round+variant)%2 != 0;
-            const std::string name = enabled ? "tree-hiz" : "baseline";
+            const int mode=(round+depthVariant)%3;
+            const std::string name = compareDepth ? depthNames[std::size_t(mode)] : enabled ? "tree-hiz" : "baseline";
+            if (compareDepth) renderer.setSceneDepthMode(depthModes[std::size_t(mode)]);
             selectVariant(renderer,enabled);
             clock.reset();
             for (int i=0;i<32;++i) { update(); renderer.updateZombies(zombies); renderer.render(camera,clock.seconds(),{},clock.seconds()); }
+            finishWarmup();
+            const auto blockStart=Clock::now();
             viewer::FrameProfile profile(output/(name+"-round-"+std::to_string(round)+".csv"));
             for (int frame=0;frame<frames;++frame) {
                 drain(profile,3);
@@ -215,7 +259,9 @@ int main(int argc, char** argv) {
                     milliseconds(start,updated),milliseconds(updated,prepared),0,0});
                 checkPopulation(renderer,wounded);
             }
-            drain(profile); viewer::Renderer::checkErrors("100,000 zombie benchmark");
+            drain(profile);
+            throughput << round << ',' << name << ',' << milliseconds(blockStart,Clock::now())/frames << '\n' << std::flush;
+            viewer::Renderer::checkErrors("100,000 zombie benchmark");
             std::cout << "round=" << round << " variant=" << name << " rendered=" << renderer.zombieVisibleCount()
                       << " draws=" << renderer.zombieDrawCalls() << " triangles=" << renderer.zombieRenderStats().cameraTriangles
                       << '\n' << std::flush;

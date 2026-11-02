@@ -16,9 +16,12 @@
 
 int main(int argc, char** argv) {
     try {
+        const bool collideOverlays=argc>1 && std::string(argv[argc-1])=="--collide-overlays";
+        if (collideOverlays) --argc;
         if (argc!=4 && argc!=6 && argc!=7) throw std::runtime_error(
             "Usage: benchmark_zombie_updates MAP SCENARIO OUTPUT_DIR [SPAWN_X SPAWN_Z [full|optimized]]");
         multiplayer::Options options;
+        options.collideTerrainOverlays=collideOverlays;
         options.map=argv[1];
         if (argc>=6) options.spawn=glm::vec2(std::stof(argv[4]),std::stof(argv[5]));
         const std::string modeName=argc==7?argv[6]:"optimized";
@@ -30,18 +33,21 @@ int main(int argc, char** argv) {
         if (!config.seed) throw std::runtime_error("Repeatable profiling requires a scenario seed");
         options.zombieCount=config.count();
         auto navmesh=options.map; navmesh.replace_extension(".navmesh");
-        const auto population=[&](const auto& assets, const auto& collision, const auto& model) {
-            auto layer=viewer::loadZombieScenario(assets,collision,model,navmesh,config);
+        const auto population=[&](const auto& assets, const auto& collision, const auto& model, std::size_t reserved=0) {
+            auto layer=viewer::loadZombieScenario(assets,collision,model,navmesh,config,reserved);
             layer.setDistantScenarioTravelEnabled(modeName!="full");
             return layer;
         };
         multiplayer::Scene scene(options,population);
+        const auto dormant=scene.zombies.instances.size()-config.count();
         const std::filesystem::path output=argv[3];
         std::filesystem::create_directories(output);
         std::ofstream metadata(output/"metadata.txt");
         metadata<<"map="<<options.map<<"\nscenario="<<argv[2]<<"\npopulation="<<scene.zombies.instances.size()
                 <<"\ntrunks="<<scene.collision->stats().trunks<<"\ntriangles="<<scene.collision->stats().triangles
                 <<"\nseed="<<*config.seed<<"\nspawn_eye="<<scene.spawnEye.x<<','<<scene.spawnEye.y<<','<<scene.spawnEye.z
+                <<"\ncollision_bytes="<<scene.collision->stats().allocatedBytes
+                <<"\ncollide_overlays="<<collideOverlays
                 <<"\ntravel_mode="<<modeName<<"\ndt=1/60\nwarmup_steps=60\nmeasured_steps=300\nruns=6 (3 detailed, 3 control)\n";
         viewer::zombie_profile::initializeClock();
         metadata << "seconds_per_tick=" << viewer::zombie_profile::detail::secondsPerTick
@@ -52,7 +58,7 @@ int main(int argc, char** argv) {
         constexpr float dt=1.f/60;
         for (unsigned run=0;run<6;++run) {
             clock.reset();
-            if (run) scene.zombies=population(options.zombieAssets,*scene.collision,scene.model);
+            if (run) scene.zombies=population(options.zombieAssets,*scene.collision,scene.model,dormant);
             const bool detailed=run%2 != (run/2)%2;
             std::cout<<"Run "<<run<<" ("<<(detailed?"detailed":"control")<<")\n"<<std::flush;
             std::ofstream rows(output/("run-"+std::to_string(run)+".csv"));
@@ -133,6 +139,7 @@ int main(int argc, char** argv) {
         std::ofstream quality(output/"quality.csv");
         quality<<"id,x,y,z,ground_error,blocking_contacts,navmesh_inside\n";
         for (std::size_t id=0;id<scene.zombies.instances.size();++id) {
+            if (scene.zombies.instances[id].removed) continue;
             const auto feet=glm::vec3(scene.zombies.instances[id].restRoot[3]);
             const auto hit=scene.collision->walkingGroundAt(feet.x,feet.z,-1e10f,feet.y+.3f);
             const double error=hit?double(feet.y-hit->height):1e10;

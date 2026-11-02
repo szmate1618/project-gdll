@@ -227,7 +227,7 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
         }
     }
     if (trees) undergrowth = viewer::UndergrowthIndex(*trees);
-    collision = std::make_unique<viewer::CollisionWorld>(model, trunks, doors.get());
+    collision = std::make_unique<viewer::CollisionWorld>(model, trunks, doors.get(), o.collideTerrainOverlays);
     collision->setBoxes(boxes.get());
     collision->setVehicles(vehicles.get());
     floorplans = std::make_unique<viewer::FloorplanLayer>(model, *doors, *collision);

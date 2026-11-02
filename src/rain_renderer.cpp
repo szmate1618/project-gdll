@@ -1,3 +1,4 @@
+#include "scene_depth.hpp"
 #include "rain_renderer.hpp"
 #include "shader_program.hpp"
 #include "flashlight.hpp"
@@ -74,7 +75,7 @@ void RainRenderer::draw(const Camera& camera, float aspect, double seconds, floa
 
     glUseProgram(program_);
     const auto view = camera.view();
-    const auto projection = camera.projection(aspect);
+    const auto projection = sceneProjection(camera, aspect);
     const auto eye = camera.position();
     const auto light = flashlightView(camera, lighting);
     glUniformMatrix4fv(viewLocation_, 1, GL_FALSE, glm::value_ptr(view));

@@ -15,7 +15,8 @@
 
 namespace {
 using Clock = std::chrono::steady_clock;
-constexpr int width = 1280, height = 720, warmup = 48;
+int width = 1280, height = 720;
+constexpr int warmup = 60;
 
 struct View {
     std::string name;
@@ -125,8 +126,17 @@ int positive(const char* text) {
 } // namespace
 
 int main(int argc, char** argv) {
+    bool compareDepth = false;
+    std::vector<char*> positional{argv[0]};
+    for (int i=1;i<argc;++i) {
+        const std::string arg(argv[i]);
+        if (arg == "--compare-depth") compareDepth = true;
+        else if (arg == "--1080p") { width = 1920; height = 1080; }
+        else positional.push_back(argv[i]);
+    }
+    argc = int(positional.size()); argv = positional.data();
     if (argc < 7 || argc > 11) {
-        std::cerr << "Usage: benchmark_render_wins MAP TREES FORESTS CAMERAS SHADERS OUTPUT [ROUNDS=1] [FRAMES=96] [CASE_FILTER=all] [--profile]\n";
+        std::cerr << "Usage: benchmark_render_wins MAP TREES FORESTS CAMERAS SHADERS OUTPUT [ROUNDS=1] [FRAMES=96] [CASE_FILTER=all] [--profile] [--compare-depth] [--1080p]\n";
         return 1;
     }
     try {
@@ -153,10 +163,15 @@ int main(int argc, char** argv) {
         viewer::VehicleLayer emptyCars(physics);
         viewer::Renderer renderer(scene, shaders, &trees, nullptr, &forest);
         renderer.resize(width, height);
+        if (compareDepth && !renderer.reversedDepthSupported())
+            throw std::runtime_error("Depth comparison requires ARB_clip_control");
+        const std::array<viewer::SceneDepthMode,3> depthModes{viewer::SceneDepthMode::Conventional24,
+            viewer::SceneDepthMode::Conventional32,viewer::SceneDepthMode::Reversed32};
+        const std::array<const char*,3> depthNames{"depth24","float32","reversed32"};
         std::ofstream settings(output / "metadata.txt");
         settings << "scenario=render-wins-map-v1\nGPU=" << glGetString(GL_RENDERER) << "\nGL=" << glGetString(GL_VERSION)
                  << "\nresolution=" << width << 'x' << height << "\nrounds=" << rounds << "\nframes=" << frames
-                 << "\nwarmup=" << warmup << "\nprofile_stages=" << profileStages
+                 << "\ncompare_depth=" << compareDepth << "\nwarmup=" << warmup << "\nprofile_stages=" << profileStages
                  << "\nshader_directory=" << shaders.generic_string()
                  << "\nfiltering=nearest texels and nearest mip levels\ncard_splitting=enabled\nsun_resolution=" << renderer.sunShadowResolution()
                  << "\nworkload=static map/camera; no AI/audio/player updates/dynamic physics/presentation"
@@ -188,10 +203,13 @@ int main(int argc, char** argv) {
             metadata << view.name << ',' << p.x << ',' << p.y << ',' << p.z << ',' << view.camera.yawDegrees() << ','
                      << view.camera.pitchDegrees() << ',' << view.forestDistance << ',' << view.night << ',' << view.flashlight
                      << ',' << view.flashlightShadows << ',' << view.driving << '\n' << std::flush;
-            for (int round = 0; round < rounds; ++round) {
+            for (int round = 0; round < rounds; ++round) for (int variant=0;variant<(compareDepth?3:1);++variant) {
+                const int mode=(round+variant)%3;
+                if (compareDepth) renderer.setSceneDepthMode(depthModes[std::size_t(mode)]);
+                const auto caseName = view.name + (compareDepth ? std::string("-")+depthNames[std::size_t(mode)] : "");
                 for (int frame = 0; frame < warmup; ++frame) { renderer.render(view.camera, frame / 60.0); glfwPollEvents(); }
                 finishWarmup(); // Untimed warmup must not spill into measured submission.
-                viewer::FrameProfile profile(output / (view.name + "-round-" + std::to_string(round) + ".csv"));
+                viewer::FrameProfile profile(output / (caseName + "-round-" + std::to_string(round) + ".csv"));
                 viewer::frame_stage_profile::Profile stages;
                 for (int frame = 0; frame < frames; ++frame) {
                     drain(profile, 3);
@@ -213,12 +231,16 @@ int main(int argc, char** argv) {
                     stageOutput << view.name << ',' << round << ',' << frames << ','
                                 << sort.seconds * 1000 / frames << ',' << sort.calls << '\n' << std::flush;
                 }
+                if (round == 0) {
+                    renderer.render(view.camera, 0);
+                    renderer.writeScreenshot(output / (caseName + ".ppm"));
+                }
                 const auto stats = renderer.treeStats();
-                counters << view.name << ',' << round << ',' << stats.visible << ',' << stats.drawCalls << ',' << stats.triangles << ','
+                counters << caseName << ',' << round << ',' << stats.visible << ',' << stats.drawCalls << ',' << stats.triangles << ','
                          << renderer.sceneStats().visible << ',' << renderer.sceneStats().drawCalls << ',' << renderer.forestStats().drawCalls << ','
                          << renderer.vehicleStats().drawCalls << '\n' << std::flush;
                 viewer::Renderer::checkErrors("Renderer optimization benchmark");
-                std::cout << "view=" << view.name << " round=" << round << " trees=" << stats.visible
+                std::cout << "view=" << caseName << " round=" << round << " trees=" << stats.visible
                           << " town_draws=" << renderer.sceneStats().drawCalls << '\n' << std::flush;
             }
             renderer.render(view.camera, 0);

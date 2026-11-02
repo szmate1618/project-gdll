@@ -34,6 +34,7 @@ from .railways import add_railways
 from .railway_texture import configure_track_sampler
 from .roads import add_roads
 from .terrain import build_terrain
+from .terrain_surface_update import update_terrain_surfaces
 from .tree_preparation import prepare_trees
 from .verify import inspect_glb
 
@@ -65,6 +66,15 @@ def run(config: dict) -> dict:
         report = update_fences(ROOT / "output/godollo.glb", config, osm_path, provenance)
         LOG.info("Saved verified fence update to %s", ROOT / "output/godollo.glb")
         _print_summary(report, ROOT / "output/godollo.glb")
+        return report
+    if config.get("surfaces_only"):
+        osm_path, provenance = download_osm(config, ROOT)
+        out = ROOT / "output/godollo.glb"
+        report = update_terrain_surfaces(out, config, osm_path, provenance)
+        if not config.get("no_tree_preparation"):
+            report["trees"] = _prepare_default_trees(config, out)
+            (out.parent / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        _print_summary(report, out)
         return report
     sources = download_sources(config, ROOT)
     terrain, terrain_mesh, terrain_stats = build_terrain(config, frame, sources, ROOT)
@@ -149,6 +159,7 @@ def main() -> int:
     layers = parser.add_mutually_exclusive_group()
     layers.add_argument("--fences-only", action="store_true", help="Update fences in the published map, reusing town geometry and terrain")
     layers.add_argument("--trees-only", action="store_true", help="Regenerate default tuned2 trees with OSM exclusions, reusing the town")
+    layers.add_argument("--surfaces-only", action="store_true", help="Regenerate roads/paths/railways against the published terrain")
     parser.add_argument("--no-tree-preparation", action="store_true", help="Build town geometry without preparing tuned2 trees")
     args = parser.parse_args()
     if args.trees_only and args.no_tree_preparation:
@@ -160,6 +171,7 @@ def main() -> int:
     try:
         config = load_config(args.config)
         config["fences_only"] = args.fences_only
+        config["surfaces_only"] = args.surfaces_only
         config.update(trees_only=args.trees_only, no_tree_preparation=args.no_tree_preparation,
                       _config_path=str(args.config.resolve()))
         if args.offline or args.refresh:

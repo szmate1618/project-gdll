@@ -463,6 +463,7 @@ add_library(viewer_renderer STATIC src/renderer.cpp src/renderer_shadows.cpp src
 target_link_libraries(viewer_renderer PUBLIC
     viewer_birds viewer_doodads viewer_vehicle_lods viewer_model viewer_weapon_pose viewer_weapons viewer_building_batches viewer_visibility viewer_zombie_visibility viewer_camera viewer_trees viewer_forests viewer_zombies viewer_dogs viewer_sun_lighting viewer_grenades OpenGL::GL)
 target_link_libraries(viewer_renderer PRIVATE viewer_zombie_animation_buffer)
+target_link_libraries(viewer_renderer PRIVATE glfw)
 target_link_libraries(viewer_renderer PUBLIC viewer_bird_assets)
 if(WIN32)
     target_link_libraries(viewer_renderer PUBLIC GLEW::GLEW)

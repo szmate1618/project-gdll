@@ -539,6 +539,10 @@ Model convert(const tinygltf::Model& source) {
                 output.draws.push_back({primitive, transform, node.name.empty() ? mesh.name : node.name,
                                         detailDistance, lowDetail, detailGroup});
                 output.draws.back().fence = fence;
+                output.draws.back().terrainOverlay = mesh.extras.IsObject() &&
+                    mesh.extras.Has("terrain_conforming") && mesh.extras.Get("terrain_conforming").IsBool() &&
+                    mesh.extras.Get("terrain_conforming").Get<bool>() &&
+                    (mesh.name.rfind("roads_", 0) == 0 || mesh.name.rfind("railways_", 0) == 0);
                 for (const auto& vertex : output.primitives[primitive].vertices) {
                     const glm::vec3 position(transform * glm::vec4(vertex.position, 1.0f));
                     if (!std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z)) {

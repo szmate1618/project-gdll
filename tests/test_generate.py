@@ -244,6 +244,37 @@ class GenerateTests(unittest.TestCase):
         self.assertEqual(report["fences"]["fence_meshes"], 0)
         self.assertEqual(summary["fence_ways"], 0)
 
+    def test_surfaces_only_records_refreshed_osm_provenance_without_replacing_terrain_sources(self):
+        self.sources["provenance"]["osm"]["timestamp_osm_base"] = "2026-01-01T00:00:00Z"
+        self.sources["provenance"]["copernicus_dem"] = [{"path": "original-dem.tif"}]
+        original_report, _ = self.run_generator()
+        output = self.root / "output/godollo.glb"
+        original = trimesh.load_scene(output, process=False)
+        payload = json.loads(self.osm_path.read_text())
+        payload["elements"][1]["tags"]["width"] = "7"
+        self.osm_path.write_text(json.dumps(payload), encoding="utf-8")
+        refreshed = {"path": str(self.osm_path), "timestamp_osm_base": "2026-11-02T00:00:00Z"}
+        self.config.update(surfaces_only=True, refresh=True)
+        self.config["roads"]["offset_m"] = self.config["railways"]["offset_m"] = .001
+        with patch.object(generate, "download_osm", return_value=(self.osm_path, refreshed)), \
+             patch.object(generate, "download_sources", side_effect=AssertionError("No raster downloads")), \
+             patch.object(generate, "build_terrain", side_effect=AssertionError("Reuse published terrain")):
+            report, _ = self.run_generator()
+        self.assertTrue(report["verification"]["valid"])
+        for layer in ("roads", "railways"):
+            self.assertEqual(report["sources"][layer], refreshed)
+        for source in ("osm", "copernicus_dem"):
+            self.assertEqual(report["sources"][source], original_report["sources"][source])
+        document, _ = read_glb(output.read_bytes())
+        metadata = document["scenes"][document.get("scene", 0)]["extras"]
+        self.assertEqual(metadata["sources"], report["sources"])
+        self.assertEqual(json.loads(output.with_name("report.json").read_text())["sources"], report["sources"])
+        updated = trimesh.load_scene(output, process=False)
+        np.testing.assert_array_equal(updated.geometry["terrain"].vertices, original.geometry["terrain"].vertices)
+        np.testing.assert_array_equal(updated.geometry["terrain"].faces, original.geometry["terrain"].faces)
+        self.assertFalse(np.array_equal(updated.geometry["roads_asphalt"].vertices,
+                                        original.geometry["roads_asphalt"].vertices))
+
     def test_fences_only_preserves_town_geometry_and_replaces_existing_fences(self):
         original_report, _ = self.run_generator()
         original_navigation = (self.root / "output/godollo.navmesh").read_bytes()

@@ -16,8 +16,11 @@
   },
   "roads": {
     "lane_width_m": 3.0,
-    "offset_m": 0.02,
+    "offset_m": 0.001,
     "sample_spacing_m": 8.0
+  },
+  "railways": {
+    "offset_m": 0.001
   },
   "network": {
     "timeout_seconds": 120,

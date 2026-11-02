@@ -105,7 +105,7 @@ def apply_railway_texture(map_path: Path, config: dict) -> dict:
     map_path = Path(map_path).resolve()
     original = map_path.read_bytes()
     old_hash = hashlib.sha256(original).hexdigest()
-    _, frame, _ = load_tree_map(map_path, config)
+    terrain, frame, _ = load_tree_map(map_path, config)
     document, _ = _read_glb(original)
     metadata = document["scenes"][document.get("scene", 0)]["extras"]
     osm_path = Path(metadata["sources"]["osm"]["path"])
@@ -114,7 +114,13 @@ def apply_railway_texture(map_path: Path, config: dict) -> dict:
     payload = json.loads(osm_path.read_text())
     features = parse_railways(payload, frame["transformer"], frame["origin"], frame["clip"])
     scene = trimesh.Scene()
-    add_railways(scene, features, lambda x, y: 0, {**config, "_clip_polygon": frame["clip"]})
+    # Reconstruct the published topology, retaining strict XY/index validation
+    # for both legacy sampled beds and the terrain-conforming experiment.
+    conforming = any(mesh.get("name") == "railways_ballast" and
+                     mesh.get("extras", {}).get("terrain_conforming") is True
+                     for mesh in document["meshes"])
+    sampler = terrain if conforming else lambda x, y: 0
+    add_railways(scene, features, sampler, {**config, "_clip_polygon": frame["clip"]})
     if "railways_ballast" not in scene.geometry:
         raise ValueError("The cached OSM extract contains no usable railway beds")
     patched = prepare_texture_patch(original, scene.geometry["railways_ballast"])

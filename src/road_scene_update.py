@@ -21,8 +21,8 @@ def prepare_road_offset_patch(original: bytes, old_offset: float, new_offset: fl
     retained. The caller supplies the source offset for older maps which did
     not record it. Generated towns use matrix/translation nodes, not TRS rigs.
     """
-    if not all(math.isfinite(x) and x >= .01 for x in (old_offset, new_offset)):
-        raise ValueError("Road offsets must be finite and at least one centimetre")
+    if not all(math.isfinite(x) and x >= .001 for x in (old_offset, new_offset)):
+        raise ValueError("Road offsets must be finite and at least one millimetre")
     document, binary = read_glb(original)
     if document.get("skins") or document.get("animations"):
         raise ValueError("Road offset updates require a static town")

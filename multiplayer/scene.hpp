@@ -42,6 +42,7 @@ struct Options {
     float zombieRadius = 100;
     bool trees = true, forests = true, headless = false, hidden = false, bot = false;
     bool cars = true;
+    bool collideTerrainOverlays = false; // Headless experiment control; fitted overlays normally use terrain.
     bool audio = true;
     bool distantSceneCache = false; // Experimental client presentation only; outside scene identity.
     ClientDisplay display; // Client presentation only; excluded from scene identity.

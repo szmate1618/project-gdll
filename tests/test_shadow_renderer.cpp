@@ -524,6 +524,42 @@ void checkFlashlight(FlashlightCaster kind, bool unlit = false, const std::strin
     viewer::Renderer::checkErrors("flashlight shadow regression");
 }
 
+void checkReversedRoadDepth() {
+    viewer::Model model;
+    viewer::Material ground; ground.baseColor={1,0,0,1}; ground.unlit=true;
+    viewer::Material road=ground; road.baseColor={0,1,0,1};
+    model.materials={ground,road};
+    for (const auto& entry : {std::pair<float,int>{0,0}, {.001f,1}}) {
+        const float y=entry.first;
+        model.primitives.push_back(quad({{{-50,y,-1500},{-50,y,1},{50,y,1},{50,y,-1500}}}, {0,1,0}, entry.second));
+        model.draws.push_back({model.primitives.size()-1,glm::mat4(1),entry.second?"roads_asphalt":"terrain"});
+    }
+    viewer::Renderer renderer(model,VIEWER_SHADER_DIR);
+    if (!renderer.reversedDepthSupported()) return;
+    renderer.resize(width,height); renderer.setHaze(false); renderer.setGroundFog(false); renderer.setShadows(false);
+    renderer.setSceneDepthMode(viewer::SceneDepthMode::Reversed32);
+    for (float distance : {10.f,100.f,500.f,1000.f}) {
+        viewer::Camera camera; camera.setPosition({0,1.7f,0});
+        camera.setOrientation(-90,glm::degrees(std::atan2(.001f-1.7f,distance)-
+            std::atan(1.f/(height*std::sqrt(3.f)))));
+        renderer.render(camera);
+        std::array<unsigned char,3> color{};
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+        glReadPixels(width/2,height/2,1,1,GL_RGB,GL_UNSIGNED_BYTE,color.data());
+        require(color[1]>color[0]+50,"Reversed depth must distinguish a 1 mm road at distance");
+        float depth=1;
+        glReadPixels(width/2,height/2,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&depth);
+        require(depth>0 && depth<.02f,"Camera depth must be stored with the reversed convention");
+    }
+    GLint clip=0, comparison=0;
+    glGetIntegerv(GL_CLIP_DEPTH_MODE,&clip); glGetIntegerv(GL_DEPTH_FUNC,&comparison);
+    require(clip==GL_NEGATIVE_ONE_TO_ONE && comparison==GL_LESS && !viewer::sceneReversedDepth,
+            "Scene rendering must restore conventional depth for shadows, menus and other renderers");
+    renderer.setSceneDepthMode(viewer::SceneDepthMode::Conventional24);
+    renderer.render(cameraAt({0,5,5}));
+    viewer::Renderer::checkErrors("reversed road depth and conventional restoration");
+}
+
 void checkFlashlightRange() {
     viewer::Camera camera;
     camera.setPosition({0, 1.7f, 0});
@@ -582,6 +618,7 @@ int main(int argc, char** argv) {
         checkAnimatedCaster();
         checkMovingSun();
         checkResolutionSwitch();
+        checkReversedRoadDepth();
         checkFlashlight(FlashlightCaster::Opaque, false, argc > 1 ? argv[1] : "");
         checkFlashlight(FlashlightCaster::Masked);
         checkFlashlight(FlashlightCaster::Opaque, true);

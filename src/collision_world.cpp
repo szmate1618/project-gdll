@@ -508,7 +508,8 @@ struct CollisionWorld::Impl {
 
 };
 
-CollisionWorld::CollisionWorld(const Model& model, const std::vector<TrunkCollider>& trunks, const DoorLayer* doors)
+CollisionWorld::CollisionWorld(const Model& model, const std::vector<TrunkCollider>& trunks, const DoorLayer* doors,
+                               bool collideTerrainOverlays)
     : impl_(std::make_unique<Impl>()) {
     auto& data = *impl_;
     data.doors = doors;
@@ -516,6 +517,7 @@ CollisionWorld::CollisionWorld(const Model& model, const std::vector<TrunkCollid
     std::unordered_map<std::string, int> buildingGroups;
     for (std::size_t drawIndex = 0; drawIndex < model.draws.size(); ++drawIndex) {
         const auto& draw = model.draws[drawIndex];
+        if (draw.terrainOverlay && !collideTerrainOverlays) continue;
         if (draw.detailDistance > 0.0f && !draw.lowDetail) continue;
         if (draw.primitive >= model.primitives.size()) continue;
         const auto& primitive = model.primitives[draw.primitive];
@@ -578,6 +580,10 @@ CollisionWorld::CollisionWorld(const Model& model, const std::vector<TrunkCollid
     if (!data.trunkOrder.empty()) data.buildTrunks(0, static_cast<std::uint32_t>(data.trunkOrder.size()));
     data.stats.trunks = data.trunks.size();
     data.stats.trunkBvhNodes = data.trunkNodes.size();
+    data.stats.allocatedBytes = data.triangles.capacity()*sizeof(Triangle) +
+        data.order.capacity()*sizeof(std::uint32_t) + data.nodes.capacity()*sizeof(Impl::Node) +
+        data.groups.capacity()*sizeof(Impl::Group) + data.trunks.capacity()*sizeof(Impl::Trunk) +
+        data.trunkOrder.capacity()*sizeof(std::uint32_t) + data.trunkNodes.capacity()*sizeof(Impl::Node);
 }
 
 CollisionWorld::~CollisionWorld() = default;

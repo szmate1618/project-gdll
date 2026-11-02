@@ -73,13 +73,16 @@ void requireVisibleSurface(const viewer::DoodadRenderInstance& instance,
     const int right = std::min(width-1,static_cast<int>(std::ceil(high.x)));
     const int bottom = std::max(0,static_cast<int>(std::floor(low.y)));
     const int top = std::min(height-1,static_cast<int>(std::ceil(high.y)));
+    const bool reversed = viewer::sceneClipControl() != nullptr;
     std::size_t opaquePixels = 0;
     for (int y=bottom; y<=top; ++y) for (int x=left; x<=right; ++x) {
         const auto index = static_cast<std::size_t>(y*width+x);
         int difference = 0;
         for (std::size_t channel=0; channel<3; ++channel)
             difference = std::max(difference,std::abs(int(after.color[index*4+channel])-int(before.color[index*4+channel])));
-        if (difference>6 && after.depth[index]<before.depth[index]-1e-7f) ++opaquePixels;
+        const bool nearer = reversed ? after.depth[index]>before.depth[index]+1e-7f
+            : after.depth[index]<before.depth[index]-1e-7f;
+        if (difference>6 && nearer) ++opaquePixels;
     }
     require(opaquePixels>12, "Each actual doodad mesh must visibly cover and occlude its supporting ground");
 }

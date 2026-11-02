@@ -62,16 +62,26 @@ void Camera::frame(glm::vec3 minimum, glm::vec3 maximum, float aspect) {
 }
 
 glm::mat4 Camera::view() const {
-    return glm::lookAt(position_, position_ + forward(), glm::vec3{0.0F, 1.0F, 0.0F});
+    // Adding a unit direction to a distant float position loses aim precision.
+    // Build rotation at the origin, then translate using that same float basis.
+    auto view = glm::lookAt(glm::vec3(0), forward(), glm::vec3(0, 1, 0));
+    const glm::dvec3 eye(position_);
+    for (int row = 0; row < 3; ++row) {
+        const glm::dvec3 axis(view[0][row], view[1][row], view[2][row]);
+        view[3][row] = static_cast<float>(-glm::dot(axis, eye));
+    }
+    return view;
 }
 
-glm::mat4 Camera::projection(float aspect) const {
+glm::mat4 Camera::projection(float aspect, bool reversed) const {
     // Scope views need depth precision for millimeter-scale facial surfaces at
     // tens/hundreds of meters. A 10 cm near plane spends that precision on
     // nearby geometry even through the 1-degree sight. Keep walking's close
     // visibility, but use 1 m and 10 m near planes for the two distance views.
     const float near = viewMode_ == ViewMode::zoom1 ? 10.0F :
         viewMode_ == ViewMode::zoom10 ? 1.0F : near_;
+    if (reversed)
+        return glm::perspectiveRH_ZO(glm::radians(verticalFov_), validAspect(aspect), far_, near);
     return glm::perspective(glm::radians(verticalFov_), validAspect(aspect), near, far_);
 }
 
