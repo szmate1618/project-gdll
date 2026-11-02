@@ -139,6 +139,7 @@ public:
     // Experimental static scenery cache: whole conservative bounds beyond 1 km,
     // 15 Hz color capture on a background rectangle. Scope views bypass it.
     void setDistantSceneCache(bool enabled);
+    bool distantSceneCacheEnabled() const { return distantEnabled_; }
     const DistantCacheStats& distantCacheStats() const { return distantStats_; }
     void setShadows(bool enabled) { shadows_ = enabled; }
     // Reallocates the sunlight map between frames. Light coverage is unchanged;

@@ -72,6 +72,7 @@ struct Input {
     bool leave = false;
     std::vector<viewer::InventoryDragAction> inventoryActions;
 #ifdef MP_GRAPHICS
+    bool distantSceneCache = false;
     viewer::HudScreen hudScreen = viewer::HudScreen::Gameplay;
     viewer::Hud* hud = nullptr; // Borrowed from Graphics on the GL thread.
 #endif
@@ -125,6 +126,11 @@ void key(GLFWwindow* window, int code, int, int action, int) {
         return;
     }
     if (in.hudScreen != viewer::HudScreen::Gameplay) return;
+    if (code == GLFW_KEY_F7) {
+        in.distantSceneCache = !in.distantSceneCache;
+        std::cout << "Distant scenery cache: " << (in.distantSceneCache ? "on" : "off") << '\n';
+        return;
+    }
     if (code == GLFW_KEY_ESCAPE && in.wheelOpen) { in.cancelSignal(); return; }
     if (in.wheelOpen && code != GLFW_KEY_F12) return;
     if (code == GLFW_KEY_ESCAPE && in.actionSelection.open()) { in.actionSelection.close(); return; }
@@ -305,7 +311,8 @@ struct Graphics {
         const auto shaders = multiplayer::resourceRoot() / "shaders";
         renderer = std::make_unique<viewer::Renderer>(scene.model, shaders, scene.trees ? &*scene.trees : nullptr,
             &scene.zombies, scene.forests ? &*scene.forests : nullptr, &scene.dogs);
-        renderer->setDistantSceneCache(options.distantSceneCache);
+        in.distantSceneCache = options.distantSceneCache;
+        renderer->setDistantSceneCache(in.distantSceneCache);
         scene.zombies.releaseAnimationVertices();
         scene.dogs.releaseAnimationVertices();
         renderer->setGroundItems(*scene.groundItems, scene.groundModels);
@@ -760,6 +767,8 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 graphics.gpuTimer->begin();
                 const auto renderStart = Clock::now();
                 renderer.updateFloorplans(*scene.floorplans);
+                if (renderer.distantSceneCacheEnabled() != in.distantSceneCache)
+                    renderer.setDistantSceneCache(in.distantSceneCache);
                 renderer.render(viewCamera, snapshots.animationSeconds(), [&] {
                     graphics.birds->draw(viewCamera,renderAspect,snapshots.animationSeconds(),birds.sample(snapshots.animationSeconds()));
                     graphics.players->draw(viewCamera, snapshots.players(), self, renderWidth, renderHeight,

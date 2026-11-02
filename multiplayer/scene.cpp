@@ -111,6 +111,7 @@ Options parseOptions(int argc, char** argv, bool server) {
                    "        --no-trees --no-forests --no-cars --seconds N --lag-ms N --loss-percent N\n"
                    "        --birds enables server-owned deterministic flocks; --no-birds disables them\n"
                    "        --time-of-day H --day-length S (0 freezes time)\n";
+            if (!server) std::cout << "Client: --distant-scene-cache starts the experimental cache; F7 toggles it during gameplay\n";
             std::exit(0);
         } else if (!arg.empty() && arg[0] != '-' && !map) { o.map = arg; map = true; }
         else throw std::runtime_error("Unknown option: " + arg);

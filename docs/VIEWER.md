@@ -11,7 +11,8 @@ generator remains a separate program.
 
 `--distant-scene-cache` enables the experimental 1 km / 15 Hz static scenery
 cache, displayed on one background rectangle with gaps accepted during turns. It
-defaults off and scopes use normal rendering. See
+defaults off; **F7** toggles it at runtime in both viewer and client. Scopes use
+normal rendering. See
 [implementation, tradeoffs and benchmarks](DISTANT_SCENE_CACHE.md).
 
 Use `--fullscreen` to fill the primary monitor and `--resolution` to select

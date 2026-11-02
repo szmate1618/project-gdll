@@ -391,7 +391,7 @@ void printHelp() {
               << "  --no-shadows        Disable sun and flashlight shadows for comparison\n"
               << "  --sun-shadow-resolution N Sunlight shadow-map width/height (1024; 256..8192)\n"
               << "  --no-tree-shadows   Disable tree casting for both lights\n"
-              << "  --distant-scene-cache Cache static scenery beyond 1 km at 15 Hz (experimental)\n"
+              << "  --distant-scene-cache Cache static scenery beyond 1 km at 15 Hz; F7 toggles at runtime\n"
               << "  --no-tree-canopy-shading Disable approximate daytime canopy shade\n"
               << "  --no-tree-depth-ordering Keep tree visibility-query order for comparison\n"
               << "  --tree-billboard-distance M Single-card tree LoD beyond M meters (100; 0 disables)\n"
@@ -503,6 +503,7 @@ struct AppState {
     viewer::HudScreen hudScreen = viewer::HudScreen::Gameplay;
     viewer::Hud* hud = nullptr; // Borrows the graphics-thread HUD.
     bool flashlight = true;
+    bool distantSceneCache = false;
     glm::vec3 playerVelocity{0};
     double lastX = 0, lastY = 0;
     bool temporaryHandling() const {
@@ -564,6 +565,11 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         return;
     }
     if (app.hudScreen != viewer::HudScreen::Gameplay) return;
+    if (key == GLFW_KEY_F7) {
+        app.distantSceneCache = !app.distantSceneCache;
+        std::cout << "Distant scenery cache: " << (app.distantSceneCache ? "on" : "off") << '\n';
+        return;
+    }
     if (key == GLFW_KEY_ENTER && app.cars) {
         if (app.driver.toggle(*app.cars, app.rig, app.world)) {
             app.weapons.cancelTrigger(); app.interaction.cancel(); app.proneToggleQueued = false;
@@ -1601,7 +1607,8 @@ int run(const Options& options) {
     renderer.setZombieShadows(options.zombieShadows);
     renderer.setSceneCulling(options.sceneCulling);
     renderer.setRoofBatching(options.roofBatching);
-    renderer.setDistantSceneCache(options.distantSceneCache);
+    app.distantSceneCache = options.distantSceneCache;
+    renderer.setDistantSceneCache(app.distantSceneCache);
     renderer.setWallBatching(options.wallBatching);
     renderer.setShadows(options.shadows);
     renderer.setFlashlightShadows(options.flashlightShadows);
@@ -1870,6 +1877,8 @@ int run(const Options& options) {
         gpuTimer.begin();
         const double renderStart = glfwGetTime();
         renderer.updateFloorplans(floorplans);
+        if (renderer.distantSceneCacheEnabled() != app.distantSceneCache)
+            renderer.setDistantSceneCache(app.distantSceneCache);
         renderer.render(viewCamera, app.displayedAnimationSeconds, [&] {
             if (birdRenderer)
                 birdRenderer->draw(viewCamera, float(renderWidth) / renderHeight,

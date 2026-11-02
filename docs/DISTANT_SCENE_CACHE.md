@@ -4,6 +4,11 @@ Enable with `--distant-scene-cache` on `godollo_viewer` or the multiplayer game
 client. It defaults off. Scopes bypass it. No generation, collision, simulation,
 network protocol or resource fingerprint changes are involved.
 
+Press **F7** during gameplay in either app to enable or disable it immediately,
+including while driving. Each press prints the new state to the console. The
+choice lasts for the current viewer/session; the startup flag sets its initial
+state. Enabling captures a fresh image on the next render with distant scenery.
+
 This version replaces the tiled cubemap with one screen-sized RGBA8 texture,
 updated at **15 Hz**. Distant scenery is drawn once from the current camera on
 each refresh. The existing camera draw list is reused, so there is no extra
