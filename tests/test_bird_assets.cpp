@@ -33,6 +33,16 @@ int main(int argc, char** argv) {
         bool rejected = false;
         try { (void)viewer::loadBirdAssets(bad); } catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "Invalid pigeon indices must be rejected before upload");
+        const auto missing = std::filesystem::path(argv[2]) / "missing-pigeon.json";
+        require(!std::filesystem::exists(missing), "Missing-asset fixture must not exist");
+        rejected = false;
+        try { (void)viewer::loadBirdAssets(missing); }
+        catch (const std::runtime_error& error) {
+            const std::string message(error.what());
+            rejected = message.find(missing.string()) != std::string::npos &&
+                message.find("Cannot open pigeon asset") != std::string::npos;
+        }
+        require(rejected, "Missing pigeon asset must report an open failure with its path");
         std::cout << "Pigeon asset and LoD tests passed\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

@@ -8,6 +8,7 @@ namespace viewer {
 BirdAssets loadBirdAssets(const std::filesystem::path& path) {
     try {
         std::ifstream stream(path);
+        if (!stream) throw std::runtime_error("Cannot open pigeon asset");
         const auto data = nlohmann::json::parse(stream);
         if (data.at("schema") != "godollo.pigeon-flock" || data.at("version") != 1)
             throw std::runtime_error("Unsupported pigeon asset version");

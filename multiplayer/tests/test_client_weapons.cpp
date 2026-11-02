@@ -631,6 +631,10 @@ int main(int argc, char** argv) {
         std::filesystem::copy_file(source / "skills.toml", fixture / "skills.toml", std::filesystem::copy_options::overwrite_existing);
         std::filesystem::copy(source / "shaders", fixture / "shaders", copy);
         std::filesystem::copy(source / "ui", fixture / "ui", copy);
+        std::filesystem::create_directories(fixture / "assets/pigeon");
+        std::filesystem::copy_file(source / "assets/pigeon/flock.json", fixture / "assets/pigeon/flock.json",
+                                   std::filesystem::copy_options::overwrite_existing);
+
         const auto icons = source / "data/assets/game-icons/hud";
         if (std::filesystem::is_directory(icons)) {
             std::filesystem::create_directories(fixture / "data/assets/game-icons");

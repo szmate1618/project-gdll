@@ -48,14 +48,22 @@ int main(int argc, char** argv) {
         }
         viewer::boid::Simulation birdSimulation(checkpoint); viewer::boid::Replica birds;
         bool sentBirdCheckpoint=false; std::size_t birdFrames=0;
+        // The payload is identical across transfers. Keep codec work outside the
+        // timed transport loop, especially in Debug builds.
+        multiplayer::CorpsePose bulkPose;
+        if (server && !large) {
+            viewer::AnimatedModel poseAsset;
+            poseAsset.skeleton.resize(multiplayer::maxBones);
+            bulkPose.bones.resize(multiplayer::maxBones, glm::mat4(1));
+            bulkPose.compact = multiplayer::compactRagdollPose(poseAsset, bulkPose);
+            if (!bulkPose.compact) throw std::runtime_error("Transport fixture failed compact pose encoding");
+        }
         using Clock = std::chrono::steady_clock;
         const auto start = Clock::now(); auto next = start;
         std::size_t snapshots = 0, poses = 0;
         std::uint64_t latest = 0;
         std::uint32_t nextPose = 0;
         std::map<std::uint32_t, std::uint64_t> inFlight;
-        viewer::AnimatedModel poseAsset;
-        poseAsset.skeleton.resize(multiplayer::maxBones);
         while (Clock::now() - start < std::chrono::milliseconds(server ? 6000 : 4000)) {
             const auto messages = network.receive();
             for (const auto& event : network.events)
@@ -118,12 +126,9 @@ int main(int argc, char** argv) {
                 const auto poseLimit = std::min<std::size_t>(multiplayer::Replication::maxPoseTransfers, corpseCount);
                 if (!large) for (std::size_t i = inFlight.size(); i < poseLimit; ++i) {
                     while (inFlight.count(nextPose)) nextPose = (nextPose + 1) % corpseCount;
-                    multiplayer::CorpsePose pose;
-                    pose.id = nextPose; pose.version = state.tick; pose.bones.resize(multiplayer::maxBones, glm::mat4(1));
-                    pose.compact = multiplayer::compactRagdollPose(poseAsset, pose);
-                    if (!pose.compact) throw std::runtime_error("Transport fixture failed compact pose encoding");
-                    if (!network.send(peer, pose, true)) break;
-                    inFlight.emplace(pose.id, pose.version); nextPose = (nextPose + 1) % corpseCount;
+                    bulkPose.id = nextPose; bulkPose.version = state.tick;
+                    if (!network.send(peer, bulkPose, true)) break;
+                    inFlight.emplace(bulkPose.id, bulkPose.version); nextPose = (nextPose + 1) % corpseCount;
                 }
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
