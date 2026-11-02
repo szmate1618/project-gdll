@@ -1,5 +1,18 @@
 # Box3D physics extensions
 
+## Wheel motor impulse correction
+
+`box3d-wheel-motor.patch` prevents the non-steering wheel joint from applying
+its cached spin impulse twice during warm starting. Both rear wheels use this
+path. The duplicate impulse could nearly double their effective motor torque,
+including braking, despite the configured torque limit.
+
+The patch helper applies this correction on fresh and cached dependencies.
+`viewer_wheel_motor` measures angular momentum against commanded torque over
+time for acceleration and braking in both directions, with steering enabled
+and disabled, warm starting enabled and disabled, and multiple timesteps and
+substep counts.
+
 ## Angular spring torque limits
 
 `box3d-spring-torque.patch` adds `SetMaxSpringTorque` / `GetMaxSpringTorque` for

@@ -146,8 +146,7 @@ void VehicleLayer::beforeStep(float seconds) {
         const float targetAngle = vehicleSteeringTarget(c->steering, speed);
         c->steeringAngle = advanceVehicleSteering(c->steeringAngle, targetAngle, seconds);
         const auto frontAngles = vehicleFrontSteeringAngles(c->config, c->steeringAngle);
-        // Normal force is calibrated for the previous acceleration with the
-        // higher grip. Reserve torque compensates resistance from the last fixed
+        // Reserve torque compensates resistance from the last fixed
         // step, rather than multiplying the unloaded throttle force as well.
         const float throttle = std::abs(c->throttle);
         const float force = std::min(fullThrust * thrustScale * throttle,

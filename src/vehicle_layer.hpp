@@ -57,7 +57,7 @@ public:
     static Model geometry(); // Exactly one box and one 12-sided tire mesh.
     static constexpr float wheelRadius = .36f, wheelWidth = .24f;
     static constexpr float fullThrust = 19200; // N equivalent; each wheel gets 1/4 torque budget.
-    static constexpr float normalThrust = 5500; // N; calibrated for the previous acceleration with the increased grip.
+    static constexpr float normalThrust = 5500; // N equivalent for unloaded full-throttle driving.
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

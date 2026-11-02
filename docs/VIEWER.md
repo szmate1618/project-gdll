@@ -1686,16 +1686,19 @@ four 25 kg wheels with centered 24-sided convex cylinder colliders, independent 
 springs and travel limits. The maximum drive budget is 19,200 N equivalent at
 the tires, three times the original capacity: each grounded wheel can supply up
 torque proportional to its configured tire radius (1,728 N·m at 0.36 m).
-Ordinary throttle uses a calibrated 5,500 N budget to
-keep acceleration close to the earlier car despite the increased grip. Extra
+Ordinary throttle uses a 5,500 N budget shared equally across the four wheels. Extra
 torque compensates measured opposing living-zombie contact impulses from the previous fixed physics
 step, up to that maximum; it resets when resistance stops, throttle is released,
 direction changes or the brake is applied. Airborne wheels contribute no drive.
 Forward motor speed is limited to 85 rad/s (about 110 km/h at the nominal tire
 radius). Reverse uses half the normal and maximum thrust budgets and a 20 rad/s
 motor limit (about 26 km/h). Holding S while moving forward retains full braking
-strength until nearly stopped; Space braking is unchanged. Actual ground speed
-depends on grip, drag, terrain and load.
+strength until nearly stopped; Space applies the wheel brakes independently of
+throttle. Actual ground speed
+depends on grip, drag, terrain and load. The Box3D wheel-motor correction in
+[the physics patches](../patches/README.md#wheel-motor-impulse-correction) removes
+duplicated rear-wheel torque during acceleration and braking. Acceleration and
+reverse cruising speed are consequently lower than with the buggy solver.
 
 Each wheel independently samples its rotating contact-point velocity relative
 to the supporting body. Longitudinal slip detects wheelspin or locked-wheel

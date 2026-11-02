@@ -141,8 +141,9 @@ void sidewaysRecovery(const viewer::VehicleConfig& config) {
 int main() {
     try {
         struct Case { viewer::VehicleConfig config; float throttle; };
-        const std::array<Case, 2> cases{{{viewer::VehicleConfig{}, .25f},
-            {viewer::loadVehicleConfig(std::filesystem::path(TEST_VEHICLE_CONFIGS) / "mercedes_benz_s_500_1995.toml"), .35f}}};
+        // Keep the fixture at 2-4 m/s with the corrected four-wheel torque budget.
+        const std::array<Case, 2> cases{{{viewer::VehicleConfig{}, .375f},
+            {viewer::loadVehicleConfig(std::filesystem::path(TEST_VEHICLE_CONFIGS) / "mercedes_benz_s_500_1995.toml"), .525f}}};
         for (const auto& test : cases) {
             const auto& config = test.config;
             for (float direction : {-1.f, 1.f}) {
