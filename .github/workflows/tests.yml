@@ -14,8 +14,13 @@ concurrency:
 
 jobs:
   tests:
+    name: Linux (${{ matrix.build_type }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Debug, Release]
     env:
       LIBGL_ALWAYS_SOFTWARE: '1'
     steps:
@@ -37,7 +42,7 @@ jobs:
         run: python tools/prepare_hud_icons.py
       - name: Configure
         run: >-
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -DGD_VIEWER=ON -DGD_MULTIPLAYER=ON -DBUILD_TESTING=ON
       - name: Build apps and tests
         run: cmake --build build --parallel 2
@@ -58,7 +63,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
-          name: test-diagnostics-linux
+          name: test-diagnostics-linux-${{ matrix.build_type }}
           path: |
             build/test-results.xml
             build/Testing/Temporary/LastTest.log
