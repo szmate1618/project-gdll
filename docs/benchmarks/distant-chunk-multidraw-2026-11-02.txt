@@ -1,0 +1,127 @@
+Batch the distant-cache chunk submissions — 2026-11-02
+
+Scope
+-----
+Base revision: ff7911a on master (the distant-cache implementation).
+This follow-up batches the new terrain/road/railway/fence chunk path only. The
+normal large-mesh draws and existing forest/building batching remain intact.
+
+drawStaticChunks now collects the same selected index ranges in their original
+order and submits one glMultiDrawElements per source mesh and pass. Counts and
+byte offsets use reusable Renderer-owned CPU arrays, reserved at preparation.
+The source VAO element binding is restored after submission. Empty selections
+issue no draw. The caller counts one GL API submission, consistently with
+forest multi-draw batches; the geometry ranges are unchanged.
+
+Result
+------
+This closes the submission-batching omission introduced by the cache. It
+substantially reduces GL API calls and improves some timings, particularly
+stationary town. It does not show a uniform p95 improvement across all motions.
+The pooled stationary overview is slightly slower; town walk-turn CPU p95 also
+increases slightly. Stationary overview GPU p95 rose 0.103 ms (1.9%) and CPU
+p95 rose 0.161 ms (3.3%). These increases have not been established as noise.
+Keep these mixed timing results visible rather than
+interpreting fewer API calls as a guaranteed frame-time improvement.
+
+Method
+------
+AMD Radeon 660M, OpenGL 4.6 Core, Mesa 24.2.8-1ubuntu1~24.10.1, 1280x720.
+Same map, trees, forest patches, camera file, shaders, shadows, LoD and 15 Hz
+capture policy. Saved pre-fix executables contain matching compiled layouts;
+no historical object is linked against changed class headers.
+
+Overview and town each use static, 1.5 m/s + 40 degrees/s walk-turn, and
+180 degrees/s fast-turn. Each binary alternates normal/cached rounds. Initial
+order: before overview, after overview, after town, before town. A reversed
+order repeat checked the initially mixed timings: after overview, before
+overview, before town, after town. Each block has 3 rounds, 32 warmup and 128
+measured frames per mode. Combined: 6 rounds / 768 samples per case and mode.
+Camera and refresh clocks advance exactly 1/60 second per frame.
+
+Timestamps are asynchronous, max four frames in flight. Waits, captures and
+query collection stay outside measured CPU render sections. No AI, audio,
+physics steps, HUD or presentation in map cases. Builds/tests/benchmarks ran
+sequentially. No other running game/benchmark process was found before timing.
+GPU power/clocks were not pinned; separate normal controls are retained to
+show run variation. All measured GPU samples are present.
+
+P95 results
+-----------
+Milliseconds, pooled over both blocks (768 samples per cell). Cache enabled.
+Case | GPU p95 before -> after | CPU render p95 before -> after
+distant-overview-clear-static | 5.378 -> 5.481 | 4.839 -> 5.000
+distant-overview-clear-walk-turn | 5.979 -> 5.749 | 5.158 -> 5.190
+distant-overview-clear-fast-turn | 6.041 -> 5.285 | 4.982 -> 4.785
+town-static | 8.399 -> 5.307 | 7.418 -> 5.799
+town-walk-turn | 7.693 -> 7.687 | 6.521 -> 6.674
+town-fast-turn | 6.875 -> 6.265 | 5.963 -> 5.973
+
+Average costs
+-------------
+Milliseconds, median of the six per-round averages. CPU and GPU overlap;
+do not add their timings or interpret them directly as gameplay FPS.
+Case | GPU before -> after | CPU render before -> after
+distant-overview-clear-static | 2.477 -> 2.493 | 2.479 -> 2.580
+distant-overview-clear-walk-turn | 2.744 -> 2.690 | 2.674 -> 2.577
+distant-overview-clear-fast-turn | 2.558 -> 2.447 | 2.527 -> 2.305
+town-static | 4.000 -> 3.246 | 3.910 -> 2.953
+town-walk-turn | 3.406 -> 3.540 | 3.116 -> 3.335
+town-fast-turn | 3.186 -> 3.157 | 2.713 -> 2.624
+
+GL API submissions, stationary views
+-------------------------------------
+Case | near-town calls per frame before -> after | capture calls per refresh before -> after
+Overview | 343 -> 131 | 1958 -> 647
+Town     | 380 -> 141 | 2259 -> 773
+
+These count GL API submissions, not hardware subdraws or triangle reduction.
+The rectangle, cutoff, source indices and material/transform grouping are
+unchanged. glMultiDrawElements still submits every selected chunk range.
+
+Validation and remaining limits
+-------------------------------
+Full default build, benchmark targets, viewer and client rebuilt successfully.
+Five focused GPU regressions passed: distant scenery, native presentation,
+building rendering, tree billboards and forest visibility. Existing tests
+exercise multiple nonzero index offsets, near/far filtering and toggling back
+to original index lists.
+
+The after build also ran all eight map views and all three motions, one round
+of 64 frames per mode. Automated byte comparisons match all 24 paired-view
+captures from the initial/reversed runs, all 48 broad captures against the
+previous single-rectangle build, and the crowd control capture: 73 pairs total.
+Manual visual review remains with the user.
+
+The standard 100,000-zombie before/after control uses six rounds of 32 warmup
+and 64 measured frames, caching requested but inactive in both. Every measured
+frame retains 100,000 living instances, 10 draws and 6,000,000 camera triangles.
+  GPU p95:        9.483 -> 10.775 ms
+  CPU render p95: 13.051 -> 13.818 ms
+  GPU average:    7.387 -> 6.821 ms
+  CPU average:    10.399 -> 10.101 ms
+The chunk submission path does not execute in this control. Its differing tails
+illustrate timing variation that these runs do not isolate or explain. They
+are not evidence of a chunk-batching gain in the crowd case.
+
+Artifacts and reproduction
+--------------------------
+Ignored raw artifacts: build/benchmarks/chunk-multidraw-20261102/
+  before-overview/, after-overview/, before-town/, after-town/
+  repeat-before-overview/, repeat-after-overview/
+  repeat-before-town/, repeat-after-town/
+  broad-after/, crowd-before/, crowd-after/
+  combined-results.json, per-directory report.txt and summary.csv
+  before-benchmark_distant_scene, before-benchmark_zombie_crowd
+
+The saved before executables and current executables use the same unchanged
+shaders directory. All input/shader hashes and camera coordinates are retained
+in metadata.txt, views.csv and input-cameras.txt.
+
+Command, replacing EXECUTABLE/OUTPUT/FILTER for each recorded block:
+EXECUTABLE output/godollo.glb output/trees.instances.json \
+  output/osm/forest_patches.json build/forest_perf/billboard-views.txt shaders \
+  OUTPUT 3 128 FILTER
+FILTER is distant-overview-clear or town. Broad coverage uses OUTPUT 1 64 all.
+Crowd uses benchmark_zombie_crowd assets/zombies/models OUTPUT --distant-cache 1.
+Summarize each directory with tools/summarize_render_benchmark.py.

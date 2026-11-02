@@ -477,6 +477,9 @@ including the empty-view bypass, turn patches and the 100,000-zombie control.
 The [single-rectangle comparison](benchmarks/distant-rectangle-2026-11-02.txt)
 measures its simpler replacement against preserved tiled binaries, with gap
 repair and depth publication intentionally removed. Captures await user review.
+The [chunk multi-draw follow-up](benchmarks/distant-chunk-multidraw-2026-11-02.txt)
+preserves those images while reducing API submissions; it includes repeated
+before/after averages and p95 values, including cases without a timing gain.
 
 ### Other isolated renderer comparisons
 

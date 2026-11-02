@@ -224,6 +224,9 @@ private:
         std::vector<std::size_t> visible;
     };
     std::vector<StaticChunks> staticChunks_;
+    // Shared CPU argument scratch; glMultiDrawElements consumes it immediately.
+    std::vector<GLsizei> staticChunkCounts_;
+    std::vector<const void*> staticChunkOffsets_;
     std::vector<bool> staticCacheable_;
     std::vector<VisibilityBounds> roofCacheBounds_, wallCacheBounds_, treeCacheBounds_;
     glm::mat4 staticProjectionView_{1};

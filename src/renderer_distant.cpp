@@ -63,6 +63,8 @@ void Renderer::prepareDistantScene(const Model& source) {
             indices.insert(indices.end(), cell.indices.begin(), cell.indices.end());
         }
         chunks.visibility = VisibilityIndex(chunkBounds);
+        staticChunkCounts_.reserve(chunks.chunks.size());
+        staticChunkOffsets_.reserve(chunks.chunks.size());
         // GL_ARRAY_BUFFER avoids changing the source VAO's element binding.
         glGenBuffers(1, &chunks.buffer);
         glBindBuffer(GL_ARRAY_BUFFER, chunks.buffer);
@@ -131,6 +133,15 @@ bool Renderer::keepStaticDraw(std::size_t index) const {
 bool Renderer::drawStaticChunks(std::size_t index) {
     auto& chunks = staticChunks_[index];
     chunks.visibility.query(staticProjectionView_, chunks.visible, forestVisibilityRange(), true);
+    staticChunkCounts_.clear();
+    staticChunkOffsets_.clear();
+    for (const auto id : chunks.visible) {
+        const auto& chunk = chunks.chunks[id];
+        if (!keepStaticBounds(chunk.bounds)) continue;
+        staticChunkCounts_.push_back(chunk.count);
+        staticChunkOffsets_.push_back(reinterpret_cast<const void*>(chunk.offset));
+    }
+    if (staticChunkCounts_.empty()) return false;
     const auto& source = sceneDraws_[index];
     const auto& mesh = model_.meshes[source.primitive];
     applyMaterial(model_, mesh.material, source.mirrored);
@@ -138,14 +149,10 @@ bool Renderer::drawStaticChunks(std::size_t index) {
     glUniformMatrix3fv(normalLocation_, 1, GL_FALSE, glm::value_ptr(source.normalMatrix));
     glBindVertexArray(mesh.vao);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, chunks.buffer);
-    for (const auto id : chunks.visible) {
-        const auto& chunk = chunks.chunks[id];
-        if (!keepStaticBounds(chunk.bounds)) continue;
-        glDrawElements(GL_TRIANGLES, chunk.count, GL_UNSIGNED_INT, reinterpret_cast<const void*>(chunk.offset));
-        ++sceneStats_.drawCalls;
-    }
+    glMultiDrawElements(GL_TRIANGLES, staticChunkCounts_.data(), GL_UNSIGNED_INT,
+                       staticChunkOffsets_.data(), static_cast<GLsizei>(staticChunkCounts_.size()));
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ebo);
-    return false; // Counts already include each submitted chunk.
+    return true; // The caller counts one GL submission, matching forest batches.
 }
 
 void Renderer::drawStaticScene(const glm::mat4& view, const glm::mat4& projection) {

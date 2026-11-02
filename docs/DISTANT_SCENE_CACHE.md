@@ -37,6 +37,9 @@ The existing terrain/road/railway/fence index partitions remain: map-wide meshes
 have 128 m cells with conservative bounds and a BVH, sharing original vertices
 and transforms. Long triangles stay whole. These partitions also let nearby
 sections remain at full rate. Disabled rendering and shadows use original lists.
+Each source mesh submits its selected chunk ranges with one `glMultiDrawElements`
+call per pass, preserving range order. Reusable CPU argument arrays avoid frame
+allocations. Draw counters count GL submissions, including each multi-draw once.
 
 At 1280x720, one RGBA8 image plus a depth24 renderbuffer with four-byte storage
 uses approximately **7 MiB**, compared with approximately 75 MiB for the earlier
