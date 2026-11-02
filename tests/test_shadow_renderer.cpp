@@ -3,6 +3,9 @@
 #include "physics_world.hpp"
 #include "box_layer.hpp"
 #include "dog_layer.hpp"
+#include "graphics_settings_file.hpp"
+#include "application_paths.hpp"
+#include <chrono>
 
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -222,12 +225,19 @@ void checkObjectPresets(GLFWwindow* window, bool switchDisplay) {
     }
     renderer.setShadowCasters(viewer::ShadowCasters::Objects); renderer.render(view);
     require(clear - brightness(view, {0, 0, 0}) > 40, "Objects preset must include prop shadows");
-    viewer::RuntimeGraphicsSettings graphics(window, renderer, false);
+    const auto savePath = viewer::executableDirectory() /
+        ("graphics-runtime-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".toml");
+    struct RemoveSave {
+        std::filesystem::path path;
+        ~RemoveSave() { std::error_code ignored; std::filesystem::remove(path, ignored); }
+    } removeSave{savePath};
+    viewer::RuntimeGraphicsSettings graphics(window, renderer, false, {1280, 720}, savePath);
     auto settings = graphics.settings();
     require(!settings.skipHighestDetail, "Highest-detail restriction must default off");
     int originalWidth, originalHeight; glfwGetWindowSize(window, &originalWidth, &originalHeight);
     for (int i = 0; i < 3; ++i) {
         settings.resolution = i; graphics.apply(settings);
+        require(viewer::loadGraphicsSettings(savePath)->resolution == i, "Applied settings must be saved immediately");
         require(graphics.renderSize() == viewer::renderResolutions[i], "Render-resolution selection must apply at runtime");
         int currentWidth, currentHeight; glfwGetWindowSize(window, &currentWidth, &currentHeight);
         require(currentWidth == originalWidth && currentHeight == originalHeight, "Render resolution must not resize the native GUI window");
@@ -236,6 +246,11 @@ void checkObjectPresets(GLFWwindow* window, bool switchDisplay) {
     require(graphics.settings().fullscreen && !glfwGetWindowMonitor(window), "Hidden fullscreen must not occupy a monitor");
     settings.fullscreen = false; graphics.apply(settings);
     require(glfwGetCurrentContext() == window, "Changing display settings must preserve the GL context");
+    graphics.apply(viewer::GraphicsSettings{});
+    const auto restored = *viewer::loadGraphicsSettings(savePath);
+    require(!restored.fullscreen && restored.resolution == 1 && restored.distantScenery == 3 &&
+            restored.shadowCasters == viewer::ShadowCasters::Objects && !restored.skipHighestDetail,
+            "Reset must save every default for the next launch");
     if (switchDisplay) {
         glfwShowWindow(window); glfwPollEvents();
         settings.fullscreen = true; graphics.apply(settings);

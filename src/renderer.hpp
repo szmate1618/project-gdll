@@ -147,11 +147,14 @@ public:
     void setDistantSceneCache(bool enabled);
     bool distantSceneCacheEnabled() const { return distantEnabled_; }
     void setDistantSceneDistance(float meters);
+    float distantSceneDistance() const { return distantSceneDistance_; }
     const DistantCacheStats& distantCacheStats() const { return distantStats_; }
     void setShadows(bool enabled) { shadows_ = enabled; }
     void setShadowCasters(ShadowCasters level);
     ShadowCasters shadowCasters() const;
     void setSkipHighestDetail(bool enabled) { skipHighestDetail_ = enabled; }
+    bool skipHighestDetail() const { return skipHighestDetail_; }
+    void setObjectShadows(bool enabled) { objectShadows_ = enabled; }
     // Reallocates the sunlight map between frames. Light coverage is unchanged;
     // projection snapping and PCF texels follow the actual map resolution.
     void setSunShadowResolution(int resolution);

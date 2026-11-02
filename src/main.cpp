@@ -1,5 +1,6 @@
 #include "zombie_update_profile.hpp"
 #include "renderer.hpp"
+#include "graphics_settings_file.hpp"
 #include "boid/bird_flock.hpp"
 #include "boid/bird_renderer.hpp"
 #include "frame_profile.hpp"
@@ -86,6 +87,8 @@ struct Options {
     int frames = 0;
     int width = 1280, height = 720;
     bool fullscreen = false;
+    viewer::GraphicsSettings graphics;
+    std::filesystem::path graphicsSettingsFile;
     bool hidden = false, allowSoftware = false, selfTest = false, help = false;
     bool fps = false, collisionDebug = false, selfTestFPS = false;
     bool shadows = true;
@@ -131,8 +134,19 @@ struct Options {
     std::optional<glm::vec2> spawn;
 };
 
-Options parseOptions(int argc, char** argv) {
+Options parseOptions(int argc, char** argv, const std::optional<viewer::GraphicsSettings>& saved = {}) {
     Options options;
+    if (saved) {
+        options.graphics = *saved;
+        options.fullscreen = saved->fullscreen;
+        const auto size = viewer::renderResolutions[saved->resolution];
+        options.width = size.x; options.height = size.y;
+        options.distantSceneCache = saved->distantScenery != 3;
+        options.shadows = saved->shadowCasters != viewer::ShadowCasters::None;
+        options.treeShadows = saved->shadowCasters >= viewer::ShadowCasters::Trees;
+        options.zombieShadows = saved->shadowCasters >= viewer::ShadowCasters::Npcs;
+        options.flashlightShadows = options.shadows;
+    }
     bool hasModel = false;
     for (int i = 1; i < argc; ++i) {
         const std::string argument = argv[i];
@@ -255,7 +269,7 @@ Options parseOptions(int argc, char** argv) {
         else if (argument == "--doodad-save") options.doodadSave = value();
         else if (argument == "--no-fences") options.noFences = true;
         else if (argument == "--no-roof-batching") options.roofBatching = false;
-        else if (argument == "--distant-scene-cache") options.distantSceneCache = true;
+        else if (argument == "--distant-scene-cache") { options.distantSceneCache = true; options.graphics.distantScenery = 2; }
         else if (argument == "--no-wall-batching") options.wallBatching = false;
         else if (argument == "--no-trees") options.noTrees = true;
         else if (argument == "--no-tree-culling") options.treeCulling = false;
@@ -1625,6 +1639,9 @@ int run(const Options& options) {
     renderer.setRoofBatching(options.roofBatching);
     app.distantSceneCache = options.distantSceneCache;
     renderer.setDistantSceneCache(app.distantSceneCache);
+    renderer.setDistantSceneDistance(viewer::distantSceneryDistances[options.graphics.distantScenery]);
+    renderer.setSkipHighestDetail(options.graphics.skipHighestDetail);
+    renderer.setObjectShadows(options.graphics.shadowCasters >= viewer::ShadowCasters::Objects);
     renderer.setWallBatching(options.wallBatching);
     renderer.setShadows(options.shadows);
     renderer.setFlashlightShadows(options.flashlightShadows);
@@ -1667,7 +1684,8 @@ int run(const Options& options) {
             reticle.draw(mode, 800, 600);
         viewer::Renderer::checkErrors("resized render target and reticle modes");
     }
-    viewer::RuntimeGraphicsSettings graphics(window.get(), renderer, options.fullscreen, glm::ivec2(options.width, options.height));
+    viewer::RuntimeGraphicsSettings graphics(window.get(), renderer, options.fullscreen,
+        glm::ivec2(options.width, options.height), options.graphicsSettingsFile);
     renderer.resize(graphics.renderSize().x, graphics.renderSize().y);
     viewer::GpuTimer gpuTimer;
     std::unique_ptr<viewer::FrameProfile> frameProfile;
@@ -2128,7 +2146,9 @@ int run(const Options& options) {
 int main(int argc, char** argv) {
     std::cout << std::unitbuf;
     try {
-        const auto options = parseOptions(argc, argv);
+        const auto settingsFile = viewer::graphicsSettingsPath();
+        auto options = parseOptions(argc, argv, viewer::readGraphicsSettings(settingsFile));
+        options.graphicsSettingsFile = settingsFile;
         if (options.help) { printHelp(); return 0; }
         return run(options);
     } catch (const std::exception& error) {

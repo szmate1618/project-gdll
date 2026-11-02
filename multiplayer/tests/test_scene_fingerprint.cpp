@@ -67,6 +67,9 @@ int main(int argc, char** argv) {
         auto changed = options;
         changed.display.fullscreen = true;
         changed.display.resolution = glm::ivec2(960, 540);
+        changed.graphics.shadowCasters = viewer::ShadowCasters::Trees;
+        changed.graphics.distantScenery = 1; changed.graphics.skipHighestDetail = true;
+        changed.graphicsSettingsFile = "userdata/graphics.toml";
         require(multiplayer::sceneFingerprint(changed, 7, spawn, {first}) == fingerprint,
                 "Local display settings changed the shared scene fingerprint");
         for (const char* value : {"960x540", "1280x720", "1920x1080"}) {

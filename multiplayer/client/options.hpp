@@ -3,5 +3,6 @@
 namespace multiplayer {
 enum class GameMode { Menu, SinglePlayer, Host, Join, Quit };
 struct GameOptions { Options scene; GameMode mode = GameMode::Menu; };
-GameOptions parseGameOptions(int argc, char** argv);
+GameOptions parseGameOptions(int argc, char** argv,
+    const std::optional<viewer::GraphicsSettings>& graphicsDefaults = {});
 }

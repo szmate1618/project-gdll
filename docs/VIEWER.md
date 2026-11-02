@@ -343,8 +343,21 @@ Never use highest detail defaults off. When enabled, NPC and car meshes with
 prepared LoDs start at LOD1 even up close, while farther levels keep their normal
 selection. Wounded/severed zombie surfaces retain their required original
 vertex topology, and assets without a prepared lower mesh retain their fallback.
-Settings are local to the current viewer/session and do not change collision,
-AI, networking or content fingerprints.
+Graphics settings save automatically to `userdata/graphics.toml` beside the running
+executable: `build/userdata/graphics.toml` for the development viewer, or
+`build/multiplayer/userdata/graphics.toml` for the client. Installed games use
+`userdata` in their own executable directory, regardless of the working directory.
+Character-profile overrides do not relocate this graphics file.
+
+Saved preferences load before explicit command-line options, which take precedence
+for that launch. The client also retains saved choices when starting another session
+from the menu. Missing saves use defaults; malformed or unsupported saves are reported
+and left untouched until a setting is changed or defaults are reset. Writes validate
+a temporary file and replace the previous save atomically.
+
+**Reset to defaults** applies and saves Windowed, 1280x720, Disabled distant scenery,
++Objects shadow casters, and highest detail allowed. F7 cache changes are saved too.
+Preferences are local and do not change collision, AI, networking or fingerprints.
 
 For reproducible in-game captures, use `--hud-screen inventory`,
 `--hud-screen skills`, `--hud-screen health`, `--hud-screen map` or `--hud-screen graphics` with the

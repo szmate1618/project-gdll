@@ -69,6 +69,7 @@ void GraphicsView::ProcessEvent(Rml::Event& event) {
     if (event.GetType() == "click") {
         if (id == "graphics-windowed") settings_.fullscreen = false;
         else if (id == "graphics-fullscreen") settings_.fullscreen = true;
+        else if (id == "graphics-reset") settings_ = GraphicsSettings{};
         else return;
     } else if (event.GetType() == "change") {
         if (id == "graphics-lod") settings_.skipHighestDetail = target->HasAttribute("checked");

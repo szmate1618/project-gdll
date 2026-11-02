@@ -724,10 +724,18 @@ int main(int argc, char** argv) {
             require(graphics.distantScenery == 0, "Distant scenery slider must select 500 m");
             graphics = graphicsClick(420, 483);
             require(graphics.shadowCasters == viewer::ShadowCasters::None, "Shadow slider must disable shadows at its left end");
-            graphics = graphicsClick(422, 597);
+            graphics = graphicsClick(422, 579);
             require(graphics.skipHighestDetail, "LOD checkbox must enable the highest-detail restriction");
-            graphics = graphicsClick(422, 597);
+            graphics = graphicsClick(422, 579);
             require(!graphics.skipHighestDetail, "LOD checkbox must allow highest detail again");
+            viewer::GraphicsSettings nondefault;
+            nondefault.fullscreen = true; nondefault.resolution = 2; nondefault.distantScenery = 1;
+            nondefault.shadowCasters = viewer::ShadowCasters::Npcs; nondefault.skipHighestDetail = true;
+            hud.setGraphicsSettings(nondefault);
+            graphics = graphicsClick(1130, 655);
+            require(!graphics.fullscreen && graphics.resolution == 1 && graphics.distantScenery == 3 &&
+                    graphics.shadowCasters == viewer::ShadowCasters::Objects && !graphics.skipHighestDetail,
+                    "Reset to defaults must restore every graphics control and publish one complete change");
             clear(); hud.draw(state, 640, 360); checkState();
             if (argc > 1) capture((std::string(argv[1]) + "-graphics-small.ppm").c_str(), pixels(640, 360), 640, 360);
             state.screen = viewer::HudScreen::Health;

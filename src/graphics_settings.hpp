@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <filesystem>
 #include <glm/vec2.hpp>
 
 struct GLFWwindow;
@@ -23,7 +24,7 @@ struct GraphicsSettings {
 class RuntimeGraphicsSettings {
 public:
     RuntimeGraphicsSettings(GLFWwindow* window, Renderer& renderer, bool fullscreen,
-                            glm::ivec2 resolution = {1280, 720});
+                            glm::ivec2 resolution = {1280, 720}, std::filesystem::path savePath = {});
     const GraphicsSettings& settings() const { return settings_; }
     glm::ivec2 renderSize() const;
     void apply(const GraphicsSettings& settings);
@@ -33,6 +34,7 @@ private:
     GLFWwindow* window_;
     Renderer& renderer_;
     GraphicsSettings settings_;
+    std::filesystem::path savePath_;
     glm::ivec2 windowPosition_{100, 100}, windowSize_{1280, 720};
 };
 } // namespace viewer

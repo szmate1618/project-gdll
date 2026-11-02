@@ -35,6 +35,7 @@ endif()
 
 add_library(multiplayer_paths STATIC application_paths.cpp)
 target_include_directories(multiplayer_paths PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(multiplayer_paths PUBLIC viewer_application_paths)
 viewer_warnings(multiplayer_paths)
 
 add_library(multiplayer_core STATIC server/dog_replication.cpp client/dog_playback.cpp protocol.cpp session_settings.cpp client/session_setup.cpp client/host_setup.cpp inventory_state.cpp ragdoll_pose_codec.cpp character_appearance_data.cpp character_appearances.cpp scene.cpp resources.cpp asset_validation.cpp network.cpp fragments.cpp

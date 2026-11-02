@@ -17,8 +17,15 @@
 #include <cctype>
 
 namespace multiplayer {
-Options parseOptions(int argc, char** argv, bool server) {
+void applyGraphicsDefaults(Options& options, const viewer::GraphicsSettings& settings) {
+    options.graphics = settings;
+    options.display.fullscreen = settings.fullscreen;
+    options.display.resolution = viewer::renderResolutions.at(settings.resolution);
+    options.distantSceneCache = settings.distantScenery != 3;
+}
+Options parseOptions(int argc, char** argv, bool server, const std::optional<viewer::GraphicsSettings>& graphicsDefaults) {
     Options o;
+    if (!server && graphicsDefaults) applyGraphicsDefaults(o, *graphicsDefaults);
     auto next = [&](int& i) -> std::string {
         if (++i >= argc) throw std::runtime_error("Missing option value");
         return argv[i];
@@ -93,7 +100,7 @@ Options parseOptions(int argc, char** argv, bool server) {
             else throw std::runtime_error("--resolution requires 960x540, 1280x720 or 1920x1080");
         }
         else if (arg == "--no-audio" && !server) o.audio = false;
-        else if (arg == "--distant-scene-cache" && !server) o.distantSceneCache = true;
+        else if (arg == "--distant-scene-cache" && !server) { o.distantSceneCache = true; o.graphics.distantScenery = 2; }
         else if (arg == "--hidden" && !server) o.hidden = true;
         else if (arg == "--look" && !server) {
             const auto yaw = number(i), pitch = number(i);
@@ -117,6 +124,9 @@ Options parseOptions(int argc, char** argv, bool server) {
         else throw std::runtime_error("Unknown option: " + arg);
     }
     if (o.map.extension() != ".glb") throw std::runtime_error("Multiplayer requires a self-contained GLB map");
+    o.graphics.fullscreen = o.display.fullscreen;
+    for (std::size_t i = 0; i < viewer::renderResolutions.size(); ++i)
+        if (viewer::renderResolutions[i] == o.display.renderSize()) o.graphics.resolution = static_cast<int>(i);
     return o;
 }
 

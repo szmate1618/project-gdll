@@ -1,18 +1,24 @@
 #include "graphics_settings.hpp"
+#include "graphics_settings_file.hpp"
 #include "renderer.hpp"
 #include <GLFW/glfw3.h>
 #include <stdexcept>
+#include <iostream>
+#include <utility>
 
 namespace viewer {
 RuntimeGraphicsSettings::RuntimeGraphicsSettings(GLFWwindow* window, Renderer& renderer, bool fullscreen,
-                                                glm::ivec2 resolution)
-    : window_(window), renderer_(renderer) {
+                                                glm::ivec2 resolution, std::filesystem::path savePath)
+    : window_(window), renderer_(renderer), savePath_(std::move(savePath)) {
     settings_.fullscreen = glfwGetWindowAttrib(window_, GLFW_VISIBLE) ? glfwGetWindowMonitor(window_) != nullptr : fullscreen;
     const auto selected = resolution;
     for (std::size_t i = 0; i < renderResolutions.size(); ++i)
         if (renderResolutions[i] == selected) settings_.resolution = static_cast<int>(i);
     settings_.shadowCasters = renderer.shadowCasters();
-    settings_.distantScenery = renderer.distantSceneCacheEnabled() ? 2 : 3;
+    settings_.skipHighestDetail = renderer.skipHighestDetail();
+    if (renderer.distantSceneCacheEnabled())
+        for (std::size_t i = 0; i < distantSceneryDistances.size(); ++i)
+            if (distantSceneryDistances[i] == renderer.distantSceneDistance()) settings_.distantScenery = static_cast<int>(i);
     if (!glfwGetWindowMonitor(window_)) {
         glfwGetWindowPos(window_, &windowPosition_.x, &windowPosition_.y);
         glfwGetWindowSize(window_, &windowSize_.x, &windowSize_.y);
@@ -37,18 +43,21 @@ void RuntimeGraphicsSettings::setFullscreen(bool enabled) {
     }
 }
 void RuntimeGraphicsSettings::apply(const GraphicsSettings& next) {
-    if (next.resolution < 0 || next.resolution >= static_cast<int>(renderResolutions.size()) ||
-        next.distantScenery < 0 || next.distantScenery >= static_cast<int>(distantSceneryDistances.size()) ||
-        next.shadowCasters < ShadowCasters::None || next.shadowCasters > ShadowCasters::Objects)
-        throw std::invalid_argument("Invalid graphics settings");
+    validateGraphicsSettings(next);
     if (next.fullscreen != settings_.fullscreen) setFullscreen(next.fullscreen);
     if (next.distantScenery != settings_.distantScenery) {
         renderer_.setDistantSceneDistance(distantSceneryDistances[next.distantScenery]);
         renderer_.setDistantSceneCache(next.distantScenery != 3);
     }
-    if (next.shadowCasters != settings_.shadowCasters) renderer_.setShadowCasters(next.shadowCasters);
-    if (next.skipHighestDetail != settings_.skipHighestDetail) renderer_.setSkipHighestDetail(next.skipHighestDetail);
+    renderer_.setShadowCasters(next.shadowCasters);
+    renderer_.setSkipHighestDetail(next.skipHighestDetail);
     settings_ = next;
+    if (!savePath_.empty()) {
+        try { saveGraphicsSettings(savePath_, settings_); }
+        catch (const std::exception& error) {
+            std::cerr << "Graphics settings could not be saved to " << savePath_.u8string() << ": " << error.what() << '\n';
+        }
+    }
 }
 void RuntimeGraphicsSettings::syncDistantScenery(bool enabled) {
     if (enabled == (settings_.distantScenery != 3)) return;

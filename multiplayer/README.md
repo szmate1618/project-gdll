@@ -275,6 +275,9 @@ for live display, render resolution, distant scenery, shadow-caster and LoD cont
 a resizable window. These are local settings and do not need to match the server.
 `--hidden --fullscreen` uses a hidden desktop-sized window without occupying the
 monitor, for captures and checks.
+Graphics changes save automatically to `userdata/graphics.toml` beside the client
+executable and load on the next launch. Explicit CLI display options override the
+save for that launch. **Reset to defaults** applies and saves the default values.
 
 ## Linux client package
 

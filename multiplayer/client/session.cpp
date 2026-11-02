@@ -315,8 +315,11 @@ struct Graphics {
             &scene.zombies, scene.forests ? &*scene.forests : nullptr, &scene.dogs);
         in.distantSceneCache = options.distantSceneCache;
         renderer->setDistantSceneCache(in.distantSceneCache);
+        renderer->setDistantSceneDistance(viewer::distantSceneryDistances[options.graphics.distantScenery]);
+        renderer->setShadowCasters(options.graphics.shadowCasters);
+        renderer->setSkipHighestDetail(options.graphics.skipHighestDetail);
         settings = std::make_unique<viewer::RuntimeGraphicsSettings>(window, *renderer, options.display.fullscreen,
-            options.display.renderSize());
+            options.display.renderSize(), options.graphicsSettingsFile);
         scene.zombies.releaseAnimationVertices();
         scene.dogs.releaseAnimationVertices();
         renderer->setGroundItems(*scene.groundItems, scene.groundModels);

@@ -2,7 +2,7 @@
 <head><title>Graphics</title><link type="text/template" href="loadout.rml" /><link type="text/rcss" href="graphics.rcss" /></head>
 <body template="loadout" class="loadout graphics">
     <div id="graphics-panel" class="panel main-panel full-panel">
-        <div class="panel-heading">GRAPHICS</div><div class="panel-meta">Changes apply immediately / No restart required</div>
+        <div class="panel-heading">GRAPHICS</div><div class="panel-meta">Applied and saved immediately / No restart required</div>
         <div id="graphics-controls">
             <div class="graphics-row" id="graphics-display-row">
                 <div class="graphics-label">Display mode</div>
@@ -44,6 +44,7 @@
                 </div>
             </div>
         </div>
+        <button id="graphics-reset">RESET TO DEFAULTS</button>
     </div>
 </body>
 </rml>

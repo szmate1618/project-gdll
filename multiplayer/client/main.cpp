@@ -3,6 +3,7 @@
 #include "server/runtime.hpp"
 #ifdef MP_GRAPHICS
 #include "menu.hpp"
+#include "graphics_settings_file.hpp"
 #include <GLFW/glfw3.h>
 #endif
 #include <chrono>
@@ -12,7 +13,13 @@
 
 int main(int argc, char** argv) {
     try {
+#ifdef MP_GRAPHICS
+        const auto settingsFile = viewer::graphicsSettingsPath();
+        auto game = multiplayer::parseGameOptions(argc, argv, viewer::readGraphicsSettings(settingsFile));
+        if (!game.scene.headless) game.scene.graphicsSettingsFile = settingsFile;
+#else
         auto game = multiplayer::parseGameOptions(argc, argv);
+#endif
 #ifndef MP_GRAPHICS
         if (!game.scene.headless) throw std::runtime_error("This build supports --headless clients only");
 #endif
@@ -59,6 +66,9 @@ int main(int argc, char** argv) {
 #ifdef MP_GRAPHICS
                     if (menu && mode == multiplayer::GameMode::Host) {
                         authoritative = menu->hostOptions(); options = authoritative.scene;
+                        // Host configuration owns world settings, never local display preferences.
+                        multiplayer::applyGraphicsDefaults(options, game.scene.graphics);
+                        options.graphicsSettingsFile = game.scene.graphicsSettingsFile;
                     }
 #endif
                     authoritative.scene.seconds = 0;
@@ -95,6 +105,9 @@ int main(int argc, char** argv) {
             }
             if (game.scene.headless || game.scene.seconds) break;
 #ifdef MP_GRAPHICS
+            if (!game.scene.graphicsSettingsFile.empty())
+                if (const auto saved = viewer::readGraphicsSettings(game.scene.graphicsSettingsFile))
+                    multiplayer::applyGraphicsDefaults(game.scene, *saved);
             if (menu->closed()) break;
 #endif
             mode = multiplayer::GameMode::Menu;
