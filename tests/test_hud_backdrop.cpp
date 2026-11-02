@@ -20,12 +20,12 @@ struct Target {
     GLuint framebuffer = 0, color = 0;
     int width, height;
 
-    Target(int widthValue, int heightValue) : width(widthValue), height(heightValue) {
+    Target(int widthValue, int heightValue, GLint format = GL_RGBA8) : width(widthValue), height(heightValue) {
         glGenFramebuffers(1, &framebuffer);
         glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
         glGenTextures(1, &color);
         glBindTexture(GL_TEXTURE_2D, color);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color, 0);
         require(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE,
             "Incomplete backdrop test framebuffer");
@@ -136,31 +136,34 @@ void checkBackdrop(const char* capturePrefix) {
             "Steady scenery must not make a backdrop fade or sample its own backing");
     }
 
+    // RGBA8 blending can round premultiplied color and alpha separately,
+    // producing one-byte reversals. Use a float target for strict fade order.
+    Target adaptation(320, 180, GL_RGBA16F);
     backdrop.reset();
-    target.clear(0);
-    draw(target, 0);
-    target.clear(1);
-    draw(target, .02f);
-    int previous = target.pixel(232, 48);
+    adaptation.clear(0);
+    draw(adaptation, 0);
+    adaptation.clear(1);
+    draw(adaptation, .02f);
+    int previous = adaptation.pixel(232, 48);
     require(previous < 255 && previous > bright + 10, "Dark-to-bright adaptation must fade rather than jump");
     for (int frame = 0; frame < 20; ++frame) {
-        target.clear(1);
-        draw(target, .02f);
-        const int current = target.pixel(232, 48);
+        adaptation.clear(1);
+        draw(adaptation, .02f);
+        const int current = adaptation.pixel(232, 48);
         require(current <= previous && current >= bright - 1, "Darkening must approach its target monotonically");
         previous = current;
     }
     require(previous < bright + 5, "Bright-scene adaptation did not settle");
-    if (capturePrefix) target.capture(std::string(capturePrefix) + "-bright.ppm");
+    if (capturePrefix) adaptation.capture(std::string(capturePrefix) + "-bright.ppm");
 
-    target.clear(64.f / 255);
-    draw(target, .02f);
-    previous = target.pixel(232, 48);
+    adaptation.clear(64.f / 255);
+    draw(adaptation, .02f);
+    previous = adaptation.pixel(232, 48);
     require(previous > 40 && previous < 64, "Bright-to-dark adaptation must fade rather than jump");
     for (int frame = 0; frame < 60; ++frame) {
-        target.clear(64.f / 255);
-        draw(target, .02f);
-        const int current = target.pixel(232, 48);
+        adaptation.clear(64.f / 255);
+        draw(adaptation, .02f);
+        const int current = adaptation.pixel(232, 48);
         require(current >= previous && current <= 64, "Clearing must approach transparency monotonically");
         previous = current;
     }
@@ -168,10 +171,10 @@ void checkBackdrop(const char* capturePrefix) {
 
     const auto transition = [&](int frames, float seconds) {
         backdrop.reset();
-        target.clear(0);
-        draw(target, 0);
-        for (int frame = 0; frame < frames; ++frame) { target.clear(1); draw(target, seconds); }
-        return target.pixel(232, 48);
+        adaptation.clear(0);
+        draw(adaptation, 0);
+        for (int frame = 0; frame < frames; ++frame) { adaptation.clear(1); draw(adaptation, seconds); }
+        return adaptation.pixel(232, 48);
     };
     const int fasterFrames = transition(20, .01f);
     const int slowerFrames = transition(10, .02f);
