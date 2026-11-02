@@ -685,13 +685,19 @@ records sorting cost, full-render timings and matching captures.
 ```
 
 Static opaque roofs are merged at load time by material and 128 m world X/Z
-cell. The existing source-object BVH selects cells independently for the camera
-and sun shadow passes. A selected cell draws all its roofs, trading a small amount
+cell. The camera queries a BVH containing complete roof/wall-batch bounds and
+remaining individual sources. Fully contained roof batches emit one representative
+directly; boundary batches check source bounds to preserve the earliest visible source
+ID and exact source counts. Bounds include complete transformed geometry beyond
+cell edges. Sun and flashlight shadows retain their source-object queries.
+A selected cell draws all its roofs, trading a small amount
 of conservative overdraw for fewer draw calls, without rebuilding GPU buffers
 each frame. `Town V/T` still counts source objects passing visibility checks;
 the title also shows actual color-pass draws, which are printed on exit. Roof
 transforms, normals, texture coordinates, vertex colors, and reflected winding
 are baked once.
+The [direct roof visibility trial](benchmarks/direct-roof-visibility-2026-11-02.txt)
+records battery and AC timing comparisons and extra camera-index storage.
 Doors, facade detail alternatives, transparent surfaces, and collision keep
 their original geometry and behavior. No map regeneration is needed.
 
@@ -705,10 +711,23 @@ draws, so simple walls cannot fill detailed door or window openings, even when
 the nearby member is offscreen. Sun shadows retain their existing simple-shell
 policy and may batch these walls at any distance.
 
-Eligibility is checked once per selected cell per pass; no town population scan
+The camera also selects distant wall batches directly. Each batch owns detailed
+alternatives only when their named group and source transform identify one
+unambiguous simple-wall batch. Wholly distant batches omit those alternatives
+and emit the earliest visible simple-wall source ID. Near batches expand to
+individual sources before the existing facade detail filter; scopes and offscreen
+nearby members therefore preserve their detailed openings. Groups spanning multiple
+wall batches keep their detailed alternatives individually selected. Batch bounds
+include all owned sources and moving-panel padding; partial batches check source
+bounds to preserve exact visibility counts and coplanar draw order.
+The [distant-wall selection trial](benchmarks/direct-wall-visibility-2026-11-02.txt)
+records timing, ownership rules and near/scope regression coverage.
+
+Eligibility is checked per selected cell; no town population scan
 or geometry upload is needed each frame. Camera, sun and flashlight reset their
-batch selections independently. The spatial BVH and old-forest range clipping
-still use the original sources. As with roofs, drawing a complete cell may submit
+batch selections independently. Sun and flashlight shadows retain their original
+source BVH queries. Camera range clipping uses complete batch bounds, resolving
+members at the range boundary. As with roofs, drawing a complete cell may submit
 some extra geometry outside the view, and merged GPU meshes require extra storage.
 
 Use `--no-roof-batching` to compare the same view with individual roof draws:
@@ -718,7 +737,7 @@ Use `--no-roof-batching` to compare the same view with individual roof draws:
 ```
 
 Use `--no-wall-batching` for the corresponding wall comparison. The two switches
-are independent; source-object visibility and collision remain unchanged.
+are independent; selected source counts and collision remain unchanged.
 
 ## Forest ground doodads
 
@@ -2906,6 +2925,20 @@ their expected colors.
 `viewer_fence_renderer` compares wire and railing visibility at 20 and 30 metres,
 including oblique views, with fog disabled. It checks the magnified mask, gate
 gaps, depth writes, and sparse distant coverage, and skips without a display.
+
+Town camera draws, including glass and moving door panels, use a third variant
+of `basic.vert`/`basic.frag`, compiled during renderer construction with
+`TOWN_GEOMETRY=1` and `ZOMBIE_WOUNDS=0`. It omits animation, skinning, wounds,
+instancing, billboards and canopy varyings. Materials, lighting, fog, forest-range
+clipping and depth conventions remain shared. Each program owns its uniform
+locations and values; switches invalidate the material cache. Vegetation,
+animated actors, props and shadow casters retain their existing programs.
+The distant scenery cache uses the town variant for its capture and restores
+the full variant before vegetation, with both programs receiving current-frame
+lighting and camera state. The [master integration report](benchmarks/town-batch-master-port-2026-11-02.txt)
+compares the combined changes with the cache both enabled and disabled.
+`viewer_building_renderer` also checks glass-only scenes while changing lighting
+and depth targets, alongside door movement, textures and opaque/glass ordering.
 
 `viewer_rain_renderer` checks visible animated streaks, repeatable frozen time,
 the enable/disable toggle, night flashlight illumination, opaque depth occlusion,

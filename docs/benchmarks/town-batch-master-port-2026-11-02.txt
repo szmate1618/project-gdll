@@ -1,0 +1,185 @@
+Town shader and direct building visibility: master integration, 2026-11-02
+
+Baseline: master 48de753e23bf9049e620312ca7bf5cce353b63d6.
+Candidate: ports of 9ceea1a (town shader specialization) and a2177f1 (direct
+roof/wall visibility), adapted to the current distant-scene rectangle cache.
+This measures the combined port, without isolating each feature's contribution.
+The separate experimental CPU building occlusion and pixel-LOD trials are absent.
+
+Integration
+===========
+Town camera draws use a static shader compiled during renderer construction.
+The camera queries complete roof/wall batches and remaining source bounds;
+near wall batches expand to their original detailed sources. Shadow queries
+retain the original source BVH. Geometry, collision, generated map files,
+network data and the minimum OpenGL 3.3 requirement are unchanged.
+
+The current master cache requires additional integration beyond the old commits:
+- Prepare the town program's lighting, samplers and matrices before far capture,
+  including scenes containing only glass.
+- Restore the full program and camera matrices before instanced vegetation in
+  both far capture and foreground passes.
+- Classify cache candidates with whole-batch bounds rather than the selected
+  representative's bounds. A batch touching the near region cannot activate
+  an otherwise empty far capture.
+- Preserve exact visible-source counts when the list contains batch representatives.
+The existing multi-draw chunk path and reversed-depth handling are retained.
+
+Preparation and environment
+===========================
+Baseline executables, libraries, sources, headers and shaders were frozen before
+source mutation. The matched baseline harness links saved 48de753 libraries
+against matching headers; the candidate links successfully rebuilt current
+libraries and headers. Compiler dependency files and linker maps verify the
+layouts. No historical object uses the changed Renderer class layout.
+
+AMD Radeon 660M (radeonsi, rembrandt, LLVM 19.1.1, DRM 3.61,
+Linux 6.11.0-29-generic); OpenGL 4.6 Core, Mesa 24.2.8-1ubuntu1~24.10.1.
+Release -O3, 1280x720; identical reversed FP32 depth and shadow/LoD settings.
+The user closed Firefox and confirmed readiness after all builds and tests.
+Sixteen processes ran sequentially from 16:30:58 to 16:35:23 Europe/Budapest.
+All 32 before/after power snapshots show AC online=1 and balanced, via sysfs
+and powerprofilesctl. Clocks and temperature were not pinned or measured.
+There were no overlapping builds, tests or other benchmark runs.
+
+Primary completed-render throughput
+===================================
+Four static views: daytime town, unrestricted old forest, flashlight town,
+and nighttime driving with flashlight shadows configured. In driving mode,
+vehicle occupancy suppresses the held flashlight and retains headlights.
+Cache disabled and enabled are compared separately. Process order is ABBA
+(baseline/candidate/candidate/baseline) with cache off and BAAB with cache on.
+Each process uses 2 rounds per view, with 60 warmup and 256 measured frames per
+block: 16,384 measured frames in 64 completed blocks across eight processes.
+
+Timed blocks contain no per-frame CPU clocks, GPU timestamps, event polling or
+output writes. They include render + glFlush and final GPU retirement. Loading,
+warmup and captures are excluded. Animation and presentation/cache clocks
+advance by an explicit 1/60 second per frame in BOTH variants, preventing a
+faster renderer from doing fewer cache refreshes. No simulation steps occur.
+
+Completed milliseconds/frame, mean of two process averages; lower is better.
+"Pair changes" retain the two independent counterbalanced process comparisons.
+
+Cache | View                       | Baseline | Port   | Change  | Pair changes
+------|----------------------------|----------|--------|---------|----------------
+off   | town                       |   4.6244 | 3.7341 | -19.25% | -22.39%, -15.86%
+off   | old-forest-unrestricted    |   8.7315 | 8.0173 |  -8.18% | -10.55%, -5.70%
+off   | night-town-on              |   4.0306 | 2.9131 | -27.73% | -30.56%, -24.65%
+off   | night-town-driving-shadows |   3.9348 | 3.4541 | -12.22% | -12.65%, -11.78%
+on    | town                       |   3.9609 | 3.0759 | -22.34% | -23.71%, -20.93%
+on    | old-forest-unrestricted    |   7.6982 | 6.9823 |  -9.30% | -8.76%, -9.84%
+on    | night-town-on              |   3.2474 | 2.3134 | -28.76% | -26.25%, -31.22%
+on    | night-town-driving-shadows |   3.4141 | 2.8104 | -17.68% | -18.18%, -17.17%
+
+Every primary case improves in both process pairs. These are offscreen
+completed-render costs, not presented gameplay FPS or input latency.
+
+Separate GPU/CPU diagnostics
+===========================
+One separate process per variant/cache, 3 rounds per view, 60 warmup and 128
+measured frames: 6,144 samples. All GPU/CPU samples are present. Asynchronous
+GPU timestamps allow at most four frames in flight. CPU render excludes query
+waits and captures. GPU and CPU intervals overlap and must not be added.
+These instrumented runs do not determine primary throughput.
+
+Milliseconds; means are medians of the three round means. p95 pools all frames
+for the corresponding variant/cache/view. Each cell is baseline -> port.
+
+Cache | View                       | GPU mean       | GPU p95        | CPU mean       | CPU p95
+------|----------------------------|----------------|----------------|----------------|---------------
+off   | town                       | 4.190 -> 3.668 | 4.890 -> 4.422 | 4.602 -> 2.729 | 5.525 -> 3.886
+off   | old-forest-unrestricted    | 8.650 -> 7.922 | 9.701 -> 8.756 | 8.506 -> 6.112 | 9.657 -> 7.333
+off   | night-town-on              | 3.455 -> 2.974 | 4.078 -> 3.666 | 3.921 -> 2.408 | 4.759 -> 3.281
+off   | night-town-driving-shadows | 3.875 -> 3.419 | 4.527 -> 4.128 | 4.116 -> 2.391 | 4.958 -> 3.385
+on    | town                       | 3.875 -> 3.050 | 8.316 -> 4.009 | 3.680 -> 2.395 | 6.880 -> 5.122
+on    | old-forest-unrestricted    | 7.871 -> 7.110 | 13.351 -> 8.794 | 7.470 -> 4.737 | 13.658 -> 10.532
+on    | night-town-on              | 2.821 -> 2.292 | 6.498 -> 3.601 | 3.057 -> 2.046 | 5.976 -> 4.483
+on    | night-town-driving-shadows | 3.191 -> 2.725 | 7.296 -> 3.727 | 3.234 -> 2.028 | 5.850 -> 4.278
+
+Both GPU and CPU p95 decrease in all eight diagnostic cases. GPU p95 changes
+range from -8.83% to -51.79%; CPU p95 from -22.89% to -31.72%. Each diagnostic
+cell has only one process per variant, so the primary counterbalanced runs
+provide stronger evidence for the overall throughput change.
+
+100,000-zombie regression control
+=================================
+Standard open-area control, frozen baseline/candidate executables and matching
+shader directories, ABBA process order. Six rounds per process, 32 warmup and
+64 measured frames per round: 1,536 measured GPU/CPU samples, all present.
+All runs retain 100,000 visible actors, 10 draws and 6,000,000 camera triangles.
+This control uses the standard instrumented harness, separate from the primary.
+
+Completed render cost: 10.7383 -> 9.9528 ms (-7.31%).
+GPU mean: 7.6996 -> 7.0413 ms; GPU p95: 11.2164 -> 8.7894 ms.
+CPU mean: 10.3369 -> 9.5707 ms; CPU p95: 13.9996 -> 11.8846 ms.
+Per-process completed costs: baseline 11.1280 / 10.3485 ms;
+port 9.8081 / 10.0975 ms. Pair changes: -11.86% / -2.43%.
+Baseline process range is 7.53%, candidate range 2.95%. This mostly exercises
+zombie drawing; do not attribute the entire observed gain to building work.
+It shows no observed crowd regression under this protocol, with residual
+process variation despite the unchanged AC/profile settings.
+
+Correctness and limits
+======================
+All 56 paired recorded geometry/source/cache-counter rows match exactly;
+camera and runtime settings match. Cache is active in every requested cache-on
+view. All 24 map baseline/candidate image pairs and 3 additional crowd pairs
+are pixel-identical. Visual inspection includes useful town buildings, foliage,
+flashlight and headlights; there are no benchmark GL errors. All 16 processes
+exit successfully. No missing geometry accounts for the timing improvement.
+
+Before timing, full rebuild succeeded; 8 focused CPU tests and 24 graphics tests
+passed without skips. Regressions cover representative ordering, range/scope
+boundaries, transformed bounds, near facade fallback, source counts, lighting
+changes, and restoring instanced vegetation in cached and foreground passes.
+After timing, the two building/cache renderer tests also passed with
+MESA_GL_VERSION_OVERRIDE=3.3, MESA_GLSL_VERSION_OVERRIDE=330 and
+MESA_EXTENSION_OVERRIDE=-GL_ARB_clip_control, exercising the conventional-depth
+fallback. No additional performance runs were made for that check.
+
+No steady-rendering regression was observed in this matrix. Results apply to
+this AC-powered Linux GPU and these static render workloads. Full-game CPU
+simulation, AI, dynamic physics, audio, networking, VSync/input latency, Windows,
+battery operation and other GPUs were not benchmarked. Earlier individual
+feature reports have mixed results on other power/workload combinations.
+The combined gains here do not replace those limits or prove a gain everywhere.
+
+The new shader program and CPU spatial index add loading-time work and storage.
+Startup time, index-allocation time and RSS were not measured separately.
+Whole-process wall times include loading, warmup, captures and timing; they are
+not startup measurements. No map regeneration is required.
+
+Artifacts and reproduction
+==========================
+Local artifacts: build/benchmarks/town-batch-master-port-20261102/
+run-manifest.json records all executable paths, arguments, output paths and
+working directories. run_matrix.py contains the complete sequential protocol;
+it requires GD_BENCH_READY=1 after the user's readiness and a quiet window.
+Use a fresh artifact output directory to preserve the existing measurements.
+
+Common map invocation from the repository root (paths under the artifact root):
+  VARIANT-bin/matched_map_primary output/godollo.glb output/trees.instances.json
+    output/osm/forest_patches.json build/forest_perf/billboard-views.txt
+    VARIANT-shaders OUTPUT 2 256 port-core --throughput [--distant-cache]
+where VARIANT is baseline or candidate. Secondary diagnostics use
+3 128 port-core without --throughput. The crowd control uses the saved
+benchmark_zombie_crowd with an absolute assets/zombies/models path and a
+VARIANT-cwd working directory containing a symlink to its frozen shaders.
+
+matched_map_primary.cpp, compile_map.py, compile commands, compiler dependency
+files and linker maps preserve the matched-harness construction. Baseline and
+candidate source/header/library snapshots remain in the local artifact tree.
+analysis.txt/json, raw CSVs, captures, and power-and-processes.jsonl retain the
+measurements. baseline-preservation.json and candidate-preservation.json record
+revision and executable hashes. The benchmark agent changed no production code.
+
+SHA256 inputs:
+map: 1c9efcf7e71beb3c67ca2cfbc77231f5c70de62781faa3bc185ce8617c6e560d
+trees: 2a6ef4dbf621b737f52e0727e125a4255a0e901b768681adcda6ec3460462c72
+forests: b6adae804a188b03f050e32310458d05d749e8d399e914f8efec85ec55e443e6
+cameras: 53284f7792cbfba7aa5d9caf6eeeb70fe1de4c3eca6f9e20d7eb0181fe6a8c9b
+Candidate source patch captured before documentation completion:
+7a4c4d38d0163bc67842df5003695e04dc5ab59981ef651158cb168b06e315ad
+Matched harness source:
+e092cf752082669208e7b027c7664007a1946df2cafc841bcb8e41ee69851840

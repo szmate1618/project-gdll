@@ -34,6 +34,15 @@ capture. Bounds crossing that distance stay at full rate; complete building
 batches share one decision. Translucent surfaces, movable panels, actors,
 vehicles, props, effects, shadows and the HUD retain their normal cadence.
 Views without distant static candidates bypass capture allocation and drawing.
+The camera visibility list may represent a complete roof or distant wall batch
+with one source ID. Cache eligibility uses the complete batch bounds rather than
+that representative's bounds, including when deciding whether any distant work
+exists. Visible-object counters still include all selected sources.
+
+Both cached and full-rate town passes use the specialized town shader. Its
+lighting and camera uniforms are prepared before a capture refresh, including
+glass-only scenes. Each pass restores the full shader and camera matrices before
+drawing instanced trees and forest volumes.
 
 The existing terrain/road/railway/fence index partitions remain: map-wide meshes
 have 128 m cells with conservative bounds and a BVH, sharing original vertices

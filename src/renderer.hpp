@@ -2,6 +2,7 @@
 
 #include "opengl.hpp"
 #include "scene_depth.hpp"
+#include "building_visibility.hpp"
 #include "basic_shader_uniforms.hpp"
 #include <array>
 #include <filesystem>
@@ -212,6 +213,7 @@ private:
     void releaseDistantScene() noexcept;
     bool keepStaticBounds(const VisibilityBounds& bounds) const;
     bool keepStaticDraw(std::size_t index) const;
+    const VisibilityBounds& cacheBoundsForDraw(std::size_t index, glm::vec3 eye, const glm::mat4& projection) const;
     bool hasDistantStatic(const Camera& camera, const glm::mat4& projection);
     bool drawStaticChunks(std::size_t index);
     void drawStaticScene(const glm::mat4& view, const glm::mat4& projection, const glm::mat4& gpuProjection);
@@ -370,8 +372,7 @@ private:
     void uploadModel(const Model& source, ModelGPU& destination,
                      const std::vector<Primitive>* geometry = nullptr);
     void uploadMeshes(const std::vector<Primitive>& source, ModelGPU& destination);
-    void uploadRoofBatches(const Model& source);
-    void uploadWallBatches(const Model& source);
+    void uploadBuildingBatches(const Model& source);
     void beginTownPass(glm::vec3 eye, const glm::mat4& projection, bool sunShadow = false);
     void drawBuildingBatch(const ModelGPU& model, std::size_t batch);
     void drawBoxes(const glm::mat4& projectionView);
@@ -433,6 +434,8 @@ private:
     // Culling/winding remain explicit because individual layers override them.
     std::optional<MaterialState> materialState_;
     void selectBasicShader(bool wounds);
+    void selectTownShader();
+    void bindBasicProgram(GLuint program, const BasicShaderUniforms& uniforms);
     void applyBasicSamplersAndVisibility();
     void applyMaterial(const ModelGPU& model, int index, bool mirrored);
     void draw(const DrawGPU& draw);
@@ -443,8 +446,8 @@ private:
     const Material& material(const ModelGPU& model, int index) const;
     std::filesystem::path shaderDirectory_;
     GLuint program_ = 0, framebuffer_ = 0, colorBuffer_ = 0, depthBuffer_ = 0;
-    GLuint healthyZombieProgram_ = 0, activeBasicProgram_ = 0;
-    BasicShaderUniforms woundUniforms_, healthyZombieUniforms_;
+    GLuint healthyZombieProgram_ = 0, townProgram_ = 0, activeBasicProgram_ = 0;
+    BasicShaderUniforms woundUniforms_, healthyZombieUniforms_, townUniforms_;
     int width_ = 0, height_ = 0;
     GLuint overlayFramebuffer_ = 0, overlayColor_ = 0;
     int overlayWidth_ = 0, overlayHeight_ = 0;
@@ -536,6 +539,8 @@ private:
     std::vector<std::size_t> roofBatchForDraw_;
     std::vector<bool> roofBatchDrawn_;
     bool roofBatching_ = true;
+    BuildingVisibility buildingVisibility_;
+    BuildingVisibilityState buildingCameraVisibility_;
     ModelGPU wallModel_;
     std::vector<std::size_t> wallBatchForDraw_;
     std::vector<BuildingBatchDetail> wallBatchDetails_;

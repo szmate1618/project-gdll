@@ -210,6 +210,94 @@ void checkMaterialTexturesBetweenFrames() {
     viewer::Renderer::checkErrors("material textures between frames");
 }
 
+void checkGlassOnlyLighting() {
+    viewer::Model model;
+    viewer::Material glass;
+    glass.baseColor = {.25f, .25f, .25f, .5f};
+    glass.alphaMode = "BLEND";
+    model.materials.push_back(glass);
+    card(model, {0, 3, -20}, {4, 4}, 0);
+    viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
+    renderer.setShadows(false);
+    renderer.setHaze(false);
+    renderer.setGroundFog(false);
+    renderer.resize(width, height);
+    viewer::Camera camera;
+    camera.setPosition({0, 3, 0});
+    camera.setOrientation(-90, 0);
+    // A scene containing only glass must still receive current camera/lighting
+    // uniforms, including after changing depth targets and returning to a light.
+    for (const auto mode : {viewer::SceneDepthMode::Conventional24,
+                            viewer::SceneDepthMode::Conventional32,
+                            viewer::SceneDepthMode::Reversed32}) {
+        if (mode == viewer::SceneDepthMode::Reversed32 && !renderer.reversedDepthSupported()) continue;
+        renderer.setSceneDepthMode(mode);
+        for (const float ambient : {1.f, .25f, 1.f}) {
+            viewer::SunLighting lighting;
+            lighting.color = glm::vec3(0);
+            lighting.skyAmbient = lighting.groundAmbient = glm::vec3(ambient);
+            renderer.setLighting(lighting);
+            renderer.render(camera);
+            const auto background = pixel(camera, {8, 3, -20});
+            // Independent sRGB values for linear .25 and .0625, followed by
+            // the existing half-opacity framebuffer blend against clear color.
+            const float encoded = ambient == 1.f ? 137.f : 71.f;
+            const auto expected = (glm::vec3(encoded) + background) * .5f;
+            require(glm::length(pixel(camera, {0, 3, -20}) - expected) < 3,
+                    "Glass-only scene must retain current lighting after program/depth switches");
+            require(renderer.sceneStats().visible == 1 && renderer.sceneStats().drawCalls == 1,
+                    "Glass-only scene must submit exactly its one transparent surface");
+        }
+    }
+    viewer::Renderer::checkErrors("glass-only lighting");
+}
+
+void checkBatchSourceOrdering() {
+    viewer::Model model;
+    model.materials.resize(2);
+    model.materials[0].unlit = model.materials[1].unlit = true;
+    model.materials[0].baseColor = {1, 0, 0, 1};
+    model.materials[1].baseColor = {0, 1, 0, 1};
+    card(model, {0, 0, 0}, {1, 1}, 0);
+    card(model, {0, 0, 0}, {1, 1}, 1);
+    model.draws.assign(512, {0, glm::translate(glm::mat4(1), {100000, 0, -20}), "filler", 1});
+    const auto place = [&](std::size_t id, std::size_t mesh, float x, const char* name) {
+        model.draws[id] = {mesh, glm::translate(glm::mat4(1), {x, 3, -20}), name};
+    };
+    // All red roofs belong to the same material/cell batch. The lowest source
+    // is offscreen; the middle source leaves a narrow scope while the final
+    // source overlaps an ordinary green surface at precisely equal depth.
+    place(0, 0, 100, "building_offscreen_roof");
+    place(5, 0, 7, "building_visible_roof");
+    place(8, 1, 2, "green_overlay");
+    place(511, 0, 2, "building_last_roof");
+    viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
+    renderer.setShadows(false);
+    renderer.setHaze(false);
+    renderer.setGroundFog(false);
+    renderer.resize(width, height);
+    viewer::Camera wide;
+    wide.setPosition({2, 3, 0});
+    wide.setOrientation(-90, 0);
+    auto scoped = wide;
+    scoped.cycleViewMode();
+    for (int repeat = 0; repeat < 2; ++repeat) {
+        for (const bool culling : {true, false}) {
+            renderer.setSceneCulling(culling);
+            renderer.render(wide);
+            require(glm::length(pixel(wide, {2, 3, -20}) - glm::vec3(255, 0, 0)) < 3,
+                    "Earliest visible roof must draw its full batch before the coplanar overlay");
+            require(renderer.sceneStats().drawCalls == 2,
+                    "Several visible roof sources must retain exactly one batch and one overlay draw");
+            renderer.render(scoped);
+            const auto expected = culling ? glm::vec3(0, 255, 0) : glm::vec3(255, 0, 0);
+            require(glm::length(pixel(scoped, {2, 3, -20}) - expected) < 3,
+                    "A batch representative must use the earliest selected source, respecting scope/culling changes");
+        }
+    }
+    viewer::Renderer::checkErrors("batched source ordering");
+}
+
 viewer::Model orderingFixture(std::size_t population) {
     viewer::Model model;
     model.materials.resize(7);
@@ -359,6 +447,8 @@ int main(int argc, char** argv) {
         std::cout << "OpenGL renderer: " << glGetString(GL_RENDERER) << '\n';
         checkDoubleSidedSurfaces();
         checkMaterialTexturesBetweenFrames();
+        checkGlassOnlyLighting();
+        checkBatchSourceOrdering();
         checkSceneOrdering();
         checkHingedDoor(argc == 3 ? std::filesystem::path(std::string(argv[2]) + ".hinge.ppm") : std::filesystem::path{});
         for (const bool culling : {true, false}) {

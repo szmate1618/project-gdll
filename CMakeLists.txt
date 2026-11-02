@@ -169,7 +169,7 @@ add_library(viewer_zombie_animation_buffer STATIC src/zombie_animation_buffer.cp
 target_link_libraries(viewer_zombie_animation_buffer PUBLIC viewer_model)
 viewer_warnings(viewer_zombie_animation_buffer)
 
-add_library(viewer_building_batches STATIC src/building_batch.cpp)
+add_library(viewer_building_batches STATIC src/building_batch.cpp src/building_visibility.cpp)
 target_link_libraries(viewer_building_batches PUBLIC viewer_visibility)
 viewer_warnings(viewer_building_batches)
 
@@ -995,6 +995,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_roof_batch PRIVATE viewer_building_batches)
     viewer_warnings(test_roof_batch)
     add_test(NAME viewer_roof_batch COMMAND test_roof_batch)
+
+    add_executable(test_building_visibility tests/test_building_visibility.cpp)
+    target_link_libraries(test_building_visibility PRIVATE viewer_building_batches)
+    viewer_warnings(test_building_visibility)
+    add_test(NAME viewer_building_visibility COMMAND test_building_visibility)
 
     add_executable(test_roof_renderer tests/test_roof_renderer.cpp)
     target_link_libraries(test_roof_renderer PRIVATE viewer_renderer glfw)

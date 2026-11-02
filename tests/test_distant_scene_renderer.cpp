@@ -1,4 +1,5 @@
 #include "renderer.hpp"
+#include "tree_billboard_fixture.hpp"
 #include <GLFW/glfw3.h>
 #include <cmath>
 #include <iostream>
@@ -46,9 +47,12 @@ void compare(viewer::Renderer& renderer, const viewer::Camera& camera, double se
     renderer.setDistantSceneCache(true);
     renderer.render(camera,seconds,{},seconds);
     const auto cached = pixels(width, height);
+    const auto visible = renderer.sceneStats().visible;
     renderer.setDistantSceneCache(false);
     renderer.render(camera,seconds,{},seconds);
     const auto reference = pixels(width, height);
+    require(renderer.sceneStats().visible == visible,
+            "Cached and direct rendering must retain the same visible source count");
     std::size_t errors = 0, foreground = 0;
     for (std::size_t i = 0; i < cached.size(); i += 3) {
         if (reference[i] == 255 || reference[i+1] == 255 || reference[i+2] == 255) ++foreground;
@@ -58,6 +62,77 @@ void compare(viewer::Renderer& renderer, const viewer::Camera& camera, double se
     require(foreground > 100, "Reference must contain useful colored geometry");
     require(errors < static_cast<std::size_t>(width*height/50), "A fresh rectangle must match direct static rendering");
     renderer.setDistantSceneCache(true);
+}
+void batchPair(viewer::Model& model, float x, float firstZ, float secondZ, const char* suffix) {
+    quad(model,{40,0,0},{40,0,0},{0,40,0},{.25f,.25f,.25f,1});
+    model.materials.back().unlit = false;
+    auto& first = model.draws.back();
+    first.name = std::string("building_first_") + suffix;
+    first.transform[3] = {x,0,firstZ,1};
+    auto second = first;
+    second.name = std::string("building_second_") + suffix;
+    second.transform[3] = {x+60,0,secondZ,1};
+    model.draws.push_back(second);
+}
+glm::vec3 pixel(const viewer::Camera& camera, glm::vec3 point) {
+    const auto clip = camera.projection(320.f/180) * camera.view() * glm::vec4(point,1);
+    const int x = static_cast<int>((clip.x/clip.w*.5f+.5f)*320);
+    const int y = static_cast<int>((clip.y/clip.w*.5f+.5f)*180);
+    require(x >= 0 && x < 320 && y >= 0 && y < 180, "Cache fixture sample must be onscreen");
+    unsigned char color[3]{};
+    glReadPixels(x,y,1,1,GL_RGB,GL_UNSIGNED_BYTE,color);
+    return {float(color[0]),float(color[1]),float(color[2])};
+}
+void checkBatchedTown(viewer::SceneDepthMode mode) {
+    viewer::Camera camera; camera.setPosition({0,0,0}); camera.setOrientation(-90,0);
+    for (const auto* suffix : {"roof","walls"}) {
+        viewer::Model model;
+        // Both centers share a 128 m cell. The representative is beyond 1 km,
+        // but the complete batch touches the full-rate near region.
+        batchPair(model,0,-1010,-960,suffix);
+        viewer::Renderer renderer(model,VIEWER_SHADER_DIR);
+        renderer.setSceneDepthMode(mode); renderer.resize(320,180); renderer.setShadows(false);
+        renderer.setDistantSceneCache(true); renderer.render(camera,0,{},0);
+        require(!renderer.distantCacheStats().active && renderer.sceneStats().drawCalls == 1,
+                "A near-only building batch must not activate an empty distant capture");
+        require(renderer.sceneStats().visible == 2, "A batch representative must retain both visible sources");
+    }
+    viewer::Model model;
+    batchPair(model,0,-1500,-1500,"roof");
+    batchPair(model,256,-1540,-1540,"walls");
+    quad(model,{50,0,-500},{10,0,0},{0,40,0},{0,1,0,1});
+    viewer::TreeLayer trees; trees.assets.push_back({"tree",{},billboard_test::asset()});
+    for (const auto placement : {glm::vec4(-400,-160,-1400,70),glm::vec4(150,-60,-450,30)}) {
+        const auto transform = glm::scale(glm::translate(glm::mat4(1),glm::vec3(placement)),glm::vec3(placement.w));
+        trees.instances.push_back(billboard_test::instance(trees.assets[0].model,transform));
+    }
+    viewer::Renderer renderer(model,VIEWER_SHADER_DIR,&trees);
+    renderer.setSceneDepthMode(mode); renderer.resize(320,180); renderer.setShadows(false);
+    renderer.setHaze(false); renderer.setGroundFog(false); renderer.setTreeCanopyShading(false);
+    renderer.setTreeBillboardDistance(0);
+    int frame = 0;
+    for (const float ambient : {1.f,.25f,1.f}) {
+        viewer::SunLighting lighting; lighting.color = glm::vec3(0);
+        lighting.skyAmbient = lighting.groundAmbient = glm::vec3(ambient);
+        renderer.setLighting(lighting);
+        if (frame == 1) { camera.setPosition({100,0,0}); camera.setOrientation(-86,-1); }
+        for (const bool cached : {true,false}) {
+            renderer.setDistantSceneCache(cached); renderer.render(camera,frame*.1,{},frame*.1);
+            require(renderer.sceneStats().visible == 5,
+                    "Cached/direct town queries must count all compressed roof and wall sources");
+            require(renderer.distantCacheStats().active == cached,
+                    "Wholly distant building batches must participate in the requested cache");
+            const float encoded = ambient == 1.f ? 137.f : 71.f;
+            require(glm::length(pixel(camera,{100,0,-1500})-glm::vec3(encoded)) < 3 &&
+                    glm::length(pixel(camera,{390,0,-1540})-glm::vec3(encoded)) < 3,
+                    "Fresh far captures must use this frame's town lighting and camera matrices");
+            require(glm::length(pixel(camera,{-440,0,-1400})-glm::vec3(255,0,0)) < 3 &&
+                    glm::length(pixel(camera,{130,-10,-450})-glm::vec3(255,0,0)) < 3,
+                    "Town draws must restore the instanced foliage shader in both far and near passes");
+        }
+        ++frame;
+    }
+    viewer::Renderer::checkErrors("batched town distant cache integration");
 }
 void run(viewer::SceneDepthMode mode) {
     viewer::Model model;
@@ -176,6 +251,7 @@ int main() {
                                viewer::SceneDepthMode::Reversed32}) {
             if (mode == viewer::SceneDepthMode::Reversed32 && !reversed) continue;
             run(mode);
+            checkBatchedTown(mode);
         }
         std::cout << "Distant cache rendering passed (" << glGetString(GL_RENDERER) << ")\n";
     }

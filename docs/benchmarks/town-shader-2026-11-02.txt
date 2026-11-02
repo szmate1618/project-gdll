@@ -1,0 +1,213 @@
+Static town shader variant — 2026-11-02
+=======================================
+
+Implementation
+--------------
+Town camera geometry uses a third linked basic shader variant, compiled during
+Renderer construction with TOWN_GEOMETRY=1 and ZOMBIE_WOUNDS=0. It removes baked
+animation/interpolation, live skinning, instance transforms, tree billboards,
+canopy varyings and zombie wound/cavity handling. The full and wound-free
+animated variants retain their original behavior. Shared lighting/material
+calculations stay in basic.vert/basic.frag rather than duplicated shader files.
+
+The variant draws both opaque town sources/batches and sorted town glass.
+Moving doors retain their ordinary object transforms. Materials, alpha masks,
+double-sided handling, fog, lighting, forest-range clipping and depth conventions
+are preserved. Shadow casters, vegetation, actors and ordinary runtime props
+retain their existing programs. Program switches select matching cached uniform
+locations and invalidate the material cache. Camera lighting/matrices are
+prepared even for a scene containing only transparent town geometry. Scenes
+with no eligible town sources skip that preparation. The shader adds no meshes,
+textures, per-object options or public runtime selection switch.
+
+Correctness
+-----------
+The full CMake build succeeded. All 24 registered graphics/weapon-overlay
+regressions passed on the AMD Radeon 660M, plus viewer_model_visibility.
+The existing unused debugMessage warning remains. The added building regression
+checks independently expected glass colors under changing ambient illumination
+with no opaque sources, including repeat rendering and all supported depth modes.
+Existing checks cover doors, texture restoration between renderers, reflected
+roof geometry, masks, glass ordering, vegetation and healthy/wounded actors.
+
+Initial measurements: power-source confound
+------------------------------------------
+The initial four-process ABBA map/crowd comparison, a reverse-order crowd repeat
+and an in-process crowd diagnostic were completed before the user reported
+disconnecting the laptop charger. AC power was not recorded continuously during
+those runs; checking AC afterward cannot establish the state during measurement.
+Their timing estimates are withdrawn and must not support a speedup or regression
+claim. This includes the preliminary 5% daytime-town GPU saving discussed in chat.
+Their matching images/counts remain useful correctness evidence.
+
+The initial crowd intervals varied materially across processes. Alternating
+paths in one renderer did not reproduce its separate-process CPU slowdown, but
+that diagnostic also lacks continuous power provenance and is not a final result.
+No power profile, clock limit or system setting was changed by this work.
+
+Final comparison protocol
+-------------------------
+Frozen baseline: clean revision 1090b38 before this change, freshly rebuilt.
+Frozen candidate: the implemented variant and matching rebuilt Renderer users.
+Both use the current headers/libraries in their own builds; saved executables
+and shader directories remain separate. No historical headers or ABI layouts
+are mixed. No generation, configuration, map, asset or player-save changes occur.
+
+The user selected charger-connected benchmarking. The replacement comparison
+requires AC online and the existing balanced platform profile before every
+process. A common monitor records AC, profile and available GPU clock/activity
+readings every 0.5 seconds; any observed AC/profile change invalidates the run.
+Sampling cannot establish perfectly constant clocks or exclude other workloads.
+
+Each map process runs all 13 standard benchmark_render_wins views at 1280x720,
+with six rounds of 60 warmup and 64 measured frames per view. Each standard
+100,000-zombie process has six rounds of 32 warmup and 64 measured frames.
+Process order is baseline/candidate/candidate/baseline separately for map/crowd.
+Each process result is the median of six round means; aggregate levels are the
+median of the two process results per version, without pooling frames.
+Asynchronous GPU timestamps and bounded in-flight work are retained. Warmup
+completion, query draining and captures are outside CPU render timing. CPU and
+GPU overlap; elapsed intervals include stalls and are not presented gameplay FPS.
+Map cameras are static; animation input follows deterministic 60 Hz, with no AI,
+audio, player updates, dynamic physics or presentation. Crowd uses its standard
+deterministic idle simulation/preparation and verifies all 100,000 submissions.
+
+Charger-connected results
+-------------------------
+All eight replacement processes completed. All 605 power samples report AC
+online and balanced profile. Radeon 660M, Mesa 24.2.8, OpenGL 4.6 Core; default
+reversed float32 camera depth and 1024-square sun map in both builds. Nearest
+vegetation filtering, card splitting and the normal old-forest policy remain on.
+The published map SHA256 is
+1c9efcf7e71beb3c67ca2cfbc77231f5c70de62781faa3bc185ce8617c6e560d.
+
+Each map view/process and crowd process retains all 384 finite GPU samples:
+19,968 measured map frames and 1,536 measured crowd frames. All 13 map captures
+match byte-for-byte across four processes. Geometry counters, cameras and input
+fingerprints match; metadata differs only in shader-directory/source identities.
+All crowd captures/metadata match, with 100,000 LOD3 actors, ten draws and
+6,000,000 camera triangles every measured frame; zero zombie sun casters.
+
+Milliseconds, aggregate of two processes per version; lower is better:
+
+View                          CPU baseline -> town    GPU baseline -> town
+osm:4:2:0                         7.640 -> 7.788          7.898 -> 7.933
+osm:-6:-5:0                       2.696 -> 3.139          7.180 -> 6.975
+aerial                            0.297 -> 0.315          5.842 -> 5.815
+open-clearing                     4.999 -> 4.609          4.895 -> 4.553
+old-forest-100m                   0.283 -> 0.380          6.008 -> 5.879
+old-forest-unrestricted           8.169 -> 7.612          8.522 -> 8.123
+town                              4.619 -> 4.004          4.175 -> 3.619
+night-forest-off                  6.363 -> 5.750          6.368 -> 5.801
+night-forest-on                   6.514 -> 5.817          6.710 -> 5.960
+night-forest-driving-shadows      6.254 -> 5.135          7.008 -> 6.539
+night-town-off                    3.127 -> 2.762          2.942 -> 2.614
+night-town-on                     3.645 -> 3.319          3.331 -> 3.006
+night-town-driving-shadows        3.973 -> 3.527          3.813 -> 3.406
+100,000-zombie control           10.294 -> 10.273          7.066 -> 6.908
+
+The daytime town view improves by 0.615 ms CPU and 0.556 ms GPU elapsed (13.3%
+each). Both candidate process results beat both baseline results in that view.
+In execution order, CPU values are 5.075 / 3.991 / 4.017 / 4.163 ms and GPU
+values are 4.525 / 3.619 / 3.619 / 3.825 ms. The baseline endpoints drift
+materially even with AC held fixed. The matched direction repeats, but 13.3%
+is this session's estimator rather than a fixed hardware-wide gain.
+
+Nighttime-town aggregate GPU savings are 9.8..11.2%; CPU savings are 9.0..11.7%.
+Night-town-on CPU does not improve in both adjacent pairs. Sparse old-forest
+CPU render increases by 0.097 ms with only seven visible town sources; added
+program/uniform setup is a plausible cost, not an isolated attribution. Forest
+CPU changes are mixed, including a 0.444 ms increase in osm:-6:-5:0. This is
+not an across-the-board CPU improvement and no visibility threshold is added.
+
+The 100k control has no consistent change: aggregate CPU is 0.2% lower and GPU
+2.2% lower, but candidate process values straddle baseline values. In execution
+order GPU is 7.439 / 6.153 / 7.663 / 6.693 ms; CPU is
+10.408 / 9.867 / 10.679 / 10.179 ms. This neither demonstrates a crowd speedup
+nor establishes performance equivalence. No repeated directional crowd penalty
+was observed in the AC-only comparison.
+
+The AC comparison favors the first town variant in the tested town views, with
+the sparse-scene CPU cost and variation limits above. The battery comparison
+below does not reproduce that daytime-town gain. Further specializations need
+their own matched measurements. No general gameplay/FPS claim follows from
+these static views or from timing the entire GPU interval.
+
+Battery-only repeat
+-------------------
+The user disconnected the charger and requested the same measurements again.
+Both frozen executable/shader manifests and all published inputs were checked
+against the AC comparison before running. No rebuild or source change was made.
+run_battery.py repeats the same map/crowd ABBA order, cameras, dimensions,
+warmups, frames and aggregation. It requires AC offline, balanced profile and
+discharging battery; these values and battery capacity are sampled every 0.5 s.
+All 634 samples retain those conditions. Recorded capacity spans 91% to 86%.
+
+All eight processes completed with all 384 finite GPU samples per view/process,
+again totaling 19,968 measured map frames and 1,536 measured crowd frames.
+Captures, counts and camera metadata match within the battery comparison.
+All 56 capture files also match their corresponding AC-run images exactly;
+per-process settings/input metadata match across power states. No image change
+or population reduction explains the timings.
+
+Milliseconds, aggregate of two processes per version; lower is better:
+
+View                          CPU baseline -> town    GPU baseline -> town
+osm:4:2:0                         7.092 -> 7.356          7.862 -> 7.672
+osm:-6:-5:0                       3.758 -> 3.051          7.321 -> 6.926
+aerial                            0.460 -> 0.457          5.847 -> 5.775
+open-clearing                     5.332 -> 4.737          5.222 -> 4.737
+old-forest-100m                   0.431 -> 0.448          5.981 -> 5.828
+old-forest-unrestricted           8.114 -> 8.144          8.608 -> 8.360
+town                              4.467 -> 4.553          4.068 -> 4.220
+night-forest-off                  6.441 -> 5.796          6.573 -> 5.940
+night-forest-on                   6.571 -> 6.268          6.808 -> 6.456
+night-forest-driving-shadows      6.834 -> 6.500          7.450 -> 6.960
+night-town-off                    3.534 -> 3.639          3.189 -> 3.124
+night-town-on                     3.540 -> 3.711          3.236 -> 3.332
+night-town-driving-shadows        3.760 -> 3.673          3.750 -> 3.575
+100,000-zombie control           13.760 -> 13.226          5.529 -> 5.300
+
+The daytime-town shader gain does not repeat on battery: CPU render is 0.086 ms
+higher (1.9%) and GPU elapsed is 0.153 ms higher (3.7%). In execution order,
+CPU values are 4.227 / 4.578 / 4.529 / 4.708 ms; GPU values are
+3.939 / 4.129 / 4.311 / 4.197 ms. Adjacent CPU comparisons have opposite signs;
+both baseline endpoints and several other views vary materially. These results
+do not establish a repeatable CPU regression or a general optimization benefit.
+Nighttime-town results are mixed: driving GPU improves 4.7%, flashlight-off
+improves 2.0%, flashlight-on is 3.0% slower. Forest/clearing GPU changes favor
+the variant in this session, while CPU results vary by view.
+
+Comparing the current variant across power states, daytime-town CPU render is
+4.004 ms AC versus 4.553 ms battery (+13.7%), and GPU elapsed is
+3.619 versus 4.220 ms (+16.6%). The standard crowd behaves differently:
+CPU render is 10.273 versus 13.226 ms (+28.7%), while GPU elapsed is
+6.908 versus 5.300 ms (-23.3%). A shorter GPU interval is not automatically a
+faster completed frame. Crowd completed-frame timing (including idle simulation,
+preparation, render submission, query scheduling and final GPU drain) is
+10.693 ms AC versus 13.725 ms battery (+28.4%) for the current variant.
+This remains offscreen benchmark throughput, not presentation/gameplay FPS.
+
+Both power-state comparisons use the identical frozen workload, but they were
+run in separate sessions with unlocked clocks and potentially different thermal
+or background conditions. The results show power-state-dependent measurements;
+they do not isolate unplugging as the sole cause of every difference. The earlier
+13% town improvement must not be presented as a power-independent gain. Retain
+both comparisons and the mixed battery result when judging this optimization.
+
+Follow-up: town-shader-in-process-2026-11-02.txt alternates both draw paths in
+one renderer and separates completed-frame measurements from phase diagnostics.
+Use that controlled comparison alongside these separate-process results when
+judging the change; these earlier raw measurements remain preserved.
+
+Artifacts
+---------
+Ignored root: build/benchmarks/town-shader-20261102/.
+baseline/ and candidate/ contain frozen executables/shaders; revision.txt and
+implementation.patch identify the sources. run.py, repeat_crowd.py and control/
+retain the initial, power-confounded investigation. run_ac.py and ac/ contain
+the charger-connected comparison, raw samples, per-process summaries, power
+records and final aggregates. run_battery.py and battery/ retain the matched
+battery-only repeat, including completed-frame-comparison.json for the crowd's
+AC/battery throughput comparison. candidate-contact.png preserves the inspected town,
+flashlight, forest and aerial contact sheet. Old outputs are retained intact.

@@ -1,0 +1,159 @@
+Opaque building-batch list compaction — 2026-11-02
+================================================
+
+Outcome: do not keep this implementation. It shortened the list but increased
+CPU preparation and produced no consistent completed-frame benefit. The trial
+was removed; the accepted town shader was restored byte-for-byte. The independent
+batched/coplanar source-order regression remains to protect existing behavior.
+
+Trial and correctness contract
+------------------------------
+The starting point includes the accepted specialized town shader. This trial
+compacts only opaque camera source IDs, after visibility/detail filtering and
+material classification but before the ascending-ID sort. One scratch slot per
+wall/roof batch records the output entry. Repeated references replace its source
+with the minimum selected ID, preserving the first source the old sort would
+draw. Walls use exactly the existing conservative whole-cell detail predicate;
+near cells stay individual. Roof/wall batching toggles retain their meaning.
+
+The compacted list does not change geometry, source visibility counts, glass
+sorting, door transforms or collision. Shadow lists retain their original path.
+Camera batch-pass initialization moves before gathering so eligibility uses the
+current eye/projection rather than the preceding light pass. A shared helper
+keeps wall eligibility identical in compaction and submission. Scratch belongs
+to the fixed renderer scene and is reused; empty/no-batch scenes skip the work.
+
+The new GPU regression interleaves batched roofs and a coplanar ordinary surface.
+It independently checks red/green depth ownership when lower-ID batch members
+are visible, offscreen, scoped out or selected with culling disabled. Repeated
+view changes exercise scratch reset. Existing wall tests cover individual
+fallback for near/offscreen detail members, scope magnification and shadows.
+The full rebuild and all 24 graphics/weapon-overlay checks plus model visibility
+pass. The existing unused debugMessage warning remains.
+
+Controlled timing protocol
+---------------------------
+Both paths run in one current-layout Renderer and GL context. A scratch control
+flag enables only compaction and the necessary placement of batch initialization.
+Disabled, the original list and original initialization order are retained.
+The accepted specialized shader is enabled in both conditions. Compiler
+dependencies and a linker map verify current headers and exclude a second
+renderer.cpp object. No historical layouts or mtimes are restored for timing.
+
+Primary timing repeats the preceding in-process protocol: four processes, each
+with daytime town, flashlight town and a sparse old-forest view; eight balanced
+blocks/view, 60 warmup and 512 measured render+glFlush calls/block, final GPU
+retirement included in elapsed time. No per-frame phase clocks or queries run
+in the primary blocks. Processes use base/inverse/inverse/base orders.
+The base is original/compact/compact/original/compact/original/original/compact.
+
+Each process/view takes the median of four adjacent original-minus-compact
+differences; the aggregate takes the median of four process medians. Independent
+flat levels take medians of condition blocks/processes. Clear gain requires >=1%
+paired saving, all four process medians positive and >=12/16 faster pairs;
+clear regression is symmetric, otherwise mixed. This predeclared practical rule
+is not a significance or equivalence test.
+
+Two separate diagnostic processes (base/inverse) use 128 measured frames/block,
+asynchronous whole/opaque/glass GPU timestamps and at most four frames in flight.
+CPU phases separate query, detail filtering, classification, compaction, opaque
+sort, glass sort and submission. Opaque entry counts are recorded before/after
+compaction. Phase instrumentation is excluded from primary decisions. GPU times
+are elapsed intervals including stalls, not isolated hardware execution times.
+CPU/GPU overlap and separately aggregated phase medians must not be added.
+
+Power monitoring requires AC offline and the existing balanced profile throughout
+this battery comparison. Input model/tree/forest/shader identities, cameras and
+1280x720 settings match the preceding controls. No system settings or generated
+map outputs are changed. Clocks and background conditions remain uncontrolled.
+
+Results and decision
+--------------------
+All four primary and two diagnostic control processes completed. All 640 power
+samples report AC offline and balanced profile. All 36 control captures match
+the frozen pre-trial images, and source/draw counts match. Primary work totals
+49,152 measured frames; diagnostics retain all 6,144 rows with complete GPU
+timestamps. The trial changes neither the actual draws nor the rendered result.
+
+View                 Flat original / compact ms   Paired saving ms / %  Faster pairs
+Daytime town                 4.104 / 4.057             -0.003 / -0.08%       7/16
+Flashlight town              3.140 / 3.210             -0.080 / -2.55%       5/16
+Old forest 100 m             6.021 / 6.022             +0.008 / +0.13%      10/16
+
+All three classify as mixed under the declared rule. In particular, the daytime
+flat-level subtraction favors compaction, but the paired estimator is slightly
+negative; those estimators must not be substituted for one another. Daytime
+process paired savings are +0.149, +0.045, -0.052 and -0.077 ms. Flashlight
+values are -0.126, +0.138, -0.035 and -0.167 ms. Neither a repeatable gain nor
+the declared clear-regression rule is established. There is no reason to retain
+extra work/complexity given these results and the diagnostic CPU cost below.
+
+Diagnostic levels, milliseconds, original -> compact; medians of process/block means:
+
+Phase                         Daytime town       Flashlight town
+CPU whole render              4.0642 -> 4.1775    3.2652 -> 3.2776
+CPU gathering                 1.2615 -> 1.3808    1.1366 -> 1.2200
+CPU visibility query          0.2335 -> 0.2242    0.2216 -> 0.2125
+CPU detail filtering          0.6482 -> 0.6299    0.5755 -> 0.5559
+CPU material classification   0.2697 -> 0.2708    0.2433 -> 0.2370
+CPU compaction envelope       0.0015 -> 0.2262    0.0014 -> 0.1961
+CPU opaque sorting            0.0955 -> 0.0125    0.0848 -> 0.0113
+CPU glass sorting             0.0021 -> 0.0020    0.0020 -> 0.0019
+CPU opaque submission         0.9861 -> 0.9920    0.8518 -> 0.8389
+GPU whole renderer            3.6515 -> 3.6946    2.9960 -> 2.9956
+GPU opaque envelope           2.2321 -> 2.2473    2.2561 -> 2.2514
+
+Both town views reduce opaque entries from 9,076 to 898; five glass entries stay
+separate, retaining 9,081 visible sources and 903 actual camera draws. About 90%
+fewer entries reach the opaque sort, but the new pass costs ~0.20..0.23 ms,
+against only ~0.07..0.08 ms less sorting. Submission does not recover enough
+time: it still performs the same GPU draws and driver work. The sparse view
+remains seven entries and has essentially unchanged completed-frame time.
+
+The split identifies detail filtering (~0.6 ms) and material classification
+(~0.25 ms) as larger CPU targets than opaque sorting (~0.09 ms). A future change
+should investigate those requirements/callers first. These timings do not prove
+a particular replacement algorithm will be faster, and phase clock overhead
+and scheduling effects remain separate from the primary measurement.
+
+Broad controls
+--------------
+Before withdrawing the trial, the normal map harness ran all 13 standard views
+with three rounds of 60 warmup/64 measured frames per version, followed by the
+standard 100,000-zombie case with six rounds per version. All 28 broad captures
+match within the baseline/candidate pair; cameras, draw/source counts and all
+metadata match exactly. All 4,992 map and 768 crowd GPU samples are finite.
+All 206 broad-monitor samples retain battery/balanced conditions.
+
+Single-process broad town CPU/GPU levels are 4.354/3.796 ms baseline versus
+4.592/4.054 ms trial; crowd is 10.924/8.683 versus 11.130/8.860 ms. These are
+regression controls with one process per version, not independent evidence of
+a stable performance penalty. Crowd retains all 100,000 LOD3 actors, ten draws
+and 6,000,000 camera triangles per measured frame. No batches exist there and
+compaction returns immediately.
+
+Final state
+-----------
+Only the trial changes in renderer.cpp, renderer.hpp and building_renderer.cpp
+were removed, using the saved pre-trial source files without preserving old
+mtimes. Their bytes match the accepted shader implementation exactly. All
+layout-dependent consumers were rebuilt afterward. The additional GPU regression
+is retained; it asserts an existing rendering contract independently of the
+compaction algorithm. The benchmark report and all experiment artifacts remain.
+The final full rebuild succeeded, followed by all 25 graphics/weapon-overlay
+and model-visibility checks passing on hardware with no skips. Final source
+identity, diagnostic sample completeness, report paths and whitespace were checked.
+
+Artifacts
+---------
+Ignored root: build/benchmarks/town-batch-list-20261102/.
+baseline/ preserves the accepted pre-trial sources and executables; candidate/
+preserves the trial. The scratch build_control.py, renderer_control.cpp, probe.hpp,
+harness.cpp, compiler dependencies, linker map, build logs, frozen shaders and
+SHA256 manifest identify the controlled executable. run_control.py and battery/
+preserve the primary/diagnostic experiment; run_broad.py and broad/ preserve the
+all-view map and standard 100,000-zombie regression comparisons. Previous shader
+experiments remain intact.
+The retained trial executable is self-contained. Rebuilding its control sources
+requires the saved candidate headers/sources and rebuilt matching libraries in
+an isolated tree; do not link them against the final restored Renderer layout.

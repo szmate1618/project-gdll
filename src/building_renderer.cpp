@@ -7,19 +7,17 @@
 
 namespace viewer {
 
-void Renderer::uploadRoofBatches(const Model& source) {
-    auto batches = buildRoofBatches(source);
-    uploadMeshes(batches.meshes, roofModel_);
-    roofBatchForDraw_ = std::move(batches.batchForDraw);
-    roofBatchDrawn_.assign(batches.meshes.size(), false);
-}
-
-void Renderer::uploadWallBatches(const Model& source) {
-    auto batches = buildWallBatches(source, sceneVisibility_);
-    uploadMeshes(batches.meshes, wallModel_);
-    wallBatchForDraw_ = std::move(batches.batchForDraw);
-    wallBatchDetails_ = std::move(batches.details);
-    wallBatchStates_.resize(batches.meshes.size());
+void Renderer::uploadBuildingBatches(const Model& source) {
+    auto roofs = buildRoofBatches(source);
+    auto walls = buildWallBatches(source, sceneVisibility_);
+    buildingVisibility_ = BuildingVisibility(source, sceneVisibility_, roofs, walls);
+    uploadMeshes(roofs.meshes, roofModel_);
+    roofBatchForDraw_ = std::move(roofs.batchForDraw);
+    roofBatchDrawn_.assign(roofs.meshes.size(), false);
+    uploadMeshes(walls.meshes, wallModel_);
+    wallBatchForDraw_ = std::move(walls.batchForDraw);
+    wallBatchDetails_ = std::move(walls.details);
+    wallBatchStates_.resize(walls.meshes.size());
 }
 
 void Renderer::beginTownPass(glm::vec3 eye, const glm::mat4& projection, bool sunShadow) {
@@ -60,7 +58,7 @@ bool Renderer::drawTownSource(std::size_t index) {
     }
     if (roofBatchDrawn_[batch]) return false;
     roofBatchDrawn_[batch] = true;
-    // Source BVH queries select occupied cells separately for camera and light.
+    // Camera and light queries select occupied cells independently.
     // Draw the full cell when any member is visible; clip/depth tests handle the
     // conservative extra roofs. No per-frame geometry or index uploads needed.
     drawBuildingBatch(roofModel_, batch);

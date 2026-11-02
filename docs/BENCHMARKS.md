@@ -516,6 +516,34 @@ investigate the earlier nighttime intervals separately from CPU sort cost.
 The [completed-frame throughput control](benchmarks/town-night-throughput-2026-10-29.txt)
 removes per-frame timing and sampling, and includes GPU completion at each
 block's end in its wall-clock result.
+The [static town shader comparison](benchmarks/town-shader-2026-11-02.txt)
+checks the third basic-program variant, matching captures and crowd controls,
+and records charger-connected and battery-only comparisons after initially
+confounded timings. Its daytime-town improvement does not repeat on battery.
+The [in-process town follow-up](benchmarks/town-shader-in-process-2026-11-02.txt)
+alternates both paths inside one renderer, measures completed frames separately
+from CPU/GPU phase diagnostics, and records the switching/setup cost. It finds
+consistent flashlight-town gains on AC and battery; daytime AC results remain mixed.
+The [opaque batch-list trial](benchmarks/town-batch-list-2026-11-02.txt) reduced
+sorting entries but added more preparation work than it saved; that trial was
+withdrawn while retaining its source-order regression and phase measurements.
+The [direct roof visibility trial](benchmarks/direct-roof-visibility-2026-11-02.txt)
+queries existing roof batches before emitting source IDs. Its alternating battery
+control finds a 4.4% daytime-town gain, mixed flashlight results and unchanged
+forest throughput; captures and source/draw counts match. Its AC follow-up is
+mixed in all three views, limiting the performance claim to the battery workload.
+The [direct distant-wall trial](benchmarks/direct-wall-visibility-2026-11-02.txt)
+extends that selection to walls and unambiguous facade alternatives. On AC it
+reduces town CPU gathering by about 72-73% and improves completed flashlight-town
+frames by 9.3% (16/16 faster pairs); daytime remains mixed and forest is 0.34%
+slower, below its 1% practical threshold. Geometry and draw counts are unchanged.
+The [master integration comparison](benchmarks/town-batch-master-port-2026-11-02.txt)
+measures the combined shader and direct roof/wall visibility port against
+`48de753`, including the current distant rectangle and multi-draw chunk path.
+On the tested AC-powered Radeon 660M, completed render cost falls by 8-29% across
+four views with the cache both off and on; all 24 paired captures are identical.
+These static rendering results do not measure full-game simulation or networking,
+or separate the contributions of the two changes.
 
 The preparation case uses a synthetic animated four-vertex marker, with 100,000
 instances split between walking and running. Every fixed step changes only

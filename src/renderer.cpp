@@ -45,10 +45,13 @@ Renderer::Renderer(const Model& model, const std::filesystem::path& shaderDirect
         program_ = createShaderProgram(shaderDirectory / "basic.vert", shaderDirectory / "basic.frag");
         woundUniforms_ = BasicShaderUniforms(program_);
         static_cast<BasicShaderUniforms&>(*this) = woundUniforms_;
+        // Compile during loading, keeping first-use compilation out of gameplay.
+        townProgram_ = createShaderProgram(shaderDirectory / "basic.vert", shaderDirectory / "basic.frag",
+                                          "#define TOWN_GEOMETRY 1\n#define ZOMBIE_WOUNDS 0");
+        townUniforms_ = BasicShaderUniforms(townProgram_);
         fallback_.baseColor = glm::vec4(0.65f, 0.68f, 0.72f, 1.0f);
         uploadModel(model, model_);
-        uploadRoofBatches(model);
-        uploadWallBatches(model);
+        uploadBuildingBatches(model);
         for (const auto& source : model.draws) {
             const auto& mesh = model_.meshes.at(source.primitive);
             DrawGPU draw{source.primitive, source.transform, glm::inverseTranspose(glm::mat3(source.transform)),
@@ -212,8 +215,9 @@ void Renderer::release() noexcept {
     glDeleteFramebuffers(1, &overlayFramebuffer_);
     glDeleteRenderbuffers(1, &overlayColor_);
     if (healthyZombieProgram_) glDeleteProgram(healthyZombieProgram_);
+    if (townProgram_) glDeleteProgram(townProgram_);
     if (program_) glDeleteProgram(program_);
-    healthyZombieProgram_ = activeBasicProgram_ = program_ = 0;
+    healthyZombieProgram_ = townProgram_ = activeBasicProgram_ = program_ = 0;
 }
 
 const Material& Renderer::material(const ModelGPU& model, int index) const {
@@ -328,7 +332,13 @@ void Renderer::sortOpaqueScene() {
 
 void Renderer::gatherVisibleSceneDraws(const glm::mat4& projectionView, const glm::vec3& eye,
                                       const glm::mat4& projection) {
-    if (sceneCulling_ || forestViewRange_)
+    std::size_t extraBatchSources = 0;
+    if ((roofBatching_ || wallBatching_) && !buildingVisibility_.empty()) {
+        const BuildingVisibilityView view{projectionView, projection, eye, forestVisibilityRange(),
+                                           sceneCulling_, roofBatching_, wallBatching_};
+        const auto stats = buildingVisibility_.query(view, visibleScene_, buildingCameraVisibility_);
+        extraBatchSources = stats.extraSources;
+    } else if (sceneCulling_ || forestViewRange_)
         sceneVisibility_.query(projectionView, visibleScene_, forestVisibilityRange(), sceneCulling_,
                                &cameraVisibility_.scene);
     else {
@@ -357,7 +367,7 @@ void Renderer::gatherVisibleSceneDraws(const glm::mat4& projectionView, const gl
         if (distanceA != distanceB) return distanceA > distanceB;
         return a < b;
     });
-    sceneStats_.visible = visibleScene_.size();
+    sceneStats_.visible = visibleScene_.size() + extraBatchSources;
 }
 
 void Renderer::setRain(bool enabled) {
@@ -377,14 +387,21 @@ void Renderer::selectBasicShader(bool wounds) {
             throw;
         }
     }
-    const auto selected = wounds ? program_ : healthyZombieProgram_;
-    if (selected != activeBasicProgram_) {
-        static_cast<BasicShaderUniforms&>(*this) = wounds ? woundUniforms_ : healthyZombieUniforms_;
-        activeBasicProgram_ = selected;
+    bindBasicProgram(wounds ? program_ : healthyZombieProgram_, wounds ? woundUniforms_ : healthyZombieUniforms_);
+}
+
+void Renderer::selectTownShader() {
+    bindBasicProgram(townProgram_, townUniforms_);
+}
+
+void Renderer::bindBasicProgram(GLuint program, const BasicShaderUniforms& uniforms) {
+    if (program != activeBasicProgram_) {
+        static_cast<BasicShaderUniforms&>(*this) = uniforms;
+        activeBasicProgram_ = program;
         materialState_.reset(); // Cached values belong to the previous program.
     }
     // Other renderers can bind their own programs between basic draws.
-    glUseProgram(selected);
+    glUseProgram(program);
 }
 
 void Renderer::applyBasicSamplersAndVisibility() {
@@ -471,8 +488,19 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     auto atmosphere = atmosphere_;
     atmosphere.color = lighting.fogColor;
     backgroundSrgb_ = atmosphere.backgroundSrgb();
+    const auto prepareTownShader = [&] {
+        selectTownShader();
+        applyBasicSamplersAndVisibility();
+        applyLighting(camera, shadowView, lighting, flashlight, flashlightCasting);
+        glUniformMatrix4fv(viewLocation_, 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, glm::value_ptr(gpuProjection));
+    };
     const bool cacheRequested = distantEnabled_ && camera.viewMode() == Camera::ViewMode::original;
-    if (cacheRequested) gatherVisibleSceneDraws(projection * view, camera.position(), projection);
+    if (cacheRequested) {
+        gatherVisibleSceneDraws(projection * view, camera.position(), projection);
+        if (!opaqueScene_.empty() || !transparentScene_.empty()) prepareTownShader();
+        selectBasicShader(true);
+    }
     const bool cache = cacheRequested && hasDistantStatic(camera, projection);
     if (cache) {
         if (!distantCache_) distantCache_ = std::make_unique<DistantSceneCache>(shaderDirectory_);
@@ -488,7 +516,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
                 distantCache_->stats.drawCalls += sceneStats_.drawCalls + treeStats_.drawCalls + forestStats_.drawCalls;
             });
         distantStats_ = distantCache_->stats;
-        sceneStats_ = {sceneDraws_.size(), visibleScene_.size(), 0};
+        sceneStats_.drawCalls = 0;
         forestStats_.volumes = forestStats_.drawCalls = 0;
     } else if (distantCache_) distantCache_->invalidate();
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
@@ -512,12 +540,16 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
     glUniform1i(animatedLocation_, GL_FALSE);
     {
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::town);
-        if (!cacheRequested) gatherVisibleSceneDraws(projection * view, camera.position(), projection);
+        if (!cacheRequested) {
+            gatherVisibleSceneDraws(projection * view, camera.position(), projection);
+            if (!opaqueScene_.empty() || !transparentScene_.empty()) prepareTownShader();
+        } else if (!opaqueScene_.empty() || !transparentScene_.empty()) selectTownShader();
         beginTownPass(camera.position(), projection);
         for (const auto index : opaqueScene_) {
             if (drawTownSource(index)) ++sceneStats_.drawCalls;
         }
     }
+    selectBasicShader(true);
     {
         frame_stage_profile::Timer timer(frame_stage_profile::Stage::vegetation);
         drawTrees(projection * view, false, cameraVisibility_);
@@ -551,6 +583,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
         }
     }
     if (!transparentScene_.empty()) {
+        selectTownShader(); // Camera lighting and matrices were prepared with the opaque town pass.
         materialState_.reset(); // External opaque draws and effects precede glass.
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -560,6 +593,7 @@ void Renderer::render(const Camera& camera, double animationSeconds, const std::
             ++sceneStats_.drawCalls;
         }
         glDepthMask(GL_TRUE);
+        selectBasicShader(true);
     }
     if (rainEnabled_) {
         auto rainLighting = nightLighting_;

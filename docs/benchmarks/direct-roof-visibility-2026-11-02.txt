@@ -1,0 +1,231 @@
+Direct camera visibility for existing roof batches — 2026-11-02
+===============================================================
+
+Prototype scope and ordering contract
+-------------------------------------
+This tests the first stage of direct building-batch culling: existing static,
+opaque roof batches only. The accepted town shader and 128 m batching policy
+remain enabled. Walls, facade alternatives, glass, doors and both shadow passes
+retain their original source-level queries. No larger parent batches are added.
+
+A camera index contains each non-roof source plus one entry per roof batch.
+Its batch bounds are unions of the original full transformed source bounds,
+including geometry extending beyond the nominal tile. It does not run the full
+source query first and then deduplicate its results. A fully contained batch
+emits its minimum source ID directly. Partial frustum/range batches resolve
+member bounds, retaining the minimum selected ID and exact selected-source count.
+A single-member batch needs no second membership check after the coarse query.
+This preserves the old batch's draw position relative to coplanar surfaces.
+
+The existing source BVH already skips per-member bounds tests for fully contained
+nodes; this prototype additionally avoids emitting and processing their individual
+roof IDs. Representatives pass through the existing detail/material/sort pipeline.
+Roof sources have no detail alternative, so exact source statistics can be restored
+by adding the omitted selected roofs after detail filtering. Source topology,
+geometry, collision and transforms remain authoritative and unchanged.
+
+The new RoofVisibility module owns its cached roof bounds/membership and camera
+index. Its query is const; temporal plane hints are caller-owned and separate
+from the original camera and light histories. Non-roof bounds are duplicated in
+the additional camera BVH while the original source index remains for shadows
+and the existing batching-disabled path. This memory/startup cost is part of the
+prototype; it is not a scene streaming or asset-generation change.
+
+Correctness checks
+------------------
+The new CPU regression compares representative sets and exact source counts with
+the original source query across camera positions, scope FOVs, horizontal ranges,
+culling on/off and repeated history reuse. It includes reflected/sheared geometry
+crossing a tile boundary and a batch envelope intersecting the view while neither
+member is visible. A contained 400-roof batch must emit one representative with
+399 extra sources, one coarse node and zero individual member-bound tests.
+
+The existing GPU source-order test checks offscreen/lower-ID members, scope
+changes and coplanar ownership. Roof rendering checks preserved counts with
+batching toggles, reflected geometry and sun shadows; building/shadow tests cover
+the surrounding facade, door and alpha state. The full CMake rebuild succeeds;
+all 24 graphics/weapon-overlay tests plus roof batching, roof visibility and model
+visibility CPU tests pass. The existing unused debugMessage warning remains.
+
+Timing protocol
+---------------
+The source and direct query paths alternate in one Renderer/GPU context. Both
+indexes stay allocated in both modes, avoiding construction/allocation differences
+inside the measured blocks. The control is compiled against matching current
+headers/libraries; compiler dependencies and a linker map exclude a second
+renderer.cpp object. Root sources/shaders/executables are frozen before timing.
+
+Primary: four processes, three standard views (daytime town, flashlight town,
+old forest 100 m), eight blocks/view, 60 warmup and 512 measured render+glFlush
+calls/block. A final GPU retirement wait is included in elapsed wall time.
+No per-frame CPU clocks/GPU timestamp queries run in primary rendering. Base
+order is source/direct/direct/source/direct/source/source/direct; process orders
+are base/inverse/inverse/base. Four adjacent differences per process/view are
+reduced to their median, then the four process medians are reduced to a median.
+Positive source-minus-direct means saving. Independent flat levels use block
+medians per mode/process and medians across processes.
+
+The predeclared clear-gain rule requires >=1% paired saving, all four process
+medians positive and >=12/16 faster pairs. Regression is symmetric; other results
+are mixed. This practical rule is not a significance or equivalence test.
+
+Diagnostics: two additional base/inverse processes, 128 measured frames/block,
+asynchronous whole/opaque/glass GPU timestamps with up to four frames in flight.
+CPU clocks separate query, detail filtering, material classification, sorting
+and submission. Counters include logical visible sources, selected entries,
+selected roof batches, coarse item tests and partial-batch member tests.
+Phase instrumentation does not determine primary throughput classification;
+elapsed GPU intervals include submission/stalls and do not isolate shader work.
+
+Both controls require AC offline and balanced profile, monitored every 0.5 s.
+All inputs/cameras, 1280x720 resolution, reversed float32 depth, 1024-square sun
+map, normal filtering/ranges and deterministic 60 Hz animation input match the
+preceding town experiments. There is no AI/audio/player/dynamic physics or window
+presentation workload. Clocks, temperature and background work remain unlocked.
+
+Artifacts
+---------
+Ignored root: build/benchmarks/direct-roof-visibility-20261102/.
+baseline/ and candidate/ retain their sources and normal benchmark executables.
+The isolated control build, source copies, headers, shader files, executable,
+dependencies, linker map and SHA256 manifest retain measurement provenance.
+run_control.py and battery/ hold primary/diagnostic samples, counters, images,
+power telemetry and aggregates. run_broad.py and broad/ retain all-view map and
+standard 100,000-zombie controls; /usr/bin/time reports peak resident memory for
+those normal executables. Existing ignored maps, caches and old experiments remain.
+
+Results and retained scope
+--------------------------
+Retain the roof-only camera path, with a limited performance claim: this battery
+control supports a daytime-town improvement, not a universal win. The later AC
+follow-up below is mixed. Walls/detail alternatives and larger parent batches
+remain separate experiments. The existing town shader remains enabled.
+
+Completed-frame primary results (ms/frame; positive paired saving is faster):
+view                  source level   direct level   paired ms    paired %   faster/16
+town                       4.085947     3.874820    0.179143      4.384          12/16
+night-town-on              3.132592     3.064400    0.036628      1.169           9/16
+old-forest-100m            6.111872     6.113816   -0.002113     -0.035           6/16
+
+Per-process median paired savings (ms/frame), then predeclared classification:
+town: +0.154908, +0.164659, +0.282441, +0.193628; clear gain
+night-town-on: +0.043504, +0.029753, +0.029112, +0.116302; mixed
+old-forest-100m: +0.002199, -0.008328, -0.006426, +0.005770; mixed
+
+The independent flat levels and paired estimator use different reductions;
+subtracting the flat levels does not reproduce the paired saving. Daytime town
+meets the predeclared practical threshold; flashlight has only 9/16 faster pairs
+and is mixed despite positive process medians. Forest has no useful measured gain.
+
+Diagnostic phase medians (separate instrumented runs, source -> direct, ms):
+view                    query          details        classify      opaque sort      gather
+town                   0.1925->0.3660 0.5382->0.4927 0.3090->0.2006 0.0884->0.0515 1.1518->1.1235
+night-town-on          0.1902->0.3287 0.5040->0.4418 0.2704->0.1678 0.0861->0.0474 1.0577->0.9942
+old-forest-100m        0.0083->0.0096 0.0016->0.0016 0.0016->0.0016 0.0017->0.0017 0.0231->0.0243
+
+In town, logical visible sources stay at 9,081, while selected entries fall from
+9,081 to 4,991 (45.0% fewer). The direct path selects 441 roof batches, tests 586
+partial-batch member bounds and 2,238 coarse items versus 2,512 original coarse
+items. Actual town color draws stay at 903. The forest control selects seven
+sources/entries and no roof batches.
+
+The query itself gets slower: containment classification and boundary membership
+resolution cost more than the original coarse query. Detail filtering, material
+classification and sorting process fewer IDs, recovering that cost. Diagnostic
+gather savings are only about 0.028 ms daytime and 0.064 ms flashlight. These
+instrumented phases do not independently explain the larger daytime primary
+saving; submission/overlap, unlocked clocks and measurement variability remain.
+No shader, triangle count or draw-call reduction is claimed.
+
+Diagnostic envelopes (source -> direct, ms):
+view                     CPU render        GPU whole       GPU opaque
+town                   3.6064->3.7098 3.4593->3.5135 2.0611->2.1312
+night-town-on          2.9436->2.8864 2.7938->2.8120 2.0634->2.0743
+old-forest-100m        0.3926->0.3909 5.9446->5.8773 1.1598->1.1303
+
+Broader regression controls
+---------------------------
+Both normal executables completed all 13 map views (3 rounds, 64 measured frames
+per round after 60 warmups: 2,496 samples/version), then the real-asset 100,000-
+zombie open-area case (6 rounds, 64 measured frames: 384 samples/version).
+Every measured frame has a finite GPU sample. All 14 image pairs (28 files) match
+byte for byte, as do settings, map cameras/inputs and map source/draw-count CSVs.
+The in-process control also checked all 36 validation captures against the
+frozen accepted-renderer captures; block images, visible counts and draws match.
+Town daytime and flashlight captures were visually inspected.
+
+Normal-executable diagnostic controls below are single baseline/candidate process
+pairs, not balanced throughput trials. They include CPU/GPU overlap and are used
+for broad checks, not additional speedup claims. Column values are medians of
+round means in ms (CPU render and asynchronous GPU intervals):
+view                       CPU source->direct       GPU source->direct
+aerial                      0.4215->0.3677          5.7270->5.7394
+night-forest-driving-shadows 5.8284->4.6895          6.5209->6.5829
+night-forest-off            5.4421->5.2802          5.5298->5.4196
+night-forest-on             5.6002->5.7251          5.7075->6.0182
+night-town-driving-shadows  3.2236->3.3541          3.2946->3.3808
+night-town-off              2.7971->2.7547          2.5996->2.6334
+night-town-on               2.9656->2.8115          2.8322->2.8031
+old-forest-100m             0.4294->0.4595          5.8983->5.8760
+old-forest-unrestricted     6.4693->6.0889          7.6637->7.5949
+open-clearing               4.3834->3.6842          4.3521->3.9432
+osm:-6:-5:0                 2.8523->2.9399          6.9471->7.0131
+osm:4:2:0                   5.8503->5.1500          6.9229->6.9282
+town                        4.0739->4.3039          3.5399->3.6810
+100k-zombie open area       10.1031->10.2444         6.4986->6.2951
+
+The normal daytime town process is slower in these separately launched controls;
+that disagrees with the balanced primary result and limits generalization. Other
+views also vary. The crowd control retains 100,000 LoD3 zombies, six million
+triangles and ten zombie draws; it provides no evidence of a crowd speedup.
+
+Peak process resident memory (/usr/bin/time, KiB, baseline -> direct):
+map: 940,424 -> 942,560 (delta +2,136 KiB)
+crowd: 1,741,136 -> 1,740,188 (delta -948 KiB)
+
+These peaks include assets, driver allocations and allocator variation. The map
+pair rises about 2.1 MiB, while the crowd pair falls about 0.9 MiB; neither pair
+isolates the index allocation. The extra camera index and member cache persist
+for the renderer lifetime, even when roof batching is disabled at runtime. No
+isolated startup/construction benchmark was performed. This cost should be
+revisited before extending direct selection to additional geometry families.
+
+Power telemetry for every primary, diagnostic and broad run stayed AC offline
+with balanced profile. No other benchmark/build ran concurrently. Final source
+review and whitespace/link checks accompany the passing focused tests.
+
+Charger-connected follow-up
+---------------------------
+Repeated the exact frozen roof control on AC with balanced profile. The same
+four primary orders, frame counts, practical rule and two diagnostic processes
+were used. The executable, shaders and baseline captures are unchanged; no build
+or other GPU workload ran concurrently. Artifacts: ac/, run_control_ac.py and
+ac-progress.log under the original ignored artifact root.
+
+Completed-frame results (independent flat levels, paired saving):
+view                   source ms    direct ms    paired ms    paired %   faster/16
+town                     4.283002   4.161871    0.044323      1.035           9/16
+night-town-on            3.382681   3.346657    0.108645      3.212          10/16
+old-forest-100m          6.126423   6.125933   -0.008091     -0.132           5/16
+
+Per-process paired savings (ms), followed by classification:
+town: +0.120883, +0.024757, -0.069807, +0.063889; mixed
+night-town-on: +0.123560, -0.052601, +0.093729, +0.250087; mixed
+old-forest-100m: -0.008813, +0.101954, -0.033477, -0.007370; mixed
+
+All three AC results are mixed under the predeclared rule. Daytime and flashlight
+have positive central estimates, but only 9/16 and 10/16 faster pairs, and each
+has a negative process median. Forest is essentially unchanged. This does not
+confirm a consistent AC throughput improvement and is not evidence of equivalence.
+The roof path remains retained, with the battery gain treated as workload/power-
+specific. Its reduced source-list work and exact output remain established.
+No universal frame-time improvement is claimed.
+
+All 36 AC validation captures match the frozen accepted images byte for byte;
+per-block draw/source counts match. Every power sample remains AC online with
+balanced profile. The AC diagnostic stage medians are retained in ac/summary.json.
+
+The subsequent direct-wall-visibility-2026-11-02.txt trial generalizes the retained
+roof camera module to BuildingVisibility for roofs and distant wall/facade groups.
+The original roof module and its tests remain frozen in this trial's artifacts;
+current roof regressions live in tests/test_building_visibility.cpp.

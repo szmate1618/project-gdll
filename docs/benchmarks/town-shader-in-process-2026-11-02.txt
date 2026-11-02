@@ -1,0 +1,203 @@
+Town shader: alternating paths in one renderer — 2026-11-02
+==========================================================
+
+Purpose
+-------
+The preceding town-shader-2026-11-02.txt separate-process comparisons favored the
+specialized town shader on AC but not on battery. This control alternates paths
+inside one Renderer and GPU context, measures completed frames separately from
+phase instrumentation, and isolates town preparation/submission intervals.
+
+Control implementation and validation
+-------------------------------------
+The ignored renderer_control.cpp copies the current renderer.cpp and gates only
+the added town setup/program switches behind a render-thread flag. Disabled,
+town uses the original full basic program and omits the extra camera/lighting
+setup and restoration binds. Enabled, it uses the implemented specialized path.
+Both linked programs remain resident in both conditions; this is a draw-path
+comparison, not a shader loading or allocation comparison.
+
+The control compiles against the current Renderer header and normal Release
+flags/libraries. Compiler dependencies and a linker map verify the matching
+header and absence of the original renderer.cpp archive object. Production code
+and its public API are unchanged by this diagnostic. Two unused standard-harness
+helper warnings occur only in the scratch harness build.
+
+Three standard views are retained: daytime town, flashlight town, and the sparse
+old-forest 100 m view. Scene, tree and forest inputs, shader sources, cameras,
+1280x720 resolution, reversed float32 camera depth, nearest vegetation filtering,
+1024-square sun map and normal rendering policies match the preceding runs.
+No AI, audio, player movement, dynamic physics or presentation runs. Animation
+input follows the same deterministic 60 Hz sequence in every block.
+
+Each block renders an untimed validation frame. Pixels must equal the first
+condition in the same renderer, and source/draw counts must match. Captures from
+both conditions in every process must also equal the frozen original benchmark
+captures byte-for-byte. Scene/tree/forest draw counters are checked separately.
+Warmups, checks, captures and CSV writing stay outside measured blocks.
+
+Primary completed-frame protocol
+--------------------------------
+Four processes each retain one context/renderer for all three views. Every view
+has eight blocks of 60 warmup and 512 measured frames. The base sequence is
+original/town/town/original/town/original/original/town. Processes use this order,
+its inverse, its inverse and this order, giving four adjacent pairs per process
+and sixteen pairs per view.
+
+After warmup and an untimed glFinish, elapsed CLOCK_MONOTONIC time brackets 512
+render+glFlush calls and a final glFinish. That final retirement wait is included.
+There are no per-frame CPU clocks, GPU timestamp queries, event polling or output
+writes in primary blocks. Disabled probe checks remain common in the control
+binary. Driver backpressure determines queue depth. This measures completed
+offscreen render work, not presented FPS or latency.
+
+For each process/view, pair adjacent blocks, calculate original-minus-town
+milliseconds per frame, and take the median of four differences. The primary
+aggregate is the median of four process medians. Percent uses the independently
+aggregated original level as denominator. Flat original/town levels separately
+take the median of four blocks per condition/process, then the median of four
+processes. Their subtraction need not equal the paired estimate.
+
+The rule was written before measurement: a clear gain requires >=1% paired
+saving, positive medians in all four processes, and >=12 of 16 positive pairs.
+Clear regression has symmetric negative conditions. Otherwise classification is
+mixed. This is an operational threshold, not a significance or equivalence test.
+
+Separate phase protocol
+-----------------------
+Two additional processes use the base and inverse orders, with 128 measured
+frames per block and the same 60 warmups. Six timestamps bracket the whole
+renderer, opaque town envelope and glass envelope. Query availability is checked
+before reading results, with at most four frames in flight. CPU clocks measure
+whole render, basic-program binds, extra town camera/lighting preparation,
+visibility gathering, opaque submission and glass submission. Per-frame rows
+are buffered and written after the timed block. Primary decisions do not use
+phase-instrumented throughput.
+
+Opaque GPU elapsed includes the candidate's extra preparation and restoration;
+glass GPU elapsed includes its program/state changes. These are elapsed command
+intervals, including driver/submission stalls, not isolated shader instruction
+times. The extra CPU setup metric includes camera/lighting calculations and
+uniform uploads; per-draw transform/material uniforms remain in submission time.
+Program-bind timing covers all basic shader binds in the renderer. CPU/GPU
+overlap, inclusive measurements and separately aggregated medians must not be
+added together. Phase instrumentation can alter scheduling and clocks.
+
+Charger-connected result
+------------------------
+All four primary and two diagnostic processes completed. All 641 power samples
+report AC online and balanced platform profile. Power/profile changes invalidate
+a run. Clocks are not locked, and the monitor cannot exclude other workloads or
+establish frequency for every draw. Hardware is the same AMD Radeon 660M/Mesa
+24.2.8. No power or clock settings are changed by the control.
+
+All 36 captures match the frozen originals, and counts match across all blocks.
+Primary work totals 49,152 measured frames; diagnostics retain all 6,144 frame
+rows with complete, ordered GPU timestamps. Each view has sixteen primary pairs.
+
+View                 Original / town ms   Paired saving ms / %  Faster pairs  Result
+Daytime town            4.179 / 3.878          0.294 / 7.04%        11/16      mixed
+Flashlight town         3.421 / 3.141          0.302 / 8.82%        16/16      clear gain
+Old forest 100 m        6.122 / 5.998          0.115 / 1.87%        16/16      clear gain
+
+Daytime-town process paired savings are +0.369, +0.257, -0.017 and +0.332 ms.
+Its favorable aggregate misses both the all-process direction and 12-pair rules.
+It is not a settled daytime gain. Flashlight-town process savings are +0.318,
++0.286, +0.409 and +0.272 ms; sparse-view savings are +0.116, +0.087, +0.125
+and +0.113 ms. Both latter views satisfy the declared rule in this session.
+
+Diagnostic levels, milliseconds, original -> town; median of process block medians:
+
+Phase                         Daytime town       Flashlight town    Old forest 100 m
+CPU whole render              4.0509 -> 4.0641    3.3176 -> 3.2026    0.2794 -> 0.3075
+CPU program binds             0.0052 -> 0.0121    0.0049 -> 0.0110    0.0044 -> 0.0073
+CPU extra town setup          0.0000 -> 0.0036    0.0000 -> 0.0032    0.0000 -> 0.0022
+CPU gather                    1.2455 -> 1.3015    1.1064 -> 1.1216    0.0081 -> 0.0090
+CPU opaque submission         1.1580 -> 0.9727    0.9885 -> 0.8148    0.0029 -> 0.0059
+CPU glass submission          0.0039 -> 0.0042    0.0037 -> 0.0034    0.0000 -> 0.0000
+GPU whole renderer            3.7947 -> 3.5809    3.1103 -> 2.9215    5.9772 -> 5.8720
+GPU opaque town envelope      2.3292 -> 2.1709    2.3420 -> 2.1925    1.2016 -> 1.1225
+GPU glass envelope            0.0244 -> 0.0220    0.0249 -> 0.0231    0.0000 -> 0.0000
+
+Town views add about 0.006..0.007 ms of program-bind CPU time plus
+0.003..0.004 ms of preparation. Binds rise from three to seven calls per frame,
+with four actual program changes instead of zero. The sparse view has five
+binds/two changes. The added setup is around 0.01 ms in town, much smaller than
+the ~0.15 ms lower opaque-town GPU interval. Reducing those uploads alone is
+unlikely to explain or eliminate the larger daytime-run variability.
+Gathering/submission dominate the town CPU phase; their timing changes do not
+establish altered visibility algorithms or isolate a hardware mechanism.
+
+Battery-only result
+-------------------
+After the AC runs completed, the user disconnected the charger for the same
+control. The executable, shader files, cases, orders, frame counts, analysis and
+decision rule were unchanged. All four primary and two diagnostic processes
+completed. All 652 battery-phase power samples report AC offline and balanced
+profile. Clocks remain unlocked; cross-power runs are separate sessions.
+
+All 36 battery captures match the frozen original images, and counters match
+across blocks. Primary work again totals 49,152 measured frames, with all 6,144
+diagnostic frame rows and complete timestamps retained.
+
+View                 Original / town ms   Paired saving ms / %  Faster pairs  Result
+Daytime town            4.351 / 4.052          0.339 / 7.78%        15/16      clear gain
+Flashlight town         3.445 / 3.123          0.334 / 9.68%        15/16      clear gain
+Old forest 100 m        6.110 / 5.994          0.109 / 1.78%        16/16      clear gain
+
+All four process paired medians favor the specialized path in every battery
+view. Daytime-town process savings are +0.357, +0.414, +0.320 and +0.215 ms;
+flashlight-town savings are +0.278, +0.361, +0.350 and +0.317 ms; sparse-view
+savings are +0.102, +0.123, +0.106 and +0.111 ms. All three views satisfy the
+declared practical gain rule in this battery session.
+
+Battery diagnostic levels, milliseconds, original -> town:
+
+Phase                         Daytime town       Flashlight town    Old forest 100 m
+CPU whole render              4.2666 -> 4.2157    3.2619 -> 3.0943    0.3188 -> 0.3833
+CPU program binds             0.0055 -> 0.0123    0.0048 -> 0.0108    0.0048 -> 0.0077
+CPU extra town setup          0.0000 -> 0.0034    0.0000 -> 0.0029    0.0000 -> 0.0022
+CPU gather                    1.2465 -> 1.2816    1.0577 -> 1.0581    0.0089 -> 0.0091
+CPU opaque submission         1.2175 -> 0.9988    0.9840 -> 0.7835    0.0032 -> 0.0064
+CPU glass submission          0.0040 -> 0.0040    0.0034 -> 0.0033    0.0000 -> 0.0000
+GPU whole renderer            3.8514 -> 3.7499    3.1217 -> 2.9585    6.0296 -> 5.9280
+GPU opaque town envelope      2.4135 -> 2.3191    2.3574 -> 2.2059    1.2200 -> 1.1382
+GPU glass envelope            0.0235 -> 0.0217    0.0249 -> 0.0232    0.0000 -> 0.0000
+
+The extra bind/setup CPU cost remains about 0.01 ms in town. Opaque-town GPU
+elapsed is 0.094 ms lower by day and 0.151 ms lower with the flashlight. Sparse
+CPU render time rises even though completed-frame time improves; overlapping
+CPU/GPU work and the different primary/diagnostic queue policies matter.
+
+Interpretation and next work
+----------------------------
+This control supports keeping the first town variant: flashlight-town and the
+sparse view satisfy the declared rule on both power sources, and daytime town
+satisfies it on battery while remaining favorable/mixed on AC. The earlier
+separate-process battery reversal does not repeat in this controlled comparison.
+Do not promote the earlier 13% estimate to a universal daytime or gameplay gain.
+
+The specialized path's flat completed-frame levels across power sources are
+3.878 ms AC versus 4.052 ms battery in daytime town, 3.141 versus 3.123 ms for
+flashlight town, and 5.998 versus 5.994 ms for the sparse view. These sessions do
+not show a uniform power-source effect. Temperature, clocks and background work
+remain uncontrolled, and this map-only case does not replace crowd/gameplay
+power measurements.
+
+Extra uniform preparation is only about 0.003 ms in town; eliminating it cannot
+recover tenths of a millisecond by itself. Avoid a larger shader split or a
+uniform-system rewrite based on this result. For further town optimization,
+profile visibility gathering and opaque draw submission, each around 1 ms in
+these diagnostics, then measure a focused culling/batching change and a matched
+gameplay route. No production behavior was changed as part of this follow-up.
+
+Artifacts
+---------
+Ignored root: build/benchmarks/town-shader-in-process-20261102/.
+build.py, renderer_control.cpp, probe.hpp and harness.cpp preserve the control
+and build procedure. Dependencies, linker map, build log, frozen shaders,
+executable and SHA256 manifest retain source/binary provenance. run.py and ac/
+contain the primary/diagnostic runner, predeclared decision rule, raw CSVs,
+captures, power samples and summary.json. run_battery.py and battery/ retain
+the matching battery-only comparison using the same executable. Both power
+phases and all previous benchmark outputs remain intact.

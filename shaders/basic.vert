@@ -1,4 +1,7 @@
 #version 330 core
+#ifndef TOWN_GEOMETRY
+#define TOWN_GEOMETRY 0
+#endif
 #ifndef ZOMBIE_WOUNDS
 #define ZOMBIE_WOUNDS 1
 #endif
@@ -7,6 +10,7 @@ layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUV;
 layout(location = 3) in vec4 aColor;
+#if !TOWN_GEOMETRY
 layout(location = 4) in mat4 aInstanceModel;
 // Zombie VAOs: phase, clip first frame, clip frame count (xyz).
 // Tree VAOs: foot Y, inverse visible height, lower light, upper light.
@@ -18,14 +22,16 @@ layout(location = 12) in uvec4 aJoints0;
 layout(location = 13) in vec4 aWeights0;
 layout(location = 14) in uvec4 aJoints1;
 layout(location = 15) in vec4 aWeights1;
+#endif
 
 uniform mat4 uModel;
 uniform mat4 uView;
 uniform mat4 uProjection;
 uniform mat3 uNormalMatrix;
+uniform bool uShadowPass;
+#if !TOWN_GEOMETRY
 uniform bool uInstanced;
 uniform bool uUnlit;
-uniform bool uShadowPass;
 uniform bool uAnimated;
 uniform bool uTreeCanopyShading;
 uniform int uTreeBillboardMode; // 0 authored, 1 root-yaw side card, 2 eye-facing top card.
@@ -38,17 +44,21 @@ uniform int uAnimationVertices;
 uniform bool uSkinningEnabled;
 uniform samplerBuffer uSkinningBones;
 uniform int uSkinningBoneCount;
+#endif
 
 out vec3 vNormal;
 out vec2 vUV;
 out vec4 vColor;
 out vec3 vWorldPosition;
+#if !TOWN_GEOMETRY
 out float vCanopyHeight;
 flat out vec2 vCanopyLight;
+#endif
 #if ZOMBIE_WOUNDS
 flat out int vWoundBase;
 #endif
 
+#if !TOWN_GEOMETRY
 vec3 turnToward(vec3 point, vec3 from, vec3 toward) {
     float cosine = clamp(dot(from, toward), -1.0, 1.0);
     if (cosine < -0.9999) {
@@ -58,6 +68,7 @@ vec3 turnToward(vec3 point, vec3 from, vec3 toward) {
     vec3 axis = cross(from, toward);
     return point + cross(axis, point) + cross(axis, cross(axis, point)) / (1.0 + cosine);
 }
+#endif
 
 void main() {
 #if ZOMBIE_WOUNDS
@@ -65,6 +76,7 @@ void main() {
 #endif
     vec3 position = aPosition;
     vec3 normal = aNormal;
+#if !TOWN_GEOMETRY
     if (uAnimated && aSkinningAndStep.x > 0.5 && uSkinningEnabled && uSkinningBoneCount > 0) {
         vec4 skinnedPosition = vec4(0.0);
         vec3 skinnedNormal = vec3(0.0);
@@ -102,7 +114,11 @@ void main() {
         if (!uShadowPass) normal = normalize(normal);
     }
     mat4 model = uInstanced ? aInstanceModel * uModel : uModel;
+#else
+    mat4 model = uModel;
+#endif
     vec4 worldPosition = model * vec4(position, 1.0);
+#if !TOWN_GEOMETRY
     if (uInstanced && uTreeBillboardMode == 1) {
         vec3 root = aInstanceModel[3].xyz;
         vec3 front = cross(model[0].xyz, model[1].xyz);
@@ -122,14 +138,19 @@ void main() {
         if (dot(from,from) > 1e-12 && dot(toward,toward) > 1e-12)
             worldPosition.xyz = pivot + turnToward(worldPosition.xyz-pivot, normalize(from), normalize(toward));
     }
+#endif
     gl_Position = uProjection * uView * worldPosition;
     vWorldPosition = worldPosition.xyz;
+#if !TOWN_GEOMETRY
     vCanopyHeight = uTreeCanopyShading ? (worldPosition.y - aInstanceInfo.x) * aInstanceInfo.y : 0.0;
     vCanopyLight = uTreeCanopyShading ? aInstanceInfo.zw : vec2(1.0);
     // Impostors are unlit. Keep the general instanced path correct for shear
     // and nonuniform scale without paying for inverses on these tree vertices.
     vNormal = uShadowPass ? vec3(0.0) : uInstanced ? (uUnlit ? normal : transpose(inverse(mat3(model))) * normal)
                         : uNormalMatrix * normal;
+#else
+    vNormal = uShadowPass ? vec3(0.0) : uNormalMatrix * normal;
+#endif
     vUV = aUV;
     vColor = aColor;
 }

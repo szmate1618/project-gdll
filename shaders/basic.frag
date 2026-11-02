@@ -1,4 +1,7 @@
 #version 330 core
+#ifndef TOWN_GEOMETRY
+#define TOWN_GEOMETRY 0
+#endif
 #ifndef ZOMBIE_WOUNDS
 #define ZOMBIE_WOUNDS 1
 #endif
@@ -7,9 +10,11 @@ in vec3 vNormal;
 in vec2 vUV;
 in vec4 vColor;
 in vec3 vWorldPosition;
-in float vCanopyHeight;
 uniform vec3 uForestVisibility; // World X/Z center, horizontal radius; zero disables.
+#if !TOWN_GEOMETRY
+in float vCanopyHeight;
 flat in vec2 vCanopyLight;
+#endif
 #if ZOMBIE_WOUNDS
 flat in int vWoundBase;
 uniform usamplerBuffer uZombieWounds;
@@ -239,7 +244,11 @@ void main() {
     float sunFacing = max(dot(normal, uSunDirection), 0.0);
     vec3 ambient = mix(uGroundAmbient, uSkyAmbient, normal.y * 0.5 + 0.5);
     float distanceFromEye = length(vWorldPosition - uEye);
+#if !TOWN_GEOMETRY
     float canopyLight = mix(vCanopyLight.x, vCanopyLight.y, smoothstep(0.20, 0.95, vCanopyHeight));
+#else
+    const float canopyLight = 1.0;
+#endif
     // Static canopy cover affects daylight only. Keep the night palette and
     // add the flashlight afterwards so the beam can illuminate forest interiors.
     vec3 light = uUnlit ? uUnlitLight * mix(canopyLight, 1.0, uNightBlend)

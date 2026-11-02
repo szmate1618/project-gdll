@@ -93,7 +93,7 @@ bool Renderer::hasDistantStatic(const Camera& camera, const glm::mat4& projectio
         if (!staticCacheable_[index]) continue;
         auto& chunks = staticChunks_[index];
         if (!chunks.buffer) {
-            if (DistantSceneCache::distant(sceneVisibility_.drawBounds(index), eye, 1000)) return true;
+            if (DistantSceneCache::distant(cacheBoundsForDraw(index, eye, projection), eye, 1000)) return true;
             continue;
         }
         chunks.visibility.query(projectionView, chunks.visible, forestVisibilityRange(), true);
@@ -119,15 +119,20 @@ bool Renderer::hasDistantStatic(const Camera& camera, const glm::mat4& projectio
 bool Renderer::keepStaticDraw(std::size_t index) const {
     if (staticPass_ == StaticPass::All) return true;
     if (!staticCacheable_[index]) return staticPass_ == StaticPass::Near;
+    return keepStaticBounds(cacheBoundsForDraw(index, wallBatchEye_, wallBatchProjection_));
+}
+
+const VisibilityBounds& Renderer::cacheBoundsForDraw(std::size_t index, glm::vec3 eye,
+                                                    const glm::mat4& projection) const {
     // Keep complete batches together. Otherwise a cell crossing 1 km could
     // accidentally bake nearby members into the cache or leave seam holes.
     const auto wall = wallBatchForDraw_[index], roof = roofBatchForDraw_[index];
     if (wallBatching_ && wall != noBuildingBatch &&
         !buildingDetailsNear(wallBatchDetails_[wall].bounds, wallBatchDetails_[wall].distance,
-                             wallBatchEye_, wallBatchProjection_))
-        return keepStaticBounds(wallCacheBounds_[wall]);
-    if (roofBatching_ && roof != noBuildingBatch) return keepStaticBounds(roofCacheBounds_[roof]);
-    return keepStaticBounds(sceneVisibility_.drawBounds(index));
+                             eye, projection))
+        return wallCacheBounds_[wall];
+    if (roofBatching_ && roof != noBuildingBatch) return roofCacheBounds_[roof];
+    return sceneVisibility_.drawBounds(index);
 }
 
 bool Renderer::drawStaticChunks(std::size_t index) {
@@ -158,6 +163,7 @@ bool Renderer::drawStaticChunks(std::size_t index) {
 void Renderer::drawStaticScene(const glm::mat4& view, const glm::mat4& projection, const glm::mat4& gpuProjection) {
     forestStats_.volumes = forestStats_.drawCalls = 0;
     staticProjectionView_ = projection * view;
+    selectTownShader();
     glUniformMatrix4fv(viewLocation_, 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, glm::value_ptr(gpuProjection));
     glUniform1i(instancedLocation_, GL_FALSE);
@@ -167,6 +173,9 @@ void Renderer::drawStaticScene(const glm::mat4& view, const glm::mat4& projectio
     beginTownPass(eye, projection);
     for (const auto index : opaqueScene_)
         if (drawTownSource(index)) ++sceneStats_.drawCalls;
+    selectBasicShader(true);
+    glUniformMatrix4fv(viewLocation_, 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, glm::value_ptr(gpuProjection));
     drawTrees(staticProjectionView_, false, cameraVisibility_);
     drawForests(staticProjectionView_, false, cameraVisibility_.forests);
 }
