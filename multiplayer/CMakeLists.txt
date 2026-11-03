@@ -38,7 +38,7 @@ target_include_directories(multiplayer_paths PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}
 target_link_libraries(multiplayer_paths PUBLIC viewer_application_paths)
 viewer_warnings(multiplayer_paths)
 
-add_library(multiplayer_core STATIC server/dog_replication.cpp client/dog_playback.cpp protocol.cpp session_settings.cpp client/session_setup.cpp client/host_setup.cpp inventory_state.cpp ragdoll_pose_codec.cpp character_appearance_data.cpp character_appearances.cpp scene.cpp resources.cpp asset_validation.cpp network.cpp fragments.cpp
+add_library(multiplayer_core STATIC server/dog_replication.cpp client/dog_playback.cpp client/flashlights.cpp protocol.cpp session_settings.cpp client/session_setup.cpp client/host_setup.cpp inventory_state.cpp ragdoll_pose_codec.cpp character_appearance_data.cpp character_appearances.cpp scene.cpp resources.cpp asset_validation.cpp network.cpp fragments.cpp
     outgoing_snapshots.cpp signals.cpp server/birds.cpp server/world.cpp server/vehicle_seats.cpp server/replication.cpp server/zombie_selection.cpp
     server/sounds.cpp server/vehicle_replication.cpp client/prediction.cpp client/snapshots.cpp client/vehicle_playback.cpp client/ragdoll_interpolation.cpp
     client/ragdoll_playback.cpp client/zombie_prediction.cpp client/zombie_presentation_clock.cpp client/firearm_hits.cpp client/weapon_feedback.cpp client/weapon_audio.cpp client/sound_cues.cpp client/remote_weapon_playback.cpp)
@@ -323,6 +323,11 @@ if(BUILD_TESTING)
     viewer_warnings(test_multiplayer)
     add_dependencies(test_multiplayer viewer_test_asset)
     add_test(NAME multiplayer_core COMMAND test_multiplayer "${VIEWER_TEST_ASSET}")
+    add_executable(test_multiplayer_flashlights tests/test_flashlights.cpp)
+    target_link_libraries(test_multiplayer_flashlights PRIVATE multiplayer_core)
+    viewer_warnings(test_multiplayer_flashlights)
+    add_dependencies(test_multiplayer_flashlights viewer_test_asset)
+    add_test(NAME multiplayer_flashlights COMMAND test_multiplayer_flashlights "${VIEWER_TEST_ASSET}")
     add_executable(test_starting_weapon tests/test_starting_weapon.cpp)
     target_link_libraries(test_starting_weapon PRIVATE multiplayer_character_canvas multiplayer_core)
     target_compile_definitions(test_starting_weapon PRIVATE VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}")

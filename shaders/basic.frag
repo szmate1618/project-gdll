@@ -64,6 +64,10 @@ uniform mat4 uFlashlightMatrix;
 uniform vec3 uFlashlightShadowDistances; // Near plane, fade start, shadow distance, in meters.
 uniform vec3 uFlashlightColor;
 uniform vec3 uFlashlightCone; // Range in meters, cosine of inner/outer half angles.
+uniform int uRemoteFlashlightCount;
+uniform vec3 uRemoteFlashlightPositions[8];
+uniform vec3 uRemoteFlashlightDirections[8];
+uniform vec3 uRemoteFlashlightColor;
 uniform vec3 uMuzzleFlashPosition;
 uniform vec3 uMuzzleFlashColor;
 uniform float uMuzzleFlashRange;
@@ -163,20 +167,29 @@ float flashlightVisibility(float facing, float distanceFromLight) {
     return mix(visibility * 0.25, 1.0, fade);
 }
 
-vec3 flashlight(vec3 normal) {
-    if (uNightBlend <= 0.0 || all(equal(uFlashlightColor, vec3(0.0)))) return vec3(0.0);
-    float distanceFromLight = length(vWorldPosition - uFlashlightPosition);
+vec3 flashlightBeam(vec3 normal, vec3 position, vec3 direction, vec3 color, bool shadows) {
+    if (all(equal(color, vec3(0.0)))) return vec3(0.0);
+    float distanceFromLight = length(vWorldPosition - position);
     if (distanceFromLight >= uFlashlightCone.x) return vec3(0.0);
-    vec3 fromLight = (vWorldPosition - uFlashlightPosition) / max(distanceFromLight, 0.001);
+    vec3 fromLight = (vWorldPosition - position) / max(distanceFromLight, 0.001);
     float cone = smoothstep(uFlashlightCone.z, uFlashlightCone.y,
-                           dot(fromLight, uFlashlightDirection));
+                           dot(fromLight, direction));
     float rangeFade = 1.0 - smoothstep(uFlashlightCone.x * 0.75, uFlashlightCone.x, distanceFromLight);
     float falloff = 1.0 / (1.0 + 0.025 * distanceFromLight * distanceFromLight);
     // Impostor normals describe a card rather than the photographed canopy.
     float facing = uUnlit ? 1.0 : max(dot(normal, -fromLight), 0.0);
     if (cone <= 0.0 || facing <= 0.0) return vec3(0.0);
-    float visibility = flashlightVisibility(facing, distanceFromLight);
-    return uFlashlightColor * (uNightBlend * cone * rangeFade * falloff * facing * visibility);
+    float visibility = shadows ? flashlightVisibility(facing, distanceFromLight) : 1.0;
+    return color * (uNightBlend * cone * rangeFade * falloff * facing * visibility);
+}
+
+vec3 flashlight(vec3 normal) {
+    if (uNightBlend <= 0.0) return vec3(0.0);
+    vec3 light = flashlightBeam(normal, uFlashlightPosition, uFlashlightDirection, uFlashlightColor, true);
+    for (int i = 0; i < uRemoteFlashlightCount; ++i)
+        light += flashlightBeam(normal, uRemoteFlashlightPositions[i], uRemoteFlashlightDirections[i],
+                                uRemoteFlashlightColor, false);
+    return light;
 }
 
 vec3 pointLight(vec3 normal, vec3 position, vec3 color, float range) {

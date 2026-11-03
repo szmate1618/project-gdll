@@ -642,6 +642,51 @@ void checkReversedRoadDepth() {
     viewer::Renderer::checkErrors("reversed road depth and conventional restoration");
 }
 
+void checkRemoteFlashlights(const std::string& capture) {
+    viewer::Model model;
+    viewer::Material material; material.baseColor = {.2f, .2f, .2f, 1};
+    model.materials.push_back(material);
+    model.primitives.push_back(quad({{{-20, -10, -8}, {20, -10, -8}, {20, 12, -8}, {-20, 12, -8}}}, {0, 0, 1}, 0));
+    model.draws.push_back({0, glm::mat4(1), "receiver"});
+    viewer::Renderer renderer(model, VIEWER_SHADER_DIR);
+    renderer.resize(width, height);
+    renderer.setNight(true); renderer.setFlashlight(false);
+    renderer.setHaze(false); renderer.setGroundFog(false); renderer.setShadows(false);
+    viewer::Camera observer; observer.setPosition({0, 1.7f, 2}); observer.setOrientation(-90, 0);
+    const glm::vec3 target{0, 1.7f, -8};
+    renderer.render(observer);
+    const float dark = brightness(observer, target);
+    viewer::Camera remote; remote.setPosition({4, 1.7f, 0}); remote.setOrientation(-116.565f, 0);
+    const auto first = viewer::flashlightView(remote);
+    renderer.setRemoteFlashlights({first});
+    renderer.render(observer);
+    const float lit = brightness(observer, target);
+    require(lit - dark > 35, "Remote beam must light world surfaces while the observer's flashlight is off");
+    require(std::abs(brightness(observer, {6, 1.7f, -8}) - dark) < 3,
+            "Remote flashlight must remain a cone rather than an omnidirectional light");
+    if (!capture.empty()) renderer.writeScreenshot(capture + "-remote-flashlight.ppm");
+    remote.setPosition({-4, 1.7f, 0}); remote.setOrientation(-63.435f, 0);
+    renderer.setRemoteFlashlights({first, viewer::flashlightView(remote)});
+    renderer.render(observer);
+    require(brightness(observer, target) - lit > 15, "Overlapping remote beams must add illumination");
+    remote.setOrientation(90, 0);
+    renderer.setRemoteFlashlights({viewer::flashlightView(remote)});
+    renderer.render(observer);
+    require(std::abs(brightness(observer, target) - dark) < 3, "Turning away must remove remote illumination");
+    remote.setPosition({0, 1.7f, 40}); remote.setOrientation(-90, 0);
+    renderer.setRemoteFlashlights({viewer::flashlightView(remote)});
+    renderer.render(observer);
+    require(std::abs(brightness(observer, target) - dark) < 3, "Remote beam must stop beyond its 40 m range");
+    renderer.setRemoteFlashlights({first});
+    renderer.setNight(false); renderer.render(observer);
+    const float day = brightness(observer, target);
+    renderer.setRemoteFlashlights({}); renderer.render(observer);
+    require(std::abs(brightness(observer, target) - day) < 3, "Remote beams must use the same daylight fade as the local light");
+    renderer.setNight(true); renderer.render(observer);
+    require(std::abs(brightness(observer, target) - dark) < 3, "Removing remote players must clear their lighting uniforms");
+    viewer::Renderer::checkErrors("remote flashlight regression");
+}
+
 void checkFlashlightRange() {
     viewer::Camera camera;
     camera.setPosition({0, 1.7f, 0});
@@ -710,6 +755,7 @@ int main(int argc, char** argv) {
         checkFlashlight(FlashlightCaster::Tree);
         checkFlashlight(FlashlightCaster::Door);
         checkFlashlightRange();
+        checkRemoteFlashlights(argc > 1 ? argv[1] : "");
         std::cout << "Shadow rendering tests passed (" << glGetString(GL_RENDERER) << ")\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

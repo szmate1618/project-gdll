@@ -8,6 +8,11 @@
 
 namespace viewer {
 
+void Renderer::setRemoteFlashlights(const std::vector<FlashlightView>& lights) {
+    remoteFlashlightCount_ = std::min(lights.size(), maxRemoteFlashlights);
+    std::copy_n(lights.begin(), remoteFlashlightCount_, remoteFlashlights_.begin());
+}
+
 void Renderer::setShadowCasters(ShadowCasters level) {
     shadows_ = level != ShadowCasters::None;
     treeShadows_ = level >= ShadowCasters::Trees;
@@ -158,6 +163,12 @@ void Renderer::applyLighting(const Camera& camera, const SunShadowView& shadowVi
     glUniform3fv(flashlightDirectionLocation_, 1, glm::value_ptr(direction));
     const auto flashlightColor = flashlightEnabled_ && !vehicleDriver_ ? nightLighting_.flashlightColor : glm::vec3(0);
     glUniform3fv(flashlightColorLocation_, 1, glm::value_ptr(flashlightColor));
+    glUniform1i(remoteFlashlightCountLocation_, static_cast<GLint>(remoteFlashlightCount_));
+    glUniform3fv(remoteFlashlightColorLocation_, 1, glm::value_ptr(nightLighting_.flashlightColor));
+    for (std::size_t i = 0; i < remoteFlashlightCount_; ++i) {
+        glUniform3fv(remoteFlashlightPositions_[i], 1, glm::value_ptr(remoteFlashlights_[i].position));
+        glUniform3fv(remoteFlashlightDirections_[i], 1, glm::value_ptr(remoteFlashlights_[i].direction));
+    }
     applyVehicleLights();
     glUniform3f(flashlightConeLocation_, nightLighting_.flashlightRange,
                 std::cos(glm::radians(nightLighting_.innerAngle)),

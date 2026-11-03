@@ -66,6 +66,13 @@ BasicShaderUniforms::BasicShaderUniforms(GLuint program) {
     flashlightDirectionLocation_ = glGetUniformLocation(program, "uFlashlightDirection");
     flashlightColorLocation_ = glGetUniformLocation(program, "uFlashlightColor");
     flashlightConeLocation_ = glGetUniformLocation(program, "uFlashlightCone");
+    remoteFlashlightCountLocation_ = glGetUniformLocation(program, "uRemoteFlashlightCount");
+    remoteFlashlightColorLocation_ = glGetUniformLocation(program, "uRemoteFlashlightColor");
+    for (std::size_t i = 0; i < maxRemoteFlashlights; ++i) {
+        const auto index = "[" + std::to_string(i) + "]";
+        remoteFlashlightPositions_[i] = glGetUniformLocation(program, ("uRemoteFlashlightPositions" + index).c_str());
+        remoteFlashlightDirections_[i] = glGetUniformLocation(program, ("uRemoteFlashlightDirections" + index).c_str());
+    }
     muzzleFlashPositionLocation_ = glGetUniformLocation(program, "uMuzzleFlashPosition");
     muzzleFlashColorLocation_ = glGetUniformLocation(program, "uMuzzleFlashColor");
     muzzleFlashRangeLocation_ = glGetUniformLocation(program, "uMuzzleFlashRange");

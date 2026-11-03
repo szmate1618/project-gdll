@@ -35,6 +35,9 @@ struct BasicShaderUniforms {
     GLint flashlightPositionLocation_ = -1, flashlightShadowsLocation_ = -1, flashlightShadowMapLocation_ = -1;
     GLint flashlightMatrixLocation_ = -1, flashlightShadowDistancesLocation_ = -1;
     GLint flashlightDirectionLocation_ = -1, flashlightColorLocation_ = -1, flashlightConeLocation_ = -1;
+    static constexpr std::size_t maxRemoteFlashlights = 8; // Matches basic.frag; covers every remote player.
+    GLint remoteFlashlightCountLocation_ = -1, remoteFlashlightColorLocation_ = -1;
+    std::array<GLint, maxRemoteFlashlights> remoteFlashlightPositions_{}, remoteFlashlightDirections_{};
     GLint muzzleFlashPositionLocation_ = -1, muzzleFlashColorLocation_ = -1, muzzleFlashRangeLocation_ = -1;
     static constexpr std::size_t maxExplosionLights = 8; // Matches basic.frag.
     GLint explosionCountLocation_ = -1;

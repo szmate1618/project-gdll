@@ -34,7 +34,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 40; // Independent dog population, motion and firearm reports.
+constexpr std::uint32_t protocolVersion = 41; // Replicated player flashlight toggles.
 constexpr std::uint64_t ragdollUpdateTicks = 3; // Uniform 20 Hz at the authoritative 60 Hz tick.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
@@ -99,6 +99,7 @@ struct Command {
     SignalKind signal = SignalKind::None; // One-shot, resolved with this command's aim.
     // Reports share this command's sequence and are retried/deduplicated with it.
     std::optional<FirearmShot> firearmShot;
+    bool flashlight = true; // Held state; repeated commands must not toggle it again.
 };
 struct ReplicationView {
     glm::vec3 eye{0}; // Runtime X east/Y up/Z south metres.
@@ -149,6 +150,7 @@ struct PlayerState {
     std::vector<viewer::ItemPlacement> inventoryPlacements{}; // All item IDs in the same map order, when idle.
     std::optional<InventoryState> inventoryState{}; // Observer only, when no transaction is active.
     std::vector<std::string> ammoItemIds{};
+    bool flashlight = true;
 };
 struct ZombieState {
     std::uint32_t id = 0, asset = 0;

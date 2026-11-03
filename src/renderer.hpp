@@ -163,6 +163,8 @@ public:
     void setSunShadowTimer(GpuTimer* timer) { sunShadowTimer_ = timer; }
     double sunShadowCpuMilliseconds() const { return sunShadowCpuMs_; }
     void setFlashlight(bool enabled) { flashlightEnabled_ = enabled; }
+    // Additional world-space beams, independent of the local toggle; no shadow passes.
+    void setRemoteFlashlights(const std::vector<FlashlightView>& lights);
     void setFlashlightShadows(bool enabled) { flashlightShadows_ = enabled; }
     void setMuzzleFlash(const MuzzleFlashLight& light) { muzzleFlash_ = light; }
     // Already aged on the local presentation clock; server mist keeps its own timeline.
@@ -473,6 +475,8 @@ private:
     SunLighting lighting_;
     NightLighting nightLighting_;
     bool flashlightEnabled_ = true;
+    std::array<FlashlightView, maxRemoteFlashlights> remoteFlashlights_{};
+    std::size_t remoteFlashlightCount_ = 0;
     bool night_ = false;
     std::optional<DayNightLighting> dayNight_;
     std::unique_ptr<ShadowMap> shadowMap_ = std::make_unique<ShadowMap>(SunLighting::shadowResolution);

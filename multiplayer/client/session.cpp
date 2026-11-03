@@ -19,6 +19,7 @@
 #include "inventory/inventory_config.hpp"
 #ifdef MP_GRAPHICS
 #include "players.hpp"
+#include "flashlights.hpp"
 #include "renderer.hpp"
 #include "gpu_timer.hpp"
 #include "boid/bird_renderer.hpp"
@@ -378,6 +379,7 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
     const auto aim = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, seconds, !in.driver.occupied() && !in.handling());
     c.movement.yawDegrees = aim.yawDegrees(); c.pitch = aim.pitchDegrees(); c.slot = in.slot;
     c.objectHandling = in.temporaryHandling();
+    c.flashlight = in.flashlight;
     if (bot) { c.movement.forward = 1; c.movement.yawDegrees = 0; c.pitch = 0; return c; }
     c.cancelInteraction = true;
     if (!window || !in.capture) return c;
@@ -759,6 +761,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 intervalSimulationSeconds += std::chrono::duration<double>(Clock::now() - simulationStart).count();
                 auto& renderer = *graphics.renderer;
                 renderer.setFlashlight(in.flashlight);
+                renderer.setRemoteFlashlights(multiplayer::remoteFlashlights(snapshots.players(), self));
                 renderer.setLocalBloodMist(graphics.localBloodMist.sample(now));
                 renderer.updateGrenades(snapshots.grenades());
                 renderer.updateVegetationBlasts(snapshots.explosions(now));

@@ -622,6 +622,11 @@ or number-row 0 for slot 0; mouse wheel up previews the next assigned action and
 previous, and left click confirms.
 Weapon changes show server-timed progress; the starter Punch shortcut is 1. R reload, L toggle flashlight, left click fire/throw/punch, right click
 cycle scope.
+Other players' flashlights illuminate the scene at night, following their aim and
+stance. Each player's L toggle is replicated independently; switching off your own
+light leaves theirs visible. Remote beams use the same 40 m range and night fade
+as the local light, without additional shadow maps. Flashlights are suppressed
+while seated in a vehicle. Protocol 41 requires matching client and server builds.
 Holding **Alt** on foot temporarily enables Object handling without changing the
 equipped weapon. The weapon lowers while Alt is held. Releasing Alt cancels the
 grip/charge and restores weapon controls; held mouse buttons must be released

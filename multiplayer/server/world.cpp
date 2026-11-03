@@ -440,6 +440,7 @@ Snapshot World::snapshot(std::uint32_t id) {
             player.weaponSwitch.timing() ? static_cast<float>(player.weaponSwitch.timing()->total()) : 0.f,
             static_cast<float>(player.weaponReload.remaining(viewer::SimulationClock::instance().seconds())),
             static_cast<float>(player.weaponReload.duration()), {}, bool(player.inventory.held()) || !player.pendingInventoryActions.empty(), {}});
+        s.players.back().flashlight = player.held.flashlight;
         // IDs remain explicit as players acquire additional stack instances.
         for (const auto& [itemId, item] : player.inventory.items())
             if (item.inventory().stackable) {

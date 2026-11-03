@@ -158,7 +158,7 @@ void command(Wire& w, Command& c) {
     w.number(c.drag.x); w.number(c.drag.y);
     w.flag(c.movement.run); w.flag(c.movement.jump); w.flag(c.movement.crouch); w.flag(c.movement.toggleProne);
     w.flag(c.cancelInteraction); w.flag(c.objectHandling); w.flag(c.left); w.flag(c.right); w.flag(c.reload); w.integer(c.slot);
-    w.flag(c.enterVehicle);
+    w.flag(c.enterVehicle); w.flag(c.flashlight);
     w.list(c.inventoryActions, 64, [&](viewer::InventoryDragAction& action) {
         auto kind = static_cast<std::uint8_t>(action.kind);
         w.integer(kind);
@@ -421,7 +421,7 @@ void payload(Wire& w, Snapshot& s) {
         if (p.health < 0 || p.health > 100) throw std::runtime_error("Invalid player health");
         movement(w, p.movement);
         w.number(p.yaw); w.number(p.pitch); w.integer(p.slot); w.integer(p.loaded); w.integer(p.reserve); w.integer(p.shots);
-        w.flag(p.weaponCoolingDown);
+        w.flag(p.weaponCoolingDown); w.flag(p.flashlight);
         w.integer(p.vehicle); w.integer(p.seat);
         w.flag(p.melee.enabled);
         if (p.melee.enabled) {
