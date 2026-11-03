@@ -93,7 +93,12 @@ bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& /*asset*/,
         stopZombieLocomotion(instance);
         return true;
     }
-    const auto direction = horizontal / distance;
+    const auto forward = horizontal / distance;
+    auto direction = crowd ? crowd->chaseDirection(id, horizontal) : forward;
+    // Stay single-file near walls, doors and props instead of steering two
+    // followers side by side into a narrow opening. This is a contact query,
+    // never a new line-of-sight observation or a change to target memory.
+    if (direction != forward && !zombieHasPassingClearance(start, world)) direction = forward;
     const float step = std::min(speed * seconds, distance);
     const auto movement = moveZombieBody(start,
         start + glm::vec3(direction.x * step, 0, direction.y * step), world, crowd, id);

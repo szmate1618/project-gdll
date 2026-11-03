@@ -397,6 +397,41 @@ void boundedExternalMovement() {
     require(invalid.feet == glm::vec3(0) && invalid.travel == 0, "Invalid destinations must not corrupt placement");
 }
 
+void steeredPursuitAgainstWall() {
+    auto model = floor();
+    quad(model, "building_test_roof", {-10, 2.5f, -10}, {10, 2.5f, -10},
+         {10, 2.5f, 10}, {-10, 2.5f, 10});
+    const viewer::CollisionWorld open(model);
+    require(viewer::zombieHasPassingClearance({-.4f, 0, 0}, open) &&
+            viewer::zombieHasPassingClearance({1, 0, 0}, open),
+            "Floors and ceilings must leave horizontal passing space available");
+    wall(model);
+    const viewer::CollisionWorld world(model);
+    require(!viewer::zombieHasPassingClearance({-.4f, 0, 0}, world),
+            "Nearby walls must suppress spreading before body contact");
+    viewer::ZombieCrowd crowd;
+    crowd.reset(2);
+    crowd.update(0, {-.4f, 0, .8f});
+    crowd.update(1, {-.4f, 0, 0});
+    viewer::ZombieInstance instance;
+    instance.restRoot = glm::translate(glm::mat4(1), {-.4f, 0, 0});
+    instance.transform = instance.restTransform = instance.restRoot;
+    const viewer::AnimatedModel asset;
+    // ID 1 prefers the passing side toward the wall. Local steering must still
+    // obey scene constraints even when that passing direction is obstructed.
+    for (int step = 0; step < 120; ++step) {
+        const auto before = glm::vec3(instance.restRoot[3]);
+        viewer::moveZombieToward(instance, asset, {-.4f, 0, 10}, 3, 1.f / 60, world, 0, &crowd, 1);
+        const auto feet = glm::vec3(instance.restRoot[3]);
+        require(feet.x <= -.35f && distance(before, feet) <= .0501f &&
+                distance(feet, {-.4f, 0, .8f}) >= .5999f,
+                "A steered pursuer must retain wall/body clearance and its speed limit");
+        require(std::abs(feet.x + .4f) < 1e-5f,
+                "A nearby wall must suppress lateral spreading before it creates a doorway jam");
+        crowd.update(1, feet);
+    }
+}
+
 void crowdAgainstWallAndDeterminism() {
     auto model = floor();
     wall(model);
@@ -467,6 +502,7 @@ int main() {
         cachedMovementOnSlopeAndStep();
         blockedBehaviorAndAnimation();
         boundedExternalMovement();
+        steeredPursuitAgainstWall();
         crowdAgainstWallAndDeterminism();
         std::cout << "Zombie world movement tests passed\n";
         return 0;

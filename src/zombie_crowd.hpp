@@ -9,6 +9,7 @@ namespace viewer {
 
 struct ZombieCrowdStats {
     std::size_t moves = 0, neighborChecks = 0, budgetStops = 0, emptySectorSkips = 0;
+    std::size_t steeringChecks = 0;
 };
 
 // Simulation-thread upright body cylinders, in world X/Z meters, with feet Y.
@@ -32,6 +33,11 @@ public:
     void erase(std::size_t id);
     void beginStep() { stats_ = {}; }
     const ZombieCrowdStats& stats() const { return stats_; }
+    // Preferred unit X/Z direction for direct pursuit. targetOffset is in
+    // meters from the indexed feet. Uses only local body positions, with a
+    // stable ID-based passing side; no visibility or scene queries. Collision
+    // must still validate the result. Steering has its own neighborBudget.
+    glm::vec2 chaseDirection(std::size_t id, glm::vec2 targetOffset);
     // Sweep toward desired feet, stopping/sliding at other bodies. No mutation:
     // the caller can apply terrain support or future scene collision before
     // publishing the accepted position. Existing overlaps may escape outward.
@@ -42,6 +48,7 @@ public:
                             std::size_t& checks);
 
 private:
+    static constexpr double cellSize = 1.0, sectorCells = 8.0;
     struct Cell {
         double x = 0, z = 0;
         bool operator==(const Cell& other) const { return x == other.x && z == other.z; }

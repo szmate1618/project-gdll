@@ -14,6 +14,10 @@ struct ZombieMovement {
     float travel = 0; // Actual horizontal path length in meters, for animation.
 };
 
+// Local spreading needs 3 m of extra horizontal scene clearance. Query nearby
+// contacts, ignoring floors/ceilings; no visibility tests or crowd mutation.
+bool zombieHasPassingClearance(glm::vec3 feet, const CollisionWorld& world);
+
 // Terrain-following capsule motion against the shared scene and living crowd.
 // Queries dynamic props at their current pose without applying impulses. Short
 // segments prevent crossing thin barriers; unresolved contacts retain safe feet.

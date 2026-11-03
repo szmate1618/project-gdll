@@ -8,8 +8,6 @@
 
 namespace viewer {
 namespace {
-constexpr double cellSize = 1.0;
-constexpr double sectorCells = 8.0;
 constexpr double diameter = ZombieCrowd::bodyRadius * 2.0;
 constexpr double skin = 0.001; // Numerical clearance, not extra arm spacing.
 bool finite(glm::vec3 p) {

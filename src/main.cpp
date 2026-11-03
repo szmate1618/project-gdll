@@ -2061,6 +2061,7 @@ int run(const Options& options) {
                               << stats.sightRays << " sight rays";
                     const auto& crowdStats = zombies->crowdStats();
                     std::cout << "; crowd " << crowdStats.neighborChecks << " neighbor checks, "
+                              << crowdStats.steeringChecks << " steering checks, "
                               << crowdStats.budgetStops << " budget stops";
                     const auto& updates = renderer.zombieUpdateStats();
                     std::cout << "; render preparation " << updates.instances << " instances, " << updates.bounds

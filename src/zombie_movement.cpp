@@ -100,6 +100,29 @@ glm::vec3 resolve(glm::vec3 start, glm::vec3 desired, const CollisionWorld& worl
 }
 }
 
+bool zombieHasPassingClearance(glm::vec3 feet, const CollisionWorld& world) {
+    if (world.empty()) return true;
+    struct Space { glm::vec3 feet; bool clear = true; } space{feet};
+    // Leave two steering neighborhoods clear before spreading; otherwise the
+    // back of a queue can fan out while its front is already entering a door.
+    world.visitContacts(feet, radius, height, 3.f, wallClearance,
+        {&space, [](void* context, const Contact& contact) {
+            auto& space = *static_cast<Space*>(context);
+            // With wide padding, a nearby floor triangle's edge can report a
+            // sideways normal even though its surface is beneath the feet.
+            if (contact.terrainSupport || contact.point.y <= space.feet.y + tolerance) return true;
+            // Padding also reaches above/below the body. Only nearby sides
+            // within its standing height constrain horizontal passing space.
+            if (contact.depth > tolerance && std::abs(contact.normal.y) < minNormalY &&
+                contact.point.y >= space.feet.y && contact.point.y <= space.feet.y + height) {
+                space.clear = false;
+                return false;
+            }
+            return true;
+        }});
+    return space.clear;
+}
+
 ZombieMovement moveZombieBody(glm::vec3 start, glm::vec3 desired, const CollisionWorld& world,
                               ZombieCrowd* crowd, std::size_t id, WalkingGroundCache* groundCache,
                               ContactCandidates* contactCache, std::size_t* sharedCrowdChecks) {

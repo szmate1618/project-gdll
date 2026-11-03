@@ -21,7 +21,10 @@ bool turnZombieToward(ZombieInstance& instance, glm::vec2 direction, float secon
 void applyZombieLocomotion(ZombieInstance& instance, glm::vec2 desiredVelocity,
                            const ZombieMovement& movement, float speed, float seconds);
 
-// Original direct movement in X/Z, constrained by scene, crowd and terrain.
+// Direct pursuit in X/Z, constrained by scene, crowd and terrain. With a crowd,
+// local spacing and a stable passing side bend the preferred direction without
+// visibility queries; the final approach fades back to the direct heading.
+// Nearby scene contacts suppress spreading to preserve narrow doorway passage.
 // Returns true only on actual arrival; blocked characters retain their target.
 // Small contact slides retain facing. Locomotion turns at most 180 degrees/s,
 // with a short gait hold/debounce while collision progress is intermittent.

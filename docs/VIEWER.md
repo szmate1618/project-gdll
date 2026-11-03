@@ -1387,8 +1387,20 @@ Living zombies use **0.30 m radius, 1.8 m tall upright body cylinders** for chea
 crowd collision. Their centers stay at least 0.60 m apart on the same level;
 animated arms and other extremities can still intersect. Movement sweeps the
 whole proposed segment, stops at a body, and slides along an oblique contact.
-Head-on queues can stop without choosing a route around the crowd. Idle and
-inactive living zombies also block movement; ragdolls and removed bodies do not.
+Direct pursuit adds gentle lateral separation within **1.2 m** and a passing
+bias for bodies ahead within **1.5 m**. Off-center blockers favor the nearer
+passing side; stable zombie IDs choose left or right for nearly aligned bodies,
+so a head-on queue can fan out instead of waiting behind its front member.
+Steering fades over the final meter to the movement destination and leaves the
+last 15 cm direct, allowing arrival and attacks. It reads current crowd positions
+without additional visibility rays or pathfinding, and keeps the same speed cap.
+When crowd steering would change the heading, one nearby-contact query checks
+for **3 m of extra horizontal clearance** around the body. Floors and ceilings
+do not count. Nearby walls, doors or props suppress spreading so followers keep
+their direct approach through narrow openings. This is a collision proximity
+check and adds no visibility rays.
+Idle and inactive living zombies also block movement; ragdolls and removed
+bodies do not.
 Characters on vertically separate floors do not block each other. Blocked
 pursuers keep their target and stop advancing their locomotion animation.
 
@@ -1399,13 +1411,19 @@ choose collision priority. Given the same initial data and simulation steps,
 movement is repeatable; different frame timesteps need not produce identical
 crowd paths. Each crowd segment allows up to three sliding contacts, with **64
 neighbor checks total across all segments of one zombie's movement**.
-Exhausting that budget stops at the last verified position
-instead of skipping unchecked bodies. This bounds dense-cell neighbor work,
-including malformed piles, without rigid bodies or all-pairs crowd checks.
-`--profile` reports neighbor checks and budget stops; `ZombieLayer::crowdStats()`
-exposes those counters. The existing deterministic spawn placement starts bodies
-well apart. This constraint preserves that separation; it does not untangle
-arbitrarily overlapping spawn data, although outward escape is allowed.
+Exhausting that collision budget stops at the last verified position instead
+of skipping unchecked bodies. This bounds dense-cell neighbor work, including
+malformed piles, without rigid bodies or all-pairs crowd checks.
+Direct-pursuit steering independently tests at most **64 neighbors** in the same
+grid; an overflowing neighborhood falls back to the direct heading. Its result
+always passes through the existing scene and crowd collision checks. Nearby
+bodies across walls may influence steering, but cannot grant passage through a
+wall. Local steering does not guarantee escape from a packed group or corner.
+`--profile` reports collision/steering neighbor checks and collision budget stops;
+`ZombieLayer::crowdStats()` exposes those counters. The existing deterministic
+spawn placement starts bodies well apart. This constraint preserves that
+separation; it does not untangle arbitrarily overlapping spawn data, although
+outward escape is allowed.
 
 Moving zombies also collide with **walls, current door panels, interior boxes,
 pole columns, fences, guardrails, and tree trunks**, using the same accelerated
@@ -1470,9 +1488,9 @@ including transparent texels, while actual mesh entrance gaps remain open.
 those respective zombie obstacles. Pole/guardrail sidecar fingerprint checks
 remain the same as for rendering and player collision.
 
-Zombies do not yet find routes around buildings or crowds, deliberately operate
-doors or objects, or collide with the player. Within a vehicle physics group,
-contact can push an unlatched door or movable box. Outside those groups, standing
+Direct pursuit does not plan routes around buildings or packed crowds,
+deliberately operate doors or objects, or collide with the player. Within a
+vehicle physics group, contact can push an unlatched door or movable box. Outside those groups, standing
 zombies retain the original non-dynamic movement and door-blocking behavior.
 The movement module keeps scene constraints, crowd constraints, terrain sampling and transform publication
 separate for later navigation and player interaction work.
@@ -3007,8 +3025,11 @@ replacement. `viewer_animated_model` checks shared timing against literal frame-
 goldens, including a shared base that rounds to the frame count before phase wrapping.
 
 `viewer_zombie_crowd` checks swept contacts, sliding, opposing movers, separate
-floors, inactive blockers, animation stopping, ragdoll release, grid updates,
+floors, inactive blockers, ragdoll release, grid updates,
 stable movement priority, and conservative overload handling. Two replays of a
+straight pursuit queue verify lateral spreading toward several attack positions,
+unchanged speed, repeatability and continuous body clearance; steering also checks
+floor filtering, removal, bounded work and no added visibility rays. Two replays of a
 converging 10,000-body crowd check identical positions, bounded neighbor work,
 and final torso separation using an independent sweep-and-prune check. Reported
 elapsed time is diagnostic, with no machine-dependent timing assertion.
@@ -3203,6 +3224,7 @@ src/player_noise.{hpp,cpp} Fixed-step footsteps and landing noise emission
 src/simulation_clock.hpp   Global simulation-thread in-game clock
 src/zombie_chase.{hpp,cpp}  Terrain-following locomotion and clip clocks
 src/zombie_crowd.{hpp,cpp}  Deterministic swept body constraints and fine crowd grid
+src/zombie_crowd_steering.cpp Local pursuit spacing and stable passing direction
 src/zombie_movement.{hpp,cpp} Scene/crowd-constrained capsule motion and terrain support
 src/zombie_animation.{hpp,cpp} Authored clip selection and on-demand displayed poses
 src/zombie_lod.{hpp,cpp}    Camera detail, distance cutoff and shadow detail policy

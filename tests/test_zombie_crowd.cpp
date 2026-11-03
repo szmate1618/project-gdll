@@ -95,6 +95,54 @@ void opposingMoversAndDenseBudget() {
             "Even 10,000 coincident obstacles must use bounded neighbor work");
 }
 
+void pursuitSteering() {
+    viewer::ZombieCrowd crowd;
+    crowd.reset(3);
+    crowd.update(0, {0, 0, 0});
+    crowd.update(1, {0, 0, .8f});
+    const auto left = crowd.chaseDirection(0, {0, 10});
+    require(left.x < -.2f && left.y > .8f && std::abs(glm::length(left) - 1) < 1e-6f,
+            "An exactly aligned blocker must produce a sideways passing direction without extra speed");
+    require(crowd.chaseDirection(0, {0, 10}) == left,
+            "Repeated steering must retain the same passing side");
+    crowd.update(0, {0, 0, .8f});
+    crowd.update(1, {0, 0, 0});
+    require(crowd.chaseDirection(1, {0, 10}).x > .2f,
+            "Stable zombie IDs must split aligned pursuers onto both passing sides");
+    crowd.update(0, {0, 0, 0});
+    crowd.update(1, {.8f, 0, 0});
+    require(crowd.chaseDirection(0, {0, 10}).x < 0,
+            "A nearby body beside the pursuer must gently repel it laterally");
+    require(crowd.chaseDirection(0, {0, .1f}) == glm::vec2(0, 1),
+            "The last part of the approach must remain direct to allow arrival");
+    crowd.update(1, {0, 2, .8f});
+    require(crowd.chaseDirection(0, {0, 10}) == glm::vec2(0, 1),
+            "Zombies on another floor must not cause steering");
+    crowd.update(1, {0, 0, .8f});
+    crowd.erase(1);
+    require(crowd.chaseDirection(0, {0, 10}) == glm::vec2(0, 1),
+            "Removed crowd bodies must stop influencing steering immediately");
+
+    crowd.update(0, {-.1f, 0, -.1f});
+    crowd.update(1, {-.2f, 0, .7f});
+    crowd.update(2, {.5f, 0, .2f});
+    auto reversed = crowd;
+    reversed.erase(1); reversed.erase(2);
+    reversed.update(2, {.5f, 0, .2f}); reversed.update(1, {-.2f, 0, .7f});
+    require(crowd.chaseDirection(0, {0, 10}) == reversed.chaseDirection(0, {0, 10}),
+            "Steering must cross negative cell boundaries and ignore bucket insertion history");
+
+    crowd.reset(10001);
+    crowd.update(0, {});
+    for (std::size_t id = 1; id < 10001; ++id) crowd.update(id, {0, 0, .8f});
+    require(crowd.chaseDirection(0, {0, 10}) == glm::vec2(0, 1) &&
+            crowd.stats().steeringChecks == viewer::ZombieCrowd::neighborBudget,
+            "Overloaded steering neighborhoods must fall back with bounded work");
+    require(crowd.constrain(0, {0, 1, 1}).z < .2f &&
+            crowd.stats().neighborChecks == viewer::ZombieCrowd::neighborBudget,
+            "Steering must not consume the independent conservative collision budget");
+}
+
 viewer::ZombieLayer layerAt(std::initializer_list<glm::vec3> positions) {
     viewer::ZombieLayer layer;
     layer.assets.emplace_back();
@@ -116,20 +164,27 @@ void behaviorIntegration() {
     auto& behavior = layer.behaviors.create(0, 0, glm::vec3(layer.instances[0].restRoot[3]));
     behavior.state = viewer::ZombieState::chasing;
     behavior.target = {0, 0, 10};
-    for (int step = 0; step < 20; ++step) layer.chase(0.1f, {0, 0, 300}, world);
+    bool steered = false;
+    for (int step = 0; step < 20; ++step) {
+        layer.chase(0.1f, {0, 0, 300}, world);
+        steered = steered || layer.crowdStats().steeringChecks > 0;
+        require(layer.behaviorStats().sightRays == 0 && layer.behaviorStats().attackRays == 0,
+                "Passing a crowd body must not add visibility checks during suspended pursuit");
+        require(distance(glm::vec3(layer.instances[0].restRoot[3]), {0, 0, 1}) >= .5999f,
+                "Steered pursuit must preserve physical clearance from inactive bodies");
+    }
     const auto feet = glm::vec3(layer.instances[0].restRoot[3]);
-    require(feet.z > 0.39f && feet.z < 0.4f && !layer.instances[0].walking &&
-            layer.instances[0].walkSeconds < 0.14 && !layer.behaviors.contains(1),
-            "Inactive bodies block pursuit and blocked movement stops the animation clock");
+    require(feet.z > 4 && layer.instances[0].walking && steered && !layer.behaviors.contains(1),
+            "A pursuer must pass an inactive blocker while its locomotion clock advances");
     require(layer.behaviors.find(0)->state == viewer::ZombieState::chasing &&
             layer.behaviors.find(0)->target == glm::vec3(0, 0, 10),
-            "Being blocked must retain pursuit and the last target");
+            "Passing a body must retain pursuit and the last observed target");
     // A shot removes its body from the crowd index immediately.
     require(viewer::test::shootToKill(layer, {-2, 0.9f, 1}, {1, 0, 0}), "The inactive blocker must be shootable");
     require(layer.instances[1].ragdoll, "Shoot the blocker rather than its pursuer");
     layer.chase(0.1f, {0, 0, 300}, world);
-    require(layer.instances[0].restRoot[3].z > 0.69f && layer.instances[0].walking,
-            "Pursuit must resume immediately when its blocker becomes a ragdoll");
+    require(distance(glm::vec3(layer.instances[0].restRoot[3]), feet) > .299f && layer.instances[0].walking,
+            "Pursuit must continue at normal speed after the blocker becomes a ragdoll");
 
     // Pool insertion/removal history must not affect movement priority.
     auto a = layerAt({{-1, 0, 0}, {1, 0, 0}});
@@ -147,6 +202,77 @@ void behaviorIntegration() {
     for (std::size_t id = 0; id < 2; ++id)
         require(a.instances[id].transform == b.instances[id].transform,
                 "Stable IDs must determine collision priority regardless of pool order");
+}
+
+void cachedSightSteering() {
+    auto& clock = viewer::SimulationClock::instance();
+    clock.reset();
+    const viewer::CollisionWorld world(viewer::Model{});
+    auto layer = layerAt({{0, 0, 0}, {0, 0, .8f}});
+    layer.setPerceptionStaggering(true);
+    layer.chase(.01f, {0, 0, 10}, world);
+    require(layer.behaviorStats().sightRays > 0, "The fixture must first observe the player normally");
+    // Stay between the existing perception deadlines, with both actors outside
+    // attack range. Steering may read crowd positions but must not cast rays.
+    layer.chase(.01f, {0, 0, 10}, world);
+    require(layer.crowdStats().steeringChecks > 0 && layer.instances[0].restRoot[3].x < 0 &&
+            layer.behaviorStats().perceptionChecks == 0 && layer.behaviorStats().sightRays == 0 &&
+            layer.behaviorStats().attackChecks == 0 && layer.behaviorStats().attackRays == 0,
+            "Chasing with cached sight must steer without additional perception or attack visibility checks");
+}
+
+void queueSpreadsAroundTarget() {
+    viewer::Model terrain;
+    viewer::Primitive ground;
+    for (const auto p : {glm::vec3(-20, 0, -20), glm::vec3(-20, 0, 20),
+                         glm::vec3(20, 0, 20), glm::vec3(20, 0, -20)}) {
+        viewer::Vertex vertex;
+        vertex.position = p;
+        ground.vertices.push_back(vertex);
+    }
+    ground.indices = {0, 1, 2, 0, 2, 3};
+    terrain.primitives.push_back(std::move(ground));
+    terrain.draws.push_back({0, glm::mat4(1), "terrain"});
+    const viewer::CollisionWorld world(terrain);
+    auto layer = layerAt({{0, 0, -3}, {0, 0, -3.8f}, {0, 0, -4.6f}, {0, 0, -5.4f},
+                          {0, 0, -6.2f}, {0, 0, -7}, {0, 0, -7.8f}, {0, 0, -8.6f}});
+    viewer::ZombieCrowd crowd, replay;
+    crowd.reset(layer.instances.size()); replay.reset(layer.instances.size());
+    for (std::size_t id = 0; id < layer.instances.size(); ++id)
+        crowd.update(id, glm::vec3(layer.instances[id].restRoot[3]));
+    for (std::size_t id = layer.instances.size(); id-- > 0;)
+        replay.update(id, glm::vec3(layer.instances[id].restRoot[3]));
+    auto replayInstances = layer.instances;
+    constexpr float dt = 1.f / 60;
+    float left = 0, right = 0;
+    for (int step = 0; step < 600; ++step) {
+        for (std::size_t id = 0; id < layer.instances.size(); ++id) {
+            auto& instance = layer.instances[id];
+            const auto before = glm::vec3(instance.restRoot[3]);
+            // Match the behavior's stopping distance from a visible player,
+            // without starting attacks that would move the front-row bodies.
+            const auto destination = glm::normalize(before);
+            viewer::moveZombieToward(instance, layer.assets[0], destination, 3, dt, world, 0, &crowd, id);
+            viewer::moveZombieToward(replayInstances[id], layer.assets[0], destination, 3, dt, world, 0, &replay, id);
+            const auto feet = glm::vec3(instance.restRoot[3]);
+            require(instance.transform == replayInstances[id].transform,
+                    "Steered movement must repeat across different bucket insertion histories");
+            require(distance(before, feet) <= 3 * dt + 1e-5f,
+                    "Sideways steering must not increase running speed");
+            crowd.update(id, feet); replay.update(id, feet);
+            left = std::min(left, feet.x); right = std::max(right, feet.x);
+        }
+        for (std::size_t id = 0; id < layer.instances.size(); ++id)
+            for (std::size_t other = id + 1; other < layer.instances.size(); ++other)
+                require(distance(glm::vec3(layer.instances[id].restRoot[3]),
+                                 glm::vec3(layer.instances[other].restRoot[3])) >= .5999f,
+                        "A spreading queue must preserve body separation throughout pursuit");
+    }
+    std::size_t nearPlayer = 0;
+    for (const auto& instance : layer.instances)
+        if (glm::length(glm::vec3(instance.restRoot[3])) < 1.2f) ++nearPlayer;
+    require(left < -.8f && right > .8f && nearPlayer >= 3,
+            "An aligned queue must fan out on both sides and reach several attack positions");
 }
 
 void slidingTerrainAndNormalization() {
@@ -231,7 +357,10 @@ int main() {
         sweepSlideAndMembership();
         emptySectorInvalidation();
         opposingMoversAndDenseBudget();
+        pursuitSteering();
         behaviorIntegration();
+        cachedSightSteering();
+        queueSpreadsAroundTarget();
         slidingTerrainAndNormalization();
         packedCrowd();
         std::cout << "Zombie crowd tests passed\n";
