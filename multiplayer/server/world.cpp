@@ -162,6 +162,7 @@ void World::step() {
     clock.advance(tickSeconds);
     const double now = clock.seconds();
     std::vector<viewer::ZombiePlayer> targets;
+    std::vector<viewer::ScentEmitter> scentEmitters;
     std::vector<viewer::NoiseEvent> noises;
     struct Shot {
         glm::vec3 origin;
@@ -182,9 +183,11 @@ void World::step() {
         bodies.push_back(&player.body);
         targets.push_back({player.controller.feet(), player.controller.eyeHeight(), player.controller.bodyHeight(),
                            id, player.velocity, player.controller.config().radius, player.house.house()});
+        scentEmitters.push_back({player.controller.feet(),player.vitals.bleeding(),player.house.outside()});
     }
     // Advance living poses from the start-of-tick player state before aim and
     // contacts. Do not move them again between the solve and its snapshot.
+    if (!scene_.dogs.instances.empty()) scene_.dogs.updateScent(now,scentEmitters);
     scene_.dogs.updateBehavior(tickSeconds, targets, *scene_.collision, now, scene_.zombies.detachedParts());
     for (const auto& hit : scene_.dogs.attackHits()) {
         const auto player = players_.find(hit.player);

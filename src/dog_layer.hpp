@@ -7,6 +7,9 @@
 #include "dog_wandering.hpp"
 #include "dog_fetch.hpp"
 #include "doorway_guidance.hpp"
+#include "dog_hunting.hpp"
+#include "scent_grid.hpp"
+#include "zombie_navigation.hpp"
 #include <filesystem>
 #include <optional>
 #include <random>
@@ -20,7 +23,7 @@ constexpr float dogWalkAnimationSpeed = 1.2f, dogRunAnimationSpeed = 3.f;
 class ZombieDetachedParts;
 class PhysicsScene;
 class DoorLayer;
-enum class DogState { idle, looking, investigating, chasing, attacking, wandering, fetching };
+enum class DogState { idle, looking, investigating, chasing, attacking, wandering, fetching, hunting };
 struct DogBehavior {
     DogState state = DogState::idle;
     glm::vec3 target{0};
@@ -32,6 +35,7 @@ struct DogBehavior {
     bool active = false, suspended = false, attackHit = false;
     DogWandering wander;
     std::optional<DogFetching> fetch;
+    std::optional<DogHunting> hunt;
 };
 struct DogInstance {
     std::size_t asset = 0;
@@ -40,6 +44,8 @@ struct DogInstance {
     float displayedAnimationFrame = -1; // Renderer snapshot only; never simulation or wire state.
     double walkSeconds = 0, attackSeconds = 0;
     bool walking = false, running = false, attacking = false, dead = false, removed = false;
+    std::optional<glm::vec3> home; // Original authoritative spawn; never reset by AI/index rebuilds.
+    double nextHuntSeconds = 0;
 };
 struct DogAttackHit { std::size_t dog; std::uint32_t player; float damage; };
 struct DogShotTrace { std::size_t dog; float distance; };
@@ -68,7 +74,22 @@ public:
     std::optional<DogShotTrace> traceShot(glm::vec3 origin, glm::vec3 direction,
         const CollisionWorld& world, double seconds, const std::vector<DogInstance>* displayed = nullptr) const;
     bool damage(std::size_t dog, float amount);
+    void updateScent(double now, const std::vector<ScentEmitter>& emitters) { scent_.update(now,emitters); }
+    const ScentGrid& scent() const { return scent_; }
+    void enableHunting(std::shared_ptr<const navmesh_path::Mesh> mesh, const BuildingFootprints* footprints = nullptr);
+    const ZombieNavigation* huntingNavigation() const { return huntingNavigation_.get(); }
 private:
+    ScentGrid scent_;
+    std::unique_ptr<ZombieNavigation> huntingNavigation_; // Dog-only IDs, paths, search and progress.
+    const BuildingFootprints* huntingFootprints_ = nullptr; // Borrows the session's immutable metadata.
+    unsigned huntAttemptsRemaining_ = 0;
+    bool tryStartHunt(std::size_t id, const CollisionWorld& world, double now);
+    bool prepareHuntStep(std::size_t id, const CollisionWorld& world, double now);
+    bool beginHuntReturn(std::size_t id, const CollisionWorld& world, double now);
+    void cancelHunt(std::size_t id);
+    void finishHunt(std::size_t id, double now);
+    std::optional<glm::vec3> huntingCellTarget(ScentGrid::Cell cell, glm::vec3 from, const CollisionWorld& world) const;
+    bool validHuntingTarget(glm::vec3 target, const CollisionWorld& world) const;
     ZombieSpatialIndex spatial_; // A distinct grid; never contains humanoid IDs.
     DoorwayGuidance doorways_{dogRadius, dogHeight}; // Dog-only requests and owners.
     std::vector<std::size_t> candidates_;

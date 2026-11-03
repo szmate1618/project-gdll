@@ -92,11 +92,17 @@ DogLayer loadDogLayer(const std::filesystem::path& directory, const CollisionWor
 }
 void DogLayer::rebuildSpatialIndex() {
     doorways_.reset();
+    if (huntingNavigation_ && huntingNavigation_->capacity() != instances.size()) huntingNavigation_->resetPopulation(instances.size());
     spatial_ = ZombieSpatialIndex{};
     spatial_.growPopulation(instances.size());
     behaviors.resize(instances.size());
-    for (std::size_t id = 0; id < instances.size(); ++id)
+    for (std::size_t id = 0; id < instances.size(); ++id) {
+        if (!instances[id].home && !instances[id].removed) {
+            instances[id].home = glm::vec3(instances[id].root[3]);
+            instances[id].nextHuntSeconds = double(id % 60)/60;
+        }
         if (!instances[id].removed && !instances[id].dead) spatial_.update(id, glm::vec3(instances[id].root[3]));
+    }
 }
 void DogLayer::releaseAnimationVertices() {
     for (auto& asset : assets) releaseZombieAnimationVertices(asset);
@@ -115,6 +121,7 @@ bool DogLayer::damage(std::size_t id, float amount) {
             glm::rotate(glm::mat4(1), 1.57079633f, {0, 0, 1});
         spatial_.erase(id);
         doorways_.erase(id);
+        cancelHunt(id);
         behaviors[id] = {};
     }
     return true;

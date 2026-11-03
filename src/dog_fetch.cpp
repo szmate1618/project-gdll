@@ -36,7 +36,7 @@ void DogLayer::findFetchPart(std::size_t id, ZombieDetachedParts& parts, const C
         DogFetching fetch;
         fetch.part = part.body;
         fetch.homeRoute = behavior.wander.waypoints;
-        if (fetch.homeRoute.empty()) fetch.homeRoute.push_back(behavior.wander.previous);
+        if (fetch.homeRoute.empty()) fetch.homeRoute.push_back(instances[id].home.value_or(behavior.wander.previous));
         fetch.homeRoute.push_back(feet);
         behavior.fetch = std::move(fetch);
         behavior.wander = {};

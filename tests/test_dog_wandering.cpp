@@ -150,7 +150,13 @@ void returning() {
     enclosed.behaviors[0].wander.previous.z = 10;
     enclosed.rebuildSpatialIndex();
     enclosed.updateBehavior(.1f,{},world,0);
-    require(enclosed.behaviors[0].state == viewer::DogState::idle,"Blocked first leg must finish at its origin");
+    require(enclosed.behaviors[0].state == viewer::DogState::wandering && enclosed.behaviors[0].wander.returning &&
+            enclosed.behaviors[0].target == glm::vec3(0),
+            "A blocked trip begun away from spawn must return to its territorial home");
+    for (int step = 1; step < 110 && enclosed.behaviors[0].state == viewer::DogState::wandering; ++step)
+        enclosed.updateBehavior(.1f,{},world,step*.1);
+    require(enclosed.behaviors[0].state == viewer::DogState::idle && std::abs(enclosed.instances[0].root[3].z) < .02f,
+            "The territorial home must survive movement and spatial-index rebuilding");
 
     // Eye-height visibility misses this low barrier; capsule movement must
     // still block it and eventually return instead of walking forever in place.

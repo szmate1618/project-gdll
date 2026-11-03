@@ -18,21 +18,25 @@ struct ZombieNavigationStats {
     std::uint64_t coverageRegionReuses = 0, coverageRegionBuilds = 0;
 };
 
-// Scenario route navigation. Construction allocates the mesh,
+// Explicit route navigation, used by scenarios and independently by dog hunts.
+// Construction loads or shares immutable mesh geometry and allocates
 // one independent-search workspace, exactly10MB of path points and per-ID state.
 // Configure only in standalone/server owners; replicated clients never enable it.
-// All IDs are original ZombieLayer instance indices. The layer/population must
-// outlive ordinary calls; reconfigure after replacing/resizing that population.
+// IDs are stable indices in the owning actor population. That population must
+// outlive ordinary calls; reconfigure after replacing/resizing it.
 class ZombieNavigation {
 public:
     explicit ZombieNavigation(navmesh_path::Mesh mesh, std::size_t population,
+                              std::size_t trunkCapacity = 256);
+    explicit ZombieNavigation(std::shared_ptr<const navmesh_path::Mesh> mesh, std::size_t population,
                               std::size_t trunkCapacity = 256);
     ZombieNavigation(const std::filesystem::path& meshPath, std::size_t population);
     ~ZombieNavigation();
     ZombieNavigation(const ZombieNavigation&) = delete;
     ZombieNavigation& operator=(const ZombieNavigation&) = delete;
 
-    // Cold scenario setup only: calculate and retain the initial route now.
+    // Explicit bounded planning: calculate and retain a route now. Following
+    // never starts searches; runtime callers own scheduling/retry budgets.
     // Returns false for invalid endpoints or a failed search.
     bool plan(std::size_t id, glm::vec3 feet, glm::vec3 goal);
     // Follow only the stored route and goal; never start or retry a search.
@@ -52,6 +56,7 @@ public:
     const ZombieNavigationStats& stats() const;
     navmesh_path::Status lastStatus() const;
     const navmesh_path::Mesh& mesh() const;
+    std::shared_ptr<const navmesh_path::Mesh> sharedMesh() const;
     std::uint64_t pathFor(std::size_t id) const;
     std::size_t pathArenaBytes() const;
     std::size_t pathUsedBytes() const;

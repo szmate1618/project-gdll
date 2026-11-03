@@ -64,7 +64,9 @@ void DogLayer::selectWanderers(double now) {
         const float angle = std::uniform_real_distribution<float>(0,2*pi)(wanderRandom_);
         behavior.wander.direction = {std::sin(angle), std::cos(angle)};
         behavior.wander.previous = glm::vec3(instances[id].root[3]);
-        behavior.wander.waypoints.push_back(behavior.wander.previous);
+        behavior.wander.waypoints.push_back(instances[id].home.value_or(behavior.wander.previous));
+        if (horizontalDistance(behavior.wander.waypoints.front(),behavior.wander.previous) > .01f)
+            behavior.wander.waypoints.push_back(behavior.wander.previous);
         behavior.wander.nextPartCheck = now+5;
     }
 }
@@ -73,7 +75,10 @@ bool DogLayer::prepareWanderStep(std::size_t id, const CollisionWorld& world, do
     auto& behavior = behaviors[id];
     auto& wander = behavior.wander;
     const auto feet = glm::vec3(instances[id].root[3]);
-    if (wander.waypoints.empty()) wander.waypoints.push_back(wander.previous);
+    if (wander.waypoints.empty()) {
+        wander.waypoints.push_back(instances[id].home.value_or(wander.previous));
+        if (horizontalDistance(wander.waypoints.front(),wander.previous) > .01f) wander.waypoints.push_back(wander.previous);
+    }
     if (wander.hasTarget) {
         const bool arrived = horizontalDistance(feet,behavior.target) <= arrivalDistance;
         if (!arrived && wander.stalledSeconds < 3) return true;
@@ -86,6 +91,7 @@ bool DogLayer::prepareWanderStep(std::size_t id, const CollisionWorld& world, do
         else wander.returning = true; // A clear sight ray need not be walkable.
     }
     if (wander.remainingLegs <= 0) wander.returning = true;
+    if (wander.returning && huntingNavigation_) return beginHuntReturn(id,world,now);
     if (!wander.returning) {
         const float distance = std::uniform_real_distribution<float>(100,300)(wanderRandom_);
         if (const auto target = dogWanderTarget(feet,wander.direction,distance,world)) {
@@ -97,6 +103,7 @@ bool DogLayer::prepareWanderStep(std::size_t id, const CollisionWorld& world, do
         }
         wander.returning = true;
     }
+    if (wander.returning && huntingNavigation_) return beginHuntReturn(id,world,now);
     while (!wander.waypoints.empty() && horizontalDistance(feet,wander.waypoints.back()) <= arrivalDistance)
         wander.waypoints.pop_back();
     if (wander.waypoints.empty()) {

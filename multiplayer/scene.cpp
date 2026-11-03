@@ -6,6 +6,7 @@
 #include "guardrail_layer.hpp"
 #include "model_merge.hpp"
 #include "pole_layer.hpp"
+#include "zombie_navigation.hpp"
 #include <openssl/evp.h>
 #include <algorithm>
 #include <cmath>
@@ -313,6 +314,9 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
         dogs = role == SceneRole::Replica ? viewer::loadDogLayer(o.dogAssets,
             std::vector<glm::mat4>(o.dogCount,glm::mat4(1)),true) :
             viewer::loadDogLayer(o.dogAssets,*collision,model,spawn,o.dogCount,o.zombieRadius);
+        if (role == SceneRole::Authority)
+            viewer::configureDogHunting(dogs,o.map,floorplans->footprints(),
+                zombies.navigation() ? zombies.navigation()->sharedMesh() : nullptr);
         const auto paths = viewer::dogAssetPaths(o.dogAssets);
         content.insert(content.end(),paths.begin(),paths.end());
     }

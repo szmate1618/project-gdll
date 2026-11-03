@@ -22,8 +22,13 @@ int main() {
                 "Players must begin with 100 floating-point health and the initial stored vitals");
         require(player.applyDamage(.000001f) == 0.f && player.health() == 100.f,
                 "Damage smaller than float precision must not report a health change");
+        require(!player.bleeding(), "No actual health loss must not start bleeding");
         require(player.applyDamage(2.25f) == 2.25f && player.health() == 97.75f,
                 "Damage must retain fractional health");
+        require(player.bleeding(), "Any actual health damage must start bleeding");
+        player.setBleeding(false);
+        require(!player.bleeding(), "Clearing a wound must stop scent-producing bleeding");
+        player.setBleeding(true);
         for (float invalid : {0.f, -1.f, std::numeric_limits<float>::infinity(),
                               -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()})
             require(player.applyDamage(invalid) == 0.f && player.health() == 97.75f,
@@ -35,6 +40,7 @@ int main() {
                 "Overkill must report only remaining health and clamp to zero");
         require(player.applyDamage(10.f) == 0.f && player.health() == 0.f,
                 "Repeated hits at zero health must not produce negative health or new damage feedback");
+        require(!player.bleeding(), "Depleted players must not emit bleeding scent");
         require(otherPlayer.health() == 97.75f, "Each player's vitals must have independent ownership");
         std::cout << "Player vitals tests passed\n";
         return 0;

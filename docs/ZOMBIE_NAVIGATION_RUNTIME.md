@@ -36,8 +36,13 @@ clients also require no mesh.
 ./build/multiplayer/godollo_server output/godollo.glb --scenario scenarios/test-horde/scenario.toml
 ```
 
-Only scenario initialization requests navmesh paths. Per-frame following and
-ordinary chasing/investigation never request or retry searches.
+Zombie scenario initialization requests its paths up front. Per-frame following
+and ordinary zombie chasing/investigation never request or retry searches.
+[Dog scent hunting](DOGS.md#blood-scent-and-hunting) additionally makes bounded
+runtime path requests for scent destinations, short local searches and returns
+to spawn. Its controller owns separate IDs, paths and search state; immutable
+mesh geometry is shared when scenario navigation already loaded it. Dogs load
+the published companion on authoritative owners even without a travel scenario.
 
 ## Test-horde scenario
 

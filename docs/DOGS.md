@@ -37,6 +37,9 @@ error; sessions with zero dogs do not load dog assets.
 grid. Humanoid zombie arrays, interior reservations, ragdolls, wound buffers and
 network IDs contain no dogs. `viewer_dogs` is a separate CMake library.
 
+Every authoritative dog captures its original spawn feet as a fixed territorial
+home. Movement, AI resets, index rebuilds and later trips never change it.
+
 `dog_behavior.cpp` handles idle, noise-directed looking, investigation, pursuit,
 attacks, wandering and fetching. Ordinary activation is within
 100 meters, perception suspends beyond 150 meters and resumes within 100 meters.
@@ -116,7 +119,9 @@ line of sight from the dog's 0.55-meter eye height. Try D first, then +30°, -30
 +45°, -45°, always relative to the original D. The first clear candidate wins.
 Walk at 1.2 m/s using normal terrain support and capsule collision, then plan
 the next leg. Record the home position and each reached waypoint. After the
-chosen number of legs, retrace those waypoints to home, then return to idle.
+chosen number of legs, return to the original spawn home, then idle. When hunting
+navigation is available the return uses a navmesh path; without it, the saved
+waypoints lead back to the fixed home using normal movement/collision.
 
 If all candidates fail, retrace the visited waypoints home. A blocked first
 leg ends at the trip origin. Three seconds without
@@ -130,6 +135,50 @@ with pursuit, partial sight with investigation, and an audible noise with
 looking. A close visible player can trigger the usual bite. Interruptions
 discard the remaining trip. The server and standalone viewer own these
 decisions; multiplayer clients play the existing replicated walking poses.
+
+### Blood scent and hunting
+
+Any actual player health loss starts a bleeding flag. `setBleeding(false)` clears
+it; this does not add health drain, treatment controls or wound rendering.
+Dead players do not emit scent. The standalone viewer and authoritative server
+deposit one unit per bleeding outdoor player every simulation second, using the
+existing three-second cached house membership. Replicas run neither scent nor AI.
+
+`ScentGrid` owns a separate sparse 20 × 20 m X/Z concentration grid. Each second
+it synchronously retains 80% in the cell, transfers 4% to each side neighbor and
+1% to each diagonal, multiplies by 0.98, then adds player deposits. The 4:1 neighbor
+weighting approximates circular diffusion; ascent compares scent rise divided by
+20 m or 20√2 m. Values below 0.000001 are removed. One continuously bleeding
+stationary player settles at approximately 400 m of detectable scent measured
+between cell centers. Older peaks remain when the player moves or stops bleeding.
+
+Idle, wandering and fetching dogs may start **hunting** from a scented cell.
+Player-directed looking, investigation, pursuit and attacks take priority.
+Ascent records a strictly uphill chain through the scent grid. Try its peak,
+then up to two preceding cells. Each candidate must provide a supported outdoor
+navmesh point inside that cell; a bounded center-first probe set may miss very
+small walkable patches. Disconnected/invalid candidates fail safely. Publish
+the hunt only after a path succeeds, preserving the prior trip and any carried
+limb if all candidates fail. A successful hunt releases any limb being fetched.
+
+Dogs follow the stored navmesh path at 1.2 m/s, with dog collision, spacing and
+mesh coverage checks. On arrival they search using 3–7 five-meter legs, each
+directly covered by the outdoor mesh. A failed leg, exhausted search or three
+seconds without movement starts a navmesh return to the original spawn. Failure
+to plan or complete that return ends safely in idle. Hearing or sight immediately
+cancels the hunt/return route and resumes ordinary player reactions.
+
+Initial checks are staggered by dog ID, failed hunts retry after five seconds,
+and at most four dogs attempt hunt entry per step (up to three destination paths
+each). Completion pauses scent attempts for ten seconds. Hunting continues
+without a nearby player and does not continuously track a moving source.
+
+`dog_hunting.cpp` owns hunt transitions, target selection and navigation setup.
+It uses a dog-owned route/search controller and the existing published `.navmesh`
+beside the map. Scenario zombies and dogs share immutable mesh geometry while
+retaining independent IDs, routes and progress. Clients never initialize it.
+Maps without a companion mesh retain ordinary dog behavior without hunting;
+present invalid meshes or metadata/map fingerprint mismatches are errors.
 
 ### Fetching detached limbs
 

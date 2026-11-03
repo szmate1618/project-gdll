@@ -175,6 +175,35 @@ void playerHouseMembership(multiplayer::Scene& server) {
     require(world.players().at(outside).house.outside() && !world.players().at(outside).house.house(),
             "Authoritative outside players must expose an explicit empty house membership");
 }
+void playerScentEmission(multiplayer::Scene& server) {
+    for (const bool inside : {false,true}) {
+        house(server,"building_scent_cache");
+        server.interiorZombies.reset(); server.zombies = viewer::ZombieLayer{};
+        server.dogs = viewer::DogLayer{};
+        // Keep a dog population to enable its session-owned scent field; no
+        // living actor should attack or alter this emission-only fixture.
+        server.dogs.instances.resize(1); server.dogs.instances[0].removed = true;
+        multiplayer::World world(server); const auto id = world.join();
+        auto& player = const_cast<multiplayer::ServerPlayer&>(world.players().at(id));
+        if (inside) {
+            player.controller.teleport({0,.01f,0});
+            player.camera.setPosition(player.controller.eyePosition());
+        }
+        player.vitals.applyDamage(1);
+        for (int tick = 0; tick < 65; ++tick) world.step();
+        require(player.house.outside() != inside && player.vitals.bleeding(),
+                "Scent fixture must retain its authoritative bleeding and house states");
+        require(inside ? server.dogs.scent().activeCells() == 0 : server.dogs.scent().at(player.controller.feet()) > 0,
+                "Only an authoritative bleeding outdoor player may emit scent");
+        if (!inside) {
+            const float before = server.dogs.scent().at(player.controller.feet());
+            player.vitals.setBleeding(false);
+            for (int tick = 0; tick < 60; ++tick) world.step();
+            require(server.dogs.scent().at(player.controller.feet()) < before,
+                    "Clearing the wound must stop deposits while old scent continues decaying");
+        }
+    }
+}
 } // namespace
 int main(int argc, char** argv) {
     try {
@@ -219,6 +248,7 @@ int main(int argc, char** argv) {
         irregular(server, client); prefab(server,client); encounters(server, client);
         midnightEncounter(server);
         playerHouseMembership(server);
+        playerScentEmission(server);
         std::cout << "Independent multiplayer floorplan and stable door playback tests passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

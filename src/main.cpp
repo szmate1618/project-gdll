@@ -841,15 +841,19 @@ void updateZombieBehavior(AppState& app, float seconds, double animationSeconds,
     target.radius = config.radius;
     target.house = app.house.house();
     if (app.dogs) {
+        app.dogs->updateScent(viewer::SimulationClock::instance().seconds(),{{feet,app.vitals.bleeding(),app.house.outside()}});
         app.dogs->updateBehavior(seconds, {target}, app.world, viewer::SimulationClock::instance().seconds(),
                                  app.zombies ? app.zombies->detachedParts() : nullptr);
         for (const auto& hit : app.dogs->attackHits())
-            if (app.vitals.applyDamage(hit.damage) > 0) app.lastDamageSeconds = viewer::SimulationClock::instance().seconds();
+            if (app.vitals.applyDamage(hit.damage) > 0) {
+                app.lastDamageSeconds = viewer::SimulationClock::instance().seconds();
+            }
     }
     if (app.zombies) app.zombies->updateBehavior(seconds, target, app.world, animationSeconds);
     if (app.zombies) for (const auto& hit : app.zombies->attackHits())
-        if (app.vitals.applyDamage(hit.damage) > 0)
+        if (app.vitals.applyDamage(hit.damage) > 0) {
             app.lastDamageSeconds = viewer::SimulationClock::instance().seconds();
+        }
 }
 
 void inputSelfTest(GLFWwindow* window) {
@@ -1483,6 +1487,9 @@ int run(const Options& options) {
                       << "; embedded replay SHA256 " << navigation->sourceSha256() << '\n';
         }
     }
+    if (!dogs.instances.empty())
+        viewer::configureDogHunting(dogs,options.model,floorplans.footprints(),
+            zombies && zombies->navigation() ? zombies->navigation()->sharedMesh() : nullptr);
     GLFWLifetime lifetime;
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);

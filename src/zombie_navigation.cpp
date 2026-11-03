@@ -105,7 +105,8 @@ struct ZombieNavigation::Impl {
         std::size_t segment=0;
         bool valid=false;
     };
-    navmesh_path::Mesh mesh;
+    std::shared_ptr<const navmesh_path::Mesh> meshOwner;
+    const navmesh_path::Mesh& mesh;
     navmesh_path::PathManager paths;
     steering::Controller controller;
     std::vector<State> states;
@@ -116,8 +117,8 @@ struct ZombieNavigation::Impl {
     navmesh_path::Status status=navmesh_path::Status::noPath;
     std::string meshHash;
 
-    Impl(navmesh_path::Mesh source,std::size_t population,std::size_t trunkCapacity)
-        :mesh(std::move(source)),paths(mesh,slots(population),50'000,8.0),
+    Impl(std::shared_ptr<const navmesh_path::Mesh> source,std::size_t population,std::size_t trunkCapacity)
+        :meshOwner(std::move(source)),mesh(*meshOwner),paths(mesh,slots(population),50'000,8.0),
          controller({},trunkCapacity),states(population),recovery(population),trunks(trunkCapacity),obstacles(trunkCapacity) {
         validateMesh(mesh);
         if (!trunkCapacity) throw std::invalid_argument("Zombie navigation needs a positive trunk capacity");
@@ -164,7 +165,11 @@ struct ZombieNavigation::Impl {
 };
 
 ZombieNavigation::ZombieNavigation(navmesh_path::Mesh mesh,std::size_t population,std::size_t trunkCapacity)
-    :impl_(std::make_unique<Impl>(std::move(mesh),population,trunkCapacity)) {}
+    :ZombieNavigation(std::make_shared<const navmesh_path::Mesh>(std::move(mesh)),population,trunkCapacity) {}
+ZombieNavigation::ZombieNavigation(std::shared_ptr<const navmesh_path::Mesh> mesh,std::size_t population,std::size_t trunkCapacity) {
+    if (!mesh) throw std::invalid_argument("Navigation mesh is required");
+    impl_ = std::make_unique<Impl>(std::move(mesh),population,trunkCapacity);
+}
 ZombieNavigation::ZombieNavigation(const std::filesystem::path& path,std::size_t population)
     :ZombieNavigation(navmesh_path::Mesh::load(path.string()),population) {
     impl_->meshHash=fileSha256(path);
@@ -331,7 +336,7 @@ void ZombieNavigation::reset(std::size_t id) {
 void ZombieNavigation::resetPopulation(std::size_t population) {
     // Build before publication so a failed allocation leaves the live module
     // valid. Bulk population replacement is already a cold rebuilding operation.
-    auto replacement=std::make_unique<Impl>(impl_->mesh,population,impl_->trunks.size());
+    auto replacement=std::make_unique<Impl>(impl_->meshOwner,population,impl_->trunks.size());
     replacement->meshHash=impl_->meshHash;
     replacement->stats=impl_->stats;
     impl_=std::move(replacement);
@@ -353,6 +358,7 @@ bool ZombieNavigation::movementClear(std::size_t id,glm::vec3 a,glm::vec3 b) con
     return segmentClear(a,b);
 }
 const ZombieNavigationStats& ZombieNavigation::stats() const { return impl_->stats; }
+std::shared_ptr<const navmesh_path::Mesh> ZombieNavigation::sharedMesh() const { return impl_->meshOwner; }
 navmesh_path::Status ZombieNavigation::lastStatus() const { return impl_->status; }
 const navmesh_path::Mesh& ZombieNavigation::mesh() const { return impl_->mesh; }
 std::uint64_t ZombieNavigation::pathFor(std::size_t id) const { return impl_->paths.pathFor(id); }

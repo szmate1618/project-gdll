@@ -10,7 +10,7 @@ constexpr float pi = 3.14159265359f;
 constexpr float approachDistance = 1.f;
 constexpr float approachTolerance = .0001f;
 bool finite(glm::vec3 v) { return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z); }
-bool roaming(DogState state) { return state == DogState::wandering || state == DogState::fetching; }
+bool roaming(DogState state) { return state == DogState::wandering || state == DogState::fetching || state == DogState::hunting; }
 void face(DogInstance& dog, glm::vec2 direction, float dt, float turnRate) {
     if (glm::length(direction) < 1e-6f) return;
     float yaw = std::atan2(dog.root[2].x, dog.root[2].z);
@@ -39,6 +39,7 @@ void DogLayer::makeNoise(glm::vec3 position, float decibels) {
         const auto offset = glm::vec2(position.x-feet.x,position.z-feet.z);
         if (glm::length(offset) < 1e-4f) continue;
         behavior.lookDirection = glm::normalize(offset);
+        cancelHunt(id);
         behavior.wander = {};
         behavior.fetch.reset();
         behavior.state = DogState::looking;
@@ -51,11 +52,12 @@ void DogLayer::updateBehavior(float dt, const std::vector<ZombiePlayer>& players
     for (const auto& p : players) if (!finite(p.feet) || !finite(p.velocity)) return;
     if (behaviors.size() != instances.size()) rebuildSpatialIndex();
     doorways_.beginStep(dt);
+    huntAttemptsRemaining_ = 4; // At most twelve scent-destination path attempts per step.
     selectWanderers(now);
     for (std::size_t id = 0; id < instances.size(); ++id) {
         auto& dog = instances[id]; auto& behavior = behaviors[id];
         if (dog.dead || dog.removed || dog.asset >= assets.size()) {
-            behavior.fetch.reset(); spatial_.erase(id); doorways_.erase(id); continue;
+            cancelHunt(id); behavior.fetch.reset(); spatial_.erase(id); doorways_.erase(id); continue;
         }
         dog.walking = dog.running = false;
         auto feet = glm::vec3(dog.root[3]);
@@ -68,11 +70,11 @@ void DogLayer::updateBehavior(float dt, const std::vector<ZombiePlayer>& players
         }
         if (!nearest) {
             dog.attacking = false;
-            if (!roaming(behavior.state)) { behavior = {}; continue; }
+            if (!roaming(behavior.state) && behavior.state != DogState::idle && behavior.state != DogState::looking) behavior = {};
             behavior.suspended = true;
             behavior.sight = 0;
         } else if (!behavior.active) {
-            if (closest > 100*100) continue;
+            if (closest > 100*100 && !tryStartHunt(id,world,now)) continue;
             behavior.active = true; behavior.idleSince = now;
         }
         if (closest > 150*150) { behavior.suspended = true; behavior.sight = 0; }
@@ -100,6 +102,7 @@ void DogLayer::updateBehavior(float dt, const std::vector<ZombiePlayer>& players
                          roaming(behavior.state)) behavior.state = DogState::investigating;
                 behavior.wander = {};
                 behavior.fetch.reset();
+                cancelHunt(id);
             }
         }
         const ZombiePlayer* target = nullptr;
@@ -126,6 +129,7 @@ void DogLayer::updateBehavior(float dt, const std::vector<ZombiePlayer>& players
             }
             continue;
         }
+        tryStartHunt(id,world,now);
         if (behavior.state == DogState::idle || behavior.state == DogState::looking) {
             if (behavior.state == DogState::idle && now-behavior.idleSince >= 10) behavior = {};
             continue;
@@ -133,14 +137,21 @@ void DogLayer::updateBehavior(float dt, const std::vector<ZombiePlayer>& players
         if (behavior.state == DogState::wandering && parts) findFetchPart(id,*parts,world,now);
         if (behavior.state == DogState::wandering && !prepareWanderStep(id,world,now)) continue;
         if (behavior.state == DogState::fetching && !prepareFetchStep(id,parts,world,now)) continue;
+        if (behavior.state == DogState::hunting && !prepareHuntStep(id,world,now)) continue;
+        const bool hunting = behavior.state == DogState::hunting;
         const auto goal = behavior.target;
         const float goalDistance = glm::length(glm::vec2(goal.x-feet.x,goal.z-feet.z));
-        const auto passage = doorways_.destination(id,feet,goal,world);
+        const auto passage = hunting ? std::nullopt : doorways_.destination(id,feet,goal,world);
         const auto destination = passage.value_or(goal);
         const auto horizontal = glm::vec2(destination.x-feet.x,destination.z-feet.z);
         const float distance = glm::length(horizontal);
         const float speed = behavior.state == DogState::chasing ? 3.f : 1.2f;
         float travel = std::min(speed*dt,distance);
+        glm::vec2 routeVelocity(0);
+        if (hunting) {
+            routeVelocity = huntingNavigation_->follow(id,feet,speed,dt,world);
+            travel = glm::length(routeVelocity)*dt;
+        }
         const float heightDifference = goal.y-feet.y;
         if (behavior.sight && std::abs(heightDifference) < approachDistance) {
             // Match the 3D attack range, including terrain and player foot lift.
@@ -148,8 +159,12 @@ void DogLayer::updateBehavior(float dt, const std::vector<ZombiePlayer>& players
             travel = std::min(travel,std::max(0.f,goalDistance-horizontalGap));
         }
         if (distance > 1e-4f && travel > 1e-6f) {
-            const auto direction = passage ? horizontal/distance : steeringDirection(id,horizontal,world);
-            const auto next = move(id,feet+glm::vec3(direction.x*travel,0,direction.y*travel),world);
+            const auto forward = hunting ? glm::normalize(routeVelocity) : horizontal/distance;
+            auto direction = passage ? forward : steeringDirection(id,hunting ? forward*std::max(distance,.15f) : horizontal,world);
+            const auto desired = [&](glm::vec2 heading) { return feet+glm::vec3(heading.x*travel,0,heading.y*travel); };
+            if (hunting && !huntingNavigation_->segmentClear(feet,desired(direction))) direction = forward;
+            auto next = move(id,desired(direction),world);
+            if (hunting && !huntingNavigation_->movementClear(id,feet,next)) next = feet;
             const auto moved = glm::vec2(next.x-feet.x,next.z-feet.z);
             if (next != feet) {
                 // Physical progress is independent of the animation speed gate.
@@ -167,9 +182,12 @@ void DogLayer::updateBehavior(float dt, const std::vector<ZombiePlayer>& players
         }
         if (roaming(behavior.state)) {
             const auto next = glm::vec3(dog.root[3]);
+            if (hunting) huntingNavigation_->recordMovement(id,feet,next,dt);
             const float remaining = glm::length(glm::vec2(goal.x-next.x,goal.z-next.z));
-            auto& stalled = behavior.state == DogState::wandering ? behavior.wander.stalledSeconds : behavior.fetch->stalledSeconds;
-            if (!passage && goalDistance-remaining < .1f*dt) stalled += dt;
+            auto& stalled = hunting ? behavior.hunt->stalledSeconds :
+                behavior.state == DogState::wandering ? behavior.wander.stalledSeconds : behavior.fetch->stalledSeconds;
+            const float progress = hunting ? glm::length(glm::vec2(next.x-feet.x,next.z-feet.z)) : goalDistance-remaining;
+            if (!passage && progress < .1f*dt) stalled += dt;
             else stalled = 0;
             if (behavior.fetch && behavior.fetch->grip)
                 behavior.fetch->grip->setTarget(dogMouthPosition(dog,assets[dog.asset]));
