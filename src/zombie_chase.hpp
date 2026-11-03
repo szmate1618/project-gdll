@@ -25,6 +25,8 @@ void applyZombieLocomotion(ZombieInstance& instance, glm::vec2 desiredVelocity,
 // local spacing and a stable passing side bend the preferred direction without
 // visibility queries; the final approach fades back to the direct heading.
 // Nearby scene contacts suppress spreading to preserve narrow doorway passage.
+// A nearby open doorway can supply temporary approach/exit/yield points. These
+// never replace the original target; queue-point arrival is not target arrival.
 // Returns true only on actual arrival; blocked characters retain their target.
 // Small contact slides retain facing. Locomotion turns at most 180 degrees/s,
 // with a short gait hold/debounce while collision progress is intermittent.

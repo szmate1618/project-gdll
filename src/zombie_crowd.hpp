@@ -1,11 +1,13 @@
 #pragma once
 
+#include "zombie_doorway.hpp"
 #include <glm/glm.hpp>
 #include <cstddef>
 #include <unordered_map>
 #include <vector>
 
 namespace viewer {
+class CollisionWorld;
 
 struct ZombieCrowdStats {
     std::size_t moves = 0, neighborChecks = 0, budgetStops = 0, emptySectorSkips = 0;
@@ -31,13 +33,17 @@ public:
     void reset(std::size_t population);
     void update(std::size_t id, glm::vec3 feet);
     void erase(std::size_t id);
-    void beginStep() { stats_ = {}; }
+    void beginStep(float seconds = 0) { stats_ = {}; doorways_.beginStep(seconds); }
     const ZombieCrowdStats& stats() const { return stats_; }
     // Preferred unit X/Z direction for direct pursuit. targetOffset is in
     // meters from the indexed feet. Uses only local body positions, with a
     // stable ID-based passing side; no visibility or scene queries. Collision
     // must still validate the result. Steering has its own neighborBudget.
     glm::vec2 chaseDirection(std::size_t id, glm::vec2 targetOffset);
+    // A transient approach/exit/yield point for an open doorway. The caller
+    // retains its original target and validates movement through collisions.
+    std::optional<glm::vec3> doorwayDestination(std::size_t id, glm::vec3 target,
+                                               const CollisionWorld& world);
     // Sweep toward desired feet, stopping/sliding at other bodies. No mutation:
     // the caller can apply terrain support or future scene collision before
     // publishing the accepted position. Existing overlaps may escape outward.
@@ -48,6 +54,7 @@ public:
                             std::size_t& checks);
 
 private:
+    void eraseBody(std::size_t id); // Grid relocation must retain passage requests.
     static constexpr double cellSize = 1.0, sectorCells = 8.0;
     struct Cell {
         double x = 0, z = 0;
@@ -67,6 +74,7 @@ private:
     // through map rehash; a live body owns one count in its referenced node.
     std::unordered_map<Cell, std::size_t, Hash> sectors_;
     ZombieCrowdStats stats_;
+    ZombieDoorwayGuidance doorways_;
 };
 
 } // namespace viewer

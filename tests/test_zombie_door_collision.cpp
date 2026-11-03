@@ -1,4 +1,5 @@
 #include "zombie_shooting_fixture.hpp"
+#include "zombie_doorway_fixture.hpp"
 #include "zombie_layer.hpp"
 #include "zombie_animation.hpp"
 #include "zombie_movement.hpp"
@@ -18,36 +19,7 @@
 
 namespace {
 void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
-void quad(viewer::Model& model, const std::string& name, glm::vec3 a, glm::vec3 b,
-          glm::vec3 c, glm::vec3 d, bool detail = false, bool low = false) {
-    viewer::Primitive primitive;
-    for (const auto point : {a, b, c, d}) {
-        viewer::Vertex vertex;
-        vertex.position = point;
-        vertex.normal = glm::normalize(glm::cross(b - a, c - a));
-        primitive.vertices.push_back(vertex);
-    }
-    primitive.indices = {0, 1, 2, 0, 2, 3};
-    model.draws.push_back({model.primitives.size(), glm::mat4(1), name, detail ? 120.f : 0, low,
-                           detail ? "building_test" : ""});
-    model.primitives.push_back(std::move(primitive));
-}
-viewer::Model doorway(bool outward = true) {
-    viewer::Model model;
-    quad(model, "terrain", {-30, 0, -30}, {-30, 0, 30}, {30, 0, 30}, {30, 0, -30});
-    const auto panel = [&](float left, float bottom, float right, float top, const std::string& suffix, bool low = false) {
-        quad(model, "building_test_" + suffix, {left, bottom, 0}, {right, bottom, 0},
-             {right, top, 0}, {left, top, 0}, true, low);
-    };
-    panel(-10, 0, 10, 3, "walls", true);
-    panel(-10, 0, -.5f, 3, "detailed_walls");
-    panel(.5f, 0, 10, 3, "detailed_walls");
-    panel(-.5f, 2.1f, .5f, 3, "detailed_walls");
-    if (outward) panel(-.5f, 0, .5f, 2.1f, "doors");
-    else quad(model, "building_test_doors", {.5f, 0, 0}, {-.5f, 0, 0},
-              {-.5f, 2.1f, 0}, {.5f, 2.1f, 0}, true);
-    return model;
-}
+using viewer::test::doorway;
 void drive(viewer::DoorLayer& doors, viewer::PhysicsWorld& physics, bool open, float dt,
            bool playerImpulse = false) {
     const auto& p = doors.panel(0);

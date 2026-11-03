@@ -1051,6 +1051,27 @@ std::vector<glm::vec3> CollisionWorld::debugLines(glm::vec3 near, float distance
 }
 
 const CollisionStats& CollisionWorld::stats() const { return impl_->stats; }
+std::vector<DoorwayAperture> CollisionWorld::nearbyDoorways(glm::vec3 feet, float range) const {
+    std::vector<DoorwayAperture> result;
+    if (!finite(feet) || !std::isfinite(range) || range <= 0) return result;
+    if (impl_->doors) {
+        const auto extent = glm::vec3(range, 1.8f, range);
+        for (const auto& collider : impl_->doors->colliders(feet - extent, feet + extent)) {
+            const auto& panel = impl_->doors->panel(collider.door);
+            result.push_back({identity(), collider.door, panel.center,
+                glm::cross(glm::vec3(0, 1, 0), panel.outward), panel.outward,
+                panel.halfExtents.x * 2, panel.center.y - panel.halfExtents.y,
+                panel.center.y + panel.halfExtents.y,
+                std::abs(impl_->doors->angle(collider.door)) >= 1.3962634f}); // 80 degrees.
+        }
+    }
+    if (impl_->runtime) {
+        auto runtime = impl_->runtime->nearbyDoorways(feet, range);
+        result.insert(result.end(), runtime.begin(), runtime.end());
+    }
+    return result;
+}
+
 bool CollisionWorld::empty() const {
     return (!impl_->runtime || impl_->runtime->empty()) && impl_->triangles.empty() && impl_->trunks.empty() &&
            (!impl_->doors || impl_->doors->count() == 0) && (!impl_->boxes || impl_->boxes->count() == 0) &&

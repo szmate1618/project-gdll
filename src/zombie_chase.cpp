@@ -87,14 +87,21 @@ bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& /*asset*/,
                       const CollisionWorld& world, double /*animationSeconds*/,
                       ZombieCrowd* crowd, std::size_t id) {
     const auto start = glm::vec3(instance.restRoot[3]);
-    const glm::vec2 horizontal(target.x - start.x, target.z - start.z);
-    const float distance = glm::length(horizontal);
-    if (distance <= 1e-4f) {
+    const glm::vec2 toTarget(target.x - start.x, target.z - start.z);
+    if (glm::length(toTarget) <= 1e-4f) {
         stopZombieLocomotion(instance);
         return true;
     }
+    const auto doorway = crowd ? crowd->doorwayDestination(id, target, world) : std::nullopt;
+    const auto destination = doorway.value_or(target);
+    const glm::vec2 horizontal(destination.x - start.x, destination.z - start.z);
+    const float distance = glm::length(horizontal);
+    if (distance <= 1e-4f) {
+        stopZombieLocomotion(instance);
+        return false; // Waiting at a queue point is not arrival at the target.
+    }
     const auto forward = horizontal / distance;
-    auto direction = crowd ? crowd->chaseDirection(id, horizontal) : forward;
+    auto direction = crowd && !doorway ? crowd->chaseDirection(id, horizontal) : forward;
     // Stay single-file near walls, doors and props instead of steering two
     // followers side by side into a narrow opening. This is a contact query,
     // never a new line-of-sight observation or a change to target memory.

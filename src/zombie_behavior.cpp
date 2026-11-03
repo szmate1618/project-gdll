@@ -352,7 +352,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
         behaviorStats_ = {};
         if (!scenarioRoutes_.empty()) {
             ensureSpatialIndex();
-            crowd_.beginStep();
+            crowd_.beginStep(seconds);
             phase.finish();
             updateScenarioRoutes(seconds, world, player, players);
         }
@@ -371,7 +371,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
     const double now = SimulationClock::instance().seconds();
     behaviorStats_ = {};
     ensureSpatialIndex();
-    crowd_.beginStep();
+    crowd_.beginStep(seconds);
     if (players && players->empty()) {
         for (const auto& entry : behaviors.entries()) {
             auto& behavior = *behaviors.find(entry.zombie);

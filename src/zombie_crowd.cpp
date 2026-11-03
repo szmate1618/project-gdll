@@ -21,7 +21,7 @@ std::size_t ZombieCrowd::Hash::operator()(const Cell& cell) const {
 }
 
 ZombieCrowd::ZombieCrowd(const ZombieCrowd& other)
-    : cells_(other.cells_), bodies_(other.bodies_), sectors_(other.sectors_), stats_(other.stats_) {
+    : cells_(other.cells_), bodies_(other.bodies_), sectors_(other.sectors_), stats_(other.stats_), doorways_(other.doorways_) {
     for (auto& body:bodies_)
         if (body.present) body.sectorPopulation=&sectors_.at(body.sector);
 }
@@ -32,6 +32,7 @@ ZombieCrowd& ZombieCrowd::operator=(const ZombieCrowd& other) {
 }
 
 void ZombieCrowd::reset(std::size_t population) {
+    doorways_.reset();
     cells_.clear();
     sectors_.clear();
     bodies_.assign(population, {});
@@ -39,6 +40,11 @@ void ZombieCrowd::reset(std::size_t population) {
 }
 
 void ZombieCrowd::erase(std::size_t id) {
+    doorways_.erase(id);
+    eraseBody(id);
+}
+
+void ZombieCrowd::eraseBody(std::size_t id) {
     if (id >= bodies_.size() || !bodies_[id].present) return;
     auto& body = bodies_[id];
     auto found = cells_.find(body.cell);
@@ -65,7 +71,7 @@ void ZombieCrowd::update(std::size_t id, glm::vec3 feet) {
         // Increment first: moving between fine cells in the same sector must
         // keep that sector node alive while erase removes the old membership.
         ++population;
-        erase(id);
+        eraseBody(id);
         body.sector = sector;
         body.sectorPopulation = &population;
         body.cell = cell;

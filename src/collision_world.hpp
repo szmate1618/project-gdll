@@ -1,6 +1,7 @@
 #pragma once
 
 #include "model.hpp"
+#include "doorway.hpp"
 
 #include <array>
 #include <cstddef>
@@ -162,6 +163,9 @@ public:
     const CollisionStats& stats() const;
     std::uint64_t identity() const; // Geometry revision identity; survives moves.
     bool empty() const; // No static geometry, trunks, doors or boxes.
+    // Spatially selected aperture geometry and current opening hints.
+    // Includes streamed geometry, without activating doors or casting sight rays.
+    std::vector<DoorwayAperture> nearbyDoorways(glm::vec3 feet, float range) const;
     // Borrowed dynamic props must outlive this world. Queries remain read-only.
     void setBoxes(BoxLayer* boxes);
     void setVehicles(const VehicleLayer* vehicles);

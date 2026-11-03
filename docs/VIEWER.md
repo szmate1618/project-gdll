@@ -1399,6 +1399,22 @@ for **3 m of extra horizontal clearance** around the body. Floors and ceilings
 do not count. Nearby walls, doors or props suppress spreading so followers keep
 their direct approach through narrow openings. This is a collision proximity
 check and adds no visibility rays.
+
+Direct pursuers within **4 m** of a suitable doorway along their approach use
+temporary approach and exit points centered outside the panel's swing. The
+nearest requesting zombie gets crossing priority, with stable IDs breaking ties;
+once aligned, it keeps priority until clear. Other requesters back away from
+the opening and wait to either side, rather than entering it abreast. Each
+door coordinates at most **64 requesters**; excess requests retain ordinary
+collision-constrained movement. Missing requests expire after one skipped step,
+removed bodies release immediately, and a winner stalled for **2 seconds**
+yields priority for a second. Panels opened at least **80 degrees** can admit
+crossings; an established queue holds outside the swing if the panel closes,
+and resumes when it reopens. Current panel and wall collisions always remain
+authoritative. This local guidance adds no behavior states or visibility rays,
+and never changes the remembered player location. It does not find another
+entrance around a building or make a physically obstructed doorway passable.
+
 Idle and inactive living zombies also block movement; ragdolls and removed
 bodies do not.
 Characters on vertically separate floors do not block each other. Blocked
@@ -3034,6 +3050,13 @@ converging 10,000-body crowd check identical positions, bounded neighbor work,
 and final torso separation using an independent sweep-and-prune check. Reported
 elapsed time is diagnostic, with no machine-dependent timing assertion.
 
+`viewer_zombie_doorway` starts six pursuers two abreast outside a fully open
+door and checks passage through both swing directions and rotated apertures,
+deterministic pool-order replays, speed/body/wall clearance, unchanged target
+memory, and zero extra sight rays. It also covers reservation expiry/removal,
+stalled winners, closing panels, separate floors, narrow openings, original-goal
+arrival, grid-cell relocation and independent copied reservations.
+
 `viewer_zombie_movement` covers thin walls from both sides, sliding/corners,
 transformed scene nodes, mapped pole geometry, fence entrances/toggles, low
 guardrails, trunks, closed/open/rotated doors, read-only box collision, blocked
@@ -3225,6 +3248,8 @@ src/simulation_clock.hpp   Global simulation-thread in-game clock
 src/zombie_chase.{hpp,cpp}  Terrain-following locomotion and clip clocks
 src/zombie_crowd.{hpp,cpp}  Deterministic swept body constraints and fine crowd grid
 src/zombie_crowd_steering.cpp Local pursuit spacing and stable passing direction
+src/zombie_doorway.{hpp,cpp} Local doorway approach/exit guidance and passage queues
+src/doorway.hpp             Shared aperture geometry and current opening hints
 src/zombie_movement.{hpp,cpp} Scene/crowd-constrained capsule motion and terrain support
 src/zombie_animation.{hpp,cpp} Authored clip selection and on-demand displayed poses
 src/zombie_lod.{hpp,cpp}    Camera detail, distance cutoff and shadow detail policy
