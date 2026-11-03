@@ -6,6 +6,7 @@
 #include "collision_world.hpp"
 #include "physics_world.hpp"
 #include "zombie_layer.hpp"
+#include "simulation_clock.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -132,6 +133,59 @@ viewer::ZombieLayer dormant(std::size_t count) {
     layer.rebuildSpatialIndex();
     return layer;
 }
+void spawnBehaviors() {
+    auto& clock = viewer::SimulationClock::instance();
+    bool hiding = false, ordinary = false, midnight = false;
+    for (int n = 0; n < 1000 && !(hiding && ordinary && midnight); ++n) {
+        const auto name = "building_encounter_" + std::to_string(n);
+        if (!viewer::hasInteriorZombieEncounter(name)) continue;
+        EncounterFixture fixture(name);
+        const auto positions = fixture.positions();
+        if (positions.empty()) continue;
+        clock.reset();
+        auto layer = dormant(positions.size());
+        viewer::InteriorZombies population(0, positions.size());
+        population.update(*fixture.floors, layer, *fixture.collision, {{0, 0, 8}}, {23, 1200});
+        const auto& plan = fixture.floors->resident().begin()->second;
+        std::vector<bool> upper;
+        for (const auto& position : positions) upper.push_back(plan.rooms.at(position.room).storey > 0);
+        for (std::size_t id = 0; id < positions.size(); ++id) {
+            const auto* behavior = layer.behaviors.find(id);
+            require(behavior && !layer.instances[id].removed,
+                    "Real encounter activation must immediately create a behavior entry for every spawn");
+            if (upper[id]) {
+                require(behavior->state == viewer::ZombieState::midnight,
+                        "Every upstairs spawn, including corner and doorway placements, must wait for midnight");
+                midnight = true;
+            } else if (positions[id].position == viewer::InteriorZombiePosition::CenterGroup) {
+                require(behavior->state == viewer::ZombieState::idle,
+                        "Ground-floor middle-room groups must start as ordinary idle zombies");
+                ordinary = true;
+            } else {
+                require(behavior->state == viewer::ZombieState::hiding,
+                        "Ground-floor wall and doorway ambushers must start hiding");
+                hiding = true;
+            }
+        }
+        fixture.floors->update({});
+        population.update(*fixture.floors, layer, *fixture.collision, {}, {23, 1200});
+        clock.advance(51);
+        fixture.load();
+        population.update(*fixture.floors, layer, *fixture.collision, {{0, 0, 8}}, {23, 1200});
+        for (std::size_t id = 0; id < positions.size(); ++id) {
+            const auto* behavior = layer.behaviors.find(id);
+            require(behavior, "Streaming reentry must restore each living interior behavior entry");
+            if (upper[id])
+                require(behavior->state == viewer::ZombieState::idle,
+                        "An upstairs spawn sleeping through midnight must wake without rescheduling for tomorrow");
+            else if (positions[id].position != viewer::InteriorZombiePosition::CenterGroup)
+                require(behavior->state == viewer::ZombieState::hiding,
+                        "An undiscovered ground-floor ambusher must retain hiding across streaming");
+        }
+    }
+    require(hiding && ordinary && midnight, "Encounter fixtures must exercise hiding, ordinary and upstairs initial behaviors");
+    clock.reset();
+}
 void lifecycle() {
     require(viewer::InteriorZombies(0).reserveCount() == 10000, "Production allocation must be one shared 10,000-slot pool");
     auto fixture = groupFixture(); auto& f = *fixture;
@@ -197,6 +251,7 @@ int main() {
         placement(glm::mat4(1));
         placement(glm::translate(glm::mat4(1), {-1108, 5, -250}) * glm::rotate(glm::mat4(1), glm::radians(31.f), glm::vec3(0, 1, 0)) * glm::scale(glm::mat4(1), {-1, 1, 1}));
         placement(glm::mat4(1), true);
+        spawnBehaviors();
         lifecycle();
         std::cout << "Interior zombie placement tests passed\n"; return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

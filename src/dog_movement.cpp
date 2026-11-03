@@ -126,6 +126,7 @@ glm::vec3 DogLayer::move(std::size_t id, glm::vec3 desired, const CollisionWorld
         bool blocked = false;
         for (const auto other : candidates_) {
             if (other == id) continue;
+            if (instances[other].dead || instances[other].removed || instances[other].asset >= assets.size()) continue;
             const auto position = glm::vec3(instances[other].root[3]);
             if (std::abs(position.y-accepted.y) >= height) continue;
             if (glm::length(glm::vec2(position.x-accepted.x,position.z-accepted.z)) < radius*2-tolerance) {

@@ -261,7 +261,8 @@ void hearingThresholdAndEligibility() {
     require(state(farther, 0) == ZombieState::looking && state(farther, 1) == ZombieState::idle,
             "Running wakes a zombie at 30 m but not 50 m");
     farther.makeNoise({0, 0, 0}, viewer::landingDecibels);
-    require(state(farther, 1) == ZombieState::looking, "Landing wakes a zombie at 50 m");
+    require((state(farther, 1) == ZombieState::looking || state(farther, 1) == ZombieState::investigating) &&
+            farther.instances[1].heardNoiseRevision == 1, "Landing must trigger a normal hearing reaction at 50 m");
 }
 
 void lookingTurnAndIdleTimer() {
@@ -551,7 +552,8 @@ void indexedMovementAndImmediateHearing() {
     layer.behaviors.find(0)->state = ZombieState::idle;
     layer.rebuildSpatialIndex();
     layer.makeNoise({-100, 0, -90}, viewer::walkingFootstepDecibels);
-    require(state(layer) == ZombieState::looking, "External placement edits can rebuild spatial membership");
+    require((state(layer) == ZombieState::looking || state(layer) == ZombieState::investigating) &&
+            layer.instances[0].heardNoiseRevision == 2, "External placement edits must rebuild membership for either hearing reaction");
 
     auto listener = crowd();
     listener.setPerceptionStaggering(true);
@@ -620,7 +622,8 @@ void sparseBehaviorsBoundLoudHearingWork() {
     const auto beforeLoud = layer.behaviorStats().hearingCandidates;
     layer.makeNoise({}, 110);
     require(layer.behaviorStats().hearingCandidates - beforeLoud == 4 && layer.behaviors.entries().size() == 4 &&
-            state(layer, 1) == ZombieState::looking && state(layer, 2) == ZombieState::chasing &&
+            (state(layer, 1) == ZombieState::looking || state(layer, 1) == ZombieState::investigating) &&
+            layer.instances[1].heardNoiseRevision == 1 && state(layer, 2) == ZombieState::chasing &&
             state(layer, 3) == ZombieState::idle && layer.instances[3].heardNoiseRevision == 0,
             "A world-spanning gunshot must visit only active behaviors and preserve nonidle/dead eligibility rules");
     layer.behaviors.remove(1);

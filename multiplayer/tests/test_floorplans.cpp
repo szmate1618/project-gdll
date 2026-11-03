@@ -124,6 +124,57 @@ void encounters(multiplayer::Scene& server, multiplayer::Scene& client) {
     require(!client.zombies.instances[outdoor].removed && server.zombies.instances[outdoor].restRoot == root &&
             client.zombies.instances.size() == total, "Reentry must reuse the same client/server actor slots");
 }
+void midnightEncounter(multiplayer::Scene& server) {
+    std::vector<viewer::InteriorZombiePlacement> placements;
+    std::vector<std::size_t> upstairs;
+    for (int n = 0; n < 1000 && upstairs.empty(); ++n) {
+        const auto name = "building_encounter_" + std::to_string(n);
+        if (!viewer::hasInteriorZombieEncounter(name)) continue;
+        house(server, name);
+        server.doors->setAngle(1, .7f);
+        server.floorplans->update({server.spawnEye});
+        const auto& plan = server.floorplans->resident().begin()->second;
+        placements = viewer::placeInteriorZombies(plan, *server.doors, *server.collision);
+        for (std::size_t id = 0; id < placements.size(); ++id)
+            if (plan.rooms.at(placements[id].room).storey > 0) upstairs.push_back(id);
+    }
+    require(!upstairs.empty(), "Midnight server fixture must place an upstairs encounter");
+    server.zombies = viewer::ZombieLayer{};
+    server.zombies.assets.emplace_back(); server.zombies.instances.resize(placements.size());
+    for (auto& actor : server.zombies.instances) actor.removed = true;
+    server.zombies.rebuildSpatialIndex();
+    server.interiorZombies = std::make_unique<viewer::InteriorZombies>(0, placements.size());
+    server.dayNight = {23, 1}; // Midnight lies between the second and third 60 Hz ticks.
+    multiplayer::World world(server);
+    world.join();
+    world.step(); world.step();
+    for (const auto id : upstairs)
+        require(server.zombies.behaviors.find(id) && server.zombies.behaviors.find(id)->state == viewer::ZombieState::midnight,
+                "Authoritative upstairs actors must remain inactive before the configured midnight");
+    world.step();
+    for (const auto id : upstairs)
+        require(server.zombies.behaviors.find(id) && server.zombies.behaviors.find(id)->state != viewer::ZombieState::midnight,
+                "Server behavior must wake upstairs actors on its negotiated day/night clock, without an exact midnight tick");
+}
+void playerHouseMembership(multiplayer::Scene& server) {
+    house(server, "building_house_cache");
+    server.interiorZombies.reset(); server.zombies = viewer::ZombieLayer{};
+    server.spawnEye = {0, 1.7f, 0};
+    multiplayer::World world(server);
+    const auto inside = world.join();
+    // Safe joining deliberately relocates indoor spawns outdoors. Put this
+    // observer inside explicitly to exercise membership before doors open.
+    auto& observer = const_cast<multiplayer::ServerPlayer&>(world.players().at(inside));
+    observer.controller.teleport({0, .01f, 0});
+    observer.camera.setPosition(observer.controller.eyePosition());
+    world.step();
+    require(world.players().at(inside).house.house() == std::optional<std::string>("building_house_cache"),
+            "Authoritative players must expose cached building IDs even before an interior is generated");
+    server.spawnEye = {0, 1.7f, 8};
+    const auto outside = world.join(); world.step();
+    require(world.players().at(outside).house.outside() && !world.players().at(outside).house.house(),
+            "Authoritative outside players must expose an explicit empty house membership");
+}
 } // namespace
 int main(int argc, char** argv) {
     try {
@@ -166,6 +217,8 @@ int main(int argc, char** argv) {
         world.leave(player); world.step();
         require(server.floorplans->residentCount() == 0, "The server must evict when no player remains nearby");
         irregular(server, client); prefab(server,client); encounters(server, client);
+        midnightEncounter(server);
+        playerHouseMembership(server);
         std::cout << "Independent multiplayer floorplan and stable door playback tests passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

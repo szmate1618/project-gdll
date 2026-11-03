@@ -262,6 +262,44 @@ updates moving door poses each frame, and draws both camera and shadow passes.
 The existing random interior prop population remains a separate system with
 its existing session lifecycle. It is not part of the regenerated floorplan.
 
+## Interior navigation and player house membership
+
+Building footprint metadata is prepared from the map without generating house
+layouts. Queries retain concavity and courtyard holes, use transformed world
+coordinates, and qualify heights from **10 m below the building's lowest point
+through 10 m above its highest point**, including roof/details. A spatial BVH
+selects candidates before exact footprint tests. Membership does not require an
+open door or a resident interior.
+
+Each authoritative player owns a `PlayerHouseState`: its first sample is
+immediate and later samples run every **3 simulation seconds**. `house()`
+returns the cached stable building ID, or an empty optional when outside;
+`outside()` provides the corresponding boolean. The standalone viewer and
+server both publish this cached membership to zombie updates. A borrowed ID in
+the update input avoids allocating building-name strings for every zombie.
+
+Every newly resident interior builds a `HouseNavigationGraph` alongside its
+geometry. Nodes represent supported room centers, doors, ramp bottoms and ramp
+tops. Each center connects to its room's doors and ramp endpoints. Every ramp
+endpoint connects to that room's doors and other ramp endpoints on its level,
+and each bottom connects to its corresponding top. Apartment common-space
+openings use shared portal nodes without a physical panel ID. Same-level edge
+paths keep body clearance around concave boundaries, ramps and floor cutouts;
+ramp edges follow the actual centerline. Graphs are released with their
+interiors and acquire a fresh generation when rebuilt.
+
+An ordinary zombie entering investigation checks the player's cached house and
+its own footprint membership. If they share a house, its target belongs there,
+and the graph is resident, it enters `houseInvestigating`. A shortest graph route
+leads to the room containing the heard sound or partial sighting. It reaches
+that room's center rather than pursuing an unseen player's live position.
+Existing scene/crowd collisions still constrain every step, and doorway passage
+coordination applies while crossing panels. Closed doors remain barriers;
+zombies do not operate them. Unreachable graph paths wait rather than cutting
+through walls. Missing/evicted graphs fall back to ordinary investigation;
+changed target rooms or rebuilt graphs refresh the route. These checks add no
+visibility rays or per-frame full-building scans.
+
 ## Interior zombie encounters
 
 When a house or apartment block first becomes resident, a deterministic
@@ -279,6 +317,26 @@ the geometry, placement falls back to wall ambushers. At activation, nearby play
 zombies also block placements; a center group is accepted or rejected as a whole.
 Thus 20% is the encounter-selection chance, not a guarantee of occupied houses
 when valid positions or capacity are unavailable.
+
+Every activated interior actor immediately receives a behavior entry. On the
+ground floor, doorway, beside-door and corner placements start **hiding**:
+they turn in place toward audible noises, but never investigate noise or partial
+sightings. A full player sighting ends hiding permanently and starts ordinary
+chasing. Ground-floor center groups start as ordinary idle zombies.
+
+All actors above the ground floor instead start in **midnight**, regardless of
+placement kind. They remain visible and damageable, but do not turn to noise,
+observe players, move or attack until the next midnight on the session's game
+clock. A surviving damaging hit wakes them early into normal looking toward
+the hit's source. Either activation makes them ordinary zombies permanently.
+Clock activation uses an absolute simulation-time deadline, so a step that skips
+over 00:00 or a house unloaded through midnight cannot miss it. A clock frozen
+away from midnight leaves them inactive; spawning at midnight, including a clock frozen there,
+activates them immediately. Damage also cancels pending midnight dormancy while
+AI is disabled, without executing the disabled behavior. Pending hiding/midnight
+policies survive geometry eviction and AI disabling; they do not reset on reentry.
+These rules run on the standalone viewer and authoritative server; replicas
+receive ordinary actor setup and movement without running a second behavior system.
 
 The standalone viewer and authoritative multiplayer server reserve **10,000
 additional zombie slots in one shared pool per session** when zombies are enabled
@@ -310,7 +368,7 @@ The reserve has a measured capacity cost of approximately **87 MiB for an embedd
 host** (client, navigated server and GPU combined) with all ten installed character
 variants. See [the memory estimate](benchmarks/interior-zombie-reserve-2026-10-31.md)
 for component costs, measurement conditions and limits. Inactive slots still cost
-memory and population-sized bookkeeping; activation adds ordinary zombie AI,
+memory and population-sized bookkeeping; activation adds zombie AI,
 physics, injury and replication work.
 
 ## Verification

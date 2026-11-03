@@ -262,7 +262,7 @@ target_include_directories(viewer_camera PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src
 target_link_libraries(viewer_camera PUBLIC glm::glm)
 viewer_warnings(viewer_camera)
 
-add_library(viewer_collision STATIC src/collision_world.cpp src/door_collision.cpp src/character_step.cpp)
+add_library(viewer_collision STATIC src/collision_world.cpp src/door_collision.cpp src/character_step.cpp src/doorway_guidance.cpp)
 target_link_libraries(viewer_collision PUBLIC viewer_model)
 viewer_warnings(viewer_collision)
 
@@ -337,14 +337,18 @@ target_link_libraries(viewer_forests PUBLIC viewer_trees viewer_collision)
 target_include_directories(viewer_forests SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_forests)
 
-add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp src/interior_zombie_placement.cpp src/interior_zombies.cpp
+add_library(viewer_day_night_clock STATIC src/day_night_clock.cpp)
+target_include_directories(viewer_day_night_clock PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+viewer_warnings(viewer_day_night_clock)
+
+add_library(viewer_zombies STATIC src/animated_model.cpp src/zombie_placement.cpp src/zombie_park.cpp src/interior_zombie_placement.cpp src/interior_zombies.cpp src/zombie_interior_behavior.cpp
     src/zombie_layer.cpp src/zombie_bounds.cpp src/zombie_lod.cpp src/zombie_lod_assets.cpp src/zombie_hit.cpp src/zombie_damage.cpp src/zombie_dismemberment.cpp src/zombie_shooting.cpp src/zombie_chase.cpp src/zombie_attack.cpp src/zombie_lunge.cpp src/zombie_melee_attack.cpp src/zombie_behavior.cpp src/zombie_animation.cpp
     src/melee_combat.cpp src/melee_contact_mesh.cpp src/zombie_bone_collision.cpp src/zombie_ragdoll.cpp src/zombie_detached_parts.cpp src/zombie_ragdoll_pose.cpp src/zombie_active_attack.cpp src/zombie_spatial_index.cpp src/zombie_crowd.cpp src/zombie_crowd_steering.cpp src/zombie_movement.cpp src/zombie_door_collision.cpp src/zombie_perception.cpp src/zombie_render_updates.cpp
-    src/zombie_navigation.cpp src/zombie_scenario.cpp src/scenario_density.cpp src/zombie_scenario_routes.cpp src/zombie_travel.cpp src/zombie_hit_capsules.cpp src/zombie_shot_query.cpp src/zombie_doorway.cpp
-    src/zombie_wounds.cpp src/zombie_wound_surface.cpp src/zombie_cavity_physics.cpp
+    src/zombie_navigation.cpp src/zombie_scenario.cpp src/scenario_density.cpp src/zombie_scenario_routes.cpp src/zombie_travel.cpp src/zombie_hit_capsules.cpp src/zombie_shot_query.cpp
+    src/zombie_wounds.cpp src/zombie_wound_surface.cpp src/zombie_cavity_physics.cpp src/zombie_house_investigation.cpp
     src/blood_mist.cpp src/blood_particles.cpp src/zombie_blood.cpp)
 target_link_libraries(viewer_zombies PUBLIC viewer_model viewer_collision viewer_noise viewer_physics viewer_objects viewer_fingerprints
-    viewer_zombie_steering viewer_scenario_config viewer_visibility viewer_zombie_animation_buffer)
+    viewer_zombie_steering viewer_scenario_config viewer_visibility viewer_zombie_animation_buffer viewer_day_night_clock)
 target_include_directories(viewer_zombies SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_zombies)
 
@@ -353,7 +357,7 @@ target_link_libraries(prepare_pigeon_flock PRIVATE viewer_zombies viewer_bird_as
 target_include_directories(prepare_pigeon_flock SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(prepare_pigeon_flock)
 
-add_library(viewer_dogs STATIC src/dog_layer.cpp src/dog_behavior.cpp src/dog_movement.cpp src/dog_wandering.cpp src/dog_fetch.cpp)
+add_library(viewer_dogs STATIC src/dog_layer.cpp src/dog_behavior.cpp src/dog_movement.cpp src/dog_steering.cpp src/dog_wandering.cpp src/dog_fetch.cpp)
 target_link_libraries(viewer_dogs PUBLIC viewer_zombies)
 viewer_warnings(viewer_dogs)
 if(BUILD_TESTING)
@@ -373,6 +377,10 @@ if(BUILD_TESTING)
     target_link_libraries(test_dog_movement PRIVATE viewer_dogs viewer_fps)
     viewer_warnings(test_dog_movement)
     add_test(NAME viewer_dog_movement COMMAND test_dog_movement)
+    add_executable(test_dog_steering tests/test_dog_steering.cpp)
+    target_link_libraries(test_dog_steering PRIVATE viewer_dogs)
+    viewer_warnings(test_dog_steering)
+    add_test(NAME viewer_dog_steering COMMAND test_dog_steering)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/output/godollo.glb")
         add_test(NAME viewer_dog_movement_godollo COMMAND test_dog_movement "${CMAKE_CURRENT_SOURCE_DIR}/output/godollo.glb")
     endif()
@@ -405,8 +413,8 @@ target_include_directories(viewer_weapons PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/sr
 target_link_libraries(viewer_weapons PUBLIC viewer_weapon_config viewer_camera viewer_inventory PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_weapons)
 
-add_library(viewer_objects STATIC src/building_shell.cpp src/prefab_floorplan.cpp src/apartment_layout.cpp src/house_polygon.cpp src/house_floorplan.cpp src/house_layout.cpp src/house_layout_rules.cpp src/house_upper_layout.cpp src/house_layout_geometry.cpp src/floorplan_layer.cpp src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp src/ground_items.cpp)
-target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics viewer_weapons)
+add_library(viewer_objects STATIC src/building_shell.cpp src/building_footprints.cpp src/player_house.cpp src/house_navigation.cpp src/house_navigation_geometry.cpp src/prefab_floorplan.cpp src/apartment_layout.cpp src/house_polygon.cpp src/house_floorplan.cpp src/house_layout.cpp src/house_layout_rules.cpp src/house_upper_layout.cpp src/house_layout_geometry.cpp src/floorplan_layer.cpp src/interior_objects.cpp src/physics_scene.cpp src/dropped_weapons.cpp src/ground_items.cpp)
+target_link_libraries(viewer_objects PUBLIC viewer_collision viewer_physics viewer_weapons viewer_visibility)
 viewer_warnings(viewer_objects)
 include(cmake/Doodads.cmake)
 
@@ -451,7 +459,7 @@ viewer_warnings(viewer_weapon_pose)
 
 add_library(viewer_sun_lighting STATIC src/sun_lighting.cpp src/day_night.cpp src/flashlight.cpp src/muzzle_flash.cpp)
 target_include_directories(viewer_sun_lighting PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
-target_link_libraries(viewer_sun_lighting PUBLIC glm::glm viewer_camera)
+target_link_libraries(viewer_sun_lighting PUBLIC glm::glm viewer_camera viewer_day_night_clock)
 viewer_warnings(viewer_sun_lighting)
 
 add_library(viewer_grenades STATIC src/grenades.cpp)
@@ -868,6 +876,10 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_interior_zombies)
     add_test(NAME viewer_interior_zombies COMMAND test_interior_zombies)
     add_executable(test_floorplans tests/test_floorplans.cpp)
+    add_executable(test_house_navigation tests/test_house_navigation.cpp)
+    target_link_libraries(test_house_navigation PRIVATE viewer_objects)
+    viewer_warnings(test_house_navigation)
+    add_test(NAME viewer_house_navigation COMMAND test_house_navigation)
     target_link_libraries(test_floorplans PRIVATE viewer_objects viewer_interaction)
     viewer_warnings(test_floorplans)
     add_test(NAME viewer_floorplans COMMAND test_floorplans)
@@ -1147,7 +1159,7 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_door_walking)
     add_test(NAME viewer_door_walking COMMAND test_door_walking)
 
-    foreach(suite animated_model zombie_lod zombie_placement zombie_chase zombie_crowd zombie_movement zombie_motion zombie_door_collision zombie_doorway zombie_attack zombie_lunge zombie_melee_attack zombie_active_attack zombie_behavior zombie_shooting zombie_hit_capsules zombie_reported_hits zombie_damage zombie_dismemberment zombie_spatial_index zombie_perception zombie_ragdoll zombie_transition zombie_render_updates player_vitals)
+    foreach(suite animated_model zombie_lod zombie_placement zombie_chase zombie_crowd zombie_movement zombie_motion zombie_door_collision zombie_doorway zombie_interior_behavior zombie_house_investigation zombie_attack zombie_lunge zombie_melee_attack zombie_active_attack zombie_behavior zombie_shooting zombie_hit_capsules zombie_reported_hits zombie_damage zombie_dismemberment zombie_spatial_index zombie_perception zombie_ragdoll zombie_transition zombie_render_updates player_vitals)
         add_executable(test_${suite} tests/test_${suite}.cpp)
         target_link_libraries(test_${suite} PRIVATE viewer_zombies)
         target_include_directories(test_${suite} SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")

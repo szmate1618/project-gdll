@@ -91,6 +91,7 @@ DogLayer loadDogLayer(const std::filesystem::path& directory, const CollisionWor
     return loadDogLayer(directory, placeZombies(world, scene, center, count, radius));
 }
 void DogLayer::rebuildSpatialIndex() {
+    doorways_.reset();
     spatial_ = ZombieSpatialIndex{};
     spatial_.growPopulation(instances.size());
     behaviors.resize(instances.size());
@@ -113,6 +114,7 @@ bool DogLayer::damage(std::size_t id, float amount) {
         dog.transform = dog.root * glm::translate(glm::mat4(1), {0, .18f, 0}) *
             glm::rotate(glm::mat4(1), 1.57079633f, {0, 0, 1});
         spatial_.erase(id);
+        doorways_.erase(id);
         behaviors[id] = {};
     }
     return true;

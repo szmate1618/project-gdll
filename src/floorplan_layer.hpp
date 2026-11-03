@@ -7,6 +7,8 @@
 namespace viewer {
 class CollisionWorld;
 class DoorLayer;
+class BuildingFootprints;
+class HouseNavigationGraph;
 // Immutable map and shared doors/collision must outlive this layer. Only source
 // draw references and an entrance grid exist until a nearby exterior door opens.
 class FloorplanLayer {
@@ -22,6 +24,8 @@ public:
     const Model& renderModel() const;
     const std::map<std::size_t, std::size_t>& doorDraws() const; // Render draw -> stable door ID.
     const DoorLayer& doors() const;
+    const BuildingFootprints& footprints() const;
+    const HouseNavigationGraph* navigationGraph(const std::string& building) const;
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

@@ -16,18 +16,6 @@ float elevationBlend(float lowDegrees, float highDegrees, float sunY) {
 }
 }
 
-double DayNightCycle::hourAt(double elapsedSeconds) const {
-    validateHour(startHour);
-    if (!std::isfinite(dayLengthSeconds) || dayLengthSeconds < 0.0 ||
-        (dayLengthSeconds > 0.0 && dayLengthSeconds < 1.0))
-        throw std::invalid_argument("Day length must be zero or at least one second");
-    if (!std::isfinite(elapsedSeconds) || elapsedSeconds < 0.0)
-        throw std::invalid_argument("Day/night elapsed time must be finite and nonnegative");
-    if (dayLengthSeconds == 0.0) return startHour;
-    const double fraction = std::fmod(elapsedSeconds, dayLengthSeconds) / dayLengthSeconds;
-    return std::fmod(startHour + fraction * 24.0, 24.0);
-}
-
 DayNightLighting dayNightLighting(double hour, const SunLighting& day,
                                  const NightLighting& night, const Atmosphere& atmosphere) {
     validateHour(hour);

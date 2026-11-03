@@ -26,6 +26,12 @@ constexpr double idleLifetime = 10.0;
 bool finite(glm::vec3 value) {
     return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
+bool investigateNoise(std::size_t id, std::uint64_t sequence) {
+    auto value = std::uint64_t(id) * 0x9e3779b97f4a7c15ull + sequence;
+    value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9ull;
+    value = (value ^ (value >> 27)) * 0x94d049bb133111ebull;
+    return ((value ^ (value >> 31)) % 10) == 0; // Stable replay, independent of pool iteration order.
+}
 
 void changeState(ZombieBehavior& behavior, ZombieState state, double now) {
     if (behavior.state == state) return;
@@ -88,8 +94,15 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
                   ZombiePlayer player, const CollisionWorld& world,
                   float seconds, double now, double animationSeconds,
                   bool staggerPerception, ZombieBehaviorStats& stats, ZombieCrowd& crowd,
+                  ZombieHouseInvestigation& houses,
                   const std::vector<ZombiePlayer>* players,
                   bool scenarioFallback, std::vector<ZombieAttackHit>& hits) {
+    if (behavior.state == ZombieState::midnight) {
+        stopZombieLocomotion(instance);
+        return true; // No perception, hearing-driven turns, attacks or travel before midnight.
+    }
+    if (behavior.state == ZombieState::hiding && glm::dot(behavior.lookDirection, behavior.lookDirection) > 0 &&
+        turnZombieToward(instance, behavior.lookDirection, seconds)) behavior.lookDirection = glm::vec2(0);
     if (behavior.state == ZombieState::looking && turnZombieToward(instance, behavior.lookDirection, seconds))
         changeState(behavior, ZombieState::idle, now);
     const auto offset = player.feet - glm::vec3(instance.restRoot[3]);
@@ -126,17 +139,22 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
                                                    !staggerPerception && behavior.state == ZombieState::chasing);
     }
     const bool visible = !behavior.perceptionSuspended && behavior.sight != ZombieSight::none;
-    if (observed && visible) {
+    if (observed && visible && (behavior.state != ZombieState::hiding || behavior.sight == ZombieSight::full)) {
         behavior.target = player.feet;
         if (behavior.sight == ZombieSight::full &&
             (behavior.state == ZombieState::idle || behavior.state == ZombieState::looking ||
-             behavior.state == ZombieState::investigating)) {
+             behavior.state == ZombieState::investigating || behavior.state == ZombieState::houseInvestigating ||
+             behavior.state == ZombieState::hiding)) {
             changeState(behavior, ZombieState::chasing, now);
             ++instance.chaseRevision;
             instance.chaseSeconds = now;
             if (zombie_profile::activeProfile) ++zombie_profile::activeProfile->chaseStarts;
         } else if (behavior.state == ZombieState::idle || behavior.state == ZombieState::looking)
             changeState(behavior, ZombieState::investigating, now);
+    }
+    if (behavior.state == ZombieState::hiding) {
+        stopZombieLocomotion(instance);
+        return true; // Partial sightings never make an ambusher investigate.
     }
     if (behavior.state == ZombieState::idle || behavior.state == ZombieState::looking) {
         // An idle observation does not own a movement target. Keep an initial
@@ -184,14 +202,15 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
         changeState(behavior, behavior.sight == ZombieSight::full ? ZombieState::chasing : ZombieState::investigating, now);
 
     const float speed = behavior.state == ZombieState::chasing ? runSpeed : walkSpeed;
+    const bool houseRoute = houses.prepare(behavior, feet);
     const auto destination = approachDestination(behavior.target, feet, behavior.sight != ZombieSight::none);
-    const bool arrived = moveZombieToward(instance, asset, destination, speed, seconds, world, animationSeconds,
-                                         &crowd, behavior.zombie);
+    const bool arrived = houseRoute ? houses.move(behavior, instance, seconds, world, crowd) :
+        moveZombieToward(instance, asset, destination, speed, seconds, world, animationSeconds, &crowd, behavior.zombie);
     feet = glm::vec3(instance.restRoot[3]);
     if (attackEligible(behavior, instance, player, world, now, stats) && closeEnough()) {
         changeState(behavior, ZombieState::attacking, now);
         beginAttack();
-    } else if (arrived && (behavior.sight != ZombieSight::none ||
+    } else if (arrived && (houseRoute || behavior.sight != ZombieSight::none ||
              glm::length(glm::vec2(behavior.target.x - feet.x, behavior.target.z - feet.z)) <= 1e-4f))
         changeState(behavior, ZombieState::idle, now);
     if (behavior.state == ZombieState::idle || behavior.state == ZombieState::attacking) {
@@ -291,6 +310,7 @@ void ZombieLayer::setPerceptionEnabled(bool enabled) {
     }
     behaviors = ZombieBehaviorPool{};
     behaviorOrder_.clear();
+    houseInvestigations_.clear();
 }
 
 void ZombieLayer::recordReaction(std::size_t id, double now, bool chase) {
@@ -303,10 +323,39 @@ std::vector<ZombieReactionEvent> ZombieLayer::takeReactionEvents() {
     return result;
 }
 
+void ZombieLayer::reactToDamage(std::size_t id, glm::vec3 incomingDirection) {
+    // Damage permanently releases midnight dormancy, including while AI is
+    // disabled or the actor has no active behavior entry.
+    const auto policy = interiorBehaviors_.find(id);
+    if (policy != interiorBehaviors_.end() && policy->second.state == ZombieState::midnight)
+        interiorBehaviors_.erase(policy);
+    if (!perceptionEnabled_) return;
+    ensureSpatialIndex();
+    const double now = SimulationClock::instance().seconds();
+    auto* behavior = behaviors.find(id);
+    if (!behavior) {
+        behavior = &createBehavior(id, now);
+        auto& instance = instances[id];
+        instance.chaseNormalization = glm::inverse(instance.restRoot) * instance.restTransform;
+        updateSpatialMembership(id);
+    }
+    if (behavior->state == ZombieState::midnight) {
+        changeState(*behavior, ZombieState::idle, now);
+        behavior->perception = {}; // The awakened actor observes normally.
+    }
+    if (behavior->state != ZombieState::idle) return;
+    const glm::vec2 towardSource(-incomingDirection.x, -incomingDirection.z);
+    const float length = glm::length(towardSource);
+    if (length < 1e-4f) return; // A vertical hit wakes dormancy without inventing a heading.
+    behavior->lookDirection = towardSource / length;
+    changeState(*behavior, ZombieState::looking, now);
+}
+
 void ZombieLayer::makeNoise(glm::vec3 position, float decibels) {
     if (!perceptionEnabled_ || !finite(position) || !std::isfinite(decibels)) return;
     const double now = SimulationClock::instance().seconds();
     if (decibels < zombieHearingThresholdDecibels) return;
+    const auto sequence = ++noiseSequence_;
     // Expand by one threshold ULP: noiseLevelAt returns float and may round a
     // value just below the threshold up. The original level test remains final.
     const float threshold = std::nextafter(zombieHearingThresholdDecibels, -std::numeric_limits<float>::infinity());
@@ -315,16 +364,28 @@ void ZombieLayer::makeNoise(glm::vec3 position, float decibels) {
     behaviorStats_.hearingCandidates += spatialCandidates_.size();
     for (const auto id : spatialCandidates_) {
         auto* behavior = behaviors.find(id);
-        if (!behavior || behavior->state != ZombieState::idle || id >= instances.size()) continue;
+        if (!behavior || id >= instances.size()) continue;
+        const bool hiding = behavior->state == ZombieState::hiding;
+        if (behavior->state != ZombieState::idle && !hiding) continue;
+        if (hiding && glm::dot(behavior->lookDirection, behavior->lookDirection) > 0) continue;
         auto& instance = instances[id];
         if (instance.removed || instance.ragdoll || instance.asset >= assets.size()) continue;
         const auto feet = glm::vec3(instance.restRoot[3]);
         if (noiseLevelAt({position, decibels}, feet) < zombieHearingThresholdDecibels) continue;
         const glm::vec2 offset(position.x - feet.x, position.z - feet.z);
         const float distance = glm::length(offset);
-        if (!std::isfinite(distance) || distance < 1e-4f) continue; // No usable horizontal direction.
-        behavior->lookDirection = offset / distance;
-        changeState(*behavior, ZombieState::looking, now);
+        const bool investigate = !hiding && investigateNoise(id, sequence);
+        if (!std::isfinite(distance) || (distance < 1e-4f && !investigate)) continue;
+        // A sound directly above/below has no turn direction, but can still
+        // trigger a route through the house's staircase graph.
+        behavior->lookDirection = distance >= 1e-4f ? offset / distance : glm::vec2(0);
+        if (!hiding) {
+            if (investigate) {
+                behavior->target = position;
+                changeState(*behavior, ZombieState::investigating, now);
+                houseInvestigations_.prepare(*behavior, feet);
+            } else changeState(*behavior, ZombieState::looking, now);
+        }
         ++instance.heardNoiseRevision;
         instance.heardNoiseSeconds = now;
         recordReaction(id, now, false);
@@ -369,12 +430,14 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
                 p.eyeHeight <= 0 || p.height < p.eyeHeight) return;
     }
     const double now = SimulationClock::instance().seconds();
+    houseInvestigations_.updatePlayers(player, players);
     behaviorStats_ = {};
     ensureSpatialIndex();
     crowd_.beginStep(seconds);
     if (players && players->empty()) {
         for (const auto& entry : behaviors.entries()) {
             auto& behavior = *behaviors.find(entry.zombie);
+            wakeInteriorBehavior(behavior, now);
             if (behavior.lunge.phase == ZombieLunge::Phase::ready) continue;
             if (entry.zombie < instances.size()) {
                 cancelZombieLunge(behavior.lunge, now, &instances[entry.zombie]);
@@ -410,7 +473,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
             return glm::dot(offset, offset) <= activationDistance * activationDistance;
         };
         if (players ? std::any_of(players->begin(), players->end(), close) : close(player)) {
-            behaviors.create(id, now, glm::vec3(instance.restRoot[3]));
+            createBehavior(id, now);
             instance.chaseNormalization = glm::inverse(instance.restRoot) * instance.restTransform;
         }
     }
@@ -432,10 +495,12 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
                 if (id < instances.size()) stopZombieLocomotion(instances[id]);
                 if (wasWalking) markRenderChanged(id, false);
             }
+            houseInvestigations_.erase(id);
             behaviors.remove(id);
             continue;
         }
         auto& instance = instances[id];
+        wakeInteriorBehavior(behavior, now);
         const auto previousAttackClip = instance.attackClip;
         const auto previousAttackSeconds = instance.attackSeconds;
         auto selectedPlayer = player;
@@ -473,9 +538,13 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
         const bool wasRunning = instance.running;
         const auto previousChase = instance.chaseRevision;
         const bool claimed = stepBehavior(behavior, instance, assets[instance.asset], selectedPlayer, world,
-                     seconds, now, animationSeconds, staggerPerception_, behaviorStats_, crowd_, players,
+                     seconds, now, animationSeconds, staggerPerception_, behaviorStats_, crowd_, houseInvestigations_, players,
                      scenarioFallback, attackHits_);
-        if (instance.chaseRevision != previousChase) recordReaction(id, now, true);
+        if (instance.chaseRevision != previousChase) {
+            interiorBehaviors_.erase(id); // A discovered ambusher becomes an ordinary pursuer permanently.
+            recordReaction(id, now, true);
+        }
+        if (behavior.state != ZombieState::houseInvestigating) houseInvestigations_.erase(id);
         if (zombie_profile::activeProfile)
             ++zombie_profile::activeProfile->behaviorStates[std::size_t(behavior.state)];
         if (claimed && scenarioDestination(id)) abandonScenarioRoute(id);

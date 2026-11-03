@@ -38,31 +38,6 @@ ZombieLayer::~ZombieLayer() = default;
 ZombieLayer::ZombieLayer(ZombieLayer&&) noexcept = default;
 ZombieLayer& ZombieLayer::operator=(ZombieLayer&&) noexcept = default;
 
-void ZombieLayer::activateInteriorZombie(std::size_t id, const glm::mat4& placement) {
-    auto& instance = instances.at(id);
-    if (!instance.removed || instance.ragdoll) throw std::logic_error("Interior slot is not dormant");
-    const auto normalization = glm::inverse(instance.restRoot) * instance.restTransform;
-    instance.restRoot = placement;
-    instance.restTransform = instance.transform = placement * normalization;
-    instance.chaseNormalization = normalization;
-    setInteriorSleeping(id, false);
-}
-void ZombieLayer::setInteriorSleeping(std::size_t id, bool sleeping) {
-    auto& instance = instances.at(id);
-    if (instance.ragdoll || instance.removed == sleeping) return;
-    ensureSpatialIndex();
-    if (sleeping) {
-        stopActiveAttack(id); behaviors.remove(id);
-        instance.attackClip = 0;
-        instance.attackSeconds = 0;
-    }
-    instance.walking = instance.running = false;
-    instance.locomotionVelocity = glm::vec3(0);
-    instance.removed = sleeping;
-    updateSpatialMembership(id);
-    markRenderChanged(id);
-}
-
 void ZombieLayer::releaseAnimationVertices() {
     for (auto& asset : assets) releaseZombieAnimationVertices(asset);
     for (auto& levels : lodAssets)
@@ -294,6 +269,8 @@ bool ZombieLayer::applyShotHit(const ZombieShotHit& hit, std::vector<glm::mat4> 
                         hit.joint, caliber);
     else if (damage_.hit(hit.zombie, caliber, hit.headshot) == 0)
         activateRagdoll(hit.zombie, std::move(selectedPose), direction * 4.0f, animationSeconds);
+    else
+        reactToDamage(hit.zombie, direction);
     const auto mistSize = openedWound ? BloodMistSize::large : hit.joint >= 0 ? BloodMistSize::medium : BloodMistSize::small;
     // Offset slightly toward the incoming bullet so the billboard clears the surface.
     bloodMist_.emit(point-direction*std::min(.025f,hit.distance),mistSize,animationSeconds,excludedMistObserver);
@@ -425,6 +402,8 @@ void ZombieLayer::activateRagdoll(std::size_t selected, std::vector<glm::mat4> s
     spatialIndex_.erase(selected);
     crowd_.erase(selected);
     behaviors.remove(selected);
+    interiorBehaviors_.erase(selected);
+    houseInvestigations_.erase(selected);
     instance.walking = false;
     instance.locomotionVelocity = glm::vec3(0);
     instance.transform = physics_->world.rootTransform(instance.ragdollHandle) *
@@ -582,6 +561,8 @@ void ZombieLayer::removeRagdoll(std::size_t zombie) {
     spatialIndex_.erase(zombie);
     springRagdollIndex_.erase(zombie);
     behaviors.remove(zombie);
+    interiorBehaviors_.erase(zombie);
+    houseInvestigations_.erase(zombie);
     markRenderChanged(zombie);
 }
 void ZombieLayer::setRagdollPalette(std::size_t zombie, std::vector<glm::mat4> palette, bool activeAttack) {
@@ -606,6 +587,8 @@ void ZombieLayer::setRagdollPalette(std::size_t zombie, std::vector<glm::mat4> p
     if (!activeAttack) {
         spatialIndex_.erase(zombie);
         behaviors.remove(zombie);
+        interiorBehaviors_.erase(zombie);
+        houseInvestigations_.erase(zombie);
     } else updateSpatialMembership(zombie);
     markRenderChanged(zombie);
 }

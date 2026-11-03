@@ -3,6 +3,7 @@
 #include "animated_model.hpp"
 #include "collision_world.hpp"
 #include "zombie_behavior.hpp"
+#include "zombie_house_investigation.hpp"
 #include "zombie_spatial_index.hpp"
 #include "zombie_crowd.hpp"
 #include "zombie_travel.hpp"
@@ -200,8 +201,14 @@ struct ZombieLayer {
     void rebuildSpatialIndex();
     // Reserved interior slots are loaded hidden alongside the ordinary crowd.
     // Activation and sleeping preserve IDs, assets, injuries and scenario routes.
-    void activateInteriorZombie(std::size_t id, const glm::mat4& placement);
+    // Spawn states are idle, hiding or midnight. A midnight wakeSeconds value
+    // is an absolute SimulationClock deadline (infinity for a frozen daytime clock).
+    void activateInteriorZombie(std::size_t id, const glm::mat4& placement,
+                                ZombieState initialState = ZombieState::idle, double wakeSeconds = 0);
     void setInteriorSleeping(std::size_t id, bool sleeping);
+    // Borrows the streamed interior registry; neither player membership nor
+    // graph lookup depends on camera visibility.
+    void setHouseNavigation(const FloorplanLayer* floorplans) { houseInvestigations_.setFloorplans(floorplans); }
     // Perception/state update, followed by scene/crowd-constrained locomotion.
     // The app advances SimulationClock before calling this once per step.
     void updateBehavior(float seconds, const ZombiePlayer& player, const CollisionWorld& world,
@@ -246,6 +253,7 @@ private:
     void updateActiveAttacks(float seconds);
     void stopActiveAttack(std::size_t id);
     void recordReaction(std::size_t id, double now, bool chase);
+    void reactToDamage(std::size_t id, glm::vec3 incomingDirection);
     std::deque<ZombieReactionEvent> reactionEvents_;
     void emitBloodParticles(const ZombieShotHit& hit, glm::vec3 point, glm::vec3 direction,
                             double seconds, const CollisionWorld* world);
@@ -305,6 +313,14 @@ private:
     std::vector<VisibilityBounds> replicationWorldBounds_;
     float replicationPadding_ = 0;
     ZombieCrowd crowd_;
+    ZombieHouseInvestigation houseInvestigations_;
+    std::uint64_t noiseSequence_ = 0;
+    struct InteriorBehavior { ZombieState state; double wakeSeconds; };
+    // Sparse policies survive behavior eviction/AI disabling and streamed sleep.
+    // Erased after the first chase or midnight activation; ordinary actors need none.
+    std::unordered_map<std::size_t, InteriorBehavior> interiorBehaviors_;
+    ZombieBehavior& createBehavior(std::size_t id, double now);
+    void wakeInteriorBehavior(ZombieBehavior& behavior, double now);
     std::vector<std::size_t> behaviorOrder_;
     mutable std::vector<ZombieHitGeometry> hitGeometry_;
     std::vector<ZombieHitBounds> shotBounds_;

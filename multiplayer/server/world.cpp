@@ -95,6 +95,7 @@ World::World(Scene& scene) : scene_(scene), birds_(scene), vehicleSeats_(scene),
     interiors_(scene.model, *scene.doors, 1), zombieDoors_(scene.physics), melee_(scene.physics) {
     viewer::SimulationClock::instance().reset();
     scene.zombies.attachPhysics(scene.physics);
+    scene.zombies.setHouseNavigation(scene.floorplans.get());
     scene.zombies.setRagdollCleanupHeight(scene.model.boundsMin.y - 10.f);
     if (!scene.vehicles->count()) {
         if (scene.vehiclePlacements) {
@@ -156,7 +157,7 @@ void World::step() {
     for (const auto& entry : players_) interiorObservers.push_back(entry.second.controller.feet());
     scene_.floorplans->update(interiorObservers);
     if (scene_.interiorZombies)
-        scene_.interiorZombies->update(*scene_.floorplans, scene_.zombies, *scene_.collision, interiorObservers);
+        scene_.interiorZombies->update(*scene_.floorplans, scene_.zombies, *scene_.collision, interiorObservers, scene_.dayNight);
     auto& clock = viewer::SimulationClock::instance();
     clock.advance(tickSeconds);
     const double now = clock.seconds();
@@ -176,10 +177,11 @@ void World::step() {
     targets.reserve(players_.size());
     for (auto& [id, player] : players_) {
         player.inventoryDrag.advance(tickSeconds);
+        player.house.update(player.controller.feet(), now, scene_.floorplans->footprints());
         applyInventoryActions(player, scene_);
         bodies.push_back(&player.body);
         targets.push_back({player.controller.feet(), player.controller.eyeHeight(), player.controller.bodyHeight(),
-                           id, player.velocity, player.controller.config().radius});
+                           id, player.velocity, player.controller.config().radius, player.house.house()});
     }
     // Advance living poses from the start-of-tick player state before aim and
     // contacts. Do not move them again between the solve and its snapshot.

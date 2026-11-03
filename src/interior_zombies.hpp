@@ -1,6 +1,7 @@
 #pragma once
 
 #include "house_floorplan.hpp"
+#include "day_night_clock.hpp"
 #include <memory>
 
 namespace viewer {
@@ -29,7 +30,7 @@ public:
     ~InteriorZombies();
     std::size_t reserveCount() const;
     void update(const FloorplanLayer& floors, ZombieLayer& zombies, const CollisionWorld& collision,
-                const std::vector<glm::vec3>& observers);
+                const std::vector<glm::vec3>& observers, const DayNightCycle& dayNight = {});
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

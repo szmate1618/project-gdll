@@ -19,6 +19,7 @@
 #include <random>
 #include "interior_objects.hpp"
 #include "floorplan_layer.hpp"
+#include "player_house.hpp"
 #include "interior_zombies.hpp"
 #include "dog_layer.hpp"
 #include "reticle_overlay.hpp"
@@ -501,6 +502,8 @@ struct AppState {
     viewer::VehicleLayer* cars = nullptr;
     viewer::VehiclePlayer driver;
     viewer::InteriorObjects* interiors = nullptr;
+    const viewer::FloorplanLayer* floorplans = nullptr;
+    viewer::PlayerHouseState house;
     const viewer::CollisionWorld& world;
     viewer::ZombieLayer* zombies = nullptr;
     viewer::DogLayer* dogs = nullptr;
@@ -824,17 +827,19 @@ void moveCamera(AppState& app, float dt) {
 
 void updateZombieBehavior(AppState& app, float seconds, double animationSeconds,
                           viewer::zombie_profile::Profile* profile) {
-    if (!app.zombies && !app.dogs) return;
     const auto& player = app.rig.player();
     const auto& config = player.config();
     const float eyeHeight = app.rig.walking() ? player.eyeHeight() : config.eyeHeight;
     const float height = app.rig.walking() ? player.bodyHeight() : config.height;
     const auto eye = app.driver.occupied() ? app.driver.eyePosition(*app.cars) : app.rig.camera().position();
     const auto feet = app.rig.walking() ? player.feet() : eye - glm::vec3(0, eyeHeight, 0);
+    if (app.floorplans) app.house.update(feet, viewer::SimulationClock::instance().seconds(), app.floorplans->footprints());
+    if (!app.zombies && !app.dogs) return;
     viewer::zombie_profile::Capture capture(profile);
     viewer::ZombiePlayer target{feet, eyeHeight, height};
     target.velocity = app.driver.car() ? app.cars->velocity(*app.driver.car()) : app.playerVelocity;
     target.radius = config.radius;
+    target.house = app.house.house();
     if (app.dogs) {
         app.dogs->updateBehavior(seconds, {target}, app.world, viewer::SimulationClock::instance().seconds(),
                                  app.zombies ? app.zombies->detachedParts() : nullptr);
@@ -1470,6 +1475,7 @@ int run(const Options& options) {
         zombies->setRagdollCleanupHeight(model.boundsMin.y - 10.f);
         zombies->setPerceptionStaggering(options.zombiePerceptionStaggering);
         zombies->setPerceptionEnabled(options.zombiePerception);
+        zombies->setHouseNavigation(&floorplans);
         if (const auto* navigation = zombies->navigation()) {
             std::cout << "Scenario navigation: " << navmesh
                       << "; g+8h, 50000 nodes, " << navigation->pathArenaBytes() << " path bytes"
@@ -1571,6 +1577,7 @@ int run(const Options& options) {
     app.boxes = &boxes;
     app.physicsScene = &physicsScene;
     app.interiors = &interiors;
+    app.floorplans = &floorplans;
     auto audioOptions = options.audio;
     audioOptions.rain = options.rain;
     viewer::SceneAudio audio(audioOptions);
@@ -1735,7 +1742,7 @@ int run(const Options& options) {
         viewer::frame_stage_profile::Capture frameStageCapture(options.profile ? &frameStages : nullptr);
         floorplans.update({app.rig.camera().position()});
         if (interiorZombies)
-            interiorZombies->update(floorplans, *zombies, collision, {app.rig.player().feet()});
+            interiorZombies->update(floorplans, *zombies, collision, {app.rig.player().feet()}, options.dayNight);
         if (doodads) doodads->update(app.rig.camera().position(),physicsScene,doors);
         const auto previousCameraPosition = playerPresentation.eye(physics->interpolationAlpha());
         bool simulated = false;

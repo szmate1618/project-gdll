@@ -9,10 +9,13 @@
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
+#include <optional>
+#include <string>
+#include <string_view>
 
 namespace viewer {
 
-enum class ZombieState { idle, looking, investigating, chasing, attacking };
+enum class ZombieState { idle, looking, investigating, chasing, attacking, hiding, midnight, houseInvestigating };
 struct ZombieReactionEvent {
     std::size_t zombie = 0;
     glm::vec3 position{0};
@@ -26,8 +29,8 @@ struct ZombieBehavior {
     ZombieState state = ZombieState::idle;
     double createdSeconds = 0;
     double idleSinceSeconds = 0;
-    glm::vec3 target{0}; // Last seen player feet in X east / Y up / Z south meters.
-    glm::vec2 lookDirection{0, 1}; // Unit horizontal direction toward a heard noise.
+    glm::vec3 target{0}; // Last seen player or investigated sound, in X-east/Y-up/Z-south meters.
+    glm::vec2 lookDirection{0, 1}; // Noise/hit source direction; zero for a hiding actor with no pending turn.
     ZombieSight sight = ZombieSight::none; // Last observation, never a live player tracker.
     ZombiePerceptionClock perception{};
     ZombiePerceptionClock attackClock{}; // 10 Hz, independent of distant sight scheduling.
@@ -68,6 +71,9 @@ struct ZombiePlayer {
     std::uint32_t id = 0;
     glm::vec3 velocity{0}; // Current solved world-space velocity, meters/second.
     float radius = .30f;
+    // Borrows the player's cached ID for this update only. Copies made for
+    // individual zombies must not allocate a building-name string per actor.
+    std::optional<std::string_view> house = std::nullopt;
 };
 
 // Horizontal +Z is the character's forward direction; ignores vertical offset.

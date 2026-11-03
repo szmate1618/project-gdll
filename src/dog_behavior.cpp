@@ -50,10 +50,13 @@ void DogLayer::updateBehavior(float dt, const std::vector<ZombiePlayer>& players
     if (!std::isfinite(dt) || dt <= 0 || !std::isfinite(now)) return;
     for (const auto& p : players) if (!finite(p.feet) || !finite(p.velocity)) return;
     if (behaviors.size() != instances.size()) rebuildSpatialIndex();
+    doorways_.beginStep(dt);
     selectWanderers(now);
     for (std::size_t id = 0; id < instances.size(); ++id) {
         auto& dog = instances[id]; auto& behavior = behaviors[id];
-        if (dog.dead || dog.removed || dog.asset >= assets.size()) { behavior.fetch.reset(); continue; }
+        if (dog.dead || dog.removed || dog.asset >= assets.size()) {
+            behavior.fetch.reset(); spatial_.erase(id); doorways_.erase(id); continue;
+        }
         dog.walking = dog.running = false;
         auto feet = glm::vec3(dog.root[3]);
         const ZombiePlayer* nearest = nullptr;
@@ -130,19 +133,22 @@ void DogLayer::updateBehavior(float dt, const std::vector<ZombiePlayer>& players
         if (behavior.state == DogState::wandering && parts) findFetchPart(id,*parts,world,now);
         if (behavior.state == DogState::wandering && !prepareWanderStep(id,world,now)) continue;
         if (behavior.state == DogState::fetching && !prepareFetchStep(id,parts,world,now)) continue;
-        auto destination = behavior.target;
+        const auto goal = behavior.target;
+        const float goalDistance = glm::length(glm::vec2(goal.x-feet.x,goal.z-feet.z));
+        const auto passage = doorways_.destination(id,feet,goal,world);
+        const auto destination = passage.value_or(goal);
         const auto horizontal = glm::vec2(destination.x-feet.x,destination.z-feet.z);
         const float distance = glm::length(horizontal);
         const float speed = behavior.state == DogState::chasing ? 3.f : 1.2f;
         float travel = std::min(speed*dt,distance);
-        const float heightDifference = destination.y-feet.y;
+        const float heightDifference = goal.y-feet.y;
         if (behavior.sight && std::abs(heightDifference) < approachDistance) {
             // Match the 3D attack range, including terrain and player foot lift.
             const float horizontalGap = std::sqrt(approachDistance*approachDistance-heightDifference*heightDifference);
-            travel = std::min(travel,std::max(0.f,distance-horizontalGap));
+            travel = std::min(travel,std::max(0.f,goalDistance-horizontalGap));
         }
         if (distance > 1e-4f && travel > 1e-6f) {
-            const auto direction = horizontal/distance;
+            const auto direction = passage ? horizontal/distance : steeringDirection(id,horizontal,world);
             const auto next = move(id,feet+glm::vec3(direction.x*travel,0,direction.y*travel),world);
             const auto moved = glm::vec2(next.x-feet.x,next.z-feet.z);
             if (next != feet) {
@@ -156,14 +162,14 @@ void DogLayer::updateBehavior(float dt, const std::vector<ZombiePlayer>& players
                 dog.walking = true; dog.running = speed > 1.2f;
                 dog.walkSeconds += glm::length(moved)/(dog.running ? dogRunAnimationSpeed : dogWalkAnimationSpeed);
             }
-        } else if (!roaming(behavior.state) && !behavior.sight && distance <= 1e-4f) {
+        } else if (!roaming(behavior.state) && !behavior.sight && goalDistance <= 1e-4f) {
             behavior.state = DogState::idle; behavior.idleSince = now;
         }
         if (roaming(behavior.state)) {
             const auto next = glm::vec3(dog.root[3]);
-            const float remaining = glm::length(glm::vec2(destination.x-next.x,destination.z-next.z));
+            const float remaining = glm::length(glm::vec2(goal.x-next.x,goal.z-next.z));
             auto& stalled = behavior.state == DogState::wandering ? behavior.wander.stalledSeconds : behavior.fetch->stalledSeconds;
-            if (distance-remaining < .1f*dt) stalled += dt;
+            if (!passage && goalDistance-remaining < .1f*dt) stalled += dt;
             else stalled = 0;
             if (behavior.fetch && behavior.fetch->grip)
                 behavior.fetch->grip->setTarget(dogMouthPosition(dog,assets[dog.asset]));

@@ -6,6 +6,7 @@
 #include "noise.hpp"
 #include "dog_wandering.hpp"
 #include "dog_fetch.hpp"
+#include "doorway_guidance.hpp"
 #include <filesystem>
 #include <optional>
 #include <random>
@@ -69,6 +70,7 @@ public:
     bool damage(std::size_t dog, float amount);
 private:
     ZombieSpatialIndex spatial_; // A distinct grid; never contains humanoid IDs.
+    DoorwayGuidance doorways_{dogRadius, dogHeight}; // Dog-only requests and owners.
     std::vector<std::size_t> candidates_;
     std::vector<DogAttackHit> hits_;
     std::mt19937 wanderRandom_{std::random_device{}()};
@@ -78,6 +80,7 @@ private:
     void findFetchPart(std::size_t id, ZombieDetachedParts& parts, const CollisionWorld& world, double now);
     bool prepareFetchStep(std::size_t id, ZombieDetachedParts* parts, const CollisionWorld& world, double now);
     glm::vec3 move(std::size_t id, glm::vec3 desired, const CollisionWorld& world);
+    glm::vec2 steeringDirection(std::size_t id, glm::vec2 targetOffset, const CollisionWorld& world);
 };
 std::vector<std::filesystem::path> dogAssetPaths(const std::filesystem::path& directory);
 DogLayer loadDogLayer(const std::filesystem::path& directory,

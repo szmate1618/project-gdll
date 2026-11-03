@@ -1,7 +1,6 @@
-#include "zombie_doorway.hpp"
+#include "doorway_guidance.hpp"
 
 #include "collision_world.hpp"
-#include "zombie_crowd.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -13,7 +12,7 @@ namespace viewer {
 namespace {
 constexpr float queryRange = 4.f;
 constexpr float clearedDistance = .8f, stallSeconds = 2.f;
-constexpr std::size_t participantLimit = ZombieCrowd::neighborBudget;
+constexpr std::size_t participantLimit = 64;
 
 float horizontalSquared(glm::vec3 offset) { return offset.x * offset.x + offset.z * offset.z; }
 bool finite(glm::vec3 point) {
@@ -27,16 +26,16 @@ float progress(glm::vec3 feet, const DoorwayAperture& door, float side) {
 }
 }
 
-std::size_t ZombieDoorwayGuidance::Hash::operator()(const Key& key) const {
+std::size_t DoorwayGuidance::Hash::operator()(const Key& key) const {
     const auto a = std::hash<std::uint64_t>{}(key.source), b = std::hash<std::size_t>{}(key.door);
     return a ^ (b + 0x9e3779b9u + (a << 6) + (a >> 2));
 }
 
-void ZombieDoorwayGuidance::reset() {
+void DoorwayGuidance::reset() {
     requests_.clear(); passages_.clear(); step_ = 0; seconds_ = 0;
 }
 
-void ZombieDoorwayGuidance::erase(std::size_t id) {
+void DoorwayGuidance::erase(std::size_t id) {
     const auto found = requests_.find(id);
     if (found == requests_.end()) return;
     auto passage = passages_.find(found->second.key);
@@ -51,7 +50,7 @@ void ZombieDoorwayGuidance::erase(std::size_t id) {
     requests_.erase(found);
 }
 
-void ZombieDoorwayGuidance::beginStep(float seconds) {
+void DoorwayGuidance::beginStep(float seconds) {
     ++step_;
     if (std::isfinite(seconds) && seconds > 0) seconds_ += seconds;
     for (auto it = requests_.begin(); it != requests_.end();) {
@@ -62,7 +61,7 @@ void ZombieDoorwayGuidance::beginStep(float seconds) {
     }
 }
 
-void ZombieDoorwayGuidance::reserve(Passage& passage, std::size_t owner) {
+void DoorwayGuidance::reserve(Passage& passage, std::size_t owner) {
     passage.owner = owner;
     passage.committed = false;
     const auto& request = requests_.at(owner);
@@ -70,7 +69,7 @@ void ZombieDoorwayGuidance::reserve(Passage& passage, std::size_t owner) {
     passage.progressSeconds = seconds_;
 }
 
-std::optional<glm::vec3> ZombieDoorwayGuidance::destination(
+std::optional<glm::vec3> DoorwayGuidance::destination(
         std::size_t id, glm::vec3 feet, glm::vec3 target, const CollisionWorld& world) {
     if (!finite(feet) || !finite(target)) { erase(id); return std::nullopt; }
     const auto doors = world.nearbyDoorways(feet, queryRange);
@@ -78,8 +77,8 @@ std::optional<glm::vec3> ZombieDoorwayGuidance::destination(
     float side = 0, best = std::numeric_limits<float>::max();
     const auto previous = requests_.find(id);
     for (const auto& door : doors) {
-        if (door.width < ZombieCrowd::bodyRadius * 2 + .12f ||
-            feet.y < door.bottom - .3f || feet.y + ZombieCrowd::bodyHeight > door.top + .02f) continue;
+        if (door.width < bodyRadius_ * 2 + .12f ||
+            feet.y < door.bottom - .3f || feet.y + bodyHeight_ > door.top + .02f) continue;
         const float from = glm::dot(feet - door.center, door.outward);
         const float to = glm::dot(target - door.center, door.outward);
         const Key key{door.source, door.door};
@@ -153,13 +152,13 @@ std::optional<glm::vec3> ZombieDoorwayGuidance::destination(
 
     // Center outside the entire panel sweep before entering. This works for
     // both swing directions and avoids cutting diagonally across the free edge.
-    const float approachDistance = std::max(1.f, selected->width + ZombieCrowd::bodyRadius + .2f);
+    const float approachDistance = std::max(1.f, selected->width + bodyRadius_ + .2f);
     const float exitDistance = approachDistance;
     glm::vec3 destination;
     if (passage.owner == id) {
         const float along = entryDistance(feet, *selected, side);
         const float across = std::abs(glm::dot(feet - selected->center, selected->right));
-        const float laneHalfWidth = std::max(.02f, selected->width * .5f - ZombieCrowd::bodyRadius - .06f);
+        const float laneHalfWidth = std::max(.02f, selected->width * .5f - bodyRadius_ - .06f);
         const bool aligned = across <= laneHalfWidth && along <= approachDistance + .05f;
         if (aligned) passage.committed = true;
         destination = selected->center + selected->outward * side * (passage.committed ? -exitDistance : approachDistance);
@@ -179,17 +178,11 @@ std::optional<glm::vec3> ZombieDoorwayGuidance::destination(
             if (otherScore < score || (otherScore == score && member < id)) ++rank;
         }
         const float back = std::min(3.5f, approachDistance + .7f + float(rank) * .7f);
-        const float lateral = selected->width * .5f + ZombieCrowd::bodyRadius + .15f;
+        const float lateral = selected->width * .5f + bodyRadius_ + .15f;
         destination = selected->center + selected->outward * side * back + selected->right * request.yieldSide * lateral;
     }
     destination.y = feet.y;
     return destination;
-}
-
-std::optional<glm::vec3> ZombieCrowd::doorwayDestination(std::size_t id, glm::vec3 target,
-                                                       const CollisionWorld& world) {
-    if (id >= bodies_.size() || !bodies_[id].present) return std::nullopt;
-    return doorways_.destination(id, bodies_[id].feet, target, world);
 }
 
 } // namespace viewer

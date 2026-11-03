@@ -5,6 +5,8 @@
 #include "house_layout.hpp"
 #include "house_polygon.hpp"
 #include "prefab_floorplan.hpp"
+#include "building_footprints.hpp"
+#include "house_navigation.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -45,6 +47,9 @@ struct FloorplanLayer::Impl {
     std::map<std::pair<int, int>, std::vector<std::size_t>> cells;
     std::set<std::string> rejected;
     std::map<std::string, HouseFloorplan> resident;
+    std::unique_ptr<BuildingFootprints> footprints;
+    std::map<std::string, HouseNavigationGraph> graphs;
+    std::uint64_t graphGeneration = 0;
     Model renderModel;
     std::map<std::size_t, std::size_t> doorDraws;
     std::uint64_t revision = 1;
@@ -73,6 +78,7 @@ FloorplanLayer::FloorplanLayer(const Model& model, DoorLayer& doors, CollisionWo
     : impl_(std::make_unique<Impl>()) {
     auto& data = *impl_;
     data.source = &model; data.doors = &doors; data.collision = &collision;
+    data.footprints = std::make_unique<BuildingFootprints>(model);
     const auto exteriorCount = doors.count();
     data.entrances.reserve(exteriorCount);
     data.doorBuildings.resize(exteriorCount);
@@ -128,6 +134,7 @@ void FloorplanLayer::update(const std::vector<glm::vec3>& observers) {
         });
         if (keep) { ++it; continue; }
         for (const auto& door : plan.doors) data.doors->evictRuntimeDoor(door.id);
+        data.graphs.erase(it->first);
         it = data.resident.erase(it); changed = true;
     }
     std::set<std::string> candidates;
@@ -152,7 +159,11 @@ void FloorplanLayer::update(const std::vector<glm::vec3>& observers) {
         for (const auto& door : plan->doors) data.doors->installRuntimeDoor(door.id, door.panel);
         data.resident.emplace(name, std::move(*plan)); changed = true;
     }
-    if (changed) data.publish();
+    if (changed) {
+        data.publish();
+        for (const auto& [name, plan] : data.resident)
+            if (!data.graphs.count(name)) data.graphs.try_emplace(name, plan, *data.doors, *data.collision, ++data.graphGeneration);
+    }
 }
 std::uint64_t FloorplanLayer::revision() const { return impl_->revision; }
 std::size_t FloorplanLayer::residentCount() const { return impl_->resident.size(); }
@@ -160,4 +171,9 @@ const std::map<std::string, HouseFloorplan>& FloorplanLayer::resident() const { 
 const Model& FloorplanLayer::renderModel() const { return impl_->renderModel; }
 const std::map<std::size_t, std::size_t>& FloorplanLayer::doorDraws() const { return impl_->doorDraws; }
 const DoorLayer& FloorplanLayer::doors() const { return *impl_->doors; }
+const BuildingFootprints& FloorplanLayer::footprints() const { return *impl_->footprints; }
+const HouseNavigationGraph* FloorplanLayer::navigationGraph(const std::string& building) const {
+    const auto found = impl_->graphs.find(building);
+    return found == impl_->graphs.end() ? nullptr : &found->second;
+}
 } // namespace viewer

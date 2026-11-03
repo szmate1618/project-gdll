@@ -36,7 +36,7 @@ struct Profile {
     // Inclusive phase totals split gameplay pursuit from scenario travel. These
     // overlap the exclusive stages below and must not be added to them.
     double behaviorSeconds = 0, scenarioSeconds = 0;
-    std::array<std::uint64_t, 5> behaviorStates{}; // ZombieState order, after each processed behavior.
+    std::array<std::uint64_t, 8> behaviorStates{}; // ZombieState order, after each processed behavior.
     std::uint64_t chaseStarts = 0;
 
     void print(std::ostream& out) const {
@@ -50,6 +50,9 @@ struct Profile {
             << "; investigating " << double(behaviorStates[2])/steps
             << "; chasing " << double(behaviorStates[3])/steps
             << "; attacking " << double(behaviorStates[4])/steps
+            << "; hiding " << double(behaviorStates[5])/steps
+            << "; midnight " << double(behaviorStates[6])/steps
+            << "; house investigating " << double(behaviorStates[7])/steps
             << "; chase starts " << double(chaseStarts)/steps << '\n';
         double measured = 0;
         for (std::size_t i = 0; i < stages.size(); ++i) {

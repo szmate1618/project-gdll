@@ -2,6 +2,7 @@
 #include "floorplan_layer.hpp"
 #include "zombie_layer.hpp"
 #include "house_polygon.hpp"
+#include "simulation_clock.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -32,7 +33,7 @@ InteriorZombies::InteriorZombies(std::size_t first, std::size_t reserved) :
 InteriorZombies::~InteriorZombies() = default;
 std::size_t InteriorZombies::reserveCount() const { return impl_->reserved; }
 void InteriorZombies::update(const FloorplanLayer& floors, ZombieLayer& zombies,
-    const CollisionWorld& collision, const std::vector<glm::vec3>& observers) {
+    const CollisionWorld& collision, const std::vector<glm::vec3>& observers, const DayNightCycle& dayNight) {
     auto& state = *impl_;
     if (floors.revision() == state.revision) return;
     if (state.first > zombies.instances.size() || state.reserved > zombies.instances.size() - state.first)
@@ -88,7 +89,12 @@ void InteriorZombies::update(const FloorplanLayer& floors, ZombieLayer& zombies,
             if (state.used == state.reserved) break;
             if (!group && !available(placement)) continue;
             const auto id = state.first + state.used++;
-            zombies.activateInteriorZombie(id, placement.transform);
+            // Upstairs takes precedence over the doorway/corner placement kind.
+            const auto initial = plan.rooms.at(placement.room).storey > 0 ? ZombieState::midnight :
+                placement.position == InteriorZombiePosition::CenterGroup ? ZombieState::idle : ZombieState::hiding;
+            const auto wake = initial == ZombieState::midnight ?
+                dayNight.nextMidnightAtOrAfter(SimulationClock::instance().seconds()) : 0.;
+            zombies.activateInteriorZombie(id, placement.transform, initial, wake);
             encounter.actors.push_back({id, false});
         }
     }

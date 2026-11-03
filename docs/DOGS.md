@@ -68,6 +68,25 @@ shared step helper checks the descending landing for upward support, including
 ledges taller than the dog's 25 cm foot radius. Walls, over-height ledges and
 insufficient headroom remain blocking. A separate dog grid constrains dog-to-dog
 contacts.
+
+`dog_steering.cpp` spreads moving dogs using nearby living dogs in their own
+grid. Lateral separation and a stable passing side break straight queues, while
+the final approach fades back to the remembered goal. Steering retains the
+1.2/3 m/s speed limits, ignores dogs on other floors and leaves scene/crowd
+collision authoritative. Contact clearance suppresses spreading near walls,
+doors and props; it adds no visibility checks or behavior states.
+
+Each `DogLayer` also owns its own doorway passage queues. Near a fully open
+door, one dog centers on the opening while followers yield outside the panel
+swing, then take their turn. Hints preserve the original behavior target and
+apply to pursuit, investigation, wandering and fetching. Queue waiting does
+not consume a roaming trip's stall timeout. Closing doors still block dogs;
+death/removal releases requests, stopped movers expire, and stalled owners
+yield. Dog dimensions set aperture clearance. The common
+`doorway_guidance.hpp/.cpp` algorithm also serves humanoids, but dog grids,
+requests and passage owners remain separate from all zombie crowds. A dog and
+a zombie may still obstruct each other; no cross-population coordination is added.
+
 Bites use the authored non-looping attack, apply 10 damage once at its contact
 time, and recheck range, facing and occlusion at impact. Firearm pellets choose
 the nearest dog or humanoid contact; dog health and death are authoritative.

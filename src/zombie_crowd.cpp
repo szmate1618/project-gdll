@@ -7,6 +7,15 @@
 #include <stdexcept>
 
 namespace viewer {
+ZombieDoorwayGuidance::ZombieDoorwayGuidance()
+    : DoorwayGuidance(ZombieCrowd::bodyRadius, ZombieCrowd::bodyHeight) {}
+
+std::optional<glm::vec3> ZombieCrowd::doorwayDestination(std::size_t id, glm::vec3 target,
+                                                       const CollisionWorld& world) {
+    if (id >= bodies_.size() || !bodies_[id].present) return std::nullopt;
+    return doorways_.destination(id, bodies_[id].feet, target, world);
+}
+
 namespace {
 constexpr double diameter = ZombieCrowd::bodyRadius * 2.0;
 constexpr double skin = 0.001; // Numerical clearance, not extra arm spacing.

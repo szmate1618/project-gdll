@@ -1251,7 +1251,7 @@ every-step sight checks for comparison. Rays stop once partial visibility is
 known; every-step chasing can stop at the first clear ray.
 
 `--no-zombie-perception` disables the perception-driven behavior system entirely:
-no nearby activation scans, behavior entries, sight/hearing queries, pursuit or
+no nearby activation scans, sight/hearing queries, pursuit or
 attacks. Ordinary zombies remain idle and still render, take damage and enter
 ragdoll physics. Authored scenario routes continue independently, including
 their movement/crowd collision work. The disabled ordinary-population update
@@ -1259,7 +1259,9 @@ returns before spatial activation queries or behavior-pool traversal; noise
 events also return before any spatial query. The owning API is
 `ZombieLayer::setPerceptionEnabled(false)`, which also clears existing behaviors
 and stops their pursuit if changed after startup. Reenabling allows fresh
-activation. The same flag is available on the multiplayer server; clients follow
+activation. Interior encounters still record their spawn behavior, but it does
+not execute while disabled. Pending hiding/midnight policies survive behavior
+clearing. The same flag is available on the multiplayer server; clients follow
 the server's simulation.
 
 `ZombieLayer::makeNoise(position, decibels)` creates a silent simulation noise
@@ -1273,14 +1275,28 @@ Standalone and multiplayer firearm shots emit **110 dB**, independently of audio
 playback, once per accepted shot including shotgun volleys. Misses and cover do
 not suppress this noise. Grenades emit **130 dB** on detonation, not on throwing.
 
-Only idle, living members of the behavior pool respond to audible noise. They
-store its horizontal direction and enter **looking**, turning in place along
+Ordinary idle, living members of the behavior pool have a **10% chance** to
+investigate an audible noise, remembering its actual world position without
+seeing a player. The other 90% store its horizontal direction and enter **looking**, turning in place along
 the shortest yaw arc at **90 degrees/s** (180 degrees in two seconds) while
 playing idle. Further noises do not redirect a looking zombie. Visibility can
 interrupt the turn and start investigation or chasing. Finishing the turn
-without seeing the player returns to idle with a fresh ten-second timer; noise
-alone does not give a zombie a movement target. A source at the same horizontal
-position has no direction to turn toward and is ignored.
+without seeing the player returns to idle with a fresh ten-second timer.
+Noise choices are deterministic by stable zombie ID and event sequence for
+repeatable simulation. A source directly above/below has no turn direction,
+but can still trigger investigation. Hiding ambushers retain their turn-only
+policy, and midnight actors ignore hearing before activation.
+
+A surviving damaging hit puts an idle zombie into normal **looking**, facing
+back along the incoming hit direction. Sight can interrupt the turn normally.
+Damaging a midnight actor wakes it permanently into this ordinary behavior,
+without waiting for midnight. Existing pursuit and hiding behaviors retain
+their current state when hit; lethal hits still enter ragdoll physics.
+
+When a cached inside player and the zombie share a house with a loaded interior
+graph, investigation enters **house investigating** and follows doors and ramps
+to the sound's room. A full sighting switches it to ordinary chasing. See
+[interior navigation and membership](FLOORPLANS.md#interior-navigation-and-player-house-membership).
 
 Grounded player movement emits **1.5 walking footsteps/s** or **3 running
 footsteps/s**. These events come from actual displacement in fixed physics
@@ -2714,7 +2730,9 @@ reduces visible artifacts from long shadows without expanding the fixed caster
 volume. Very tall or distant casters can still exceed that volume. At zero
 sunlight the pass is skipped and shadow sampling is disabled, then both resume
 at dawn. There are no additional render passes or shadow maps for the cycle.
-Clock and lighting calculations are in `src/day_night.hpp/.cpp`.
+The simulation clock and midnight scheduling are in `src/day_night_clock.hpp/.cpp`;
+lighting evaluation remains in `src/day_night.hpp/.cpp`. The same session clock
+wakes [upstairs interior zombies](FLOORPLANS.md#interior-zombie-encounters) at midnight.
 
 ### Local sun shadows
 
@@ -3221,7 +3239,8 @@ src/forest_tree_visibility.{hpp,cpp} Patch-first individual-tree visibility
 src/forest_volume_batch.{hpp,cpp} Static volume geometry grouped by material
 src/file_fingerprint.{hpp,cpp} Shared SHA-256 provenance checks
 src/sun_lighting.{hpp,cpp} Lighting settings and stable local shadow coverage
-src/day_night.{hpp,cpp}    Game clock and smooth day/night lighting evaluation
+src/day_night_clock.{hpp,cpp} Simulation clock hours and absolute midnight scheduling
+src/day_night.{hpp,cpp}    Smooth day/night lighting evaluation
 src/atmosphere.hpp         Distance haze, ground fog, and matching sky color
 src/night_lighting.hpp     Night ambient, sky/fog color, and camera flashlight settings
 src/rain_renderer.{hpp,cpp} Instanced rain seeds, draw, and GL state ownership
@@ -3236,6 +3255,8 @@ src/zombie_damage.{hpp,cpp} Sparse injury records and health reduction; no geome
 src/zombie_dismemberment.{hpp,cpp} Joint-hit definitions, prepared mesh loading and affine joint tests
 src/zombie_shooting.cpp    Prepared hit geometry, spatial bounds, and shot selection
 src/zombie_behavior.{hpp,cpp} Dense behavior pool, perception and state transitions
+src/zombie_house_investigation.{hpp,cpp} Sparse room routes and graph-following investigation
+src/zombie_interior_behavior.cpp Interior spawn entries, pending policies and streamed sleep/wake
 src/zombie_attack.{hpp,cpp} Fresh hit validation and relative-velocity damage
 src/zombie_lunge.{hpp,cpp} Timed collision-limited attack movement and hit events
 src/player_vitals.hpp      Player-owned float health, stamina and weariness
@@ -3248,7 +3269,8 @@ src/simulation_clock.hpp   Global simulation-thread in-game clock
 src/zombie_chase.{hpp,cpp}  Terrain-following locomotion and clip clocks
 src/zombie_crowd.{hpp,cpp}  Deterministic swept body constraints and fine crowd grid
 src/zombie_crowd_steering.cpp Local pursuit spacing and stable passing direction
-src/zombie_doorway.{hpp,cpp} Local doorway approach/exit guidance and passage queues
+src/doorway_guidance.{hpp,cpp} Local aperture guidance; separate per-population passage queues
+src/zombie_doorway.hpp     Humanoid doorway dimensions, owned by each zombie crowd
 src/doorway.hpp             Shared aperture geometry and current opening hints
 src/zombie_movement.{hpp,cpp} Scene/crowd-constrained capsule motion and terrain support
 src/zombie_animation.{hpp,cpp} Authored clip selection and on-demand displayed poses

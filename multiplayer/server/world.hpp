@@ -8,6 +8,7 @@
 #include "weapon_reload.hpp"
 #include "inventory/inventory_drag.hpp"
 #include "zombie_door_collision.hpp"
+#include "player_house.hpp"
 #include "replication.hpp"
 #include "vehicle_seats.hpp"
 #include "birds.hpp"
@@ -46,6 +47,7 @@ struct ServerPlayer {
     std::vector<SignalState> signals;
     std::uint64_t nextSignalTick = 0;
     std::optional<std::uint64_t> birdTick;
+    viewer::PlayerHouseState house;
     bool started = false, triggerNeedsRelease = false, reloadRequested = false;
 };
 class World {

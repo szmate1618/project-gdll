@@ -1,5 +1,6 @@
 #include "zombie_layer.hpp"
 #include "weapons.hpp"
+#include "simulation_clock.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -85,6 +86,42 @@ void missesAndExplosions() {
             "Grenade deaths must also erase existing injury records");
 }
 
+void damageLooking() {
+    using viewer::ZombieState;
+    auto& clock = viewer::SimulationClock::instance(); clock.reset();
+    const viewer::CollisionWorld clear(viewer::Model{});
+    for (const bool active : {false, true}) {
+        auto layer = target();
+        if (active) layer.behaviors.create(0, 0, {0, 0, -3});
+        require(layer.shoot({3, .9f, -3}, {-1, 0, 0}), "Side body hit must damage an idle zombie");
+        const auto* behavior = layer.behaviors.find(0);
+        require(behavior && behavior->state == ZombieState::looking && behavior->lookDirection == glm::vec2(1, 0),
+                "A surviving idle hit must create normal looking toward the source, even without a prior entry");
+        require(layer.instances[0].heardNoiseRevision == 0, "Damage must not masquerade as a hearing event");
+        for (int step = 0; step < 11; ++step) {
+            clock.advance(.1); layer.chase(.1f, {-10, 0, -10}, clear);
+        }
+        require(layer.behaviors.find(0)->state == ZombieState::idle && layer.instances[0].restRoot[2].x > .999f &&
+                glm::vec3(layer.instances[0].restRoot[3]) == glm::vec3(0, 0, -3),
+                "Damage looking must finish the ordinary turn in place and return to idle");
+    }
+    auto visible = target();
+    require(visible.shoot({3, .9f, -3}, {-1, 0, 0}), "Visible attacker fixture must hit");
+    visible.chase(.1f, {0, 0, 7}, clear);
+    require(visible.behaviors.find(0)->state == ZombieState::chasing,
+            "A normal full sighting must interrupt damage looking with pursuit");
+
+    auto chasing = target();
+    auto& behavior = chasing.behaviors.create(0, 0, {0, 0, -3});
+    behavior.state = ZombieState::chasing; behavior.target = {8, 0, -3};
+    require(chasing.shoot({3, .9f, -3}, {-1, 0, 0}) && behavior.state == ZombieState::chasing &&
+            behavior.target == glm::vec3(8, 0, -3), "A surviving hit must not interrupt an existing pursuit");
+
+    auto disabled = target(); disabled.setPerceptionEnabled(false);
+    require(disabled.shoot({3, .9f, -3}, {-1, 0, 0}) && disabled.behaviors.entries().empty(),
+            "Damage must keep globally disabled AI disabled");
+}
+
 void configuredPellets() {
     viewer::Weapons weapons(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
     for (const auto slot : {0u, 1u, 2u, 3u}) {
@@ -117,7 +154,7 @@ void configuredPellets() {
 
 int main() {
     try {
-        injuryRecordsAndDeath(); missesAndExplosions(); configuredPellets();
+        injuryRecordsAndDeath(); missesAndExplosions(); damageLooking(); configuredPellets();
         std::cout << "Zombie damage tests passed\n";
         return 0;
     } catch (const std::exception& error) {

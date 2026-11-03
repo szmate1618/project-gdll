@@ -21,11 +21,20 @@ void rejects(Function function) {
 void checkClock() {
     viewer::DayNightCycle clock{23.0, 1200.0};
     require(clock.hourAt(0) == 23.0, "Clock must start at the requested hour");
+    require(std::abs(clock.nextMidnightAtOrAfter(0) - 50) < 1e-9 &&
+            std::abs(clock.nextMidnightAtOrAfter(100) - 1250) < 1e-9,
+            "Midnight scheduling must use the configured start hour and day length");
+    require(clock.nextMidnightAtOrAfter(50) == 50,
+            "An actor spawned exactly at midnight may activate immediately");
     require(clock.hourAt(100) == 1.0, "Clock must wrap through midnight");
     require(clock.hourAt(600) == 11.0, "Half a cycle must advance twelve hours");
     require(clock.hourAt(1200) == 23.0 && clock.hourAt(1200000100) == 1.0,
             "Whole days must wrap without losing the start hour");
     clock.dayLengthSeconds = 0;
+    require(std::isinf(clock.nextMidnightAtOrAfter(1000000)),
+            "A clock frozen away from midnight cannot schedule a midnight wake");
+    require(viewer::DayNightCycle{0, 0}.nextMidnightAtOrAfter(37) == 37,
+            "A clock frozen at midnight must allow immediate activation");
     require(clock.hourAt(1000000) == 23.0, "Zero duration must freeze the requested hour");
     const auto nan = std::numeric_limits<double>::quiet_NaN();
     for (const auto hour : {-1.0, 24.0, nan}) {
