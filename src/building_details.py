@@ -11,6 +11,7 @@ from shapely.ops import nearest_points
 from shapely.strtree import STRtree
 from trimesh.visual.material import PBRMaterial
 
+from .building_entrances import Entrance, build_entrances
 from .wall_openings import cut_wall_openings
 
 DOOR_MATERIAL = PBRMaterial(name="building_door_brown", baseColorFactor=[112, 65, 32, 255],
@@ -111,25 +112,8 @@ def _rectangle(facade, center, width, bottom, height):
                      [*right, bottom + height], [*left, bottom + height]])
 
 
-def _foundation_profile(wall, facade, left, right):
-    """Sample the existing piecewise-linear wall base across an opening."""
-    xy, inverse = np.unique(wall.vertices[:, :2], axis=0, return_inverse=True)
-    heights = np.full(len(xy), np.inf)
-    np.minimum.at(heights, inverse, wall.vertices[:, 2])
-    delta = xy - facade.start
-    along = delta @ facade.direction
-    on_wall = ((np.abs(delta @ facade.normal) < .002) &
-               (along >= -.002) & (along <= facade.length + .002))
-    order = np.argsort(along[on_wall])
-    coordinates, heights = along[on_wall][order], heights[on_wall][order]
-    if len(coordinates) < 2:
-        raise ValueError("Cannot sample building foundation across a door")
-    samples = np.r_[left, coordinates[(coordinates > left) & (coordinates < right)], right]
-    return np.interp(samples, coordinates, heights)
-
-
 def facade_details(polygon: Polygon, wall, roof, elevation, options, road=None):
-    """Return walls with openings, door/glass infills, and rectangle counts.
+    """Return masonry, door/glass infills, entrance surfaces, and counts.
 
     The lowest roof vertex is the conservative eave height. Rectangles fit below
     it, so gables and hip slopes keep the same closed roof/wall geometry.
@@ -140,9 +124,12 @@ def facade_details(polygon: Polygon, wall, roof, elevation, options, road=None):
     samples = np.vstack([np.asarray(ring.coords) for ring in [boundary.exterior, *boundary.interiors]])
     foundation = float(np.max(elevation(samples[:, 0], samples[:, 1])))
     # One exported-precision head height aligns both doors and the lowest
-    # window row. Door panels extend down to each facade's sampled wall base.
+    # window row. Door bottoms share the interior floor datum even downhill;
+    # the original foundation wall remains below each raised doorway.
     first_head = float(np.float32(foundation + 2.1))
+    floor = float(np.float32(first_head - 2.1))
     doors, windows = [], []
+    entrances = []
     openings = {}
     door_spans = {}
     for index in _door_facades(facades, road):
@@ -150,12 +137,11 @@ def facade_details(polygon: Polygon, wall, roof, elevation, options, road=None):
         center = facade.length * 0.5
         if first_head > eaves - 0.15:
             continue
-        # The cutter reaches below the entire base profile. Intersection with
-        # the wall outline gives the infill its exact sloping bottom boundary.
-        bottom = float(np.min(_foundation_profile(wall, facade, center - .5, center + .5))) - .01
-        doors.append(_rectangle(facade, center, 1.0, bottom, first_head - bottom))
+        doors.append(_rectangle(facade, center, 1.0, floor, first_head - floor))
+        entrances.append(Entrance(facade.start + facade.direction * center,
+                                  facade.direction, facade.normal, floor))
         openings.setdefault(index, []).append(("doors", doors[-1]))
-        door_spans[index] = (center - 0.65, center + 0.65, bottom, first_head + .15)
+        door_spans[index] = (center - 0.65, center + 0.65, floor, first_head + .15)
 
     floor_height = float(options.get("floor_height_m", 3.0))
     for index, facade in enumerate(facades):
@@ -171,6 +157,7 @@ def facade_details(polygon: Polygon, wall, roof, elevation, options, road=None):
                 windows.append(_rectangle(facade, center, 1.2, float(bottom), 1.2))
                 openings.setdefault(index, []).append(("windows", windows[-1]))
     if not openings:
-        return None, None, None, {"doors": 0, "windows": 0}
+        return None, None, None, None, {"doors": 0, "windows": 0}
     detailed_wall, door_mesh, window_mesh = cut_wall_openings(wall, facades, openings)
-    return detailed_wall, door_mesh, window_mesh, {"doors": len(doors), "windows": len(windows)}
+    return (detailed_wall, door_mesh, window_mesh, build_entrances(entrances, elevation),
+            {"doors": len(doors), "windows": len(windows)})

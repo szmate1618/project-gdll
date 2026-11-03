@@ -192,7 +192,7 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
     """Append buildings to a scene in local east/north/up meters and return counts."""
     options = config.get("buildings", config)
     stats = {"buildings": 0, "building_meshes": 0, "skipped_buildings": 0}
-    stats.update(building_detail_meshes=0, doors=0, windows=0)
+    stats.update(building_detail_meshes=0, building_entrance_meshes=0, doors=0, windows=0)
     road_index = RoadIndex(roads)
     roof_shapes = Counter()
     for feature in features:
@@ -208,7 +208,7 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
                 LOG.warning("Skipping building %s component %d: %s", feature["id"], index, error)
                 continue
             try:
-                detailed_wall, doors, windows, detail_counts = facade_details(
+                detailed_wall, doors, windows, entrances, detail_counts = facade_details(
                     polygon, wall, roof, elevation, options, road_index.nearest(polygon))
             except (ValueError, IndexError, TypeError, ShapelyError) as error:
                 raise ValueError(f"Building {feature['id']} component {index}: {error}") from error
@@ -227,6 +227,10 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
                                                              "group": name, "level": "near"}
             scene.add_geometry(wall, node_name=f"{name}_walls", geom_name=f"{name}_walls")
             scene.add_geometry(roof, node_name=f"{name}_roof", geom_name=f"{name}_roof")
+            if entrances is not None:
+                # Permanent collision/render geometry, independent of wall LoD.
+                scene.add_geometry(entrances, node_name=f"{name}_entrances", geom_name=f"{name}_entrances")
+                stats["building_entrance_meshes"] += 1
             for suffix, mesh in (("detailed_walls", detailed_wall), ("doors", doors), ("windows", windows)):
                 if mesh is not None:
                     detail_name = f"{name}_{suffix}"

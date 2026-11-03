@@ -1167,9 +1167,20 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_doors)
     add_test(NAME viewer_doors COMMAND test_doors)
     add_executable(test_door_walking tests/test_door_walking.cpp)
-    target_link_libraries(test_door_walking PRIVATE viewer_fps viewer_physics)
+    target_link_libraries(test_door_walking PRIVATE viewer_fps viewer_physics viewer_objects)
     viewer_warnings(test_door_walking)
     add_test(NAME viewer_door_walking COMMAND test_door_walking)
+    set(ENTRANCE_FIXTURE "${CMAKE_CURRENT_BINARY_DIR}/building-entrance-fixture.glb")
+    add_custom_command(OUTPUT "${ENTRANCE_FIXTURE}"
+        COMMAND "${CMAKE_COMMAND}" -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}"
+            "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/building_entrance_fixture.py" "${ENTRANCE_FIXTURE}"
+        DEPENDS tests/building_entrance_fixture.py src/building_entrances.py src/building_details.py
+            src/buildings.py src/wall_openings.py src/building_caps.py src/facade_surface.py
+            src/terrain.py src/terrain_profile.py
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    add_custom_target(building_entrance_fixture DEPENDS "${ENTRANCE_FIXTURE}")
+    add_dependencies(test_door_walking building_entrance_fixture)
+    add_test(NAME viewer_building_entrances COMMAND test_door_walking --entrances-fixture "${ENTRANCE_FIXTURE}")
 
     foreach(suite animated_model zombie_lod zombie_placement zombie_chase zombie_crowd zombie_movement zombie_motion zombie_door_collision zombie_doorway zombie_interior_behavior zombie_house_investigation zombie_attack zombie_lunge zombie_melee_attack zombie_active_attack zombie_behavior zombie_shooting zombie_hit_capsules zombie_reported_hits zombie_damage zombie_dismemberment zombie_spatial_index zombie_perception zombie_ragdoll zombie_transition zombie_render_updates player_vitals)
         add_executable(test_${suite} tests/test_${suite}.cpp)

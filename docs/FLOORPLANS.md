@@ -36,7 +36,11 @@ and long narrow buildings usually fail these limits. Small shops
 can pass; distinguishing their use needs further rules or additional data.
 
 Door heads establish the existing facade generator's floor datum, 2.1 metres
-below the head. The generated window infills supply distinct row-head heights.
+below the head. Newly generated exterior doors stop at this datum even downhill.
+Grey exterior landings align with the interior walking plane, with side ramps
+and open space under landings at least 40 cm above ground. Foundation walls
+below the doorways remain intact. The generated window infills supply distinct
+row-head heights.
 Each additional row adds a full-footprint floor/ceiling plane at that row's
 offset from the first row. Adjacent rows must be 2.4–4.2 metres apart. One row,
 or no window data, does not invent extra storeys. A final ceiling sits 2 cm

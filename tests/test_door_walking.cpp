@@ -1,6 +1,7 @@
 #include "collision_world.hpp"
 #include "door_layer.hpp"
 #include "fps_controller.hpp"
+#include "floorplan_layer.hpp"
 #include "physics_world.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -171,6 +172,53 @@ void generatedMapPassage(const std::filesystem::path& path) {
     }
     throw std::runtime_error("Could not find a clear generated doorway for the walking regression");
 }
+void raisedEntrancePassage(const char* path) {
+    auto model = viewer::loadModel(path);
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics);
+    viewer::CollisionWorld world(model, {}, &doors);
+    // Consume actual Python-generated surfaces after glTF export and loading.
+    for (const float side : {-1.f, 1.f}) {
+        viewer::FPSController player;
+        require(player.spawn({6 + side * 3.2f, 1.7f, .6f}, world), "Must spawn beside the side ramp");
+        viewer::FPSInput input;
+        input.forward = 1; input.yawDegrees = side < 0 ? 0 : 180;
+        for (int step = 0; step < 128; ++step) player.update(1.f / 120, input, world);
+        require(std::abs(player.feet().x - 6) < .2f && player.feet().y > 1 && player.grounded(),
+                "Both exported side ramps must let a standing player walk onto the landing");
+    }
+    for (const bool prone : {false, true}) {
+        viewer::FPSController player;
+        require(player.spawn({6, 1.7f, 2}, world), "Must spawn in front of the raised landing");
+        viewer::FPSInput input;
+        input.crouch = !prone; input.toggleProne = prone;
+        player.update(1.f / 120, input, world);
+        input.toggleProne = false; input.forward = 1; input.yawDegrees = -90;
+        for (int step = 0; step < 232; ++step) player.update(1.f / 120, input, world);
+        if (prone) {
+            require(player.feet().z < .8f && player.feet().z > .3f && player.feet().y < .01f,
+                    "The open front must let a prone player crawl below the landing");
+            require(player.stance() == viewer::PlayerStance::Prone,
+                    "The landing overhead must keep the crawling stance");
+        } else {
+            require(player.feet().z > 1.2f,
+                    "A landing with less than crouching clearance must block a crouched player");
+        }
+    }
+    for (std::size_t i = 0; i < doors.count(); ++i) doors.setAngle(i, 1.6f);
+    viewer::FloorplanLayer floors(model, doors, world);
+    floors.update({{6, 2.71f, .6f}});
+    require(!floors.resident().empty(), "The raised entrance must retain a usable runtime floorplan");
+    viewer::FPSController player;
+    player.teleport({6, 1.012f, .6f});
+    player.update(1.f / 120, {}, world);
+    require(player.grounded(), "The raised landing must support the player before entry");
+    viewer::FPSInput input;
+    input.forward = 1; input.yawDegrees = -90;
+    for (int step = 0; step < 60; ++step) player.update(1.f / 120, input, world);
+    require(player.feet().z < -.5f && player.feet().y > .9f,
+            "A raised doorway must admit a standing player from the landing");
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -179,6 +227,7 @@ int main(int argc, char** argv) {
         closedAndOpenPassage(glm::rotate(glm::mat4(1), -glm::half_pi<float>(), glm::vec3(1, 0, 0)), true);
         partialClearanceUsesCapsuleGeometry(); legacyOverlayKeepsVisibleWall();
         if (argc == 2) generatedMapPassage(argv[1]);
+        if (argc == 3 && std::string(argv[1]) == "--entrances-fixture") raisedEntrancePassage(argv[2]);
         std::cout << "Door walking tests passed\n";
         return 0;
     } catch (const std::exception& error) {
