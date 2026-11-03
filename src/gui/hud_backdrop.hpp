@@ -13,11 +13,11 @@ namespace viewer {
 // GPU. Call inside the HUD renderer's GL state guard, with its draw target bound.
 class HudBackdrop {
 public:
-    static constexpr std::size_t panelGroups = 15, sectorGroups = 3;
+    static constexpr std::size_t panelGroups = 15, sectorGroups = 8;
     static constexpr std::size_t maxGroups = panelGroups + sectorGroups;
     // Content rectangles in framebuffer pixels, with a top-left origin.
-    // Nonpositive sizes disable a group. The final three rectangles describe
-    // the danger/move/backup sector widgets; padding applies only to panels.
+    // Nonpositive sizes disable a group. The final eight rectangles describe
+    // three signal sectors, then five page sectors; padding applies only to panels.
     using Bounds = std::array<glm::vec4, maxGroups>;
 
     explicit HudBackdrop(const std::filesystem::path& shaderDirectory);

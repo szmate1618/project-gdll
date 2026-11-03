@@ -194,12 +194,13 @@ int main(int argc, char** argv) {
             };
             require(backgroundCount(550,590,730,610) > 500 && backgroundCount(590,684,690,708) > 400,
                     "New prompt and cursor labels need readable first-frame backdrops");
-            require(backgroundCount(24,104,160,122) > 200 && backgroundCount(500,526,780,560) > 1000,
+            require(backgroundCount(24,104,160,122) > 200 && backgroundCount(500,104,780,140) > 1000,
                     "Selection and command instructions need first-frame backdrops");
             require(isColor(colorAt(bright, 1280, 720, 615, 271), {214,214,214}) &&
-                    isColor(colorAt(bright, 1280, 720, 644, 490), {214,214,214}),
+                    isColor(colorAt(bright, 1280, 720, 644, 490), {214,214,214}) &&
+                    isColor(colorAt(bright, 1280, 720, 640, 148), {214,214,214}),
                     "Command sectors must have their own adaptive charcoal backdrops through their straight edges");
-            for (const auto& point : std::array<std::array<int, 2>, 4>{{{495,215}, {675,360}, {641,420}, {641,490}}})
+            for (const auto& point : std::array<std::array<int, 2>, 4>{{{420,215}, {675,360}, {641,420}, {641,490}}})
                 require(isColor(colorAt(bright, 1280, 720, point[0], point[1]), {255,255,255}),
                         "The command dial must leave its center, gaps and outer corners unobscured");
             require(isColor(colorAt(bright, 1280, 720, 400, 600), {255,255,255}) &&
@@ -293,7 +294,7 @@ int main(int argc, char** argv) {
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto centeredWheel = pixels(1280, 720);
             require(centeredWheel != beforeWheel, "Command wheel did not open");
-            require(colorAt(centeredWheel, 1280, 720, 510, 220) == colorAt(beforeWheel, 1280, 720, 510, 220) &&
+            require(colorAt(centeredWheel, 1280, 720, 420, 220) == colorAt(beforeWheel, 1280, 720, 420, 220) &&
                     colorAt(centeredWheel, 1280, 720, 675, 360) == colorAt(beforeWheel, 1280, 720, 675, 360),
                     "Sector corners and gap around the cancel ring must leave the scene visible");
             require(colorAt(centeredWheel, 1280, 720, 641, 420) == colorAt(beforeWheel, 1280, 720, 641, 420) &&
@@ -304,6 +305,18 @@ int main(int argc, char** argv) {
                 state.commandWheelOffset = offset;
                 clear(); hud.draw(state, 1280, 720); checkState();
                 require(pixels(1280, 720) != centeredWheel, "Command sector and cursor did not respond to aim");
+            }
+            const std::array<glm::vec2, 5> pageOffsets{{{0, -190}, {181, -59}, {112, 154}, {-112, 154}, {-181, -59}}};
+            for (std::size_t i = 0; i < pageOffsets.size(); ++i) {
+                state.commandWheelOffset = pageOffsets[i];
+                clear(); hud.draw(state, 1280, 720); checkState();
+                const auto selectedPage = pixels(1280, 720);
+                require(selectedPage != centeredWheel, "Outer page sector did not respond to aim");
+                require(colorAt(selectedPage, 1280, 720, 640, 208) == colorAt(centeredWheel, 1280, 720, 640, 208),
+                        "Selecting an outer page must clear the inner signal highlight");
+                if (i == 0) require(isColor(colorAt(selectedPage, 1280, 720, 640, 142), {236,105,98}),
+                        "Selected page's outer edge must use the shared coral accent");
+                if (argc > 1) capture((std::string(argv[1]) + "-wheel-page-" + std::to_string(i) + ".ppm").c_str(), selectedPage, 1280, 720);
             }
             state.commandWheelOffset = {0, -100};
             state.signals = {{viewer::SignalKind::Danger, {.7f, .25f}, false},

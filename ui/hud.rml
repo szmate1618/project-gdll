@@ -52,13 +52,18 @@
     </div>
     <div id="signal-markers"></div>
     <div id="command-wheel">
-        <div id="command-title" class="command-title">TEAM SIGNAL</div>
+        <div id="command-title" class="command-title">SIGNALS &amp; PAGES</div>
+        <command-sector id="command-page-inventory" class="command-choice command-page" page="true" sector="0"><div class="page-caption"><div class="page-label">INVENTORY</div><div class="page-key">F1</div></div></command-sector>
+        <command-sector id="command-page-skills" class="command-choice command-page" page="true" sector="1"><div class="page-caption"><div class="page-label">SKILLS</div><div class="page-key">F2</div></div></command-sector>
+        <command-sector id="command-page-health" class="command-choice command-page" page="true" sector="2"><div class="page-caption"><div class="page-label">HEALTH</div><div class="page-key">F3</div></div></command-sector>
+        <command-sector id="command-page-map" class="command-choice command-page" page="true" sector="3"><div class="page-caption"><div class="page-label">MAP</div><div class="page-key">F4</div></div></command-sector>
+        <command-sector id="command-page-graphics" class="command-choice command-page" page="true" sector="4"><div class="page-caption"><div class="page-label">GRAPHICS</div><div class="page-key">F12</div></div></command-sector>
         <command-sector id="command-danger" class="command-choice" sector="0"><div class="command-caption"><div class="command-symbol">!</div><div class="command-label">DANGER</div></div></command-sector>
         <command-sector id="command-move" class="command-choice" sector="1"><div class="command-caption"><div class="command-symbol">→</div><div class="command-label">MOVE THERE</div></div></command-sector>
         <command-sector id="command-backup" class="command-choice" sector="2"><div class="command-caption"><div class="command-symbol">+</div><div class="command-label">BACKUP</div></div></command-sector>
         <div id="command-center"><div class="command-key">MMB</div><div id="command-center-label">CANCEL</div></div>
         <div id="command-cursor"></div>
-        <div id="command-hint" class="command-hint">HOLD MIDDLE MOUSE · AIM · RELEASE TO SEND</div>
+        <div id="command-hint" class="command-hint">HOLD MIDDLE MOUSE · SELECT · RELEASE TO SEND / OPEN</div>
         <div id="command-cancel-hint" class="command-cancel-hint">RETURN TO CENTER OR PRESS ESC TO CANCEL</div>
     </div>
     <div id="damage-feedback">

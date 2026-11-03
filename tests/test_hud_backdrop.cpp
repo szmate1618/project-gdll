@@ -217,6 +217,21 @@ void checkBackdrop(const char* capturePrefix) {
         "Sector backdrops must leave the central hole, separation gaps and outer corners clear");
     if (capturePrefix) resized.capture(std::string(capturePrefix) + "-sectors.ppm");
 
+    bounds = {};
+    for (std::size_t i = 18; i < bounds.size(); ++i) bounds[i] = {210,70,220,220};
+    resized.clear(0);
+    glEnable(GL_SCISSOR_TEST); glScissor(0,0,320,360);
+    glClearBufferfv(GL_COLOR, 0, white);
+    glDisable(GL_SCISSOR_TEST);
+    backdrop.reset(); draw(resized, 0);
+    require(std::abs(resized.pixel(225, 150) - bright) <= 2 && resized.pixel(415, 150) == 0,
+        "Outer page backdrops must adapt independently on each side of the screen");
+    require(resized.pixel(320, 85) > 0 && resized.pixel(320, 85) < 10,
+        "The Inventory page must sample its own outer wedge");
+    require(resized.pixel(250, 150) == 255 && resized.pixel(215, 75) == 255,
+        "Page backdrops must leave the gap between rings and the outer corners clear");
+    if (capturePrefix) resized.capture(std::string(capturePrefix) + "-pages.ppm");
+
     target.clear(0);
     glEnable(GL_SCISSOR_TEST); glScissor(80,0,160,180);
     glClearBufferfv(GL_COLOR, 0, white);

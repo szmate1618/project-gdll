@@ -1,7 +1,16 @@
 #command-wheel { display: none; position: absolute; left: 50%; top: 50%; margin-left: -150dp; margin-top: -150dp; width: 300dp; height: 300dp; z-index: 10; }
 .commanding #command-wheel { display: block; }
-.command-title { position: absolute; top: -28dp; width: 300dp; text-align: center; font-size: 11dp; line-height: 14dp; letter-spacing: 1.5dp; }
+.command-title { position: absolute; top: -122dp; width: 300dp; text-align: center; font-size: 11dp; line-height: 14dp; letter-spacing: 1.5dp; }
 .command-choice { display: block; position: absolute; left: 0dp; top: 0dp; width: 300dp; height: 300dp; }
+.command-page { left: -70dp; top: -70dp; width: 440dp; height: 440dp; }
+.page-caption { position: absolute; width: 100dp; height: 32dp; text-align: center; }
+.page-label { font-size: 11dp; line-height: 14dp; letter-spacing: 0.5dp; }
+.page-key { font-size: 9dp; line-height: 14dp; }
+#command-page-inventory .page-caption { left: 170dp; top: 14dp; }
+#command-page-skills .page-caption { left: 350.7dp; top: 145.3dp; }
+#command-page-health .page-caption { left: 281.7dp; top: 357.7dp; }
+#command-page-map .page-caption { left: 58.3dp; top: 357.7dp; }
+#command-page-graphics .page-caption { left: -10.7dp; top: 145.3dp; }
 /* Move each complete 120-degree sector 3dp outward along its center direction. */
 #command-danger { top: -3dp; }
 #command-move { left: 2.59808dp; top: 1.5dp; }
@@ -16,8 +25,8 @@
 #command-center-label { position: absolute; top: 37dp; width: 64dp; text-align: center; font-size: 9dp; line-height: 12dp; letter-spacing: 0.5dp; }
 .command-key { position: absolute; top: 17dp; width: 64dp; text-align: center; font-size: 10dp; line-height: 12dp; }
 #command-cursor { position: absolute; left: 148.5dp; top: 148.5dp; width: 3dp; height: 3dp; border-radius: 1.5dp; }
-.command-hint { position: absolute; top: 318dp; left: -80dp; width: 460dp; text-align: center; font-size: 10dp; line-height: 14dp; letter-spacing: 0.5dp; }
-.command-cancel-hint { position: absolute; top: 338dp; left: -80dp; width: 460dp; text-align: center; font-size: 10dp; line-height: 14dp; }
+.command-hint { position: absolute; top: -102dp; left: -100dp; width: 500dp; text-align: center; font-size: 10dp; line-height: 14dp; letter-spacing: 0.5dp; }
+.command-cancel-hint { position: absolute; top: -84dp; left: -80dp; width: 460dp; text-align: center; font-size: 10dp; line-height: 14dp; }
 #signal-markers { position: absolute; left: 0dp; top: 0dp; width: 100%; height: 100%; }
 .signal-marker { position: absolute; margin-left: -44dp; margin-top: -12dp; width: 86dp; height: 22dp; line-height: 22dp; border-width: 1dp; text-align: center; font-size: 9dp; letter-spacing: 1dp; }
 .signal-marker.edge { border-width: 2dp; margin-top: -13dp; margin-left: -45dp; }

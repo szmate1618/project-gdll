@@ -1,11 +1,12 @@
 #version 330 core
 uniform sampler2D uScene;
 uniform sampler2D uHistory;
-uniform vec4 uBounds[18];
+uniform vec4 uBounds[23];
 uniform vec2 uViewport;
 uniform float uDeltaSeconds;
 uniform bool uHistoryValid;
 uniform vec2 uSectorRadii;
+uniform vec2 uPageRadii;
 out float opacity;
 
 vec3 linearColor(vec3 encoded) {
@@ -28,8 +29,11 @@ void main() {
         vec2 fraction = (vec2(x, y) + 0.5) / 8.0;
         vec2 point;
         if (group >= 15) {
-            float angle = radians(float(group - 15) * 120.0 - 60.0 + fraction.x * 120.0);
-            float radius = sqrt(mix(uSectorRadii.x * uSectorRadii.x, uSectorRadii.y * uSectorRadii.y, fraction.y)) *
+            bool page = group >= 18;
+            float angle = radians(page ? float(group - 18) * 72.0 - 35.0 + fraction.x * 70.0 :
+                                         float(group - 15) * 120.0 - 60.0 + fraction.x * 120.0);
+            vec2 radii = page ? uPageRadii : uSectorRadii;
+            float radius = sqrt(mix(radii.x * radii.x, radii.y * radii.y, fraction.y)) *
                            min(rectangle.z, rectangle.w);
             point = rectangle.xy + rectangle.zw * 0.5 + vec2(sin(angle), -cos(angle)) * radius;
         } else point = mix(first, last, fraction);

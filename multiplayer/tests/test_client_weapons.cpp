@@ -524,6 +524,46 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE, 0);
             require(!in.wheelOpen && !in.leave && command(in, window, false, 0).signal == multiplayer::SignalKind::None,
                     "Escape must cancel the wheel before leaving the session");
+            {
+                const std::array<glm::vec2, 5> pageOffsets{{{0, -190}, {181, -59}, {112, 154}, {-112, 154}, {-181, -59}}};
+                int width, height; glfwGetWindowSize(window, &width, &height);
+                const float scale = std::min(width / 1280.f, height / 720.f);
+                for (std::size_t i = 0; i < pageOffsets.size(); ++i) {
+                    button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS, 0);
+                    in.firstMouse = false; in.lastX = in.lastY = 0;
+                    mouse(window, pageOffsets[i].x * scale, pageOffsets[i].y * scale);
+                    button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
+                    button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+                    button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE, 0);
+                    require(!in.wheelOpen && in.hudScreen == static_cast<viewer::HudScreen>(i + 1) &&
+                            glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_NORMAL &&
+                            in.pendingSignal == multiplayer::SignalKind::None && in.firstMouse,
+                            "Outer ring release must open the requested page and restore its pointer");
+                    const auto pageCommand = command(in, window, false, 0);
+                    require(!pageCommand.left && !pageCommand.right && !pageCommand.reload &&
+                            pageCommand.signal == multiplayer::SignalKind::None && pageCommand.movement.forward == 0,
+                            "Page selection leaked gameplay input or a team ping");
+                    key(window, GLFW_KEY_ESCAPE, 0, GLFW_PRESS, 0);
+                    require(in.hudScreen == viewer::HudScreen::Gameplay && !in.leave &&
+                            glfwGetInputMode(window, GLFW_CURSOR) == GLFW_CURSOR_DISABLED &&
+                            !command(in, window, false, 0).left && !command(in, window, false, 0).right,
+                            "Closing a radial page must resume gameplay with held buttons suppressed");
+                    button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
+                    button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+                    command(in, window, false, 0);
+                }
+                button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS, 0);
+                in.wheelOffset = {0, -1000};
+                in.firstMouse = false; in.lastX = in.lastY = 0;
+                mouse(window, 0, -1000 * scale);
+                require(std::abs(glm::length(in.wheelOffset) - viewer::commandPageOuterRadius) < .01f,
+                        "Wheel aim must clamp at the outer page ring");
+                key(window, GLFW_KEY_ESCAPE, 0, GLFW_PRESS, 0);
+                button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE, 0);
+                require(in.hudScreen == viewer::HudScreen::Gameplay && !in.wheelOpen && !in.leave &&
+                        in.pendingSignal == multiplayer::SignalKind::None,
+                        "Cancelling an outer page selection must keep gameplay open without a ping");
+            }
             button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_PRESS, 0);
             key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);
             button(window, GLFW_MOUSE_BUTTON_MIDDLE, GLFW_RELEASE, 0);

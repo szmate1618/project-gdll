@@ -8,6 +8,7 @@ namespace viewer {
 namespace {
 constexpr std::array<const char*, 4> names{"CANCEL", "DANGER", "MOVE THERE", "BACKUP"};
 constexpr std::array<const char*, 4> classes{"", "danger", "move", "backup"};
+constexpr std::array<const char*, 5> pages{"inventory", "skills", "health", "map", "graphics"};
 
 void quad(Rml::Mesh& mesh, Rml::Vector2f a, Rml::Vector2f b, Rml::Vector2f c, Rml::Vector2f d,
           Rml::ColourbPremultiplied color) {
@@ -16,7 +17,7 @@ void quad(Rml::Mesh& mesh, Rml::Vector2f a, Rml::Vector2f b, Rml::Vector2f c, Rm
     for (const int index : {0, 1, 2, 0, 2, 3}) mesh.indices.push_back(first + index);
 }
 
-// Annular 120-degree choices share the input selector's top/right/left ordering.
+// Inner signals use 120-degree sectors; the outer ring has five page choices.
 // Meshes use framebuffer pixels; RmlUi supplies layout scaling and rendering state.
 class CommandSector final : public Rml::Element {
 public:
@@ -29,15 +30,17 @@ protected:
         const auto accent = GetProperty<Rml::Colourb>("sector-accent");
         if (!geometry_ || size != size_ || fill != fill_ || outline != outline_ || accent != accent_) {
             size_ = size; fill_ = fill; outline_ = outline; accent_ = accent;
-            const float scale = std::min(size.x, size.y) / CommandSectorGeometry::designSize;
+            const bool page = GetAttribute<bool>("page", false);
+            const float scale = std::min(size.x, size.y) /
+                (page ? CommandPageGeometry::designSize : CommandSectorGeometry::designSize);
             if (scale <= 0) return;
             const Rml::Vector2f center = size * .5f;
-            const float inner = CommandSectorGeometry::innerRadius * scale;
-            const float outer = CommandSectorGeometry::outerRadius * scale;
+            const float inner = (page ? CommandPageGeometry::innerRadius : CommandSectorGeometry::innerRadius) * scale;
+            const float outer = (page ? CommandPageGeometry::outerRadius : CommandSectorGeometry::outerRadius) * scale;
             const float stroke = std::max(.75f, scale);
             constexpr float radians = 3.1415926536f / 180;
-            const float start = (GetAttribute<int>("sector", 0) * 120 - 60) * radians;
-            constexpr float sweep = 120 * radians;
+            const float start = (GetAttribute<int>("sector", 0) * (page ? 72 : 120) - (page ? 35 : 60)) * radians;
+            const float sweep = (page ? 70 : 120) * radians;
             const auto point = [&](float radius, float angle) {
                 return center + Rml::Vector2f(std::sin(angle), -std::cos(angle)) * radius;
             };
@@ -91,17 +94,20 @@ void CommandWheelView::update(bool open, glm::vec2 offset, const std::vector<Hud
     document_.SetClass("commanding", open);
     if (open) {
         const auto selected = signalWheelSelection(offset);
+        const auto page = commandWheelPageSelection(offset);
         for (std::size_t i = 1; i < classes.size(); ++i)
             document_.GetElementById(Rml::String("command-") + classes[i])->SetClass("selected", std::size_t(selected) == i);
-        const Rml::String label = selected == SignalKind::None ? "CANCEL" : "SEND";
+        for (std::size_t i = 0; i < pages.size(); ++i)
+            document_.GetElementById(Rml::String("command-page-") + pages[i])->SetClass("selected",
+                page && static_cast<std::size_t>(*page) == i + 1);
+        const Rml::String label = page ? "OPEN" : selected == SignalKind::None ? "CANCEL" : "SEND";
         if (center_->GetInnerRML() != label) center_->SetInnerRML(label);
         const float length = std::hypot(offset.x, offset.y);
         if (!std::isfinite(length)) offset = {};
-        else if (length > 0) offset *= 36.f / length;
-        // Indicate direction just outside the 64dp cancel ring, without
-        // changing the input selector's dead zone or covering command labels.
+        else if (length > 0) offset *= (page ? 167.f : 36.f) / length;
+        // Indicate direction at the selected ring's inner edge, clear of labels.
         cursor_->SetProperty(Rml::PropertyId::Display,
-            Rml::Property(selected == SignalKind::None ? Rml::Style::Display::None : Rml::Style::Display::Block));
+            Rml::Property(!page && selected == SignalKind::None ? Rml::Style::Display::None : Rml::Style::Display::Block));
         cursor_->SetProperty(Rml::PropertyId::Left, Rml::Property(148.5f + offset.x, Rml::Unit::DP));
         cursor_->SetProperty(Rml::PropertyId::Top, Rml::Property(148.5f + offset.y, Rml::Unit::DP));
     }

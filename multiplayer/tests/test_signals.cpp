@@ -68,6 +68,23 @@ void geometry() {
             "Wheel center must cancel");
     require(signalWheelSelection({0, -80}) == SignalKind::Danger && signalWheelSelection({80, 45}) == SignalKind::Move &&
             signalWheelSelection({-80, 45}) == SignalKind::Backup, "Wheel selected wrong sector");
+    require(!viewer::commandWheelPageSelection({0, -159}) &&
+            viewer::commandWheelPageSelection({0, -160}) == viewer::HudScreen::Inventory &&
+            signalWheelSelection({0, -160}) == SignalKind::None,
+            "Outer ring boundary must switch from signals to pages");
+    const std::array<glm::vec2, 5> pageOffsets{{{0, -190}, {181, -59}, {112, 154}, {-112, 154}, {-181, -59}}};
+    for (std::size_t i = 0; i < pageOffsets.size(); ++i) {
+        require(viewer::commandWheelPageSelection(pageOffsets[i]) == static_cast<viewer::HudScreen>(i + 1),
+                "Outer ring selected the wrong page");
+        require(signalWheelSelection(pageOffsets[i]) == SignalKind::None, "Opening a page must not send a team ping");
+    }
+    require(viewer::commandWheelPageSelection({1, 190}) == viewer::HudScreen::Health &&
+            viewer::commandWheelPageSelection({-1, 190}) == viewer::HudScreen::Map,
+            "Page sectors must wrap correctly behind the wheel center");
+    for (const float invalid : {std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity()})
+        require(!viewer::commandWheelPageSelection({invalid, 190}) &&
+                !viewer::commandWheelPageSelection({190, invalid}) && signalWheelSelection({invalid, 190}) == SignalKind::None,
+                "Invalid wheel input must not select a page or signal");
     const auto model = ground(); viewer::CollisionWorld collision(model);
     viewer::Camera camera; camera.setPosition({0, 2, 0}); camera.setOrientation(0, -45);
     auto target = signalRayTarget(collision, camera);

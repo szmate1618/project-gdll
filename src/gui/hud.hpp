@@ -18,7 +18,6 @@ struct Model;
 class GroundItems;
 class Weapons;
 class CollisionWorld;
-enum class HudScreen { Gameplay, Inventory, Skills, Health, Map, Graphics };
 
 // Presentation snapshot only; callers retain simulation/network ownership.
 struct HudState {

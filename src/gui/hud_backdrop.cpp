@@ -59,6 +59,9 @@ HudBackdrop::HudBackdrop(const std::filesystem::path& directory) {
         constexpr float innerRadius = CommandSectorGeometry::innerRadius / CommandSectorGeometry::designSize;
         constexpr float outerRadius = CommandSectorGeometry::outerRadius / CommandSectorGeometry::designSize;
         glUniform2f(glGetUniformLocation(updateProgram_, "uSectorRadii"), innerRadius, outerRadius);
+        constexpr float pageInner = CommandPageGeometry::innerRadius / CommandPageGeometry::designSize;
+        constexpr float pageOuter = CommandPageGeometry::outerRadius / CommandPageGeometry::designSize;
+        glUniform2f(glGetUniformLocation(updateProgram_, "uPageRadii"), pageInner, pageOuter);
         drawBounds_ = glGetUniformLocation(drawProgram_, "uBounds");
         drawViewport_ = glGetUniformLocation(drawProgram_, "uViewport");
         drawPadding_ = glGetUniformLocation(drawProgram_, "uPadding");
@@ -67,6 +70,7 @@ HudBackdrop::HudBackdrop(const std::filesystem::path& directory) {
         glUseProgram(drawProgram_);
         glUniform1i(glGetUniformLocation(drawProgram_, "uOpacity"), 0);
         glUniform2f(glGetUniformLocation(drawProgram_, "uSectorRadii"), innerRadius, outerRadius);
+        glUniform2f(glGetUniformLocation(drawProgram_, "uPageRadii"), pageInner, pageOuter);
         glUniform1f(glGetUniformLocation(drawProgram_, "uSectorSegments"), static_cast<float>(CommandSectorGeometry::segments));
         glGenVertexArrays(1, &vao_);
         glActiveTexture(GL_TEXTURE0);

@@ -125,7 +125,8 @@ Gameplay HUD squares are replaced by downloaded Game-icons.net icons for vitals,
 control modes, stances, vehicles, free fly, speed, player position and weapons.
 The gameplay weapon selector reuses those weapon icons. The game application's
 [team command wheel](../multiplayer/README.md#team-command-wheel) shares this HUD
-and the loadout palette; hold middle mouse on foot to select a signal.
+and the loadout palette; hold middle mouse on foot to select a signal, or move
+into its outer ring and release to open Inventory, Skills, Health, Map, or Graphics.
 Inventory and skill-menu
 artwork remains represented by squares. Health, stamina
 and weariness have tinted tracks at 60% opacity with white outlines at 80%.
@@ -180,8 +181,9 @@ are available in the graphical multiplayer client.
 
 Map tool buttons brighten on hover, retain a coral bottom edge while focused,
 and mark the active measurement tool with a coral left edge. The radial signal
-dial uses a 300dp circle with 9–11dp labels and hints, a neutral heading, and a
-coral outer arc on the selected wedge; its fill stays neutral and translucent.
+dial uses a 300dp signal circle inside a 440dp page ring, with 9–11dp labels
+and hints, a neutral heading, and a coral outer arc on the selected wedge;
+its fill stays neutral and translucent.
 The gameplay hotbar selector marks the selected slot with a small coral bar.
 
 [inventory.rml](../ui/inventory.rml) builds body storage and the backpack from

@@ -27,12 +27,14 @@ namespace {
 bool hudActive = false; // One gameplay HUD at a time, sharing the application UI runtime.
 
 struct BackdropGroup { const char* id; bool textOnly; };
-constexpr std::array<BackdropGroup, 18> backdropGroups{{
+constexpr std::array<BackdropGroup, 23> backdropGroups{{
     {"compass", false}, {"coordinates", false}, {"map-caption", true}, {"vitals", false},
     {"mode-status", false}, {"movement-status", false}, {"speed-status", false}, {"weapon", false},
     {"prompt", true}, {"capture", true}, {"selection-hint", true}, {"weapon-switch", false},
     {"command-title", true}, {"command-hint", true}, {"command-cancel-hint", true},
-    {"command-danger", false}, {"command-move", false}, {"command-backup", false}
+    {"command-danger", false}, {"command-move", false}, {"command-backup", false},
+    {"command-page-inventory", false}, {"command-page-skills", false}, {"command-page-health", false},
+    {"command-page-map", false}, {"command-page-graphics", false}
 }};
 static_assert(backdropGroups.size() == HudBackdrop::maxGroups);
 

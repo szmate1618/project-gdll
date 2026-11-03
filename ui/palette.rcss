@@ -55,6 +55,7 @@ body.loadout { background-color: #2b2d2fed; }
 .signal-marker { background-color: #2b2d2fed; }
 /* Each sector gets its own adaptive charcoal backing; selection adds a highlight. */
 .command-choice { sector-outline: #f5f6f24d; }
+.page-key { color: #f5f6f299; }
 .command-title { color: #f5f6f2; }
 .command-choice.selected { sector-fill: #f5f6f23d; sector-outline: #f5f6f280; sector-accent: #ec6962; }
 .command-hint, .command-key { color: #f5f6f299; }

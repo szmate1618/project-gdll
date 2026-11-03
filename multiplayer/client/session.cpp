@@ -86,6 +86,21 @@ struct Input {
 };
 #ifdef MP_GRAPHICS
 Input& input(GLFWwindow* window) { return *static_cast<Input*>(glfwGetWindowUserPointer(window)); }
+void showHudScreen(GLFWwindow* window, viewer::HudScreen screen) {
+    auto& in = input(window);
+    in.cancelInteraction = true;
+    in.altHeld.fill(false);
+    in.hudScreen = screen;
+    in.suppressLeftUntilRelease |= in.leftHeld;
+    in.suppressRightUntilRelease |= in.rightHeld;
+    in.firstMouse = true; in.drag = {};
+    in.cancelSignal();
+    in.actionSelection.close();
+    in.leftPressed = in.rightPressed = in.prone = in.reload = in.enterVehicle = in.toggleDrivingCamera = false;
+    if (in.hud) in.hud->cancelPointerInteraction();
+    glfwSetInputMode(window, GLFW_CURSOR,
+        in.capture && screen == viewer::HudScreen::Gameplay ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+}
 void key(GLFWwindow* window, int code, int, int action, int) {
     auto& in = input(window);
     if (code == GLFW_KEY_LEFT_ALT || code == GLFW_KEY_RIGHT_ALT) {
@@ -112,18 +127,7 @@ void key(GLFWwindow* window, int code, int, int action, int) {
             viewer::HudScreen::Health, viewer::HudScreen::Map};
         const auto requested = code == GLFW_KEY_ESCAPE ? viewer::HudScreen::Gameplay :
             code == GLFW_KEY_F12 ? viewer::HudScreen::Graphics : screens[code - GLFW_KEY_F1];
-        in.cancelInteraction = true;
-        in.altHeld.fill(false);
-        in.hudScreen = in.hudScreen == requested ? viewer::HudScreen::Gameplay : requested;
-        in.suppressLeftUntilRelease |= in.leftHeld;
-        in.suppressRightUntilRelease |= in.rightHeld;
-        in.firstMouse = true; in.drag = {};
-        in.cancelSignal();
-        in.actionSelection.close();
-        in.leftPressed = in.rightPressed = in.prone = in.reload = in.enterVehicle = in.toggleDrivingCamera = false;
-        if (in.hud) in.hud->cancelPointerInteraction();
-        glfwSetInputMode(window, GLFW_CURSOR,
-            in.capture && in.hudScreen == viewer::HudScreen::Gameplay ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+        showHudScreen(window, in.hudScreen == requested ? viewer::HudScreen::Gameplay : requested);
         return;
     }
     if (in.hudScreen != viewer::HudScreen::Gameplay) return;
@@ -179,7 +183,7 @@ void mouse(GLFWwindow* window, double x, double y) {
         const float scale = std::min(float(width) / 1280, float(height) / 720);
         if (scale > 0) in.wheelOffset += glm::vec2(dx, -dy) / scale;
         const float length = glm::length(in.wheelOffset);
-        if (length > 120) in.wheelOffset *= 120 / length;
+        if (length > viewer::commandPageOuterRadius) in.wheelOffset *= viewer::commandPageOuterRadius / length;
         return;
     }
     in.camera.look(dx, dy);
@@ -207,8 +211,11 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
             in.leftPressed = in.rightPressed = in.reload = false;
             in.signalMouseSuppressed = true;
         } else if (action == GLFW_RELEASE && in.wheelOpen) {
-            in.pendingSignal = multiplayer::signalWheelSelection(in.wheelOffset);
-            in.wheelOpen = false;
+            if (const auto page = viewer::commandWheelPageSelection(in.wheelOffset)) showHudScreen(window, *page);
+            else {
+                in.pendingSignal = multiplayer::signalWheelSelection(in.wheelOffset);
+                in.wheelOpen = false;
+            }
         }
         return;
     }
@@ -860,7 +867,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                             hudState.prompt="Birds diving! Move aside, duck or reach cover"; break;
                         }
                 graphics.hud->draw(hudState, width, height);
-                if (const auto requested = graphics.hud->takeScreenRequest()) in.hudScreen = *requested;
+                if (const auto requested = graphics.hud->takeScreenRequest()) showHudScreen(graphics.window, *requested);
                 intervalRenderSeconds += std::chrono::duration<double>(Clock::now() - renderStart).count();
                 graphics.gpuTimer->end();
                 // Presentation and VSync waits stay outside the render timers.

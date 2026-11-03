@@ -196,6 +196,9 @@ versions. Details and focused checks are in [BOIDS.md](../docs/BOIDS.md).
 In Single Player, Host Game and Join Game, hold **middle mouse** on foot to
 open the command wheel. Move toward **Danger**, **Move there**, or **Backup**,
 then release to send. Return to the center or press **Escape** to cancel.
+Move farther out to select the outer ring's **Inventory**, **Skills**, **Health**,
+**Map**, or **Graphics** button, then release middle mouse to open that page.
+Page selections create no team ping; **Escape** returns to gameplay.
 Opening a loadout screen, releasing mouse capture, or losing focus also cancels.
 While the wheel is open, mouse movement selects a command and firing, scope,
 reload and hotbar input are suppressed. Held fire requires release before rearming.

@@ -13,6 +13,11 @@ struct CommandSectorGeometry {
     static constexpr float outerRadius = 189.f;
     static constexpr int segments = 64;
 };
+struct CommandPageGeometry {
+    static constexpr float designSize = 440.f;
+    static constexpr float innerRadius = commandPageInnerRadius;
+    static constexpr float outerRadius = commandPageOuterRadius;
+};
 // Register the sector element and its palette properties after Rml::Initialise().
 void registerCommandWheelElements();
 
