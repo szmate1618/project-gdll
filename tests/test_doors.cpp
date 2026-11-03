@@ -69,7 +69,7 @@ void forceAndLimits() {
         auto model = fixture(normal);
         const auto panels = viewer::prepareDoorPanels(model);
         auto world = std::make_shared<viewer::PhysicsWorld>();
-        viewer::DoorLayer doors(panels, world);
+        viewer::DoorLayer doors(panels, world, {.10f, 0.f});
         const auto initial = panels[0];
         const auto right = glm::cross(glm::vec3(0, 1, 0), normal);
         const auto freeEdge = initial.center + right * .45f;
@@ -116,7 +116,7 @@ void closedStopRebounds() {
                 const auto& panel = panels[0];
                 const float direction = inward ? -1.f : 1.f;
                 auto world = std::make_shared<viewer::PhysicsWorld>();
-                viewer::DoorLayer doors(panels, world);
+                viewer::DoorLayer doors(panels, world, {.10f, 0.f});
                 const auto edge = panel.center + glm::cross(glm::vec3(0, 1, 0), normal) * .45f;
                 const auto inverse = glm::inverse(panel.closedTransform);
                 // Force activation must also install the spring for a sleeping,
@@ -212,7 +212,7 @@ void bodyCollisionOpensDoor() {
 void bodyCollisionFlexesClosedDoor() {
     auto model = fixture();
     auto world = std::make_shared<viewer::PhysicsWorld>();
-    viewer::DoorLayer doors(viewer::prepareDoorPanels(model), world);
+    viewer::DoorLayer doors(viewer::prepareDoorPanels(model), world, {.10f, 0.f});
     doors.activateNear({0, 1, 0});
     auto bodyDef = b3DefaultBodyDef();
     bodyDef.type = b3_dynamicBody;

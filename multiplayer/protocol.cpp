@@ -483,8 +483,29 @@ void payload(Wire& w, Snapshot& s) {
     dogStates(w,s.dogs);
     w.list(s.zombies, maxZombieUpdatesPerSnapshot, [&](ZombieState& z) { zombieMotion(w, z); });
     w.list(s.doors, maxDoors, [&](DoorState& d) {
-        w.integer(d.id); w.number(d.angle);
-        if (std::abs(d.angle) > 4) throw std::runtime_error("Invalid door snapshot");
+        // Keep ordinary door records at eight bytes for the full-fleet/player
+        // snapshot budget: 1/8191-radian angles and 0.1 mm permanent stretch.
+        constexpr std::uint16_t brokenBit = 0x8000, stretchEscape = 0x7fff;
+        if (!w.reading && (!std::isfinite(d.angle) || std::abs(d.angle) > 4 ||
+            !std::isfinite(d.maxFlexMeters) || d.maxFlexMeters < 0 || d.maxFlexMeters > 1e8f))
+            throw std::runtime_error("Invalid door snapshot");
+        std::uint16_t angle = 0, stretch = 0;
+        if (!w.reading) {
+            angle = static_cast<std::uint16_t>(static_cast<int>(std::lround(double(d.angle) * 8191)));
+            const double units = std::round(double(d.maxFlexMeters) * 10000);
+            stretch = units >= stretchEscape ? stretchEscape : static_cast<std::uint16_t>(units);
+            if (d.restraintBroken) stretch |= brokenBit;
+        }
+        w.integer(d.id); w.integer(angle); w.integer(stretch);
+        if (w.reading) {
+            const int signedAngle = angle < 32768 ? int(angle) : int(angle) - 65536;
+            d.angle = static_cast<float>(signedAngle / 8191.0);
+            d.restraintBroken = (stretch & brokenBit) != 0;
+            stretch &= stretchEscape;
+        } else stretch &= stretchEscape;
+        if (stretch == stretchEscape) w.number(d.maxFlexMeters);
+        else if (w.reading) d.maxFlexMeters = static_cast<float>(stretch / 10000.0);
+        if (std::abs(d.angle) > 4 || d.maxFlexMeters < 0) throw std::runtime_error("Invalid door snapshot");
     });
     w.list(s.boxes, maxBoxes, [&](BoxState& b) {
         // IDs use only nine bits. Pack retirement into the high bit to retain

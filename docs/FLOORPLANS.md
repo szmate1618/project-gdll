@@ -238,8 +238,9 @@ the server considers all connected players. Invalid observer positions are
 ignored. No observers means all interiors are evicted. Plans, room polygons,
 CPU/GPU meshes, generated collision and interior door bodies are released.
 Reentry regenerates the same topology, coordinates, polygons and door IDs.
-The server resets generated door movement after a complete eviction. A client
-that evicts independently recovers the server's current door angles on return.
+The server resets generated door movement after a complete eviction, preserving
+permanent restraint stretch and release state for the session. A client that
+evicts independently recovers the server's current door angles and restraints on return.
 
 Generated interior door IDs are reserved after exterior IDs, in sorted building
 order. Each building reserves `3 * exterior_door_count + 2 + 8 * upper_storeys`

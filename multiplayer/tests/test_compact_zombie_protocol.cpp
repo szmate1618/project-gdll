@@ -145,10 +145,26 @@ void viewProtocol() {
     const auto absent = encode(batch);
     require(!std::get<Commands>(decode(absent.data(), absent.size())).view, "Absent view became a zero-size camera");
 }
+void doorRestraintProtocol() {
+    Snapshot snapshot;
+    snapshot.doors.push_back({3, -.8f, .05f, true});
+    const auto copy = roundTrip(snapshot).doors.at(0);
+    require(copy.id == 3 && std::abs(copy.angle + .8f) < .0001f && copy.maxFlexMeters == .05f && copy.restraintBroken,
+            "Door snapshots must preserve permanent stretch and broken restraints");
+    require(encode(snapshot).size() == encode(Snapshot{}).size() + 8,
+            "Ordinary restraint state must retain the existing eight-byte door budget");
+    snapshot.doors[0].maxFlexMeters = 10.f;
+    require(roundTrip(snapshot).doors[0].maxFlexMeters == 10.f,
+            "Large configured stretch must use the lossless escape representation");
+    snapshot.doors[0].maxFlexMeters = -1;
+    rejects([&] { encode(snapshot); }, "Negative door stretch was accepted");
+    snapshot.doors[0].maxFlexMeters = std::numeric_limits<float>::quiet_NaN();
+    rejects([&] { encode(snapshot); }, "Nonfinite door stretch was accepted");
+}
 }
 int main() {
     try {
-        compactMotion(); positionRange(); setupProtocol(); viewProtocol();
+        compactMotion(); positionRange(); setupProtocol(); viewProtocol(); doorRestraintProtocol();
         std::cout << "Compact motion, setup metadata and view protocol passed\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

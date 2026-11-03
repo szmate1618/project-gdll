@@ -1,6 +1,7 @@
 #pragma once
 
 #include "door_geometry.hpp"
+#include "door_config.hpp"
 #include <memory>
 #include <optional>
 
@@ -18,13 +19,19 @@ struct DoorRayHit {
     float distance;
 };
 struct DoorPointState { glm::vec3 point, velocity; }; // World meters and m/s.
+struct DoorRestraintState {
+    float maxFlexMeters = .01f; // Elastic allowance plus permanent stretch, in free-edge meters.
+    bool broken = false;
+};
 
 // Owns door bodies and static hinge anchors in a shared simulation. Panels stay
 // closed until activated by proximity or force; activated bodies can sleep.
-// A spring-backed closed stop allows up to six degrees of reverse flex.
+// A spring-backed closed stop allows configurable reverse travel at the free edge.
 class DoorLayer {
 public:
-    DoorLayer(std::vector<DoorPanel> panels, std::shared_ptr<PhysicsWorld> world);
+    // Replicas follow authoritative restraint state instead of deriving local damage.
+    DoorLayer(std::vector<DoorPanel> panels, std::shared_ptr<PhysicsWorld> world,
+              DoorConfig config = {}, bool replica = false);
     ~DoorLayer();
     DoorLayer(const DoorLayer&) = delete;
     DoorLayer& operator=(const DoorLayer&) = delete;
@@ -48,6 +55,9 @@ public:
     glm::mat4 transform(std::size_t door) const;
     // Apply a server angle without advancing local physics; radians, positive outward.
     void setAngle(std::size_t door, float radians);
+    DoorRestraintState restraint(std::size_t door) const;
+    // Merge permanent authoritative damage, including for nonresident reserved doors.
+    void setRestraint(std::size_t door, DoorRestraintState state);
     // Read after PhysicsWorld::step(). Only active panels need renderer updates.
     std::vector<DoorDrawPose> poses() const;
     // Conservative spatial query over hinge sweeps. Returns current Box3D body

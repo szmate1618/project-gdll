@@ -6,6 +6,7 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 
 namespace viewer {
 namespace {
@@ -44,7 +45,7 @@ void PhysicsWorld::step(float seconds, const std::function<void(float)>& before,
     int steps = 0;
     while (accumulator_ >= fixedStepSeconds && steps++ < 8) {
         if (before) before(fixedStepSeconds);
-        for (const auto& preparation : stepPreparations_) preparation.second();
+        for (const auto& callbacks : stepCallbacks_) callbacks.second.prepare();
         {
             frame_stage_profile::Timer timer(frame_stage_profile::Stage::physics);
             b3World_Step(world_, fixedStepSeconds, 4);
@@ -54,6 +55,7 @@ void PhysicsWorld::step(float seconds, const std::function<void(float)>& before,
             const auto found = motionOwners_.find(b3StoreBodyId(events.moveEvents[i].bodyId));
             if (found != motionOwners_.end()) ++*found->second;
         }
+        for (const auto& callbacks : stepCallbacks_) callbacks.second.finish();
         if (after) after(fixedStepSeconds);
         accumulator_ -= fixedStepSeconds;
     }
@@ -69,13 +71,13 @@ void PhysicsWorld::trackBodyMotion(b3BodyId body, std::uint64_t& ownerRevision) 
 void PhysicsWorld::untrackBodyMotion(b3BodyId body) {
     motionOwners_.erase(b3StoreBodyId(body));
 }
-void PhysicsWorld::registerStepPreparation(const void* owner, std::function<void()> prepare) {
-    if (!owner || !prepare) throw std::invalid_argument("Physics step preparation requires an owner and callback");
-    if (!stepPreparations_.emplace(owner, std::move(prepare)).second)
-        throw std::logic_error("Physics step preparation already registered");
+void PhysicsWorld::registerStepCallbacks(const void* owner, std::function<void()> prepare, std::function<void()> finish) {
+    if (!owner || !prepare || !finish) throw std::invalid_argument("Physics step callbacks require an owner and two callbacks");
+    if (!stepCallbacks_.emplace(owner, StepCallbacks{std::move(prepare), std::move(finish)}).second)
+        throw std::logic_error("Physics step callbacks already registered");
 }
-void PhysicsWorld::unregisterStepPreparation(const void* owner) {
-    stepPreparations_.erase(owner);
+void PhysicsWorld::unregisterStepCallbacks(const void* owner) {
+    stepCallbacks_.erase(owner);
 }
 bool PhysicsWorld::isGrabbed(b3BodyId body) const { return grabCounts_.count(b3StoreBodyId(body)) != 0; }
 void PhysicsWorld::beginGrab(b3BodyId body) { ++grabCounts_[b3StoreBodyId(body)]; }

@@ -226,7 +226,7 @@ def collect_assets(root, map_path, zombies, *, dogs=None, trees=True, forests=Tr
         raise ValueError("Vehicle configuration files are missing")
     storage = [root / "storage" / name for name in ("equipment.toml", "backpacks.toml", "loadout.toml")]
     skills = [root / "skills.toml", *sorted((root / "skills/melee").glob("*.skill.toml"))]
-    for path in [*definitions, *vehicles, *storage, *skills, root / "inventory.toml"]:
+    for path in [*definitions, *vehicles, *storage, *skills, root / "inventory.toml", root / "doors.toml"]:
         assets.add(path)
     for name in ("assets/README.md", "assets/zombies/README.md", "assets/zombies/sources.json", "assets/forests/README.md"):
         if (root / name).exists():

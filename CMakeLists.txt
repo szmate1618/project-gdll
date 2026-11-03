@@ -326,7 +326,7 @@ add_custom_command(
 add_custom_target(viewer_audio_assets DEPENDS ${VIEWER_AUDIO_FILES})
 endif()
 
-add_library(viewer_physics STATIC src/vehicle_config.cpp src/physics_world.cpp src/player_body.cpp src/player_body_pose.cpp src/player_presentation.cpp src/physics_prop.cpp src/physics_grab.cpp src/physics_attachment.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_physics.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp src/vehicle_steering.cpp)
+add_library(viewer_physics STATIC src/vehicle_config.cpp src/door_config.cpp src/physics_world.cpp src/player_body.cpp src/player_body_pose.cpp src/player_presentation.cpp src/physics_prop.cpp src/physics_grab.cpp src/physics_attachment.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_physics.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp src/vehicle_steering.cpp)
 target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d PRIVATE tomlplusplus::tomlplusplus)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
@@ -533,6 +533,7 @@ target_compile_definitions(godollo_viewer PRIVATE
     VIEWER_WEAPON_ASSETS="${VIEWER_WEAPON_ASSETS}"
     VIEWER_DOODAD_ASSETS="${VIEWER_DOODAD_ASSETS}"
     VIEWER_INVENTORY="${CMAKE_CURRENT_SOURCE_DIR}/inventory.toml"
+    VIEWER_DOOR_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/doors.toml"
     VIEWER_AUDIO_DIR="${VIEWER_AUDIO_DIR}"
 )
 add_dependencies(godollo_viewer viewer_test_asset viewer_audio_assets viewer_weapon_assets viewer_doodad_assets)
@@ -1166,6 +1167,10 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_doors PRIVATE viewer_physics viewer_visibility viewer_zombies)
     viewer_warnings(test_doors)
     add_test(NAME viewer_doors COMMAND test_doors)
+    add_executable(test_door_config tests/test_door_config.cpp)
+    target_link_libraries(test_door_config PRIVATE viewer_physics)
+    viewer_warnings(test_door_config)
+    add_test(NAME viewer_door_config COMMAND test_door_config "${CMAKE_CURRENT_BINARY_DIR}/door-config-fixture")
     add_executable(test_door_walking tests/test_door_walking.cpp)
     target_link_libraries(test_door_walking PRIVATE viewer_fps viewer_physics viewer_objects)
     viewer_warnings(test_door_walking)

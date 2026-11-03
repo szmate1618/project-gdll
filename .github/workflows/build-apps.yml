@@ -126,7 +126,7 @@ jobs:
           Copy-Item data/assets/game-icons "$package/data/assets" -Recurse
           Remove-Item "$package/data/assets/game-icons/game-icons-white-transparent.zip"
           Copy-Item gui/hud-icons.json, gui/character-faces.json, gui/README.md "$package/gui"
-          Copy-Item inventory.toml, skills.toml $package
+          Copy-Item inventory.toml, skills.toml, doors.toml $package
           Copy-Item assets/test.glb, assets/test.navmesh "$package/assets"
           Copy-Item multiplayer/windows/run-game.cmd $package
           Copy-Item build/assets/weapons "$package/assets" -Recurse

@@ -6,6 +6,7 @@
 /storage/ammo/*.tags.txt text eol=lf
 /vehicles/*.toml text eol=lf
 /inventory.toml text eol=lf
+/doors.toml text eol=lf
 /skills.toml text eol=lf
 /skills/melee/*.skill.toml text eol=lf
 /storage/*.toml text eol=lf

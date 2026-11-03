@@ -16,8 +16,11 @@ b3Pos position(glm::vec3 p) { return {p.x, p.y, p.z}; }
 b3Vec3 vector(glm::vec3 p) { return {p.x, p.y, p.z}; }
 b3Quat rotation(glm::quat q) { return {{q.x, q.y, q.z}, q.w}; }
 constexpr float cellSize = 32;
-constexpr float closedFlexAngle = 6 * B3_DEG_TO_RAD;
 constexpr float closedSpringTolerance = .001f; // Radians; keeps the spring ready for a hit at rest.
+constexpr float swingAngle = 110 * B3_DEG_TO_RAD;
+float flexAngle(float meters, const DoorPanel& panel) {
+    return std::asin(std::min(meters / (2 * panel.halfExtents.x), 1.f));
+}
 int cell(float value) {
     if (!std::isfinite(value) || std::abs(value) > 1e8f) throw std::invalid_argument("Door position outside supported local frame");
     return static_cast<int>(std::floor(value / cellSize));
@@ -31,8 +34,11 @@ struct DoorLayer::Impl {
         b3JointId joint{};
         glm::mat4 inverseRest{1};
         bool present = true, runtime = false;
+        DoorRestraintState restraint;
     };
     std::shared_ptr<PhysicsWorld> world;
+    DoorConfig config;
+    bool replica = false;
     std::vector<Entry> entries;
     std::vector<std::size_t> active;
     std::map<std::pair<int, int>, std::vector<std::size_t>> cells;
@@ -40,11 +46,22 @@ struct DoorLayer::Impl {
     glm::vec3 minimum{std::numeric_limits<float>::max()}, maximum{-minimum};
 
     ~Impl() {
-        if (world) world->unregisterStepPreparation(this);
+        if (world) world->unregisterStepCallbacks(this);
         for (const auto index : active) {
             b3DestroyBody(entries[index].body); // Also destroys the attached joint.
             b3DestroyBody(entries[index].anchor);
         }
+    }
+    void updateRestraint(Entry& e) {
+        if (!b3Body_IsValid(e.body)) return;
+        const float reverseLimit = flexAngle(config.breakFlexMeters > 0 ? config.breakFlexMeters :
+                                             e.restraint.maxFlexMeters, e.panel);
+        const float lower = e.restraint.broken || e.panel.inward ? -swingAngle : -reverseLimit;
+        const float upper = e.restraint.broken || !e.panel.inward ? swingAngle : reverseLimit;
+        b3RevoluteJoint_SetLimits(e.joint, lower, upper);
+        const float slack = std::max(0.f, e.restraint.maxFlexMeters - config.maxClosedFlexMeters);
+        b3RevoluteJoint_SetTargetAngle(e.joint, flexAngle(slack, e.panel) * (e.panel.inward ? 1.f : -1.f));
+        if (e.restraint.broken) b3RevoluteJoint_EnableSpring(e.joint, false);
     }
     void prepareSprings() {
         for (const auto index : active) {
@@ -53,9 +70,26 @@ struct DoorLayer::Impl {
             const float opening = b3RevoluteJoint_GetAngle(e.joint) * (e.panel.inward ? -1.f : 1.f);
             // Keep it ready at rest so contacts receive damping in their first
             // solve. Release on rebound; opened doors have no closer.
-            const bool flexing = opening <= closedSpringTolerance;
+            const float slackAngle = flexAngle(std::max(0.f, e.restraint.maxFlexMeters - config.maxClosedFlexMeters), e.panel);
+            const bool flexing = !e.restraint.broken && opening <= -slackAngle + closedSpringTolerance;
             if (b3RevoluteJoint_IsSpringEnabled(e.joint) != flexing)
                 b3RevoluteJoint_EnableSpring(e.joint, flexing);
+        }
+    }
+    void finishStrain() {
+        if (replica || config.breakFlexMeters == 0) return;
+        for (const auto index : active) {
+            auto& e = entries[index];
+            if (e.restraint.broken || !b3Body_IsAwake(e.body)) continue;
+            const float opening = b3RevoluteJoint_GetAngle(e.joint) * (e.panel.inward ? -1.f : 1.f);
+            const float stretch = 2 * e.panel.halfExtents.x * std::sin(std::clamp(-opening, 0.f, B3_PI / 2));
+            // Plastic extension comes only from solved geometry. Forces and
+            // hit events alone cannot damage a panel held back by another body.
+            if (stretch <= e.restraint.maxFlexMeters) continue;
+            e.restraint.maxFlexMeters = std::min(stretch, config.breakFlexMeters);
+            e.restraint.broken = stretch >= config.breakFlexMeters - .00001f;
+            if (e.restraint.broken) e.restraint.maxFlexMeters = config.breakFlexMeters;
+            updateRestraint(e);
         }
     }
     Entry& activate(std::size_t index) {
@@ -97,21 +131,23 @@ struct DoorLayer::Impl {
         hinge.targetAngle = 0;
         // The solver's angular spring mass uses inertia about the panel center;
         // the fixed edge adds leverage, so use extra damping to contain rebound.
-        hinge.hertz = 5.f;
+        hinge.hertz = config.breakFlexMeters > 0 ? 10.f : 5.f;
         hinge.dampingRatio = 1.4f;
         hinge.enableLimit = true;
-        hinge.lowerAngle = e.panel.inward ? -110 * B3_DEG_TO_RAD : -closedFlexAngle;
-        hinge.upperAngle = e.panel.inward ? closedFlexAngle : 110 * B3_DEG_TO_RAD;
         e.joint = b3CreateRevoluteJoint(world->id(), &hinge);
+        updateRestraint(e);
         e.inverseRest = glm::inverse(glm::translate(glm::mat4(1), e.panel.center) * glm::mat4_cast(e.panel.rotation));
         active.push_back(index);
         return e;
     }
 };
 
-DoorLayer::DoorLayer(std::vector<DoorPanel> panels, std::shared_ptr<PhysicsWorld> world)
+DoorLayer::DoorLayer(std::vector<DoorPanel> panels, std::shared_ptr<PhysicsWorld> world, DoorConfig config, bool replica)
     : impl_(std::make_unique<Impl>()) {
     if (!world) throw std::invalid_argument("Doors require a physics world");
+    validateDoorConfig(config);
+    impl_->config = config;
+    impl_->replica = replica;
     impl_->world = std::move(world);
     impl_->active.reserve(panels.size());
     for (const auto& p : panels) {
@@ -126,13 +162,16 @@ DoorLayer::DoorLayer(std::vector<DoorPanel> panels, std::shared_ptr<PhysicsWorld
             if (!std::isfinite(p.closedTransform[column][row])) throw std::invalid_argument("Door transform must be finite");
         const auto key = std::make_pair(cell(p.hinge.x), cell(p.hinge.z));
         impl_->cells[key].push_back(impl_->entries.size());
-        impl_->entries.push_back({p, {}, {}, {}, glm::mat4(1)});
+        impl_->entries.emplace_back();
+        impl_->entries.back().panel = p;
+        impl_->entries.back().restraint.maxFlexMeters = config.maxClosedFlexMeters;
         impl_->maximumReach = std::max(impl_->maximumReach, 2 * h.x + h.z + .02f);
         const glm::vec3 swept(2 * h.x + h.z + .02f, h.y + .02f, 2 * h.x + h.z + .02f);
         impl_->minimum = glm::min(impl_->minimum, p.hinge - swept);
         impl_->maximum = glm::max(impl_->maximum, p.hinge + swept);
     }
-    impl_->world->registerStepPreparation(impl_.get(), [state = impl_.get()] { state->prepareSprings(); });
+    impl_->world->registerStepCallbacks(impl_.get(), [state = impl_.get()] { state->prepareSprings(); },
+                                       [state = impl_.get()] { state->finishStrain(); });
 }
 DoorLayer::~DoorLayer() = default;
 std::size_t DoorLayer::count() const { return impl_->entries.size(); }
@@ -146,6 +185,7 @@ std::size_t DoorLayer::reserveRuntimeDoors(std::size_t count) {
     for (std::size_t i = first; i < first + count; ++i) {
         impl_->entries[i].present = false;
         impl_->entries[i].runtime = true;
+        impl_->entries[i].restraint.maxFlexMeters = impl_->config.maxClosedFlexMeters;
     }
     return first;
 }
@@ -156,7 +196,7 @@ void DoorLayer::installRuntimeDoor(std::size_t door, const DoorPanel& panel) {
     auto& entry = impl_->entries.at(door);
     if (!entry.runtime || entry.present) throw std::logic_error("Runtime door ID is already occupied");
     // Reuse the ordinary panel validation and conservative spatial bounds.
-    DoorLayer validated({panel}, impl_->world);
+    DoorLayer validated({panel}, impl_->world, impl_->config, impl_->replica);
     entry.panel = panel;
     entry.present = true;
     impl_->cells[{cell(panel.hinge.x), cell(panel.hinge.z)}].push_back(door);
@@ -178,7 +218,9 @@ void DoorLayer::evictRuntimeDoor(std::size_t door) {
     auto& ids = found->second;
     ids.erase(std::remove(ids.begin(), ids.end(), door), ids.end());
     if (ids.empty()) impl_->cells.erase(found);
+    const auto restraint = entry.restraint;
     entry = {};
+    entry.restraint = restraint;
     entry.present = false;
     entry.runtime = true;
 }
@@ -217,6 +259,19 @@ void DoorLayer::setAngle(std::size_t door, float radians) {
     const auto turn = glm::angleAxis(-radians, glm::vec3(0, 1, 0));
     const auto p = e.panel.hinge + turn * (e.panel.center - e.panel.hinge);
     b3Body_SetTransform(e.body, position(p), rotation(turn * e.panel.rotation));
+}
+DoorRestraintState DoorLayer::restraint(std::size_t door) const {
+    return impl_->entries.at(door).restraint;
+}
+void DoorLayer::setRestraint(std::size_t door, DoorRestraintState state) {
+    if (!std::isfinite(state.maxFlexMeters) || state.maxFlexMeters < 0)
+        throw std::invalid_argument("Invalid replicated door restraint");
+    auto& e = impl_->entries.at(door);
+    state.maxFlexMeters = std::max(e.restraint.maxFlexMeters, state.maxFlexMeters);
+    state.broken = state.broken || e.restraint.broken;
+    if (e.restraint.maxFlexMeters == state.maxFlexMeters && e.restraint.broken == state.broken) return;
+    e.restraint = state;
+    impl_->updateRestraint(e);
 }
 glm::mat4 DoorLayer::transform(std::size_t door) const {
     const auto& e = impl_->entries.at(door);

@@ -20,8 +20,11 @@ Snapshot Replication::snapshot(Scene& scene, glm::vec3 feet, Snapshot s,
     vehicles_.append(*scene.vehicles, s.tick, s.vehicles);
     for (const auto door : scene.doors->activeDoors()) {
         const auto offset = scene.doors->panel(door).center - feet;
-        if (glm::dot(offset, offset) < 240.0f * 240 && s.doors.size() < maxDoors)
-            s.doors.push_back({static_cast<std::uint32_t>(door), scene.doors->angle(door)});
+        if (glm::dot(offset, offset) < 240.0f * 240 && s.doors.size() < maxDoors) {
+            const auto restraint = scene.doors->restraint(door);
+            s.doors.push_back({static_cast<std::uint32_t>(door), scene.doors->angle(door),
+                               restraint.maxFlexMeters, restraint.broken});
+        }
     }
     for (std::size_t i = 0; i < scene.boxes->count(); ++i) {
         const auto p = scene.boxes->pose(i);

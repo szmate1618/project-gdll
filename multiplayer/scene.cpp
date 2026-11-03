@@ -197,7 +197,8 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
         viewer::appendStaticModel(model, viewer::loadGuardrailLayer(adjacent("guardrails.glb"), o.map).model);
         content.push_back(adjacent("guardrails.glb"));
     }
-    doors = std::make_unique<viewer::DoorLayer>(viewer::prepareDoorPanels(model), physics);
+    doors = std::make_unique<viewer::DoorLayer>(viewer::prepareDoorPanels(model), physics,
+                                             viewer::loadDoorConfig(resourceRoot() / "doors.toml"), role == SceneRole::Replica);
     boxes = std::make_unique<viewer::BoxLayer>(physics);
     groundItems = std::make_unique<viewer::GroundItems>(physics, role == SceneRole::Replica);
     for (std::size_t i = 0; i < groundModels.size(); ++i)
@@ -303,6 +304,7 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
     std::sort(definitions.begin(), definitions.end());
     content.insert(content.end(), definitions.begin(), definitions.end());
     content.push_back(resourceRoot() / "inventory.toml");
+    content.push_back(resourceRoot() / "doors.toml");
     content.push_back(resourceRoot() / "skills.toml");
     for (const auto& skill : viewer::loadMeleeSkills(resourceRoot()))
         content.push_back(resourceRoot() / "skills/melee" / (skill.id + ".skill.toml"));

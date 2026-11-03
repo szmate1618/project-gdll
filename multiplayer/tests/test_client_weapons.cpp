@@ -690,6 +690,7 @@ int main(int argc, char** argv) {
         std::filesystem::copy(source / "vehicles", fixture / "vehicles", copy);
         std::filesystem::copy(source / "skills", fixture / "skills", copy);
         std::filesystem::copy_file(source / "skills.toml", fixture / "skills.toml", std::filesystem::copy_options::overwrite_existing);
+        std::filesystem::copy_file(source / "doors.toml", fixture / "doors.toml", std::filesystem::copy_options::overwrite_existing);
         std::filesystem::copy(source / "shaders", fixture / "shaders", copy);
         std::filesystem::copy(source / "ui", fixture / "ui", copy);
         std::filesystem::create_directories(fixture / "assets/pigeon");

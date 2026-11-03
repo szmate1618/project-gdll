@@ -222,12 +222,14 @@ int main(int argc, char** argv) {
         require(panel.storey == 1, "Replication fixture must exercise an upper-storey door");
         const auto door = panel.id;
         const float angle = panel.panel.inward ? -.8f : .8f;
+        server.doors->setRestraint(door, {.05f, true});
         server.doors->setAngle(door, angle);
         const auto snapshot = world.snapshot(player);
         multiplayer::Snapshots playback;
         require(playback.push(snapshot, 1), "Server snapshot must be accepted");
         playback.apply(client, 1);
         require(!client.doors->present(door), "A distant replicated angle must not allocate interior geometry");
+        require(client.doors->restraint(door).broken, "Broken restraint state must reach reserved nonresident doors");
         client.floorplans->update({{0, 1.7f, 8}});
         playback.apply(client, 1);
         require(client.floorplans->residentCount() == 1 && client.doors->present(door) && std::abs(client.doors->angle(door) - angle) < .001f,
@@ -243,8 +245,10 @@ int main(int argc, char** argv) {
         require(!client.doors->present(door) && server.doors->present(door), "Client eviction must not change authoritative geometry");
         client.floorplans->update({{0, 1.7f, 8}}); playback.apply(client, 1);
         require(std::abs(client.doors->angle(door) - angle) < .001f, "Regenerated client panels must recover current authoritative movement");
+        require(client.doors->restraint(door).broken, "Independent client eviction must retain the server's released restraint");
         world.leave(player); world.step();
         require(server.floorplans->residentCount() == 0, "The server must evict when no player remains nearby");
+        require(server.doors->restraint(door).broken, "Server eviction must not repair a broken restraint");
         irregular(server, client); prefab(server,client); encounters(server, client);
         midnightEncounter(server);
         playerHouseMembership(server);

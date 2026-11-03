@@ -88,7 +88,8 @@ class ClientBundleTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        self.configs = {"storage/equipment.toml": b"tactical vest\n", "inventory.toml": b"starting items\n"}
+        self.configs = {"storage/equipment.toml": b"tactical vest\n", "inventory.toml": b"starting items\n",
+                        "doors.toml": b"max_closed_flex_m = 0.10\n"}
         self.assets = {**self.configs, "output/town.glb": b"town geometry", "play-town.sh": b"#!/bin/sh\n",
                        "play-town.cmd": b"@echo off\r\n", "credits/assets/MAP.txt": b"Map attribution",
                        "credits/assets/UNDEAD_DOGS.txt": (Path(__file__).resolve().parents[1] /
@@ -186,6 +187,13 @@ class ClientBundleTests(unittest.TestCase):
         check_local_configuration(client, client)
         with self.assertRaisesRegex(ValueError, "local checkout differ"):
             check_local_configuration(client, self.root / "missing")
+
+    def test_door_configuration_mismatch_is_rejected(self):
+        client = unpack_client(self.artifact("windows"), "windows", self.root / "client")
+        self.assets["doors.toml"] = b"max_closed_flex_m = 0.03\n"
+        self.write_assets()
+        with self.assertRaisesRegex(ValueError, "differ at doors.toml"):
+            bundle_client(client, self.asset_pack, self.root / "town.zip", self.provenance("windows"))
 
     def test_notice_line_endings_are_portable_but_configuration_bytes_stay_exact(self):
         client = unpack_client(self.artifact("windows"), "windows", self.root / "client")

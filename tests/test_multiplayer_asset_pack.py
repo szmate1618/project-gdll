@@ -65,6 +65,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
         self.write("assets/top.png", b"top texture")
         self.write("assets/shrub.png", b"shrub atlas")
         self.write("inventory.toml", b"inventory\n")
+        self.write("doors.toml", b"max_closed_flex_m = 0.10\n")
         self.write("skills.toml", b"[melee]\npunch='Punch'\n")
         self.write("skills/melee/punch.skill.toml", b"")
         for name in ("equipment.toml", "backpacks.toml", "loadout.toml"):
@@ -298,7 +299,7 @@ class MultiplayerAssetPackTests(unittest.TestCase):
                     "assets/zombies/models/Zombie.glb", "assets/zombies/models/lods.json"}
         expected.update({"vehicles/car.toml", "assets/pigeon/flock.json",
                          "assets/pigeon/README.md", "assets/pigeon/sources.json"})
-        expected.update({"skills.toml", "skills/melee/punch.skill.toml", "storage/equipment.toml", "storage/backpacks.toml", "storage/loadout.toml"})
+        expected.update({"doors.toml", "skills.toml", "skills/melee/punch.skill.toml", "storage/equipment.toml", "storage/backpacks.toml", "storage/loadout.toml"})
         for suffix in ("inventory.toml", "gameplay.toml", "tags.txt"):
             expected.update(f"storage/weapons/{name}.{suffix}" for name in ("pistol", "submachine_gun", "sniper", "shotgun", "he_grenade"))
         for suffix in ("inventory.toml", "tags.txt"):

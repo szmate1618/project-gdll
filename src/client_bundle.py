@@ -71,7 +71,7 @@ def unpack_client(artifact_path, platform, destination):
 
 
 def _configuration(name):
-    return name in ("inventory.toml", "skills.toml") or (
+    return name in ("inventory.toml", "skills.toml", "doors.toml") or (
         name.startswith(("storage/", "skills/", "vehicles/"))
         and name.endswith((".toml", ".tags.txt")))
 

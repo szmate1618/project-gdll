@@ -180,6 +180,7 @@ void Snapshots::apply(Scene& scene, double now) {
     for (const auto& d : a.doors) oldAngles.emplace(d.id, d.angle);
     for (const auto& d : b.doors) {
         if (d.id >= scene.doors->count()) throw std::runtime_error("Server supplied unknown door ID");
+        scene.doors->setRestraint(d.id, {d.maxFlexMeters, d.restraintBroken});
         if (!scene.doors->present(d.id)) continue; // Geometry streams locally; distant door state needs no body.
         float angle = d.angle;
         const auto before = oldAngles.find(d.id);

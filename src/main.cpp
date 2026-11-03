@@ -1355,7 +1355,7 @@ int run(const Options& options) {
     if (options.noFences)
         std::cout << "Fences disabled: " << viewer::removeFenceDraws(model) << " draw instances removed\n";
     auto physics = std::make_shared<viewer::PhysicsWorld>();
-    viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics);
+    viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics, viewer::loadDoorConfig(VIEWER_DOOR_CONFIG));
     viewer::ZombieDoorCollision zombieDoorCollision(physics);
     std::cout << "Doors: " << doors.count() << " hinged panels; nearby physics activation\n";
     std::size_t triangles = 0;
