@@ -44,6 +44,7 @@ void PhysicsWorld::step(float seconds, const std::function<void(float)>& before,
     int steps = 0;
     while (accumulator_ >= fixedStepSeconds && steps++ < 8) {
         if (before) before(fixedStepSeconds);
+        for (const auto& preparation : stepPreparations_) preparation.second();
         {
             frame_stage_profile::Timer timer(frame_stage_profile::Stage::physics);
             b3World_Step(world_, fixedStepSeconds, 4);
@@ -67,6 +68,14 @@ void PhysicsWorld::trackBodyMotion(b3BodyId body, std::uint64_t& ownerRevision) 
 }
 void PhysicsWorld::untrackBodyMotion(b3BodyId body) {
     motionOwners_.erase(b3StoreBodyId(body));
+}
+void PhysicsWorld::registerStepPreparation(const void* owner, std::function<void()> prepare) {
+    if (!owner || !prepare) throw std::invalid_argument("Physics step preparation requires an owner and callback");
+    if (!stepPreparations_.emplace(owner, std::move(prepare)).second)
+        throw std::logic_error("Physics step preparation already registered");
+}
+void PhysicsWorld::unregisterStepPreparation(const void* owner) {
+    stepPreparations_.erase(owner);
 }
 bool PhysicsWorld::isGrabbed(b3BodyId body) const { return grabCounts_.count(b3StoreBodyId(body)) != 0; }
 void PhysicsWorld::beginGrab(b3BodyId body) { ++grabCounts_[b3StoreBodyId(body)]; }

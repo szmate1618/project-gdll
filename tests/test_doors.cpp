@@ -60,6 +60,7 @@ void extractionAndActivation() {
         require(b3World_GetCounters(world->id()).bodyCount == 2, "One panel must own a body and an anchor");
     }
     require(b3World_GetCounters(world->id()).bodyCount == 0, "Destroying a door layer must clean a surviving shared world");
+    world->step(1.f / 60); // Destroyed layers must also unregister their spring preparation.
 }
 
 void forceAndLimits() {
@@ -93,13 +94,55 @@ void forceAndLimits() {
             const auto point = glm::vec3(doors.transform(0) * closedInverse * glm::vec4(freeEdge, 1));
             doors.applyForce(0, glm::cross(glm::vec3(0, 1, 0), point - initial.hinge) * 100.0f, point);
             world->step(1.0f / 60);
-            require(doors.angle(0) >= -.03f, "An inward force must never open the panel inside the building");
+            require(doors.angle(0) >= -glm::radians(6.0f) - .03f, "An inward force must stay within the closed stop's flex limit");
         }
-        require(std::abs(doors.angle(0)) < .03f, "Inward force must return the door to the closed stop");
+        for (int frame = 0; frame < 180; ++frame) world->step(1.0f / 60);
+        require(std::abs(doors.angle(0)) < .04f, "Releasing inward force must let the spring rebound near closed");
         bool rejected = false;
         try { doors.applyForce(0, {std::numeric_limits<float>::quiet_NaN(), 0, 0}, {}); }
         catch (const std::invalid_argument&) { rejected = true; }
         require(rejected, "Nonfinite force must not enter the physics engine");
+    }
+}
+
+void closedStopRebounds() {
+    for (const bool inward : {false, true}) {
+        for (const auto normal : {glm::vec3(0, 0, 1), glm::vec3(0, 0, -1), glm::vec3(1, 0, 0),
+                                  glm::vec3(-1, 0, 0), glm::normalize(glm::vec3(1, 0, 2))}) {
+            for (const float dt : {1.f / 30, 1.f / 60, 1.f / 240}) {
+                auto model = fixture(normal, {14, 3, -8});
+                auto panels = viewer::prepareDoorPanels(model);
+                panels[0].inward = inward;
+                const auto& panel = panels[0];
+                const float direction = inward ? -1.f : 1.f;
+                auto world = std::make_shared<viewer::PhysicsWorld>();
+                viewer::DoorLayer doors(panels, world);
+                const auto edge = panel.center + glm::cross(glm::vec3(0, 1, 0), normal) * .45f;
+                const auto inverse = glm::inverse(panel.closedTransform);
+                // Force activation must also install the spring for a sleeping,
+                // previously inactive panel, without an application update call.
+                doors.applyImpulse(0, -direction * normal * 20.f, edge);
+                float deepest = 0;
+                bool rebounded = false;
+                for (int frame = 0; frame < static_cast<int>(3.f / dt); ++frame) {
+                    world->step(dt);
+                    const float opening = direction * doors.angle(0);
+                    deepest = std::min(deepest, opening);
+                    if (deepest < -.02f && opening > deepest + .02f) rebounded = true;
+                    require(opening >= -glm::radians(6.f) - .01f, "A hit must not push the closed panel through its flex stop");
+                    const auto pivot = glm::vec3(doors.transform(0) * inverse * glm::vec4(panel.hinge, 1));
+                    require(glm::distance(pivot, panel.hinge) < .01f, "Spring flex must retain the fixed hinge pivot");
+                }
+                require(deepest < -.02f, "A closed door hit must produce visible reverse flex");
+                require(rebounded && std::abs(doors.angle(0)) < .04f, "A hit must rebound toward closed after the impulse ends");
+
+                // Once opened normally, the spring must release rather than
+                // turning all existing doors into automatic closers.
+                doors.setAngle(0, direction * glm::radians(60.f));
+                for (int frame = 0; frame < static_cast<int>(3.f / dt); ++frame) world->step(dt);
+                require(direction * doors.angle(0) > glm::radians(55.f), "An ordinarily opened door must remain free of the return spring");
+            }
+        }
     }
 }
 
@@ -166,6 +209,33 @@ void bodyCollisionOpensDoor() {
     b3DestroyBody(body);
 }
 
+void bodyCollisionFlexesClosedDoor() {
+    auto model = fixture();
+    auto world = std::make_shared<viewer::PhysicsWorld>();
+    viewer::DoorLayer doors(viewer::prepareDoorPanels(model), world);
+    doors.activateNear({0, 1, 0});
+    auto bodyDef = b3DefaultBodyDef();
+    bodyDef.type = b3_dynamicBody;
+    bodyDef.position = {.8, 1, .6};
+    bodyDef.gravityScale = 0;
+    const auto body = b3CreateBody(world->id(), &bodyDef);
+    auto shapeDef = b3DefaultShapeDef();
+    shapeDef.density = 100;
+    const auto hull = b3MakeBoxHull(.15f, .35f, .15f);
+    b3CreateHullShape(body, &shapeDef, &hull.base);
+    b3Body_SetLinearVelocity(body, {0, 0, -3});
+    float deepest = 0;
+    for (int frame = 0; frame < 120; ++frame) {
+        world->step(1.f / 60);
+        deepest = std::min(deepest, doors.angle(0));
+    }
+    require(deepest < -.02f, "An ordinary physical contact must flex a closed door inward");
+    b3DestroyBody(body);
+    for (int frame = 0; frame < 180; ++frame) world->step(1.f / 60);
+    require(doors.angle(0) > deepest + .02f && std::abs(doors.angle(0)) < .04f,
+            "The closed stop must rebound after a physical collision without a door-specific hit call");
+}
+
 void sharedRagdollCollision() {
     auto model = fixture();
     auto world = std::make_shared<viewer::PhysicsWorld>();
@@ -202,7 +272,7 @@ void sweptBoundsStayVisible() {
 int main() {
     try {
         extractionAndActivation(); localAndWideColliderQueries(); foundationSeamsDoNotShortenCollider(); forceAndLimits(); bodyCollisionOpensDoor();
-        sharedRagdollCollision(); sweptBoundsStayVisible();
+        closedStopRebounds(); bodyCollisionFlexesClosedDoor(); sharedRagdollCollision(); sweptBoundsStayVisible();
         std::cout << "Door physics tests passed\n";
         return 0;
     } catch (const std::exception& error) {

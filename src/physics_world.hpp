@@ -47,6 +47,10 @@ public:
     // Movement/sleep events are consumed after every fixed step, synchronously.
     void trackBodyMotion(b3BodyId body, std::uint64_t& ownerRevision);
     void untrackBodyMotion(b3BodyId body);
+    // Runs after step()'s before hook, immediately before each fixed solve.
+    // Owners must unregister before destruction; callbacks must not change this list.
+    void registerStepPreparation(const void* owner, std::function<void()> prepare);
+    void unregisterStepPreparation(const void* owner);
     bool isGrabbed(b3BodyId body) const;
 private:
     friend class PhysicsGrab;
@@ -57,6 +61,7 @@ private:
     float accumulator_ = 0;
     int nextCollisionGroup_ = -1;
     std::unordered_map<std::uint64_t, std::uint64_t*> motionOwners_;
+    std::unordered_map<const void*, std::function<void()>> stepPreparations_;
     std::unordered_map<std::uint64_t, unsigned> grabCounts_; // Both hands may hold one body.
 };
 

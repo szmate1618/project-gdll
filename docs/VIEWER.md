@@ -2498,13 +2498,17 @@ See [building generation](../README.md) for facade configuration and regeneratio
 
 Generated brown door panels have runtime Box3D bodies and vertical revolute
 joints, sharing the simulation with zombie ragdolls. Their limits allow a
-**0–110° outward swing**, selected from each facade's outward normal. A thin
+**0–110° outward swing**, selected from each facade's outward normal, plus up
+to **6° of inward flex** against a spring-backed closed stop. A thin
 4 cm box supplies contact geometry for the flat rendered panel; the collider
 starts 10 cm above the highest lower boundary to clear the 8 cm foundation
 and leave 2 cm above ground.
-A static anchor holds the hinge. Panels weigh 25 kg and have angular damping;
-there is no latch or automatic closer. Interaction controls apply forces to
-the point selected when a grab begins.
+A static anchor holds the hinge. Panels weigh 25 kg and have angular damping.
+When a hit pushes a closed panel inward, an angular spring set to 5 Hz with a 1.4
+damping ratio returns it toward closed and releases on rebound. It acts only
+on the reverse side of the closed position, so normally opened doors have no
+automatic closer. Interior hinges use the mirrored stop for their inward swing.
+Interaction controls apply forces to the point selected when a grab begins.
 
 `prepareDoorPanels(model)` separates batched door meshes at load time without
 changing the GLB or requiring regeneration. It preserves the original node
@@ -2524,6 +2528,8 @@ server regenerates an evicted house. `applyForce(door, force, worldPoint)` and
 Vectors use world coordinates, meters, newtons and newton-seconds. Reapply a
 sustained force each physics step. Physics objects created in `PhysicsWorld::id()`
 can push doors through ordinary contacts, with no door-specific hit handler.
+The layer registers spring preparation with the shared world, so it runs before
+every fixed physics step in both the viewer and server; sleeping doors are skipped.
 
 `DoorLayer::raycast` uses the spatial grid and current oriented panel boxes;
 picking is read-only. It returns a stable door index and a body-local hit point.

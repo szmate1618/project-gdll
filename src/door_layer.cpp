@@ -16,6 +16,8 @@ b3Pos position(glm::vec3 p) { return {p.x, p.y, p.z}; }
 b3Vec3 vector(glm::vec3 p) { return {p.x, p.y, p.z}; }
 b3Quat rotation(glm::quat q) { return {{q.x, q.y, q.z}, q.w}; }
 constexpr float cellSize = 32;
+constexpr float closedFlexAngle = 6 * B3_DEG_TO_RAD;
+constexpr float closedSpringTolerance = .001f; // Radians; keeps the spring ready for a hit at rest.
 int cell(float value) {
     if (!std::isfinite(value) || std::abs(value) > 1e8f) throw std::invalid_argument("Door position outside supported local frame");
     return static_cast<int>(std::floor(value / cellSize));
@@ -38,9 +40,22 @@ struct DoorLayer::Impl {
     glm::vec3 minimum{std::numeric_limits<float>::max()}, maximum{-minimum};
 
     ~Impl() {
+        if (world) world->unregisterStepPreparation(this);
         for (const auto index : active) {
             b3DestroyBody(entries[index].body); // Also destroys the attached joint.
             b3DestroyBody(entries[index].anchor);
+        }
+    }
+    void prepareSprings() {
+        for (const auto index : active) {
+            const auto& e = entries[index];
+            if (!b3Body_IsAwake(e.body)) continue;
+            const float opening = b3RevoluteJoint_GetAngle(e.joint) * (e.panel.inward ? -1.f : 1.f);
+            // Keep it ready at rest so contacts receive damping in their first
+            // solve. Release on rebound; opened doors have no closer.
+            const bool flexing = opening <= closedSpringTolerance;
+            if (b3RevoluteJoint_IsSpringEnabled(e.joint) != flexing)
+                b3RevoluteJoint_EnableSpring(e.joint, flexing);
         }
     }
     Entry& activate(std::size_t index) {
@@ -78,9 +93,15 @@ struct DoorLayer::Impl {
         hinge.base.localFrameB.p = b3Body_GetLocalPoint(e.body, position(e.panel.hinge));
         hinge.base.localFrameB.q = b3InvMulQuat(definition.rotation, frame);
         hinge.base.collideConnected = false;
+        hinge.enableSpring = true;
+        hinge.targetAngle = 0;
+        // The solver's angular spring mass uses inertia about the panel center;
+        // the fixed edge adds leverage, so use extra damping to contain rebound.
+        hinge.hertz = 5.f;
+        hinge.dampingRatio = 1.4f;
         hinge.enableLimit = true;
-        hinge.lowerAngle = e.panel.inward ? -110 * B3_DEG_TO_RAD : 0;
-        hinge.upperAngle = e.panel.inward ? 0 : 110 * B3_DEG_TO_RAD;
+        hinge.lowerAngle = e.panel.inward ? -110 * B3_DEG_TO_RAD : -closedFlexAngle;
+        hinge.upperAngle = e.panel.inward ? closedFlexAngle : 110 * B3_DEG_TO_RAD;
         e.joint = b3CreateRevoluteJoint(world->id(), &hinge);
         e.inverseRest = glm::inverse(glm::translate(glm::mat4(1), e.panel.center) * glm::mat4_cast(e.panel.rotation));
         active.push_back(index);
@@ -111,6 +132,7 @@ DoorLayer::DoorLayer(std::vector<DoorPanel> panels, std::shared_ptr<PhysicsWorld
         impl_->minimum = glm::min(impl_->minimum, p.hinge - swept);
         impl_->maximum = glm::max(impl_->maximum, p.hinge + swept);
     }
+    impl_->world->registerStepPreparation(impl_.get(), [state = impl_.get()] { state->prepareSprings(); });
 }
 DoorLayer::~DoorLayer() = default;
 std::size_t DoorLayer::count() const { return impl_->entries.size(); }

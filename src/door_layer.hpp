@@ -21,6 +21,7 @@ struct DoorPointState { glm::vec3 point, velocity; }; // World meters and m/s.
 
 // Owns door bodies and static hinge anchors in a shared simulation. Panels stay
 // closed until activated by proximity or force; activated bodies can sleep.
+// A spring-backed closed stop allows up to six degrees of reverse flex.
 class DoorLayer {
 public:
     DoorLayer(std::vector<DoorPanel> panels, std::shared_ptr<PhysicsWorld> world);
