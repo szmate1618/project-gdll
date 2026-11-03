@@ -7,6 +7,7 @@
 #include "frame_stage_profile.hpp"
 #include "door_layer.hpp"
 #include "player_interaction.hpp"
+#include "hand_inventory.hpp"
 #include "physics_world.hpp"
 #include "box_layer.hpp"
 #include "physics_scene.hpp"
@@ -387,7 +388,7 @@ void printHelp() {
               << "Right tap drops; hold right and release throws. Heavy boxes drag; light boxes lift. Door mouse up/down still pushes/pulls\n"
               << "Hotbar: 0 Object handling, 1 Punch, 2 pistol, 3 SMG, 4 shotgun, 5 sniper, 6 HE grenade; R reload; hold left mouse for automatic fire\n"
               << "Combat: scoped weapons use right mouse to cycle normal, 10-degree, and 1-degree views\n"
-              << "Alt handling / vehicle camera, Home cursor, wheel preview action, F throw weapon, G pick up weapon, L toggle flashlight, End frame model, Escape quit\n\n"
+              << "Alt handling / vehicle camera, Tab equipment drawer cursor, Home cursor, wheel preview action, F throw weapon, G pick up weapon, L toggle flashlight, End frame model, Escape quit\n\n"
               << "F1 Inventory, F2 Skills, F3 Health, F4 Map, F12 Graphics, F8 free-fly, F9 FPS walking, F10 collision overlay; Space jump, C prone in FPS\n\n"
               << "  --fps               Start in walking mode\n"
               << "  --fullscreen        Fill the primary monitor at the selected render resolution\n"
@@ -488,6 +489,7 @@ struct AppState {
     viewer::PlayerInteraction interaction;
     viewer::Weapons weapons{VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY, true};
     viewer::PlayerInventory inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_INVENTORY).parent_path());
+    viewer::HandInventory handInventory{inventory};
     viewer::ActionSelection actionSelection;
     viewer::WeaponSwitch weaponSwitch;
     viewer::WeaponReload weaponReload;
@@ -516,6 +518,7 @@ struct AppState {
     bool proneToggleQueued = false;
     int width = 1280, height = 720;
     bool capture = true, firstMouse = true, hidden = false;
+    bool equipmentCursor = false;
     bool collisionDebug = false;
     viewer::HudScreen hudScreen = viewer::HudScreen::Gameplay;
     viewer::Hud* hud = nullptr; // Borrows the graphics-thread HUD.
@@ -524,7 +527,7 @@ struct AppState {
     glm::vec3 playerVelocity{0};
     double lastX = 0, lastY = 0;
     bool temporaryHandling() const {
-        return capture && hudScreen == viewer::HudScreen::Gameplay && !driver.occupied() &&
+        return (capture || equipmentCursor) && hudScreen == viewer::HudScreen::Gameplay && !driver.occupied() &&
             weapons.slot() != viewer::handlingSlot && (keys[GLFW_KEY_LEFT_ALT] || keys[GLFW_KEY_RIGHT_ALT]);
     }
     bool handling() const { return weapons.slot() == viewer::handlingSlot || temporaryHandling(); }
@@ -534,9 +537,12 @@ AppState& state(GLFWwindow* window) { return *static_cast<AppState*>(glfwGetWind
 
 void captureMouse(GLFWwindow* window, bool captured) {
     auto& app = state(window);
+    app.equipmentCursor = false;
     app.capture = captured;
     if (!captured) {
-        app.interaction.cancel(); app.weapons.cancelTrigger();
+        if (app.groundItems) app.handInventory.release(app.interaction, *app.groundItems, app.weapons);
+        else app.interaction.cancel();
+        app.weapons.cancelTrigger();
         app.keys[GLFW_KEY_LEFT_ALT] = app.keys[GLFW_KEY_RIGHT_ALT] = false;
     }
     if (!captured) app.actionSelection.close();
@@ -583,6 +589,12 @@ void keyCallback(GLFWwindow* window, int key, int, int action, int) {
         return;
     }
     if (app.hudScreen != viewer::HudScreen::Gameplay) return;
+    if (key == GLFW_KEY_TAB && (app.handling() || app.equipmentCursor) && !app.driver.occupied()) {
+        app.equipmentCursor = !app.equipmentCursor; app.capture = !app.equipmentCursor;
+        app.firstMouse = true; app.actionSelection.close(); app.weapons.cancelTrigger();
+        if (!app.hidden) glfwSetInputMode(window, GLFW_CURSOR, app.capture ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+        return;
+    }
     if (key == GLFW_KEY_F7) {
         app.distantSceneCache = !app.distantSceneCache;
         std::cout << "Distant scenery cache: " << (app.distantSceneCache ? "on" : "off") << '\n';
@@ -655,8 +667,10 @@ void hudPointer(GLFWwindow* window, viewer::Hud* hud, double x, double y) {
 }
 void cursorCallback(GLFWwindow* window, double x, double y) {
     auto& app = state(window);
-    if (app.hudScreen != viewer::HudScreen::Gameplay) {
-        hudPointer(window, app.hud, x, y); return;
+    if (app.hudScreen != viewer::HudScreen::Gameplay || !app.capture) {
+        hudPointer(window, app.hud, x, y);
+        if (app.equipmentCursor && !app.firstMouse) app.interaction.moveGrip(float(x - app.lastX), float(app.lastY - y));
+        app.lastX = x; app.lastY = y; app.firstMouse = false; return;
     }
     if (!app.capture || app.hudScreen != viewer::HudScreen::Gameplay) return;
     if (!app.firstMouse && std::isfinite(x) && std::isfinite(y))
@@ -668,12 +682,16 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     auto& app = state(window);
-    if (app.hudScreen != viewer::HudScreen::Gameplay) {
+    if (app.hudScreen != viewer::HudScreen::Gameplay || !app.capture) {
         double x, y; glfwGetCursorPos(window, &x, &y);
         hudPointer(window, app.hud, x, y);
         if (app.hud) app.hud->pointerButton(button, action == GLFW_PRESS);
         return;
     }
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE && app.handInventory.active() && app.groundItems) {
+        app.handInventory.release(app.interaction, *app.groundItems, app.weapons); return;
+    }
+    if (app.handInventory.active() && button != GLFW_MOUSE_BUTTON_RIGHT) return;
     if ((button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_RIGHT) && action == GLFW_RELEASE) {
         if (button == GLFW_MOUSE_BUTTON_LEFT) app.weapons.trigger(false);
         if (app.handling() && !app.weaponSwitch.pending() && app.capture &&
@@ -712,12 +730,12 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
 }
 
 void scrollCallback(GLFWwindow* window, double, double y) {
-    if (state(window).hudScreen != viewer::HudScreen::Gameplay && state(window).hud) {
+    if ((state(window).hudScreen != viewer::HudScreen::Gameplay || !state(window).capture) && state(window).hud) {
         double x, cursorY; glfwGetCursorPos(window, &x, &cursorY);
         hudPointer(window, state(window).hud, x, cursorY);
         state(window).hud->mouseWheel(static_cast<float>(y));
     }
-    if (state(window).hudScreen != viewer::HudScreen::Gameplay) return;
+    if (state(window).hudScreen != viewer::HudScreen::Gameplay || !state(window).capture) return;
     auto& app = state(window);
     if (app.capture && !app.driver.occupied()) {
         if (std::isfinite(y) && y != 0) {
@@ -737,7 +755,8 @@ void focusCallback(GLFWwindow* window, int focused) {
         state(window).keys.fill(false);
         state(window).proneToggleQueued = false;
         state(window).firstMouse = true;
-        state(window).interaction.cancel();
+        if (state(window).groundItems) state(window).handInventory.release(state(window).interaction, *state(window).groundItems, state(window).weapons);
+        else state(window).interaction.cancel();
         state(window).weapons.cancelTrigger();
         state(window).actionSelection.close();
     }
@@ -822,6 +841,11 @@ void moveCamera(AppState& app, float dt) {
     }
     if (dt > 0) app.proneToggleQueued = false;
     app.interaction.update(app.rig.camera(), dt);
+    if (app.groundItems && app.boxes) {
+        if (app.handInventory.active() && (!app.handling() || app.hudScreen != viewer::HudScreen::Gameplay || app.actionSelection.open()))
+            app.handInventory.release(app.interaction, *app.groundItems, app.weapons);
+        else app.handInventory.update(dt, app.rig.camera(), app.interaction, *app.boxes, *app.groundItems, app.weapons, app.world);
+    }
 }
 
 void updateZombieBehavior(AppState& app, float seconds, double animationSeconds,
@@ -1075,8 +1099,10 @@ void inputSelfTest(GLFWwindow* window) {
     }
     app.weapons.equip(viewer::handlingSlot);
     key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
-    if (!app.capture || app.weapons.slot() != viewer::handlingSlot)
-        throw std::runtime_error("Tab must leave the selected skill unchanged");
+    if (app.capture || !app.equipmentCursor || app.weapons.slot() != viewer::handlingSlot)
+        throw std::runtime_error("Tab must unlock the cursor and preserve object handling");
+    key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
+    if (!app.capture || app.equipmentCursor) throw std::runtime_error("Tab must recapture the cursor");
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
     mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
     if (app.rig.camera().projection(1.0f) != originalProjection)
@@ -1089,6 +1115,9 @@ void inputSelfTest(GLFWwindow* window) {
         key(window, code, 0, GLFW_PRESS, 0);
         if (!app.temporaryHandling() || app.weapons.slot() != equippedBeforeAlt)
             throw std::runtime_error("Held Alt must enable handling without changing the equipped weapon");
+        key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
+        if (app.capture || !app.temporaryHandling()) throw std::runtime_error("Tab must preserve held-Alt handling with a free cursor");
+        key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
         app.weapons.trigger(true); updateWeapons(app, 20);
         if (app.weapons.equipped().loaded != loadedBeforeAlt)
             throw std::runtime_error("Temporary handling fired the held weapon");
@@ -1986,6 +2015,9 @@ int run(const Options& options) {
             hudState.reserve = heldWeapon.reserve;
         }
         hudState.mouseCaptured = app.capture;
+        hudState.objectHandling = app.handling() && !app.driver.occupied();
+        hudState.handInventoryActive = app.handInventory.active();
+        hudState.handAccessRemaining = app.handInventory.remaining();
         hudState.selectionSlot = app.actionSelection.selected();
         hudState.weaponSwitchRemaining = app.weaponSwitch.remaining(simulationClock.seconds());
         if (const auto* timing = app.weaponSwitch.timing()) hudState.weaponSwitchDuration = timing->total();
@@ -2008,7 +2040,19 @@ int run(const Options& options) {
             hud.draw(hudState, app.width, app.height);
         }
         if (const auto requested = hud.takeScreenRequest()) app.hudScreen = *requested;
-        (void)hud.takeInventoryActions(); // Standalone already applies these operations locally.
+        for (const auto& action : hud.takeInventoryActions()) {
+            switch (action.kind) {
+            case viewer::InventoryDragActionKind::HandPickUp:
+                if (app.handling() && !app.weaponSwitch.pending() && !app.weaponReload.pending())
+                    app.handInventory.begin(action.item);
+                break;
+            case viewer::InventoryDragActionKind::HandStore:
+                app.handInventory.store(app.interaction, groundItems, app.weapons); break;
+            case viewer::InventoryDragActionKind::HandRelease:
+                app.handInventory.release(app.interaction, groundItems, app.weapons); break;
+            default: break; // Full inventory page already applies its operations locally.
+            }
+        }
         intervalRenderSeconds += glfwGetTime() - renderStart;
         gpuTimer.end();
         if (frameProfile) frameProfile->endGpu();
@@ -2121,7 +2165,7 @@ int run(const Options& options) {
         frameStages.print(std::cout, intervalFrames);
         zombieProfile.print(std::cout);
     }
-    app.interaction.cancel();
+    app.handInventory.release(app.interaction, groundItems, app.weapons);
     if (doodads) {
         doodads->captureChanges();
         if (savedDoodadRevision != doodadState->revision()) doodadState->save(doodadSave);

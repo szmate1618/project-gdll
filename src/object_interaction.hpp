@@ -13,6 +13,7 @@ enum class Hand { Left, Right }; // Mouse buttons for the object-handling skill.
 class ObjectInteraction {
 public:
     bool press(const Camera& camera, BoxLayer& boxes, const CollisionWorld& world);
+    bool grip(const Camera& camera, BoxLayer& boxes, const PhysicsProp& prop);
     void cancel(); // Drops without adding momentum.
     bool grabbing() const { return heldProp().has_value(); }
     std::optional<std::size_t> heldBox() const;

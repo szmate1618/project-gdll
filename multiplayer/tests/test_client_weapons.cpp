@@ -39,7 +39,9 @@ std::size_t differences(std::size_t a, std::size_t b) {
             const bool hud = (x > 410 && x < 870 && y > 630) || (x > 1000 && y > 550) ||
                 (x < 310 && y < 145) || (x > 425 && x < 910 && y < 95) || (x > 1030 && y < 115) ||
                 (x > 310 && x < 970 && y > 95 && y < 135);
-            if (hud) continue;
+            // Object handling now adds a vertical equipment tab at the right edge.
+            const bool equipmentTab = x >= frameWidth - 36 && y > frameHeight * .35f && y < frameHeight * .65f;
+            if (hud || equipmentTab) continue;
             const auto i = static_cast<std::size_t>(y * frameWidth + x) * 3;
             if (std::abs(int(frames[a][i]) - int(frames[b][i])) > 8 ||
                 std::abs(int(frames[a][i+1]) - int(frames[b][i+1])) > 8 ||
@@ -148,6 +150,11 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             require(command(in, window, false, 0).left, "Object handling must send held left input");
             button(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, 0);
             require(!command(in, window, false, 0).left, "Object handling must not latch left input after release");
+            key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
+            require(!in.capture && in.equipmentCursor && in.handling() && !command(in, window, false, 0).cancelInteraction,
+                "Tab must free the cursor while preserving the object-handling session");
+            key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);
+            require(in.capture && !in.equipmentCursor, "Tab must recapture the client cursor");
             button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
             require(command(in, window, false, 0).right, "Right press did not start a skill charge");
             key(window, GLFW_KEY_F1, 0, GLFW_PRESS, 0);

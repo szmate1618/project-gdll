@@ -1927,6 +1927,7 @@ build directory when run by CTest.
 | F10 | Toggle collision visualization |
 | Alt | Hold for temporary Object handling on foot; toggle first/third person in any vehicle seat |
 | F12 | Open / close Graphics settings |
+| Tab | Release / recapture the cursor for the equipment drawer while using Object handling |
 | Home | Release / capture the mouse |
 | L | Toggle the flashlight on/off |
 | End | Frame the whole scene again in free-fly mode |
@@ -1949,7 +1950,7 @@ also moves the grip target and tugs the door. Mouse look remains active while
 grabbing, so mouse motion rotates the camera and moves the grip together.
 A click that misses all reachable objects keeps normal mouse look. Skill
 clicks never shoot. Switching actions or camera, opening a menu, releasing the
-cursor, or losing window focus cancels the grip and any charged throw.
+cursor with Home, or losing window focus cancels the grip and any charged throw.
 
 You can also **hold either Alt key** for temporary Object handling on foot.
 The equipped weapon stays selected and is lowered while Alt is held; firing,
@@ -1957,6 +1958,22 @@ punching, reloading and scope clicks are disabled during this gesture. Releasing
 Alt cancels any grip/charge and raises the weapon. A mouse button already held
 when Alt ends must be released before it can fire. In a vehicle, Alt continues
 to toggle the local first/third-person camera for both drivers and passengers.
+
+While Object handling is selected or Alt is held, a vertical **Inventory** tab
+appears on the right edge. Press **Tab** to free the cursor while preserving
+the grip; press it again to resume mouse look. Hover over the tab to slide open
+a scrollable list of all carried equippable items, with their current storage
+access times. Hold left mouse on an item to retrieve it. It becomes a physical
+held object only after its calculated access time has elapsed. Releasing early
+cancels retrieval; releasing outside the drawer afterwards drops it to the ground.
+
+Move the held item back over the drawer and release to return it to its exact
+original compartment, cell and orientation. Closing and reopening the drawer
+while keeping the mouse held preserves this return location. Once an item has
+been dropped, grabbing it again and releasing over the drawer searches the
+backpack's main grid for a suitable position. If none fits, it drops to the
+ground. Home, focus loss, changing actions and opening a full page end the grip;
+Tab and hover-closing the drawer preserve it.
 
 The first successful grab of any door in a building also populates its interior
 with untextured brown boxes. Each building gets a random target of 12–36 props:

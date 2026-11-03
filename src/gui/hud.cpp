@@ -4,6 +4,7 @@
 #include "ui_runtime.hpp"
 #include "inventory_view.hpp"
 #include "inventory_interaction.hpp"
+#include "equipment_drawer.hpp"
 #include "action_hotbar.hpp"
 #include "skills_view.hpp"
 #include "loadout_navigation.hpp"
@@ -101,6 +102,7 @@ struct Hud::Impl {
     Weapons* weapons = nullptr;
     const CollisionWorld* collision = nullptr;
     std::unique_ptr<InventoryInteraction> inventoryInteraction;
+    std::unique_ptr<EquipmentDrawer> equipmentDrawer;
     std::unique_ptr<MapViewUi> mapView;
     std::optional<MinimapSource> mapSource;
     std::unique_ptr<CommandWheelView> commandWheel;
@@ -154,6 +156,7 @@ struct Hud::Impl {
                 elements.emplace("direction-" + std::to_string(i), directions[i]);
             }
             commandWheel = std::make_unique<CommandWheelView>(*document);
+            equipmentDrawer = std::make_unique<EquipmentDrawer>(*document, inventory);
             for (std::size_t i = 0; i < backdropGroups.size(); ++i) {
                 backdropElements[i] = document->GetElementById(backdropGroups[i].id);
                 if (!backdropElements[i]) throw std::runtime_error(std::string("Missing HUD backdrop group: ") + backdropGroups[i].id);
@@ -171,6 +174,7 @@ struct Hud::Impl {
         commandWheel.reset();
         mapView.reset();
         inventoryInteraction.reset();
+        equipmentDrawer.reset();
         if (context) {
             Rml::RemoveContext("game-hud"); context = nullptr; hudActive = false;
             renderer.clearMinimap();
@@ -309,7 +313,6 @@ struct Hud::Impl {
             countdown << std::fixed << std::setprecision(1) << remaining << "s";
             setText("switch-countdown", countdown.str());
         }
-        pointerEvents.clear();
         renderer.setMinimapPosition({state.position.x, state.position.z});
         // Coordinates remain local metres; the reference's latitude/longitude
         // cannot be inferred from a runtime position without map georeferencing.
@@ -341,7 +344,9 @@ struct Hud::Impl {
             constexpr std::array<const char*, 7> classes{"pistol", "smg", "shotgun", "sniper", "grenade", "fists", "handling"};
             elements.at("weapon")->SetClassNames(slot >= 0 && slot < 7 ? classes[slot] : "unconfirmed");
         }
-        renderer.render(*context, width, height, {}, [&] {
+        renderer.render(*context, width, height, [&] {
+            equipmentDrawer->process(state, pointerEvents, width, height, presentation);
+        }, [&] {
             if (!backdrop) renderer.renderExternal([&] { backdrop = std::make_unique<HudBackdrop>(sourceDirectory); });
             HudBackdrop::Bounds bounds{};
             for (std::size_t i = 0; i < backdropGroups.size(); ++i)
@@ -353,6 +358,7 @@ struct Hud::Impl {
             const auto color = document->GetProperty(backdropColorProperty)->Get<Rml::Colourb>();
             backdrop->draw(bounds, width, height, delta, glm::vec3(color.red, color.green, color.blue) / 255.f);
         });
+        pointerEvents.clear();
     }
 };
 
@@ -386,7 +392,12 @@ std::optional<GraphicsSettings> Hud::takeGraphicsSettingsRequest() {
     return impl_->graphicsView ? impl_->graphicsView->takeRequest() : std::nullopt;
 }
 std::vector<InventoryDragAction> Hud::takeInventoryActions() {
-    return impl_->inventoryInteraction ? impl_->inventoryInteraction->takeActions() : std::vector<InventoryDragAction>{};
+    auto actions = impl_->equipmentDrawer->takeActions();
+    if (impl_->inventoryInteraction) {
+        auto storage = impl_->inventoryInteraction->takeActions();
+        actions.insert(actions.end(), storage.begin(), storage.end());
+    }
+    return actions;
 }
 bool Hud::inventoryDragging() const {
     return impl_->inventoryInteraction && impl_->inventoryInteraction->dragging();

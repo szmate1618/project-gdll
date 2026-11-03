@@ -19,7 +19,12 @@ public:
     void release(Hand hand, const Camera& camera, DoorLayer& doors, BoxLayer& boxes,
                  const CollisionWorld& world, double seconds);
     void cancel();
+    bool grip(const Camera& camera, BoxLayer& boxes, const PhysicsProp& prop) {
+        cancel();
+        return objects_.grip(camera, boxes, prop);
+    }
     void look(Camera& camera, float dx, float dy);
+    void moveGrip(float dx, float dy) { objects_.moveMouse(dx, dy); }
     void update(const Camera& camera, float dt);
 private:
     DoorInteraction doors_;

@@ -68,12 +68,13 @@ std::vector<GroundItem> GroundItems::nearby(glm::vec3 feet) const {
     return result;
 }
 bool GroundItems::take(std::uint64_t id, PlayerInventory& inventory, Weapons& weapons,
-    const ItemPlacement& destination, glm::vec3 feet) {
-    if (pending(id)) return false; // Wait for the server to assign the physical drop its stable ID.
+    const ItemPlacement& destination, glm::vec3 reachOrigin) {
+    if (pending(id) || reserved_.count(id)) return false;
     const auto found = std::find_if(entries_.begin(), entries_.end(), [&](const auto& entry) { return entry.id == id; });
     if (found == entries_.end() || inventory.held() || weapons.reloading()) return false;
     const auto index = std::size_t(found - entries_.begin());
-    if (!inReach(index, feet) || (found->weapon && weapons.state(found->weapon->slot).owned)) return false;
+    if (bodies_.prop(index).grabbed()) return false;
+    if (!inReach(index, reachOrigin) || (found->weapon && weapons.state(found->weapon->slot).owned)) return false;
     std::string itemId = found->item.id();
     if (inventory.owns(itemId)) {
         if (!found->item.inventory().stackable) return false;
@@ -92,9 +93,27 @@ bool GroundItems::take(std::uint64_t id, PlayerInventory& inventory, Weapons& we
     return true;
 }
 void GroundItems::remove(std::size_t index) {
+    reserved_.erase(entries_[index].id);
     bodies_.remove(index);
     if (index + 1 < entries_.size()) entries_[index] = std::move(entries_.back());
     entries_.pop_back();
+}
+void GroundItems::reserve(std::uint64_t id, bool reserved) {
+    if (reserved) reserved_.insert(id); else reserved_.erase(id);
+}
+std::optional<PhysicsProp> GroundItems::prop(std::uint64_t id) const {
+    for (std::size_t i = 0; i < entries_.size(); ++i)
+        if (entries_[i].id == id) return bodies_.prop(i);
+    return std::nullopt;
+}
+std::optional<std::uint64_t> GroundItems::idOf(const PhysicsProp& prop) const {
+    const auto index = bodies_.indexOf(prop);
+    return index ? std::optional<std::uint64_t>(entries_[*index].id) : std::nullopt;
+}
+bool GroundItems::erase(std::uint64_t id) {
+    for (std::size_t i = 0; i < entries_.size(); ++i)
+        if (entries_[i].id == id) { remove(i); return true; }
+    return false;
 }
 bool GroundItems::discard(Weapons& weapons, PlayerInventory& inventory, const Camera& camera,
     const CollisionWorld& collision, glm::vec3 velocity) {

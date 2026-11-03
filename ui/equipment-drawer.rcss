@@ -1,0 +1,29 @@
+#equipment-drawer {
+    display: none; position: absolute; right: -280dp; top: 42%;
+    width: 314dp; height: 136dp; z-index: 30; pointer-events: auto;
+    transition: right .18s, height .18s, top .18s;
+}
+#equipment-drawer.available { display: block; }
+#equipment-drawer.expanded { right: 0dp; top: 24%; height: 54%; }
+#equipment-tab {
+    position: absolute; left: 0dp; top: 0dp; width: 32dp; height: 100%;
+    background-color: #242d2aee; border: 1dp #809485; border-radius: 6dp 0dp 0dp 6dp;
+}
+#equipment-tab div {
+    position: absolute; top: 50%; left: 0dp; width: 32dp; height: 117dp;
+    margin-top: -58dp; line-height: 13dp;
+    text-align: center; font-size: 12dp; color: #e5eadf;
+}
+#equipment-panel {
+    position: absolute; left: 34dp; top: 0dp; width: 280dp; height: 100%;
+    background-color: #141d19f5; color: #e5eadf;
+}
+.equipment-title { height: 40dp; padding: 14dp 14dp 0dp; font-size: 13dp; }
+.equipment-title span { float: right; font-size: 9dp; color: #a6b69f; }
+#equipment-list { position: absolute; top: 48dp; bottom: 44dp; left: 10dp; width: 260dp; overflow-y: auto; overflow-x: hidden; }
+.equipment-row { width: 238dp; padding: 10dp 9dp; margin-bottom: 5dp; background-color: #2a352fee; border-left: 2dp #6f8775; }
+.equipment-row.hovered { background-color: #405343; border-left-color: #c5d5ae; }
+.equipment-name { width: 236dp; font-size: 13dp; }
+.equipment-access { width: 236dp; margin-top: 4dp; font-size: 10dp; color: #a6b69f; }
+.equipment-empty { padding: 12dp; color: #a6b69f; }
+#equipment-status { position: absolute; left: 14dp; bottom: 12dp; font-size: 10dp; color: #c5d5ae; }

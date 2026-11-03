@@ -54,7 +54,7 @@ bool validFirearmReport(const Scene& scene, const ServerPlayer& player, const Co
     }
     return true;
 }
-void applyInventoryActions(ServerPlayer& player, Scene& scene) {
+void applyInventoryActions(ServerPlayer& player, Scene& scene, bool temporaryHandling) {
     while (!player.pendingInventoryActions.empty()) {
         const auto& action = player.pendingInventoryActions.front();
         // Network jitter can deliver the next locally completed move before
@@ -62,7 +62,22 @@ void applyInventoryActions(ServerPlayer& player, Scene& scene) {
         if (player.inventoryDrag.pending() &&
             (action.kind != viewer::InventoryDragActionKind::Cancel ||
              action.item != player.inventoryDrag.held()->item)) break;
+        if (player.handInventory.active() && action.kind != viewer::InventoryDragActionKind::HandStore &&
+            action.kind != viewer::InventoryDragActionKind::HandRelease) {
+            player.pendingInventoryActions.pop_front(); continue;
+        }
         switch (action.kind) {
+        case viewer::InventoryDragActionKind::HandPickUp:
+            if (!player.weaponSwitch.pending() && !player.weaponReload.pending() &&
+                (temporaryHandling || player.weapons.slot() == viewer::handlingSlot))
+                player.handInventory.begin(action.item);
+            break;
+        case viewer::InventoryDragActionKind::HandStore:
+            player.handInventory.store(player.interaction, *scene.groundItems, player.weapons);
+            break;
+        case viewer::InventoryDragActionKind::HandRelease:
+            player.handInventory.release(player.interaction, *scene.groundItems, player.weapons);
+            break;
         case viewer::InventoryDragActionKind::PickUp: player.inventoryDrag.pickUp(action.item); break;
         case viewer::InventoryDragActionKind::Rotate: player.inventoryDrag.rotate(action.turns); break;
         case viewer::InventoryDragActionKind::Drop: player.inventoryDrag.drop(action.storage, action.x, action.y); break;
@@ -86,7 +101,7 @@ void applyInventoryActions(ServerPlayer& player, Scene& scene) {
 }
 ServerPlayer::ServerPlayer(const viewer::Weapons& initialWeapons, const viewer::PlayerInventory& initialInventory,
                            std::shared_ptr<viewer::PhysicsWorld> world)
-    : weapons(initialWeapons), inventory(initialInventory), inventoryDrag(inventory), body(std::move(world),controller.config().eyeHeight) {
+    : weapons(initialWeapons), inventory(initialInventory), inventoryDrag(inventory), handInventory(inventory), body(std::move(world),controller.config().eyeHeight) {
     weapons.syncAmmo(inventory);
     held.slot = static_cast<std::uint8_t>(weapons.slot());
 }
@@ -129,7 +144,11 @@ std::uint32_t World::join() {
 }
 void World::leave(std::uint32_t id) {
     const auto it = players_.find(id);
-    if (it != players_.end()) { vehicleSeats_.leave(id); it->second.interaction.cancel(); players_.erase(it); }
+    if (it != players_.end()) {
+        vehicleSeats_.leave(id);
+        it->second.handInventory.release(it->second.interaction, *scene_.groundItems, it->second.weapons);
+        players_.erase(it);
+    }
 }
 void World::submit(std::uint32_t id, const Commands& commands) {
     auto& player = players_.at(id);
@@ -179,7 +198,7 @@ void World::step() {
     for (auto& [id, player] : players_) {
         player.inventoryDrag.advance(tickSeconds);
         player.house.update(player.controller.feet(), now, scene_.floorplans->footprints());
-        applyInventoryActions(player, scene_);
+        applyInventoryActions(player, scene_, player.held.objectHandling);
         bodies.push_back(&player.body);
         targets.push_back({player.controller.feet(), player.controller.eyeHeight(), player.controller.bodyHeight(),
                            id, player.velocity, player.controller.config().radius, player.house.house()});
@@ -231,17 +250,17 @@ void World::step() {
                 command.left = command.right = command.reload = false;
                 command.enterVehicle = false;
                 command.movement.jump = vehicleSeats_.car(id) != noVehicle; // Stop an unattended car.
-                player.interaction.cancel();
+                player.handInventory.release(player.interaction, *scene_.groundItems, player.weapons);
             }
             player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
             if (player.pendingInventoryActions.size() + command.inventoryActions.size() > 1024)
                 throw std::runtime_error("Too many queued inventory actions");
             player.pendingInventoryActions.insert(player.pendingInventoryActions.end(), command.inventoryActions.begin(), command.inventoryActions.end());
-            applyInventoryActions(player, scene_);
+            applyInventoryActions(player, scene_, command.objectHandling);
             if (command.enterVehicle && vehicleSeats_.toggle(id, player.controller, player.camera)) {
                 // Entering/exiting repositions the capsule without physical travel.
                 movementOrigin = player.controller.feet();
-                player.interaction.cancel(); player.weapons.cancelTrigger();
+                player.handInventory.release(player.interaction, *scene_.groundItems, player.weapons); player.weapons.cancelTrigger();
                 player.triggerNeedsRelease = command.left;
             }
             if (vehicleSeats_.car(id) != noVehicle) {
@@ -276,8 +295,18 @@ void World::step() {
             const bool handlingMode = command.objectHandling || player.weapons.slot() == viewer::handlingSlot;
             const bool handling = !command.cancelInteraction && handlingMode && command.slot == player.weapons.slot() &&
                 !player.weaponSwitch.pending() && !player.weaponReload.pending();
-            if (!handling) player.interaction.cancel();
-            else {
+            if (!handling) {
+                player.handInventory.release(player.interaction, *scene_.groundItems, player.weapons);
+            } else if (player.handInventory.active()) {
+                if (command.right && !player.held.right)
+                    player.interaction.press(viewer::Hand::Right, player.camera, *scene_.doors, *scene_.boxes, *scene_.collision, now);
+                if (!command.right && player.held.right)
+                    player.interaction.release(viewer::Hand::Right, player.camera, *scene_.doors, *scene_.boxes, *scene_.collision, now);
+                player.interaction.moveGrip(command.drag.x, command.drag.y);
+                player.interaction.update(player.camera, tickSeconds / inputs);
+                player.handInventory.update(tickSeconds / inputs, player.camera, player.interaction,
+                    *scene_.boxes, *scene_.groundItems, player.weapons, *scene_.collision);
+            } else {
                 for (const auto hand : {viewer::Hand::Left, viewer::Hand::Right}) {
                     const bool held = hand == viewer::Hand::Left ? command.left : command.right;
                     const bool wasHeld = hand == viewer::Hand::Left ? player.held.left : player.held.right;
@@ -446,6 +475,8 @@ Snapshot World::snapshot(std::uint32_t id) {
             static_cast<float>(player.weaponReload.remaining(viewer::SimulationClock::instance().seconds())),
             static_cast<float>(player.weaponReload.duration()), {}, bool(player.inventory.held()) || !player.pendingInventoryActions.empty(), {}});
         s.players.back().flashlight = player.held.flashlight;
+        s.players.back().handInventoryActive = player.handInventory.active();
+        s.players.back().handAccessRemaining = static_cast<float>(player.handInventory.remaining());
         // IDs remain explicit as players acquire additional stack instances.
         for (const auto& [itemId, item] : player.inventory.items())
             if (item.inventory().stackable) {

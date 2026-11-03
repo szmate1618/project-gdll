@@ -162,11 +162,14 @@ void command(Wire& w, Command& c) {
     w.list(c.inventoryActions, 64, [&](viewer::InventoryDragAction& action) {
         auto kind = static_cast<std::uint8_t>(action.kind);
         w.integer(kind);
-        if (kind > static_cast<std::uint8_t>(viewer::InventoryDragActionKind::TakeGround))
+        if (kind > static_cast<std::uint8_t>(viewer::InventoryDragActionKind::HandRelease))
             throw std::runtime_error("Invalid inventory action");
         action.kind = static_cast<viewer::InventoryDragActionKind>(kind);
         switch (action.kind) {
+        case viewer::InventoryDragActionKind::HandPickUp:
         case viewer::InventoryDragActionKind::PickUp: w.text(action.item, 128); break;
+        case viewer::InventoryDragActionKind::HandStore:
+        case viewer::InventoryDragActionKind::HandRelease: break;
         case viewer::InventoryDragActionKind::Rotate: {
             auto turns = static_cast<std::uint8_t>((action.turns % 4 + 4) % 4);
             w.integer(turns);
@@ -442,6 +445,9 @@ void payload(Wire& w, Snapshot& s) {
         if (w.reading) p.ammoItemIds.resize(p.ammoQuantities.size());
         if (p.ammoItemIds.size() != p.ammoQuantities.size()) throw std::runtime_error("Invalid ammo quantity IDs");
         for (auto& item : p.ammoItemIds) w.text(item,128);
+        w.flag(p.handInventoryActive); w.number(p.handAccessRemaining);
+        if (p.handAccessRemaining < 0 || (!p.handInventoryActive && p.handAccessRemaining != 0))
+            throw std::runtime_error("Invalid hand inventory access progress");
         w.flag(p.inventoryDragging);
         w.list(p.inventoryPlacements, 1024, [&](viewer::ItemPlacement& placement) {
             inventoryPlacement(w, placement);

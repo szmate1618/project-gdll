@@ -3,6 +3,7 @@
 #include "interior_objects.hpp"
 #include "physics_scene.hpp"
 #include "player_interaction.hpp"
+#include "hand_inventory.hpp"
 #include "weapons.hpp"
 #include "weapon_switch.hpp"
 #include "weapon_reload.hpp"
@@ -32,6 +33,7 @@ struct ServerPlayer {
     viewer::Weapons weapons;
     viewer::PlayerInventory inventory;
     viewer::InventoryDrag inventoryDrag;
+    viewer::HandInventory handInventory;
     std::deque<viewer::InventoryDragAction> pendingInventoryActions;
     viewer::WeaponSwitch weaponSwitch;
     viewer::WeaponReload weaponReload;

@@ -34,6 +34,14 @@ bool ObjectInteraction::press(const Camera& camera, BoxLayer& boxes, const Colli
                  hit->localPoint, hit->point - camera.position(), right, {}};
     return true;
 }
+bool ObjectInteraction::grip(const Camera& camera, BoxLayer& boxes, const PhysicsProp& prop) {
+    if (!prop.valid() || prop.grabbed()) return false;
+    const float yaw = glm::radians(camera.yawDegrees());
+    const auto right = glm::vec3(-std::sin(yaw), 0, std::cos(yaw));
+    grab_ = Grab{&boxes, prop, std::make_unique<PhysicsGrab>(prop, glm::vec3(0), maxLiftForce),
+        glm::vec3(0), prop.center() - camera.position(), right, {}};
+    return true;
+}
 void ObjectInteraction::cancel() { grab_.reset(); }
 void ObjectInteraction::moveMouse(float dx, float dy) {
     if (!std::isfinite(dx) || !std::isfinite(dy) || !grab_) return;

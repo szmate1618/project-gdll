@@ -2,6 +2,7 @@
 <head>
     <title>Game HUD</title>
     <link type="text/rcss" href="hud.rcss" />
+    <link type="text/rcss" href="equipment-drawer.rcss" />
     <link type="text/rcss" href="command-wheel.rcss" />
     <link type="text/rcss" href="palette.rcss" />
     <link type="text/rcss" href="hud-icons.rcss" />
@@ -69,6 +70,14 @@
     <div id="damage-feedback">
         <div class="damage-edge top-edge"></div><div class="damage-edge bottom-edge"></div>
         <div class="damage-edge left-edge"></div><div class="damage-edge right-edge"></div>
+    </div>
+    <div id="equipment-drawer">
+        <div id="equipment-tab"><div>I<br/>n<br/>v<br/>e<br/>n<br/>t<br/>o<br/>r<br/>y</div></div>
+        <div id="equipment-panel">
+            <div class="equipment-title">EQUIPMENT <span>TAB · CURSOR</span></div>
+            <div id="equipment-list"></div>
+            <div id="equipment-status"></div>
+        </div>
     </div>
 </body>
 </rml>

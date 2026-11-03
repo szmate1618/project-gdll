@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <thread>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -1141,6 +1142,50 @@ int main(int argc, char** argv) {
             }
             require(bodyChanges > 100 && backpackChanges > 1000,
                     "Storage selections did not change rendered body compartments and backpack grid");
+        }
+        {
+            auto inventory = viewer::loadPlayerInventory(std::filesystem::path(VIEWER_HUD_DIR).parent_path());
+            viewer::Hud hud(VIEWER_HUD_DIR, inventory);
+            auto drawer = state;
+            drawer.screen = viewer::HudScreen::Gameplay; drawer.objectHandling = true;
+            drawer.commandWheelOpen = false; drawer.selectionSlot = -1;
+            drawer.weaponSwitchRemaining = drawer.reloadRemaining = 0;
+            const auto draw = [&] { clear(); hud.draw(drawer, 1280, 720); checkState(); };
+            const auto move = [&](float x, float y) { hud.pointerMove(x / 1280, y / 720); };
+            const auto settle = [&] {
+                for (int frame = 0; frame < 8; ++frame) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(35)); draw();
+                }
+            };
+            draw();
+            if (argc > 1) capture((std::string(argv[1]) + "-equipment-tab.ppm").c_str(), pixels(1280,720),1280,720);
+            drawer.mouseCaptured = false;
+            move(1260, 340); draw();
+            settle();
+            if (argc > 1) capture((std::string(argv[1]) + "-equipment-list.ppm").c_str(), pixels(1280,720),1280,720);
+            move(1080, 240); draw(); hud.pointerButton(0, true); draw();
+            auto actions = hud.takeInventoryActions();
+            require(actions.size() == 1 && actions[0].kind == viewer::InventoryDragActionKind::HandPickUp &&
+                !actions[0].item.empty() && !inventory.held(), "Drawer row press must request physical retrieval without taking GUI ownership");
+            drawer.handInventoryActive = true;
+            move(700, 360); draw();
+            settle();
+            require(hud.takeInventoryActions().empty(), "Closing the drawer must preserve a continuously held item");
+            move(1260, 340); draw();
+            settle();
+            hud.pointerButton(0, false); draw(); actions = hud.takeInventoryActions();
+            require(actions.size() == 1 && actions[0].kind == viewer::InventoryDragActionKind::HandStore,
+                "Reopening the drawer and releasing inside it must request return to storage");
+            drawer.handInventoryActive = false;
+            move(700, 360); hud.pointerButton(0, false); draw(); actions = hud.takeInventoryActions();
+            require(actions.size() == 1 && actions[0].kind == viewer::InventoryDragActionKind::HandRelease,
+                "Releasing outside the equipment drawer must drop the physical item");
+            move(1260, 340); draw();
+            settle();
+            move(1100, 350); draw(); const auto beforeScroll = pixels(1280,720);
+            hud.mouseWheel(-5); draw();
+            require(beforeScroll != pixels(1280,720) && hud.takeInventoryActions().empty(),
+                "The equipment drawer must scroll without transferring inventory");
         }
         glDeleteSamplers(1, &sampler); glDeleteTextures(1, &texture); glDeleteTextures(1, &color);
         glDeleteTextures(1, &mapTexture);

@@ -34,7 +34,7 @@ constexpr std::size_t maxVehicles = viewer::maxVehicleInstances;
 constexpr std::uint32_t noVehicle = UINT32_MAX;
 constexpr std::uint8_t noVehicleSeat = UINT8_MAX;
 constexpr std::size_t maxMessageBytes = 256 * 1024;
-constexpr std::uint32_t protocolVersion = 41; // Replicated player flashlight toggles.
+constexpr std::uint32_t protocolVersion = 42; // Gameplay equipment drawer and timed physical retrieval.
 constexpr std::uint64_t ragdollUpdateTicks = 3; // Uniform 20 Hz at the authoritative 60 Hz tick.
 constexpr std::size_t maxFirearmHits = 64; // Matches the weapon configuration's pellet limit.
 constexpr std::uint64_t signalLifetimeTicks = 6 * 60, signalCooldownTicks = 60;
@@ -151,6 +151,8 @@ struct PlayerState {
     std::optional<InventoryState> inventoryState{}; // Observer only, when no transaction is active.
     std::vector<std::string> ammoItemIds{};
     bool flashlight = true;
+    bool handInventoryActive = false;
+    float handAccessRemaining = 0;
 };
 struct ZombieState {
     std::uint32_t id = 0, asset = 0;

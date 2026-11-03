@@ -34,6 +34,8 @@ struct HudState {
     double lastDamageSeconds = -1; // Successful health loss, in the same clock as seconds.
     int slot = -1; // Equipment slots 0..4; fists are 5. -1 means unconfirmed.
     bool mouseCaptured = true;
+    bool objectHandling = false, handInventoryActive = false;
+    double handAccessRemaining = 0;
     int selectionSlot = -1; // Hotbar preview 0..9; -1 hides the selector.
     double weaponSwitchRemaining = 0, weaponSwitchDuration = 0; // Seconds; zero hides progress.
     double reloadRemaining = 0, reloadDuration = 0; // Includes ammunition storage access.

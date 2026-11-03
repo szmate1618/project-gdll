@@ -898,6 +898,59 @@ void serverGroundInventory(const std::filesystem::path& asset) {
     require(player.weapons.state(0).owned && player.weapons.state(0).loaded==12 && player.inventory.hotbar()[2]=="pistol",
         "Weapon pickup must restore its magazine and configured hotbar binding");
 }
+void serverHandInventory(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    using Action = viewer::InventoryDragActionKind;
+    Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
+    Scene scene(options); scene.model = ground();
+    scene.collision = std::make_unique<viewer::CollisionWorld>(scene.model, std::vector<viewer::TrunkCollider>{}, scene.doors.get());
+    scene.spawnEye = {0,1.7f,0};
+    World world(scene); const auto id = world.join();
+    const auto& player = world.players().at(id);
+    for (int tick = 0; tick < 5; ++tick) world.step();
+    std::uint64_t sequence = 0;
+    const auto submit = [&](std::vector<viewer::InventoryDragAction> actions = {}, bool left = true) {
+        Command c; c.sequence = ++sequence; c.slot = static_cast<std::uint8_t>(player.weapons.slot());
+        c.objectHandling = true; c.left = left; c.inventoryActions = std::move(actions);
+        c.movement.yawDegrees = player.camera.yawDegrees(); c.pitch = player.camera.pitchDegrees();
+        const auto bytes = encode(Commands{{c}});
+        const auto decoded = std::get<Commands>(decode(bytes.data(), bytes.size()));
+        world.submit(id, decoded); world.submit(id, decoded); world.step();
+    };
+    const auto original = player.inventory.placements().at("pistol");
+    submit({{Action::HandPickUp,"pistol",""}});
+    require(player.handInventory.active() && player.handInventory.remaining() > 0 && scene.groundItems->count() == 0,
+        "Network retrieval must wait for authoritative inventory access time");
+    const auto bytes = encode(world.snapshot(id));
+    const auto snapshot = std::get<Snapshot>(decode(bytes.data(), bytes.size()));
+    require(snapshot.players[0].handInventoryActive && snapshot.players[0].handAccessRemaining > 0,
+        "Retrieval access progress must survive snapshot serialization");
+    submit({{Action::HandRelease,"",""}}, false);
+    require(!player.handInventory.active() && player.inventory.placements().at("pistol").storage == original.storage &&
+        scene.groundItems->count() == 0, "Releasing before retrieval completes must cancel safely on the server");
+    submit({{Action::HandPickUp,"pistol",""}});
+    for (int tick = 0; tick < 120 && !player.interaction.grabbing(); ++tick) submit();
+    require(player.interaction.grabbing() && scene.groundItems->count() == 1,
+        "Completed network retrieval must create a physical grip exactly once");
+    for (int tick = 0; tick < 10; ++tick) submit(); // Drawer closed; left remains held.
+    submit({{Action::HandStore,"",""}}, false);
+    require(!player.handInventory.active() && scene.groundItems->count() == 0 &&
+        player.inventory.placements().at("pistol").storage == original.storage && player.weapons.state(0).loaded == 12,
+        "Returning a continuous network grip must restore its original placement and magazine");
+    submit({{Action::HandPickUp,"pistol",""}});
+    for (int tick = 0; tick < 120 && !player.interaction.grabbing(); ++tick) submit();
+    submit({{Action::HandRelease,"",""}}, false);
+    require(!player.inventory.owns("pistol") && !player.weapons.state(0).owned && scene.groundItems->count() == 1,
+        "Network release must commit physical ownership exactly once");
+    const auto released = world.snapshot(id);
+    require(released.players[0].inventoryState && !released.players[0].handInventoryActive,
+        "A completed physical drop must publish a reconciliable inventory snapshot");
+    submit();
+    require(player.interaction.grabbing(), "A released item must be grabbable through normal world interaction");
+    submit({{Action::HandStore,"",""}}, false);
+    require(scene.groundItems->count() == 0 && player.inventory.placements().at("pistol").storage ==
+        "backpack/tactical_backpack/main", "A regrabbed world item must return through the drawer into the backpack");
+}
 void inputRecovery(const std::filesystem::path& asset) {
     using namespace multiplayer;
     Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
@@ -971,7 +1024,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); playerHealthProtocol(); fragments(); prediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]);
+        triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverHandInventory(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
