@@ -75,7 +75,8 @@ bool ZombieHouseInvestigation::move(ZombieBehavior& behavior, ZombieInstance& in
         if (distance < 1e-5f) { stopZombieLocomotion(instance); return false; }
         constexpr float speed = 1.2f;
         const auto velocity = offset / distance * std::min(speed, distance / seconds);
-        const auto movement = moveZombieBody(start, start + glm::vec3(velocity.x, 0, velocity.y) * seconds, world, &crowd, behavior.zombie);
+        const auto movement = moveZombieBody(start, start + glm::vec3(velocity.x, 0, velocity.y) * seconds, world, &crowd, behavior.zombie,
+                                            &behavior.groundCache, &behavior.contactCache);
         applyZombieLocomotion(instance, velocity, movement, speed, seconds);
         if (reached(target)) route.next = next + 1;
         return route.next == route.path.points.size();

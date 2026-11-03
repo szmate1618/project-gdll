@@ -1,0 +1,110 @@
+Zombie pursuit collision caches, 2026-11-03
+==========================================
+
+Change
+------
+Chase, ordinary investigation and house investigation retain WalkingGroundCache
+and ContactCandidates in sparse ZombieBehavior entries. Static candidates cover
+bounded patches; leaving coverage or changing the world revision refreshes them.
+Exact support, live doors/props and crowd collision still run at attempted feet.
+Crowd sweep and navmesh coverage algorithms are unchanged.
+
+On this build ZombieBehavior grows from 192 to 744 bytes: 552 extra bytes per
+entry, approximately 243 KiB for 450 entries before vector capacity. Dormant
+population slots without behavior entries receive no caches.
+
+Setup
+-----
+AMD Ryzen 5 7535HS, Linux, Release C++17 (-O3 -DNDEBUG), CPU affinity 0.
+Baseline: d4b9e69 production code plus the existing dog profiling additions.
+Both variants use the same updated benchmark source. The baseline executable
+was preserved before changing class layouts; all optimized consumers were rebuilt.
+
+Map: output/godollo.glb
+  SHA256 1c9efcf7e71beb3c67ca2cfbc77231f5c70de62781faa3bc185ce8617c6e560d
+Scenario: scenarios/gray-scott-corridors/scenario.toml, seed 42
+  SHA256 c571e576d96fe08f5c273a11931cb213338647eede787db90ed78ada2eed99a5
+53,000 authored zombies, including 1,000 travelers, plus 10,000 dormant interior
+slots. Headless Scene loads zero dogs, 882,755 collision triangles and 155,825
+trunks, with doors, boxes and vehicles. Observer X/Z (-700,300), eye Y 6.99757 m.
+
+The active case starts the nearest 450 authored zombies investigating the
+observer. Normal perception and attacks run; measured state averages are 380.92
+investigating and 69.08 chasing. Setup is outside timing and repeated each run.
+
+Each process runs six seeded rounds: three control, three detailed. Every round
+warms up for 60 steps and measures 300, all at exactly 1/60 s. Active process order
+is baseline/cached/cached/baseline, yielding six control rounds per variant.
+Startup and full-traveler cases use one process per variant, three control rounds
+each. Compilation, tests and other benchmarks do not run during measurements.
+
+Rendering, audio, networking and physics advancement are excluded; prop poses
+stay static while their collisions are queried normally. This is a headless
+update benchmark. The long gameplay profile had a different, much more expensive
+traveler/coverage workload, so these results do not predict its FPS improvement.
+
+Results
+-------
+Total CPU update ms/step, median of control-round arithmetic means:
+
+Workload                               Baseline    Cached    Reduction
+450 active, normal distant travel        2.5013     1.9855      20.6%
+450 active, full traveler movement        2.6318     2.2301      15.3%
+Ordinary scenario startup                 1.0447     1.0048       3.8%
+
+Startup has only 16 investigating and 8 chasing zombies. Its control-round ranges
+overlap, making the small gain less conclusive. Active-case ranges do not overlap:
+baseline 2.4158-2.5500, cached 1.9314-2.0173 ms. Full-traveler ranges are
+2.5716-2.8262 and 2.1538-2.2536 ms respectively.
+
+Detailed active-case phase/stage means, ms/step (instrumented separately):
+
+Stage                                  Baseline    Cached
+Gameplay behavior, inclusive              1.8026     1.3740
+Scenario travel, inclusive                1.7036     1.7077
+Static ground queries                     .4242      .2648
+Contact triangle processing                .3455      .2024
+Contact candidate preparation              .0622      .0758
+Crowd sweeps                               .2395      .2377
+
+Candidate preparation costs slightly more, but repeated support and triangle
+tests cost less. Gameplay behavior falls 23.8%; scenario travel remains similar.
+Instrumentation adds substantial overhead: active-case detailed-round medians
+are 3.4886 and 3.0996 ms/step. Use control totals for overall performance and
+detailed rounds for attribution. Inclusive phases overlap the exclusive stages.
+
+Verification
+------------
+All six rounds within each process finish with identical final poses. Across
+baseline/cached binaries, final-pose binaries and quality CSVs match byte for
+byte for every workload. No additional runtime path searches occur. Equality
+preserves existing contacts; it does not assert all idle actors are on navmesh
+or have zero contacts.
+
+Final-pose SHA256:
+  active: 98c5fc284aa3aebdccc1aa6b52257a020eb440adfc16951c275ed33743a2a382
+  full:   1ef2da69327fc8404c6f1b017c93f01fb917d1357a08f71dbf4ad5848274bbc0
+  start:  8035bf5f9a1b3072e75fb7d0735962c52049436413d018ab7eff061bcac9b499
+
+Full build and 23 distinct focused/integration CTest cases pass. The new pursuit
+regression compares cached/uncached results at every step over slopes and a
+platform, with a moving box and streamed wall added/removed while caches persist.
+Existing cache regressions cover live doors, overflow and world replacement.
+
+Reproduction
+------------
+cmake --build build --target benchmark_zombie_updates -j4
+taskset -c 0 ./build/multiplayer/benchmark_zombie_updates output/godollo.glb \
+  scenarios/gray-scott-corridors/scenario.toml build/benchmarks/chase-cache-check \
+  -700 300 --activate-nearest 450
+
+Insert "full" after observer coordinates for full traveler movement. Omit
+--activate-nearest for ordinary startup. Compare against a separately built
+baseline whose headers match its own libraries.
+
+Raw artifacts: build/benchmarks/zombie-chase-cache/
+  baseline-active-{a,b}/ and cached-active-{a,b}/: alternating active runs
+  baseline-start/, cached-start/, baseline-full/, cached-full/: other workloads
+  combined-summary.json: round means, stages and correctness hashes
+  environment*.json: binary fingerprints, revision, affinity and setup
+  *build.log, *tests.log, *.log: compilation, verification and run logs

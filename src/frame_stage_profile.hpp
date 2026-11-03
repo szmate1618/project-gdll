@@ -10,13 +10,14 @@ namespace viewer::frame_stage_profile {
 // Coarse, opt-in inclusive CPU wall timings. Nested stages overlap: do not
 // add them together. Captures never change scheduling or wait for the GPU.
 enum class Stage : std::size_t {
-    weapons, physics, wounds, synchronization, blood, audio,
+    weapons, physics, wounds, synchronization, blood, audio, dogScent, dogBehavior, dogFetchPhysics,
     zombiePreparation, zombieQuery, zombieRefit, zombieTraversal, zombieSort,
     zombieSelection, zombiePalettes, zombieErrorCheck,
     shadows, town, townSort, vegetation, zombieDraws, props, bloodDraws, overlay, hud, count
 };
 inline constexpr std::array<const char*, std::size_t(Stage::count)> names{{
     "weapons", "rigid-body physics", "wound preparation", "zombie physics sync", "blood effects", "audio",
+    "dog blood scent", "dog behavior", "dog fetch physics preparation",
     "zombie visibility/pose preparation", "zombie visibility query", "zombie visibility bounds refitting",
     "zombie visibility traversal/tests", "zombie visibility sorting",
     "zombie LOD selection", "zombie palette uploads", "zombie GL error check",

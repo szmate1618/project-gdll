@@ -6,6 +6,7 @@
 #include "zombie_update_profile.hpp"
 #include "simulation_clock.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -16,10 +17,15 @@
 
 int main(int argc, char** argv) {
     try {
+        std::size_t activateNearest=0;
+        if (argc>2 && std::string(argv[argc-2])=="--activate-nearest") {
+            activateNearest=std::stoul(argv[argc-1]);
+            argc-=2;
+        }
         const bool collideOverlays=argc>1 && std::string(argv[argc-1])=="--collide-overlays";
         if (collideOverlays) --argc;
         if (argc!=4 && argc!=6 && argc!=7) throw std::runtime_error(
-            "Usage: benchmark_zombie_updates MAP SCENARIO OUTPUT_DIR [SPAWN_X SPAWN_Z [full|optimized]]");
+            "Usage: benchmark_zombie_updates MAP SCENARIO OUTPUT_DIR [SPAWN_X SPAWN_Z [full|optimized]] [--activate-nearest N]");
         multiplayer::Options options;
         options.collideTerrainOverlays=collideOverlays;
         options.map=argv[1];
@@ -27,9 +33,10 @@ int main(int argc, char** argv) {
         const std::string modeName=argc==7?argv[6]:"optimized";
         if (modeName!="full" && modeName!="optimized") throw std::runtime_error("Unknown scenario travel mode");
         const auto config=viewer::loadZombieScenarioConfig(argv[2]);
+        std::size_t travelers=0;
         for (const auto& horde : config.hordes)
-            if (horde.movement != viewer::ZombieScenarioMovement::travel)
-                throw std::runtime_error("Movement profiling requires movement = 'travel' for every group");
+            if (horde.movement == viewer::ZombieScenarioMovement::travel) travelers+=horde.count;
+        if (!travelers) throw std::runtime_error("Movement profiling requires at least one travel group");
         if (!config.seed) throw std::runtime_error("Repeatable profiling requires a scenario seed");
         options.zombieCount=config.count();
         auto navmesh=options.map; navmesh.replace_extension(".navmesh");
@@ -44,6 +51,8 @@ int main(int argc, char** argv) {
         std::filesystem::create_directories(output);
         std::ofstream metadata(output/"metadata.txt");
         metadata<<"map="<<options.map<<"\nscenario="<<argv[2]<<"\npopulation="<<scene.zombies.instances.size()
+                <<"\ntravelers="<<travelers<<"\nbehavior_bytes="<<sizeof(viewer::ZombieBehavior)
+                <<"\nactivate_nearest="<<activateNearest
                 <<"\ntrunks="<<scene.collision->stats().trunks<<"\ntriangles="<<scene.collision->stats().triangles
                 <<"\nseed="<<*config.seed<<"\nspawn_eye="<<scene.spawnEye.x<<','<<scene.spawnEye.y<<','<<scene.spawnEye.z
                 <<"\ncollision_bytes="<<scene.collision->stats().allocatedBytes
@@ -55,10 +64,28 @@ int main(int argc, char** argv) {
         std::vector<viewer::ZombieInstance> reference;
         auto& clock=viewer::SimulationClock::instance();
         const viewer::ZombiePlayer player{scene.spawnEye-glm::vec3(0,1.7f,0),1.7f,1.8f};
+        const auto activate=[&] {
+            if (!activateNearest) return;
+            std::vector<std::pair<float,std::size_t>> nearest;
+            for (std::size_t id=0;id<config.count();++id) {
+                const auto offset=glm::vec3(scene.zombies.instances[id].restRoot[3])-player.feet;
+                nearest.emplace_back(glm::dot(offset,offset),id);
+            }
+            std::sort(nearest.begin(),nearest.end());
+            // Controlled remembered-noise targets exercise direct investigation
+            // even outside perception range. Normal sight/attacks still run.
+            for (std::size_t i=0;i<std::min(activateNearest,nearest.size());++i) {
+                const auto id=nearest[i].second;
+                auto& behavior=scene.zombies.behaviors.create(id,0,glm::vec3(scene.zombies.instances[id].restRoot[3]));
+                behavior.state=viewer::ZombieState::investigating;
+                behavior.target=player.feet;
+            }
+        };
         constexpr float dt=1.f/60;
         for (unsigned run=0;run<6;++run) {
             clock.reset();
             if (run) scene.zombies=population(options.zombieAssets,*scene.collision,scene.model,dormant);
+            activate();
             const bool detailed=run%2 != (run/2)%2;
             std::cout<<"Run "<<run<<" ("<<(detailed?"detailed":"control")<<")\n"<<std::flush;
             std::ofstream rows(output/("run-"+std::to_string(run)+".csv"));
@@ -113,7 +140,7 @@ int main(int argc, char** argv) {
                 aggregate.seconds+=sample.seconds;
                 aggregate.steps+=sample.steps;
             }
-            if (scene.zombies.navigation()->stats().requests!=config.count())
+            if (scene.zombies.navigation()->stats().requests!=travelers)
                 throw std::runtime_error("Unexpected runtime path searches");
             if (run==0) {
                 reference=scene.zombies.instances;

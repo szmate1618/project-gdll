@@ -858,20 +858,26 @@ void updateZombieBehavior(AppState& app, float seconds, double animationSeconds,
     const auto feet = app.rig.walking() ? player.feet() : eye - glm::vec3(0, eyeHeight, 0);
     if (app.floorplans) app.house.update(feet, viewer::SimulationClock::instance().seconds(), app.floorplans->footprints());
     if (!app.zombies && !app.dogs) return;
-    viewer::zombie_profile::Capture capture(profile);
     viewer::ZombiePlayer target{feet, eyeHeight, height};
     target.velocity = app.driver.car() ? app.cars->velocity(*app.driver.car()) : app.playerVelocity;
     target.radius = config.radius;
     target.house = app.house.house();
     if (app.dogs) {
-        app.dogs->updateScent(viewer::SimulationClock::instance().seconds(),{{feet,app.vitals.bleeding(),app.house.outside()}});
-        app.dogs->updateBehavior(seconds, {target}, app.world, viewer::SimulationClock::instance().seconds(),
-                                 app.zombies ? app.zombies->detachedParts() : nullptr);
+        {
+            viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::dogScent);
+            app.dogs->updateScent(viewer::SimulationClock::instance().seconds(),{{feet,app.vitals.bleeding(),app.house.outside()}});
+        }
+        {
+            viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::dogBehavior);
+            app.dogs->updateBehavior(seconds, {target}, app.world, viewer::SimulationClock::instance().seconds(),
+                                     app.zombies ? app.zombies->detachedParts() : nullptr);
+        }
         for (const auto& hit : app.dogs->attackHits())
             if (app.vitals.applyDamage(hit.damage) > 0) {
                 app.lastDamageSeconds = viewer::SimulationClock::instance().seconds();
             }
     }
+    viewer::zombie_profile::Capture capture(profile);
     if (app.zombies) app.zombies->updateBehavior(seconds, target, app.world, animationSeconds);
     if (app.zombies) for (const auto& hit : app.zombies->attackHits())
         if (app.vitals.applyDamage(hit.damage) > 0) {
@@ -1824,7 +1830,10 @@ int run(const Options& options) {
 
             const double behaviorStart = glfwGetTime();
             updateZombieBehavior(app, step, app.displayedAnimationSeconds, options.profile ? &zombieProfile : nullptr);
-            if (app.dogs) app.dogs->prepareFetchPhysics(physicsScene,&doors);
+            if (app.dogs) {
+                viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::dogFetchPhysics);
+                app.dogs->prepareFetchPhysics(physicsScene,&doors);
+            }
             intervalBehaviorSeconds += glfwGetTime() - behaviorStart;
             // Aim from the solved start-of-step eye/fist pair, before movement
             // sets the anchor's endpoint for this same physics solve.
@@ -2095,6 +2104,8 @@ int run(const Options& options) {
             const auto zombieStatus = zombies ? " | Zombies " + std::to_string(renderer.zombieVisibleCount()) + "/" +
                 std::to_string(renderer.zombieCount()) +
                 " (" + std::to_string(zombies->ragdollCount()) + " ragdolls)" : "";
+            const auto dogStatus = dogs.instances.empty() ? "" : " | Dogs " +
+                std::to_string(renderer.dogVisibleCount()) + "/" + std::to_string(dogs.instances.size());
             std::ostringstream clockStatus;
             if (!options.night) {
                 const int minutes = static_cast<int>(displayedHour * 60.0);
@@ -2110,7 +2121,7 @@ int run(const Options& options) {
             const auto caption = title + " | " + (app.driver.occupied() ? (app.driver.driving() ? "Driving" : "Passenger | Mouse look, Enter exit") : app.rig.modeName()) + " | " + app.weapons.equipped().config.name
                 + " | " + app.weapons.status()
                 + (app.interaction.grabbing() ? " (holding)" : "") + status + " | " + std::to_string(fps)
-                + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + " | CPU sim " + simulationTime + townStatus + treeStatus + zombieStatus + clockStatus.str() + " | " + speedStatus.str() + " m/s"
+                + " FPS | GPU " + gpuTime + " | CPU render " + cpuTime + " | CPU sim " + simulationTime + townStatus + treeStatus + zombieStatus + dogStatus + clockStatus.str() + " | " + speedStatus.str() + " m/s"
                 + (entry ? " | " + viewer::vehicleEntryLabel(cars, *entry) : "");
             glfwSetWindowTitle(window.get(), caption.c_str());
             if (frameProfile && !options.profile) std::cout << caption << '\n';
@@ -2132,6 +2143,13 @@ int run(const Options& options) {
                               << " bounds" << (updates.full ? " (full refresh)" : " (incremental)");
                 }
                 std::cout << '\n';
+                if (!dogs.instances.empty()) {
+                    const auto hunting = std::count_if(dogs.behaviors.begin(), dogs.behaviors.end(),
+                        [](const auto& behavior) { return behavior.state == viewer::DogState::hunting; });
+                    std::cout << "Dogs: " << renderer.dogVisibleCount() << '/' << dogs.instances.size()
+                              << " visible; " << hunting << " hunting; " << dogs.scent().activeCells()
+                              << " scent cells; player bleeding " << app.vitals.bleeding() << '\n';
+                }
                 if (zombies) {
                     const auto& visibility = renderer.zombieVisibilityStats();
                     std::cout << "Zombie visibility: " << visibility.blocks << " blocks; visited "
@@ -2189,6 +2207,8 @@ int run(const Options& options) {
     const auto& sceneStats = renderer.sceneStats();
     std::cout << "Last town frame: " << sceneStats.visible << '/' << sceneStats.total << " visible, "
               << sceneStats.drawCalls << " draw calls\n";
+    if (!dogs.instances.empty()) std::cout << "Last dog frame: " << renderer.dogVisibleCount() << '/'
+                                          << dogs.instances.size() << " visible instances\n";
     if (zombies) std::cout << "Last zombie frame: " << renderer.zombieVisibleCount() << '/' << renderer.zombieCount()
                           << " visible instances, "
                           << zombies->ragdollCount() << " ragdolls, " << renderer.zombieDrawCalls()

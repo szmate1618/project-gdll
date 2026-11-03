@@ -640,6 +640,13 @@ cmake --build build --target benchmark_zombie_updates -j4
 
 Optional trailing `SPAWN_X SPAWN_Z` chooses the stationary player's position;
 a following `full` or `optimized` selects the scenario movement model.
+Mixed idle/travel scenarios are supported. A final `--activate-nearest N` starts
+the nearest N zombies investigating the observer's position, providing a
+repeatable active-pursuit workload without a recorded gameplay session. Normal
+perception and attack transitions still run. The setup is outside timing and is
+repeated after every population reload. Omit it for ordinary scenario activation.
+The [pursuit collision-cache comparison](benchmarks/zombie-chase-cache-2026-11-03.txt)
+records a controlled 450-actor investigation workload and movement equivalence.
 The benchmark uses the shared scene loader with vegetation, static geometry,
 doors and live-prop collision queries. It alternates three detailed and three
 control runs, reloading the seeded population each time. Each run warms up for

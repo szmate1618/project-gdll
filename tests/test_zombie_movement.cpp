@@ -356,6 +356,45 @@ void cachedMovementOnSlopeAndStep() {
     require(position.x>2.9f,"Slope/step fixture failed to traverse its surfaces");
 }
 
+void cachedPursuitWithLiveGeometry() {
+    auto model=floor();
+    quad(model,"terrain",{-4,-.4f,-4},{-4,-.4f,4},{4,.4f,4},{4,.4f,-4});
+    quad(model,"platform",{0,.2f,-1},{0,.2f,1},{1,.2f,1},{1,.2f,-1});
+    quad(model,"platform",{0,0,-1},{0,0,1},{0,.2f,1},{0,.2f,-1});
+    viewer::CollisionWorld world(model);
+    const auto physics=std::make_shared<viewer::PhysicsWorld>();
+    viewer::BoxLayer boxes(physics);
+    boxes.add({0,.5f,5},{.6f,1,.6f});
+    world.setBoxes(&boxes);
+    viewer::Model partition;
+    quad(partition,"interior_wall",{1,0,-2},{1,0,2},{1,3,2},{1,3,-2});
+    viewer::AnimatedModel asset;
+    viewer::ZombieInstance plain;
+    plain.restRoot=glm::translate(glm::mat4(1),{-3,0,0});
+    plain.transform=plain.restTransform=plain.restRoot;
+    auto cached=plain;
+    viewer::WalkingGroundCache ground;
+    viewer::ContactCandidates contacts;
+    for (int step=0;step<500;++step) {
+        if (step==90) {
+            const auto feet=glm::vec3(plain.restRoot[3]);
+            boxes.setPose(0,feet+glm::vec3(.6f,.5f,0),{1,0,0,0});
+        }
+        if (step==150) boxes.setPose(0,{0,.5f,5},{1,0,0,0});
+        if (step==240) world.setRuntimeGeometry(partition);
+        if (step==360) world.setRuntimeGeometry(viewer::Model{});
+        const auto expected=viewer::moveZombieToward(plain,asset,{3,0,0},1.2f,1.f/60,world,step/60.);
+        const auto actual=viewer::moveZombieToward(cached,asset,{3,0,0},1.2f,1.f/60,world,step/60.,
+                                                  nullptr,0,&ground,&contacts);
+        require(expected==actual && plain.restRoot==cached.restRoot && plain.transform==cached.transform &&
+                plain.walkSeconds==cached.walkSeconds && plain.walking==cached.walking,
+                "Persistent pursuit caches changed movement across support, moving props or streamed partitions");
+        if (step==130) require(plain.restRoot[3].x<-.9f,"A moved-in box must stop cached pursuit");
+        if (step==330) require(plain.restRoot[3].x<.71f,"A streamed-in partition must stop cached pursuit");
+    }
+    require(cached.restRoot[3].x>2.9f,"Removing the live blockers must let cached pursuit reach its target");
+}
+
 void blockedBehaviorAndAnimation() {
     auto model = floor();
     wall(model);
@@ -500,6 +539,7 @@ int main() {
         cachedLiveSupport();
         descendingSupportUsesOneContactQuery();
         cachedMovementOnSlopeAndStep();
+        cachedPursuitWithLiveGeometry();
         blockedBehaviorAndAnimation();
         boundedExternalMovement();
         steeredPursuitAgainstWall();

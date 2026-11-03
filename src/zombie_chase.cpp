@@ -85,7 +85,8 @@ void applyZombieLocomotion(ZombieInstance& instance, glm::vec2 desiredVelocity,
 bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& /*asset*/,
                       glm::vec3 target, float speed, float seconds,
                       const CollisionWorld& world, double /*animationSeconds*/,
-                      ZombieCrowd* crowd, std::size_t id) {
+                      ZombieCrowd* crowd, std::size_t id,
+                      WalkingGroundCache* groundCache, ContactCandidates* contactCache) {
     const auto start = glm::vec3(instance.restRoot[3]);
     const glm::vec2 toTarget(target.x - start.x, target.z - start.z);
     if (glm::length(toTarget) <= 1e-4f) {
@@ -108,7 +109,7 @@ bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& /*asset*/,
     if (direction != forward && !zombieHasPassingClearance(start, world)) direction = forward;
     const float step = std::min(speed * seconds, distance);
     const auto movement = moveZombieBody(start,
-        start + glm::vec3(direction.x * step, 0, direction.y * step), world, crowd, id);
+        start + glm::vec3(direction.x * step, 0, direction.y * step), world, crowd, id, groundCache, contactCache);
     applyZombieLocomotion(instance, direction * (seconds > 0 ? step / seconds : 0.f), movement, speed, seconds);
     return glm::length(glm::vec2(target.x - movement.feet.x, target.z - movement.feet.z)) <= 1e-4f;
 }

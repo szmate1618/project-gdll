@@ -17,6 +17,14 @@ own exact counts and spawn regions. Authored packs override the manual dog
 count; scenarios without packs retain the controls above. See
 [dog scenario settings](ZOMBIE_NAVIGATION_RUNTIME.md#density-placed-dog-packs-version-6).
 
+The corridor scenario spreads its 500 dogs over the whole town according to
+family-house density. This does not guarantee dogs near the player's starting
+point. The viewer title shows visible/total dogs. With `--profile`, the log also
+reports hunting dogs, occupied scent cells and player bleeding, with separate CPU
+timings for scent, dog behavior and fetch physics preparation. Those timings are
+milliseconds per rendered frame; slow or background frames can contain several
+physics updates. Zombie update timings exclude the dog update.
+
 ```bash
 ./build/godollo_viewer output/godollo.glb --fps --dog-count 1000
 ./build/multiplayer/godollo_client output/godollo.glb --single-player --dog-count 1000

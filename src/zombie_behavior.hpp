@@ -3,6 +3,7 @@
 #include "zombie_perception.hpp"
 #include "zombie_lunge.hpp"
 #include "zombie_spatial_index.hpp"
+#include "collision_world.hpp"
 
 #include <glm/glm.hpp>
 #include <cstddef>
@@ -39,6 +40,11 @@ struct ZombieBehavior {
     bool perceptionSuspended = false;
     std::uint32_t targetPlayer = 0; // Zero in the original single-player path.
     ZombieLunge lunge{};
+    // Static candidates belong to sparse behavior entries, not every population
+    // slot. Covered patches retain candidates; exact support and live props are
+    // still queried at the attempted feet. World revisions invalidate both.
+    WalkingGroundCache groundCache{};
+    ContactCandidates contactCache{};
 };
 
 // Dense, unordered pool with expected O(1) membership, lookup and swap removal.

@@ -205,7 +205,8 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
     const bool houseRoute = houses.prepare(behavior, feet);
     const auto destination = approachDestination(behavior.target, feet, behavior.sight != ZombieSight::none);
     const bool arrived = houseRoute ? houses.move(behavior, instance, seconds, world, crowd) :
-        moveZombieToward(instance, asset, destination, speed, seconds, world, animationSeconds, &crowd, behavior.zombie);
+        moveZombieToward(instance, asset, destination, speed, seconds, world, animationSeconds, &crowd, behavior.zombie,
+                         &behavior.groundCache, &behavior.contactCache);
     feet = glm::vec3(instance.restRoot[3]);
     if (attackEligible(behavior, instance, player, world, now, stats) && closeEnough()) {
         changeState(behavior, ZombieState::attacking, now);
