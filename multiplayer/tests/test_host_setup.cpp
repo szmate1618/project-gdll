@@ -24,11 +24,13 @@ int main(int argc, char** argv) {
         write(directory / "idle.toml", "version = 5\nseed = 42\n[zombies.residents]\ncount = 250\n");
         write(directory / "travel.toml", "[zombies.horde]\ncount = 600\nmovement = 'travel'\n");
         write(directory / "broken.toml", "[zombies.horde]\ncount = -1\n");
+        write(directory / "dogs.toml", "version=6\n[dogs.yards]\ncount=75\nspawn_density='houses.png'\n");
+        write(directory / "houses.png", "fixture image exists");
         multiplayer::Options defaults; defaults.map = directory / "map.glb";
         defaults.dogCount = 1000;
         defaults.birds = true; defaults.port = 31234; defaults.dayNight = {7.25, 3600};
         multiplayer::HostSetup setup(defaults, {directory, directory});
-        require(setup.scenarios().size() == 4, "Catalog did not deduplicate paths or retain invalid entries");
+        require(setup.scenarios().size() == 5, "Catalog did not deduplicate paths or retain invalid entries");
         auto options = setup.options();
         require(options.scene.dogCount == 1000,"Host defaults lost dog count");
         setup.dogCount = 1001; rejects([&] { setup.options(); },"Oversized dog population accepted");
@@ -50,6 +52,13 @@ int main(int argc, char** argv) {
                 // Recheck the current file when starting, rather than trusting the catalog.
                 write(directory / "idle.toml", "invalid = true\n");
                 rejects([&] { setup.options(); }, "Changed scenario was not revalidated");
+            } else if (setup.scenarios()[i].path.stem() == "dogs") {
+                require(setup.scenarios()[i].count == 0 && setup.scenarios()[i].authoredDogs == 75 &&
+                        setup.options().scene.dogCount == 75,
+                        "Dog-only scenarios must expose and apply authored dog counts instead of the manual host count");
+                // Starting must check the density file again, not just catalog it.
+                write(directory / "dogs.toml", "version=6\n[dogs.yards]\ncount=75\nspawn_density='missing.png'\n");
+                rejects([&] { setup.options(); },"Missing dog density was not revalidated");
             } else {
                 require(!setup.scenarios()[i].error.empty(), "Unavailable scenario has no explanation");
                 rejects([&] { setup.options(); }, "Broken or unprepared scenario was accepted");

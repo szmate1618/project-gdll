@@ -101,9 +101,9 @@ void strictConfigParsing() {
     for (const auto& root : {"version = 4.0\n", "version = '4'\n", "typo = 1\n",
                              "seed = -1\n", "seed = 4294967296\n", "seed = 42.0\n", "seed = true\n"})
         fixture.invalid(std::string(root) + zombieSettings);
-    for (const auto* version : {"1", "2", "6"})
+    for (const auto* version : {"1", "2", "7"})
         fixture.invalid(std::string("version = ") + version + "\n" + zombieSettings,
-                        "expected version = 4 or 5 with world X/Z meters only");
+                        "expected version = 4, 5 or 6 with world X/Z meters only");
     fixture.invalid("version = 3\n" + zombieSettings, "movement = 'travel'");
     fixture.invalid("version = 3\n" + zombieSettings, "set version = 4");
     for (const auto* version : {"", "version = 4\n"})
@@ -177,6 +177,36 @@ void movementModes() {
         "Direct C++ groups must reject unsupported movement modes");
 }
 
+void dogPacks() {
+    const ConfigFixture fixture;
+    const auto dogs = fixture.parse("version = 6\nseed = 42\n[dogs.yards]\ncount = 80\n"
+        "spawn = [-100,-20,100,40]\nspawn_density = '../density/houses.png'\nplacement_search_radius = 12.5\n"
+        "[dogs.other]\ncount = 20\n");
+    require(dogs.count() == 0 && dogs.dogCount() == 100 && dogs.hordes.empty() && !dogs.needsNavigation(),
+            "Dog-only scenarios must sum dog counts without spawning zombies or requiring travel navigation");
+    const auto& pack = dogs.dogPacks.back();
+    require(pack.name == "yards" && pack.count == 80 && pack.spawn == viewer::ZombieHordeConfig::Rectangle{-100,-20,100,40} &&
+            pack.spawnDensity == std::filesystem::current_path()/"scenario-config-test-fixtures/../density/houses.png" &&
+            pack.placementSearchRadius == 12.5f,
+            "Dog packs must retain independent world bounds, relative density paths and repair radius");
+    const auto mixed = fixture.parse(zombieSettings+"[dogs.yards]\ncount = 1000\n");
+    require(mixed.count() == 1000 && mixed.dogCount() == 1000 && mixed.needsNavigation(),
+            "Omitted version must support mixed populations with independent capacities");
+    for (const auto* version : {"4","5"}) fixture.invalid(std::string("version = ")+version+"\n[dogs.yard]\ncount = 1\n","version = 6");
+    for (const auto* count : {"0","-1","1001","1.5","true","'3'"})
+        fixture.invalid(std::string("[dogs.yard]\ncount = ")+count+"\n","dogs.yard.count");
+    fixture.invalid("[dogs.a]\ncount=600\n[dogs.b]\ncount=600\n","1000");
+    for (const auto* setting : {"movement='travel'\n","destination=[0,0,10,10]\n","destination_density='end.png'\n","typo=true\n"})
+        fixture.invalid(std::string("[dogs.yard]\ncount=1\n")+setting,"dogs.yard.");
+    for (const auto* path : {"''","'/absolute.png'","'C:/file.png'","true","1"})
+        fixture.invalid(std::string("[dogs.yard]\ncount=1\nspawn_density=")+path+"\n","spawn_density");
+    fixture.invalid("[dogs.yard]\ncount=1\nspawn=[0,0,0,10]\n","spawn");
+    fixture.invalid("[dogs.yard]\ncount=1\nplacement_search_radius=nan\n","placement_search_radius");
+    fixture.invalid("[dogs]\n"); fixture.invalid("dogs=true\n"); fixture.invalid("[dogs.'']\ncount=1\n");
+    auto direct = dogs; direct.dogPacks.front().count = 1001;
+    rejects<std::invalid_argument>([&] { (void)direct.count(); },"Direct callers must validate dog population limits");
+}
+
 void densityAndNearbySettings() {
     const ConfigFixture fixture;
     const auto defaults = fixture.parse(zombieSettings);
@@ -245,11 +275,12 @@ int main(int argc, char** argv) {
     try {
         strictConfigParsing();
         movementModes();
+        dogPacks();
         densityAndNearbySettings();
         worldCoordinateFrames();
         invalidRectangles();
         for (int i = 1; i < argc; ++i)
-            require(viewer::loadZombieScenarioConfig(argv[i]).count() > 0,
+            require([](const auto& config) { return config.count()+config.dogCount() > 0; }(viewer::loadZombieScenarioConfig(argv[i])),
                     "Checked-in scenarios must load with the current format");
         std::cout << "Zombie scenario TOML and world coordinate tests passed\n";
     } catch (const std::exception& error) {

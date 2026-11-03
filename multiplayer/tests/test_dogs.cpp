@@ -4,6 +4,7 @@
 #include "session_settings.hpp"
 #include "server/world.hpp"
 #include "simulation_clock.hpp"
+#include "dog_scenario.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 #include <iostream>
@@ -174,8 +175,35 @@ void authoritativeShooting(const std::filesystem::path& map, const std::filesyst
         std::cout<<"Dog variant "<<variant+1<<": killed by "<<lethalHits<<" hits with "<<weapon.name<<"; client death received\n";
     }
 }
+void scenarioPopulation(const std::filesystem::path& map, const std::filesystem::path& assets) {
+    using namespace multiplayer;
+    viewer::ZombieScenarioConfig config; config.seed = 42;
+    config.dogPacks.push_back({"territory",3,std::nullopt,{},0.f});
+    Options options; options.map=map; options.zombieCount=0; options.dogCount=config.dogCount();
+    options.dogAssets=assets; options.trees=options.forests=options.cars=false;
+    bool generated = false;
+    const DogPopulationLoader loader = [&](const auto& source,const auto& world,const auto& model) {
+        generated = true; return viewer::loadDogScenario(source,world,model,config);
+    };
+    Scene authority(options,{},std::nullopt,SceneRole::Authority,loader);
+    require(generated && authority.zombies.instances.empty() && authority.dogs.instances.size()==3,
+            "Dog-only scenarios must invoke authoritative dog placement with no zombie assets/population");
+    for (const auto& dog : authority.dogs.instances)
+        require(dog.home == std::optional<glm::vec3>(glm::vec3(dog.root[3])) && !dog.removed,
+                "Every scenario dog must remember its sampled position as territorial home");
+    const auto settings = sessionSettings(options,authority);
+    require(settings.dogCount==3 && settings.zombieCount==0,"Session discovery must advertise the actual scenario dog count");
+    generated = false;
+    const auto replicaOptions = applySessionSettings(options,settings);
+    Scene replica(replicaOptions,{},std::nullopt,SceneRole::Replica,loader);
+    require(!generated && replica.dogs.instances.size()==3 && replica.fingerprint==authority.fingerprint,
+            "Joining clients must load hidden dog slots without generating placements or changing the content fingerprint");
+    for (const auto& dog : replica.dogs.instances) require(dog.removed,"Scenario dog replicas must remain hidden until replicated");
+    const DogPopulationLoader wrong = [](const auto&,const auto&,const auto&) { return viewer::DogLayer{}; };
+    rejects([&] { Scene invalid(options,{},std::nullopt,SceneRole::Authority,wrong); });
+}
 }
 int main(int argc,char** argv) {
-    try { network(); playback(); shooting(); if(argc==3) authoritativeShooting(argv[1],argv[2]); std::cout<<"Dog replication/playback passed\n"; }
+    try { network(); playback(); shooting(); if(argc==3) { scenarioPopulation(argv[1],argv[2]); authoritativeShooting(argv[1],argv[2]); } std::cout<<"Dog replication/playback passed\n"; }
     catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;}
 }

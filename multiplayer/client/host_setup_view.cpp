@@ -40,6 +40,8 @@ HostSetupView::HostSetupView(Rml::ElementDocument& document, const Options& defa
     for (const auto count : {0u,10u,100u,1000u}) dogs.Add(count ? std::to_string(count) + " dogs" : "Disabled",std::to_string(count));
     if (defaults.dogCount != 0 && defaults.dogCount != 10 && defaults.dogCount != 100 && defaults.dogCount != 1000)
         dogs.Add(std::to_string(defaults.dogCount) + " dogs",std::to_string(defaults.dogCount));
+    for (const auto& scenario : setup_.scenarios()) if (scenario.authoredDogs)
+        dogs.Add(std::to_string(*scenario.authoredDogs) + " scenario dogs",std::to_string(*scenario.authoredDogs));
     auto& time = dynamic_cast<Rml::ElementFormControlSelect&>(element("host-start-time"));
     for (const auto hour : {6., 12., 18., 0.}) time.Add(hourLabel(hour), settingValue(hour));
     if (defaults.dayNight.startHour != 6 && defaults.dayNight.startHour != 12 && defaults.dayNight.startHour != 18 && defaults.dayNight.startHour != 0)
@@ -68,6 +70,10 @@ void HostSetupView::syncOptions() {
 }
 void HostSetupView::refresh() {
     const auto& scenario = setup_.scenarios().at(setup_.selected);
+    auto& dogs = dynamic_cast<Rml::ElementFormControlSelect&>(element("host-dogs"));
+    dogs.SetDisabled(scenario.authoredDogs.has_value());
+    const auto dogCount = scenario.authoredDogs.value_or(setup_.dogCount);
+    if (dogs.GetValue() != std::to_string(dogCount)) dogs.SetValue(std::to_string(dogCount));
     auto& list = element("host-scenario-list");
     for (int i = 0; i < list.GetNumChildren(); ++i) list.GetChild(i)->SetClass("selected", std::size_t(i) == setup_.selected);
     text(element("host-scenario-name"), scenario.name);
@@ -79,13 +85,18 @@ void HostSetupView::refresh() {
     element("host-requirements").SetClass("unavailable", !scenario.error.empty());
     text(element("host-birds"), setup_.birds ? "BIRDS: ON" : "BIRDS: OFF");
     element("host-birds").SetClass("active", setup_.birds);
-    text(element("host-summary"), scenario.name + " / " + std::to_string(setup_.dogCount) + " dogs / Birds " + (setup_.birds ? "on" : "off") + " / " + hourLabel(setup_.startHour));
+    text(element("host-summary"), scenario.name + " / " + std::to_string(dogCount) + " dogs / Birds " + (setup_.birds ? "on" : "off") + " / " + hourLabel(setup_.startHour));
 }
 void HostSetupView::ProcessEvent(Rml::Event& event) {
     if (event.GetId() == Rml::EventId::Change) {
         const auto& id = event.GetTargetElement()->GetId();
         if (id == "setup-port") setup_.port = dynamic_cast<Rml::ElementFormControlInput&>(element("setup-port")).GetValue();
-        else if (id == "host-dogs") setup_.dogCount = std::stoul(dynamic_cast<Rml::ElementFormControlSelect&>(element("host-dogs")).GetValue());
+        else if (id == "host-dogs") {
+            if (setup_.scenarios().at(setup_.selected).authoredDogs) return;
+            const auto count = std::stoul(dynamic_cast<Rml::ElementFormControlSelect&>(element("host-dogs")).GetValue());
+            if (count == setup_.dogCount) return;
+            setup_.dogCount = count;
+        }
         else if (id == "host-start-time") setup_.startHour = std::stod(dynamic_cast<Rml::ElementFormControlSelect&>(element("host-start-time")).GetValue());
         else if (id == "host-day-cycle") setup_.dayLengthSeconds = std::stod(dynamic_cast<Rml::ElementFormControlSelect&>(element("host-day-cycle")).GetValue());
         else return;

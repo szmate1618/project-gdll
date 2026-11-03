@@ -1,5 +1,6 @@
 #include "scenario_density.hpp"
 #include "zombie_scenario.hpp"
+#include "dog_scenario.hpp"
 #include "zombie_navmesh.hpp"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -71,6 +72,37 @@ viewer::ZombieScenarioConfig config(std::size_t count) {
     result.hordes.front().name = "density_horde";
     result.hordes.front().count = count;
     return result;
+}
+
+void dogPopulation() {
+    const Files files;
+    const auto path = files.png(2,2,1,{0,255,0,0});
+    const auto scene = terrain(); const viewer::CollisionWorld world(scene);
+    auto settings = config(10);
+    const auto zombiesBefore = viewer::generateZombieScenario(world,scene,nullptr,settings).placements;
+    settings.dogPacks.push_back({"yards",50,std::nullopt,path,100.f});
+    settings.dogPacks.push_back({"south",20,viewer::ZombieHordeConfig::Rectangle{-60,10,-10,50},{},0.f});
+    const auto dogs = viewer::generateDogScenario(world,scene,settings);
+    require(dogs.size() == 70 && dogs == viewer::generateDogScenario(world,scene,settings),
+            "Dog packs must generate the exact combined count and replay their own seeded random stream");
+    require(zombiesBefore == viewer::generateZombieScenario(world,scene,nullptr,settings).placements,
+            "Adding or generating dog packs must never change seeded zombie placement");
+    for (std::size_t i = 0; i < dogs.size(); ++i) {
+        const auto p = glm::vec3(dogs[i][3]);
+        require(p.y == 5,"Scenario dogs must be placed on the rendered ground");
+        if (i < 50) require(p.x >= 0 && p.x <= 100 && p.z >= -100 && p.z <= 0,
+                            "Dog density images must cover map bounds with north at the top and exclude black pixels");
+        else require(p.x >= -60 && p.x <= -10 && p.z >= 10 && p.z <= 50,
+                     "Each dog pack must preserve its own spawn bounds");
+        for (std::size_t j = 0; j < i; ++j)
+            require(glm::distance(glm::vec2(p.x,p.z),glm::vec2(dogs[j][3].x,dogs[j][3].z)) >= .6f,
+                    "Dogs must not overlap across scenario packs");
+    }
+    settings.hordes.clear();
+    require(settings.count() == 0 && viewer::generateDogScenario(world,scene,settings) == dogs,
+            "Dog-only scenarios must retain dog placement without introducing zombie groups");
+    settings.dogPacks.front().spawnDensity = files.directory/"missing-dog-density.png";
+    rejects([&] { viewer::generateDogScenario(world,scene,settings); },"missing-dog-density.png");
 }
 
 void imageMappingAndWeights(const std::filesystem::path& sixteenBit, const std::filesystem::path& supplied) {
@@ -223,6 +255,7 @@ int main(int argc, char** argv) {
         require(argc == 3, "Expected 16-bit fixture and supplied Gray-Scott image paths");
         imageMappingAndWeights(argv[1], argv[2]);
         weightedPopulation();
+        dogPopulation();
         nearbyRepairForBothEndpoints();
         constrainedFailures();
         std::cout << "Density weighting, mapping, nearby spawn/destination repair and constraints passed\n";

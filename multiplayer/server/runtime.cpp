@@ -6,6 +6,7 @@
 #include "session_settings.hpp"
 #include "zombie_navigation.hpp"
 #include "zombie_scenario.hpp"
+#include "dog_scenario.hpp"
 #include <chrono>
 #include <iostream>
 #include <thread>
@@ -20,12 +21,19 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
     auto navmesh = options.map;
     navmesh.replace_extension(".navmesh");
     multiplayer::ZombiePopulationLoader populationLoader;
+    multiplayer::DogPopulationLoader dogPopulationLoader;
     std::optional<viewer::ZombieScenarioConfig::Player> scenarioPlayer;
     if (!serverOptions.scenario.empty()) {
         const auto scenario = viewer::loadZombieScenarioConfig(serverOptions.scenario);
         if (scenario.count() > multiplayer::maxOutdoorZombies)
             throw std::runtime_error("Scenario exceeds the multiplayer zombie limit");
         options.zombieCount = scenario.count();
+        if (!scenario.dogPacks.empty()) {
+            options.dogCount = scenario.dogCount();
+            dogPopulationLoader = [scenario](const auto& source, const auto& collision, const auto& model) {
+                return viewer::loadDogScenario(source,collision,model,scenario);
+            };
+        }
         scenarioPlayer = scenario.player;
         if (!options.spawn && scenario.player)
             options.spawn = glm::vec2(scenario.player->spawn[0], scenario.player->spawn[1]);
@@ -33,7 +41,7 @@ void runServer(ServerOptions serverOptions, const ServerSettings& settings,
             return viewer::loadZombieScenario(source, collision, model, navmesh, scenario, dormant);
         };
     }
-    multiplayer::Scene scene(options, populationLoader, scenarioPlayer);
+    multiplayer::Scene scene(options, populationLoader, scenarioPlayer, SceneRole::Authority, dogPopulationLoader);
     const auto configuration = sessionSettings(options, scene);
     if (shouldStop()) return;
     multiplayer::World world(scene);

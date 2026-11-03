@@ -357,7 +357,7 @@ target_link_libraries(prepare_pigeon_flock PRIVATE viewer_zombies viewer_bird_as
 target_include_directories(prepare_pigeon_flock SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(prepare_pigeon_flock)
 
-add_library(viewer_dogs STATIC src/dog_layer.cpp src/dog_behavior.cpp src/dog_movement.cpp src/dog_steering.cpp src/dog_wandering.cpp src/dog_fetch.cpp src/scent_grid.cpp src/dog_hunting.cpp)
+add_library(viewer_dogs STATIC src/dog_layer.cpp src/dog_behavior.cpp src/dog_movement.cpp src/dog_steering.cpp src/dog_wandering.cpp src/dog_fetch.cpp src/scent_grid.cpp src/dog_hunting.cpp src/dog_scenario.cpp)
 target_link_libraries(viewer_dogs PUBLIC viewer_zombies)
 target_include_directories(viewer_dogs SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
 viewer_warnings(viewer_dogs)
@@ -602,7 +602,7 @@ if(BUILD_TESTING)
     viewer_warnings(test_zombie_scenario)
     add_test(NAME viewer_zombie_scenario COMMAND test_zombie_scenario)
     add_executable(test_scenario_density tests/test_scenario_density.cpp)
-    target_link_libraries(test_scenario_density PRIVATE viewer_zombies)
+    target_link_libraries(test_scenario_density PRIVATE viewer_dogs)
     target_include_directories(test_scenario_density SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")
     viewer_warnings(test_scenario_density)
     add_test(NAME viewer_scenario_density COMMAND test_scenario_density

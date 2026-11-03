@@ -20,6 +20,9 @@ viewer::ZombieScenarioConfig validateScenario(const std::filesystem::path& path,
         for (const auto& density : {group.spawnDensity, group.destinationDensity})
             if (!density.empty() && !std::filesystem::is_regular_file(density))
                 throw std::runtime_error("A scenario placement image is missing: " + density.filename().string());
+    for (const auto& pack : scenario.dogPacks)
+        if (!pack.spawnDensity.empty() && !std::filesystem::is_regular_file(pack.spawnDensity))
+            throw std::runtime_error("A dog placement image is missing: " + pack.spawnDensity.filename().string());
     return scenario;
 }
 }
@@ -44,8 +47,10 @@ HostSetup::HostSetup(const Options& defaults, const std::vector<std::filesystem:
         try {
             const auto config = viewer::loadZombieScenarioConfig(file);
             item.count = config.count(); item.traveling = config.needsNavigation();
+            if (!config.dogPacks.empty()) item.authoredDogs = config.dogCount();
             item.description = std::to_string(config.hordes.size()) + " zombie groups. " +
                 (item.traveling ? "Includes scripted travel." : "No initial scripted travel.");
+            if (item.authoredDogs) item.description += " " + std::to_string(*item.authoredDogs) + " dogs placed by the scenario.";
             validateScenario(file, defaults.map);
         } catch (const std::exception& error) { item.error = error.what(); }
         scenarios_.push_back(std::move(item));
@@ -69,7 +74,10 @@ ServerOptions HostSetup::options() const {
     result.scene.port = static_cast<std::uint16_t>(value); result.scene.birds = birds;
     result.scene.dogCount = dogCount;
     result.scene.dayNight = {startHour, dayLengthSeconds};
-    if (!result.scenario.empty()) validateScenario(result.scenario, result.scene.map);
+    if (!result.scenario.empty()) {
+        const auto scenario = validateScenario(result.scenario, result.scene.map);
+        if (!scenario.dogPacks.empty()) result.scene.dogCount = scenario.dogCount();
+    }
     return result;
 }
 } // namespace multiplayer

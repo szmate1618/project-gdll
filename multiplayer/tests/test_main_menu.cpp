@@ -44,6 +44,7 @@ int main(int argc, char** argv) {
             ("editor-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
         std::filesystem::create_directories(directory / "scenarios");
         std::ofstream(directory / "scenarios/idle.toml") << "[zombies.residents]\ncount = 7\n";
+        std::ofstream(directory / "scenarios/yards.toml") << "version=6\n[dogs.yards]\ncount=75\n";
         std::unique_ptr<multiplayer::CharacterCreation> creation; // Must outlive the borrowed editor binding.
         multiplayer::MenuView menu(ui);
         multiplayer::Options hostDefaults;
@@ -106,6 +107,13 @@ int main(int argc, char** argv) {
         require(menu.hostOptions().scene.dayNight.dayLengthSeconds == 0, "Cycle dropdown must support fixed time");
         menu.pointer(160.f / 960, 240.f / 600); menu.button(0,true,0); menu.button(0,false,0); draw(multiplayer::MenuScreen::Host);
         require(menu.hostOptions().scenario.filename() == "idle.toml", "Scenario selection must reach the server launch options");
+        menu.pointer(160.f / 960, 300.f / 600); menu.button(0,true,0); menu.button(0,false,0); draw(multiplayer::MenuScreen::Host);
+        require(menu.hostOptions().scenario.filename() == "yards.toml" && menu.hostOptions().scene.dogCount == 75,
+                "Selecting an authored dog scenario must display and use its fixed dog population");
+        menu.pointer(740.f / 960,335.f / 600); menu.button(0,true,0); menu.button(0,false,0); draw(multiplayer::MenuScreen::Host);
+        require(menu.hostOptions().scene.dogCount == 75,"The manual dropdown must not override authored dog packs");
+        menu.pointer(160.f / 960, 240.f / 600); menu.button(0,true,0); menu.button(0,false,0); draw(multiplayer::MenuScreen::Host);
+        require(menu.hostOptions().scene.dogCount == 10,"Leaving an authored scenario must restore the manual dog selection");
         key(GLFW_KEY_ESCAPE); draw(multiplayer::MenuScreen::Host);
         require(menu.takeCommand() == multiplayer::MenuCommand::Back, "Host setup Escape must return to the main menu");
         draw();
@@ -255,6 +263,8 @@ int main(int argc, char** argv) {
         menu.draw(multiplayer::MenuScreen::Choose, "", "", 1500, 600);
         require(menu.takeCommand() == multiplayer::MenuCommand::SinglePlayer, "Resized menu hit testing must follow its layout");
         require(glGetError() == GL_NO_ERROR, "Menu/HUD transitions must not introduce GL errors");
+        draw(multiplayer::MenuScreen::Host);
+        menu.pointer(160.f / 960,300.f / 600); menu.button(0,true,0); menu.button(0,false,0); draw(multiplayer::MenuScreen::Host);
         capture("-host-classic", multiplayer::MenuScreen::Host);
         theme(true); capture("-host-modern", multiplayer::MenuScreen::Host);
         std::cout << "Menu themes, roster, named saves, explicit selection, native preview, unsaved guards, retirement and resize passed.\n";

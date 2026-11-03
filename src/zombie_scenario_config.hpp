@@ -11,6 +11,7 @@
 namespace viewer {
 
 inline constexpr std::size_t zombieScenarioMaximumCount = 100000;
+inline constexpr std::size_t dogScenarioMaximumCount = 1000;
 
 enum class ZombieScenarioMovement { idle, travel };
 
@@ -39,13 +40,23 @@ struct ZombieScenarioConfig {
     std::optional<std::uint32_t> seed;
     std::vector<ZombieHordeConfig> hordes;
     std::optional<Player> player;
+    struct DogPack {
+        std::string name;
+        std::size_t count = 0;
+        std::optional<ZombieHordeConfig::Rectangle> spawn;
+        std::filesystem::path spawnDensity;
+        float placementSearchRadius = 100.f;
+    };
+    std::vector<DogPack> dogPacks;
 
     // Validates counts and movement settings, including direct C++ callers.
     std::size_t count() const;
+    std::size_t dogCount() const;
     bool needsNavigation() const;
 };
 
-// Format version 5 (also the default). Explicit version 4 retains uniform
+// Format version 6 (also the default); named dog packs require version 6.
+// Version 5 remains supported. Explicit version 4 retains uniform
 // sampling without nearby adjustment. All locations use world X/Z meters.
 // Throws std::runtime_error with the file path for malformed/unsupported settings.
 ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path);

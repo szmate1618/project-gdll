@@ -255,10 +255,11 @@ def package_assets(root, map_path, output, zombies, *, dogs=None, trees=True, fo
         scenarios.append(assets.add(path).relative_to(root).as_posix())
         with path.open("rb") as stream:
             scenario = tomllib.load(stream)
-        for group in scenario.get("zombies", {}).values():
-            for key in ("spawn_density", "destination_density"):
-                if key in group:
-                    assets.add(assets.reference(path.parent, group[key]))
+        for population in ("zombies", "dogs"):
+            for group in scenario.get(population, {}).values():
+                for key in ("spawn_density", "destination_density"):
+                    if key in group:
+                        assets.add(assets.reference(path.parent, group[key]))
     launch, generated = pack_instructions(map_path.relative_to(root).as_posix(),
                                         zombies.relative_to(root).as_posix() if zombies else None,
                                         vegetation, trees, forests,

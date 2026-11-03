@@ -9,6 +9,7 @@ struct HostScenario {
     std::string name, description, error;
     std::size_t count = 0;
     bool traveling = false;
+    std::optional<std::size_t> authoredDogs{}; // Empty retains the host's ordinary dog-count control.
 };
 
 // A session draft. Selecting an authored scenario never changes its file.

@@ -1,0 +1,53 @@
+{
+  "source_map": "output/godollo.glb",
+  "source_sha256": "1c9efcf7e71beb3c67ca2cfbc77231f5c70de62781faa3bc185ce8617c6e560d",
+  "size_pixels": [
+    600,
+    600
+  ],
+  "bounds_xz_m": [
+    -3001.459229,
+    -3000.734619,
+    2998.529541,
+    2999.251709
+  ],
+  "axes": {
+    "left": "minimum X / west",
+    "right": "maximum X / east",
+    "top": "minimum Z / north",
+    "bottom": "maximum Z / south"
+  },
+  "meters_per_pixel_xz": [
+    9.999981283333334,
+    9.999977213333333
+  ],
+  "alignment": "Same full Model X/Z bounds and orientation as scenario density maps without endpoint rectangles.",
+  "roads": {
+    "file": "roads.png",
+    "geometry": "Published roads_* triangle footprints, including mapped paths/tracks.",
+    "values": "0 background, 255 road",
+    "triangles": 201594
+  },
+  "buildings": {
+    "file": "buildings.png",
+    "geometry": "Filled vertical projection of published low-detail *_roof geometry, retaining roof/footprint holes.",
+    "values": "0 background, 255 building",
+    "count": 9981,
+    "triangles": 85344
+  },
+  "family_house_density": {
+    "file": "family_house_density.png",
+    "houses": 5691,
+    "classification": "Current runtime generateHouseFloorplan eligibility; prefab apartment blocks excluded; one area-centroid source per eligible building.",
+    "sigma_m": 100.0,
+    "kernel": "Gaussian exp(-r^2/(2*sigma^2)); truncated at 3 sigma on each grid axis; no contributions from unrecorded houses outside map bounds.",
+    "normalization": "Linear: 0 means no neighborhood contribution; 255 is the maximum neighborhood house density in this map.",
+    "peak_gaussian_weighted_houses": 67.97073077696224,
+    "footprint_area_weighting": false
+  },
+  "attribution": "Derived from the published Gödöllő map. © OpenStreetMap contributors, ODbL 1.0. See output/ATTRIBUTION.md.",
+  "reproduction": {
+    "extractor": "build/map-density/extract.cpp",
+    "renderer": "build/map-density/render.py"
+  }
+}

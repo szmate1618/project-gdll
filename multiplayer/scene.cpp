@@ -178,7 +178,8 @@ viewer::Model loadSessionMap(const std::filesystem::path& path) {
 }
 }
 Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
-             const std::optional<viewer::ZombieScenarioConfig::Player>& playerSpawn, SceneRole role) :
+             const std::optional<viewer::ZombieScenarioConfig::Player>& playerSpawn, SceneRole role,
+             const DogPopulationLoader& dogPopulationLoader) :
     mapPath(o.map), model(loadSessionMap(o.map)), physics(std::make_shared<viewer::PhysicsWorld>()),
     dayNight(o.dayNight),
     initialWeapons(resourceRoot() / "storage/weapons", resourceRoot() / "inventory.toml", true),
@@ -313,7 +314,9 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
     if (o.dogCount) {
         dogs = role == SceneRole::Replica ? viewer::loadDogLayer(o.dogAssets,
             std::vector<glm::mat4>(o.dogCount,glm::mat4(1)),true) :
+            dogPopulationLoader ? dogPopulationLoader(o.dogAssets,*collision,model) :
             viewer::loadDogLayer(o.dogAssets,*collision,model,spawn,o.dogCount,o.zombieRadius);
+        if (dogs.instances.size() != o.dogCount) throw std::runtime_error("Scenario does not match the requested dog count");
         if (role == SceneRole::Authority)
             viewer::configureDogHunting(dogs,o.map,floorplans->footprints(),
                 zombies.navigation() ? zombies.navigation()->sharedMesh() : nullptr);

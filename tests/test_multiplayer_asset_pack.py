@@ -354,20 +354,21 @@ class MultiplayerAssetPackTests(unittest.TestCase):
             self.assertNotIn("scenarios/example/preview.png", archive.namelist())
 
     def test_scenario_density_references_are_included_and_missing_image_preserves_archive(self):
-        self.write("scenarios/example/scenario.toml", b"version = 5\n[zombies.horde]\ncount = 1\n"
+        self.write("scenarios/example/scenario.toml", b"version = 6\n[zombies.horde]\ncount = 1\n"
                    b"movement = 'travel'\nspawn_density = '../density/gray_scott_corridors.png'\n"
-                   b"destination_density = 'destination.png'\n")
+                   b"destination_density = 'destination.png'\n[dogs.yards]\ncount=10\nspawn_density='../density/houses.png'\n")
         spawn = self.write("scenarios/density/gray_scott_corridors.png", b"spawn density bytes")
         destination = self.write("scenarios/example/destination.png", b"destination density bytes")
+        dogs = self.write("scenarios/density/houses.png", b"dog density bytes")
         self.package()
         previous = self.output.read_bytes()
         with zipfile.ZipFile(self.output) as archive:
             manifest = json.loads(archive.read("asset-pack.json"))
-            for path in (spawn, destination):
+            for path in (spawn, destination, dogs):
                 name = path.relative_to(self.root).as_posix()
                 self.assertEqual(archive.read(name), path.read_bytes())
                 self.assertEqual(manifest["files"][name], self.digest(path))
-        spawn.unlink()
+        dogs.unlink()
         with self.assertRaises(ValueError):
             self.package()
         self.assertEqual(self.output.read_bytes(), previous)

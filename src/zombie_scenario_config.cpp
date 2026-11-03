@@ -80,10 +80,22 @@ std::filesystem::path densityPath(const toml::table& table, const char* key,
     return path.parent_path() / std::filesystem::u8path(*value);
 }
 
+float placementRadius(const toml::table& table, const std::filesystem::path& path,
+                      const std::string& prefix, float defaultRadius) {
+    const auto* setting = table.get("placement_search_radius");
+    if (!setting) return defaultRadius;
+    const auto value = setting->value<double>();
+    if ((!setting->is_integer() && !setting->is_floating_point()) || !value ||
+        !std::isfinite(*value) || *value < 0 || *value > std::numeric_limits<float>::max() / 4.0)
+        invalid(path, prefix + "placement_search_radius must be a finite nonnegative distance in meters");
+    return static_cast<float>(*value);
+}
+
 } // namespace
 
 std::size_t ZombieScenarioConfig::count() const {
-    if (hordes.empty()) throw std::invalid_argument("Zombie scenario requires at least one named horde");
+    if (hordes.empty() && dogPacks.empty()) throw std::invalid_argument("Scenario requires at least one named zombie horde or dog pack");
+    (void)dogCount();
     std::size_t total = 0;
     for (const auto& horde : hordes) {
         if (horde.movement != ZombieScenarioMovement::idle && horde.movement != ZombieScenarioMovement::travel)
@@ -103,6 +115,18 @@ std::size_t ZombieScenarioConfig::count() const {
     return total;
 }
 
+std::size_t ZombieScenarioConfig::dogCount() const {
+    std::size_t total = 0;
+    for (const auto& pack : dogPacks) {
+        if (!pack.count || pack.count > dogScenarioMaximumCount || pack.count > dogScenarioMaximumCount-total)
+            throw std::invalid_argument("Dog pack '" + pack.name + "': each count and the scenario dog total must be between 1 and 1000");
+        if (!std::isfinite(pack.placementSearchRadius) || pack.placementSearchRadius < 0)
+            throw std::invalid_argument("Dog pack '" + pack.name + "' placement_search_radius must be finite and nonnegative");
+        total += pack.count;
+    }
+    return total;
+}
+
 bool ZombieScenarioConfig::needsNavigation() const {
     return std::any_of(hordes.begin(), hordes.end(), [](const ZombieHordeConfig& horde) {
         return horde.movement == ZombieScenarioMovement::travel;
@@ -116,18 +140,25 @@ ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path)
     } catch (const toml::parse_error& error) {
         invalid(path, std::string("invalid scenario TOML: ") + error.what());
     }
-    checkKeys(document, {"version", "seed", "zombies", "player"}, path);
-    std::int64_t version = 5;
+    checkKeys(document, {"version", "seed", "zombies", "dogs", "player"}, path);
+    std::int64_t version = 6;
     if (document.contains("version")) {
         version = requiredInteger(document.get("version"), path, "version");
         if (version == 3)
             invalid(path, "scenario version 3 requires migration: set version = 4 and add movement = 'travel' "
                 "to each zombie group to preserve its existing routes");
-        if (version != 4 && version != 5)
-            invalid(path, "unsupported scenario version; expected version = 4 or 5 with world X/Z meters only");
+        if (version != 4 && version != 5 && version != 6)
+            invalid(path, "unsupported scenario version; expected version = 4, 5 or 6 with world X/Z meters only");
     }
     const auto* zombies = document["zombies"].as_table();
-    if (!zombies || zombies->empty()) invalid(path, "expected at least one [zombies.HORDE_NAME] table");
+    const auto* dogs = document["dogs"].as_table();
+    if (document.contains("zombies") && (!zombies || zombies->empty()))
+        invalid(path, "expected at least one [zombies.HORDE_NAME] table");
+    if (document.contains("dogs")) {
+        if (version < 6) invalid(path, "dogs require version = 6");
+        if (!dogs || dogs->empty()) invalid(path, "expected at least one [dogs.PACK_NAME] table");
+    }
+    if (!zombies && !dogs) invalid(path, "expected [zombies.HORDE_NAME] or [dogs.PACK_NAME] tables");
 
     ZombieScenarioConfig config;
     if (document.contains("player")) {
@@ -146,7 +177,7 @@ ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path)
             invalid(path, "seed must be between 0 and 4294967295");
         config.seed = static_cast<std::uint32_t>(seed);
     }
-    for (const auto& [name, node] : *zombies) {
+    if (zombies) for (const auto& [name, node] : *zombies) {
         const auto* table = node.as_table();
         if (!table || name.str().empty())
             invalid(path, "expected named [zombies.HORDE_NAME] tables; migrate old flat zombie settings to version 4");
@@ -174,15 +205,24 @@ ZombieScenarioConfig loadZombieScenarioConfig(const std::filesystem::path& path)
         horde.destination = rectangle(*table, "destination", path, prefix);
         horde.spawnDensity = densityPath(*table, "spawn_density", path, prefix);
         horde.destinationDensity = densityPath(*table, "destination_density", path, prefix);
-        if (version == 4) horde.placementSearchRadius = 0;
-        if (const auto* setting = table->get("placement_search_radius")) {
-            const auto value = setting->value<double>();
-            if ((!setting->is_integer() && !setting->is_floating_point()) || !value ||
-                !std::isfinite(*value) || *value < 0 || *value > std::numeric_limits<float>::max() / 4.0)
-                invalid(path, prefix + "placement_search_radius must be a finite nonnegative distance in meters");
-            horde.placementSearchRadius = static_cast<float>(*value);
-        }
+        horde.placementSearchRadius = placementRadius(*table,path,prefix,version == 4 ? 0.f : 100.f);
         config.hordes.push_back(std::move(horde));
+    }
+    if (dogs) for (const auto& [name,node] : *dogs) {
+        const auto* table = node.as_table();
+        if (!table || name.str().empty()) invalid(path,"expected named [dogs.PACK_NAME] tables");
+        const auto prefix = "dogs." + std::string(name.str()) + ".";
+        checkKeys(*table,{"count","spawn","spawn_density","placement_search_radius"},path,prefix);
+        ZombieScenarioConfig::DogPack pack;
+        pack.name = name.str();
+        const auto count = requiredInteger(table->get("count"),path,prefix+"count");
+        if (count < 1 || static_cast<std::uint64_t>(count) > dogScenarioMaximumCount)
+            invalid(path,prefix+"count must be between 1 and 1000");
+        pack.count = static_cast<std::size_t>(count);
+        pack.spawn = rectangle(*table,"spawn",path,prefix);
+        pack.spawnDensity = densityPath(*table,"spawn_density",path,prefix);
+        pack.placementSearchRadius = placementRadius(*table,path,prefix,100.f);
+        config.dogPacks.push_back(std::move(pack));
     }
     try { (void)config.count(); }
     catch (const std::invalid_argument& error) { invalid(path, error.what()); }

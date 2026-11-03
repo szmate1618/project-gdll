@@ -49,6 +49,7 @@
 #include "zombie_layer.hpp"
 #include "zombie_navigation.hpp"
 #include "zombie_scenario.hpp"
+#include "dog_scenario.hpp"
 #include "zombie_door_collision.hpp"
 #include "zombie_park.hpp"
 #include "simulation_clock.hpp"
@@ -370,8 +371,6 @@ Options parseOptions(int argc, char** argv, const std::optional<viewer::Graphics
         throw std::runtime_error("Use bird options or --no-birds, not both");
     if (options.birds.flockCount * options.birds.birdsPerFlock > 65536)
         throw std::runtime_error("Bird population must not exceed 65536");
-    if (options.noZombies && !options.scenario.empty())
-        throw std::runtime_error("--scenario requires zombies; omit --no-zombies");
     if (options.zombieView && options.fps)
         throw std::runtime_error("--zombie-view uses a free-fly overview; omit --fps/--spawn");
     if (options.night && options.explicitDayNight)
@@ -454,7 +453,7 @@ void printHelp() {
               << "  --zombies PATH      Load individual animated GLB/glTF files from PATH\n"
               << "  --fixed-step        Advance simulation by 1/60 s per frame (benchmark)\n"
               << "  --full-scenario-movement  Disable distant traveler approximations\n"
-              << "  --scenario FILE     Load idle/travelling zombie groups from TOML\n"
+              << "  --scenario FILE     Load zombie groups and density-placed dog packs from TOML\n"
               << "  --zombie-count N    Number of zombies (default 300 in palace gardens, otherwise 1000)\n"
               << "  --zombie-radius M   Use radial placement near spawn/map center (default 100 m)\n"
               << "  --zombie-view       Start with the camera framing the crowd\n"
@@ -1434,8 +1433,13 @@ int run(const Options& options) {
         std::cout << "Doodads: forest-only cells; " << doodadState->changes().size()
                   << " saved moves; " << doodadSave << '\n';
     }
+    std::optional<viewer::ZombieScenarioConfig> scenario;
+    if (!options.scenario.empty()) scenario = viewer::loadZombieScenarioConfig(options.scenario);
+    if (scenario && options.noZombies && scenario->count())
+        throw std::runtime_error("This scenario contains zombies; omit --no-zombies");
     viewer::DogLayer dogs;
-    if (options.dogCount) {
+    if (scenario && !scenario->dogPacks.empty()) dogs = viewer::loadDogScenario(options.dogs,collision,model,*scenario);
+    else if (options.dogCount) {
         const auto center = options.spawn.value_or(glm::vec2((model.boundsMin.x+model.boundsMax.x)*.5f,
             (model.boundsMin.z+model.boundsMax.z)*.5f));
         dogs = viewer::loadDogLayer(options.dogs, collision, model, center, options.dogCount, 100);
@@ -1448,15 +1452,17 @@ int run(const Options& options) {
     navmesh.replace_extension(".navmesh");
     const auto extent = model.boundsMax - model.boundsMin;
     const bool townSizedTerrain = collisionStats.terrainTriangles != 0 && extent.x >= 100 && extent.z >= 100;
-    if (!options.scenario.empty()) {
-        const auto scenario = viewer::loadZombieScenarioConfig(options.scenario);
-        scenarioPlayer = scenario.player;
-        const auto path = options.zombies.empty() ? std::filesystem::path(VIEWER_ZOMBIE_ASSETS) : options.zombies;
-        zombies = viewer::loadZombieScenario(path, collision, model, navmesh, scenario, interiorReserve);
-        if (interiorReserve) interiorZombies = std::make_unique<viewer::InteriorZombies>(scenario.count(), interiorReserve);
-        if (options.fullScenarioMovement) zombies->setDistantScenarioTravelEnabled(false);
-        std::cout << "Scenario: " << options.scenario << "; " << zombies->instances.size()
-                  << " zombies; " << (scenario.needsNavigation() ? "travel routes preplanned" : "initially idle") << '\n';
+    if (scenario) {
+        scenarioPlayer = scenario->player;
+        if (scenario->count()) {
+            const auto path = options.zombies.empty() ? std::filesystem::path(VIEWER_ZOMBIE_ASSETS) : options.zombies;
+            zombies = viewer::loadZombieScenario(path, collision, model, navmesh, *scenario, interiorReserve);
+            if (interiorReserve) interiorZombies = std::make_unique<viewer::InteriorZombies>(scenario->count(), interiorReserve);
+            if (options.fullScenarioMovement) zombies->setDistantScenarioTravelEnabled(false);
+        }
+        std::cout << "Scenario: " << options.scenario << "; " << (zombies ? zombies->instances.size() : 0)
+                  << " zombies; " << dogs.instances.size() << " dogs; "
+                  << (scenario->needsNavigation() ? "travel routes preplanned" : "initially idle") << '\n';
     } else if (!options.noZombies && (options.explicitZombies || townSizedTerrain)) {
         const auto path = options.zombies.empty() ? std::filesystem::path(VIEWER_ZOMBIE_ASSETS) : options.zombies;
         if (options.explicitZombies || viewer::hasZombieModels(path)) {

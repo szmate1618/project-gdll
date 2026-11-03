@@ -131,8 +131,8 @@ The C++ viewer/server do not require PROJ or geographic metadata to load them.
 The seed is optional; omitting it produces a new random layout each load.
 Seeded loads use a stable horde-name order.
 
-The current scenario format is version 5; `version` may be omitted and defaults
-to 5. Explicit version 4 remains supported with its original uniform sampling
+The current scenario format is version 6; `version` may be omitted and defaults
+to 6. Version 5 remains supported unchanged. Explicit version 4 retains its original uniform sampling
 and no nearby placement search. Version 4 rejects the new density/search fields.
 To preserve a version-3 scenario's
 existing movement, set `version = 4` and add `movement = "travel"` to every
@@ -146,7 +146,7 @@ do not project to axis-aligned world rectangles, so this can enlarge the region.
 Remove `coordinates = "wgs84"` after conversion. Python map/asset preparation
 continues to use `pyproj`.
 
-### Density maps and nearby placement (version 5)
+### Density maps and nearby placement (version 5 and later)
 
 Each group optionally accepts `spawn_density`, `destination_density`, and
 `placement_search_radius`:
@@ -206,6 +206,47 @@ the group, endpoint, and density image path when applicable; the population is
 never silently reduced or placed in zero-density pixels. Fixed seeds reproduce
 sampling and repair for unchanged assets. Version 4 skips adjustment and retains
 its original random-number sequence.
+
+### Density-placed dog packs (version 6)
+
+Add named `[dogs.NAME]` tables to a version-6 scenario. Dog-only scenarios may
+omit `[zombies]` entirely; mixed scenarios keep the existing zombie tables.
+For a file such as `scenarios/my-scenario/scenario.toml`:
+
+```toml
+version = 6
+seed = 42
+
+[dogs.neighborhood]
+count = 100
+spawn_density = "../density/family_house_density.png"
+# Optional: spawn = [-1000, -1000, 1000, 1000]
+placement_search_radius = 100
+```
+
+`count` is required and positive. The total across all dog packs must not exceed
+1,000, independently of zombie capacity. `spawn`, `spawn_density`, and
+`placement_search_radius` use the same world coordinates, image orientation,
+grayscale weighting and bounded nearby repair as zombie placement. Omitting
+the image selects uniform placement; omitting bounds uses the complete map.
+Black pixels remain excluded even after repair. Placement uses the established
+conservative upright-body clearance already used for ordinary dog spawns, with
+nonoverlap across dog packs. Insufficient valid space fails loading rather than
+silently reducing the requested count.
+
+Dog packs have no scripted `movement` or destination fields. They start with
+ordinary dog behavior, including scent hunting; every sampled spawn becomes a
+fixed territorial home. Their RNG and occupancy are independent of zombies.
+Adding/removing packs leaves the same seed's zombie placements unchanged.
+
+Authored dog groups set both count and placement, replacing `--dog-count`,
+`--no-dogs` and the manual Host Game count for that scenario. Scenarios without
+dog groups retain those existing controls. Host Game shows the authored dog
+count and disables its manual selector. Standalone and authoritative servers
+generate placements; joining clients receive the effective count and replicate
+the dogs without sampling the density image or running AI. Asset packs include
+referenced dog density images just like zombie density images. Version-4/5 files
+must change to version 6 before adding dog groups.
 
 The tracked `scenarios/density/gray_scott_corridors.png` is the original,
 unmodified user-supplied ChatGPT image. Its solid white frame is removed in

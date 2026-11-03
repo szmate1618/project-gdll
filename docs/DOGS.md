@@ -12,6 +12,11 @@ client (single player/hosting), or dedicated server. The default is zero.
 `--zombie-count 0` in multiplayer. Joining clients adopt the host's dog count
 before loading assets and validating the content fingerprint.
 
+Version-6 scenarios can instead declare density-weighted dog packs with their
+own exact counts and spawn regions. Authored packs override the manual dog
+count; scenarios without packs retain the controls above. See
+[dog scenario settings](ZOMBIE_NAVIGATION_RUNTIME.md#density-placed-dog-packs-version-6).
+
 ```bash
 ./build/godollo_viewer output/godollo.glb --fps --dog-count 1000
 ./build/multiplayer/godollo_client output/godollo.glb --single-player --dog-count 1000

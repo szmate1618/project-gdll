@@ -45,6 +45,12 @@ requirements. Malformed scenarios and missing navigation/placement images show
 an explanation; starting rechecks the files and reports errors without losing the
 draft. Scenario selection never edits the source TOML.
 
+Version-6 scenarios may include named dog packs, optionally using density PNGs.
+Their authored dog count is displayed in the Dogs selector, which becomes
+read-only for that scenario. Dog-only scenarios need no zombie groups; scenarios
+without dog packs keep the manual count. See the
+[dog scenario format](../docs/ZOMBIE_NAVIGATION_RUNTIME.md#density-placed-dog-packs-version-6).
+
 Set **Birds** (flocks and bird attacks), **Starting time**, **Day / night cycle**
 (20-minute day or fixed time), and **UDP port**, then choose **Start hosting**.
 Launch-time bird/clock/port settings initialize the controls; custom launch-time
