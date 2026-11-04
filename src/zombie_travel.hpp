@@ -14,7 +14,12 @@ struct TravelerPlan {
     std::uint64_t worldId = 0;
     glm::vec2 velocity{0};
     float remaining = 0, fallbackSeconds = 0, startHeight = 0;
-    bool distant = false, phased = false;
+    // Distant fallback retains navigation intent for at most 100 ms while the
+    // full physical solver and final mesh guards still run each movement step.
+    glm::vec2 fallbackVelocity{0}, fallbackTarget{0};
+    float fallbackNavigationSeconds = 0;
+    std::uint64_t fallbackPath = 0;
+    bool distant = false, phased = false, fallbackFrameSized = false;
 };
 struct TravelerMovement {
     ZombieMovement movement;

@@ -654,6 +654,27 @@ control runs, reloading the seeded population each time. Each run warms up for
 runtime path requests. Rendering, audio, networking and physics advancement
 are excluded; this is a static-scene zombie update measurement.
 
+For long-session diagnosis, append `--steps 72000 --rounds 1` to measure twenty
+simulation minutes after the one-second warmup. A single round is detailed;
+multiple rounds retain alternating control/detailed runs and final-pose checks.
+Traveler diagnostics separate direct full movement, fallback entry and cooldown
+updates, attribute fallback causes, and distinguish conservative scene rejection
+from an actual blocking contact. Full-solver inclusive time and its coverage
+time overlap the ordinary stage timings. See the
+[twenty-minute fallback investigation](benchmarks/traveler-fallbacks-2026-11-04.txt).
+
+`--warmup-steps N` selects an unmeasured fixed-step warmup (default 60), allowing
+an aged scenario to be timed without profiling its entire history. Optional
+`--profile-block-steps N` alternates unprofiled/profiled blocks inside detailed
+rounds; zero retains the default continuous profiling. A 61-step block avoids
+locking the sample to the 6-step navigation and 16-step fallback cycles. CSV
+`detailed` identifies each frame's actual profiling mode. Navigation steering
+counts are cumulative; difference them over a measurement window. `routes.csv`
+records original traveler starts/goals, and quality CSVs include route status
+and locomotion clocks for progress comparisons.
+The [distant fallback cadence benchmark](benchmarks/traveler-nav-cadence-2026-11-04.txt)
+records an aged control/cached comparison, route progress and collision limits.
+
 Raw CSVs and scene/timer metadata go in the requested output directory. Report
 both control and detailed totals to reveal instrumentation overhead. On x86-64
 with GCC-compatible intrinsics, an invariant counter is calibrated on one CPU;

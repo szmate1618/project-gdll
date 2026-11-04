@@ -7,6 +7,7 @@
 #include "zombie_update_profile.hpp"
 #include "simulation_clock.hpp"
 #include "box_layer.hpp"
+#include "door_layer.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 #include <iostream>
@@ -27,15 +28,17 @@ viewer::Model terrain(float grade=0,float y=0) {
          {500,y+500*grade,500},{500,y+500*grade,-500});
     return model;
 }
-viewer::ZombieLayer traveler(glm::vec3 start,glm::vec3 goal) {
+viewer::navmesh_path::Mesh openMesh() {
     using namespace viewer::navmesh_path;
+    return Mesh({{-500,-500},{500,-500},{500,500},{-500,500}},{{0,4}},{{0,noPolygon},{1,noPolygon},{2,noPolygon},{3,noPolygon}});
+}
+viewer::ZombieLayer traveler(glm::vec3 start,glm::vec3 goal) {
     viewer::ZombieLayer layer;
     layer.assets.emplace_back();layer.instances.emplace_back();
     auto& instance=layer.instances[0];
     instance.transform=instance.restTransform=instance.restRoot=glm::translate(glm::mat4(1),start);
     layer.rebuildSpatialIndex();
-    auto mesh=Mesh({{-500,-500},{500,-500},{500,500},{-500,500}},{{0,4}},{{0,noPolygon},{1,noPolygon},{2,noPolygon},{3,noPolygon}});
-    layer.enableNavigation(std::make_unique<viewer::ZombieNavigation>(std::move(mesh),1));
+    layer.enableNavigation(std::make_unique<viewer::ZombieNavigation>(openMesh(),1));
     layer.setScenarioDestinations({goal});
     return layer;
 }
@@ -134,7 +137,8 @@ void representableCorners() {
     viewer::Model model;
     quad(model,"terrain",{-5000,0,-5000},{-5000,0,5000},{5000,0,5000},{5000,0,-5000});
     const viewer::CollisionWorld world(model);
-    for(bool tinyCorner:{false,true}) for(bool distant:{false,true}) {
+    for(bool tinyCorner:{false,true}) for(bool distant:{false,true}) for(bool forceFallback:{false,true}) {
+        if (forceFallback && !distant) continue;
         // The second corner's Z is just above a representable float. Extending
         // the incoming direction still rounds below its outgoing boundary.
         const double x=tinyCorner?3000.00001:3060.119;
@@ -153,6 +157,7 @@ void representableCorners() {
         viewer::WalkingGroundCache ground;viewer::ContactCandidates contacts;viewer::TravelerPlan plan;
         for(int frame=0;frame<1600 && glm::length(feet-goal)>1e-4f;++frame) {
             crowd.beginStep();
+            if (forceFallback) plan.fallbackSeconds=.25f;
             const auto step=viewer::moveScenarioTraveler(0,feet,dt,world,navigation,crowd,ground,contacts,plan,distant);
             require(navigation.segmentClear(feet,step.movement.feet),"Corner recovery cut across blocked mesh");
             const float tolerance=2*std::numeric_limits<float>::epsilon()*std::max({1.f,std::abs(feet.x),std::abs(feet.z)});
@@ -176,19 +181,136 @@ void obstacleFallback() {
     require(!world.simpleTravelerClear({-3,0,3},{-1,0,3},.3f,1.8f,cache),"Simple trunk sweep missed a crossing");
     require(world.simpleTravelerClear({-3,0,-3},{-2,0,-3},.3f,1.8f,cache),"Clear outdoor segment unnecessarily failed");
     auto layer=traveler({-1,0,0},{10,0,0});layer.setPerceptionEnabled(false);
+    viewer::zombie_profile::Profile profile;
     for(int i=0;i<120;++i) {
-        advance(layer,world);
+        { viewer::zombie_profile::Capture capture(&profile);advance(layer,world); }
         require(layer.instances[0].restRoot[3].x<=-.349f,"Distant traveler crossed a physical wall");
     }
+    using Failure=viewer::zombie_profile::TravelerFailure;
+    using Solver=viewer::zombie_profile::TravelerSolver;
+    require(profile.travelerFailures[std::size_t(Failure::sceneClearance)]>0 &&
+            profile.travelerSolverSteps[std::size_t(Solver::fallback)]==profile.travelerFallbacks,
+            "Wall rejection must identify the scene-clearance fallback and its full solver call");
+    require(profile.travelerSceneRejects[std::size_t(viewer::zombie_profile::TravelerSceneReject::wall)]>0,
+            "Scene-clearance diagnostics must distinguish a physical wall from other conservative rejections");
+    require(profile.travelerSolverSteps[std::size_t(Solver::cooldown)]>profile.travelerFallbacks &&
+            profile.travelerSolverSteps[std::size_t(Solver::direct)]==0,
+            "Fallback cooldown updates must be distinguished from nearby full movement");
+    require(layer.navigation()->stats().steeringCalls<32,"A blocked distant traveler still refreshes navigation every frame");
     const auto physics=std::make_shared<viewer::PhysicsWorld>();viewer::BoxLayer boxes(physics);
     boxes.add({-2,.5f,-3},{.5f,1,.5f});world.setBoxes(&boxes);
     require(!world.simpleTravelerClear({-3,0,-3},{-1,0,-3},.3f,1.8f,cache),"A newly inserted prop was ignored");
+}
+void conservativeSlopeFallback() {
+    constexpr float grade=.2f;
+    const viewer::CollisionWorld world(terrain(grade));
+    auto layer=traveler({-10,-10*grade,-10},{100,100*grade,-10});
+    layer.setPerceptionEnabled(false);
+    viewer::zombie_profile::Profile profile;
+    for (int frame=0;frame<120;++frame) {
+        viewer::zombie_profile::Capture capture(&profile);
+        advance(layer,world);
+    }
+    const auto feet=glm::vec3(layer.instances[0].restRoot[3]);
+    require(std::abs(feet.x-(-10+2.4f))<.002f && std::abs(feet.y-grade*feet.x)<.00005f,
+            "Conservative slope fallback must retain normal speed and rendered-ground support");
+    require(profile.travelerSceneRejects[std::size_t(viewer::zombie_profile::TravelerSceneReject::surface)]>0 &&
+            profile.travelerFailures[std::size_t(viewer::zombie_profile::TravelerFailure::sceneClearance)]>0,
+            "A passable slope must identify conservative surface rejection, not imply an actual collision");
+    require(layer.navigation()->stats().steeringCalls<32,"Physical slope fallback lost the distant navigation cadence");
+}
+void fallbackNavigationInvalidation() {
+    const auto physics=std::make_shared<viewer::PhysicsWorld>();
+    viewer::BoxLayer boxes(physics);boxes.add({0,.5f,5},{.5f,1,.5f});
+    viewer::CollisionWorld world(terrain(.2f));world.setBoxes(&boxes);
+    viewer::ZombieNavigation navigation(openMesh(),1);
+    glm::vec3 feet(0);
+    require(navigation.plan(0,feet,{10,2,0}),"Fallback fixture failed to plan");
+    viewer::ZombieCrowd crowd;crowd.reset(1);crowd.update(0,feet);
+    viewer::WalkingGroundCache ground;viewer::ContactCandidates contacts;viewer::TravelerPlan plan;
+    const auto step=[&] {
+        const auto before=feet;
+        crowd.beginStep(dt);
+        const auto moved=viewer::moveScenarioTraveler(0,feet,dt,world,navigation,crowd,ground,contacts,plan,true);
+        feet=moved.movement.feet;
+        require(glm::length(glm::vec2(feet.x-before.x,feet.z-before.z))<=1.2f*dt+.0001f,
+                "Cached fallback caught up blocked distance");
+        require(navigation.segmentClear(before,feet),"Cached fallback escaped its mesh");
+        navigation.recordMovement(0,before,feet,dt);crowd.update(0,feet);
+    };
+    step();
+    const float boxX=feet.x+.6f;
+    boxes.setPose(0,{boxX,.5f,0},{1,0,0,0});
+    for (int i=0;i<8;++i) step();
+    require(feet.x<=boxX-.55f+.002f,"A moving box was ignored between fallback navigation refreshes");
+    boxes.setPose(0,{0,.5f,5},{1,0,0,0});
+    require(navigation.plan(0,feet,{10,2,0}),"Could not replace fallback path");
+    plan.fallbackSeconds=.25f;step();
+    require(plan.fallbackNavigationSeconds>dt,"Fallback fixture did not retain a sampled command");
+    navigation.reset(0);
+    const auto stopped=feet;step();
+    require(feet==stopped,"Reset navigation retained a stale fallback command");
+    require(navigation.plan(0,feet,feet+glm::vec3(-1,0,0)),"Could not replan a reverse route");
+    step();
+    require(feet.x<stopped.x,"A replacement path failed to invalidate the cached direction");
+    world=viewer::CollisionWorld(terrain(0,-.1f));step();
+    require(std::abs(feet.y+.1f)<.0001f,"Fallback cache survived replacement ground geometry");
+}
+void fallbackDoorPoses() {
+    const auto physics=std::make_shared<viewer::PhysicsWorld>();
+    viewer::DoorPanel panel;
+    panel.hinge={-.5f,0,0};panel.center={0,1,0};panel.halfExtents={.5f,1,.04f};
+    panel.outward={0,0,1};panel.closedTransform=glm::translate(glm::mat4(1),panel.center);
+    viewer::DoorLayer doors({panel},physics);
+    const viewer::CollisionWorld world(terrain(),{},&doors);
+    auto layer=traveler({0,0,.5f},{0,0,-2});layer.setPerceptionEnabled(false);
+    doors.setAngle(0,1.5707963f);advance(layer,world);
+    doors.setAngle(0,0);
+    for (int i=0;i<30;++i) {
+        advance(layer,world);
+        require(layer.instances[0].restRoot[3].z>=.339f,"A closing door was ignored by cached fallback navigation");
+    }
+    doors.setAngle(0,1.5707963f);
+    for (int i=0;i<180;++i) advance(layer,world);
+    require(layer.scenarioFinished(0) && std::abs(layer.instances[0].restRoot[3].z+2)<.0001f,
+            "Reopened doorway failed to release cached fallback movement");
+}
+void fallbackCrowdChanges() {
+    const viewer::CollisionWorld world(terrain());
+    viewer::ZombieNavigation navigation(openMesh(),1);
+    glm::vec3 feet(0);
+    require(navigation.plan(0,feet,{10,0,0}),"Crowd fallback fixture failed to plan");
+    viewer::ZombieCrowd crowd;crowd.reset(2);crowd.update(0,feet);crowd.update(1,{100,0,100});
+    viewer::WalkingGroundCache ground;viewer::ContactCandidates contacts;viewer::TravelerPlan plan;
+    viewer::zombie_profile::Profile profile;
+    const auto step=[&] {
+        const auto before=feet;
+        crowd.beginStep(dt);
+        {
+            viewer::zombie_profile::Capture capture(&profile);
+            feet=viewer::moveScenarioTraveler(0,feet,dt,world,navigation,crowd,ground,contacts,plan,true).movement.feet;
+        }
+        require(glm::length(feet-before)<=1.2f*dt+.0001f,"Releasing a crowd blocker caused a catch-up step");
+        require(navigation.segmentClear(before,feet),"Crowd fallback escaped the mesh");
+        navigation.recordMovement(0,before,feet,dt);crowd.update(0,feet);
+    };
+    step();
+    const auto blocker=feet+glm::vec3(.64f,0,0);crowd.update(1,blocker);
+    for (int i=0;i<30;++i) {
+        step();
+        require(glm::length(feet-blocker)>=.6f-.0001f,"Cached navigation passed through a newly nearby zombie");
+    }
+    require(profile.travelerFailures[std::size_t(viewer::zombie_profile::TravelerFailure::crowdCorrection)]>0 &&
+            navigation.stats().steeringCalls<16,"Crowd fallback retained full-rate navigation");
+    const auto stopped=feet;crowd.update(1,{100,0,100});
+    for (int i=0;i<120;++i) step();
+    require(feet.x>stopped.x+2.3f,"Cached navigation failed to resume after the crowd cleared");
 }
 }
 int main() {
     try {
         viewer::SimulationClock::instance().reset();
-        modesAndGround();profileSeparatesTravelAndPursuit();allPlayersAndTransitions();arrivalAndReplacement();representableCorners();obstacleFallback();
+        modesAndGround();profileSeparatesTravelAndPursuit();allPlayersAndTransitions();arrivalAndReplacement();representableCorners();obstacleFallback();conservativeSlopeFallback();fallbackNavigationInvalidation();fallbackDoorPoses();fallbackCrowdChanges();
         std::cout<<"Scenario traveler tests passed\n";return 0;
     } catch(const std::exception& e) { std::cerr<<e.what()<<'\n';return 1; }
 }

@@ -17,15 +17,26 @@
 
 int main(int argc, char** argv) {
     try {
-        std::size_t activateNearest=0;
-        if (argc>2 && std::string(argv[argc-2])=="--activate-nearest") {
-            activateNearest=std::stoul(argv[argc-1]);
+        std::size_t activateNearest=0,measuredSteps=300,rounds=6,warmupSteps=60,profileBlockSteps=0;
+        while (argc>2) {
+            const std::string option=argv[argc-2];
+            if (option!="--activate-nearest" && option!="--steps" && option!="--rounds" && option!="--warmup-steps" && option!="--profile-block-steps") break;
+            std::size_t used=0;
+            const std::string text=argv[argc-1];
+            const auto value=std::stoul(text,&used);
+            if (used!=text.size() || text.front()=='-' || ((option=="--steps" || option=="--rounds") && !value))
+                throw std::runtime_error("Invalid value for "+option);
+            if (option=="--activate-nearest") activateNearest=value;
+            else if (option=="--steps") measuredSteps=value;
+            else if (option=="--warmup-steps") warmupSteps=value;
+            else if (option=="--profile-block-steps") profileBlockSteps=value;
+            else rounds=value;
             argc-=2;
         }
         const bool collideOverlays=argc>1 && std::string(argv[argc-1])=="--collide-overlays";
         if (collideOverlays) --argc;
         if (argc!=4 && argc!=6 && argc!=7) throw std::runtime_error(
-            "Usage: benchmark_zombie_updates MAP SCENARIO OUTPUT_DIR [SPAWN_X SPAWN_Z [full|optimized]] [--activate-nearest N]");
+            "Usage: benchmark_zombie_updates MAP SCENARIO OUTPUT_DIR [SPAWN_X SPAWN_Z [full|optimized]] [--activate-nearest N] [--steps N] [--rounds N] [--warmup-steps N] [--profile-block-steps N]");
         multiplayer::Options options;
         options.collideTerrainOverlays=collideOverlays;
         options.map=argv[1];
@@ -52,15 +63,26 @@ int main(int argc, char** argv) {
         std::ofstream metadata(output/"metadata.txt");
         metadata<<"map="<<options.map<<"\nscenario="<<argv[2]<<"\npopulation="<<scene.zombies.instances.size()
                 <<"\ntravelers="<<travelers<<"\nbehavior_bytes="<<sizeof(viewer::ZombieBehavior)
+                <<"\ntraveler_plan_bytes="<<sizeof(viewer::TravelerPlan)
                 <<"\nactivate_nearest="<<activateNearest
                 <<"\ntrunks="<<scene.collision->stats().trunks<<"\ntriangles="<<scene.collision->stats().triangles
                 <<"\nseed="<<*config.seed<<"\nspawn_eye="<<scene.spawnEye.x<<','<<scene.spawnEye.y<<','<<scene.spawnEye.z
                 <<"\ncollision_bytes="<<scene.collision->stats().allocatedBytes
                 <<"\ncollide_overlays="<<collideOverlays
-                <<"\ntravel_mode="<<modeName<<"\ndt=1/60\nwarmup_steps=60\nmeasured_steps=300\nruns=6 (3 detailed, 3 control)\n";
+                <<"\ntravel_mode="<<modeName<<"\ndt=1/60\nwarmup_steps="<<warmupSteps<<"\nmeasured_steps="<<measuredSteps
+                <<"\nprofile_block_steps="<<profileBlockSteps
+                <<"\nruns="<<rounds<<" (single round is detailed; otherwise alternating detailed/control)\n";
         viewer::zombie_profile::initializeClock();
         metadata << "seconds_per_tick=" << viewer::zombie_profile::detail::secondsPerTick
                  << "\ntimer=" << viewer::zombie_profile::timerName() << '\n';
+        std::ofstream routes(output/"routes.csv");
+        routes<<std::setprecision(12)<<"id,start_x,start_z,goal_x,goal_z\n";
+        for (std::size_t id=0;id<scene.zombies.instances.size();++id) {
+            if (const auto* goal=scene.zombies.scenarioDestination(id)) {
+                const auto feet=glm::vec3(scene.zombies.instances[id].restRoot[3]);
+                routes<<id<<','<<feet.x<<','<<feet.z<<','<<goal->x<<','<<goal->z<<'\n';
+            }
+        }
         std::vector<viewer::ZombieInstance> reference;
         auto& clock=viewer::SimulationClock::instance();
         const viewer::ZombiePlayer player{scene.spawnEye-glm::vec3(0,1.7f,0),1.7f,1.8f};
@@ -82,30 +104,35 @@ int main(int argc, char** argv) {
             }
         };
         constexpr float dt=1.f/60;
-        for (unsigned run=0;run<6;++run) {
+        for (std::size_t run=0;run<rounds;++run) {
             clock.reset();
             if (run) scene.zombies=population(options.zombieAssets,*scene.collision,scene.model,dormant);
             activate();
-            const bool detailed=run%2 != (run/2)%2;
+            const bool detailed=rounds==1 || run%2 != (run/2)%2;
             std::cout<<"Run "<<run<<" ("<<(detailed?"detailed":"control")<<")\n"<<std::flush;
             std::ofstream rows(output/("run-"+std::to_string(run)+".csv"));
             if (!rows) throw std::runtime_error("Cannot open profile CSV");
             rows<<std::setprecision(12)<<"frame,detailed,cpu_update_ms,gameplay_behavior_ms,scenario_travel_ms,idle,looking,investigating,chasing,attacking,hiding,midnight,house_investigating,chase_starts";
             for (const auto name:viewer::zombie_profile::names) rows<<','<<name<<"_ms,"<<name<<"_calls,"<<name<<"_dropped";
-            rows<<",other_ms,perception_checks,sight_rays,path_requests,validation_reuses,coverage_region_reuses,coverage_region_builds,door_candidates,door_overlaps,crowd_moves,crowd_neighbor_checks,crowd_budget_stops,crowd_empty_sector_skips,walking_region_reuses,simple_traveler_clears,traveler_plans,traveler_fallbacks,traveler_interpolations\n";
+            rows<<",other_ms,perception_checks,sight_rays,path_requests,validation_reuses,coverage_region_reuses,coverage_region_builds,door_candidates,door_overlaps,crowd_moves,crowd_neighbor_checks,crowd_budget_stops,crowd_empty_sector_skips,walking_region_reuses,simple_traveler_clears,traveler_plans,traveler_fallbacks,traveler_interpolations,traveler_full_ms,traveler_full_coverage_ms,navigation_steering_calls,navigation_mesh_rejections";
+            for (const auto name:viewer::zombie_profile::travelerSolverNames) rows<<",traveler_full_"<<name;
+            for (const auto name:viewer::zombie_profile::travelerFailureNames) rows<<",traveler_failure_"<<name;
+            for (const auto name:viewer::zombie_profile::travelerSceneNames) rows<<",traveler_scene_"<<name;
+            rows<<'\n';
             viewer::zombie_profile::Profile aggregate;
-            for (unsigned frame=0;frame<360;++frame) {
+            for (std::size_t frame=0;frame<warmupSteps+measuredSteps;++frame) {
                 clock.advance(dt);
                 viewer::zombie_profile::Profile sample;
-                const bool measured=frame>=60;
+                const bool measured=frame>=warmupSteps;
+                const bool profiled=measured && detailed && (!profileBlockSteps || ((frame-warmupSteps)/profileBlockSteps)%2!=0);
                 const auto begin=std::chrono::steady_clock::now();
                 {
-                    viewer::zombie_profile::Capture capture(measured && detailed?&sample:nullptr);
+                    viewer::zombie_profile::Capture capture(profiled?&sample:nullptr);
                     scene.zombies.updateBehavior(dt,player,*scene.collision,clock.seconds());
                 }
                 const auto ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begin).count();
                 if (!measured) continue;
-                rows<<frame<<','<<detailed<<','<<ms<<','<<sample.behaviorSeconds*1000<<','<<sample.scenarioSeconds*1000;
+                rows<<frame<<','<<profiled<<','<<ms<<','<<sample.behaviorSeconds*1000<<','<<sample.scenarioSeconds*1000;
                 for (const auto count:sample.behaviorStates) rows<<','<<count;
                 rows<<','<<sample.chaseStarts;
                 aggregate.behaviorSeconds+=sample.behaviorSeconds;
@@ -129,7 +156,24 @@ int main(int argc, char** argv) {
                     <<','<<navigation.coverageRegionReuses<<','<<navigation.coverageRegionBuilds
                     <<','<<sample.doorCandidates<<','<<sample.doorOverlaps
                     <<','<<scene.zombies.crowdStats().moves<<','<<scene.zombies.crowdStats().neighborChecks
-                    <<','<<scene.zombies.crowdStats().budgetStops<<','<<scene.zombies.crowdStats().emptySectorSkips<<','<<sample.walkingRegionReuses<<','<<sample.simpleTravelerClears<<','<<sample.travelerPlans<<','<<sample.travelerFallbacks<<','<<sample.travelerInterpolations<<'\n';
+                    <<','<<scene.zombies.crowdStats().budgetStops<<','<<scene.zombies.crowdStats().emptySectorSkips<<','<<sample.walkingRegionReuses<<','<<sample.simpleTravelerClears<<','<<sample.travelerPlans<<','<<sample.travelerFallbacks<<','<<sample.travelerInterpolations
+                    <<','<<sample.travelerFullSeconds*1000<<','<<sample.travelerFullCoverageSeconds*1000
+                    <<','<<navigation.steeringCalls<<','<<navigation.meshRejectedCandidates;
+                for (std::size_t i=0;i<sample.travelerSolverSteps.size();++i) {
+                    rows<<','<<sample.travelerSolverSteps[i];
+                    aggregate.travelerSolverSteps[i]+=sample.travelerSolverSteps[i];
+                }
+                for (std::size_t i=0;i<sample.travelerFailures.size();++i) {
+                    rows<<','<<sample.travelerFailures[i];
+                    aggregate.travelerFailures[i]+=sample.travelerFailures[i];
+                }
+                for (std::size_t i=0;i<sample.travelerSceneRejects.size();++i) {
+                    rows<<','<<sample.travelerSceneRejects[i];
+                    aggregate.travelerSceneRejects[i]+=sample.travelerSceneRejects[i];
+                }
+                rows<<'\n';
+                aggregate.travelerFullSeconds+=sample.travelerFullSeconds;
+                aggregate.travelerFullCoverageSeconds+=sample.travelerFullCoverageSeconds;
                 aggregate.doorCandidates+=sample.doorCandidates;
                 aggregate.doorOverlaps+=sample.doorOverlaps;
                 aggregate.walkingRegionReuses+=sample.walkingRegionReuses;
@@ -164,7 +208,7 @@ int main(int argc, char** argv) {
         // Untimed final quality checks. Keep these after all six timing runs so
         // their additional queries do not warm the measured movement workload.
         std::ofstream quality(output/"quality.csv");
-        quality<<"id,x,y,z,ground_error,blocking_contacts,navmesh_inside\n";
+        quality<<"id,x,y,z,ground_error,blocking_contacts,navmesh_inside,scenario_active,scenario_finished,walk_seconds\n";
         for (std::size_t id=0;id<scene.zombies.instances.size();++id) {
             if (scene.zombies.instances[id].removed) continue;
             const auto feet=glm::vec3(scene.zombies.instances[id].restRoot[3]);
@@ -174,10 +218,16 @@ int main(int argc, char** argv) {
             for (const auto& c:scene.collision->contacts(feet,.3f,1.8f,.002f,.05f))
                 if (c.depth>.0001f && !(c.terrainSupport && c.normal.y>=.70710678f) &&
                     !(c.normal.y>.7f && c.point.y<=feet.y+.0021f)) ++blocking;
+            const bool finished=scene.zombies.scenarioFinished(id);
+            const bool active=scene.zombies.scenarioDestination(id) && !finished;
+            const bool inside=scene.zombies.navigation()->segmentClear(feet,feet);
+            if (active && !inside) throw std::runtime_error("An active traveler escaped navmesh coverage");
             quality<<id<<','<<feet.x<<','<<feet.y<<','<<feet.z<<','<<error<<','<<blocking<<','
-                   <<scene.zombies.navigation()->segmentClear(feet,feet)<<'\n';
+                   <<inside<<','<<active<<','<<finished<<','<<scene.zombies.instances[id].walkSeconds<<'\n';
         }
-        std::cout<<"All six runs finished with identical final poses and no runtime path searches\n";
+        std::cout<<"Finished "<<rounds<<" runs with no runtime path searches";
+        if (rounds>1) std::cout<<"; identical final poses";
+        std::cout<<'\n';
         return 0;
     } catch (const std::exception& e) {
         std::cerr<<e.what()<<'\n';return 1;

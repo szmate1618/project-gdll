@@ -701,7 +701,13 @@ bool CollisionWorld::walkingRegionClear(float feetY,float radius,float skin,floa
 bool CollisionWorld::simpleTravelerClear(glm::vec3 start,glm::vec3 end,float radius,float height,
                                          ContactCandidates& cache) const {
     zombie_profile::Timer timer(zombie_profile::Stage::contacts);
-    if (!finite(start) || !finite(end) || !std::isfinite(radius) || !std::isfinite(height) || radius<=0 || height<2*radius) return false;
+    using Reject=zombie_profile::TravelerSceneReject;
+    const auto reject=[](Reject reason) {
+        if (zombie_profile::activeProfile) ++zombie_profile::activeProfile->travelerSceneRejects[std::size_t(reason)];
+        return false;
+    };
+    if (!finite(start) || !finite(end) || !std::isfinite(radius) || !std::isfinite(height) || radius<=0 || height<2*radius)
+        return reject(Reject::invalid);
     if (impl_->runtime) {
         ContactCandidates runtimeCandidates;
         if (!impl_->runtime->simpleTravelerClear(start, end, radius, height, runtimeCandidates)) return false;
@@ -713,12 +719,14 @@ bool CollisionWorld::simpleTravelerClear(glm::vec3 start,glm::vec3 end,float rad
     region.include(glm::max(start,end)+glm::vec3(reach+wallClearance,height+skin+wallClearance,reach+wallClearance));
     prepareContactCandidates(region.low,region.high,cache);
     // Geometry close to live interactions keeps the existing full solver.
-    if (!cache.doorFree_ || !cache.trianglesComplete_ || !cache.trunksComplete_) return false;
+    if (!cache.doorFree_) return reject(Reject::door);
+    if (!cache.trianglesComplete_) return reject(Reject::triangleCapacity);
+    if (!cache.trunksComplete_) return reject(Reject::trunkCapacity);
     if (impl_->boxes) {
         zombie_profile::Timer propTimer(zombie_profile::Stage::contactProps);
-        if (!impl_->boxes->query(region.low,region.high).empty()) return false;
+        if (!impl_->boxes->query(region.low,region.high).empty()) return reject(Reject::box);
     }
-    if (impl_->vehicles && impl_->vehicles->overlaps(region.low,region.high)) return false;
+    if (impl_->vehicles && impl_->vehicles->overlaps(region.low,region.high)) return reject(Reject::vehicle);
     const glm::dvec2 from(start.x,start.z),to(end.x,end.z);
     const auto pointDistance=[](glm::dvec2 p,glm::dvec2 a,glm::dvec2 b) {
         const auto d=b-a; const double length=glm::dot(d,d);
@@ -748,13 +756,13 @@ bool CollisionWorld::simpleTravelerClear(glm::vec3 start,glm::vec3 end,float rad
             // Steep faces become conservative horizontal wall segments. The
             // third vertex's offset inflates the segment to cover the complete
             // projected triangle; unusual floors/ramps retain full collision.
-            if (std::abs(t.normal.y)>.25f) return false;
+            if (std::abs(t.normal.y)>.25f) return reject(Reject::surface);
             std::array<glm::dvec2,3> v{{{t.a.x,t.a.z},{t.b.x,t.b.z},{t.c.x,t.c.z}}};
             if (glm::dot(v[1]-v[0],v[1]-v[0])<glm::dot(v[2]-v[0],v[2]-v[0])) std::swap(v[1],v[2]);
             if (glm::dot(v[1]-v[0],v[1]-v[0])<glm::dot(v[2]-v[1],v[2]-v[1])) std::swap(v[0],v[2]);
             const double inflation=std::sqrt(pointDistance(v[2],v[0],v[1]));
             const double clearance=reach+(t.wall?wallClearance:0)+inflation+.001;
-            if (segmentDistance(v[0],v[1])<=clearance*clearance) return false;
+            if (segmentDistance(v[0],v[1])<=clearance*clearance) return reject(Reject::wall);
         }
     }
     }
@@ -764,7 +772,7 @@ bool CollisionWorld::simpleTravelerClear(glm::vec3 start,glm::vec3 end,float rad
         const auto& t=impl_->trunks[cache.trunks_[i]];
         if (!t.bounds.intersects(region)) continue;
         const double clearance=reach+t.collider.radius+.001;
-        if (pointDistance({t.collider.base.x,t.collider.base.z},from,to)<=clearance*clearance) return false;
+        if (pointDistance({t.collider.base.x,t.collider.base.z},from,to)<=clearance*clearance) return reject(Reject::trunk);
     }
     }
     if (zombie_profile::activeProfile) ++zombie_profile::activeProfile->simpleTravelerClears;

@@ -1,0 +1,135 @@
+Distant fallback navigation cadence, 2026-11-04
+===============================================
+
+Implementation
+--------------
+Distant travelers retain a navigation velocity and bounded endpoint for up to
+100 ms during physical fallback. The full scene/crowd movement solver, exact
+ground support and actual accepted-step navmesh guard still run every step.
+The ordinary nearby-player and --full-scenario-movement paths remain full rate.
+The 200/160 m multiplayer-aware distance hysteresis is unchanged.
+
+Fallback reuses an already sampled coarse command where valid. Commands expire
+by time, not by physical progress: blocked distance is never caught up later.
+Movement is bounded by 1.2 m/s and the sampled endpoint plane. A close float
+corner/goal can finish only within the current frame's speed budget. Multi-part
+frames retain the complete start-to-final chord guard.
+
+World revisions, external feet changes, route generations, looking, mode changes
+and ordinary-behavior takeover invalidate cached intent. A rejected actual move
+retries a frame-sized navigation sample immediately. Numerical recovery can
+retain frame-sized sampling through the short fallback cooldown; it retries the
+coarse cadence when the normal segment planner runs again. This avoids repeatedly
+trying the same failing long sample every frame. No runtime path searches or
+new behavior states are introduced. Dogs use their existing independent system.
+
+TravelerPlan grows from 56 to 88 bytes on this build: approximately 32 KiB for
+1,000 routes. No cache is allocated for the other dormant population slots.
+
+Benchmark setup
+---------------
+AMD Ryzen 5 7535HS, Linux, Release C++17 (-O3 -DNDEBUG), pinned to CPU 0.
+Scenario: scenarios/gray-scott-corridors/scenario.toml, seed 42.
+Observer X/Z (-700,300), eye Y 6.99757 m. 53,000 authored zombies, including
+1,000 travelers, plus 10,000 dormant interior slots; zero dogs. 155,825 trunks
+and 1,157,182 collision triangles. Static doors/prop poses, no physics advance,
+rendering, audio or networking.
+Map SHA256: 97c1af98601cc01a0351e0ba1eb128330e026f3823481a1ae3ab24c293ea1030
+
+Each aged run advances 68,460 unmeasured steps followed by 3,600 measured steps,
+all exactly 1/60 s: the measured window is approximately minute 19-20 of the
+same seeded scenario. One round alternates 61-step unprofiled/profiled blocks,
+giving 1,830 control and 1,770 detailed samples. The block length rotates relative
+to the 6-step navigation and 16-step fallback cycles. Compilation/tests and other
+benchmarks do not run during timing. Original routes match byte for byte.
+
+The saved control executable uses legacy per-step fallback navigation, with
+internally matching headers/libraries. Its source override is in a flattened
+scratch directory without historical headers. Both its short and entire aged
+final trajectories match the original implementation byte for byte, including
+the earlier twenty-minute investigation. The accepted variant uses current
+production code. This is an approximate distant movement policy; its trajectory
+is not required to equal the control's. Short control/detailed runs within the
+accepted variant remain identical.
+
+Results
+-------
+Mean CPU ms/step unless noted:
+
+                                        Baseline     Accepted     Change
+Unprofiled total update                    4.2496       3.6379     -14.4%
+Unprofiled median update                   4.1693       3.5551     -14.7%
+Unprofiled 95th percentile                 5.2134       4.6581     -10.7%
+Detailed total update                      7.5422       6.9630      -7.7%
+Detailed navmesh coverage                  2.1146       1.3092     -38.1%
+Detailed navigation calls/step            862.95       311.41      -63.9%
+Steering calls/step, all samples          813.28       299.12      -63.2%
+Full physical solver calls/step           790.74       782.32       similar
+
+Physical work is not skipped. Detailed body-movement calls increase from 814.74
+to 876.54 per step, crowd sweeps from 877.53 to 945.33, and contact queries from
+1,747.82 to 1,981.11, including sample-boundary slices and guarded retries.
+Numerical recovery remains full rate where necessary, so aggregate navigation
+calls do not fall to precisely one sixth of the baseline.
+
+The short startup window is essentially unchanged: unprofiled means are 1.0058
+and .9907 ms/step. Fine profiling has substantial overhead; use unprofiled totals
+for overall CPU performance. These headless results do not predict a whole-viewer
+FPS improvement or replay the user's moving observer, ragdolls and GPU load.
+
+Progress and safety
+-------------------
+Among the same 1,000 original travelers, both aged variants complete 66 routes.
+Mean straight-line distance remaining to the original goal decreases from
+2,514.67 to 2,486.86 m. Mean locomotion clock increases from 552.08 to 577.99 s;
+this clock is a progress indicator, not a precise distance when behavior changes.
+Normal perception takes over seven routes in the control and eight in the
+accepted variant, leaving 927 and 926 active routes respectively.
+
+Both have zero active travelers outside the navmesh, no negative ground-support
+errors, and three final world-contact flags (different actors). Maximum positive
+support offsets are .272047 and .271979 m; rounded-foot ledge support can retain
+feet above the surface beneath the center, so this is not unsupported descent.
+
+Crowd quality is approximate: the minimum final traveler/neighbor horizontal
+gap is .599889 m in the control and .597665 m in the accepted variant, for a
+nominal .600 m diameter. One accepted-variant pair overlaps by about 2.3 mm
+(IDs 52521/30086); neither variant has an overlap exceeding 1 cm. This difference
+is recorded rather than claiming collision-identical trajectories. Measurements
+use full-precision binary roots, not the rounded quality CSV coordinates.
+
+Full project build succeeds. Thirteen focused/integration CTest suites pass.
+New regressions cover moving crowd members and boxes, closing/reopening doors,
+route reset/replacement, world replacement, no catch-up speed, and forced
+fallback through float portal corners. Existing nearby-player and comparison-mode
+checks continue to require full-rate navigation.
+
+Rejected candidate
+------------------
+The first candidate also checked the proposed step before physical resolution.
+It reduced steering calls but increased native total time to 4.7993 ms/step and
+coverage to 2.4695 ms/step. That redundant proposal check and repeated long-sample
+retries were rejected. The accepted implementation validates the actual solved
+movement and retains frame-sized sampling during numerical recovery. First-pass
+data remain preserved under cached-short/ and cached-aged/ in the artifact root.
+
+Reproduction and artifacts
+--------------------------
+cmake --build build --target benchmark_zombie_updates -j4
+taskset -c 0 ./build/multiplayer/benchmark_zombie_updates output/godollo.glb \
+  scenarios/gray-scott-corridors/scenario.toml build/benchmarks/traveler-cadence \
+  -700 300 --warmup-steps 68460 --steps 3600 --rounds 1 --profile-block-steps 61
+
+For the control, disable only cachedFallbackStep dispatch in fullStep, retaining
+legacy navigation.follow plus moveZombieBody and its mesh guard. Rebuild that
+control against the same headers as its libraries; do not substitute historical
+headers beside a copied source. Keep the seed, observer, map and timestep fixed.
+
+Raw artifacts: build/benchmarks/traveler-nav-cadence-2026-11-04/
+  baseline-aged/, revised-aged/: accepted comparison, routes, quality and poses
+  baseline-short/, revised-short/: startup/within-variant equivalence checks
+  summary.json, summary-revised.json, quality-revised.json: derived results
+  environment*.json: map/scenario/binary fingerprints and setup
+  control-travel.cpp/.d, control-updates: verified baseline source/dependencies
+  build-control.py, run*.py, quality*.py: local orchestration and analysis
+  *build.log, *tests.log, *runs.log: compilation, verification and run output

@@ -501,9 +501,20 @@ trunks use a swept radius test. Potential door sweeps, nearby live props, unusua
 geometry and overflowing candidate patches trigger the existing full solver.
 Ground support must remain terrain with the existing slope limit. Sharp height
 changes outside the certified endpoint envelope, crowd interference and rejected
-coverage discard the segment and retain full updates for a short cooldown.
+coverage discard the segment and retain full physical collision updates for a
+short cooldown. Distant cooldown movement still refreshes navigation/steering
+at about 10 Hz, retaining a bounded command between refreshes. Every physical
+step checks current scene/crowd contacts, ground support and navmesh coverage.
+A rejected cached command refreshes immediately with a frame-sized sample;
+float portal recovery may temporarily use the ordinary frame cadence.
 World replacement, external feet changes, looking reactions, mode changes and
 ordinary-behavior takeover invalidate pending segments.
+Navigation reset/replacement also invalidates cached fallback commands. Commands
+expire within 100 ms and cannot catch up distance lost to collisions. A close
+representable corner or goal can finish only within the current step's speed
+budget. A frame crossing command boundaries retains the complete chord guard.
+The [fallback cadence benchmark](benchmarks/traveler-nav-cadence-2026-11-04.txt)
+records the aged CPU gain, route progress and remaining collision differences.
 
 This is a distant movement approximation. Steering decisions may differ near
 trees/corners, and a moving or newly spawned prop can enter a segment before

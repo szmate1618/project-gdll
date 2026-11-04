@@ -1,0 +1,107 @@
+Corridor traveler fallback investigation, 2026-11-04
+==================================================
+
+Finding
+-------
+The increasing scenario-travel cost reproduces without dogs or rendering.
+Repeated crowd corrections cause distant travelers to leave reduced movement
+and use the full solver, including navigation/steering, throughout a 0.25-second
+cooldown. Each fallback produces approximately fifteen additional cooldown
+updates. Late in the run, 49 fallback entries/step correspond to 791 full-solver
+calls/step, rather than just 49 expensive calls.
+
+Measured minute means, ms per simulation step unless labeled as counts:
+
+                                      First minute   Last minute
+Total zombie update                         2.5605        7.6932
+Scenario travel                             2.4342        7.4539
+Navmesh coverage                             .1329        2.1438
+Full solver, inclusive                       .8459        5.5111
+Coverage inside full solver                  .0884        1.7830
+Full solver calls/step                    244.8570      790.6469
+Fallback entries/step                      15.1725       49.2922
+Cooldown full updates/step                227.2756      739.3547
+Direct full updates/step                     2.4089        2.0000
+Reduced interpolation slices/step         832.4008      137.9475
+
+83% of the last minute's coverage time occurs inside the full solver. Its
+inclusive time accounts for approximately 91% of the increase in total update
+time. These are nested measurements, not additive stage totals.
+
+Last-minute fallback causes:
+  Crowd correction                     30.557/step, approximately 62.0%
+  Conservative scene clearance         12.486/step, approximately 25.3%
+  Zero requested velocity               4.294/step, approximately  8.7%
+  Intermediate-step navmesh coverage    1.492/step, approximately  3.0%
+  Target ground support                  .461/step, approximately   .9%
+  Intermediate support                  negligible
+  Planned endpoint navmesh coverage     zero
+
+The crowd branch triggers on any change to the proposed X/Z movement, including
+stops and slides. It does not mean every correction requires a new path search;
+the benchmark performs no runtime path searches. It currently invalidates the
+reduced segment and selects full navigation plus collision movement anyway.
+
+Scene rejection is also conservative: 10.743 of its 12.486 events/step reject a
+nonvertical surface, .673 a potential door region, and 1.071 a trunk. Wall and
+candidate-capacity rejections are negligible or zero. This is not evidence of
+12.486 actual blocking collisions. A focused 20% grade (about 11 degrees) slope
+regression reproduces surface rejection while the full solver walks normally
+at 1.2 m/s with exact terrain support.
+
+Suggested next change
+---------------------
+Separate distant navigation/steering cadence from the full physical collision
+solver. Crowd interference should not automatically require recomputing the
+route follower at 60 Hz for the entire cooldown. Keep body/crowd collision,
+ground support and final navmesh guards at their required cadence. Repeated
+immutable-mesh coverage queries from stationary actors are another candidate
+for exact-result reuse. Neither optimization is implemented in this investigation.
+
+Setup and limits
+----------------
+Release C++17, AMD Ryzen 5 7535HS, Linux, pinned to CPU 0. Current source starts
+at commit 59ea04d; unrelated cloth changes in the workspace were preserved.
+Scenario: scenarios/gray-scott-corridors/scenario.toml, seed 42.
+53,000 authored zombies, including 1,000 travelers, plus 10,000 dormant reserved
+interior slots; zero dogs. Observer X/Z (-700,300), eye Y 6.99757 m.
+1,157,182 collision triangles and 155,825 trunks, with doors and static prop poses.
+No physics advancement, networking, audio or rendering. Fixed 1/60 s updates,
+60 warmup steps followed by 72,000 measured steps in one detailed round.
+Tables compare the first and last 3,600-step windows. Compilation and tests did
+not run during the measured long run. Profiling overhead is included.
+
+The published map changed since the previous cache benchmark:
+  SHA256 97c1af98601cc01a0351e0ba1eb128330e026f3823481a1ae3ab24c293ea1030
+The former map was 1c9efcf7e71beb3c67ca2cfbc77231f5c70de62781faa3bc185ce8617c6e560d.
+This investigation reproduces the aging pattern, not the user's exact gameplay
+route, active gameplay crowd or GPU/CPU contention. Its absolute timings are
+not a direct comparison with that capture or the earlier map's benchmarks.
+
+Verification and diagnostics
+----------------------------
+Movement policy is unchanged. New counters separate fallback causes, full
+solver invocation types and scene-clearance rejection types. Fallback entries
+are now counted before calling the solver, including calls whose combined
+movement may subsequently be rejected; previously that rare case was omitted.
+
+A short current-map run matches the saved pre-instrumentation executable's
+final poses byte for byte. Two current-code control/detailed rounds also match.
+Four focused CTest suites pass: traveler, navigation, movement and collision.
+Tests cover wall versus conservative slope rejection, cooldown accounting,
+profiling equivalence, float corners and dynamic geometry. The viewer and
+benchmark targets build successfully. The long run is one detailed round;
+it is not itself an unprofiled-control trajectory comparison.
+
+Reproduction
+------------
+cmake --build build --target benchmark_zombie_updates -j4
+taskset -c 0 ./build/multiplayer/benchmark_zombie_updates output/godollo.glb \
+  scenarios/gray-scott-corridors/scenario.toml build/benchmarks/traveler-long \
+  -700 300 --steps 72000 --rounds 1
+
+Raw data: build/benchmarks/traveler-fallbacks-2026-11-04/
+  long/run-0.csv, long/minute-summary.json, minutes.log: long-run data/windows
+  short/, before-short/: current-map pose comparison and metadata
+  probe/: first-minute diagnostic probe before finer scene classification
+  *.log: builds, tests and benchmark output

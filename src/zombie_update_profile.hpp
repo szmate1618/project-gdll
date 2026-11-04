@@ -27,12 +27,28 @@ inline constexpr std::array<const char*, std::size_t(Stage::count)> names{{
     "path following", "steering trunk lookup", "body movement", "crowd sweep", "locomotion pose", "render notifications", "traveler segment refresh"
 }};
 struct Measurement { double seconds = 0; std::uint64_t calls = 0, dropped = 0; };
+enum class TravelerFailure : std::size_t {
+    zeroVelocity, targetSupport, sceneClearance, targetCoverage, sliceSupport, crowdCorrection, sliceCoverage, count
+};
+inline constexpr std::array<const char*, std::size_t(TravelerFailure::count)> travelerFailureNames{{
+    "zero_velocity", "target_support", "scene_clearance", "target_navmesh", "slice_support", "crowd_correction", "slice_navmesh"
+}};
+enum class TravelerSolver : std::size_t { direct, cooldown, fallback, count };
+inline constexpr std::array<const char*, std::size_t(TravelerSolver::count)> travelerSolverNames{{"direct", "cooldown", "fallback"}};
+enum class TravelerSceneReject : std::size_t { invalid, door, triangleCapacity, trunkCapacity, box, vehicle, surface, wall, trunk, count };
+inline constexpr std::array<const char*, std::size_t(TravelerSceneReject::count)> travelerSceneNames{{
+    "invalid", "door_region", "triangle_capacity", "trunk_capacity", "box", "vehicle", "nonvertical_surface", "wall", "trunk"
+}};
 struct Profile {
     std::array<Measurement, std::size_t(Stage::count)> stages{};
     double seconds = 0;
     std::uint64_t steps = 0;
     std::uint64_t doorCandidates = 0, doorOverlaps = 0, walkingRegionReuses = 0, simpleTravelerClears = 0;
     std::uint64_t travelerPlans = 0, travelerFallbacks = 0, travelerInterpolations = 0;
+    std::array<std::uint64_t, std::size_t(TravelerFailure::count)> travelerFailures{};
+    std::array<std::uint64_t, std::size_t(TravelerSolver::count)> travelerSolverSteps{};
+    std::array<std::uint64_t, std::size_t(TravelerSceneReject::count)> travelerSceneRejects{};
+    double travelerFullSeconds = 0, travelerFullCoverageSeconds = 0;
     // Inclusive phase totals split gameplay pursuit from scenario travel. These
     // overlap the exclusive stages below and must not be added to them.
     double behaviorSeconds = 0, scenarioSeconds = 0;
@@ -67,6 +83,19 @@ struct Profile {
         out << "  traveler detail: " << double(travelerPlans)/steps << " segment refreshes, "
             << double(travelerFallbacks)/steps << " fallbacks, " << double(travelerInterpolations)/steps
             << " smooth steps, " << double(simpleTravelerClears)/steps << " simple clear sweeps/step\n";
+        out << "  traveler full solver/step:";
+        for (std::size_t i=0;i<travelerSolverSteps.size();++i)
+            out << ' ' << travelerSolverNames[i] << ' ' << double(travelerSolverSteps[i])/steps;
+        out << "; inclusive " << travelerFullSeconds*scale << " ms; coverage within full solver "
+            << travelerFullCoverageSeconds*scale << " ms\n";
+        out << "  traveler fallback causes/step:";
+        for (std::size_t i=0;i<travelerFailures.size();++i)
+            out << ' ' << travelerFailureNames[i] << ' ' << double(travelerFailures[i])/steps;
+        out << '\n';
+        out << "  traveler scene rejection causes/step:";
+        for (std::size_t i=0;i<travelerSceneRejects.size();++i)
+            out << ' ' << travelerSceneNames[i] << ' ' << double(travelerSceneRejects[i])/steps;
+        out << '\n';
         out << "  other update work + timer overhead: " << (seconds - measured) * scale << " ms\n";
     }
 };
