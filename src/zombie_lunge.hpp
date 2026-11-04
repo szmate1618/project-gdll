@@ -23,6 +23,7 @@ struct ZombieLunge {
     double nextAttackSeconds = 0;
     std::uint32_t targetPlayer = 0;
     bool animated = false, nextRight = false;
+    bool targetsDoor = false; // A contact-directed swing; player visibility cannot cancel its windup.
     glm::vec3 previousHand{0}; // Last solved physical hand position, world meters.
     bool physicalHandValid = false;
 };

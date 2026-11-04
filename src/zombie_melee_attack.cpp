@@ -54,11 +54,12 @@ bool hasZombieMeleeAttack(const AnimatedModel& asset) {
     return asset.attackLeftClip && asset.attackRightClip && handBone(asset, false) >= 0 && handBone(asset, true) >= 0;
 }
 
-bool beginZombieMeleeAttack(ZombieLunge& cycle, ZombieInstance& instance,
-                           const AnimatedModel& asset, const ZombiePlayer& player, double now) {
-    if (!hasZombieMeleeAttack(asset) || cycle.phase != ZombieLunge::Phase::ready || now < cycle.nextAttackSeconds)
+namespace {
+bool beginMeleeAttack(ZombieLunge& cycle, ZombieInstance& instance,
+                      const AnimatedModel& asset, glm::vec3 target, double now) {
+    if (cycle.phase != ZombieLunge::Phase::ready || now < cycle.nextAttackSeconds || !hasZombieMeleeAttack(asset))
         return false;
-    const auto offset = player.feet - glm::vec3(instance.restRoot[3]);
+    const auto offset = target - glm::vec3(instance.restRoot[3]);
     const auto direction = glm::vec2(offset.x, offset.z);
     if (glm::length(direction) < 1e-5f) return false;
     turnZombieToward(instance, glm::normalize(direction), 2.f);
@@ -72,8 +73,24 @@ bool beginZombieMeleeAttack(ZombieLunge& cycle, ZombieInstance& instance,
     cycle.elapsed = 0;
     cycle.strikeStopped = false;
     cycle.physicalHandValid = false;
-    cycle.targetPlayer = player.id;
+    cycle.targetPlayer = 0;
+    cycle.targetsDoor = false;
     cycle.nextAttackSeconds = now + clip.duration + zombieAttackCooldownSeconds;
+    return true;
+}
+} // namespace
+
+bool beginZombieMeleeAttack(ZombieLunge& cycle, ZombieInstance& instance,
+                           const AnimatedModel& asset, const ZombiePlayer& player, double now) {
+    if (!beginMeleeAttack(cycle, instance, asset, player.feet, now)) return false;
+    cycle.targetPlayer = player.id;
+    return true;
+}
+
+bool beginZombieDoorAttack(ZombieLunge& cycle, ZombieInstance& instance,
+                          const AnimatedModel& asset, glm::vec3 contact, double now) {
+    if (!beginMeleeAttack(cycle, instance, asset, contact, now)) return false;
+    cycle.targetsDoor = true;
     return true;
 }
 

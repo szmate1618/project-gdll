@@ -36,14 +36,18 @@ auto key(const Contact& c) {
                            c.point.x, c.point.y, c.point.z, c.terrain);
 }
 
-std::optional<Contact> blockingContact(glm::vec3 feet,const CollisionWorld& world,float padding,bool any,ContactCandidates* cache) {
+std::optional<Contact> blockingContact(glm::vec3 feet,const CollisionWorld& world,float padding,bool any,
+                                       ContactCandidates* cache,std::optional<glm::vec3>* doorContact) {
     struct Selection {
         glm::vec3 feet;
         bool any;
         std::optional<Contact> deepest;
-    } selection{feet,any,std::nullopt};
+        std::optional<glm::vec3>* doorContact;
+    } selection{feet,any,std::nullopt,doorContact};
     world.visitContacts(feet,radius,height,padding,wallClearance,{&selection,[](void* context,const Contact& contact) {
         auto& selected=*static_cast<Selection*>(context);
+        if (contact.door && selected.doorContact && !*selected.doorContact)
+            *selected.doorContact=contact.point;
         if (!blocking(contact,selected.feet)) return true;
         if (!selected.deepest || key(contact)>key(*selected.deepest)) selected.deepest=contact;
         return !selected.any;
@@ -51,11 +55,13 @@ std::optional<Contact> blockingContact(glm::vec3 feet,const CollisionWorld& worl
     return selection.deepest;
 }
 
-bool clear(glm::vec3 feet,const CollisionWorld& world,float padding=0,ContactCandidates* cache=nullptr) {
-    return !blockingContact(feet,world,padding,true,cache);
+bool clear(glm::vec3 feet,const CollisionWorld& world,float padding=0,ContactCandidates* cache=nullptr,
+           std::optional<glm::vec3>* doorContact=nullptr) {
+    return !blockingContact(feet,world,padding,true,cache,doorContact);
 }
 
-bool support(glm::vec3& feet, const CollisionWorld& world, float ceiling, WalkingGroundCache* cache,ContactCandidates* contacts) {
+bool support(glm::vec3& feet, const CollisionWorld& world, float ceiling, WalkingGroundCache* cache,
+             ContactCandidates* contacts,std::optional<glm::vec3>* doorContact) {
     const auto hit = world.walkingGroundAt(feet.x, feet.z,
         std::numeric_limits<float>::lowest(), ceiling, cache);
     if (!hit || hit->normal.y < minNormalY) return false;
@@ -65,19 +71,20 @@ bool support(glm::vec3& feet, const CollisionWorld& world, float ceiling, Walkin
     // Keep rounded-foot edge support until the entire capsule can descend.
     // Dropping to the ground under its center too early reenters the ledge.
     const bool descending=supported.y<feet.y;
-    if (descending && !clear(supported,world,skin,contacts)) return false;
+    if (descending && !clear(supported,world,skin,contacts,doorContact)) return false;
     feet=supported;
     // The identical padded contact query has already proved these feet clear.
     // No world/prop/crowd mutation occurs before resolve consumes this result.
     return descending;
 }
 
-glm::vec3 resolve(glm::vec3 start, glm::vec3 desired, const CollisionWorld& world, WalkingGroundCache* cache,ContactCandidates* contacts) {
+glm::vec3 resolve(glm::vec3 start, glm::vec3 desired, const CollisionWorld& world, WalkingGroundCache* cache,
+                  ContactCandidates* contacts,std::optional<glm::vec3>* doorContact) {
     auto feet = desired;
     const float allowance = horizontalDistance(start, desired);
     for (int iteration = 0; iteration < resolutionIterations; ++iteration) {
-        if (support(feet,world,start.y+stepHeight,cache,contacts)) return feet;
-        const auto deepest=blockingContact(feet,world,skin,false,contacts);
+        if (support(feet,world,start.y+stepHeight,cache,contacts,doorContact)) return feet;
+        const auto deepest=blockingContact(feet,world,skin,false,contacts,doorContact);
         if (!deepest) return feet;
         const glm::vec2 normal(deepest->normal.x, deepest->normal.z);
         const float squared = glm::dot(normal, normal);
@@ -95,8 +102,8 @@ glm::vec3 resolve(glm::vec3 start, glm::vec3 desired, const CollisionWorld& worl
             feet.z = start.z + (feet.z - start.z) * scale;
         }
     }
-    support(feet, world, start.y + stepHeight, cache,contacts);
-    return clear(feet, world,0,contacts) ? feet : start;
+    support(feet, world, start.y + stepHeight, cache,contacts,doorContact);
+    return clear(feet, world,0,contacts,doorContact) ? feet : start;
 }
 }
 
@@ -146,7 +153,7 @@ ZombieMovement moveZombieBody(glm::vec3 start, glm::vec3 desired, const Collisio
     for (int segment = 0; segment < maxSegments && remaining > 1e-5f; ++segment) {
         const float step = std::min(remaining, maxSegment);
         auto proposed = result.feet + glm::vec3(direction.x * step, 0, direction.y * step);
-        auto accepted = resolve(result.feet, proposed, world, groundCache,contactCache);
+        auto accepted = resolve(result.feet, proposed, world, groundCache,contactCache,&result.doorContact);
         if (horizontalDistance(accepted, proposed) > tolerance) {
             const CharacterStepConfig config{radius, height, stepHeight, minNormalY, skin, wallClearance};
             if (const auto stepped = tryCharacterStep(result.feet, proposed, world, config)) {
@@ -161,11 +168,11 @@ ZombieMovement moveZombieBody(glm::vec3 start, glm::vec3 desired, const Collisio
             accepted = crowd->constrainFrom(id, result.feet, accepted, crowdChecks);
             if (accepted.x != sceneAccepted.x || accepted.z != sceneAccepted.z) {
                 if (accepted.x == result.feet.x && accepted.z == result.feet.z) accepted.y = result.feet.y;
-                else support(accepted, world, result.feet.y + stepHeight, groundCache,contactCache);
+                else support(accepted, world, result.feet.y + stepHeight, groundCache,contactCache,&result.doorContact);
                 // A crowd slide can change the scene-resolved direction. Reject
                 // it if it enters a wall; another correction could reenter the
                 // crowd. Unchanged candidates already passed the scene check.
-                if (!clear(accepted, world,0,contactCache)) break;
+                if (!clear(accepted, world,0,contactCache,&result.doorContact)) break;
             }
         }
         const float travel = horizontalDistance(result.feet, accepted);

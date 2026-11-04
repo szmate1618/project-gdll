@@ -25,6 +25,7 @@ struct Contact {
     float depth = 0.0f;
     bool terrain = false; // Rendered terrain/roads; not a prop or building floor.
     bool terrainSupport = false; // Terrain support; elevated road edges remain obstacles.
+    bool door = false; // Contact with a live door panel at its current pose.
 };
 
 // Borrowed callback for synchronous contact enumeration. Return false to stop.

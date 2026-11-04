@@ -185,7 +185,7 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
     auto feet = glm::vec3(instance.restRoot[3]);
     const bool eligible = attackEligible(behavior, instance, player, world, now, stats);
     if (behavior.lunge.phase != ZombieLunge::Phase::ready) {
-        if (behavior.lunge.phase == ZombieLunge::Phase::windup && !eligible) {
+        if (behavior.lunge.phase == ZombieLunge::Phase::windup && !behavior.lunge.targetsDoor && !eligible) {
             cancelZombieLunge(behavior.lunge, now, &instance);
         } else {
             stepAttack();
@@ -204,11 +204,18 @@ bool stepBehavior(ZombieBehavior& behavior, ZombieInstance& instance, const Anim
     const float speed = behavior.state == ZombieState::chasing ? runSpeed : walkSpeed;
     const bool houseRoute = houses.prepare(behavior, feet);
     const auto destination = approachDestination(behavior.target, feet, behavior.sight != ZombieSight::none);
-    const bool arrived = houseRoute ? houses.move(behavior, instance, seconds, world, crowd) :
+    std::optional<glm::vec3> doorContact;
+    const bool arrived = houseRoute ? houses.move(behavior, instance, seconds, world, crowd, &doorContact) :
         moveZombieToward(instance, asset, destination, speed, seconds, world, animationSeconds, &crowd, behavior.zombie,
-                         &behavior.groundCache, &behavior.contactCache);
+                         &behavior.groundCache, &behavior.contactCache, &doorContact);
     feet = glm::vec3(instance.restRoot[3]);
-    if (attackEligible(behavior, instance, player, world, now, stats) && closeEnough()) {
+    const bool movingToTarget = behavior.state == ZombieState::chasing || behavior.state == ZombieState::investigating ||
+                               behavior.state == ZombieState::houseInvestigating;
+    if (movingToTarget && doorContact && beginZombieDoorAttack(behavior.lunge, instance, asset, *doorContact, now)) {
+        // Retain the movement state and house route. After recovery/cooldown,
+        // another ordinary move either encounters the panel again or passes it.
+        stopZombieLocomotion(instance);
+    } else if (attackEligible(behavior, instance, player, world, now, stats) && closeEnough()) {
         changeState(behavior, ZombieState::attacking, now);
         beginAttack();
     } else if (arrived && (houseRoute || behavior.sight != ZombieSight::none ||
@@ -512,7 +519,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
             for (const auto& p : *players) {
                 const auto d = p.feet - glm::vec3(instance.restRoot[3]);
                 if (glm::dot(d, d) < nearest) { nearest = glm::dot(d, d); rangePlayer = p; }
-                const auto target = behavior.lunge.phase == ZombieLunge::Phase::ready ?
+                const auto target = behavior.lunge.phase == ZombieLunge::Phase::ready || behavior.lunge.targetsDoor ?
                     behavior.targetPlayer : behavior.lunge.targetPlayer;
                 if (p.id == target) { selectedPlayer = p; retained = true; }
             }
@@ -521,7 +528,7 @@ void ZombieLayer::updateBehaviorImpl(float seconds, const ZombiePlayer& player,
                 behavior.perception = {};
                 behavior.attackClock = {};
                 behavior.sight = ZombieSight::none;
-                if (behavior.lunge.phase == ZombieLunge::Phase::windup)
+                if (behavior.lunge.phase == ZombieLunge::Phase::windup && !behavior.lunge.targetsDoor)
                     cancelZombieLunge(behavior.lunge, now, &instance);
             }
         }

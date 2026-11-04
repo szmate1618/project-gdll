@@ -1187,7 +1187,7 @@ if(BUILD_TESTING AND GD_VIEWER)
     add_dependencies(test_door_walking building_entrance_fixture)
     add_test(NAME viewer_building_entrances COMMAND test_door_walking --entrances-fixture "${ENTRANCE_FIXTURE}")
 
-    foreach(suite animated_model zombie_lod zombie_placement zombie_chase zombie_crowd zombie_movement zombie_motion zombie_door_collision zombie_doorway zombie_interior_behavior zombie_house_investigation zombie_attack zombie_lunge zombie_melee_attack zombie_active_attack zombie_behavior zombie_shooting zombie_hit_capsules zombie_reported_hits zombie_damage zombie_dismemberment zombie_spatial_index zombie_perception zombie_ragdoll zombie_transition zombie_render_updates player_vitals)
+    foreach(suite animated_model zombie_lod zombie_placement zombie_chase zombie_crowd zombie_movement zombie_motion zombie_door_collision zombie_doorway zombie_door_attack zombie_interior_behavior zombie_house_investigation zombie_attack zombie_lunge zombie_melee_attack zombie_active_attack zombie_behavior zombie_shooting zombie_hit_capsules zombie_reported_hits zombie_damage zombie_dismemberment zombie_spatial_index zombie_perception zombie_ragdoll zombie_transition zombie_render_updates player_vitals)
         add_executable(test_${suite} tests/test_${suite}.cpp)
         target_link_libraries(test_${suite} PRIVATE viewer_zombies)
         target_include_directories(test_${suite} SYSTEM PRIVATE "${tinygltf_SOURCE_DIR}")

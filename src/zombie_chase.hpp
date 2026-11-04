@@ -1,6 +1,7 @@
 #pragma once
 
 #include "animated_model.hpp"
+#include <optional>
 
 namespace viewer {
 
@@ -33,10 +34,12 @@ void applyZombieLocomotion(ZombieInstance& instance, glm::vec2 desiredVelocity,
 // Small contact slides retain facing. Locomotion turns at most 180 degrees/s,
 // with a short gait hold/debounce while collision progress is intermittent.
 // Optional caller-owned caches retain only static candidates across moves.
+// Optional output receives an actual door contact from this movement only.
 bool moveZombieToward(ZombieInstance& instance, const AnimatedModel& asset,
                       glm::vec3 target, float speed, float seconds,
                       const CollisionWorld& world, double animationSeconds,
                       ZombieCrowd* crowd = nullptr, std::size_t id = 0,
-                      WalkingGroundCache* groundCache = nullptr, ContactCandidates* contactCache = nullptr);
+                      WalkingGroundCache* groundCache = nullptr, ContactCandidates* contactCache = nullptr,
+                      std::optional<glm::vec3>* doorContact = nullptr);
 
 } // namespace viewer

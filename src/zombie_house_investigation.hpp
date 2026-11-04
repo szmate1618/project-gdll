@@ -2,6 +2,7 @@
 
 #include "house_navigation.hpp"
 #include "zombie_behavior.hpp"
+#include <optional>
 #include <unordered_map>
 
 namespace viewer {
@@ -17,8 +18,10 @@ public:
     void setFloorplans(const FloorplanLayer* floorplans);
     void updatePlayers(const ZombiePlayer& player, const std::vector<ZombiePlayer>* players);
     bool prepare(ZombieBehavior& behavior, glm::vec3 feet);
+    // Optional output receives a door contact from this movement only.
     bool move(ZombieBehavior& behavior, ZombieInstance& instance, float seconds,
-              const CollisionWorld& world, ZombieCrowd& crowd);
+              const CollisionWorld& world, ZombieCrowd& crowd,
+              std::optional<glm::vec3>* doorContact = nullptr);
     void erase(std::size_t id) { routes_.erase(id); }
     void clear() { routes_.clear(); }
 private:

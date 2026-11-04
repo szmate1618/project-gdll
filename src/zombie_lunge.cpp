@@ -160,6 +160,7 @@ bool beginZombieLunge(ZombieLunge& lunge, ZombieInstance& instance,
     if (!std::isfinite(length) || length < 1e-5f) return false;
     lunge.origin = feet;
     lunge.animated = false;
+    lunge.targetsDoor = false;
     lunge.direction = {offset.x / length, 0, offset.y / length};
     lunge.targetPlayer = player.id;
     lunge.elapsed = lunge.forwardTravel = 0;
@@ -173,6 +174,7 @@ bool beginZombieLunge(ZombieLunge& lunge, ZombieInstance& instance,
 
 void cancelZombieLunge(ZombieLunge& lunge, double now, ZombieInstance* instance) {
     lunge.phase = ZombieLunge::Phase::ready;
+    lunge.targetsDoor = false;
     if (instance) instance->attackClip = 0;
     lunge.nextAttackSeconds = std::max(lunge.nextAttackSeconds, now + zombieAttackCooldownSeconds);
 }

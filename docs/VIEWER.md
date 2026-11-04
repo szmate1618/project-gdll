@@ -1321,7 +1321,19 @@ The check stops at the first clear point, using at most three rays against
 current walls, doors and props. Eligible zombies approach to **1 m** before
 playing an authored left/right hand attack, keeping their physical root stationary.
 
-Attack eligibility is sampled at **10 Hz**, with stable-ID phases in simulation
+Chasing and investigating zombies (including house investigations) also swing
+at door panels contacted during attempted movement. This prototype reacts to
+any such panel contact, including glancing contacts or successful slides; it
+does not require a complete movement stop. The swing faces the contact point,
+uses the normal alternating hands and cooldown, and retains the pursuit state,
+remembered destination and house route. Door swings finish without requiring
+visibility of a player. Ordinary movement retries afterward, continuing through
+an open passage or swinging again on another contact. Physical hands can push
+and strain the panel through the shared door physics; player injury still
+requires the normal fresh contact and visibility checks. Idle/hiding zombies
+and custom rigs without authored melee clips do not initiate door swings.
+
+Player-attack eligibility is sampled at **10 Hz**, with stable-ID phases in simulation
 time, independently of normal perception and `--no-zombie-staggering`. Entering
 or reentering range checks immediately, then follows those slots; missed slots
 never cause a catch-up burst. Leaving range clears eligibility immediately
@@ -1521,7 +1533,8 @@ those respective zombie obstacles. Pole/guardrail sidecar fingerprint checks
 remain the same as for rendering and player collision.
 
 Direct pursuit does not plan routes around buildings or packed crowds,
-deliberately operate doors or objects, or collide with the player. Within a
+operate objects, or collide with the player; door contacts use the melee
+prototype described above. Within a
 vehicle physics group, contact can push an unlatched door or movable box. Outside those groups, standing
 zombies retain the original non-dynamic movement and door-blocking behavior.
 The movement module keeps scene constraints, crowd constraints, terrain sampling and transform publication

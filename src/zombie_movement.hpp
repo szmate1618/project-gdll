@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <cstddef>
+#include <optional>
 
 namespace viewer {
 class CollisionWorld;
@@ -12,6 +13,9 @@ class ContactCandidates;
 struct ZombieMovement {
     glm::vec3 feet;
     float travel = 0; // Actual horizontal path length in meters, for animation.
+    // First world-space door contact encountered while resolving this move,
+    // including moves that subsequently slide or step past the panel.
+    std::optional<glm::vec3> doorContact = std::nullopt;
 };
 
 // Local spreading needs 3 m of extra horizontal scene clearance. Query nearby

@@ -161,7 +161,8 @@ void appendDoorContacts(const DoorLayer& doors, glm::vec3 feet, float radius, fl
         for (int i = 0; i < manifold.pointCount; ++i)
             if (points[i].separation < 0) {
                 if (zombie_profile::activeProfile) ++zombie_profile::activeProfile->doorOverlaps;
-                contacts.push_back({normal, door.center + door.rotation * vector(points[i].point), -points[i].separation});
+                contacts.push_back({normal, door.center + door.rotation * vector(points[i].point),
+                                    -points[i].separation, false, false, true});
             }
     }
 }

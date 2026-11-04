@@ -52,7 +52,9 @@ bool ZombieHouseInvestigation::prepare(ZombieBehavior& behavior, glm::vec3 feet)
     return false;
 }
 bool ZombieHouseInvestigation::move(ZombieBehavior& behavior, ZombieInstance& instance, float seconds,
-                                    const CollisionWorld& world, ZombieCrowd& crowd) {
+                                    const CollisionWorld& world, ZombieCrowd& crowd,
+                                    std::optional<glm::vec3>* doorContact) {
+    if (doorContact) doorContact->reset();
     const auto found = routes_.find(behavior.zombie);
     if (found == routes_.end()) { stopZombieLocomotion(instance); return false; }
     auto& route = found->second;
@@ -77,6 +79,7 @@ bool ZombieHouseInvestigation::move(ZombieBehavior& behavior, ZombieInstance& in
         const auto velocity = offset / distance * std::min(speed, distance / seconds);
         const auto movement = moveZombieBody(start, start + glm::vec3(velocity.x, 0, velocity.y) * seconds, world, &crowd, behavior.zombie,
                                             &behavior.groundCache, &behavior.contactCache);
+        if (doorContact) *doorContact = movement.doorContact;
         applyZombieLocomotion(instance, velocity, movement, speed, seconds);
         if (reached(target)) route.next = next + 1;
         return route.next == route.path.points.size();

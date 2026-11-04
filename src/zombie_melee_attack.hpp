@@ -13,6 +13,10 @@ constexpr float zombieHandRadius = .10f; // World meters, on the attacking wrist
 bool hasZombieMeleeAttack(const AnimatedModel& asset);
 bool beginZombieMeleeAttack(ZombieLunge& cycle, ZombieInstance& instance,
                            const AnimatedModel& asset, const ZombiePlayer& player, double now);
+// Snapshot a movement contact point in world meters. Uses the same authored
+// clips/cooldown, without replacing the remembered pursuit/investigation target.
+bool beginZombieDoorAttack(ZombieLunge& cycle, ZombieInstance& instance,
+                          const AnimatedModel& asset, glm::vec3 contact, double now);
 void stepZombieMeleeAttack(ZombieLunge& cycle, ZombieInstance& instance,
                           const AnimatedModel& asset, const CollisionWorld& world, std::size_t zombie,
                           const ZombiePlayer* players, std::size_t playerCount, float seconds, double now,
