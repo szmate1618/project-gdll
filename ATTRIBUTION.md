@@ -58,6 +58,47 @@ vendored source subset is pinned to commit
 complete notice is in [recastnavigation.txt](credits/software/recastnavigation.txt).
 The global navmesh baker and route search are this project's code.
 
+## Gameplay research references
+
+### Mass-dependent object throwing
+
+Background on how throwing performance changes with load:
+
+* Roland van den Tillaar and Gertjan Ettema (2004). **A Force-Velocity
+  Relationship and Coordination Patterns in Overarm Throwing.** *Journal of
+  Sports Science and Medicine*, 3(4), 211–219.
+  [Original paper](https://www.jssm.org/volume03/iss4/cap/jssm-03-211.pdf).
+  The study found decreasing release speed and increasing throwing time as
+  ball mass increased over the tested 0.2–0.8 kg range.
+* Mário C. Marques, Daniel A. Marinho and Roland van den Tillaar (2010).
+  **A Load-Velocity Relationship for Men and Women in Overhead Throwing
+  Performance.** *Journal of Sports Science and Medicine*, 9(3), 524–526.
+  [Publication record and full-text link](https://pubmed.ncbi.nlm.nih.gov/24137102/).
+  This study examined the load–velocity relationship with balls of 0.45–5 kg.
+
+These papers support using a load-dependent release speed. **The following
+equation is this project's gameplay approximation, not an equation or fitted
+model taken from either paper:**
+
+```text
+speedScale(m) = sqrt((0.45 + 3) / (m + 3))
+velocityGain = (14 * aimDirection + [0, 2, 0]) * speedScale(m)
+fullImpulse = limitMagnitude(m * velocityGain, 90)
+addedImpulse = charge * fullImpulse
+```
+
+Mass `m` is in kilograms, velocity in m/s, and impulse in N·s. The 0.45 kg
+reference anchors the existing grenade throw. The 3 kg effective arm/body mass
+and 90 N·s strength ceiling are project tuning choices, not anatomical
+measurements or experimentally fitted parameters. The square-root curve is a
+simple effective-inertia approximation; the ceiling bounds its extrapolation
+for heavy objects. It is not validated human-performance data for 10 kg or
+heavier props. Grip shape, technique and individual strength are not modeled.
+
+The implementation is in [object_throw.cpp](src/object_throw.cpp). It adds an
+impulse without replacing existing body motion. Grenade throws and hinged-door
+shoves retain their existing launch and impulse rules, respectively.
+
 **PROJ**, by Frank Warmerdam, Gerald Evenden and PROJ contributors, converts
 geographic coordinates during Python map/asset preparation through `pyproj`.
 The C++ viewer, server and client use world meter locations and do not depend

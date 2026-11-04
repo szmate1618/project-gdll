@@ -569,6 +569,10 @@ prototype. Dataset acquisition dates differ.
 
 ## Attribution and licensing
 
+Gameplay research citations and the distinction between published findings and
+project-specific models are in
+[Gameplay research references](ATTRIBUTION.md#gameplay-research-references).
+
 Retain [ATTRIBUTION.md](ATTRIBUTION.md) when sharing the scene. It includes
 OpenStreetMap contributor credit and the ODbL link, the required modified
 Copernicus WorldDEM-30 notice, and the modified Copernicus Sentinel data notice.

@@ -406,7 +406,7 @@ add_library(viewer_fps STATIC src/fps_controller.cpp src/player_stance.cpp src/p
 target_link_libraries(viewer_fps PUBLIC viewer_collision viewer_camera viewer_noise)
 viewer_warnings(viewer_fps)
 
-add_library(viewer_interaction STATIC src/door_interaction.cpp src/object_interaction.cpp src/player_interaction.cpp)
+add_library(viewer_interaction STATIC src/door_interaction.cpp src/object_interaction.cpp src/object_throw.cpp src/player_interaction.cpp)
 target_link_libraries(viewer_interaction PUBLIC viewer_camera viewer_collision viewer_physics)
 viewer_warnings(viewer_interaction)
 

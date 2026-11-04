@@ -1,5 +1,6 @@
 #include "player_interaction.hpp"
 #include "collision_world.hpp"
+#include "object_throw.hpp"
 #include "weapon_config.hpp"
 #include "throw_charge.hpp"
 
@@ -20,30 +21,30 @@ void PlayerInteraction::release(Hand hand, const Camera& camera, DoorLayer& door
     if (!std::isfinite(duration) || duration < 0) { cancel(); return; }
     const bool held = grabbing();
     if (chargingGrip_ && !held) { cancel(); return; }
-    // A tap drops a held object; empty-handed taps give a small shove. Full
-    // charge matches a standard 450 g grenade's launch momentum, independent
-    // of the target's mass. Applying an impulse preserves its existing momentum.
+    // A tap drops a held object; empty-handed taps give a small shove.
+    // Free props use a mass-dependent throw; hinged doors retain their shove.
     const float charge = throwChargePower(duration);
     const float strength = held ? charge : std::max(.2f, charge);
-    const auto impulse = (camera.direction() * GrenadeConfig{}.throwSpeed + glm::vec3(0, 2, 0)) * (.45f * strength);
+    const auto doorImpulse = (camera.direction() * GrenadeConfig{}.throwSpeed + glm::vec3(0, 2, 0)) * (.45f * strength);
     if (const auto prop = objects_.heldProp()) {
         const auto center = prop->center();
         objects_.cancel(); // Remove the constraint before applying momentum.
-        if (glm::distance(center, camera.position()) <= 5) prop->applyImpulse(impulse, center);
+        if (glm::distance(center, camera.position()) <= 5)
+            prop->applyImpulse(objectThrowImpulse(camera.direction(), prop->mass(), strength), center);
     } else if (const auto heldDoor = doors_.grabbedDoor()) {
         const auto hit = doors.raycast(camera.position(), camera.direction(), 1.5f);
         doors_.release();
         if (hit && hit->door == *heldDoor && world.lineOfSight(camera.position(), hit->point))
-            doors.applyImpulse(*heldDoor, impulse, hit->point);
+            doors.applyImpulse(*heldDoor, doorImpulse, hit->point);
     } else {
         // Resolve at release, so charging never stores a remote or occluded target.
         const auto prop = raycastPhysicsProp(boxes.physicsWorld(), camera.position(), camera.direction(),
                                             ObjectInteraction::rayReach(camera.direction()));
         const auto door = doors.raycast(camera.position(), camera.direction(), 1.5f);
         if (door && (!prop || door->distance <= prop->distance)) {
-            if (world.lineOfSight(camera.position(), door->point)) doors.applyImpulse(door->door, impulse, door->point);
+            if (world.lineOfSight(camera.position(), door->point)) doors.applyImpulse(door->door, doorImpulse, door->point);
         } else if (prop && world.lineOfSight(camera.position(), prop->point)) {
-            prop->prop.applyImpulse(impulse, prop->point);
+            prop->prop.applyImpulse(objectThrowImpulse(camera.direction(), prop->prop.mass(), strength), prop->point);
         }
     }
 }

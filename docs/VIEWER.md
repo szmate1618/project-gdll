@@ -2033,14 +2033,18 @@ left held, hold right mouse and release right to throw along the camera's aim.
 Taps up to 0.2 seconds drop the object; longer holds add momentum proportional
 to the time held, reaching full strength after two seconds. At two seconds the
 throw happens automatically; continuing to hold cannot throw or push again.
-Full charge
-adds approximately 6.4 N·s, the launch momentum of the default 450 g grenade
-at 14 m/s with its small upward component. Heavy objects receive less speed
-from the same impulse. Existing body momentum is preserved.
+Free props use a mass-dependent throw curve anchored to the default 450 g
+grenade's 14 m/s launch and small upward component. A 10 kg prop gains about
+7.2 m/s forward speed when aimed horizontally at full charge. Heavy props
+receive less speed but more momentum, up to a 90 N·s full-charge ceiling.
+The throw adds an impulse and preserves existing body motion. The curve and
+strength ceiling are game approximations; see
+[the formula and research citations](../ATTRIBUTION.md#mass-dependent-object-throwing).
+Hinged doors keep their existing maximum shove of approximately 6.4 N·s.
 
 You can also right click without grabbing first: release pushes the nearest
 reachable object under the crosshair. A tap gives a small shove; holding right
-charges the same maximum impulse as a throw and pushes automatically at two
+charges the same mass-dependent impulse as a throw and pushes automatically at two
 seconds. Reach and occlusion are checked when the push happens. Charging never
 grabs an object or applies a throw/push impulse before release or the time cap.
 Switching actions or suspending input cancels the charge without throwing.

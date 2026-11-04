@@ -77,10 +77,11 @@ void picking() {
     occluded.camera.setPosition({0, 1, 0}); occluded.camera.look(900, 0);
     require(!occluded.input.press(occluded.camera, occluded.boxes, occluded.world), "A wall must block the grab even when the ray hits a box");
 }
-glm::vec3 throwOrPush(double duration, bool held, float size = .4f, bool cancel = false) {
+glm::vec3 throwOrPush(double duration, bool held, float massKg = 10, bool cancel = false) {
     Fixture f;
-    f.boxes.add({0, 1, 0}, glm::vec3(size));
-    f.camera = cameraAt({0, 1, 0}, size * .5f + 1);
+    viewer::BoxSpawnMotion motion; motion.mass = massKg;
+    f.boxes.add({0, 1, 0}, glm::vec3(.4f), motion);
+    f.camera.setPosition({0, 1, 1.2f}); f.camera.setOrientation(-90, 0);
     viewer::DoorLayer doors({}, f.physics);
     viewer::PlayerInteraction input;
     if (held) {
@@ -107,23 +108,25 @@ void throws() {
     require(glm::distance(partial * 2.f, full) < .001f, "A one-second hold must add half the full-charge momentum");
     require(glm::distance(full, throwOrPush(10, true)) < .001f, "Long holds must saturate");
     require(glm::length(push) > .1f && glm::length(push) < glm::length(chargedPush), "Empty-handed click must shove, and hold must charge a stronger push");
-    require(glm::distance(full, chargedPush) < .001f, "Held and unheld objects must receive the same charged momentum");
-    require(glm::length(throwOrPush(1, true, .4f, true)) < .001f &&
-            glm::length(throwOrPush(1, false, .4f, true)) < .001f, "Cancellation must clear held and empty-handed charges");
-    Fixture light, heavy;
-    light.boxes.add({0, 1, 0}, glm::vec3(.4f)); heavy.boxes.add({0, 1, 0}, glm::vec3(1));
-    const float lightMass = viewer::raycastPhysicsProp(light.physics, {0, 1, 2}, {0, 0, -1}, 2)->prop.mass();
-    const float heavyMass = viewer::raycastPhysicsProp(heavy.physics, {0, 1, 2}, {0, 0, -1}, 2)->prop.mass();
-    require(std::abs(glm::length(full) * lightMass - std::sqrt(6.3f*6.3f + .9f*.9f)) < .01f,
-            "Full charge must match the launch momentum of a 450 g standard grenade");
-    require(glm::distance(full * lightMass, throwOrPush(2, true, 1) * heavyMass) < .01f,
-            "The same charge must give heavier objects less speed with equal momentum");
+    require(glm::distance(full, chargedPush) < .001f, "Held and unheld props of the same mass must receive equal impulses");
+    require(glm::length(throwOrPush(1, true, 10, true)) < .001f &&
+            glm::length(throwOrPush(1, false, 10, true)) < .001f, "Cancellation must clear held and empty-handed charges");
+    const auto light = throwOrPush(2, true, .45f);
+    require(glm::distance(light, {0, 2, -14}) < .001f, "A 450 g prop must retain the standard grenade launch gain");
+    require(std::abs(full.z + 7.21217f) < .001f && std::abs(full.y - 1.03031f) < .001f,
+            "A 10 kg prop must gain about 7.2 m/s forward speed plus scaled upward lift");
+    require(glm::length(full) < glm::length(light) && glm::length(full * 10.f) > glm::length(light * .45f),
+            "Heavier props must receive less speed but more momentum");
+    const auto heavy = throwOrPush(2, true, 1000);
+    require(std::abs(glm::length(heavy) * 1000 - 90) < .01f,
+            "Very heavy props must be bounded by the 90 N*s strength ceiling");
 }
 void automaticThrows() {
-    for (const bool held : {false, true}) for (const float size : {.4f, 1.f}) {
+    for (const bool held : {false, true}) for (const float mass : {.45f, 10.f, 1000.f}) {
         Fixture f;
-        f.boxes.add({0, 1, 0}, glm::vec3(size));
-        f.camera = cameraAt({0, 1, 0}, size * .5f + 1);
+        viewer::BoxSpawnMotion motion; motion.mass = mass;
+        f.boxes.add({0, 1, 0}, glm::vec3(.4f), motion);
+        f.camera.setPosition({0, 1, 1.2f}); f.camera.setOrientation(-90, 0);
         viewer::DoorLayer doors({}, f.physics);
         viewer::PlayerInteraction input;
         if (held) require(input.press(Hand::Left, f.camera, doors, f.boxes, f.world, 0), "Automatic throw fixture must grab");
@@ -139,9 +142,9 @@ void automaticThrows() {
         require(!input.grabbing() && !input.charging(), "Two seconds must automatically detach and consume the charge");
         const auto velocity = f.boxes.velocity(0);
         const auto momentumAdded = (velocity - before) * prop.mass();
-        const auto expected = f.camera.direction() * 6.3f + glm::vec3(0, .9f, 0);
-        require(glm::distance(momentumAdded, expected) < .001f,
-                "Automatic throws and pushes must add the same fixed momentum at different masses");
+        const auto expectedGain = throwOrPush(2, true, mass);
+        require(glm::distance(momentumAdded, expectedGain * mass) < .001f,
+                "Automatic throws and pushes must match release momentum while preserving existing motion");
         input.update(f.camera, 0, doors, f.boxes, f.world, 15);
         input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 15);
         require(glm::distance(velocity, f.boxes.velocity(0)) < .001f,
