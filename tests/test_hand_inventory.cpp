@@ -16,6 +16,7 @@ int main() {
         viewer::BoxLayer boxes(physics);
         viewer::GroundItems ground(physics);
         viewer::CollisionWorld collision(viewer::Model{});
+        viewer::DoorLayer doors({}, physics);
         viewer::PlayerInteraction interaction;
         viewer::HandInventory hand(inventory);
         viewer::Camera camera;
@@ -46,7 +47,7 @@ int main() {
         require(otherDrag.release(), "Could not release foreign fixture");
         auto otherWeapons = weapons; otherWeapons.discard(0);
         require(!ground.take(heldId, otherInventory, otherWeapons, original, {0,0,0}), "A reserved physical preview was acquired by another player");
-        interaction.update(camera, .1f); update(.1);
+        interaction.update(camera, .1f, doors, boxes, collision, .1); update(.1);
         require(hand.store(interaction, ground, weapons), "Could not return a continuously held item");
         const auto restored = inventory.placements().at("pistol");
         require(restored.storage == original.storage && restored.x == original.x && restored.y == original.y &&

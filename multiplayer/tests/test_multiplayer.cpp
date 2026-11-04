@@ -764,6 +764,45 @@ void serverObjectHandling(const std::filesystem::path& asset) {
         require(world.players().at(id).shots == 0, "Object handling emitted a combat shot");
     }
 }
+void serverAutomaticObjectThrows(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    for (const bool grab : {false, true}) {
+        Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
+        Scene scene(options); scene.model = ground();
+        scene.collision = std::make_unique<viewer::CollisionWorld>(scene.model);
+        scene.collision->setBoxes(scene.boxes.get()); scene.spawnEye = {0, 1.7f, 1};
+        World world(scene); const auto id = world.join();
+        for (int i = 0; i < 5; ++i) world.step();
+        Command c; c.slot = static_cast<std::uint8_t>(viewer::handlingSlot);
+        c.movement.yawDegrees = -90;
+        const auto send = [&](bool right = false) {
+            ++c.sequence; c.left = grab; c.right = right;
+            world.submit(id, Commands{{c}}); world.step();
+        };
+        send();
+        for (int i = 0; i < 600 && world.players().at(id).weapons.slot() != viewer::handlingSlot; ++i) send();
+        if (grab) {
+            scene.boxes->add({0, 1.7f, 0}, glm::vec3(.4f));
+            c.left = false; ++c.sequence; world.submit(id, Commands{{c}}); world.step();
+            send();
+            require(world.players().at(id).interaction.grabbing(), "Server automatic throw fixture must grab");
+        }
+        for (int i = 0; i < 120; ++i) send(true);
+        require(world.players().at(id).interaction.charging(), "Server object charge must last two seconds");
+        if (!grab) scene.boxes->add({0, 1.7f, 0}, glm::vec3(.4f));
+        send(true);
+        require(!world.players().at(id).interaction.charging() && !world.players().at(id).interaction.grabbing() &&
+                scene.boxes->velocity(0).z < -.7f,
+                "Server must throw or push at full momentum automatically after two seconds");
+        for (int i = 0; i < 10; ++i) send(true);
+        const float speedBeforeRelease = scene.boxes->velocity(0).z;
+        send();
+        require(!world.players().at(id).interaction.charging() &&
+                std::abs(scene.boxes->velocity(0).z - speedBeforeRelease) < .02f,
+                "Holding then releasing must not repeat the automatic server throw");
+    }
+}
+
 void temporaryObjectHandling(const std::filesystem::path& asset) {
     using namespace multiplayer;
     Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
@@ -1140,7 +1179,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); playerHealthProtocol(); fragments(); prediction(); partialPosturePrediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverHandInventory(argv[1]);
+        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); serverAutomaticObjectThrows(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverHandInventory(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

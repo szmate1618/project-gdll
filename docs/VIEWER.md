@@ -1922,7 +1922,7 @@ build directory when run by CTest.
 | Q / E | Move down / up along world Y in free-fly mode |
 | Mouse | Look around while captured; held props move sideways/up/down; held doors move sideways or push/pull |
 | Left mouse button | Confirm hotbar preview; otherwise fire/punch, or grab a nearby prop/door with Object handling |
-| Right mouse button | Grenade: tap to drop, hold to charge a throw (maximum 2 seconds); Scoped weapon: cycle normal, 10°, and 1° fields of view; Object handling: tap to drop or push, hold and release to throw or push harder |
+| Right mouse button | Grenade: tap to drop, hold to charge a throw (maximum 2 seconds); Scoped weapon: cycle normal, 10°, and 1° fields of view; Object handling: tap to drop or push, hold to charge a throw or push (maximum 2 seconds) |
 | 1–9 | Preview the corresponding configured hotbar slot; left click confirms |
 | Key left of 1 (Hungarian 0 / US backtick) | Preview hotbar slot 0 (also available on number-row 0) |
 | R | Reload equipped weapon from its matching reserve ammo |
@@ -2029,16 +2029,20 @@ large camera teleport or an object too far from its target ends the grip.
 Existing collisions remain active while holding objects.
 
 Tap right mouse to drop the held object without adding momentum. While keeping
-left held, hold right mouse and release right to throw along the camera's aim: charging starts after a
-150 ms tap allowance and reaches full strength after one second. Full charge
+left held, hold right mouse and release right to throw along the camera's aim.
+Taps up to 0.2 seconds drop the object; longer holds add momentum proportional
+to the time held, reaching full strength after two seconds. At two seconds the
+throw happens automatically; continuing to hold cannot throw or push again.
+Full charge
 adds approximately 6.4 N·s, the launch momentum of the default 450 g grenade
 at 14 m/s with its small upward component. Heavy objects receive less speed
 from the same impulse. Existing body momentum is preserved.
 
 You can also right click without grabbing first: release pushes the nearest
 reachable object under the crosshair. A tap gives a small shove; holding right
-charges the same maximum impulse as a throw. Reach and occlusion are checked
-at release. Charging never grabs an object or applies force before release.
+charges the same maximum impulse as a throw and pushes automatically at two
+seconds. Reach and occlusion are checked when the push happens. Charging never
+grabs an object or applies a throw/push impulse before release or the time cap.
 Switching actions or suspending input cancels the charge without throwing.
 
 The viewer follows glTF's right-handed coordinate system: Y is up, and the

@@ -304,7 +304,8 @@ void World::step() {
                 if (!command.right && player.held.right)
                     player.interaction.release(viewer::Hand::Right, player.camera, *scene_.doors, *scene_.boxes, *scene_.collision, now);
                 player.interaction.moveGrip(command.drag.x, command.drag.y);
-                player.interaction.update(player.camera, tickSeconds / inputs);
+                player.interaction.update(player.camera, tickSeconds / inputs, *scene_.doors, *scene_.boxes,
+                                           *scene_.collision, now);
                 player.handInventory.update(tickSeconds / inputs, player.camera, player.interaction,
                     *scene_.boxes, *scene_.groundItems, player.weapons, *scene_.collision);
             } else {
@@ -334,7 +335,8 @@ void World::step() {
                 }
                 player.interaction.look(player.camera, command.drag.x, command.drag.y);
                 player.camera.setOrientation(command.movement.yawDegrees, command.pitch);
-                player.interaction.update(player.camera, tickSeconds / inputs);
+                player.interaction.update(player.camera, tickSeconds / inputs, *scene_.doors, *scene_.boxes,
+                                           *scene_.collision, now);
             }
             if (command.reload && !command.objectHandling && !player.weaponSwitch.pending()) player.reloadRequested = true;
             if (player.reloadRequested && !player.weaponSwitch.pending() && !player.inventory.held() && player.pendingInventoryActions.empty()) {

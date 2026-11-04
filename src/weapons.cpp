@@ -1,4 +1,5 @@
 #include "weapons.hpp"
+#include "throw_charge.hpp"
 #include "inventory/item_config.hpp"
 #include "inventory/player_inventory.hpp"
 
@@ -107,7 +108,7 @@ void Weapons::secondaryTrigger(bool held, double seconds) {
             grenadeChargeAt_ = seconds;
     } else if (grenadeChargeAt_) {
         const double elapsed = std::max(0.0, seconds - *grenadeChargeAt_);
-        pendingGrenadePower_ = elapsed <= .2 ? 0.f : static_cast<float>(std::min(elapsed / 2, 1.0));
+        pendingGrenadePower_ = throwChargePower(elapsed);
         grenadeChargeAt_.reset();
     }
 }
@@ -121,7 +122,7 @@ bool Weapons::fire(double seconds) {
 }
 WeaponFireResult Weapons::fireAttempt(double seconds, const std::function<bool()>& accept) {
     auto& weapon = weapons_[slot_];
-    if (grenadeChargeAt_ && std::isfinite(seconds) && seconds - *grenadeChargeAt_ >= 2) {
+    if (grenadeChargeAt_ && std::isfinite(seconds) && seconds - *grenadeChargeAt_ >= throwChargeSeconds) {
         pendingGrenadePower_ = 1;
         grenadeChargeAt_.reset();
     }

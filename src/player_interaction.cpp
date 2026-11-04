@@ -1,6 +1,7 @@
 #include "player_interaction.hpp"
 #include "collision_world.hpp"
 #include "weapon_config.hpp"
+#include "throw_charge.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -20,8 +21,9 @@ void PlayerInteraction::release(Hand hand, const Camera& camera, DoorLayer& door
     const bool held = grabbing();
     if (chargingGrip_ && !held) { cancel(); return; }
     // A tap drops a held object; empty-handed taps give a small shove. Full
-    // charge takes 1 s and matches a standard 450 g grenade's launch momentum.
-    const float charge = static_cast<float>(std::clamp((duration - .15) / .85, 0.0, 1.0));
+    // charge matches a standard 450 g grenade's launch momentum, independent
+    // of the target's mass. Applying an impulse preserves its existing momentum.
+    const float charge = throwChargePower(duration);
     const float strength = held ? charge : std::max(.2f, charge);
     const auto impulse = (camera.direction() * GrenadeConfig{}.throwSpeed + glm::vec3(0, 2, 0)) * (.45f * strength);
     if (const auto prop = objects_.heldProp()) {
@@ -63,8 +65,11 @@ void PlayerInteraction::look(Camera& camera, float dx, float dy) {
     if (doors_.grabbing()) doors_.look(camera, dx, dy);
     else camera.look(dx, dy);
 }
-void PlayerInteraction::update(const Camera& camera, float dt) {
+void PlayerInteraction::update(const Camera& camera, float dt, DoorLayer& doors, BoxLayer& boxes,
+                               const CollisionWorld& world, double seconds) {
     doors_.update(camera, dt);
     objects_.update(camera, dt);
+    if (chargeStarted_ && std::isfinite(seconds) && seconds - *chargeStarted_ >= throwChargeSeconds)
+        release(Hand::Right, camera, doors, boxes, world, seconds);
 }
 } // namespace viewer

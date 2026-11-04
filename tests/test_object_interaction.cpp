@@ -100,10 +100,11 @@ glm::vec3 throwOrPush(double duration, bool held, float size = .4f, bool cancel 
 }
 void throws() {
     require(glm::length(throwOrPush(.05, true)) < .001f, "Quick right click must drop a held object without a boost");
-    const auto full = throwOrPush(1, true), partial = throwOrPush(.5, true);
-    const auto push = throwOrPush(.05, false), chargedPush = throwOrPush(1, false);
+    require(glm::length(throwOrPush(.19, true)) < .001f, "The grenade tap allowance must also drop held objects");
+    const auto full = throwOrPush(2, true), partial = throwOrPush(1, true);
+    const auto push = throwOrPush(.05, false), chargedPush = throwOrPush(2, false);
     require(full.z < -.5f && full.y > 0 && std::abs(full.x) < .001f, "Full charge must launch in the aimed direction");
-    require(glm::length(partial) > .1f && glm::length(partial) < glm::length(full), "Hold duration must increase momentum");
+    require(glm::distance(partial * 2.f, full) < .001f, "A one-second hold must add half the full-charge momentum");
     require(glm::distance(full, throwOrPush(10, true)) < .001f, "Long holds must saturate");
     require(glm::length(push) > .1f && glm::length(push) < glm::length(chargedPush), "Empty-handed click must shove, and hold must charge a stronger push");
     require(glm::distance(full, chargedPush) < .001f, "Held and unheld objects must receive the same charged momentum");
@@ -115,8 +116,41 @@ void throws() {
     const float heavyMass = viewer::raycastPhysicsProp(heavy.physics, {0, 1, 2}, {0, 0, -1}, 2)->prop.mass();
     require(std::abs(glm::length(full) * lightMass - std::sqrt(6.3f*6.3f + .9f*.9f)) < .01f,
             "Full charge must match the launch momentum of a 450 g standard grenade");
-    require(glm::distance(full * lightMass, throwOrPush(1, true, 1) * heavyMass) < .01f,
+    require(glm::distance(full * lightMass, throwOrPush(2, true, 1) * heavyMass) < .01f,
             "The same charge must give heavier objects less speed with equal momentum");
+}
+void automaticThrows() {
+    for (const bool held : {false, true}) for (const float size : {.4f, 1.f}) {
+        Fixture f;
+        f.boxes.add({0, 1, 0}, glm::vec3(size));
+        f.camera = cameraAt({0, 1, 0}, size * .5f + 1);
+        viewer::DoorLayer doors({}, f.physics);
+        viewer::PlayerInteraction input;
+        if (held) require(input.press(Hand::Left, f.camera, doors, f.boxes, f.world, 0), "Automatic throw fixture must grab");
+        const auto prop = viewer::raycastPhysicsProp(f.physics, f.camera.position(), f.camera.direction(), 2)->prop;
+        // Start with existing momentum to detect replacing velocity instead of adding an impulse.
+        prop.applyImpulse({2, 1, 3}, prop.center());
+        const auto before = f.boxes.velocity(0);
+        input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 10);
+        input.update(f.camera, 0, doors, f.boxes, f.world, 11.999);
+        require(input.charging() && glm::distance(before, f.boxes.velocity(0)) < .001f,
+                "Holding must not apply throw momentum before the two-second cap");
+        input.update(f.camera, 0, doors, f.boxes, f.world, 12);
+        require(!input.grabbing() && !input.charging(), "Two seconds must automatically detach and consume the charge");
+        const auto velocity = f.boxes.velocity(0);
+        const auto momentumAdded = (velocity - before) * prop.mass();
+        const auto expected = f.camera.direction() * 6.3f + glm::vec3(0, .9f, 0);
+        require(glm::distance(momentumAdded, expected) < .001f,
+                "Automatic throws and pushes must add the same fixed momentum at different masses");
+        input.update(f.camera, 0, doors, f.boxes, f.world, 15);
+        input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 15);
+        require(glm::distance(velocity, f.boxes.velocity(0)) < .001f,
+                "Continued holding and final release must not repeat an automatic throw or push");
+        input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 16);
+        input.cancel();
+        input.update(f.camera, 0, doors, f.boxes, f.world, 18);
+        require(glm::distance(velocity, f.boxes.velocity(0)) < .001f, "Cancellation must prevent automatic impulses");
+    }
 }
 void heldGripAndLook() {
     Fixture f;
@@ -148,7 +182,7 @@ void pushReachAndOcclusion() {
         viewer::DoorLayer doors({}, f.physics);
         viewer::PlayerInteraction input;
         input.press(Hand::Right, f.camera, doors, f.boxes, f.world, 0);
-        input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 1);
+        input.release(Hand::Right, f.camera, doors, f.boxes, f.world, 2);
         require(blocked ? glm::length(f.boxes.velocity(0)) < .001f : f.boxes.velocity(0).x > .5f,
                 "Unheld pushes must respect wall occlusion");
     }
@@ -227,7 +261,7 @@ void liftingDraggingAndCollisions() {
     viewer::DoorLayer doors({}, thrown.physics); viewer::PlayerInteraction input;
     require(input.press(Hand::Left, thrown.camera, doors, thrown.boxes, thrown.world, 0), "Throw collision fixture must be reachable");
     input.press(Hand::Right, thrown.camera, doors, thrown.boxes, thrown.world, 0);
-    input.release(Hand::Right, thrown.camera, doors, thrown.boxes, thrown.world, 1);
+    input.release(Hand::Right, thrown.camera, doors, thrown.boxes, thrown.world, 2);
     require(thrown.boxes.velocity(0).x > .5f, "Charged throw must start toward the wall");
     thrown.advance();
     require(thrown.boxes.pose(0).center.x < .65f, "A charged throw must collide with a thin static wall");
@@ -257,7 +291,7 @@ void routingAndCancellation() {
 } // namespace
 int main() {
     try {
-        picking(); throws(); heldGripAndLook(); pushReachAndOcclusion(); heldMovementAndDrop(); liftingDraggingAndCollisions(); routingAndCancellation();
+        picking(); throws(); automaticThrows(); heldGripAndLook(); pushReachAndOcclusion(); heldMovementAndDrop(); liftingDraggingAndCollisions(); routingAndCancellation();
         std::cout << "Object picking, hands, throw directions, strength, movement and collision tests passed\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

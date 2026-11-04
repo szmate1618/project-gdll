@@ -5,7 +5,8 @@
 
 namespace viewer {
 // Object handling: hold left to drag and release to drop; right press/release drops
-// or charges a throw/push. Call cancel when unequipped or input is suspended.
+// or charges a throw/push, automatically released after two seconds.
+// Call cancel when unequipped or input is suspended.
 // Input timestamps use one monotonic clock in seconds, independent of dt.
 class PlayerInteraction {
 public:
@@ -25,7 +26,8 @@ public:
     }
     void look(Camera& camera, float dx, float dy);
     void moveGrip(float dx, float dy) { objects_.moveMouse(dx, dy); }
-    void update(const Camera& camera, float dt);
+    void update(const Camera& camera, float dt, DoorLayer& doors, BoxLayer& boxes,
+                const CollisionWorld& world, double seconds);
 private:
     DoorInteraction doors_;
     ObjectInteraction objects_;

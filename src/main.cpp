@@ -699,7 +699,7 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
         if (app.handling() && !app.weaponSwitch.pending() && app.capture &&
             app.doors && app.boxes)
             app.interaction.release(button == GLFW_MOUSE_BUTTON_LEFT ? viewer::Hand::Left : viewer::Hand::Right,
-                app.rig.camera(), *app.doors, *app.boxes, app.world, glfwGetTime());
+                app.rig.camera(), *app.doors, *app.boxes, app.world, viewer::SimulationClock::instance().seconds());
         return;
     }
     if (action != GLFW_PRESS || !app.capture || app.driver.occupied() || app.hudScreen != viewer::HudScreen::Gameplay) return;
@@ -719,7 +719,8 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     if (button != GLFW_MOUSE_BUTTON_LEFT && button != GLFW_MOUSE_BUTTON_RIGHT) return;
     if (app.handling()) {
         const auto hand = button == GLFW_MOUSE_BUTTON_LEFT ? viewer::Hand::Left : viewer::Hand::Right;
-        if (app.doors && app.boxes && app.interaction.press(hand, app.rig.camera(), *app.doors, *app.boxes, app.world, glfwGetTime()) &&
+        if (app.doors && app.boxes && app.interaction.press(hand, app.rig.camera(), *app.doors, *app.boxes, app.world,
+                viewer::SimulationClock::instance().seconds()) &&
             app.interaction.grabbedDoor() && hand == viewer::Hand::Left) {
             const auto id = *app.interaction.grabbedDoor();
             if (app.audio) app.audio->grabDoor(*app.doors, id);
@@ -844,7 +845,9 @@ void moveCamera(AppState& app, float dt) {
         app.playerVelocity.y = app.rig.player().verticalVelocity();
     }
     if (dt > 0) app.proneToggleQueued = false;
-    app.interaction.update(app.rig.camera(), dt);
+    if (app.doors && app.boxes)
+        app.interaction.update(app.rig.camera(), dt, *app.doors, *app.boxes, app.world,
+                               viewer::SimulationClock::instance().seconds());
     if (app.groundItems && app.boxes) {
         if (app.handInventory.active() && (!app.handling() || app.hudScreen != viewer::HudScreen::Gameplay || app.actionSelection.open()))
             app.handInventory.release(app.interaction, *app.groundItems, app.weapons);
