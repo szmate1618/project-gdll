@@ -70,6 +70,7 @@ struct Input {
     multiplayer::SignalKind pendingSignal = multiplayer::SignalKind::None;
     void cancelSignal() { wheelOpen = false; pendingSignal = multiplayer::SignalKind::None; }
     bool canScope = false;
+    bool canThrowGrenade = false;
     bool flashlight = true;
     bool leave = false;
     std::vector<viewer::InventoryDragAction> inventoryActions;
@@ -253,7 +254,7 @@ void button(GLFWwindow* window, int buttonCode, int action, int) {
         return;
     }
     if (buttonCode == GLFW_MOUSE_BUTTON_LEFT) in.leftPressed = true;
-    if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT && in.handling()) in.rightPressed = true;
+    if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT && (in.handling() || in.canThrowGrenade)) in.rightPressed = true;
     if (buttonCode == GLFW_MOUSE_BUTTON_RIGHT && in.canScope && !in.handling()) in.camera.cycleViewMode();
 }
 void scroll(GLFWwindow* window, double, double y) {
@@ -422,7 +423,7 @@ multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double sec
     c.left = !in.driver.occupied() && !c.cancelInteraction && !in.wheelOpen && !in.signalMouseSuppressed && !in.actionSelection.open() && !in.suppressLeftUntilRelease && !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot &&
         (in.handling() ? in.leftHeld : (in.leftPressed || in.leftHeld));
     c.right = !in.driver.occupied() && !c.cancelInteraction && !in.suppressRightUntilRelease && !in.wheelOpen && !in.signalMouseSuppressed && !in.actionSelection.open() &&
-        !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot && in.handling() &&
+        !in.weaponSwitching && !in.weaponReloading && in.slot == in.equippedSlot && (in.handling() || in.canThrowGrenade) &&
         (in.rightPressed || in.rightHeld);
     in.leftPressed = in.rightPressed = false;
 #endif
@@ -575,6 +576,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                             in.camera.cycleViewMode();
                     }
                     in.canScope = p.vehicle == multiplayer::noVehicle && weaponDefinitions.equipped().config.hasScope;
+                    in.canThrowGrenade = p.vehicle == multiplayer::noVehicle && weaponDefinitions.equipped().config.grenade.has_value();
                     in.equippedSlot = p.slot;
                     in.weaponSwitching = p.weaponSwitchRemaining > 0;
                     in.weaponReloading = p.reloadRemaining > 0;
@@ -582,6 +584,8 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     // not a physical release and must not rearm a held click.
                     if ((in.weaponSwitching || in.weaponReloading) && in.leftHeld)
                         in.suppressLeftUntilRelease = true;
+                    if ((in.weaponSwitching || in.weaponReloading) && in.rightHeld)
+                        in.suppressRightUntilRelease = true;
 #ifdef MP_GRAPHICS
                     graphics.weaponFeedback.reconcile(p);
 #endif

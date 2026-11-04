@@ -1,4 +1,5 @@
 #include "weapons.hpp"
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <iostream>
@@ -8,6 +9,50 @@
 namespace {
 void require(bool condition, const char* message) { if (!condition) throw std::runtime_error(message); }
 void click(viewer::Weapons& weapons) { weapons.trigger(false); weapons.trigger(true); }
+void chargedGrenades() {
+    for (const auto duration : {0.0, .1, .2, .5, 1.0, 2.0, 3.0}) {
+        viewer::Weapons weapons(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
+        weapons.equip(4);
+        const int loaded = weapons.equipped().loaded;
+        weapons.secondaryTrigger(true, 0);
+        require(!weapons.fire(0), "Right press must charge without consuming a grenade");
+        require(weapons.equipped().loaded == loaded, "Charging must preserve ammo");
+        weapons.secondaryTrigger(false, duration);
+        require(weapons.fire(duration), "Right release must drop or throw one grenade");
+        const float expected = duration <= .2 ? 0.f : float(std::min(duration / 2, 1.0));
+        require(std::abs(weapons.grenadeThrowPower() - expected) < .0001f, "Charge must scale linearly and cap at full power");
+        require(weapons.equipped().loaded == loaded - 1 && !weapons.fire(10), "Release must consume exactly one grenade");
+    }
+    viewer::Weapons weapons(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
+    weapons.equip(4);
+    weapons.secondaryTrigger(true, 0);
+    require(!weapons.fire(1.999) && weapons.fire(2), "Holding must throw automatically at two seconds");
+    require(weapons.grenadeThrowPower() == 1 && !weapons.fire(10), "Maximum charge must match primary power and never repeat");
+    weapons.secondaryTrigger(false, 10);
+    require(!weapons.fire(10), "Release after automatic throw must not throw again");
+
+    for (const bool switchWeapon : {false, true}) {
+        viewer::Weapons cancelled(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
+        cancelled.equip(4);
+        cancelled.secondaryTrigger(true, 0);
+        if (switchWeapon) { cancelled.equip(0); cancelled.equip(4); }
+        else cancelled.cancelTrigger();
+        cancelled.secondaryTrigger(true, 3);
+        require(!cancelled.fire(3), "Cancellation must not restart an already held charge");
+        cancelled.secondaryTrigger(false, 3);
+        require(!cancelled.fire(3), "Cancellation must discard the charge without throwing");
+        cancelled.secondaryTrigger(true, 4);
+        cancelled.secondaryTrigger(false, 5);
+        require(cancelled.fire(5) && cancelled.grenadeThrowPower() == .5f, "A fresh click must rearm after cancellation");
+    }
+    viewer::Weapons primary(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
+    primary.equip(4); primary.secondaryTrigger(true, 0); click(primary);
+    require(primary.fire(.5) && primary.grenadeThrowPower() == 1, "Primary click must keep full power while charging");
+    primary.secondaryTrigger(false, 1);
+    require(!primary.fire(10), "Primary throw must consume the pending secondary charge");
+    primary.equip(0); primary.secondaryTrigger(true, 20); primary.secondaryTrigger(false, 21);
+    require(!primary.fire(21), "Unscoped firearms must ignore secondary trigger");
+}
 void firing() {
     viewer::Weapons weapons(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
     require(weapons.equipped().config.id == "pistol", "Inventory must select starting weapon");
@@ -248,7 +293,7 @@ void fixtures(const std::filesystem::path& scratch) {
 } // namespace
 int main() {
     try {
-        firing(); pelletPattern(); dryFire(); punchesNeedNoAmmo(); physicalActionAcceptance();
+        firing(); pelletPattern(); dryFire(); punchesNeedNoAmmo(); physicalActionAcceptance(); chargedGrenades();
         viewer::Weapons grenades(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY);
         require(grenades.equip(4) && grenades.equipped().config.grenade.has_value(), "Key 5 must equip HE grenades");
         const auto visibleAt = [&](double seconds) {

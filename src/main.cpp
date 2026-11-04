@@ -682,6 +682,8 @@ void cursorCallback(GLFWwindow* window, double x, double y) {
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     auto& app = state(window);
+    if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE)
+        app.weapons.secondaryTrigger(false, viewer::SimulationClock::instance().seconds());
     if (app.hudScreen != viewer::HudScreen::Gameplay || !app.capture) {
         double x, y; glfwGetCursorPos(window, &x, &y);
         hudPointer(window, app.hud, x, y);
@@ -709,7 +711,9 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int) {
     }
     if (app.weaponSwitch.pending() || app.weaponReload.pending()) return;
     if (button == GLFW_MOUSE_BUTTON_RIGHT && !app.handling()) {
-        if (app.weapons.equipped().owned && app.weapons.equipped().config.hasScope) app.rig.camera().cycleViewMode();
+        if (app.weapons.equipped().config.grenade)
+            app.weapons.secondaryTrigger(true, viewer::SimulationClock::instance().seconds());
+        else if (app.weapons.equipped().owned && app.weapons.equipped().config.hasScope) app.rig.camera().cycleViewMode();
         return;
     }
     if (button != GLFW_MOUSE_BUTTON_LEFT && button != GLFW_MOUSE_BUTTON_RIGHT) return;
@@ -787,7 +791,7 @@ bool updateWeapons(AppState& app, double seconds) {
     const auto aim = app.weaponMotion.aimCamera(app.rig.camera(), app.weapons.slot(), seconds, true);
     if (config.grenade) {
         if (!app.grenades->throwFrom(app.rig.camera().position(), app.rig.camera().direction(),
-                app.playerVelocity, seconds, *config.grenade, app.world))
+                app.playerVelocity, seconds, *config.grenade, app.world, app.weapons.grenadeThrowPower()))
             throw std::logic_error("Accepted grenade throw failed");
         app.weaponReload.begin(app.weapons, app.inventory, seconds);
     } else if (app.audio) app.audio->shot(app.weapons.slot());
@@ -1103,6 +1107,16 @@ void inputSelfTest(GLFWwindow* window) {
             throw std::runtime_error("Grenade click must spawn a body and consume one grenade without a muzzle flash");
         updateWeapons(shot, 10);
         if (thrown.poses().size() != 1) throw std::runtime_error("Holding left click repeated a grenade throw");
+        shot.weapons = viewer::Weapons(VIEWER_WEAPON_CONFIGS, VIEWER_INVENTORY, true);
+        shot.weaponReload = {};
+        shot.weapons.equip(4);
+        glfwSetWindowUserPointer(window, &shot);
+        mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+        mouse(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+        glfwSetWindowUserPointer(window, &app);
+        if (updateWeapons(shot, viewer::SimulationClock::instance().seconds()) || thrown.poses().size() != 2 ||
+            shot.weapons.grenadeThrowPower() != 0)
+            throw std::runtime_error("Right-click grenade callback must drop one without a launch impulse");
     }
     app.weapons.equip(viewer::handlingSlot);
     key(window, GLFW_KEY_TAB, 0, GLFW_PRESS, 0);

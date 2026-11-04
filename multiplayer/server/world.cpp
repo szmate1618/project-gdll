@@ -246,6 +246,7 @@ void World::step() {
             }
             // Timeout only synthesized held input; queued actions must execute before acknowledgement.
             if (!consumed && tick_ - player.lastPacketTick > 12) {
+                player.weapons.cancelTrigger(); // Timeout cancels a charged grenade instead of releasing it.
                 command.movement = {}; command.movement.yawDegrees = player.camera.yawDegrees();
                 command.left = command.right = command.reload = false;
                 command.enterVehicle = false;
@@ -348,6 +349,10 @@ void World::step() {
             if ((player.weaponSwitch.pending() || player.weaponReload.pending() || player.reloadRequested) && command.left) player.triggerNeedsRelease = true;
             player.weapons.trigger(command.left && !handlingMode && !player.triggerNeedsRelease &&
                 !player.weaponSwitch.pending() && !player.weaponReload.pending() && !player.reloadRequested);
+            player.weapons.secondaryTrigger(command.right, now);
+            if (command.cancelInteraction || handlingMode || player.weaponSwitch.pending() ||
+                player.weaponReload.pending() || player.reloadRequested)
+                player.weapons.cancelTrigger();
             // Accept before the next input can reload/switch weapons or change aim.
             const auto& config = player.weapons.equipped().config;
             player.body.follow(player.camera.position(),player.camera.direction(),
@@ -372,7 +377,8 @@ void World::step() {
                                  static_cast<std::uint8_t>(player.weapons.slot()));
                 if (config.grenade) {
                     if (!scene_.grenades->throwFrom(player.camera.position(), player.camera.direction(), playerVelocity,
-                            now, *config.grenade, *scene_.collision)) throw std::logic_error("Accepted grenade throw failed");
+                            now, *config.grenade, *scene_.collision, player.weapons.grenadeThrowPower()))
+                        throw std::logic_error("Accepted grenade throw failed");
                     player.weaponReload.begin(player.weapons, player.inventory, now);
                 } else if (player.weapons.slot() != viewer::punchSlot)
                     shots.push_back({player.camera.position(), viewer::weaponShotDirections(config, player.camera.direction()),

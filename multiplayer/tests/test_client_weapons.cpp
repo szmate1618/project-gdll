@@ -202,6 +202,16 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
         case 13:
             require(differences(0, 12) > 500, "Ready grenade did not appear in the hand");
             capture("he_grenade");
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+            require(command(in, window, false, 0).right, "Grenade right press must reach the server");
+            require(command(in, window, false, 0).right, "Grenade right hold must continue charging");
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+            require(!command(in, window, false, 0).right, "Grenade right release must reach the server");
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
+            require(command(in, window, false, 0).right && !command(in, window, false, 0).right,
+                    "A quick grenade tap between commands must preserve press then release");
             authoritative.loaded = 0; authoritative.weaponCoolingDown = true; ++authoritative.shots;
             break;
         case 14:
@@ -449,15 +459,21 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
             require(differences(31,34)>500,"Equipping a firearm after fists lost its model");
             button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_PRESS,0);
             require(command(in,window,false,0).left,"A fresh physical press must produce firing input");
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_PRESS, 0);
             authoritative.slot=4; authoritative.loaded=0;
             authoritative.reloadRemaining=.5f; authoritative.reloadDuration=1;
             break;
         case 36:
+            require(in.rightHeld && in.suppressRightUntilRelease && !command(in, window, false, 0).right,
+                    "Grenade autoload must suppress a physically held secondary button");
             require(in.weaponReloading && in.leftHeld && in.suppressLeftUntilRelease && !command(in,window,false,0).left,
                     "Confirmed grenade autoload must latch suppression for the physically held throw button");
             authoritative.reloadRemaining=authoritative.reloadDuration=0; authoritative.loaded=1;
             break;
         case 37:
+            require(in.rightHeld && in.suppressRightUntilRelease && !command(in, window, false, 0).right,
+                    "Autoload completion must require a physical secondary release");
+            button(window, GLFW_MOUSE_BUTTON_RIGHT, GLFW_RELEASE, 0);
             require(!in.weaponReloading && in.leftHeld && in.suppressLeftUntilRelease && !command(in,window,false,0).left,
                     "Autoload completion must not turn a held throw button into a fresh press");
             button(window,GLFW_MOUSE_BUTTON_LEFT,GLFW_RELEASE,0);

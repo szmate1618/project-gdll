@@ -37,6 +37,28 @@ struct Fixture {
     }
 };
 
+void launchPower() {
+    for (const float power : {0.f, .5f, 1.f}) {
+        Fixture f;
+        require(f.grenades.throwFrom({0, 1.7f, 0}, {0, 0, -1}, {1, 0, 0}, 10, {3, 8, 14}, f.world, power),
+                "Drop and charged throw must create a body");
+        b3BodyId body{};
+        auto filter = b3DefaultQueryFilter(); filter.maskBits = viewer::grenadeBodyCategory;
+        b3World_OverlapAABB(f.physics->id(), {{-1, 0, -1}, {1, 3, 1}}, filter,
+            [](b3ShapeId shape, void* context) {
+                *static_cast<b3BodyId*>(context) = b3Shape_GetBody(shape); return false;
+            }, &body);
+        require(b3Body_IsValid(body), "Charged grenade must enter the shared physics world");
+        const auto velocity = b3Body_GetLinearVelocity(body);
+        require(velocity.x == 1 && velocity.y == 2 * power && velocity.z == -14 * power,
+                "Charge must scale forward and upward launch velocity while preserving player movement");
+        f.grenades.update(12.999, f.world);
+        require(f.grenades.poses().size() == 1, "Charging must not shorten the fuse");
+        f.grenades.update(13, f.world);
+        require(f.grenades.poses().empty(), "Drops and throws must detonate after the normal fuse");
+    }
+}
+
 void collisionAndFuse() {
     Fixture f;
     require(!f.grenades.canThrow({0, 1, -2.99f}, f.world), "Cannot spawn a grenade intersecting a nearby wall");
@@ -167,7 +189,7 @@ void zombieBlast() {
 }
 int main() {
     try {
-        collisionAndFuse(); propCollisionAndBlast(); treeRebounds(); treeReflection(); zombieBlast();
+        launchPower(); collisionAndFuse(); propCollisionAndBlast(); treeRebounds(); treeReflection(); zombieBlast();
         std::cout << "Grenade CCD, wall/floor/prop/trunk collision, fuse, blast cover and light tests passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

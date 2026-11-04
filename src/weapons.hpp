@@ -41,6 +41,11 @@ public:
     const WeaponState& equipped() const { return weapons_[slot_]; }
     const WeaponState& state(std::size_t slot) const { return weapons_.at(slot); }
     void trigger(bool held);
+    // Grenades: tap (<= 0.2 s) drops; hold charges linearly to an automatic
+    // full-power throw at 2 s. Uses the same simulation clock as fireAttempt.
+    void secondaryTrigger(bool held, double seconds);
+    // Launch fraction for the last successful fireAttempt (primary always 1).
+    float grenadeThrowPower() const { return grenadeThrowPower_; }
     void cancelTrigger();
     // One firing opportunity per frame, with no burst of overdue shots after a
     // stall. Semi-automatic clicks during cooldown are discarded, not queued.
@@ -64,6 +69,10 @@ private:
     bool held_ = false, pressed_ = false;
     bool emptyClicked_ = false;
     bool reloading_ = false;
+    bool secondaryHeld_ = false; // Survives cancellation until a physical release.
+    std::optional<double> grenadeChargeAt_;
+    std::optional<float> pendingGrenadePower_;
+    float grenadeThrowPower_ = 1;
 };
 
 // Deterministic cone pattern, including a centered pellet. Each direction uses

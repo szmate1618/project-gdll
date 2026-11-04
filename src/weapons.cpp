@@ -96,13 +96,40 @@ void Weapons::trigger(bool held) {
     if (!held) emptyClicked_ = false;
     held_ = held;
 }
-void Weapons::cancelTrigger() { held_ = pressed_ = emptyClicked_ = false; }
+void Weapons::secondaryTrigger(bool held, double seconds) {
+    if (held == secondaryHeld_) return;
+    secondaryHeld_ = held;
+    if (!std::isfinite(seconds)) { grenadeChargeAt_.reset(); return; }
+    if (held) {
+        const auto& weapon = equipped();
+        if (weapon.config.grenade && weapon.owned && !reloading_ &&
+            weapon.loaded >= weapon.config.ammoPerShot && seconds >= weapon.readyAt)
+            grenadeChargeAt_ = seconds;
+    } else if (grenadeChargeAt_) {
+        const double elapsed = std::max(0.0, seconds - *grenadeChargeAt_);
+        pendingGrenadePower_ = elapsed <= .2 ? 0.f : static_cast<float>(std::min(elapsed / 2, 1.0));
+        grenadeChargeAt_.reset();
+    }
+}
+void Weapons::cancelTrigger() {
+    held_ = pressed_ = emptyClicked_ = false;
+    grenadeChargeAt_.reset();
+    pendingGrenadePower_.reset();
+}
 bool Weapons::fire(double seconds) {
     return fireAttempt(seconds) == WeaponFireResult::fired;
 }
 WeaponFireResult Weapons::fireAttempt(double seconds, const std::function<bool()>& accept) {
     auto& weapon = weapons_[slot_];
-    const bool requested = pressed_ || (held_ && weapon.config.automatic);
+    if (grenadeChargeAt_ && std::isfinite(seconds) && seconds - *grenadeChargeAt_ >= 2) {
+        pendingGrenadePower_ = 1;
+        grenadeChargeAt_.reset();
+    }
+    const bool primary = pressed_ || (held_ && weapon.config.automatic);
+    const bool requested = primary || pendingGrenadePower_.has_value();
+    const float throwPower = primary ? 1.f : pendingGrenadePower_.value_or(1.f);
+    pendingGrenadePower_.reset();
+    if (primary) grenadeChargeAt_.reset();
     pressed_ = false;
     if (slot_ == handlingSlot || reloading_ || !weapon.owned || !requested || !std::isfinite(seconds) || seconds < weapon.readyAt) return WeaponFireResult::none;
     if (weapon.loaded < weapon.config.ammoPerShot) {
@@ -113,6 +140,7 @@ WeaponFireResult Weapons::fireAttempt(double seconds, const std::function<bool()
     if (accept && !accept()) return WeaponFireResult::none;
     weapon.loaded -= weapon.config.ammoPerShot;
     weapon.readyAt = seconds + weapon.config.shotIntervalSeconds;
+    grenadeThrowPower_ = throwPower;
     emptyClicked_ = false;
     return WeaponFireResult::fired;
 }

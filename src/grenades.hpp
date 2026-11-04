@@ -38,8 +38,9 @@ public:
     static constexpr std::size_t maxEvents = 128;
     bool canThrow(glm::vec3 eyes, const CollisionWorld& world) const;
     // Launch near the eyes, without spawning through a wall; inherits walking velocity.
+    // Power [0, 1] scales launch velocity and spin; zero drops without a launch impulse.
     bool throwFrom(glm::vec3 eyes, glm::vec3 direction, glm::vec3 playerVelocity,
-                   double seconds, const GrenadeConfig& config, const CollisionWorld& world);
+                   double seconds, const GrenadeConfig& config, const CollisionWorld& world, float power = 1);
     void prepare(PhysicsScene& scene, DoorLayer& doors); // Before the shared step.
     // After physics: resolve approximate sphere/trunk overlaps, remove expired
     // bodies, apply blast effects and publish events. Fast throws can miss trunks.

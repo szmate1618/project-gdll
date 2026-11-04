@@ -1922,7 +1922,7 @@ build directory when run by CTest.
 | Q / E | Move down / up along world Y in free-fly mode |
 | Mouse | Look around while captured; held props move sideways/up/down; held doors move sideways or push/pull |
 | Left mouse button | Confirm hotbar preview; otherwise fire/punch, or grab a nearby prop/door with Object handling |
-| Right mouse button | Scoped weapon: cycle normal, 10°, and 1° fields of view; Object handling: tap to drop or push, hold and release to throw or push harder |
+| Right mouse button | Grenade: tap to drop, hold to charge a throw (maximum 2 seconds); Scoped weapon: cycle normal, 10°, and 1° fields of view; Object handling: tap to drop or push, hold and release to throw or push harder |
 | 1–9 | Preview the corresponding configured hotbar slot; left click confirms |
 | Key left of 1 (Hungarian 0 / US backtick) | Preview hotbar slot 0 (also available on number-row 0) |
 | R | Reload equipped weapon from its matching reserve ammo |
@@ -2293,7 +2293,13 @@ width and arm reach. Crouching and prone preserve these upper-body proportions.
 The window title and console report the equipped weapon, magazine, and reserve.
 
 **6**, then left click, equips an HE grenade; **left click** throws one. Holding
-the button throws only once. The starting inventory supplies six grenades.
+the button throws only once. **Right click** (up to 0.2 seconds) drops one with
+no launch impulse. Holding right longer charges throw power in proportion to
+the time held: release to throw, or hold for two seconds to throw automatically
+at the same power as left click. Continuing to hold cannot throw another grenade;
+release before charging again. Switching actions, opening a menu, or losing
+focus cancels the charge. The fuse starts only when the grenade leaves the hand.
+The starting inventory supplies six grenades.
 One grenade starts loaded and five occupy an ammo stack. After a throw, the
 held model disappears while the next matching grenade is automatically
 retrieved, paying its reload time plus storage access. It returns after both

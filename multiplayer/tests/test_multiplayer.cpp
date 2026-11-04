@@ -787,6 +787,51 @@ void temporaryObjectHandling(const std::filesystem::path& asset) {
     ++c.sequence; c.left = true; c.firearmShot = FirearmShot{0, {}}; world.submit(id, Commands{{c}}); world.step();
     require(world.players().at(id).shots == 1, "A fresh click after temporary handling must restore combat");
 }
+void serverChargedGrenades(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    for (const int holdTicks : {1, 60, 120}) {
+        Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
+        Scene scene(options); scene.model = ground();
+        scene.collision = std::make_unique<viewer::CollisionWorld>(scene.model);
+        scene.spawnEye = {0, 1.7f, 0};
+        World world(scene);
+        const auto id = world.join();
+        Command c; c.slot = 4;
+        const auto send = [&](bool right, bool cancel = false) {
+            ++c.sequence; c.right = right; c.cancelInteraction = cancel;
+            world.submit(id, Commands{{c}}); world.step();
+        };
+        send(false);
+        for (int i = 0; i < 5; ++i) world.step(); // Drain the initial jitter buffer.
+        for (int i = 0; i < 600; ++i) {
+            send(false);
+            if (world.players().at(id).weapons.slot() == 4) break;
+        }
+        require(world.players().at(id).weapons.slot() == 4, "Charge fixture must equip grenades");
+        // Closing a menu and releasing in the same packet must cancel, not throw.
+        send(true); send(false, true);
+        require(world.players().at(id).shots == 0, "Menu cancellation must discard server grenade charge");
+        send(true);
+        for (int i = 1; i < holdTicks; ++i) send(true);
+        require(world.players().at(id).shots == 0, "Server must preserve grenade ammo until release or charge cap");
+        if (holdTicks == 120) send(true); // Two seconds after the first press.
+        else send(false);
+        require(world.players().at(id).shots == 1 && world.snapshot(id).grenades.size() == 1,
+                "Server secondary input must spawn exactly one physical grenade");
+        const float expected = holdTicks == 1 ? 0.f : holdTicks / 120.f;
+        require(std::abs(world.players().at(id).weapons.grenadeThrowPower() - expected) < .0001f,
+                "Server must apply tap, partial and maximum charge power");
+        for (int i = 0; i < 300; ++i) send(holdTicks == 120);
+        require(world.players().at(id).shots == 1, "Held secondary must not repeat after automatic reload");
+        send(false);
+        require(world.players().at(id).shots == 1, "Release after maximum charge must not throw twice");
+        // A lost input stream also cancels rather than converting to a release.
+        send(true);
+        for (int i = 0; i < 130; ++i) world.step();
+        require(world.players().at(id).shots == 1, "Input timeout must cancel grenade charge");
+    }
+}
+
 void serverGrenades(const std::filesystem::path& asset) {
     using namespace multiplayer;
     Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
@@ -1095,7 +1140,7 @@ int main(int argc, char** argv) {
     try {
         protocol(); playerHealthProtocol(); fragments(); prediction(); partialPosturePrediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverHandInventory(argv[1]);
+        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverHandInventory(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

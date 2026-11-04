@@ -111,17 +111,18 @@ bool Grenades::canThrow(glm::vec3 eyes, const CollisionWorld& world) const {
         world.contacts(eyes - glm::vec3(0, collisionRadius, 0), collisionRadius, collisionRadius * 2).empty();
 }
 bool Grenades::throwFrom(glm::vec3 eyes, glm::vec3 direction, glm::vec3 playerVelocity,
-                         double seconds, const GrenadeConfig& config, const CollisionWorld& world) {
+                         double seconds, const GrenadeConfig& config, const CollisionWorld& world, float power) {
     if (!canThrow(eyes, world) || !finite(direction) || !finite(playerVelocity) || glm::length(direction) < .001f ||
         !std::isfinite(seconds) || !std::isfinite(config.fuseSeconds) || config.fuseSeconds <= 0 ||
         !std::isfinite(config.blastRadius) || config.blastRadius <= 0 ||
-        !std::isfinite(config.throwSpeed) || config.throwSpeed <= 0) return false;
+        !std::isfinite(config.throwSpeed) || config.throwSpeed <= 0 ||
+        !std::isfinite(power) || power < 0 || power > 1) return false;
     auto definition = b3DefaultBodyDef();
     definition.type = b3_dynamicBody;
     // Starting at the clear eye position prevents throwing through nearby walls.
     definition.position = {eyes.x, eyes.y, eyes.z};
-    definition.linearVelocity = vec(glm::normalize(direction) * config.throwSpeed + playerVelocity + glm::vec3(0, 2, 0));
-    definition.angularVelocity = {8, 2, 3};
+    definition.linearVelocity = vec((glm::normalize(direction) * config.throwSpeed + glm::vec3(0, 2, 0)) * power + playerVelocity);
+    definition.angularVelocity = {8 * power, 2 * power, 3 * power};
     definition.isBullet = true;
     definition.linearDamping = .08f; definition.angularDamping = .2f;
     const auto body = b3CreateBody(impl_->physics->id(), &definition);
