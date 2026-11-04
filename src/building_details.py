@@ -19,6 +19,10 @@ DOOR_MATERIAL = PBRMaterial(name="building_door_brown", baseColorFactor=[112, 65
 # glTF alpha is opacity: 40% opaque means 60% transparent.
 WINDOW_MATERIAL = PBRMaterial(name="building_window_blue", baseColorFactor=[86, 156, 210, 102],
                               alphaMode="BLEND", doubleSided=True, metallicFactor=0.0, roughnessFactor=0.25)
+# Invisible infills describe intentional crawl apertures. They retain a closed
+# validation shell and give collision the exact opening independently of doors.
+CRAWL_OPENING_MATERIAL = PBRMaterial(name="building_crawl_opening", baseColorFactor=[0, 0, 0, 0],
+                                     alphaMode="MASK", alphaCutoff=.5, doubleSided=True)
 
 
 @dataclass
@@ -124,8 +128,8 @@ def facade_details(polygon: Polygon, wall, roof, elevation, options, road=None):
     samples = np.vstack([np.asarray(ring.coords) for ring in [boundary.exterior, *boundary.interiors]])
     foundation = float(np.max(elevation(samples[:, 0], samples[:, 1])))
     # One exported-precision head height aligns both doors and the lowest
-    # window row. Door bottoms share the interior floor datum even downhill;
-    # the original foundation wall remains below each raised doorway.
+    # window row. Door panels stop at the floor; the original doorway below
+    # them stays open down to the sampled wall base.
     first_head = float(np.float32(foundation + 2.1))
     floor = float(np.float32(first_head - 2.1))
     doors, windows = [], []
@@ -141,6 +145,10 @@ def facade_details(polygon: Polygon, wall, roof, elevation, options, road=None):
         entrances.append(Entrance(facade.start + facade.direction * center,
                                   facade.direction, facade.normal, floor))
         openings.setdefault(index, []).append(("doors", doors[-1]))
+        # Reach below the full foundation profile and let the facade cutter
+        # clip the invisible opening to the existing wall outline.
+        bottom = float(wall.vertices[:, 2].min()) - .01
+        openings[index].append(("crawl_openings", _rectangle(facade, center, 1.0, bottom, floor - bottom)))
         door_spans[index] = (center - 0.65, center + 0.65, floor, first_head + .15)
 
     floor_height = float(options.get("floor_height_m", 3.0))
@@ -157,7 +165,7 @@ def facade_details(polygon: Polygon, wall, roof, elevation, options, road=None):
                 windows.append(_rectangle(facade, center, 1.2, float(bottom), 1.2))
                 openings.setdefault(index, []).append(("windows", windows[-1]))
     if not openings:
-        return None, None, None, None, {"doors": 0, "windows": 0}
-    detailed_wall, door_mesh, window_mesh = cut_wall_openings(wall, facades, openings)
-    return (detailed_wall, door_mesh, window_mesh, build_entrances(entrances, elevation),
+        return None, None, None, None, None, {"doors": 0, "windows": 0}
+    detailed_wall, door_mesh, window_mesh, crawl_openings = cut_wall_openings(wall, facades, openings)
+    return (detailed_wall, door_mesh, window_mesh, build_entrances(entrances, elevation), crawl_openings,
             {"doors": len(doors), "windows": len(windows)})

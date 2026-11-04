@@ -178,6 +178,7 @@ void raisedEntrancePassage(const char* path) {
     viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics);
     viewer::CollisionWorld world(model, {}, &doors);
     // Consume actual Python-generated surfaces after glTF export and loading.
+    const auto exteriorDoors = doors.count();
     for (const float side : {-1.f, 1.f}) {
         viewer::FPSController player;
         require(player.spawn({6 + side * 3.2f, 1.7f, .6f}, world), "Must spawn beside the side ramp");
@@ -187,6 +188,22 @@ void raisedEntrancePassage(const char* path) {
         require(std::abs(player.feet().x - 6) < .2f && player.feet().y > 1 && player.grounded(),
                 "Both exported side ramps must let a standing player walk onto the landing");
     }
+    for (const float side : {-1.f, 1.f}) {
+        viewer::FPSController player;
+        require(player.spawn({6 + side * 1.2f, 1.7f, 2}, world), "Must spawn before a ramp cheek");
+        viewer::FPSInput input;
+        input.toggleProne = true;
+        player.update(1.f / 120, input, world);
+        input.toggleProne = false; input.forward = 1; input.yawDegrees = -90;
+        for (int step = 0; step < 240; ++step) player.update(1.f / 120, input, world);
+        require(player.feet().z > 1.2f,
+                "The triangular front cheeks must block crawling through the sloping ramp sides");
+    }
+    for (std::size_t i = 0; i < exteriorDoors; ++i) doors.setAngle(i, 1.6f);
+    viewer::FloorplanLayer floors(model, doors, world);
+    floors.update({{6, 2.71f, .6f}});
+    require(!floors.resident().empty(), "The raised entrance must retain a usable runtime floorplan");
+    for (std::size_t i = 0; i < exteriorDoors; ++i) doors.setAngle(i, 0);
     for (const bool prone : {false, true}) {
         viewer::FPSController player;
         require(player.spawn({6, 1.7f, 2}, world), "Must spawn in front of the raised landing");
@@ -194,10 +211,10 @@ void raisedEntrancePassage(const char* path) {
         input.crouch = !prone; input.toggleProne = prone;
         player.update(1.f / 120, input, world);
         input.toggleProne = false; input.forward = 1; input.yawDegrees = -90;
-        for (int step = 0; step < 232; ++step) player.update(1.f / 120, input, world);
+        for (int step = 0; step < 480; ++step) player.update(1.f / 120, input, world);
         if (prone) {
-            require(player.feet().z < .8f && player.feet().z > .3f && player.feet().y < .01f,
-                    "The open front must let a prone player crawl below the landing");
+            require(player.feet().z < -.6f && player.feet().y < .2f,
+                    "A prone player must crawl under the landing and closed doorway into the space below the interior floor");
             require(player.stance() == viewer::PlayerStance::Prone,
                     "The landing overhead must keep the crawling stance");
         } else {
@@ -205,10 +222,7 @@ void raisedEntrancePassage(const char* path) {
                     "A landing with less than crouching clearance must block a crouched player");
         }
     }
-    for (std::size_t i = 0; i < doors.count(); ++i) doors.setAngle(i, 1.6f);
-    viewer::FloorplanLayer floors(model, doors, world);
-    floors.update({{6, 2.71f, .6f}});
-    require(!floors.resident().empty(), "The raised entrance must retain a usable runtime floorplan");
+    for (std::size_t i = 0; i < exteriorDoors; ++i) doors.setAngle(i, 1.6f);
     viewer::FPSController player;
     player.teleport({6, 1.012f, .6f});
     player.update(1.f / 120, {}, world);

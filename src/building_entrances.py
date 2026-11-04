@@ -33,10 +33,16 @@ def build_entrances(entrances, elevation):
 
     Ramps descend along the facade on both sides, with a fixed 2 m horizontal
     run. Their ends may be buried. The landing aligns with runtime floors,
-    which sit 1 cm above the facade's floor datum. No solid ramp wedges or
-    supports obstruct crawling beneath the surfaces.
+    which sit 1 cm above the facade's floor datum. The exposed front of each
+    ramp has a triangular cheek down to its low endpoint; the landing keeps
+    its separate, conditional front skirt.
     """
     vertices, faces = [], []
+
+    def triangle(points):
+        start = len(vertices)
+        vertices.extend(points)
+        faces.append([start, start + 1, start + 2])
 
     def quad(points):
         start = len(vertices)
@@ -59,6 +65,9 @@ def build_entrances(entrances, elevation):
             points = [point(inner, 0, top), point(outer, 0, low),
                       point(outer, LANDING_DEPTH, low), point(inner, LANDING_DEPTH, top)]
             quad(points if side < 0 else points[::-1])
+            cheek = [point(inner, LANDING_DEPTH, top), point(inner, LANDING_DEPTH, low),
+                     point(outer, LANDING_DEPTH, low)]
+            triangle(cheek if side > 0 else cheek[::-1])
 
         # Sample across the whole front. A high point must not hide a crawlable
         # gap at the other end. Keep tall fronts entirely open.

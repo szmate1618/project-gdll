@@ -43,7 +43,7 @@ def _insert_vertices(ring, points):
 
 def _partition(surface, entries, band_top):
     cutters = {}
-    for kind in ('doors', 'windows'):
+    for kind in ('doors', 'windows', 'crawl_openings'):
         rectangles = [Polygon(surface.project(rectangle.astype(np.float32).astype(float)))
                       for label, rectangle in entries if label == kind]
         cutters[kind] = union_all(rectangles)
@@ -97,8 +97,8 @@ def _indexed_mesh(triangles, normals):
 
 
 def cut_wall_openings(wall, facades, openings):
-    """Return indexed masonry, door and window meshes in east/north/up meters."""
-    triangles = {kind: [] for kind in ('walls', 'doors', 'windows')}
+    """Return masonry, doors, windows and invisible aperture infills in ENU metres."""
+    triangles = {kind: [] for kind in ('walls', 'doors', 'windows', 'crawl_openings')}
     normals = {kind: [] for kind in triangles}
     matcher = _FacadeMatcher(facades)
     groups, caps = {}, []
@@ -121,7 +121,8 @@ def cut_wall_openings(wall, facades, openings):
     splits = {}
     entries = [entry for group in openings.values() for entry in group]
     sills = [rectangle[:, 2].min() for kind, rectangle in entries if kind == 'windows']
-    band_top = min(sills) - .15 if sills else min(rectangle[:, 2].max() for _, rectangle in entries) - 1.35
+    band_top = min(sills) - .15 if sills else min(rectangle[:, 2].max() for kind, rectangle in entries
+                                                if kind != 'crawl_openings') - 1.35
     band_top = float(np.float32(band_top))
     for index, faces in groups.items():
         surface = FacadeSurface(facades[index], [triangle for triangle, _ in faces])

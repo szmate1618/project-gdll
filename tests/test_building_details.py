@@ -34,7 +34,7 @@ class BuildingDetailTests(unittest.TestCase):
     def assert_closed_lods(self, scene, prefix='building_way_1_0'):
         low = trimesh.util.concatenate([scene.geometry[prefix + '_walls'], scene.geometry[prefix + '_roof']])
         near = trimesh.util.concatenate([scene.geometry[prefix + suffix] for suffix in
-                                         ('_detailed_walls', '_roof', '_doors', '_windows')
+                                         ('_detailed_walls', '_roof', '_doors', '_windows', '_crawl_openings')
                                          if prefix + suffix in scene.geometry])
         for solid in (low, near):
             solid.merge_vertices(merge_tex=True, merge_norm=True)
@@ -89,7 +89,7 @@ class BuildingDetailTests(unittest.TestCase):
         masonry = scene.geometry['building_way_1_0_detailed_walls']
         # For every infill triangle, independently intersect all coplanar wall
         # triangles. No opaque masonry may remain behind glass or doors.
-        for suffix in ('_doors', '_windows'):
+        for suffix in ('_doors', '_windows', '_crawl_openings'):
             for infill, normal in zip(scene.geometry['building_way_1_0' + suffix].triangles,
                                       scene.geometry['building_way_1_0' + suffix].face_normals):
                 axis = int(np.argmax(np.abs(normal[:2])))
@@ -233,9 +233,12 @@ class BuildingDetailTests(unittest.TestCase):
         south = doors.vertices[np.isclose(doors.vertices[:, 1], 0)]
         np.testing.assert_allclose(south[:, 2].min(), 36, atol=1e-5)
         np.testing.assert_allclose(south[:, 2].max(), 38.1, atol=1e-5)
-        masonry = scene.geometry['building_way_1_0_detailed_walls']
-        # The old sloping foundation boundary survives beneath the new door.
-        self.assertTrue(np.any(np.all(np.isclose(masonry.vertices, [6, 0, -.08]), axis=1)))
+        opening = scene.geometry['building_way_1_0_crawl_openings']
+        # The former lower doorway remains an invisible aperture down to the
+        # original sampled foundation, rather than becoming opaque masonry.
+        south = opening.vertices[np.isclose(opening.vertices[:, 1], 0)]
+        self.assertTrue(np.any(np.all(np.isclose(south, [6, 0, -.08]), axis=1)))
+        self.assertAlmostEqual(south[:, 2].max(), 36, places=5)
         self.assert_closed_lods(scene)
 
     def test_window_rectangles_use_four_vertices_and_two_triangles(self):
@@ -270,12 +273,12 @@ class BuildingDetailTests(unittest.TestCase):
         size = struct.unpack_from('<I', data, 12)[0]
         doc = json.loads(data[20:20 + size])
         details = [mesh for mesh in doc['meshes'] if 'building_detail' in mesh.get('extras', {})]
-        self.assertEqual(len(details), 4)
+        self.assertEqual(len(details), 5)
         self.assertEqual(stats['building_meshes'], 2)
-        self.assertEqual(stats['building_detail_meshes'], 3)
+        self.assertEqual(stats['building_detail_meshes'], 4)
         self.assertEqual(stats['building_entrance_meshes'], 1)
         self.assertEqual(sorted(mesh['extras']['building_detail']['level'] for mesh in details),
-                         ['far', 'near', 'near', 'near'])
+                         ['far', 'near', 'near', 'near', 'near'])
         for mesh in details:
             detail = mesh['extras']['building_detail']
             self.assertEqual(detail['version'], 2)
@@ -286,6 +289,9 @@ class BuildingDetailTests(unittest.TestCase):
         self.assertEqual(window['alphaMode'], 'BLEND')
         self.assertTrue(window['doubleSided'])
         self.assertTrue(materials['building_door_brown']['doubleSided'])
+        aperture = materials['building_crawl_opening']
+        self.assertEqual(aperture['alphaMode'], 'MASK')
+        self.assertEqual(aperture['pbrMetallicRoughness']['baseColorFactor'][3], 0)
         self.assertTrue(materials['generic_roof']['doubleSided'])
         r, g, b, opacity = window['pbrMetallicRoughness']['baseColorFactor']
         self.assertLess(r, g)

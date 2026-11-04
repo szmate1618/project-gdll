@@ -421,12 +421,15 @@ road, the longest exterior wall supplies the front. The lowest window row and
 both doors share a head height 2.1 m above the highest sampled foundation ground.
 Door bottoms stay at that floor datum, so downhill doors remain 2.1 m high;
 the surrounding foundation walls and original cap 8 cm below terrain remain.
+The former lower part of each doorway stays open down to the wall base, so a
+player can crawl beneath the interior floor where the terrain provides clearance.
 Each exterior door has a grey 1.5 m wide, 1.2 m deep landing at the interior
 walking level (1 cm above the datum). Two side ramps descend parallel to the
 wall, each with a fixed 2 m horizontal run and the usual interior-stair slope
 (1 m rise per 1.75 m run). Ramp ends may extend below terrain. A front skirt
 closes the landing only when the whole front is less than 40 cm above ground;
-higher landings and the ramps have open space beneath for crawling. These
+higher landings stay open underneath. Each sloping ramp has a grey triangular
+front cheek, extending down to its fixed low endpoint. These
 two-sided surfaces stay visible and collidable independently of wall LoD.
 Each whole facade outline is cut before triangulation, preserving roof and
 foundation samples without carrying the original wall diagonals through glass.
@@ -436,7 +439,9 @@ material mesh, vertices with matching exported positions and normals are
 shared, keeping corners sharp.
 Both complete shells are checked for closure and consistent winding after GLB
 export. Each building batches detailed masonry, doors and glass into at most
-three extra meshes, plus one permanent entrance-surface mesh.
+four extra meshes, including fully masked crawl-aperture infills, plus one
+permanent entrance-surface mesh. The invisible infills preserve shell validation
+and mark the permanent collision openings beneath doors; they render no pixels.
 
 Version 2 `building_detail` mesh extras store `distance_m`, a unique building
 `group`, and `level` (`near` or `far`). All alternatives use shared transformed

@@ -68,7 +68,9 @@ def inspect_glb(path: Path) -> dict:
         prefix = name[:-5]
         detailed_wall = scene.geometry.get(prefix + "_detailed_walls")
         if detailed_wall is not None:
-            infills = [scene.geometry[prefix + suffix] for suffix in ("_doors", "_windows")
+            # Fully masked crawl-opening infills validate the intended shell
+            # without rendering masonry or providing physical obstruction.
+            infills = [scene.geometry[prefix + suffix] for suffix in ("_doors", "_windows", "_crawl_openings")
                        if prefix + suffix in scene.geometry]
             detailed_solid = trimesh.util.concatenate([detailed_wall, roof, *infills])
             detailed_solid.merge_vertices(merge_tex=True, merge_norm=True)

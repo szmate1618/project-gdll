@@ -13,6 +13,11 @@ from src.terrain import Terrain
 
 
 class BuildingEntranceTests(unittest.TestCase):
+    def landing_front(self, mesh, entrance):
+        along = (mesh.triangles[:, :, :2] - entrance.center) @ entrance.direction
+        return mesh.triangles[(np.abs(mesh.face_normals[:, 2]) < 1e-5) &
+                              (np.max(np.abs(along), axis=1) <= .7501)]
+
     def entrance(self, height, angle=0):
         direction = np.array([np.cos(angle), np.sin(angle)])
         return Entrance(np.array([1234., -567.]), direction,
@@ -32,14 +37,24 @@ class BuildingEntranceTests(unittest.TestCase):
             np.testing.assert_allclose(landing[:, :, 2], 1.01, atol=1e-6)
             # Both ramps run 2 m along the wall, at the usual interior-stair slope.
             np.testing.assert_allclose([along.min(), along.max()], [-2.75, 2.75], atol=1e-4)
-            self.assertTrue(np.all(mesh.face_normals[:, 2] > np.cos(np.pi / 4)))
+            tops = mesh.face_normals[mesh.face_normals[:, 2] > .1]
+            self.assertTrue(np.all(tops[:, 2] > np.cos(np.pi / 4)))
+            cheeks = mesh.triangles[np.abs(mesh.face_normals[:, 2]) < 1e-5]
+            self.assertEqual(len(cheeks), 2)
+            np.testing.assert_allclose((cheeks[:, :, :2] - entrance.center) @ entrance.outward, 1.2, atol=1e-4)
+            cheek_normals = mesh.face_normals[np.abs(mesh.face_normals[:, 2]) < 1e-5]
+            np.testing.assert_allclose(cheek_normals[:, :2] @ entrance.outward, 1, atol=1e-5)
+            for triangle in cheeks:
+                heights = np.sort(triangle[:, 2])
+                np.testing.assert_allclose(heights, [1.01 - 2 / 1.75, 1.01 - 2 / 1.75, 1.01], atol=1e-6)
             np.testing.assert_allclose(mesh.bounds[0, 2], 1.01 - 2 / 1.75, atol=1e-6)
-            np.testing.assert_allclose(mesh.area, 1.5 * 1.2 + 2 * 1.2 * np.hypot(2, 2 / 1.75), atol=3e-4)
+            np.testing.assert_allclose(mesh.area, 1.5 * 1.2 + 2 * 1.2 * np.hypot(2, 2 / 1.75) + 2 * (2 / 1.75), atol=4e-4)
 
     def test_front_closes_only_below_40_cm(self):
         for gap in (.20, .399, .40, .401, .8):
-            mesh = build_entrances([self.entrance(gap - .01)], lambda x, y: np.zeros_like(x))
-            front = mesh.triangles[np.abs(mesh.face_normals[:, 2]) < 1e-5]
+            entrance = self.entrance(gap - .01)
+            mesh = build_entrances([entrance], lambda x, y: np.zeros_like(x))
+            front = self.landing_front(mesh, entrance)
             if gap < .4:
                 self.assertGreater(len(front), 0)
                 np.testing.assert_allclose(front[:, :, 1], -568.2, atol=1e-4)
@@ -50,7 +65,7 @@ class BuildingEntranceTests(unittest.TestCase):
     def test_sloping_front_with_a_high_gap_remains_open(self):
         entrance = self.entrance(.3)
         mesh = build_entrances([entrance], lambda x, y: .3 * (x - entrance.center[0]))
-        self.assertTrue(np.all(mesh.face_normals[:, 2] > .7))
+        self.assertEqual(len(self.landing_front(mesh, entrance)), 0)
 
     def test_front_checks_terrain_triangle_breaks_between_regular_samples(self):
         # A narrow terrain trough falls between the regular half-metre samples.
@@ -60,7 +75,7 @@ class BuildingEntranceTests(unittest.TestCase):
         terrain = Terrain(heights, (-1, -2, 1, 0))
         entrance = Entrance(np.zeros(2), np.array([1., 0.]), np.array([0., -1.]), .19)
         mesh = build_entrances([entrance], terrain)
-        self.assertTrue(np.all(mesh.face_normals[:, 2] > .7))
+        self.assertEqual(len(self.landing_front(mesh, entrance)), 0)
 
     def test_roundtrip_keeps_grey_two_sided_surfaces_outside_wall_lod(self):
         scene = trimesh.Scene()

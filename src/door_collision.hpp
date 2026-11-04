@@ -13,7 +13,8 @@ struct DoorOpening {
 using CollisionFace = std::array<glm::vec3, 3>;
 
 // One opening list per original draw. Only v2 wall alternatives with actual
-// rendered cutouts qualify; legacy overlay maps retain their solid walls.
+// rendered cutouts qualify; fully masked crawl-opening infills add permanent
+// apertures below the panels. Legacy overlay maps retain their solid walls.
 std::vector<std::vector<DoorOpening>> collisionDoorOpenings(const Model& model, const DoorLayer& doors);
 std::vector<CollisionFace> cutCollisionDoorways(const CollisionFace& face, const std::vector<DoorOpening>& openings);
 

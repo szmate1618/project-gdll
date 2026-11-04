@@ -69,6 +69,34 @@ std::vector<std::vector<DoorOpening>> collisionDoorOpenings(const Model& model, 
         found->second.push_back({panel.hinge, glm::cross(glm::vec3(0, 1, 0), panel.outward),
                                  panel.outward, 2 * panel.halfExtents.x, bottom - .001f, top});
     }
+    // Fully masked infill triangles mark permanent apertures below raised
+    // doors. Cut them from the low-detail collision shell even with doors shut.
+    for (const auto& draw : model.draws) {
+        if (draw.lowDetail || draw.detailGroup.empty() || !suffix(draw.name, "_crawl_openings")) continue;
+        const auto found = groups.find(groupKey(draw));
+        if (found == groups.end()) continue;
+        const auto& primitive = model.primitives.at(draw.primitive);
+        if (primitive.material < 0) continue;
+        const auto& material = model.materials.at(static_cast<std::size_t>(primitive.material));
+        if (material.alphaMode != "MASK" || material.baseColor.a >= material.alphaCutoff) continue;
+        for (std::size_t i = 0; i + 2 < primitive.indices.size(); i += 3) {
+            std::array<glm::vec3, 3> points;
+            for (std::size_t j = 0; j < 3; ++j)
+                points[j] = glm::vec3(draw.transform * glm::vec4(primitive.vertices.at(primitive.indices[i + j]).position, 1));
+            auto outward = glm::cross(points[1] - points[0], points[2] - points[0]);
+            const float length = glm::length(outward);
+            if (length < 1e-10f || std::abs(outward.y) > .001f * length) continue;
+            outward /= length;
+            const auto right = glm::cross(glm::vec3(0, 1, 0), outward);
+            float low = 0, high = 0, bottom = points[0].y, top = bottom;
+            for (const auto p : points) {
+                const float along = glm::dot(p - points[0], right);
+                low = std::min(low, along); high = std::max(high, along);
+                bottom = std::min(bottom, p.y); top = std::max(top, p.y);
+            }
+            found->second.push_back({points[0] + right * low, right, outward, high - low, bottom - .001f, top});
+        }
+    }
     std::vector<std::vector<DoorOpening>> result(model.draws.size());
     for (std::size_t i = 0; i < model.draws.size(); ++i) {
         const auto& draw = model.draws[i];

@@ -38,8 +38,9 @@ can pass; distinguishing their use needs further rules or additional data.
 Door heads establish the existing facade generator's floor datum, 2.1 metres
 below the head. Newly generated exterior doors stop at this datum even downhill.
 Grey exterior landings align with the interior walking plane, with side ramps
-and open space under landings at least 40 cm above ground. Foundation walls
-below the doorways remain intact. The generated window infills supply distinct
+and open space under landings at least 40 cm above ground. The lower doorway
+remains an open passage beneath the floor, even with the door shut. Sloping
+ramps have triangular front cheeks. The generated window infills supply distinct
 row-head heights.
 Each additional row adds a full-footprint floor/ceiling plane at that row's
 offset from the first row. Adjacent rows must be 2.4–4.2 metres apart. One row,

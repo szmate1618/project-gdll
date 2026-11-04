@@ -14,7 +14,7 @@ from shapely.ops import split
 import trimesh
 from trimesh.visual.material import PBRMaterial
 
-from .building_details import DOOR_MATERIAL, WINDOW_MATERIAL, RoadIndex, facade_details
+from .building_details import CRAWL_OPENING_MATERIAL, DOOR_MATERIAL, WINDOW_MATERIAL, RoadIndex, facade_details
 
 LOG = logging.getLogger(__name__)
 
@@ -208,7 +208,7 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
                 LOG.warning("Skipping building %s component %d: %s", feature["id"], index, error)
                 continue
             try:
-                detailed_wall, doors, windows, entrances, detail_counts = facade_details(
+                detailed_wall, doors, windows, entrances, crawl_openings, detail_counts = facade_details(
                     polygon, wall, roof, elevation, options, road_index.nearest(polygon))
             except (ValueError, IndexError, TypeError, ShapelyError) as error:
                 raise ValueError(f"Building {feature['id']} component {index}: {error}") from error
@@ -220,7 +220,7 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
                 detailed_material = WALL_MATERIAL.copy()
                 detailed_material.doubleSided = True
                 for mesh, material in ((detailed_wall, detailed_material), (doors, DOOR_MATERIAL),
-                                       (windows, WINDOW_MATERIAL)):
+                                       (windows, WINDOW_MATERIAL), (crawl_openings, CRAWL_OPENING_MATERIAL)):
                     if mesh is not None:
                         mesh.visual = trimesh.visual.TextureVisuals(material=material)
                         mesh.metadata["building_detail"] = {"version": 2, "distance_m": distance,
@@ -231,7 +231,8 @@ def add_buildings(scene: trimesh.Scene, features: list, elevation, config: dict,
                 # Permanent collision/render geometry, independent of wall LoD.
                 scene.add_geometry(entrances, node_name=f"{name}_entrances", geom_name=f"{name}_entrances")
                 stats["building_entrance_meshes"] += 1
-            for suffix, mesh in (("detailed_walls", detailed_wall), ("doors", doors), ("windows", windows)):
+            for suffix, mesh in (("detailed_walls", detailed_wall), ("doors", doors), ("windows", windows),
+                                 ("crawl_openings", crawl_openings)):
                 if mesh is not None:
                     detail_name = f"{name}_{suffix}"
                     scene.add_geometry(mesh, node_name=detail_name, geom_name=detail_name)
