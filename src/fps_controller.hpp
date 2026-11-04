@@ -30,6 +30,8 @@ struct FPSConfig {
     float crouchSpeed = 1.5F, proneSpeed = .75F;
     // Prone head/torso box, independent of the upright capsule radius.
     float proneEyeHeight = .35F, proneWidth = .60F, proneLength = 1.0F;
+    // Adjacent stance durations: standing/crouch, then crouch/prone, seconds.
+    float crouchTransitionSeconds = .25F, proneTransitionSeconds = .50F;
 };
 
 enum class PlayerStance { Standing, Crouched, Prone };
@@ -53,6 +55,7 @@ struct FPSState {
     bool grounded = false, jumpHeld = false, jumpQueued = false;
     bool proneRequested = false, proneQueued = false;
     float bodyYawDegrees = -90; // Collision orientation can lag view yaw near obstacles.
+    float posture = 0; // Continuous pose: 0 standing, 1 crouched, 2 prone.
 };
 
 class FPSController {
@@ -89,15 +92,18 @@ private:
     bool snapToGround(const CollisionWorld& world, float distance);
     bool tryStep(glm::vec3 previous, glm::vec3 requested, const CollisionWorld& world);
     void turnBody(float yawDegrees, const CollisionWorld& world);
-    [[nodiscard]] CollisionBox proneBox(glm::vec3 feet, float yawDegrees) const;
-    [[nodiscard]] std::vector<Contact> contactsAt(glm::vec3 feet, PlayerStance stance,
+    [[nodiscard]] CollisionBox proneBox(glm::vec3 feet, float yawDegrees, float posture) const;
+    [[nodiscard]] std::vector<Contact> contactsAt(glm::vec3 feet, float posture,
         const CollisionWorld& world, float skin = 0) const;
     [[nodiscard]] std::optional<std::pair<float, glm::vec3>> proneSupport(
-        glm::vec3 feet, const CollisionWorld& world, float minY, float maxY) const;
+        glm::vec3 feet, float posture, const CollisionWorld& world, float minY, float maxY) const;
     [[nodiscard]] bool walkable(glm::vec3 normal) const;
     [[nodiscard]] float stanceHeight(PlayerStance stance) const;
-    bool changeStance(PlayerStance stance, const CollisionWorld& world);
-    void updateStance(bool crouch, const CollisionWorld& world);
+    [[nodiscard]] float postureHeight(float posture) const;
+    [[nodiscard]] float postureEyeHeight(float posture, float yawDegrees) const;
+    [[nodiscard]] glm::vec2 groundSlope() const;
+    bool changePosture(float posture, const CollisionWorld& world);
+    void updateStance(float dt, bool crouch, const CollisionWorld& world);
 
     FPSConfig config_;
     glm::vec3 feet_{0.0F};
@@ -111,6 +117,7 @@ private:
     PlayerStance takeoffStance_ = PlayerStance::Standing; // A leg tuck preserves airborne movement speed.
     bool proneRequested_ = false, proneQueued_ = false;
     float bodyYawDegrees_ = -90;
+    float posture_ = 0;
     PlayerNoiseEmitter noiseEmitter_;
     std::vector<NoiseEvent> noises_;
 };

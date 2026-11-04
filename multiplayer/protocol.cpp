@@ -97,6 +97,8 @@ void movement(Wire& w, viewer::FPSState& s) {
     w.flag(s.grounded); w.flag(s.jumpHeld); w.flag(s.jumpQueued); w.flag(s.proneRequested); w.flag(s.proneQueued);
     w.number(s.bodyYawDegrees);
     if (std::abs(s.bodyYawDegrees) > 180.f) throw std::runtime_error("Invalid player collision orientation");
+    w.number(s.posture);
+    if (s.posture < 0 || s.posture > 2) throw std::runtime_error("Invalid player posture");
 }
 void firearmShot(Wire& w, FirearmShot& shot) {
     w.integer(shot.slot);

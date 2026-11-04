@@ -45,6 +45,12 @@ viewer::Model fixture(const glm::mat4& node = glm::mat4(1)) {
 void walk(viewer::FPSController& player, const viewer::CollisionWorld& world, float yaw = -90, bool run = false) {
     for (int i = 0; i < 120; ++i) player.update(1.0f / 120, {1, 0, yaw, run, false}, world);
 }
+void settleStance(viewer::FPSController& player, const viewer::CollisionWorld& world, viewer::FPSInput input) {
+    input.toggleProne = false;
+    input.forward = input.right = 0;
+    const float seconds = player.config().crouchTransitionSeconds + player.config().proneTransitionSeconds + .02f;
+    for (int i = 0; i < int(std::ceil(seconds * 120)); ++i) player.update(1.f / 120, input, world);
+}
 void open(viewer::DoorLayer& doors, viewer::PhysicsWorld& physics) {
     const auto& p = doors.panel(0);
     const auto free = p.center + glm::cross(glm::vec3(0, 1, 0), p.outward) * (p.halfExtents.x * .9f);
@@ -194,6 +200,7 @@ void raisedEntrancePassage(const char* path) {
         viewer::FPSInput input;
         input.toggleProne = true;
         player.update(1.f / 120, input, world);
+        settleStance(player, world, input);
         input.toggleProne = false; input.forward = 1; input.yawDegrees = -90;
         for (int step = 0; step < 240; ++step) player.update(1.f / 120, input, world);
         require(player.feet().z > 1.2f,
@@ -210,6 +217,7 @@ void raisedEntrancePassage(const char* path) {
         viewer::FPSInput input;
         input.crouch = !prone; input.toggleProne = prone;
         player.update(1.f / 120, input, world);
+        settleStance(player, world, input);
         input.toggleProne = false; input.forward = 1; input.yawDegrees = -90;
         for (int step = 0; step < 480; ++step) player.update(1.f / 120, input, world);
         if (prone) {

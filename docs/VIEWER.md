@@ -2467,7 +2467,15 @@ roughly 0.74 m above standing height on flat ground. Holding Space does not
 repeat jumps, and presses in the air do not add another jump.
 
 Holding either Ctrl key crouches to a 1.10 m capsule with a 1.00 m eye height
-and 1.5 m/s movement speed. Toggling prone uses a separate head-and-torso box,
+and 1.5 m/s movement speed. Standing and crouching transition over **0.25 s**;
+crouching and prone transition over another **0.50 s**, so standing to fully
+prone takes **0.75 s**. Getting up uses the same durations. Camera and collision
+height change together at the fixed simulation rate. Reversing a request
+continues from the current pose. The slower movement speed applies throughout
+the transition, and intermediate collision shapes pause when clearance runs
+out, retrying as space becomes available.
+
+Fully prone uses a separate head-and-torso box,
 **0.45 m high, 0.60 m wide and 1.00 m long**, with a **0.35 m eye height** and
 0.75 m/s movement. The box extends 0.20 m ahead of the camera's horizontal
 anchor and 0.80 m behind it; legs remain outside this movement approximation.
@@ -2475,7 +2483,10 @@ Its collision orientation follows look yaw as clearance allows. Swept turn
 checks keep its corners out of walls, while looking remains free when a turn
 is blocked. Changes into prone check the full box, including the torso behind
 the camera; getting up checks the upright capsule. F10 displays the active
-box or capsule. Multiplayer prediction and snapshots retain the box orientation.
+box or capsule. The torso footprint grows as the player lowers from crouch
+into prone and shrinks while getting up. Multiplayer prediction and snapshots
+retain the continuous posture and box orientation; remote presentation
+interpolates the same posture for body, eye, flashlight and weapon heights.
 Authored zombie hand swipes and bird impacts also test the prone box.
 Prone persists after releasing its key and takes
 priority over Ctrl. Shift does not accelerate crouching or crawling. Space
@@ -2487,14 +2498,14 @@ implemented.
 Grounded stance changes keep the horizontal anchor planted and lower or raise
 the camera. Prone support follows the highest supporting point under its
 footprint, allowing a small height adjustment on slopes.
-Airborne Ctrl instead lifts the collision feet by 0.70 m, preserving the head's
+Airborne Ctrl gradually lifts the collision feet by up to 0.70 m, preserving the head's
 ballistic path, vertical velocity, and takeoff movement speed. It can clear a
 taller obstacle without increasing jump height. Releasing Ctrl extends the legs
 only if the larger capsule fits; otherwise it retains the tuck. Grounded
 standing is also blocked by low ceilings and resumes when there is space.
-Prone is a short upright collision capsule rather than a full horizontal body;
-there is no rendered player body or leg animation. Collision, debug geometry,
-and zombie head/body/leg perception targets all use the current stance dimensions.
+The prone movement shape approximates the head and torso. Collision, debug
+geometry and zombie head/body/leg perception targets use the current
+intermediate dimensions throughout the transition.
 
 Collision data is built from the existing loaded GLB, with scene-node transforms
 applied in the same Y-up coordinates used for rendering. The loader preserves

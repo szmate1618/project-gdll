@@ -10,33 +10,34 @@ namespace {
 constexpr float tolerance = .0001f;
 }
 
-CollisionBox FPSController::proneBox(glm::vec3 feet, float yawDegrees) const {
+CollisionBox FPSController::proneBox(glm::vec3 feet, float yawDegrees, float posture) const {
     const float yaw = glm::radians(yawDegrees);
     const glm::vec3 forward(std::cos(yaw), 0, std::sin(yaw));
+    const float blend = std::clamp(posture - 1, 0.f, 1.f);
     CollisionBox box;
-    box.halfExtents = {config_.proneWidth * .5f, stanceHeight(PlayerStance::Prone) * .5f,
-                       config_.proneLength * .5f};
+    box.halfExtents = {config_.proneWidth * .5f, postureHeight(posture) * .5f,
+                       glm::mix(config_.radius, config_.proneLength * .5f, blend)};
     // The eye/feet anchor is near the head: 20% of the head/torso length lies
     // ahead and 80% behind it. Legs are outside this movement approximation.
-    box.center = feet - forward * (config_.proneLength * .3f) + glm::vec3(0, box.halfExtents.y, 0);
+    box.center = feet - forward * (config_.proneLength * .3f * blend) + glm::vec3(0, box.halfExtents.y, 0);
     box.rotation = glm::angleAxis(glm::radians(90.f - yawDegrees), glm::vec3(0, 1, 0));
     return box;
 }
 
 std::optional<CollisionBox> FPSController::collisionBox() const {
-    if (stance_ != PlayerStance::Prone) return {};
-    return proneBox(feet_, bodyYawDegrees_);
+    if (posture_ <= 1) return {};
+    return proneBox(feet_, bodyYawDegrees_, posture_);
 }
 
-std::vector<Contact> FPSController::contactsAt(glm::vec3 feet, PlayerStance stance,
+std::vector<Contact> FPSController::contactsAt(glm::vec3 feet, float posture,
         const CollisionWorld& world, float skin) const {
-    if (stance == PlayerStance::Prone) return world.contacts(proneBox(feet, bodyYawDegrees_), skin);
-    return world.contacts(feet, config_.radius, stanceHeight(stance), skin);
+    if (posture > 1) return world.contacts(proneBox(feet, bodyYawDegrees_, posture), skin);
+    return world.contacts(feet, config_.radius, postureHeight(posture), skin);
 }
 
-std::optional<std::pair<float, glm::vec3>> FPSController::proneSupport(glm::vec3 feet,
+std::optional<std::pair<float, glm::vec3>> FPSController::proneSupport(glm::vec3 feet, float posture,
         const CollisionWorld& world, float minY, float maxY) const {
-    const auto box = proneBox(feet, bodyYawDegrees_);
+    const auto box = proneBox(feet, bodyYawDegrees_, posture);
     std::optional<std::pair<float, glm::vec3>> result;
     // A flat box can rest on either end of a slope or partly overhang a ledge.
     // Clearance against the full box still checks geometry between samples.
@@ -52,16 +53,28 @@ std::optional<std::pair<float, glm::vec3>> FPSController::proneSupport(glm::vec3
 void FPSController::turnBody(float yawDegrees, const CollisionWorld& world) {
     const float target = std::remainder(yawDegrees, 360.f);
     const float delta = std::remainder(target - bodyYawDegrees_, 360.f);
-    const float reach = std::hypot(config_.proneWidth * .5f, config_.proneLength * .8f);
+    const auto body = proneBox(feet_, bodyYawDegrees_, posture_);
+    const float reach = std::hypot(body.halfExtents.x,
+        body.halfExtents.z + glm::length(glm::vec2(body.center.x - feet_.x, body.center.z - feet_.z)));
     // Bound the entire rotation interval with a box at its midpoint expanded
     // horizontally by the greatest corner travel. Subdivide blocked intervals
     // to approach walls without either snapping through them or moving feet.
     const auto advance = [&](const auto& self, float from, float to, int depth) -> float {
         const float middle = (from + to) * .5f;
-        auto swept = proneBox(feet_, middle);
+        float eyeShift = 0;
+        auto middleFeet = feet_;
+        if (!grounded_) {
+            const float beforeEye = postureEyeHeight(posture_, from);
+            eyeShift = beforeEye - postureEyeHeight(posture_, to);
+            middleFeet.y += beforeEye - postureEyeHeight(posture_, middle);
+        }
+        auto swept = proneBox(middleFeet, middle, posture_);
         const float margin = reach * std::abs(glm::radians(to - from)) * .5f;
         swept.halfExtents.x += margin;
         swept.halfExtents.z += margin;
+        // During an airborne partial transition, compensate the slope support
+        // eye correction while turning too. Bound its entire vertical sweep.
+        if (!grounded_) swept.halfExtents.y += margin * glm::length(groundSlope()) * (2 - posture_);
         const auto contacts = world.contacts(swept, config_.skin);
         float lift = 0;
         if (grounded_) for (const auto& c : contacts)
@@ -79,7 +92,7 @@ void FPSController::turnBody(float yawDegrees, const CollisionWorld& world) {
         }
         if (!blocked) for (const auto& c : world.contacts(swept, config_.skin))
             if (c.depth > tolerance) blocked = true;
-        if (!blocked) { feet_.y += lift; return to; }
+        if (!blocked) { feet_.y += lift + eyeShift; return to; }
         if (depth == 14 || margin < tolerance) return from;
         const float first = self(self, from, middle, depth + 1);
         if (std::abs(first - middle) > .00001f) return first;
@@ -92,7 +105,7 @@ void FPSController::turnBody(float yawDegrees, const CollisionWorld& world) {
 }
 
 bool FPSController::tryStep(glm::vec3 previous, glm::vec3 requested, const CollisionWorld& world) {
-    if (stance_ != PlayerStance::Prone) {
+    if (posture_ <= 1) {
         const CharacterStepConfig stepConfig{config_.radius, bodyHeight(), config_.stepHeight,
             std::cos(glm::radians(config_.maxSlopeDegrees)), config_.skin};
         const auto stepped = tryCharacterStep(previous, requested, world, stepConfig);
@@ -101,11 +114,11 @@ bool FPSController::tryStep(glm::vec3 previous, glm::vec3 requested, const Colli
         groundNormal_ = stepped->groundNormal;
     } else {
         if (config_.stepHeight <= 0) return false;
-        const auto contacts = contactsAt(requested, stance_, world, config_.skin);
+        const auto contacts = contactsAt(requested, posture_, world, config_.skin);
         if (std::none_of(contacts.begin(), contacts.end(), [](const Contact& c) { return c.depth > tolerance; }))
             return false;
         const float maximum = previous.y + config_.stepHeight + config_.skin;
-        auto support = proneSupport(requested, world, previous.y + tolerance, maximum);
+        auto support = proneSupport(requested, posture_, world, previous.y + tolerance, maximum);
         const glm::vec3 offset(requested.x - previous.x, 0, requested.z - previous.z);
         const float distance = glm::length(offset);
         if (distance < .000001f) return false;
@@ -124,10 +137,10 @@ bool FPSController::tryStep(glm::vec3 previous, glm::vec3 requested, const Colli
         for (int i = 1; i <= lifts; ++i) {
             auto lifted = previous;
             lifted.y += (landing.y - previous.y) * (float(i) / lifts);
-            for (const auto& c : contactsAt(lifted, stance_, world, config_.skin))
+            for (const auto& c : contactsAt(lifted, posture_, world, config_.skin))
                 if (c.depth > tolerance && c.normal.y <= 0) return false;
         }
-        for (const auto& c : contactsAt(landing, stance_, world, config_.skin))
+        for (const auto& c : contactsAt(landing, posture_, world, config_.skin))
             if (c.depth > tolerance) return false;
         feet_ = landing;
         groundNormal_ = support->second;

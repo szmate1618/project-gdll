@@ -8,10 +8,10 @@
 
 namespace multiplayer {
 namespace {
-float height(viewer::PlayerStance stance) {
-    const viewer::FPSConfig config;
-    return stance == viewer::PlayerStance::Prone ? config.proneHeight :
-        stance == viewer::PlayerStance::Crouched ? config.crouchHeight : config.height;
+viewer::UndergrowthMotion shrubMotion(const viewer::FPSState& state, bool running) {
+    viewer::FPSController body;
+    body.restoreMovement(state);
+    return {state.feet, body.bodyHeight(), body.bodyRadius(), state.grounded, running};
 }
 bool near(glm::vec3 a, glm::vec3 b) {
     const auto delta = a - b;
@@ -49,7 +49,7 @@ void ClientAudio::localMovement(const viewer::FPSController& controller, const v
     if (localPlayer_ != self) { localShrubs_ = viewer::UndergrowthEmitter(self); localPlayer_ = self; }
     movementSounds(controller.noises()); // Fresh prediction only; replay never calls this.
     if (const auto event = localShrubs_.update(tickSeconds, before,
-            {controller.feet(), controller.bodyHeight(), controller.config().radius, controller.grounded(), running}, shrubs))
+            {controller.feet(), controller.bodyHeight(), controller.bodyRadius(), controller.grounded(), running}, shrubs))
         viewer::playUndergrowth(system_, *event);
 }
 void ClientAudio::localDoor(const Command& command, const viewer::Camera& camera, const Scene& scene) {
@@ -81,8 +81,7 @@ void ClientAudio::remoteMovement(const Scene& scene, const Snapshots& snapshots,
             movementSounds(audio.steps.update(seconds, {audio.previous.feet, audio.previous.grounded},
                                                {state.feet, state.grounded}, running));
             if (const auto event = audio.shrubs.update(seconds,
-                    {audio.previous.feet, height(audio.previous.stance), .3f, audio.previous.grounded, false},
-                    {state.feet, height(state.stance), .3f, state.grounded, running}, scene.undergrowth))
+                    shrubMotion(audio.previous, false), shrubMotion(state, running), scene.undergrowth))
                 viewer::playUndergrowth(system_, *event);
         } else { audio.steps.reset(); audio.shrubs.reset(); }
         audio.previous = state;

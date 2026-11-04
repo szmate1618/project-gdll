@@ -26,7 +26,8 @@ FPSController::FPSController(FPSConfig config) : config_(config) {
                             config.maxSlopeDegrees, config.stepHeight, config.groundSnap,
                             config.skin, config.fixedDt, config.terminalVelocity,
                             config.crouchHeight, config.proneHeight, config.crouchSpeed, config.proneSpeed,
-                            config.proneEyeHeight, config.proneWidth, config.proneLength};
+                            config.proneEyeHeight, config.proneWidth, config.proneLength,
+                            config.crouchTransitionSeconds, config.proneTransitionSeconds};
     for (float value : values) {
         if (!std::isfinite(value) || value < 0.0F) {
             throw std::invalid_argument("FPS configuration must contain finite, nonnegative values");
@@ -38,7 +39,8 @@ FPSController::FPSController(FPSConfig config) : config_(config) {
         config.maxSlopeDegrees >= 89.0F || config.terminalVelocity <= 0.0F ||
         config.proneHeight <= 0 || config.crouchHeight < config.proneHeight ||
         config.proneEyeHeight <= 0 || config.proneEyeHeight > config.proneHeight ||
-        config.proneWidth <= 0 || config.proneLength <= 0) {
+        config.proneWidth <= 0 || config.proneLength <= 0 ||
+        config.crouchTransitionSeconds <= 0 || config.proneTransitionSeconds <= 0) {
         throw std::invalid_argument("Invalid FPS capsule, timestep, slope, or fall-speed configuration");
     }
 }
@@ -62,6 +64,7 @@ void FPSController::teleport(glm::vec3 feet) {
     takeoffStance_ = PlayerStance::Standing;
     proneRequested_ = proneQueued_ = false;
     bodyYawDegrees_ = -90;
+    posture_ = 0;
     noiseEmitter_.reset();
     noises_.clear();
 }
@@ -94,7 +97,7 @@ bool FPSController::startFalling(glm::vec3 eye, const CollisionWorld& world) {
 bool FPSController::resolve(const CollisionWorld& world, bool horizontal, glm::vec3 previous) {
     bool supported = false;
     for (int iteration = 0; iteration < kResolutionIterations; ++iteration) {
-        const auto contacts = contactsAt(feet_, stance_, world, config_.skin);
+        const auto contacts = contactsAt(feet_, posture_, world, config_.skin);
         const Contact* deepest = nullptr;
         for (const auto& contact : contacts) {
             if (contact.depth > kContactTolerance &&
@@ -129,7 +132,7 @@ bool FPSController::resolve(const CollisionWorld& world, bool horizontal, glm::v
 
     // Extremely tight corners may not converge within the iteration budget.
     // Keep the previous valid position instead of admitting deep penetration.
-    for (const auto& contact : contactsAt(feet_, stance_, world)) {
+    for (const auto& contact : contactsAt(feet_, posture_, world)) {
         if (contact.depth > config_.skin + 0.001F) {
             feet_ = previous;
             if (!horizontal) {
@@ -142,15 +145,15 @@ bool FPSController::resolve(const CollisionWorld& world, bool horizontal, glm::v
 }
 
 bool FPSController::snapToGround(const CollisionWorld& world, float distance) {
-    if (stance_ == PlayerStance::Prone) {
-        const auto support = proneSupport(feet_, world, feet_.y - distance - config_.proneHeight,
+    if (posture_ > 1) {
+        const auto support = proneSupport(feet_, posture_, world, feet_.y - distance - bodyHeight(),
                                           feet_.y + config_.stepHeight + config_.skin);
         if (!support) return false;
         const float target = support->first + config_.skin;
         const float difference = target - feet_.y;
         if (difference < -distance || difference > config_.stepHeight + config_.skin) return false;
         auto candidate = feet_; candidate.y = target;
-        for (const auto& contact : contactsAt(candidate, stance_, world))
+        for (const auto& contact : contactsAt(candidate, posture_, world))
             if (contact.depth > config_.skin + kContactTolerance) return false;
         feet_ = candidate;
         grounded_ = true;
@@ -190,7 +193,7 @@ bool FPSController::snapToGround(const CollisionWorld& world, float distance) {
 void FPSController::step(float dt, const FPSInput& input, const CollisionWorld& world, bool jump) {
     // Upright capsules are yaw invariant; prone boxes retain an independently
     // reconciled orientation so a blocked turn cannot tunnel through a wall.
-    if (stance_ != PlayerStance::Prone) bodyYawDegrees_ = std::remainder(input.yawDegrees, 360.f);
+    if (posture_ <= 1) bodyYawDegrees_ = std::remainder(input.yawDegrees, 360.f);
     if (proneQueued_) {
         proneRequested_ = !proneRequested_;
         proneQueued_ = false;
@@ -205,8 +208,8 @@ void FPSController::step(float dt, const FPSInput& input, const CollisionWorld& 
         verticalVelocity_ = config_.jumpVelocity;
         grounded_ = false;
     }
-    updateStance(input.crouch, world);
-    if (stance_ == PlayerStance::Prone) turnBody(input.yawDegrees, world);
+    updateStance(dt, input.crouch, world);
+    if (posture_ > 1) turnBody(input.yawDegrees, world);
     if (grounded_) takeoffStance_ = stance_;
 
     const float yaw = glm::radians(input.yawDegrees);
@@ -246,7 +249,7 @@ void FPSController::step(float dt, const FPSInput& input, const CollisionWorld& 
         resolve(world, true, previous);
         // Apply pushing only after selecting the movement. A successful step
         // onto a low prop should not also shove it sideways.
-        if (stance_ == PlayerStance::Prone) world.pushBoxes(proneBox(requested, bodyYawDegrees_), movement, subDt);
+        if (posture_ > 1) world.pushBoxes(proneBox(requested, bodyYawDegrees_, posture_), movement, subDt);
         else world.pushBoxes(requested, config_.radius, bodyHeight(), movement, subDt);
 
         // Preserve an existing support constraint before applying gravity. If a
@@ -277,7 +280,7 @@ void FPSController::step(float dt, const FPSInput& input, const CollisionWorld& 
 
 FPSState FPSController::movementState() const {
     return {feet_, groundNormal_, verticalVelocity_, accumulator_, stance_, takeoffStance_,
-            grounded_, jumpHeld_, jumpQueued_, proneRequested_, proneQueued_, bodyYawDegrees_};
+            grounded_, jumpHeld_, jumpQueued_, proneRequested_, proneQueued_, bodyYawDegrees_, posture_};
 }
 
 void FPSController::restoreMovement(const FPSState& state) {
@@ -287,6 +290,7 @@ void FPSController::restoreMovement(const FPSState& state) {
     if (!finiteVector(state.feet) || !finiteVector(state.groundNormal) ||
         !std::isfinite(state.verticalVelocity) || !std::isfinite(state.accumulator) ||
         !std::isfinite(state.bodyYawDegrees) ||
+        !std::isfinite(state.posture) || state.posture < 0 || state.posture > 2 ||
         state.accumulator < 0 || state.accumulator > 1 ||
         state.stance < PlayerStance::Standing || state.stance > PlayerStance::Prone ||
         state.takeoffStance < PlayerStance::Standing || state.takeoffStance > PlayerStance::Prone)
@@ -303,6 +307,7 @@ void FPSController::restoreMovement(const FPSState& state) {
     proneRequested_ = state.proneRequested;
     proneQueued_ = state.proneQueued;
     bodyYawDegrees_ = std::remainder(state.bodyYawDegrees, 360.f);
+    posture_ = state.posture;
     noises_.clear();
 }
 

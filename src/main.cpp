@@ -1214,8 +1214,16 @@ void fpsInputSelfTest(GLFWwindow* window) {
     moveCamera(app, 1.0f / 120.0f);
     if (app.rig.player().stance() != viewer::PlayerStance::Crouched)
         throw std::runtime_error("Held Ctrl failed to crouch");
+    if (app.rig.player().eyeHeight() <= 1.f || app.rig.player().eyeHeight() >= 1.7f)
+        throw std::runtime_error("Crouching must begin gradually");
+    for (int frame = 0; frame < 40; ++frame) moveCamera(app, 1.f / 120.f);
+    if (std::abs(app.rig.player().eyeHeight() - 1.f) > .001f)
+        throw std::runtime_error("Crouching failed to reach its final height");
     key(window, GLFW_KEY_LEFT_CONTROL, 0, GLFW_RELEASE, 0);
     moveCamera(app, 1.0f / 120.0f);
+    if (app.rig.player().eyeHeight() <= 1.f || app.rig.player().eyeHeight() >= 1.7f)
+        throw std::runtime_error("Standing from crouch must begin gradually");
+    for (int frame = 0; frame < 40; ++frame) moveCamera(app, 1.f / 120.f);
     if (app.rig.player().stance() != viewer::PlayerStance::Standing)
         throw std::runtime_error("Releasing Ctrl failed to stand");
     key(window, GLFW_KEY_C, 0, GLFW_PRESS, 0);
@@ -1225,9 +1233,17 @@ void fpsInputSelfTest(GLFWwindow* window) {
     moveCamera(app, 1.0f / 120.0f);
     if (app.rig.player().stance() != viewer::PlayerStance::Prone)
         throw std::runtime_error("A short prone press must toggle once, ignore repeats and persist after release");
+    if (app.rig.player().eyeHeight() <= .35f || app.rig.player().eyeHeight() >= 1.7f)
+        throw std::runtime_error("Going prone must begin gradually");
+    for (int frame = 0; frame < 100; ++frame) moveCamera(app, 1.f / 120.f);
+    if (std::abs(app.rig.player().eyeHeight() - .35f) > .001f || !app.rig.player().collisionBox())
+        throw std::runtime_error("Going prone failed to reach its final box and camera height");
     key(window, GLFW_KEY_C, 0, GLFW_PRESS, 0);
     key(window, GLFW_KEY_C, 0, GLFW_RELEASE, 0);
     moveCamera(app, 1.0f / 120.0f);
+    if (app.rig.player().eyeHeight() <= .35f || app.rig.player().eyeHeight() >= 1.7f)
+        throw std::runtime_error("Getting up from prone must begin gradually");
+    for (int frame = 0; frame < 100; ++frame) moveCamera(app, 1.f / 120.f);
     if (app.rig.player().stance() != viewer::PlayerStance::Standing)
         throw std::runtime_error("A second prone press failed to stand");
     const bool overlay = app.collisionDebug;

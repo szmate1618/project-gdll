@@ -47,10 +47,20 @@ void presentedLights() {
     require(lights[0].direction.x > .99f, "Remote yaw must aim the beam east independently of the viewer");
     const auto standingY = lights[0].position.y;
     remote.movement.stance = viewer::PlayerStance::Crouched;
+    remote.movement.posture = .5f;
+    lights = remoteFlashlights({remote}, self.id);
+    require(std::abs(standingY - lights[0].position.y - .35f) < .001f,
+            "An unfinished crouch must lower the flashlight only as far as the current eye");
+    remote.movement.posture = 1.f;
     lights = remoteFlashlights({remote}, self.id);
     require(std::abs(standingY - lights[0].position.y - .7f) < .001f,
             "Crouching must lower the remote flashlight with the eye");
     remote.movement.stance = viewer::PlayerStance::Prone;
+    remote.movement.posture = 1.5f;
+    lights = remoteFlashlights({remote}, self.id);
+    require(std::abs(standingY - lights[0].position.y - 1.025f) < .001f,
+            "An unfinished prone transition must keep the flashlight between its endpoint heights");
+    remote.movement.posture = 2.f;
     lights = remoteFlashlights({remote}, self.id);
     require(std::abs(standingY - lights[0].position.y - 1.35f) < .001f,
             "Prone flashlight must follow the lower eye");

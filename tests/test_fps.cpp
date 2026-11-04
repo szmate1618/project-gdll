@@ -283,6 +283,35 @@ void testInvalidInputsAndMissingGround() {
     }
 }
 
+void testInvalidPostureConfigurationAndState() {
+    for (const bool prone : {false, true}) {
+        for (const float seconds : {0.f, -.01f, std::numeric_limits<float>::quiet_NaN(),
+                                    std::numeric_limits<float>::infinity()}) {
+            viewer::FPSConfig config;
+            (prone ? config.proneTransitionSeconds : config.crouchTransitionSeconds) = seconds;
+            bool rejected = false;
+            try { viewer::FPSController candidate(config); }
+            catch (const std::invalid_argument&) { rejected = true; }
+            require(rejected, "Each posture transition duration must be finite and positive");
+        }
+    }
+
+    viewer::FPSController player;
+    player.teleport({2, 3, 4});
+    const auto before = player.movementState();
+    for (const float posture : {-.01f, 2.01f, std::numeric_limits<float>::quiet_NaN(),
+                                std::numeric_limits<float>::infinity()}) {
+        auto invalid = before;
+        invalid.feet = {100, 100, 100};
+        invalid.posture = posture;
+        bool rejected = false;
+        try { player.restoreMovement(invalid); }
+        catch (const std::invalid_argument&) { rejected = true; }
+        require(rejected && player.feet() == before.feet && player.movementState().posture == before.posture,
+                "Movement restore must reject nonfinite or out-of-range posture without modifying the controller");
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -292,6 +321,7 @@ int main() {
         testWallsAndBuildingSpawn();
         testSlopesAndEdges();
         testInvalidInputsAndMissingGround();
+        testInvalidPostureConfigurationAndState();
         std::cout << "FPS flat ground, frame rates, gravity, jumps, ceilings, walls, sliding, "
                      "spawn, slopes, steep slopes, and mesh edges passed\n";
         return EXIT_SUCCESS;

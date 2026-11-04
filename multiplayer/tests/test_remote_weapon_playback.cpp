@@ -15,15 +15,19 @@ void eyeMount() {
     RemoteWeaponPlayback playback;
     PlayerState player; player.id = 2; player.slot = 1;
     player.movement.feet = {10, 2, -4}; player.yaw = 0; player.pitch = 30;
-    for (const auto stance : {viewer::PlayerStance::Standing, viewer::PlayerStance::Crouched, viewer::PlayerStance::Prone}) {
-        player.movement.stance = stance;
-        const float height = stance == viewer::PlayerStance::Standing ? 1.7f :
-            stance == viewer::PlayerStance::Crouched ? 1.f : .35f;
+    struct MountCase { viewer::PlayerStance stance; float posture, eyeHeight; };
+    for (const auto sample : {MountCase{viewer::PlayerStance::Standing, 0.f, 1.7f},
+                              MountCase{viewer::PlayerStance::Crouched, .5f, 1.35f},
+                              MountCase{viewer::PlayerStance::Crouched, 1.f, 1.f},
+                              MountCase{viewer::PlayerStance::Prone, 1.5f, .675f},
+                              MountCase{viewer::PlayerStance::Prone, 2.f, .35f}}) {
+        player.movement.stance = sample.stance;
+        player.movement.posture = sample.posture;
         const auto pose = playback.sample(player, 0);
         require(bool(pose), "On-foot firearm has no remote weapon mount");
-        const auto eye = player.movement.feet + glm::vec3(0, height, 0);
+        const auto eye = player.movement.feet + glm::vec3(0, sample.eyeHeight, 0);
         require(glm::distance(glm::vec3(pose->eyeToWorld[3]), eye) < .00001f,
-            "Remote gun used body center or standing eyes for another stance");
+            "Remote gun mount did not follow the current eye throughout a stance transition");
         const auto forwardPoint = glm::vec3(pose->eyeToWorld * glm::vec4(0, 0, -2, 1));
         require(glm::distance(forwardPoint, eye + glm::vec3(std::sqrt(3.f), 1, 0)) < .00001f,
             "Remote gun mount did not preserve the player's yaw/pitch and local forward axis");

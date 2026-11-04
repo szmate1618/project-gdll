@@ -48,6 +48,7 @@ void protocol() {
     Snapshot s; s.tick = 123;
     PlayerState player; player.id = 42; player.movement.feet = {12, 3, -4}; player.resolved = 99;
     player.movement.bodyYawDegrees = 37.f;
+    player.movement.posture = 1.375f; player.movement.stance = viewer::PlayerStance::Prone;
     player.weaponCoolingDown = true;
     player.weaponSwitchRemaining = 1.25f; player.weaponSwitchDuration = 3.5f;
     player.reloadRemaining = 2.25f; player.reloadDuration = 4.5f;
@@ -62,6 +63,7 @@ void protocol() {
     const auto copy = std::get<Snapshot>(decode(bytes.data(), bytes.size()));
     require(copy.boxes.at(0).removed, "Snapshot round trip lost retired box state");
     require(copy.players[0].movement.bodyYawDegrees == 37.f, "Snapshot lost prone collision orientation");
+    require(copy.players[0].movement.posture == 1.375f, "Snapshot lost partial posture progress");
     require(copy.tick == 123 && copy.players[0].id == 42 && copy.players[0].movement.feet.x == 12 && copy.players[0].weaponCoolingDown,
         "Snapshot round trip lost state");
     require(copy.players[0].weaponSwitchRemaining == 1.25f && copy.players[0].weaponSwitchDuration == 3.5f,
@@ -88,6 +90,11 @@ void protocol() {
             "Command lost inventory action order or values");
     auto invalidReload = s; invalidReload.players[0].reloadRemaining = 5;
     rejects([&] { encode(invalidReload); }, "Reload progress beyond duration accepted");
+    for (const float posture : {-.01f, 2.01f, std::numeric_limits<float>::quiet_NaN(),
+                                std::numeric_limits<float>::infinity()}) {
+        auto invalid = s; invalid.players[0].movement.posture = posture;
+        rejects([&] { encode(invalid); }, "Invalid authoritative posture encoded");
+    }
     require(copy.grenades.at(0).id == 7 && copy.grenades[0].center.y == 2 &&
             copy.explosions.at(0).id == 6 && copy.explosions[0].age == .08f,
             "Snapshot must preserve grenade poses and explosion ages");
@@ -201,7 +208,8 @@ void prediction() {
     client.reconcile(state, collision);
     const auto actual = client.controller().movementState();
     require(glm::length(actual.feet - expected.feet) < .0001f && actual.stance == expected.stance &&
-        actual.verticalVelocity == expected.verticalVelocity && actual.bodyYawDegrees == expected.bodyYawDegrees,
+        actual.verticalVelocity == expected.verticalVelocity && actual.bodyYawDegrees == expected.bodyYawDegrees &&
+        actual.posture == expected.posture,
         "Reconciliation lost jump/stance/orientation state");
     require(client.outstanding() == 25, "Acknowledged inputs retained");
     require(client.commandsToSend().commands.front().sequence == 36, "Resend includes resolved inputs");
@@ -232,6 +240,34 @@ void prediction() {
             decoded.commands.back().firearmShot && decoded.commands.back().firearmShot->predictedMist &&
             decoded.commands.back().firearmShot->muzzlePosition == glm::vec3(1, 2, 3),
             "Local mist or muzzle metadata was lost from the stored/retried shot command");
+}
+void partialPosturePrediction() {
+    using namespace multiplayer;
+    const auto model = ground(); viewer::CollisionWorld collision(model);
+    viewer::FPSController server;
+    require(server.spawn({0, 1.7f, 0}, collision), "Posture prediction spawn failed");
+    PlayerState state; state.id = 1; state.movement = server.movementState();
+    Prediction client; client.reconcile(state, collision);
+    for (int i = 0; i < 12; ++i) {
+        Command command; command.movement.toggleProne = i == 0;
+        client.advance(command, collision);
+        if (i < 6) server.update(tickSeconds, command.movement, collision);
+    }
+    const auto expected = client.controller().movementState();
+    require(expected.posture > 0 && expected.posture < 1,
+        "Prediction fixture must reconcile during the first transition leg");
+    state.resolved = 6; state.movement = server.movementState();
+    Snapshot snapshot; snapshot.players.push_back(state);
+    const auto bytes = encode(snapshot);
+    const auto confirmed = std::get<Snapshot>(decode(bytes.data(), bytes.size())).players.front();
+    client.reconcile(confirmed, collision);
+    require(client.controller().movementState().posture == expected.posture &&
+        glm::distance(client.eye(), expected.feet + glm::vec3(0, 1.7f - .7f * expected.posture, 0)) < 1e-5f,
+        "Wire reconciliation must preserve partial posture and replay its remaining inputs");
+    Command reverse; reverse.movement.toggleProne = true;
+    client.advance(reverse, collision);
+    require(client.controller().movementState().posture < expected.posture,
+        "A reconciled transition must reverse from its current progress");
 }
 void predictionPresentation() {
     using namespace multiplayer;
@@ -309,6 +345,26 @@ void predictionPresentation() {
     state.movement.feet.x += .5f;
     client.reconcile(state, collision);
     require(client.presentedEye(0) == client.eye(), "Vehicle exit interpolated from the old seat position");
+}
+void remotePostureInterpolation(const std::filesystem::path& asset) {
+    using namespace multiplayer;
+    Options options; options.map = asset; options.trees = options.forests = false; options.zombieCount = 0;
+    Scene scene(options, {}, std::nullopt, SceneRole::Replica);
+    Snapshots snapshots;
+    Snapshot before; before.tick = 60;
+    PlayerState player; player.id = 1; player.movement.feet = {2, .002f, 0};
+    before.players.push_back(player);
+    auto after = before; after.tick = 72;
+    after.players.front().movement.feet.x = 4;
+    after.players.front().movement.posture = 2;
+    after.players.front().movement.stance = viewer::PlayerStance::Prone;
+    snapshots.push(before, 10); snapshots.push(after, 10);
+    snapshots.apply(scene, 10); // Six-tick presentation delay selects the midpoint.
+    const auto& shown = snapshots.players().front().movement;
+    viewer::FPSController body; body.restoreMovement(shown);
+    require(std::abs(shown.posture - 1.f) < 1e-6f &&
+        glm::distance(body.eyePosition(), glm::vec3(3, 1.002f, 0)) < 1e-5f,
+        "Remote presentation must interpolate posture and feet before deriving eye height");
 }
 void physicsPoses() {
     auto physics = std::make_shared<viewer::PhysicsWorld>();
@@ -619,7 +675,7 @@ void queuedInputTimeout(const std::filesystem::path& asset) {
         "Queued timeout fixture did not drain all commands");
     require(player.shots == 1 && player.weaponReload.pending() && player.weapons.equipped().loaded == 11 && player.weapons.equipped().reserve == 120,
         "Packet timeout erased an acknowledged shot or pending reload");
-    require(player.controller.stance() == viewer::PlayerStance::Prone &&
+    require(player.controller.movementState().proneRequested && player.controller.movementState().posture > 0 &&
             glm::distance(beforeTimeout, player.controller.feet()) > .01f,
         "Packet timeout erased acknowledged movement or a prone toggle");
 
@@ -1030,15 +1086,16 @@ void inputRecovery(const std::filesystem::path& asset) {
     }
     world.submit(gap, batch);
     for (int i = 0; i < 24; ++i) { world.submit(gap, Commands{}); world.step(); }
+    for (int i = 0; i < 45; ++i) world.step();
     require(world.players().at(gap).resolved == 40 && world.players().at(gap).controller.stance() == viewer::PlayerStance::Standing,
         "Filling an input gap lost ordered button actions");
 }
 }
 int main(int argc, char** argv) {
     try {
-        protocol(); playerHealthProtocol(); fragments(); prediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
+        protocol(); playerHealthProtocol(); fragments(); prediction(); partialPosturePrediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
-        triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverHandInventory(argv[1]);
+        remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverHandInventory(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;
     }
     catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
