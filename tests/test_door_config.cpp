@@ -4,6 +4,7 @@
 #include <box3d/box3d.h>
 
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -52,68 +53,124 @@ void configuredClosedTravel(const std::filesystem::path& path) {
     }
 }
 
+struct RestraintFixture {
+    std::shared_ptr<viewer::PhysicsWorld> world = std::make_shared<viewer::PhysicsWorld>();
+    viewer::DoorPanel panel;
+    viewer::DoorLayer doors;
+    float direction;
+
+    explicit RestraintFixture(bool inward)
+        : panel(makePanel(inward)), doors({panel}, world), direction(inward ? -1.f : 1.f) {}
+
+    static viewer::DoorPanel makePanel(bool inward) {
+        viewer::DoorPanel result;
+        result.hinge = {0, 1.1f, 0}; result.center = {.5f, 1.1f, 0};
+        result.halfExtents = {.5f, 1, .02f}; result.outward = {0, 0, 1}; result.inward = inward;
+        return result;
+    }
+    glm::vec3 edge() const { return doors.pointState(0, {.45f, 0, 0}).point; }
+    void pressure(float force, float applicationStep = 1.f / 60) {
+        // A continuous force must reach every fixed physics step, even when the
+        // application advances several steps in one call or none at all.
+        world->step(applicationStep, [&](float) {
+            doors.applyForce(0, -direction * panel.outward * force, edge());
+        });
+    }
+    void settle(int frames = 240) {
+        for (int frame = 0; frame < frames; ++frame) world->step(1.f / 60);
+    }
+};
+
+double pressureBreakTime(bool inward, float force, float applicationStep = 1.f / 60) {
+    RestraintFixture fixture(inward);
+    double elapsed = 0;
+    while (elapsed < 60 && !fixture.doors.restraint(0).broken) {
+        fixture.pressure(force, applicationStep);
+        elapsed += applicationStep;
+        if (elapsed <= 20)
+            require(!fixture.doors.restraint(0).broken, "Sustained pressure must not immediately release the restraint");
+    }
+    require(fixture.doors.restraint(0).broken, "A sustained overload must eventually release the restraint");
+    for (const float sign : {-1.f, 1.f}) {
+        fixture.doors.setAngle(0, 0);
+        fixture.doors.applyImpulse(0, sign * fixture.panel.outward * 20.f, fixture.edge());
+        fixture.settle(60);
+        require(sign * fixture.doors.angle(0) > .2f, "A released door must swing freely in both directions");
+    }
+    return elapsed;
+}
+
 void physicalRestraint() {
-    struct Impact { bool blocked; float impulse; };
     for (const bool inward : {false, true}) {
-        for (const auto test : {Impact{false, 6.f}, Impact{false, 12.f}, Impact{true, 6.f}, Impact{true, 12.f}}) {
-            const bool blocked = test.blocked;
-            const float impulse = test.impulse;
-            auto world = std::make_shared<viewer::PhysicsWorld>();
-            viewer::DoorPanel panel;
-            panel.hinge = {0, 1.1f, 0}; panel.center = {.5f, 1.1f, 0};
-            panel.halfExtents = {.5f, 1, .02f}; panel.outward = {0, 0, 1}; panel.inward = inward;
-            viewer::DoorLayer doors({panel}, world);
-            const float direction = inward ? -1.f : 1.f;
-            b3BodyId blocker{};
-            if (blocked) {
-                auto definition = b3DefaultBodyDef();
-                definition.position = {.5, 1.1, -direction * .523f};
-                blocker = b3CreateBody(world->id(), &definition);
-                const auto hull = b3MakeBoxHull(.7f, 1.2f, .5f);
-                const auto shape = b3DefaultShapeDef();
-                b3CreateHullShape(blocker, &shape, &hull.base);
-            }
-            float previous = doors.restraint(0).maxFlexMeters;
-            int stretchedHits = 0;
-            for (int hit = 0; hit < 16 && !doors.restraint(0).broken; ++hit) {
-                const auto edge = doors.pointState(0, {.45f, 0, 0}).point;
-                doors.applyImpulse(0, -direction * panel.outward * impulse, edge);
-                for (int frame = 0; frame < 90; ++frame) world->step(1.f / 60);
-                const auto state = doors.restraint(0);
-                if (state.maxFlexMeters > previous + .0001f) ++stretchedHits;
-                require(state.maxFlexMeters >= previous, "Permanent stretch must not heal between hits");
+        const double reference = pressureBreakTime(inward, 180.f);
+        require(reference >= 35 && reference <= 50,
+                "A finite 180 N push must yield gradually according to its physical load");
+        require(pressureBreakTime(inward, 360.f) < reference,
+                "A stronger sustained overload must release the restraint sooner");
+        {
+            RestraintFixture fixture(inward);
+            const auto initial = fixture.doors.restraint(0).maxFlexMeters;
+            for (int frame = 0; frame < 40 * 60; ++frame) fixture.pressure(80.f);
+            require(!fixture.doors.restraint(0).broken && fixture.doors.restraint(0).maxFlexMeters == initial,
+                    "A push within the elastic allowance must not gradually damage the restraint");
+        }
+        {
+            RestraintFixture fixture(inward);
+            auto definition = b3DefaultBodyDef();
+            definition.position = {.5, 1.1, -fixture.direction * .523f};
+            const auto blocker = b3CreateBody(fixture.world->id(), &definition);
+            const auto hull = b3MakeBoxHull(.7f, 1.2f, .5f);
+            const auto shape = b3DefaultShapeDef();
+            b3CreateHullShape(blocker, &shape, &hull.base);
+            const auto initial = fixture.doors.restraint(0).maxFlexMeters;
+            for (int frame = 0; frame < 40 * 60; ++frame) fixture.pressure(360.f);
+            require(!fixture.doors.restraint(0).broken && fixture.doors.restraint(0).maxFlexMeters == initial,
+                    "Strong pressure must not weaken a panel physically blocked before its elastic travel");
+            b3DestroyBody(blocker);
+        }
+        {
+            RestraintFixture fixture(inward);
+            float previous = fixture.doors.restraint(0).maxFlexMeters;
+            int advances = 0;
+            for (int hit = 0; hit < 8 && !fixture.doors.restraint(0).broken; ++hit) {
+                fixture.doors.applyImpulse(0, -fixture.direction * fixture.panel.outward * 40.f, fixture.edge());
+                fixture.settle(90);
+                const auto state = fixture.doors.restraint(0);
+                if (hit == 0)
+                    require(!state.broken, "A single strong impact must not immediately release the restraint");
+                require(state.maxFlexMeters >= previous, "Permanent stretch must not heal between impacts");
+                advances += state.maxFlexMeters > previous;
                 previous = state.maxFlexMeters;
-            }
-            const auto state = doors.restraint(0);
-            if (blocked || impulse == 6.f) {
-                require(!state.broken && state.maxFlexMeters == .01f,
-                        "Repeated hits must not weaken a panel that stays within its elastic allowance");
-                if (blocked) b3DestroyBody(blocker);
-            } else {
-                require(state.broken && stretchedHits > 1, "Repeated physical overstretch must progressively release the restraint");
-                for (const float sign : {-1.f, 1.f}) {
-                    doors.setAngle(0, 0);
-                    doors.applyImpulse(0, sign * panel.outward * 20.f, doors.pointState(0, {.45f, 0, 0}).point);
-                    for (int frame = 0; frame < 60; ++frame) world->step(1.f / 60);
-                    require(sign * doors.angle(0) > .2f, "A released door must swing freely in both directions");
+                if (hit == 0) {
+                    fixture.settle();
+                    const auto settled = fixture.doors.restraint(0).maxFlexMeters;
+                    fixture.settle();
+                    require(fixture.doors.restraint(0).maxFlexMeters == settled,
+                            "An unloaded panel must retain its damage without continuing to weaken");
+                    previous = settled;
                 }
             }
+            require(advances > 1, "Separate physical impacts must continue accumulating permanent stretch");
         }
     }
+    const double lowRate = pressureBreakTime(false, 180.f, 1.f / 30);
+    const double highRate = pressureBreakTime(false, 180.f, 1.f / 120);
+    require(std::abs(lowRate - highRate) < .1,
+            "Material yielding must follow fixed physics time rather than the application frame rate");
 }
 
 void replicatedRestraint() {
     auto world = std::make_shared<viewer::PhysicsWorld>();
     viewer::DoorLayer doors({}, world, {}, true);
     const auto id = doors.reserveRuntimeDoors(1);
-    doors.setRestraint(id, {.02f, false});
+    doors.setRestraint(id, {.03f, false});
     viewer::DoorPanel panel;
     panel.hinge = {0, 1, 0}; panel.center = {.5f, 1, 0};
     panel.halfExtents = {.5f, 1, .02f}; panel.outward = {0, 0, 1};
     doors.installRuntimeDoor(id, panel);
     doors.applyImpulse(id, {0, 0, -40}, {.95f, 1, 0});
     for (int i = 0; i < 60; ++i) world->step(1.f / 60);
-    require(doors.restraint(id).maxFlexMeters == .02f && !doors.restraint(id).broken,
+    require(doors.restraint(id).maxFlexMeters == .03f && !doors.restraint(id).broken,
             "Replicas must not invent strain damage from local physics");
     doors.evictRuntimeDoor(id);
     doors.setRestraint(id, {.05f, true});
@@ -154,6 +211,7 @@ int main(int argc, char** argv) {
         }
         for (const auto invalid : {-1.f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()})
             rejects([&] { viewer::validateDoorConfig({invalid}); });
+        require(viewer::DoorConfig{}.maxClosedFlexMeters == .02f, "Default elastic travel must be two centimeters");
         configuredClosedTravel(path);
         physicalRestraint();
         replicatedRestraint();

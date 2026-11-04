@@ -1,5 +1,6 @@
 #include "zombie_active_attack_fixture.hpp"
 #include "zombie_doorway_fixture.hpp"
+#include "zombie_door_collision.hpp"
 #include "house_fixture.hpp"
 #include "door_layer.hpp"
 #include "floorplan_layer.hpp"
@@ -156,6 +157,31 @@ void physicalSwingsPushDoor() {
     require(maximumAngle > .02f, "A physical door swing failed to transfer force to the shared door body");
 }
 
+void sustainedWalkingPressure() {
+    // The longer approach lets the door-only proxy sleep before reaching the
+    // panel. Accepted movement must wake it and sustain the same physical load.
+    for (const float start : {.5f, 1.2f}) {
+        DoorScene scene;
+        scene.zombies.attachPhysics(scene.physics);
+        scene.zombies.assets[0].attackLeftClip.reset();
+        scene.zombies.assets[0].attackRightClip.reset();
+        scene.player.feet.z = -5;
+        addZombie(scene.zombies, {0, 0, start}, ZombieState::investigating, {0, 0, -4});
+        viewer::ZombieDoorCollision blockers(scene.physics);
+        scene.doors.activateNear({0, 0, 0});
+        double brokenAt = -1;
+        for (int tick = 0; tick < 40 * 60; ++tick) {
+            scene.step();
+            scene.physics->step(dt, [&](float) { blockers.prepare(scene.doors, scene.zombies); });
+            require(!scene.zombies.instances[0].attackClip,
+                    "The walking-pressure fixture must not gain help from melee attacks");
+            if (scene.doors.restraint(0).broken) { brokenAt = (tick + 1) * double(dt); break; }
+        }
+        require(brokenAt >= 27 && brokenAt <= 35,
+                "A sustained walking push must take roughly thirty seconds to release the restraint");
+    }
+}
+
 void onlyDoorContactsTrigger() {
     for (const auto state : {ZombieState::idle, ZombieState::hiding, ZombieState::midnight}) {
         DoorScene scene;
@@ -255,6 +281,7 @@ int main() {
         repeatedDoorSwings(ZombieState::investigating, true);
         glancingContactStillTriggers();
         physicalSwingsPushDoor();
+        sustainedWalkingPressure();
         onlyDoorContactsTrigger();
         houseRouteSurvivesDoorSwing();
         std::cout << "Zombie door-contact attacks, cooldowns, player shielding and investigation resumption passed\n";

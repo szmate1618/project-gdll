@@ -1,9 +1,10 @@
 # Elastic inward travel of a closed exterior door's free edge, in meters.
 # Interior hinges mirror this flex against their normal opening direction.
-# Actual overstretch permanently lengthens the restraint; at break_flex_m it releases,
+# Overstretch under hinge load gradually lengthens the restraint. Once its permanent
+# allowance reaches break_flex_m it releases,
 # leaving the hinge attached and allowing a 110-degree swing in both directions.
 # A blocked panel cannot weaken without physically moving beyond its elastic travel.
 # Set break_flex_m to 0 for a fixed, unbreakable spring stop.
 # Restart the viewer/server after changing this file.
-max_closed_flex_m = 0.01
+max_closed_flex_m = 0.02
 break_flex_m = 0.05

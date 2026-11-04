@@ -18,6 +18,11 @@ b3Quat rotation(glm::quat q) { return {{q.x, q.y, q.z}, q.w}; }
 constexpr float cellSize = 32;
 constexpr float closedSpringTolerance = .001f; // Radians; keeps the spring ready for a hit at rest.
 constexpr float swingAngle = 110 * B3_DEG_TO_RAD;
+// Viscoplastic restraint: hinge load drives irreversible extension. Bound the
+// flow so a brief solver/impact peak cannot instantly consume the restraint.
+constexpr float restraintFlowSpeed = .0009f; // Maximum creep extension, meters/second.
+constexpr float restraintLoadScale = 100.f; // Hinge reaction torque / panel width, N.
+constexpr float restraintLoadingFraction = .05f; // Irreversible share of newly reached overstretch.
 float flexAngle(float meters, const DoorPanel& panel) {
     return std::asin(std::min(meters / (2 * panel.halfExtents.x), 1.f));
 }
@@ -35,6 +40,7 @@ struct DoorLayer::Impl {
         glm::mat4 inverseRest{1};
         bool present = true, runtime = false;
         DoorRestraintState restraint;
+        float previousStretch = 0; // Last solved reverse free-edge displacement, meters.
     };
     std::shared_ptr<PhysicsWorld> world;
     DoorConfig config;
@@ -83,13 +89,30 @@ struct DoorLayer::Impl {
             if (e.restraint.broken || !b3Body_IsAwake(e.body)) continue;
             const float opening = b3RevoluteJoint_GetAngle(e.joint) * (e.panel.inward ? -1.f : 1.f);
             const float stretch = 2 * e.panel.halfExtents.x * std::sin(std::clamp(-opening, 0.f, B3_PI / 2));
-            // Plastic extension comes only from solved geometry. Forces and
-            // hit events alone cannot damage a panel held back by another body.
-            if (stretch <= e.restraint.maxFlexMeters) continue;
-            e.restraint.maxFlexMeters = std::min(stretch, config.breakFlexMeters);
-            e.restraint.broken = stretch >= config.breakFlexMeters - .00001f;
+            const float newLoading = std::max(0.f, stretch - std::max(e.previousStretch, e.restraint.maxFlexMeters));
+            e.previousStretch = stretch;
+            // Actual overstretch and tensile hinge load must both be present.
+            // A prop holding the panel inside its allowance prevents damage.
+            if (stretch <= e.restraint.maxFlexMeters) {
+                b3Body_EnableSleep(e.body, true);
+                continue;
+            }
+            const float width = 2 * e.panel.halfExtents.x;
+            const float tension = std::max(0.f, (e.panel.inward ? 1.f : -1.f) *
+                b3Joint_GetConstraintTorque(e.joint).y) / width;
+            const float loadFraction = tension / (restraintLoadScale + tension);
+            // Creep responds to sustained load; fresh loading retains a small
+            // irreversible fraction even when the force is a brief impact.
+            const float extension = restraintFlowSpeed * loadFraction * PhysicsWorld::fixedStepSeconds +
+                (tension > 0 ? restraintLoadingFraction * newLoading : 0);
+            const float previousAllowance = e.restraint.maxFlexMeters;
+            e.restraint.maxFlexMeters = std::min({stretch, config.breakFlexMeters, previousAllowance + extension});
+            e.restraint.broken = e.restraint.maxFlexMeters >= config.breakFlexMeters - .00001f;
             if (e.restraint.broken) e.restraint.maxFlexMeters = config.breakFlexMeters;
             updateRestraint(e);
+            // Quiet creep can be slower than the body's sleep threshold. Keep
+            // solving while its rest angle changes, then allow normal sleeping.
+            b3Body_EnableSleep(e.body, e.restraint.broken || e.restraint.maxFlexMeters <= previousAllowance);
         }
     }
     Entry& activate(std::size_t index) {

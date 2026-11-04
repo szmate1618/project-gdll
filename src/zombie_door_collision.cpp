@@ -67,6 +67,9 @@ void ZombieDoorCollision::prepare(const DoorLayer& doors, ZombieLayer& zombies) 
         if (found != data.bodies.end()) {
             if (found->second.feet != feet) {
                 b3Body_SetTransform(found->second.body, {feet.x, feet.y, feet.z}, b3Quat_identity);
+                // SetTransform does not wake a body. A slowly approaching
+                // zombie must still provide door contacts after its proxy slept.
+                b3Body_SetAwake(found->second.body, true);
                 found->second.feet = feet;
             }
             continue;

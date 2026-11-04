@@ -2541,16 +2541,30 @@ on the reverse side of the closed position, so normally opened doors have no
 automatic closer. Interior hinges use the mirrored stop for their inward swing.
 Interaction controls apply forces to the point selected when a grab begins.
 
-In [`doors.toml`](../doors.toml), `max_closed_flex_m = 0.01` sets the initial
-elastic travel at the free edge to 1 cm. Actual stretching beyond this allowance
-permanently lengthens the restraint, adding slack. Further impacts can stretch
-it again; weak impacts that stay within the elastic allowance do not damage it.
-At `break_flex_m = 0.05` (5 cm of actual inward displacement), the spring and
-closed-side stop release. The attached hinge then allows a **±110° swing**.
-Damage uses solved door deformation, not a hit count or applied force: a prop
-blocking the panel before it yields prevents weakening. Sufficient sustained
-pressure can yield the restraint too, and a strong enough impact can release it
-in one hit. The panel remains rigid and the hinge anchor stays fixed.
+In [`doors.toml`](../doors.toml), `max_closed_flex_m = 0.02` sets the initial
+elastic travel at the free edge to **2 cm**. Actual stretching beyond this
+allowance can permanently lengthen the restraint, adding slack. Tensile hinge
+load drives creep at up to **0.9 mm/s**, with a smooth load-dependent rate;
+**5% of newly reached overstretch** also remains permanent after loading.
+Unloading and rebound do not themselves add this loading contribution. Weak
+loads within the elastic allowance and props preventing that movement cause no
+damage. There is no hit counter or elapsed-pressure breaking rule.
+
+At `break_flex_m = 0.05` (**5 cm of permanent allowance**, including the initial
+elastic travel), the spring and closed-side stop release. A momentary 5 cm
+deflection alone no longer releases it. The physical stop is a solver constraint,
+so strong kinematic contacts can temporarily deflect farther than its nominal
+limit. The attached hinge then allows a **±110° swing**; the panel stays rigid
+and the hinge anchor stays fixed. The layer keeps a panel awake while its
+material is creeping and restores normal sleeping when that flow stops.
+
+Calibration uses 60 Hz fixed physics with four substeps. A walking zombie
+starting 0.5 m from a 0.8–1.2 m panel releases it in about **30 seconds**, for
+both hinge directions. Prepared male/female A attacks at center and ±0.2 m
+release a 1 m panel after **8–11 contact-bearing swings** with normal body
+contacts enabled. A separate constant **180 N** push near the free edge takes
+about **41 seconds**. These are physical calibration cases; force, placement
+and simultaneous body pressure change the result.
 
 Set `break_flex_m = 0` to disable yielding and breaking; `max_closed_flex_m` then
 sets the fixed reverse travel limit with the original 5 Hz return spring.
