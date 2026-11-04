@@ -101,6 +101,18 @@ void checkContinuity() {
         previous = current;
     }
 }
+
+void checkDisplayTint() {
+    require(glm::length(viewer::dayNightDisplayTint(viewer::dayNightLighting(12)) - glm::vec3(1)) < 1e-6f,
+            "Display-space day/night tint must preserve daylight colors");
+    viewer::DayNightLighting lighting;
+    lighting.unlitColor = {.5f, .003f, 0};
+    const auto tint = viewer::dayNightDisplayTint(lighting);
+    // Independent reference display values: half-linear white is sRGB 188/255;
+    // the low channel falls in the linear toe of the transfer function.
+    require(std::abs(tint.r * 255 - 188) < 1 && std::abs(tint.g - .03876f) < 1e-6f && tint.b == 0,
+            "Display tint must encode linear light instead of crushing night colors");
+}
 }
 
 int main() {
@@ -108,6 +120,7 @@ int main() {
         checkClock();
         checkLighting();
         checkContinuity();
+        checkDisplayTint();
         std::cout << "Day/night tests passed\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

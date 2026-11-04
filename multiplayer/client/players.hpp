@@ -18,13 +18,15 @@ public:
     void receiveShots(const std::vector<SoundEvent>& shots, const std::vector<PlayerState>& players,
                       double serverSeconds);
     std::vector<viewer::MuzzleFlashLight> muzzleLights(double serverSeconds) const;
+    // Display-space day/night tint applies to bodies and physical arms.
     void draw(const viewer::Camera& camera, const std::vector<PlayerState>& players,
-              std::uint32_t self, int width, int height, double serverSeconds = 0);
+              std::uint32_t self, int width, int height, double serverSeconds = 0,
+              const glm::vec3& tint = glm::vec3(1.0f));
 private:
     viewer::WeaponOverlay* weapon_ = nullptr;
     RemoteWeaponPlayback weapons_;
     GLuint program_ = 0, vao_ = 0, vbo_ = 0;
-    GLint matrix_ = -1, color_ = -1, textured_ = -1;
+    GLint matrix_ = -1, color_ = -1, textured_ = -1, dayNightTint_ = -1;
     struct AppearanceTexture { GLuint texture = 0; glm::vec3 base{1}; };
     std::map<std::uint32_t, AppearanceTexture> appearances_;
 };

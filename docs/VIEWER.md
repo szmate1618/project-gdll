@@ -830,6 +830,9 @@ and nearest filtering. Velocity sets heading and pitch; the shared baked wing
 animation runs on the GPU with individual phase offsets. Screen-size LoD selects
 710, 240 or 62 triangles, keeping the full mesh for close views and zoomed birds.
 Visible birds share at most three instanced draws and write normal scene depth.
+Their existing directional shading receives a display-space tint from the
+shared day/night clock, including fixed `--night` mode, so birds darken smoothly
+at dusk and retain their daytime palette at noon.
 The tracked `assets/pigeon/flock.json` contains all runtime geometry, animation
 and texture data; see the [pigeon asset guide](../assets/pigeon/README.md).
 There are no bird rigid bodies, shadow passes or per-bird navigation queries.

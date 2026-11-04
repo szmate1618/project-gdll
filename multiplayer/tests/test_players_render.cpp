@@ -1,4 +1,5 @@
 #include "client/players.hpp"
+#include "day_night.hpp"
 #include "renderer.hpp"
 #include "interior_fixture.hpp"
 #include "player_body.hpp"
@@ -30,6 +31,89 @@ std::size_t differences(const std::vector<unsigned char>& a, const std::vector<u
     for (std::size_t i = 0; i < a.size(); i += 3)
         if (a[i] != b[i] || a[i+1] != b[i+1] || a[i+2] != b[i+2]) ++result;
     return result;
+}
+void dayNightPlayers(viewer::Renderer& target, const std::filesystem::path& screenshot) {
+    multiplayer::PlayerRenderer renderer;
+    multiplayer::CharacterAppearance appearance;
+    appearance.rgb.resize(multiplayer::characterTextureBytes);
+    for (std::size_t i = 0; i < appearance.rgb.size(); i += 3) {
+        appearance.rgb[i] = 210; appearance.rgb[i + 1] = 170; appearance.rgb[i + 2] = 110;
+    }
+    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    viewer::PlayerBody body(physics, 1.7f);
+    body.follow({0, 1.7f, 0}, {0, 0, 1}, true);
+    std::vector<multiplayer::PlayerState> players(4);
+    // Left to right: fallback body, physical body, painted body, painted body/arms.
+    for (std::size_t i = 0; i < players.size(); ++i) {
+        auto& player = players[i];
+        player.id = static_cast<std::uint32_t>(i + 2); player.yaw = 90;
+        player.movement.feet.x = (float(i) - 1.5f) * 1.6f;
+        if (i >= 2) renderer.setAppearance(player.id, appearance);
+        if (i % 2) {
+            player.melee = body.pose();
+            for (auto& part : player.melee.parts) part[3].x += player.movement.feet.x;
+            player.melee.eye.x += player.movement.feet.x;
+        }
+    }
+    viewer::Camera camera;
+    camera.setPosition({0, .9f, 5}); camera.setOrientation(-90, 0);
+    target.render(camera);
+    const viewer::SceneDepthScope depth(viewer::sceneClipControl(), false);
+    std::vector<unsigned char> day, current;
+    std::vector<float> dayDepth(width * height), currentDepth(dayDepth.size());
+    const auto clear = [&] {
+        glDisable(GL_SCISSOR_TEST); glDisable(GL_BLEND); glEnable(GL_DEPTH_TEST); glDepthMask(GL_TRUE);
+        glDepthRange(0, 1); glClearColor(0, 0, 0, 1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    };
+    const auto render = [&](double hour) {
+        clear();
+        renderer.draw(camera, players, 1, width, height, 0,
+                      viewer::dayNightDisplayTint(viewer::dayNightLighting(hour)));
+        current = pixels();
+        glReadPixels(0, 0, width, height, GL_DEPTH_COMPONENT, GL_FLOAT, currentDepth.data());
+    };
+    const auto brightness = [&] {
+        std::array<double, 4> result{};
+        for (std::size_t i = 0; i < dayDepth.size(); ++i)
+            if (dayDepth[i] < 1.f)
+                result[(i % width) / (width / 4)] += current[i * 3] + current[i * 3 + 1] + current[i * 3 + 2];
+        return result;
+    };
+    render(12); day = current; dayDepth = currentDepth;
+    const auto daylight = brightness();
+    for (const auto value : daylight)
+        if (value < 10000) throw std::runtime_error("Each remote player shading mode must be visible");
+    if (!screenshot.empty()) target.writeScreenshot(screenshot.string() + "-day.ppm");
+    // Ensure the painted melee fixture actually exposes arms in front of its box.
+    players.back().melee.enabled = false; render(12);
+    std::size_t armPixels = 0;
+    for (std::size_t i = 0; i < dayDepth.size(); ++i)
+        if (i % width >= width * 3 / 4 && currentDepth[i] != dayDepth[i]) ++armPixels;
+    if (armPixels < 20) throw std::runtime_error("Painted player fixture must expose physical arms");
+    players.back().melee.enabled = true;
+    const auto checkTint = [&](double hour) {
+        render(hour);
+        if (currentDepth != dayDepth) throw std::runtime_error("Day/night tint changed remote player visibility or depth");
+        const auto tint = viewer::dayNightDisplayTint(viewer::dayNightLighting(hour));
+        for (std::size_t i = 0; i < dayDepth.size(); ++i) if (dayDepth[i] < 1.f)
+            for (int channel = 0; channel < 3; ++channel)
+                if (std::abs(float(current[i * 3 + channel]) - day[i * 3 + channel] * tint[channel]) > 2)
+                    throw std::runtime_error("Day/night tint did not reach a remote body or arm surface");
+        return brightness();
+    };
+    const auto midnight = checkTint(0);
+    if (!screenshot.empty()) target.writeScreenshot(screenshot.string() + "-night.ppm");
+    const auto dusk = checkTint(18);
+    for (std::size_t mode = 0; mode < players.size(); ++mode)
+        if (!(midnight[mode] < daylight[mode] * .35 && dusk[mode] > midnight[mode] && dusk[mode] < daylight[mode]))
+            throw std::runtime_error("Remote players must dim at midnight and blend through dusk");
+    render(12);
+    if (current != day || currentDepth != dayDepth) throw std::runtime_error("Returning to noon did not restore remote players");
+    render(0); clear(); renderer.draw(camera, players, 1, width, height);
+    current = pixels();
+    for (std::size_t i = 0; i < day.size(); ++i)
+        if (std::abs(int(current[i]) - int(day[i])) > 1)
+            throw std::runtime_error("Default remote player tint did not restore daylight after night");
 }
 void customAppearance(const std::filesystem::path& screenshot) {
     multiplayer::PlayerRenderer renderer;
@@ -187,6 +271,7 @@ void check(const std::filesystem::path& screenshot) {
     if (!depthWrite) throw std::runtime_error("Opaque player hook leaked depth state");
     worldWeapons(screenshot);
     customAppearance(screenshot);
+    dayNightPlayers(renderer, screenshot);
     viewer::Renderer::checkErrors("multiplayer players and glass");
 }
 }

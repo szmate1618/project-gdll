@@ -44,4 +44,11 @@ DayNightLighting dayNightLighting(double hour, const SunLighting& day,
     return result;
 }
 
+glm::vec3 dayNightDisplayTint(const DayNightLighting& lighting) {
+    const auto linear = glm::max(lighting.unlitColor, glm::vec3(0));
+    return glm::mix(12.92f * linear,
+                    1.055f * glm::pow(linear, glm::vec3(1.0f / 2.4f)) - 0.055f,
+                    glm::greaterThanEqual(linear, glm::vec3(0.0031308f)));
+}
+
 } // namespace viewer

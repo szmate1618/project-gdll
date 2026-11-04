@@ -1937,9 +1937,14 @@ int run(const Options& options) {
         }
         if (!simulated) audio.service();
         app.displayedAnimationSeconds = options.animationTime.value_or(simulationClock.seconds());
+        glm::vec3 dayNightTint;
         if (!options.night) {
             displayedHour = options.dayNight.hourAt(simulationClock.seconds());
-            renderer.setDayNightLighting(viewer::dayNightLighting(displayedHour, {}, {}, atmosphere));
+            const auto lighting = viewer::dayNightLighting(displayedHour, {}, {}, atmosphere);
+            renderer.setDayNightLighting(lighting);
+            dayNightTint = viewer::dayNightDisplayTint(lighting);
+        } else {
+            dayNightTint = viewer::dayNightDisplayTint(viewer::dayNightLighting(0));
         }
         // Mouse orientation remains immediate; interpolate only solved position
         // and body snapshots so render rate never changes movement or punch work.
@@ -1982,7 +1987,7 @@ int run(const Options& options) {
         renderer.render(viewCamera, app.displayedAnimationSeconds, [&] {
             if (birdRenderer)
                 birdRenderer->draw(viewCamera, float(renderWidth) / renderHeight,
-                    app.displayedAnimationSeconds, birds->birds());
+                    app.displayedAnimationSeconds, birds->birds(), dayNightTint);
             if (!app.driver.occupied() && !app.weaponSwitch.pending() && !app.handling() && app.weapons.slot() == viewer::punchSlot)
                 bodyRenderer.drawPose(presentedBody, viewCamera.projection(float(renderWidth) / renderHeight) *
                                        viewCamera.view(), renderWidth, renderHeight,

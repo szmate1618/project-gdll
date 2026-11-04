@@ -21,4 +21,9 @@ struct DayNightLighting {
 DayNightLighting dayNightLighting(double hour, const SunLighting& day = {},
                                  const NightLighting& night = {}, const Atmosphere& atmosphere = {});
 
+// Approximate day/night modulation for renderers that already output display
+// RGB. Encode the shared linear unlit light once on the CPU, then multiply the
+// existing shader color by this tint; white preserves the daylight appearance.
+glm::vec3 dayNightDisplayTint(const DayNightLighting& lighting);
+
 } // namespace viewer

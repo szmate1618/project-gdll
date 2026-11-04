@@ -54,6 +54,7 @@ BirdRenderer::BirdRenderer(const std::filesystem::path& shaderDirectory, const s
         frameLocation_ = glGetUniformLocation(program_, "uFrame");
         frameCountLocation_ = glGetUniformLocation(program_, "uFrameCount");
         vertexCountLocation_ = glGetUniformLocation(program_, "uVertexCount");
+        dayNightTintLocation_ = glGetUniformLocation(program_, "uDayNightTint");
         glUseProgram(program_);
         glUniform1i(glGetUniformLocation(program_, "uAnimation"), 0);
         glUniform1i(glGetUniformLocation(program_, "uAtlas"), 1);
@@ -107,7 +108,8 @@ void BirdRenderer::release() noexcept {
     if (program_) glDeleteProgram(program_);
 }
 
-BirdDrawStats BirdRenderer::draw(const Camera& camera, float aspect, double seconds, const std::vector<FlockBird>& birds) {
+BirdDrawStats BirdRenderer::draw(const Camera& camera, float aspect, double seconds,
+                                 const std::vector<FlockBird>& birds, const glm::vec3& tint) {
     BirdDrawStats stats;
     if (birds.empty()) return stats;
     const auto projection = camera.projection(aspect);
@@ -129,6 +131,7 @@ BirdDrawStats BirdRenderer::draw(const Camera& camera, float aspect, double seco
     const double cycles = seconds / duration_;
     glUniform1f(frameLocation_, static_cast<float>((cycles - std::floor(cycles)) * frameCount_));
     glUniform1i(frameCountLocation_, static_cast<GLint>(frameCount_));
+    glUniform3fv(dayNightTintLocation_, 1, glm::value_ptr(tint));
     glActiveTexture(GL_TEXTURE1); glBindTexture(GL_TEXTURE_2D, atlas_);
     glBindSampler(0, 0); glBindSampler(1, 0);
     glEnable(GL_DEPTH_TEST); glDepthMask(GL_TRUE); glDisable(GL_BLEND); glDisable(GL_CULL_FACE);

@@ -667,9 +667,13 @@ simulation milliseconds per tick, excluding networking and sleep. Client and
 server run concurrently; these timings must not be added together.
 Remote players are simple
 colored bodies whose height follows their stance. With fists equipped, their
-physical torso and arms replace that simple body. Local hands show the newest
-server-confirmed pose, translated to the predicted eye; they do not wait for the
-remote interpolation buffer. Punches therefore include network latency.
+physical torso and arms replace that simple body.
+Remote bodies, painted appearances and physical arms receive a display-space
+tint from the shared day/night clock, as do birds. They darken smoothly at dusk
+without additional draw calls or shadow maps.
+Local hands show the newest server-confirmed pose, translated to the predicted
+eye; they do not wait for the remote interpolation buffer. Punches therefore
+include network latency.
 
 Firearm zombie intersections are trusted client reports. A fresh firing input
 captures pellet hits against the last rendered zombie transforms and exact

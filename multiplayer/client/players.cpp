@@ -36,6 +36,7 @@ PlayerRenderer::PlayerRenderer(viewer::WeaponOverlay* sharedWeapon) : weapon_(sh
     glBindVertexArray(0); glBindBuffer(GL_ARRAY_BUFFER, 0);
     matrix_ = glGetUniformLocation(program_, "uMatrix"); color_ = glGetUniformLocation(program_, "uColor");
     textured_ = glGetUniformLocation(program_, "uTextured");
+    dayNightTint_ = glGetUniformLocation(program_, "uDayNightTint");
 }
 PlayerRenderer::~PlayerRenderer() {
     for (const auto& [id, appearance] : appearances_) { (void)id; glDeleteTextures(1, &appearance.texture); }
@@ -74,7 +75,8 @@ std::vector<viewer::MuzzleFlashLight> PlayerRenderer::muzzleLights(double second
     return weapons_.muzzleLights(seconds);
 }
 void PlayerRenderer::draw(const viewer::Camera& camera, const std::vector<PlayerState>& players,
-                          std::uint32_t self, int width, int height, double serverSeconds) {
+                          std::uint32_t self, int width, int height, double serverSeconds,
+                          const glm::vec3& tint) {
     if (width <= 0 || height <= 0) return;
     weapons_.receiveShots({}, players, serverSeconds);
     GLint program = 0, vao = 0, front = 0, active = 0, texture = 0, sampler = 0;
@@ -84,6 +86,7 @@ void PlayerRenderer::draw(const viewer::Camera& camera, const std::vector<Player
     glGetIntegerv(GL_TEXTURE_BINDING_2D_ARRAY, &texture); glGetIntegerv(GL_SAMPLER_BINDING, &sampler); glBindSampler(0, 0);
     const auto vp = viewer::sceneProjection(camera, static_cast<float>(width) / height) * camera.view();
     glUseProgram(program_); glBindVertexArray(vao_);
+    glUniform3fv(dayNightTint_, 1, glm::value_ptr(tint));
     for (const auto& p : players) {
         if (p.id == self || p.vehicle != noVehicle) continue;
         const auto custom = appearances_.find(p.id);

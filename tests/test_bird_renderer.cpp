@@ -1,6 +1,7 @@
 #include "boid/bird_flock.hpp"
 #include "boid/bird_renderer.hpp"
 #include "collision_world.hpp"
+#include "day_night.hpp"
 
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -239,6 +240,55 @@ void checkLodAndAnimation(const std::string& prefix) {
     require(culled.triangles == 0, "Birds behind the camera must be culled");
     checkPixels(false);
 }
+
+void checkDayNight(const std::string& prefix) {
+    Target target;
+    viewer::BirdRenderer renderer(VIEWER_SHADER_DIR, VIEWER_BIRD_ASSET);
+    viewer::Camera camera;
+    camera.setPosition({0, 0, 1.2f});
+    camera.setOrientation(-90, 0);
+    viewer::FlockBird bird;
+    bird.velocity = {0, 0, 10};
+    const std::vector<viewer::FlockBird> birds{bird};
+    std::vector<unsigned char> day(size * size * 4), current(day.size());
+    std::vector<float> dayDepth(size * size), currentDepth(dayDepth.size());
+    const auto render = [&](double hour) {
+        target.clear();
+        renderer.draw(camera, 1, 0, birds, viewer::dayNightDisplayTint(viewer::dayNightLighting(hour)));
+        glReadPixels(0, 0, size, size, GL_RGBA, GL_UNSIGNED_BYTE, current.data());
+        glReadPixels(0, 0, size, size, GL_DEPTH_COMPONENT, GL_FLOAT, currentDepth.data());
+    };
+    const auto brightness = [&](const std::vector<unsigned char>& pixels) {
+        double sum = 0;
+        for (std::size_t i = 0; i < dayDepth.size(); ++i)
+            if (dayDepth[i] < 1.f) sum += pixels[i * 4] + pixels[i * 4 + 1] + pixels[i * 4 + 2];
+        return sum;
+    };
+    render(12);
+    checkPixels();
+    day = current;
+    dayDepth = currentDepth;
+    const double daylight = brightness(day);
+    saveCapture(prefix, "day");
+    render(0);
+    require(currentDepth == dayDepth, "Night tint must preserve bird silhouettes and depth");
+    const double midnight = brightness(current);
+    require(midnight < daylight * .35, "Birds must become substantially darker at midnight");
+    saveCapture(prefix, "night");
+    render(18);
+    require(currentDepth == dayDepth, "Twilight tint must preserve bird silhouettes and depth");
+    const double twilight = brightness(current);
+    require(twilight > midnight && twilight < daylight, "Twilight birds must blend between daylight and midnight");
+    saveCapture(prefix, "twilight");
+    render(12);
+    require(current == day && currentDepth == dayDepth, "Returning to noon must restore the original bird rendering");
+    render(0);
+    target.clear();
+    renderer.draw(camera, 1, 0, birds);
+    glReadPixels(0, 0, size, size, GL_RGBA, GL_UNSIGNED_BYTE, current.data());
+    require(current == day, "Default bird tint must restore daylight after a tinted draw");
+    require(glGetError() == GL_NO_ERROR, "Bird day/night draws must not produce GL errors");
+}
 } // namespace
 
 int main(int argc, char** argv) {
@@ -258,6 +308,7 @@ int main(int argc, char** argv) {
         captureFlock(capturePrefix);
         checkState();
         checkLodAndAnimation(capturePrefix);
+        checkDayNight(capturePrefix);
         std::cout << "Bird rendering tests passed (" << glGetString(GL_RENDERER) << ")\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

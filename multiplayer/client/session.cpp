@@ -803,7 +803,9 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 renderer.setMuzzleFlash(flash.transformed(glm::inverse(viewCamera.view())));
                 renderer.resize(renderWidth, renderHeight); renderer.updateDoors(*scene.doors); renderer.updateBoxes(*scene.boxes);
                 renderer.updateVehicles(*scene.vehicles, in.driver.car());
-                renderer.setDayNightLighting(viewer::dayNightLighting(scene.dayNight.hourAt(snapshots.animationSeconds())));
+                const auto lighting = viewer::dayNightLighting(scene.dayNight.hourAt(snapshots.animationSeconds()));
+                const auto dayNightTint = viewer::dayNightDisplayTint(lighting);
+                renderer.setDayNightLighting(lighting);
                 renderer.updateZombies(scene.zombies);
                 viewer::PlayerBodyPose ownBody;
                 if (prediction.ready() && !in.driver.occupied() && !in.handling() && in.slot==viewer::punchSlot && ownState.slot==viewer::punchSlot) {
@@ -821,9 +823,10 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 const auto renderStart = Clock::now();
                 renderer.updateFloorplans(*scene.floorplans);
                 renderer.render(viewCamera, snapshots.animationSeconds(), [&] {
-                    graphics.birds->draw(viewCamera,renderAspect,snapshots.animationSeconds(),birds.sample(snapshots.animationSeconds()));
+                    graphics.birds->draw(viewCamera,renderAspect,snapshots.animationSeconds(),birds.sample(snapshots.animationSeconds()),
+                                         dayNightTint);
                     graphics.players->draw(viewCamera, snapshots.players(), self, renderWidth, renderHeight,
-                                           snapshots.animationSeconds());
+                                           snapshots.animationSeconds(), dayNightTint);
                     graphics.body->drawPose(ownBody,viewCamera.projection(renderAspect)*viewCamera.view(),renderWidth,renderHeight);
                 });
                 if (prediction.ready() && !in.driver.occupied() && in.equippedSlot != viewer::handlingSlot &&
