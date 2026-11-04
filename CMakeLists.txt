@@ -328,6 +328,7 @@ endif()
 
 add_library(viewer_physics STATIC src/vehicle_config.cpp src/door_config.cpp src/physics_world.cpp src/player_body.cpp src/player_body_pose.cpp src/player_presentation.cpp src/physics_prop.cpp src/physics_grab.cpp src/physics_attachment.cpp src/door_geometry.cpp src/door_layer.cpp src/box_layer.cpp src/vehicle_layer.cpp src/vehicle_physics.cpp src/vehicle_geometry.cpp src/vehicle_traction.cpp src/vehicle_steering.cpp)
 target_link_libraries(viewer_physics PUBLIC viewer_model box3d::box3d PRIVATE tomlplusplus::tomlplusplus)
+target_sources(viewer_physics PRIVATE src/collision_box.cpp)
 viewer_warnings(viewer_physics)
 target_link_libraries(viewer_collision PUBLIC viewer_physics)
 
@@ -401,7 +402,7 @@ target_link_libraries(benchmark_melee_collision PRIVATE viewer_zombies)
 target_compile_definitions(benchmark_melee_collision PRIVATE MELEE_BENCH_RIGID_STATS)
 viewer_warnings(benchmark_melee_collision)
 
-add_library(viewer_fps STATIC src/fps_controller.cpp src/player_stance.cpp src/camera_rig.cpp)
+add_library(viewer_fps STATIC src/fps_controller.cpp src/player_stance.cpp src/player_collision.cpp src/camera_rig.cpp)
 target_link_libraries(viewer_fps PUBLIC viewer_collision viewer_camera viewer_noise)
 viewer_warnings(viewer_fps)
 
@@ -1212,6 +1213,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     target_link_libraries(test_player_stance PRIVATE viewer_fps viewer_zombies)
     viewer_warnings(test_player_stance)
     add_test(NAME viewer_player_stance COMMAND test_player_stance)
+
+    add_executable(test_collision_box tests/test_collision_box.cpp)
+    target_link_libraries(test_collision_box PRIVATE viewer_collision)
+    viewer_warnings(test_collision_box)
+    add_test(NAME viewer_collision_box COMMAND test_collision_box)
 
     add_executable(test_zombie_visibility tests/test_zombie_visibility.cpp)
     target_link_libraries(test_zombie_visibility PRIVATE viewer_zombie_visibility)

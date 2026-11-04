@@ -4,6 +4,7 @@
 #include "zombie_lunge.hpp"
 #include "zombie_spatial_index.hpp"
 #include "collision_world.hpp"
+#include "collision_box.hpp"
 
 #include <glm/glm.hpp>
 #include <cstddef>
@@ -80,6 +81,8 @@ struct ZombiePlayer {
     // Borrows the player's cached ID for this update only. Copies made for
     // individual zombies must not allocate a building-name string per actor.
     std::optional<std::string_view> house = std::nullopt;
+    // Prone head/torso geometry; upright targets use the dimensions above.
+    std::optional<CollisionBox> collisionBox = std::nullopt;
 };
 
 // Horizontal +Z is the character's forward direction; ignores vertical offset.

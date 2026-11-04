@@ -10,15 +10,15 @@
 namespace {
 void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
 
-viewer::AnimatedModel asset() {
+viewer::AnimatedModel asset(float handHeight = 1) {
     viewer::AnimatedModel result;
     result.skeleton.resize(2);
     result.skeleton[0].name = "bip L Hand"; result.skeleton[1].name = "bip R Hand";
     for (bool right : {false, true}) {
         viewer::BakedAnimationClip clip;
         clip.duration = 1; clip.frameCount = 5; clip.loop = false;
-        for (auto point : {glm::vec3(-.4f, 1, -.1f), {-.4f, 1, 0}, {0, 1, 1.1f},
-                           {.4f, 1, .1f}, {-.4f, 1, -.1f}}) {
+        for (auto point : {glm::vec3(-.4f, handHeight, -.1f), {-.4f, handHeight, 0}, {0, handHeight, 1.1f},
+                           {.4f, handHeight, .1f}, {-.4f, handHeight, -.1f}}) {
             if (right) point.x = -point.x;
             clip.boneFrames.push_back(glm::translate(glm::mat4(1), right ? glm::vec3(0) : point));
             clip.boneFrames.push_back(glm::translate(glm::mat4(1), right ? point : glm::vec3(0)));
@@ -103,6 +103,43 @@ void onlyFirstContactInjures() {
     require(hits.size() == 1 && hits[0].player == 5, "Swing did not hit only the first contacted player");
 }
 
+void proneTorsoContacts() {
+    const viewer::CollisionWorld world(scene());
+    for (int mode : {0, 1, 2}) {
+        const auto model = asset(mode == 2 ? 1.f : .225f);
+        viewer::ZombieInstance zombie;
+        viewer::ZombieLunge cycle;
+        viewer::ZombiePlayer player{{0, 0, 1.5f}, .35f, .45f, 7};
+        player.radius = .225f;
+        if (mode != 0) player.collisionBox = viewer::CollisionBox{{0, .225f, 1.2f}, {.3f, .225f, .5f}};
+        require(viewer::beginZombieMeleeAttack(cycle, zombie, model, player, 0),
+                "Prone contact fixture must start an attack");
+        std::vector<viewer::ZombieAttackHit> hits; std::size_t rays = 0;
+        viewer::stepZombieMeleeAttack(cycle, zombie, model, world, 0, &player, 1, 1.f, 1, hits, rays);
+        if (mode == 1)
+            require(hits.size() == 1 && hits.front().player == 7,
+                    "A low hand sweep must hit the prone torso behind the eye anchor");
+        else
+            require(hits.empty(), mode == 0 ?
+                    "The same hand sweep must miss a capsule confined to the distant eye anchor" :
+                    "A standing-height hand sweep must pass above the low prone box");
+    }
+
+    const auto model = asset(.225f);
+    viewer::ZombieInstance zombie;
+    viewer::ZombieLunge cycle;
+    viewer::ZombiePlayer players[2] = {{{0, 0, 1.5f}, .35f, .45f, 5}, {{0, 0, .8f}, .35f, .45f, 7}};
+    for (auto& player : players) {
+        player.radius = .225f;
+        player.collisionBox = viewer::CollisionBox{player.feet + glm::vec3(0, .225f, -.3f), {.3f, .225f, .5f}};
+    }
+    viewer::beginZombieMeleeAttack(cycle, zombie, model, players[0], 0);
+    std::vector<viewer::ZombieAttackHit> hits; std::size_t rays = 0;
+    viewer::stepZombieMeleeAttack(cycle, zombie, model, world, 0, players, 2, 1.f, 1, hits, rays);
+    require(hits.size() == 1 && hits.front().player == 7,
+            "Prone box contacts must preserve first-hit ordering across players");
+}
+
 void authoredAssets(const std::filesystem::path& directory) {
     const viewer::CollisionWorld world(scene());
     for (const auto& entry : std::filesystem::directory_iterator(directory)) {
@@ -131,7 +168,7 @@ void authoredAssets(const std::filesystem::path& directory) {
 
 int main(int argc, char** argv) {
     try {
-        contactAndTiming(); missesAndObstacles(); onlyFirstContactInjures();
+        contactAndTiming(); missesAndObstacles(); onlyFirstContactInjures(); proneTorsoContacts();
         if (argc > 1) authoredAssets(argv[1]);
         std::cout << "Baked zombie attacks, swept hand contacts and one-hit injuries passed\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

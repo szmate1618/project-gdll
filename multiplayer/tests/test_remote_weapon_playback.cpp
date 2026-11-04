@@ -18,7 +18,7 @@ void eyeMount() {
     for (const auto stance : {viewer::PlayerStance::Standing, viewer::PlayerStance::Crouched, viewer::PlayerStance::Prone}) {
         player.movement.stance = stance;
         const float height = stance == viewer::PlayerStance::Standing ? 1.7f :
-            stance == viewer::PlayerStance::Crouched ? 1.f : .5f;
+            stance == viewer::PlayerStance::Crouched ? 1.f : .35f;
         const auto pose = playback.sample(player, 0);
         require(bool(pose), "On-foot firearm has no remote weapon mount");
         const auto eye = player.movement.feet + glm::vec3(0, height, 0);

@@ -2467,15 +2467,26 @@ roughly 0.74 m above standing height on flat ground. Holding Space does not
 repeat jumps, and presses in the air do not add another jump.
 
 Holding either Ctrl key crouches to a 1.10 m capsule with a 1.00 m eye height
-and 1.5 m/s movement speed. Toggling prone uses a 0.60 m capsule, a 0.50 m eye
-height, and 0.75 m/s movement. Prone persists after releasing its key and takes
+and 1.5 m/s movement speed. Toggling prone uses a separate head-and-torso box,
+**0.45 m high, 0.60 m wide and 1.00 m long**, with a **0.35 m eye height** and
+0.75 m/s movement. The box extends 0.20 m ahead of the camera's horizontal
+anchor and 0.80 m behind it; legs remain outside this movement approximation.
+Its collision orientation follows look yaw as clearance allows. Swept turn
+checks keep its corners out of walls, while looking remains free when a turn
+is blocked. Changes into prone check the full box, including the torso behind
+the camera; getting up checks the upright capsule. F10 displays the active
+box or capsule. Multiplayer prediction and snapshots retain the box orientation.
+Authored zombie hand swipes and bird impacts also test the prone box.
+Prone persists after releasing its key and takes
 priority over Ctrl. Shift does not accelerate crouching or crawling. Space
 requests getting up from prone; another press can jump. The prone key uses the
 physical US C position, independent of the printed letter; the
 existing console help uses GLFW's layout-specific key name. Rebinding is not
 implemented.
 
-Grounded stance changes keep the feet planted and lower or raise the camera.
+Grounded stance changes keep the horizontal anchor planted and lower or raise
+the camera. Prone support follows the highest supporting point under its
+footprint, allowing a small height adjustment on slopes.
 Airborne Ctrl instead lifts the collision feet by 0.70 m, preserving the head's
 ballistic path, vertical velocity, and takeoff movement speed. It can clear a
 taller obstacle without increasing jump height. Releasing Ctrl extends the legs

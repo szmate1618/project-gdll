@@ -2,8 +2,10 @@
 
 #include "bird_flight_space.hpp"
 #include "presentation.hpp"
+#include "collision_box.hpp"
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 namespace viewer {
@@ -16,12 +18,14 @@ struct BirdFlockSettings {
     std::uint32_t seed = 0x62697264;
 };
 
-// Feet and dimensions describe the current Y-up world-space player capsule.
+// Feet and dimensions describe the current Y-up world-space player capsule;
+// prone targets supply their independently oriented head/torso box.
 struct BirdFlockPlayer {
     glm::vec3 feet{0};
     float height = 1.8f;
     float radius = .3f;
     bool targetable = true;
+    std::optional<CollisionBox> collisionBox = std::nullopt;
 };
 
 using BirdFlockMode = boid::Mode;
@@ -37,7 +41,7 @@ struct BirdFlockStats {
     std::size_t sightChecks = 0, waypointChecks = 0, segmentChecks = 0, hits = 0;
 };
 
-// Swept sphere against a vertical player capsule; includes tangency and both
+// Swept sphere against the current player shape; includes tangency and both
 // endpoints so a fast bird cannot skip an impact between presentation frames.
 bool birdHitsPlayer(glm::vec3 from, glm::vec3 to, const BirdFlockPlayer& player,
                     float birdRadius = .14f);

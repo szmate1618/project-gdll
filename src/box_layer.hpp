@@ -10,6 +10,7 @@
 namespace viewer {
 class PhysicsWorld;
 struct Contact;
+struct CollisionBox;
 struct GroundHit;
 struct BoxPose {
     std::size_t index;
@@ -73,9 +74,11 @@ public:
     std::vector<BoxPose> query(glm::vec3 minimum, glm::vec3 maximum) const;
     void appendContacts(glm::vec3 feet, float radius, float height, float skin,
                         std::vector<Contact>& contacts) const;
+    void appendContacts(const CollisionBox& box, float skin, std::vector<Contact>& contacts) const;
     std::optional<GroundHit> groundAt(float x, float z, float minY, float maxY) const;
     bool blocksSight(glm::vec3 origin, glm::vec3 target) const;
     void push(glm::vec3 feet, float radius, float height, glm::vec3 velocity, float dt);
+    void push(const CollisionBox& box, glm::vec3 velocity, float dt);
     std::vector<glm::vec3> debugLines(glm::vec3 minimum, glm::vec3 maximum) const;
     // Shared face-normal cube, centered at the origin with full side length 1.
     static Model unitCube();

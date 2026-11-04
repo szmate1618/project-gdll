@@ -860,7 +860,8 @@ void updateZombieBehavior(AppState& app, float seconds, double animationSeconds,
     if (!app.zombies && !app.dogs) return;
     viewer::ZombiePlayer target{feet, eyeHeight, height};
     target.velocity = app.driver.car() ? app.cars->velocity(*app.driver.car()) : app.playerVelocity;
-    target.radius = config.radius;
+    target.radius = app.rig.walking() ? player.bodyRadius() : config.radius;
+    if (app.rig.walking()) target.collisionBox = player.collisionBox();
     target.house = app.house.house();
     if (app.dogs) {
         {
@@ -1257,7 +1258,11 @@ std::vector<viewer::DebugVertex> collisionOverlay(const AppState& app) {
     const auto feet = player.feet();
     constexpr int slices = 24;
     constexpr float pi = 3.14159265359f;
-    for (int i = 0; i < slices; ++i) {
+    if (const auto box = player.collisionBox()) {
+        const auto corners = viewer::collisionBoxCorners(*box);
+        for (unsigned i = 0; i < corners.size(); ++i) for (unsigned bit : {1u, 2u, 4u})
+            if (!(i & bit)) line(corners[i], corners[i | bit], color);
+    } else for (int i = 0; i < slices; ++i) {
         const float a = 2.0f * pi * static_cast<float>(i) / slices;
         const float b = 2.0f * pi * static_cast<float>(i + 1) / slices;
         for (float y : {config.radius, player.bodyHeight() - config.radius}) {
@@ -1929,8 +1934,8 @@ int run(const Options& options) {
         }
         if (birds && birdSeconds > 0) {
             const auto& player = app.rig.player();
-            const viewer::BirdFlockPlayer target{player.feet(), player.bodyHeight(), player.config().radius,
-                app.rig.walking() && !app.driver.occupied() && app.vitals.health() > 0};
+            const viewer::BirdFlockPlayer target{player.feet(), player.bodyHeight(), player.bodyRadius(),
+                app.rig.walking() && !app.driver.occupied() && app.vitals.health() > 0, player.collisionBox()};
             const unsigned hits = birds->update(birdSeconds, target);
             if (app.vitals.applyDamage(static_cast<float>(hits)) > 0)
                 app.lastDamageSeconds = simulationClock.seconds();

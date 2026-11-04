@@ -73,6 +73,27 @@ void sweptContacts() {
             "Invalid bird coordinates must never report a collision");
 }
 
+void proneBoxContacts() {
+    viewer::BirdFlockPlayer player{{0, 0, .3f}, .45f, .225f, true};
+    player.collisionBox = viewer::CollisionBox{{0, .225f, 0}, {.3f, .225f, .5f}};
+    require(viewer::birdHitsPlayer({-2, .225f, -.4f}, {2, .225f, -.4f}, player),
+            "A fast bird must hit the prone torso behind the eye anchor");
+    auto capsule = player; capsule.collisionBox.reset();
+    require(!viewer::birdHitsPlayer({-2, .225f, -.4f}, {2, .225f, -.4f}, capsule),
+            "The torso contact fixture must miss a capsule confined to the eye anchor");
+    require(!viewer::birdHitsPlayer({-2, .60f, 0}, {2, .60f, 0}, player),
+            "Birds above the prone head plus bird radius must miss");
+    require(viewer::birdHitsPlayer({-2, .59f, 0}, {2, .59f, 0}, player),
+            "A bird tangent to the top of the prone box must count as a contact");
+    require(viewer::birdHitsPlayer({-2, .45f, 0}, {2, .45f, 0}, player, 0) &&
+            !viewer::birdHitsPlayer({-2, .46f, 0}, {2, .46f, 0}, player, 0),
+            "Point-sized bird queries must preserve box tangency and reject overhead misses");
+    player.collisionBox->rotation = glm::angleAxis(glm::radians(90.f), glm::vec3(0, 1, 0));
+    require(viewer::birdHitsPlayer({.45f, .225f, -2}, {.45f, .225f, 2}, player) &&
+            !viewer::birdHitsPlayer({-2, .225f, .45f}, {2, .225f, .45f}, player),
+            "Prone bird contacts must follow body-box orientation");
+}
+
 void flightSpace() {
     const auto scene = buildingScene();
     const viewer::CollisionWorld world(scene);
@@ -252,6 +273,7 @@ void shelteredPlayer() {
 int main() {
     try {
         sweptContacts();
+        proneBoxContacts();
         flightSpace();
         deterministicMotionAndBudget();
         waypointClearance();

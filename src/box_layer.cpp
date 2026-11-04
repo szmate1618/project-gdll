@@ -1,5 +1,6 @@
 #include "box_layer.hpp"
 #include "collision_world.hpp"
+#include "collision_box.hpp"
 #include "physics_world.hpp"
 
 #include <box3d/box3d.h>
@@ -236,6 +237,14 @@ void BoxLayer::appendContacts(glm::vec3 feet, float radius, float height, float 
         contacts.insert(contacts.end(), found.begin(), found.end());
     }
 }
+void BoxLayer::appendContacts(const CollisionBox& box, float skin, std::vector<Contact>& contacts) const {
+    if (!validCollisionBox(box) || !std::isfinite(skin) || skin < 0) return;
+    const auto bounds = collisionBoxBounds(box, skin);
+    for (const auto& obstacle : query(bounds.first, bounds.second)) {
+        const auto contact = collisionBoxContact(box, {obstacle.center, obstacle.halfExtents, obstacle.rotation}, skin);
+        if (contact) contacts.push_back(*contact);
+    }
+}
 std::optional<GroundHit> BoxLayer::groundAt(float x, float z, float minY, float maxY) const {
     std::optional<GroundHit> result;
     for (const auto& box : query({x, minY, z}, {x, maxY, z})) {
@@ -291,6 +300,23 @@ void BoxLayer::push(glm::vec3 feet, float radius, float height, glm::vec3 veloci
         const float mass = b3Body_GetMass(body);
         const float strength = std::min(approach * mass, std::min(approach * 500.0f, 900.0f) * std::min(dt, .05f));
         b3Body_ApplyLinearImpulse(body, vector(-normal * strength), {point.x, point.y, point.z}, true);
+    }
+}
+void BoxLayer::push(const CollisionBox& box, glm::vec3 velocity, float dt) {
+    if (!validCollisionBox(box) || !finite(velocity) || !std::isfinite(dt) || dt <= 0) return;
+    const auto bounds = collisionBoxBounds(box, .003f);
+    for (const auto& obstacle : query(bounds.first, bounds.second)) {
+        const auto contact = collisionBoxContact(box, {obstacle.center, obstacle.halfExtents, obstacle.rotation}, .003f);
+        if (!contact || std::abs(contact->normal.y) > .6f) continue;
+        const auto normal = glm::normalize(glm::vec3(contact->normal.x, 0, contact->normal.z));
+        const auto body = impl_->entries[obstacle.index]->body;
+        const auto point = contact->point;
+        const auto bodyVelocity = vector(b3Body_GetWorldPointVelocity(body, vector(point)));
+        const float approach = glm::dot(velocity - bodyVelocity, -normal);
+        if (approach <= 0) continue;
+        const float mass = b3Body_GetMass(body);
+        const float strength = std::min(approach * mass, std::min(approach * 500.f, 900.f) * std::min(dt, .05f));
+        b3Body_ApplyLinearImpulse(body, vector(-normal * strength), vector(point), true);
     }
 }
 std::vector<glm::vec3> BoxLayer::debugLines(glm::vec3 minimum, glm::vec3 maximum) const {

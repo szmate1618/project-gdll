@@ -103,7 +103,7 @@ void PlayerRenderer::draw(const viewer::Camera& camera, const std::vector<Player
             continue;
         }
         const float heightMeters = p.movement.stance == viewer::PlayerStance::Standing ? standingPlayerSize.y :
-            p.movement.stance == viewer::PlayerStance::Crouched ? 1.1f : .6f;
+            p.movement.stance == viewer::PlayerStance::Crouched ? 1.1f : viewer::FPSConfig{}.proneHeight;
         const auto model = glm::translate(glm::mat4(1), p.movement.feet + glm::vec3(0, heightMeters * .5f, 0)) *
             glm::rotate(glm::mat4(1), glm::radians(textured ? 90.f - p.yaw : -p.yaw), glm::vec3(0, 1, 0)) *
             glm::scale(glm::mat4(1), glm::vec3(standingPlayerSize.x, heightMeters, standingPlayerSize.z));

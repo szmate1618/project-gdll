@@ -53,6 +53,7 @@ public:
     bool overlaps(glm::vec3 minimum, glm::vec3 maximum) const;
     void appendContacts(glm::vec3 feet, float radius, float height, float skin,
                         std::vector<Contact>& contacts) const;
+    void appendContacts(const CollisionBox& box, float skin, std::vector<Contact>& contacts) const;
     std::optional<GroundHit> groundAt(float x, float z, float minY, float maxY) const;
     static Model geometry(); // Exactly one box and one 12-sided tire mesh.
     static constexpr float wheelRadius = .36f, wheelWidth = .24f;

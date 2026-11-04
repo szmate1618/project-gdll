@@ -16,7 +16,8 @@ bool finite(glm::vec3 value) {
 float squared(glm::vec3 value) { return glm::dot(value, value); }
 bool validPlayer(const BirdFlockPlayer& player) {
     return player.targetable && finite(player.feet) && std::isfinite(player.radius) &&
-        std::isfinite(player.height) && player.radius > 0 && player.height >= 2 * player.radius;
+        std::isfinite(player.height) && player.radius > 0 && player.height > 0 &&
+        (player.collisionBox ? validCollisionBox(*player.collisionBox) : player.height >= 2 * player.radius);
 }
 // Closest points of two finite line segments (including degenerate segments).
 float segmentDistanceSquared(glm::vec3 p, glm::vec3 q, glm::vec3 a, glm::vec3 b) {
@@ -39,6 +40,29 @@ float segmentDistanceSquared(glm::vec3 p, glm::vec3 q, glm::vec3 a, glm::vec3 b)
 
 bool birdHitsPlayer(glm::vec3 from, glm::vec3 to, const BirdFlockPlayer& player, float radius) {
     if (!finite(from) || !finite(to) || !validPlayer(player) || !std::isfinite(radius) || radius < 0) return false;
+    if (player.collisionBox) {
+        if (radius > 0)
+            return collisionBoxCapsuleContact(*player.collisionBox, from, to,
+                std::nextafter(radius, std::numeric_limits<float>::infinity())).has_value();
+        // The public query also permits a point-sized bird. Use the closed
+        // segment/box slabs to retain tangency without a zero-radius capsule.
+        const auto& box = *player.collisionBox;
+        const auto inverse = glm::conjugate(box.rotation);
+        const auto origin = inverse * (from - box.center), delta = inverse * (to - from);
+        float low = 0, high = 1;
+        for (int axis = 0; axis < 3; ++axis) {
+            if (delta[axis] == 0) {
+                if (std::abs(origin[axis]) > box.halfExtents[axis]) return false;
+                continue;
+            }
+            float first = (-box.halfExtents[axis] - origin[axis]) / delta[axis];
+            float last = (box.halfExtents[axis] - origin[axis]) / delta[axis];
+            if (first > last) std::swap(first, last);
+            low = std::max(low, first); high = std::min(high, last);
+            if (low > high) return false;
+        }
+        return true;
+    }
     const auto a = player.feet + glm::vec3(0, player.radius, 0);
     const auto b = player.feet + glm::vec3(0, player.height - player.radius, 0);
     const float combined = player.radius + radius;

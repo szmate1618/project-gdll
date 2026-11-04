@@ -52,7 +52,7 @@ void presentedLights() {
             "Crouching must lower the remote flashlight with the eye");
     remote.movement.stance = viewer::PlayerStance::Prone;
     lights = remoteFlashlights({remote}, self.id);
-    require(std::abs(standingY - lights[0].position.y - 1.2f) < .001f,
+    require(std::abs(standingY - lights[0].position.y - 1.35f) < .001f,
             "Prone flashlight must follow the lower eye");
     remote.yaw = 90; remote.pitch = 45;
     lights = remoteFlashlights({remote}, self.id);

@@ -6,6 +6,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 
 namespace {
@@ -40,7 +41,10 @@ void run(viewer::FPSController& player, const viewer::CollisionWorld& world, flo
     for (int step = 0; step < int(std::lround(seconds * 120)); ++step) tick(player, world, input);
 }
 void clear(const viewer::FPSController& player, const viewer::CollisionWorld& world) {
-    for (const auto& c : world.contacts(player.feet(), player.config().radius, player.bodyHeight()))
+    const auto box = player.collisionBox();
+    const auto contacts = box ? world.contacts(*box) :
+        world.contacts(player.feet(), player.config().radius, player.bodyHeight());
+    for (const auto& c : contacts)
         require(c.depth <= .0022f, "Stance body must not penetrate the scene");
 }
 
@@ -63,8 +67,9 @@ void groundStances() {
     require(player.stance() == PlayerStance::Standing, "Releasing Ctrl must stand when clear");
     input.toggleProne = true;
     tick(player, world, input);
-    require(player.stance() == PlayerStance::Prone && std::abs(player.bodyHeight() - .6f) < 1e-5f &&
-            std::abs(player.eyeHeight() - .5f) < 1e-5f, "One prone press must lower the body and camera");
+    require(player.stance() == PlayerStance::Prone && std::abs(player.bodyHeight() - .45f) < 1e-5f &&
+            std::abs(player.eyeHeight() - .35f) < 1e-5f, "One prone press must lower the body and camera");
+    require(player.collisionBox().has_value(), "Prone must use the separate box collider");
     input.toggleProne = false; input.forward = 1; input.yawDegrees = 0; input.run = true; input.crouch = true;
     const float startX = player.feet().x;
     run(player, world, 1, input);
@@ -165,6 +170,204 @@ void proneTunnel() {
             "A blocked request to leave prone must complete when space becomes available");
 }
 
+void lowProneClearance() {
+    for (const float ceiling : {.40f, .50f}) {
+        auto model = floor();
+        quad(model, {0, ceiling, -3}, {3, ceiling, -3}, {3, ceiling, 3}, {0, ceiling, 3});
+        const viewer::CollisionWorld world(model);
+        auto player = spawn(world, {-1, 1.7f, 0});
+        viewer::FPSInput input;
+        input.yawDegrees = 0; input.toggleProne = true;
+        tick(player, world, input);
+        input.toggleProne = false; input.forward = 1;
+        run(player, world, 3, input);
+        require(player.stance() == PlayerStance::Prone,
+                "A low tunnel must retain the crawling stance");
+        if (ceiling > .45f)
+            require(player.feet().x > 1.f, "The 45 cm prone box must pass beneath a 50 cm ceiling");
+        else
+            require(player.feet().x < -.19f, "A 40 cm ceiling must block the prone head and torso");
+        clear(player, world);
+    }
+
+    for (const float width : {.55f, .65f}) {
+        auto model = floor();
+        for (const float side : {-width * .5f, width * .5f})
+            quad(model, {0, 0, side}, {3, 0, side}, {3, 2, side}, {0, 2, side});
+        const viewer::CollisionWorld world(model);
+        auto player = spawn(world, {-1, 1.7f, 0});
+        viewer::FPSInput input;
+        input.yawDegrees = 0; input.toggleProne = true;
+        tick(player, world, input);
+        input.toggleProne = false; input.forward = 1;
+        run(player, world, 3, input);
+        if (width > .60f)
+            require(player.feet().x > 1.f, "A 65 cm gap must admit the prone shoulders");
+        else
+            require(player.feet().x < -.19f, "Lower prone height must preserve 60 cm shoulder clearance");
+        clear(player, world);
+    }
+}
+
+void proneTorsoClearance() {
+    auto model = floor();
+    quad(model, {-.5f, 0, -3}, {-.5f, 2, -3}, {-.5f, 2, 3}, {-.5f, 0, 3});
+    const viewer::CollisionWorld blockedWorld(model);
+    auto blocked = spawn(blockedWorld);
+    viewer::FPSInput input;
+    input.yawDegrees = 0;
+    tick(blocked, blockedWorld, input);
+    const auto before = blocked.feet();
+    const auto eye = blocked.eyePosition();
+    input.toggleProne = true;
+    tick(blocked, blockedWorld, input);
+    require(blocked.stance() == PlayerStance::Standing && !blocked.collisionBox() &&
+            glm::length(blocked.feet() - before) < 1e-5f &&
+            glm::length(blocked.eyePosition() - eye) < 1e-5f,
+            "Going prone must wait when the torso box would intersect a wall behind the head");
+    clear(blocked, blockedWorld);
+
+    model = floor();
+    quad(model, {-1, 0, -3}, {-1, 2, -3}, {-1, 2, 3}, {-1, 0, 3});
+    const viewer::CollisionWorld world(model);
+    auto player = spawn(world);
+    input = {}; input.yawDegrees = 0; input.toggleProne = true;
+    tick(player, world, input);
+    input.toggleProne = false; input.forward = -1;
+    run(player, world, 1, input);
+    require(player.stance() == PlayerStance::Prone && player.feet().x > -.23f && player.feet().x < -.15f,
+            "Backing up prone must collide at the rear of the torso rather than at the camera");
+    clear(player, world);
+}
+
+void proneTurningAndRestore() {
+    auto model = floor();
+    for (const float side : {-.5f, .5f})
+        quad(model, {-2, 0, side}, {2, 0, side}, {2, 2, side}, {-2, 2, side});
+    const viewer::CollisionWorld world(model);
+    auto player = spawn(world);
+    viewer::FPSInput input;
+    input.yawDegrees = 0; input.toggleProne = true;
+    tick(player, world, input);
+    const auto feet = player.feet();
+    input.toggleProne = false; input.yawDegrees = 180;
+    run(player, world, .25f, input);
+    require(std::abs(std::remainder(player.movementState().bodyYawDegrees, 360.f)) < 90.f &&
+            glm::length(player.feet() - feet) < .001f,
+            "A rapid turn must sweep the torso corners; clear final orientation alone is insufficient");
+    clear(player, world);
+
+    viewer::FPSController restored(player.config());
+    restored.restoreMovement(player.movementState());
+    const auto originalBox = player.collisionBox(), restoredBox = restored.collisionBox();
+    require(originalBox && restoredBox && glm::length(originalBox->center - restoredBox->center) < 1e-6f &&
+            std::abs(glm::dot(originalBox->rotation, restoredBox->rotation)) > .99999f,
+            "Reconciliation must preserve the collision-constrained prone body orientation");
+    input.yawDegrees = 0; input.forward = 1;
+    run(player, world, 5, input);
+    run(restored, world, 5, input);
+    require(glm::length(player.feet() - restored.feet()) < 1e-5f &&
+            std::abs(player.movementState().bodyYawDegrees - restored.movementState().bodyYawDegrees) < 1e-5f,
+            "Restored prone movement must replay identically");
+    input.forward = 0; input.yawDegrees = 180;
+    tick(player, world, input);
+    require(std::abs(std::abs(std::remainder(player.movementState().bodyYawDegrees, 360.f)) - 180.f) < .01f,
+            "The prone body must turn freely after leaving the wall");
+    clear(player, world);
+
+    auto invalid = player.movementState();
+    invalid.bodyYawDegrees = std::numeric_limits<float>::quiet_NaN();
+    bool rejected = false;
+    try { restored.restoreMovement(invalid); }
+    catch (const std::invalid_argument&) { rejected = true; }
+    require(rejected, "Movement restore must reject a nonfinite box orientation");
+}
+
+void proneSlopeSupport() {
+    viewer::Model model;
+    constexpr float slope = .15f;
+    quad(model, {-30, -30 * slope, -30}, {-30, -30 * slope, 30},
+         {30, 30 * slope, 30}, {30, 30 * slope, -30}, "terrain");
+    const viewer::CollisionWorld world(model);
+    auto player = spawn(world);
+    viewer::FPSInput input;
+    input.yawDegrees = 0; input.toggleProne = true;
+    tick(player, world, input);
+    require(player.stance() == PlayerStance::Prone && player.grounded(),
+            "Going prone on a walkable slope must settle the whole box onto ground support");
+    clear(player, world);
+    input.toggleProne = false; input.forward = 1;
+    run(player, world, 1, input);
+    require(player.feet().x > .70f && player.grounded(),
+            "The prone box must crawl up a gentle slope without catching its front edge");
+    clear(player, world);
+    input.forward = 0;
+    run(player, world, .1f, input);
+    const auto settled = player.feet();
+    run(player, world, 2, input);
+    require(player.grounded() && glm::length(player.feet() - settled) < .002f,
+            "A supported prone box must not drift down a slope while idle");
+    clear(player, world);
+    input.yawDegrees = 180;
+    run(player, world, .25f, input);
+    require(std::abs(std::abs(std::remainder(player.movementState().bodyYawDegrees, 360.f)) - 180.f) < .01f &&
+            glm::length(glm::vec2(player.feet().x - settled.x, player.feet().z - settled.z)) < .001f &&
+            player.grounded(),
+            "On an open slope the prone box must turn with support adjustment and no horizontal camera shift");
+    clear(player, world);
+}
+
+void proneStepsAndEdges() {
+    for (const bool ceiling : {false, true}) {
+        auto model = floor();
+        constexpr float rise = .18f;
+        quad(model, {0, 0, -3}, {0, rise, -3}, {0, rise, 3}, {0, 0, 3});
+        quad(model, {0, rise, -3}, {0, rise, 3}, {3, rise, 3}, {3, rise, -3});
+        if (ceiling)
+            quad(model, {-.6f, .55f, -3}, {3, .55f, -3}, {3, .55f, 3}, {-.6f, .55f, 3});
+        const viewer::CollisionWorld world(model);
+        auto player = spawn(world, {-1, 1.7f, 0});
+        viewer::FPSInput input;
+        input.yawDegrees = 0; input.toggleProne = true;
+        tick(player, world, input);
+        input.toggleProne = false; input.forward = 1;
+        run(player, world, 3, input);
+        if (ceiling)
+            require(player.feet().x < -.19f && player.feet().y < .01f,
+                    "Prone stepping must reject a lift that would push the torso through a ceiling");
+        else
+            require(player.feet().x > 1.f && player.feet().y > rise - .005f && player.grounded(),
+                    "The prone box must step onto a low ledge and retain ground support");
+        clear(player, world);
+    }
+
+    auto model = floor();
+    quad(model, {-3, 1, -3}, {-3, 1, 3}, {0, 1, 3}, {0, 1, -3});
+    const viewer::CollisionWorld world(model);
+    viewer::FPSController player;
+    require(player.startFalling({-.5f, 2.702f, 0}, world), "Platform fixture must start above the raised support");
+    run(player, world, .1f);
+    require(player.grounded() && std::abs(player.feet().x + .5f) < .001f &&
+            std::abs(player.feet().y - 1.f) < .01f,
+            "Platform fixture must settle on the raised platform before testing its edge");
+    viewer::FPSInput input;
+    input.yawDegrees = 0; input.toggleProne = true;
+    tick(player, world, input);
+    input.toggleProne = false; input.forward = 1;
+    run(player, world, 1, input);
+    require(player.feet().x > .2f && player.feet().y > .99f && player.grounded(),
+            "The prone torso must retain platform support after the head passes its edge");
+    bool airborne = false;
+    for (int frame = 0; frame < 240; ++frame) {
+        tick(player, world, input);
+        airborne = airborne || !player.grounded();
+        clear(player, world);
+    }
+    require(airborne && player.grounded() && player.feet().y < .01f &&
+            player.stance() == PlayerStance::Prone,
+            "Leaving the entire platform must make the prone body fall and land on the lower floor");
+}
+
 void clearHigherObstacles() {
     auto model = floor();
     quad(model, {0, 0, -3}, {0, 1.15f, -3}, {0, 1.15f, 3}, {0, 0, 3});
@@ -233,6 +436,11 @@ int main() {
         clearanceAndQueuedInput();
         airborneTuck();
         proneTunnel();
+        lowProneClearance();
+        proneTorsoClearance();
+        proneTurningAndRestore();
+        proneSlopeSupport();
+        proneStepsAndEdges();
         clearHigherObstacles();
         cameraAndPerception();
         std::cout << "Player crouch, prone, airborne tuck, clearance and perception tests passed\n";

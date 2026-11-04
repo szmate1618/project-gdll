@@ -95,6 +95,8 @@ void movement(Wire& w, viewer::FPSState& s) {
         throw std::runtime_error("Invalid multiplayer movement state");
     s.stance = static_cast<viewer::PlayerStance>(stance); s.takeoffStance = static_cast<viewer::PlayerStance>(takeoff);
     w.flag(s.grounded); w.flag(s.jumpHeld); w.flag(s.jumpQueued); w.flag(s.proneRequested); w.flag(s.proneQueued);
+    w.number(s.bodyYawDegrees);
+    if (std::abs(s.bodyYawDegrees) > 180.f) throw std::runtime_error("Invalid player collision orientation");
 }
 void firearmShot(Wire& w, FirearmShot& shot) {
     w.integer(shot.slot);

@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include "physics_world.hpp"
 #include "collision_world.hpp"
+#include "collision_box.hpp"
 #include <box3d/box3d.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -211,6 +212,28 @@ void VehicleLayer::appendContacts(glm::vec3 feet, float radius, float height, fl
                 if(!B3_ID_EQUALS(s,car.boxes[part])) continue;
                 const auto hits=boxContacts(car.collider(*owner,part),query.feet,query.radius,query.height,query.skin);
                 query.out->insert(query.out->end(),hits.begin(),hits.end());
+            }
+            return true;
+        }, &q);
+}
+void VehicleLayer::appendContacts(const CollisionBox& box, float skin, std::vector<Contact>& contacts) const {
+    if (!validCollisionBox(box) || !std::isfinite(skin) || skin < 0) return;
+    struct Query { const VehicleLayer* layer; const CollisionBox* box; float skin; std::vector<Contact>* out; };
+    Query q{this, &box, skin, &contacts};
+    const auto bounds = collisionBoxBounds(box, skin);
+    auto filter = b3DefaultQueryFilter(); filter.maskBits = vehicleBodyCategory;
+    b3World_OverlapAABB(impl_->world->id(), {vector(bounds.first), vector(bounds.second)}, filter,
+        [](b3ShapeId shape, void* context) {
+            auto& query = *static_cast<Query*>(context);
+            const auto owner = query.layer->carForBody(b3Shape_GetBody(shape));
+            if (!owner) return true;
+            const auto& car = *query.layer->impl_->cars[*owner];
+            for (std::size_t part = 0; part < car.boxes.size(); ++part) {
+                if (!B3_ID_EQUALS(shape, car.boxes[part])) continue;
+                const auto obstacle = car.collider(*owner, part);
+                const auto contact = collisionBoxContact(*query.box,
+                    {obstacle.center, obstacle.halfExtents, obstacle.rotation}, query.skin);
+                if (contact) query.out->push_back(*contact);
             }
             return true;
         }, &q);

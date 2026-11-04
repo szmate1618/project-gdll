@@ -47,6 +47,7 @@ void protocol() {
     using namespace multiplayer;
     Snapshot s; s.tick = 123;
     PlayerState player; player.id = 42; player.movement.feet = {12, 3, -4}; player.resolved = 99;
+    player.movement.bodyYawDegrees = 37.f;
     player.weaponCoolingDown = true;
     player.weaponSwitchRemaining = 1.25f; player.weaponSwitchDuration = 3.5f;
     player.reloadRemaining = 2.25f; player.reloadDuration = 4.5f;
@@ -60,6 +61,7 @@ void protocol() {
     const auto bytes = encode(s);
     const auto copy = std::get<Snapshot>(decode(bytes.data(), bytes.size()));
     require(copy.boxes.at(0).removed, "Snapshot round trip lost retired box state");
+    require(copy.players[0].movement.bodyYawDegrees == 37.f, "Snapshot lost prone collision orientation");
     require(copy.tick == 123 && copy.players[0].id == 42 && copy.players[0].movement.feet.x == 12 && copy.players[0].weaponCoolingDown,
         "Snapshot round trip lost state");
     require(copy.players[0].weaponSwitchRemaining == 1.25f && copy.players[0].weaponSwitchDuration == 3.5f,
@@ -199,7 +201,8 @@ void prediction() {
     client.reconcile(state, collision);
     const auto actual = client.controller().movementState();
     require(glm::length(actual.feet - expected.feet) < .0001f && actual.stance == expected.stance &&
-        actual.verticalVelocity == expected.verticalVelocity, "Reconciliation lost jump/stance state");
+        actual.verticalVelocity == expected.verticalVelocity && actual.bodyYawDegrees == expected.bodyYawDegrees,
+        "Reconciliation lost jump/stance/orientation state");
     require(client.outstanding() == 25, "Acknowledged inputs retained");
     require(client.commandsToSend().commands.front().sequence == 36, "Resend includes resolved inputs");
     state.resolved = 100;

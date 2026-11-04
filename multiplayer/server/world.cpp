@@ -201,7 +201,7 @@ void World::step() {
         applyInventoryActions(player, scene_, player.held.objectHandling);
         bodies.push_back(&player.body);
         targets.push_back({player.controller.feet(), player.controller.eyeHeight(), player.controller.bodyHeight(),
-                           id, player.velocity, player.controller.config().radius, player.house.house()});
+                           id, player.velocity, player.controller.bodyRadius(), player.house.house(), player.controller.collisionBox()});
         scentEmitters.push_back({player.controller.feet(),player.vitals.bleeding(),player.house.outside()});
     }
     // Advance living poses from the start-of-tick player state before aim and
@@ -442,8 +442,8 @@ void World::step() {
     if (birds_.active()) {
         std::vector<viewer::BirdFlockPlayer> birdPlayers;
         for (const auto& [id,player]:players_)
-            birdPlayers.push_back({player.controller.feet(),player.controller.bodyHeight(),player.controller.config().radius,
-                player.vitals.health()>0 && vehicleSeats_.car(id)==noVehicle});
+            birdPlayers.push_back({player.controller.feet(),player.controller.bodyHeight(),player.controller.bodyRadius(),
+                player.vitals.health()>0 && vehicleSeats_.car(id)==noVehicle, player.controller.collisionBox()});
         const auto birdHits=birds_.step(birdPlayers);
         std::size_t birdPlayer=0;
         for (auto& [id,player]:players_) {

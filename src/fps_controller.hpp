@@ -1,12 +1,15 @@
 #pragma once
 
 #include "player_noise.hpp"
+#include "collision_box.hpp"
 
 #include <glm/glm.hpp>
+#include <optional>
 
 namespace viewer {
 
 class CollisionWorld;
+struct Contact;
 
 // Meters and seconds, in the same Y-up space as the loaded scene and Camera.
 struct FPSConfig {
@@ -23,8 +26,10 @@ struct FPSConfig {
     float skin = 0.002F;
     float fixedDt = 1.0F / 120.0F;
     float terminalVelocity = 50.0F;
-    float crouchHeight = 1.10F, proneHeight = .60F;
+    float crouchHeight = 1.10F, proneHeight = .45F;
     float crouchSpeed = 1.5F, proneSpeed = .75F;
+    // Prone head/torso box, independent of the upright capsule radius.
+    float proneEyeHeight = .35F, proneWidth = .60F, proneLength = 1.0F;
 };
 
 enum class PlayerStance { Standing, Crouched, Prone };
@@ -47,6 +52,7 @@ struct FPSState {
     PlayerStance stance = PlayerStance::Standing, takeoffStance = PlayerStance::Standing;
     bool grounded = false, jumpHeld = false, jumpQueued = false;
     bool proneRequested = false, proneQueued = false;
+    float bodyYawDegrees = -90; // Collision orientation can lag view yaw near obstacles.
 };
 
 class FPSController {
@@ -65,6 +71,9 @@ public:
     [[nodiscard]] glm::vec3 eyePosition() const { return feet_ + glm::vec3(0, eyeHeight(), 0); }
     [[nodiscard]] float bodyHeight() const;
     [[nodiscard]] float eyeHeight() const;
+    // Incoming capsule-shaped damage queries retain a valid low approximation.
+    [[nodiscard]] float bodyRadius() const;
+    [[nodiscard]] std::optional<CollisionBox> collisionBox() const;
     [[nodiscard]] PlayerStance stance() const { return stance_; }
     [[nodiscard]] float movementSpeed(bool run = false) const;
     [[nodiscard]] bool grounded() const { return grounded_; }
@@ -78,6 +87,13 @@ private:
     void step(float dt, const FPSInput& input, const CollisionWorld& world, bool jump);
     bool resolve(const CollisionWorld& world, bool horizontal, glm::vec3 previous);
     bool snapToGround(const CollisionWorld& world, float distance);
+    bool tryStep(glm::vec3 previous, glm::vec3 requested, const CollisionWorld& world);
+    void turnBody(float yawDegrees, const CollisionWorld& world);
+    [[nodiscard]] CollisionBox proneBox(glm::vec3 feet, float yawDegrees) const;
+    [[nodiscard]] std::vector<Contact> contactsAt(glm::vec3 feet, PlayerStance stance,
+        const CollisionWorld& world, float skin = 0) const;
+    [[nodiscard]] std::optional<std::pair<float, glm::vec3>> proneSupport(
+        glm::vec3 feet, const CollisionWorld& world, float minY, float maxY) const;
     [[nodiscard]] bool walkable(glm::vec3 normal) const;
     [[nodiscard]] float stanceHeight(PlayerStance stance) const;
     bool changeStance(PlayerStance stance, const CollisionWorld& world);
@@ -94,6 +110,7 @@ private:
     PlayerStance stance_ = PlayerStance::Standing;
     PlayerStance takeoffStance_ = PlayerStance::Standing; // A leg tuck preserves airborne movement speed.
     bool proneRequested_ = false, proneQueued_ = false;
+    float bodyYawDegrees_ = -90;
     PlayerNoiseEmitter noiseEmitter_;
     std::vector<NoiseEvent> noises_;
 };

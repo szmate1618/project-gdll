@@ -1,5 +1,6 @@
 #include "zombie_update_profile.hpp"
 #include "collision_world.hpp"
+#include "collision_box.hpp"
 #include "door_collision.hpp"
 #include "box_layer.hpp"
 #include "vehicle_layer.hpp"
@@ -636,6 +637,44 @@ std::vector<Contact> CollisionWorld::contacts(glm::vec3 feet, float radius, floa
     return result;
 }
 
+std::vector<Contact> CollisionWorld::contacts(const CollisionBox& box, float skin) const {
+    std::vector<Contact> result;
+    if (!validCollisionBox(box) || !std::isfinite(skin) || skin < 0) return result;
+    const auto bounds = collisionBoxBounds(box, skin);
+    Bounds region; region.include(bounds.first); region.include(bounds.second);
+    impl_->visitTriangles(region, [&](const Triangle& triangle) {
+        auto contact = collisionBoxTriangleContact(box, {triangle.a, triangle.b, triangle.c}, skin);
+        if (!contact) return true;
+        const auto groundNormal = triangle.normal.y < 0 ? -triangle.normal : triangle.normal;
+        contact->terrain = triangle.terrain;
+        contact->terrainSupport = triangle.terrain && groundNormal.y > epsilon &&
+            (!triangle.road || glm::dot(groundNormal, box.center - contact->point) >= -epsilon);
+        result.push_back(*contact);
+        return true;
+    });
+    impl_->visitTrunksIndexed(region, [&](std::uint32_t, const TrunkCollider& trunk) {
+        const auto contact = collisionBoxCapsuleContact(box,
+            trunk.base + glm::vec3(0, trunk.radius, 0),
+            trunk.base + glm::vec3(0, trunk.height - trunk.radius, 0), trunk.radius, skin);
+        if (contact) result.push_back(*contact);
+        return true;
+    });
+    if (impl_->runtime) {
+        const auto contacts = impl_->runtime->contacts(box, skin);
+        result.insert(result.end(), contacts.begin(), contacts.end());
+    }
+    if (impl_->doors) {
+        for (const auto& door : impl_->doors->colliders(bounds.first, bounds.second)) {
+            auto contact = collisionBoxContact(box, {door.center, door.halfExtents, door.rotation}, skin);
+            if (contact) { contact->door = true; result.push_back(*contact); }
+        }
+    }
+    if (impl_->boxes) impl_->boxes->appendContacts(box, skin, result);
+    if (impl_->vehicles) impl_->vehicles->appendContacts(box, skin, result);
+    std::sort(result.begin(), result.end(), [](const Contact& a, const Contact& b) { return a.depth > b.depth; });
+    return result;
+}
+
 void CollisionWorld::prepareContactCandidates(glm::vec3 minimum,glm::vec3 maximum,ContactCandidates& cache) const {
     if (cache.worldId_!=impl_->worldId ||
         glm::any(glm::lessThan(minimum,cache.minimum_)) ||
@@ -1097,6 +1136,9 @@ void CollisionWorld::setVehicles(const VehicleLayer* vehicles) { impl_->vehicles
 void CollisionWorld::setBoxes(BoxLayer* boxes) { impl_->boxes = boxes; }
 void CollisionWorld::pushBoxes(glm::vec3 feet, float radius, float height, glm::vec3 velocity, float dt) const {
     if (impl_->boxes) impl_->boxes->push(feet, radius, height, velocity, dt);
+}
+void CollisionWorld::pushBoxes(const CollisionBox& box, glm::vec3 velocity, float dt) const {
+    if (impl_->boxes) impl_->boxes->push(box, velocity, dt);
 }
 std::vector<StaticCollisionFace> CollisionWorld::staticFaces(glm::vec3 minimum, glm::vec3 maximum, bool includeRuntime) const {
     std::vector<StaticCollisionFace> result;

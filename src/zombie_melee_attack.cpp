@@ -36,6 +36,23 @@ bool blocked(const CollisionWorld& world, glm::vec3 start, glm::vec3 end) {
 }
 
 float contact(glm::vec3 start, glm::vec3 end, const ZombiePlayer& player) {
+    if (player.collisionBox) {
+        const auto overlaps = [&](float fraction) {
+            return collisionBoxCapsuleContact(*player.collisionBox, start,
+                glm::mix(start, end, fraction), zombieHandRadius).has_value();
+        };
+        if (!overlaps(1)) return std::numeric_limits<float>::infinity();
+        if (overlaps(0)) return 0;
+        // Preserve first-contact ordering between players. Each tested segment
+        // includes the hand's start, so overlap is monotonic as it grows.
+        float low = 0, high = 1;
+        for (int i = 0; i < 16; ++i) {
+            const float middle = (low + high) * .5f;
+            if (overlaps(middle)) high = middle;
+            else low = middle;
+        }
+        return high;
+    }
     ZombieBoneCapsule capsule;
     capsule.bone = 0;
     const float radius = std::min(player.radius, player.height * .5f);

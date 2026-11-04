@@ -14,6 +14,7 @@ namespace viewer {
 class DoorLayer;
 class BoxLayer;
 class VehicleLayer;
+struct CollisionBox;
 struct StaticCollisionFace {
     std::size_t index;
     std::array<glm::vec3, 3> vertices;
@@ -127,6 +128,8 @@ public:
     // Does not inflate floors, props, door panels, trunks or rendered geometry.
     std::vector<Contact> contacts(glm::vec3 feet, float radius, float height,
                                   float skin = 0.0f, float wallClearance = 0.0f) const;
+    // Oriented-box queries use the same static BVHs and current live colliders.
+    std::vector<Contact> contacts(const CollisionBox& box, float skin = 0.0f) const;
     // Same contact generation, without allocating/sorting a full static list.
     // Return as soon as the visitor declines another contact. The walking policy allows
     // certified nonblocking supports to be omitted (zombie walking rules only).
@@ -176,6 +179,7 @@ public:
     const CollisionWorld* runtimeGeometry() const;
     std::uint64_t runtimeRevision() const;
     void pushBoxes(glm::vec3 feet, float radius, float height, glm::vec3 velocity, float dt) const;
+    void pushBoxes(const CollisionBox& box, glm::vec3 velocity, float dt) const;
     // BVH-selected static triangles, including the actual clipped doorways.
     // Stable indices let physics upload neighboring regions without duplicates.
     // Runtime face indices remain stable only until runtimeRevision() changes.
