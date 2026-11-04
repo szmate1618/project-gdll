@@ -1186,6 +1186,23 @@ int main(int argc, char** argv) {
             hud.mouseWheel(-5); draw();
             require(beforeScroll != pixels(1280,720) && hud.takeInventoryActions().empty(),
                 "The equipment drawer must scroll without transferring inventory");
+            const auto rejectionPixels = [&] {
+                const auto frame = pixels(1280,720);
+                std::size_t red = 0;
+                for (int y = 220; y < 520; ++y) for (int x = 1008; x < 1276; ++x)
+                    if (isColor(colorAt(frame,1280,720,x,y), {236,105,98})) ++red;
+                return red;
+            };
+            require(rejectionPixels() == 0, "An ordinary drawer must not show a rejection highlight");
+            ++drawer.handStoreRejections; draw();
+            require(rejectionPixels() > 500, "A rejected return must highlight the scrolling equipment list in red");
+            if (argc > 1) capture((std::string(argv[1]) + "-equipment-rejected.ppm").c_str(), pixels(1280,720),1280,720);
+            drawer.seconds += 1; draw();
+            require(rejectionPixels() > 500, "The rejection highlight must remain visible long enough to read");
+            drawer.seconds += .5; draw();
+            require(rejectionPixels() == 0, "Repeated snapshots must not restart an expired rejection highlight");
+            ++drawer.handStoreRejections; draw();
+            require(rejectionPixels() > 500, "A later rejected return must trigger a fresh highlight");
         }
         glDeleteSamplers(1, &sampler); glDeleteTextures(1, &texture); glDeleteTextures(1, &color);
         glDeleteTextures(1, &mapTexture);

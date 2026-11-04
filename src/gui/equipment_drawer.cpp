@@ -51,6 +51,12 @@ void EquipmentDrawer::populate() {
 }
 void EquipmentDrawer::process(const HudState& state, const std::vector<HudPointerEvent>& events,
     int width, int height, const PresentationViewport& presentation) {
+    if (state.handStoreRejections != seenRejections_) {
+        seenRejections_ = state.handStoreRejections;
+        rejectionUntil_ = state.seconds + 1.4;
+    }
+    const bool rejected = state.seconds < rejectionUntil_;
+    drawer_->SetClass("rejected", rejected);
     const bool visible = state.objectHandling && state.screen == HudScreen::Gameplay;
     drawer_->SetClass("available", visible);
     if (!visible || state.mouseCaptured) open_ = false;
@@ -92,7 +98,8 @@ void EquipmentDrawer::process(const HudState& state, const std::vector<HudPointe
     }
     drawer_->SetClass("expanded", open_);
     std::ostringstream status;
-    if (state.handAccessRemaining > 0) status << "Retrieving · " << std::fixed << std::setprecision(1) << state.handAccessRemaining << "s";
+    if (rejected) status << "Can't store item";
+    else if (state.handAccessRemaining > 0) status << "Retrieving · " << std::fixed << std::setprecision(1) << state.handAccessRemaining << "s";
     else status << "Drag out to hold · release here to store";
     if (statusText_ != status.str()) { statusText_ = status.str(); status_->SetInnerRML(statusText_); }
 }

@@ -861,6 +861,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 hudState.objectHandling = in.handling() && !in.driver.occupied();
                 hudState.handInventoryActive = ownState.handInventoryActive;
                 hudState.handAccessRemaining = ownState.handAccessRemaining;
+                hudState.handStoreRejections = ownState.handStoreRejections;
                 hudState.selectionSlot = in.actionSelection.selected();
                 hudState.commandWheelOpen = in.wheelOpen;
                 hudState.commandWheelOffset = in.wheelOffset;

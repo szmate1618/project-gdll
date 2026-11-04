@@ -477,6 +477,7 @@ Snapshot World::snapshot(std::uint32_t id) {
         s.players.back().flashlight = player.held.flashlight;
         s.players.back().handInventoryActive = player.handInventory.active();
         s.players.back().handAccessRemaining = static_cast<float>(player.handInventory.remaining());
+        s.players.back().handStoreRejections = player.handInventory.rejectedStores();
         // IDs remain explicit as players acquire additional stack instances.
         for (const auto& [itemId, item] : player.inventory.items())
             if (item.inventory().stackable) {

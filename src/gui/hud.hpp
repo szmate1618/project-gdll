@@ -36,6 +36,7 @@ struct HudState {
     bool mouseCaptured = true;
     bool objectHandling = false, handInventoryActive = false;
     double handAccessRemaining = 0;
+    std::uint32_t handStoreRejections = 0; // Monotonic event count, retained across snapshots.
     int selectionSlot = -1; // Hotbar preview 0..9; -1 hides the selector.
     double weaponSwitchRemaining = 0, weaponSwitchDuration = 0; // Seconds; zero hides progress.
     double reloadRemaining = 0, reloadDuration = 0; // Includes ammunition storage access.

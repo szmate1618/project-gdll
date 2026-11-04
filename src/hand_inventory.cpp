@@ -72,7 +72,10 @@ bool HandInventory::store(PlayerInteraction& interaction, GroundItems& ground, W
     }
     const auto prop = interaction.heldProp();
     const auto id = prop ? ground.idOf(*prop) : std::nullopt;
-    if (!id || !inventory_.storage().backpack) { interaction.cancel(); return false; }
+    if (!id) { interaction.cancel(); return false; }
+    if (!inventory_.storage().backpack) {
+        ++rejectedStores_; interaction.cancel(); return false;
+    }
     const auto reference = backpackStorageReference(inventory_.storage().backpack->id);
     const auto& grid = inventory_.layout().at(reference).grid;
     // The existing grip establishes reach even when cursor motion has lifted
@@ -81,6 +84,7 @@ bool HandInventory::store(PlayerInteraction& interaction, GroundItems& ground, W
     interaction.cancel();
     for (int rotation : {0,90}) for (int y = 0; y < grid.height; ++y) for (int x = 0; x < grid.width; ++x)
         if (ground.take(*id, inventory_, weapons, {reference,x,y,rotation}, reachOrigin)) return true;
+    ++rejectedStores_;
     return false; // The released physical item stays on the ground when full.
 }
 } // namespace viewer

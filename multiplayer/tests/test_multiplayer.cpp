@@ -950,6 +950,17 @@ void serverHandInventory(const std::filesystem::path& asset) {
     submit({{Action::HandStore,"",""}}, false);
     require(scene.groundItems->count() == 0 && player.inventory.placements().at("pistol").storage ==
         "backpack/tactical_backpack/main", "A regrabbed world item must return through the drawer into the backpack");
+    scene.groundItems->add(*player.inventory.find("pistol"), 0, viewer::WeaponItem{0,12,0},
+        player.camera.position() + player.camera.direction() * .7f);
+    submit();
+    require(player.interaction.grabbing(), "Could not grab the duplicate equipment rejection fixture");
+    submit({{Action::HandStore,"",""}}, false);
+    require(scene.groundItems->count() == 1 && player.handInventory.rejectedStores() == 1,
+        "A rejected authoritative return must keep the world item and publish feedback");
+    const auto rejectionBytes = encode(world.snapshot(id));
+    const auto rejected = std::get<Snapshot>(decode(rejectionBytes.data(), rejectionBytes.size()));
+    require(rejected.players[0].handStoreRejections == 1,
+        "Rejected inventory returns must reach the client through serialized snapshots");
 }
 void inputRecovery(const std::filesystem::path& asset) {
     using namespace multiplayer;

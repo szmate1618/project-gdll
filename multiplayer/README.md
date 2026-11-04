@@ -632,7 +632,7 @@ Other players' flashlights illuminate the scene at night, following their aim an
 stance. Each player's L toggle is replicated independently; switching off your own
 light leaves theirs visible. Remote beams use the same 40 m range and night fade
 as the local light, without additional shadow maps. Flashlights are suppressed
-while seated in a vehicle. Protocol 42 requires matching client and server builds.
+while seated in a vehicle. Protocol 44 requires matching client and server builds.
 Holding **Alt** on foot temporarily enables Object handling without changing the
 equipped weapon. The weapon lowers while Alt is held. Releasing Alt cancels the
 grip/charge and restores weapon controls; held mouse buttons must be released
@@ -652,7 +652,8 @@ retrieve it after its server-calculated access time. Release outside the drawer
 to drop it, or inside to restore its original storage position. Closing and
 reopening the drawer while continuously holding preserves that position. After
 a ground drop and regrab, returning it searches the main backpack grid; a full
-backpack leaves the released item on the ground. These transfers preserve ammo
+backpack leaves the released item on the ground. A rejected return briefly
+highlights the list in red and displays “Can’t store item”. These transfers preserve ammo
 and weapon magazines and use the same rules in standalone and multiplayer.
 
 F12 opens/closes the Graphics page; Home releases/recaptures the mouse; Escape returns to the game menu. Losing focus releases

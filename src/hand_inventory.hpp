@@ -18,11 +18,13 @@ public:
     bool active() const { return !item_.empty(); }
     double remaining() const { return remaining_; }
     double duration() const { return duration_; }
+    std::uint32_t rejectedStores() const { return rejectedStores_; }
 private:
     PlayerInventory& inventory_;
     InventoryDrag drag_;
     std::string item_;
     std::optional<std::uint64_t> groundId_;
     double remaining_ = 0, duration_ = 0;
+    std::uint32_t rejectedStores_ = 0; // Counts failed returns of held equippable items.
 };
 } // namespace viewer

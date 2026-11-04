@@ -2027,6 +2027,7 @@ int run(const Options& options) {
         hudState.objectHandling = app.handling() && !app.driver.occupied();
         hudState.handInventoryActive = app.handInventory.active();
         hudState.handAccessRemaining = app.handInventory.remaining();
+        hudState.handStoreRejections = app.handInventory.rejectedStores();
         hudState.selectionSlot = app.actionSelection.selected();
         hudState.weaponSwitchRemaining = app.weaponSwitch.remaining(simulationClock.seconds());
         if (const auto* timing = app.weaponSwitch.timing()) hudState.weaponSwitchDuration = timing->total();

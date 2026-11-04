@@ -446,6 +446,7 @@ void payload(Wire& w, Snapshot& s) {
         if (p.ammoItemIds.size() != p.ammoQuantities.size()) throw std::runtime_error("Invalid ammo quantity IDs");
         for (auto& item : p.ammoItemIds) w.text(item,128);
         w.flag(p.handInventoryActive); w.number(p.handAccessRemaining);
+        w.integer(p.handStoreRejections);
         if (p.handAccessRemaining < 0 || (!p.handInventoryActive && p.handAccessRemaining != 0))
             throw std::runtime_error("Invalid hand inventory access progress");
         w.flag(p.inventoryDragging);

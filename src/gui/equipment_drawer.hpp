@@ -26,6 +26,8 @@ private:
     glm::vec2 pointer_{-1};
     std::string signature_, statusText_;
     bool open_ = false, pressed_ = false;
+    std::uint32_t seenRejections_ = 0;
+    double rejectionUntil_ = -1;
     std::vector<InventoryDragAction> actions_;
 };
 }

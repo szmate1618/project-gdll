@@ -1972,7 +1972,8 @@ original compartment, cell and orientation. Closing and reopening the drawer
 while keeping the mouse held preserves this return location. Once an item has
 been dropped, grabbing it again and releasing over the drawer searches the
 backpack's main grid for a suitable position. If none fits, it drops to the
-ground. Home, focus loss, changing actions and opening a full page end the grip;
+ground. A rejected return highlights the scrolling list in red for 1.4 seconds
+and displays “Can’t store item”. Home, focus loss, changing actions and opening a full page end the grip;
 Tab and hover-closing the drawer preserve it.
 
 The first successful grab of any door in a building also populates its interior

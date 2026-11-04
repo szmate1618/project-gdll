@@ -84,6 +84,10 @@ int main() {
         require(interaction.grip(camera, boxes, *ground.prop(extraId)), "Could not grab full-backpack fixture");
         require(!fullHand.store(interaction, ground, weapons) && !interaction.grabbing() && ground.count() == 1 &&
             full.items().size() == 1, "A full backpack must release the physical item without changing ownership");
+        require(fullHand.rejectedStores() == 1, "A rejected return must publish feedback exactly once");
+        require(!fullHand.store(interaction, ground, weapons) && fullHand.rejectedStores() == 1,
+            "Releasing an empty hand must not report an inventory rejection");
+        require(hand.rejectedStores() == 0, "Successful returns must not report a rejection");
         require(hand.begin("pistol"), "Could not start lost-grip fixture"); update(hand.duration());
         const auto lostId = *ground.idOf(*interaction.heldProp());
         interaction.cancel();

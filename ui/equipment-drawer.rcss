@@ -27,3 +27,7 @@
 .equipment-access { width: 236dp; margin-top: 4dp; font-size: 10dp; color: #a6b69f; }
 .equipment-empty { padding: 12dp; color: #a6b69f; }
 #equipment-status { position: absolute; left: 14dp; bottom: 12dp; font-size: 10dp; color: #c5d5ae; }
+
+#equipment-drawer.rejected #equipment-list { border: 2dp #ec6962; background-color: #472426; }
+#equipment-drawer.rejected .equipment-row { background-color: #4c292bee; border-left-color: #ec6962; }
+#equipment-drawer.rejected #equipment-status { color: #ec6962; }
