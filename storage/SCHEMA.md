@@ -1,5 +1,9 @@
 # Configurable storage prototype (v1)
 
+Physical item impact profiles live in separate `name.acoustics.toml` files under
+`weapons/`, `ammo/`, `doodads/` and `props/`. These are independent of storage
+placement and access times; see [impact acoustics](../docs/AUDIO.md#physical-impact-sounds).
+
 `equipment.toml` and `backpacks.toml` are catalogs of possible storage types.
 `loadout.toml` selects the player's equipped catalog IDs:
 

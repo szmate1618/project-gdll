@@ -194,6 +194,168 @@
         "label": "Creative Commons 0",
         "delivery": "Public high-quality MP3 preview; original WAV download requires a Freesound login."
       }
+    },
+    "impact-metal_soft": {
+      "title": "Metal hanger bar dropped onto carpet.",
+      "author": "imnotdubMass",
+      "page": "https://freesound.org/people/imnotdubMass/sounds/679994/",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "verified_on": "2026-11-05",
+      "cache_file": "impact-metal_soft.mp3",
+      "download_url": "https://cdn.freesound.org/previews/679/679994_12524018-hq.mp3",
+      "sha256": "cd0721affd473fd1d65a5bece68eeea0915f1339d893c761ff61e37f148af3ef",
+      "used": true,
+      "license_evidence": {
+        "page_snapshot": "impact-metal_soft-page.html",
+        "sha256": "cc8fbfa99b53c4f490d7f11c90510e207192f6f25350f7bae6cf79238f255ca4",
+        "label": "CC0",
+        "delivery": "Public high-quality MP3 preview; original WAV requires Freesound login"
+      }
+    },
+    "impact-metal_hard": {
+      "title": "Iron ring clanked against concrete wall.",
+      "author": "rifualk",
+      "page": "https://freesound.org/people/rifualk/sounds/613466/",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "verified_on": "2026-11-05",
+      "cache_file": "impact-metal_hard.mp3",
+      "download_url": "https://cdn.freesound.org/previews/613/613466_2968542-hq.mp3",
+      "sha256": "e7fd26994af443f663621b312834b92314bcee723fcb9324b8d6ede461394552",
+      "used": true,
+      "license_evidence": {
+        "page_snapshot": "impact-metal_hard-page.html",
+        "sha256": "bd536cd21e5df3d055c1e78ec4e5811b20d5c705eca5496f5662b504b6d112b6",
+        "label": "CC0",
+        "delivery": "Public high-quality MP3 preview; original WAV requires Freesound login"
+      }
+    },
+    "impact-wood_hard": {
+      "title": "Wooden stick dropped onto concrete.",
+      "author": "mitmy",
+      "page": "https://freesound.org/people/mitmy/sounds/186909/",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "verified_on": "2026-11-05",
+      "cache_file": "impact-wood_hard.mp3",
+      "download_url": "https://cdn.freesound.org/previews/186/186909_492203-hq.mp3",
+      "sha256": "195f25c81cd550ebb06c29c83fb3b87102710bc574926d78ec5f2d1c3b0a9c7a",
+      "used": true,
+      "license_evidence": {
+        "page_snapshot": "impact-wood_hard-page.html",
+        "sha256": "d96b7761125e5282344955e56a7255613df32cf1de7e03b589c325c8590ae7df",
+        "label": "CC0",
+        "delivery": "Public high-quality MP3 preview; original WAV requires Freesound login"
+      }
+    },
+    "impact-glass_both": {
+      "title": "Glass bottle placed on cloth-covered and bare wooden table; both surface candidates in one recording.",
+      "author": "ventousawins",
+      "page": "https://freesound.org/people/ventousawins/sounds/681410/",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "verified_on": "2026-11-05",
+      "cache_file": "impact-glass_both.mp3",
+      "download_url": "https://cdn.freesound.org/previews/681/681410_14819331-hq.mp3",
+      "sha256": "014da3a1aa331efeecc7ba323949933b67dad841206274f1af2200d6be8b6ac0",
+      "used": true,
+      "license_evidence": {
+        "page_snapshot": "impact-glass_both-page.html",
+        "sha256": "d6bf4bf1e6444af8bdab7ce5ac57d0cac4c92c9e7055dbb9e7de23d13c867714",
+        "label": "CC0",
+        "delivery": "Public high-quality MP3 preview; original WAV requires Freesound login"
+      }
+    },
+    "impact-stone_soft": {
+      "title": "Stone dropped onto grass.",
+      "author": "dichardson",
+      "page": "https://freesound.org/people/dichardson/sounds/570976/",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "verified_on": "2026-11-05",
+      "cache_file": "impact-stone_soft.mp3",
+      "download_url": "https://cdn.freesound.org/previews/570/570976_7987826-hq.mp3",
+      "sha256": "b1905652952804f322f04bf7c665d600497becdc81593a930e184981885bc1a7",
+      "used": true,
+      "license_evidence": {
+        "page_snapshot": "impact-stone_soft-page.html",
+        "sha256": "faad017e8d06f56a0efc0860f887db9de41e7872cfdc3127565b5aecedae3007",
+        "label": "CC0",
+        "delivery": "Public high-quality MP3 preview; original WAV requires Freesound login"
+      }
+    },
+    "impact-stone_hard": {
+      "title": "Brick hitting concrete block.",
+      "author": "Fenodyrie",
+      "page": "https://freesound.org/people/Fenodyrie/sounds/565914/",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "verified_on": "2026-11-05",
+      "cache_file": "impact-stone_hard.mp3",
+      "download_url": "https://cdn.freesound.org/previews/565/565914_6371307-hq.mp3",
+      "sha256": "a024b6031e9d067c4b5ecc111ae411c7bd96a85d0f06fadee1315ffa841ce133",
+      "used": true,
+      "license_evidence": {
+        "page_snapshot": "impact-stone_hard-page.html",
+        "sha256": "8276c7141260361421ac04dfc516346366c35faba67c101a5dea5ff702be3670",
+        "label": "CC0",
+        "delivery": "Public high-quality MP3 preview; original WAV requires Freesound login"
+      }
+    },
+    "impact-soft_material_soft": {
+      "title": "Hardcover book tossed onto bed.",
+      "author": "cmorris035",
+      "page": "https://freesound.org/people/cmorris035/sounds/319153/",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "verified_on": "2026-11-05",
+      "cache_file": "impact-soft_material_soft.mp3",
+      "download_url": "https://cdn.freesound.org/previews/319/319153_2727906-hq.mp3",
+      "sha256": "08e4e1a69602c2fc11f508d3918c7be81edfc11f967ccc754b19e2af269d85f1",
+      "used": true,
+      "license_evidence": {
+        "page_snapshot": "impact-soft_material_soft-page.html",
+        "sha256": "47508a3000602af6b53e709aca7646a86728971c931583f3a878ee563907762f",
+        "label": "CC0",
+        "delivery": "Public high-quality MP3 preview; original WAV requires Freesound login"
+      }
+    },
+    "impact-soft_material_hard": {
+      "title": "Cardboard box falling onto concrete floor.",
+      "author": "VSokorelos",
+      "page": "https://freesound.org/people/VSokorelos/sounds/346169/",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "verified_on": "2026-11-05",
+      "cache_file": "impact-soft_material_hard.mp3",
+      "download_url": "https://cdn.freesound.org/previews/346/346169_6146418-hq.mp3",
+      "sha256": "99d171b7d46b894c4ddc7a84ba401bdb69b40b873e66ce00e1afb5b7b18f0215",
+      "used": true,
+      "license_evidence": {
+        "page_snapshot": "impact-soft_material_hard-page.html",
+        "sha256": "f0a65f084082eccf372c89748845f7b03b0d56fa0006713332e4af0b96db67c3",
+        "label": "CC0",
+        "delivery": "Public high-quality MP3 preview; original WAV requires Freesound login"
+      }
+    },
+    "impact-wood_soft": {
+      "title": "Wooden dining chair falling onto carpet, seven takes.",
+      "author": "Joseph SARDIN",
+      "page": "https://bigsoundbank.com/wooden-chair-falling-on-carpet-s0516.html",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "verified_on": "2026-11-05",
+      "cache_file": "impact-wood_soft.wav",
+      "download_url": "https://bigsoundbank.com/UPLOAD/bwf-en/0516.wav",
+      "sha256": "8e6ab6dd50d04e61efe82e21e54c6946eb0da4d1ea0baa22b2926c799677a89b",
+      "used": true,
+      "license_evidence": {
+        "page_snapshot": "impact-wood_soft-page.html",
+        "sha256": "0137407bf1d3b3f21b5af301228985a8c46942ed0ec3475258ab1cb06680fe2e",
+        "label": "CC0",
+        "delivery": "Original mono PCM16 WAV"
+      }
     }
   },
   "assets": [
@@ -514,6 +676,106 @@
       "peak": 0.8,
       "sha256": "3c5f4e2343e3d3bf1ab396ebb29a8067b75ff9f239c8d4c2f6ec8959f6354303",
       "frames": 7680
+    },
+    {
+      "file": "impact_metal_soft.wav",
+      "source": "impact-metal_soft",
+      "start": 2.191208,
+      "duration": 0.6,
+      "peak": 0.75,
+      "selection": "Selected impact onset from the described object/surface recording.",
+      "frames": 28800,
+      "sha256": "477dae194d66b2e3b158317fa08ecd6fe7d956618dd84038df467f1e9d6bb5fd"
+    },
+    {
+      "file": "impact_metal_hard.wav",
+      "source": "impact-metal_hard",
+      "start": 4.029063,
+      "duration": 0.75,
+      "peak": 0.75,
+      "selection": "Selected impact onset from the described object/surface recording.",
+      "frames": 36000,
+      "sha256": "385943441a0cc61f226e3d0ca352c15c23c2b2f0e87f9ce8c92e1f0d23694c65"
+    },
+    {
+      "file": "impact_wood_soft.wav",
+      "source": "impact-wood_soft",
+      "start": 0.473604,
+      "duration": 0.75,
+      "peak": 0.75,
+      "selection": "Selected impact onset from the described object/surface recording.",
+      "frames": 36000,
+      "sha256": "2a4df29bc1bb1a981dcc9a7d86b3b7f4b31552933ab9d9ef489cab44094ed6ae"
+    },
+    {
+      "file": "impact_wood_hard.wav",
+      "source": "impact-wood_hard",
+      "start": 5.519854,
+      "duration": 0.65,
+      "peak": 0.75,
+      "selection": "Selected impact onset from the described object/surface recording.",
+      "frames": 31200,
+      "sha256": "496da82a01a7489cf295c6cb3840d8c7fb16782f1b74edb4228fbbdbd81cd997"
+    },
+    {
+      "file": "impact_glass_soft.wav",
+      "source": "impact-glass_both",
+      "start": 1.215479,
+      "duration": 0.55,
+      "peak": 0.75,
+      "selection": "Selected impact onset; surface identity follows source description. Glass: earlier muted take versus later bare-table take.",
+      "frames": 26400,
+      "sha256": "d2261bf4fd061bd137cef1d5c239c1aadbbf730e8eef00e69940c81bedd868fc"
+    },
+    {
+      "file": "impact_glass_hard.wav",
+      "source": "impact-glass_both",
+      "start": 6.450021,
+      "duration": 0.55,
+      "peak": 0.75,
+      "selection": "Selected impact onset; surface identity follows source description. Glass: earlier muted take versus later bare-table take.",
+      "frames": 26400,
+      "sha256": "56109ec8aed3f68b03b9996c39a80787ee18475db72a42a0598a2d7e2f5fc846"
+    },
+    {
+      "file": "impact_rock_soft.wav",
+      "source": "impact-stone_soft",
+      "start": 0.043083,
+      "duration": 0.46,
+      "peak": 0.75,
+      "selection": "Selected impact onset from the described object/surface recording.",
+      "frames": 22080,
+      "sha256": "01f28ee29765b0ea79e408ccaaa644d1e4371f93170fa9949f939fc144ab1f83"
+    },
+    {
+      "file": "impact_rock_hard.wav",
+      "source": "impact-stone_hard",
+      "start": 1.746188,
+      "duration": 0.45,
+      "peak": 0.75,
+      "selection": "Selected impact onset from the described object/surface recording.",
+      "frames": 21600,
+      "sha256": "f52b74b0f0484a08ecc3fb1d878c24d19a00bee13d89d8ee3782754b7362746e"
+    },
+    {
+      "file": "impact_soft_soft.wav",
+      "source": "impact-soft_material_soft",
+      "start": 2.858,
+      "duration": 0.6,
+      "peak": 0.75,
+      "selection": "Selected impact onset from the described object/surface recording.",
+      "frames": 28800,
+      "sha256": "a50fd0c628ccdb1c1c3def69cd9397e6f4ba5aa85477aece652f2199d128fac6"
+    },
+    {
+      "file": "impact_soft_hard.wav",
+      "source": "impact-soft_material_hard",
+      "start": 0.559083,
+      "duration": 0.8,
+      "peak": 0.75,
+      "selection": "Selected impact onset from the described object/surface recording.",
+      "frames": 38400,
+      "sha256": "f2a0e47a702e236f6d22e1393d1163b3768d9059b26b63cfe4678b37299eb93b"
     }
   ]
 }

@@ -78,6 +78,67 @@ updates, including while minimized; a completely drained queue restarts after
 a stall. Reads run on the app thread, so use local files. Disk stalls can cause
 an audible gap. OpenAL mixes asynchronously.
 
+## Physical impact sounds
+
+Dropped equippable items, thrown grenades, interior crates and promoted forest
+doodads emit impact sounds from Box3D hit events. Normal approach speed and mass
+control a compressed gain and sharpness estimate. Resting contacts are excluded
+by each item's minimum speed and an eight-tick body cooldown. Each event carries
+its own world-space position; camera visibility never controls collision events.
+
+The softer-surface recording is the default, including terrain/roads and other
+movable props. Building walls, floors and ceilings, live doors, car colliders and
+tree trunks select the hard-surface recording. Scene physics meshes preserve
+terrain/building classification. Trunk colliders also accept dropped props and
+grenades, independently of foliage or rendering visibility.
+
+Each physical item definition has a `name.acoustics.toml` sidecar:
+
+- Weapons and ammo: `storage/weapons/` and `storage/ammo/`, beside their inventory definitions.
+- Doodads: `storage/doodads/{branch,stone,beer_bottle}.acoustics.toml`.
+- Interior crates/cabinets: `storage/props/crate.acoustics.toml`.
+
+```toml
+schema_version = 1
+material = "glass" # metal, wood, glass, rock, soft
+hollowness = 0.55  # 0 solid, 1 strongly resonant
+size = 0.80       # Relative acoustic size; larger lowers pitch, range 0.25–4
+gain = 0.65       # Playback multiplier, 0–1
+min_speed = 0.60  # Normal approach speed in m/s, 0.1–20
+noise_db = 43.0   # Gameplay source dB at 1 m for a nominal 1 J impact, 0–90
+```
+
+The catalog loads once per physics world, never during a collision. Ammo stacks
+retain their definition's acoustic ID when renamed/transferred. Uniform doodad
+scale also scales acoustic size. Unknown/malformed profiles fail with the file
+or profile name; bare synthetic test worlds use the crate defaults.
+
+Audio processing is synchronous and on demand, with no worker or streaming DSP.
+Ten preloaded material/surface WAVs provide the bases. On a cache miss, a short
+sample is resampled for size, filtered for sharpness/attack, and passed through
+three damped resonators for hollowness. The complete PCM result is uploaded to
+OpenAL and played using the existing positional effect voice pool. Gain stays
+outside the cache key; sharpness/hollowness have eight levels, and size uses
+quarter-octave levels of its size multiplier. The cache retains at most 128
+variants and never evicts a buffer attached to a voice, even if it is stopped.
+At most two variants are generated per audio service interval; additional misses
+immediately play the original material/surface recording. No sounds are queued
+waiting for computation. `AudioStats` reports cache hits, generations, fallbacks
+and the maximum measured synthesis/upload time.
+
+Hearing remains independent of audio settings and cache behavior. The authority
+uses a tuned energy proxy `0.5 * mass_kg * approach_speed_m_s²` and
+`noise_db + 10 * log10(energy)`, clamped to 0–100 source dB. This is a gameplay
+model, not calibrated acoustics. Both zombies and dogs receive these noises even
+with playback disabled. Multiplayer sends bounded, deduplicated impact events
+with the material/surface and sound parameters; replicas never infer hits from
+snapshot pose corrections. Acoustic sidecars participate in content fingerprints
+and retain LF line endings.
+
+See [credits and source crops](../assets/audio/CREDITS.md#material-impact-recordings).
+The source pairs represent different objects and were selected from their stated
+surface descriptions; they still need listening/timbre review on an audio device.
+
 ## Listener and voice selection
 
 The listener follows the camera's **eye position**, forward vector, and camera

@@ -3,6 +3,8 @@
 #include <box3d/id.h>
 #include <cstdint>
 #include <functional>
+#include <filesystem>
+#include <memory>
 #include <unordered_map>
 
 namespace viewer {
@@ -25,6 +27,9 @@ constexpr std::uint64_t playerBodyCategory = 1ull << 20;
 constexpr std::uint64_t meleeZombieCategory = 1ull << 21;
 constexpr std::uint64_t zombieAttackBodyCategory = 1ull << 22;
 constexpr std::uint64_t detachedLimbCategory = 1ull << 23;
+// Classification only: these shapes retain their ordinary collision category.
+constexpr std::uint64_t hardImpactCategory = 1ull << 24;
+class PhysicsImpacts;
 
 // Shared Box3D simulation in runtime meters (X east, Y up, Z south).
 // Owners of bodies/joints must retain this world and destroy their resources
@@ -32,7 +37,7 @@ constexpr std::uint64_t detachedLimbCategory = 1ull << 23;
 class PhysicsWorld {
 public:
     static constexpr float fixedStepSeconds = 1.f / 60.f;
-    PhysicsWorld();
+    explicit PhysicsWorld(const std::filesystem::path& acousticStorage = {});
     ~PhysicsWorld();
     PhysicsWorld(const PhysicsWorld&) = delete;
     PhysicsWorld& operator=(const PhysicsWorld&) = delete;
@@ -42,6 +47,7 @@ public:
     // Fraction of the next fixed step accrued since the last solved pose.
     float interpolationAlpha() const;
     b3WorldId id() const { return world_; }
+    PhysicsImpacts& impacts() { return *impacts_; }
     int allocateCollisionGroup(); // Negative groups suppress ragdoll self-contact.
     // Owner revision must have a stable address until untrackBodyMotion().
     // Movement/sleep events are consumed after every fixed step, synchronously.
@@ -59,6 +65,7 @@ private:
     void beginGrab(b3BodyId body);
     void endGrab(b3BodyId body);
     b3WorldId world_{};
+    std::unique_ptr<PhysicsImpacts> impacts_;
     float accumulator_ = 0;
     int nextCollisionGroup_ = -1;
     std::unordered_map<std::uint64_t, std::uint64_t*> motionOwners_;

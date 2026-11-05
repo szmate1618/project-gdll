@@ -24,6 +24,7 @@ std::uint64_t GroundItems::add(const Item& item, int quantity, std::optional<Wea
     motion.velocity = velocity;
     motion.rotation = rotation;
     motion.angularVelocity = angularVelocity;
+    motion.acoustics = item.inventory().acoustics.empty() ? "crate" : item.inventory().acoustics;
     constexpr std::array<float,weaponIds.size()> masses{1,3,3.5f,5,.4f};
     motion.mass = weapon ? masses.at(weapon->slot) : .3f;
     motion.friction = 1;

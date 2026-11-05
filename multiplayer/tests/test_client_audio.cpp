@@ -94,6 +94,21 @@ int main(int argc, char** argv) {
         scene.zombies.instances[0].removed = true;
         audio.update(camera, scene, snapshots, 1, .016f, 12.1);
         require(audio.stats().zombieEmitters.empty(), "A hidden/dead ambient candidate retained a voice");
+        const auto beforeImpact = audio.stats();
+        next.tick = 201;
+        multiplayer::SoundEvent impact;
+        impact.id = 10; impact.tick = 201; impact.kind = multiplayer::SoundKind::impact;
+        impact.position = camera.position(); impact.impact.position = impact.position;
+        impact.impact.material = viewer::AcousticMaterial::wood;
+        next.sounds.push_back(impact);
+        receive(next); audio.update(camera, scene, snapshots, 1, .016f, 12.2);
+        const auto afterImpact = audio.stats();
+        require(afterImpact.impactGenerations == beforeImpact.impactGenerations + 1,
+                "Authoritative physical impact did not reach synchronous client synthesis");
+        receive(next); audio.update(camera, scene, snapshots, 1, .016f, 12.216);
+        require(audio.stats().impactGenerations == afterImpact.impactGenerations &&
+                audio.stats().impactCacheHits == afterImpact.impactCacheHits,
+                "Repeated authoritative impact triggered playback again");
         settings.enabled = false;
         multiplayer::ClientAudio disabled(settings);
         multiplayer::WeaponFeedbackPrediction mutedFeedback;

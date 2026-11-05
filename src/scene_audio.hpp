@@ -18,6 +18,7 @@ public:
     void shot(std::size_t weaponSlot);
     void rustle(const UndergrowthEvent& event) { playUndergrowth(audio_, event); }
     void explosion(glm::vec3 position) { audio_.play(AudioEffect::explosion, position, 1.0f); }
+    void impact(const ImpactSound& sound) { audio_.impact(sound); }
     void reload(std::size_t weaponSlot = 0);
     void emptyClick() { audio_.playLocal(AudioEffect::emptyClick, 1.0f); }
     void grabDoor(const DoorLayer& doors, std::size_t id);

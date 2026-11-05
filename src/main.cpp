@@ -14,6 +14,7 @@
 #include "doodad_layer.hpp"
 #include "doodad_state.hpp"
 #include "file_fingerprint.hpp"
+#include "physics_impacts.hpp"
 #include "vehicle_player.hpp"
 #include "vehicle_zombie_collision.hpp"
 #include "vehicle_placement.hpp"
@@ -1398,7 +1399,7 @@ int run(const Options& options) {
     }
     if (options.noFences)
         std::cout << "Fences disabled: " << viewer::removeFenceDraws(model) << " draw instances removed\n";
-    auto physics = std::make_shared<viewer::PhysicsWorld>();
+    auto physics = std::make_shared<viewer::PhysicsWorld>(std::filesystem::path(VIEWER_WEAPON_CONFIGS).parent_path());
     viewer::DoorLayer doors(viewer::prepareDoorPanels(model), physics, viewer::loadDoorConfig(VIEWER_DOOR_CONFIG));
     viewer::ZombieDoorCollision zombieDoorCollision(physics);
     std::cout << "Doors: " << doors.count() << " hinged panels; nearby physics activation\n";
@@ -1949,9 +1950,15 @@ int run(const Options& options) {
                 viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::blood);
                 zombies->updateBloodEffects(app.displayedAnimationSeconds);
             }
+            const auto impactEvents = physics->impacts().take();
+            for (const auto& impact : impactEvents) {
+                if (zombies) zombies->makeNoise(impact.sound.position, impact.noiseDb);
+                dogs.makeNoise(impact.sound.position, impact.noiseDb);
+            }
             {
                 viewer::frame_stage_profile::Timer timer(viewer::frame_stage_profile::Stage::audio);
                 audio.update(app.rig, zombies ? &*zombies : nullptr, step, &doors);
+                for (const auto& impact : impactEvents) audio.impact(impact.sound);
             }
             playerPresentation.advance(app.rig.camera().position(), playerBody.pose());
         });

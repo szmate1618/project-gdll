@@ -579,8 +579,21 @@ void payload(Wire& w, Snapshot& s) {
         w.integer(sound.id); w.integer(sound.tick);
         auto kind = static_cast<std::uint8_t>(sound.kind); w.integer(kind);
         w.integer(sound.source); w.integer(sound.weapon); w.vector(sound.position);
-        if (kind > static_cast<std::uint8_t>(SoundKind::chase)) throw std::runtime_error("Invalid sound kind");
+        if (kind > static_cast<std::uint8_t>(SoundKind::impact)) throw std::runtime_error("Invalid sound kind");
         sound.kind = static_cast<SoundKind>(kind);
+        if (sound.kind == SoundKind::impact) {
+            if (!w.reading && !viewer::validImpactSound(sound.impact))
+                throw std::runtime_error("Invalid impact sound event");
+            auto material = static_cast<std::uint8_t>(sound.impact.material);
+            w.integer(material);
+            sound.impact.material = static_cast<viewer::AcousticMaterial>(material);
+            sound.impact.position = sound.position;
+            w.flag(sound.impact.hardSurface);
+            w.number(sound.impact.sharpness); w.number(sound.impact.hollowness);
+            w.number(sound.impact.size); w.number(sound.impact.gain);
+            if (!viewer::validImpactSound(sound.impact) || sound.source != 0)
+                throw std::runtime_error("Invalid impact sound event");
+        }
         if (!sound.id || sound.tick > s.tick || s.tick - sound.tick > soundHistoryTicks ||
             !soundIds.insert(sound.id).second || (playerSound(sound.kind) ? !sound.source : sound.source >= maxZombies) ||
             ((sound.kind == SoundKind::shot || sound.kind == SoundKind::reload) ? sound.weapon >= 4 : sound.weapon != 0))

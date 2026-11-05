@@ -140,6 +140,7 @@ void ClientAudio::update(const viewer::Camera& camera, const Scene& scene, const
     }
     zombieSounds(scene, snapshots, camera.position(), now);
     for (const auto& cue : pending_) {
+        if (cue.impact) { system_.impact(*cue.impact); continue; }
         const bool firearm = cue.effect == viewer::AudioEffect::pistol || cue.effect == viewer::AudioEffect::smg ||
             cue.effect == viewer::AudioEffect::shotgun || cue.effect == viewer::AudioEffect::sniper;
         // Distant shot events still animate remote guns and flashes, while the

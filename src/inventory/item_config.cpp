@@ -60,6 +60,7 @@ Item loadItem(const Path& directory, const std::string& id) {
     if (!table["schema_version"].is_integer() || required<int>(table, "schema_version", file) != 2)
         invalid(file, "schema_version must be integer 2");
     ItemInventoryConfig item;
+    item.acoustics = id;
     const auto itemId = label(table, "id", file);
     item.name = label(table, "name", file);
     item.type = label(table, "type", file);

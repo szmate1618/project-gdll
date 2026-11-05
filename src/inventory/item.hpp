@@ -11,6 +11,7 @@ struct ItemInventoryConfig {
     std::string ammoType{};
     bool stackable = false;
     int maxStack = 1;
+    std::string acoustics{}; // Definition ID, retained when stacks receive instance IDs.
 };
 
 // One immutable equippable item definition, with inventory and gameplay

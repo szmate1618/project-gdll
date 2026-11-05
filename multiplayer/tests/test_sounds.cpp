@@ -76,6 +76,31 @@ void playback() {
             "Stale reactions/reloads/explosions played after a stall");
     require(client.receive(next, 1).empty(), "Explosion replayed from a repeated snapshot");
 }
+void impactPlayback() {
+    ServerSounds server;
+    viewer::ImpactSound sound;
+    sound.position={2,3,4}; sound.material=viewer::AcousticMaterial::glass;
+    sound.hardSurface=true; sound.hollowness=.7f; sound.sharpness=.8f; sound.size=.75f; sound.gain=.6f;
+    server.impact(102,sound);
+    Snapshot initial; initial.tick=100;
+    RemoteSoundCues client;
+    client.receive(initial,1);
+    Snapshot next; next.tick=103; next.sounds=server.forListener(103,1,{});
+    require(next.sounds.size()==1,"Owner-independent physical impacts were suppressed");
+    const auto bytes=encode(next);
+    const auto copy=std::get<Snapshot>(decode(bytes.data(),bytes.size()));
+    const auto cues=client.receive(copy,1);
+    require(cues.size()==1 && cues[0].impact && cues[0].impact->position==sound.position &&
+            cues[0].impact->material==sound.material && cues[0].impact->hardSurface &&
+            cues[0].impact->hollowness==sound.hollowness && cues[0].impact->size==sound.size &&
+            cues[0].impact->gain==sound.gain,"Impact descriptors did not survive wire and playback routing");
+    require(client.receive(copy,1).empty(),"Repeated history replayed an impact");
+    require(server.forListener(103,1,{1000,0,0}).empty(),"Distant impact escaped interest filtering");
+    auto bad=next; bad.sounds[0].impact.size=0;
+    rejects([&]{encode(bad);},"Invalid acoustic size accepted on the wire");
+    bad=next; bad.sounds[0].impact.material=static_cast<viewer::AcousticMaterial>(255);
+    rejects([&]{encode(bad);},"Invalid acoustic material accepted on the wire");
+}
 void remoteShotPlayback() {
     RemoteSoundCues client;
     Snapshot initial; initial.tick = 100;
@@ -244,7 +269,7 @@ void authority(const Options& options) {
 int main(int argc, char** argv) {
     try {
         require(argc == 2, "Expected test map");
-        events(); playback(); remoteShotPlayback();
+        events(); playback(); impactPlayback(); remoteShotPlayback();
         Options options; options.map = argv[1]; options.trees = options.forests = options.cars = false; options.zombieCount = 0;
         Scene scene(options); prediction(scene.initialWeapons, scene.initialInventory);
         feedbackExclusions(scene.initialWeapons, scene.initialInventory);

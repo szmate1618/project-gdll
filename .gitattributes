@@ -10,6 +10,7 @@
 /skills.toml text eol=lf
 /skills/melee/*.skill.toml text eol=lf
 /storage/*.toml text eol=lf
+/storage/**/*.acoustics.toml text eol=lf
 /forest_patches.json text eol=lf
 /forest_patches_astra.json text eol=lf
 /assets/pigeon/flock.json text eol=lf

@@ -1,9 +1,10 @@
 # Sound effect credits and licenses
 
-These 27 edited recordings are repository inputs. Keep this file with the sounds
+These 37 edited recordings are repository inputs. Keep this file with the sounds
 when distributing them. The weapon shots require attribution under CC-BY 3.0;
 the other selected recordings are CC0. Original source licenses were checked on
-2026-10-15; the shrub and twig recordings were checked on 2026-10-19.
+2026-10-15; the shrub and twig recordings were checked on 2026-10-19, and impact
+recordings on 2026-11-05.
 Source URLs, download URLs, original SHA-256 hashes, crop parameters,
 and final WAV hashes are recorded in [sources.json](sources.json).
 
@@ -70,6 +71,33 @@ material; preprocessing extracts only the members explicitly listed for use.
 
 The male death/pain and female hurt packs suggested for consideration are not
 downloaded or used.
+
+## Material impact recordings
+
+The following sources were checked on 2026-11-05 and are all
+[CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/).
+The ten short mono PCM16 outputs are cropped from nine recordings. The Freesound
+inputs are public high-quality MP3 previews; the wooden-chair source is the
+original WAV. Crops, download hashes, source-page evidence and output hashes are
+recorded in `sources.json`, using the same offline preparation tool as above.
+
+| Outputs | Creator and recording | Source |
+| --- | --- | --- |
+| `impact_metal_soft.wav` | imnotdubMass — metal hanger bar dropped onto carpet | [Freesound 679994](https://freesound.org/people/imnotdubMass/sounds/679994/) |
+| `impact_metal_hard.wav` | rifualk — iron ring hitting concrete | [Freesound 613466](https://freesound.org/people/rifualk/sounds/613466/) |
+| `impact_wood_soft.wav` | Joseph SARDIN — wooden chair falling onto carpet | [BigSoundBank 0516](https://bigsoundbank.com/wooden-chair-falling-on-carpet-s0516.html) |
+| `impact_wood_hard.wav` | mitmy — wooden stick dropped onto concrete | [Freesound 186909](https://freesound.org/people/mitmy/sounds/186909/) |
+| `impact_glass_soft.wav`, `impact_glass_hard.wav` | ventousawins — glass bottle placed on cloth-covered and bare wood | [Freesound 681410](https://freesound.org/people/ventousawins/sounds/681410/) |
+| `impact_rock_soft.wav` | dichardson — stone dropped onto grass | [Freesound 570976](https://freesound.org/people/dichardson/sounds/570976/) |
+| `impact_rock_hard.wav` | Fenodyrie — brick hitting concrete | [Freesound 565914](https://freesound.org/people/Fenodyrie/sounds/565914/) |
+| `impact_soft_soft.wav` | cmorris035 — hardcover book tossed onto a bed | [Freesound 319153](https://freesound.org/people/cmorris035/sounds/319153/) |
+| `impact_soft_hard.wav` | VSokorelos — cardboard box dropped onto concrete | [Freesound 346169](https://freesound.org/people/VSokorelos/sounds/346169/) |
+
+These are representative material/surface sounds, not matched recordings of
+one object at calibrated impact energies. In particular the soft-material pair
+uses a book and a cardboard box. The glass recording describes both surfaces;
+the early muted and later bare-table takes supply the two crops. Their exact
+surface assignment and the overall timbre still merit a listening review.
 
 ## Rebuilding the edited WAVs
 

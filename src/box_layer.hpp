@@ -6,6 +6,7 @@
 #include <box3d/types.h>
 #include <glm/gtc/quaternion.hpp>
 #include <memory>
+#include <string>
 
 namespace viewer {
 class PhysicsWorld;
@@ -35,6 +36,8 @@ struct BoxSpawnMotion {
     float friction = .55f; // Coulomb coefficient at surface contacts.
     float linearDamping = .1f, angularDamping = .3f; // Per second.
     b3Filter filter{interiorBoxCategory,~ragdollFloorCategory,0};
+    std::string acoustics = "crate";
+    float acousticScale = 1; // Uniform instance scale, independent of mass.
 };
 
 // Owns box-shaped dynamic props in the shared Y-up, meter-based simulation.

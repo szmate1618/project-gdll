@@ -34,6 +34,10 @@ std::vector<viewer::AudioCue> RemoteSoundCues::receive(const Snapshot& snapshot,
             break;
         case SoundKind::reload: cue.effect = reloadSound(event.weapon); cue.gain = .5f; break;
         case SoundKind::doorLatch: break;
+        case SoundKind::impact:
+            cue.impact = event.impact;
+            cue.impact->position = event.position;
+            break;
         case SoundKind::heard:
         case SoundKind::chase:
             cue.zombie = event.source;

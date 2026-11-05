@@ -1,16 +1,18 @@
 #pragma once
+#include "acoustics.hpp"
 #include <glm/glm.hpp>
 #include <cstddef>
 #include <cstdint>
 
 namespace multiplayer {
-enum class SoundKind : std::uint8_t { shot, reload, doorLatch, heard, chase };
+enum class SoundKind : std::uint8_t { shot, reload, doorLatch, heard, chase, impact };
 struct SoundEvent {
     std::uint64_t id = 0, tick = 0;
     SoundKind kind = SoundKind::shot;
     std::uint32_t source = 0; // Player ID for shot/reload/latch; stable zombie ID for reactions.
     std::uint8_t weapon = 0; // Firearm slot for shot/reload.
     glm::vec3 position{0}; // Runtime X east/Y up/Z south metres at event creation.
+    viewer::ImpactSound impact{}; // Only serialized for impact events; position above is authoritative.
 };
 inline constexpr std::size_t maxSoundEvents = 128;
 inline constexpr std::uint64_t soundHistoryTicks = 30; // Repeat across snapshots for up to 0.5 s.

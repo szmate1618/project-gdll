@@ -39,6 +39,14 @@ There is no permanent object or rigid body for every piece of forest clutter.
 
 ## Moving objects across cells
 
+Branches, stones and beer bottles use per-kind
+[`storage/doodads/*.acoustics.toml`](../storage/doodads/branch.acoustics.toml)
+profiles for physical impact sounds and AI hearing. Uniform instance scale
+affects acoustic size; mass still comes from the existing volume-scaled body.
+Terrain and ordinary prop contacts use the soft recording, while building
+surfaces, doors, cars and trunks use the hard recording. See
+[impact acoustics](AUDIO.md#physical-impact-sounds).
+
 Only doodads within 3 m horizontally acquire dynamic rigid bodies. These use
 the existing shared physics/grab system and simple bounding-box colliders, with
 approximate masses of 0.25 kg for branches, 1 kg for stones and 0.35 kg for

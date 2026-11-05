@@ -1,6 +1,7 @@
 #include "scene.hpp"
 #include "asset_validation.hpp"
 #include "file_fingerprint.hpp"
+#include "acoustics.hpp"
 #include "inventory/inventory_config.hpp"
 #include "skills/skills_config.hpp"
 #include "guardrail_layer.hpp"
@@ -180,7 +181,7 @@ viewer::Model loadSessionMap(const std::filesystem::path& path) {
 Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
              const std::optional<viewer::ZombieScenarioConfig::Player>& playerSpawn, SceneRole role,
              const DogPopulationLoader& dogPopulationLoader) :
-    mapPath(o.map), model(loadSessionMap(o.map)), physics(std::make_shared<viewer::PhysicsWorld>()),
+    mapPath(o.map), model(loadSessionMap(o.map)), physics(std::make_shared<viewer::PhysicsWorld>(resourceRoot() / "storage")),
     dayNight(o.dayNight),
     initialWeapons(resourceRoot() / "storage/weapons", resourceRoot() / "inventory.toml", true),
     initialInventory(viewer::loadPlayerInventory(resourceRoot())) {
@@ -303,6 +304,8 @@ Scene::Scene(const Options& o, const ZombiePopulationLoader& populationLoader,
         }
     std::sort(definitions.begin(), definitions.end());
     content.insert(content.end(), definitions.begin(), definitions.end());
+    for (const auto& file : viewer::acousticConfigFiles(resourceRoot() / "storage"))
+        if (std::find(content.begin(), content.end(), file) == content.end()) content.push_back(file);
     content.push_back(resourceRoot() / "inventory.toml");
     content.push_back(resourceRoot() / "doors.toml");
     content.push_back(resourceRoot() / "skills.toml");

@@ -20,6 +20,7 @@ struct AudioCue {
     float gain = 1, pitch = 1;
     std::optional<std::size_t> zombie; // Vocals use the separate capped pool.
     int priority = 1;
+    std::optional<ImpactSound> impact{};
 };
 
 // Presentation-only deterministic scheduling for the selected nearby zombies.

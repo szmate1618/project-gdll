@@ -6,6 +6,7 @@ under `storage/weapons/`:
 ```text
 pistol.inventory.toml    Inventory name and N×M footprint (schema version 2)
 pistol.gameplay.toml     Firing, ammo, muzzle and other gameplay settings
+pistol.acoustics.toml    Material, hollowness, size and physical impact sound settings
 pistol.tags.txt          Comma-separated category tags
 ```
 
@@ -13,12 +14,18 @@ pistol.tags.txt          Comma-separated category tags
 | --- | --- |
 | `storage/weapons/<id>.inventory.toml` | Item label, N×M cell footprint and gameplay reference |
 | `storage/weapons/<id>.gameplay.toml` | Weapon behavior and combat HUD label |
+| `storage/weapons/<id>.acoustics.toml` | Impact sound profile, shared with thrown/dropped instances |
 | `storage/weapons/<id>.tags.txt` | Shared tags for that weapon |
 | `inventory.toml` | Player ownership, loaded rounds, reserves, placements and action shortcuts |
 | `storage/equipment.toml`, `storage/backpacks.toml` | Available storage equipment and compartments |
 | `storage/loadout.toml` | Equipped backpack and body storage |
 
 ## Inventory schema (v2)
+
+Weapons and ammo each have a matching `<id>.acoustics.toml`. Acoustic settings
+load once per physics world, retain the item definition ID across renamed ammo
+stacks, and participate in multiplayer fingerprints. See the
+[impact schema and playback behavior](../../docs/AUDIO.md#physical-impact-sounds).
 
 ```toml
 schema_version = 2

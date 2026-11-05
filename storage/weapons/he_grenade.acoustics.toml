@@ -1,0 +1,8 @@
+# Impact acoustics; size is relative to the material's reference recording.
+schema_version = 1
+material = "metal"
+hollowness = 0.25
+size = 0.65
+gain = 0.60
+min_speed = 0.65 # Normal approach speed, m/s.
+noise_db = 45.0 # AI source level at 1 m for a nominal 1 J impact.

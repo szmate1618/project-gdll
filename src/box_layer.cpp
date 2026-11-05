@@ -2,6 +2,7 @@
 #include "collision_world.hpp"
 #include "collision_box.hpp"
 #include "physics_world.hpp"
+#include "physics_impacts.hpp"
 
 #include <box3d/box3d.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -58,6 +59,7 @@ struct BoxLayer::Impl {
         for (const auto& e : entries) {
             if (B3_IS_NON_NULL(e->body)) {
                 world->untrackBodyMotion(e->body);
+                world->impacts().untrack(e->body);
                 b3DestroyBody(e->body);
             }
         }
@@ -113,6 +115,8 @@ std::size_t BoxLayer::add(glm::vec3 center, glm::vec3 size, const BoxSpawnMotion
     shape.filter = motion.filter;
     shape.userData = entry.get();
     b3CreateHullShape(body, &shape, &hull.base);
+    try { impl_->world->impacts().track(body, motion.acoustics, motion.acousticScale); }
+    catch (...) { b3DestroyBody(body); throw; }
     impl_->entries.push_back(std::move(entry));
     impl_->categories |= motion.filter.categoryBits;
     impl_->world->trackBodyMotion(body, impl_->revision);
@@ -133,6 +137,7 @@ void BoxLayer::retire(std::size_t index) {
     if (!active(index)) return;
     entry.retiredPose = pose(index);
     impl_->world->untrackBodyMotion(entry.body);
+    impl_->world->impacts().untrack(entry.body);
     b3DestroyBody(entry.body);
     entry.body = b3_nullBodyId;
     ++impl_->revision;

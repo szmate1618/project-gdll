@@ -1,4 +1,5 @@
 #include "world.hpp"
+#include "physics_impacts.hpp"
 #include "inventory_state.hpp"
 #include "signals.hpp"
 #include "simulation_clock.hpp"
@@ -425,6 +426,11 @@ void World::step() {
         if (car != noVehicle) player.velocity = scene_.vehicles->velocity(car);
     }
     scene_.grenades->update(now, *scene_.collision, &scene_.zombies, now);
+    for (const auto& impact : scene_.physics->impacts().take()) {
+        sounds_.impact(tick_, impact.sound);
+        scene_.zombies.makeNoise(impact.sound.position, impact.noiseDb);
+        scene_.dogs.makeNoise(impact.sound.position, impact.noiseDb);
+    }
     scene_.groundItems->removeBelow(scene_.model.boundsMin.y - 10.f);
     scene_.boxes->retireBelow(scene_.model.boundsMin.y - 10.f);
     scene_.zombies.synchronizePhysics();

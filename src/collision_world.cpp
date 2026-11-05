@@ -46,6 +46,7 @@ struct Triangle {
     bool roof = false;
     bool foundation = false;
     bool wall = false;
+    bool hardSurface = false;
 };
 
 float squareLength(glm::vec3 p) { return glm::dot(p, p); }
@@ -341,7 +342,7 @@ struct CollisionWorld::Impl {
     std::uint64_t runtimeRevision = 0;
 
     void addTriangle(const CollisionFace& face, float winding, int group, bool terrain, bool roof,
-                     bool wallBase, bool road) {
+                     bool wallBase, bool road, bool hardSurface) {
         Triangle triangle;
         triangle.a = face[0]; triangle.b = face[1]; triangle.c = face[2];
         const auto cross = glm::cross(glm::dvec3(triangle.b) - glm::dvec3(triangle.a),
@@ -355,6 +356,7 @@ struct CollisionWorld::Impl {
         triangle.bounds.include(triangle.a); triangle.bounds.include(triangle.b); triangle.bounds.include(triangle.c);
         triangle.group = group;
         triangle.terrain = terrain;
+        triangle.hardSurface = hardSurface;
         triangle.road = road;
         triangle.roof = roof;
         triangle.foundation = wallBase && triangle.normal.y < 0;
@@ -528,6 +530,9 @@ CollisionWorld::CollisionWorld(const Model& model, const std::vector<TrunkCollid
         const auto namedBuilding = buildingName(draw.name);
         const bool road = draw.name.rfind("road", 0) == 0;
         const bool terrain = draw.name.rfind("terrain", 0) == 0 || road;
+        const bool hardSurface = !terrain && (!namedBuilding.empty() ||
+            draw.name.find("wall") != std::string::npos || draw.name.find("floor") != std::string::npos ||
+            draw.name.find("ceiling") != std::string::npos || draw.name.find("roof") != std::string::npos);
         const bool roof = !namedBuilding.empty() && draw.name.find("_roof") != std::string::npos;
         const bool wallBase = !namedBuilding.empty() && draw.name.size() >= 6 &&
                               draw.name.compare(draw.name.size() - 6, 6, "_walls") == 0;
@@ -548,9 +553,9 @@ CollisionWorld::CollisionWorld(const Model& model, const std::vector<TrunkCollid
             const CollisionFace original{{glm::vec3(draw.transform * glm::vec4(primitive.vertices[ia].position, 1)),
                                           glm::vec3(draw.transform * glm::vec4(primitive.vertices[ib].position, 1)),
                                           glm::vec3(draw.transform * glm::vec4(primitive.vertices[ic].position, 1))}};
-            if (openings[drawIndex].empty()) data.addTriangle(original, winding, group, terrain, roof, wallBase, road);
+            if (openings[drawIndex].empty()) data.addTriangle(original, winding, group, terrain, roof, wallBase, road, hardSurface);
             else for (const auto& face : cutCollisionDoorways(original, openings[drawIndex]))
-                data.addTriangle(face, winding, group, terrain, roof, wallBase, road);
+                data.addTriangle(face, winding, group, terrain, roof, wallBase, road, hardSurface);
         }
     }
     data.stats.triangles = data.triangles.size();
@@ -1145,7 +1150,7 @@ std::vector<StaticCollisionFace> CollisionWorld::staticFaces(glm::vec3 minimum, 
     if (!finite(minimum) || !finite(maximum) || glm::any(glm::greaterThan(minimum, maximum))) return result;
     Bounds region; region.include(minimum); region.include(maximum);
     impl_->query(region, [&](const Triangle& t) {
-        result.push_back({static_cast<std::size_t>(&t - impl_->triangles.data()), {t.a, t.b, t.c}});
+        result.push_back({static_cast<std::size_t>(&t - impl_->triangles.data()), {t.a, t.b, t.c}, t.hardSurface});
     });
     if (includeRuntime && impl_->runtime) {
         for (auto face : impl_->runtime->staticFaces(minimum, maximum)) {

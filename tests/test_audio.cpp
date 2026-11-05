@@ -52,6 +52,9 @@ int main(int argc, char** argv) {
             writeAudioFixture(options.directory / (std::string(name) + ".wav"), 1, samples);
         writeAudioFixture(options.directory / "wind.wav", 2, std::vector<std::int16_t>(96000, 100));
         writeAudioFixture(options.directory / "rain.wav", 2, {100, -100, 200, -200});
+        for (const auto* material : {"metal", "wood", "glass", "rock", "soft"})
+            for (const auto* surface : {"soft", "hard"})
+                writeAudioFixture(options.directory / (std::string("impact_")+material+"_"+surface+".wav"), 1, samples);
         {
             viewer::AudioSystem audio(options);
             require(audio.enabled(), "OpenAL null backend must initialize without hardware");

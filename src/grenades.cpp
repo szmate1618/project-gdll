@@ -1,5 +1,6 @@
 #include "grenades.hpp"
 #include "physics_world.hpp"
+#include "physics_impacts.hpp"
 #include "physics_scene.hpp"
 #include "collision_world.hpp"
 #include "door_layer.hpp"
@@ -80,7 +81,10 @@ struct Grenades::Impl {
     std::vector<Event> events;
     std::uint32_t nextId = 1;
     ~Impl() {
-        for (const auto& grenade : active) b3DestroyBody(grenade.body);
+        for (const auto& grenade : active) {
+            physics->impacts().untrack(grenade.body);
+            b3DestroyBody(grenade.body);
+        }
         if (hull) b3DestroyHull(hull);
     }
 };
@@ -133,8 +137,10 @@ bool Grenades::throwFrom(glm::vec3 eyes, glm::vec3 direction, glm::vec3 playerVe
     shape.filter.categoryBits = grenadeBodyCategory;
     shape.filter.maskBits &= ~ragdollFloorCategory;
     b3CreateHullShape(body, &shape, impl_->hull);
-    try { impl_->active.push_back({impl_->nextId++, body, seconds + config.fuseSeconds, config.blastRadius}); }
+    try { impl_->physics->impacts().track(body, "he_grenade"); }
     catch (...) { b3DestroyBody(body); throw; }
+    try { impl_->active.push_back({impl_->nextId++, body, seconds + config.fuseSeconds, config.blastRadius}); }
+    catch (...) { impl_->physics->impacts().untrack(body); b3DestroyBody(body); throw; }
     return true;
 }
 void Grenades::prepare(PhysicsScene& scene, DoorLayer& doors) {
@@ -161,6 +167,7 @@ void Grenades::update(double seconds, const CollisionWorld& world, ZombieLayer* 
         events.push_back({it->id, position, seconds});
         if (events.size() > maxEvents) events.erase(events.begin());
         const float blastRadius = it->blastRadius;
+        impl_->physics->impacts().untrack(it->body);
         b3DestroyBody(it->body);
         it = active.erase(it);
         if (zombies) {

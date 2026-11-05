@@ -18,6 +18,7 @@ struct CollisionBox;
 struct StaticCollisionFace {
     std::size_t index;
     std::array<glm::vec3, 3> vertices;
+    bool hardSurface = false; // Walls/floors/ceilings; unclassified static geometry defaults soft.
 };
 
 struct Contact {

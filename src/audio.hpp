@@ -1,5 +1,7 @@
 #pragma once
 
+#include "acoustics.hpp"
+
 #include <glm/glm.hpp>
 #include <cstddef>
 #include <cstdint>
@@ -38,6 +40,9 @@ struct AudioStats {
     std::size_t streamBuffers = 0;
     std::size_t playingStreams = 0;
     std::uint64_t streamFramesRead = 0;
+    std::size_t impactBuffers = 0;
+    std::uint64_t impactGenerations = 0, impactCacheHits = 0, impactFallbacks = 0;
+    double impactMaxGenerationMs = 0;
 };
 
 // Owns one OpenAL device/context and all its sources/buffers. Construct, update
@@ -53,6 +58,7 @@ public:
     bool hrtfEnabled() const;
     void setListener(glm::vec3 eye, glm::vec3 forward, glm::vec3 up = {0, 1, 0});
     void play(AudioEffect effect, glm::vec3 position, float gain = 1, float pitch = 1);
+    void impact(const ImpactSound& sound);
     // Own-player weapon/reload sounds are attached to the listener.
     void playLocal(AudioEffect effect, float gain = 1);
     // Reserve the closest voices within 40 m and update their positions. This

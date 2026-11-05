@@ -1,5 +1,6 @@
 #include "audio.hpp"
 #include "audio_wave.hpp"
+#include "impact_audio.hpp"
 
 #include <AL/al.h>
 #include <AL/alc.h>
@@ -98,6 +99,7 @@ struct AudioSystem::Impl {
     std::array<Sound, effectCount> sounds{};
     std::vector<Voice> effects, zombies;
     std::vector<std::unique_ptr<Stream>> streams;
+    std::unique_ptr<ImpactAudio> impacts;
 
     ~Impl() {
         if (context) {
@@ -106,6 +108,7 @@ struct AudioSystem::Impl {
             for (const auto& voice : effects) if (voice.source) alDeleteSources(1, &voice.source);
             for (const auto& voice : zombies) if (voice.source) alDeleteSources(1, &voice.source);
             for (const auto& sound : sounds) if (sound.buffer) alDeleteBuffers(1, &sound.buffer);
+            impacts.reset(); // Sources must release their cached buffers first.
             alcMakeContextCurrent(previousContext);
             alcDestroyContext(context);
         }
@@ -175,6 +178,7 @@ struct AudioSystem::Impl {
         alDopplerFactor(0); // Camera teleports/mode switches never create pitch spikes.
         alListenerf(AL_GAIN, options.gain);
         for (std::size_t i = 0; i < sounds.size(); ++i) loadEffect(i, options.directory / effectFiles[i]);
+        impacts = std::make_unique<ImpactAudio>(options.directory);
         effects.resize(options.effectVoices);
         zombies.resize(options.zombieVoices);
         for (auto* pool : {&effects, &zombies}) {
@@ -196,14 +200,10 @@ struct AudioSystem::Impl {
                   << "; " << effects.size() << " effect / " << zombies.size() << " zombie voices\n";
     }
 
-    void play(AudioEffect effect, glm::vec3 position, float gain, float pitch, bool local) {
-        const auto index = static_cast<std::size_t>(effect);
-        if (!ready || index >= sounds.size() || !sounds[index].buffer ||
-            !finite(position) || !std::isfinite(gain) || gain <= 0 ||
-            !std::isfinite(pitch) || pitch < 0.5f || pitch > 2) return;
+    Voice* selectEffect(glm::vec3 position, bool local) {
         Voice* selected = nullptr;
         double farthest = local ? -1 : distanceSquared(listener, position);
-        if (!local && farthest > 40 * 40) return;
+        if (!local && farthest > 40 * 40) return nullptr;
         for (auto& voice : effects) {
             if (sourceState(voice.source) != AL_PLAYING) { selected = &voice; break; }
             ALint relative = AL_FALSE;
@@ -219,10 +219,12 @@ struct AudioSystem::Impl {
         if (!selected && local && !effects.empty()) {
             selected = &effects[nextLocal++ % effects.size()];
         }
-        if (!selected) return;
-        const auto source = selected->source;
+        return selected;
+    }
+    void startEffect(Voice& voice, ALuint buffer, glm::vec3 position, float gain, float pitch, bool local) {
+        const auto source = voice.source;
         alSourceStop(source);
-        alSourcei(source, AL_BUFFER, static_cast<ALint>(sounds[index].buffer));
+        alSourcei(source, AL_BUFFER, static_cast<ALint>(buffer));
         alSourcei(source, AL_LOOPING, AL_FALSE);
         alSourcei(source, AL_SOURCE_RELATIVE, local ? AL_TRUE : AL_FALSE);
         positionSource(source, position);
@@ -230,6 +232,29 @@ struct AudioSystem::Impl {
         alSourcef(source, AL_GAIN, std::min(gain, 1.0f));
         alSourcef(source, AL_PITCH, pitch);
         alSourcePlay(source);
+    }
+    void play(AudioEffect effect, glm::vec3 position, float gain, float pitch, bool local) {
+        const auto index = static_cast<std::size_t>(effect);
+        if (!ready || index >= sounds.size() || !sounds[index].buffer ||
+            !finite(position) || !std::isfinite(gain) || gain <= 0 ||
+            !std::isfinite(pitch) || pitch < 0.5f || pitch > 2) return;
+        if (auto* voice = selectEffect(position, local))
+            startEffect(*voice, sounds[index].buffer, position, gain, pitch, local);
+    }
+    void impact(const ImpactSound& sound) {
+        if (!ready || !validImpactSound(sound) || sound.gain <= 0) return;
+        auto* voice = selectEffect(sound.position, false);
+        if (!voice) return;
+        std::vector<std::uint32_t> attached;
+        attached.reserve(effects.size());
+        for (const auto& effect : effects) {
+            ALint buffer = 0;
+            alGetSourcei(effect.source, AL_BUFFER, &buffer);
+            // Even a stopped source keeps its buffer attached in OpenAL.
+            if (buffer) attached.push_back(static_cast<std::uint32_t>(buffer));
+        }
+        const auto buffer = impacts->buffer(sound, attached);
+        if (buffer) startEffect(*voice, buffer, sound.position, sound.gain, 1, false);
     }
     std::size_t nextLocal = 0;
 };
@@ -264,6 +289,11 @@ void AudioSystem::setListener(glm::vec3 eye, glm::vec3 forward, glm::vec3 up) {
 
 void AudioSystem::play(AudioEffect effect, glm::vec3 position, float gain, float pitch) {
     if (enabled()) impl_->play(effect, position, gain, pitch, false);
+}
+void AudioSystem::impact(const ImpactSound& sound) {
+    if (!enabled()) return;
+    try { impl_->impact(sound); }
+    catch (const std::exception& e) { std::cerr << "Impact sound skipped: " << e.what() << '\n'; }
 }
 void AudioSystem::playLocal(AudioEffect effect, float gain) {
     if (enabled()) impl_->play(effect, {0, 0, -0.5f}, gain, 1, true);
@@ -332,6 +362,7 @@ bool AudioSystem::playZombie(std::size_t id, AudioEffect effect, int priority, f
 
 void AudioSystem::update() {
     if (!enabled()) return;
+    impl_->impacts->service();
     auto& streams = impl_->streams;
     for (auto it = streams.begin(); it != streams.end();) {
         try { (*it)->update(); ++it; }
@@ -350,6 +381,12 @@ void AudioSystem::update() {
 AudioStats AudioSystem::stats() const {
     AudioStats result;
     if (!enabled()) return result;
+    const auto impacts = impl_->impacts->stats();
+    result.impactBuffers = impacts.cached;
+    result.impactGenerations = impacts.generated;
+    result.impactCacheHits = impacts.cacheHits;
+    result.impactFallbacks = impacts.fallbacks;
+    result.impactMaxGenerationMs = impacts.maxGenerationMs;
     for (const auto& voice : impl_->effects) if (sourceState(voice.source) == AL_PLAYING) ++result.effects;
     for (const auto& voice : impl_->zombies) {
         if (!voice.zombie) continue;

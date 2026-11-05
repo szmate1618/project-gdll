@@ -32,6 +32,7 @@ bool DroppedWeapons::discard(Weapons& inventory, const Camera& camera, const Col
     motion.angularVelocity = {0,spinSpeed,0};
     constexpr std::array<float,weaponIds.size()> masses{1,3,3.5f,5,.4f};
     motion.mass = masses[slot];
+    motion.acoustics = weaponIds[slot];
     motion.friction = 1.0f;
     motion.continuous = true;
     const auto index = bodies_.add(center,sizes_[slot],motion);

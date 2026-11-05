@@ -97,6 +97,9 @@ struct DoodadLayer::Impl {
         motion.rotation=entry.pose.rotation;
         constexpr std::array<float,doodadKindCount> masses{.25f,1.f,.35f};
         motion.mass=masses[kind]*scale*scale*scale;
+        constexpr std::array<const char*,doodadKindCount> acousticIds{"branch", "stone", "beer_bottle"};
+        motion.acoustics=acousticIds[kind];
+        motion.acousticScale=scale;
         motion.friction=.8f;
         motion.continuous=true;
         motion.linearDamping=.15f;

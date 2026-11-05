@@ -1,5 +1,6 @@
 #include "physics_world.hpp"
 #include "frame_stage_profile.hpp"
+#include "physics_impacts.hpp"
 
 #include <box3d/box3d.h>
 #include <algorithm>
@@ -28,7 +29,7 @@ bool allowShapeContact(b3ShapeId shapeA, b3ShapeId shapeB, void*) {
 }
 } // namespace
 
-PhysicsWorld::PhysicsWorld() {
+PhysicsWorld::PhysicsWorld(const std::filesystem::path& acousticStorage) {
     auto definition = b3DefaultWorldDef();
     definition.gravity = {0, -9.8f, 0};
     definition.enableSleep = true;
@@ -36,6 +37,8 @@ PhysicsWorld::PhysicsWorld() {
     world_ = b3CreateWorld(&definition);
     if (!b3World_IsValid(world_)) throw std::runtime_error("Unable to create Box3D world");
     b3World_SetCustomFilterCallback(world_, allowShapeContact, nullptr);
+    try { impacts_ = std::make_unique<PhysicsImpacts>(world_, acousticStorage); }
+    catch (...) { b3DestroyWorld(world_); throw; }
 }
 PhysicsWorld::~PhysicsWorld() { b3DestroyWorld(world_); }
 void PhysicsWorld::step(float seconds, const std::function<void(float)>& before,
@@ -55,6 +58,7 @@ void PhysicsWorld::step(float seconds, const std::function<void(float)>& before,
             const auto found = motionOwners_.find(b3StoreBodyId(events.moveEvents[i].bodyId));
             if (found != motionOwners_.end()) ++*found->second;
         }
+        impacts_->capture();
         for (const auto& callbacks : stepCallbacks_) callbacks.second.finish();
         if (after) after(fixedStepSeconds);
         accumulator_ -= fixedStepSeconds;

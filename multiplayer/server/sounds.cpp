@@ -9,6 +9,11 @@ void ServerSounds::emit(std::uint64_t tick, SoundKind kind, std::uint32_t source
     if (events_.size() == maxSoundEvents) events_.pop_front();
     events_.push_back({nextId_++, tick, kind, source, weapon, position});
 }
+void ServerSounds::impact(std::uint64_t tick, const viewer::ImpactSound& sound) {
+    if (!viewer::validImpactSound(sound) || sound.gain <= 0) return;
+    emit(tick, SoundKind::impact, 0, sound.position);
+    events_.back().impact = sound;
+}
 std::vector<SoundEvent> ServerSounds::forListener(std::uint64_t tick, std::uint32_t player, glm::vec3 eye) const {
     std::vector<SoundEvent> result;
     for (const auto& event : events_) {

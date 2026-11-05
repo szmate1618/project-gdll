@@ -21,7 +21,7 @@ struct StaticBody {
     }
 };
 std::vector<std::unique_ptr<StaticBody>> meshBodies(const std::shared_ptr<PhysicsWorld>& simulation,
-        std::vector<b3Vec3> vertices, std::vector<int32_t> indices, glm::vec3 origin) {
+        std::vector<b3Vec3> vertices, std::vector<int32_t> indices, glm::vec3 origin, bool hard = true) {
     std::vector<std::unique_ptr<StaticBody>> result;
     if (indices.empty()) return result;
     // Mesh contacts are one-sided. Two separately built windings preserve
@@ -41,7 +41,7 @@ std::vector<std::unique_ptr<StaticBody>> meshBodies(const std::shared_ptr<Physic
         body.position = {origin.x, origin.y, origin.z};
         mesh->body = b3CreateBody(simulation->id(), &body);
         auto shape = b3DefaultShapeDef();
-        shape.filter.categoryBits = ordinaryBodyCategory;
+        shape.filter.categoryBits = ordinaryBodyCategory | (hard ? hardImpactCategory : 0);
         shape.baseMaterial.friction = .6f;
         // Door panels have finite collider thickness at a flush wall hinge.
         // Their existing hinge limits define the swing; importing the wall
@@ -105,14 +105,15 @@ void PhysicsScene::ensureNear(glm::vec3 minimum, glm::vec3 maximum) {
         const auto faces = impl_->collision->staticFaces({x * cellSize, impl_->minimum.y - 1, z * cellSize},
             {(x + 1) * cellSize, impl_->maximum.y + 1, (z + 1) * cellSize}, false);
         const glm::vec3 origin(x * cellSize, 0, z * cellSize);
-        std::vector<b3Vec3> vertices;
-        std::vector<int32_t> indices;
+        std::array<std::vector<b3Vec3>,2> vertices;
+        std::array<std::vector<int32_t>,2> indices;
         for (const auto& face : faces) {
             if (!impl_->triangles.insert(face.index).second) continue;
+            const auto surface = face.hardSurface ? 1u : 0u;
             for (const auto p : face.vertices) {
-                indices.push_back(static_cast<int32_t>(vertices.size()));
+                indices[surface].push_back(static_cast<int32_t>(vertices[surface].size()));
                 const auto local = p - origin;
-                vertices.push_back({local.x, local.y, local.z});
+                vertices[surface].push_back({local.x, local.y, local.z});
             }
         }
         // Tree capsules stay independent of foliage and camera visibility.
@@ -125,15 +126,17 @@ void PhysicsScene::ensureNear(glm::vec3 minimum, glm::vec3 maximum) {
             auto def = b3DefaultBodyDef(); def.position = {t.base.x, t.base.y, t.base.z};
             trunk->body = b3CreateBody(impl_->simulation->id(), &def);
             auto shape = b3DefaultShapeDef();
-            shape.filter.categoryBits = ordinaryBodyCategory;
-            shape.filter.maskBits = vehicleBodyCategory | playerBodyCategory;
+            shape.filter.categoryBits = ordinaryBodyCategory | hardImpactCategory;
+            shape.filter.maskBits = vehicleBodyCategory | playerBodyCategory | interiorBoxCategory | grenadeBodyCategory;
             const b3Capsule capsule{{0, t.radius, 0}, {0, t.height - t.radius, 0}, t.radius};
             b3CreateCapsuleShape(trunk->body, &shape, &capsule);
             impl_->bodies.push_back(std::move(trunk));
         }
-        if (indices.empty()) continue;
-        auto meshes = meshBodies(impl_->simulation, std::move(vertices), std::move(indices), origin);
-        for (auto& mesh : meshes) impl_->bodies.push_back(std::move(mesh));
+        for (unsigned surface = 0; surface < 2; ++surface) {
+            auto meshes = meshBodies(impl_->simulation, std::move(vertices[surface]), std::move(indices[surface]), origin,
+                                     surface == 1);
+            for (auto& mesh : meshes) impl_->bodies.push_back(std::move(mesh));
+        }
     }
 }
 void PhysicsScene::prepare(const BoxLayer& boxes, float padding) {
