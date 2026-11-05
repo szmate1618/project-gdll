@@ -27,7 +27,7 @@
             <div id="stamina-icon" class="hud-icon"></div><div class="vital-name">STAMINA <span id="stamina-value">--</span></div><div class="vital-track"><div id="stamina-fill"></div></div>
         </div>
         <div class="vital-row strain">
-            <div id="strain-icon" class="hud-icon"></div><div class="vital-name">STRAIN <span id="strain-value">--</span></div><div class="vital-track"><div id="strain-fill"></div></div>
+            <div id="strain-icon" class="hud-icon"></div><div class="vital-name">STRAIN <span id="strain-value">--</span></div><div class="vital-track"><div id="strain-fill"></div><div id="strain-limit"></div></div>
         </div>
     </div>
     <div id="status-strip">

@@ -87,6 +87,12 @@ std::string speed(float metresPerSecond) {
     result << std::fixed << std::setprecision(1) << std::max(0.f, metresPerSecond) * 3.6f << " km/h";
     return result.str();
 }
+
+std::string percentage(double percent) {
+    std::ostringstream result;
+    result << std::fixed << std::setprecision(0) << std::round(percent) << '%';
+    return result.str();
+}
 } // namespace
 
 struct Hud::Impl {
@@ -280,29 +286,21 @@ struct Hud::Impl {
         float health = 0;
         if (healthKnown) {
             health = std::clamp(*state.health, 0.f, PlayerVitals::maximumHealth);
-            std::ostringstream value;
-            value << std::fixed << std::setprecision(1) << health;
-            auto label = value.str();
-            if (label.size() >= 2 && label.substr(label.size() - 2) == ".0") label.resize(label.size() - 2);
-            setText("health-value", label);
+            setText("health-value", percentage(100.0 * health / PlayerVitals::maximumHealth));
         } else setText("health-value", "--");
         elements.at("health-fill")->SetProperty(Rml::PropertyId::Width,
             Rml::Property(220.f * health / PlayerVitals::maximumHealth, Rml::Unit::DP));
         const bool staminaKnown = state.stamina && std::isfinite(*state.stamina);
         document->SetClass("stamina-known", staminaKnown);
         const float stamina = staminaKnown ? std::clamp(*state.stamina, 0.f, 1.f) : 0;
-        setText("stamina-value", staminaKnown ? std::to_string(static_cast<int>(std::lround(stamina * 100))) + "%" : "--");
+        setText("stamina-value", staminaKnown ? percentage(100.0 * stamina) : "--");
         elements.at("stamina-fill")->SetProperty(Rml::PropertyId::Width, Rml::Property(220 * stamina, Rml::Unit::DP));
         const bool strainKnown = state.strain && std::isfinite(*state.strain);
         document->SetClass("strain-known", strainKnown);
         const float strain = strainKnown ? std::max(0.f, *state.strain) : 0;
-        if (strainKnown) {
-            std::ostringstream value;
-            value << std::fixed << std::setprecision(1) << strain * 100 << '%';
-            setText("strain-value", value.str());
-        } else setText("strain-value", "--");
+        setText("strain-value", strainKnown ? percentage(100.0 * strain) : "--");
         elements.at("strain-fill")->SetProperty(Rml::PropertyId::Width,
-            Rml::Property(220 * std::min(strain, 1.f), Rml::Unit::DP));
+            Rml::Property(220 * strain, Rml::Unit::DP));
         constexpr double damagePulseSeconds = .3;
         const double damageAge = state.seconds - state.lastDamageSeconds;
         const float damagePulse = state.lastDamageSeconds >= 0 && std::isfinite(damageAge) && damageAge >= 0 ?

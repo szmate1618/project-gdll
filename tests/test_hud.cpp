@@ -243,6 +243,7 @@ int main(int argc, char** argv) {
             const auto fullHealth = pixels(1280, 720);
             require(isColor(colorAt(fullHealth, 1280, 720, 270, 605), {236,105,98}),
                     "Full health must fill the existing health track");
+            if (argc > 1) capture((std::string(argv[1]) + "-full-health.ppm").c_str(), fullHealth, 1280, 720);
             state.health = 50.5f;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto injured = pixels(1280, 720);
@@ -284,13 +285,17 @@ int main(int argc, char** argv) {
                     "Strain must replace the weariness row with its current fill");
             if (argc > 1) capture((std::string(argv[1]) + "-exertion.ppm").c_str(), exertion, 1280, 720);
             state.strain = 1.5f;
+            state.health = 100.f;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto highStrain = pixels(1280, 720);
             require(isColor(colorAt(highStrain, 1280, 720, 270, 673), {231,205,101}) &&
-                    !isColor(colorAt(highStrain, 1280, 720, 310, 673), {231,205,101}),
-                    "Strain above 100% must fill its track without extending beyond it");
+                    isColor(colorAt(highStrain, 1280, 720, 390, 673), {231,205,101}) &&
+                    !isColor(colorAt(highStrain, 1280, 720, 410, 673), {231,205,101}),
+                    "150% strain must extend its fill to one and a half times the original track width");
+            require(colorAt(highStrain, 1280, 720, 293, 673)[2] > 180,
+                    "The original frame's 100% edge must remain visible over the extended strain fill");
             if (argc > 1) capture((std::string(argv[1]) + "-high-strain.ppm").c_str(), highStrain, 1280, 720);
-            state.stamina.reset(); state.strain.reset();
+            state.health.reset(); state.stamina.reset(); state.strain.reset();
             clear(); hud.draw(state, 1280, 720); checkState();
             require(first == pixels(1280, 720), "Unknown exertion must clear prior stamina and strain fills and values");
             const auto iconChanged = [&](const std::vector<unsigned char>& current, int left, int top, int width, int height) {

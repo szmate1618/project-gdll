@@ -130,11 +130,14 @@ into its outer ring and release to open Inventory, Skills, Health, Map, or Graph
 Inventory and skill-menu
 artwork remains represented by squares. Health, stamina
 and strain have tinted tracks at 60% opacity with white outlines at 80%.
-Health shows the player's current floating-point value and filled amount;
+Health shows the player's current percentage (100% at full health) and filled amount;
 successful damage briefly pulses the screen edges red. Stamina shows its remaining
 percentage and fill. Strain replaces the inactive weariness row with a yellow
-percentage and fill. Its value is unbounded (100% = one strain unit), while its
-track fills at 100% and stays full above that. Weariness remains reserved in the
+percentage and fill. Its value is unbounded (100% = one strain unit), and its
+fill extends beyond the original frame above 100% (150% uses 1.5 times the frame
+width). The frame's original 100% edge stays visible. Health, stamina and strain
+labels round to whole percentages; their fills retain fractional precision.
+Weariness remains reserved in the
 player data. Coordinates use local metres rather than inferred latitude
 and longitude. Prepare the ignored icon textures under `data/assets/game-icons/`
 with `.venv/bin/python tools/prepare_hud_icons.py`; see [icon sources and credits](../gui/README.md).
