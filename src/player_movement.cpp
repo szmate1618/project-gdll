@@ -5,7 +5,7 @@
 
 namespace viewer {
 
-float FPSController::movementSpeed(bool run, float forward, float right) const {
+float FPSController::baseMovementSpeed(bool run, float forward, float right) const {
     const auto movingStance = grounded_ ? stance_ : takeoffStance_;
     if (movingStance == PlayerStance::Prone) return config_.proneSpeed;
     if (movingStance == PlayerStance::Crouched) return config_.crouchSpeed;
@@ -16,6 +16,12 @@ float FPSController::movementSpeed(bool run, float forward, float right) const {
     return weight > 0 ? (std::abs(forward) * longitudinal + std::abs(right) * sideways) / weight : 0;
 }
 
+float FPSController::movementSpeed(bool run, float forward, float right) const {
+    const auto movingStance = grounded_ ? stance_ : takeoffStance_;
+    const float multiplier = run && movingStance == PlayerStance::Standing ? exertion_.speedMultiplier() : 1;
+    return baseMovementSpeed(run, forward, right) * multiplier;
+}
+
 glm::vec3 FPSController::updateHorizontalMovement(float dt, const FPSInput& input) {
     const float yaw = glm::radians(input.yawDegrees);
     const glm::vec2 forward(std::cos(yaw), std::sin(yaw));
@@ -23,6 +29,17 @@ glm::vec3 FPSController::updateHorizontalMovement(float dt, const FPSInput& inpu
     glm::vec2 target = forward * input.forward + right * input.right;
     const float length = glm::length(target);
     if (length > 1) target /= length;
+    // Charge intent changes once, weighted by current speed. Holding a target
+    // during acceleration must not charge the same velocity error every tick.
+    const float intentLength = glm::length(target);
+    const glm::vec2 intent = intentLength > 0 ? target / intentLength : glm::vec2(0);
+    const float speed = glm::length(horizontalVelocity_);
+    if (intentLength > 0 && speed > 0) {
+        const float turn = std::min(glm::length(intent - movementIntent_),
+            glm::length(intent - horizontalVelocity_ / speed));
+        exertion_.load += config_.exertion.directionLoad * turn * std::min(1.f, speed / config_.runSpeed);
+    }
+    movementIntent_ = intent;
     target *= movementSpeed(input.run, input.forward, input.right);
 
     const glm::vec2 delta = target - horizontalVelocity_;
@@ -30,7 +47,7 @@ glm::vec3 FPSController::updateHorizontalMovement(float dt, const FPSInput& inpu
     if (distance > 0) {
         const auto direction = delta / distance;
         // One shared acceleration in m/s²: forward walk -> run takes 2.5 s.
-        const float acceleration = (config_.runSpeed - config_.walkSpeed) / 2.5f;
+        const float acceleration = (config_.runSpeed - config_.walkSpeed) / 2.5f * exertion_.accelerationMultiplier();
         // Along the velocity change, speed decreases up to the closest point
         // to zero. Split there so reversing brakes at 2a, then speeds up at a.
         const float brakingDistance = std::clamp(-glm::dot(horizontalVelocity_, direction), 0.f, distance);

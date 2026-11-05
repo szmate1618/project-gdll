@@ -200,6 +200,27 @@ void acknowledgedUpdates(const Options& o) {
     require(late.vehicles.size() == 2 && late.vehicles[1].chassis.center.z == -6,
             "Late join lost a car moved before it connected");
 }
+void seatedExertion(const Options& o) {
+    Scene scene(o); openGround(scene); scene.vehicles->add({0, .8f, 0});
+    viewer::FPSController controller;
+    require(controller.spawn(scene.spawnEye, *scene.collision), "Seat exertion fixture must spawn");
+    auto movement = controller.movementState(); movement.exertion = {.2f, 1.5f, 2};
+    controller.restoreMovement(movement);
+    viewer::Camera camera; camera.setPosition(controller.eyePosition());
+    VehicleSeats seats(scene);
+    require(seats.toggle(1, controller, camera), "Exhausted player must enter the car");
+    for (int i = 0; i < 120; ++i) {
+        seats.updateSeat(1, controller, camera);
+        controller.restSeated(tickSeconds);
+    }
+    const auto exertion = controller.exertion();
+    require(std::abs(exertion.stamina - .2333333f) < .0001f && exertion.strain == 1.5f &&
+            std::abs(exertion.load - .7357589f) < .0001f,
+            "Repeated seat positioning must preserve recovery, strain and decaying load");
+    require(seats.toggle(1, controller, camera), "Rested player must exit the parked car");
+    require(controller.exertion().stamina == exertion.stamina && controller.exertion().strain == exertion.strain &&
+            controller.exertion().load == exertion.load, "Exiting a car must preserve exertion");
+}
 void ownershipAndDriving(const Options& o) {
     Scene scene(o); openGround(scene); scene.vehicles->add({0, .8f, 0});
     World world(scene);
@@ -437,7 +458,7 @@ int main(int argc, char** argv) {
     try {
         require(argc == 3, "Expected test map and scratch directory");
         protocolChecks(); const auto o = options(argv[1]);
-        acknowledgedUpdates(o); ownershipAndDriving(o); passengerOnly(o); passengers(o);
+        acknowledgedUpdates(o); seatedExertion(o); ownershipAndDriving(o); passengerOnly(o); passengers(o);
         extrapolation(o); zombieImpacts(o); physicsParity(o); parkedPopulation(o,argv[2]);
         std::cout << "Multiplayer vehicle ownership, physics, late join, timeout, camera and wire checks passed\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }

@@ -20,13 +20,14 @@ div { display: block; }
 #minimap { display: block; position: absolute; right: 0dp; top: 0dp; width: 108dp; height: 108dp; border-width: 1dp; }
 #player-marker { position: absolute; left: 50dp; top: 50dp; width: 8dp; height: 8dp; }
 .map-caption { position: absolute; right: 0dp; top: 114dp; width: 110dp; text-align: center; font-size: 9dp; }
-#vitals { position: absolute; left: 34dp; bottom: 40dp; width: 260dp; height: 94dp; }
+#vitals { position: absolute; left: 34dp; bottom: 6dp; width: 260dp; height: 128dp; }
 .vital-row { position: relative; height: 34dp; }
 .vital-row .hud-icon { position: absolute; left: 0dp; top: 0dp; width: 21dp; height: 21dp; }
 .vital-name { position: absolute; left: 38dp; top: -2dp; width: 222dp; font-size: 11dp; }
 .vital-name span { float: right; }
 .vital-track { position: absolute; left: 38dp; top: 15dp; width: 220dp; height: 7dp; border-width: 1dp; }
 #health-fill { width: 0dp; height: 7dp; }
+#stamina-fill { width: 0dp; height: 7dp; }
 #damage-feedback { display: none; position: absolute; left: 0dp; top: 0dp; width: 100%; height: 100%; z-index: 20; }
 .damaged #damage-feedback { display: block; }
 .damage-edge { position: absolute; }

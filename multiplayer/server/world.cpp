@@ -271,6 +271,7 @@ void World::step() {
             if (vehicleSeats_.car(id) != noVehicle) {
                 vehicleSeats_.drive(id, command);
                 vehicleSeats_.updateSeat(id, player.controller, player.camera);
+                player.controller.restSeated(tickSeconds / inputs);
                 player.weapons.cancelTrigger();
                 player.body.follow(player.camera.position(),player.camera.direction(),false);
                 player.held = command;

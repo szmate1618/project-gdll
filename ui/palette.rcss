@@ -23,6 +23,9 @@ div, span, button { border-color: #f5f6f24d; }
 .stamina .square { background-color: #59c49c; }
 .weariness .square { background-color: #e7cd65; }
 .stamina .vital-track { background-color: #59c49c99; }
+.stamina-known .stamina .vital-track { background-color: #2b2d2fed; }
+#stamina-fill { background-color: #59c49c; }
+.strain { color: #e7cd65; }
 .weariness .vital-track { background-color: #e7cd6599; }
 .map-caption, .vital-name span, #capture, .selection-key, .selection-hint,
 .key-label, .close-hint, .panel-meta, .storage-time, .detail-subtitle,

@@ -1245,6 +1245,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_player_stance)
     add_test(NAME viewer_player_stance COMMAND test_player_stance)
 
+    add_executable(test_player_exertion tests/test_player_exertion.cpp)
+    target_link_libraries(test_player_exertion PRIVATE viewer_fps)
+    viewer_warnings(test_player_exertion)
+    add_test(NAME viewer_player_exertion COMMAND test_player_exertion)
+
     add_executable(test_collision_box tests/test_collision_box.cpp)
     target_link_libraries(test_collision_box PRIVATE viewer_collision)
     viewer_warnings(test_collision_box)

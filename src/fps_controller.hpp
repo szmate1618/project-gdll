@@ -2,6 +2,7 @@
 
 #include "player_noise.hpp"
 #include "collision_box.hpp"
+#include "player_exertion.hpp"
 
 #include <glm/glm.hpp>
 #include <optional>
@@ -32,6 +33,7 @@ struct FPSConfig {
     float proneEyeHeight = .35F, proneWidth = .60F, proneLength = 1.0F;
     // Adjacent stance durations: standing/crouch, then crouch/prone, seconds.
     float crouchTransitionSeconds = .25F, proneTransitionSeconds = .50F;
+    PlayerExertionConfig exertion;
 };
 
 enum class PlayerStance { Standing, Crouched, Prone };
@@ -57,6 +59,8 @@ struct FPSState {
     float bodyYawDegrees = -90; // Collision orientation can lag view yaw near obstacles.
     float posture = 0; // Continuous pose: 0 standing, 1 crouched, 2 prone.
     glm::vec2 horizontalVelocity{0}; // World X/Z, m/s; retained while braking.
+    PlayerExertion exertion;
+    glm::vec2 movementIntent{0}; // Previous world X/Z input direction, before fatigue.
 };
 
 class FPSController {
@@ -70,6 +74,9 @@ public:
     void update(float dt, const FPSInput& input, const CollisionWorld& world);
     FPSState movementState() const;
     void restoreMovement(const FPSState& state);
+    // Sitting has no movement/collision step but still decays load and recovers stamina.
+    void restSeated(float dt);
+    [[nodiscard]] const PlayerExertion& exertion() const { return exertion_; }
 
     [[nodiscard]] glm::vec3 feet() const { return feet_; }
     [[nodiscard]] glm::vec3 eyePosition() const { return feet_ + glm::vec3(0, eyeHeight(), 0); }
@@ -107,12 +114,15 @@ private:
     bool changePosture(float posture, const CollisionWorld& world);
     void updateStance(float dt, bool crouch, const CollisionWorld& world);
     glm::vec3 updateHorizontalMovement(float dt, const FPSInput& input);
+    float baseMovementSpeed(bool run, float forward, float right) const;
 
     FPSConfig config_;
     glm::vec3 feet_{0.0F};
     glm::vec3 groundNormal_{0.0F, 1.0F, 0.0F};
     float verticalVelocity_ = 0.0F;
     glm::vec2 horizontalVelocity_{0};
+    PlayerExertion exertion_;
+    glm::vec2 movementIntent_{0};
     double accumulator_ = 0.0;
     bool grounded_ = false;
     bool jumpHeld_ = false;

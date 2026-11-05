@@ -131,8 +131,10 @@ Inventory and skill-menu
 artwork remains represented by squares. Health, stamina
 and weariness have tinted tracks at 60% opacity with white outlines at 80%.
 Health shows the player's current floating-point value and filled amount;
-successful damage briefly pulses the screen edges red. Stamina and weariness
-still show `--` while their gameplay mechanics are inactive. Coordinates use local metres rather than inferred latitude
+successful damage briefly pulses the screen edges red. Stamina shows its remaining
+percentage and fill. A separate strain counter shows accumulated exhausted effort
+in points (100 points = one strain unit); it is unbounded. Weariness remains a
+separate inactive stat showing `--`. Coordinates use local metres rather than inferred latitude
 and longitude. Prepare the ignored icon textures under `data/assets/game-icons/`
 with `.venv/bin/python tools/prepare_hud_icons.py`; see [icon sources and credits](../gui/README.md).
 The downloaded archive is reused, and no icon artwork is generated.
@@ -1391,9 +1393,11 @@ collision-limited body lunge: 0.3 s windup, at most 1.5 m over 0.15 s, 0.4 s
 return, then 0.5 s cooldown. That fallback retains its idle animation and
 velocity-scaled body-contact damage.
 
-`PlayerVitals` owns independent float health, stamina and weariness values for
+`PlayerVitals` owns independent float health and weariness values for
 each player. Health starts at **100**, damage preserves fractions and clamps
-health at zero. Stamina starts at 100 and weariness at zero; neither changes yet.
+health at zero. Weariness starts at zero and remains reserved for future mechanics.
+`FPSController` owns stamina, movement load and the separate strain stat through
+`PlayerExertion`; these travel with movement checkpoints for prediction and replay.
 Zero health does not introduce death, control restrictions or respawning.
 Standalone applies lunge hit events locally. Multiplayer applies them on the
 server and transmits authoritative health; clients only present the result.
@@ -2521,10 +2525,45 @@ All directions and stances share a **1.2 m/s²** acceleration limit: acceleratin
 from forward walking to forward running takes **2.5 s**. Braking uses **2.4 m/s²**,
 including releasing movement keys, choosing a slower stance, or reversing.
 Starts and turns also approach the requested velocity gradually. Multiplayer
-checkpoints retain this velocity for prediction and replay (protocol 48).
+checkpoints retain this velocity for prediction and replay.
 Gravity is 9.81 m/s² and a grounded Space press launches at 3.8 m/s, producing an apex
 roughly 0.74 m above standing height on flat ground. Holding Space does not
 repeat jumps, and presses in the air do not add another jump.
+
+Stamina starts full and uses a normalized **0–1** value. Above **25%** all of the
+configured speeds and acceleration limits above are unchanged. In the final 25%,
+running speed scales linearly down to **84%** of its configured directional target,
+while acceleration and braking in every stance scale down to **42.5%** of their
+existing limits. The 2× braking relationship stays intact. Walking, crouching,
+prone target speeds and jump velocity retain their original values. Exhaustion
+never disables running or jumping.
+
+Recent movement load decays exponentially with a **2 s** time constant. Direction
+changes charge by the change of world-space input direction, weighted by current
+horizontal speed relative to configured forward running speed: a full-speed
+reversal adds **0.55**, while turns at low speed cost less. The charge is limited
+by the change from the current velocity direction; holding an unchanged input
+does not repeatedly charge the same outstanding turn. Successful jumps add **0.40**
+and actual landings add **0.15**, once per event. There is no separate acceleration
+or key-count threshold charge.
+
+Running with movement input drains stamina at `runningDrain * (1 + 0.5 * load)`.
+The tunable prototype base rate is **0.04/s**. Once stamina reaches zero, only the
+remaining exhausted portion of the step adds strain, at
+`strainRate * (1 + 0.5 * load)`. The prototype base strain rate is **1/300 units/s**;
+strain accumulates independently of weariness and currently has no recovery or
+additional movement penalties.
+
+When not running, walking or standing restores empty stamina in **120 s**.
+Crouching on the ground and sitting in a car use **2×** recovery (**60 s**);
+lying prone on the ground uses **4×** (**30 s**). Posture transitions use the active
+movement stance. Airborne recovery uses the walking rate. These rates, the load
+coefficients, drain and strain rates live in `FPSConfig::exertion`
+([player_exertion.hpp](../src/player_exertion.hpp)); the faster recovery multipliers
+are prototype tuning values. Teleports, entering/exiting cars and changing camera
+mode preserve exertion. Free-fly pauses it. Multiplayer protocol **50** includes
+stamina, strain, recent load and direction history in reconciled movement state;
+seated recovery also runs during client prediction and replay.
 
 Holding either Ctrl key crouches to a 1.10 m capsule with a 1.00 m eye height
 and 1.5 m/s movement speed. Standing and crouching transition over **0.25 s**;
@@ -3418,7 +3457,8 @@ src/zombie_house_investigation.{hpp,cpp} Sparse room routes and graph-following 
 src/zombie_interior_behavior.cpp Interior spawn entries, pending policies and streamed sleep/wake
 src/zombie_attack.{hpp,cpp} Fresh hit validation and relative-velocity damage
 src/zombie_lunge.{hpp,cpp} Timed collision-limited attack movement and hit events
-src/player_vitals.hpp      Player-owned float health, stamina and weariness
+src/player_vitals.hpp      Player-owned health and reserved weariness
+src/player_exertion.hpp    Stamina, independent strain, recent load and recovery tuning
 src/zombie_perception.{hpp,cpp} Simulation-thread sight scheduling and ray classification
 src/zombie_spatial_index.{hpp,cpp} Stable-ID spatial grid for activation, hearing, and shooting
 src/zombie_door_collision.{hpp,cpp} Nearby living capsules blocking hinged door motion

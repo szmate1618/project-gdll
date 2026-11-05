@@ -14,11 +14,10 @@ void require(bool condition, const char* message) {
 
 int main() {
     static_assert(std::is_same_v<decltype(std::declval<viewer::PlayerVitals>().health()), float>);
-    static_assert(std::is_same_v<decltype(std::declval<viewer::PlayerVitals>().stamina()), float>);
     static_assert(std::is_same_v<decltype(std::declval<viewer::PlayerVitals>().weariness()), float>);
     try {
         viewer::PlayerVitals player;
-        require(player.health() == 100.f && player.stamina() == 100.f && player.weariness() == 0.f,
+        require(player.health() == 100.f && player.weariness() == 0.f,
                 "Players must begin with 100 floating-point health and the initial stored vitals");
         require(player.applyDamage(.000001f) == 0.f && player.health() == 100.f,
                 "Damage smaller than float precision must not report a health change");
@@ -33,8 +32,7 @@ int main() {
                               -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()})
             require(player.applyDamage(invalid) == 0.f && player.health() == 97.75f,
                     "Invalid or nonpositive damage must preserve health");
-        require(player.stamina() == 100.f && player.weariness() == 0.f,
-                "Health damage must not alter stamina or weariness");
+        require(player.weariness() == 0.f, "Health damage must not alter weariness");
         const auto otherPlayer = player;
         require(player.applyDamage(std::numeric_limits<float>::max()) == 97.75f && player.health() == 0.f,
                 "Overkill must report only remaining health and clamp to zero");

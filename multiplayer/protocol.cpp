@@ -100,6 +100,10 @@ void movement(Wire& w, viewer::FPSState& s) {
     w.number(s.posture);
     if (s.posture < 0 || s.posture > 2) throw std::runtime_error("Invalid player posture");
     w.number(s.horizontalVelocity.x); w.number(s.horizontalVelocity.y);
+    w.number(s.exertion.stamina); w.number(s.exertion.strain); w.number(s.exertion.load);
+    w.number(s.movementIntent.x); w.number(s.movementIntent.y);
+    if (!s.exertion.valid() || glm::length(s.movementIntent) > 1.001f)
+        throw std::runtime_error("Invalid player exertion state");
 }
 void firearmShot(Wire& w, FirearmShot& shot) {
     w.integer(shot.slot);

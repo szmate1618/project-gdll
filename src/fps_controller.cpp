@@ -27,7 +27,12 @@ FPSController::FPSController(FPSConfig config) : config_(config) {
                             config.skin, config.fixedDt, config.terminalVelocity,
                             config.crouchHeight, config.proneHeight, config.crouchSpeed, config.proneSpeed,
                             config.proneEyeHeight, config.proneWidth, config.proneLength,
-                            config.crouchTransitionSeconds, config.proneTransitionSeconds};
+                            config.crouchTransitionSeconds, config.proneTransitionSeconds,
+                            config.exertion.runningDrain, config.exertion.strainRate,
+                            config.exertion.walkingRecovery, config.exertion.crouchedRecoveryMultiplier,
+                            config.exertion.seatedRecoveryMultiplier, config.exertion.proneRecoveryMultiplier,
+                            config.exertion.loadDecaySeconds, config.exertion.loadDrainMultiplier,
+                            config.exertion.directionLoad, config.exertion.jumpLoad, config.exertion.landingLoad};
     for (float value : values) {
         if (!std::isfinite(value) || value < 0.0F) {
             throw std::invalid_argument("FPS configuration must contain finite, nonnegative values");
@@ -40,7 +45,8 @@ FPSController::FPSController(FPSConfig config) : config_(config) {
         config.proneHeight <= 0 || config.crouchHeight < config.proneHeight ||
         config.proneEyeHeight <= 0 || config.proneEyeHeight > config.proneHeight ||
         config.proneWidth <= 0 || config.proneLength <= 0 ||
-        config.crouchTransitionSeconds <= 0 || config.proneTransitionSeconds <= 0) {
+        config.crouchTransitionSeconds <= 0 || config.proneTransitionSeconds <= 0 ||
+        config.exertion.loadDecaySeconds <= 0) {
         throw std::invalid_argument("Invalid FPS capsule, timestep, slope, or speed configuration (run must exceed walk)");
     }
 }
@@ -56,6 +62,7 @@ void FPSController::teleport(glm::vec3 feet) {
     feet_ = feet;
     verticalVelocity_ = 0.0F;
     horizontalVelocity_ = {0, 0};
+    movementIntent_ = {0, 0};
     groundNormal_ = {0.0F, 1.0F, 0.0F};
     accumulator_ = 0.0;
     grounded_ = false;
@@ -192,6 +199,7 @@ bool FPSController::snapToGround(const CollisionWorld& world, float distance) {
 }
 
 void FPSController::step(float dt, const FPSInput& input, const CollisionWorld& world, bool jump) {
+    exertion_.decay(dt, config_.exertion);
     // Upright capsules are yaw invariant; prone boxes retain an independently
     // reconciled orientation so a blocked turn cannot tunnel through a wall.
     if (posture_ <= 1) bodyYawDegrees_ = std::remainder(input.yawDegrees, 360.f);
@@ -208,11 +216,13 @@ void FPSController::step(float dt, const FPSInput& input, const CollisionWorld& 
         takeoffStance_ = stance_;
         verticalVelocity_ = config_.jumpVelocity;
         grounded_ = false;
+        exertion_.load += config_.exertion.jumpLoad;
     }
     updateStance(dt, input.crouch, world);
     if (posture_ > 1) turnBody(input.yawDegrees, world);
     if (grounded_) takeoffStance_ = stance_;
 
+    const bool airborne = !grounded_;
     const glm::vec3 movement = updateHorizontalMovement(dt, input);
 
     // Limit displacement in addition to timestep, including fast falls. Each
@@ -269,11 +279,19 @@ void FPSController::step(float dt, const FPSInput& input, const CollisionWorld& 
             snapToGround(world, snap);
         }
     }
+    if (airborne && grounded_) exertion_.load += config_.exertion.landingLoad;
+    const auto movingStance = grounded_ ? stance_ : takeoffStance_;
+    const bool running = input.run && movingStance == PlayerStance::Standing &&
+        (input.forward != 0 || input.right != 0);
+    const float recovery = grounded_ && stance_ == PlayerStance::Prone ? config_.exertion.proneRecoveryMultiplier :
+        grounded_ && stance_ == PlayerStance::Crouched ? config_.exertion.crouchedRecoveryMultiplier : 1;
+    exertion_.advance(dt, running, recovery, config_.exertion);
 }
 
 FPSState FPSController::movementState() const {
     return {feet_, groundNormal_, verticalVelocity_, accumulator_, stance_, takeoffStance_,
-            grounded_, jumpHeld_, jumpQueued_, proneRequested_, proneQueued_, bodyYawDegrees_, posture_, horizontalVelocity_};
+            grounded_, jumpHeld_, jumpQueued_, proneRequested_, proneQueued_, bodyYawDegrees_, posture_, horizontalVelocity_,
+            exertion_, movementIntent_};
 }
 
 void FPSController::restoreMovement(const FPSState& state) {
@@ -284,6 +302,8 @@ void FPSController::restoreMovement(const FPSState& state) {
         !std::isfinite(state.verticalVelocity) || !std::isfinite(state.accumulator) ||
         !std::isfinite(state.bodyYawDegrees) ||
         !std::isfinite(state.horizontalVelocity.x) || !std::isfinite(state.horizontalVelocity.y) ||
+        !state.exertion.valid() || !std::isfinite(state.movementIntent.x) || !std::isfinite(state.movementIntent.y) ||
+        glm::length(state.movementIntent) > 1.001f ||
         !std::isfinite(state.posture) || state.posture < 0 || state.posture > 2 ||
         state.accumulator < 0 || state.accumulator > 1 ||
         state.stance < PlayerStance::Standing || state.stance > PlayerStance::Prone ||
@@ -293,6 +313,8 @@ void FPSController::restoreMovement(const FPSState& state) {
     groundNormal_ = state.groundNormal;
     verticalVelocity_ = state.verticalVelocity;
     horizontalVelocity_ = state.horizontalVelocity;
+    exertion_ = state.exertion;
+    movementIntent_ = state.movementIntent;
     accumulator_ = state.accumulator;
     stance_ = state.stance;
     takeoffStance_ = state.takeoffStance;
@@ -304,6 +326,18 @@ void FPSController::restoreMovement(const FPSState& state) {
     bodyYawDegrees_ = std::remainder(state.bodyYawDegrees, 360.f);
     posture_ = state.posture;
     noises_.clear();
+}
+
+void FPSController::restSeated(float dt) {
+    noises_.clear();
+    if (!std::isfinite(dt) || dt <= 0) return;
+    movementIntent_ = {0, 0};
+    accumulator_ += std::min(dt, 1.f);
+    while (accumulator_ + 1.0e-9 >= static_cast<double>(config_.fixedDt)) {
+        exertion_.decay(config_.fixedDt, config_.exertion);
+        exertion_.advance(config_.fixedDt, false, config_.exertion.seatedRecoveryMultiplier, config_.exertion);
+        accumulator_ -= config_.fixedDt;
+    }
 }
 
 void FPSController::update(float dt, const FPSInput& input, const CollisionWorld& world) {

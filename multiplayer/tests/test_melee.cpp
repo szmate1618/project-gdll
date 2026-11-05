@@ -213,6 +213,11 @@ viewer::PlayerBodyPose runningPunchPose(const Options& options,bool batched,bool
     for(int n=0;n<600 && world.players().at(id).weapons.slot()!=viewer::punchSlot;++n) world.step();
     const auto& player=world.players().at(id);
     require(player.body.canPunch(),"Running aim fixture did not enable an available hand");
+    // Begin with a running approach; a single input from rest now accelerates
+    // gradually and cannot exercise aim during substantial tick displacement.
+    auto movement=player.controller.movementState();
+    movement.horizontalVelocity={player.controller.config().runSpeed,0};
+    const_cast<viewer::FPSController&>(player.controller).restoreMovement(movement);
     const auto startEye=player.camera.position();
     if(directStart) {
         viewer::MeleeCombat melee(scene.physics);

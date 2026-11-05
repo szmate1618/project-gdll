@@ -907,6 +907,8 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 hudState.reloadDuration = ownState.reloadDuration;
                 if (prediction.ready()) {
                     hudState.health = ownState.health;
+                    hudState.stamina = prediction.controller().exertion().stamina;
+                    hudState.strain = prediction.controller().exertion().strain;
                     hudState.lastDamageSeconds = lastDamageSeconds;
                     hudState.equipment = weaponDefinitions.equipped().config.name;
                     hudState.slot = ownState.slot;

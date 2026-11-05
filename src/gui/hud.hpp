@@ -30,7 +30,8 @@ struct HudState {
     std::string movement = "FREE FLY", mode = "ITEM";
     std::string equipment = "CONNECTING", prompt;
     std::optional<int> loaded, reserve;
-    std::optional<float> health; // Unknown while connecting; stamina/weariness remain placeholders.
+    std::optional<float> health; // Unknown while connecting.
+    std::optional<float> stamina, strain; // Normalized stamina; unbounded strain index.
     double lastDamageSeconds = -1; // Successful health loss, in the same clock as seconds.
     int slot = -1; // Equipment slots 0..4; fists are 5. -1 means unconfirmed.
     bool mouseCaptured = true;

@@ -10,6 +10,7 @@ Command Prediction::advance(Command command, const viewer::CollisionWorld& colli
     pending_.push_back(command);
     previousEye_ = eye();
     if (!seated_) controller_.update(tickSeconds, command.movement, collision);
+    else controller_.restSeated(tickSeconds);
     return command;
 }
 void Prediction::reconcile(const PlayerState& state, const viewer::CollisionWorld& collision) {
@@ -21,7 +22,10 @@ void Prediction::reconcile(const PlayerState& state, const viewer::CollisionWorl
     seated_ = state.vehicle != noVehicle;
     while (!pending_.empty() && pending_.front().sequence <= resolved_) pending_.pop_front();
     // Replaying only movement produces no audio, shots, or interaction requests.
-    if (!seated_) for (const auto& command : pending_) controller_.update(tickSeconds, command.movement, collision);
+    for (const auto& command : pending_) {
+        if (!seated_) controller_.update(tickSeconds, command.movement, collision);
+        else controller_.restSeated(tickSeconds);
+    }
     const auto correction = eye() - before;
     // Translate both endpoints together so the session's visual correction
     // cancels the same error at every alpha. Replays are not new render steps.

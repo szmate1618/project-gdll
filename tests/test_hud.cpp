@@ -269,6 +269,20 @@ int main(int argc, char** argv) {
             state.health.reset(); state.seconds = 0; state.lastDamageSeconds = -1;
             clear(); hud.draw(state, 1280, 720); checkState();
             require(first == pixels(1280, 720), "Unknown health must retain the original placeholder layout");
+            state.stamina = 1; state.strain = .75f;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(isColor(colorAt(pixels(1280, 720), 1280, 720, 270, 639), {89,196,156}),
+                    "Full stamina must fill its track");
+            state.stamina = .125f;
+            clear(); hud.draw(state, 1280, 720); checkState();
+            const auto exertion = pixels(1280, 720);
+            require(isColor(colorAt(exertion, 1280, 720, 90, 639), {89,196,156}) &&
+                    !isColor(colorAt(exertion, 1280, 720, 250, 639), {89,196,156}),
+                    "Low stamina must show its remaining fraction");
+            if (argc > 1) capture((std::string(argv[1]) + "-exertion.ppm").c_str(), exertion, 1280, 720);
+            state.stamina.reset(); state.strain.reset();
+            clear(); hud.draw(state, 1280, 720); checkState();
+            require(first == pixels(1280, 720), "Unknown exertion must clear prior stamina fill and strain text");
             const auto iconChanged = [&](const std::vector<unsigned char>& current, int left, int top, int width, int height) {
                 for (int y = top; y < top + height; ++y) for (int x = left; x < left + width; ++x)
                     if (colorAt(first, 1280, 720, x, y) != colorAt(current, 1280, 720, x, y)) return true;

@@ -51,6 +51,8 @@ void VehicleSeats::updateSeat(std::uint32_t player, viewer::FPSController& contr
     if (vehicle == noVehicle) return;
     const auto eye = viewer::vehicleSeat(*scene_.vehicles, vehicle, seat(player));
     viewer::FPSState seated;
+    seated.exertion = controller.exertion();
+    seated.accumulator = controller.movementState().accumulator;
     seated.feet = eye - glm::vec3(0, controller.config().eyeHeight, 0);
     controller.restoreMovement(seated);
     camera.setPosition(eye);

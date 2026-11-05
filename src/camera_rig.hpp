@@ -25,6 +25,7 @@ public:
     Camera& camera() { return camera_; }
     const Camera& camera() const { return camera_; }
     const FPSController& player() const { return player_; }
+    void restSeated(float dt) { player_.restSeated(dt); }
     CameraMode mode() const { return mode_; }
     bool walking() const { return mode_ == CameraMode::Walking; }
     bool hasPlayer() const { return hasPlayer_; }

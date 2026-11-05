@@ -135,7 +135,7 @@ struct Hud::Impl {
             if (!document) throw std::runtime_error("Cannot load HUD layout: " + directory.string());
             backdropColorProperty = Rml::StyleSheetSpecification::GetPropertyId("hud-backdrop-color");
             for (const char* id : {"heading", "north-coordinate", "east-coordinate", "movement", "mode", "speed",
-                                    "equipment", "weapon", "mode-icon", "movement-icon", "loaded", "reserve", "prompt", "capture", "compass-scale", "map-caption", "switch-fill", "switch-countdown", "switch-label", "health-value", "health-fill", "damage-feedback"}) {
+                                    "equipment", "weapon", "mode-icon", "movement-icon", "loaded", "reserve", "prompt", "capture", "compass-scale", "map-caption", "switch-fill", "switch-countdown", "switch-label", "health-value", "health-fill", "stamina-value", "stamina-fill", "strain-value", "damage-feedback"}) {
                 auto* element = document->GetElementById(id);
                 if (!element) throw std::runtime_error(std::string("Missing HUD element: ") + id);
                 elements.emplace(id, element);
@@ -288,6 +288,16 @@ struct Hud::Impl {
         } else setText("health-value", "--");
         elements.at("health-fill")->SetProperty(Rml::PropertyId::Width,
             Rml::Property(220.f * health / PlayerVitals::maximumHealth, Rml::Unit::DP));
+        const bool staminaKnown = state.stamina && std::isfinite(*state.stamina);
+        document->SetClass("stamina-known", staminaKnown);
+        const float stamina = staminaKnown ? std::clamp(*state.stamina, 0.f, 1.f) : 0;
+        setText("stamina-value", staminaKnown ? std::to_string(static_cast<int>(std::lround(stamina * 100))) + "%" : "--");
+        elements.at("stamina-fill")->SetProperty(Rml::PropertyId::Width, Rml::Property(220 * stamina, Rml::Unit::DP));
+        if (state.strain && std::isfinite(*state.strain)) {
+            std::ostringstream value;
+            value << std::fixed << std::setprecision(1) << std::max(0.f, *state.strain) * 100;
+            setText("strain-value", value.str());
+        } else setText("strain-value", "--");
         constexpr double damagePulseSeconds = .3;
         const double damageAge = state.seconds - state.lastDamageSeconds;
         const float damagePulse = state.lastDamageSeconds >= 0 && std::isfinite(damageAge) && damageAge >= 0 ?

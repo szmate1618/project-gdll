@@ -5,14 +5,13 @@
 
 namespace viewer {
 
-// Simulation-owned player values. Stamina and weariness are stored for future
-// mechanics; actual health loss also starts scent-producing bleeding.
+// Health and long-term weariness. Movement owns stamina and the separate strain
+// stat in PlayerExertion so prediction can restore them without restoring health.
 class PlayerVitals {
 public:
     static constexpr float maximumHealth = 100.f;
 
     float health() const { return health_; }
-    float stamina() const { return stamina_; }
     float weariness() const { return weariness_; }
     bool bleeding() const { return bleeding_ && health_ > 0; }
     void setBleeding(bool bleeding) { bleeding_ = bleeding; }
@@ -29,7 +28,6 @@ public:
 
 private:
     float health_ = maximumHealth;
-    float stamina_ = 100.f;
     float weariness_ = 0.f;
     bool bleeding_ = false;
 };

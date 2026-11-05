@@ -833,6 +833,7 @@ bool updateWeapons(AppState& app, double seconds) {
 
 void moveCamera(AppState& app, float dt) {
     if (app.driver.occupied()) {
+        app.rig.restSeated(dt);
         app.driver.updateCamera(*app.cars, app.rig.camera(), app.world);
         return;
     }
@@ -2082,6 +2083,8 @@ int run(const Options& options) {
         viewer::HudState hudState;
         hudState.seconds = simulationClock.seconds();
         hudState.health = app.vitals.health();
+        hudState.stamina = app.rig.player().exertion().stamina;
+        hudState.strain = app.rig.player().exertion().strain;
         hudState.lastDamageSeconds = app.lastDamageSeconds;
         hudState.screen = app.hudScreen;
         hudState.feet = app.driver.occupied() ? app.driver.eyePosition(cars) - glm::vec3(0, 1.65f, 0) : app.rig.walking() ? app.rig.player().feet() : app.rig.camera().position() - glm::vec3(0, 1.65f, 0);

@@ -49,6 +49,8 @@ void protocol() {
     PlayerState player; player.id = 42; player.movement.feet = {12, 3, -4}; player.resolved = 99;
     player.movement.bodyYawDegrees = 37.f;
     player.movement.horizontalVelocity = {2.5f, -1.25f};
+    player.movement.exertion = {.125f, .7f, 1.2f};
+    player.movement.movementIntent = {-1, 0};
     player.movement.posture = 1.375f; player.movement.stance = viewer::PlayerStance::Prone;
     player.weaponCoolingDown = true;
     player.weaponSwitchRemaining = 1.25f; player.weaponSwitchDuration = 3.5f;
@@ -67,6 +69,19 @@ void protocol() {
     require(copy.players[0].movement.posture == 1.375f, "Snapshot lost partial posture progress");
     require(copy.players[0].movement.horizontalVelocity == player.movement.horizontalVelocity,
             "Snapshot lost acceleration velocity");
+    require(copy.players[0].movement.exertion.stamina == .125f && copy.players[0].movement.exertion.strain == .7f &&
+            copy.players[0].movement.exertion.load == 1.2f && copy.players[0].movement.movementIntent == glm::vec2(-1, 0),
+            "Snapshot lost stamina, strain or movement load history");
+    for (const float invalidValue : {-1.f, 1.01f, std::numeric_limits<float>::quiet_NaN()}) {
+        auto invalid = s; invalid.players[0].movement.exertion.stamina = invalidValue;
+        rejects([&] { encode(invalid); }, "Invalid stamina encoded");
+    }
+    for (const float invalidValue : {-1.f, std::numeric_limits<float>::infinity()}) {
+        auto invalid = s; invalid.players[0].movement.exertion.strain = invalidValue;
+        rejects([&] { encode(invalid); }, "Invalid strain encoded");
+        invalid = s; invalid.players[0].movement.exertion.load = invalidValue;
+        rejects([&] { encode(invalid); }, "Invalid movement load encoded");
+    }
     require(copy.tick == 123 && copy.players[0].id == 42 && copy.players[0].movement.feet.x == 12 && copy.players[0].weaponCoolingDown,
         "Snapshot round trip lost state");
     require(copy.players[0].weaponSwitchRemaining == 1.25f && copy.players[0].weaponSwitchDuration == 3.5f,
@@ -196,16 +211,37 @@ void fragments() {
     rejects([&] { auto bad = parts.front(); bad.message = 3; bad.totalBytes = maxMessageBytes + 1; loss.add(bad); },
         "Oversized fragmented message accepted");
 }
+void seatedExertionPrediction() {
+    using namespace multiplayer;
+    const auto model = ground(); const viewer::CollisionWorld collision(model);
+    viewer::FPSController server;
+    auto state = server.movementState(); state.exertion = {.2f, 1.5f, 2}; server.restoreMovement(state);
+    PlayerState seated; seated.id = 1; seated.vehicle = 0; seated.seat = 0; seated.movement = state;
+    Prediction client; client.reconcile(seated, collision);
+    for (int i = 0; i < 60; ++i) {
+        client.advance({}, collision);
+        if (i < 35) server.restSeated(tickSeconds);
+    }
+    const auto expected = client.controller().exertion();
+    seated.resolved = 35; seated.movement = server.movementState();
+    client.reconcile(seated, collision);
+    const auto actual = client.controller().exertion();
+    require(actual.stamina == expected.stamina && actual.load == expected.load && actual.strain == 1.5f &&
+            actual.stamina > .216f && actual.stamina < .217f && actual.load < 1.22f,
+            "Seated reconciliation must replay recovery and load decay without clearing strain");
+}
 void prediction() {
     using namespace multiplayer;
     const auto model = ground(); viewer::CollisionWorld collision(model);
     viewer::FPSController server;
     require(server.spawn({0, 1.7f, 0}, collision), "Synthetic spawn failed");
+    auto exhausted = server.movementState(); exhausted.exertion.stamina = .01f;
+    server.restoreMovement(exhausted);
     PlayerState state; state.id = 1; state.movement = server.movementState();
     Prediction client; client.reconcile(state, collision);
     std::vector<Command> history;
     for (int i = 0; i < 60; ++i) {
-        Command c; c.movement.forward = 1; c.movement.yawDegrees = 0;
+        Command c; c.movement.forward = 1; c.movement.yawDegrees = 0; c.movement.run = true;
         c.movement.jump = i == 10; c.movement.toggleProne = i == 30;
         history.push_back(client.advance(c, collision));
         if (i < 35) server.update(tickSeconds, c.movement, collision);
@@ -218,6 +254,9 @@ void prediction() {
         actual.verticalVelocity == expected.verticalVelocity && actual.bodyYawDegrees == expected.bodyYawDegrees &&
         actual.posture == expected.posture && actual.horizontalVelocity == expected.horizontalVelocity,
         "Reconciliation lost jump/stance/orientation state");
+    require(actual.exertion.stamina == expected.exertion.stamina && actual.exertion.strain == expected.exertion.strain &&
+            actual.exertion.load == expected.exertion.load && actual.movementIntent == expected.movementIntent &&
+            actual.exertion.strain > 0, "Reconciliation must replay exhaustion and strain exactly once");
     require(client.outstanding() == 25, "Acknowledged inputs retained");
     require(client.commandsToSend().commands.front().sequence == 36, "Resend includes resolved inputs");
     state.resolved = 100;
@@ -1189,7 +1228,7 @@ void inputRecovery(const std::filesystem::path& asset) {
 }
 int main(int argc, char** argv) {
     try {
-        protocol(); playerHealthProtocol(); fragments(); prediction(); partialPosturePrediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
+        protocol(); playerHealthProtocol(); fragments(); prediction(); seatedExertionPrediction(); partialPosturePrediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
         remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); serverAutomaticObjectThrows(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverHandInventory(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;

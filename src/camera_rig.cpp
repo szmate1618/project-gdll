@@ -22,6 +22,9 @@ bool CameraRig::enterWalking(std::optional<glm::vec3> preferredEye) {
                   << "Fly near open ground or use --spawn X Z.\n";
         return false;
     }
+    auto state = candidate.movementState();
+    state.exertion = player_.exertion();
+    candidate.restoreMovement(state);
     player_ = candidate;
     hasPlayer_ = true;
     camera_.setPosition(player_.eyePosition());
