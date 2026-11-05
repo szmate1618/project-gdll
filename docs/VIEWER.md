@@ -2551,14 +2551,22 @@ Running with movement input drains stamina at `runningDrain * (1 + 0.5 * load)`.
 The tunable prototype base rate is **0.04/s**. Once stamina reaches zero, only the
 remaining exhausted portion of the step adds strain, at
 `strainRate * (1 + 0.5 * load)`. The prototype base strain rate is **1/300 units/s**;
-strain accumulates independently of weariness and currently has no recovery or
-additional movement penalties.
+strain accumulates independently of weariness and currently has no recovery.
+Between **0% and 100% strain**, maximum stamina decreases linearly from **100% to
+80%**, and stamina regeneration scales linearly from **100% to 50%** of its base
+rate. Both penalties stop increasing at 100% strain, although strain can keep
+accumulating. For example, **50% strain** allows **90% maximum stamina** and
+**75% regeneration**. These multipliers apply to every recovery stance and car
+seats; the existing low-stamina movement penalties still use absolute stamina.
 
-When not running, walking or standing restores empty stamina in **120 s**.
+At zero strain, when not running, walking or standing restores empty stamina in
+**120 s**.
 Crouching on the ground and sitting in a car use **2×** recovery (**60 s**);
 lying prone on the ground uses **4×** (**30 s**). Posture transitions use the active
-movement stance. Airborne recovery uses the walking rate. These rates, the load
-coefficients, drain and strain rates live in `FPSConfig::exertion`
+movement stance. Airborne recovery uses the walking rate.
+At 100% strain, reaching the reduced 80% capacity from empty takes **192 s**
+walking/standing, **96 s** crouching/seated, or **48 s** prone.
+These rates, the load coefficients, drain and strain rates live in `FPSConfig::exertion`
 ([player_exertion.hpp](../src/player_exertion.hpp)); the faster recovery multipliers
 are prototype tuning values. Teleports, entering/exiting cars and changing camera
 mode preserve exertion. Free-fly pauses it. Multiplayer protocol **50** includes

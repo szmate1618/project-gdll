@@ -76,6 +76,10 @@ void protocol() {
         auto invalid = s; invalid.players[0].movement.exertion.stamina = invalidValue;
         rejects([&] { encode(invalid); }, "Invalid stamina encoded");
     }
+    {
+        auto invalid = s; invalid.players[0].movement.exertion = {.81f, 1, 0};
+        rejects([&] { encode(invalid); }, "Stamina exceeding the strain-limited maximum encoded");
+    }
     for (const float invalidValue : {-1.f, std::numeric_limits<float>::infinity()}) {
         auto invalid = s; invalid.players[0].movement.exertion.strain = invalidValue;
         rejects([&] { encode(invalid); }, "Invalid strain encoded");
@@ -227,7 +231,7 @@ void seatedExertionPrediction() {
     client.reconcile(seated, collision);
     const auto actual = client.controller().exertion();
     require(actual.stamina == expected.stamina && actual.load == expected.load && actual.strain == 1.5f &&
-            actual.stamina > .216f && actual.stamina < .217f && actual.load < 1.22f,
+            actual.stamina > .208f && actual.stamina < .209f && actual.load < 1.22f,
             "Seated reconciliation must replay recovery and load decay without clearing strain");
 }
 void prediction() {

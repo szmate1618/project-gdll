@@ -28,9 +28,12 @@ struct PlayerExertion {
     float strain = 0;
     float load = 0;
 
+    float maximumStamina() const { return 1 - .20f * std::clamp(strain, 0.f, 1.f); }
+    float regenerationMultiplier() const { return 1 - .50f * std::clamp(strain, 0.f, 1.f); }
     bool valid() const {
-        return std::isfinite(stamina) && stamina >= 0 && stamina <= 1 &&
-            std::isfinite(strain) && strain >= 0 && std::isfinite(load) && load >= 0;
+        return std::isfinite(stamina) && stamina >= 0 &&
+            std::isfinite(strain) && strain >= 0 && std::isfinite(load) && load >= 0 &&
+            stamina <= maximumStamina();
     }
     float exhaustion() const { return std::clamp((.25f - stamina) / .25f, 0.f, 1.f); }
     float speedMultiplier() const { return 1 - .16f * exhaustion(); }
@@ -40,8 +43,10 @@ struct PlayerExertion {
         load *= std::exp(-dt / config.loadDecaySeconds);
     }
     void advance(float dt, bool running, float recoveryMultiplier, const PlayerExertionConfig& config) {
+        stamina = std::min(stamina, maximumStamina());
         if (!running) {
-            stamina = std::min(1.f, stamina + config.walkingRecovery * recoveryMultiplier * dt);
+            stamina = std::min(maximumStamina(),
+                stamina + config.walkingRecovery * recoveryMultiplier * regenerationMultiplier() * dt);
             return;
         }
         const float effort = 1 + config.loadDrainMultiplier * load;

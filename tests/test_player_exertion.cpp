@@ -67,6 +67,52 @@ void curvesAndDepletion() {
     exertion.decay(2, config);
     near(exertion.load, .7357589f, "Movement load must retain exp(-1) after two seconds");
 }
+void strainPenalties(const viewer::CollisionWorld& world) {
+    const viewer::PlayerExertionConfig config;
+    struct Case { float strain, maximum, regeneration; };
+    for (const auto test : {Case{0, 1, 1}, {.25f, .95f, .875f}, {.5f, .9f, .75f}, {1, .8f, .5f}, {2, .8f, .5f}}) {
+        viewer::PlayerExertion exertion{0, test.strain, 0};
+        near(exertion.maximumStamina(), test.maximum, "Strain must linearly reduce stamina capacity, stopping at 80%");
+        near(exertion.regenerationMultiplier(), test.regeneration, "Strain must linearly reduce regeneration, stopping at 50%");
+        for (const float postureMultiplier : {1.f, 2.f, 4.f}) {
+            exertion.stamina = 0;
+            exertion.advance(1, false, postureMultiplier, config);
+            near(exertion.stamina, config.walkingRecovery * postureMultiplier * test.regeneration,
+                 "Strain must multiply each existing recovery rate");
+            exertion.advance(600, false, postureMultiplier, config);
+            near(exertion.stamina, test.maximum, "Rest must stop at the strain-limited stamina capacity");
+            require(exertion.valid(), "Recovery must leave a valid movement checkpoint");
+        }
+    }
+    viewer::PlayerExertion capped{1, 1, 0};
+    require(!capped.valid(), "Movement checkpoints must reject stamina above the strain-limited capacity");
+    capped.advance(0, true, 1, config);
+    near(capped.stamina, .8f, "Exertion updates must clamp excess stamina even while running");
+    capped.stamina = .125f;
+    near(capped.speedMultiplier(), .92f, "Strain must preserve the absolute low-stamina movement thresholds");
+
+    auto walking = spawn(world, {}, 0), crouched = spawn(world, {}, 0), prone = spawn(world, {}, 0), seated = spawn(world, {}, 0);
+    for (auto* player : {&walking, &crouched, &prone, &seated}) {
+        auto state = player->movementState(); state.exertion.strain = 1; player->restoreMovement(state);
+    }
+    viewer::FPSInput input; input.forward = 1; input.yawDegrees = 0;
+    run(walking, world, 7200, input);
+    near(walking.exertion().stamina, .25f, "At 100% strain walking must recover 25 percentage points per minute", .0002f);
+    input = {}; input.crouch = true; run(crouched, world, 3600, input);
+    near(crouched.exertion().stamina, .25f, "Strain must halve grounded crouch recovery", .0002f);
+    input = {}; input.toggleProne = true; run(prone, world, 1, input);
+    input.toggleProne = false; run(prone, world, 1800, input);
+    near(prone.exertion().stamina, .25f, "Strain must halve grounded prone recovery", .002f);
+    for (int tick = 0; tick < 3600; ++tick) seated.restSeated(1.f / 120);
+    near(seated.exertion().stamina, .25f, "Strain must halve seated recovery", .0002f);
+    run(walking, world, 15840, viewer::FPSInput{});
+    near(walking.exertion().stamina, .8f, "At 100% strain walking must reach its 80% capacity after 192 seconds", .0002f);
+
+    auto invalid = walking.movementState(); invalid.exertion.stamina = 1;
+    bool rejected = false;
+    try { walking.restoreMovement(invalid); } catch (const std::invalid_argument&) { rejected = true; }
+    require(rejected, "Reconciliation must reject stamina above the strain-limited maximum");
+}
 void movementPercentages(const viewer::CollisionWorld& world) {
     viewer::FPSConfig config;
     config.walkSpeed = 4; config.runSpeed = 9;
@@ -195,7 +241,7 @@ void cameraModePreservesExertion(const viewer::CollisionWorld& world) {
 int main() {
     try {
         const auto model = floor(); const viewer::CollisionWorld world(model);
-        curvesAndDepletion(); movementPercentages(world); movementLoad(world); recovery(world); fixedStepsAndRestore(world);
+        curvesAndDepletion(); strainPenalties(world); movementPercentages(world); movementLoad(world); recovery(world); fixedStepsAndRestore(world);
         cameraModePreservesExertion(world);
         std::cout << "Player exertion tests passed\n";
         return 0;
