@@ -51,6 +51,7 @@ void protocol() {
     player.movement.horizontalVelocity = {2.5f, -1.25f};
     player.movement.exertion = {.125f, .7f, 1.2f};
     player.movement.movementIntent = {-1, 0};
+    player.movement.injuryMovement = {.8f, .6f, .7f, .6f};
     player.movement.posture = 1.375f; player.movement.stance = viewer::PlayerStance::Prone;
     player.weaponCoolingDown = true;
     player.weaponSwitchRemaining = 1.25f; player.weaponSwitchDuration = 3.5f;
@@ -72,6 +73,19 @@ void protocol() {
     require(copy.players[0].movement.exertion.stamina == .125f && copy.players[0].movement.exertion.strain == .7f &&
             copy.players[0].movement.exertion.load == 1.2f && copy.players[0].movement.movementIntent == glm::vec2(-1, 0),
             "Snapshot lost stamina, strain or movement load history");
+    require(copy.players[0].movement.injuryMovement.speed == .8f &&
+            copy.players[0].movement.injuryMovement.forwardAcceleration == .6f &&
+            copy.players[0].movement.injuryMovement.leftAcceleration == .7f &&
+            copy.players[0].movement.injuryMovement.rightAcceleration == .6f,
+            "Snapshot lost directional injury movement penalties");
+    for (float viewer::PlayerInjuryMovement::* member : {&viewer::PlayerInjuryMovement::speed,
+             &viewer::PlayerInjuryMovement::forwardAcceleration, &viewer::PlayerInjuryMovement::leftAcceleration,
+             &viewer::PlayerInjuryMovement::rightAcceleration}) {
+        for (const float value : {0.f, 1.01f, std::numeric_limits<float>::quiet_NaN()}) {
+            auto invalid = s; invalid.players[0].movement.injuryMovement.*member = value;
+            rejects([&] { encode(invalid); }, "Invalid injury movement penalty encoded");
+        }
+    }
     for (const float invalidValue : {-1.f, 1.01f, std::numeric_limits<float>::quiet_NaN()}) {
         auto invalid = s; invalid.players[0].movement.exertion.stamina = invalidValue;
         rejects([&] { encode(invalid); }, "Invalid stamina encoded");
@@ -214,6 +228,43 @@ void fragments() {
     require(completed && *completed == bytes, "Lost snapshot blocked a newer complete snapshot");
     rejects([&] { auto bad = parts.front(); bad.message = 3; bad.totalBytes = maxMessageBytes + 1; loss.add(bad); },
         "Oversized fragmented message accepted");
+}
+void injuryPrediction() {
+    using namespace multiplayer;
+    const auto model = ground(); const viewer::CollisionWorld collision(model);
+    viewer::FPSController server;
+    require(server.spawn({0, 1.7f, 0}, collision), "Injury prediction fixture must spawn");
+    viewer::PlayerHealth health;
+    health.setPainTolerance(.5f);
+    health.addInjury({viewer::InjuryBodyPart::RightKnee, viewer::InjuryType::Sprain, 1, .4f});
+    server.setMovementHealth(health);
+    PlayerState state; state.id = 1; state.movement = server.movementState();
+    const auto received = [&] {
+        Snapshot snapshot; snapshot.players.push_back(state);
+        const auto bytes = encode(snapshot);
+        return std::get<Snapshot>(decode(bytes.data(), bytes.size())).players.at(0);
+    };
+    Prediction client; client.reconcile(received(), collision);
+    for (int i = 0; i < 60; ++i) {
+        Command command;
+        command.movement.forward = i < 30 ? 1 : -1;
+        command.movement.right = i < 30 ? -1 : 1;
+        command.movement.yawDegrees = 37;
+        command.movement.run = true;
+        client.advance(command, collision);
+        if (i < 35) server.update(tickSeconds, command.movement, collision);
+    }
+    const auto expected = client.controller().movementState();
+    state.resolved = 35; state.movement = server.movementState();
+    client.reconcile(received(), collision);
+    const auto actual = client.controller().movementState();
+    require(glm::length(actual.feet - expected.feet) < .0001f &&
+            glm::length(actual.horizontalVelocity - expected.horizontalVelocity) < .0001f &&
+            actual.injuryMovement.speed == expected.injuryMovement.speed &&
+            actual.injuryMovement.leftAcceleration == expected.injuryMovement.leftAcceleration,
+            "Reconciliation must replay injured directional movement from authoritative multipliers");
+    require(client.controller().movementSpeed(true) < 4.7f && client.controller().movementSpeed(true) > 4.6f,
+            "Injured client prediction must retain the server's reduced target speed");
 }
 void seatedExertionPrediction() {
     using namespace multiplayer;
@@ -1232,7 +1283,7 @@ void inputRecovery(const std::filesystem::path& asset) {
 }
 int main(int argc, char** argv) {
     try {
-        protocol(); playerHealthProtocol(); fragments(); prediction(); seatedExertionPrediction(); partialPosturePrediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
+        protocol(); playerHealthProtocol(); fragments(); prediction(); injuryPrediction(); seatedExertionPrediction(); partialPosturePrediction(); predictionPresentation(); physicsPoses(); multiplayerPerception(); occludedShooting();
         if (argc != 2) throw std::runtime_error("Test asset argument missing");
         remotePostureInterpolation(argv[1]); triggerResets(argv[1]); serverCommands(argv[1]); replicationViewOrdering(argv[1]); catchUpWeapons(argv[1]); queuedInputTimeout(argv[1]); inputRecovery(argv[1]); serverObjectHandling(argv[1]); serverAutomaticObjectThrows(argv[1]); temporaryObjectHandling(argv[1]); serverGrenades(argv[1]); serverChargedGrenades(argv[1]); serverUndergrowth(argv[1]); serverInventoryAmmo(argv[1]); serverGroundInventory(argv[1]); serverHandInventory(argv[1]);
         std::cout << "Multiplayer core checks passed\n"; return 0;

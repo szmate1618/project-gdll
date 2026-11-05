@@ -1240,6 +1240,11 @@ if(BUILD_TESTING AND GD_VIEWER)
     viewer_warnings(test_player_health)
     add_test(NAME viewer_player_health COMMAND test_player_health)
 
+    add_executable(test_player_injury_movement tests/test_player_injury_movement.cpp)
+    target_link_libraries(test_player_injury_movement PRIVATE viewer_fps)
+    viewer_warnings(test_player_injury_movement)
+    add_test(NAME viewer_player_injury_movement COMMAND test_player_injury_movement)
+
     add_executable(test_character_step tests/test_character_step.cpp)
     target_link_libraries(test_character_step PRIVATE viewer_fps viewer_zombies)
     viewer_warnings(test_character_step)

@@ -102,6 +102,9 @@ void movement(Wire& w, viewer::FPSState& s) {
     w.number(s.horizontalVelocity.x); w.number(s.horizontalVelocity.y);
     w.number(s.exertion.stamina); w.number(s.exertion.strain); w.number(s.exertion.load);
     w.number(s.movementIntent.x); w.number(s.movementIntent.y);
+    w.number(s.injuryMovement.speed); w.number(s.injuryMovement.forwardAcceleration);
+    w.number(s.injuryMovement.leftAcceleration); w.number(s.injuryMovement.rightAcceleration);
+    if (!s.injuryMovement.valid()) throw std::runtime_error("Invalid player injury movement state");
     if (!s.exertion.valid() || glm::length(s.movementIntent) > 1.001f)
         throw std::runtime_error("Invalid player exertion state");
 }

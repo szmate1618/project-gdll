@@ -129,12 +129,13 @@ and the loadout palette; hold middle mouse on foot to select a signal, or move
 into its outer ring and release to open Inventory, Skills, Health, Map, or Graphics.
 Inventory and skill-menu
 artwork remains represented by squares. Health, stamina
-and weariness have tinted tracks at 60% opacity with white outlines at 80%.
+and strain have tinted tracks at 60% opacity with white outlines at 80%.
 Health shows the player's current floating-point value and filled amount;
 successful damage briefly pulses the screen edges red. Stamina shows its remaining
-percentage and fill. A separate strain counter shows accumulated exhausted effort
-in points (100 points = one strain unit); it is unbounded. Weariness remains a
-separate inactive stat showing `--`. Coordinates use local metres rather than inferred latitude
+percentage and fill. Strain replaces the inactive weariness row with a yellow
+percentage and fill. Its value is unbounded (100% = one strain unit), while its
+track fills at 100% and stays full above that. Weariness remains reserved in the
+player data. Coordinates use local metres rather than inferred latitude
 and longitude. Prepare the ignored icon textures under `data/assets/game-icons/`
 with `.venv/bin/python tools/prepare_hud_icons.py`; see [icon sources and credits](../gui/README.md).
 The downloaded archive is reused, and no icon artwork is generated.
@@ -154,7 +155,7 @@ the menu accent:
 | Surfaces | Grey `#2b2d2f` / `#383a3c` | Menu backdrop and panels |
 
 Opacity variants provide hierarchy in menus. The gameplay HUD retains its
-original colors: red health, green stamina, yellow weariness, and the original
+original colors: red health, green stamina, yellow strain, and the original
 equipment tints (tan fists/shotgun, blue SMG, sage sniper, olive grenade).
 The loadout's skill and grenade placeholders repeat their HUD equipment tints.
 Satellite imagery and terrain/road colors retain their map meaning.
@@ -1402,13 +1403,15 @@ Zero health does not introduce death, control restrictions or respawning.
 Standalone applies lunge hit events locally. Multiplayer applies them on the
 server and transmits authoritative health; clients only present the result.
 
-`PlayerHealth` in `src/player_health.hpp` is the foundation for localized injuries.
+`PlayerHealth` in `src/player_health.hpp` stores localized injuries inside each
+player's `PlayerVitals`.
 It stores health on the existing **0–100** scale, pain tolerance on **0–1**, and
 an owned list of `PlayerInjury` records. Each injury has a required `InjuryBodyPart`
 and `InjuryType`, plus independent **0–1** pain and weakness scores (**1 = 100%**).
 Several injuries can affect the same part. Invalid ranges and non-finite values
 are rejected. New state starts at 100 health, zero pain tolerance and no injuries.
-Pain tolerance is stored without applying a pain-reduction formula yet.
+Movement subtracts pain tolerance divided by five from the relevant pain score,
+clamping the adjusted pain at zero.
 
 Health locations have left/right hand, forearm, upper arm, wrist, elbow, shoulder,
 foot, lower leg, upper leg, ankle, knee and hip, plus pelvis, lower torso, upper
@@ -1417,10 +1420,11 @@ Injury types are cut, abrasion, puncture, bruise, blunt trauma, sprain (includin
 a rolled joint), strain, dislocation, fracture, crush and burn. Bleeding, swelling
 and infection are independent modifiers attached to each injury.
 
-This is a storage model: combat still uses `PlayerVitals`. No automatic injury
-creation, bleeding damage, healing, aggregate pain/weakness effects or network
-replication is implemented yet. The model can later be owned by the existing
-server-authoritative health system and presented by clients.
+Combat damage continues through `PlayerVitals` and updates its owned `PlayerHealth`.
+Hits do not automatically create localized injuries yet. Bleeding damage, healing
+and treatment are not implemented. Multiplayer remains server-authoritative;
+snapshots carry derived movement multipliers for client prediction and replay,
+while the medical records themselves remain with their owner.
 
 The custom-rig lunge fallback uses incoming world-space velocities in meters/second:
 `10 * length(zombieVelocity - playerVelocity) / baseLungeSpeed`, where
@@ -2553,6 +2557,26 @@ and stops keep the same overall limits as straight movement. When one axis brake
 while the other accelerates at full strength, their rates are **2.4/√2** and
 **1.2/√2 m/s²**. An axis close to its target consumes less effort. Existing momentum
 stays in world space when the camera turns.
+
+Leg injuries limit target speed and acceleration through
+[`player_injury_movement.hpp`](../src/player_injury_movement.hpp). Each relevant
+set uses its **largest pain score** and **largest weakness score**, independently;
+multiple injuries do not add together. Adjusted pain is
+`max(0, pain - painTolerance / 5)`. Speed penalties are adjusted pain divided by
+**4** and weakness divided by **4**. Acceleration penalties use **2** instead.
+The largest of pain, weakness and the existing stamina penalty wins; penalties
+do not multiply. Injury speed penalties apply to walking, running, crouching and
+crawling, while stamina's speed penalty continues to affect standing running.
+
+Both legs' foot, ankle, lower leg, knee, upper leg and hip injuries affect all
+horizontal target speeds and forward/backward acceleration. Leftward acceleration
+uses only the right leg, and rightward acceleration uses only the left leg.
+Other body parts do not affect these movement limits. Lateral direction follows
+the requested velocity change in the current camera's yaw frame, including
+braking and reversal. Braking keeps twice the resulting acceleration rate, and
+the axes continue to share the normalized effort budget. Teleporting, changing
+camera modes and entering/exiting cars retain injury movement modifiers.
+
 Gravity is 9.81 m/s² and a grounded Space press launches at 3.8 m/s, producing an apex
 roughly 0.74 m above standing height on flat ground. Holding Space does not
 repeat jumps, and presses in the air do not add another jump.
@@ -2596,8 +2620,9 @@ walking/standing, **96 s** crouching/seated, or **48 s** prone.
 These rates, the load coefficients, drain and strain rates live in `FPSConfig::exertion`
 ([player_exertion.hpp](../src/player_exertion.hpp)); the faster recovery multipliers
 are prototype tuning values. Teleports, entering/exiting cars and changing camera
-mode preserve exertion. Free-fly pauses it. Multiplayer protocol **50** includes
-stamina, strain, recent load and direction history in reconciled movement state;
+mode preserve exertion. Free-fly pauses it. Multiplayer protocol **51** includes
+stamina, strain, recent load, direction history and derived injury speed/acceleration
+multipliers in reconciled movement state;
 seated recovery also runs during client prediction and replay.
 
 Holding either Ctrl key crouches to a 1.10 m capsule with a 1.00 m eye height
@@ -3346,6 +3371,10 @@ clamping and invalid damage. `multiplayer_zombie_attacks` checks server-owned
 damage and health snapshots.
 `viewer_player_health` checks localized injury storage, independent ownership,
 combined modifiers and normalized score validation.
+`viewer_player_injury_movement` checks all body-part filters, independent maximum
+scores, pain tolerance, the strongest-penalty rule, opposite-leg lateral force,
+mixed-axis effort and retention across movement restores and camera changes.
+`multiplayer_core` covers injury multiplier snapshots and predicted movement replay.
 
 `viewer_character_step` runs both controllers against raised road sheets,
 downward-facing building caps and solid curbs at 2, 8.7, 25, 30, 31 and 45 cm.

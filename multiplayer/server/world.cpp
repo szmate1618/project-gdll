@@ -223,6 +223,7 @@ void World::step() {
     }
     for (auto& [id, player] : players_) {
         auto movementOrigin = player.controller.feet();
+        player.controller.setMovementHealth(player.vitals.healthState());
         player.signals.erase(std::remove_if(player.signals.begin(), player.signals.end(),
             [&](const SignalState& signal) { return signal.expires <= tick_; }), player.signals.end());
         player.weaponReload.update(player.weapons, player.inventory, now);

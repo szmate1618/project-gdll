@@ -4,7 +4,7 @@
 .compass-pointer { decorator: image(../data/assets/game-icons/hud/compass.png contain); }
 #health-icon { decorator: image(../data/assets/game-icons/hud/health.png contain); image-color: #ec6962; }
 #stamina-icon { decorator: image(../data/assets/game-icons/hud/stamina.png contain); image-color: #59c49c; }
-#weariness-icon { decorator: image(../data/assets/game-icons/hud/weariness.png contain); image-color: #e7cd65; }
+#strain-icon { decorator: image(../data/assets/game-icons/hud/weariness.png contain); image-color: #e7cd65; }
 #player-marker { decorator: image(../data/assets/game-icons/hud/player.png contain); }
 #speed-icon { decorator: image(../data/assets/game-icons/hud/speed.png contain); }
 #mode-icon.combat { decorator: image(../data/assets/game-icons/hud/combat.png contain); }

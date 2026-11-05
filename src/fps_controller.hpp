@@ -3,6 +3,7 @@
 #include "player_noise.hpp"
 #include "collision_box.hpp"
 #include "player_exertion.hpp"
+#include "player_injury_movement.hpp"
 
 #include <glm/glm.hpp>
 #include <optional>
@@ -61,6 +62,7 @@ struct FPSState {
     glm::vec2 horizontalVelocity{0}; // World X/Z, m/s; retained while braking.
     PlayerExertion exertion;
     glm::vec2 movementIntent{0}; // Previous world X/Z input direction, before fatigue.
+    PlayerInjuryMovement injuryMovement; // Derived from authoritative health, independent of exertion.
 };
 
 class FPSController {
@@ -77,6 +79,7 @@ public:
     // Sitting has no movement/collision step but still decays load and recovers stamina.
     void restSeated(float dt);
     [[nodiscard]] const PlayerExertion& exertion() const { return exertion_; }
+    void setMovementHealth(const PlayerHealth& health) { injuryMovement_ = playerInjuryMovement(health); }
 
     [[nodiscard]] glm::vec3 feet() const { return feet_; }
     [[nodiscard]] glm::vec3 eyePosition() const { return feet_ + glm::vec3(0, eyeHeight(), 0); }
@@ -122,6 +125,7 @@ private:
     float verticalVelocity_ = 0.0F;
     glm::vec2 horizontalVelocity_{0};
     PlayerExertion exertion_;
+    PlayerInjuryMovement injuryMovement_;
     glm::vec2 movementIntent_{0};
     double accumulator_ = 0.0;
     bool grounded_ = false;

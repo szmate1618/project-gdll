@@ -24,6 +24,7 @@ bool CameraRig::enterWalking(std::optional<glm::vec3> preferredEye) {
     }
     auto state = candidate.movementState();
     state.exertion = player_.exertion();
+    state.injuryMovement = player_.movementState().injuryMovement;
     candidate.restoreMovement(state);
     player_ = candidate;
     hasPlayer_ = true;

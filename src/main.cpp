@@ -832,6 +832,7 @@ bool updateWeapons(AppState& app, double seconds) {
 }
 
 void moveCamera(AppState& app, float dt) {
+    app.rig.setMovementHealth(app.vitals.healthState());
     if (app.driver.occupied()) {
         app.rig.restSeated(dt);
         app.driver.updateCamera(*app.cars, app.rig.camera(), app.world);

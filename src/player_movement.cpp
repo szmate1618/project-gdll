@@ -18,7 +18,8 @@ float FPSController::baseMovementSpeed(bool run, float forward, float right) con
 
 float FPSController::movementSpeed(bool run, float forward, float right) const {
     const auto movingStance = grounded_ ? stance_ : takeoffStance_;
-    const float multiplier = run && movingStance == PlayerStance::Standing ? exertion_.speedMultiplier() : 1;
+    const float stamina = run && movingStance == PlayerStance::Standing ? exertion_.speedMultiplier() : 1;
+    const float multiplier = std::min(stamina, injuryMovement_.speed);
     return baseMovementSpeed(run, forward, right) * multiplier;
 }
 
@@ -47,22 +48,27 @@ glm::vec3 FPSController::updateHorizontalMovement(float dt, const FPSInput& inpu
     const glm::vec2 velocity(glm::dot(horizontalVelocity_, forward), glm::dot(horizontalVelocity_, right));
     const glm::vec2 delta = target - velocity;
     // One shared acceleration in m/s²: forward walk -> run takes 2.5 s.
-    const float acceleration = (config_.runSpeed - config_.walkSpeed) / 2.5f * exertion_.accelerationMultiplier();
+    const float baseAcceleration = (config_.runSpeed - config_.walkSpeed) / 2.5f;
+    // Lateral force uses the opposite leg, including when braking or reversing.
+    const glm::vec2 injuryAcceleration(injuryMovement_.forwardAcceleration,
+        delta.y < 0 ? injuryMovement_.leftAcceleration : injuryMovement_.rightAcceleration);
+    const glm::vec2 acceleration = baseAcceleration * glm::min(injuryAcceleration,
+        glm::vec2(exertion_.accelerationMultiplier()));
     glm::vec2 brakingTime(0), effort(0);
     for (int axis = 0; axis < 2; ++axis) {
         const float distance = std::abs(delta[axis]);
         const float brakingDistance = velocity[axis] * delta[axis] < 0 ?
             std::min(std::abs(velocity[axis]), distance) : 0;
-        brakingTime[axis] = brakingDistance / (2 * acceleration);
+        brakingTime[axis] = brakingDistance / (2 * acceleration[axis]);
         // Effort is seconds at full axis strength, with reversal split at zero.
-        effort[axis] = std::min(dt, brakingTime[axis] + (distance - brakingDistance) / acceleration);
+        effort[axis] = std::min(dt, brakingTime[axis] + (distance - brakingDistance) / acceleration[axis]);
     }
     const float totalEffort = glm::length(effort);
     if (totalEffort > dt) effort *= dt / totalEffort;
     glm::vec2 change(0);
     for (int axis = 0; axis < 2; ++axis) {
         // Braking consumes its share at 2a, then any remaining share uses a.
-        const float travel = acceleration * (effort[axis] + std::min(effort[axis], brakingTime[axis]));
+        const float travel = acceleration[axis] * (effort[axis] + std::min(effort[axis], brakingTime[axis]));
         change[axis] = std::copysign(std::min(travel, std::abs(delta[axis])), delta[axis]);
     }
     if (change == delta) horizontalVelocity_ = forward * target.x + right * target.y;

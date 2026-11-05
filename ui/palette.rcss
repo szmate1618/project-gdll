@@ -21,12 +21,14 @@ div, span, button { border-color: #f5f6f24d; }
 .health-known .health .vital-track { background-color: #2b2d2fed; }
 #health-fill, .damage-edge { background-color: #ec6962; }
 .stamina .square { background-color: #59c49c; }
-.weariness .square { background-color: #e7cd65; }
+.strain .square { background-color: #e7cd65; }
 .stamina .vital-track { background-color: #59c49c99; }
 .stamina-known .stamina .vital-track { background-color: #2b2d2fed; }
 #stamina-fill { background-color: #59c49c; }
 .strain { color: #e7cd65; }
-.weariness .vital-track { background-color: #e7cd6599; }
+.strain .vital-track { background-color: #e7cd6599; }
+.strain-known .strain .vital-track { background-color: #2b2d2fed; }
+#strain-fill { background-color: #e7cd65; }
 .map-caption, .vital-name span, #capture, .selection-key, .selection-hint,
 .key-label, .close-hint, .panel-meta, .storage-time, .detail-subtitle,
 .backpack-access, #map-unavailable { color: #f5f6f299; }

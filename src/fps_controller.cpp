@@ -291,7 +291,7 @@ void FPSController::step(float dt, const FPSInput& input, const CollisionWorld& 
 FPSState FPSController::movementState() const {
     return {feet_, groundNormal_, verticalVelocity_, accumulator_, stance_, takeoffStance_,
             grounded_, jumpHeld_, jumpQueued_, proneRequested_, proneQueued_, bodyYawDegrees_, posture_, horizontalVelocity_,
-            exertion_, movementIntent_};
+            exertion_, movementIntent_, injuryMovement_};
 }
 
 void FPSController::restoreMovement(const FPSState& state) {
@@ -302,7 +302,8 @@ void FPSController::restoreMovement(const FPSState& state) {
         !std::isfinite(state.verticalVelocity) || !std::isfinite(state.accumulator) ||
         !std::isfinite(state.bodyYawDegrees) ||
         !std::isfinite(state.horizontalVelocity.x) || !std::isfinite(state.horizontalVelocity.y) ||
-        !state.exertion.valid() || !std::isfinite(state.movementIntent.x) || !std::isfinite(state.movementIntent.y) ||
+        !state.exertion.valid() || !state.injuryMovement.valid() ||
+        !std::isfinite(state.movementIntent.x) || !std::isfinite(state.movementIntent.y) ||
         glm::length(state.movementIntent) > 1.001f ||
         !std::isfinite(state.posture) || state.posture < 0 || state.posture > 2 ||
         state.accumulator < 0 || state.accumulator > 1 ||
@@ -314,6 +315,7 @@ void FPSController::restoreMovement(const FPSState& state) {
     verticalVelocity_ = state.verticalVelocity;
     horizontalVelocity_ = state.horizontalVelocity;
     exertion_ = state.exertion;
+    injuryMovement_ = state.injuryMovement;
     movementIntent_ = state.movementIntent;
     accumulator_ = state.accumulator;
     stance_ = state.stance;

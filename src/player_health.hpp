@@ -8,14 +8,14 @@
 
 namespace viewer {
 
-// Stored health model only. Damage, healing, aggregate effects and replication
-// policies belong to the systems that will use it. Existing combat uses PlayerVitals.
+// Player-owned health and medical records. Movement derives its penalties
+// separately; PlayerVitals retains combat damage and reserved weariness.
 class PlayerHealth {
 public:
     static constexpr float maximumHealth = 100.f;
 
     float health() const { return health_; }
-    // Normalized percentage (1 = 100%); currently stored without modifying pain.
+    // Normalized percentage (1 = 100%). Movement subtracts tolerance / 5 from pain.
     float painTolerance() const { return painTolerance_; }
     const std::vector<PlayerInjury>& injuries() const { return injuries_; }
 
