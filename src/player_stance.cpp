@@ -51,13 +51,6 @@ float FPSController::eyeHeight() const { return postureEyeHeight(posture_, bodyY
 float FPSController::bodyRadius() const {
     return posture_ > 1 ? std::min(config_.proneWidth * .5f, bodyHeight() * .5f) : config_.radius;
 }
-float FPSController::movementSpeed(bool run) const {
-    const auto movingStance = grounded_ ? stance_ : takeoffStance_;
-    if (movingStance == PlayerStance::Prone) return config_.proneSpeed;
-    if (movingStance == PlayerStance::Crouched) return config_.crouchSpeed;
-    return run ? config_.runSpeed : config_.walkSpeed;
-}
-
 bool FPSController::changePosture(float next, const CollisionWorld& world) {
     if (next == posture_) return true;
     auto candidate = feet_;

@@ -56,6 +56,11 @@ viewer::FPSController playerAt(const viewer::CollisionWorld& world) {
 }
 void playerWalk(viewer::FPSController& player, const viewer::CollisionWorld& world,
                 float seconds, float direction = 1, bool sprint = false, int rate = 120) {
+    // These collision fixtures prescribe travel at steady speed; acceleration
+    // and braking have separate coverage in test_fps.
+    auto state = player.movementState();
+    state.horizontalVelocity = {direction * player.movementSpeed(sprint, direction, 0), 0};
+    player.restoreMovement(state);
     for (int i = 0; i < int(std::lround(seconds * rate)); ++i)
         player.update(1.f / rate, {direction, 0, 0, sprint}, world);
 }

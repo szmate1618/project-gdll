@@ -266,8 +266,8 @@ void backlogVelocityMeasuresTheWholeTick(const Options& options) {
     const auto& after = world.players().at(player);
     require(after.resolved == 2, "The velocity fixture must consume two queued commands in one server tick");
     const auto measured = (after.controller.feet() - before) / tickSeconds;
-    require(measured.x > 2.f && measured.z < -2.f,
-            "The backlog fixture must move in both input directions during the tick");
+    require(measured.x > .005f && measured.z < -.002f && glm::length(measured) < .021f,
+            "The backlog fixture must accelerate from rest through both input directions during the tick");
     require(glm::distance(after.velocity, measured) < .0001f,
             "Attack damage must use full-tick player velocity rather than only the last input substep");
     require(glm::length(glm::vec2(after.velocity.x, after.velocity.z)) <= after.controller.config().runSpeed + .0001f,

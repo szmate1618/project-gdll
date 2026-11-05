@@ -71,7 +71,7 @@ void fallingTransitions() {
     rig.update(1.0f / 120, 0, 0, 0, false, true);
     require(rig.player().verticalVelocity() > 3, "Cannot jump after a rooftop landing");
     settle(rig, 1);
-    for (int i = 0; i < 180; ++i) rig.update(1.0f / 120, 0, 1, 0, false, false);
+    for (int i = 0; i < 420; ++i) rig.update(1.0f / 120, 0, 1, 0, false, false);
     settle(rig, 2);
     require(std::hypot(rig.player().feet().x, rig.player().feet().z) > 4 && rig.player().grounded() &&
                 std::abs(rig.player().feet().y) < .01f, "Walking off the roof did not land on terrain");

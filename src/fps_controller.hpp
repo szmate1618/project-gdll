@@ -56,6 +56,7 @@ struct FPSState {
     bool proneRequested = false, proneQueued = false;
     float bodyYawDegrees = -90; // Collision orientation can lag view yaw near obstacles.
     float posture = 0; // Continuous pose: 0 standing, 1 crouched, 2 prone.
+    glm::vec2 horizontalVelocity{0}; // World X/Z, m/s; retained while braking.
 };
 
 class FPSController {
@@ -78,7 +79,8 @@ public:
     [[nodiscard]] float bodyRadius() const;
     [[nodiscard]] std::optional<CollisionBox> collisionBox() const;
     [[nodiscard]] PlayerStance stance() const { return stance_; }
-    [[nodiscard]] float movementSpeed(bool run = false) const;
+    // Target speed for the active stance and input direction, before acceleration.
+    [[nodiscard]] float movementSpeed(bool run = false, float forward = 1, float right = 0) const;
     [[nodiscard]] bool grounded() const { return grounded_; }
     [[nodiscard]] float verticalVelocity() const { return verticalVelocity_; }
     [[nodiscard]] glm::vec3 groundNormal() const { return groundNormal_; }
@@ -104,11 +106,13 @@ private:
     [[nodiscard]] glm::vec2 groundSlope() const;
     bool changePosture(float posture, const CollisionWorld& world);
     void updateStance(float dt, bool crouch, const CollisionWorld& world);
+    glm::vec3 updateHorizontalMovement(float dt, const FPSInput& input);
 
     FPSConfig config_;
     glm::vec3 feet_{0.0F};
     glm::vec3 groundNormal_{0.0F, 1.0F, 0.0F};
     float verticalVelocity_ = 0.0F;
+    glm::vec2 horizontalVelocity_{0};
     double accumulator_ = 0.0;
     bool grounded_ = false;
     bool jumpHeld_ = false;

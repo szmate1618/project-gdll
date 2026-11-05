@@ -99,6 +99,7 @@ void movement(Wire& w, viewer::FPSState& s) {
     if (std::abs(s.bodyYawDegrees) > 180.f) throw std::runtime_error("Invalid player collision orientation");
     w.number(s.posture);
     if (s.posture < 0 || s.posture > 2) throw std::runtime_error("Invalid player posture");
+    w.number(s.horizontalVelocity.x); w.number(s.horizontalVelocity.y);
 }
 void firearmShot(Wire& w, FirearmShot& shot) {
     w.integer(shot.slot);

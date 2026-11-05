@@ -43,6 +43,10 @@ viewer::Model fixture(const glm::mat4& node = glm::mat4(1)) {
     return model;
 }
 void walk(viewer::FPSController& player, const viewer::CollisionWorld& world, float yaw = -90, bool run = false) {
+    // Approach the doorway already at speed, so this fixture isolates clearance.
+    auto state = player.movementState();
+    state.horizontalVelocity = glm::vec2(std::cos(glm::radians(yaw)), std::sin(glm::radians(yaw))) * player.movementSpeed(run);
+    player.restoreMovement(state);
     for (int i = 0; i < 120; ++i) player.update(1.0f / 120, {1, 0, yaw, run, false}, world);
 }
 void settleStance(viewer::FPSController& player, const viewer::CollisionWorld& world, viewer::FPSInput input) {
@@ -190,6 +194,9 @@ void raisedEntrancePassage(const char* path) {
         require(player.spawn({6 + side * 3.2f, 1.7f, .6f}, world), "Must spawn beside the side ramp");
         viewer::FPSInput input;
         input.forward = 1; input.yawDegrees = side < 0 ? 0 : 180;
+        auto approach = player.movementState();
+        approach.horizontalVelocity = {-side * 3, 0}; // Approach the ramp at walking speed.
+        player.restoreMovement(approach);
         for (int step = 0; step < 128; ++step) player.update(1.f / 120, input, world);
         require(std::abs(player.feet().x - 6) < .2f && player.feet().y > 1 && player.grounded(),
                 "Both exported side ramps must let a standing player walk onto the landing");
@@ -237,6 +244,9 @@ void raisedEntrancePassage(const char* path) {
     require(player.grounded(), "The raised landing must support the player before entry");
     viewer::FPSInput input;
     input.forward = 1; input.yawDegrees = -90;
+    auto approach = player.movementState();
+    approach.horizontalVelocity = {0, -3}; // Approach the raised doorway at walking speed.
+    player.restoreMovement(approach);
     for (int step = 0; step < 60; ++step) player.update(1.f / 120, input, world);
     require(player.feet().z < -.5f && player.feet().y > .9f,
             "A raised doorway must admit a standing player from the landing");

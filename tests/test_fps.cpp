@@ -103,7 +103,7 @@ void testFlatMovementAndTime() {
     run(thirty, world, 4.0F, input, 30);
     run(sixty, world, 4.0F, input, 60);
     run(fast, world, 4.0F, input, 144);
-    require(std::abs(thirty.feet().x - 12.0F) < 0.03F, "Walking speed is incorrect");
+    require(std::abs(thirty.feet().x - 8.2625F) < 0.03F, "Walking start must ramp to 3 m/s in 2.5 seconds");
     require(glm::length(thirty.feet() - sixty.feet()) < 0.03F &&
                 glm::length(thirty.feet() - fast.feet()) < 0.03F,
             "Walking displacement depends on render rate");
@@ -113,13 +113,105 @@ void testFlatMovementAndTime() {
     input.right = 1.0F;
     auto diagonal = spawned(world);
     run(diagonal, world, 2.0F, input);
-    require(std::abs(glm::length(glm::vec2(diagonal.feet().x, diagonal.feet().z)) - 6.0F) < 0.01F,
+    require(std::abs(glm::length(glm::vec2(diagonal.feet().x, diagonal.feet().z)) - 2.41F) < 0.01F,
             "Diagonal walking is faster than straight walking");
     auto sprint = spawned(world);
     input.right = 0.0F;
     input.run = true;
     run(sprint, world, 2.0F, input);
-    require(std::abs(sprint.feet().x - 12.0F) < 0.02F, "Running speed is incorrect");
+    require(std::abs(sprint.feet().x - 2.41F) < 0.02F, "Running from rest must use the same acceleration as walking");
+}
+
+void testDirectionalSpeedsAndAcceleration() {
+    viewer::Model model; floor(model);
+    const viewer::CollisionWorld world(model);
+    struct Direction { float forward, right, running; };
+    for (const auto direction : {Direction{1, 0, 6}, {-1, 0, 4.5f}, {0, 1, 5.25f}, {0, -1, 5.25f},
+                                 {1, 1, 5.625f}, {1, -1, 5.625f}, {-1, 1, 4.875f}, {-1, -1, 4.875f}}) {
+        for (const bool running : {false, true}) {
+            auto player = spawned(world);
+            viewer::FPSInput input;
+            input.forward = direction.forward; input.right = direction.right;
+            input.yawDegrees = 0; input.run = running;
+            run(player, world, 6, input);
+            const auto before = player.feet();
+            run(player, world, .5f, input);
+            const float speed = glm::length(glm::vec2(player.feet().x - before.x, player.feet().z - before.z)) * 2;
+            require(std::abs(speed - (running ? direction.running : 3.f)) < .002f,
+                    "Cardinal/diagonal movement must reach the specified directional speed without a diagonal boost");
+        }
+    }
+
+    auto player = spawned(world);
+    viewer::FPSInput input; input.forward = 1; input.yawDegrees = 0;
+    run(player, world, 2.5f, input);
+    require(std::abs(player.movementState().horizontalVelocity.x - 3) < .0001f, "Walking must reach 3 m/s");
+    input.run = true;
+    run(player, world, 1.25f, input);
+    require(std::abs(player.movementState().horizontalVelocity.x - 4.5f) < .0001f, "Half of walk-to-run must reach 4.5 m/s");
+    const auto checkpoint = player.movementState();
+    viewer::FPSController restored;
+    restored.restoreMovement(checkpoint);
+    run(player, world, 1.25f, input);
+    run(restored, world, 1.25f, input);
+    require(std::abs(player.movementState().horizontalVelocity.x - 6) < .0001f &&
+            glm::length(player.feet() - restored.feet()) < .0001f,
+            "Walk-to-run must take 2.5 seconds and replay identically from a partial acceleration");
+    input.run = false;
+    run(player, world, .625f, input);
+    require(std::abs(player.movementState().horizontalVelocity.x - 4.5f) < .0001f, "Braking must be twice as fast");
+    run(player, world, .625f, input);
+    require(std::abs(player.movementState().horizontalVelocity.x - 3) < .0001f, "Run-to-walk must take 1.25 seconds");
+    input.forward = -1;
+    run(player, world, 1.25f, input);
+    require(glm::length(player.movementState().horizontalVelocity) < .0001f, "Reversing must brake to rest first");
+    run(player, world, 1.25f, input);
+    require(std::abs(player.movementState().horizontalVelocity.x + 1.5f) < .0001f, "Reversing must accelerate at the same limit");
+    input.forward = 0;
+    run(player, world, .625f, input);
+    require(glm::length(player.movementState().horizontalVelocity) < .0001f, "Releasing input must brake to rest");
+    const auto stopped = player.feet();
+    run(player, world, .5f);
+    require(glm::length(player.feet() - stopped) < .0001f, "Finished braking must not drift");
+    player.restoreMovement(checkpoint);
+    input = {}; input.forward = 1; input.yawDegrees = 0; input.run = true; input.crouch = true;
+    run(player, world, .25f, input);
+    require(std::abs(player.movementState().horizontalVelocity.x - 3.9f) < .0001f,
+            "Entering crouch must brake gradually at the shared limit");
+    input.crouch = false; input.toggleProne = true;
+    player.update(1.f / 120, input, world);
+    input.toggleProne = false;
+    run(player, world, .25f - 1.f / 120, input);
+    require(std::abs(player.movementState().horizontalVelocity.x - 3.3f) < .0001f,
+            "Entering prone must keep the same braking limit without snapping to crawl speed");
+    player.restoreMovement(checkpoint);
+    input = {}; input.right = 1; input.yawDegrees = 0; input.run = true;
+    player.update(1.f / 120, input, world);
+    require(player.movementState().horizontalVelocity.x > 4.48f &&
+            player.movementState().horizontalVelocity.y > 0 && player.movementState().horizontalVelocity.y < .02f,
+            "Changing direction must steer gradually rather than replace the velocity instantly");
+    player.teleport({0, .002f, 0});
+    require(player.movementState().horizontalVelocity == glm::vec2(0), "Teleport must clear movement momentum");
+
+    for (const auto stance : {viewer::PlayerStance::Standing, viewer::PlayerStance::Crouched, viewer::PlayerStance::Prone}) {
+        for (const auto direction : {Direction{1, 0, 6}, {-1, 0, 4.5f}, {0, 1, 5.25f}, {0, -1, 5.25f}, {1, 1, 5.625f}}) {
+            auto moving = spawned(world);
+            auto state = moving.movementState();
+            state.stance = state.takeoffStance = stance;
+            state.posture = static_cast<float>(stance);
+            state.proneRequested = stance == viewer::PlayerStance::Prone;
+            moving.restoreMovement(state);
+            input = {}; input.forward = direction.forward; input.right = direction.right;
+            input.run = true; input.crouch = stance == viewer::PlayerStance::Crouched;
+            run(moving, world, .25f, input);
+            require(std::abs(glm::length(moving.movementState().horizontalVelocity) - .3f) < .0001f,
+                    "Every direction and stance must share the same acceleration");
+            input.forward = input.right = 0;
+            run(moving, world, .125f, input);
+            require(glm::length(moving.movementState().horizontalVelocity) < .0001f,
+                    "Every direction and stance must share double-rate braking");
+        }
+    }
 }
 
 void testGravityJumpAndCeiling() {
@@ -181,7 +273,7 @@ void testWallsAndBuildingSpawn() {
     toward.forward = 1.0F;
     toward.yawDegrees = 0.0F;
     toward.run = true;
-    run(player, world, 2.0F, toward, 30);
+    run(player, world, 3.0F, toward, 30);
     require(player.feet().x > 2.60F && player.feet().x < 2.701F,
             "Running player penetrates a building wall or stops too far away");
     require(!world.insideBuilding(player.feet(), 0.29F, 1.8F), "Player center enters building volume");
@@ -196,7 +288,7 @@ void testWallsAndBuildingSpawn() {
     viewer::CollisionWorld thinWorld(thin);
     auto sliding = spawned(thinWorld);
     toward.right = 1.0F;
-    run(sliding, thinWorld, 3.0F, toward, 30);
+    run(sliding, thinWorld, 6.0F, toward, 30);
     require(sliding.feet().x < 2.701F && sliding.feet().x > 2.65F && sliding.feet().z > 12.0F,
             "Diagonal motion tunnels through a thin wall or cannot slide along it");
     require(sliding.grounded() && std::abs(sliding.feet().y) < 0.01F,
@@ -218,7 +310,7 @@ void testSlopesAndEdges() {
     viewer::FPSInput walk;
     walk.forward = 1.0F;
     walk.yawDegrees = 0.0F;
-    run(player, world, 2.0F, walk);
+    run(player, world, 4.0F, walk);
     const float expectedLift = player.config().radius * (std::sqrt(1.16F) - 1.0F);
     require(player.feet().x > 5.8F && player.grounded(), "Player cannot climb a moderate slope");
     require(std::abs(player.feet().y - player.feet().x * 0.4F - expectedLift) < 0.015F,
@@ -226,10 +318,11 @@ void testSlopesAndEdges() {
     require(player.groundNormal().y > 0.92F && player.groundNormal().y < 0.94F,
             "Slope ground normal is incorrect");
     walk.forward = -1.0F;
-    run(player, world, 4.0F, walk);
+    run(player, world, 8.0F, walk);
     require(player.feet().x < -5.7F && player.grounded() &&
                 std::abs(player.feet().y - player.feet().x * 0.4F - expectedLift) < 0.015F,
             "Player floats or loses ground contact while descending a slope");
+    run(player, world, 1.25F); // Finish braking before checking idle slope stability.
     const glm::vec3 resting = player.feet();
     run(player, world, 3.0F);
     require(glm::length(player.feet() - resting) < 0.015F && player.grounded(),
@@ -240,7 +333,7 @@ void testSlopesAndEdges() {
     viewer::CollisionWorld edgeWorld(edge);
     auto offEdge = spawned(edgeWorld, {-1,1.3F,0});
     walk.forward = 1.0F;
-    run(offEdge, edgeWorld, 1.0F, walk);
+    run(offEdge, edgeWorld, 2.5F, walk);
     require(offEdge.feet().x > 1.8F && offEdge.feet().y < -0.5F &&
                 offEdge.verticalVelocity() < -2.0F && !offEdge.grounded(),
             "Walking off a sloped mesh edge does not cause falling");
@@ -310,6 +403,16 @@ void testInvalidPostureConfigurationAndState() {
         require(rejected && player.feet() == before.feet && player.movementState().posture == before.posture,
                 "Movement restore must reject nonfinite or out-of-range posture without modifying the controller");
     }
+    for (const float value : {std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity()}) {
+        auto invalid = before;
+        invalid.feet = {100, 100, 100};
+        invalid.horizontalVelocity.x = value;
+        bool rejected = false;
+        try { player.restoreMovement(invalid); }
+        catch (const std::invalid_argument&) { rejected = true; }
+        require(rejected && player.feet() == before.feet,
+                "Movement restore must reject nonfinite acceleration velocity without modifying the controller");
+    }
 }
 
 }  // namespace
@@ -317,6 +420,7 @@ void testInvalidPostureConfigurationAndState() {
 int main() {
     try {
         testFlatMovementAndTime();
+        testDirectionalSpeedsAndAcceleration();
         testGravityJumpAndCeiling();
         testWallsAndBuildingSpawn();
         testSlopesAndEdges();

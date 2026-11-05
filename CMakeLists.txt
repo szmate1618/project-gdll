@@ -407,7 +407,7 @@ target_link_libraries(benchmark_melee_collision PRIVATE viewer_zombies)
 target_compile_definitions(benchmark_melee_collision PRIVATE MELEE_BENCH_RIGID_STATS)
 viewer_warnings(benchmark_melee_collision)
 
-add_library(viewer_fps STATIC src/fps_controller.cpp src/player_stance.cpp src/player_collision.cpp src/camera_rig.cpp)
+add_library(viewer_fps STATIC src/fps_controller.cpp src/player_movement.cpp src/player_stance.cpp src/player_collision.cpp src/camera_rig.cpp)
 target_link_libraries(viewer_fps PUBLIC viewer_collision viewer_camera viewer_noise)
 viewer_warnings(viewer_fps)
 

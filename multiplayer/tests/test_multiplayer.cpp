@@ -48,6 +48,7 @@ void protocol() {
     Snapshot s; s.tick = 123;
     PlayerState player; player.id = 42; player.movement.feet = {12, 3, -4}; player.resolved = 99;
     player.movement.bodyYawDegrees = 37.f;
+    player.movement.horizontalVelocity = {2.5f, -1.25f};
     player.movement.posture = 1.375f; player.movement.stance = viewer::PlayerStance::Prone;
     player.weaponCoolingDown = true;
     player.weaponSwitchRemaining = 1.25f; player.weaponSwitchDuration = 3.5f;
@@ -64,6 +65,8 @@ void protocol() {
     require(copy.boxes.at(0).removed, "Snapshot round trip lost retired box state");
     require(copy.players[0].movement.bodyYawDegrees == 37.f, "Snapshot lost prone collision orientation");
     require(copy.players[0].movement.posture == 1.375f, "Snapshot lost partial posture progress");
+    require(copy.players[0].movement.horizontalVelocity == player.movement.horizontalVelocity,
+            "Snapshot lost acceleration velocity");
     require(copy.tick == 123 && copy.players[0].id == 42 && copy.players[0].movement.feet.x == 12 && copy.players[0].weaponCoolingDown,
         "Snapshot round trip lost state");
     require(copy.players[0].weaponSwitchRemaining == 1.25f && copy.players[0].weaponSwitchDuration == 3.5f,
@@ -94,6 +97,10 @@ void protocol() {
                                 std::numeric_limits<float>::infinity()}) {
         auto invalid = s; invalid.players[0].movement.posture = posture;
         rejects([&] { encode(invalid); }, "Invalid authoritative posture encoded");
+    }
+    for (const float value : {std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity()}) {
+        auto invalid = s; invalid.players[0].movement.horizontalVelocity.y = value;
+        rejects([&] { encode(invalid); }, "Invalid authoritative movement velocity encoded");
     }
     require(copy.grenades.at(0).id == 7 && copy.grenades[0].center.y == 2 &&
             copy.explosions.at(0).id == 6 && copy.explosions[0].age == .08f,
@@ -209,7 +216,7 @@ void prediction() {
     const auto actual = client.controller().movementState();
     require(glm::length(actual.feet - expected.feet) < .0001f && actual.stance == expected.stance &&
         actual.verticalVelocity == expected.verticalVelocity && actual.bodyYawDegrees == expected.bodyYawDegrees &&
-        actual.posture == expected.posture,
+        actual.posture == expected.posture && actual.horizontalVelocity == expected.horizontalVelocity,
         "Reconciliation lost jump/stance/orientation state");
     require(client.outstanding() == 25, "Acknowledged inputs retained");
     require(client.commandsToSend().commands.front().sequence == 36, "Resend includes resolved inputs");
@@ -275,6 +282,7 @@ void predictionPresentation() {
     viewer::FPSController server;
     require(server.spawn({10, 1.7f, 0}, collision), "Presentation spawn failed");
     PlayerState state; state.movement = server.movementState();
+    state.movement.horizontalVelocity = {3, 0}; // Sample interpolation after reaching walking speed.
     Prediction client; client.reconcile(state, collision);
     const auto start = client.eye();
     require(client.presentedEye(0) == start && client.presentedEye(1) == start,
@@ -682,7 +690,7 @@ void queuedInputTimeout(const std::filesystem::path& asset) {
     // A gap is not consumable input, even when the queue is nonempty.
     Command gap; gap.sequence = 34; gap.left = true; gap.movement.toggleProne = true;
     world.submit(id, Commands{{gap}});
-    for (int tick = 0; tick < 14; ++tick) world.step();
+    for (int tick = 0; tick < 40; ++tick) world.step(); // Timeout clears input, then the player finishes braking.
     const auto stopped = player.controller.feet();
     for (int tick = 0; tick < 30; ++tick) world.step();
     require(player.resolved == 32 && player.pending.size() == 1 && player.shots == 1 &&
@@ -713,7 +721,7 @@ void serverUndergrowth(const std::filesystem::path& asset) {
         zombie.transform=zombie.restTransform=zombie.restRoot=glm::translate(glm::mat4(1),glm::vec3(40,0,0));
         scene.zombies.rebuildSpatialIndex();
         World world(scene); const auto id=world.join();
-        for(std::uint64_t tick=1;tick<=20;++tick) {
+        for(std::uint64_t tick=1;tick<=40;++tick) { // Include enough accelerated travel to trigger shrub contact.
             Command command; command.sequence=tick; command.movement.forward=1;
             command.movement.run=true; command.movement.yawDegrees=-90;
             world.submit(id,Commands{{command}}); world.step();

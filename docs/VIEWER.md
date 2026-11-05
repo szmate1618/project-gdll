@@ -1928,7 +1928,7 @@ build directory when run by CTest.
 | R | Reload equipped weapon from its matching reserve ammo |
 | F | Discard the equipped weapon with a fast forward throw and vertical-axis spin |
 | G | Pick up the discarded weapon under the camera ray within 2 m |
-| Shift | Free-fly: move four times faster; standing: run at 6 m/s |
+| Shift | Free-fly: move four times faster; standing: run at 6 m/s forward, 4.5 backward, 5.25 sideways |
 | Mouse wheel | Scroll up for the next assigned hotbar action, down for the previous |
 | F1 | Open / close the Inventory visual prototype |
 | F2 | Open / close the Skills visual prototype |
@@ -2475,8 +2475,15 @@ in walking mode.
 The player is a vertical capsule, 1.80 m tall and 0.30 m in radius. The camera
 sits 1.70 m above its feet. W/S/A/D movement uses yaw, independently of look
 pitch, so looking up or down cannot make the player fly. Diagonal input is
-normalized. Walking speed is 3 m/s; Shift increases it to 6 m/s. Gravity is
-9.81 m/s² and a grounded Space press launches at 3.8 m/s, producing an apex
+normalized. Walking speed is 3 m/s in every direction. Shift targets 6 m/s
+forward, 4.5 m/s backward, and 5.25 m/s sideways. Running diagonals average the
+two directions: 5.625 m/s forward/sideways and 4.875 m/s backward/sideways.
+All directions and stances share a **1.2 m/s²** acceleration limit: accelerating
+from forward walking to forward running takes **2.5 s**. Braking uses **2.4 m/s²**,
+including releasing movement keys, choosing a slower stance, or reversing.
+Starts and turns also approach the requested velocity gradually. Multiplayer
+checkpoints retain this velocity for prediction and replay (protocol 48).
+Gravity is 9.81 m/s² and a grounded Space press launches at 3.8 m/s, producing an apex
 roughly 0.74 m above standing height on flat ground. Holding Space does not
 repeat jumps, and presses in the air do not add another jump.
 
@@ -2485,9 +2492,9 @@ and 1.5 m/s movement speed. Standing and crouching transition over **0.25 s**;
 crouching and prone transition over another **0.50 s**, so standing to fully
 prone takes **0.75 s**. Getting up uses the same durations. Camera and collision
 height change together at the fixed simulation rate. Reversing a request
-continues from the current pose. The slower movement speed applies throughout
-the transition, and intermediate collision shapes pause when clearance runs
-out, retrying as space becomes available.
+continues from the current pose. The slower movement speed is targeted throughout
+the transition using the shared acceleration/braking limits. Intermediate
+collision shapes pause when clearance runs out, retrying as space becomes available.
 
 Fully prone uses a separate head-and-torso box,
 **0.45 m high, 0.60 m wide and 1.00 m long**, with a **0.35 m eye height** and
@@ -3417,6 +3424,7 @@ src/scene_audio.{hpp,cpp}   Camera/gameplay playback routing and zombie selectio
 src/zombie_audio.{hpp,cpp}  Deterministic reaction, moan and footstep scheduling
 src/door_audio.{hpp,cpp}    Physics-pose slam detection without changing hinges
 src/fps_controller.{hpp,cpp} Fixed-step walking, gravity, jump and contact response
+src/player_movement.cpp    Directional speed targets, acceleration and braking
 src/player_stance.cpp      Player stance dimensions, clearance and airborne leg tuck
 src/collision_world.{hpp,cpp} World-space triangle BVH and capsule/ground queries
 src/character_step.{hpp,cpp} Shared bounded capsule step-up and landing checks

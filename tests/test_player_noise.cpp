@@ -140,7 +140,7 @@ void physicsIntegration() {
     model.primitives.push_back(std::move(wall));
     const viewer::CollisionWorld blocked(model);
     viewer::FPSController player;
-    require(player.spawn({0, 5, 0}, blocked), "Player must spawn next to wall");
+    require(player.spawn({.198f, 5, 0}, blocked), "Player must spawn against wall");
     for (int frame = 0; frame < 240; ++frame) {
         player.update(1.0f / 120, {1, 0, 0, true, false}, blocked);
         require(player.noises().empty(), "Holding run against a blocking wall does not emit footsteps");

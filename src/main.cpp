@@ -838,7 +838,7 @@ void moveCamera(AppState& app, float dt) {
         // Fixed player steps can span several short render frames. Bound the
         // measured horizontal speed and use the actual airborne velocity.
         const float horizontal = glm::length(glm::vec2(app.playerVelocity.x, app.playerVelocity.z));
-        const float speed = app.rig.player().movementSpeed(app.keys[GLFW_KEY_LEFT_SHIFT] || app.keys[GLFW_KEY_RIGHT_SHIFT]);
+        const float speed = glm::length(app.rig.player().movementState().horizontalVelocity);
         if (horizontal > speed) {
             app.playerVelocity.x *= speed / horizontal;
             app.playerVelocity.z *= speed / horizontal;

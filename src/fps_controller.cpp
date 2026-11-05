@@ -33,7 +33,7 @@ FPSController::FPSController(FPSConfig config) : config_(config) {
             throw std::invalid_argument("FPS configuration must contain finite, nonnegative values");
         }
     }
-    if (config.radius <= 0.0F || config.height < 2.0F * config.radius ||
+    if (config.runSpeed <= config.walkSpeed || config.radius <= 0.0F || config.height < 2.0F * config.radius ||
         config.eyeHeight <= 0.0F || config.eyeHeight > config.height ||
         config.fixedDt <= 0.0F || config.fixedDt > 0.05F ||
         config.maxSlopeDegrees >= 89.0F || config.terminalVelocity <= 0.0F ||
@@ -41,7 +41,7 @@ FPSController::FPSController(FPSConfig config) : config_(config) {
         config.proneEyeHeight <= 0 || config.proneEyeHeight > config.proneHeight ||
         config.proneWidth <= 0 || config.proneLength <= 0 ||
         config.crouchTransitionSeconds <= 0 || config.proneTransitionSeconds <= 0) {
-        throw std::invalid_argument("Invalid FPS capsule, timestep, slope, or fall-speed configuration");
+        throw std::invalid_argument("Invalid FPS capsule, timestep, slope, or speed configuration (run must exceed walk)");
     }
 }
 
@@ -55,6 +55,7 @@ void FPSController::teleport(glm::vec3 feet) {
     }
     feet_ = feet;
     verticalVelocity_ = 0.0F;
+    horizontalVelocity_ = {0, 0};
     groundNormal_ = {0.0F, 1.0F, 0.0F};
     accumulator_ = 0.0;
     grounded_ = false;
@@ -212,15 +213,7 @@ void FPSController::step(float dt, const FPSInput& input, const CollisionWorld& 
     if (posture_ > 1) turnBody(input.yawDegrees, world);
     if (grounded_) takeoffStance_ = stance_;
 
-    const float yaw = glm::radians(input.yawDegrees);
-    const glm::vec3 forward(std::cos(yaw), 0.0F, std::sin(yaw));
-    const glm::vec3 right(-std::sin(yaw), 0.0F, std::cos(yaw));
-    glm::vec3 movement = forward * input.forward + right * input.right;
-    const float length = glm::length(movement);
-    if (length > 1.0F) {
-        movement /= length;
-    }
-    movement *= movementSpeed(input.run);
+    const glm::vec3 movement = updateHorizontalMovement(dt, input);
 
     // Limit displacement in addition to timestep, including fast falls. Each
     // capsule move is much smaller than its radius, so thin walls cannot be
@@ -280,7 +273,7 @@ void FPSController::step(float dt, const FPSInput& input, const CollisionWorld& 
 
 FPSState FPSController::movementState() const {
     return {feet_, groundNormal_, verticalVelocity_, accumulator_, stance_, takeoffStance_,
-            grounded_, jumpHeld_, jumpQueued_, proneRequested_, proneQueued_, bodyYawDegrees_, posture_};
+            grounded_, jumpHeld_, jumpQueued_, proneRequested_, proneQueued_, bodyYawDegrees_, posture_, horizontalVelocity_};
 }
 
 void FPSController::restoreMovement(const FPSState& state) {
@@ -290,6 +283,7 @@ void FPSController::restoreMovement(const FPSState& state) {
     if (!finiteVector(state.feet) || !finiteVector(state.groundNormal) ||
         !std::isfinite(state.verticalVelocity) || !std::isfinite(state.accumulator) ||
         !std::isfinite(state.bodyYawDegrees) ||
+        !std::isfinite(state.horizontalVelocity.x) || !std::isfinite(state.horizontalVelocity.y) ||
         !std::isfinite(state.posture) || state.posture < 0 || state.posture > 2 ||
         state.accumulator < 0 || state.accumulator > 1 ||
         state.stance < PlayerStance::Standing || state.stance > PlayerStance::Prone ||
@@ -298,6 +292,7 @@ void FPSController::restoreMovement(const FPSState& state) {
     feet_ = state.feet;
     groundNormal_ = state.groundNormal;
     verticalVelocity_ = state.verticalVelocity;
+    horizontalVelocity_ = state.horizontalVelocity;
     accumulator_ = state.accumulator;
     stance_ = state.stance;
     takeoffStance_ = state.takeoffStance;

@@ -183,7 +183,7 @@ void gradualRiseUnderCeiling() {
     require(std::abs(player.bodyHeight() - blockedHeight) < 1e-5f,
             "A blocked rise must retain its safe partial pose while retrying");
     input.forward = 1;
-    run(player, world, 2, input);
+    run(player, world, 4, input);
     require(player.stance() == PlayerStance::Standing && std::abs(player.bodyHeight() - 1.8f) < 1e-5f,
             "The pending rise must finish after walking out from the ceiling");
     clear(player, world);
@@ -202,8 +202,10 @@ void groundStances() {
             glm::length(player.feet() - feet) < 1e-5f && std::abs(eye.y - player.eyePosition().y - .7f) < 1e-5f,
             "Grounded Ctrl must crouch around planted feet and lower the camera");
     input.forward = 1; input.yawDegrees = 0; input.run = true;
+    run(player, world, 1.25f, input); // Reach the crouched speed before measuring steady travel.
+    const float crouchStart = player.feet().x;
     run(player, world, 1, input);
-    require(std::abs(player.feet().x - 1.5f) < .01f, "Crouching must use its slower speed even with Shift held");
+    require(std::abs(player.feet().x - crouchStart - 1.5f) < .01f, "Crouching must use its slower speed even with Shift held");
     input = {};
     tick(player, world, input);
     settleStance(player, world, input);
@@ -215,6 +217,7 @@ void groundStances() {
             std::abs(player.eyeHeight() - .35f) < 1e-5f, "One prone press must lower the body and camera");
     require(player.collisionBox().has_value(), "Prone must use the separate box collider");
     input.toggleProne = false; input.forward = 1; input.yawDegrees = 0; input.run = true; input.crouch = true;
+    run(player, world, .625f, input); // Reach crawling speed before measuring steady travel.
     const float startX = player.feet().x;
     run(player, world, 1, input);
     require(player.stance() == PlayerStance::Prone && std::abs(player.feet().x - startX - .75f) < .01f,
@@ -243,7 +246,7 @@ void clearanceAndQueuedInput() {
     auto player = spawn(world, {-1, 1.7f, 0});
     viewer::FPSInput input;
     input.forward = 1; input.yawDegrees = 0; input.crouch = true;
-    run(player, world, 1.1f, input);
+    run(player, world, 1.75f, input);
     require(player.feet().x > .5f, "Crouching must fit under a low ceiling");
     input.crouch = false;
     tick(player, world, input);
@@ -489,12 +492,12 @@ void proneSlopeSupport() {
             "Going prone on a walkable slope must settle the whole box onto ground support");
     clear(player, world);
     input.toggleProne = false; input.forward = 1;
-    run(player, world, 1, input);
+    run(player, world, 1.5f, input);
     require(player.feet().x > .70f && player.grounded(),
             "The prone box must crawl up a gentle slope without catching its front edge");
     clear(player, world);
     input.forward = 0;
-    run(player, world, .1f, input);
+    run(player, world, .325f, input); // Finish braking from the 0.75 m/s crawl.
     const auto settled = player.feet();
     run(player, world, 2, input);
     require(player.grounded() && glm::length(player.feet() - settled) < .002f,
@@ -580,7 +583,7 @@ void proneStepsAndEdges() {
     tick(player, world, input);
     settleStance(player, world, input);
     input.toggleProne = false; input.forward = 1;
-    run(player, world, 1, input);
+    run(player, world, 1.5f, input);
     require(player.feet().x > .2f && player.feet().y > .99f && player.grounded(),
             "The prone torso must retain platform support after the head passes its edge");
     bool airborne = false;
@@ -602,6 +605,12 @@ void clearHigherObstacles() {
     glm::vec3 first{0};
     for (const int fps : {30, 60, 144}) {
         auto normal = spawn(world, {-2, 1.7f, 0}), tucked = spawn(world, {-2, 1.7f, 0});
+        // This obstacle needs a running approach before takeoff.
+        for (auto* player : {&normal, &tucked}) {
+            auto state = player->movementState();
+            state.horizontalVelocity = {6, 0};
+            player->restoreMovement(state);
+        }
         viewer::FPSInput input;
         input.forward = 1; input.yawDegrees = 0; input.run = true; input.jump = true;
         bool heldAboveObstacle = false;

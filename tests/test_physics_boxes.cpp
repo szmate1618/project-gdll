@@ -64,7 +64,11 @@ void supportAndJump() {
     viewer::FPSController player;
     require(player.startFalling({0, 1.7f, 1.3f}, f.world), "Player must enter walking beside the crate");
     for (int i = 0; i < 60; ++i) f.tick(player);
-    for (int i = 0; i < 20; ++i) f.tick(player, {1, 0, -90, false, i == 0});
+    // Jump from a moving approach, then brake to a stop over the crate.
+    auto approach = player.movementState();
+    approach.horizontalVelocity = {0, -2.4f};
+    player.restoreMovement(approach);
+    f.tick(player, {0, 0, -90, false, true});
     for (int i = 0; i < 120; ++i) f.tick(player);
     require(player.grounded() && player.feet().y > .40f && player.feet().y < .50f, "Jumping onto a crate must land on its live top face");
     require(glm::distance(glm::vec2(f.boxes.pose(index).center.x, f.boxes.pose(index).center.z), glm::vec2(0)) < .03f,
@@ -88,6 +92,9 @@ float pushAtRate(float dt) {
     f.boxes.add({0, .52f, 0}, {1, 1, 1});
     viewer::FPSController player;
     require(player.startFalling({0, 1.7f, 2}, f.world), "Player must enter walking in front of a pushable box");
+    auto approach = player.movementState();
+    approach.horizontalVelocity = {0, -3}; // Compare steady walking pushes across physics rates.
+    player.restoreMovement(approach);
     for (int i = 0; i < static_cast<int>(2 / dt); ++i) f.tick(player, {1, 0, -90}, dt);
     const auto box = f.boxes.pose(0);
     require(box.center.z < -1 && player.feet().z < .5f, "Walking into a box must move it and permit player progress");
@@ -142,6 +149,9 @@ void openDoorway() {
     boxes.add({0, .42f, 5}, {.5f, .8f, .5f});
     viewer::FPSController player;
     require(player.startFalling({0, 1.7f, 3.5f}, world), "Player must start behind indoor box");
+    auto approach = player.movementState();
+    approach.horizontalVelocity = {0, 3}; // Approach the box and doorway at walking speed.
+    player.restoreMovement(approach);
     for (int i = 0; i < 150; ++i) {
         scene.prepare(boxes); physics->step(1.0f / 60);
         player.update(1.0f / 60, {1, 0, 90}, world);
