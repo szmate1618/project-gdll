@@ -389,10 +389,10 @@ struct Graphics {
 #endif
     }
 };
-multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double seconds) {
+multiplayer::Command command(Input& in, GLFWwindow* window, bool bot, double seconds, float swayScale = 1) {
     multiplayer::Command c;
     c.inventoryActions.swap(in.inventoryActions);
-    const auto aim = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, seconds, !in.driver.occupied() && !in.handling());
+    const auto aim = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, seconds, !in.driver.occupied() && !in.handling(), swayScale);
     c.movement.yawDegrees = aim.yawDegrees(); c.pitch = aim.pitchDegrees(); c.slot = in.slot;
     c.objectHandling = in.temporaryHandling();
     c.flashlight = in.flashlight;
@@ -462,6 +462,11 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
     Input in; in.camera.setPosition(scene.spawnEye); in.camera.setOrientation(options.look.x, options.look.y);
     std::optional<viewer::PlayerInventory> inventory;
     Graphics graphics;
+    float playerSpeed = 0;
+    const auto swayScale = [&] {
+        const auto& controller = prediction.controller();
+        return viewer::sniperSwayScale(playerSpeed, controller.movementState().posture, controller.config());
+    };
     if (!options.headless) {
         inventory.emplace(viewer::loadPlayerInventory(multiplayer::resourceRoot()));
         graphics.initialize(scene, in, options, window, *inventory);
@@ -663,12 +668,12 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
             std::vector<multiplayer::FirearmImpact> frameFirearmImpacts;
 #endif
             while (accumulator >= 1.0 / 60) {
-                auto nextCommand = command(in, graphics.window, options.bot, now);
+                auto nextCommand = command(in, graphics.window, options.bot, now, swayScale());
 #ifdef MP_GRAPHICS
                 const auto& equipped = weaponDefinitions.equipped();
                 if (graphics.renderer && nextCommand.left && !nextCommand.objectHandling && nextCommand.slot != viewer::handlingSlot && !nextCommand.reload &&
                     !in.driver.occupied() && in.equippedSlot < viewer::weaponIds.size() && !equipped.config.grenade) {
-                    const auto aim = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, now, true);
+                    const auto aim = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, now, true, swayScale());
                     // The renderer retains its last displayed transforms/frames,
                     // even when newly received state has already moved replicas.
                     if (!frameFirearmShot)
@@ -698,7 +703,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     }
                     if (nextCommand.firearmShot && graphics.weapon) {
                         const auto slot = nextCommand.firearmShot->slot;
-                        const auto eye = in.weaponMotion.aimCamera(in.camera, slot, now, true);
+                        const auto eye = in.weaponMotion.aimCamera(in.camera, slot, now, true, swayScale());
                         nextCommand.firearmShot->muzzlePosition = glm::vec3(glm::inverse(eye.view()) *
                             glm::vec4(graphics.weapon->muzzlePosition(slot, weaponDefinitions.state(slot).config.muzzlePosition,
                                 in.weaponMotion.pose(slot, now)), 1));
@@ -714,11 +719,13 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                     controller.config().radius, controller.grounded(), false};
 #endif
                 scene.floorplans->update({prediction.eye()});
+                const auto previousFeet = prediction.controller().feet();
                 const auto predicted = prediction.advance(nextCommand, *scene.collision);
+                const auto movement = prediction.controller().feet() - previousFeet;
+                playerSpeed = glm::length(glm::vec2(movement.x, movement.z)) / multiplayer::tickSeconds;
                 if (!predicted.inventoryActions.empty()) lastInventoryCommand = predicted.sequence;
 #ifdef MP_GRAPHICS
-                const auto movement = controller.feet() - shrubBefore.feet;
-                graphics.speedMetersPerSecond = glm::length(glm::vec2(movement.x, movement.z)) / multiplayer::tickSeconds;
+                graphics.speedMetersPerSecond = playerSpeed;
                 // Fresh prediction only: reconciliation replays must stay silent.
                 if (graphics.audio) {
                     const bool running = nextCommand.movement.run && controller.stance() == viewer::PlayerStance::Standing;
@@ -739,7 +746,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
 #ifdef MP_GRAPHICS
                 if (graphics.window) {
                     const auto camera = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, now,
-                        !in.driver.occupied() && !in.handling());
+                        !in.driver.occupied() && !in.handling(), swayScale());
                     int viewWidth = 0, viewHeight = 0;
                     glfwGetFramebufferSize(graphics.window, &viewWidth, &viewHeight);
                     if (viewWidth > 0 && viewHeight > 0) {
@@ -800,7 +807,7 @@ int multiplayer::runClientSession(const Options& requestedOptions, GLFWwindow* w
                 const auto remoteFlashes = graphics.players->muzzleLights(snapshots.animationSeconds());
                 pointLights.insert(pointLights.end(), remoteFlashes.begin(), remoteFlashes.end());
                 renderer.setExplosionLights(pointLights);
-                const auto viewCamera = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, now, !in.driver.occupied() && !in.handling());
+                const auto viewCamera = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, now, !in.driver.occupied() && !in.handling(), swayScale());
                 auto flash = graphics.muzzleFlash.light(now);
                 flash.position = graphics.weapon->muzzlePosition(graphics.muzzleSlot, graphics.muzzleModelPosition,
                     in.weaponMotion.pose(graphics.muzzleSlot, now, in.temporaryHandling()));

@@ -1,4 +1,5 @@
 #include "weapon_motion.hpp"
+#include "fps_controller.hpp"
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -85,9 +86,55 @@ void scopeAim() {
     require(narrowYaw > .020f && narrowYaw < .028f,
             "High zoom must retain pronounced sway with comparable screen motion");
 }
+
+void movementSway() {
+    const viewer::FPSConfig movement;
+    struct Sample { float speed, posture, expected; };
+    for (const auto sample : {Sample{0, 0, 1}, {0, 1, 1}, {0, 2, 0},
+                              {0, 1.25f, .75f}, {0, 1.5f, .5f}, {0, 1.75f, .25f},
+                              {.375f, 2, .5f}, {.75f, 2, 1}, {1.5f, 2, 1},
+                              {0, .5f, 1}, {1.5f, 0, 1.5f}, {3, 0, 2},
+                              {4.5f, 0, 3}, {6, 0, 4}, {9, 0, 4},
+                              {3, .5f, 1.5f}, {6, .5f, 2.5f},
+                              {1.5f, 1, 1}, {.375f, 1.5f, .75f}}) {
+        require(std::abs(viewer::sniperSwayScale(sample.speed, sample.posture, movement) - sample.expected) < 1e-6f,
+                "Sway must interpolate linearly over speed and continuous body posture");
+    }
+
+    viewer::WeaponMotion motion;
+    viewer::Camera input; input.setOrientation(-45, 12); input.cycleViewMode();
+    for (int zoom = 0; zoom < 2; ++zoom) {
+        for (const double seconds : {.25, 1., 2.5, 7.}) {
+            const auto baseline = motion.aimCamera(input, 3, seconds, true);
+            for (const float amplitude : {0.f, .25f, .5f, 1.f, 2.f, 4.f}) {
+                const auto aim = motion.aimCamera(input, 3, seconds, true, amplitude);
+                require(std::abs((aim.yawDegrees() - input.yawDegrees()) -
+                        amplitude * (baseline.yawDegrees() - input.yawDegrees())) < .00002f &&
+                        std::abs((aim.pitchDegrees() - input.pitchDegrees()) -
+                        amplitude * (baseline.pitchDegrees() - input.pitchDegrees())) < .00002f,
+                        "Movement must scale the breathing amplitude without changing phase or zoom behavior");
+                const auto center = aim.projection(1.5f) * aim.view() * glm::vec4(aim.position() + aim.direction() * 100.f, 1);
+                require(std::abs(center.x / center.w) < 1e-4f && std::abs(center.y / center.w) < 1e-4f,
+                        "Scaled scoped aim must still project onto the reticle");
+            }
+            require(motion.aimCamera(input, 3, seconds, true, 0).view() == input.view(),
+                    "Stationary prone must eliminate breathing sway exactly");
+        }
+        input.cycleViewMode();
+    }
+    input.cycleViewMode(); // Restore the scoped view after the two-zoom loop.
+    motion.fire(3, 10);
+    const auto steadyKick = motion.aimCamera(input, 3, 10, true, 0);
+    const auto runningKick = motion.aimCamera(input, 3, 10, true, 4);
+    const auto runningBreath = viewer::WeaponMotion{}.aimCamera(input, 3, 10, true, 4);
+    require(steadyKick.pitchDegrees() > input.pitchDegrees() + .2f &&
+            std::abs((runningKick.pitchDegrees() - runningBreath.pitchDegrees()) -
+                     (steadyKick.pitchDegrees() - input.pitchDegrees())) < .00001f,
+            "Stationary prone must retain firing recoil, and running must not multiply it");
+}
 } // namespace
 int main() {
-    try { recoilAndPump(); scopeAim(); }
+    try { recoilAndPump(); scopeAim(); movementSway(); }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
     std::cout << "Firearm recoil, bounded automatic fire, pump timing and scoped aim passed\n";
 }

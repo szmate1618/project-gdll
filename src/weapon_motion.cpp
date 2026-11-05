@@ -1,4 +1,5 @@
 #include "weapon_motion.hpp"
+#include "fps_controller.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -58,19 +59,31 @@ WeaponMotionPose WeaponMotion::pose(std::size_t slot, double seconds, bool lower
     return result;
 }
 
-Camera WeaponMotion::aimCamera(const Camera& input, std::size_t slot, double seconds, bool combat) const {
+float sniperSwayScale(float speed, float posture, const FPSConfig& movement) {
+    speed = std::max(0.f, speed);
+    posture = std::clamp(posture, 0.f, 2.f);
+    const float crawl = movement.proneSpeed > 0 ? std::clamp(speed / movement.proneSpeed, 0.f, 1.f) : 0;
+    if (posture >= 1) return glm::mix(1.f, crawl, posture - 1);
+    const float walking = movement.walkSpeed > 0 ? std::clamp(speed / movement.walkSpeed, 0.f, 1.f) : 0;
+    const float running = std::clamp((speed - movement.walkSpeed) / (movement.runSpeed - movement.walkSpeed), 0.f, 1.f);
+    const float standing = 1 + walking + 2 * running;
+    return glm::mix(standing, 1.f, posture);
+}
+
+Camera WeaponMotion::aimCamera(const Camera& input, std::size_t slot, double seconds, bool combat,
+                              float swayScale) const {
     auto result = input;
     if (!combat || slot != 3 || input.viewMode() == Camera::ViewMode::original || !std::isfinite(seconds))
         return result;
     // Scale angular amplitude with FOV for comparable screen motion at both
-    // zooms (up to roughly 20 pixels at 720p). The reticle stays on the aim ray.
+    // zooms (baseline roughly 20 pixels at 720p). The reticle stays on the aim ray.
     const float scale = input.viewMode() == Camera::ViewMode::zoom1
         ? std::tan(glm::radians(.5f)) / std::tan(glm::radians(5.0f)) : 1;
     const float yaw = static_cast<float>(.210*std::sin(seconds*1.37) + .060*std::sin(seconds*2.43));
     const float pitch = static_cast<float>(.168*std::sin(seconds*2.1));
     const auto kick = pose(slot, seconds);
-    result.setOrientation(input.yawDegrees() + scale*(yaw + kick.angles.y*.04f),
-                          input.pitchDegrees() + scale*(pitch + kick.angles.x*.045f));
+    result.setOrientation(input.yawDegrees() + scale*(swayScale*yaw + kick.angles.y*.04f),
+                          input.pitchDegrees() + scale*(swayScale*pitch + kick.angles.x*.045f));
     return result;
 }
 

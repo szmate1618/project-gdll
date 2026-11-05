@@ -183,6 +183,12 @@ std::vector<std::pair<HSteamNetConnection, Message>> Network::receive() {
                 require(outgoing.pitch == aim.pitchDegrees() && outgoing.movement.yawDegrees == aim.yawDegrees(),
                         "Multiplayer sent a different aim direction from the scoped view");
                 require(aim.view() != in.camera.view(), "Multiplayer scope has no sway");
+                for (const float scale : {0.f, .5f, 2.f, 4.f}) {
+                    const auto scaled = in.weaponMotion.aimCamera(in.camera, in.equippedSlot, 1, true, scale);
+                    const auto sent = command(in, window, false, 1, scale);
+                    require(sent.pitch == scaled.pitchDegrees() && sent.movement.yawDegrees == scaled.yawDegrees(),
+                            "Movement-scaled scope rendering and outgoing shot aim must use the same amplitude");
+                }
             }
             // The scoped sniper must hide its weapon without changing action.
             break;

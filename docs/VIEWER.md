@@ -2284,9 +2284,17 @@ each shell. Empty clicks and grenade throws do not trigger firearm motion.
 Models keep their existing vertices and one draw per held weapon; part motion
 uses a pump mask and a translation in the vertex shader. Reload uses the configured weapon and storage access timer.
 
-Scoped sniper views have pronounced breathing sway and a short upward firing kick,
-scaled with zoom for comparable screen motion at both magnifications. Breathing
-reaches roughly 20 pixels from center at 720p.
+Scoped sniper views have breathing sway and a short upward firing kick,
+scaled with zoom for comparable screen motion at both magnifications. The former
+breathing amplitude (roughly 20 pixels from center at 720p) is the **1×** baseline
+for stationary crouch and standing. Stationary prone has **zero** breathing sway;
+crawling scales linearly up to **1×** at 0.75 m/s. Standing movement scales linearly
+from **1×** at rest to **2×** at 3 m/s, then **4×** at 6 m/s. Crouching retains
+**1×**. Continuous physical posture blends the adjacent stance amplitudes
+linearly, including partial or reversed transitions. Movement uses actual
+horizontal travel, so acceleration and braking change sway gradually and pushing
+against a stationary obstacle does not count as travel. Only breathing amplitude
+changes; its frequency and firing recoil retain their existing behavior.
 The reticle stays centered:
 the rendered camera and shot direction share the same temporary scope offset.
 Hip-fire aim stays unchanged. Motion uses elapsed seconds rather than frame

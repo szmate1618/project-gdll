@@ -790,7 +790,9 @@ bool updateWeapons(AppState& app, double seconds) {
     const auto result = app.weapons.fireAttempt(seconds);
     if (result == viewer::WeaponFireResult::empty && app.audio) app.audio->emptyClick();
     if (result != viewer::WeaponFireResult::fired) return false;
-    const auto aim = app.weaponMotion.aimCamera(app.rig.camera(), app.weapons.slot(), seconds, true);
+    const float sway = viewer::sniperSwayScale(glm::length(glm::vec2(app.playerVelocity.x, app.playerVelocity.z)),
+        app.rig.player().movementState().posture, app.rig.player().config());
+    const auto aim = app.weaponMotion.aimCamera(app.rig.camera(), app.weapons.slot(), seconds, true, sway);
     if (config.grenade) {
         if (!app.grenades->throwFrom(app.rig.camera().position(), app.rig.camera().direction(),
                 app.playerVelocity, seconds, *config.grenade, app.world, app.weapons.grenadeThrowPower()))
@@ -2000,8 +2002,10 @@ int run(const Options& options) {
         auto presentedCamera = app.rig.camera();
         if (!app.driver.occupied()) presentedCamera.setPosition(playerPresentation.eye(presentationAlpha));
         const auto presentedBody = playerPresentation.pose(presentationAlpha);
+        const float sway = viewer::sniperSwayScale(glm::length(glm::vec2(app.playerVelocity.x, app.playerVelocity.z)),
+            app.rig.player().movementState().posture, app.rig.player().config());
         const auto viewCamera = app.weaponMotion.aimCamera(presentedCamera, app.weapons.slot(),
-            simulationClock.seconds(), !app.driver.occupied() && !app.handling() && app.weapons.equipped().owned);
+            simulationClock.seconds(), !app.driver.occupied() && !app.handling() && app.weapons.equipped().owned, sway);
         auto flash = muzzleFlash.light(simulationClock.seconds());
         flash.position = weaponOverlay.muzzlePosition(muzzleSlot, muzzleModelPosition,
             app.weaponMotion.pose(muzzleSlot, simulationClock.seconds(), app.temporaryHandling()));
