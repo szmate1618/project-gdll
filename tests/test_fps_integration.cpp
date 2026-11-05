@@ -129,7 +129,9 @@ void testActualBuilding(const viewer::Model& model, const viewer::CollisionWorld
 
     const glm::vec3 beforeSlide = player.feet();
     input.right = 1;
-    for (int frame = 0; frame < 120; ++frame) {
+    // Both axes are still accelerating here and share effort. Allow 1.5 s
+    // to build sideways speed before requiring half a meter of wall sliding.
+    for (int frame = 0; frame < 180; ++frame) {
         player.update(1.0f / 120.0f, input, world);
         checkPlayer(player, world, model.boundsMin.y - 1, model.boundsMax.y + 1);
     }

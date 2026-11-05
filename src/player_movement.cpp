@@ -26,13 +26,13 @@ glm::vec3 FPSController::updateHorizontalMovement(float dt, const FPSInput& inpu
     const float yaw = glm::radians(input.yawDegrees);
     const glm::vec2 forward(std::cos(yaw), std::sin(yaw));
     const glm::vec2 right(-forward.y, forward.x);
-    glm::vec2 target = forward * input.forward + right * input.right;
+    glm::vec2 target(input.forward, input.right);
     const float length = glm::length(target);
     if (length > 1) target /= length;
     // Charge intent changes once, weighted by current speed. Holding a target
     // during acceleration must not charge the same velocity error every tick.
     const float intentLength = glm::length(target);
-    const glm::vec2 intent = intentLength > 0 ? target / intentLength : glm::vec2(0);
+    const glm::vec2 intent = intentLength > 0 ? (forward * target.x + right * target.y) / intentLength : glm::vec2(0);
     const float speed = glm::length(horizontalVelocity_);
     if (intentLength > 0 && speed > 0) {
         const float turn = std::min(glm::length(intent - movementIntent_),
@@ -42,21 +42,31 @@ glm::vec3 FPSController::updateHorizontalMovement(float dt, const FPSInput& inpu
     movementIntent_ = intent;
     target *= movementSpeed(input.run, input.forward, input.right);
 
-    const glm::vec2 delta = target - horizontalVelocity_;
-    const float distance = glm::length(delta);
-    if (distance > 0) {
-        const auto direction = delta / distance;
-        // One shared acceleration in m/s²: forward walk -> run takes 2.5 s.
-        const float acceleration = (config_.runSpeed - config_.walkSpeed) / 2.5f * exertion_.accelerationMultiplier();
-        // Along the velocity change, speed decreases up to the closest point
-        // to zero. Split there so reversing brakes at 2a, then speeds up at a.
-        const float brakingDistance = std::clamp(-glm::dot(horizontalVelocity_, direction), 0.f, distance);
-        const float brakingTravel = std::min(brakingDistance, 2 * acceleration * dt);
-        const float remaining = std::max(0.f, dt - brakingTravel / (2 * acceleration));
-        const float travel = brakingTravel + acceleration * remaining;
-        if (travel >= distance) horizontalVelocity_ = target;
-        else horizontalVelocity_ += direction * travel;
+    // Project world momentum onto the current input axes; looking around must
+    // not rotate the existing velocity with the camera.
+    const glm::vec2 velocity(glm::dot(horizontalVelocity_, forward), glm::dot(horizontalVelocity_, right));
+    const glm::vec2 delta = target - velocity;
+    // One shared acceleration in m/s²: forward walk -> run takes 2.5 s.
+    const float acceleration = (config_.runSpeed - config_.walkSpeed) / 2.5f * exertion_.accelerationMultiplier();
+    glm::vec2 brakingTime(0), effort(0);
+    for (int axis = 0; axis < 2; ++axis) {
+        const float distance = std::abs(delta[axis]);
+        const float brakingDistance = velocity[axis] * delta[axis] < 0 ?
+            std::min(std::abs(velocity[axis]), distance) : 0;
+        brakingTime[axis] = brakingDistance / (2 * acceleration);
+        // Effort is seconds at full axis strength, with reversal split at zero.
+        effort[axis] = std::min(dt, brakingTime[axis] + (distance - brakingDistance) / acceleration);
     }
+    const float totalEffort = glm::length(effort);
+    if (totalEffort > dt) effort *= dt / totalEffort;
+    glm::vec2 change(0);
+    for (int axis = 0; axis < 2; ++axis) {
+        // Braking consumes its share at 2a, then any remaining share uses a.
+        const float travel = acceleration * (effort[axis] + std::min(effort[axis], brakingTime[axis]));
+        change[axis] = std::copysign(std::min(travel, std::abs(delta[axis])), delta[axis]);
+    }
+    if (change == delta) horizontalVelocity_ = forward * target.x + right * target.y;
+    else horizontalVelocity_ += forward * change.x + right * change.y;
     return {horizontalVelocity_.x, 0, horizontalVelocity_.y};
 }
 

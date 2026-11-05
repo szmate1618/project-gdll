@@ -214,6 +214,68 @@ void testDirectionalSpeedsAndAcceleration() {
     }
 }
 
+void testAxisAccelerationBudget() {
+    viewer::Model model; floor(model);
+    const viewer::CollisionWorld world(model);
+    struct Case {
+        glm::vec2 velocity, input, expected;
+        const char* message;
+    };
+    // One 1/120 s tick: full single-axis acceleration changes speed by .01 m/s.
+    const Case cases[] = {
+        {{0, 0}, {1, 1}, {.007071068f, .007071068f},
+         "Diagonal acceleration must share the straight-line budget"},
+        {{3, 3}, {0, 0}, {2.985857864f, 2.985857864f},
+         "Diagonal braking must share the double-strength budget"},
+        {{3, 0}, {0, 1}, {2.985857864f, .007071068f},
+         "A right turn must brake forward at twice the sideways acceleration"},
+        {{0, -3}, {-1, 0}, {-.007071068f, -2.985857864f},
+         "Negative-axis movement must use the same mixed braking and acceleration"},
+        {{.005f, 0}, {-1, 0}, {-.0075f, 0},
+         "Reversal within a tick must brake to zero before using the remaining time to accelerate"},
+        {{.005f, 0}, {-1, 1}, {-.004571068f, .007071068f},
+         "Reversing one axis must share effort with acceleration on the other"},
+        {{1.7975f, 0}, {.6f, .8f}, {1.799925356f, .009701425f},
+         "An axis near its target must leave more effort for sideways acceleration without overshooting"},
+        {{.005f, 0}, {0, 1}, {.000149287f, .009701425f},
+         "An axis almost stopped must leave more effort for sideways acceleration"},
+        {{0, 0}, {.0003f, .0004f}, {.0009f, .0012f},
+         "Small analog targets within the budget must be reached without overshooting"},
+        {{.003f, .004f}, {0, 0}, {0, 0},
+         "Braking within the budget must stop both axes exactly"},
+        {{3, 0}, {1, 0}, {3, 0},
+         "An axis already at target must preserve its world momentum"},
+    };
+    for (const float yaw : {0.f, 37.f, 90.f, -123.f}) {
+        const float radians = glm::radians(yaw);
+        const glm::vec2 forward(std::cos(radians), std::sin(radians));
+        const glm::vec2 right(-forward.y, forward.x);
+        for (const auto& check : cases) {
+            auto player = spawned(world);
+            auto state = player.movementState();
+            state.horizontalVelocity = forward * check.velocity.x + right * check.velocity.y;
+            player.restoreMovement(state);
+            viewer::FPSInput input;
+            input.yawDegrees = yaw; input.forward = check.input.x; input.right = check.input.y;
+            player.update(1.f / 120, input, world);
+            const auto expected = forward * check.expected.x + right * check.expected.y;
+            require(glm::length(player.movementState().horizontalVelocity - expected) < .000002f, check.message);
+            if (check.expected == glm::vec2(0))
+                require(player.movementState().horizontalVelocity == glm::vec2(0), check.message);
+        }
+    }
+
+    auto player = spawned(world);
+    auto state = player.movementState();
+    state.horizontalVelocity = {3, 0};
+    state.movementIntent = {1, 0};
+    player.restoreMovement(state);
+    viewer::FPSInput input; input.forward = 1; input.yawDegrees = 90;
+    player.update(1.f / 120, input, world);
+    require(glm::length(player.movementState().horizontalVelocity - glm::vec2(2.985857864f, .007071068f)) < .000002f,
+            "Turning the camera must steer existing world momentum gradually");
+}
+
 void testGravityJumpAndCeiling() {
     viewer::Model model;
     floor(model);
@@ -421,6 +483,7 @@ int main() {
     try {
         testFlatMovementAndTime();
         testDirectionalSpeedsAndAcceleration();
+        testAxisAccelerationBudget();
         testGravityJumpAndCeiling();
         testWallsAndBuildingSpawn();
         testSlopesAndEdges();

@@ -2526,6 +2526,13 @@ from forward walking to forward running takes **2.5 s**. Braking uses **2.4 m/s�
 including releasing movement keys, choosing a slower stance, or reversing.
 Starts and turns also approach the requested velocity gradually. Multiplayer
 checkpoints retain this velocity for prediction and replay.
+Acceleration and braking are chosen independently on the current forward/backward
+and sideways axes. Each reversing axis brakes to zero before accelerating in the
+opposite direction. The axes share a normalized effort budget, so diagonal starts
+and stops keep the same overall limits as straight movement. When one axis brakes
+while the other accelerates at full strength, their rates are **2.4/√2** and
+**1.2/√2 m/s²**. An axis close to its target consumes less effort. Existing momentum
+stays in world space when the camera turns.
 Gravity is 9.81 m/s² and a grounded Space press launches at 3.8 m/s, producing an apex
 roughly 0.74 m above standing height on flat ground. Holding Space does not
 repeat jumps, and presses in the air do not add another jump.
