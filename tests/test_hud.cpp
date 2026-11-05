@@ -241,14 +241,14 @@ int main(int argc, char** argv) {
             state.health = 100.f;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto fullHealth = pixels(1280, 720);
-            require(isColor(colorAt(fullHealth, 1280, 720, 270, 605), {236,105,98}),
+            require(isColor(colorAt(fullHealth, 1280, 720, 270, 605), {89,196,156}),
                     "Full health must fill the existing health track");
             if (argc > 1) capture((std::string(argv[1]) + "-full-health.ppm").c_str(), fullHealth, 1280, 720);
             state.health = 50.5f;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto injured = pixels(1280, 720);
-            require(isColor(colorAt(injured, 1280, 720, 120, 605), {236,105,98}) &&
-                    !isColor(colorAt(injured, 1280, 720, 250, 605), {236,105,98}),
+            require(isColor(colorAt(injured, 1280, 720, 120, 605), {89,196,156}) &&
+                    !isColor(colorAt(injured, 1280, 720, 250, 605), {89,196,156}),
                     "Fractional health must fill only the remaining part of the track");
             if (argc > 1) capture((std::string(argv[1]) + "-vitals.ppm").c_str(), injured, 1280, 720);
             state.seconds = 5; state.lastDamageSeconds = 5;
@@ -265,32 +265,32 @@ int main(int argc, char** argv) {
             require(injured == pixels(1280, 720), "Damage feedback must expire without changing health");
             state.health = 0.f;
             clear(); hud.draw(state, 1280, 720); checkState();
-            require(!isColor(colorAt(pixels(1280, 720), 1280, 720, 90, 605), {236,105,98}),
+            require(!isColor(colorAt(pixels(1280, 720), 1280, 720, 90, 605), {89,196,156}),
                     "Zero health must leave an empty health track");
             state.health.reset(); state.seconds = 0; state.lastDamageSeconds = -1;
             clear(); hud.draw(state, 1280, 720); checkState();
             require(first == pixels(1280, 720), "Unknown health must retain the original placeholder layout");
             state.stamina = 1; state.strain = .75f;
             clear(); hud.draw(state, 1280, 720); checkState();
-            require(isColor(colorAt(pixels(1280, 720), 1280, 720, 270, 639), {89,196,156}),
+            require(isColor(colorAt(pixels(1280, 720), 1280, 720, 270, 639), {101,169,231}),
                     "Full stamina must fill its track");
             state.stamina = .125f;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto exertion = pixels(1280, 720);
-            require(isColor(colorAt(exertion, 1280, 720, 90, 639), {89,196,156}) &&
-                    !isColor(colorAt(exertion, 1280, 720, 250, 639), {89,196,156}),
+            require(isColor(colorAt(exertion, 1280, 720, 90, 639), {101,169,231}) &&
+                    !isColor(colorAt(exertion, 1280, 720, 250, 639), {101,169,231}),
                     "Low stamina must show its remaining fraction");
-            require(isColor(colorAt(exertion, 1280, 720, 200, 673), {231,205,101}) &&
-                    !isColor(colorAt(exertion, 1280, 720, 250, 673), {231,205,101}),
+            require(isColor(colorAt(exertion, 1280, 720, 200, 673), {236,105,98}) &&
+                    !isColor(colorAt(exertion, 1280, 720, 250, 673), {236,105,98}),
                     "Strain must replace the weariness row with its current fill");
             if (argc > 1) capture((std::string(argv[1]) + "-exertion.ppm").c_str(), exertion, 1280, 720);
             state.strain = 1.5f;
             state.health = 100.f;
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto highStrain = pixels(1280, 720);
-            require(isColor(colorAt(highStrain, 1280, 720, 270, 673), {231,205,101}) &&
-                    isColor(colorAt(highStrain, 1280, 720, 390, 673), {231,205,101}) &&
-                    !isColor(colorAt(highStrain, 1280, 720, 410, 673), {231,205,101}),
+            require(isColor(colorAt(highStrain, 1280, 720, 270, 673), {236,105,98}) &&
+                    isColor(colorAt(highStrain, 1280, 720, 390, 673), {236,105,98}) &&
+                    !isColor(colorAt(highStrain, 1280, 720, 410, 673), {236,105,98}),
                     "150% strain must extend its fill to one and a half times the original track width");
             require(colorAt(highStrain, 1280, 720, 293, 673)[2] > 180,
                     "The original frame's 100% edge must remain visible over the extended strain fill");
@@ -607,7 +607,7 @@ int main(int argc, char** argv) {
             viewer::Hud hud(fixture.directory / "ui", inventory);
             clear(); hud.draw(state, 1280, 720); checkState();
             const auto imagePixels = pixels(1280, 720);
-            require(isColor(colorAt(imagePixels, 1280, 720, 38, 596), {118,53,49}),
+            require(isColor(colorAt(imagePixels, 1280, 720, 38, 596), {45,98,78}),
                 "File image must preserve partial alpha and HUD tint with premultiplied blending");
             require(isColor(colorAt(imagePixels, 1280, 720, 51, 596), {0,0,0}),
                 "Transparent file texels must leave the scene unchanged");

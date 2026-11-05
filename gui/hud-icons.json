@@ -4,14 +4,19 @@
   "texture_size": 128,
   "icons": {
     "health": {
-      "source": "sbed/health-normal.png",
-      "author": "sbed",
-      "page": "https://game-icons.net/1x1/sbed/health-normal.html"
+      "source": "delapouite/rod-of-asclepius.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/rod-of-asclepius.html"
     },
     "stamina": {
       "source": "lorc/run.png",
       "author": "Lorc",
       "page": "https://game-icons.net/1x1/lorc/run.html"
+    },
+    "strain": {
+      "source": "delapouite/heart-beats.png",
+      "author": "Delapouite",
+      "page": "https://game-icons.net/1x1/delapouite/heart-beats.html"
     },
     "weariness": {
       "source": "delapouite/tired-eye.png",

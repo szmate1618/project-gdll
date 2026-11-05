@@ -16,20 +16,24 @@ div, span, button { border-color: #f5f6f24d; }
 .vital-track { border-color: #f5f6f2cc; }
 #mode-status, #movement-status, .weapon-divider { border-color: #f5f6f299; }
 .weapon-divider { background-color: #f5f6f299; }
-.health .square, .loadout .medkit { background-color: #ec6962; }
-.health .vital-track { background-color: #ec696299; }
+.health .square, .loadout .medkit { background-color: #59c49c; }
+.health .vital-track { background-color: #59c49c99; }
 .health-known .health .vital-track { background-color: #2b2d2fed; }
-#health-fill, .damage-edge { background-color: #ec6962; }
-.stamina .square { background-color: #59c49c; }
-.strain .square { background-color: #e7cd65; }
-.stamina .vital-track { background-color: #59c49c99; }
+#health-fill { background-color: #59c49c; }
+.damage-edge { background-color: #ec6962; }
+.stamina .square { background-color: #65a9e7; }
+.strain .square { background-color: #ec6962; }
+.stamina .vital-track { background-color: #65a9e799; }
 .stamina-known .stamina .vital-track { background-color: #2b2d2fed; }
-#stamina-fill { background-color: #59c49c; }
-.strain { color: #e7cd65; }
-.strain .vital-track { background-color: #e7cd6599; }
+#stamina-fill { background-color: #65a9e7; }
+.strain { color: #ec6962; }
+.strain .vital-track { background-color: #ec696299; }
 .strain-known .strain .vital-track { background-color: #2b2d2fed; }
-#strain-fill { background-color: #e7cd65; }
+#strain-fill { background-color: #ec6962; }
 #strain-limit { background-color: #f5f6f2cc; }
+.weariness { color: #e7cd65; }
+.weariness .square { background-color: #e7cd65; }
+.weariness .vital-track { background-color: #e7cd6599; }
 .map-caption, .vital-name span, #capture, .selection-key, .selection-hint,
 .key-label, .close-hint, .panel-meta, .storage-time, .detail-subtitle,
 .backpack-access, #map-unavailable { color: #f5f6f299; }

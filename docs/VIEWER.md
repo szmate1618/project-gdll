@@ -132,14 +132,15 @@ artwork remains represented by squares. Health, stamina
 and strain have tinted tracks at 60% opacity with white outlines at 80%.
 Health shows the player's current percentage (100% at full health) and filled amount;
 successful damage briefly pulses the screen edges red. Stamina shows its remaining
-percentage and fill. Strain replaces the inactive weariness row with a yellow
-percentage and fill. Its value is unbounded (100% = one strain unit), and its
+percentage and fill. Health uses a green Rod of Asclepius icon and green fill;
+stamina uses a blue icon and fill. Strain replaces the inactive weariness row with
+a red heartbeat icon, percentage and fill. Its value is unbounded (100% = one strain unit), and its
 fill extends beyond the original frame above 100% (150% uses 1.5 times the frame
 width). The frame's original 100% edge stays visible. Health, stamina and strain
 labels round to whole percentages; their fills retain fractional precision.
-Weariness remains reserved in the
-player data. Coordinates use local metres rather than inferred latitude
-and longitude. Prepare the ignored icon textures under `data/assets/game-icons/`
+Weariness retains its original yellow palette for its future display on the
+Health screen and remains reserved in the player data. Coordinates use local metres
+rather than inferred latitude and longitude. Prepare the ignored icon textures under `data/assets/game-icons/`
 with `.venv/bin/python tools/prepare_hud_icons.py`; see [icon sources and credits](../gui/README.md).
 The downloaded archive is reused, and no icon artwork is generated.
 
@@ -147,19 +148,19 @@ Layout lives in [hud.rml](../ui/hud.rml), [hud.rcss](../ui/hud.rcss), and
 [loadout.rcss](../ui/loadout.rcss). [palette.rcss](../ui/palette.rcss) holds shared
 color roles for gameplay, all loadout screens, and the Modern main menu. Classic
 retains its original blue/green scheme. Warm white is
-the main in-game UI color, with grey menu surfaces and the HUD's health red as
-the menu accent:
+the main in-game UI color, with grey menu surfaces and coral red as the menu accent:
 
 | Role | Color | Use |
 | --- | --- | --- |
 | Primary | White `#f5f6f2` | Text, item outlines and progress |
-| Accent | Coral `#ec6962` | Active tabs, selection markers and health |
+| Accent | Coral `#ec6962` | Active tabs, selection markers and strain |
+| Vitals | Green `#59c49c` / blue `#65a9e7` / red `#ec6962` / yellow `#e7cd65` | Health / stamina / strain / reserved weariness |
 | Placement feedback | Green `#59c49c` / yellow `#e7cd65` / red `#ec6962` | Free space, swaps and rejection |
 | Surfaces | Grey `#2b2d2f` / `#383a3c` | Menu backdrop and panels |
 
-Opacity variants provide hierarchy in menus. The gameplay HUD retains its
-original colors: red health, green stamina, yellow strain, and the original
-equipment tints (tan fists/shotgun, blue SMG, sage sniper, olive grenade).
+Opacity variants provide hierarchy in menus. Gameplay vitals use green health,
+blue stamina, red strain and reserved yellow weariness. Equipment keeps its
+original tints (tan fists/shotgun, blue SMG, sage sniper, olive grenade).
 The loadout's skill and grenade placeholders repeat their HUD equipment tints.
 Satellite imagery and terrain/road colors retain their map meaning.
 The small GL backend supports flat geometry, text, cached premultiplied PNG textures and

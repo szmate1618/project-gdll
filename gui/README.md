@@ -26,6 +26,10 @@ Missing icons do not stop the game; prepare them before running or packaging it.
 
 These icons replace gameplay HUD and weapon-selector placeholders. Inventory,
 skill-menu placeholders and the planned rendered item-details preview are separate.
+Health uses Delapouite's Rod of Asclepius (snake and staff), tinted green with
+the health bar. Stamina is blue. Strain uses Delapouite's heart-beats icon in red.
+Yellow and the tired-eye icon remain reserved for weariness when it is added to
+the Health screen.
 Standing, kneeling and crawling symbols represent the three player stances;
 the minimap uses a position dot, without implying a facing direction.
 
